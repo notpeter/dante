@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.76 2001/11/08 16:09:48 karls Exp $";
+"$Id: interposition.c,v 1.77 2003/07/01 13:21:13 michaels Exp $";
 
 #undef accept
 #undef bind

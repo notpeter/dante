@@ -22,6 +22,10 @@
 /* send/recvmsg cmsg types */
 #undef HAVE_CMSGHDR
 
+/* CMSG_LEN/SPACE */
+#undef HAVE_CMSG_LEN
+#undef HAVE_CMSG_SPACE
+
 /* Solaris 2.5 name */
 #undef HAVE_OPTHDR
 

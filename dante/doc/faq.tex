@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.44 2002/06/05 09:59:34 michaels Exp $
+%@(#)$Id: faq.tex,v 1.49 2003/04/21 12:09:06 karls Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -55,7 +55,7 @@
 	Gaustadalléen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2002/06/05 09:59:34 $$$$}
+\date{$$$$Date: 2003/04/21 12:09:06 $$$$}
 
 \makeindex
 
@@ -67,7 +67,7 @@
 
   \emph{See
    \htmladdnormallink{
-	http://www.inet.no/dante/FAQ}{http://www.inet.no/dante/FAQ} for the
+	http://www.inet.no/dante/FAQ/}{http://www.inet.no/dante/FAQ/} for the
 	latest version of this faq.}
 
    Send updates/corrections to the public mailinglist dante-misc@inet.no.
@@ -476,8 +476,11 @@ command).
       libdl.so
       libdsocks.so
   \end{verbatim}
- \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+ \emph{Thanks to: Dag Wieers <dag@wieers.com>.}
 
+ Dag Wieers also has a (RedHat) SPEC file which contains scripts for
+ doing this automatically. It can be found at:
+ \htmladdnormallink{ftp://dag.wieers.com/home-made/dante/dante.spec}{ftp://dag.wieers.com/home-made/dante/dante.spec}
 
  \subsection{Generic}
   There is another way that gives you more control over what will and what
@@ -489,13 +492,13 @@ command).
    export LD_PRELOAD
   \end{verbatim}
   to the environment. (/etc/profile ~/.profile ~/.bashrc)
-  \\ \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+  \\ \emph{Thanks to: Dag Wieers <dag@wieers.com>.}
 
   \subsubsection{Why do I want to be able to control this?}
    In same rare cases programs fail to work in a socksified environment
    (e.g. acroread 4.0 for Linux segfaults) or programs like rpm depend on a
    clean build-environment to get its (library) dependencies.
-   \\ \emph{Thanks to Dag Wieers <dag@mind.be>.}
+   \\ \emph{Thanks to Dag Wieers <dag@wieers.com>.}
 
 
  \subsubsection{How can I easily unsocksify the current shell?}
@@ -503,7 +506,7 @@ command).
   \begin{verbatim}
    unset LD_PRELOAD
   \end{verbatim}
-  \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+  \emph{Thanks to: Dag Wieers <dag@wieers.com>.}
 
 
 \section{Technical Problems}
@@ -532,6 +535,11 @@ command).
   successors, which adds \emph{LD\_PRELOAD} support to the loader.
 
   \emph{Thanks to: albert chin (china@thewrittenword.com)}
+
+ \subsection{Why do I get undefined references to \_\_bswap\_32 during
+   compilation on Linux?}
+  This is likely due to a bug in one of the system header files. A
+  workaround has been added in version 1.1.14.
 
  \subsection{How do I setup a password file for authenticating users?}
   The Dante server uses the standard system passwordfile.
@@ -605,7 +613,8 @@ command).
   
   You will also have to add LDAP support to your PAM implementation, if it
   is not already there.  Check if you have /lib/security/pam\_ldap.so or
-  the equivalent.  If not, use pam\_ldap from http://www.padl.com/.  
+  the equivalent. If not, use pam\_ldap from
+  \htmladdnormallink{http://www.padl.com/}{http://www.padl.com/}.  
   
   pam\_ldap gets its configuration from /etc/ldap.conf.  Make sure you set
   host to your LDAP server, and base to your base DN.You can also set

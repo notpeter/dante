@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.294 2002/06/05 09:59:50 michaels Exp $";
+"$Id: sockd.c,v 1.296 2003/07/01 13:21:42 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -859,7 +859,7 @@ serverinit(argc, argv, envp)
 
 		socks_seteuid(&euid, sockscf.uid.privileged);
 		/* LINTED pointer casts may be troublesome */
-		if (sockd_bind(l->s, (struct sockaddr *)&l->addr, 0) != 0) {
+		if (bind(l->s, (struct sockaddr *)&l->addr, sizeof(l->addr)) != 0) {
 			char badbind[MAXSOCKADDRSTRING];
 
 			/* LINTED pointer casts may be troublesome */

@@ -1,4 +1,4 @@
-.\" $Id: socks.conf.5,v 1.22 2001/12/12 12:31:57 karls Exp $
+.\" $Id: socks.conf.5,v 1.24 2003/04/18 10:30:31 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -55,7 +55,7 @@ value.
 \fBdebug\fP
 Setting this field to 1 turns on debugging.
 .TP
-\fBlogouput\fP
+\fBlogoutput\fP
 This value controls where the sends logoutput.  It can
 be either \fBsyslog\fP, \fBstdout\fP, \fBstderr\fP, a filename, or
 a combination.
@@ -89,13 +89,19 @@ Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
 \fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
 A portrange can also be given as "port <start #> - <end #>", which
 will match all port numbers within the range <start #> and <end #>.
+.IP \fBcommand\fP
+The server supports the given commands.  Valid commands
+are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP
+and \fBudpreply\fP. 
+and \fBudpreply\fP.  Can be used instead of, or to complement,
+\fBprotocol\fP.
 .IP \fBmethod\fP
 List of authentication methods the \fBclient\fP supports and which to
 offer the server.  Currently supported values are \fBnone\fP and
 \fBusername\fP.
 .IP \fBprotocol\fP
 The protocols the server supports.
-Currently supported values are \fBtcp\fP and \fBudp\fP.
+Supported values are \fBtcp\fP and \fBudp\fP.
 .IP \fBproxyprotocol\fP
 The proxy protocols the server supports.
 Currently supported values are \fBsocks_v4\fP, \fBsocks_v5\fP,

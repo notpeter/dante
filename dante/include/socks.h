@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.166 2002/06/05 09:59:45 michaels Exp $ */
+/* $Id: socks.h,v 1.167 2003/07/01 13:21:17 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_

@@ -4,7 +4,7 @@ static char yyrcsid[]
 #if __GNUC__ == 2
   __attribute__ ((unused))
 #endif /* __GNUC__ == 2 */
-  = "$OpenBSD: skeleton.c,v 1.16 2001/02/26 00:03:33 tholo Exp $";
+  = "$OpenBSD: skeleton.c,v 1.18 2001/11/19 19:02:18 mpech Exp $";
 #endif
 #include <stdlib.h>
 #define YYBYACC 1
@@ -1005,12 +1005,12 @@ yyparse(void)
 yyparse()
 #endif
 {
-    register int yym, yyn, yystate;
+    int yym, yyn, yystate;
 #if YYDEBUG
 #if defined(__cplusplus) || __STDC__
-    register const char *yys;
+    const char *yys;
 #else /* !(defined(__cplusplus) || __STDC__) */
-    register char *yys;
+    char *yys;
 #endif /* !(defined(__cplusplus) || __STDC__) */
 
     if ((yys = getenv("YYDEBUG")))

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.132 2002/01/02 14:30:23 michaels Exp $";
+"$Id: util.c,v 1.134 2003/07/01 13:21:34 michaels Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -153,14 +153,14 @@ sockshost2sockaddr(host, addr)
 	struct sockaddr *addr;
 {
 	const char *function = "sockshost2sockaddr()";
-	uint8_t sa_len;
+	uint8_t sa_length;
 
 	bzero(addr, sizeof(*addr));
 
 	switch (host->atype) {
 		case SOCKS_ADDR_IPV4:
 			addr->sa_family = AF_INET;
-			sa_len = sizeof(struct sockaddr_in);
+			sa_length = sizeof(struct sockaddr_in);
 
 			/* LINTED pointer casts may be troublesome */
 			TOIN(addr)->sin_addr = host->addr.ipv4;
@@ -170,7 +170,7 @@ sockshost2sockaddr(host, addr)
 			struct hostent *hostent;
 
 			addr->sa_family = AF_INET;
-			sa_len = sizeof(struct sockaddr_in);
+			sa_length = sizeof(struct sockaddr_in);
 
 			if ((hostent = gethostbyname(host->addr.domain)) == NULL
 			||   hostent->h_addr_list == NULL) {
@@ -195,7 +195,7 @@ sockshost2sockaddr(host, addr)
 	}
 
 #if HAVE_SOCKADDR_SA_LEN
-	addr->sa_len = sa_len;
+	addr->sa_len = sa_length;
 #endif
 
 	/* LINTED pointer casts may be troublesome */
@@ -211,7 +211,7 @@ fakesockshost2sockaddr(host, addr)
 {
 	const char *function = "fakesockshost2sockaddr()";
 	char string[MAXSOCKSHOSTSTRING];
-	uint8_t sa_len;
+	uint8_t sa_length;
 
 #if SOCKS_CLIENT /* may be called before normal init, log to right place. */
 	clientinit();
@@ -225,7 +225,7 @@ fakesockshost2sockaddr(host, addr)
 	switch (host->atype) {
 		case SOCKS_ADDR_DOMAIN:
 			addr->sa_family = AF_INET;
-			sa_len = sizeof(struct sockaddr_in);
+			sa_length = sizeof(struct sockaddr_in);
 
 			/* LINTED pointer casts may be troublesome */
 			if (socks_getfakeip(host->addr.domain, &TOIN(addr)->sin_addr))
@@ -237,7 +237,7 @@ fakesockshost2sockaddr(host, addr)
 	}
 
 #if HAVE_SOCKADDR_SA_LEN
-	addr->sa_len = sa_len;
+	addr->sa_len = sa_length;
 #endif
 
 	/* LINTED pointer casts may be troublesome */

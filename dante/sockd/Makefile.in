@@ -90,10 +90,10 @@ am__quote = @am__quote@
 install_sh = @install_sh@
 
 sbin_PROGRAMS = sockd
-sockd_SOURCES = sockd.c sockd_child.c io.c sockd_negotiate.c \
-	sockd_request.c method_uname.c debug.c udp_util.c util.c log.c  \
-	socket.c sockd_socket.c config_parse.y config_scan.l config.c   \
-	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c     \
+sockd_SOURCES = config_parse.y config_scan.l sockd.c sockd_child.c io.c \
+        sockd_negotiate.c sockd_request.c method_uname.c debug.c \
+        udp_util.c util.c log.c	socket.c sockd_socket.c  config.c \
+	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c \
 	hostcache.c interposition.c broken.c serr.c sockd_io.c accesscheck.c \
 	auth_password.c auth_pam.c tostring.c redirect.c redirect_key.c \
 	addressmatch.c checkmodule.c bandwidth.c bandwidth_key.c getifa.c
@@ -151,12 +151,12 @@ CONFIG_CLEAN_FILES =
 sbin_PROGRAMS = sockd$(EXEEXT)
 PROGRAMS = $(sbin_PROGRAMS)
 
-am_sockd_OBJECTS = sockd.$(OBJEXT) sockd_child.$(OBJEXT) io.$(OBJEXT) \
+am_sockd_OBJECTS = config_parse.$(OBJEXT) config_scan.$(OBJEXT) \
+	sockd.$(OBJEXT) sockd_child.$(OBJEXT) io.$(OBJEXT) \
 	sockd_negotiate.$(OBJEXT) sockd_request.$(OBJEXT) \
 	method_uname.$(OBJEXT) debug.$(OBJEXT) udp_util.$(OBJEXT) \
 	util.$(OBJEXT) log.$(OBJEXT) socket.$(OBJEXT) \
-	sockd_socket.$(OBJEXT) config_parse.$(OBJEXT) \
-	config_scan.$(OBJEXT) config.$(OBJEXT) sockd_util.$(OBJEXT) \
+	sockd_socket.$(OBJEXT) config.$(OBJEXT) sockd_util.$(OBJEXT) \
 	sockd_protocol.$(OBJEXT) serverconfig.$(OBJEXT) \
 	lib_protocol.$(OBJEXT) hostcache.$(OBJEXT) \
 	interposition.$(OBJEXT) broken.$(OBJEXT) serr.$(OBJEXT) \

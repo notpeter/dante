@@ -8,6 +8,12 @@
         Inferno Nettverk takes no responsibility for any of these
         files, use them at your own risk (as always).
 
+		  If any of these are no longer working, please send
+		  a bug-report so they can be removed.  If you
+		  have suggestions for improvements, please contact
+		  the author of the contributed file, not Inferno Nettverk.
+
 
 Filename 				Description
 sockd-stat.awk			provides statistics based on sockd logfiles
+Startup*			startupitems for Mac OS X

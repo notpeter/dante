@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.110 2001/12/12 14:42:11 karls Exp $";
+"$Id: connectchild.c,v 1.113 2003/07/01 13:21:27 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -479,7 +479,7 @@ run_connectchild(mother)
 
 
 #if !HAVE_DEFECT_RECVMSG
-			SASSERTX(CMSG_GETLEN(msg) == sizeof(int) * len);
+			SASSERTX(CMSG_TOTLEN(msg) == CMSG_SPACE(sizeof(int) * len));
 #endif
 
 			len = 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.80 2001/12/11 12:26:46 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.84 2003/07/01 13:21:46 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -194,7 +194,7 @@ run_negotiate(mother)
 			const char *reason = "negotiation timed out";
 
 			iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->src,
-			&neg->state.auth, &neg->dst, NULL, reason, strlen(reason));
+			&neg->state.auth, &neg->dst, NULL, reason, 0);
 			delete_negotiate(mother, neg);
 		}
 
@@ -258,7 +258,7 @@ run_negotiate(mother)
 				}
 
 				iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->src,
-				&neg->state.auth, &neg->dst, NULL, reason, strlen(reason));
+				&neg->state.auth, &neg->dst, NULL, reason, 0);
 
 				delete_negotiate(mother, neg);
 			}
@@ -403,7 +403,7 @@ recv_negotiate(mother)
 		SERRX(allocated());
 
 #if !HAVE_DEFECT_RECVMSG
-	SASSERT(CMSG_GETLEN(msg) == sizeof(int) * fdexpect);
+	SASSERT(CMSG_TOTLEN(msg) == CMSG_SPACE(sizeof(int) * fdexpect));
 #endif
 
 	fdreceived = 0;
@@ -438,7 +438,7 @@ recv_negotiate(mother)
 	&neg->src, &neg->dst, ruleinfo, sizeof(ruleinfo));
 
 	iolog(&neg->rule, &neg->state, OPERATION_ACCEPT, &neg->src, &neg->state.auth,
-	&neg->dst, NULL, ruleinfo, strlen(ruleinfo));
+	&neg->dst, NULL, ruleinfo, 0);
 
 	neg->allocated = 1;
 

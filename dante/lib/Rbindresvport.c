@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbindresvport.c,v 1.21 2001/12/12 14:42:06 karls Exp $";
+"$Id: Rbindresvport.c,v 1.22 2003/07/01 13:21:22 michaels Exp $";
 
 /*
  * Note that for this function to work correctly the remote socksserver

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.306 2002/06/17 17:37:33 karls Exp $ */
+/* $Id: common.h,v 1.312 2003/07/01 13:21:15 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -179,6 +179,15 @@
 #endif /* HAVE_PAM */
 
 #include "yacconfig.h"
+
+#if HAVE_LINUX_BUGS
+#if (defined __bswap_16) && (!defined __bswap_32)
+#undef ntohl
+#undef ntohs
+#undef htonl
+#undef htons
+#endif
+#endif /* HAVE_LINUX_BUGS */
 
 #ifdef lint
 extern const int lintnoloop_common_h;
@@ -586,13 +595,25 @@ extern int h_errno;
  */
 
 /*
+ * Modern CMSG alignment macros. Use them if the platform has them,
+ * if not we get the default behaviour.
+ */
+#if !HAVE_CMSG_LEN
+#define CMSG_LEN(a) (a)
+#endif /* !HAVE_CMSG_LEN */
+
+#if !HAVE_CMSG_SPACE
+#define CMSG_SPACE(a) (a)
+#endif /* !HAVE_CMSG_SPACE */
+
+/*
  * allocate memory for a controlmessage of size "size".  "name" is the
  * name of the allocated memory.
  */
 #if HAVE_CMSGHDR
 #define CMSG_AALLOC(name, size) \
 	union { \
-		char cmsgmem[sizeof(struct cmsghdr) + (size)]; \
+		char cmsgmem[CMSG_SPACE(size)]; \
 		struct cmsghdr align; \
 	} __CONCAT3(_, name, mem); \
 	struct cmsghdr *name = &__CONCAT3(_, name, mem).align
@@ -666,7 +687,7 @@ extern int h_errno;
 	do { \
 		controlmem->cmsg_level		= SOL_SOCKET; \
 		controlmem->cmsg_type		= SCM_RIGHTS; \
-		controlmem->cmsg_len			= sizeof(struct cmsghdr) + (size); \
+		controlmem->cmsg_len			= CMSG_LEN(size); \
 		\
 		object.msg_control		= (caddr_t)controlmem; \
 		object.msg_controllen	= controlmem->cmsg_len; \
@@ -700,9 +721,15 @@ extern int h_errno;
 
 /* returns length of controldata actually sent. */
 #if HAVE_CMSGHDR
-#define CMSG_GETLEN(msg)	((msg).msg_controllen - sizeof(struct cmsghdr))
+#define CMSG_GETLEN(msg)	((msg).msg_controllen - CMSG_LEN(0))
 #else
 #define CMSG_GETLEN(msg)	((msg).msg_accrightslen)
+#endif
+
+#if HAVE_CMSGHDR
+#define CMSG_TOTLEN(msg)	((msg).msg_controllen)
+#else
+#define CMSG_TOTLEN(msg)	((msg).msg_accrightslen)
 #endif
 
 

@@ -1,8 +1,8 @@
 sbin_PROGRAMS = sockd
-sockd_SOURCES = sockd.c sockd_child.c io.c sockd_negotiate.c \
-	sockd_request.c method_uname.c debug.c udp_util.c util.c log.c  \
-	socket.c sockd_socket.c config_parse.y config_scan.l config.c   \
-	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c     \
+sockd_SOURCES = config_parse.y config_scan.l sockd.c sockd_child.c io.c \
+        sockd_negotiate.c sockd_request.c method_uname.c debug.c \
+        udp_util.c util.c log.c	socket.c sockd_socket.c  config.c \
+	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c \
 	hostcache.c interposition.c broken.c serr.c sockd_io.c accesscheck.c \
 	auth_password.c auth_pam.c tostring.c redirect.c redirect_key.c \
 	addressmatch.c checkmodule.c bandwidth.c bandwidth_key.c getifa.c
