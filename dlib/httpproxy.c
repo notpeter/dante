@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.4 2000/09/25 07:35:37 michaels Exp $";
+"$Id: httpproxy.c,v 1.5 2000/10/15 13:02:44 michaels Exp $";
 
 int
 httpproxy_negotiate(s, packet)
@@ -56,6 +56,8 @@ httpproxy_negotiate(s, packet)
 	char host[MAXSOCKSHOSTSTRING];
 	int checked, eof;
 	ssize_t len, rc;
+	struct sockaddr addr;
+	socklen_t addrlen;
 
 	slog(LOG_DEBUG, function);
 
@@ -133,11 +135,15 @@ httpproxy_negotiate(s, packet)
 						packet->res.reply = (unsigned char)(atoi(&buf[strlen(offset)])
 						== HTTP_SUCCESS ? HTTP_SUCCESS : !HTTP_SUCCESS);
 
-						/* we don't know what address the server will use. */
-						packet->res.host.atype 					= SOCKS_ADDR_IPV4;
-						packet->res.host.atype 					= SOCKS_ADDR_IPV4;
-						packet->res.host.addr.ipv4.s_addr 	= htonl(INADDR_ANY);
-						packet->res.host.port					= htons(0);
+
+						/*
+						 * we don't know what address the server will use on
+						 * our behalf, set it to what we use, better than nothing.
+						*/
+						addrlen = sizeof(addr);
+						if (getsockname(s, &addr, &addrlen) != 0)
+							SWARN(s);
+						sockaddr2sockshost(&addr, &packet->res.host);
 
 						checked = 1;
 						break;
