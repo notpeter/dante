@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.246 2000/05/31 12:14:49 karls Exp $ */
+/* $Id: common.h,v 1.247 2000/06/09 10:45:16 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -111,7 +111,7 @@
 #include <crypt.h>
 #endif  /* HAVE_CRYPT_H */
 #include <ctype.h>
-#if SOCKSLIBRARY_DYNAMIC 
+#if SOCKSLIBRARY_DYNAMIC
 #include <dlfcn.h>
 #endif  /* SOCKSLIBRARY_DYNAMIC */
 #include <errno.h>
@@ -690,9 +690,9 @@ do {														\
 
 #define AUTHMETHOD_MAX			(AUTHMETHOD_RFC931 + 1)
 
-#define MAXMETHODLEN				MAX(sizeof(AUTHMETHOD_NONEs), 	\
-										MAX(sizeof(AUTHMETHOD_GSSAPIs), 	\
-										MAX(sizeof(AUTHMETHOD_UNAMEs), 	\
+#define MAXMETHODLEN				MAX(sizeof(AUTHMETHOD_NONEs),		\
+										MAX(sizeof(AUTHMETHOD_GSSAPIs),	\
+										MAX(sizeof(AUTHMETHOD_UNAMEs),	\
 										sizeof(AUTHMETHOD_RFC931s))))
 
 /*
@@ -1574,13 +1574,13 @@ readn __P((int, void *, size_t, struct authmethod_t *auth));
 ssize_t
 writen __P((int, const void *, size_t, struct authmethod_t *auth));
 /*
- * like write() but retries and takes an additional "auth" argument 
+ * like write() but retries and takes an additional "auth" argument
  * to be used if not NULL.
  */
 
 ssize_t
 socks_recvfrom __P((int, void *, size_t, int, struct sockaddr *, socklen_t *,
-   					  struct authmethod_t *auth));
+						  struct authmethod_t *auth));
 /*
  * Like recvfrom(), but with an additional auth argument to be used
  * if not NULL.
@@ -1588,7 +1588,7 @@ socks_recvfrom __P((int, void *, size_t, int, struct sockaddr *, socklen_t *,
 
 ssize_t
 socks_sendto __P((int, const void *, size_t, int, const struct sockaddr *,
- 						socklen_t, struct authmethod_t *auth));
+						socklen_t, struct authmethod_t *auth));
 /*
  * Like sendto(), but with an additional auth argument to be used
  * if not NULL.
@@ -2093,14 +2093,14 @@ void vsyslog __P((int, const char *, va_list));
 
 struct passwd *
 socks_getpwnam __P((const char *login));
-/* 
+/*
  * Like getpwnam() but works around sysv bug, tries to get the shadow
  * password too.
 */
 
 __END_DECLS
 
-#if SOCKSLIBRARY_DYNAMIC 
+#if SOCKSLIBRARY_DYNAMIC
 #include "interposition.h"
 #endif /* SOCKSLIBRARY_DYNAMIC */
 

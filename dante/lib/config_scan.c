@@ -1190,7 +1190,7 @@ extern int parseinit;
 extern const int configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.53 2000/05/31 12:14:52 karls Exp $";
+"$Id: config_scan.l,v 1.54 2000/06/09 10:45:18 karls Exp $";
 
 /*%option debug          */
 /* non-exclusive startconditions. */
@@ -1584,7 +1584,7 @@ YY_RULE_SETUP
 #line 167 "config_scan.l"
 {
 	BEGIN(start_portnumber);
-	
+
 	yylval.string = yytext;
 	return OPERATOR;
 }

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.148 2000/05/12 10:20:54 michaels Exp $ */
+/* $Id: sockd.h,v 1.149 2000/06/09 10:45:17 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -117,7 +117,7 @@ do {																			\
 /*
  * Checks whether "object" has been filled with all data requested and
  * if so calls "function", if function is not NULL.
- * If "object" has not been filled it returns the number of bytes 
+ * If "object" has not been filled it returns the number of bytes
  * that was added to object on this call, or error.
 */
 
@@ -324,9 +324,9 @@ struct sockd_io_direction_t {
 	struct sockaddr_in			raddr;		/* address of remote peer for s.		*/
 
 	/*
-	 * Varies according to context.  
-	 * src: 		as laddr but on sockshost_t form.
-	 * dst: 		name as given by client.
+	 * Varies according to context.
+	 * src:		as laddr but on sockshost_t form.
+	 * dst:		name as given by client.
 	 * control: as laddr
 	*/
 	struct sockshost_t			host;

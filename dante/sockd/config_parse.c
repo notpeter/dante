@@ -4,7 +4,7 @@ static char yyrcsid[]
 #if __GNUC__ == 2
   __attribute__ ((unused))
 #endif /* __GNUC__ == 2 */
-  = "$OpenBSD: skeleton.c,v 1.13 1998/11/18 15:45:12 dm Exp $";
+  = "$OpenBSD: skeleton.c,v 1.15 2000/01/27 21:34:23 deraadt Exp $";
 #endif
 #include <stdlib.h>
 #define YYBYACC 1
@@ -49,7 +49,7 @@ static char yyrcsid[]
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.129 2000/05/31 12:14:51 karls Exp $";
+"$Id: config_parse.y,v 1.130 2000/06/09 10:45:18 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -801,18 +801,27 @@ static int yygrowstack()
     newss = yyss ? (short *)realloc(yyss, newsize * sizeof *newss) :
       (short *)malloc(newsize * sizeof *newss);
     if (newss == NULL)
-        return -1;
+        goto bail;
     yyss = newss;
     yyssp = newss + i;
     newvs = yyvs ? (YYSTYPE *)realloc(yyvs, newsize * sizeof *newvs) :
       (YYSTYPE *)malloc(newsize * sizeof *newvs);
     if (newvs == NULL)
-        return -1;
+        goto bail;
     yyvs = newvs;
     yyvsp = newvs + i;
     yystacksize = newsize;
     yysslim = yyss + newsize - 1;
     return 0;
+bail:
+    if (yyss)
+            free(yyss);
+    if (yyvs)
+            free(yyvs);
+    yyss = yyssp = NULL;
+    yyvs = yyvsp = NULL;
+    yystacksize = 0;
+    return -1;
 }
 
 #define YYABORT goto yyabort
@@ -1613,8 +1622,8 @@ break;
 case 161:
 #line 984 "config_parse.y"
 {
-		ruleaddress->portend 	= htons((in_port_t)atoi(yyvsp[0].string));
-		ruleaddress->operator 	= range;
+		ruleaddress->portend		= htons((in_port_t)atoi(yyvsp[0].string));
+		ruleaddress->operator	= range;
 	}
 break;
 case 162:
@@ -1671,7 +1680,7 @@ case 163:
 		*operator = string2operator(yyvsp[0].string);
 	}
 break;
-#line 1675 "y.tab.c"
+#line 1684 "y.tab.c"
     }
     yyssp -= yym;
     yystate = *yyssp;

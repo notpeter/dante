@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.106 2000/05/31 12:14:54 karls Exp $";
+"$Id: serverconfig.c,v 1.107 2000/06/09 10:45:19 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -101,7 +101,7 @@ static struct rule_t *
 addrule __P((const struct rule_t *newrule, struct rule_t **rulebase,
 				 int client));
 /*
- * Appends a copy of "newrule" to "rulebase". 
+ * Appends a copy of "newrule" to "rulebase".
  * If "client" is true, "newrule" is a clientrule.
  * Returns a pointer to the added rule (not "newrule").
  */
@@ -143,7 +143,7 @@ addclientrule(newrule)
 
 				snprintf(buf, sizeof(buf), "method %s is not valid for clientrules",
 				method2string(rule->state.methodv[i]));
-				
+
 				yyerror(buf);
 			}
 		}
@@ -589,7 +589,7 @@ rulespermit(s, match, state, src, dst)
 		defrule.dst									= defrule.src;
 
 		memset(&defrule.log, 0, sizeof(defrule.log));
-		defrule.log.connect 		= 1;
+		defrule.log.connect		= 1;
 		defrule.log.iooperation	= 1; /* blocked iooperations. */
 
 		if (config.option.debug) {
@@ -852,7 +852,7 @@ authinfo(auth, info, infolen)
 
 	if (auth != NULL) {
 		methodname = method2string(auth->method);
-		
+
 		switch (auth->method) {
 			case AUTHMETHOD_NONE:
 			case AUTHMETHOD_NOACCEPT: /* closing connection next presumably. */
@@ -946,7 +946,7 @@ addrule(newrule, rulebase, client)
 						addmethod = 1;
 						break;
 
-					case AUTHMETHOD_UNAME: 
+					case AUTHMETHOD_UNAME:
 					case AUTHMETHOD_RFC931:
 						addmethod = 1;
 						break;

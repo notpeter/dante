@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.29 2000/04/09 10:14:43 karls Exp $";
+"$Id: method_uname.c,v 1.31 2000/06/04 17:03:28 michaels Exp $";
 
 int
 clientmethod_uname(s, host, version)
@@ -88,7 +88,7 @@ clientmethod_uname(s, host, version)
 	if (!unameisok) {
 		if ((name = (unsigned char *)socks_getusername(host, (char *)offset + 1,
 		MAXNAMELEN)) == NULL) {
-			swarnx("%s: could not determine username of client", function);
+			swarn("%s: could not determine username of client", function);
 			return -1;
 		}
 
@@ -108,7 +108,7 @@ clientmethod_uname(s, host, version)
 	if (!unameisok) {
 		if ((password = (unsigned char *)socks_getpassword(host, (char *)name,
 		(char *)offset + 1, MAXPWLEN)) == NULL) {
-			swarnx("%s: could not determine password of client", function);
+			swarn("%s: could not determine password of client", function);
 			return -1;
 		}
 

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.173 2000/05/31 12:14:55 karls Exp $";
+"$Id: sockd_io.c,v 1.174 2000/06/09 10:45:20 karls Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -830,7 +830,7 @@ doio(mother, io, rset, wset, flags)
 				 * assume the first packet is from is it.
 				 * Client can only blame itself if not.
 				 */
-				if (io->src.raddr.sin_addr.s_addr 	== htonl(INADDR_ANY)
+				if (io->src.raddr.sin_addr.s_addr	== htonl(INADDR_ANY)
 				||  io->src.raddr.sin_port				== htons(0)) {
 					if (io->src.raddr.sin_addr.s_addr == htonl(INADDR_ANY))
 					/* LINTED pointer casts may be troublesome */

@@ -1,7 +1,7 @@
 2AC_INIT(include/socks.h)
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+prerelease="2"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else
@@ -47,7 +47,7 @@ esac
 case $host in
 
 	*-*-*bsd* | alpha-dec-osf* | *-*-hpux* | *-*-aix4*)
- 		no_acceptlock=t
+		no_acceptlock=t
 	;;
 
 	*-*-solaris*)
@@ -63,7 +63,7 @@ case $host in
 		if test x"${solaris_newversion}" = x"t"; then
 			no_acceptlock=t
 		fi
- 	;;
+	;;
 
 esac
 
@@ -116,11 +116,11 @@ case $host in
 	*-*-irix*)
 		PRELOAD="RLD"
 	;;
- 	*-*-aix4*)
-	        OSPIDFILE="/etc/sockd.pid"
- 		AC_AIX
- 		AC_DEFINE(_ALL_SOURCE)
- 	;;
+	*-*-aix4*)
+		OSPIDFILE="/etc/sockd.pid"
+		AC_AIX
+		AC_DEFINE(_ALL_SOURCE)
+	;;
 
 esac
 
@@ -200,9 +200,9 @@ case $host in
 	if test "x$GCC" = x; then
 	    comp_flags="-qlanglvl=ansi"
 	    #XXX
- 	    CPPFLAGS="${CPPFLAGS} -qlanglvl=ansi"
+	    CPPFLAGS="${CPPFLAGS} -qlanglvl=ansi"
 	fi
- 	AC_MSG_RESULT($comp_flags)
+	AC_MSG_RESULT($comp_flags)
      ;;
 
     *)
@@ -819,7 +819,7 @@ case $host in
 	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_1, const char *)
 	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_2, int)
 	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_3, int)
- 	;;
+	;;
 	*)
 
 	L_SOCKPROTO(gethostbyaddr, [failproto=t],
@@ -1110,7 +1110,7 @@ if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_inet_addr}" = "x-lnsl"; t
 		AC_DEFINE(LIBRARY_GETHOSTBYNAME, LIBRARY_LIBNSL))
 
 
-	AC_CHECK_LIB(resolv, gethostbyaddr,
+	AC_CHECK_LIB(nsl, gethostbyaddr,
 		[AC_DEFINE(LIBRARY_GETHOSTBYADDR, LIBRARY_LIBNSL)])
 fi
 
@@ -1308,9 +1308,9 @@ AC_EGREP_CPP(sig_atomic_t, [
 #include <signal.h>
 ], [AC_DEFINE(HAVE_SIG_ATOMIC_T)
     case $host in
-    	*-*-aix*)
- 		AC_DEFINE(HAVE_VOLATILE_SIG_ATOMIC_T)
- 	;;
+	*-*-aix*)
+		AC_DEFINE(HAVE_VOLATILE_SIG_ATOMIC_T)
+	;;
     esac
     AC_MSG_RESULT(yes)],
    [AC_MSG_RESULT(no)])

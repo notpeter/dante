@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.95 2000/05/31 12:14:52 karls Exp $";
+"$Id: connectchild.c,v 1.96 2000/06/08 12:47:56 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -158,12 +158,12 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 				slog(LOG_DEBUG, "%s: connectchild forked", function);
 
-				setsid();
-
 				/* close unknown descriptors. */
 				for (i = 0, max = getdtablesize(); i < max; ++i)
 					if (socks_logmatch(i, &config.log)
 					|| i == (unsigned int)pipev[CHILD])
+						continue;
+					else if (isatty(i))
 						continue;
 					else
 						close((int)i);

@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.129 2000/05/31 12:14:51 karls Exp $";
+"$Id: config_parse.y,v 1.130 2000/06/09 10:45:18 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -982,8 +982,8 @@ portstart:	PORTNUMBER {
 	;
 
 portend:	PORTNUMBER {
-		ruleaddress->portend 	= htons((in_port_t)atoi($1));
-		ruleaddress->operator 	= range;
+		ruleaddress->portend		= htons((in_port_t)atoi($1));
+		ruleaddress->operator	= range;
 	}
 	;
 

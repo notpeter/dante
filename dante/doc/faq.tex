@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.18 2000/05/11 10:09:30 michaels Exp $
+%@(#)$Id: faq.tex,v 1.19 2000/06/09 10:45:15 karls Exp $
 \documentclass[a4paper, final, twoside, english]{article}
 \usepackage[latin1]{inputenc}
 \usepackage[T1]{fontenc}
@@ -26,7 +26,7 @@
   Because you were unable to provide a usable bug report.  Since
   there are so many of you, we prefer to refer you to this FAQ rather
   than repeating ourselves over and over.
-  
+
  \subsection{Why is "it does not work" not a good bug report?}
   It's a common misconception among users who have never done any
   programming that by stating something along the lines of "it does
@@ -35,27 +35,27 @@
   a shred of doubt be able to pin-point that one line, that one line
   among the thousands of other lines, responsible for it "not working"
   or "segmentation faulting".
-  
+
   The fact is, any one of the tens of thousands of lines could be
   the "bad" line, we don't have time to re-read them all each time
   we get a "it does not work" message.
-  
+
  \subsection{How can I provide you with the information you need?}
   First of all, look in the config file you are using.
   If you are using the Dante client, it's /etc/socks.conf.
   If you are using the Dante server, it's /etc/sockd.conf.
   Both files contain by default the lines "logoutput:".  Set "logoutput:"
   to some file that Dante can log output to.
-  
+
   If the problem is with the client, also uncomment the line containing
   "debug".
   If the problem is with the server, also add "-dl" to whatever
   arguments you usually start the server with.
-  
+
   Repeat whatever you did to produce the error and look at the
   log messages.  Do they provide any hints?  Could this be
   a user error on your part rather than a bug?  (of course not.)
-  
+
   If it looks like a user error, you configured something wrong, etc.
   you can try sending a mail to dante-misc@inet.no, a public mailing
   list where someone might be kind enough to help you if you formulate
@@ -63,7 +63,7 @@
   And remember, unless you are a customer of Inferno Nettverk, no one
   owes you any support or help, you are the one asking someone to
   spend their time to help you, not the other way around.
-  
+
   If it looks like a bug, first perform the following step:
   \begin{enumerate}
    \item{} Make sure that you are using the latest
@@ -71,10 +71,10 @@
       and you are using official release.  Always check
       ftp.inet.no:/pub/socks/ to see if there's a later version
       before sending a bugreport.
-  
+
   Next, depending on whether the suspected bug is in the client
   or sever, do one of the following:
-  
+
    If it's a bug in the client:
   \begin{enumerate}
     \item{} Compile the program you are trying to socksify with the compiler
@@ -86,58 +86,58 @@
      Save the output to a file.  If you have a program that can
      trace library calls too (late version of Solaris truss and redhat
      linux apparently do), please include information about that too.
-    \item{} If a coredump was generated do 
+    \item{} If a coredump was generated do
   \begin{verbatim}
-         $ gdb <bad program> <coredump>
-         (gdb) backtrace 50
+	$ gdb <bad program> <coredump>
+	(gdb) backtrace 50
   \end{verbatim}
-  
+
    Save the output to a file.
   \end{enumerate}
-   
+
    If it's a bug in the server:
   \begin{enumerate}
    \item{} Compile Dante with "-g" (--enable-debugging option to configure).
    \item{} Set debug and logoutput as described above.
    \item{} cp /dev/null <logoutput file> (to make sure it's empty.)
    \item{} If the server crashed/exited due to the bug, a coredump should
-     be generated.  If you do not find a coredump in the directory
-     you started the Dante server from you need to find out why.
-     Some possible reasons are:
-        a) your shell has disabled coredumps (check what ulimit(1))
-        says.
-        b) some systems by default disable coredumps on
-        processes that are either setuid, or that are run by root.
-  
-    When you have found the coredump do 
+	be generated.  If you do not find a coredump in the directory
+	you started the Dante server from you need to find out why.
+	Some possible reasons are:
+	a) your shell has disabled coredumps (check what ulimit(1))
+	says.
+	b) some systems by default disable coredumps on
+	processes that are either setuid, or that are run by root.
+
+    When you have found the coredump do
   \begin{verbatim}
-         $ gdb <Dante server> <coredump>
-         (gdb) backtrace 50
+	$ gdb <Dante server> <coredump>
+	(gdb) backtrace 50
   \end{verbatim}
        Save the output to a file.
   \end{enumerate}
-  
+
   Then:
     \item{} In addition to the server/client specific files mentioned below,
       include the output from configure and the file "include/autoconf.h".
-  
+
     \item{} Collect the output from configure and the file include/autoconf.h,
        the <logoutput file>, gdb/ktrace/truss/strace/whatever output
        in a orderly fashion so it's easy to read and understand, and
        send it to us.  Make sure you include information about what
        all the ipaddresses in the logfiles are (10.0.0.1 is "client
        using lynx", 10.0.0.2 is "remote webserver", etc.).
-  
+
        The address to use for Dante bugs is dante-bugs@inet.no.  See
        the BUGS file coming with Dante.
-  
+
     \item{} If you have the possibility to create a temporary account for
        one of the Dante developers in the case we are unable to
        reproduce the error on our own systems, please mention that
        in the bugreport (but don't create the account until we ask
        for it, we rarely need it).
   \end{enumerate}
- 
+
 
 \section{Technical Problems}
  \subsection{Why doesn't the socksify program work with glibc-2?}
@@ -145,25 +145,25 @@
   installed) socksify won't work if logging is enabled. The server will
   also crash when it exits. Upgrade the header files (/usr/include) and
   compile again.
- 
+
  \subsection{Why doesn't socksify work on cvs?}
   It does work.  A problem however is that cvs usually ends up calling
   a setuid program (rsh, ssh, whatever).  See section~\ref{setuid}.
- 
+
  \subsection{Why doesn't socksify work on setuid programs like ssh, rsh, etc?}
   \label{setuid}
   The reason is that these programs are setuid.  Most systems will
   ignore the work socksify has done before running these programs and
   the result becomes the the same as not using socksify on them.
-  
+
   Solution: strip off the suid bit if possible or recompile the binary
   (rsh, ssh, etc) with explicit socks support (adding "-ldsocks"
   to the linkoptions is usually enough.)
- 
+
  \subsection{How do I setup a password file for authenticating users?}
   The Dante server uses the standard system passwordfile.
   Put the server in a chroot jail to manage a separate passwordfile.
- 
+
  \subsection{How can I more easily get the Dante server to work when the
 	     external interface is using dynamic ipaddresses?}
 
@@ -172,49 +172,49 @@
    Automatically running a script that changes the "external:" line
    in your sockd.conf and then sends the server a SIGHUP when you get
    a new address should be simple enough though.
-   
+
    A example of such a script is the following, modify to suit.
 
    \begin{verbatim}
     #!/bin/sh -
     #
     # usage: script.sh <new external ipaddress>
-  	 
+
     : {SOCKD_CONF='/etc/sockd.conf'}
-   
+
     if [ ! -w ${SOCKD_CONF} ]; then
        echo "${SOCKD_CONF} does not exist or is not writable"
        exit 1
     fi
-   
+
     ex - +'1,$s/^external:.*/external: '$1'/ | wq' ${SOCKD_CONF}
     kill -HUP `cat /var/run/sockd.pid`
    \end{verbatim}
-   
+
     As you see, this is intended to be called as "<scriptname>
     <external ip>", where <external ip> is your external ip.  We
     assume you can easily get the external ip from your ppp script.
 
   \subsubsection{RedHat Linux 6.0}
    This should work for normal modem dialup or ADSL connection with dynamic
-   address.   
- 
+   address.
+
    Suppose one is using ppp and the external interface is "ppp0",
    he/she can call the following script in "/etc/ppp/ip-up.local".
    Whenever ppp is up, this script will be called automatically.
-   
+
    \begin{verbatim}
     #!/bin/bash
     #
-     
+
     SOCKD_CONF="/etc/sockd.conf"
-    
+
     EXPIP=`/sbin/ifconfig ppp0 | grep inet | cut -d : -f 2 | cut -d \  -f 1`
-     
+
     /bin/ex - +'1,$s/^external:.*/external: '$EXPIP'/ | wq' $SOCKD_CONF
-     
+
     kill -HUP `cat /var/run/sockd.pid`
-    
+
     exit 0
    \end{verbatim}
    \emph{Thanks to: Tin Yu Mak <makty@usa.net>.}
@@ -232,27 +232,27 @@
       libdsocks.so
   \end{verbatim}
  \emph{Thanks to: Dag Wieers <dag@mind.be>.}
- 
- 
+
+
  \subsection{Generic}
   There is another way that gives you more control over what will and what
-  will not be socksified. Instead of using the wrapper-script 'socksify', 
-  you could add 
- 
+  will not be socksified. Instead of using the wrapper-script 'socksify',
+  you could add
+
   \begin{verbatim}
    LD_PRELOAD="libdl.so libdsocks.so"
    export LD_PRELOAD
   \end{verbatim}
-  to the environment. (/etc/profile ~/.profile ~/.bashrc) 
+  to the environment. (/etc/profile ~/.profile ~/.bashrc)
   \\ \emph{Thanks to: Dag Wieers <dag@mind.be>.}
- 
+
   \subsubsection{Why do I want to be able to control this?}
    In same rare cases programs fail to work in a socksified environment
    (e.g. acroread 4.0 for linux segfaults) or programs like rpm depend on a
    clean build-environment to get its (library) dependencies.
    \\ \emph{Thanks to Dag Wieers <dag@mind.be>.}
- 
- 
+
+
  \subsubsection{How can I easily unsocksify the current shell?}
   By issuing
   \begin{verbatim}

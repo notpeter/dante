@@ -1,4 +1,6 @@
-# $Id: TODO,v 1.123 2000/05/26 17:11:02 karls Exp $
+# $Id: TODO,v 1.124 2000/06/09 08:56:59 michaels Exp $
+
+* expire "bad" marking on routes.
 
 * if socks_lock() fails in vslog(), log anyway?
 

@@ -1,5 +1,5 @@
 /*
- * $Id: broken.c,v 1.9 2000/05/26 12:24:48 michaels Exp $
+ * $Id: broken.c,v 1.10 2000/06/09 10:45:17 karls Exp $
  *
  * Copyright (c) 1997, 1998, 1999, 2000
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: broken.c,v 1.9 2000/05/26 12:24:48 michaels Exp $";
+"$Id: broken.c,v 1.10 2000/06/09 10:45:17 karls Exp $";
 
 #if HAVE_SHADOW_H && HAVE_GETSPNAM
 #include <shadow.h>
@@ -57,7 +57,7 @@ socks_getpwnam(login)
 	const char *login;
 {
 	struct passwd *pwd;
-	
+
 	if ((pwd = getpwnam(login)) == NULL)
 		return NULL;
 
@@ -69,7 +69,7 @@ socks_getpwnam(login)
 		pwd->pw_passwd = spwd->sp_pwdp;
 	}
 #elif HAVE_GETPRPWNAM /* some other broken stuff. */
-	/* 
+	/*
 	 * XXX, don't know how this looks yet.
 	*/
 	/* getprpwnam(login); */
@@ -77,4 +77,3 @@ socks_getpwnam(login)
 
 	return pwd;
 }
-

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.118 2000/05/31 12:14:56 karls Exp $";
+"$Id: sockd_request.c,v 1.119 2000/06/09 10:45:20 karls Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -331,7 +331,7 @@ dorequest(mother, request)
 	switch (request->req.command) {
 		case SOCKS_BIND:
 			io.src.host = io.control.host;
-			
+
 			io.dst.host = request->req.host;
 
 			if (io.dst.host.atype					!= SOCKS_ADDR_IPV4
@@ -542,7 +542,7 @@ dorequest(mother, request)
 	 * Set up missing bits of io and send it to mother.
 	 */
 
-	io.dst.auth.method 	= AUTHMETHOD_NONE; /* no remote auth so far. */
+	io.dst.auth.method	= AUTHMETHOD_NONE; /* no remote auth so far. */
 
 	switch (io.state.command) {
 		case SOCKS_BIND: {
@@ -792,7 +792,7 @@ dorequest(mother, request)
 					bindio.src.host			= remotehost;
 					sockaddr2sockshost(&clientaddr, &bindio.dst.host);
 					bindio.state.command		= SOCKS_BINDREPLY;
-					bindio.dst.auth 			= io.src.auth;
+					bindio.dst.auth			= io.src.auth;
 
 					bindio.state.auth.method = AUTHMETHOD_NONE;
 
@@ -935,7 +935,7 @@ dorequest(mother, request)
 					response.host = bindio.dst.host;
 					flushio(mother, sv[client], &response, &bindio);
 
-				 	/* flushio() closes these, not closev(). */
+					/* flushio() closes these, not closev(). */
 					sv[client] = sv[remote] = -1;
 					break;	/* only one connection to relay and that is done. */
 				}
