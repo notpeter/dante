@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.141 2004/11/10 12:21:07 michaels Exp $";
+"$Id: sockd_child.c,v 1.142 2004/12/24 18:43:09 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -452,7 +452,7 @@ childcheck(type)
 		SASSERTX((*childv)[child].freec <= max);
 		proxyc += type < 0 ? max : (*childv)[child].freec;
 
-#if 1 /* supposedly doesn't work. */
+#if 0 /* Hasn't been tested enough to be enabled. */
 		if ((*childv)[child].freec == max) {
 			++idle;
 

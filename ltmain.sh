@@ -1367,14 +1367,18 @@ EOF
 	continue
 	;;
 
+#Dante hack - start
       -all-dynamic)
 	if test "$build_libtool_libs" = no; then
 	  $echo "$modename: warning: unable to build only dynamic libraries in this configuration" 1>&2
 	fi
 	build_old_libs=no
 	prefer_static_libs=no
+	#XXX add code to ensure symbolic link without version number
+	library_names_spec="${library_names_spec} \${libname}\${shared_ext}"
 	continue
 	;;
+#Dante hack - end
 
       -allow-undefined)
 	# FIXME: remove this flag sometime in the future.

@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.59)
-AC_REVISION($Id: configure.ac,v 1.336 2004/12/03 03:55:10 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.340 2005/01/20 08:35:19 karls Exp $)
 
 version=1.1.15
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="3"
+#prerelease="3"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -759,15 +759,6 @@ else
 fi], [AC_MSG_RESULT(no)
       AC_MSG_WARN([performance in the server might be degraded without support for the SO_SNDLOWAT socket option])])
 
-#expected select behaviour?
-unset nb_select_err
-L_UNCON_SELECT([],
- [nb_select_err=t])
-
-if test x"${nb_select_err}" = xt; then
-   AC_MSG_WARN([operations on nonblocking sockets might fail on this platform])
-fi
-
 
 AC_MSG_CHECKING([whether realloc with a NULL pointer calls malloc])
 AC_TRY_RUN([
@@ -1272,6 +1263,17 @@ if test x"${have_pam_header}" != x -a x"${have_libpam}" != x; then
 	AC_DEFINE(HAVE_PAM, 1, [PAM support])
 fi
 
+
+#expected select behaviour?
+unset nb_select_err
+L_UNCON_SELECT([],
+ [nb_select_err=t])
+
+if test x"${nb_select_err}" = xt; then
+   AC_MSG_WARN([operations on nonblocking sockets might fail on this platform])
+fi
+
+
 L_SYMBOL_UNDERSCORE()
 
 #try to detect gcc bug (irix 64 problem, affects among others inet_ntoa)
@@ -1513,3 +1515,8 @@ stress the server more, increasing the chances of detecting potential
 problems.
 "
 fi
+
+VINFO=README.latest
+test -s "$VINFO" && cat "$VINFO"
+
+exit 0

@@ -1,6 +1,56 @@
-@(#)$Id: NEWS,v 1.40 2003/07/28 11:53:49 michaels Exp $
+@(#)$Id: NEWS,v 1.42 2005/01/31 10:57:44 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+ o Limit the maximum number of available descriptors if necessary, 
+   avoiding a possible overflow of fd_sets.
+
+***  Monday, January 31, 2005 -- Dante v1.1.15
+ o Limit the maximum number of available descriptors if necessary, 
+   avoiding a possible overflow of fd_sets.
+
+ o Added absolute timestamp to logformat, in preparation for new
+   module.
+
+ o Fixed problem involving non-blocking connects in socks clients
+   on Linux.
+
+ o Prototype related tests during configure are rewritten.
+   Might require prototypes for some platforms to be readded.
+
+ o Compilation fixes for AIX 5.1-ML03 with IBM Visual Age C/C++ V5.
+   Based on patch from Kieron Curtis2 <KCURTIS2@uk.ibm.com>.
+
+ o A 'an macro' version of the sockd.8 manual page.
+   Submitted by Tony Leneis <tony@cvrreg.com>.
+
+ o Upgrade to autoconf 2.59, libtool 1.5.10 and automake 1.9.3.
+
+ o Patch to code for shutting down idle sockd processes, from 
+   William Adams <wlarip@earthlink.net>.  NOT ENABLED.
+
+ o Add test for setegid(), use replacement if not found.
+   Replacement code based on patch by <rainer.doerntge@dlh.de>.
+
+ o Do not warn at runtime about SO_{SND,RCV}LOWAT socket options if not
+   supported by OS.  Based on patch from William Adams <wlarip@earthlink.net>.
+
+ o enable setegid() call after moving it to correct place;
+   William Adams <wlarip@earthlink.net>.
+
+ o Support for socksification of getipnodebyname(), contributed by
+   Lennart Dahlström <lennart@appgate.com>.
+
+ o Support for socksification of getaddrinfo(), contributed by
+   Motoyuki Kasahara <m-kasahr@sra.co.jp>.
+
+ o Fix some problems with descriptor passing on platforms without
+   cmsghdr.
+
+ o AIX 5.1 ML-03 compilation fixes for IBM Visual Age C/C++ compiler
+   version 5 by Kieron Curtis2 <KCURTIS2@uk.ibm.com>.
+
+ o Remove usage of SO_BSDCOMPAT, obsolete and causes warnings with
+   version 2.6 Linux kernels.  Noted by Adrian Bridgett <adrian@smop.co.uk>.
 
 ***  Monday, July 28, 2002 -- Dante v1.1.14
  o Fix some problems involving use of bindresvport() when running

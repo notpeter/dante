@@ -1,6 +1,6 @@
-.\" $Id: sockd.conf.5,v 1.64 2004/11/02 17:51:52 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.66 2005/01/24 10:24:20 karls Exp $
 .\"
-.\" Copyright (c) 1997, 1998, 1999, 2000, 2001
+.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -51,9 +51,9 @@ character \fB#\fP.
 .SH SERVER SETTINGS
 The server settings control the generic behaviour of the server.  Each
 keyword is separated from it's value by a \fB':'\fP character.
-.IP \fBchild.maxidle\fP
-Maintains a maximum on how many children of each type can remain
-idle.  The default is \fB0\fP (no maximum).
+.\" .IP \fBchild.maxidle\fP
+.\" Maintains a maximum on how many children of each type can remain
+.\" idle.  The default is \fB0\fP (no maximum).
 .IP \fBcompatibility\fP
 With the \fBsameport\fP keyword, the server attempts to use the same
 port on the server and the client.  This functionality is the default, but

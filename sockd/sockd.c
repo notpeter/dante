@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.297 2004/06/28 10:58:22 michaels Exp $";
+"$Id: sockd.c,v 1.301 2005/01/28 10:26:53 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -221,8 +221,7 @@ main(argc, argv, envp)
 	if (dforchild < maxfd) {
 		struct rlimit rlimit;
 
-		rlimit.rlim_cur = maxfd;
-		rlimit.rlim_max = maxfd;
+		rlimit.rlim_cur = rlimit.rlim_max = MIN(maxfd, FD_SETSIZE);
 
 		if (setrlimit(RLIMIT_OFILE, &rlimit) != 0) {
 			if (errno != EPERM)
@@ -741,6 +740,7 @@ serverinit(argc, argv, envp)
 	uid_t euid;
 	int ch, i;
 	int verifyonly = 0;
+	struct rlimit rlimit;
 
 #if !HAVE_PROGNAME
 	if (argv[0] != NULL)
@@ -879,6 +879,18 @@ serverinit(argc, argv, envp)
 			if ((l->lock = socks_mklock(SOCKS_LOCKFILE)) == -1)
 				serr(EXIT_FAILURE, "%s: socks_mklock()", function);
 #endif
+	}
+
+	/* avoid potentioal overflow of fd_set. */
+	if (getrlimit(RLIMIT_OFILE, &rlimit) != 0)
+			serr(EXIT_FAILURE, "getrlimit(RLIMIT_OFILE)");
+	if (rlimit.rlim_cur > FD_SETSIZE) {
+		rlimit.rlim_cur = rlimit.rlim_max = FD_SETSIZE;
+
+		if (setrlimit(RLIMIT_OFILE, &rlimit) != 0)
+			serr(EXIT_FAILURE, "setrlimit(RLIMIT_OFILE, %d)", rlimit.rlim_cur);
+		slog(LOG_DEBUG, "%s: reduced max descriptors to %d",
+		function, rlimit.rlim_cur);
 	}
 }
 

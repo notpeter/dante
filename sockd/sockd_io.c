@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.218 2004/06/28 10:59:00 michaels Exp $";
+"$Id: sockd_io.c,v 1.219 2005/01/24 10:24:23 karls Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
