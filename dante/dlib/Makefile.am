@@ -13,7 +13,7 @@ libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c int_osf3.c \
 	../lib/serr.c ../lib/httpproxy.c ../lib/tostring.c \
 	../lib/addressmatch.c
 
-libdsocks_la_LDFLAGS = -avoid-version -all-dynamic
+libdsocks_la_LDFLAGS = -version-info 1:0:1 -all-dynamic
 libdsocks_la_LIBADD = ../libscompat/libscompat.la
 
 noinst_HEADERS = config_parse.h

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.113 2003/07/01 13:21:27 michaels Exp $";
+"$Id: connectchild.c,v 1.114 2004/12/24 15:49:26 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -202,20 +202,46 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			/*
 			 * Controlsocket is what later becomes datasocket.
 			 * We don't want to allow the client to read/write/select etc.
-			 * on the socket yet since we need to read/write on it
+			 * on the socket yet, since we need to read/write on it
 			 * ourselves to setup the connection to the socksserver.
+			 *
 			 * We therefore create a new unconnected socket and assign
 			 * it the same descriptor number as the number the client uses.
-			 * When the connection has been set up we duplicate over the
+			 * This way, the clients select(2)/poll(2) will not
+			 * mark the descriptor as ready for anything untill we 
+			 * are working.
+			 *
+			 * When the connection has been set up we duplicate back the
 			 * socket we were passed here and close the temporarily created
 			 * socket.
 			 */
 			int tmp;
+			struct sockaddr_in addr;
 
 			SASSERTX(control == s);
 			if ((control = socketoptdup(s)) == -1)
 				return NULL;
 
+			/* 
+			 * The below bind(2) and listen(2) is neccessary for
+			 * Linux not to mark the socket as readable/writable.
+			 * Under other unix systems, just a socket() is 
+			 * enough.  Judging from the Open Unix spec., Linux
+			 * is the only one that is correct though.
+			 */
+
+			bzero(&addr, sizeof(addr));
+			addr.sin_family 		= AF_INET;
+			addr.sin_addr.s_addr 	= htonl(INADDR_ANY);
+			addr.sin_port 			= htons(0);
+
+			/* LINTED pointer casts may be troublesome */
+			if (bind(control, (struct sockaddr *)&addr, sizeof(addr)) != 0
+			||  listen(control, 1) != 0) {
+				close(control);
+				return NULL;
+			}
+			
 			if ((tmp = dup(s)) == -1) {
 				close(control);
 				return NULL;
@@ -330,6 +356,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	 */
 
 	fdsent = 0;
+	/* LINTED pointer casts may be troublesome */
 	CMSG_ADDOBJECT(control, cmsg, sizeof(control) * fdsent++);
 
 	switch (packet->req.version) {
@@ -339,6 +366,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			break;
 
 		case MSPROXY_V2:
+			/* LINTED pointer casts may be troublesome */
 			CMSG_ADDOBJECT(s, cmsg, sizeof(s) * fdsent++);
 			break;
 
@@ -359,6 +387,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
+	/* LINTED pointer casts may be troublesome */
 	CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
 
 	slog(LOG_DEBUG, "sending request to connectchild");
@@ -441,6 +470,7 @@ run_connectchild(mother)
 			msg.msg_name         = NULL;
 			msg.msg_namelen      = 0;
 
+			/* LINTED pointer casts may be troublesome */
 			CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
 
 			if ((p = recvmsgn(mother, &msg, 0)) != (ssize_t)len) {
@@ -483,10 +513,12 @@ run_connectchild(mother)
 #endif
 
 			len = 0;
+			/* LINTED pointer casts may be troublesome */
 			CMSG_GETOBJECT(control, cmsg, sizeof(control) * len++);
 
 			switch (req.packet.req.version) {
 				case MSPROXY_V2:
+					/* LINTED pointer casts may be troublesome */
 					CMSG_GETOBJECT(s, cmsg, sizeof(s) * len++);
 					break;
 
@@ -538,6 +570,7 @@ run_connectchild(mother)
 			SOCKS_FAILURE);
 			req.packet.res.version = req.packet.req.version;
 
+			/* CONSTCOND */
 			if (1) { /* XXX wait for the connection to complete. */
 				fd_set wset;
 
@@ -628,6 +661,7 @@ sigchld(sig)
 {
 	const char *function = "sigchld()";
 	const int errno_s = errno;
+	/* CONSTCOND */
 	char string[MAX(sizeof(MAXSOCKADDRSTRING), sizeof(MAXSOCKSHOSTSTRING))];
 	int status;
 
@@ -663,7 +697,9 @@ sigchld(sig)
 				break;
 			}
 
+			/* LINTED bitwise operation on signed value possibly nonportable */
 			if (WIFEXITED(status)) {
+				/* LINTED bitwise operation on signed value possibly nonportable */
 				swarnx("%s: cconnectchild exited with status %d",
 				function, WEXITSTATUS(status));
 				sockscf.connectchild = 0;

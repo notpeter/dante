@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.64 2004/11/10 12:21:02 michaels Exp $";
+"$Id: io.c,v 1.65 2005/01/24 10:24:22 karls Exp $";
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
 

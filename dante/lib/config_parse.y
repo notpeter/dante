@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.185 2004/11/02 17:49:53 michaels Exp $";
+"$Id: config_parse.y,v 1.188 2005/01/24 10:24:21 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -160,7 +160,7 @@ static const struct {
 			yywarn("duplicate method: %s", method2string(method)); \
 		else { \
 			if (*methodc >= MAXMETHOD)	\
-				yyerror("internal error");	\
+				yyerror("internal error, (%d >= %d)", *methodc, MAXMETHOD);	\
 			methodv[(*methodc)++] = method; \
 		} \
 	} while (0)
@@ -578,11 +578,15 @@ logoutputdevices:	logoutputdevice
 childstate:
 	CHILD_MAXIDLE ':' NUMBER {
 #if SOCKS_SERVER
+		yyerror("'%s' not supported in this version", $1);
+#if 0
 		if (atoi($3) < SOCKD_FREESLOTS)
 			yyerror("child.maxidle can't be less than SOCKD_FREESLOTS (%d)",
 			SOCKD_FREESLOTS);
 
 		sockscf.child.maxidle = atoi($3);
+#endif
+
 #endif
 	}
 	;

@@ -1,6 +1,6 @@
 #!/bin/sh -
 #
-# Copyright (c) 1997, 1998
+# Copyright (c) 1997, 1998, 2001
 #      Inferno Nettverk A/S, Norway.  All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,7 @@
 # any improvements or extensions that they make and grant Inferno Nettverk A/S
 # the rights to redistribute these changes.
 #
-# $Id: socksify.in,v 1.22 2001/12/04 11:57:18 karls Exp $
+# $Id: socksify.in,v 1.23 2005/01/24 10:24:18 karls Exp $
 
 #On systems where a supported preloading mechanism is used, you can
 #do "socksify <program>" and <program> will use socks without having

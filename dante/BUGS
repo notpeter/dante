@@ -1,4 +1,4 @@
-# $Id: BUGS,v 1.31 2004/12/02 12:42:57 michaels Exp $
+# $Id: BUGS,v 1.32 2004/12/24 15:47:27 michaels Exp $
 
 To report a new bug, mail dante-bugs@inet.no.
 Make sure you read the FAQ (http://www.inet.no/dante/FAQ/) first.
@@ -7,18 +7,6 @@ Generic:
  - 'libtool' is broken on OS X.
 
 Client part:
- - non-blocking connect(2) is broken when used via the socksify 
-   library on most Linux kernels. 
-
-   This isn't very difficult to fix, but requires some work.
-   The fix is to find a way to create a filedescriptor that
-   select(2) on Linux will not mark as either readable or writable,
-   as Linux does this different from all other unix systems. 
-   Linux does appear to be the one correct according to specs though.
-   
-   One way is to bind(2) an address (but not listen) and then
-   make a non-blocking connect to it, but that is rather ugly.
-
  - The clientlibrary is not threadsafe.  This can cause problems
    when trying to socksify programs that use threads.
 

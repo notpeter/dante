@@ -1364,7 +1364,7 @@ char *yytext;
 #line 1 "config_scan.l"
 #define INITIAL 0
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1416,7 +1416,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.72 2004/11/11 11:38:34 karls Exp $";
+"$Id: config_scan.l,v 1.73 2005/01/24 10:24:22 karls Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
