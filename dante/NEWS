@@ -1,6 +1,33 @@
-@(#)$Id: NEWS,v 1.36 2001/12/07 12:48:10 michaels Exp $
+@(#)$Id: NEWS,v 1.38 2002/04/11 13:34:07 karls Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Thursday, April 11, 2002 -- Dante v1.1.12
+
+ o Don't mark the rule as good either if sockscf.state.unfixedpamdata, 
+   fixes bug reported by Jerry Murdock" <jmurdock@itraktech.com>.
+
+ o fix a bug preventing the list given in a 'user:' keyword from
+   being checked correctly. Reported by Oleg Bulavsky <bulch@ftc.ru>.
+
+ o support interfacenames containing ':', e.g eth0:1, supposedly on
+   linux 2.4.x.  From Rob Fowler <rfo@keta.mine.nu>.
+
+ o new --disable-pidfile option to configure; disables pidfile creation.
+
+ o upgrade to libtool-1.4.2, automake-1.5 and autoconf-2.52.
+
+ o "-h" prints out configfile used, based on suggestion from
+   dh_tsc_10@ugcs.net.
+
+ o fix bugs that reset some defaults at the wrong time, reported by
+   dh_tsc_10@ugcs.net.
+
+ o prototype script for generation of graphs with usage information included
+   (bin/sockd-graphgen). Contact us if you run a socks server with significant
+   usage, and you are willing to help with testing.
+
+ o status info printed at the end of configure.
 
 ***  Friday, Dec 7, 2001 -- Dante v1.1.11
 

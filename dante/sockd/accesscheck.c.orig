@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.16 2002/04/12 09:21:30 michaels Exp $";
+"$Id: accesscheck.c,v 1.15 2002/04/05 11:49:32 michaels Exp $";
 
 
 /* ARGSUSED */
@@ -156,7 +156,6 @@ accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
 				"on your system fixed")
 #endif /* DIAGNOSTIC */
 			break;
-		}
 #endif /* HAVE_PAM */
 
 		default:
