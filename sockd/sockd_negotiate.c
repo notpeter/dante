@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.61 1999/07/10 13:52:36 karls Exp $";
+"$Id: sockd_negotiate.c,v 1.63 1999/09/02 10:42:07 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -57,7 +57,7 @@ send_negotiate __P((const struct sockd_mother_t *mother,
  *		On success: 0
  *		On failure: -1
  *		If some other problem prevented success: > 0
-*/
+ */
 
 
 static int
@@ -68,7 +68,7 @@ recv_negotiate __P((const struct sockd_mother_t *mother));
  *		On success: 0
  *		If a error happened to connection with "s": -1
  *		If some other problem prevented success: > 0
-*/
+ */
 
 static void
 delete_negotiate __P((const struct sockd_mother_t *mother,
@@ -77,7 +77,7 @@ delete_negotiate __P((const struct sockd_mother_t *mother,
  * Frees any state occupied by "neg", including closing any
  * descriptors and sending a ack that we have deleted a "negotiate"
  * object to "mother".
-*/
+ */
 
 
 static int
@@ -86,13 +86,13 @@ neg_fillset __P((fd_set *set));
  * Sets all descriptors in our list in the set "set".
  * Returns the highest descriptor in our list, or -1 if we don't
  * have any descriptors open currently.
-*/
+ */
 
 static void
 neg_clearset __P((struct sockd_negotiate_t *neg, fd_set *set));
 /*
  * Clears all filedescriptors in "neg" from "set".
-*/
+ */
 
 
 static struct sockd_negotiate_t *
@@ -103,31 +103,31 @@ neg_getset __P((fd_set *set));
  * Returns:
  *		On success: pointer to the found object.
  *		On failure: NULL.
-*/
+ */
 
 static int
 allocated __P((void));
 /*
  * Returns the number of allocated (active) objects.
-*/
+ */
 
 static int
 completed __P((void));
 /*
  * Returns the number of objects completed and ready to be sent currently.
-*/
+ */
 
 static int
 allocated __P((void));
 /*
  * Returns the number of objects currently allocated for use.
-*/
+ */
 
 static void
 proctitleupdate __P((void));
 /*
  * Updates the title of this process.
-*/
+ */
 
 static struct timeval *
 neg_gettimeout __P((struct timeval *timeout));
@@ -137,7 +137,7 @@ neg_gettimeout __P((struct timeval *timeout));
  * Returns:
  *		If there is a timeout: pointer to filled in "timeout".
  *		If there is no timeout: NULL.
-*/
+ */
 
 static struct sockd_negotiate_t *
 neg_gettimedout __P((void));
@@ -147,13 +147,13 @@ neg_gettimedout __P((void));
  * Returns:
  *		If timed out client found: pointer to it.
  *		Else: NULL.
-*/
+ */
 
 static void
 siginfo __P((int sig));
 /*
  * Print information about our current connections.
-*/
+ */
 
 __END_DECLS
 
@@ -334,8 +334,7 @@ send_negotiate(mother, neg)
 		}
 
 #if HAVE_SENDMSG_DEADLOCK
-	if (socks_unlock(mother->lock, -1) != 0)
-		SERR(errno);
+	socks_unlock(mother->lock);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
 	return w == sizeof(req) ? 0 : w;

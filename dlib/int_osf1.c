@@ -50,7 +50,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: int_osf1.c,v 1.4 1999/07/08 18:54:41 karls Exp $";
+"$Id: int_osf1.c,v 1.6 1999/09/16 15:49:52 karls Exp $";
 
 #undef accept
 #undef getpeername
@@ -197,11 +197,11 @@ sys_Ewritev(d, iov, iovcnt)
 
 	/*
 	 * the interpositioned functions.
-	*/
+ 	 */
 
 
 int
-Eaccept(s, addr, addrlen)
+_Eaccept(s, addr, addrlen)
 	int s;
 	struct sockaddr * addr;
 	socklen_t *addrlen;
@@ -211,7 +211,7 @@ Eaccept(s, addr, addrlen)
 	return Raccept(s, addr, addrlen);
 }
 int
-Egetpeername(s, name, namelen)
+_Egetpeername(s, name, namelen)
 	int s;
 	struct sockaddr * name;
 	socklen_t *namelen;
@@ -222,19 +222,19 @@ Egetpeername(s, name, namelen)
 }
 
 int
-Egetsockname(s, name, namelen)
+_Egetsockname(s, name, namelen)
 	int s;
 	struct sockaddr * name;
 	socklen_t *namelen;
 {
 	if (ISSYSCALL(s))
-		return sys_Egetpeername(s, name, namelen);
+		return sys_Egetsockname(s, name, namelen);
 	return Rgetsockname(s, name, namelen);
 }
 
 
 ssize_t
-Ereadv(d, iov, iovcnt)
+_Ereadv(d, iov, iovcnt)
 	int d;
 	const struct iovec *iov;
 	int iovcnt;
@@ -246,7 +246,7 @@ Ereadv(d, iov, iovcnt)
 
 
 ssize_t
-Erecvfrom(s, buf, len, flags, from, fromlen)
+_Erecvfrom(s, buf, len, flags, from, fromlen)
 	int s;
 	void *buf;
 	size_t len;
@@ -260,7 +260,7 @@ Erecvfrom(s, buf, len, flags, from, fromlen)
 }
 
 ssize_t
-Erecvmsg(s, msg, flags)
+_Erecvmsg(s, msg, flags)
 	int s;
 	struct msghdr *msg;
 	int flags;
@@ -273,7 +273,7 @@ Erecvmsg(s, msg, flags)
 
 
 ssize_t
-Ewritev(d, iov, iovcnt)
+_Ewritev(d, iov, iovcnt)
 	int d;
 	const struct iovec *iov;
 	int iovcnt;
@@ -284,7 +284,7 @@ Ewritev(d, iov, iovcnt)
 }
 
 ssize_t
-Esendmsg(s, msg, flags)
+_Esendmsg(s, msg, flags)
 	int s;
 	const struct msghdr *msg;
 	int flags;

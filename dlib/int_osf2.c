@@ -50,7 +50,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: int_osf2.c,v 1.4 1999/07/08 18:54:41 karls Exp $";
+"$Id: int_osf2.c,v 1.5 1999/09/02 10:41:02 michaels Exp $";
 
 #undef accept
 #undef getpeername
@@ -164,7 +164,7 @@ sys_nsendmsg(s, msg, flags)
 
 	/*
 	 * the interpositioned functions.
-	*/
+	 */
 
 
 int

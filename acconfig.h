@@ -68,6 +68,9 @@
 /* XXX special test for gethostbyname2 */
 #undef HAVE_GETHOSTBYNAME2
 
+/* libwrap test needs special care */
+#undef HAVE_LIBWRAP
+
 /* function location */
 #undef LIBRARY_PATH
 #undef LIBRARY_ACCEPT
@@ -163,6 +166,9 @@
 /* not all platforms allow free(NULL) */
 #undef HAVE_NONULL_FREE
 
+/* define SYSCALL_IS_SYSCALL on bsd based systems */
+#undef SYSCALL_IS_SYSCALL
+
 /* allow default file locations to be overridden */
 #undef HAVE_ALT_SOCKS_CONFIGFILE
 #undef HAVE_ALT_SOCKD_CONFIGFILE
@@ -170,6 +176,9 @@
 #undef HAVE_SOCKD_PIDFILE
 #undef HAVE_SOCKD_CONFIGFILE
 #undef HAVE_SOCKS_CONFIGFILE
+
+/* some netdb.h files doesn't appear to declare h_errno */
+#undef HAVE_H_ERRNO
 
 /* interposition.c prototypes */
 #undef HAVE_PROT_CONNECT_0

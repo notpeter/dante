@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.13 1999/05/13 13:39:20 karls Exp $ */
+/* $Id: interposition.h,v 1.17 1999/09/02 10:41:08 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -294,6 +294,13 @@
 
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
+#ifdef lint
+extern const int lintnoloop_interposition_h;
+#else
+#define lintnoloop_interposition_h 0
+#endif
+
+
 struct libsymbol_t {
 	char *symbol;			/* the symbol.						*/
 	char *library;			/* library symbol is in.		*/
@@ -301,14 +308,41 @@ struct libsymbol_t {
 	void *function;		/* the bound symbol.				*/
 };
 
+#if DIAGNOSTIC && SYSCALL_IS_SYSCALL
+#define SIGBLOCK() \
+sigset_t oldmask;																	\
+do { 																					\
+	sigset_t newmask;																\
+																						\
+	sigemptyset(&newmask);														\
+	sigaddset(&newmask, SIGALRM);												\
+	if (sigprocmask(SIG_BLOCK, &newmask, &oldmask) != 0)				\
+		swarn("SYSCALL_START(): sigprocmask()");							\
+} while (0)
+#else /* */
+#define SIGBLOCK() do { } while (lintnoloop_interposition_h)
+#endif																				\
+
+#if DIAGNOSTIC && SYSCALL_IS_SYSCALL
+#define SIGUNBLOCK() \
+do { \
+	if (socksfd->state.system == 0)											\
+		cc_socksfdv(-1);															\
+																						\
+	if (sigprocmask(SIG_SETMASK, &oldmask, NULL) != 0)					\
+		swarn("SYSCALL_END(): sigprocmask()");								\
+} while (lintnoloop_interposition_h)
+#else
+#define SIGUNBLOCK() do { } while (lintnoloop_interposition_h)
+#endif
 
 #define SYSCALL_START(s) \
 int socksfd_added = 0;															\
+SIGBLOCK(); 																		\
 do {																					\
-	struct socksfd_t *socksfd = socks_getaddr((unsigned int)s);		\
-	struct socksfd_t socksfdmem;												\
+	struct socksfd_t socksfdmem, *socksfd;									\
 																						\
-	if (socksfd == NULL) {														\
+	if ((socksfd = socks_getaddr((unsigned int)s)) == NULL) {		\
 		bzero(&socksfdmem, sizeof(socksfdmem));							\
 		socksfdmem.state.command  = -1;										\
 		socksfd = socks_addaddr((unsigned int)s, &socksfdmem);		\
@@ -317,7 +351,7 @@ do {																					\
 																						\
 	SASSERTX(socksfd->state.system >= 0);									\
 	++socksfd->state.system;													\
-} while (lintnoloop_socks_h)
+} while (lintnoloop_interposition_h)
 
 
 #define SYSCALL_END(s) \
@@ -326,16 +360,19 @@ do {																					\
 																						\
 	SASSERTX(socksfd != NULL);													\
 																						\
-	if (socksfd_added)															\
+	SASSERTX(socksfd->state.system > 0);									\
+	--socksfd->state.system;													\
+	SIGUNBLOCK();																	\
+																						\
+	if (socksfd_added) {															\
+		SASSERTX(socksfd->state.system == 0);								\
 		socks_rmaddr((unsigned int)s);										\
-	else																				\
-		--socksfd->state.system;												\
-	SASSERTX(socksfd->state.system >= 0);									\
-} while (lintnoloop_socks_h)
+	}																					\
+} while (lintnoloop_interposition_h)
 
 #define ISSYSCALL(s)	\
-	(socks_getaddr((unsigned int)(s)) != NULL						\
-	&& socks_getaddr((unsigned int)(s))->state.system > 0)
+	(socks_getaddr((unsigned int)(s)) != NULL			\
+ && socks_getaddr((unsigned int)(s))->state.system)
 
 
 __BEGIN_DECLS
@@ -346,6 +383,6 @@ symbolfunction __P((char *symbol));
  * Returns the address binding of the symbol "symbol" and updates
  * libsymbol_t structure "symbol" is defined in if necessary.
  * Exits on failure.
-*/
+ */
 
 __END_DECLS

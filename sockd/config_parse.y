@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.108 1999/07/10 13:52:29 karls Exp $";
+"$Id: config_parse.y,v 1.113 1999/09/02 10:41:31 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -181,7 +181,7 @@ static enum operator_t			*operator;		/* new operator.						*/
 %token <string> PROXYPROTOCOL PROXYPROTOCOL_SOCKS_V4 PROXYPROTOCOL_SOCKS_V5
 					 PROXYPROTOCOL_MSPROXY_V2
 %token <string> USER
-%token <string> COMMAND COMMAND_BIND COMMAND_CONNECT COMMAND_UDPASSOCIATE								 COMMAND_BINDREPLY
+%token <string> COMMAND COMMAND_BIND COMMAND_CONNECT COMMAND_UDPASSOCIATE								 COMMAND_BINDREPLY COMMAND_UDPREPLY
 %token <string> ACTION
 %token <string> LINE
 %token <string> LIBWRAPSTART
@@ -198,7 +198,7 @@ static enum operator_t			*operator;		/* new operator.						*/
 	/*
 	 * first token we get should say whether we are parsing for client
 	 * or server.  Init as appropriate.
-	*/
+	 */
 
 configtype:	serverinit serverline
 	|	clientinit clientline
@@ -318,7 +318,7 @@ username:	USERNAME {
 #if SOCKS_SERVER
 #if !HAVE_LIBWRAP
 		if (strcmp($1, method2string(AUTHMETHOD_RFC931)) == 0)
-			yyerror("user rfc931 requires libwrap");
+			yyerror("method rfc931 requires libwrap");
 #endif /* !HAVE_LIBWRAP */
 		if (adduser(userbase, $1) == NULL)
 			yyerror(NOMEM);
@@ -433,6 +433,8 @@ logoutput: LOGOUTPUT ':' logoutputdevices
 	;
 
 logoutputdevice:	LOGFILE {
+		int flag;
+
 		if (!config.state.init) {
 			if (strcmp($1, "syslog") == 0)
 				config.log.type |= LOGTYPE_SYSLOG;
@@ -453,10 +455,17 @@ logoutputdevice:	LOGFILE {
 					config.log.fpv[config.log.fpc] = stdout;
 				else if (strcmp($1, "stderr") == 0)
 					config.log.fpv[config.log.fpc] = stderr;
-				else
+				else {
 					if ((config.log.fpv[config.log.fpc] = fopen($1, "a"))
 					== NULL)
 						serr(EXIT_FAILURE, "fopen(%s)", $1);
+					
+					if ((flag = fcntl(fileno(config.log.fpv[config.log.fpc]),
+					F_GETFD, 0)) == -1
+					||  fcntl(fileno(config.log.fpv[config.log.fpc]), F_SETFD,
+					flag | FD_CLOEXEC) == -1)
+						serr(EXIT_FAILURE, "fcntl(F_GETFD/F_SETFD)");
+				}
 				++config.log.fpc;
 			}
 		}
@@ -575,7 +584,7 @@ srchostoption:	NOMISMATCH {
 	|  NOUNKNOWN {
 			config.srchost.nounknown = 1;
 #else
-		yyerror("libwrap support not compiled in");
+		yyerror("srchostoption requires libwrap");
 #endif
 	}
 	;
@@ -709,6 +718,10 @@ commandname:	COMMAND_BIND {
 
 	|	COMMAND_BINDREPLY	{
 			command->bindreply = 1;
+	}
+
+	|	COMMAND_UDPREPLY {
+			command->udpreply = 1;
 	}
 	;
 
@@ -999,9 +1012,9 @@ readconfig(filename)
 	EF_PROTECT_BELOW			= 0;
 #endif /* ELECTRICFENCE */
 
-
-	yydebug = 0;
-	parseinit = 0;
+/*	yydebug 		= 0; */
+	yylineno 	= 1;
+	parseinit 	= 0;
 
 	if ((yyin = fopen(filename, "r")) == NULL) {
 		swarn("%s: %s", function, filename);

@@ -79,7 +79,7 @@ VERSION = @VERSION@
 YACC = @YACC@
 
 lib_LTLIBRARIES = libsocks.la
-libsocks_la_SOURCES = config_parse.y config_scan.l Raccept.c Rbind.c 	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    	address.c authneg.c client.c clientconfig.c clientprotocol.c 	udp.c userio.c method_uname.c connectchild.c config.c  	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  	Rconnect.c Rgethostbyname.c debug.c Rcompat.c 	msproxy_clientprotocol.c
+libsocks_la_SOURCES = config_parse.y config_scan.l Raccept.c Rbind.c 	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    	address.c authneg.c client.c clientconfig.c clientprotocol.c 	udp.c userio.c method_uname.c connectchild.c config.c  	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  	Rconnect.c Rgethostbyname.c debug.c Rcompat.c 	msproxy_clientprotocol.c hostcache.c
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info
@@ -111,7 +111,7 @@ Rbind.lo Rgetpeername.lo Rgetsockname.lo Rrresvport.lo io.lo address.lo \
 authneg.lo client.lo clientconfig.lo clientprotocol.lo udp.lo userio.lo \
 method_uname.lo connectchild.lo config.lo log.lo protocol.lo socket.lo \
 udp_util.lo util.lo Rbindresvport.lo Rconnect.lo Rgethostbyname.lo \
-debug.lo Rcompat.lo msproxy_clientprotocol.lo
+debug.lo Rcompat.lo msproxy_clientprotocol.lo hostcache.lo
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LEXLIB = @LEXLIB@
 CFLAGS = @CFLAGS@
@@ -303,6 +303,9 @@ clientconfig.lo clientconfig.o : clientconfig.c ../include/common.h \
 clientprotocol.lo clientprotocol.o : clientprotocol.c \
 	../include/common.h ../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h ../include/socks.h
+compat.lo compat.o : compat.c ../include/autoconf.h ../include/redefac.h \
+	../include/common.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h
 config.lo config.o : config.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/socks.h
@@ -319,6 +322,9 @@ connectchild.lo connectchild.o : connectchild.c ../include/common.h \
 debug.lo debug.o : debug.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/socks.h
+hostcache.lo hostcache.o : hostcache.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h
 io.lo io.o : io.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/socks.h

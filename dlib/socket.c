@@ -44,13 +44,14 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.22 1999/06/22 08:26:19 michaels Exp $";
+"$Id: socket.c,v 1.24 1999/09/02 10:41:43 michaels Exp $";
 
 int
 socks_connect(s, host)
 	int s;
 	const struct sockshost_t *host;
 {
+	const char *function = "socks_connect()";
 	int new_s;
 	struct hostent *hostent;
 	struct sockaddr_in address;
@@ -68,7 +69,9 @@ socks_connect(s, host)
 			return connect(s, (struct sockaddr *)&address, sizeof(address));
 
 		case SOCKS_ADDR_DOMAIN:
-			hostent = gethostbyname((const char *)host->addr.domain);
+			if ((hostent = gethostbyname(host->addr.domain)) == NULL)
+				slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
+				function, host->addr.domain, hstrerror(h_errno));
 			break;
 
 		default:
@@ -99,7 +102,7 @@ socks_connect(s, host)
 
 		/*
 		 * Only try next address if errno indicates server/network error.
-		*/
+		 */
 		switch (errno) {
 			case ETIMEDOUT:
 			case EINVAL:
@@ -121,6 +124,12 @@ socks_connect(s, host)
 			return -1;
 		}
 		close(new_s);
+
+#if SOCKS_SERVER && HAVE_LIBWRAP
+		if ((new_s = fcntl(s, F_GETFD, 0)) == -1
+		|| fcntl(s, F_SETFD, new_s | FD_CLOEXEC) == -1)
+			swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
+#endif
 	}
 
 	return 0;

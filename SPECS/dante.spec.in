@@ -12,10 +12,10 @@ Buildroot: /var/tmp/dante-root
 
 
 %description
-Dante is a free implementation of the socks protocol (version 4 and 
-version 5; rfc1928) which can be used as a firewall between networks. 
-It is being developed by Inferno Nettverk A/S, a Norwegian software 
-company. Commercial support is available. 
+Dante is a free implementation of the proxy protocols socks version 4,
+socks version 5 (rfc1928) and msproxy. It can be used as a firewall
+between networks. It is being developed by Inferno Nettverk A/S, a
+Norwegian consulting company. Commercial support is available.
 
 This package contains the dynamic libraries required to "socksify" 
 existing applications to become socks clients.

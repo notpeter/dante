@@ -44,9 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.49 1999/07/10 13:52:37 karls Exp $";
-
-#define SOCKS_DEBUGER	0
+"$Id: sockd_util.c,v 1.55 1999/08/25 11:33:17 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -143,6 +141,12 @@ setsockoptions(s)
 	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val)) != 0
 	||  setsockopt(s, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val)) != 0)
 		swarn("%s: setsockopt(SO_SNDBUF/SO_RCVBUF)", function);
+
+#if HAVE_LIBWRAP
+	if ((val = fcntl(s, F_GETFD, 0)) == -1
+	|| fcntl(s, F_SETFD, val | FD_CLOEXEC) == -1)
+		swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
+#endif
 }
 
 void
@@ -152,9 +156,17 @@ sockdexit(sig)
 	const char *function = "sockdexit()";
 	int i;
 
-	if (sig > 0)
+	if (pidismother(config.state.pid)) {
 		if (*config.state.motherpidv == config.state.pid) /* main mother. */
+			if (sig > 0)
 				slog(LOG_ALERT, "%s: terminating on signal %d", function, sig);
+			else
+				slog(LOG_ALERT, "%s: terminating", function, sig);
+		
+		/* don't want this while cleaning up, which is all that's left. */
+		if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
+			swarn("%s: signal(SIGCHLD, SIG_IGN)", function);
+	}
 
 #if PROFILING
 	if (chdir(SOCKS_PROFILEDIR) != 0)
@@ -184,21 +196,20 @@ sockdexit(sig)
 			case SIGINT:
 			case SIGQUIT:
 			case SIGTERM:
-				exit(EXIT_FAILURE);
-				/* NOTREACHED */
+				break;
 
 			/* bad signals. */
 			default:
 				abort();
 		}
+
+	if (*config.state.motherpidv == config.state.pid) /* main mother. */
+		exit(sig > 0 ? EXIT_FAILURE : -sig);
 	else
-		if (*config.state.motherpidv == config.state.pid) /* main mother. */
-			exit(-sig);
-		else
 #if PROFILING
-			exit(sig);
+		exit(sig > 0 ? EXIT_FAILURE : -sig);
 #else
-			_exit(-sig);
+		_exit(sig > 0 ? EXIT_FAILURE : -sig);
 #endif /* PROFILING */
 }
 
@@ -219,7 +230,6 @@ socks_seteuid(old, new)
 	if (*old == new)
 		return;
 
-#if !SOCKS_DEBUGER
 	if (*old != config.state.euid)
 		/* need to revert back to original (presumably 0) euid before changing. */
 		if (seteuid(config.state.euid) != 0) {
@@ -229,7 +239,6 @@ socks_seteuid(old, new)
 
 	if (seteuid(new) != 0)
 		serr(EXIT_FAILURE, "%s: seteuid(%d)", function, new);
-#endif /* !SOCKS_DEBUGER */
 }
 
 void
@@ -241,14 +250,13 @@ socks_reseteuid(current, new)
 
 	slog(LOG_DEBUG, "%s: current: %lu, new: %lu", function, current, new);
 
-#if !SOCKS_DEBUGER && DIAGNOSTIC
+#if DIAGNOSTIC
 	SASSERTX(current == geteuid());
-#endif /* DIAGNOSTIC */
+#endif
 
 	if (current == new)
 		return;
 
-#if !SOCKS_DEBUGER
 	if (new != config.state.euid)
 		/* need to revert back to original (presumably 0) euid before changing. */
 		if (seteuid(config.state.euid) != 0)
@@ -256,18 +264,7 @@ socks_reseteuid(current, new)
 
 	if (seteuid(new) != 0)
 		SERR(new);
-#endif
 }
-
-#if SOCKS_DEBUGER
-/* ARGSUSED */
-int
-setuid(uid)
-	uid_t uid;
-{
-	return 0;
-}
-#endif /* SOCKS_DEBUGER */
 
 int
 passwordmatch(name, clearpassword)

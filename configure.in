@@ -1,7 +1,7 @@
 AC_INIT(include/socks.h)
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="2"
+#prerelease="2"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else
@@ -24,7 +24,8 @@ for keyword in `set | egrep '^enable_' | sed -e 's/^enable_\(.*\)=.*/\1/'`;
 do
 	echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
 	if test $? -ne 0; then
-		AC_MSG_WARN(unknown option '$keyword')
+		AC_MSG_WARN(unknown option '$keyword', ignoring ...)
+		sleep 10;
 	fi
 done
 
@@ -113,6 +114,23 @@ if test x$no_acceptlock != xt; then
 	AC_DEFINE(NEED_ACCEPTLOCK)
 fi
 
+#define SYSCALL_IS_SYSCALL on bsd based systems
+#case $host in
+#	*-*-osf*)
+#		AC_DEFINE(SYSCALL_IS_SYSCALL, 1)
+#	;;
+#	*-*-sunos4*)
+#		AC_DEFINE(SYSCALL_IS_SYSCALL, 1)
+#	;;
+#	*-*-*bsd*)
+#		AC_DEFINE(SYSCALL_IS_SYSCALL, 1)
+#	;;
+#	*)
+#		AC_DEFINE(SYSCALL_IS_SYSCALL, 0)
+#	;;
+#esac
+AC_DEFINE(SYSCALL_IS_SYSCALL)
+
 AC_MSG_CHECKING(for compiler flags)
 case $host in
 
@@ -177,7 +195,7 @@ AC_ARG_ENABLE(warnings,
 	    enable_warnings=t
 	 fi])
 
-if test x$enable_warnings; then
+if test x$enable_warnings != x; then
 
     oCFLAGS=$CFLAGS
 
@@ -187,14 +205,17 @@ if test x$enable_warnings; then
 
 	    *sunos4*) #sunos cc
 #		warn=""
+		true
 	    ;;
 
 	    alpha-dec-osf*) #osf cc
 #		warn="-w0 -check -portable -warnprotos"
+		true
 	    ;;
 
 	    *-*-solaris*) #sun cc (-Xt?)
 #		warn="-vc" #XXX sun cc won't link with -vc defined
+		true
 	    ;;
 
 	    *-*-irix*) #sgi cc
@@ -206,8 +227,7 @@ if test x$enable_warnings; then
 	    ;;
 	esac
     else
-#	warn="-Wall -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
-	warn="-Wall"
+	warn="-Wall -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
     fi
     CFLAGS="$CFLAGS $warn"
     #make sure compilation is still possible
@@ -375,6 +395,13 @@ yes
 if test x$check_const = xyes; then
 AC_C_CONST
 fi
+
+AC_MSG_CHECKING(whether <netdb.h> declares h_errno)
+AC_EGREP_CPP(h_errno,[
+#include <netdb.h>
+], [AC_DEFINE(HAVE_H_ERRNO)
+    AC_MSG_RESULT(yes)],
+   [AC_MSG_RESULT(no)])
 
 #XXXsys/socket.h?
 AC_MSG_CHECKING(for struct ip_opts in <netinet/in.h>)
@@ -561,7 +588,7 @@ yes
 L_SOCKPROTO(connect, [failproto=t],
 ["int"],
 ["int"],
-["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *"],
+["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *" "__const struct sockaddr *"],
 ["socklen_t" "int" "size_t"])
 
 L_SOCKPROTO(accept, [failproto=t],
@@ -573,7 +600,7 @@ L_SOCKPROTO(accept, [failproto=t],
 L_SOCKPROTO(bind, [failproto=t],
 ["int"],
 ["int"],
-["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *"],
+["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *" "__const struct sockaddr *"],
 ["socklen_t" "int" "size_t"])
 
 L_SOCKPROTO(getpeername, [failproto=t],
@@ -610,7 +637,7 @@ L_SOCKPROTO(sendto, [failproto=t],
 ["const void *" "__const void *" "const char *"],
 ["size_t" "int"],
 ["int" "unsigned int"],
-["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "const void *"],
+["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "const void *" "__const struct sockaddr *"],
 ["socklen_t" "int" "size_t"])
 
 L_SOCKPROTO(recv, [failproto=t],
@@ -869,10 +896,23 @@ if test $ac_cv_func_crypt = no; then
       AC_CHECK_LIB(crypt, crypt)
 fi
 
+dnl #XXX include header in compilation test?
+if test "x${ac_cv_header_tcpd_h}" = "xyes"; then
+AC_MSG_CHECKING(for libwrap)
 if test x$no_libwrap = xt; then
-	echo "checking for main in -lwrap... libwrap disabled, test ignored"
+	echo "disabled"
 else
-	AC_CHECK_LIB(wrap, hosts_access)
+	oLIBS=$LIBS
+	LIBS="$LIBS -lwrap"
+	AC_TRY_LINK([
+int allow_severity;
+int deny_severity;
+], [hosts_access(0);],
+ [ AC_MSG_RESULT(yes)
+   AC_DEFINE(HAVE_LIBWRAP)],
+ [ AC_MSG_RESULT(no)
+   LIBS="$oLIBS"])
+fi
 fi
 
 dnl Looking for connect() in -lsocket
@@ -922,7 +962,6 @@ LIBS=""
 #   [have_dlopen_in_libc=t
 #    AC_MSG_RESULT(yes)], [AC_MSG_RESULT(no)])
 #AC_CHECK_LIB(c, dlopen)
-#XXX $ac_ refs
 #if test $ac_cv_lib_c_dlopen = no; then
 #if test x$have_dlopen_in_libc = x; then
 	AC_CHECK_LIB(dl, dlopen)
@@ -1331,7 +1370,6 @@ AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_UTIME_NULL
 AC_FUNC_VPRINTF
-#XXX disabled: vwarnx
 AC_CHECK_FUNCS(select socket strcspn strdup strspn hstrerror)
 AC_CHECK_FUNCS(issetugid strvis snprintf getdtablesize sysconf inet_pton)
 AC_CHECK_FUNCS(daemon setproctitle bzero sockatmark difftime memmove)
@@ -1372,6 +1410,7 @@ AC_LINK_FILES(lib/socket.c, sockd/socket.c)
 AC_LINK_FILES(lib/util.c, sockd/util.c)
 AC_LINK_FILES(lib/udp_util.c, sockd/udp_util.c)
 AC_LINK_FILES(lib/debug.c, sockd/debug.c)
+AC_LINK_FILES(lib/hostcache.c, sockd/hostcache.c)
 
 #The dlib directory is for building a shared library with preloading
 #support (SOCKSLIBRARY_DYNAMIC is defined), when dlopen support is
@@ -1406,8 +1445,9 @@ AC_LINK_FILES(lib/udp.c, dlib/udp.c)
 AC_LINK_FILES(lib/udp_util.c, dlib/udp_util.c)
 AC_LINK_FILES(lib/userio.c, dlib/userio.c)
 AC_LINK_FILES(lib/util.c, dlib/util.c)
+AC_LINK_FILES(lib/hostcache.c, dlib/hostcache.c)
 
 AC_OUTPUT([sockd/Makefile include/Makefile lib/Makefile dlib/Makefile \
 	   Makefile example/Makefile doc/Makefile bin/Makefile \
 	   SPECS/Makefile SPECS/dante.spec bin/socksify \
-	   libscompat/Makefile])
+	   libscompat/Makefile VERSION])

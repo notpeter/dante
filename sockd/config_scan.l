@@ -52,7 +52,7 @@ extern int parseinit;
 extern const int configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.48 1999/07/10 13:52:30 karls Exp $";
+"$Id: config_scan.l,v 1.50 1999/09/02 10:41:33 michaels Exp $";
 
 %}
 
@@ -84,7 +84,7 @@ static const char rcsid[] =
 	/*
 	 * we can operate in more than one mode, find out which it is and
 	 * let the parser know.
-	*/
+ 	 */
 
 
 %{
@@ -140,6 +140,11 @@ static const char rcsid[] =
 <start_command>bindreply {
 	yylval.string = yytext;
 	return COMMAND_BINDREPLY;
+}
+
+<start_command>udpreply {
+	yylval.string = yytext;
+	return COMMAND_UDPREPLY;
 }
 
 
@@ -449,7 +454,7 @@ rfc931 {
 
 	/*
 	 * verdicts
-	*/
+	 */
 
 block {
 	yylval.string = yytext;
@@ -484,7 +489,7 @@ libwrap {
 
  /*
   * Old keywords that are no longer used.
- */
+  */
 
 localdomain.*:.* {
 	yylval.string = yytext;

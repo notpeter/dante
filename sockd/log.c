@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.36 1999/05/26 10:05:31 michaels Exp $";
+"$Id: log.c,v 1.39 1999/09/02 10:41:39 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -57,7 +57,7 @@ logformat __P((int priority, char *buf, size_t buflen, const char *message,
  * Returns:
  *		On success: pointer to "buf".
  *		On failure: NULL.
-*/
+ */
 
 __END_DECLS
 
@@ -72,15 +72,8 @@ initlog(void)
 		/*
 		 * LOG_NDELAY so we don't end up in a situation where we
 		 * have no free descriptors and haven't yet syslog-ed anything.
-		*/
-		if (config.option.debug)
-#if HAVE_OPENLOG_LOG_PERROR
-			openlog(__progname, LOG_NDELAY | LOG_PERROR |LOG_PID, LOG_DAEMON);
-#else
-			openlog(__progname, LOG_NDELAY | LOG_PID, LOG_DAEMON);
-#endif  /* HAVE_OPENLOG_LOG_PERROR */
-		else
-			openlog(__progname, LOG_NDELAY | LOG_PID, LOG_DAEMON);
+		 */
+		openlog(__progname, LOG_NDELAY | LOG_PID, LOG_DAEMON);
 	}
 #endif /* SOCKS_SERVER */
 
@@ -107,7 +100,7 @@ slog(priority, message, va_alist)
 	va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	vslog(priority, message, ap);
+	vslog(priority, message, ap); 
 
 	/* LINTED expression has null effect */
 	va_end(ap);
@@ -129,7 +122,7 @@ vslog(priority, message, ap)
 	}
 
 	if (config.log.type & LOGTYPE_SYSLOG)
-		vsyslog(priority, message, ap);
+		vsyslog(priority, message, ap); 
 
 	if (config.log.type & LOGTYPE_FILE) {
 		int i;
@@ -138,10 +131,9 @@ vslog(priority, message, ap)
 			return;
 
 		for (i = 0; i < config.log.fpc; ++i) {
-			if (socks_lock(config.log.fplockv[i], F_WRLCK, -1) != 0)
-				continue; /* XXX need some way to log this. */
+			socks_lock(config.log.fplockv[i], F_WRLCK, -1);
 			fprintf(config.log.fpv[i], "%s\n", buf);
-			socks_unlock(config.log.fplockv[i], 0);
+			socks_unlock(config.log.fplockv[i]);
 		}
 	}
 

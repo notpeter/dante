@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.113 1999/07/10 13:52:28 karls Exp $";
+"$Id: config.c,v 1.117 1999/09/02 10:41:29 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -57,7 +57,7 @@ addrisinlist __P((const struct in_addr *addr, const struct in_addr *mask,
  * Returns:
  *		If "list" contains a element matching "addr" and "mask": true
  *		else: false
-*/
+ */
 
 static int
 addrareeq __P((const struct in_addr *addr, const struct in_addr *mask,
@@ -68,7 +68,7 @@ addrareeq __P((const struct in_addr *addr, const struct in_addr *mask,
  * Returns:
  *		If "against" matches "addr" and "mask": true
  *		else: false
-*/
+ */
 
 static int
 hostisinlist __P((const char *host, const char **list));
@@ -80,7 +80,7 @@ hostisinlist __P((const char *host, const char **list));
  * Returns:
  *		If "list" contains a element matching "host": true
  *		else: false
-*/
+ */
 
 static int
 hostareeq __P((const char *domain, const char *remotedomain));
@@ -92,7 +92,7 @@ hostareeq __P((const char *domain, const char *remotedomain));
  * Returns:
  *		on match: true
  *		else: false
-*/
+ */
 
 
 __END_DECLS
@@ -123,19 +123,6 @@ genericinit(void)
 #if !HAVE_NO_RESOLVESTUFF
 	res_init();
 #endif /* !HAVE_NO_RESOLVSTUFF */
-
-	if (*config.domain == NUL) {
-#if HAVE_NO_RESOLVESTUFF
-		strncpy(config.domain, SOCKS_DOMAINNAME, sizeof(config.domain));
-#else /* !HAVE_NO_RESOLVESTUFF */
-		strncpy(config.domain, _res.defdname, sizeof(config.domain));
-#endif /* !HAVE_NO_RESOLVESTUFF */
-
-		if (config.domain[sizeof(config.domain) - 1] != NUL) {
-			swarnx("%s: local domainname too long, truncated", function);
-			config.domain[sizeof(config.domain) - 1] = NUL;
-		}
-	}
 
 	switch (config.resolveprotocol) {
 		case RESOLVEPROTOCOL_TCP:
@@ -250,7 +237,7 @@ addressmatch(rule, address, protocol, alias)
 
 	/*
 	 * The hard work begins.
-	*/
+	 */
 
 	matched = 0;
 	if (rule->atype == SOCKS_ADDR_IPV4 && address->atype == SOCKS_ADDR_DOMAIN) {
@@ -259,7 +246,7 @@ addressmatch(rule, address, protocol, alias)
 		 * resolve address to ipaddress(es) and try to match each
 		 *	resolved ipaddress against rule.
 		 *		rule isin address->ipaddress(es)
-		*/
+		 */
 
 		if (!doresolve)
 			return 0;
@@ -280,7 +267,7 @@ addressmatch(rule, address, protocol, alias)
 		/*
 		 * match(rule.ipaddress, address.ipaddress)
 		 * try first a simple comparison, address against rule.
-		*/
+		 */
 		if (addrareeq(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
 		&address->addr.ipv4))
 			matched = 1;
@@ -290,7 +277,7 @@ addressmatch(rule, address, protocol, alias)
 			 * to hostname(s), the hostname back to ipaddress(es) and
 			 * then match those ipaddress(es) against rule.
 			 *		rule isin address->hostname(s)->ipaddress(es)
-			*/
+			 */
 
 			if (!doresolve)
 				return 0;
@@ -352,7 +339,7 @@ addressmatch(rule, address, protocol, alias)
 		 * resolved address.
 		 *		rule->ipaddress(es) isin address->ipaddress(es)
 		 *
-		*/
+		 */
 		if (hostareeq(rule->addr.domain, address->addr.domain))
 			matched = 1;
 		else if (doresolve && *rule->addr.domain != '.') {
@@ -380,7 +367,7 @@ addressmatch(rule, address, protocol, alias)
 
 			/*
 			 *	rule->ipaddress(es) isin address->ipaddress(es)
-			*/
+			 */
 
 			for (i = 0, mask.s_addr = htonl(0xffffffff);
 			hostent->h_addr_list != NULL && hostent->h_addr_list[i] != NULL;
@@ -415,7 +402,7 @@ addressmatch(rule, address, protocol, alias)
 		 * of all hostname(s) resolved from address back to hostname(s)
 		 * and match them against rule.
 		 *		rule isin address->hostname->ipaddress->hostname
-		*/
+		 */
 
 		if (!doresolve)
 			return 0;
@@ -456,7 +443,7 @@ addressmatch(rule, address, protocol, alias)
 			/*
 			 * rule isin address->hostname->ipaddress->hostname.
 			 * hostent is already address->hostname due to above.
-			*/
+			 */
 			char *nexthost;
 			int i;
 
@@ -827,7 +814,7 @@ socks_connectroute(s, packet, src, dst)
 	 *
 	 * current_s:	socket to use for next connection attempt.  For the
 	 *					first attempt this is 's'.
-	*/
+	 */
 
 	errno			= 0; /* let caller differentiate between missing route and not.*/
 	current_s	= s;
@@ -854,7 +841,7 @@ socks_connectroute(s, packet, src, dst)
 			/*
 			 * Check whether the error indicates bad socksserver or
 			 * something else.
-			*/
+			 */
 			if (errno == EINPROGRESS) {
 				SASSERTX(current_s == s);
 				break;
@@ -887,6 +874,12 @@ socks_connectroute(s, packet, src, dst)
 			return NULL;
 		}
 		close(current_s);
+
+#if SOCKS_SERVER && HAVE_LIBWRAP
+		if ((current_s = fcntl(s, F_GETFD, 0)) == -1
+		|| fcntl(s, F_SETFD, current_s | FD_CLOEXEC) == -1)
+			swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
+#endif
 	}
 
 	if (route != NULL) {
@@ -980,7 +973,7 @@ socks_requestpolish(req, src, dst)
 					 * so we need to be a little smarter than just returning
 					 * the result of the next socks_requestpolish()
 					 * while we still have the original portnumber.
-					*/
+					 */
 
 					switch (req->version) {
 						case SOCKS_V4:
@@ -1063,6 +1056,9 @@ showstate(state)
 	if (state->command.udpassociate)
 		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_UDPASSOCIATEs);
+	if (state->command.udpreply)
+		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		SOCKS_UDPREPLYs);
 	slog(LOG_INFO, buf);
 
 	bufused = snprintf(buf, sizeof(buf), "extension(s): ");

@@ -69,7 +69,7 @@ dnl	XXXstrip whatever's behind any *?
 		cp -f conftest.out_param conftest.out_param_${cnt}
 	else
 dnl		#XXX
-		echo "(not found)" > conftest.out_param_${cnt}
+		echo "not found" > conftest.out_param_${cnt}
 		echo "warning: found no argument"
 	fi
 

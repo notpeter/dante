@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.38 1999/06/14 08:10:04 michaels Exp $";
+"$Id: io.c,v 1.39 1999/09/02 10:41:37 michaels Exp $";
 
 /* this file defines the functions. */
 #undef select
@@ -129,7 +129,7 @@ recvmsgn(s, msg, flags, len)
 		 * gotten a descriptor or more as ancillary data which it neglects
 		 * to get rid of, so we have to check for it ourselves and close it,
 		 * else it just gets lost in the void.
-		*/
+		 */
 		int i, leaked;
 		caddr_t mem;
 
@@ -152,7 +152,7 @@ recvmsgn(s, msg, flags, len)
 		/*
 		 * Can't call recvmsg() again since we could be getting ancillary data,
 		 * read the elements one by one.
-		*/
+		 */
 
 		SASSERTX(p >= 0);
 

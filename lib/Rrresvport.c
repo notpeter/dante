@@ -44,12 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rrresvport.c,v 1.16 1999/05/13 13:12:58 karls Exp $";
+"$Id: Rrresvport.c,v 1.17 1999/09/02 10:41:21 michaels Exp $";
 
 /*
  * Note that for this function to work the remote socksserver is required
  * to be using the bind extension.
-*/
+ */
 
 int
 Rrresvport(port)

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.69 1999/07/10 13:52:28 karls Exp $";
+"$Id: address.c,v 1.73 1999/09/02 10:41:23 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -62,7 +62,7 @@ socks_sigblock __P((sigset_t *oldmask));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 __END_DECLS
 
@@ -315,7 +315,7 @@ socks_addrmatch(local, remote, state)
 		/*
 		 * only compare fields that have a valid value in request to compare
 		 * against.
-		*/
+		 */
 
 		if (local != NULL)
 			if (!sockaddrareeq(local, &socksfdv[i].local))
@@ -434,7 +434,7 @@ socks_sigblock(oldmask)
 
 	/*
 	 * block signals that might change socksfd.
-	*/
+	 */
 
 	sigemptyset(&newmask);
 	sigaddset(&newmask, SIGIO);
@@ -446,3 +446,62 @@ socks_sigblock(oldmask)
 
 	return 0;
 }
+
+#if 0
+void
+ccinit(void)
+{
+	const char *function = "cc()";
+	struct sigaction sigact;
+	struct itimerval itimer;
+
+	slog(LOG_DEBUG, function);
+
+	if (sigaction(SIGALRM, NULL, &sigact) != 0) {
+		swarn("%s: sigaction(SIGALRM)", function);
+		return;
+	}
+
+	if (sigact.sa_handler != SIG_DFL
+	&&  sigact.sa_handler != SIG_IGN) {
+		swarnx("%s: could not install signalhandler for SIGALRM, already set",
+		function);
+		return; 
+	}
+
+	sigemptyset(&sigact.sa_mask);
+	sigact.sa_flags = SA_RESTART;
+	sigact.sa_handler = cc_socksfdv;
+
+	if (sigaction(SIGALRM, &sigact, NULL) != 0) {
+		swarn("%s: sigaction(SIGALRM)", function);
+		return;
+	}
+
+	itimer.it_interval.tv_sec 		= 1; 
+	itimer.it_interval.tv_usec 	= 0; 
+	itimer.it_value.tv_sec		 	= 1;
+	itimer.it_value.tv_usec		 	= 1;
+
+	if (setitimer(ITIMER_REAL, &itimer, NULL) != 0)
+		swarn("%s: setitimer()", function);
+}
+#endif
+
+#if DIAGNOSTIC
+void
+cc_socksfdv(sig)
+	int sig;
+{
+	unsigned int i;
+
+	for (i = 0; i < socksfdc; ++i) {
+		if (!socksfdv[i].allocated)
+			continue;
+
+		if (socksfdv[i].state.system)
+			SERRX(i);
+	}
+}
+#endif /* DIAGNOSTIC */
+

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.33 1999/05/23 15:43:49 michaels Exp $";
+"$Id: clientprotocol.c,v 1.34 1999/09/02 10:41:26 michaels Exp $";
 
 int
 socks_sendrequest(s, request)
@@ -60,7 +60,7 @@ socks_sendrequest(s, request)
 			/*
 			 * VN   CD  DSTPORT DSTIP USERID   0
 			 *  1 + 1  +   2   +  4  +  ?    + 1  = 9 + USERID
-			*/
+			 */
 
 			/* VN */
 			memcpy(p, &request->version, sizeof(request->version));
@@ -90,7 +90,7 @@ socks_sendrequest(s, request)
 			 *	Which gives a fixed size of minimum 7 octets.
 			 *	The first octet of DST.ADDR when it is SOCKS_ADDR_DOMAINNAME
 			 *	contains the length of DST.ADDR.
-			*/
+			 */
 
 			/* VER */
 			memcpy(p, &request->version, sizeof(request->version));
@@ -117,7 +117,7 @@ socks_sendrequest(s, request)
 
 	/*
 	 * Send the request to the server.
-	*/
+	 */
 	if (writen(s, requestmem, (size_t)(p - requestmem)) != p - requestmem) {
 		swarn("%s: writen()", function);
 		return -1;
@@ -180,7 +180,7 @@ socks_recvresponse(s, response, version)
 			 *
 			 *	Which gives a size of >= 7 octets.
 			 *
-			*/
+			 */
 			char responsemem[sizeof(response->version)
 								+ sizeof(response->reply)
 								+ sizeof(response->flag)
@@ -301,7 +301,7 @@ recv_sockshost(s, host, version)
 			/*
 			 * DSTPORT  DSTIP
 			 *   2    +   4
-			*/
+			 */
 			char hostmem[ sizeof(host->port)
 						   + sizeof(host->addr.ipv4)
 							];
@@ -332,7 +332,7 @@ recv_sockshost(s, host, version)
 			 * +------+----------+----------+
 			 * |  1   |  > 0     |    2     |
 			 * +------+----------+----------+
-			*/
+			 */
 
 			/* ATYP */
 			if (readn(s, &host->atype, sizeof(host->atype)) != sizeof(host->atype))

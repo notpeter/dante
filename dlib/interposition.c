@@ -50,7 +50,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.50 1999/07/03 16:36:18 karls Exp $";
+"$Id: interposition.c,v 1.53 1999/09/25 13:10:31 karls Exp $";
 
 #undef accept
 #undef bind
@@ -123,7 +123,7 @@ static struct libsymbol_t *
 libsymbol __P((const char *symbol));
 /*
  * Finds the libsymbol_t that "symbol" is defined in.
-*/
+ */
 
 __END_DECLS
 
@@ -166,7 +166,7 @@ symbolfunction(symbol)
 
 #if 0
 	if (strcmp(symbol, SYMBOL_WRITE) != 0)
-		slog(LOG_DEBUG, "found symbol %s in library %s\n",
+		slog(LOG_DEBUG, "found symbol %s in library %s",
 		lib->symbol, lib->library);
 #endif
 
@@ -495,7 +495,7 @@ sys_writev(d, iov, iovcnt)
 
 	/*
 	 * the interpositioned functions.
-	*/
+	 */
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
 HAVE_PROT_ACCEPT_0
@@ -510,6 +510,7 @@ accept(s, addr, addrlen)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
+#if !HAVE_EXTRA_OSF_SYMBOLS
 HAVE_PROT_BIND_0
 bind(s, name, namelen)
 	HAVE_PROT_BIND_1 s;
@@ -520,6 +521,7 @@ bind(s, name, namelen)
 		return sys_bind(s, name, namelen);
 	return Rbind(s, name, namelen);
 }
+#endif /* !HAVE_EXTRA_OSF_SYMBOLS */
 
 int
 bindresvport(sd, sin)

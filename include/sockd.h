@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.127 1999/07/10 13:52:26 karls Exp $ */
+/* $Id: sockd.h,v 1.134 1999/09/02 10:45:11 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -68,21 +68,21 @@ extern const int lintnoloop_sockd_h;
 #define LEFT()	((end) - state->reqread)
 /*
  * Returns the number of bytes left to read.
-*/
+ */
 
 #define READ(s, length)	(readn((s), &state->mem[state->reqread], (length)))
 /*
  * "s" is the descriptor to read from.
  * "length" is how much to read.
  * Returns the number of bytes read, -1 on error.
-*/
+ */
 
 
 
 #define OBJECTFILL(object)	memcpy((object), &state->mem[start], end - start)
 /*
  * Fills "object" with data.
-*/
+ */
 
 #define CHECK(object, nextfunction)									\
 do {																			\
@@ -118,11 +118,12 @@ do {																			\
 #define SOCKD_FREESLOT		2	/* free'd a slot.				*/
 
 
-/* a requestchild handle a maximum of one client. */
+/* a requestchild can currently only handle a maximum of one client. */
 #define SOCKD_REQUESTMAX	1
 
 
 /* IO stuff. */
+#define IO_SRCBLOCK			-4
 #define IO_ERRORUNKNOWN		-3
 #define IO_TIMEOUT			-2
 #define IO_ERROR				-1
@@ -147,8 +148,9 @@ do {																			\
 
 #define LOG_CONNECTs			"connect"
 #define LOG_DISCONNECTs		"disconnect"
-#define LOG_IOOPERATIONs	"iooperation"
 #define LOG_DATAs				"data"
+#define LOG_ERRORs			"error"
+#define LOG_IOOPERATIONs	"iooperation"
 
 
 #define OPERATION_ACCEPT		1
@@ -156,6 +158,7 @@ do {																			\
 #define OPERATION_IO				(OPERATION_CONNECT + 1)
 #define OPERATION_DISCONNECT	(OPERATION_IO + 1)
 #define OPERATION_ABORT			(OPERATION_DISCONNECT + 1)
+#define OPERATION_ERROR			(OPERATION_ABORT + 1)
 
 
 
@@ -274,7 +277,6 @@ struct config_t {
 	struct route_t					*route;					/* not in use yet.			*/
 
 	struct compat_t				compat;					/* compatibility options.  */
-	char								domain[MAXHOSTNAMELEN]; /* localdomain.			*/
 	struct extension_t			extension;				/* extensions set.			*/
 	struct logtype_t				log;						/* where to log.				*/
 	struct option_t				option;					/* commandline options.		*/
@@ -411,7 +413,7 @@ sockd_bind __P((int s, const struct sockaddr *addr, size_t retries));
  * Returns:
  *		On success: 0.
  *		On failure:	-1
-*/
+ */
 
 
 int
@@ -424,7 +426,7 @@ socks_permit __P((int client, struct socks_t *dst, int permit));
  * Returns:
  *		If connection allowed: true.
  *		If connection disallowed: false.
-*/
+ */
 
 
 int
@@ -437,7 +439,7 @@ sockdio __P((struct sockd_io_t *io));
  * Returns
  *    On success: 0
  *    On failure: -1, io was not accepted by any child.
-*/
+ */
 
 int
 pidismother __P((pid_t pid));
@@ -445,7 +447,7 @@ pidismother __P((pid_t pid));
  * If "pid" refers to a mother, the number of "pid" in
  * state.motherpidv is returned.  Numbers are counted from 1.
  * IF "pid" is no mother, 0 is returned.
-*/
+ */
 
 
 int
@@ -457,19 +459,19 @@ childcheck __P((int type));
  * If childcheck() is successful it also means there is at the minimum
  * one descriptor available.
  * Returns the total number of new objects children can accept.
-*/
+ */
 
 int
 childtype __P((pid_t pid));
 /*
  * Returns the type of child the child with pid "pid" is.
-*/
+ */
 
 const char *
 childtype2string __P((int type));
 /*
  * returns the string representation of "type".
-*/
+ */
 
 int
 removechild __P((pid_t childpid));
@@ -478,21 +480,21 @@ removechild __P((pid_t childpid));
  * Returns:
  *		On success: 0
  *		On failure: -1 (no current proxychild has pid "childpid".)
-*/
+ */
 
 struct rule_t *
 addclientrule __P((const struct rule_t *rule));
 /*
  * Appends a copy of "rule" to our list of client rules.
  * Returns a pointer to the added rule (not "rule").
-*/
+ */
 
 struct rule_t *
 addsocksrule __P((const struct rule_t *rule));
 /*
  * Appends a copy of "rule" to our list of socks rules.
  * Returns a pointer to the added rule (not "rule").
-*/
+ */
 
 struct linkedname_t *
 adduser __P((struct linkedname_t **ruleuser, const char *name));
@@ -501,26 +503,26 @@ adduser __P((struct linkedname_t **ruleuser, const char *name));
  * Returns:
  *		On success: a pointer ruleuser.
  *		On failure: NULL.
-*/
+ */
 void
 showrule __P((const struct rule_t *rule));
 /*
  * prints the rule "rule".
-*/
+ */
 
 
 void
 showclient __P((const struct rule_t *rule));
 /*
  * prints the clientrule "rule".
-*/
+ */
 
 
 void
 showconfig __P((const struct config_t *config));
 /*
  * prints out config "config".
-*/
+ */
 
 
 
@@ -541,7 +543,7 @@ rulespermit __P((int s, struct rule_t *rule,
  * Returns:
  *		True if a connection should be allowed.
  *		False otherwise.
-*/
+ */
 
 
 
@@ -553,13 +555,13 @@ sockd_connect __P((int s, const struct sockshost_t *dst));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 void
 resetconfig __P((void));
 /*
  * resets the current config back to default, freeing memory aswell.
-*/
+ */
 
 
 void
@@ -568,8 +570,7 @@ send_failure __P((int s, const struct response_t *response, int failure));
  * Sends a failure message to the client at "s".  "response" is the packet
  * we send, "failure" is the reason for failure and "auth" is the agreed on
  * authentication.
- * After message is sent, "s" is closed.
-*/
+ */
 
 int
 send_response __P((int s, const struct response_t *response));
@@ -577,7 +578,7 @@ send_response __P((int s, const struct response_t *response));
  * Sends "response" to "s".
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 
 
@@ -588,7 +589,7 @@ send_req __P((int s, const struct sockd_request_t *req));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 int
 send_client __P((int s, int client));
@@ -597,14 +598,14 @@ send_client __P((int s, int client));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 
 
 /*
  * Returns a value indicating whether relaying from "src" to "dst" should
  * be permitted.
-*/
+ */
 
 int
 selectmethod __P((const unsigned char *methodv, size_t methodc));
@@ -614,7 +615,7 @@ selectmethod __P((const unsigned char *methodv, size_t methodc));
  * in length.
  * The function returns the value of the method that should be selected,
  * AUTMETHOD_NOACCEPT if none is acceptable.
-*/
+ */
 
 int
 method_uname __P((int s, struct request_t *request,
@@ -628,7 +629,7 @@ method_uname __P((int s, struct request_t *request,
  *		On success: 0 (user/password accepted)
  *		On failure: -1  (user/password not accepted, communication failure,
  *							  or something else.)
-*/
+ */
 
 
 
@@ -647,10 +648,26 @@ iolog __P((struct rule_t *rule, const struct connectionstate_t *state,
  * "operation" is the operation that was performed.
  * "src" is where data was read from.
  * "dst" is where data was written to.
- * "data" is the data that was read and written, NUL terminated.
- * "count" is the number that was read/written, not necessarily equal
- * to "strlen(data) + 1" since the sender may have added NUL itself.
-*/
+ * "data" and "count" are interpreted depending on "operation".
+ *
+ * If "operation" is 
+ *    OPERATION_ACCEPT
+ *		OPERATION_CONNECT
+ *    OPERATION_DISCONNECT
+ *			"data" and "count" is ignored.
+ *
+ * 	OPERATION_ABORT
+ * 	OPERATION_ERROR
+ *			"count" is ignored.
+ *			If "data" is not NULL, it is a string giving the reason for abort
+ * 		or error.
+ *			If "data" is NULL, the reason is the errormessage affiliated
+ *			with the current errno.
+ *			
+ *		OPERATION_IO
+ * 		"data" is the data that was read and written.
+ * 		"count" is the number of bytes that was read/written.
+ */
 
 
 int
@@ -663,7 +680,7 @@ serverchild __P((int s, const struct sockaddr_in *local,
  * Returns:
  *		On success: 0
  *		On failure : -1
-*/
+ */
 
 
 void
@@ -671,7 +688,7 @@ close_iodescriptors __P((const struct sockd_io_t *io));
 /*
  * A subset of delete_io().  Will just close all descriptors in
  * "io".
-*/
+ */
 
 int
 sockdnegotiate __P((int s));
@@ -680,7 +697,7 @@ sockdnegotiate __P((int s));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 
 void
@@ -690,7 +707,7 @@ run_io __P((struct sockd_mother_t *mother));
  *
  * A child starts running with zero clients and waits
  * indefinitely for mother to send atleast one.
-*/
+ */
 
 void
 run_negotiate __P((struct sockd_mother_t *mother));
@@ -698,7 +715,7 @@ run_negotiate __P((struct sockd_mother_t *mother));
  * Sets a negotiator child running.  "mother" is the childs mother.
  * A child starts running with zero clients and waits
  * indefinitely for mother to send atleast one.
-*/
+ */
 
 
 void
@@ -708,7 +725,7 @@ run_request __P((struct sockd_mother_t *mother));
  * "mread" is read connection to mother, "mwrite" is write connection.
  * A child starts running with zero clients and waits
  * indefinitely for mother to send atleast one.
-*/
+ */
 
 int
 send_io __P((int s, const struct sockd_io_t *io));
@@ -717,7 +734,7 @@ send_io __P((int s, const struct sockd_io_t *io));
  * Returns
  *    On success: 0
  *    On failure: -1
-*/
+ */
 
 int
 recv_io __P((int mother, struct sockd_io_t *io));
@@ -730,7 +747,7 @@ recv_io __P((int mother, struct sockd_io_t *io));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 int
 recv_req __P((int s, struct sockd_request_t *req));
@@ -739,7 +756,7 @@ recv_req __P((int s, struct sockd_request_t *req));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 
 int
@@ -755,7 +772,7 @@ recv_request __P((int s, struct request_t *request,
  *    On success: > 0
  *    On failure: <= 0.  If errno does not indicate the request should be
  *                       be retried, the connection "s" should be dropped.
-*/
+ */
 
 int
 recv_sockspacket __P((int s, struct request_t *request,
@@ -767,7 +784,7 @@ recv_sockspacket __P((int s, struct request_t *request,
  *    On success: > 0
  *    On failure: <= 0.  If errno does not indicate the request should be
  *                       be retried, the connection "s" should be dropped.
-*/
+ */
 
 struct sockd_child_t *
 addchild __P((int type));
@@ -776,7 +793,7 @@ addchild __P((int type));
  * Returns:
  *    On success: a pointer to the added child.
  *    On failure: NULL.  (resource shortage.)
-*/
+ */
 
 struct sockd_child_t *
 getchild __P((pid_t pid));
@@ -785,28 +802,28 @@ getchild __P((pid_t pid));
  * Returns:
  *		On success: a pointer to the found child.
  *		On failure: NULL.
-*/
+ */
 
 
 void
-sigchildbroadcast(int sig, int childtype);
+sigchildbroadcast __P((int sig, int childtype));
 /*
  * Sends signal "sig" to all children of type "childtype".
-*/
+ */
 
 int
 fillset __P((fd_set *set));
 /*
  * Sets every child's descriptor in "set", aswell as sockets we listen on.
  * Returns the number of the highest descriptor set, or -1 if none was set.
-*/
+ */
 
 void
 clearset __P((int type, const struct sockd_child_t *child, fd_set *set));
 /*
  * Clears every descriptor of type "type" in "child" from "set".
  * The values valid for "type" is SOCKD_NEWREQUEST or SOCKD_FREESLOT.
-*/
+ */
 
 struct sockd_child_t *
 getset __P((int type, fd_set *set));
@@ -816,7 +833,7 @@ getset __P((int type, fd_set *set));
  * be set, either SOCKD_NEWREQUEST or SOCKD_FREESLOT.
  * The children returned are returned in prioritised order.
  * If no child is found, NULL is returned.
-*/
+ */
 
 struct sockd_child_t *
 nextchild __P((int type));
@@ -824,13 +841,13 @@ nextchild __P((int type));
  * Returns:
  *		On success: pointer to a child of correct type with atleast one free slot.
  *		On failure: NULL.
-*/
+ */
 
 void
 setsockoptions(int s);
 /*
  * Sets options _all_ serversockets should have set.
-*/
+ */
 
 void
 sockdexit __P((int sig));
@@ -839,33 +856,33 @@ sockdexit __P((int sig));
  * If "sig" is less than 0, assume it's manually and exit with absolute
  * value of "sig".
  * Otherwise report exit due to signal "sig".
-*/
+ */
 
 struct hostent *
 cgethostbyname __P((const char *name));
 /*
  * Identical to gethostbyname() but caches info.
-*/
+ */
 
 struct hostent *
 cgethostbyaddr __P((const char *addr, int len, int type));
 /*
  * Identical to gethostbyaddr() but caches info.
-*/
+ */
 
 void
 socks_seteuid __P((uid_t *old, uid_t new));
 /*
  * Sets euid to "new".  If "old" is not NULL, current euid is saved in it.
  * Exits on failure.
-*/
+ */
 
 void
 socks_reseteuid __P((uid_t current, uid_t new));
 /*
  * "Resets" euid back from "current" to "new".
  * If the operation fails, it's flagged as an internal error.
-*/
+ */
 
 int
 passwordmatch __P((const char *name, const char *cleartextpassword));
@@ -875,7 +892,7 @@ passwordmatch __P((const char *name, const char *cleartextpassword));
  * Returns:
  *		If "name" and "cleartextpassword" matches: 1
  *		else: 0
-*/
+ */
 
 
 #ifdef DEBUG
@@ -884,7 +901,7 @@ printfd __P((const struct sockd_io_t *io, const char *prefix));
 /*
  * prints the contents of "io".  "prefix" is the string prepended
  * to the printing. (typically "received" or "sent".)
-*/
+ */
 #endif
 
 __END_DECLS

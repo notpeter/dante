@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.89 1999/07/10 13:52:30 karls Exp $";
+"$Id: connectchild.c,v 1.90 1999/09/02 10:41:35 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -63,7 +63,7 @@ __END_DECLS
  * if caller already has a signal handler for SIGCHLD, save it
  * so we can call it from our own handler if something else than our
  * own child dies, for compatibility with caller.
-*/
+ */
 static struct sigaction oldsig;
 
 #ifdef FDPASS_MAX
@@ -103,14 +103,14 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	if (currentsig.sa_handler != sigchld) {
 		/*
 		 * Our signalhandler is not installed, install it.
-		*/
+		 */
 		struct sigaction oursig;
 
 		oldsig = currentsig;
 
 		/*
 		 * This is far from 100% but...
-		*/
+		 */
 
 		if (oldsig.sa_flags != 0)
 			swarnx("%s: sigchld sa_flags not handled currently,\n"
@@ -139,7 +139,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	if (config.connectchild == 0) {
 		/*
 		 * Create child process that will do our connections.
-		*/
+		 */
 		int pipev[2];
 
 		if (socketpair(AF_LOCAL, SOCK_STREAM, 0, pipev) != 0) {
@@ -175,7 +175,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 				/*
 				 * in case of using msproxy stuff, don't want mothers mess,
 				 * disable alarmtimers.
-				*/
+				 */
 
 				if (signal(SIGALRM, SIG_DFL) == SIG_ERR)
 					swarn("%s: signal()", function);
@@ -210,7 +210,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			 * When the connection has been set up we duplicate over the
 			 * socket we were passed here and close the temporarily created
 			 * socket.
-			*/
+			 */
 			int tmp;
 
 			SASSERTX(control == s);
@@ -233,7 +233,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			/*
 			 * s: new (temp) socket using original index of "s".
 			 * control: original "s" socket but using new descriptor index.
-			*/
+			 */
 
 			break;
 		}
@@ -242,7 +242,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			/*
 			 * Controlsocket is separate from datasocket.
 			 * Identical to our fixed sockssetup.
-			*/
+			 */
 			break;
 
 		default:
@@ -256,7 +256,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	/*
 	 * datasocket probably unbound.  If so we need to bind it so
 	 * we can get a (hopefully) unique local address for it.
-	*/
+	 */
 
 	len = sizeof(local);
 	/* LINTED pointer casts may be troublesome */
@@ -324,7 +324,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	 * send the request to our connectprocess and let it do the rest.
 	 * When it's done, we get a signal and dup "s" over "socksfd.control"
 	 * in the handler.
-	*/
+	 */
 
 	fdsent = 0;
 	CMSG_ADDOBJECT(control, sizeof(control) * fdsent++);
@@ -371,7 +371,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 /*
  * XXX should have more code so we could handle multiple requests at
  * a time.
-*/
+ */
 static void
 run_connectchild(mother)
 	int mother;
@@ -414,7 +414,7 @@ run_connectchild(mother)
 			 * Mother sending us a connected (or in the process of being
 			 * connected) socket and necessary info to negotiate with
 			 * proxyserver.
-			*/
+			 */
 			struct childpacket_t req;
 			struct iovec iov[1];
 			socklen_t len;
@@ -572,7 +572,7 @@ run_connectchild(mother)
 
 				/*
 				 * this is pretty bad, but it could happen unfortunately.
-				*/
+				 */
 				bzero(&local, sizeof(local));
 				local.sa_family = AF_INET;
 				/* LINTED pointer casts may be troublesome */
@@ -718,7 +718,7 @@ sigchld(sig)
 
 			/*
 			 * it's possible endpoint changed/got fixed.  Update in case.
-			*/
+			 */
 
 			len = sizeof(socksfd->local);
 			if (getsockname(s, &socksfd->local, &len) != 0)
@@ -738,7 +738,7 @@ sigchld(sig)
 				/*
 				 * XXX If it's a servererror it would be nice to retry, could
 				 * be there's a backup route.
-				*/
+				 */
 				return;
 			}
 
