@@ -1,0 +1,13 @@
+
+        This directory contains contributed files that are not
+        supported or maintained by Inferno Nettverk A/S.
+
+        They are included here in the hopes that they may be usefull
+        to someone.
+
+        Inferno Nettverk takes no responsibility for any of these
+        files, use them at your own risk (as always).
+
+
+Filename 				Description
+sockd-stat.awk			provides statistics based on sockd logfiles

@@ -79,8 +79,8 @@ VERSION = @VERSION@
 YACC = @YACC@
 
 AUTOMAKE_OPTIONS = foreign
-@BUILD_PRELOAD_LIB_TRUE@SUBDIRS = libscompat dlib lib sockd include example doc bin SPECS capi
-@BUILD_PRELOAD_LIB_FALSE@SUBDIRS = libscompat      lib sockd include example doc bin SPECS capi
+@BUILD_PRELOAD_LIB_TRUE@SUBDIRS = libscompat dlib lib sockd include example doc bin SPECS capi contrib
+@BUILD_PRELOAD_LIB_FALSE@SUBDIRS = libscompat      lib sockd include example doc bin SPECS capi contrib
 @PRERELEASE_TRUE@DIST_COMMON = PRERELEASE README INSTALL Makefile.am Makefile.in NEWS TODO    	aclocal.m4 config.guess config.sub configure configure.in install-sh 	ltconfig ltmain.sh missing mkinstalldirs acinclude.m4 acconfig.h
 @PRERELEASE_FALSE@DIST_COMMON = README INSTALL Makefile.am Makefile.in NEWS TODO aclocal.m4  	config.guess config.sub configure configure.in install-sh ltconfig 	ltmain.sh missing mkinstalldirs acinclude.m4 acconfig.h
 
@@ -96,7 +96,8 @@ DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 TAR = tar
 GZIP_ENV = --best
 DIST_SUBDIRS =  libscompat dlib lib sockd include example doc bin SPECS \
-capi libscompat lib sockd include example doc bin SPECS capi
+capi contrib libscompat lib sockd include example doc bin SPECS capi \
+contrib
 all: all-redirect
 .SUFFIXES:
 $(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) 

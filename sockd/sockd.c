@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.265 2001/02/06 15:59:06 michaels Exp $";
+"$Id: sockd.c,v 1.268 2001/02/20 18:27:04 karls Exp $";
 
 	/*
 	 * signal handlers
@@ -606,11 +606,11 @@ usage(code)
 {
 
 	fprintf(code == 0 ? stdout : stderr,
-	"%s: usage: %s [-DLNdfhlnv]\n"
+	"%s: usage: %s [-DLNVdfhlnv]\n"
 	"\t -D             : run in daemon mode\n"
 	"\t -L             : shows the license for this program\n"
-   "\t -N <number>    : fork of <number> servers (default: 1)\n"
-	"\t -V				 : verify configuration and exit\n",
+        "\t -N <number>    : fork of <number> servers (default: 1)\n"
+	"\t -V             : verify configuration and exit\n"
 	"\t -d             : enable debugging\n"
 	"\t -f <filename>  : use <filename> as configuration file\n"
 	"\t -h             : print this information\n"

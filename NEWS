@@ -1,6 +1,10 @@
-@(#)$Id: NEWS,v 1.31 2001/02/19 17:57:33 karls Exp $
+@(#)$Id: NEWS,v 1.32 2001/02/20 18:46:53 karls Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Tuesday, February 20, 2001 -- Dante v1.1.8
+
+ o contrib directory actually added to distributed archive
 
 ***  Tuesday, February 20, 2001 -- Dante v1.1.7
 

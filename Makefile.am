@@ -1,8 +1,8 @@
 AUTOMAKE_OPTIONS = foreign
 if BUILD_PRELOAD_LIB
-SUBDIRS = libscompat dlib lib sockd include example doc bin SPECS capi
+SUBDIRS = libscompat dlib lib sockd include example doc bin SPECS capi contrib
 else
-SUBDIRS = libscompat      lib sockd include example doc bin SPECS capi
+SUBDIRS = libscompat      lib sockd include example doc bin SPECS capi contrib
 endif
 
 #XXX this is not very pretty, but EXTRA_DIST does not accept conditionals
