@@ -225,55 +225,6 @@ distdir: $(DISTFILES)
 	    || cp -p $$d/$$file $(distdir)/$$file || :; \
 	  fi; \
 	done
-daemon.lo daemon.o : daemon.c ../include/autoconf.h ../include/redefac.h \
-	../include/common.h ../include/yacconfig.h ../include/config.h
-difftime.lo difftime.o : difftime.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-getdtablesize.lo getdtablesize.o : getdtablesize.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-getifaddrs.lo getifaddrs.o : getifaddrs.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-hstrerror.lo hstrerror.o : hstrerror.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-inet_aton.lo inet_aton.o : inet_aton.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-inet_ntoa.lo inet_ntoa.o : inet_ntoa.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-inet_pton.lo inet_pton.o : inet_pton.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-issetugid.lo issetugid.o : issetugid.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-memmove.lo memmove.o : memmove.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-seteuid.lo seteuid.o : seteuid.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-setproctitle.lo setproctitle.o : setproctitle.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-snprintf.lo snprintf.o : snprintf.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-sockatmark.lo sockatmark.o : sockatmark.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-strerror.lo strerror.o : strerror.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
-strvis.lo strvis.o : strvis.c ../include/autoconf.h ../include/redefac.h \
-	../include/common.h ../include/yacconfig.h ../include/config.h
-vsyslog.lo vsyslog.o : vsyslog.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
 
 info-am:
 info: info-am

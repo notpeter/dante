@@ -1,6 +1,6 @@
 AC_INIT(include/socks.h)
 
-version=1.1.8
+version=1.1.9
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="2"
 if test x$prerelease != x; then
