@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.18 1998/11/30 13:54:05 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.21 1999/02/20 19:28:05 michaels Exp $";
 
 #include "common.h"
 
@@ -65,15 +65,19 @@ Rgetsockname(s, name, namelen)
 
 	switch (socksfd->state.command) {
 		case SOCKS_CONNECT:
+			if (socksfd->state.inprogress) {
+				if (socksfd->state.err != 0) /* connect failed. */
+					errno = socksfd->state.err;
+				else
+					errno = EINPROGRESS;
+				return -1;
+			}
+
 			addr = &socksfd->remote;
 
 			/* LINTED pointer casts may be troublesome */
-			if (((struct sockaddr_in *)addr)->sin_addr.s_addr == htonl(INADDR_ANY)
-			&& ((struct sockaddr_in *)addr)->sin_port == htons(0)) {
-				swarnx("sorry, getsockname() after nonblocking connect() is\n"
-						 "not supported in this version.\n"
-						 "Contact Inferno Nettverk for more information.");
-
+			if (!ADDRISBOUND(addr)) {
+				SWARNX(0);
 				errno = EADDRNOTAVAIL;
 				return -1;
 			}
@@ -84,12 +88,10 @@ Rgetsockname(s, name, namelen)
 			break;
 
 		case SOCKS_UDPASSOCIATE:
-			swarnx("sorry, getsockname() on udp socket is not supported.\n"
+			swarnx("getsockname() on udp socket is not supported.\n"
 					 "Contact Inferno Nettverk for more information.");
 			errno = EADDRNOTAVAIL;
 			return -1;
-
-			break;
 
 		default:
 			SERRX(socksfd->state.command);

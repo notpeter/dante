@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.42 1998/12/13 17:36:26 michaels Exp $";
+"$Id: serverconfig.c,v 1.46 1999/02/26 19:26:29 michaels Exp $";
 
 #include "common.h"
 #include "config_parse.h"
@@ -106,8 +106,10 @@ addrule(newrule)
 		memset(&rule->state.protocol, UCHAR_MAX, sizeof(rule->state.protocol));
 
 	/* if no version set, set all. */
-	if (memcmp(&state.version, &rule->state.version, sizeof(state.version)) == 0)
-		memset(&rule->state.version, UCHAR_MAX, sizeof(rule->state.version));
+	if (memcmp(&state.proxyprotocol, &rule->state.proxyprotocol,
+	sizeof(state.proxyprotocol)) == 0)
+		memset(&rule->state.proxyprotocol, UCHAR_MAX,
+		sizeof(rule->state.proxyprotocol));
 
 	/* don't touch logging, no logging is ok. */
 
@@ -391,11 +393,11 @@ iolog(rule, state, operation, src, dst, data, count)
 			if (rule->log.connect 
 			||  rule->log.disconnect)
 #ifdef HAVE_LIBWRAP
-				if (strcmp(eval_user(&rule->request), STRING_UNKNOWN) != 0) {
+				/* can't use eval_user() since it always does rfc931 lookup. */
+				if (*rule->request.user != NUL) {
 					slog(LOG_INFO, "%s(%d): %s: %s@%s -> %s",
 					rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
-					rule->number, command, eval_user(&rule->request),
-					srcstring, dststring);
+					rule->number, command, rule->request.user, srcstring, dststring);
 					break;
 				}
 #endif  /* HAVE_LIBWRAP */
@@ -483,7 +485,8 @@ rulespermit(s, match, state, src, dst)
 		memset(&defrule.state.protocol, UCHAR_MAX,
 		sizeof(defrule.state.protocol));
 
-		memset(&defrule.state.version, UCHAR_MAX, sizeof(defrule.state.version));
+		memset(&defrule.state.proxyprotocol, UCHAR_MAX,
+		sizeof(defrule.state.proxyprotocol));
 		
 #ifdef HAVE_LIBWRAP
 		*defrule.libwrap = NUL;
@@ -543,12 +546,12 @@ rulespermit(s, match, state, src, dst)
 		/* current rule covers desired version? */
 		switch (state->version) {
 			case SOCKS_V4:
-				if (!rule->state.version.v4)
+				if (!rule->state.proxyprotocol.socks_v4)
 					continue;
 				break;
 
 			case SOCKS_V5:
-				if (!rule->state.version.v5)
+				if (!rule->state.proxyprotocol.socks_v5)
 					continue;
 				break;
 				
@@ -581,10 +584,10 @@ rulespermit(s, match, state, src, dst)
 
 	/*
 	 * specialcases that we delay to here to get correct addr/rule match,
-	 * even if we could know the answer to it before.
+	 * even if we could get the final answer before.  
 	*/
 	if (dst->atype == SOCKS_ADDR_IPV4
-	&&  dst->addr.ipv4.s_addr == htonl(INADDR_ANY))
+	&&  dst->addr.ipv4.s_addr == htonl(0))
 		/* bind extension requested. */
 		if (!config.extension.bind)
 			match->verdict = VERDICT_BLOCK;
@@ -603,7 +606,7 @@ connectisok(s, rule)
 	const uid_t euid = geteuid();
 	char libwrap[LIBWRAPBUF];
 
-	seteuid(config.uid.libwrap);
+	seteuid(config.uid.libwrap); 
 
 	request_init(&rule->request, RQ_FILE, s, RQ_DAEMON, "sockd", 0);  
 	fromhost(&rule->request); 
@@ -617,8 +620,7 @@ connectisok(s, rule)
 		seteuid(euid);
 		return 0;	/* something got screwed up. */
 	}
-	process_options(libwrap, &rule->request);
-	
+	process_options(libwrap, &rule->request); 
 
 	if (!config.srchost.unknown)
 		if (strcmp(eval_hostname(rule->request.client), STRING_UNKNOWN) == 0) {
@@ -636,7 +638,7 @@ connectisok(s, rule)
 			return 0;
 	}
 
-	seteuid(euid);
+	seteuid(euid); 
 
 	if (&rule->request.client->sin == NULL) {
 		SWARNX(&rule->request.client->sin);

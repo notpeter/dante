@@ -42,11 +42,14 @@
  */
 
 static const char rcsid[] =
-"$Id: config.c,v 1.71 1998/12/08 14:40:19 michaels Exp $";
+"$Id: config.c,v 1.75 1999/02/26 19:24:58 michaels Exp $";
 
 #include "common.h"
 
 __BEGIN_DECLS
+
+static int
+hostcmp __P((const char *domain, const char *remotedomain));
 
 static void
 socks_badroute __P((struct route_t *route));
@@ -62,6 +65,7 @@ addressmatch(rule, address, protocol, ipalias)
 {
 	const char *function = "addressmatch()";
 	struct hostent *hostent;
+	int matched = 0;
 
 	/* test port first since we have already have all info needed for that. */
 	if (address->port == ntohs(0))
@@ -130,30 +134,43 @@ addressmatch(rule, address, protocol, ipalias)
 
 	/* address match? */
 
-	hostent = NULL;
+	/* try for exact match first, can avoid gethostby*() call. */
 	switch (rule->atype) {
 		case SOCKS_ADDR_IPV4:
-			/* do a little extra work here in hopes of avoiding gethostby* call. */
-			if (address->atype == SOCKS_ADDR_IPV4) {
-				if (address->addr.ipv4.s_addr == htonl(INADDR_ANY))
+			if (address->atype == rule->atype) {
+				if (address->addr.ipv4.s_addr == htonl(INADDR_ANY)) {
+					matched = 1;
 					break;
+				}
 
 				if ((address->addr.ipv4.s_addr & rule->addr.ipv4.mask.s_addr)
-				==  (rule->addr.ipv4.ip.s_addr & rule->addr.ipv4.mask.s_addr)) 
+				==  (rule->addr.ipv4.ip.s_addr & rule->addr.ipv4.mask.s_addr)) {
+					matched = 1;
 					break;
-				
-				if (!ipalias)
-					return 0;
+				}
 			}
-			/* FALLTHROUGH */ /* didn't get exact match, try to resolve. */
+			break;
+	
+		case SOCKS_ADDR_DOMAIN:
+			if (address->atype == rule->atype)
+				if (hostcmp(rule->addr.domain, address->addr.domain) == 0) {
+					matched = 1;
+					break;
+				}
+			break;
 
 		default:
+			SERRX(rule->atype);
+	}
+
+	if (!matched) { /* no exact match, try to resolve and match against that? */
+		if (ipalias) { /* no, caller doesn't want to match against resolved. */
 			switch (address->atype) {
 				case SOCKS_ADDR_IPV4:
 					/* LINTED pointer casts may be troublesome */
 					if ((hostent = gethostbyaddr((char *)&address->addr.ipv4,
 					sizeof(address->addr.ipv4), AF_INET)) == NULL) {
-						swarnx("%s: %s: %s",
+						slog(LOG_DEBUG, "%s: %s: %s",
 						function, inet_ntoa(address->addr.ipv4), hstrerror(h_errno));
 						return 0;
 					}
@@ -161,7 +178,7 @@ addressmatch(rule, address, protocol, ipalias)
 
 				case SOCKS_ADDR_DOMAIN:
 					if ((hostent = gethostbyname(address->addr.domain)) == NULL) {
-						swarn("%s: %s: %s",
+						slog(LOG_DEBUG, "%s: %s: %s",
 						function, address->addr.domain, hstrerror(h_errno));
 						return 0;
 					}
@@ -170,78 +187,83 @@ addressmatch(rule, address, protocol, ipalias)
 				default:
 					SERRX(address->atype);
 			}
-	}
 
-	if (hostent == NULL)
-		; /* ipaddress' matched. */
-	else {
-		int i;
+			/* resolved, try to match. */
+			switch (rule->atype) {
+				case SOCKS_ADDR_IPV4: {
+					struct in_addr *addr;
+					int i;
 
-		switch (rule->atype) {
-			case SOCKS_ADDR_IPV4: {
-				struct in_addr *addr;
-
-				/* LINTED pointer casts may be troublesome */
-				for (i = 0; (addr = (struct in_addr *)hostent->h_addr_list[i])
-				!= NULL; ++i)
-					if ((addr->s_addr & rule->addr.ipv4.mask.s_addr)
-				   ==  (rule->addr.ipv4.ip.s_addr & rule->addr.ipv4.mask.s_addr)) 
-						break;
-
-				if (addr == NULL)
-					return 0; /* list exhausted, no match. */
-			}
-			break;
-
-			case SOCKS_ADDR_DOMAIN: {
-				char *remotedomain;
-				char buf[MAXHOSTNAMELEN];
-				const char *domain = rule->addr.domain;
-				const int domainlen = strlen(domain);
-
-				remotedomain = hostent->h_name;
-				i = 0;
-				do {
-					int remotedomainlen;
-
-					/* if no domain, assume local host and append ours. */
-					if (strchr(remotedomain, '.') == NULL) {
-						snprintf(buf, sizeof(buf), "%s.%s",
-						remotedomain, config.domain);
-						remotedomain = buf;
-					}
-
-					remotedomainlen = strlen(remotedomain);
-
-					if	(*domain == '.')	{ /* match everything ending in domain */
-					 	/* -1 so we match without leading '.' too */
-
-						if (domainlen - 1 > remotedomainlen)
-							continue;	/* address to compare against too short. */
-
-						if (strcasecmp(domain + 1,
-						remotedomain + (remotedomainlen - (domainlen - 1))) == 0)
+					/* LINTED pointer casts may be troublesome */
+					for (i = 0; (addr = (struct in_addr *)hostent->h_addr_list[i])
+					!= NULL; ++i)
+						if ((addr->s_addr & rule->addr.ipv4.mask.s_addr)
+						==  (rule->addr.ipv4.ip.s_addr & rule->addr.ipv4.mask.s_addr))
 							break;
-					}
-					else /* need exact match. */
-						if (strcasecmp(domain, remotedomain) == 0)
-							break;
-				} while ((remotedomain = hostent->h_aliases[i++]) != NULL);
 
-				if (remotedomain == NULL)
-					return 0;	/* list exhausted, no match. */
-
+					if (addr == NULL)
+						return 0; /* list exhausted, no match. */
+				}
 				break;
-			}
 
-			default:
-				SERRX(rule->atype);
+				case SOCKS_ADDR_DOMAIN: {
+					const char *domain = rule->addr.domain;
+					char *remotedomain;
+					int i;
+
+					remotedomain = hostent->h_name;
+					i = 0;
+					do
+						if (hostcmp(domain, remotedomain) == 0)
+							break;
+					while ((remotedomain = hostent->h_aliases[i++]) != NULL);
+
+					if (remotedomain == NULL)
+						return 0;	/* list exhausted, no match. */
+
+					break;
+				}
+
+				default:
+					SERRX(rule->atype);
+			}
 		}
 	}
 
-	return 1;	/* passed all tests, a match. */
+	return matched;
 }
 
+static int
+hostcmp(domain, remotedomain)
+	const char *domain;
+	const char *remotedomain;
+{
+	const int domainlen = strlen(domain);
+	int remotedomainlen;
+	char buf[MAXHOSTNAMELEN];
+
+	/* if no domain, assume local host and append ours. */
+	if (strchr(remotedomain, '.') == NULL) {
+		snprintf(buf, sizeof(buf), "%s.%s",
+		remotedomain, config.domain);
+		remotedomain = buf;
+	}
+	remotedomainlen = strlen(remotedomain);
+
+	if	(*domain == '.')	{ /* match everything ending in domain */
+
+		if (domainlen - 1 > remotedomainlen)
+			return 1;	/* address to compare against too short. */
+
+		return strcasecmp(domain + 1,
+		remotedomain + (remotedomainlen - (domainlen - 1)));
+	}
+	else /* need exact match. */
+		return strcasecmp(domain, remotedomain);
+}
+
+
+#ifdef SOCKS_CLIENT
 
 struct route_t *
 addroute(newroute)
@@ -271,10 +293,10 @@ addroute(newroute)
 		sizeof(route->gw.state.protocol));
 
 	/* if no version set, set all. */
-	if (memcmp(&state.version, &route->gw.state.version, sizeof(state.version))
-	== 0)
-		memset(&route->gw.state.version, UCHAR_MAX,
-		sizeof(route->gw.state.version));
+	if (memcmp(&state.proxyprotocol, &route->gw.state.proxyprotocol,
+	sizeof(state.proxyprotocol)) == 0)
+		memset(&route->gw.state.proxyprotocol, UCHAR_MAX,
+		sizeof(route->gw.state.proxyprotocol));
 
 	/* if no method set, set all we support. */
 	if (route->gw.state.methodc == 0) {
@@ -349,7 +371,7 @@ socks_getroute(req, src, dst)
 
 		switch (req->version) {
 			case SOCKS_V4:
-				if (!route->gw.state.version.v4)
+				if (!route->gw.state.proxyprotocol.socks_v4)
 					continue;
 
 				switch (req->host.atype) {
@@ -363,7 +385,7 @@ socks_getroute(req, src, dst)
 				break;
 
 			case SOCKS_V5:
-				if (!route->gw.state.version.v5)
+				if (!route->gw.state.proxyprotocol.socks_v5)
 					continue;
 
 				switch (req->host.atype) {
@@ -375,7 +397,11 @@ socks_getroute(req, src, dst)
 					default:
 						continue;
 				}
+				break;
 
+			case MSPROXY_V2:
+				if (!route->gw.state.proxyprotocol.msproxy_v2)
+					continue;
 				break;
 
 			default:
@@ -390,8 +416,10 @@ socks_getroute(req, src, dst)
 						continue;
 
 					if (req->host.atype == SOCKS_ADDR_IPV4
-					&&  req->host.addr.ipv4.s_addr == htonl(INADDR_ANY))
-						if (!route->gw.state.extension.bind)
+					&&  req->host.addr.ipv4.s_addr == htonl(0))
+						if (req->version == MSPROXY_V2)
+							; /* supports binding wildcard */
+						else if (!route->gw.state.extension.bind)
 							continue;
 					break;
 
@@ -497,20 +525,69 @@ socks_connectroute(s, packet, src, dst)
 		close(current_s);
 	}
 
-	if (route != NULL)
-		packet->gw = &route->gw;
+	if (route != NULL) {
+		static int init;
+
+		packet->gw = route->gw;
+
+		/* need to set up misc. crap for msproxy stuff. */
+		if (route->gw.state.proxyprotocol.msproxy_v2 && !init) {
+			msproxy_init();
+			init = 1;
+		}
+	}
 
 	return route;
 }
 
-
-static void
-socks_badroute(route)
-	struct route_t *route;
+struct request_t *
+socks_requestpolish(req, src, dst)
+	struct request_t *req;
+	const struct sockshost_t *src;
+	const struct sockshost_t *dst;
 {
-	
-	route->state.bad = 1;
+
+	if (socks_getroute(req, src, dst) != NULL)
+		return req;
+
+	switch (req->command) {
+		case SOCKS_UDPASSOCIATE:
+			return NULL;	/* nothing to do about that command. */
+	}
+
+	/* bad version? */
+	if (req->version == SOCKS_V4)
+		req->version = SOCKS_V5;
+	else if (req->version == SOCKS_V5)
+		req->version = SOCKS_V4;
+
+	if (socks_getroute(req, src, dst) != NULL)
+		return req;
+
+	req->version 	= MSPROXY_V2;
+
+	if (socks_getroute(req, src, dst) != NULL)
+		return req;
+
+	if (req->host.addr.ipv4.s_addr == htonl(0))
+		/* attempting to use bind extension, retry without it. */
+
+		/* LINTED */
+		if (ADDRISBOUND(config.state.lastconnect)) {
+			/* LINTED pointer casts may be troublesome */
+			req->host.addr.ipv4
+			= ((struct sockaddr_in *)&config.state.lastconnect)->sin_addr;
+			req->host.port = htons(0);
+
+			return socks_requestpolish(req, src, dst);
+		}
+		/* else; not much we can do. */
+			
+
+	return NULL;
 }
+
+#endif /* SOCKS_CLIENT */
 
 void
 showstate(state)
@@ -544,8 +621,20 @@ showstate(state)
 		slog(LOG_INFO, "\t\t%d, ", state->methodv[i]);
 
 	slog(LOG_INFO, "\tversion(s):");
-	if (state->version.v4)
-		slog(LOG_INFO, "\t\t%s, ", "v4");
-	if (state->version.v5)
-		slog(LOG_INFO, "\t\t%s, ", "v5");
+	if (state->proxyprotocol.socks_v4)
+		slog(LOG_INFO, "\t\t%s, ", "socks v4");
+	if (state->proxyprotocol.socks_v5)
+		slog(LOG_INFO, "\t\t%s, ", "socks v5");
+	if (state->proxyprotocol.msproxy_v2)
+		slog(LOG_INFO, "\t\t%s, ", "msproxy v2");
 }
+
+
+static void
+socks_badroute(route)
+	struct route_t *route;
+{
+	
+	route->state.bad = 1;
+}
+

@@ -79,7 +79,10 @@ libdsocks_la_SOURCES = config_parse.y config_scan.l udp.c Rbind.c io.c  \
 	address.c authneg.c client.c clientconfig.c clientprotocol.c    \
 	Raccept.c userio.c method_uname.c connectchild.c config.c \
 	protocol.c socket.c udp_util.c util.c Rbindresvport.c debug.c   \
-	Rconnect.c Rgethostbyname.c interposition.c log.c Rcompat.c
+	Rconnect.c Rgethostbyname.c interposition.c log.c Rcompat.c \
+	msproxy_clientprotocol.c
+#libdsocks version info, interfaceversion:revision:old interfaces supported
+libdsocks_la_LDFLAGS = -version-info 0:9:0
 
 noinst_HEADERS = config_parse.h compat.h interposition.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
@@ -98,14 +101,14 @@ DEFS = @DEFS@ -I. -I$(srcdir) -I../include
 CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-libdsocks_la_LDFLAGS = 
 libdsocks_la_LIBADD = 
 libdsocks_la_OBJECTS =  config_parse.lo config_scan.lo udp.lo Rbind.lo \
 io.lo Rgetpeername.lo Rgetsockname.lo Rrresvport.lo compat.lo \
 address.lo authneg.lo client.lo clientconfig.lo clientprotocol.lo \
 Raccept.lo userio.lo method_uname.lo connectchild.lo config.lo \
 protocol.lo socket.lo udp_util.lo util.lo Rbindresvport.lo debug.lo \
-Rconnect.lo Rgethostbyname.lo interposition.lo log.lo Rcompat.lo
+Rconnect.lo Rgethostbyname.lo interposition.lo log.lo Rcompat.lo \
+msproxy_clientprotocol.lo
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LEXLIB = @LEXLIB@
 CFLAGS = @CFLAGS@
@@ -263,8 +266,6 @@ Rgetpeername.lo Rgetpeername.o: Rgetpeername.c ../include/common.h \
 	../include/autoconf.h ../include/config.h ../include/socks.h
 Rgetsockname.lo Rgetsockname.o: Rgetsockname.c ../include/common.h \
 	../include/autoconf.h ../include/config.h ../include/socks.h
-Rlisten.lo Rlisten.o: Rlisten.c ../include/common.h \
-	../include/autoconf.h ../include/config.h ../include/socks.h
 Rrresvport.lo Rrresvport.o: Rrresvport.c ../include/common.h \
 	../include/autoconf.h ../include/config.h ../include/socks.h
 address.lo address.o: address.c ../include/common.h \
@@ -299,6 +300,9 @@ io.lo io.o: io.c ../include/common.h ../include/autoconf.h \
 log.lo log.o: log.c ../include/common.h ../include/autoconf.h \
 	../include/config.h ../include/socks.h
 method_uname.lo method_uname.o: method_uname.c ../include/common.h \
+	../include/autoconf.h ../include/config.h ../include/socks.h
+msproxy_clientprotocol.lo msproxy_clientprotocol.o: \
+	msproxy_clientprotocol.c ../include/common.h \
 	../include/autoconf.h ../include/config.h ../include/socks.h
 protocol.lo protocol.o: protocol.c ../include/common.h \
 	../include/autoconf.h ../include/config.h ../include/socks.h

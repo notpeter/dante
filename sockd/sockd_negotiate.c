@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.45 1998/12/13 16:01:06 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.47 1999/02/22 12:03:03 michaels Exp $";
 
 #include "common.h"
 
@@ -260,24 +260,16 @@ send_negotiate(mother, neg)
 	const struct sockd_negotiate_t *neg;
 {
 	const char *function = "send_negotiate()";
-#ifdef HAVE_CMSGHDR
-	union {
-		char cmsgmem[sizeof(struct cmsghdr) + sizeof(int)];
-		struct cmsghdr align;
-	} cmsgmem;
-	struct cmsghdr *cmsg = &cmsgmem.align;
-	int fdsendt = 0;
-#endif  /* HAVE_CMSGHDR */
 	struct iovec iovec[1];
-	struct msghdr msg;
 	struct sockd_request_t req;
-	int w;
+	int fdsendt, w;
+	struct msghdr msg;
+	CMSG_AALLOC(sizeof(int));
 
 #ifdef HAVE_SENDMSG_DEADLOCK
 	if (socks_lock(mother->lock, F_WRLCK, 0) != 0)
 		return 1;
 #endif /* HAVE_SENDMSG_DEADLOCK */
-
 
 	/* copy needed fields from negotiate */
 	req.req	= neg->req;
@@ -288,31 +280,18 @@ send_negotiate(mother, neg)
 	/* LINTED pointer casts may be troublesome */
 	sockshost2sockaddr(&neg->dst, (struct sockaddr *)&req.to);
 
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	*(int *)(CMSG_DATA(cmsg) + sizeof(req.s) * fdsendt++) = neg->s;
-#else
-	msg.msg_accrights 	= (caddr_t) &neg->s;
-	msg.msg_accrightslen = sizeof(int);
-#endif  /* HAVE_CMSGHDR */
-
 	iovec[0].iov_base		= &req;
 	iovec[0].iov_len		= sizeof(req);
+
+	fdsendt = 0;
+	CMSG_ADDOBJECT(neg->s, sizeof(neg->s) * fdsendt++);  
 
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	msg.msg_control		= (caddr_t)cmsg;
-	msg.msg_controllen	= sizeof(cmsgmem);
-
-	cmsg->cmsg_level		= SOL_SOCKET;
-	cmsg->cmsg_type		= SCM_RIGHTS;
-	cmsg->cmsg_len			= sizeof(cmsgmem);
-#endif  /* HAVE_CMSGHDR */
+	CMSG_SETHDR_SEND(sizeof(int) * fdsendt);
 
 	slog(LOG_DEBUG, "sending request to mother");
 	if ((w = sendmsg(mother->s, &msg, 0)) != sizeof(req))
@@ -340,21 +319,14 @@ recv_negotiate(mother)
 	const struct sockd_mother_t *mother;
 {
 	const char *function = "recv_negotiate()";
-#ifdef HAVE_CMSGHDR
-	union {
-		char cmsgmem[sizeof(struct cmsghdr) + sizeof(int)];
-		struct cmsghdr align;
-	} cmsgmem;
-	struct cmsghdr *cmsg = &cmsgmem.align;
-#else
-	int desc;
-#endif  /* HAVE_CMSGHDR */
-	struct iovec iovec[1];
-	struct msghdr msg;
 	struct sockd_negotiate_t *neg;
+	struct iovec iovec[1];
 	struct sockaddr addr;
+	socklen_t len;
 	unsigned char command;
-	int permit, i, r, len;
+	int permit, i, r, fdexpect, fdreceived;
+	struct msghdr msg;
+	CMSG_AALLOC(sizeof(int));
 
 
 	iovec[0].iov_base		= &command;
@@ -364,14 +336,8 @@ recv_negotiate(mother)
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	msg.msg_control		= (caddr_t)cmsg;
-	msg.msg_controllen 	= sizeof(cmsgmem);
-#else
-	msg.msg_accrights		= (caddr_t) &desc;
-	msg.msg_accrightslen	= sizeof(int);
-#endif  /* HAVE_CMSGHDR */
+
+	CMSG_SETHDR_RECV(sizeof(cmsgmem));
 
 	if ((r = recvmsgn(mother->s, &msg, 0, sizeof(command))) != sizeof(command)) {
 		switch (r) {
@@ -390,15 +356,9 @@ recv_negotiate(mother)
 
 		return -1;
 	}
+	fdexpect = 1;	/* constant */
 
 	SASSERTX(command == SOCKD_NEWREQUEST);
-
-#ifdef HAVE_CMSGHDR
-#ifndef HAVE_DEFECT_RECVMSG
-	if (msg.msg_flags & MSG_CTRUNC)
-		SERRX(0);
-#endif /* !HAVE_DEFECT_RECVMSG */
-#endif  /* HAVE_CMSGHDR */
 
 	/* find a free slot. */
 	for (i = 0, neg = NULL; i < negc; ++i)
@@ -407,28 +367,18 @@ recv_negotiate(mother)
 			break;
 		}
 
-	if (neg == NULL) {
-		/* mother has miscalculated and should be the one to crash... */ 
-		SWARNX(allocated());
-		return 1;
-	}
+	if (neg == NULL)
+		/* mother has miscalculated, or is something wrong here? */
+		SERRX(allocated());
 
-#ifdef HAVE_CMSGHDR
 #ifndef HAVE_DEFECT_RECVMSG
-	SASSERTX(msg.msg_controllen == sizeof(cmsgmem));
-#endif /* !HAVE_DEFECT_RECVMSG */
-#else
-	SASSERTX(msg.msg_accrightslen == sizeof(int));
-#endif  /* HAVE_CMSGHDR */
+	SASSERT(CMSG_GETLEN(msg) == sizeof(int) * fdexpect);
+#endif
 
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	neg->s = *(int *)(CMSG_DATA(cmsg));
-#else
-	neg->s = desc;
-#endif  /* HAVE_CMSGHDR */
+	fdreceived = 0;
+	CMSG_GETOBJECT(neg->s, sizeof(neg->s) * fdreceived++);
 
-	/* get local and remote peer address. */
+	/* get local and remote address. */
 
 	len = sizeof(addr);
 	if (getpeername(neg->s, &addr, &len) != 0) {

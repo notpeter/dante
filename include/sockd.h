@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.98 1998/12/13 15:49:48 michaels Exp $ */
+/* $Id: sockd.h,v 1.99 1999/02/26 21:41:47 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -130,7 +130,7 @@ do {																			\
 #define CHILD_NEGOTIATE		2
 #define CHILD_REQUEST		4
 
-#define FDPASS_MAX			3	/* max number of escriptors we send/receive. */
+#define FDPASS_MAX			3	/* max number of descriptors we send/receive. */
 
 
 	/*
@@ -206,7 +206,7 @@ struct option_t {
 	int 					debug;			/* debug level.									*/
 	unsigned int		keepalive:1;	/* set SO_KEEPALIVE?								*/
 	unsigned int		lbuf:1;			/* line buffered output?						*/
-	int					sleep;			/* sleep at misc places. (debugging)		*/
+	int					sleep;			/* sleep at misc. places. (debugging)		*/
 	int					serverc;			/* number of servers.							*/
 };
 
@@ -267,18 +267,18 @@ struct config_t {
 	struct rule_t				*client;					/* client addresses, list.		*/
 	struct route_t				*route;					/* not in use yet.				*/
 	struct configstate_t		state;
-	struct compat_t			compat;					/* misc compatibility options.*/
+	struct compat_t			compat;					/* misc. compatibility options.*/
 
 	char							methodv[METHODS_MAX];/* prioritised methods list. 	*/
 	unsigned char				methodc;					/* methods in list.				*/
 	
 	char							domain[MAXHOSTNAMELEN];/* local domainname.			*/
-	struct option_t			option;					/* misc options.					*/
+	struct option_t			option;					/* misc. options.					*/
 	struct extension_t		extension;				/* extensions set.				*/
 	struct userid_t			uid;						/* userid's for misc. stuff.	*/
 	struct logtype_t			log;						/* where to log.					*/
 	struct srchost_t			srchost;					/* stuff relevant to srchost.	*/
-	struct timeout_t			timeout;					/* misc timeout values.			*/
+	struct timeout_t			timeout;					/* misc. timeout values.			*/
 	struct statistic_t		stat;						/* some statistics.				*/
 };
 

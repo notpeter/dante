@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.32 1998/11/30 13:44:46 michaels Exp $";
+"$Id: udp_util.c,v 1.33 1999/02/20 19:30:49 michaels Exp $";
 
 #include "common.h"
 
@@ -57,10 +57,10 @@ sockaddr2udpheader(to, header)
 	bzero(header, sizeof(*header));
 	
 	/* LINTED pointer casts may be troublesome */
-	if (socks_getfakeip(((const struct sockaddr_in *)to)->sin_addr.s_addr)) {
+	if (socks_getfakehost(((const struct sockaddr_in *)to)->sin_addr.s_addr)) {
 		const char *ipname
 		/* LINTED pointer casts may be troublesome */
-		= socks_getfakeip(((const struct sockaddr_in *)to)->sin_addr.s_addr);
+		= socks_getfakehost(((const struct sockaddr_in *)to)->sin_addr.s_addr);
 
 		SASSERTX(ipname != NULL);
 		SASSERTX(strlen(ipname) < sizeof(header->host.addr.domain));

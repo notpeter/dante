@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.7 1998/12/07 12:18:22 karls Exp $
+.\" $Id: sockd.conf.5,v 1.9 1999/03/01 14:34:43 karls Exp $
 .TH SOCKD.CONF 5 "December 3, 1998"
 .SH NAME
 sockd.conf \- socks server configuration file syntax
@@ -11,48 +11,37 @@ A line can be commented using the standard comment character \fB#\fP.
 .SH SERVERSETTINGS
 The serversettings control the generic behaviour of the server.  Each
 keyword is separated from it's value by a \fB':'\fP character.
-.TP
-\fBlogouput\fP
+.IP \fBlogouput\fP
 This value controls where the server sends logoutput.  It can
 be either \fBsyslog\fP, \fBstdout\fP, \fBstderr\fP, a filename, or
 a combination.
-.TP
-\fBinternal\fP
+.IP \fBinternal\fP
 The ipaddress of the internal interface.  The port server port number
 can also be specified here.  Connections will only be accepted on this
 ipaddress.  Multiple \fBinternal\fP lines can be given.
-.TP
-\fBexternal\fP
+.IP \fBexternal\fP
 The interface to be used for outgoing connections.
-.TP
-\fBlocaldomain\fP
+.IP \fBlocaldomain\fP
 The name of the local domain.
-.TP
-\fBmethod\fP
+.IP \fBmethod\fP
 A list of accepted authentication method, in order of preference.
 Supported values now are \fBusername\fP and \fBnone\fP.
-.TP
-\fBuser.privileged\fP
+.IP \fBuser.privileged\fP
 Username which will be used for doing privileged operations.
-.TP
-\fBuser.notprivileged\fP
+.IP \fBuser.notprivileged\fP
 User which the server runs as most of the time.
-.TP
-\fBuser.libwrap\fP
+.IP \fBuser.libwrap\fP
 User used to execute libwrap commands.
-.TP
-\fBcompatibility\fP
+.IP \fBcompatibility\fP
 With the \fBsameport\fP keyword, the server attempts to use the same
 port on the server and the client.  This functionality is the default, but 
 when this option is given it will also be done with ports below 1024.
 The \fBreuseaddr\fP keyword might solve problems when the
 bind extension is used.
-.TP
-\fBconnecttimeout\fP
+.IP \fBconnecttimeout\fP
 The number of seconds a client has to send the request after a connect.
 Set it to 0 for forever.
-.TP
-\fBiotimeout\fP
+.IP \fBiotimeout\fP
 The number of seconds an established connection can be idle.  Set it
 to 0 for forever.
 .SH RULES
@@ -67,41 +56,37 @@ specify a \fBfrom\fP/\fBto\fP ipmask pair and a \fBpass\fP or
 netmask are allowed or not.  In addition to the netmask there are a
 set of extra keywords which can be given.  The format of each
 rules contents is:
-.TP
-\fBprotocol\fP
+.IP \fBprotocol\fP
 The rule applies only to the given protocols.  Valid values are
 \fBtcp\fP and \fBudp\fP.
-.TP
-\fBfrom\fP
+.IP \fBfrom\fP
 The rule applies only to requests coming from the address given as value.
-.TP
-\fBto\fP
+.IP \fBto\fP
 The rule applies only to requests going to the address given as value.
-.Tp
-\fBauthmethod\fP
+.Ip \fBauthmethod\fP
 The server will only use the methods given as value.  If the client
 fails to offer one of these methods, the connection will be closed.
-.TP
-\fBcommand\fP
+.IP \fBcommand\fP
 The rule applies only to the given commands.  Valid commands
 are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP.
 Can be used instead, or to complement, \fBprotocol\fP.
-.TP
-\fBlibwrap\fP
+.IP \fBlibwrap\fP
 The server will pass the line to libwrap for execution. 
-.TP
-\fBlog\fP
+.IP \fBlog\fP
 Used to control logging.  Accepted keywords are \fBconnect\fP,
 \fBdisconnect\fP, \fBdata\fP and \fBiooperation\fP.
-.TP
-\fBprotocolversion\fP
+.IP \fBprotocolversion\fP
 The rule applies only to requests using the given protocolversion.
 Valid versions are \fB4\fP and \fB5\fP.
 .SH EXAMPLES
 See the example directory in the distribution.
 .SH FILES
 .I /etc/sockd.conf
+.SH AUTHORS
+For Inferno Nettverk A/S, Norway:
+ Michael Shuldman <michaels@inet.no>: Design and implementation.
+ Karl-André Skevik <karls@inet.no>: Autoconf and porting.
 .SH SEE ALSO
-sockd(8) hosts_access(5)
+sockd(8), hosts_access(5)
 .SH BUGS
 The file must be in a rigid order.

@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.11 1998/11/13 21:17:53 michaels Exp $";
+"$Id: Rgethostbyname.c,v 1.12 1999/02/20 19:26:24 michaels Exp $";
 
 #include "common.h"
 
@@ -56,20 +56,22 @@ Rgethostbyname2(name, af)
 	struct in_addr ipindex;
 	struct hostent *hostent;
 
-#if 1
+	if (getenv("SOCKS_NORESOLVE") == NULL) {
 #ifdef HAVE_GETHOSTBYNAME2
-	if ((hostent = gethostbyname2(name, af)) != NULL)
+		if ((hostent = gethostbyname2(name, af)) != NULL)
 #else
-	if ((hostent = gethostbyname(name)) != NULL)
+		if ((hostent = gethostbyname(name)) != NULL)
 #endif /* !HAVE_GETHOSTBYNAME2 */
-		return hostent;
-#else
-	hostent = gethostbyname2(name, af);
-	h_errno = NO_RECOVERY;
-#endif
+			return hostent;
+	}
+	else {
+		hostent = NULL;
+		h_errno = NO_RECOVERY;
+	}
 
 	if (h_errno != NO_RECOVERY)
 		return hostent;
+
 	hostent = &hostentmem;
 
 	/* anything that fails from here is due to resource shortage. */

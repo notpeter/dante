@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.197 1998/12/14 11:57:24 karls Exp $";
+"$Id: sockd.c,v 1.199 1999/02/26 19:26:48 michaels Exp $";
 
 #include "common.h"
 
@@ -382,8 +382,8 @@ main(argc, argv, envp)
 		while ((child = getset(SOCKD_NEWREQUEST, &rset)) != NULL) {
 			int childisbad = 0;
 
-#ifdef DEBUG
-			int debug = freedescriptors("start");
+#ifdef DIAGNOSTIC
+			int freed = freedescriptors(config.option.debug ? "start" : NULL);
 #endif
 
 			switch (child->type) {
@@ -470,8 +470,8 @@ main(argc, argv, envp)
 					break;
 			}
 
-#ifdef DEBUG
-			SASSERT(debug == freedescriptors("end"));
+#ifdef DIAGNOSTIC
+			SASSERTX(freed == freedescriptors(config.option.debug ? "end" : NULL));
 #endif
 			clearset(SOCKD_NEWREQUEST, child, &rset);
 
@@ -494,7 +494,7 @@ main(argc, argv, envp)
 				const struct listenaddress_t *l = &config.internalv[p];
 				struct sockd_child_t *negchild;
 				struct sockaddr from;
-				int len;
+				socklen_t len;
 
 				if ((negchild = nextchild(CHILD_NEGOTIATE)) == NULL)
 					break;  /* no free negotiator children, don't accept(). */

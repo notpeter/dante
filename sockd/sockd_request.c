@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.66 1998/12/10 16:07:24 michaels Exp $";
+"$Id: sockd_request.c,v 1.70 1999/02/22 12:03:05 michaels Exp $";
 
 #include "common.h"
 
@@ -156,18 +156,10 @@ recv_req(s, req)
 	struct sockd_request_t *req;
 {
 	const char *function = "recv_req()";
-#ifdef HAVE_CMSGHDR
-	union {
-		char cmsgmem[sizeof(struct cmsghdr) + sizeof(int)];
-		struct cmsghdr align;
-	} cmsgmem;
-	struct cmsghdr *cmsg = &cmsgmem.align;
-#else
-	int desc;
-#endif  /* HAVE_CMSGHDR */
+	int fdexpect, fdreceived, r;
 	struct iovec iovec[1];
 	struct msghdr msg;
-	int r;
+	CMSG_AALLOC(sizeof(int));
 
 	iovec[0].iov_base		= req;
 	iovec[0].iov_len		= sizeof(*req);
@@ -176,14 +168,8 @@ recv_req(s, req)
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	msg.msg_control		= (caddr_t)cmsg;
-	msg.msg_controllen 	= sizeof(cmsgmem);
-#else
-	msg.msg_accrights		= (caddr_t)&desc;
-	msg.msg_accrightslen	= sizeof(int);
-#endif  /* HAVE_CMSGHDR */
+	
+	CMSG_SETHDR_RECV(sizeof(cmsgmem));
 
 	if ((r = recvmsgn(s, &msg, 0, sizeof(*req))) != sizeof(*req)) {
 		switch (r) {
@@ -201,24 +187,14 @@ recv_req(s, req)
 
 		return -1;
 	}
-
-#ifdef HAVE_CMSGHDR
+	fdexpect = 1;
+	
 #ifndef HAVE_DEFECT_RECVMSG
-	if (msg.msg_flags & MSG_CTRUNC) {
-		swarn("%s: recvmsg(): message truncated", function);
-		return -1;
-	}
+	SASSERT(CMSG_GETLEN(msg) == sizeof(int) * fdexpect);
+#endif
 
-	SASSERTX(msg.msg_controllen == sizeof(cmsgmem));
-#endif /* !HAVE_DEFECT_RECVMSG */
-
-	/* LINTED pointer casts may be troublesome */
-	req->s = *(int *)(CMSG_DATA(cmsg));
-
-#else /* !HAVE_CMSGHDR */
-	SASSERTX(msg.msg_accrightslen == sizeof(int));
-	req->s = desc;
-#endif  /* HAVE_CMSGHDR */
+	fdreceived = 0;
+	CMSG_GETOBJECT(req->s, sizeof(req->s) * fdreceived++); 
 
 	/* pointer fixup */
 	req->req.auth = &req->auth;
@@ -243,11 +219,9 @@ dorequest(mother, request)
 	slog(LOG_DEBUG, "received request: %s", 
 	socks_packet2string(&request->req, SOCKS_REQUEST));
 
-	response.version 	= request->req.version;
 	response.flag 		= 0;
 	response.host		= request->req.host;
 	response.auth		= request->req.auth;
-
 
 	/* 
 	 * examine client request; valid and supported?
@@ -256,6 +230,8 @@ dorequest(mother, request)
 	/* supported version? */
 	switch (request->req.version) {
 		case SOCKS_V4:
+			response.version = SOCKS_V4REPLY_VERSION;
+
 			/* recognized command for this version? */
 			switch (request->req.command) {
 				case SOCKS_BIND:
@@ -292,6 +268,8 @@ dorequest(mother, request)
 			break; /* SOCKS_V4 */
 
 		case SOCKS_V5:
+			response.version = request->req.version;
+
 			/* recognized command for this version? */
 			switch (request->req.command) {
 				case SOCKS_BIND:
@@ -359,8 +337,9 @@ dorequest(mother, request)
 			sockaddr2sockshost((struct sockaddr *)&request->from, &io.src);
 			io.dst = request->req.host;
 
-			if (io.dst.atype != SOCKS_ADDR_IPV4
-			||  io.dst.addr.ipv4.s_addr != htonl(INADDR_ANY))
+			if (io.dst.atype 					!= SOCKS_ADDR_IPV4
+			||  io.dst.addr.ipv4.s_addr 	!= htonl(0)
+			||  io.dst.port					== htons(0))
 				extension.bind = 0;	/* not requesting bind extension. */
 
 			break;
@@ -543,7 +522,8 @@ dorequest(mother, request)
 			struct sockd_io_t bindio;			/* send this to proxyrelayer. 		*/
 			struct sockaddr boundaddr;			/* address we listen on.				*/
 			struct sockaddr clientaddr;		/* clientaddress we forward to.		*/
-			int flags, len, emfile, childpipe, ourpipe;
+			socklen_t len;
+			int flags, emfile, childpipe, ourpipe;
 
 
 			if (listen(out, 5) != 0) {
@@ -690,7 +670,7 @@ dorequest(mother, request)
 
 							if ((fio = io_find(iolist, &queryaddr)) == NULL) {
 								queryresponse.host.atype 				= SOCKS_ADDR_IPV4;
-								queryresponse.host.addr.ipv4.s_addr = htonl(INADDR_ANY);
+								queryresponse.host.addr.ipv4.s_addr = htonl(0);
 								queryresponse.host.port					= htons(0);
 							}
 							else {
@@ -958,7 +938,7 @@ dorequest(mother, request)
 		}
 
 		case SOCKS_CONNECT: {
-			int sinlen;
+			socklen_t sinlen;
 
 			io.in.s 			= request->s;
 			io.in.laddr 	= request->to;
@@ -999,7 +979,8 @@ dorequest(mother, request)
 
 		case SOCKS_UDPASSOCIATE: {
 			struct sockaddr_in client;
-			int boundlen, clientfd;
+			socklen_t boundlen;
+			int clientfd;
 
 			/* LINTED pointer casts may be troublesome */
 			sockshost2sockaddr(&request->req.host, (struct sockaddr *)&client);
@@ -1102,7 +1083,8 @@ flushio(mother, clientcontrol, response, io)
 	struct sockd_io_t *io;
 {
 	const char *function = "flushio()";
-	int len, sndlowat;
+	socklen_t len;
+	int sndlowat;
 
 	switch (io->state.command) {
 		case SOCKS_UDPASSOCIATE:

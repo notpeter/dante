@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.78 1998/12/12 15:42:22 michaels Exp $";
+"$Id: Rbind.c,v 1.83 1999/02/26 21:29:25 karls Exp $";
 
 #include "common.h"
 
@@ -58,7 +58,8 @@ Rbind(s, name, namelen)
 {
 	struct socks_t packet;
 	struct socksfd_t socksfd;
-	int len, type;
+	int type;
+	socklen_t len;
 
 	/*
 	 * Nothing can be called before Rbind(), delete any old cruft.
@@ -122,7 +123,7 @@ Rbind(s, name, namelen)
 
 			bzero(&to, sizeof(to));
 			to.sin_family 			= AF_INET;
-			to.sin_addr.s_addr	= htonl(INADDR_ANY);
+			to.sin_addr.s_addr	= htonl(0);
 			to.sin_port 			= htons(0);
 			
 			/* LINTED pointer casts may be troublesome */
@@ -138,122 +139,142 @@ Rbind(s, name, namelen)
 
 	len = sizeof(socksfd.local);
 	if (getsockname(s, &socksfd.local, &len) != 0) {
-		close(socksfd.s);
+		close(socksfd.control);
 		return -1;
 	}
 
 	bzero(&packet, sizeof(packet));
-	packet.req.version  		= SOCKS_V5;
-	packet.req.command 		= SOCKS_BIND;
-
-	/* try to get a server that supports our bindextension first. */
+	packet.req.version  					= SOCKS_V5;
+	packet.req.command 					= SOCKS_BIND;
+	/* try to get a server that supports our bindextension. */
 	packet.req.host.atype 				= SOCKS_ADDR_IPV4;
-	packet.req.host.addr.ipv4.s_addr = htonl(INADDR_ANY);
+	packet.req.host.addr.ipv4.s_addr = htonl(0);
 	/* LINTED pointer casts may be troublesome */
 	packet.req.host.port 				=
 	((struct sockaddr_in *)&socksfd.local)->sin_port;
 
-	if ((socksfd.s = socketoptdup(s)) == -1)
-		return -1;
+	if (socks_requestpolish(&packet.req, NULL, NULL) == NULL)
+		return 0;	/* socket bound, assume ok. */
 
-	if (PORTRESERVED(packet.req.host.port)) {
-		struct sockaddr_in controladdr;
-		
-		/* 
-		 * Our caller has gotten a reserved port.  It is possible the 
-		 * server will differentiate between requests coming from privileged
-		 * ports and those not so try to connect to server from a privileged
-		 * port.
-		*/
+	switch (packet.req.version) {
+		case SOCKS_V4:
+		case SOCKS_V5:
+			if ((socksfd.control = socketoptdup(s)) == -1)
+				return -1;
 
-		bzero(&controladdr, sizeof(controladdr));
-		controladdr.sin_family			= AF_INET;
-		controladdr.sin_addr.s_addr 	= htonl(INADDR_ANY);
-		controladdr.sin_port				= htons(0);
+			if (PORTRESERVED(packet.req.host.port)) {
+				struct sockaddr_in controladdr;
+				
+				/* 
+				 * Our caller has gotten a reserved port.  It is possible the 
+				 * server will differentiate between requests coming from 
+				 * privileged ports and those not so try to connect to server
+				 * from a privileged port.
+				*/
 
-		if (bindresvport(socksfd.s, &controladdr) == -1) {
-			close(socksfd.s);
-			return -1;
-		}
-	}
+				bzero(&controladdr, sizeof(controladdr));
+				controladdr.sin_family			= AF_INET;
+				controladdr.sin_addr.s_addr 	= htonl(INADDR_ANY);
+				controladdr.sin_port				= htons(0);
 
-	if ((socksfd.route = socks_connectroute(socksfd.s, &packet, NULL, NULL))
-	== NULL) {
-		if (errno == 0) {
-			packet.req.version = SOCKS_V4;	/* try v4 instead. */
-			socksfd.route = socks_connectroute(socksfd.s, &packet, NULL, NULL);
-		}
-
-		/*
-		 * didn't manage to get connected to any server, may be because
-		 * we requested bind extension.  Retry using standard socks bind.
-		*/
-
-		if (socksfd.route == NULL) {
-			if (errno != 0) {	/* socket used up. */
-				close(socksfd.s);
-				if ((socksfd.s = socketoptdup(s)) == -1)
+				if (bindresvport(socksfd.control, &controladdr) == -1) {
+					close(socksfd.control);
 					return -1;
+				}
 			}
 
-			packet.req.host.addr.ipv4
-			/* LINTED pointer casts may be troublesome */
-			= ((struct sockaddr_in *)&config.state.lastconnect)->sin_addr;
-			packet.req.host.port = htons(0);
-			packet.req.version = SOCKS_V5;	/* back to default. */
+			break;
 
-			if ((socksfd.route
-			= socks_connectroute(socksfd.s, &packet, NULL, NULL)) == NULL) {
-				packet.req.version = SOCKS_V4;	/* try v4 instead. */
-				socksfd.route
-				= socks_connectroute(socksfd.s, &packet, NULL, NULL);
-			}
-		}
+		case MSPROXY_V2:
+			if ((socksfd.control = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+				return -1;
+			break;
+			
+		default:
+			SERRX(packet.req.version);
 	}
 
-	if (socksfd.route == NULL) {
-		close(socksfd.s);
-		return 0;	/* have done a normal bind and no route, assume local. */
-	}	
 
-	if (socks_negotiate(socksfd.s, &packet) != 0) {
-		close(socksfd.s);
+	if ((socksfd.route
+	= socks_connectroute(socksfd.control, &packet, NULL, NULL)) == NULL) {
+		close(socksfd.control);
+		return 0;	/* have done a normal bind and no route, assume local. */
+	}
+
+	if (socks_negotiate(s, socksfd.control, &packet) != 0) {
+		close(socksfd.control);
 		return -1;
 	}
 
-	socksfd.state.acceptpending	= socksfd.route->gw.state.extension.bind;
 	socksfd.state.auth 				= packet.auth;
 	socksfd.state.command			= SOCKS_BIND;
 	socksfd.state.protocol.tcp		= 1;
-	sockshost2sockaddr(&packet.res.host, &socksfd.remote);
-	socksfd.reply						= socksfd.remote;	/* same ip address. */
 	socksfd.state.version			= packet.req.version;
+	sockshost2sockaddr(&packet.res.host, &socksfd.remote);
+	switch (packet.req.version) {
+		case SOCKS_V4:
+		case SOCKS_V5:
+			socksfd.reply						= socksfd.remote;	/* same ip address. */
+			socksfd.state.acceptpending	= socksfd.route->gw.state.extension.bind;
+			break;
 
-	if (socksfd.route->gw.state.extension.bind)
-		/* did we get the requested port? */
+		case MSPROXY_V2:
+			socksfd.state.acceptpending 	= 1; /* separate data connection. */
+			socksfd.state.msproxy			= packet.state.msproxy;
+			/* don't know what address connection will be forwarded from. */
+			break;
 
-		/* LINTED pointer casts may be troublesome */
-		if (((struct sockaddr_in *)name)->sin_port != htons(0)
-		&& ((struct sockaddr_in *)name)->sin_port !=
-		((struct sockaddr_in *)&socksfd.remote)->sin_port) { /* no. */
-			int new_s;
+		default:
+			SERRX(packet.req.version);
+	}
 
-			close(socksfd.s);
-			if ((new_s = socketoptdup(s)) == -1)
-				return -1;
-			dup2(new_s, s);
-			close(new_s);
-			errno = EADDRINUSE;
+	/* did we get the requested port? */
+	/* LINTED pointer casts may be troublesome */
+	if (((struct sockaddr_in *)name)->sin_port != htons(0)
+	&& ((struct sockaddr_in *)name)->sin_port
+	!= ((struct sockaddr_in *)&socksfd.remote)->sin_port) { /* no. */
+		/*
+		 * Since the socket is already bound locally, "unbind" it so caller
+		 * doesn't get confused.
+		*/
+		int new_s;
+
+		close(socksfd.control);
+		if ((new_s = socketoptdup(s)) == -1)
 			return -1;
-		}
-
-	len = sizeof(socksfd.server);
-	if (getpeername(socksfd.s, &socksfd.server, &len) != 0) {
-		close(socksfd.s);
+		dup2(new_s, s);
+		close(new_s);
+		errno = EADDRINUSE;
 		return -1;
 	}
 
-	socks_addaddr((unsigned int)s, &socksfd);
+	len = sizeof(socksfd.server);
+	if (getpeername(socksfd.control, &socksfd.server, &len) != 0) {
+		close(socksfd.control);
+		return -1;
+	}
+
+	switch (socksfd.state.version) {
+		case SOCKS_V4:
+		case SOCKS_V5:
+			socks_addaddr((unsigned int)s, &socksfd);
+			break;
+
+		case MSPROXY_V2:
+			/* more talk will have to occur before we can perform a accept(). */
+			socksfd.state.inprogress = 1;
+
+			socks_addaddr((unsigned int)s, &socksfd);
+			if (msproxy_sigio(s) != 0) {
+				socks_rmaddr((unsigned int)s);
+				return -1;
+			}
+
+			break;
+
+		default:
+			SERRX(socksfd.state.version);
+	}
 
 	return 0;
 }

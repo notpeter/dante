@@ -1,4 +1,9 @@
 
+   Dante was developed for Inferno Nettverk A/S, Norway by:
+   Michael Shuldman <michaels@inet.no>: Design and implementation.
+   Karl-André Skevik <karls@inet.no>: Autoconf and porting.
+
+
    In order of contribution, at least the following should be credited:
 
 - David Koblas (koblas@netcom.com) authored the original Socks
@@ -13,6 +18,19 @@
 - Most of the compatibility functions were taken from OpenBSD and
   are copyright The Regents of the University of California.
 
-  -The snprintf function is copyright Theo de Raadt (deraadt@theos.com)
-  -The setproctitle replacement is taken from sendmail-8.8.8 and written
-   by Eric P. Allman
+  - The snprintf function is copyright Theo de Raadt (deraadt@theos.com)
+  - The setproctitle replacement is taken from sendmail-8.8.8 and written
+    by Eric P. Allman
+
+- Jörgen Lundman (lundman@argonaut.com) provided invaluable help
+  during the process of getting msproxy support into Dante.  Thanks
+  a lot.  J\xf6rgen Lundman would also like to thank Paul Leask
+  for his time and effort in this project.
+
+- Andrew Pimlott's (pimlott@math.harvard.edu) work on analysing
+  the msproxy protocol was helpful and served to complement and
+  speed up the process of adding msproxy support to Dante.
+  Andrew Pimlott also has his own msproxy implementation but as he
+  is busy requests that people only contact him if they are desperate
+  and Dante does not work for them.
+

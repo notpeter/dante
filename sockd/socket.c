@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.14 1998/11/13 21:18:22 michaels Exp $";
+"$Id: socket.c,v 1.15 1999/02/21 18:52:39 michaels Exp $";
 
 #include "common.h"
 
@@ -130,7 +130,7 @@ int
 acceptn(s, addr, addrlen)
 	int s;
 	struct sockaddr *addr;
-	int *addrlen;
+	socklen_t *addrlen;
 {
 	int rc;
 

@@ -1,4 +1,4 @@
-.\" $Id: socks.conf.5,v 1.5 1998/12/07 13:34:38 michaels Exp $
+.\" $Id: socks.conf.5,v 1.8 1999/03/01 14:31:29 karls Exp $
 .TH SOCKS.CONF 5 "December 7, 1998"
 .SH NAME
 socks.conf \- socks client configuration file syntax
@@ -7,7 +7,7 @@ The configuration file for the socks client library allow control over
 logging and server selection.  It is divided into two parts,
 miscellaneous settings and routes.  A line can be commented using the
 standard comment character \fB#\fP.
-.SH MISC
+.SH FORMAT
 The miscellaneous settings have a keyword followed by a colon and the
 value.
 .TP
@@ -32,39 +32,36 @@ route is selected for a connection based on the values within the
 Each address spesification consists of a ipaddress/netmask or a hostname
 and a optional \fBport\fP specifier.  Each \fBroute\fP can contain
 three address spesifications; \fBfrom\fP, \fBto\fP and \fBvia\fP.
-.TP
-\fBfrom\fP
+.IP \fBfrom\fP
 The route is used only by requests coming from the address given as value.
-.TP
-\fBto\fP
+.IP \fBto\fP
 The route is used only by requests going to the address given as value.
-.TP
-\fBvia\fP
+.IP \fBvia\fP
 Address of socks server to be used for the connection. 
-.TP
-\fBport\fP
+.IP \fBport\fP
 Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
 \fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
 A portrange can also be given as "port <start #> - <end #>", which
 will match all port numbers withing the range <start #> and <end #>.
-.TP
-\fBprotocol\fP
+.IP \fBprotocol\fP
 The protcols the server supports.
 Currently supported values are \fBtcp\fP and \fBudp\fP.
-.TP
-\fBprotocolversion\fP
-The protcol versions the server supports.
-Currently supported values are \fB4\fP and \fB5\fP.
-.TP
-\fBmethod\fP
-List of authentication methods the \fBclient\fP supports and which
-to offer the server.
-Currently supported values are \fBnone\fP and
+.IP \fBproxyprotocol\fP
+The proxy protocols the server supports.
+Currently supported values are \fBsocks_v4\fP, \fBsocks_v5\fP
+and \fBmsproxy_v2\fP.
+.IP \fBmethod\fP
+List of authentication methods the \fBclient\fP supports and which to
+offer the server.  Currently supported values are \fBnone\fP and
 \fBusername\fP.
 .SH EXAMPLES
 See the example directory in the distribution.
 .SH FILES
 .I /etc/socks.conf
+.SH AUTHORS
+For Inferno Nettverk A/S, Norway:
+ Michael Shuldman <michaels@inet.no>: Design and implementation.
+ Karl-André Skevik <karls@inet.no>: Autoconf and porting.
 .SH SEE ALSO
 sockd(8)
 .SH BUGS

@@ -1,0 +1,24 @@
+
+*
+* This is a prerelease.  Do not use this to upgrade from a previous
+* release of Dante unless you have to or are willing to help testing.
+*
+
+
+***  Monday, Mars 1, 1998  -  Dante v0.92.0-pre1.
+
+ o "protocolversion" renamed to "proxyprotocol" in clientconfig, 
+   also changed the value names.
+
+ o version in reply for socksv4 is not same as in request, reported
+   by Stefan Reiner (stefanr@segue.at).
+
+ o added experimental support for msproxy v2, supports tcp.
+
+ o if the environment variable SOCKS_NORESOLVE is set,
+   don't try to resolve hostnames locally.
+
+ o better support for clients that can't resolve hostnames.
+
+ o nonblocking connects have a chance of working on linux too now.
+

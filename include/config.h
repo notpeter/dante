@@ -113,7 +113,7 @@
 
 /*
  * Dante supports one process handling N clients, where the max value for 'N'
- * is limited by your system.  There will probably be a minor degredation
+ * is limited by your system.  There will probably be a minor degradation
  * in performance for the clients with a big N, but less resources/processes
  * will be used on the machine the Dante server is running on. 
  * There are two defines that govern this; SOCKD_NEGOTIATEMAX and 

@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.29 1998/12/02 20:24:06 michaels Exp $";
+"$Id: sockd_util.c,v 1.30 1999/02/21 18:53:04 michaels Exp $";
 
 #include "common.h"
 
@@ -97,7 +97,8 @@ setsockoptions(s)
 	int s;
 {
 	const char *function = "setsockoptions()";
-	int len, type, val;
+	socklen_t len;
+	int type, val;
 
 	len = sizeof(type);
 	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0)

@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.83 1998/12/12 15:43:07 michaels Exp $";
+"$Id: udp.c,v 1.86 1999/02/21 19:18:35 michaels Exp $";
 
 #include "common.h"
 
@@ -54,7 +54,7 @@ Rsendto(s, msg, len, flags, to, tolen)
 	size_t len;
 	int flags;
 	const struct sockaddr *to;
-	int tolen;
+	socklen_t tolen;
 {
 	struct socksfd_t *socksfd;
 	const struct sockaddr *nto;
@@ -212,7 +212,8 @@ udpsetup(s, to, type)
 	struct socksfd_t socksfd;
 	struct sockaddr_in newto;
 	struct sockshost_t src, dst;
-	int len, p;
+	socklen_t len;
+	int p;
 
 	if (!socks_addrisok((unsigned int)s))
 		socks_rmaddr((unsigned int)s);
@@ -257,11 +258,11 @@ udpsetup(s, to, type)
 	*/
 
 	/* LINTED pointer casts may be troublesome */
-	if (socks_getfakeip(((const struct sockaddr_in *)to)->sin_addr.s_addr) 
+	if (socks_getfakehost(((const struct sockaddr_in *)to)->sin_addr.s_addr) 
 	!= NULL) {
 		const char *ipname
 		/* LINTED pointer casts may be troublesome */
-		= socks_getfakeip(((const struct sockaddr_in *)to)->sin_addr.s_addr);
+		= socks_getfakehost(((const struct sockaddr_in *)to)->sin_addr.s_addr);
 
 		SASSERTX(ipname != NULL);
 		SASSERTX(strlen(ipname) < sizeof(dst.addr.domain));
@@ -292,12 +293,12 @@ udpsetup(s, to, type)
 /*	packet.req.flag 		  |= SOCKS_INTERFACEREQUEST; */
 	packet.req.host 			= src;
 
-	if ((socksfd.s = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+	if ((socksfd.control = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 		return -1;
 
-	if ((socksfd.route = socks_connectroute(socksfd.s, &packet, &src, &dst))
-	== NULL) {
-		close(socksfd.s);
+	if ((socksfd.route
+	= socks_connectroute(socksfd.control, &packet, &src, &dst)) == NULL) {
+		close(socksfd.control);
 		return -1;
 	}
 
@@ -318,12 +319,12 @@ udpsetup(s, to, type)
 			*/
 			
 			if ((p = socketoptdup(s)) == -1) {
-				close(socksfd.s);
+				close(socksfd.control);
 				return -1;
 			}
 
 			if (dup2(p, s) == -1) {
-				close(socksfd.s);
+				close(socksfd.control);
 				close(p);
 				return -1;
 			}
@@ -335,27 +336,27 @@ udpsetup(s, to, type)
 		 * well use same as tcp connection to socksserver uses.
 		*/
 		len = sizeof(socksfd.local);
-		if (getsockname(socksfd.s, &socksfd.local, &len) != 0) {
-			close(socksfd.s);
+		if (getsockname(socksfd.control, &socksfd.local, &len) != 0) {
+			close(socksfd.control);
 			return -1;
 		}	
 		/* LINTED  pointer casts may be troublesome */
 		((struct sockaddr_in *)&socksfd.local)->sin_port = port;
 		
 		if (bind(s, &socksfd.local, sizeof(socksfd.local)) != 0) {
-			close(socksfd.s);
+			close(socksfd.control);
 			return -1;
 		}
 
 		if (getsockname(s, &socksfd.local, &len) != 0) {
-			close(socksfd.s);
+			close(socksfd.control);
 			return -1;
 		}
 
 		sockaddr2sockshost(&socksfd.local, &packet.req.host);
 	}
 	
-	if (socks_negotiate(socksfd.s, &packet) != 0)
+	if (socks_negotiate(s, socksfd.control, &packet) != 0)
 		return -1;
 
 	socksfd.state.auth 				= packet.auth;
@@ -364,9 +365,9 @@ udpsetup(s, to, type)
 	socksfd.state.protocol.udp		= 1;
 	sockshost2sockaddr(&packet.res.host, &socksfd.reply);
 
-	p = sizeof(socksfd.server);
-	if (getpeername(socksfd.s, &socksfd.server, &p) != 0) {
-		close(socksfd.s);
+	len = sizeof(socksfd.server);
+	if (getpeername(socksfd.control, &socksfd.server, &len) != 0) {
+		close(socksfd.control);
 		return -1;
 	}
 
@@ -385,14 +386,14 @@ udpsetup(s, to, type)
 		ifreq.host.addr.ipv4	= ((const struct sockaddr_in *)to)->sin_addr;
 		ifreq.host.port		= ((const struct sockaddr_in *)to)->sin_port;
 
-		if (send_interfacerequest(socksfd.s, &ifreq,
+		if (send_interfacerequest(socksfd.control, &ifreq,
 		socksfd.state.version) == 0) {
 		}
 	}
 #endif
 
 	if (socks_addaddr((unsigned int)s, &socksfd) == NULL) {
-		close(socksfd.s);
+		close(socksfd.control);
 		errno = ENOBUFS;
 		return -1;
 	}

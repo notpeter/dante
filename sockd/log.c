@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.24 1998/11/13 21:18:17 michaels Exp $";
+"$Id: log.c,v 1.25 1999/01/11 19:22:33 michaels Exp $";
 
 #include "common.h"
 
@@ -96,8 +96,9 @@ vslog(priority, message, ap)
 	const char *message;
 	va_list ap;
 {
+	const int errno_s = errno;
 	char buf[2048];
-
+	
 	if (!config.state.init) {
 		if (logformat(priority, buf, sizeof(buf), message, ap) != NULL)
 			fprintf(stdout, "%s\n", buf);
@@ -120,6 +121,8 @@ vslog(priority, message, ap)
 			socks_unlock(config.log.fplockv[i], 0);
 		}
 	}
+
+	errno = errno_s;
 }
 
 char *
