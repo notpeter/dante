@@ -40,7 +40,7 @@
 # any improvements or extensions that they make and grant Inferno Nettverk A/S
 # the rights to redistribute these changes.
 #
-# $Id: socksify.in,v 1.21 2001/02/06 15:58:13 michaels Exp $
+# $Id: socksify.in,v 1.22 2001/12/04 11:57:18 karls Exp $
 
 #On systems where a supported preloading mechanism is used, you can
 #do "socksify <program>" and <program> will use socks without having
@@ -52,7 +52,7 @@ SOCKSIFY_PRELOAD_LIBS="@SOCKSIFY_PRELOAD_LIBS@"
 LIBDIR="@LIBRARY_PREFIX@"
 
 #XXX shared library name should be generated too (possibly including version)
-LIBRARY="${SOCKS_LIBRARY-${LIBDIR}/libdsocks.so}"
+LIBRARY="${SOCKS_LIBRARY-${LIBDIR}/libdsocks.@SOLIB_POSTFIX@}"
 
 PRELOAD_SEPERATOR="@PRELOAD_SEPERATOR@"
 PRELOAD_POSTFIX="@PRELOAD_POSTFIX@"

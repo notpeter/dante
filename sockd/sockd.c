@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.279 2001/11/11 13:38:36 michaels Exp $";
+"$Id: sockd.c,v 1.280 2001/11/29 08:22:09 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -611,7 +611,7 @@ main(argc, argv, envp)
 	/* NOTREACHED */
 }
 
-void
+static void
 sigserverbroadcast(sig)
 	int sig;
 {

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.298 2001/11/22 12:27:03 karls Exp $ */
+/* $Id: common.h,v 1.299 2001/11/28 10:36:24 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -1513,11 +1513,10 @@ struct socksfd_t {
 	struct sockaddr		remote;		/* address server is using on our behalf.	*/
 	unsigned					:0;
 	struct sockaddr		reply;		/* address to expect reply from.				*/
+	unsigned					:0;
 
 	union {
-		unsigned					:0;
 		struct sockaddr		accepted;	/* address server accepted for us.		*/
-		unsigned					:0;
 		struct sockaddr		connected;	/* address server connected to for us.	*/
 	} forus;
 

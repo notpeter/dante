@@ -1,4 +1,4 @@
-# $Id: BUGS,v 1.21 2001/10/16 11:49:20 michaels Exp $
+# $Id: BUGS,v 1.23 2001/11/30 10:12:16 karls Exp $
 
 To report a new bug, mail dante-bugs@inet.no.  Make sure you read
 the faq first.
@@ -8,9 +8,8 @@ the faq first.
 - there appear to be some problems with "socksify" and nis on at least
   some systems.  Somebody needs to look into what the problem is.
 
-- documentation could be much better.  You can help with that by
-  actually contributing something yourself.
-
 - msproxycode seems to crash at least some msproxy servers.  See
   README.msproxy for more information.  Also see the http proxy
   support added to the client.
+
+- 'libtool' is broken on OS X.

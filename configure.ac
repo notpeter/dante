@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.50)
-AC_REVISION($Id: configure.ac,v 1.280 2001/11/23 12:01:46 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.284 2001/12/04 12:48:52 karls Exp $)
 
 version=1.1.11
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="2"
+prerelease="3"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -73,6 +73,9 @@ case $host in
 
 esac
 
+#XXX
+SOLIB_POSTFIX=so
+
 case $host in
 
 	alpha*-dec-osf*)
@@ -86,6 +89,7 @@ case $host in
 		#HPUX needs _PROTOTYPES to include prototypes
 		#for configure (for gcc and cc)
 		CPPFLAGS="${CPPFLAGS} -D_PROTOTYPES"
+		SOLIB_POSTFIX=sl
 	;;
 
 	*-*-sunos4*)
@@ -129,6 +133,8 @@ case $host in
 	;;
 
 esac
+
+AC_SUBST(SOLIB_POSTFIX)
 
 case $PRELOAD in
 	RLD)
@@ -1107,17 +1113,31 @@ AC_SEARCH_LIBS(crypt, crypt)
 
 #HP-UX 11.00
 AC_SEARCH_LIBS(getspnam, sec)
-AC_SEARCH_LIBS(bindresvport, rpcsoc) #XXX?
 
 #FreeBSD has setproctitle in -lutil (Per Hedeland <per@erix.ericsson.se>)
 AC_SEARCH_LIBS(setproctitle, util)
 
 #Look for functions needed for socksify located in other places than libc
 SOCKSIFY_PRELOAD_LIBS=""
-
 oLIBS=$LIBS
+
+#HP-UX 11.00
+LIBS=""
+AC_SEARCH_LIBS(bindresvport, rpcsoc)
+
+NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
 LIBS=""
 
+#ignore when preloading is disabled (only the AC_SEARCH_LIBS test is needed)
+if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_bindresvport}" = "x-lrpcsoc"; then
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBRPCSOC, "${base_library_path}librpcsoc.sl")
+	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}librpcsoc.sl"
+
+	AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBRPCSOC)
+fi
+
+
+LIBS=""
 AC_SEARCH_LIBS(connect, socket)
 
 NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
@@ -1125,8 +1145,8 @@ LIBS=""
 
 #ignore when preloading is disabled (only the AC_SEARCH_LIBS test is needed)
 if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_connect}" = "x-lsocket"; then
-	AC_DEFINE_UNQUOTED(LIBRARY_LIBSOCKET, "${base_library_path}libsocket.so")
-	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libsocket.so"
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBSOCKET, "${base_library_path}libsocket.${SOLIB_POSTFIX}")
+	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libsocket.${SOLIB_POSTFIX}"
 
 	AC_DEFINE(LIBRARY_CONNECT, LIBRARY_LIBSOCKET)
 
@@ -1174,9 +1194,9 @@ NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
 LIBS=""
 
 if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_inet_addr}" = "x-lnsl"; then
-	AC_DEFINE_UNQUOTED(LIBRARY_LIBNSL, "${base_library_path}libnsl.so")
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBNSL, "${base_library_path}libnsl.${SOLIB_POSTFIX}")
 
-	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libnsl.so"
+	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libnsl.${SOLIB_POSTFIX}"
 
 	AC_CHECK_LIB(nsl, gethostbyname,
 		AC_DEFINE(LIBRARY_GETHOSTBYNAME, LIBRARY_LIBNSL))
@@ -1197,9 +1217,9 @@ NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
 LIBS=""
 
 if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_inet_aton}" = "x-lresolv"; then
-	AC_DEFINE_UNQUOTED(LIBRARY_LIBRESOLV, "${base_library_path}libresolv.so")
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBRESOLV, "${base_library_path}libresolv.${SOLIB_POSTFIX}")
 
-	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libresolv.so"
+	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libresolv.${SOLIB_POSTFIX}"
 
 	AC_CHECK_LIB(resolv, gethostbyname2,
 		[AC_DEFINE(LIBRARY_GETHOSTBYNAME2, LIBRARY_LIBRESOLV)])
@@ -1217,7 +1237,7 @@ if test "x$preload_enabled" = "xt"; then
     if test "x${ac_cv_search_dlopen}" = "x-ldl"; then
 	    case $host in
 		*-*-sunos4*) #XXX attempt to get libdl name
-		    libdl=`ls ${base_library_path}libdl.so* | sed -e 's/.*\///' | sort -nr | head -1`
+		    libdl=`ls ${base_library_path}libdl.${SOLIB_POSTFIX}* | sed -e 's/.*\///' | sort -nr | head -1`
 		    if test x$libdl = x; then
 			AC_MSG_WARN(unable to locate libdl)
 		    else
@@ -1226,7 +1246,7 @@ if test "x$preload_enabled" = "xt"; then
 		    fi
 		;;
 		*)
-		    LIBRARY_DLOPEN="${base_library_path}libdl.so"
+		    LIBRARY_DLOPEN="${base_library_path}libdl.${SOLIB_POSTFIX}"
 		;;
 	    esac
 	    SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${LIBRARY_DLOPEN:+${PRELOAD_SEPERATOR}}${LIBRARY_DLOPEN}"
@@ -1271,7 +1291,7 @@ if test "x${LIBC_NAME}" = x; then
 		fi
 	;;
 	*)
-		LIBC_NAME="${base_library_path}libc.so"
+		LIBC_NAME="${base_library_path}libc.${SOLIB_POSTFIX}"
 	;;
 	esac
 fi
