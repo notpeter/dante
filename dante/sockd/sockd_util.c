@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadalléen 21
- *  NO-0349 Oslo
+ *  Gaustadaléen 21
+ *  N-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.92 2005/12/28 18:27:14 michaels Exp $";
+"$Id: sockd_util.c,v 1.61 2000/05/31 12:14:56 karls Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -54,57 +54,39 @@ static const char rcsid[] =
 	} while (lintnoloop_sockd_h) \
 
 int
-selectmethod(methodv, methodc, offerdv, offeredc)
-	const int *methodv;
+selectmethod(methodv, methodc)
+	const unsigned char *methodv;
 	size_t methodc;
-	const unsigned char *offerdv;
-	size_t offeredc;
 {
-	size_t i;
-	size_t methodokc;
-	const char *methodokv;
+	const char stdmethodv[] = {AUTHMETHOD_NONE, AUTHMETHOD_UNAME};
+	int i;
 
-	/* can select any standard method. */
-	const char rfc931methodv[] = {AUTHMETHOD_NONE, AUTHMETHOD_UNAME};
+	for (i = 0; i < config.methodc; ++i) {
 
-	/*
-	 * can select any standard method, some people want to use pam
-	 * without user/password.
-	*/
-	const char pammethodv[] = {AUTHMETHOD_UNAME, AUTHMETHOD_NONE};
+		if (config.methodv[i] > AUTHMETHOD_NOACCEPT) { /* pseudo method */
+			int intmethodv[AUTHMETHOD_MAX];
 
-	for (i = 0; i < methodc; ++i) {
-		if (methodv[i] > AUTHMETHOD_NOACCEPT) { /* non-socks method */
-			int intmethodv[MAXMETHOD];
-			size_t ii;
+			CM2IM(methodv, methodc, intmethodv);
 
-			CM2IM(offerdv, offeredc, intmethodv);
+			switch (config.methodv[i]) {
+				case AUTHMETHOD_RFC931: {
+					/* can select any standard method. */
+					size_t ii;
 
-			/* find the correct array to use for trying to find a ok method. */
-			switch (methodv[i]) {
-				case AUTHMETHOD_RFC931:
-					methodokc = ELEMENTS(rfc931methodv);
-					methodokv = rfc931methodv;
+					for (ii = 0; ii < ELEMENTS(stdmethodv); ++i)
+						if (methodisset(stdmethodv[i], intmethodv, methodc))
+							return stdmethodv[i];
 					break;
-
-				case AUTHMETHOD_PAM:
-					methodokc = ELEMENTS(pammethodv);
-					methodokv = pammethodv;
-					break;
+				}
 
 				default:
-					SERRX(methodv[i]);
+					SERRX(config.methodv[i]);
 			}
-
-			for (ii = 0; ii < methodokc; ++ii)
-				if (methodisset(methodokv[ii], intmethodv, offeredc))
-					return methodokv[ii];
-
-			continue;
 		}
 
-		if (memchr(offerdv, (unsigned char)methodv[i], offeredc) != NULL)
-			return methodv[i];
+		if (memchr(methodv, (unsigned char)config.methodv[i], (size_t)methodc)
+		!= NULL)
+			return config.methodv[i];
 	}
 
 	return AUTHMETHOD_NOACCEPT;
@@ -118,6 +100,11 @@ setsockoptions(s)
 	socklen_t len;
 	int type, val, bufsize;
 
+#ifdef SO_BSDCOMPAT
+	val = 1;
+	if (setsockopt(s, SOL_SOCKET, SO_BSDCOMPAT, &val, sizeof(val)) != 0)
+		swarn("%s: setsockopt(SO_BSDCOMPAT)", function);
+#endif /* SO_BSDCOMPAT */
 
 	len = sizeof(type);
 	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0) {
@@ -133,7 +120,7 @@ setsockoptions(s)
 			if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val)) != 0)
 				swarn("%s: setsockopt(SO_OOBINLINE)", function);
 
-			if (sockscf.option.keepalive) {
+			if (config.option.keepalive) {
 				val = 1;
 				if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) != 0)
 					swarn("%s: setsockopt(SO_KEEPALIVE)", function);
@@ -171,24 +158,14 @@ sockdexit(sig)
 	int sig;
 {
 	const char *function = "sockdexit()";
-	size_t i;
-	int mainmother;
-	static int init;
+	int i;
 
-	slog(LOG_DEBUG, function);
-
-	/*
-	 * we are terminating, don't want to receive SIGTERM while terminating,
-	 * otherwise we might end up doing the same operation twice.
-	 */
-	if (signal(SIGTERM, SIG_IGN) == SIG_ERR)
-		swarn("%s: signal(SIGCHLD, SIG_IGN)", function);
-
-	if ((mainmother = pidismother(sockscf.state.pid)) == 1) {
-		if (sig > 0)
-			slog(LOG_ALERT, "%s: terminating on signal %d", function, sig);
-		else
-			slog(LOG_ALERT, "%s: terminating", function);
+	if (pidismother(config.state.pid)) {
+		if (*config.state.motherpidv == config.state.pid) /* main mother. */
+			if (sig > 0)
+				slog(LOG_ALERT, "%s: terminating on signal %d", function, sig);
+			else
+				slog(LOG_ALERT, "%s: terminating", function, sig);
 
 		/* don't want this while cleaning up, which is all that's left. */
 		if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
@@ -201,8 +178,8 @@ sockdexit(sig)
 	else {
 		char dir[80];
 
-		snprintfn(dir, sizeof(dir), "%s.%d",
-		childtype2string(sockscf.state.type), getpid());
+		snprintf(dir, sizeof(dir), "%s.%d",
+		childtype2string(config.state.type), getpid());
 
 		if (mkdir(dir, S_IRWXU) != 0)
 			swarn("%s: mkdir(%s)", function, dir);
@@ -212,10 +189,9 @@ sockdexit(sig)
 	}
 #endif /* HAVE_PROFILING */
 
-	for (i = 0;  i < sockscf.log.fpc; ++i) {
-		fflush(sockscf.log.fpv[i]); 
-		close(fileno(sockscf.log.fpv[i]));  
-		close(sockscf.log.fplockv[i]);
+	for (i = 0;  i < config.log.fpc; ++i) {
+		fclose(config.log.fpv[i]);
+		close(config.log.fplockv[i]);
 	}
 
 	if (sig > 0)
@@ -231,7 +207,7 @@ sockdexit(sig)
 				abort();
 		}
 
-	if (mainmother)
+	if (*config.state.motherpidv == config.state.pid) /* main mother. */
 		exit(sig > 0 ? EXIT_FAILURE : -sig);
 	else
 #if HAVE_PROFILING
@@ -248,33 +224,23 @@ socks_seteuid(old, new)
 {
 	const char *function = "socks_seteuid()";
 	uid_t oldmem;
-	struct passwd *pw;
 
 	if (old == NULL)
 		old = &oldmem;
 	*old = geteuid();
 
-	slog(LOG_DEBUG, "%s: old: %lu, new: %lu",
-	function, (unsigned long)*old, (unsigned long)new);
+	slog(LOG_DEBUG, "%s: old: %lu, new: %lu", function, *old, new);
 
 	if (*old == new)
 		return;
 
-	if (*old != sockscf.state.euid)
+	if (*old != config.state.euid)
 		/* need to revert back to original (presumably 0) euid before changing. */
-		if (seteuid(sockscf.state.euid) != 0) {
+		if (seteuid(config.state.euid) != 0) {
 			slog(LOG_ERR, "running Linux are we?");
-			SERR(sockscf.state.euid);
+			SERR(config.state.euid);
 		}
 
-	if ((pw = getpwuid(new)) == NULL)
-		serr(EXIT_FAILURE, "%s: getpwuid(%d)", function, new);
-
-	/* groupid ... */
-	if (setegid(pw->pw_gid) != 0)
-		serr(EXIT_FAILURE, "%s: setegid(%d)", function, pw->pw_gid);
-
-	/* ... and uid. */
 	if (seteuid(new) != 0)
 		serr(EXIT_FAILURE, "%s: seteuid(%d)", function, new);
 }
@@ -285,10 +251,8 @@ socks_reseteuid(current, new)
 	uid_t new;
 {
 	const char *function = "socks_reseteuid()";
-	struct passwd *pw;
 
-	slog(LOG_DEBUG, "%s: current: %lu, new: %lu",
-	function, (unsigned long)current, (unsigned long)new);
+	slog(LOG_DEBUG, "%s: current: %lu, new: %lu", function, current, new);
 
 #if DIAGNOSTIC
 	SASSERTX(current == geteuid());
@@ -297,50 +261,50 @@ socks_reseteuid(current, new)
 	if (current == new)
 		return;
 
-	if (new != sockscf.state.euid)
+	if (new != config.state.euid)
 		/* need to revert back to original (presumably 0) euid before changing. */
-		if (seteuid(sockscf.state.euid) != 0)
-			SERR(sockscf.state.euid);
+		if (seteuid(config.state.euid) != 0)
+			SERR(config.state.euid);
 
-	/* groupid ...  */
-	if ((pw = getpwuid(new)) == NULL)
-		serr(EXIT_FAILURE, "%s: getpwuid(%d)", function, new);
-
-	if (setegid(pw->pw_gid) != 0)
-		serr(EXIT_FAILURE, "%s: setegid(%d)", function, pw->pw_gid);
-
-	/* ... and then userid. */
 	if (seteuid(new) != 0)
 		SERR(new);
 }
 
 int
-pidismother(pid)
-	pid_t pid;
+passwordcheck(name, clearpassword)
+	const char *name;
+	const char *clearpassword;
 {
-	int i;
+/*	const char *function = "passwordcheck()"; */
+	struct passwd *pw;
+	char *salt, *password;
+	uid_t euid;
+	int ok;
 
-	if (sockscf.state.motherpidv == NULL)
-		return 1; /* so early we haven't even forked yet. */
+	socks_seteuid(&euid, config.uid.privileged);
+	if ((pw = socks_getpwnam(name)) == NULL) {
+		salt		= "*";
+		password = "*";
+		ok			= 0;
+	}
+	else {
+		salt		= pw->pw_passwd;
+		password = pw->pw_passwd;
+		ok			= 1;
+	}
+	socks_reseteuid(config.uid.privileged, euid);
 
-	for (i = 0; i < sockscf.option.serverc; ++i)
-		if (sockscf.state.motherpidv[i] == pid)
-			return i + 1;
-	return 0;
-}
+	if (clearpassword != NULL) /* XXX waste cycles correctly? */
+		if (strcmp(crypt(clearpassword, salt), password) == 0)
+			ok = 1;
+		else
+			ok = 0;
 
-int
-descriptorisreserved(d)
-	int d;
-{
+	if (ok)
+		return 0;
 
-	if (d == sockscf.bwlock 
-	||  d == sockscf.sessionlock)
+	if (pw == NULL)
 		return 1;
-
-	/* don't close sockscf/log files. */
-	if (socks_logmatch((size_t)d, &sockscf.log))
-		return 1;
-
-	return 0;
+	else
+		return 2;
 }

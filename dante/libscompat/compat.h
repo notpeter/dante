@@ -44,7 +44,7 @@
  * to select alternate encoding format
  */
 #define	VIS_OCTAL	0x01	/* use octal \ddd format */
-#define	VIS_CSTYLE	0x02	/* use \[nrft0..] where appropriate */
+#define	VIS_CSTYLE	0x02	/* use \[nrft0..] where appropiate */
 
 /*
  * to alter set of characters encoded (default is to encode all

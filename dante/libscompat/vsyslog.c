@@ -1,4 +1,4 @@
-/* $Id: vsyslog.c,v 1.7 2005/09/17 20:07:15 karls Exp $ */
+/* $Id: vsyslog.c,v 1.6 1999/08/30 17:28:14 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -89,7 +89,7 @@ vsyslog(pri, fmt, ap)
 
 	prlen = vsnprintf(tbuf, TBUF_LEN, fmt_cpy, ap);
 
-	syslog(pri, "%s", tbuf);
+	syslog(pri, tbuf);
 
 	return;
 }

@@ -1,0 +1,54 @@
+*
+* This is a prerelease.  Do not use this to upgrade from a previous
+* release of Dante unless you have to or are willing to help testing.
+*
+
+***  Monday
+
+ o Prefer the result of getlogin() to getpwuid(getuid()).
+
+ o HP-UX port.  Many thanks to Malte Cornils <malte@cornils.net>
+   for help with the port. HP-UX 10.20 should work, HP-UX 11.00
+   currently doesn't.
+
+ o AIX port.  Many thanks to M. Everett Hinckley (everett@lsli.com)
+   and Tommy Chan for doing the port.  Great work.
+   AIX 4.2.1 should work.
+
+ o share some of the client interposition code with the server;
+   lets libwrap (and any other external library) use the
+   hostname/hostaddress cache too, making things faster for
+   those using libwrap.
+
+ o always call gettimedout() regardless of select(), fixes an
+   theoretically possible problem.
+   Brought up by Per Hedeland (per@erix.ericsson.se).
+
+ o assume the globally allowed methods are already set when parsing
+   the rules.  Allows more checking/warning about "strange" rules.
+
+ o fix a bug so portranges get parsed again, instead of reporting
+   syntax error.
+
+ o some cleanup/generalization in preparation for cryptography
+   support.
+
+ o in the case of the commands "bindreply" and "udpreply",
+   "method" based itself on the controlconnection rather than the
+   remote "reply".  Corrected to base itself on the remote reply.
+
+ o when printing authinfo, include what the name of authmethod used
+   is.
+
+ o removed the "feature" that a user listed with the same name as
+   a method would be considered special; too complex for practical
+   use.  No more magic names.
+
+ o clientrules now also take a method field, only non-socks
+   method can be listed there of course; currently that's "none"
+   and "rfc931".
+
+ o call gethostbyname2() internally instead of gethostbyname();
+   fixes a client problem present in some environments.
+   Problem described by Per Hedeland (per@erix.ericsson.se).
+
