@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.195 2003/07/01 13:21:16 michaels Exp $ */
+/* $Id: sockd.h,v 1.196 2004/11/09 09:54:07 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -311,7 +311,7 @@ struct childstate_t {
 	volatile sig_atomic_t   addchild;            /* okay to do a addchild()?   */
 #endif
 	
-	int							maxidlenumber;			/* how many can be idle.		*/
+	int							maxidle;					/* how many can be idle.		*/
 };
 
 /* Make sure to keep in sync with clearconfig(). */
@@ -535,13 +535,12 @@ childcheck __P((int type));
  * Calculates the number of free slots every child of type "type" has,
  * combined. 
  * If "type" is negated, the function instead returns
- * the total number of slots (free or not) in every child.
- * Also adjusts the number of children of type "type" if needed.
+ * the total number of slots (free or not) in every child of that type.
+ * Also adjusts the number of children of type "type" if needed, according
+ * to configure variables.
  *
  * If childcheck() is successful it also means there is at the minimum
- * one descriptor available.
- *
- * Returns the total number of new objects children can accept.
+ * one free descriptor available.
  */
 
 int

@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.184 2004/06/28 10:58:39 michaels Exp $";
+"$Id: config_parse.y,v 1.185 2004/11/02 17:49:53 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -219,7 +219,7 @@ static const struct {
 %token	<string> USERNAME
 %token	<string> USER_PRIVILEGED USER_UNPRIVILEGED USER_LIBWRAP
 %token	<string> LOGOUTPUT LOGFILE
-%token	<string> CHILD_MAXIDLENUMBER
+%token	<string> CHILD_MAXIDLE
 
 	/* route */
 %type	<string> route
@@ -576,13 +576,13 @@ logoutputdevices:	logoutputdevice
 	;
 
 childstate:
-	CHILD_MAXIDLENUMBER ':' NUMBER {
+	CHILD_MAXIDLE ':' NUMBER {
 #if SOCKS_SERVER
 		if (atoi($3) < SOCKD_FREESLOTS)
-			yyerror("child.maxidlenumber can't be less than SOCKD_FREESLOTS (%d)",
+			yyerror("child.maxidle can't be less than SOCKD_FREESLOTS (%d)",
 			SOCKD_FREESLOTS);
 
-		sockscf.child.maxidlenumber = atoi($3);
+		sockscf.child.maxidle = atoi($3);
 #endif
 	}
 	;

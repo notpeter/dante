@@ -22,5 +22,5 @@ INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
 #XXX
 AM_CFLAGS =-DSOCKS_CLIENT=1 -DSOCKS_SERVER=0
 PREFIX = socks_yy
-YFLAGS = -d -p${PREFIX}
-LFLAGS = -P${PREFIX} -olex.yy.c
+AM_YFLAGS = -d -p${PREFIX}
+AM_LFLAGS = -P${PREFIX} -olex.yy.c

@@ -1,4 +1,4 @@
-.\" $Id: sockd.8,v 1.27 2002/06/05 09:59:35 michaels Exp $
+.\" $Id: sockd.8,v 1.28 2004/11/10 11:19:32 karls Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -40,84 +40,92 @@
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.Dd Feb 17, 2001
-.Dt SOCKD 8
-.Sh NAME
-.Nm sockd
-.Nd network proxyserver
-.Sh SYNOPSIS
-.Nm sockd
-.Op Fl DLVdhlnv
-.Oo
-.Fl N Ar number
-.Oc
-.Oo
-.Fl f Ar file
-.Oc
-.Sh DESCRIPTION
-.Nm Dante
+.TH SOCKD 8 "Feb 17, 2001"
+.SH NAME
+sockd \- network proxyserver
+.SH SYNOPSIS
+.B sockd
+.RB [ \-DLVdhnv ]
+.RB [ \-N
+.IR number ]
+.RB [ \-f
+.IR file ]
+.SH DESCRIPTION
+.B Dante
 implements the socks standard and can function as a firewall between networks.
-.Pp
-.Nm Dante
+.PP
+.B Dante
 relays TCP and UDP both from outside the network and in, and from inside
 and out.
-.Pp
+.PP
 The options are as follows:
-.Bl -tag -width Ds
-.It Fl D
-.Nm Dante
+.TP
+.B \-D
+.B Dante
 will detach from the controlling terminal and run in
 the background as a system daemon.
-.It Fl L
+.TP
+.B \-L
 Displays the license
-.Nm Dante
+.B Dante
 comes under.
-.It Fl N Ar number
-.Nm Dante
+.TP
+.BI \-N number
+.B Dante
 will fork of
-.Ar number
+.I number
 copies of itself when starting.  Can be used for very busy servers.
-.It Fl V
+.TP
+.B \-V
 Verifies config file and exits.
-.It Fl d
+.TP
+.B \-d
 Enables debugging.
-.It Fl f Ar file
-.Nm Dante
+.TP
+.BI \-f file
+.B Dante
 will read its configuration from
-.Ar file .
-.It Fl h
+.IR file .
+.TP
+.B \-h
 Shows the currently valid options.
-.It Fl n
+.TP
+.B \-n
 Disables TCP keep-alive messages.  Normally
-.Nm Dante
+.B Dante
 enables TCP keep-alive messages so that connections from machines that
 have crashed or for other reasons no longer can be reached time out.
-.It Fl v
+.TP
+.B \-v
 Displays
-.Nm Dante
+.B Dante
 version.
-.Sh ENVIRONMENT
-\fBTMPDIR\fP
-Use \fBTMPDIR\fP for temporary files.  Since
-.Nm Dante
-uses lockfiles it is recommended that \fBTMPDIR\fP be set to a (local)
-filesystem with low latency.
-.Sh FILES
-.nf
-.ta \w 1
-/etc/sockd.conf \fBDante\fP server configuration file.
-.fi
-.Sh AUTHORS
+.SH ENVIRONMENT
+.TP
+.B TMPDIR
+Use
+.B TMPDIR
+for temporary files.  Since
+.B Dante
+uses lockfiles it is recommended that
+.B TMPDIR
+be set to a (local) filesystem with low latency.
+.SH FILES
+.TP
+/etc/sockd.conf
+.B Dante
+server configuration file.
+.SH AUTHORS
 For Inferno Nettverk A/S, Norway:
  Michael Shuldman <michaels@inet.no>: Design and implementation.
  Karl-Andre' Skevik <karls@inet.no>: Autoconf and porting.
-.Sh SEE ALSO
+.SH SEE ALSO
 socks.conf(5) sockd.conf(5)
-.Pp
+.PP
 Information about new releases and other related issues can be found
 on the
-.Nm Dante
+.B Dante
 WWW home page at http://www.inet.no/dante.
-.Sh BUGS
+.SH BUGS
 See the accompanying BUGS file.  New ones should be reported to
 dante\-bugs@inet.no.

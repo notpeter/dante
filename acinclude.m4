@@ -1,6 +1,6 @@
 # -- acinclude start --
 
-AC_DEFUN(L_UNCON_SELECT,
+AC_DEFUN([L_UNCON_SELECT],
 [AC_MSG_CHECKING(for correct select behaviour on unconnected sockets)
 AC_TRY_RUN([
 /*
@@ -105,8 +105,9 @@ selectcheck(s)
 
 #can it really be this simple?
 #nope, doesn't handle coff files which also have no underscore
-AC_DEFUN(L_SYMBOL_UNDERSCORE,
+AC_DEFUN([L_SYMBOL_UNDERSCORE],
 [AC_MSG_CHECKING(for object file type)
+AH_TEMPLATE([HAVE_NO_SYMBOL_UNDERSCORE], [platform symbol type])
 AC_TRY_RUN([
 /* look for ELF identification header at the start of argv[0] */
 
@@ -181,13 +182,13 @@ if test "x${_nofunc}" = xt; then
 	fi
 	[$6]="[$$6] ${_func} (${_arg}): (`cat ${_param}`)"
 else
-	AC_DEFINE_UNQUOTED(HAVE_PROT_${_ucfunc}_${_arg}, ${val})
+	AC_DEFINE_UNQUOTED(HAVE_PROT_${_ucfunc}_${_arg}, ${val}, [proto])
 fi
 ])dnl
 
 dnl #XXXugly
 dnl #attempt to speed up runtime by avoiding subshells
-AC_DEFUN(L_SOCKPROTO,
+AC_DEFUN([L_SOCKPROTO],
 [
 dnl this function is not very generic, and only supports nine arguments
 syscmd(if test $# -gt 9; then exit 1;fi) dnl

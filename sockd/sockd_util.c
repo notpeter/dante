@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.82 2004/06/28 10:59:59 michaels Exp $";
+"$Id: sockd_util.c,v 1.83 2004/11/10 12:21:09 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -259,10 +259,10 @@ socks_seteuid(old, new)
 			SERR(sockscf.state.euid);
 		}
 
-	/* groupid ... */
 	if ((pw = getpwuid(new)) == NULL)
 		serr(EXIT_FAILURE, "%s: getpwuid(%d)", function, new);
 
+	/* groupid ... */
 	if (setegid(pw->pw_gid) != 0)
 		serr(EXIT_FAILURE, "%s: setegid(%d)", function, pw->pw_gid);
 
@@ -297,6 +297,7 @@ socks_reseteuid(current, new)
 		SERR(new);
 
 #if 0 /* he who requested this says it doesn't work but not why. */
+	/* XXX check this again, just wrong order */
 	/*
 	 * and now groupid.
 	 */

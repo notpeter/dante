@@ -140,8 +140,6 @@ fi
 %{_libdir}/libsocks.so.0.1.0
 %{_libdir}/libsocks.so.0
 %{_libdir}/libsocks.so
-%{_libdir}/libdsocks.so.0.1.0
-%{_libdir}/libdsocks.so.0
 %{_libdir}/libdsocks.so
 %{_bindir}/socksify
 %{_mandir}/man5/socks.conf.5*

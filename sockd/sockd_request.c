@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.153 2003/07/01 13:21:48 michaels Exp $";
+"$Id: sockd_request.c,v 1.154 2004/11/10 12:21:09 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -219,7 +219,7 @@ dorequest(mother, request)
 	struct sockaddr bound;
 	struct sockd_io_t io;
 	struct response_t response;
-	char a[MAXSOCKSHOSTSTRING], b[MAXSOCKSHOSTSTRING];
+	char a[MAXSOCKSHOSTSTRING];
 	char msg[256];
 	int p, permit, out;
 

@@ -49,7 +49,7 @@ static char yyrcsid[]
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.184 2004/06/28 10:58:39 michaels Exp $";
+"$Id: config_parse.y,v 1.185 2004/11/02 17:49:53 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -174,7 +174,7 @@ typedef union {
 	uid_t	uid;
 } YYSTYPE;
 #endif /* YYSTYPE_DEFINED */
-#line 178 "y.tab.c"
+#line 178 "config_parse.c"
 #define SERVERCONFIG 257
 #define CLIENTCONFIG 258
 #define DEPRECATED 259
@@ -208,7 +208,7 @@ typedef union {
 #define USER_LIBWRAP 287
 #define LOGOUTPUT 288
 #define LOGFILE 289
-#define CHILD_MAXIDLENUMBER 290
+#define CHILD_MAXIDLE 290
 #define ROUTE 291
 #define VIA 292
 #define VERDICT_BLOCK 293
@@ -622,7 +622,7 @@ char *socks_yyname[] =
 "NOUNKNOWN","EXTENSION","BIND","PRIVILEGED","IOTIMEOUT","CONNECTTIMEOUT",
 "METHOD","CLIENTMETHOD","NONE","GSSAPI","UNAME","RFC931","PAM","COMPATIBILITY",
 "REUSEADDR","SAMEPORT","USERNAME","USER_PRIVILEGED","USER_UNPRIVILEGED",
-"USER_LIBWRAP","LOGOUTPUT","LOGFILE","CHILD_MAXIDLENUMBER","ROUTE","VIA",
+"USER_LIBWRAP","LOGOUTPUT","LOGFILE","CHILD_MAXIDLE","ROUTE","VIA",
 "VERDICT_BLOCK","VERDICT_PASS","PAMSERVICENAME","PROTOCOL","PROTOCOL_TCP",
 "PROTOCOL_UDP","PROTOCOL_FAKE","PROXYPROTOCOL","PROXYPROTOCOL_SOCKS_V4",
 "PROXYPROTOCOL_SOCKS_V5","PROXYPROTOCOL_MSPROXY_V2","PROXYPROTOCOL_HTTP_V1_0",
@@ -700,7 +700,7 @@ char *socks_yyrule[] =
 "logoutputdevice : LOGFILE",
 "logoutputdevices : logoutputdevice",
 "logoutputdevices : logoutputdevice logoutputdevices",
-"childstate : CHILD_MAXIDLENUMBER ':' NUMBER",
+"childstate : CHILD_MAXIDLE ':' NUMBER",
 "userids : user_privileged",
 "userids : user_unprivileged",
 "userids : user_libwrap",
@@ -1071,7 +1071,7 @@ fixconfig(void)
 }
 
 #endif /* SOCKS_SERVER */
-#line 1023 "y.tab.c"
+#line 1023 "config_parse.c"
 /* allocate initial stack or double stack size, up to YYMAXDEPTH */
 #if defined(__cplusplus) || defined(__STDC__)
 static int yygrowstack(void)
@@ -1531,10 +1531,10 @@ case 63:
 {
 #if SOCKS_SERVER
 		if (atoi(yyvsp[0].string) < SOCKD_FREESLOTS)
-			yyerror("child.maxidlenumber can't be less than SOCKD_FREESLOTS (%d)",
+			yyerror("child.maxidle can't be less than SOCKD_FREESLOTS (%d)",
 			SOCKD_FREESLOTS);
 
-		sockscf.child.maxidlenumber = atoi(yyvsp[0].string);
+		sockscf.child.maxidle = atoi(yyvsp[0].string);
 #endif
 	}
 break;
@@ -2077,7 +2077,7 @@ case 191:
 		*operator = string2operator(yyvsp[0].string);
 	}
 break;
-#line 2029 "y.tab.c"
+#line 2029 "config_parse.c"
     }
     yyssp -= yym;
     yystate = *yyssp;

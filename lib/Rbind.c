@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.116 2003/07/01 13:21:21 michaels Exp $";
+"$Id: Rbind.c,v 1.117 2004/11/10 12:21:00 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -301,8 +301,8 @@ Rbind(s, name, namelen)
 
 	/* did we get the requested port? */
 	/* LINTED pointer casts may be troublesome */
-	if (TOIN(name)->sin_port != htons(0)
-	&& TOIN(name)->sin_port != TOIN(&socksfd.remote)->sin_port) { /* no. */
+	if (TOCIN(name)->sin_port != htons(0)
+	&& TOCIN(name)->sin_port != TOIN(&socksfd.remote)->sin_port) { /* no. */
 		/*
 		 * Since the socket is already bound locally, "unbind" it so caller
 		 * doesn't get confused.
