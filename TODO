@@ -1,4 +1,7 @@
-# $Id: TODO,v 1.135 2000/08/11 11:24:08 michaels Exp $
+# $Id: TODO,v 1.136 2000/09/30 13:16:42 michaels Exp $
+
+* put real address insteaad of inaddry any into local address for
+  httpproxycase.
 
 * share host/addr cache across processes.
 

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.40 2000/08/02 12:19:23 michaels Exp $ */
+/* $Id: config.h,v 1.41 2000/10/04 08:13:43 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -135,8 +135,13 @@
 #define SOCKD_CONFIGFILE			HAVE_ALT_SOCKD_CONFIGFILE
 #endif /* !HAVE_SOCKD_CONFIGFILE */
 
-/* max number of clients pending to server (argument to listen()). */
-#define SOCKD_MAXCLIENTQUE			5
+/* max number of clients pending to server (argument to listen()).
+ * The Apache people say: 
+ *   It defaults to 511 instead of 512 because some systems store it
+ *   as an 8-bit datatype; 512 truncated to 8-bits is 0, while 511 is
+ *   255 when truncated.
+*/
+#define SOCKD_MAXCLIENTQUE			511
 
 
 /*
