@@ -213,8 +213,13 @@
 /* support for reqtrieval of route data? */
 #undef HAVE_ROUTE_SOURCE
 
-/* used in standard UNIX routing socket communication */
-#undef HAVE_RTAX_GATEWAY
+/* architecture dependent code */
+#undef HAVE_ROUTEINFO_BSD
+#undef HAVE_ROUTEINFO_LINUX
+
+/* module defines */
+#undef HAVE_MODULE_REDIRECT
+#undef HAVE_MODULE_BANDWIDTH
 
 /* interposition.c prototypes */
 #undef HAVE_PROT_CONNECT_0

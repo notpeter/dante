@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.176 2001/11/11 13:38:24 michaels Exp $";
+"$Id: config_parse.y,v 1.177 2001/11/22 14:19:37 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -858,7 +858,7 @@ redirect:	REDIRECT rdr_fromaddress
 	;
 
 bandwidth:	BANDWIDTH ':' NUMBER {
-#if SOCKS_SERVER && HAVE_MODULE_BANDWIDTH
+#if SOCKS_SERVER
 		static bw_t bwmeminit;
 
      /* 
@@ -869,7 +869,7 @@ bandwidth:	BANDWIDTH ':' NUMBER {
 			serr(EXIT_FAILURE, NOMEM);
 		*rule.bw = bwmeminit;
 		rule.bw->maxbps = atoi($3);
-#endif /* HAVE_MODULE_BANDWIDTH */
+#endif /* SOCKS_SERVER */
 	}	
 	;
 

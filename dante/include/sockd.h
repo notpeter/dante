@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.186 2001/11/12 14:09:57 michaels Exp $ */
+/* $Id: sockd.h,v 1.187 2001/11/22 11:00:14 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -1081,7 +1081,8 @@ bwfree __P((bw_t *bw));
 ssize_t
 bwleft __P((const bw_t *bw));
 /*
- * Returns the bw left in bytes for "bw".
+ * Returns how many bytes we should read if the client is restricted
+ * by "bw".
  */
 
 void
@@ -1098,8 +1099,8 @@ isbwoverflow __P((bw_t *bw, const struct timeval *timenow,
  * Checks whether "bw" would overflow if we transfered more data through it.
  * "timenow" is the time now.  
  * Returns:
- * 	If "bw" would overflow: how long we have to wait until we can again
- *		transfer data through it.  The memory used for those values is
+ * 	If "bw" would overflow: til what time we have to wait until we can 
+ *		again transfer data through it.  The memory used for those values is
  *		"overflow".
  *		
  *		If "bw" would not overflow: NULL.  "overflow" is not touched.

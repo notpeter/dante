@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.294 2001/11/11 13:37:49 michaels Exp $ */
+/* $Id: common.h,v 1.298 2001/11/22 12:27:03 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -305,19 +305,19 @@ error "no known 32 bits wide datatype"
 #endif /* HAVE_INT16_T */
 
 #if !HAVE_INT32_T
-#define int32_t sbits32
+#define int32_t sbits_32
 #endif /* HAVE_INT32_T */
 
 #if !HAVE_UINT8_T
-#define uint8_t ubits8
+#define uint8_t ubits_8
 #endif /* HAVE_UINT8_T */
 
 #if !HAVE_UINT16_T
-#define uint16_t ubits16
+#define uint16_t ubits_16
 #endif /* HAVE_UINT16_T */
 
 #if !HAVE_UINT32_T
-#define uint32_t ubits32
+#define uint32_t ubits_32
 #endif /* HAVE_UINT32_T */
 
 #if !HAVE_IN_PORT_T
@@ -529,7 +529,20 @@ extern int h_errno;
 
 
 #define close(n)	closen(n)
+
+/* XXX needed on AIX apparently */
+#ifdef recvmsg
+#define recvmsg_system recvmsg
+#undef recvmsg
+#endif /* recvmsg */
+
 #define recvmsg(s, msg, flags)	recvmsgn(s, msg, flags)
+
+#ifdef sendmsg
+#define sendmsg_system sendmsg
+#undef sendmsg
+#endif /* sendmsg */
+
 #define sendmsg(s, msg, flags)	sendmsgn(s, msg, flags)
 
 #define PORTISRESERVED(port)	\
@@ -582,7 +595,8 @@ extern int h_errno;
  * Returns the controldata member of "msg".
  */
 #if HAVE_CMSGHDR
-#define CMSG_CONTROLDATA(msg)	((msg).msg_control)
+/* cast is neccessary on AIX, due to buggy headers there?. */
+#define CMSG_CONTROLDATA(msg)	((struct cmsghdr *)((msg).msg_control))
 #else /* !HAVE_CMSGHDR */
 #define CMSG_CONTROLDATA(msg)	((msg).msg_accrights)
 #endif
@@ -2212,8 +2226,6 @@ checkmodule __P((const char *name));
  */
 
 __END_DECLS
-
-#define HAVE_MODULE_BANDWIDTH 1
 
 #if SOCKSLIBRARY_DYNAMIC
 #include "interposition.h"

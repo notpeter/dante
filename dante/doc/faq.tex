@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.35 2001/11/13 09:19:04 michaels Exp $
+%@(#)$Id: faq.tex,v 1.38 2001/11/20 09:52:45 karls Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -55,7 +55,7 @@
 	Gaustadalléen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2001/11/13 09:19:04 $$$$}
+\date{$$$$Date: 2001/11/20 09:52:45 $$$$}
 
 \makeindex
 
@@ -192,6 +192,255 @@
   \end{enumerate}
 
 \section{System installation}
+ \subsection{How do I configure the client?}
+  \subsubsection{Setting up the configuration file}
+
+  The configuration file is usually called \emph{/etc/socks.conf} and
+  needs information about where the server can be found. To configure
+  it follow these easy steps:
+
+  \begin{enumerate}
+
+   \item Read the manual page (\emph{socks.conf}). It can also be found
+     \htmladdnormallink{online}{http://www.inet.no/dante/doc/socks.conf.5.html}.
+
+   \item Read the manual page again.
+
+   \item Determine the IP address and port of the socks server you
+         wish to use.
+   \item If the server uses anything but socks version 5 you should
+         probably also determine this.
+  \end{enumerate}
+
+
+ Lets assume that server is at address is 10.1.1.1, port 1080 and that
+ it is a normal socks server (such as Dante) which supports socks
+ version 5.
+
+ You would then enter the following in \emph{/etc/socks.conf}:
+ \begin{verbatim}
+route {
+       from: 0.0.0.0/0   to: 0.0.0.0/0   via: 10.1.1.1 port = 1080
+       proxyprotocol: socks_v5
+}
+ \end{verbatim}
+
+The Dante socks library should now be able to connect to the socks
+server.
+
+ \subsubsection{It doesn't work}
+
+If it doesn't work you might wish to add the lines below to the
+beginning of the file. When you try again you should get more
+information about what is happening, which will hopefully help you
+determine what the problem is:
+
+\begin{verbatim}
+debug: 1
+logoutput: stdout
+\end{verbatim}
+
+ \subsubsection{I want to do something more complicated}
+
+ Reading the
+ \htmladdnormallink{manual page}{http://www.inet.no/dante/doc/socks.conf.5.html} 
+ is a good start. Then have a look at the example configuration-files
+ found in the archive (and via \htmladdnormallink{ftp}{ftp://ftp.inet.no/pub/socks/extracted/example/}).
+
+ \subsection{How do I set up the server?}
+
+  \subsubsection{Creating a simple server configuration file}
+ Setting up the server is not significantly more difficult than
+ setting up the client. The server usually uses the filename
+ \emph{/etc/sockd.conf}. To configure the server follow these easy
+ steps:
+
+  \begin{enumerate}
+   \item Read the manual pages (\emph{sockd.conf} and
+     \emph{sockd}). They can also be found
+     \htmladdnormallink{online}{http://www.inet.no/dante/doc/}.
+
+   \item Read the manual pages again.
+
+   \item Find out the name or IP address of the interface on the
+         internal side of the network.
+
+   \item Find out the name or IP address of the interface(s) on the
+         external side of the network.
+
+   \item Determine which networks (address/netmask pair) you wish to
+         allow to connect to the server.
+
+   \item Determine if you wish to use or need any special
+         authentication to use the server. If not, the server will
+         most likely not need to be started as root.
+
+   \item Create a user (e.g. \emph{sockd}) which the server can run as
+         when it doesn't need to perform privileged operations. Using
+         \emph{nobody} is not recommended.
+
+   \item Determine what users will be allowed to do via the server
+         (i.e. which ports should they be allowed to use).
+
+  \end{enumerate}
+
+Armed with this knowledge you can now start writing the configuration
+file. It generally consists of tree parts:
+
+\begin{itemize}
+ \item General configuration; setting external interfaces etc.
+ \item Client access rules; who is allowed to connect to the server
+ \item Client usage rules; what users can do when they have connected
+\end{itemize}
+
+Let's start with the general rules:
+
+\begin{verbatim}
+internal: fxp0 port = 1080
+external: fxp1
+method: username none
+#user.privileged: root
+user.notprivileged: sockd
+logoutput: stderr
+\end{verbatim}
+
+This sets the internal and external interfaces and which users should
+be used by the server. It allows users to connect with username
+authentication, but allows access without authentication. Running as
+root might not be necessary if you do not use any authentication
+methods.
+
+Then we add the client access rules. These are placed after the first
+lines.
+
+\begin{verbatim}
+client pass {
+        from: 10.1.1.0/24 to: 0.0.0.0/0
+        log: connect disconnect
+}
+\end{verbatim}
+
+These lines allow clients on the 10.1.1.0 network to connect to any
+external address. The server logs connects and disconnects.
+
+Finally we add the access rules. This example does not place any
+limits upon usage of the server.
+
+\begin{verbatim}
+#allow bind to ports greater than 1023
+pass {
+        from: 0.0.0.0/0 to: 0.0.0.0/0 port gt 1023
+        command: bind
+        log: connect disconnect
+}
+
+#allow outgoing connections (tcp and udp)
+pass {
+        from: 0.0.0.0/0 to: 0.0.0.0/0
+        command: connect udpassociate
+        log: connect disconnect
+}
+
+#allow replies to bind, and incoming udp packets
+pass {
+       from: 0.0.0.0/0 to: 0.0.0.0/0
+       command: bindreply udpreply
+       log: connect error
+}
+
+#log the rest
+block {
+       from: 0.0.0.0/0 to: 0.0.0.0/0
+       log: connect error
+}
+\end{verbatim}
+
+These lines allow all clients (which have been allowed to connect) to
+use the socks \emph{bind}, \emph{connect} and \emph{udpassociate}
+operations. This gives users full access through the socks server;
+clients can bind ports on the server (and receive replies), connect
+with TCP through the server, and send (and receive) UDP packets.
+
+The \emph{bind} command is typically used by \emph{ftp} clients (using
+active ftp), and the first pass command allows clients to bind a port
+(above 1023) on the server.
+
+The second pass command allows outgoing traffic; \emph{connect}
+operations (TCP) and transmission of UDP packets.
+
+The third \emph{pass} command controls \emph{replies}; this might be
+the reply to a bind request or it may be the reply to a UDP-packet,
+since UDP is packetbased.  Note that nothing is done to verify that
+it's a \emph{genuine} reply, that is in general not possible anyway.
+
+The \emph{block} command at the end ensures that operations that do
+not match any of the above are logged. In the above configuration
+there will likely not be many blocked operations since the commands
+are very liberal in what they allow. The same result could have been
+achieved much simpler by a single \emph{pass} command. The structure
+above has been used to make it simpler to make modifications. By
+changing the networks matched in the \emph{from} and \emph{to}
+commands above it is possible to limit operations to specific subnets,
+only allow outgoing connections to some addresses etc.
+
+The complete sockd configuration file should now look like this:
+
+\begin{verbatim}
+## general configuration
+
+internal: fxp0 port = 1080
+external: fxp1
+method: username none
+#user.privileged: root
+user.notprivileged: sockd
+logoutput: stderr
+
+## client access rules
+
+client pass {
+        from: 10.1.1.0/24 to: 0.0.0.0/0
+        log: connect disconnect
+}
+
+
+## server operation access rules
+
+#allow bind to ports greater than 1023
+pass {
+        from: 0.0.0.0/0 to: 0.0.0.0/0 port gt 1023
+        command: bind
+        log: connect disconnect
+}
+
+#allow outgoing connections (tcp and udp)
+pass {
+        from: 0.0.0.0/0 to: 0.0.0.0/0
+        command: connect udpassociate
+        log: connect disconnect
+}
+
+#allow replies to bind, and incoming udp packets
+pass {
+       from: 0.0.0.0/0 to: 0.0.0.0/0
+       command: bindreply udpreply
+       log: connect error
+}
+
+#log the rest
+block {
+       from: 0.0.0.0/0 to: 0.0.0.0/0
+       log: connect error
+}
+\end{verbatim}
+
+This was a simple example to get you started. As you probably noticed
+when you read the manual page the server can do a lot more.
+
+Remember to test your configuration before you put it into production
+usage. When you are sure that the server works you might wish to
+redirect the logoutput to a file (by changing the \emph{logoutput}
+command).
+
  \subsection{Where can I find configuration file examples?}
 
  Several examples are included in the archive. They can also be
@@ -203,36 +452,9 @@
 	 \item{} Install the Dante package from SuSE (Version 1.1.2 is included
 	         in SuSE 7)
 	 \item{} Edit the /etc/rc.config and set the line START\_SOCKD="yes"
-    \item{} [\textbf{This information is now obsolete; use of
-	interfacename is now possible (available since Dante v.1.7)}] If you have an dynamic IP you have to have a
-            script which modifies /etc/sockd.conf every time you
-            get a new external IP. I provide this modified script
-            for folks who use ISDN (ippp0 device).  Change "ippp0"
-            to the name of the device you use for Dialin.
-				Save the script as /etc/socks.sh
-		\begin{verbatim}
-		 ---
-		 #!/bin/bash
-		 #
-	
- 		 SOCKD_CONF="/etc/sockd.conf"
-		 EXPIP=`ifconfig ippp0 | grep inet | cut -d : -f 2 | cut -d \  -f 1`
-		 ex - +'1,\$s/^external:.*/external: '$EXPIP'/ | wq' $SOCKD_CONF
-		 killall -HUP sockd
-		 exit 0
-		 ----
-		\end{verbatim}
-
-		\begin{enumerate}
-       \item{} Then do chmod a+x /etc/socks.sh.
-		 \item{} Edit the script /etc/ppp/poll.tcpip. 
-					Put the line /etc/socks.sh in the last line.
-		\end{enumerate}
-		
-		\item{} Edit the config file /etc/sockd.conf and reboot linux (or
-              start sockd -D if you know what you are doing).
-
-				  Be sure that you have one client pass rule which allows
+	 \item{} Edit the config file /etc/sockd.conf and reboot linux (or
+                 start sockd -D if you know what you are doing).
+              Be sure that you have one client pass rule which allows
               you client to connect from your internal network and
               one pass rule that allows a client that is connected
               to use the proxy to the desired destinations (this
@@ -311,7 +533,6 @@
  \subsection{How can I more easily get the Dante server to work when the
 	          external interface is using dynamic ipaddresses?}
 
-  \subsubsection{Generic}
    Either specify the external address as a interfacename (available
    since Dante v1.1.7), in which case the Dante server will
    automatically use the new address whenever it changes, or if you
@@ -343,29 +564,6 @@
     As you see, this is intended to be called as "<scriptname>
     <external ip>", where <external ip> is your external ip.  We
     assume you can easily get the external ip from your ppp script.
-
-  \subsubsection{RedHat Linux 6.0}
-   This should work for normal modem dialup or ADSL connection with dynamic
-   address.
-
-   Suppose one is using ppp and the external interface is "ppp0",
-   he/she can call the following script in "/etc/ppp/ip-up.local".
-   Whenever ppp is up, this script will be called automatically.
-
-   \begin{verbatim}
-    #!/bin/bash
-    #
-
-    SOCKD_CONF="/etc/sockd.conf"
-
-    EXPIP=`/sbin/ifconfig ppp0 | grep inet | cut -d : -f 2 | cut -d \  -f 1`
-
-    /bin/ex - +'1,$s/^external:.*/external: '$EXPIP'/ | wq' $SOCKD_CONF
-
-    kill -HUP `cat /var/run/sockd.pid`
-
-    exit 0
-   \end{verbatim}
    \emph{Thanks to: Tin Yu Mak <makty@usa.net>.}
 
  \subsection{I have problems rotating Dante's logfiles.  What can I do

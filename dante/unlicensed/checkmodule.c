@@ -1,5 +1,5 @@
 /*
- * $Id: checkmodule.c,v 1.2 2001/09/24 13:47:28 karls Exp $
+ * $Id: checkmodule.c,v 1.5 2001/11/23 11:58:57 michaels Exp $
  *
  * Copyright (c) 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: checkmodule.c,v 1.2 2001/09/24 13:47:28 karls Exp $";
+"$Id: checkmodule.c,v 1.5 2001/11/23 11:58:57 michaels Exp $";
 
 void
 checkmodule(name)
@@ -57,6 +57,7 @@ checkmodule(name)
 	int ipc = 0;
 	int i;
 
-	slog(LOG_DEBUG, "%s: checking license for module %s", function, name);
-	serr(EXIT_FAILURE, function);
+	slog(LOG_INFO, "%s: checking license for module '%s'", function, name);
+	serrx(EXIT_FAILURE, "%s: license error: module '%s' not installed",
+	function, name);
 }

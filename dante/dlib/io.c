@@ -44,13 +44,22 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.53 2001/11/12 14:10:03 michaels Exp $";
+"$Id: io.c,v 1.54 2001/11/19 13:16:25 karls Exp $";
 
 /* this file defines the functions. */
 #undef select
 #undef close
 #undef recvmsg
 #undef sendmsg
+
+/* XXX needed on AIX apparently */
+#ifdef recvmsg_system
+#define recvmsg recvmsg_system
+#endif /* recvmsg_system */
+
+#ifdef sendmsg_system
+#define sendmsg sendmsg_system
+#endif /* sendmsg_system */
 
 
 ssize_t

@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.50)
-AC_REVISION($Id: configure.ac,v 1.277 2001/11/12 15:29:06 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.280 2001/11/23 12:01:46 karls Exp $)
 
 version=1.1.11
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+prerelease="2"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -543,14 +543,15 @@ AC_EGREP_CPP(yes, [
 yes
 #endif /* linux */
 ], [AC_DEFINE(HAVE_ROUTE_SOURCE)
+    AC_DEFINE(HAVE_ROUTEINFO_LINUX)
     AC_MSG_RESULT(yes)],
    [AC_EGREP_CPP(yes, [
 #include <net/route.h>
-#ifdef RTAX_GATEWAY
+#ifdef RTA_GATEWAY
 yes
-#endif /* RTAX_GATEWAY */
+#endif /* RTA_GATEWAY */
 ],  [AC_DEFINE(HAVE_ROUTE_SOURCE)
-     AC_DEFINE(HAVE_RTAX_GATEWAY)
+     AC_DEFINE(HAVE_ROUTEINFO_BSD)
      AC_MSG_RESULT(yes)],
      [AC_MSG_RESULT(no, might result in reduced functionality)])])
 
@@ -1483,6 +1484,8 @@ AC_LINK_FILES(${MOD_CHECKMODULE}licensed/checkmodule.c, sockd/checkmodule.c)
 #redirect module
 if test -f "licensed/redirect.c"; then
 	unset MOD_REDIRECT
+	AC_DEFINE(HAVE_MODULE_REDIRECT)
+	echo "module found: redirect"
 else
 	MOD_REDIRECT=un
 fi
@@ -1492,6 +1495,8 @@ AC_LINK_FILES(${MOD_REDIRECT}licensed/redirect_key.c, sockd/redirect_key.c)
 #bandwidth
 if test -f "licensed/bandwidth.c"; then
 	unset MOD_BANDWIDTH
+	AC_DEFINE(HAVE_MODULE_BANDWIDTH)
+	echo "module found: bandwidth"
 else
 	MOD_BANDWIDTH=un
 fi

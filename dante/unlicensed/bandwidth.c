@@ -43,6 +43,15 @@
 
 #include "common.h"
 
+#include <math.h> /* XXX */
+
+static const char rcsid[] =
+"$Id: bandwidth.c,v 1.2 2001/11/22 13:40:03 michaels Exp $";
+
+const char module_bandwidth_version[] =
+"$Id: bandwidth.c,v 1.2 2001/11/22 13:40:03 michaels Exp $";
+
+
 void
 bwsetup(void)
 {

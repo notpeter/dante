@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.76 2001/11/11 13:38:46 michaels Exp $";
+"$Id: sockd_util.c,v 1.77 2001/11/22 14:23:07 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -334,10 +334,8 @@ descriptorisreserved(d)
 	int d;
 {
 
-#if HAVE_MODULE_BANDWIDTH
 	if (d == socksconfig.bwlock)
 		return 1;
-#endif
 
 	/* don't close socksconfig/log files. */
 	if (socks_logmatch((size_t)d, &socksconfig.log))

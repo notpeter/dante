@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.54 2001/11/11 13:38:27 michaels Exp $";
+"$Id: log.c,v 1.55 2001/11/20 10:36:52 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -121,6 +121,10 @@ vslog(priority, message, ap)
 
 #if SOCKS_SERVER /* no idea where stdout points to in client case. */
 	if (!socksconfig.state.init) {
+
+		if (priority == LOG_DEBUG)
+			return;
+
 		if (logformat(priority, buf, sizeof(buf), message, ap) != NULL)
 			fprintf(stdout, "%s\n", buf);
 		return;
