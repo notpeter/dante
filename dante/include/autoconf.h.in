@@ -66,12 +66,6 @@
 /* Define if lex declares yytext as a char * by default, not a char[].  */
 #undef YYTEXT_POINTER
 
-/* PACKAGE */
-#undef PACKAGE
-
-/* VERSION */
-#undef VERSION
-
 /* LOG_PERROR logopt to openlog not supported everywhere */
 #undef HAVE_OPENLOG_LOG_PERROR
 
@@ -199,6 +193,7 @@
 #undef HAVE_DEFECT_RECVMSG
 
 /* XXX used to enable alternative code to avoid broken solaris libsocket */
+#undef HAVE_SOLARIS_2_5_1
 #undef HAVE_SOLARIS_BUGS
 
 /* problems on linux */
@@ -215,6 +210,33 @@
 
 /* solaris/sysv include fun */
 #undef NEED_UCBINCLUDE_SYS_IOCTL
+
+/* solaris 7 pointer to socklen typedef used in prototypes */
+#undef HAVE_PSOCKLEN_T
+
+/* sgi-irix6.2 */
+#undef HAVE_VOID_SOCKADDR
+#undef HAVE_RECV_LEN_INT
+
+/* convenience struct for getsockopt(IP_OPTIONS) */
+#undef HAVE_STRUCT_IPOPTS
+
+/* used by setproctitle */
+#undef SPT_PADCHAR
+
+/* try to detect 64bit irix gcc/native cc problem */
+#undef HAVE_BROKEN_INET_NTOA
+
+/* dec/alpha */
+#undef HAVE_DEC_PROTO
+#undef HAVE_EXTRA_OSF_SYMBOLS
+
+/* missing sig_atomic_t */
+#undef HAVE_SIG_ATOMIC_T
+
+/* when proper resolver functions are missing (sun4) */
+#undef HAVE_NO_RESOLVESTUFF
+#undef SOCKS_DOMAINNAME
 
 /* The number of bytes in a char.  */
 #undef SIZEOF_CHAR
@@ -285,6 +307,9 @@
 /* Define if you have the sysconf function.  */
 #undef HAVE_SYSCONF
 
+/* Define if you have the vsyslog function.  */
+#undef HAVE_VSYSLOG
+
 /* Define if you have the vwarnx function.  */
 #undef HAVE_VWARNX
 
@@ -305,6 +330,12 @@
 
 /* Define if you have the <ndir.h> header file.  */
 #undef HAVE_NDIR_H
+
+/* Define if you have the <netinet/ip.h> header file.  */
+#undef HAVE_NETINET_IP_H
+
+/* Define if you have the <netinet/ip_var.h> header file.  */
+#undef HAVE_NETINET_IP_VAR_H
 
 /* Define if you have the <paths.h> header file.  */
 #undef HAVE_PATHS_H
@@ -330,6 +361,9 @@
 /* Define if you have the <syslog.h> header file.  */
 #undef HAVE_SYSLOG_H
 
+/* Define if you have the <tcpd.h> header file.  */
+#undef HAVE_TCPD_H
+
 /* Define if you have the <unistd.h> header file.  */
 #undef HAVE_UNISTD_H
 
@@ -341,3 +375,12 @@
 
 /* Define if you have the wrap library (-lwrap).  */
 #undef HAVE_LIBWRAP
+
+/* Name of package */
+#undef PACKAGE
+
+/* Version number of package */
+#undef VERSION
+
+/* change all #undef's to #define foo 0 */
+#include "redefac.h"

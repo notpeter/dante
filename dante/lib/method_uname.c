@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: method_uname.c,v 1.20 1998/12/08 19:37:18 michaels Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: method_uname.c,v 1.25 1999/05/13 13:13:01 karls Exp $";
 
 int
 clientmethod_uname(s, host, version)
@@ -53,18 +53,18 @@ clientmethod_uname(s, host, version)
 	int version;
 {
 	const char *function = "clientmethod_uname()";
-	static struct uname_t uname;				/* cache userinfo. 					*/
-	static struct sockshost_t unamehost;	/* host cache was gotten for.	*/
-	static int unameisok;						/* cached is ok? 						*/
+	static struct uname_t uname;				/* cache userinfo.					*/
+	static struct sockshost_t unamehost;	/* host cache was gotten for.		*/
+	static int unameisok;						/* cached is ok?						*/
 	char *offset, *name, *password;
-	char request[ 1 					/* version.				*/
-					+ 1 					/* username length.	*/
+	char request[ 1					/* version.				*/
+					+ 1					/* username length.	*/
 					+ MAXNAMELEN		/* username.			*/
 					+ 1					/* password length.	*/
 					+ MAXPWLEN			/* password.			*/
 	];
 	char response[ 1 /* version.	*/
-					+ 	1 /* status.	*/
+					+	1 /* status.	*/
 	];
 
 
@@ -84,7 +84,7 @@ clientmethod_uname(s, host, version)
 
 	offset = request;
 
-	*offset++ = (char)version;
+	*offset++ = (char)SOCKS_UNAMEVERSION;
 
 	if (!unameisok) {
 		if ((name = socks_getusername(host, offset + 1, MAXNAMELEN)) == NULL) {
@@ -104,7 +104,7 @@ clientmethod_uname(s, host, version)
 	*offset = (char)strlen(name);
 	OCTETIFY(*offset);
 	offset += *offset + 1;
-	
+
 	if (!unameisok) {
 		if ((password = socks_getpassword(host, name, offset + 1, MAXPWLEN))
 		== NULL) {
@@ -124,14 +124,14 @@ clientmethod_uname(s, host, version)
 	*offset = (char)strlen(password);
 	OCTETIFY(*offset);
 	offset += *offset + 1;
-	
+
 	if (writen(s, request, (size_t)(offset - request)) != offset - request) {
-		swarn("%s: writen()", function);	
+		swarn("%s: writen()", function);
 		return -1;
 	}
 
 	if (readn(s, response, sizeof(response)) != sizeof(response)) {
-		swarn("%s: readn()", function);	
+		swarn("%s: readn()", function);
 		return -1;
 	}
 
@@ -140,7 +140,7 @@ clientmethod_uname(s, host, version)
 		function, (int)request[UNAME_VERSION], response[UNAME_VERSION]);
 		return -1;
 	}
-	
+
 	if (response[UNAME_STATUS] == 0) { /* server accepted. */
 		unamehost = *host;
 		unameisok = 1;

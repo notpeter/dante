@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -18,38 +18,38 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.16 1998/11/13 21:19:01 michaels Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: sockd_socket.c,v 1.22 1999/05/14 10:51:35 michaels Exp $";
 
 int
 sockd_bind(s, addr, retries)
 	int s;
-#ifdef HAVE_FAULTY_BINDPROTO
+#if HAVE_FAULTY_BINDPROTO
 	struct sockaddr *addr;
 #else
 	const struct sockaddr *addr;
@@ -59,7 +59,6 @@ sockd_bind(s, addr, retries)
 	const char *function = "sockd_bind()";
 	size_t tries;
 	int p;
-
 
 	if (config.compat.reuseaddr) {
 		p = 1;
@@ -80,7 +79,7 @@ sockd_bind(s, addr, retries)
 					sleep(++tries);
 					errno = EADDRINUSE;	/* some systems change errno in sleep(). */
 					continue;
-				
+
 				case EINTR:
 					continue;
 			}

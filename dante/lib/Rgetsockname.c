@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.22 1999/03/11 16:59:31 karls Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: Rgetsockname.c,v 1.28 1999/05/14 14:44:39 michaels Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -52,6 +52,7 @@ Rgetsockname(s, name, namelen)
 	struct sockaddr *name;
 	socklen_t *namelen;
 {
+	const char *function = "Rgetsockname()";
 	struct socksfd_t *socksfd;
 	struct sockaddr *addr;
 
@@ -88,8 +89,8 @@ Rgetsockname(s, name, namelen)
 			break;
 
 		case SOCKS_UDPASSOCIATE:
-			swarnx("getsockname() on udp socket is not supported.\n"
-					 "Contact Inferno Nettverk for more information.");
+			swarnx("%s: getsockname() on udp sockets is not supported,\n"
+					 "contact Inferno Nettverk A/S for more information", function);
 			errno = EADDRNOTAVAIL;
 			return -1;
 
@@ -98,7 +99,7 @@ Rgetsockname(s, name, namelen)
 	}
 
 	*namelen = MIN(*namelen, sizeof(*addr));
-	memcpy(name, addr, (unsigned int)*namelen);
+	memcpy(name, addr, (size_t)*namelen);
 
 	return 0;
 }

@@ -18,39 +18,53 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: address.c,v 1.57 1999/03/11 16:59:31 karls Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: address.c,v 1.66 1999/05/14 14:44:42 michaels Exp $";
+
+__BEGIN_DECLS
 
 static struct socksfd_t socksfdinit;
 static int *dv;
 static unsigned int dc;
 static struct socksfd_t *socksfdv;
 static unsigned int socksfdc;
+
+static int
+socks_sigblock __P((sigset_t *oldmask));
+/*
+ * Blocks signals affecting the function, returning the old signalmask
+ *	in "oldmask".
+ * Returns:
+ *		On success: 0
+ *		On failure: -1
+*/
+
+__END_DECLS
 
 struct socksfd_t *
 socks_addaddr(clientfd, socksfd)
@@ -64,35 +78,43 @@ socks_addaddr(clientfd, socksfd)
 		slog(LOG_DEBUG, "%s: %d", function, clientfd);
 #endif
 
-	SASSERTX(socksfd->state.command 	== -1
-	|| 	 socksfd->state.command 	== SOCKS_BIND
-	|| 	 socksfd->state.command 	== SOCKS_CONNECT
-	|| 	 socksfd->state.command 	== SOCKS_UDPASSOCIATE);
+	SASSERTX(socksfd->state.command		== -1
+	||	 socksfd->state.command		== SOCKS_BIND
+	||	 socksfd->state.command		== SOCKS_CONNECT
+	||	 socksfd->state.command		== SOCKS_UDPASSOCIATE);
 
 	if (socks_addfd(clientfd) != 0)
-		serrx(1, NOMEM);
+		serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
 
 	if (socksfdc < dc) { /* init/reallocate */
+		sigset_t oldmask;
+
 		if (socksfdinit.control == 0) {	/* not initialized */
 			socksfdinit.control = -1;
-			/* other elements have ok default value. */
+			/* other members have ok default value. */
 		}
+
+		if (socks_sigblock(&oldmask) != 0)
+			return NULL;
 
 		if ((socksfdv = (struct socksfd_t *)realloc(socksfdv,
 		sizeof(*socksfdv) * dc)) == NULL)
-			serrx(1, NOMEM);
+			serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
 
 		/* init new objects */
 		while (socksfdc < dc)
 			socksfdv[socksfdc++] = socksfdinit;
+
+		if (sigprocmask(SIG_SETMASK, &oldmask, NULL) != 0)
+			swarn("%s: sigprocmask()", function);
 	}
 
 	switch (socksfd->state.command) {
 		case SOCKS_BIND:
-#ifdef SOCKS_TRYHARDER
+#if SOCKS_TRYHARDER
 			if ((socksfd->state.lock = socks_mklock(SOCKS_LOCKFILE)) == -1)
-				swarn("socks_mklock()");
-#endif	
+				swarn("%s: socks_mklock()", function);
+#endif
 			break;
 	}
 
@@ -117,14 +139,13 @@ void
 socks_rmaddr(d)
 	unsigned int d;
 {
-	const char *function = "socks_rmaddr()";
+/*	const char *function = "socks_rmaddr()";  */
 
 #if 0 /* DEBUG */
 	if (!socks_isaddr(d)
 	|| (!socksfdv[d].state.command != -1 && !socksfdv[d].state.system))
 		slog(LOG_DEBUG, "%s: %d", function, d);
 #endif
-
 
 	if (!socks_isaddr(d))
 		return;
@@ -142,7 +163,8 @@ socks_rmaddr(d)
 			if (!socksfdv[d].state.system)
 				switch (socksfdv[d].state.command) {
 					case SOCKS_BIND:
-						if (d != socksfdv[d].control && socksfdv[d].control != -1)
+						if (d != (unsigned int)socksfdv[d].control
+						&& socksfdv[d].control != -1)
 							close(socksfdv[d].control);
 						break;
 
@@ -160,10 +182,10 @@ socks_rmaddr(d)
 
 			switch (socksfdv[d].state.command) {
 				case SOCKS_BIND:
-#ifdef SOCKS_TRYHARDER
+#if SOCKS_TRYHARDER
 					if (close(socksfdv[d].state.lock) != 0)
 						swarn("socks_rmaddr()");
-#endif	
+#endif
 					break;
 			}
 	}
@@ -186,19 +208,12 @@ socks_addrisok(s)
 	unsigned int s;
 {
 	const char *function = "socks_addrisok()";
+	const int errno_s = errno;
 	int matched;
-	sigset_t newmask, oldmask;
+	sigset_t oldmask;
 
-	/*
-	 * block signals that might change socksfd.
-	*/
-	sigemptyset(&newmask);
-	sigaddset(&newmask, SIGIO);
-	sigaddset(&newmask, SIGCHLD);
-	if (sigprocmask(SIG_BLOCK, &newmask, &oldmask) != 0) {
-		swarn("%s: sigprocmask()", function);
+	if (socks_sigblock(&oldmask) != 0)
 		return -1;
-	}
 
 	matched = 1;
 	do {
@@ -221,7 +236,7 @@ socks_addrisok(s)
 			}
 
 		/* check remote endpoint too? */
-		
+
 		if (socksfd == NULL) {	/* unknown descriptor, a dup? */
 			struct socksfd_t newsocksfd;
 			int duped;
@@ -246,28 +261,28 @@ socks_addrisok(s)
 	/* CONSTCOND */
 	} while (0);
 
-	if (sigprocmask(SIG_SETMASK, &oldmask, NULL) != 0) {
+	if (sigprocmask(SIG_SETMASK, &oldmask, NULL) != 0)
 		swarn("%s: sigprocmask()", function);
-		return -1;
-	}
+
+	errno = errno_s;
 
 	return matched;
 }
 
-int 
+int
 socks_addrcontrol(local, remote)
 	const struct sockaddr *local;
 	const struct sockaddr *remote;
 {
-	int i;
-	
+	unsigned int i;
+
 	for (i = 0; i < socksfdc; ++i) {
 		struct sockaddr localcontrol, remotecontrol;
 		socklen_t len;
 
 		if (!socks_isaddr((unsigned int)i))
 			continue;
-		
+
 		if (local != NULL) {
 			len = sizeof(localcontrol);
 			if (getsockname(socksfdv[i].control, &localcontrol, &len) != 0)
@@ -298,10 +313,10 @@ socks_addrmatch(local, remote, state)
 	const struct sockaddr *remote;
 	const struct socksstate_t *state;
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < socksfdc; ++i) {
-		if (!socks_isaddr((unsigned int)i))
+		if (!socks_isaddr(i))
 			continue;
 
 		/*
@@ -325,11 +340,11 @@ socks_addrmatch(local, remote, state)
 			if (state->command != -1)
 				if (state->command != socksfdv[i].state.command)
 					continue;
-				
+
 			if (state->inprogress != -1)
 				if (state->inprogress != socksfdv[i].state.inprogress)
 					continue;
-			
+
 			if (state->acceptpending != -1)
 				if (state->acceptpending != socksfdv[i].state.acceptpending)
 					continue;
@@ -346,20 +361,29 @@ int
 socks_addfd(d)
 	unsigned int d;
 {
+	const char *function = "socks_addfd()";
 
 	if (d >= dc)	{ /* init/reallocate */
-		int *newfdv, newfdc;
+		sigset_t oldmask;
+		int *newfdv;
+		unsigned int newfdc;
 
-		newfdc = MAX(d + 1, getdtablesize());
-		if ((newfdv = (int *)realloc(dv, sizeof(*dv) * newfdc)) == NULL)
+		if (socks_sigblock(&oldmask) != 0)
 			return -1;
+
+		newfdc = MAX(d + 1, (unsigned int)getdtablesize());
+		if ((newfdv = (int *)realloc(dv, sizeof(*dv) * newfdc)) == NULL)
+			serrx(EXIT_FAILURE, NOMEM);
 		dv = newfdv;
 
 		/* init all to -1, a illegal value for a d. */
 		while (dc < newfdc)
 			dv[dc++] = -1;
+
+		if (sigprocmask(SIG_SETMASK, &oldmask, NULL) != 0)
+			swarn("%s: sigprocmask()", function);
 	}
-	
+
 	dv[d] = d;
 
 	return 0;
@@ -369,7 +393,7 @@ int
 socks_isfd(d)
 	unsigned int d;
 {
-	if (d >= dc || dv[d] == -1)	
+	if (d >= dc || dv[d] == -1)
 		return 0;
 	return 1;
 }
@@ -387,7 +411,7 @@ socksfddup(old, new)
 	const struct socksfd_t *old;
 	struct socksfd_t *new;
 {
-	
+
 	*new = *old;	/* init most stuff. */
 
 	switch (old->state.command) {
@@ -406,4 +430,26 @@ socksfddup(old, new)
 	}
 
 	return new;
+}
+
+static int
+socks_sigblock(oldmask)
+	sigset_t *oldmask;
+{
+	const char *function = "socks_sigblock()";
+	sigset_t newmask;
+
+	/*
+	 * block signals that might change socksfd.
+	*/
+
+	sigemptyset(&newmask);
+	sigaddset(&newmask, SIGIO);
+	sigaddset(&newmask, SIGCHLD);
+	if (sigprocmask(SIG_BLOCK, &newmask, oldmask) != 0) {
+		swarn("%s: sigprocmask()", function);
+		return -1;
+	}
+
+	return 0;
 }

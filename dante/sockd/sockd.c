@@ -18,39 +18,42 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: sockd.c,v 1.201 1999/03/11 16:59:34 karls Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: sockd.c,v 1.228 1999/05/14 10:51:28 michaels Exp $";
 
 	/*
 	 * signal handlers
    */
 
 __BEGIN_DECLS
+
+static void
+checksettings __P((void));
 
 static void
 siginfo __P((int sig));
@@ -64,12 +67,12 @@ sighup __P((int sig));
 static void
 sigserverbroadcast __P((int sig));
 /*
- * Broadcasts "sig" to all other servers. 
+ * Broadcasts "sig" to all other servers.
  *
 */
 
 static void
-initoptions __P((int argc, char *argv[]));
+serverinit __P((int argc, char *argv[], char *envp[]));
 /*
  * Initialises options/config.  "argc" and "argv" should be
  * the arguments passed to main().
@@ -95,101 +98,86 @@ showlicense __P((void));
  * shows license and exits.
 */
 
-__END_DECLS
+#define ELECTRICFENCE 0
+
+#if ELECTRICFENCE
+	extern int EF_PROTECT_FREE;
+	extern int EF_ALLOW_MALLOC_0;
+	extern int EF_ALIGNMENT;
+	extern int EF_PROTECT_BELOW;
+#endif /* ELECTRICFENCE */
+
+#if DIAGNOSTIC && HAVE_MALLOC_OPTIONS
+	extern char *malloc_options;
+#endif  /* DIAGNOSTIC && HAVE_MALLOC_OPTIONS */
 
 
-#ifdef HAVE_PROGNAME
+#if HAVE_PROGNAME
 extern char *__progname;
 #else
-char *__progname = "sockd";
+char *__progname = "sockd";	/* default. */
 #endif  /* HAVE_PROGNAME */
 
 extern char *optarg;
-
-const int configtype =  CONFIGTYPE_SERVER;
-
-struct config_t config;
+extern struct config_t config;
 
 int exitsignalv[] = {
 	SIGINT, SIGQUIT, SIGBUS, SIGSEGV, SIGTERM
 };
-const int exitsignalc = ELEMENTS(exitsignalv);
+const size_t exitsignalc = ELEMENTS(exitsignalv);
 
 int ignoresignalv[] = {
 	SIGPIPE
 };
-const int ignoresignalc = ELEMENTS(ignoresignalv);
+const size_t ignoresignalc = ELEMENTS(ignoresignalv);
 
+__END_DECLS
 
 int
-#ifdef HAVE_SETPROCTITLE
+#if HAVE_SETPROCTITLE
 main(argc, argv)
 #else
 main(argc, argv, envp)
 #endif /* HAVE_SETPROCTITLE */
 	int	argc;
 	char	*argv[];
-#ifndef HAVE_SETPROCTITLE
+#if !HAVE_SETPROCTITLE
 	char    *envp[];
 #endif  /* HAVE_SETPROCTITLE */
 {
 	struct sigaction sigact;
 	int p, maxfd, dforchild;
 	FILE *fp;
+#if HAVE_SETPROCTITLE
+	char *envp[] = {NULL};	/* dummy. */
+#endif /* HAVE_SETPROCTITLE */
 
-#if defined(DEBUG) && defined(HAVE_MALLOC_OPTIONS)
-	extern char *malloc_options;
+#if DIAGNOSTIC && HAVE_MALLOC_OPTIONS
 	malloc_options = "AJ";
-#endif  /* DEBUG && HAVE_MALLOC_OPTIONS */
+#endif  /* DIAGNOSTIC && HAVE_MALLOC_OPTIONS */
 
-#ifndef HAVE_PROGNAME
-	if (argv[0] != NULL)
-		if ((__progname = strrchr(argv[0], '/')) == NULL) 
-			__progname = argv[0];
-		else
-			++__progname;
-#endif  /* !HAVE_PROGNAME */
+#if ELECTRICFENCE
+	EF_PROTECT_FREE         = 1;
+	EF_ALLOW_MALLOC_0       = 1;
+	EF_ALIGNMENT            = 0;
+	EF_PROTECT_BELOW			= 0;
+#endif /* ELECTRICFENCE */
 
-
-	/*
-	 * initialize misc options to sensible default.
- 	*/
-
-	config.option.serverc		= 1;	/* ourselves. ;-) */
-	config.option.keepalive		= 1;
-
-	config.srchost.unknown		= 1;
-
-	config.timeout.negotiate	= DEFAULT_NEGOTIATETIMEOUT;
-	config.timeout.io				= DEFAULT_IOTIMEOUT;	
-
-	config.state.addchild		= 1;
-
-#ifndef HAVE_SETPROCTITLE
-#if 0 /* XXX */
-	if (initsetproctitle(argc, argv, envp) == -1) 
-		serr(EXIT_FAILURE, "malloc");
-#endif
-#endif  /* !HAVE_SETPROCTITLE*/
-
-	initoptions(argc, argv);
-
-	if (geteuid() != config.uid.unprivileged)
-		seteuid(config.uid.unprivileged); 
-
+	serverinit(argc, argv, envp);
 	showconfig(&config);
+	socks_seteuid(NULL, config.uid.unprivileged);
 
 	if (config.option.daemon)
 		if (daemon(0, 0) != 0)
 			serr(EXIT_FAILURE, "daemon()");
 
 	/* we need every descriptor we can get. */
-	for (dforchild = p = 0, maxfd = getdtablesize(); p < maxfd; ++p) {
+	dforchild = config.log.type & LOGTYPE_SYSLOG ? -1 : 0; /* syslog takes one */
+	for (p = 0, maxfd = getdtablesize(); p < maxfd; ++p) {
 		int i;
 
 		/* don't close config/log files. */
-		if (p == fileno(config.option.configfp)
-		|| socks_logmatch(p, &config.log))
+		if (socks_logmatch((size_t)p, &config.log))
 			continue;
 
 		++dforchild; /* descriptor will be usable by child. */
@@ -199,7 +187,7 @@ main(argc, argv, envp)
 			if (p == config.internalv[i].s)
 				break;
 
-#ifdef NEED_ACCEPTLOCK
+#if NEED_ACCEPTLOCK
 			if (config.option.serverc > 1)
 				if (p == config.internalv[i].lock)
 					break;
@@ -211,6 +199,7 @@ main(argc, argv, envp)
 
 		close(p);
 	}
+	initlog(); /* for syslog. */
 
 	/*
 	 * Check system limits against what we need.
@@ -254,7 +243,7 @@ main(argc, argv, envp)
 	sigact.sa_flags	= SA_RESTART | SA_NOCLDSTOP;
 	sigact.sa_handler = siginfo;
 
-#ifdef HAVE_SIGNAL_SIGINFO
+#if HAVE_SIGNAL_SIGINFO
 	if (sigaction(SIGINFO, &sigact, NULL) != 0) {
 		swarn("sigaction(SIGINFO)");
 		return EXIT_FAILURE;
@@ -281,33 +270,30 @@ main(argc, argv, envp)
 	}
 
 	sigact.sa_handler = sockdexit;
-	for (p = 0; p < exitsignalc; ++p)
+	for (p = 0; (size_t)p < exitsignalc; ++p)
 		if (sigaction(exitsignalv[p], &sigact, NULL) != 0)
 			swarn("sigaction(%d)", exitsignalv[p]);
 
 	sigact.sa_handler = SIG_IGN;
-	for (p = 0; p < ignoresignalc; ++p)
+	for (p = 0; (size_t)p < ignoresignalc; ++p)
 		if (sigaction(ignoresignalv[p], &sigact, NULL) != 0)
 			swarn("sigaction(%d)", ignoresignalv[p]);
 
-	/* may need privileges for writing out our pid. */
-	seteuid(config.uid.privileged);
-	
+	socks_seteuid(NULL, config.uid.privileged);
 	if ((fp = fopen(SOCKD_PIDFILE, "w")) == NULL)
 		swarn("open(%s)", SOCKD_PIDFILE);
-	else {
+	socks_seteuid(NULL, config.uid.unprivileged);
+
+	if (fp != NULL) {
 		if (fprintf(fp, "%ld\n", (long)getpid()) == EOF)
 			swarn("fprintf(%s)", SOCKD_PIDFILE);
 		fclose(fp);
 	}
 
-	/* can't throw it all away, a child may need some. */
-	seteuid(config.uid.unprivileged);
-
 	if (time(&config.stat.boot) == (time_t)-1)
 		SERR(-1);
 
-	/* fork of requested number of servers.  Start at one, 'cause we are it.  */
+	/* fork of requested number of servers.  Start at one 'cause we are "it".  */
 	for (p = 1; p < config.option.serverc; ++p) {
 		pid_t pid;
 
@@ -321,13 +307,12 @@ main(argc, argv, envp)
 			config.state.pidv[p] = pid;
 	}
 
-	if (childcheck(CHILD_NEGOTIATE) 	<= 0
+	if (childcheck(CHILD_NEGOTIATE)	<= 0
 	||  childcheck(CHILD_REQUEST)		<= 0
 	||	 childcheck(CHILD_IO)			<= 0)
 		serr(EXIT_FAILURE, "childcheck() failed");
 
-  	slog(LOG_INFO, "%s/server v%s running", PACKAGE, VERSION);
-
+	slog(LOG_INFO, "%s/server v%s running", PACKAGE, VERSION);
 
 	/*
 	 * main loop; accept new connections and handle our children.
@@ -382,7 +367,7 @@ main(argc, argv, envp)
 		while ((child = getset(SOCKD_NEWREQUEST, &rset)) != NULL) {
 			int childisbad = 0;
 
-#ifdef DIAGNOSTIC
+#if DIAGNOSTIC
 			int freed = freedescriptors(config.option.debug ? "start" : NULL);
 #endif
 
@@ -399,17 +384,17 @@ main(argc, argv, envp)
 
 					if ((reqchild = nextchild(CHILD_REQUEST)) == NULL)
 						break;	/* no child to accept a new request. */
-					
+
 					SASSERTX(reqchild->freec > 0);
 
-					/* receive request from negotiator child ... */
+					/* receive request from negotiator child... */
 					if ((p = recv_req(child->s, &req)) != 0) {
 						childisbad = 1;
 						break;
 					}
 					++config.stat.negotiate.received;
 
-					/* set descriptor to blocking for request. */
+					/* set descriptor to blocking for request... */
 					if ((flags = fcntl(req.s, F_GETFL, 0)) == -1
 					||  fcntl(req.s, F_SETFL, flags & NONBLOCKING) == -1)
 						swarn("%s: fcntl()");
@@ -426,7 +411,6 @@ main(argc, argv, envp)
 					}
 
 					close(req.s);
-
 					break;
 				}
 
@@ -459,18 +443,17 @@ main(argc, argv, envp)
 
 					close_iodescriptors(&io);
 					break;
-				}				
+				}
 
 				case CHILD_IO:
 					/*
-					 * the only thing a iochild should return is a ack byte each
-					 * time it finishes with a io, that is handled in loop
-					 * above.
+					 * the only thing a iochild should return is a ack each time
+					 * it finishes with a io, that is handled in loop above.
 					*/
 					break;
 			}
 
-#ifdef DIAGNOSTIC
+#if DIAGNOSTIC
 			SASSERTX(freed == freedescriptors(config.option.debug ? "end" : NULL));
 #endif
 			clearset(SOCKD_NEWREQUEST, child, &rset);
@@ -486,7 +469,7 @@ main(argc, argv, envp)
 				}
 		}
 
-		/* handled our children, is there a new connection pending? */
+		/* handled our children.  Is there a new connection pending? */
 		for (p = 0; p < config.internalc; ++p) {
 			char accepted[MAXSOCKADDRSTRING];
 
@@ -498,16 +481,16 @@ main(argc, argv, envp)
 
 				if ((negchild = nextchild(CHILD_NEGOTIATE)) == NULL)
 					break;  /* no free negotiator children, don't accept(). */
-				
-#ifdef NEED_ACCEPTLOCK
+
+#if NEED_ACCEPTLOCK
 				if (config.option.serverc > 1)
 					if (socks_lock(l->lock, F_WRLCK, 0) != 0)
 						continue;
 #endif
 
-#ifdef HAVE_SENDMSG_DEADLOCK
+#if HAVE_SENDMSG_DEADLOCK
 				if (socks_lock(negchild->lock, F_WRLCK, 0) != 0) {
-#ifdef NEED_ACCEPTLOCK
+#if NEED_ACCEPTLOCK
 					if (config.option.serverc > 1)
 						socks_unlock(l->lock, -1);
 #endif /* NEED_ACCEPTLOCK */
@@ -538,12 +521,12 @@ main(argc, argv, envp)
 						case ENETUNREACH:
 #endif
 
-#ifdef NEED_ACCEPTLOCK
+#if NEED_ACCEPTLOCK
 							if (config.option.serverc > 1)
 								socks_unlock(l->lock, -1);
 #endif /* NEED_ACCEPTLOCK */
 
-#ifdef HAVE_SENDMSG_DEADLOCK
+#if HAVE_SENDMSG_DEADLOCK
 							socks_unlock(negchild->lock, -1);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
@@ -552,7 +535,7 @@ main(argc, argv, envp)
 						case ENFILE:
 							continue;
 
-						/* 
+						/*
 						 * this should never happen since childcheck(), if
 						 * initially successful, should make sure there is
 						 *	always enough descriptors available.
@@ -564,7 +547,7 @@ main(argc, argv, envp)
 							SERR(client);
 					}
 
-#ifdef HAVE_LINUX_BUGS
+#if HAVE_LINUX_BUGS
 				/*
 				 * yes, linux manages to lose the descriptor flags, workaround
 				 *	might be insufficient.
@@ -575,7 +558,7 @@ main(argc, argv, envp)
 
 				++config.stat.accepted;
 
-#ifdef NEED_ACCEPTLOCK
+#if NEED_ACCEPTLOCK
 				if (config.option.serverc > 1)
 					if ((len = socks_unlock(l->lock, -1)) != 0)
 						SERR(len);
@@ -588,7 +571,7 @@ main(argc, argv, envp)
 					--negchild->freec;
 					++config.stat.negotiate.sendt;
 				}
-				else 
+				else
 					switch (errno) {
 						case EMFILE:
 						case ENFILE:
@@ -598,7 +581,7 @@ main(argc, argv, envp)
 							removechild(negchild->pid);
 					}
 
-#ifdef HAVE_SENDMSG_DEADLOCK
+#if HAVE_SENDMSG_DEADLOCK
 				socks_unlock(negchild->lock, -1);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
@@ -641,14 +624,14 @@ showversion(void)
 }
 
 
-static void 
+static void
 showlicense(void)
 {
 
 	printf("%s: %s v%s\n%s\n", __progname, PACKAGE, VERSION,
 "\
 /*\n\
- * Copyright (c) 1997, 1998\n\
+ * Copyright (c) 1997, 1998, 1999\n\
  *      Inferno Nettverk A/S, Norway.  All rights reserved.\n\
  *\n\
  * Redistribution and use in source and binary forms, with or without\n\
@@ -682,7 +665,7 @@ showlicense(void)
  *  Inferno Nettverk A/S\n\
  *  Oslo Research Park\n\
  *  Gaustadaléen 21\n\
- *  N-0371 Oslo\n\
+ *  N-0349 Oslo\n\
  *  Norway\n\
  * \n\
  * any improvements or extensions that they make and grant Inferno Nettverk A/S\n\
@@ -693,15 +676,34 @@ showlicense(void)
 	exit(EXIT_SUCCESS);
 }
 
+/* ARGSUSED */ /* need envp if no HAVE_SETPROCTITLE */
 static void
-initoptions(argc, argv)
+serverinit(argc, argv, envp)
 	int argc;
 	char *argv[];
+	char *envp[];
 {
-	const char *function = "initoptions()";
+	const char *function = "serverinit()";
 	uid_t euid;
 	int ch, i;
-	
+
+#if !HAVE_PROGNAME
+	if (argv[0] != NULL)
+		if ((__progname = strrchr(argv[0], '/')) == NULL)
+			__progname = argv[0];
+		else
+			++__progname;
+#endif  /* !HAVE_PROGNAME */
+
+#if !HAVE_SETPROCTITLE
+	if (initsetproctitle(argc, argv, envp) == -1)
+		serr(EXIT_FAILURE, "malloc");
+#endif  /* !HAVE_SETPROCTITLE*/
+
+
+	config.option.serverc	= 1;	/* ourselves. ;-) */
+	config.state.addchild	= 1;
+
 	if (config.state.pid == 0)
 		config.state.pid = getpid();
 
@@ -713,26 +715,26 @@ initoptions(argc, argv)
 
 			case 'L':
 				showlicense();
-				/* NOTREACHED */	
+				/* NOTREACHED */
 
 			case 'N':
 				if ((config.option.serverc = atoi(optarg)) < 1)
-					serrx(1, "%s: illegal value for -n: %d",
-					function, config.option.serverc);
+					serrx(1, "%s: illegal value for -%c: %d",
+					function, ch, config.option.serverc);
 				break;
-				
+
 			case 'd':
 				++config.option.debug;
 				break;
-				
+
 			case 'f':
 				config.option.configfile = optarg;
 				break;
 
 			case 'h':
-				usage(0);	
+				usage(0);
 				/* NOTREACHED */
-				
+
 			case 'l':
 				config.option.lbuf = 1;
 				break;
@@ -743,12 +745,12 @@ initoptions(argc, argv)
 
 			case 'v':
 				showversion();
-				/* NOTREACHED */	
+				/* NOTREACHED */
 
 			case 'w':
 				config.option.sleep = atoi(optarg);
 				break;
-					
+
 			default:
 				usage(1);
 		}
@@ -762,42 +764,11 @@ initoptions(argc, argv)
 	if (config.option.configfile == NULL)
 		config.option.configfile = SOCKD_CONFIGFILE;
 
-	if (config.option.configfp == NULL) {
-		if ((config.option.configfp = fopen(config.option.configfile, "r"))
-		== NULL)
-			serr(EXIT_FAILURE, "%s: %s", function, config.option.configfile);
-	}
+	genericinit();
 
-	if (readconfig(config.option.configfp) != 0)
-		serr(EXIT_FAILURE, "%s: %s", function, config.option.configfile);
+	checksettings();
 
-	/* 
-	 * Check arguments and settings, do they make sense?
-	*/
-
-	if (*config.domain == NUL)
-		swarnx("%s: local domainname not set", function);
-		
-	euid = geteuid();	/* for reset back to original before function return. */ 
-	if (euid != config.uid.privileged)
-		seteuid(config.uid.privileged);
-
-	if (config.internalc == 0) {
-		struct servent	*service;
-
-		if ((config.internalv = (struct listenaddress_t *)
-		realloc(config.internalv, sizeof(*config.internalv) * ++config.internalc))
-		== NULL)
-			serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
-
-		(*config.internalv).addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-		if ((service = getservbyname("socks", "tcp")) == NULL)
-			(*config.internalv).addr.sin_port = htons(SOCKD_PORT);
-		else
-			(*config.internalv).addr.sin_port = (in_port_t)service->s_port;
-	}
-
+	socks_seteuid(&euid, config.uid.privileged);
 	for (i = 0; i < config.internalc; ++i) {
 		int flags;
 		struct listenaddress_t *l = &config.internalv[i];
@@ -827,26 +798,54 @@ initoptions(argc, argv)
 		if ((flags = fcntl(l->s, F_GETFL, 0)) == -1
 		||  fcntl(l->s, F_SETFL, flags | NONBLOCKING) == -1)
 			serr(EXIT_FAILURE, "%s: fcntl()", function);
-		
 
-#ifdef NEED_ACCEPTLOCK
+#if NEED_ACCEPTLOCK
 		if (config.option.serverc > 1)
 			if ((l->lock = socks_mklock(SOCKS_LOCKFILE)) == -1)
 				serr(EXIT_FAILURE, "%s: socks_mklock()", function);
 #endif
 	}
-
-	if (euid != geteuid())
-		seteuid(euid); /* reset back. */
-
-	if (config.option.lbuf)
-		for (i = 0; i < config.log.fpc; ++i)
-			if (setvbuf(config.log.fpv[i], NULL, _IONBF, 0) != 0)
-				swarnx("%s: setvbuf()", function);
-
-	config.state.init = 1;
+	socks_reseteuid(euid);
 }
 
+static void
+checksettings(void)
+{
+	const char *function = "checksettings()";
+	uid_t euid;
+
+	/*
+	 * Check arguments and settings, do they make sense?
+	*/
+
+	if (config.internalc == 0)
+		serrx(EXIT_FAILURE, "%s: no internal address given", function);
+
+	if (config.externalc == 0)
+		serrx(EXIT_FAILURE, "%s: no external address given", function);
+
+	if (config.methodc == 0)
+		swarnx("%s: no methods enabled (total block)", function);
+
+	if (!config.uid.privileged_isset)
+		serrx(EXIT_FAILURE, "%s: privileged user not set", function);
+	socks_seteuid(&euid, config.uid.privileged);
+
+	if (!config.uid.unprivileged_isset)
+		serrx(EXIT_FAILURE, "%s: unprivileged user not set", function);
+	socks_seteuid(NULL, config.uid.unprivileged);
+
+#if HAVE_LIBWRAP
+	if (!config.uid.libwrap_isset)
+		serrx(EXIT_FAILURE, "%s: libwrap user not set", function);
+	socks_seteuid(NULL, config.uid.libwrap);
+#endif /* HAVE_LIBWRAP */
+
+	socks_reseteuid(euid);
+
+	if (*config.domain == NUL)
+		swarnx("%s: local domainname not set", function);
+}
 
 
 /* ARGSUSED */
@@ -855,8 +854,9 @@ siginfo(sig)
 	int sig;
 {
 	unsigned long seconds, days, hours, minutes;
-	size_t clients = 0;
+	size_t clients;
 
+	clients = 0;
 	clients += childcheck(-CHILD_NEGOTIATE);
 	clients += childcheck(-CHILD_REQUEST);
 	clients += childcheck(-CHILD_IO);
@@ -865,24 +865,24 @@ siginfo(sig)
 	clients -= childcheck(CHILD_REQUEST);
 	clients -= childcheck(CHILD_IO);
 
-	seconds = (unsigned long)difftime(time(NULL), config.stat.boot);
-	
+	seconds = difftime(time(NULL), config.stat.boot);
+
 	if (seconds >= 3600 * 24) {
-		days = seconds / (3600 * 24);
+		days		= seconds / (3600 * 24);
 		seconds -= days * 3600 * 24;
 	}
 	else
 		days = 0;
 
 	if (seconds >= 3600) {
-		hours = seconds / 3600;
+		hours		= seconds / 3600;
 		seconds -= hours * 3600;
 	}
 	else
 		hours = 0;
 
 	if (seconds >= 60) {
-		minutes = seconds / 60;
+		minutes	= seconds / 60;
 		seconds -= minutes * 60;
 	}
 	else
@@ -892,19 +892,24 @@ siginfo(sig)
 	PACKAGE, VERSION, days, days == 1 ? "" : "s", hours, minutes,
 	(unsigned long)config.stat.accepted, (unsigned long)clients);
 
-	slog(LOG_INFO, "negotiators:    a: %lu, h: %lu, c: %ld",
-	config.stat.negotiate.sendt, config.stat.negotiate.received,
+	slog(LOG_INFO, "negotiators (%d): a: %lu, h: %lu, c: %lu",
+	childcheck(-CHILD_NEGOTIATE) / SOCKD_NEGOTIATEMAX,
+	(unsigned long)config.stat.negotiate.sendt,
+	(unsigned long)config.stat.negotiate.received,
 	(unsigned long)childcheck(-CHILD_NEGOTIATE) - childcheck(CHILD_NEGOTIATE));
 
-	slog(LOG_INFO, "requests   :    a: %lu, h: %lu, c: %lu",
-	config.stat.request.sendt, config.stat.request.received,
+	slog(LOG_INFO, "requests (%d): a: %lu, h: %lu, c: %lu",
+	childcheck(-CHILD_REQUEST) / SOCKD_REQUESTMAX,
+	(unsigned long)config.stat.request.sendt,
+	(unsigned long)config.stat.request.received,
 	(unsigned long)childcheck(-CHILD_REQUEST) - childcheck(CHILD_REQUEST));
 
-	slog(LOG_INFO, "iorelayers :    a: %lu, h: %lu, c: %lu",
-	config.stat.io.sendt, config.stat.io.sendt,
+	slog(LOG_INFO, "iorelayers (%d): a: %lu, h: %lu, c: %lu",
+	childcheck(-CHILD_IO) / SOCKD_IOMAX,
+	(unsigned long)config.stat.io.sendt, (unsigned long)config.stat.io.sendt,
 	(unsigned long)childcheck(-CHILD_IO) - childcheck(CHILD_IO));
 
-	if (*config.state.pidv == config.state.pid)	/* main server */
+	if (*config.state.pidv == config.state.pid)	/* main mother */
 		sigserverbroadcast(sig);
 }
 
@@ -916,21 +921,21 @@ sighup(sig)
 {
 	const char *function = "sighup()";
 
-	slog(LOG_INFO, "received SIGHUP, rereading config file");
+	slog(LOG_INFO, "%s: got SIGHUP signal", function);
 
-	if (fseek(config.option.configfp, (long)0, SEEK_SET) == -1)
-		swarn("%s: fseek(%s)", function, config.option.configfile);
+	resetconfig();
 
-	clearconfig(); 
+	genericinit();
 
-	if (readconfig(config.option.configfp) != 0)
-		serr(EXIT_FAILURE, "%s: %s", function, config.option.configfile);
+	checksettings();
 
-	if (config.state.pid == getpid()) {	/* a server. */
-		sigchildbroadcast(sig, CHILD_NEGOTIATE | CHILD_REQUEST | CHILD_IO);
-
-		if (*config.state.pidv == config.state.pid)	/* main server */
+	if (config.state.pid == getpid()) {	/* a mother. */
+		if (*config.state.pidv == config.state.pid) { /* main mother. */
+			showconfig(&config);
 			sigserverbroadcast(sig);
+		}
+
+		sigchildbroadcast(sig, CHILD_NEGOTIATE | CHILD_REQUEST | CHILD_IO);
 	}
 }
 
@@ -950,7 +955,10 @@ sigchld(sig)
 				config.state.pidv[i] = 0;	/* a server died. */
 
 		if (i == config.option.serverc)
-			/* assume a relay child died, we can try to add a new one later. */
+			/*
+			 * assume a relay child died.  Shouldn't happen but
+			 * we can try to add a new one later.
+			*/
 			config.state.addchild = 1;
 	}
 }
@@ -962,7 +970,7 @@ sigserverbroadcast(sig)
 {
 	int i;
 
-	SASSERT(*config.state.pidv == config.state.pid);
+	SASSERTX(*config.state.pidv == config.state.pid);
 
 	for (i = 1; i < config.option.serverc; ++i)
 		if (config.state.pidv[i] != 0)

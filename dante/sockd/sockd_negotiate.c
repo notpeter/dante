@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.48 1999/03/11 16:59:35 karls Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: sockd_negotiate.c,v 1.56 1999/05/13 17:06:31 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -66,7 +66,7 @@ recv_negotiate __P((const struct sockd_mother_t *mother));
  * Tries to receive a client from mother "s".
  * Returns:
  *		On success: 0
- * 	If a error happened to connection with "s": -1
+ *		If a error happened to connection with "s": -1
  *		If some other problem prevented success: > 0
 */
 
@@ -83,7 +83,7 @@ delete_negotiate __P((const struct sockd_mother_t *mother,
 static int
 neg_fillset __P((fd_set *set));
 /*
- * Sets all descriptors in our list in the set "set". 
+ * Sets all descriptors in our list in the set "set".
  * Returns the highest descriptor in our list, or -1 if we don't
  * have any descriptors open currently.
 */
@@ -116,18 +116,24 @@ completed __P((void));
 /*
  * Returns the number of objects completed and ready to be sent currently.
 */
-	
+
+static int
+allocated __P((void));
+/*
+ * Returns the number of objects currently allocated for use.
+*/
+
 static void
 proctitleupdate __P((void));
 /*
- * Updates the title of this process.  
+ * Updates the title of this process.
 */
 
 static struct timeval *
 neg_gettimeout __P((struct timeval *timeout));
 /*
- * If there is a timeout on the current clients to finish negotiation,
- * this function fills in "timeout" with the appropriate timeout.
+ * Fills in "timeout" with time til the first clients connection
+ * expires.
  * Returns:
  *		If there is a timeout: pointer to filled in "timeout".
  *		If there is no timeout: NULL.
@@ -145,8 +151,7 @@ neg_gettimedout __P((void));
 
 __END_DECLS
 
-
-static struct sockd_negotiate_t negv[SOCKD_IOMAX];/* each child has these. */
+static struct sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
 static int negc = ELEMENTS(negv);
 
 
@@ -174,7 +179,7 @@ run_negotiate(mother)
 			FD_SET(mother->s, &wsetmem);
 			wset = &wsetmem;
 		}
-			
+
 		++fdbits;
 		switch (select(fdbits, &rset, wset, NULL, neg_gettimeout(&timeout))) {
 			case -1:
@@ -203,7 +208,6 @@ run_negotiate(mother)
 		}
 
 		while ((neg = neg_getset(&rset)) != NULL) {
-
 			neg_clearset(neg, &rset);
 
 			if ((p = recv_request(neg->s, &neg->req, &neg->negstate)) <= 0) {
@@ -226,7 +230,7 @@ run_negotiate(mother)
 							case EWOULDBLOCK:
 #endif
 								continue; /* ok, retry. */
-							
+
 							default:
 								reason = strerror(errno);
 						}
@@ -238,7 +242,7 @@ run_negotiate(mother)
 				delete_negotiate(mother, neg);
 			}
 			else if (wset != NULL && FD_ISSET(mother->s, wset)) {
-				/* read a complete request, try and send to mother. */
+				/* read a complete request, send to mother. */
 				switch (send_negotiate(mother, neg)) {
 					case -1:
 						sockdexit(-EXIT_FAILURE);
@@ -266,7 +270,7 @@ send_negotiate(mother, neg)
 	struct msghdr msg;
 	CMSG_AALLOC(sizeof(int));
 
-#ifdef HAVE_SENDMSG_DEADLOCK
+#if HAVE_SENDMSG_DEADLOCK
 	if (socks_lock(mother->lock, F_WRLCK, 0) != 0)
 		return 1;
 #endif /* HAVE_SENDMSG_DEADLOCK */
@@ -284,7 +288,7 @@ send_negotiate(mother, neg)
 	iovec[0].iov_len		= sizeof(req);
 
 	fdsendt = 0;
-	CMSG_ADDOBJECT(neg->s, sizeof(neg->s) * fdsendt++);  
+	CMSG_ADDOBJECT(neg->s, sizeof(neg->s) * fdsendt++);
 
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
@@ -305,7 +309,7 @@ send_negotiate(mother, neg)
 				swarn("%s: sendmsg(): %d of %d", function, w, sizeof(req));
 		}
 
-#ifdef HAVE_SENDMSG_DEADLOCK
+#if HAVE_SENDMSG_DEADLOCK
 	if (socks_unlock(mother->lock, -1) != 0)
 		SERR(errno);
 #endif /* HAVE_SENDMSG_DEADLOCK */
@@ -342,13 +346,14 @@ recv_negotiate(mother)
 	if ((r = recvmsgn(mother->s, &msg, 0, sizeof(command))) != sizeof(command)) {
 		switch (r) {
 			case -1:
-				swarn("%s: recvmsg()", function);
+				swarn("%s: recvmsg() from mother", function);
 				break;
 
 			case 0:
-				swarnx("%s: recvmsg(): mother closed connection", function);
+				slog(LOG_DEBUG, "%s: recvmsg(): mother closed connection",
+				function);
 				break;
-				
+
 			default:
 				swarnx("%s: recvmsg(): unexpected %d/%d bytes from mother",
 				function, r, sizeof(command));
@@ -368,10 +373,9 @@ recv_negotiate(mother)
 		}
 
 	if (neg == NULL)
-		/* mother has miscalculated, or is something wrong here? */
 		SERRX(allocated());
 
-#ifndef HAVE_DEFECT_RECVMSG
+#if !HAVE_DEFECT_RECVMSG
 	SASSERT(CMSG_GETLEN(msg) == sizeof(int) * fdexpect);
 #endif
 
@@ -382,20 +386,20 @@ recv_negotiate(mother)
 
 	len = sizeof(addr);
 	if (getpeername(neg->s, &addr, &len) != 0) {
-		swarn("%s: getpeername(): client dropped", function);
+		swarn("%s: getpeername()", function);
 		return 1;
 	}
 	sockaddr2sockshost(&addr, &neg->src);
 
 	len = sizeof(addr);
 	if (getsockname(neg->s, &addr, &len) != 0) {
-		swarn("%s: getsockname(): client dropped", function);
+		swarn("%s: getsockname()", function);
 		return 1;
 	}
 	sockaddr2sockshost(&addr, &neg->dst);
 
-	neg->state.command 		= SOCKS_ACCEPT;
-	neg->state.protocol 		= SOCKS_TCP;
+	neg->state.command		= SOCKS_ACCEPT;
+	neg->state.protocol		= SOCKS_TCP;
 	neg->state.auth.method	= AUTHMETHOD_NONE;
 	/* pointer fixup */
 	neg->req.auth = &neg->auth;
@@ -412,8 +416,7 @@ recv_negotiate(mother)
 		return 0;
 	}
 
-	if (time(&neg->start) == (time_t)-1)
-		SERR((time_t)-1);
+	time(&neg->start);
 
 	proctitleupdate();
 
@@ -431,7 +434,7 @@ delete_negotiate(mother, neg)
 
 	SASSERTX(neg->allocated);
 
-	terminate_connection(neg->s, neg->req.auth);
+	close(neg->s);
 
 	*neg = neginit;
 
@@ -533,14 +536,12 @@ neg_gettimeout(timeout)
 	time_t timenow;
 	int i;
 
-	if ((allocated() == completed()) || config.timeout.negotiate == 0)
+	if (config.timeout.negotiate == 0 || (allocated() == completed()))
 		return NULL;
 
-	timeout->tv_sec 	= config.timeout.negotiate;
-	timeout->tv_usec 	= 0;
-
-	if (time(&timenow) == (time_t)-1)
-		SERR((time_t)-1);
+	timeout->tv_sec	= config.timeout.negotiate;
+	timeout->tv_usec	= 0;
+	time(&timenow);
 
 	for (i = 0; i < negc; ++i)
 		if (!negv[i].allocated)
@@ -561,9 +562,7 @@ neg_gettimedout(void)
 	if (config.timeout.negotiate == 0)
 		return NULL;
 
-	if (time(&timenow) == (time_t)-1)
-		SERR((time_t)-1);
-
+	time(&timenow);
 	for (i = 0; i < negc; ++i) {
 		if (!negv[i].allocated)
 			continue;

@@ -18,52 +18,75 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: log.c,v 1.26 1999/03/11 16:59:33 karls Exp $";
-
 #include "common.h"
 
-#ifdef HAVE_PROGNAME
-extern char *__progname;
-#endif  /* HAVE_PROGNAME */
+static const char rcsid[] =
+"$Id: log.c,v 1.35 1999/05/13 14:09:19 karls Exp $";
 
 __BEGIN_DECLS
 
 static char *
 logformat __P((int priority, char *buf, size_t buflen, const char *message,
-			 va_list ap));
+				   va_list ap));
 /*
- * formats "message" as appropriate.  The formated message is stored 
+ * formats "message" as appropriate.  The formated message is stored
  * in the buffer "buf", which is of size "buflen".
  * Returns:
- * 	On success: pointer to "buf"
+ *		On success: pointer to "buf".
  *		On failure: NULL.
 */
 
 __END_DECLS
+
+void
+initlog(void)
+{
+
+#if SOCKS_SERVER	/* don't want to override original clients stuff. */
+	if (config.log.type & LOGTYPE_SYSLOG) {
+		closelog();
+
+		/*
+		 * LOG_NDELAY so we don't end up in a situation where we
+		 * have no free descriptors and haven't yet syslog-ed anything.
+		*/
+		if (config.option.debug)
+#if HAVE_OPENLOG_LOG_PERROR
+			openlog(__progname, LOG_NDELAY | LOG_PERROR |LOG_PID, LOG_DAEMON);
+#else
+			openlog(__progname, LOG_NDELAY | LOG_PID, LOG_DAEMON);
+#endif  /* HAVE_OPENLOG_LOG_PERROR */
+		else
+			openlog(__progname, LOG_NDELAY | LOG_PID, LOG_DAEMON);
+	}
+#endif /* SOCKS_SERVER */
+
+	if (config.log.type & LOGTYPE_FILE)
+		;
+}
 
 void
 #ifdef STDC_HEADERS
@@ -98,14 +121,14 @@ vslog(priority, message, ap)
 {
 	const int errno_s = errno;
 	char buf[2048];
-	
+
 	if (!config.state.init) {
 		if (logformat(priority, buf, sizeof(buf), message, ap) != NULL)
 			fprintf(stdout, "%s\n", buf);
 		return;
 	}
 
-	if (config.log.type & LOGTYPE_SYSLOG) 
+	if (config.log.type & LOGTYPE_SYSLOG)
 		vsyslog(priority, message, ap);
 
 	if (config.log.type & LOGTYPE_FILE) {
@@ -125,7 +148,7 @@ vslog(priority, message, ap)
 	errno = errno_s;
 }
 
-char *
+static char *
 logformat(priority, buf, buflen, message, ap)
 	int priority;
 	char *buf;
@@ -134,8 +157,8 @@ logformat(priority, buf, buflen, message, ap)
 	va_list ap;
 {
 	const char *prefix;
-	time_t timenow;
 	size_t bufused;
+	time_t timenow;
 
 	/* not sure if we should use this. */
 	switch (priority) {
@@ -170,7 +193,6 @@ logformat(priority, buf, buflen, message, ap)
 		case LOG_DEBUG:
 			if (config.state.init && !config.option.debug)
 				return NULL;
-
 			prefix = "debug: ";
 			break;
 
@@ -181,13 +203,8 @@ logformat(priority, buf, buflen, message, ap)
 	time(&timenow);
 	bufused = strftime(buf, buflen, "%h %e %T ", localtime(&timenow));
 
-#ifdef HAVE_PROGNAME
 	bufused += snprintf(&buf[bufused], buflen - bufused, "%s[%lu]: ",
 	__progname, (unsigned long)getpid());
-#else
-	bufused += snprintf(&buf[bufused], buflen - bufused, "[%lu]: ",
-	(unsigned long)getpid());
-#endif  /* HAVE_PROGNAME */
 
 	vsnprintf(&buf[bufused], buflen - bufused, message, ap);
 

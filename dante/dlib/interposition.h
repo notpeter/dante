@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -18,30 +18,30 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
  *  N-0371 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-/* $Id: interposition.h,v 1.9 1998/12/09 17:14:53 michaels Exp $ */
+/* $Id: interposition.h,v 1.13 1999/05/13 13:39:20 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -189,6 +189,110 @@
 #define LIBRARY_WRITEV							LIBRARY_LIBC
 #endif
 
+/* only used on osf */
+#if HAVE_EXTRA_OSF_SYMBOLS
+
+#ifndef SYMBOL_EACCEPT
+#define SYMBOL_EACCEPT							"_Eaccept"
+#endif
+#ifndef LIBRARY_EACCEPT
+#define LIBRARY_EACCEPT							LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_EGETPEERNAME
+#define SYMBOL_EGETPEERNAME					"_Egetpeername"
+#endif
+#ifndef LIBRARY_EGETPEERNAME
+#define LIBRARY_EGETPEERNAME					LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_EGETSOCKNAME
+#define SYMBOL_EGETSOCKNAME					"_Egetsockname"
+#endif
+#ifndef LIBRARY_EGETSOCKNAME
+#define LIBRARY_EGETSOCKNAME					LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_EREADV
+#define SYMBOL_EREADV							"_Ereadv"
+#endif
+#ifndef LIBRARY_EREADV
+#define LIBRARY_EREADV							LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_ERECVFROM
+#define SYMBOL_ERECVFROM						"_Erecvfrom"
+#endif
+#ifndef LIBRARY_ERECVFROM
+#define LIBRARY_ERECVFROM						LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_ERECVMSG
+#define SYMBOL_ERECVMSG							"_Erecvmsg"
+#endif
+#ifndef LIBRARY_ERECVMSG
+#define LIBRARY_ERECVMSG						LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_ESENDMSG
+#define SYMBOL_ESENDMSG							"_Esendmsg"
+#endif
+#ifndef LIBRARY_ESENDMSG
+#define LIBRARY_ESENDMSG						LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_EWRITEV
+#define SYMBOL_EWRITEV							"_Ewritev"
+#endif
+#ifndef LIBRARY_EWRITEV
+#define LIBRARY_EWRITEV							LIBRARY_LIBC
+#endif
+
+/* more osf functions */
+
+#ifndef SYMBOL_NACCEPT
+#define SYMBOL_NACCEPT							"naccept"
+#endif
+#ifndef LIBRARY_NACCEPT
+#define LIBRARY_NACCEPT							LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_NGETPEERNAME
+#define SYMBOL_NGETPEERNAME					"ngetpeername"
+#endif
+#ifndef LIBRARY_NGETPEERNAME
+#define LIBRARY_NGETPEERNAME					LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_NGETSOCKNAME
+#define SYMBOL_NGETSOCKNAME					"ngetsockname"
+#endif
+#ifndef LIBRARY_NGETSOCKNAME
+#define LIBRARY_NGETSOCKNAME					LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_NRECVFROM
+#define SYMBOL_NRECVFROM						"nrecvfrom"
+#endif
+#ifndef LIBRARY_NRECVFROM
+#define LIBRARY_NRECVFROM						LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_NRECVMSG
+#define SYMBOL_NRECVMSG							"nrecvmsg"
+#endif
+#ifndef LIBRARY_NRECVMSG
+#define LIBRARY_NRECVMSG						LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_NSENDMSG
+#define SYMBOL_NSENDMSG							"nsendmsg"
+#endif
+#ifndef LIBRARY_NSENDMSG
+#define LIBRARY_NSENDMSG						LIBRARY_LIBC
+#endif
+
+#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
 struct libsymbol_t {
 	char *symbol;			/* the symbol.						*/
@@ -199,7 +303,7 @@ struct libsymbol_t {
 
 
 #define SYSCALL_START(s) \
-int socksfd_added = 0;	 														\
+int socksfd_added = 0;															\
 do {																					\
 	struct socksfd_t *socksfd = socks_getaddr((unsigned int)s);		\
 	struct socksfd_t socksfdmem;												\
@@ -230,6 +334,18 @@ do {																					\
 } while (lintnoloop_socks_h)
 
 #define ISSYSCALL(s)	\
-	(socks_getaddr((unsigned int)(s)) != NULL 					\
+	(socks_getaddr((unsigned int)(s)) != NULL						\
 	&& socks_getaddr((unsigned int)(s))->state.system > 0)
 
+
+__BEGIN_DECLS
+
+void *
+symbolfunction __P((char *symbol));
+/*
+ * Returns the address binding of the symbol "symbol" and updates
+ * libsymbol_t structure "symbol" is defined in if necessary.
+ * Exits on failure.
+*/
+
+__END_DECLS

@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: sockd_util.c,v 1.31 1999/03/11 16:59:36 karls Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: sockd_util.c,v 1.39 1999/05/14 10:51:37 michaels Exp $";
 
 extern char *__progname;
 
@@ -55,41 +55,11 @@ selectmethod(methodv, methodc)
 {
 	int i;
 
-	for (i = 0; i < config.methodc; ++i)		
+	for (i = 0; i < config.methodc; ++i)
 		if (memchr(methodv, config.methodv[i], (size_t)methodc) != NULL)
 			return config.methodv[i];
 
 	return AUTHMETHOD_NOACCEPT;	/* no acceptable method found. */
-}
-
-void
-initlog(void)
-{
-
-	if (config.log.type & LOGTYPE_SYSLOG) {
-		closelog();
-		if (config.option.debug)
-#ifdef HAVE_OPENLOG_LOG_PERROR
-			(void) openlog(__progname, LOG_PID | LOG_PERROR, LOG_DAEMON);
-#else
-			(void) openlog(__progname, LOG_PID, LOG_DAEMON);
-#endif  /* HAVE_OPENLOG_LOG_PERROR */
-		else
-			(void) openlog(__progname, LOG_PID, LOG_DAEMON);
-
-	}
-
-	if (config.log.type & LOGTYPE_FILE)
-		;
-}
-
-void
-terminate_connection(s, auth)
-	int s;
-	const struct authmethod_t *auth;
-{
-
-	close(s);
 }
 
 void
@@ -134,7 +104,7 @@ sockdexit(sig)
 	int i;
 
 	if (sig > 0)
-		slog(LOG_ALERT, "Terminating on signal %d", sig);
+		slog(LOG_ALERT, "terminating on signal %d", sig);
 
 	for (i = 0;  i < config.log.fpc; ++i) {
 		fclose(config.log.fpv[i]);
@@ -148,16 +118,15 @@ sockdexit(sig)
 			case SIGQUIT:
 			case SIGTERM:
 				exit(EXIT_FAILURE);
-				/* NOTREACHED */	
+				/* NOTREACHED */
 
 			/* bad signals. */
 			default:
 				abort();
 		}
 	else
-		if (config.state.pid == getpid())
+		if (*config.state.pidv == getpid())
 			exit(-sig);
 		else
 			_exit(-sig);
 }
-

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -18,35 +18,35 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: io.c,v 1.27 1998/12/05 12:47:33 michaels Exp $";
-
 #include "common.h"
 
-/* this file uses the system versions directly. */
+static const char rcsid[] =
+"$Id: io.c,v 1.36 1999/05/13 13:13:01 karls Exp $";
+
+/* this file defines the functions. */
 #undef select
 #undef close
 
@@ -62,7 +62,7 @@ readn(d, buf, nbytes)
 
 	do {
 		if ((p = read(d, &((char *)buf)[nbytes - left], left)) == -1) {
-#ifdef SOCKS_SERVER
+#if SOCKS_SERVER
 			if (errno == EINTR)
 				continue;
 #endif
@@ -90,14 +90,14 @@ writen(d, buf, nbytes)
 
 	do {
 		if ((p = write(d, &((const char *)buf)[nbytes - left], left)) == -1) {
-#ifdef SOCKS_SERVER
+#if SOCKS_SERVER
 			if (errno == EINTR)
 				continue;
 #endif
 			break;
 		}
 		left -= p;
-	} while (left > 0); 
+	} while (left > 0);
 
 	if (left == nbytes)
 		return p;	/* nothing written. */
@@ -116,18 +116,19 @@ recvmsgn(s, msg, flags, len)
 	ssize_t p;
 
 	while ((p = recvmsg(s, msg, flags)) == -1 && errno == EINTR)
-#ifdef SOCKS_SERVER
+#if SOCKS_SERVER
 		;
 #else
 		return -1;
 #endif
 
-#ifdef HAVE_SOLARIS_BUGS 
+#if HAVE_SOLARIS_BUGS
 	if (p == -1 && (errno == EMFILE || errno == ENFILE)) {
 		/*
-		 * Even if solaris 2.5.1 fails on recvmsg() it may still have gotten
-		 * a descriptor or more as ancillary data which it neglects to
-		 * get rid of, so we have to check for it ourselves and close it.
+		 * Even if solaris (2.5.1) fails on recvmsg() it may still have
+		 * gotten a descriptor or more as ancillary data which it neglects
+		 * to get rid of, so we have to check for it ourselves and close it
+		 * or it just gets lost in the void.
 		*/
 		int i, leaked;
 		caddr_t mem;
@@ -146,24 +147,31 @@ recvmsgn(s, msg, flags, len)
 	left -= p;
 
 	if (left > 0) {
-		ssize_t done = p;
-		int i, count;
+		size_t i, count, done;
 
-		/*	can't call recvmsg() again since we could be getting ancillary data. */
+		/*
+		 * Can't call recvmsg() again since we could be getting ancillary data,
+		 * read the elements one by one.
+		*/
 
-		/* LINTED expression has null effect */
-		for (i = 0, count = 0, p = 0; i < msg->msg_iovlen && left > 0; ++i) {
+		SASSERTX(p >= 0);
+		done = p;
+
+		i = count = p = 0;
+		while (i < msg->msg_iovlen && left > 0) {
 			const struct iovec *io = &msg->msg_iov[i];
 
 			count += io->iov_len;
 			if (count > done) {
 				if ((p = readn(s, &((char *)(io->iov_base))[io->iov_len -
-				(count - done)], (size_t)(count - done))) != (size_t)(count - done))
+				(count - done)], count - done)) != ((ssize_t)(count - done)))
 					break;
 
 				left -= p;
 				done += p;
 			}
+
+			++i;
 		}
 	}
 
@@ -181,7 +189,7 @@ closen(d)
 	while ((rc = close(d)) == -1 && errno == EINTR)
 		;
 
-#ifdef DIAGNOSTICS
+#if DIAGNOSTIC
 	SASSERT(rc == 0 || d >= 0);
 #endif
 
@@ -196,10 +204,10 @@ selectn(nfds, readfds, writefds, exceptfds, timeout)
 	fd_set *exceptfds;
 	struct timeval *timeout;
 {
-	const fd_set rset = readfds 	== NULL ? rset : *readfds;
-	const fd_set wset = writefds 	== NULL ? wset : *writefds;
-	const fd_set eset = exceptfds	== NULL ? eset : *exceptfds;
-	const struct timeval tout = timeout == NULL ? tout : *timeout;
+	/* const */ fd_set rset = readfds	== NULL ? rset : *readfds;
+	/* const */ fd_set wset = writefds	== NULL ? wset : *writefds;
+	/* const */ fd_set eset = exceptfds	== NULL ? eset : *exceptfds;
+	/* const */ struct timeval tout = timeout == NULL ? tout : *timeout;
 	int rc;
 
 	while ((rc = select(nfds, readfds, writefds, exceptfds, timeout)) == -1
@@ -214,7 +222,7 @@ selectn(nfds, readfds, writefds, exceptfds, timeout)
 			*exceptfds = eset;
 
 		if (timeout != NULL)
-			*timeout	= tout;
+			*timeout = tout;
 	}
 
 	return rc;

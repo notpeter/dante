@@ -1,19 +1,22 @@
-* clean up INADDR_ANY/0 abuse.
+* vwarnx doesn't appear to be in use; remove?
+
+* use difftime from openbsd libc.
+
+* share host/addr cache across processes.
+
+* add code to print out information about all current connections.
+
+* get and send all argument to old signalhandler when necessary.
 
 * clean up namespace.
 
 - cleanup autoconf (HAVE_RECVFROM_CHAR+HAVE_FAULTY_XXX_PROTO 
   (rename to HAVE_SOLARIS_PROTO?)
 
-* look at difference between v4 and v5 bind.
-
 * clean up (char)version (unsigned char)version and etc. stuff.
 
-* add support for srchost_t in serverconfig.
-
-* overkill to reserve a requestchild just to forward bindreplys, 
-  fix it via SIGIO probably. 
-
+* make requestchildren support multiple clients too.
+  
 * continue work on udp bind.
 
 * a max value for the number of free io/negotiator's?  mother could kill
@@ -21,17 +24,7 @@
 
 * shrink io_t, too big.
 
-* look at ssl support, need to support atleast one way to encrypt communication.
-
-* should the children rescan their current clients when they receive 
-  SIGHUP, disconnecting clients rules no longer allow?
-
-* lib manpages, trim away most of Rfoo references. make/use general
-  socks man page
-
 * support giving a interface name instead of ip address?
 
-* should be possible to specify what address/portrange server should use for
+* possible to specify what address/portrange server should use for
   outgoing connection in each rule?
-
-* support a "state" keyword similar to ipf for udp?

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: userio.c,v 1.12 1998/12/05 18:15:27 michaels Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: userio.c,v 1.16 1999/05/13 13:13:03 karls Exp $";
 
 /* ARGSUSED */
 char *
@@ -56,7 +56,7 @@ socks_getusername(host, buf, buflen)
 	const char *function = "socks_getusername()";
 	char *name;
 
-	if ((name = getenv("SOCKS_USERNAME")) 	!= NULL
+	if ((name = getenv("SOCKS_USERNAME"))	!= NULL
 	||  (name = getenv("SOCKS_USER"))		!= NULL
 	||  (name = getenv("SOCKS5_USER"))		!= NULL)
 		;
@@ -71,7 +71,7 @@ socks_getusername(host, buf, buflen)
 		return NULL;
 
 	if (strlen(name) >= buflen) {
-		swarnx("%s: socks username %d characters too long, truncated", 
+		swarnx("%s: socks username %d characters too long, truncated",
 		function, (strlen(name) + 1) - buflen);
 		name[buflen - 1] = NUL;
 	}
@@ -91,7 +91,7 @@ socks_getpassword(host, user, buf, buflen)
 	const char *function = "socks_getpassword()";
 	char *password;
 
-	if ((password = getenv("SOCKS_PASSWORD")) 	!= NULL
+	if ((password = getenv("SOCKS_PASSWORD"))		!= NULL
 	||  (password = getenv("SOCKS_PASSWD"))		!= NULL
 	||  (password = getenv("SOCKS5_PASSWD"))		!= NULL)
 		;
@@ -107,7 +107,7 @@ socks_getpassword(host, user, buf, buflen)
 		return NULL;
 
 	if (strlen(password) >= buflen) {
-		swarnx("%s: socks password %d characters too long, truncated", 
+		swarnx("%s: socks password %d characters too long, truncated",
 		function, (strlen(password) + 1) - buflen);
 		password[buflen - 1] = NUL;
 	}
