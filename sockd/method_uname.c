@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.29 1999/12/20 09:07:44 michaels Exp $";
+"$Id: method_uname.c,v 1.30 1999/12/22 09:29:25 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -205,14 +205,14 @@ recv_passwd(s, request, state)
 		case 2: {
 				char *name = request->auth->mdata.uname.name;
 
-				snprintf(state->emsg, sizeof(state->emsg), 
+				snprintf(state->emsg, sizeof(state->emsg),
 				"password authentication failed for user \"%s\"",
 				strcheck(name = str2vis(name, strlen(name))));
 				free(name);
 				break;
 		}
 
-		default: 
+		default:
 			SERRX(status);
 	}
 

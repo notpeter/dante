@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.74 1999/12/20 13:07:40 karls Exp $";
+"$Id: address.c,v 1.75 1999/12/22 09:29:22 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -466,7 +466,7 @@ ccinit(void)
 	&&  sigact.sa_handler != SIG_IGN) {
 		swarnx("%s: could not install signalhandler for SIGALRM, already set",
 		function);
-		return; 
+		return;
 	}
 
 	sigemptyset(&sigact.sa_mask);
@@ -478,10 +478,10 @@ ccinit(void)
 		return;
 	}
 
-	itimer.it_interval.tv_sec 		= 1; 
-	itimer.it_interval.tv_usec 	= 0; 
-	itimer.it_value.tv_sec		 	= 1;
-	itimer.it_value.tv_usec		 	= 1;
+	itimer.it_interval.tv_sec		= 1;
+	itimer.it_interval.tv_usec		= 0;
+	itimer.it_value.tv_sec			= 1;
+	itimer.it_value.tv_usec			= 1;
 
 	if (setitimer(ITIMER_REAL, &itimer, NULL) != 0)
 		swarn("%s: setitimer()", function);

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.22 1999/12/09 08:18:07 karls Exp $ */
+/* $Id: interposition.h,v 1.23 1999/12/22 09:29:15 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -333,7 +333,7 @@ struct libsymbol_t {
 #if DIAGNOSTIC
 #define SIGBLOCK() \
 sigset_t oldmask;																	\
-do { 																					\
+do {																					\
 	sigset_t newmask;																\
 																						\
 	sigemptyset(&newmask);														\
@@ -360,7 +360,7 @@ do { \
 
 #define SYSCALL_START(s) \
 int socksfd_added = 0;															\
-SIGBLOCK(); 																		\
+SIGBLOCK();																			\
 do {																					\
 	struct socksfd_t socksfdmem, *socksfd;									\
 																						\

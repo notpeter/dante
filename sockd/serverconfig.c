@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.91 1999/12/20 09:07:46 michaels Exp $";
+"$Id: serverconfig.c,v 1.92 1999/12/22 09:29:25 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -321,7 +321,7 @@ showconfig(config)
 			bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
 			PROTOCOL_UDPs);
 			break;
-	
+
 		case RESOLVEPROTOCOL_FAKE:
 			bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
 			"fake");
@@ -331,7 +331,7 @@ showconfig(config)
 			SERRX(config->resolveprotocol);
 	}
 	slog(LOG_INFO, buf);
-			
+
 	slog(LOG_INFO, "address/host mismatch tolerated: %s",
 	config->srchost.nomismatch ? "no" : "yes");
 	slog(LOG_INFO, "unresolvable addresses tolerated: %s",
@@ -604,7 +604,7 @@ rulespermit(s, match, state, src, dst)
 		defrule.dst									= defrule.src;
 
 		if (config.option.debug) {
-			defrule.log.connect 		= 1;
+			defrule.log.connect		= 1;
 			defrule.log.disconnect	= 1;
 			defrule.log.error			= 1;
 			defrule.log.iooperation	= 1;
@@ -805,7 +805,7 @@ rulespermit(s, match, state, src, dst)
 		 * have all info at time of (preliminary) rulechecks.
 		 * What we want to do if there is no (complete) address given is
 		 * to see if there's any chance at all the rules will permit this
-		 * request when the address (later) becomes available. 
+		 * request when the address (later) becomes available.
 		 * We therefore continue to scan the rules until we either get
 		 * a pass (ignoring peer with missing info), or the default block
 		 * is triggered.
@@ -876,7 +876,7 @@ addrule(newrule, rulebase)
 	/* try to set values not set to a sensible default. */
 
 	if (config.option.debug) {
-		rule->log.connect 		= 1;
+		rule->log.connect			= 1;
 		rule->log.disconnect		= 1;
 		rule->log.error			= 1;
 		rule->log.iooperation	= 1;

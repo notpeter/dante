@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.101 1999/09/27 13:16:41 michaels Exp $";
+"$Id: Rbind.c,v 1.102 1999/12/22 09:29:21 karls Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -172,7 +172,7 @@ Rbind(s, name, namelen)
 						portisreserved = PORTISRESERVED(packet.req.host.port);
 					else
 						portisreserved = 0;
-					break;	
+					break;
 
 				case SOCKS_V5:
 					portisreserved = PORTISRESERVED(packet.req.host.port);

@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.97 1999/12/12 18:08:40 michaels Exp $";
+"$Id: util.c,v 1.98 1999/12/22 09:29:25 karls Exp $";
 
 /* fake "ip address", for clients without dns access. */
 static char **ipv;
@@ -531,7 +531,7 @@ sockshost2ruleaddress(host, addr)
 		addr->operator	= none;
 	else
 		addr->operator = eq;
-	
+
 	return addr;
 }
 
@@ -862,7 +862,7 @@ socks_packet2string(packet, type)
 
 		case SOCKS_RESPONSE:
 			response = (const struct response_t *)packet;
-			version 	= response->version;
+			version	= response->version;
 			break;
 
 	  default:

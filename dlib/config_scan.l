@@ -52,7 +52,7 @@ extern int parseinit;
 extern const int configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.50 1999/09/02 10:41:33 michaels Exp $";
+"$Id: config_scan.l,v 1.51 1999/12/22 09:29:24 karls Exp $";
 
 %}
 
@@ -84,7 +84,7 @@ static const char rcsid[] =
 	/*
 	 * we can operate in more than one mode, find out which it is and
 	 * let the parser know.
- 	 */
+	 */
 
 
 %{

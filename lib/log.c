@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.40 1999/10/11 08:08:13 michaels Exp $";
+"$Id: log.c,v 1.41 1999/12/22 09:29:24 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -100,7 +100,7 @@ slog(priority, message, va_alist)
 	va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	vslog(priority, message, ap); 
+	vslog(priority, message, ap);
 
 	/* LINTED expression has null effect */
 	va_end(ap);
@@ -122,7 +122,7 @@ vslog(priority, message, ap)
 	}
 
 	if (config.log.type & LOGTYPE_SYSLOG)
-		vsyslog(priority, message, ap); 
+		vsyslog(priority, message, ap);
 
 	if (config.log.type & LOGTYPE_FILE) {
 		int i;

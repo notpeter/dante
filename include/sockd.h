@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.135 1999/12/10 20:02:35 michaels Exp $ */
+/* $Id: sockd.h,v 1.136 1999/12/22 09:29:20 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -651,23 +651,23 @@ iolog __P((struct rule_t *rule, const struct connectionstate_t *state,
  * "dst" is where data was written to.
  * "data" and "count" are interpreted depending on "operation".
  *
- * If "operation" is 
+ * If "operation" is
  *    OPERATION_ACCEPT
  *		OPERATION_CONNECT
  *    OPERATION_DISCONNECT
  *			"data" and "count" is ignored.
  *
- * 	OPERATION_ABORT
- * 	OPERATION_ERROR
+ *		OPERATION_ABORT
+ *		OPERATION_ERROR
  *			"count" is ignored.
  *			If "data" is not NULL, it is a string giving the reason for abort
- * 		or error.
+ *			or error.
  *			If "data" is NULL, the reason is the errormessage affiliated
  *			with the current errno.
- *			
+ *
  *		OPERATION_IO
- * 		"data" is the data that was read and written.
- * 		"count" is the number of bytes that was read/written.
+ *			"data" is the data that was read and written.
+ *			"count" is the number of bytes that was read/written.
  */
 
 

@@ -49,7 +49,7 @@ static char yyrcsid[]
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.120 1999/12/20 09:07:38 michaels Exp $";
+"$Id: config_parse.y,v 1.121 1999/12/22 09:29:23 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -109,38 +109,38 @@ static const struct {
 	{ "authpriv",	LOG_AUTHPRIV		},
 #endif /* LOG_AUTHPRIV */
 #ifdef LOG_DAEMON
-	{ "daemon",	LOG_DAEMON 	},
+	{ "daemon",	LOG_DAEMON	},
 #endif /* LOG_DAEMON */
 #ifdef LOG_USER
-	{ "user",	LOG_USER 	},
+	{ "user",	LOG_USER		},
 #endif /* LOG_USER */
 #ifdef LOG_LOCAL0
-	{ "local0",	LOG_LOCAL0 	},
+	{ "local0",	LOG_LOCAL0	},
 #endif /* LOG_LOCAL0 */
 #ifdef LOG_LOCAL1
-	{ "local1",	LOG_LOCAL1 	},
+	{ "local1",	LOG_LOCAL1	},
 #endif /* LOG_LOCAL1 */
 #ifdef LOG_LOCAL2
-	{ "local2",	LOG_LOCAL2 	},
+	{ "local2",	LOG_LOCAL2	},
 #endif /* LOG_LOCAL2 */
 #ifdef LOG_LOCAL3
-	{ "local3",	LOG_LOCAL3 	},
+	{ "local3",	LOG_LOCAL3	},
 #endif /* LOG_LOCAL3 */
 #ifdef LOG_LOCAL4
-	{ "local4",	LOG_LOCAL4 	},
+	{ "local4",	LOG_LOCAL4	},
 #endif /* LOG_LOCAL4 */
 #ifdef LOG_LOCAL5
-	{ "local5",	LOG_LOCAL5 	},
+	{ "local5",	LOG_LOCAL5	},
 #endif /* LOG_LOCAL5 */
 #ifdef LOG_LOCAL6
-	{ "local6",	LOG_LOCAL6 	},
+	{ "local6",	LOG_LOCAL6	},
 #endif /* LOG_LOCAL6 */
 #ifdef LOG_LOCAL7
-	{ "local7",	LOG_LOCAL7 	}
+	{ "local7",	LOG_LOCAL7	}
 #endif /* LOG_LOCAL7 */
 };
 
-	 
+
 #define YYDEBUG 1
 
 #define ADDMETHOD(method) \
@@ -725,9 +725,9 @@ readconfig(filename)
 	EF_PROTECT_BELOW			= 0;
 #endif /* ELECTRICFENCE */
 
-/*	yydebug 		= 0; */
-	yylineno 	= 1;
-	parseinit 	= 0;
+/*	yydebug		= 0; */
+	yylineno		= 1;
+	parseinit	= 0;
 
 	if ((yyin = fopen(filename, "r")) == NULL) {
 		swarn("%s: %s", function, filename);
@@ -1183,7 +1183,7 @@ case 54:
 					if ((config.log.fpv[config.log.fpc] = fopen(yyvsp[0].string, "a"))
 					== NULL)
 						serr(EXIT_FAILURE, "fopen(%s)", yyvsp[0].string);
-					
+
 					if ((flag = fcntl(fileno(config.log.fpv[config.log.fpc]),
 					F_GETFD, 0)) == -1
 					||  fcntl(fileno(config.log.fpv[config.log.fpc]), F_SETFD,

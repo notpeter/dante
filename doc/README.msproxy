@@ -1,11 +1,11 @@
-# $Id: README.msproxy,v 1.9 1999/05/26 14:33:23 michaels Exp $
+# $Id: README.msproxy,v 1.10 1999/12/22 09:29:17 karls Exp $
 
 This is the first version of Dante that attempts to support the
 msproxy protocol.  This is a protocol not described in any publicly
 known document and it was implemented based on watching networkpackets
-crossing the wire and guessing their meaning. 
+crossing the wire and guessing their meaning.
 
-This prerelease is made public in order to get feedback 
+This prerelease is made public in order to get feedback
 on the msproxy stuff.  Current status:
  - TCP connect(2) is expected to work.
  - TCP bind(2) is expected to work.
@@ -36,7 +36,7 @@ We have had bad reports about these msproxy versions:
    IIS3 (NT4 SP3) MSPROXY 2
 
 If you have a version that does not seem to crash, you might care
-to let us know so we can let others know. 
+to let us know so we can let others know.
 
 It might be argued whose fault the crashing is.  The original
 windowsclient does not (so often) crash the msproxy server.  The
@@ -57,4 +57,3 @@ Since we didn't receive very much interest in the msproxy
 protocolsupport, the latter alternative is probably not much more
 likely to happen than the first, unless a customer of Inferno
 Nettverk specifically requests better msproxy support.
-
