@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,14 +44,14 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.23 2000/04/09 10:14:41 karls Exp $";
+"$Id: Rgethostbyname.c,v 1.26 2001/02/09 11:07:45 michaels Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
 	const char *name;
 	int af;
 {
-/*	const char *function = "Rgethostbyname2()"; */
+	const char *function = "Rgethostbyname2()"; 
 	static struct hostent hostentmem;
 	static char **addrlist;
 	struct in_addr ipindex;
@@ -60,7 +60,7 @@ Rgethostbyname2(name, af)
 	/* needs to be done before gethostbyname calls. */
 	clientinit();
 
-/*	slog(LOG_DEBUG, "%s: %s", function, name); */
+/*	slog(LOG_DEBUG, "%s: %s", function, name);  */
 
 	switch (config.resolveprotocol) {
 		case RESOLVEPROTOCOL_TCP:
@@ -78,7 +78,11 @@ Rgethostbyname2(name, af)
 			SERRX(config.resolveprotocol);
 	}
 
-	if (h_errno != NO_RECOVERY)
+
+	if (hostent == NULL) 
+		slog(LOG_DEBUG, "%s; gethostbyname(%s): %s",
+		function, name, hstrerror(h_errno));
+	else
 		return hostent;
 
 	hostent = &hostentmem;

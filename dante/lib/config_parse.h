@@ -61,12 +61,13 @@
 #define IPADDRESS 317
 #define DOMAIN 318
 #define DIRECT 319
-#define PORT 320
-#define PORTNUMBER 321
-#define SERVICENAME 322
-#define NUMBER 323
-#define FROM 324
-#define TO 325
+#define IFNAME 320
+#define PORT 321
+#define PORTNUMBER 322
+#define SERVICENAME 323
+#define NUMBER 324
+#define FROM 325
+#define TO 326
 typedef union {
 	char	*string;
 	uid_t	uid;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.258 2000/07/01 08:59:46 michaels Exp $";
+"$Id: sockd.c,v 1.265 2001/02/06 15:59:06 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -271,8 +271,10 @@ main(argc, argv, envp)
 	}
 
 	socks_seteuid(NULL, config.uid.privileged);
-	if ((fp = fopen(SOCKD_PIDFILE, "w")) == NULL)
+	if ((fp = fopen(SOCKD_PIDFILE, "w")) == NULL) {
 		swarn("open(%s)", SOCKD_PIDFILE);
+		errno = 0;
+	}
 	socks_seteuid(NULL, config.uid.unprivileged);
 
 	if (fp != NULL) {
@@ -608,10 +610,11 @@ usage(code)
 	"\t -D             : run in daemon mode\n"
 	"\t -L             : shows the license for this program\n"
    "\t -N <number>    : fork of <number> servers (default: 1)\n"
+	"\t -V				 : verify configuration and exit\n",
 	"\t -d             : enable debugging\n"
 	"\t -f <filename>  : use <filename> as configuration file\n"
 	"\t -h             : print this information\n"
-	"\t -l             : linebuffer output\n"
+	"\t -l             : linebuffer logoutput\n"
    "\t -n             : disable TCP keep-alive\n"
 	"\t -v             : print version info\n",
 	__progname, __progname);
@@ -635,7 +638,7 @@ showlicense(void)
 	printf("%s: %s v%s\n%s\n", __progname, PACKAGE, VERSION,
 "\
 /*\n\
- * Copyright (c) 1997, 1998, 1999, 2000\n\
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001\n\
  *      Inferno Nettverk A/S, Norway.  All rights reserved.\n\
  *\n\
  * Redistribution and use in source and binary forms, with or without\n\
@@ -668,8 +671,8 @@ showlicense(void)
  *  Software Distribution Coordinator  or  sdc@inet.no\n\
  *  Inferno Nettverk A/S\n\
  *  Oslo Research Park\n\
- *  Gaustadaléen 21\n\
- *  N-0349 Oslo\n\
+ *  Gaustadalléen 21\n\
+ *  NO-0349 Oslo\n\
  *  Norway\n\
  * \n\
  * any improvements or extensions that they make and grant Inferno Nettverk A/S\n\
@@ -690,6 +693,7 @@ serverinit(argc, argv, envp)
 	const char *function = "serverinit()";
 	uid_t euid;
 	int ch, i;
+	int verifyonly = 0;
 
 #if !HAVE_PROGNAME
 	if (argv[0] != NULL)
@@ -709,7 +713,7 @@ serverinit(argc, argv, envp)
 	config.state.type			= CHILD_MOTHER;
 	config.option.serverc	= 1;	/* ourselves. ;-) */
 
-	while ((ch = getopt(argc, argv, "DLN:df:hlnvw:")) != -1) {
+	while ((ch = getopt(argc, argv, "DLN:Vdf:hlnvw:")) != -1) {
 		switch (ch) {
 			case 'D':
 				config.option.daemon = 1;
@@ -728,6 +732,10 @@ serverinit(argc, argv, envp)
 					function, ch, optarg);
 				break;
 			}
+
+			case 'V':
+				verifyonly = 1;
+				break;
 
 			case 'd':
 				++config.option.debug;
@@ -792,6 +800,12 @@ serverinit(argc, argv, envp)
 	genericinit();
 	checksettings();
 
+
+	if (verifyonly) {
+			  showconfig(&config);
+			  exit(EXIT_SUCCESS);
+	}
+
 	socks_seteuid(&euid, config.uid.privileged);
 	for (i = 0; i < config.internalc; ++i) {
 		int flags;
@@ -846,52 +860,88 @@ checksettings(void)
 
 	if (config.internalc == 0)
 		serrx(EXIT_FAILURE, "%s: no internal address given", function);
+	/* values will be used once and checked there. */
 
 	if (config.externalc == 0)
 		serrx(EXIT_FAILURE, "%s: no external address given", function);
 	for (i = 0; i < config.externalc; ++i) {
 		int s;
+		struct sockaddr addr;
+		char addrs[MAXSOCKADDRSTRING];
 
 		if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 			switch (errno) {
 				case EMFILE:
 				case ENFILE:
 				case ENOBUFS:
-					break; /* assume this is temporary, e.g. after sighup. */
+					swarn("%s: socket(SOCK_STREAM)", function);
+					continue; /* assume this is temporary, e.g. after a sighup. */
 
 				default:
-					serrx(EXIT_FAILURE, "%s: socket()", function);
+					serrx(EXIT_FAILURE, "%s: socket(SOCK_STREAM)", function);
 			}
-		else {
-			char addrstring[MAXSOCKADDRSTRING];
 
-			if (bind(s, (struct sockaddr *)&config.externalv[i],
-			sizeof(config.externalv[i])) != 0)
-				serr(EXIT_FAILURE, "%s: can't bind external address: %s",
-				function, sockaddr2string((struct sockaddr *)&config.externalv[i],
-				addrstring, sizeof(addrstring)));
-			close(s);
+		switch (config.externalv[i].atype) {
+			case SOCKS_ADDR_IPV4: {
+				struct sockshost_t host;
+
+				sockshost2sockaddr(ruleaddress2sockshost(&config.externalv[i], 
+				&host, SOCKS_TCP), &addr);
+
+				if (bind(s, &addr, sizeof(addr)) != 0)
+					serr(EXIT_FAILURE, "%s: can't bind external address: %s",
+					function, sockaddr2string(&addr, addrs, sizeof(addrs)));
+				break;
+			}	
+
+			case SOCKS_ADDR_IFNAME:
+				if (ifname2sockaddr(config.externalv[i].addr.ifname, &addr) == NULL)
+					serr(EXIT_FAILURE,
+					"%s: can't find external interface/address to bind: %s",
+					function, config.externalv[i].addr.ifname);
+
+				if (bind(s, &addr, sizeof(addr)) != 0)
+					serr(EXIT_FAILURE, "%s: can't bind external address: %s",
+					function, sockaddr2string(&addr, addrs, sizeof(addrs)));
+				break;
+
+			default:
+				SERRX(config.externalv[i].atype);
 		}
+
+		close(s);
 	}
 
 	if (config.methodc == 0)
 		swarnx("%s: no methods enabled (total block)", function);
 
 	if (!config.uid.privileged_isset)
-		serrx(EXIT_FAILURE, "%s: privileged user not set", function);
-	socks_seteuid(&euid, config.uid.privileged);
-	socks_reseteuid(config.uid.privileged, euid);
+		config.uid.privileged = config.state.euid;
+	else {
+		socks_seteuid(&euid, config.uid.privileged);
+		socks_reseteuid(config.uid.privileged, euid);
+	}
 
 	if (!config.uid.unprivileged_isset)
-		serrx(EXIT_FAILURE, "%s: unprivileged user not set", function);
-	socks_seteuid(&euid, config.uid.unprivileged);
-	socks_reseteuid(config.uid.unprivileged, euid);
+		config.uid.unprivileged = config.state.euid;
+	else {
+		socks_seteuid(&euid, config.uid.unprivileged);
+		socks_reseteuid(config.uid.unprivileged, euid);
+	}
+	if (config.uid.unprivileged == 0)	
+		swarnx("%s: setting the unprivileged uid to %d is not recommended",
+		function, config.uid.unprivileged);
 
 #if HAVE_LIBWRAP
 	if (!config.uid.libwrap_isset)
-		serrx(EXIT_FAILURE, "%s: libwrap user not set", function);
-	socks_seteuid(&euid, config.uid.libwrap);
-	socks_reseteuid(config.uid.libwrap, euid);
+		config.uid.libwrap = config.state.euid;
+	else {
+		socks_seteuid(&euid, config.uid.libwrap);
+		socks_reseteuid(config.uid.libwrap, euid);
+	}
+	if (config.uid.libwrap == 0)	
+		swarnx("%s: setting the libwrap uid to %d is not recommended",
+		function, config.uid.libwrap);
 #endif /* HAVE_LIBWRAP */
 
 }

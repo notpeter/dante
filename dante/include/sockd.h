@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.151 2000/07/01 09:22:01 michaels Exp $ */
+/* $Id: sockd.h,v 1.157 2001/02/06 15:58:40 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -195,7 +195,8 @@ struct rule_t {
 	struct ruleaddress_t		src;				/* src.										*/
 	struct ruleaddress_t		dst;				/* dst.										*/
 	struct log_t				log;				/* type of logging to do.				*/
-	int							number;			/* rulenumber, info/debugging only.	*/
+	unsigned int				number;			/* rulenumber; info/debugging only.	*/
+	unsigned long				linenumber;		/* linenumber; info/debugging only.	*/
 	struct serverstate_t		state;
 	struct linkedname_t		*user;			/* name of users allowed.				*/
 	int							verdict;			/* verdict for this rule.				*/
@@ -247,7 +248,7 @@ struct configstate_t {
 };
 
 struct listenaddress_t {
-	struct sockaddr_in	addr;							/* bound address.					*/
+	struct sockaddr		addr;							/* bound address.					*/
 	int						s;								/* bound socket.					*/
 #if NEED_ACCEPTLOCK
 	int						lock;							/* lock on structure.			*/
@@ -280,7 +281,7 @@ struct config_t {
 	struct listenaddress_t		*internalv;				/* internal address'.		*/
 	int								internalc;
 
-	struct sockaddr_in			*externalv;				/*	external address'.		*/
+	struct ruleaddress_t			*externalv;				/*	external address'.		*/
 	int								externalc;
 
 	struct rule_t					*crule;					/* clientrules, list.		*/
@@ -513,6 +514,18 @@ addsocksrule __P((const struct rule_t *rule));
  * Appends a copy of "rule" to our list of socks rules.
  * Returns a pointer to the added rule (not "rule").
  */
+
+void
+addinternal __P((const struct ruleaddress_t *addr));
+/*
+ * Adds "addr" to the list of external addresses.
+*/
+
+void
+addexternal __P((const struct ruleaddress_t *addr));
+/*
+ * Adds "addr" to the list of internal addresses (to listen on).
+*/
 
 struct linkedname_t *
 adduser __P((struct linkedname_t **ruleuser, const char *name));

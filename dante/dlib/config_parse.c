@@ -49,7 +49,7 @@ static char yyrcsid[]
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.132 2000/08/08 12:36:09 michaels Exp $";
+"$Id: config_parse.y,v 1.140 2001/02/06 15:58:52 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -60,13 +60,18 @@ __BEGIN_DECLS
 static void
 addressinit __P((struct ruleaddress_t *address));
 
+#if SOCKS_SERVER
+static void
+ruleinit __P((const struct rule_t *rule));
+#endif
+
 __END_DECLS
 
 extern int yylineno;
 extern char *yytext;
 
 #if SOCKS_SERVER
-static struct rule_t				ruleinit;
+static struct rule_t				ruleinitmem;
 static struct rule_t				rule;				/* new rule.							*/
 static struct protocol_t		protocolmem;	/* new protocolmem.					*/
 struct linkedname_t				**userbase;		/* users rule applies to.			*/
@@ -89,6 +94,7 @@ static char							*atype;			/* atype of new address.			*/
 static struct in_addr			*ipaddr;			/* new ipaddress						*/
 static struct in_addr			*netmask;		/* new netmask							*/
 static char							*domain;			/* new domain.							*/
+static char							*ifname;			/* new ifname.							*/
 
 static in_port_t					*port_tcp;		/* new TCP portnumber.				*/
 static in_port_t					*port_udp;		/* new UDP portnumber.				*/
@@ -150,13 +156,12 @@ static const struct {
 		methodv[(*methodc)++] = method; \
 	} while (0)
 
-
-#line 155 "config_parse.y"
+#line 160 "config_parse.y"
 typedef union {
 	char	*string;
 	uid_t	uid;
 } YYSTYPE;
-#line 160 "y.tab.c"
+#line 165 "y.tab.c"
 #define SERVERCONFIG 257
 #define CLIENTCONFIG 258
 #define DEPRECATED 259
@@ -220,252 +225,250 @@ typedef union {
 #define IPADDRESS 317
 #define DOMAIN 318
 #define DIRECT 319
-#define PORT 320
-#define PORTNUMBER 321
-#define SERVICENAME 322
-#define NUMBER 323
-#define FROM 324
-#define TO 325
+#define IFNAME 320
+#define PORT 321
+#define PORTNUMBER 322
+#define SERVICENAME 323
+#define NUMBER 324
+#define FROM 325
+#define TO 326
 #define YYERRCODE 256
 short socks_yylhs[] = {                                        -1,
     0,    0,   45,    1,    1,    1,    1,    1,    2,    2,
     2,    2,   22,   23,   23,   46,   46,   46,   46,   46,
    46,   46,   44,   44,   44,   44,   44,   44,    3,   52,
    21,    7,    8,    8,    8,    8,    9,    9,   10,   11,
-   12,   12,   28,   29,   30,   30,   31,   32,   33,   34,
-   24,   24,   24,   35,   36,   37,   37,   47,   47,   47,
-   48,   49,   50,   51,   26,   27,   25,   38,   39,   39,
-   40,   40,   13,   14,   14,   14,   15,   16,   16,   17,
-   17,   85,   41,   43,   43,   43,   43,   42,   42,   60,
-   61,   61,   61,   61,   62,   62,   57,   58,   58,   58,
-   58,   58,   58,   58,   59,   59,   63,   63,   18,   20,
-   20,   20,   20,   20,   19,   19,    4,    6,    6,    5,
-    5,   64,   65,   67,   67,   67,   67,   67,   66,   66,
-   68,   69,   70,   54,   55,   55,   55,   55,   55,   56,
-   56,   76,   77,   53,   71,   71,   73,   73,   73,   72,
-   78,   78,   74,   75,   79,   79,   79,   83,   83,   80,
-   81,   86,   84,   82,
+   12,   12,   28,   29,   30,   30,   31,   32,   78,   78,
+   33,   34,   77,   77,   24,   24,   24,   35,   36,   37,
+   37,   47,   47,   47,   48,   49,   50,   51,   26,   27,
+   25,   38,   39,   39,   40,   40,   13,   14,   14,   14,
+   15,   16,   16,   17,   17,   88,   41,   43,   43,   43,
+   43,   42,   42,   60,   61,   61,   61,   61,   62,   62,
+   57,   58,   58,   58,   58,   58,   58,   58,   59,   59,
+   63,   63,   18,   20,   20,   20,   20,   20,   19,   19,
+    4,    6,    6,    5,    5,   64,   65,   67,   67,   67,
+   67,   67,   66,   66,   68,   69,   70,   54,   55,   55,
+   55,   55,   55,   56,   56,   79,   80,   53,   71,   71,
+   73,   73,   73,   72,   81,   81,   74,   75,   76,   82,
+   82,   82,   86,   86,   83,   84,   89,   87,   85,
 };
 short socks_yylen[] = {                                         2,
     2,    2,    1,    0,    2,    2,    2,    2,    0,    2,
     2,    2,    1,    1,    1,    1,    1,    1,    1,    1,
     1,    1,    1,    1,    1,    1,    1,    1,    1,    8,
     0,    3,    1,    1,    1,    1,    1,    2,    3,    1,
-    1,    2,    3,    1,    1,    2,    5,    0,    4,    0,
-    1,    1,    1,    3,    1,    1,    2,    1,    1,    1,
-    3,    3,    3,    1,    3,    3,    3,    3,    1,    1,
-    1,    2,    3,    1,    1,    1,    3,    1,    1,    1,
-    2,    0,    4,    1,    1,    1,    1,    1,    2,    7,
-    1,    1,    1,    1,    0,    2,    6,    1,    1,    1,
-    1,    1,    1,    1,    0,    2,    1,    1,    3,    1,
-    1,    1,    1,    1,    1,    2,    3,    1,    1,    1,
-    2,    2,    3,    1,    1,    1,    1,    1,    1,    2,
-    3,    3,    3,    3,    1,    1,    1,    1,    1,    0,
-    2,    1,    1,    1,    4,    2,    2,    2,    1,    1,
-    1,    1,    1,    1,    0,    3,    2,    1,    1,    3,
-    1,    1,    1,    1,
+    1,    2,    3,    1,    1,    2,    4,    0,    2,    2,
+    4,    0,    1,    1,    1,    1,    1,    3,    1,    1,
+    2,    1,    1,    1,    3,    3,    3,    1,    3,    3,
+    3,    3,    1,    1,    1,    2,    3,    1,    1,    1,
+    3,    1,    1,    1,    2,    0,    4,    1,    1,    1,
+    1,    1,    2,    7,    1,    1,    1,    1,    0,    2,
+    6,    1,    1,    1,    1,    1,    1,    1,    0,    2,
+    1,    1,    3,    1,    1,    1,    1,    1,    1,    2,
+    3,    1,    1,    1,    2,    2,    3,    1,    1,    1,
+    1,    1,    1,    2,    3,    3,    3,    3,    1,    1,
+    1,    1,    1,    0,    2,    1,    1,    1,    4,    2,
+    2,    2,    1,    1,    1,    1,    1,    1,    1,    0,
+    3,    2,    1,    1,    3,    1,    1,    1,    1,
 };
 short socks_yydefred[] = {                                      0,
     3,   13,    0,    9,    4,    0,    0,   29,    0,    0,
-    0,   31,   10,   15,   53,   11,   14,   52,   51,   12,
-    0,   48,   50,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,  107,  108,    5,   17,   27,   28,   26,   24,
-   25,   18,   19,   20,   23,   16,   21,    6,   22,   58,
-   59,   60,    8,    7,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,   82,    0,    0,    0,
-    0,    0,   67,   75,   76,   74,   73,   55,    0,   54,
-    0,    0,    0,    0,   78,   79,    0,   77,   44,    0,
-   43,   65,   66,    0,   69,   70,    0,   68,   64,   61,
-   62,   63,    0,    0,    0,    0,    0,    0,  102,  103,
-  104,   99,   98,    0,    0,  101,  100,   57,  137,  138,
-  135,  136,  139,    0,    0,   94,   91,    0,    0,   93,
-   92,  150,    0,   49,   81,   46,   84,   85,   86,   87,
-   83,    0,   72,    0,    0,    0,    0,    0,    0,  106,
-  142,    0,    0,    0,  141,    0,   96,    0,    0,   47,
-   89,  118,  119,  117,    0,   33,   34,   35,   36,    0,
-   32,   40,    0,   39,  110,  111,  112,  113,  114,  109,
-    0,  131,  124,  125,  126,  127,  128,  123,    0,    0,
-  143,  122,    0,    0,  144,    0,    0,    0,  164,  161,
-  157,    0,    0,  121,   38,   42,  116,  130,   97,    0,
-  153,  132,    0,    0,    0,    0,   90,    0,  163,  159,
-  156,  158,  133,    0,  146,  154,    0,  134,    0,  149,
-   30,  162,  160,  152,  151,    0,  147,  148,  145,
+    0,   31,   10,   15,   57,   11,   14,   56,   55,   12,
+    0,   48,   52,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,  111,  112,    5,   17,   27,   28,   26,   24,
+   25,   18,   19,   20,   23,   16,   21,    6,   22,   62,
+   63,   64,    8,    7,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,   86,    0,    0,    0,
+    0,    0,   71,   79,   80,   78,   77,   59,    0,   58,
+    0,    0,    0,    0,   82,   83,    0,   81,   44,    0,
+   43,   69,   70,    0,   73,   74,    0,   72,   68,   65,
+   66,   67,    0,    0,    0,    0,    0,    0,  106,  107,
+  108,  103,  102,    0,    0,  105,  104,   61,  141,  142,
+  139,  140,  143,    0,    0,   98,   95,    0,    0,   97,
+   96,  154,  158,    0,    0,   47,   53,   54,   51,   85,
+   46,   88,   89,   90,   91,   87,    0,   76,    0,    0,
+    0,    0,    0,    0,  110,  146,    0,    0,    0,  145,
+    0,  100,    0,    0,   49,   50,   93,  122,  123,  121,
+    0,   33,   34,   35,   36,    0,   32,   40,    0,   39,
+  114,  115,  116,  117,  118,  113,    0,  135,  128,  129,
+  130,  131,  132,  127,    0,    0,  147,  126,    0,    0,
+  148,    0,    0,    0,  169,  166,  162,    0,    0,  125,
+   38,   42,  120,  134,  101,    0,  157,  136,    0,    0,
+    0,    0,   94,    0,  168,  164,  161,  163,  137,    0,
+  150,  159,    0,  138,    0,  153,   30,  167,  165,  156,
+  155,    0,  151,  152,  149,
 };
 short socks_yydgoto[] = {                                       3,
-    7,    6,   14,  109,  164,  165,  110,  170,  171,  111,
-  173,  174,   15,   77,   38,   87,   88,  112,  180,  181,
+    7,    6,   14,  109,  170,  171,  110,  176,  177,  111,
+  179,  180,   15,   77,   38,   87,   88,  112,  186,  187,
    59,    4,   16,   17,   18,   39,   40,  122,   90,   91,
    42,   61,   43,   62,   19,   79,   80,   45,   97,   98,
-  113,  141,  142,   47,    5,   48,   49,   50,   51,   52,
-  100,   20,  196,  197,  124,  125,   53,  114,  115,   54,
-  128,  129,   55,  152,  116,  188,  189,  117,  153,  192,
-  212,  213,  228,  214,  230,  154,  193,  236,  160,  201,
-  202,  203,  221,  222,   94,  233,
+  113,  146,  147,   47,    5,   48,   49,   50,   51,   52,
+  100,   20,  202,  203,  124,  125,   53,  114,  115,   54,
+  128,  129,   55,  157,  116,  194,  195,  117,  158,  198,
+  218,  219,  234,  220,  135,  236,  139,  136,  159,  199,
+  242,  165,  207,  208,  209,  227,  228,   94,  239,
 };
-short socks_yysindex[] = {                                   -207,
-    0,    0,    0,    0,    0,  -10,  226,    0,  -35,  -27,
-  -25,    0,    0,    0,    0,    0,    0,    0,    0,    0,
- -229,    0,    0,  -12,   -4,    5,    8,   10,   38,   41,
-   57,   60,    0,    0,    0,    0,    0,    0,    0,    0,
+short socks_yysindex[] = {                                   -227,
+    0,    0,    0,    0,    0,  -10,  228,    0,  -34,  -32,
+   -4,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+ -241,    0,    0,    7,   12,   32,   40,   43,   49,   51,
+   62,   63,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,   -3, -204, -201, -165,    4,    6,
-   66,   70, -190, -138, -189, -188,    0, -170, -148, -148,
- -148, -266,    0,    0,    0,    0,    0,    0, -165,    0,
- -254, -247, -179, -179,    0,    0, -190,    0,    0, -138,
-    0,    0,    0, -187,    0,    0, -170,    0,    0,    0,
-    0,    0,   81,   84,   85,   86,   87,   88,    0,    0,
-    0,    0,    0, -266, -177,    0,    0,    0,    0,    0,
-    0,    0,    0, -254, -177,    0,    0, -247, -177,    0,
-    0,    0, -172,    0,    0,    0,    0,    0,    0,    0,
-    0, -187,    0, -208, -195, -132, -231, -158, -233,    0,
-    0, -266, -173,   95,    0, -134,    0, -247, -283,    0,
-    0,    0,    0,    0, -208,    0,    0,    0,    0, -195,
-    0,    0, -132,    0,    0,    0,    0,    0,    0,    0,
- -231,    0,    0,    0,    0,    0,    0,    0, -233,   30,
-    0,    0,   99, -206,    0,  101, -254,   31,    0,    0,
-    0,  115, -205,    0,    0,    0,    0,    0,    0, -206,
-    0,    0,  114, -172, -212,   39,    0, -154,    0,    0,
-    0,    0,    0, -281,    0,    0, -172,    0, -172,    0,
-    0,    0,    0,    0,    0, -172,    0,    0,    0,
+    0,    0,    0,    0,   -1, -200, -197, -159,    5,    6,
+   72,   73, -182, -136, -189, -185,    0, -192, -141, -141,
+ -141, -248,    0,    0,    0,    0,    0,    0, -159,    0,
+ -223, -240, -234, -234,    0,    0, -182,    0,    0, -136,
+    0,    0,    0, -235,    0,    0, -192,    0,    0,    0,
+    0,    0,   83,   85,   87,   88,   89,   90,    0,    0,
+    0,    0,    0, -248, -176,    0,    0,    0,    0,    0,
+    0,    0,    0, -223, -176,    0,    0, -240, -176,    0,
+    0,    0,    0, -170, -170,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0, -235,    0, -181, -217,
+ -128, -268, -154, -239,    0,    0, -248, -171,   98,    0,
+ -130,    0, -240, -294,    0,    0,    0,    0,    0,    0,
+ -181,    0,    0,    0,    0, -217,    0,    0, -128,    0,
+    0,    0,    0,    0,    0,    0, -268,    0,    0,    0,
+    0,    0,    0,    0, -239,   34,    0,    0,  102, -204,
+    0,  103, -223,   37,    0,    0,    0,  118, -206,    0,
+    0,    0,    0,    0,    0, -204,    0,    0,  119, -170,
+ -214,   42,    0, -153,    0,    0,    0,    0,    0, -295,
+    0,    0, -170,    0, -170,    0,    0,    0,    0,    0,
+    0, -170,    0,    0,    0,
 };
 short socks_yyrindex[] = {                                      0,
-    0,    0,    0,    0,    0,  168,  174,    0,    0,    0,
+    0,    0,    0,    0,    0,  170,  171,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0, -149,    0,    0,    0,    0,    0,    0,   98,    0,
- -147, -142,    0,    0,    0,    0,  130,    0,    0,   55,
-    0,    0,    0,    0,    0,    0,  162,    0,    0,    0,
+    0, -149,    0,    0,    0,    0,    0,    0,  100,    0,
+ -142, -135,    0,    0,    0,    0,  132,    0,    0,   56,
+    0,    0,    0,    0,    0,    0,  164,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0, -117,    0,    0,    0,    0,    0,    0,
-    0,    0,    0, -115,    0,    0,    0, -113,    0,    0,
-    0,    0,  194,    0,    0,    0,    0,    0,    0,    0,
-    0,    1,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,   51,    0,    0,    0,    0,    0,   58,    0,    0,
-    0,    0,    0,    0, -110,    0,    0,    0,    0, -103,
-    0,    0,   -2,    0,    0,    0,    0,    0,    0,    0,
-  -68,    0,    0,    0,    0,    0,    0,    0,  222,    0,
-    0,    0,    0,    0,    0,    0,   59,    0,    0,    0,
+    0,    0,    0, -121,    0,    0,    0,    0,    0,    0,
+    0,    0,    0, -120,    0,    0,    0, -113,    0,    0,
+    0,    0,    0,  196,  196,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    1,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,   64,    0,    0,    0,
+    0,    0,   66,    0,    0,    0,    0,    0,    0,    0,
+ -116,    0,    0,    0,    0,  -81,    0,    0,  -93,    0,
+    0,    0,    0,    0,    0,    0,  -74,    0,    0,    0,
+    0,    0,    0,    0,   -2,    0,    0,    0,    0,    0,
+    0,    0,   75,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0, -123,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0, -122,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,  -56,    0,  -56,    0,
-    0,    0,    0,    0,    0, -122,    0,    0,    0,
+    0,    0,   57,    0,   57,    0,    0,    0,    0,    0,
+    0, -123,    0,    0,    0,
 };
 short socks_yygindex[] = {                                      0,
-    0,    0,  179,  -75,   28,    0,  -72,    0,   25,  -80,
-    0,   23,  195,    0,    0,    0,  126,  -65,   34,    0,
-    0,    0,    0,    0,    0,    0,    0,  209,    0,  128,
-    0,    0,    0,    0,  212,    0,  141,    0,    0,  125,
-   13,   82,    0,    0,    0,    0,    0,    0,    0,    0,
-   43,    0,    0,    0,    0, -111,    0,    0,  -96,    0,
-    0, -100,  204,  -85,  -61,   37,    0,  -58,    0,    0,
-   18,  -79,    0,   14,    0,    0,    0,    0, -197,    0,
-   27,    0,    0,    0,    0,    0,
+    0,    0,  190,  -78,   30,    0,  -67,    0,   35,  -69,
+    0,   36,  215,    0,    0,    0,  136,  -66,   38,    0,
+    0,    0,    0,    0,    0,    0,    0,  217,    0,  139,
+    0,    0,    0,    0,  224,    0,  154,    0,    0,  137,
+   10,   92,    0,    0,    0,    0,    0,    0,    0,    0,
+   48,    0,    0,    0,    0, -114,    0,    0,  -95,    0,
+    0, -108,  219, -102,  -64,   41,    0,  -61,    0,    0,
+   25,  -77,    0,   21,  159,    0,    0,    0,    0,    0,
+    0, -127,    0,   39,    0,    0,    0,    0,    0,
 };
-#define YYTABLESIZE 546
+#define YYTABLESIZE 518
 short socks_yytable[] = {                                      13,
-   88,  126,  155,  133,  134,  119,   28,  105,  120,  140,
-   88,   95,  155,   25,  120,  121,  225,  150,   28,   46,
-  130,   37,   56,  131,  103,   28,  199,  157,  104,  237,
-   57,  238,   58,  105,  106,  234,  103,  200,  239,  156,
-  104,  235,  107,  158,  108,   63,  106,  126,  119,    1,
-    2,  120,  105,   64,   45,  190,  115,  198,  121,   33,
-   34,  107,   65,  108,   45,   66,  130,   67,  155,  131,
-  175,  176,  177,  178,  179,   85,   86,  126,  183,  184,
-  185,  186,  187,  162,  163,  216,  137,  138,  139,  140,
-   74,   75,   76,  123,  127,   68,  130,   56,   69,  131,
-  166,  167,  168,  169,  132,  211,  226,   56,   95,   96,
-  132,  211,  101,  102,   70,  200,  219,   71,   73,   72,
-   78,  119,   41,   83,  120,   88,   81,   84,   82,   80,
-   89,  121,   99,   92,   93,  227,  123,  132,  144,   80,
-  127,  145,  146,  147,  148,  149,  151,  159,  172,  182,
-  155,  191,  194,  195,  209,  217,  210,  120,  215,  218,
-  224,   71,  120,  231,   37,  155,  232,    2,  155,   37,
-  127,   71,  155,    1,  105,  105,  140,  155,  155,   45,
-  120,   95,   95,  140,  120,   36,  155,   37,  155,  120,
-  120,   37,  204,  155,  205,  206,   37,   37,  120,  115,
-  120,   37,  155,  155,  115,   37,  105,   37,  140,  123,
-   95,  155,  135,  120,  207,   41,  155,  136,   44,  118,
-   37,  143,  115,  161,   60,  208,  115,  223,  229,  220,
-    0,  115,  115,    0,  155,   35,    0,    0,  155,    0,
-  115,    0,  115,    0,  155,    0,    0,    0,    8,    0,
-    0,    0,    9,   10,    0,  115,    0,    0,    0,   88,
-   88,   88,   88,    0,   88,   88,    0,    0,   88,    0,
-   41,   88,   88,   88,   11,    0,   12,    0,   88,    0,
-    0,    0,   88,   88,   88,   88,    0,    0,   41,   88,
-   88,   88,   41,    0,    0,   88,    0,   41,   41,    0,
-   88,   88,    0,    0,    0,    0,   41,    0,   41,   88,
-    0,   88,    0,   45,   45,   45,   45,    0,   45,   45,
-    0,   41,   45,    0,   88,   45,   45,   45,    0,    0,
-    0,    0,   45,    0,    0,    0,   45,   45,   45,   45,
-    0,    0,    0,   45,   45,   45,  129,    0,    0,   45,
-    0,    0,    0,    0,    0,   45,   56,   56,   56,   56,
-   56,   56,   56,    0,    0,   56,    0,    0,   56,   56,
-   56,    0,    0,    0,    0,   56,    0,    0,   45,   56,
-   56,   56,   56,    0,   56,    0,   56,   56,   80,   80,
-   80,   80,    0,   80,   80,    0,    0,   80,    0,    0,
-   80,   80,   80,    0,    0,    0,    0,   80,    0,    0,
-    0,   80,   80,   80,   80,    0,    0,    0,   80,   80,
-   71,   71,   71,   71,    0,   71,   71,    0,    0,   71,
-    0,    0,   71,   71,   71,    0,    0,    0,    0,   71,
-    0,    0,    0,   71,   71,   71,   71,    0,    0,    0,
-   71,   71,  155,  155,  155,  155,    0,  155,  155,    0,
-    0,  155,    0,    0,  155,  155,  155,    0,    0,    0,
-    0,  155,    0,    0,    0,  155,  155,  155,  155,    0,
-    0,    0,  155,  155,    8,   21,   22,   23,    0,   10,
-   24,    0,    0,   25,  129,    0,   26,   27,   28,    0,
-    0,    0,    0,   29,    0,    0,    0,   30,   31,   32,
-   11,    0,  129,    0,   33,   34,  129,    0,    0,    0,
-    0,  129,  129,    0,    0,    0,    0,    0,    0,    0,
-  129,    0,  129,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,  129,
+   92,  160,  119,  109,  144,  134,  137,  166,  124,  160,
+   92,   99,  126,  120,  121,  205,   46,  130,  155,  162,
+  131,  240,  161,   56,   28,   57,  163,  206,  241,    1,
+    2,   41,   28,  181,  182,  183,  184,  185,  142,  143,
+  144,  145,  103,   37,   25,  119,  104,   33,   34,   28,
+  119,  105,  106,   58,  204,   45,  120,  121,  126,  105,
+  107,  196,  108,  130,   63,   45,  131,  103,  107,   64,
+  108,  104,  189,  190,  191,  192,  193,  106,  172,  173,
+  174,  175,  132,   85,   86,  133,   95,   96,  222,   65,
+  123,  127,  231,  126,   74,   75,   76,   66,  130,   60,
+   67,  131,  132,  217,  232,  243,   68,  244,   69,   60,
+  168,  169,  132,  217,  245,  206,  225,  101,  102,   70,
+   71,   72,  133,   73,  119,   92,   78,   81,   82,   83,
+   84,   84,   89,  123,   92,  120,  121,  127,   93,   99,
+  149,   84,  150,  233,  151,  152,  153,  154,  156,  160,
+  164,  124,  178,  188,  197,  200,  124,  201,  215,  216,
+  221,  223,  224,   75,  160,  230,  237,  160,  238,    2,
+    1,  160,  127,   75,  124,  109,  160,  160,  124,   41,
+   45,  160,  144,  124,  124,  160,   37,  160,  109,   99,
+   99,   37,  124,  119,  124,  160,   36,   41,  119,  144,
+  210,   41,  160,  109,  144,  160,   41,   41,  124,   37,
+  211,   99,  123,   37,  212,   41,  119,   41,   37,   37,
+  119,   37,  140,   41,  213,  119,  119,   37,  141,   37,
+   44,   41,  118,  148,  119,  214,  119,   35,  167,   60,
+  229,  235,  138,   37,    0,    0,    0,  226,    8,    0,
+  119,    0,    9,   10,    0,    0,    0,    0,    0,   92,
+   92,   92,   92,    0,   92,   92,    0,    0,   92,    0,
+  133,   92,   92,   92,   11,    0,   12,    0,   92,    0,
+    0,    0,   92,   92,   92,   92,    0,    0,  133,   92,
+   92,   92,  133,    0,    0,   92,    0,  133,  133,    0,
+   92,   92,    0,    0,    0,    0,  133,    0,  133,   92,
+    0,   92,    0,    0,   45,   45,   45,   45,    0,   45,
+   45,    0,  133,   45,  160,   92,   45,   45,   45,  160,
+    0,    0,    0,   45,    0,    0,    0,   45,   45,   45,
+   45,    0,    0,    0,   45,   45,   45,  160,    0,    0,
+   45,  160,    0,    0,    0,    0,   45,  160,   60,   60,
+   60,   60,   60,   60,   60,    0,    0,   60,    0,    0,
+   60,   60,   60,    0,    0,    0,    0,   60,    0,    0,
+   45,   60,   60,   60,   60,    0,   60,    0,   60,   60,
+   84,   84,   84,   84,    0,   84,   84,    0,    0,   84,
+    0,    0,   84,   84,   84,    0,    0,    0,    0,   84,
+    0,    0,    0,   84,   84,   84,   84,    0,    0,    0,
+   84,   84,   75,   75,   75,   75,    0,   75,   75,    0,
+    0,   75,    0,    0,   75,   75,   75,    0,    0,    0,
+    0,   75,    0,    0,    0,   75,   75,   75,   75,    0,
+    0,    0,   75,   75,  160,  160,  160,  160,    0,  160,
+  160,    0,    0,  160,    0,    0,  160,  160,  160,    0,
+    0,    0,    0,  160,    0,    0,    0,  160,  160,  160,
+  160,    0,    0,    0,  160,  160,    8,   21,   22,   23,
+    0,   10,   24,    0,    0,   25,    0,    0,   26,   27,
+   28,    0,    0,    0,    0,   29,    0,    0,    0,   30,
+   31,   32,   11,    0,    0,    0,   33,   34,
 };
 short socks_yycheck[] = {                                      10,
-    0,   82,  125,   83,   84,   81,  273,  125,   81,  125,
-   10,  125,  124,  268,  125,   81,  214,  114,  273,    7,
-   82,  125,   58,   82,  291,  273,  310,  128,  295,  227,
-   58,  229,   58,  300,  301,  317,  291,  321,  236,  125,
-  295,  323,  309,  129,  311,   58,  301,  128,  124,  257,
-  258,  124,  300,   58,    0,  152,  125,  158,  124,  289,
-  290,  309,   58,  311,   10,   58,  128,   58,  125,  128,
-  302,  303,  304,  305,  306,  266,  267,  158,  312,  313,
-  314,  315,  316,  292,  293,  197,  274,  275,  276,  277,
-  292,  293,  294,   81,   82,   58,  158,    0,   58,  158,
-  296,  297,  298,  299,  317,  318,  319,   10,  279,  280,
-  317,  318,   70,   71,   58,  321,  322,   58,  323,  123,
-  286,  197,  125,   58,  197,  125,  123,   58,  123,    0,
-  269,  197,  281,  323,  323,  215,  124,  317,   58,   10,
-  128,   58,   58,   58,   58,   58,  324,  320,  281,  308,
-  273,  325,   58,  288,  125,  125,   58,  268,   58,   45,
-   47,    0,  273,  125,  268,  288,  321,    0,  291,  273,
-  158,   10,  295,    0,  324,  125,  324,  300,  301,  125,
-  291,  324,  125,  125,  295,    7,  309,  291,  311,  300,
-  301,  295,  165,    0,  170,  173,  300,  301,  309,  268,
-  311,    7,  325,   10,  273,  309,  324,  311,  324,  197,
-  324,  268,   87,  324,  181,    7,  273,   90,    7,   79,
-  324,   97,  291,  142,   21,  189,  295,  210,  215,  203,
-   -1,  300,  301,   -1,  291,   10,   -1,   -1,  295,   -1,
-  309,   -1,  311,   -1,  301,   -1,   -1,   -1,  259,   -1,
-   -1,   -1,  263,  264,   -1,  324,   -1,   -1,   -1,  259,
+    0,  125,   81,  125,  125,   83,   84,  135,  125,  124,
+   10,  125,   82,   81,   81,  310,    7,   82,  114,  128,
+   82,  317,  125,   58,  273,   58,  129,  322,  324,  257,
+  258,  125,  273,  302,  303,  304,  305,  306,  274,  275,
+  276,  277,  291,  125,  268,  124,  295,  289,  290,  273,
+  125,  300,  301,   58,  163,    0,  124,  124,  128,  300,
+  309,  157,  311,  128,   58,   10,  128,  291,  309,   58,
+  311,  295,  312,  313,  314,  315,  316,  301,  296,  297,
+  298,  299,  317,  266,  267,  320,  279,  280,  203,   58,
+   81,   82,  220,  163,  292,  293,  294,   58,  163,    0,
+   58,  163,  317,  318,  319,  233,   58,  235,   58,   10,
+  292,  293,  317,  318,  242,  322,  323,   70,   71,   58,
+   58,  123,  125,  324,  203,  125,  286,  123,  123,   58,
+   58,    0,  269,  124,  324,  203,  203,  128,  324,  281,
+   58,   10,   58,  221,   58,   58,   58,   58,  325,  273,
+  321,  268,  281,  308,  326,   58,  273,  288,  125,   58,
+   58,  125,   45,    0,  288,   47,  125,  291,  322,    0,
+    0,  295,  163,   10,  291,  325,  300,  301,  295,  273,
+  125,  125,  325,  300,  301,  309,  268,  311,  125,  325,
+  125,  273,  309,  268,  311,    0,    7,  291,  273,  125,
+  171,  295,  326,  325,  325,   10,  300,  301,  325,  291,
+  176,  325,  203,  295,  179,  309,  291,  311,  300,  301,
+  295,    7,   87,    7,  187,  300,  301,  309,   90,  311,
+    7,  325,   79,   97,  309,  195,  311,   10,  147,   21,
+  216,  221,   84,  325,   -1,   -1,   -1,  209,  259,   -1,
+  325,   -1,  263,  264,   -1,   -1,   -1,   -1,   -1,  259,
   260,  261,  262,   -1,  264,  265,   -1,   -1,  268,   -1,
   273,  271,  272,  273,  285,   -1,  287,   -1,  278,   -1,
    -1,   -1,  282,  283,  284,  285,   -1,   -1,  291,  289,
   290,  291,  295,   -1,   -1,  295,   -1,  300,  301,   -1,
   300,  301,   -1,   -1,   -1,   -1,  309,   -1,  311,  309,
-   -1,  311,   -1,  259,  260,  261,  262,   -1,  264,  265,
-   -1,  324,  268,   -1,  324,  271,  272,  273,   -1,   -1,
-   -1,   -1,  278,   -1,   -1,   -1,  282,  283,  284,  285,
-   -1,   -1,   -1,  289,  290,  291,  125,   -1,   -1,  295,
-   -1,   -1,   -1,   -1,   -1,  301,  259,  260,  261,  262,
-  263,  264,  265,   -1,   -1,  268,   -1,   -1,  271,  272,
-  273,   -1,   -1,   -1,   -1,  278,   -1,   -1,  324,  282,
-  283,  284,  285,   -1,  287,   -1,  289,  290,  259,  260,
-  261,  262,   -1,  264,  265,   -1,   -1,  268,   -1,   -1,
+   -1,  311,   -1,   -1,  259,  260,  261,  262,   -1,  264,
+  265,   -1,  325,  268,  268,  325,  271,  272,  273,  273,
+   -1,   -1,   -1,  278,   -1,   -1,   -1,  282,  283,  284,
+  285,   -1,   -1,   -1,  289,  290,  291,  291,   -1,   -1,
+  295,  295,   -1,   -1,   -1,   -1,  301,  301,  259,  260,
+  261,  262,  263,  264,  265,   -1,   -1,  268,   -1,   -1,
   271,  272,  273,   -1,   -1,   -1,   -1,  278,   -1,   -1,
-   -1,  282,  283,  284,  285,   -1,   -1,   -1,  289,  290,
+  325,  282,  283,  284,  285,   -1,  287,   -1,  289,  290,
   259,  260,  261,  262,   -1,  264,  265,   -1,   -1,  268,
    -1,   -1,  271,  272,  273,   -1,   -1,   -1,   -1,  278,
    -1,   -1,   -1,  282,  283,  284,  285,   -1,   -1,   -1,
@@ -473,18 +476,18 @@ short socks_yycheck[] = {                                      10,
    -1,  268,   -1,   -1,  271,  272,  273,   -1,   -1,   -1,
    -1,  278,   -1,   -1,   -1,  282,  283,  284,  285,   -1,
    -1,   -1,  289,  290,  259,  260,  261,  262,   -1,  264,
-  265,   -1,   -1,  268,  273,   -1,  271,  272,  273,   -1,
+  265,   -1,   -1,  268,   -1,   -1,  271,  272,  273,   -1,
    -1,   -1,   -1,  278,   -1,   -1,   -1,  282,  283,  284,
-  285,   -1,  291,   -1,  289,  290,  295,   -1,   -1,   -1,
-   -1,  300,  301,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  309,   -1,  311,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,  324,
+  285,   -1,   -1,   -1,  289,  290,  259,  260,  261,  262,
+   -1,  264,  265,   -1,   -1,  268,   -1,   -1,  271,  272,
+  273,   -1,   -1,   -1,   -1,  278,   -1,   -1,   -1,  282,
+  283,  284,  285,   -1,   -1,   -1,  289,  290,
 };
 #define YYFINAL 3
 #ifndef YYDEBUG
 #define YYDEBUG 0
 #endif
-#define YYMAXTOKEN 325
+#define YYMAXTOKEN 326
 #if YYDEBUG
 char *socks_yyname[] = {
 "end-of-file",0,0,0,0,0,0,0,0,0,"'\\n'",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -505,7 +508,7 @@ char *socks_yyname[] = {
 "USER","COMMAND","COMMAND_BIND","COMMAND_CONNECT","COMMAND_UDPASSOCIATE",
 "COMMAND_BINDREPLY","COMMAND_UDPREPLY","ACTION","LINE","LIBWRAPSTART",
 "OPERATOR","LOG","LOG_CONNECT","LOG_DATA","LOG_DISCONNECT","LOG_ERROR",
-"LOG_IOOPERATION","IPADDRESS","DOMAIN","DIRECT","PORT","PORTNUMBER",
+"LOG_IOOPERATION","IPADDRESS","DOMAIN","DIRECT","IFNAME","PORT","PORTNUMBER",
 "SERVICENAME","NUMBER","FROM","TO",
 };
 char *socks_yyrule[] = {
@@ -556,10 +559,14 @@ char *socks_yyrule[] = {
 "extensionname : BIND",
 "extensions : extensionname",
 "extensions : extensionname extensions",
-"internal : INTERNAL internalinit ':' ipaddress port",
+"internal : INTERNAL internalinit ':' internaladdress",
 "internalinit :",
-"external : EXTERNAL externalinit ':' ipaddress",
+"internaladdress : ipaddress port",
+"internaladdress : ifname port",
+"external : EXTERNAL externalinit ':' externaladdress",
 "externalinit :",
+"externaladdress : ipaddress",
+"externaladdress : ifname",
 "clientoption : logoutput",
 "clientoption : debuging",
 "clientoption : resolveprotocol",
@@ -663,6 +670,7 @@ char *socks_yyrule[] = {
 "netmask : NUMBER",
 "netmask : IPADDRESS",
 "domain : DOMAIN",
+"ifname : IFNAME",
 "direct : DIRECT",
 "port :",
 "port : PORT portoperator portnumber",
@@ -700,7 +708,7 @@ short *yyss;
 short *yysslim;
 YYSTYPE *yyvs;
 int yystacksize;
-#line 1047 "config_parse.y"
+#line 1020 "config_parse.y"
 
 #define INTERACTIVE		0
 
@@ -736,7 +744,7 @@ readconfig(filename)
 	EF_PROTECT_BELOW			= 0;
 #endif /* ELECTRICFENCE */
 
-/*	yydebug		= 1;    */
+/*	yydebug		= 1;        */
 	yylineno		= 1;
 	parseinit	= 0;
 
@@ -755,23 +763,73 @@ readconfig(filename)
 
 
 void
-yyerror(s)
-	const char *s;
+#ifdef STDC_HEADERS
+yyerror(const char *fmt, ...)
+#else
+yyerror(fmt, va_alist)
+	const char *fmt;
+	va_dcl
+#endif  /* STDC_HEADERS */
 {
+	va_list ap;
+	char buf[2048];
+	size_t bufused;
 
-	serrx(EXIT_FAILURE, "%s: error on line %d, near '%.10s': %s",
+#ifdef STDC_HEADERS
+		/* LINTED pointer casts may be troublesome */
+		va_start(ap, fmt);
+#else
+		va_start(ap);
+#endif  /* STDC_HEADERS */
+
+	bufused = snprintfn(buf, sizeof(buf),
+	"%s: error on line %d, near '%.10s': ",
 	config.option.configfile, yylineno,
-	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext, s);
+	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
+
+	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
+
+	/* LINTED expression has null effect */
+	va_end(ap);
+
+	if (errno)
+		serr(EXIT_FAILURE, buf);
+	serrx(EXIT_FAILURE, buf);
 }
 
-
 void
-yywarn(s)
-	const char *s;
+#ifdef STDC_HEADERS
+yywarn(const char *fmt, ...)
+#else
+yywarn(fmt, va_alist)
+	const char *fmt;
+	va_dcl
+#endif  /* STDC_HEADERS */
 {
-	swarnx("%s: warning on line %d, near '%.10s': %s",
+	va_list ap;
+	char buf[2048];
+	size_t bufused;
+
+#ifdef STDC_HEADERS
+		/* LINTED pointer casts may be troublesome */
+		va_start(ap, fmt);
+#else
+		va_start(ap);
+#endif  /* STDC_HEADERS */
+
+	bufused = snprintfn(buf, sizeof(buf),
+	"%s: warning on line %d, near '%.10s': ",
 	config.option.configfile, yylineno,
-	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext, s);
+	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
+
+	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
+
+	/* LINTED expression has null effect */
+	va_end(ap);
+
+	if (errno)
+		swarn(buf);
+	swarnx(buf);
 }
 
 static void
@@ -784,11 +842,28 @@ addressinit(address)
 		ipaddr		= &ruleaddress->addr.ipv4.ip;
 		netmask		= &ruleaddress->addr.ipv4.mask;
 		domain		= ruleaddress->addr.domain;
+		ifname		= ruleaddress->addr.ifname;
 		port_tcp		= &ruleaddress->port.tcp;
 		port_udp		= &ruleaddress->port.udp;
 		operator		= &ruleaddress->operator;
 }
-#line 792 "y.tab.c"
+
+#if SOCKS_SERVER
+static void
+ruleinit(rule)
+	const struct rule_t *rule;
+{
+	rule->linenumber = yylineno;
+
+	command			= &rule->state.command;
+	methodv			= rule->state.methodv;
+	methodc			= &rule->state.methodc;
+	protocol			= &rule->state.protocol;
+	proxyprotocol	= &rule->state.proxyprotocol;
+	userbase			= &rule->user;
+}
+#endif
+#line 867 "y.tab.c"
 /* allocate initial stack or double stack size, up to YYMAXDEPTH */
 #if defined(__cplusplus) || __STDC__
 static int yygrowstack(void)
@@ -978,7 +1053,7 @@ yyreduce:
     switch (yyn)
     {
 case 3:
-#line 250 "config_parse.y"
+#line 255 "config_parse.y"
 {
 #if SOCKS_SERVER
 		protocol			= &protocolmem;
@@ -989,26 +1064,26 @@ case 3:
 	}
 break;
 case 4:
-#line 261 "config_parse.y"
+#line 266 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 9:
-#line 268 "config_parse.y"
+#line 273 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 13:
-#line 275 "config_parse.y"
+#line 280 "config_parse.y"
 {
 	}
 break;
 case 29:
-#line 301 "config_parse.y"
+#line 306 "config_parse.y"
 {
 		yywarn("given keyword is deprecated");
 	}
 break;
 case 30:
-#line 305 "config_parse.y"
+#line 310 "config_parse.y"
 {
 #if SOCKS_CLIENT
 		route.src		= src;
@@ -1021,7 +1096,7 @@ case 30:
 	}
 break;
 case 31:
-#line 317 "config_parse.y"
+#line 322 "config_parse.y"
 {
 #if SOCKS_CLIENT
 		command			= &state.command;
@@ -1036,42 +1111,42 @@ case 31:
 		bzero(&gw, sizeof(gw));
 		bzero(&src, sizeof(src));
 		bzero(&dst, sizeof(dst));
-		src.atype		= SOCKS_ADDR_IPV4;
-		dst.atype		= SOCKS_ADDR_IPV4;
+		src.atype = SOCKS_ADDR_IPV4;
+		dst.atype = SOCKS_ADDR_IPV4;
 #endif
 	}
 break;
 case 33:
-#line 341 "config_parse.y"
+#line 346 "config_parse.y"
 {
 			proxyprotocol->socks_v4 	= 1;
 	}
 break;
 case 34:
-#line 344 "config_parse.y"
+#line 349 "config_parse.y"
 {
 			proxyprotocol->socks_v5 	= 1;
 	}
 break;
 case 35:
-#line 347 "config_parse.y"
+#line 352 "config_parse.y"
 {
 			proxyprotocol->msproxy_v2 	= 1;
 	}
 break;
 case 36:
-#line 350 "config_parse.y"
+#line 355 "config_parse.y"
 {
 			proxyprotocol->http_v1_0 	= 1;
 	}
 break;
 case 40:
-#line 362 "config_parse.y"
+#line 367 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if !HAVE_LIBWRAP
 		if (strcmp(yyvsp[0].string, method2string(AUTHMETHOD_RFC931)) == 0)
-			yyerror("method rfc931 requires libwrap");
+			yyerror("method %s requires libwrap", AUTHMETHOD_RFC931s);
 #endif /* !HAVE_LIBWRAP */
 		if (adduser(userbase, yyvsp[0].string) == NULL)
 			yyerror(NOMEM);
@@ -1079,58 +1154,27 @@ case 40:
 	}
 break;
 case 44:
-#line 381 "config_parse.y"
+#line 386 "config_parse.y"
 {
 			extension->bind = 1;
 	}
 break;
 case 47:
-#line 391 "config_parse.y"
+#line 396 "config_parse.y"
 {
 #if SOCKS_SERVER
-		if (config.state.init) {
-			int i;
-
-			for (i = 0; i < config.internalc; ++i)
-				if (config.internalv[i].addr.sin_addr.s_addr == ipaddr->s_addr
-				&&	 config.internalv[i].addr.sin_port == *port_tcp)
-					break;
-
-			if (i == config.internalc)
-				swarnx("can not change internal addresses once running");
-		}
-#endif /* SOCKS_SERVER */
+		addinternal(ruleaddress);
+#endif
 	}
 break;
 case 48:
-#line 408 "config_parse.y"
+#line 403 "config_parse.y"
 {
 #if SOCKS_SERVER
 	static struct ruleaddress_t mem;
 	struct servent	*service;
 
 	addressinit(&mem);
-
-	if (!config.state.init) {
-		if ((config.internalv = (struct listenaddress_t *)
-		realloc(config.internalv, sizeof(*config.internalv) * ++config.internalc))
-		== NULL)
-			yyerror(NOMEM);
-
-		bzero(&config.internalv[config.internalc - 1].addr,
-		sizeof((*config.internalv).addr));
-		config.internalv[config.internalc - 1].addr.sin_family = AF_INET;
-
-		ipaddr		= &config.internalv[config.internalc - 1].addr.sin_addr;
-		port_tcp		= &config.internalv[config.internalc - 1].addr.sin_port;
-	}
-	else { /* can only set internal addresses once. */
-		static struct in_addr inaddrmem;
-		static in_port_t portmem;
-
-		ipaddr		= &inaddrmem;
-		port_tcp		= &portmem;
-	}
 
 	/* set default port. */
 	if ((service = getservbyname("socks", "tcp")) == NULL)
@@ -1140,37 +1184,26 @@ case 48:
 #endif
 	}
 break;
-case 49:
-#line 445 "config_parse.y"
+case 51:
+#line 423 "config_parse.y"
 {
 #if SOCKS_SERVER
-		if (config.externalv[config.externalc - 1].sin_addr.s_addr
-		== htonl(INADDR_ANY))
-			yyerror("external address can't be a wildcard address");
+		addexternal(ruleaddress);
 #endif
-		}
+	}
 break;
-case 50:
-#line 454 "config_parse.y"
+case 52:
+#line 430 "config_parse.y"
 {
 #if SOCKS_SERVER
 		static struct ruleaddress_t mem;
 
-		if ((config.externalv = (struct sockaddr_in *)realloc(config.externalv,
-		sizeof(*config.externalv) * ++config.externalc)) == NULL)
-			yyerror(NOMEM);
-
-		bzero(&config.externalv[config.externalc - 1], sizeof(*config.externalv));
-		config.externalv[config.externalc - 1].sin_family = AF_INET;
-
 		addressinit(&mem);
-
-		ipaddr = &config.externalv[config.externalc - 1].sin_addr;
 #endif
 	}
 break;
-case 55:
-#line 480 "config_parse.y"
+case 59:
+#line 452 "config_parse.y"
 {
 		if (!config.state.init) {
 			const char *syslogname = "syslog";
@@ -1232,8 +1265,8 @@ case 55:
 			;	/* XXX warn/exit if output changed. */
 	}
 break;
-case 61:
-#line 551 "config_parse.y"
+case 65:
+#line 523 "config_parse.y"
 {
 #if SOCKS_SERVER
 		config.uid.privileged			= yyvsp[0].uid;
@@ -1241,8 +1274,8 @@ case 61:
 #endif
 	}
 break;
-case 62:
-#line 559 "config_parse.y"
+case 66:
+#line 531 "config_parse.y"
 {
 #if SOCKS_SERVER
 		config.uid.unprivileged			= yyvsp[0].uid;
@@ -1250,19 +1283,19 @@ case 62:
 #endif
 	}
 break;
-case 63:
-#line 567 "config_parse.y"
+case 67:
+#line 539 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 		config.uid.libwrap			= yyvsp[0].uid;
 		config.uid.libwrap_isset	= 1;
 #else  /* HAVE_LIBWRAP */
-		yyerror("libwrap support not compiled in");
+		yyerror("libwrapsupport not compiled in");
 #endif /* !HAVE_LIBWRAP */
 	}
 break;
-case 64:
-#line 578 "config_parse.y"
+case 68:
+#line 550 "config_parse.y"
 {
 		struct passwd *pw;
 
@@ -1272,50 +1305,50 @@ case 64:
 			yyval.uid = pw->pw_uid;
 	}
 break;
-case 65:
-#line 588 "config_parse.y"
+case 69:
+#line 560 "config_parse.y"
 {
 #if SOCKS_SERVER
 		config.timeout.io = (time_t)atol(yyvsp[0].string);
 #endif
 	}
 break;
-case 66:
-#line 595 "config_parse.y"
+case 70:
+#line 567 "config_parse.y"
 {
 #if SOCKS_SERVER
 		config.timeout.negotiate = (time_t)atol(yyvsp[0].string);
 #endif
 	}
 break;
-case 67:
-#line 602 "config_parse.y"
+case 71:
+#line 574 "config_parse.y"
 {
 		config.option.debug = atoi(yyvsp[0].string);
 	}
 break;
-case 69:
-#line 610 "config_parse.y"
+case 73:
+#line 582 "config_parse.y"
 {
 #if SOCKS_SERVER
 		config.compat.reuseaddr = 1;
 	}
 break;
-case 70:
-#line 614 "config_parse.y"
+case 74:
+#line 586 "config_parse.y"
 {
 		config.compat.sameport = 1;
 #endif
 	}
 break;
-case 74:
-#line 627 "config_parse.y"
+case 78:
+#line 599 "config_parse.y"
 {
 			config.resolveprotocol = RESOLVEPROTOCOL_FAKE;
 	}
 break;
-case 75:
-#line 630 "config_parse.y"
+case 79:
+#line 602 "config_parse.y"
 {
 #if HAVE_NO_RESOLVESTUFF
 			yyerror("resolveprotocol keyword not supported on this installation");
@@ -1324,21 +1357,21 @@ case 75:
 #endif /* !HAVE_NO_RESOLVESTUFF */
 	}
 break;
-case 76:
-#line 637 "config_parse.y"
+case 80:
+#line 609 "config_parse.y"
 {
 			config.resolveprotocol = RESOLVEPROTOCOL_UDP;
 	}
 break;
-case 78:
-#line 645 "config_parse.y"
+case 82:
+#line 617 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 			config.srchost.nomismatch = 1;
 	}
 break;
-case 79:
-#line 649 "config_parse.y"
+case 83:
+#line 621 "config_parse.y"
 {
 			config.srchost.nounknown = 1;
 #else
@@ -1346,40 +1379,40 @@ case 79:
 #endif
 	}
 break;
-case 82:
-#line 662 "config_parse.y"
+case 86:
+#line 634 "config_parse.y"
 { *methodc = 0; /* reset. */ }
 break;
-case 84:
-#line 665 "config_parse.y"
+case 88:
+#line 637 "config_parse.y"
 {
 		ADDMETHOD(AUTHMETHOD_NONE);
 	}
 break;
-case 85:
-#line 668 "config_parse.y"
+case 89:
+#line 640 "config_parse.y"
 {
-		yyerror("GSSAPI not supported");
+		yyerror("%s not supported", AUTHMETHOD_GSSAPIs);
 	}
 break;
-case 86:
-#line 671 "config_parse.y"
+case 90:
+#line 643 "config_parse.y"
 {
 		ADDMETHOD(AUTHMETHOD_UNAME);
 	}
 break;
-case 87:
-#line 674 "config_parse.y"
+case 91:
+#line 646 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 		ADDMETHOD(AUTHMETHOD_RFC931);
 #else /* !HAVE_LIBWRAP */
-		yyerror("method rfc931 requires libwrap");
+		yyerror("method %s requires libwrap", AUTHMETHOD_RFC931s);
 #endif /* !HAVE_LIBWRAP */
 	}
 break;
-case 90:
-#line 690 "config_parse.y"
+case 94:
+#line 662 "config_parse.y"
 {
 #if SOCKS_SERVER
 		rule.src = src;
@@ -1389,19 +1422,19 @@ case 90:
 
 		bzero(&src, sizeof(src));
 		bzero(&dst, sizeof(dst));
-		rule = ruleinit;
+		rule = ruleinitmem;
 
 		src.atype = SOCKS_ADDR_IPV4;
 		dst.atype = SOCKS_ADDR_IPV4;
 #endif
 	}
 break;
-case 95:
-#line 713 "config_parse.y"
+case 99:
+#line 685 "config_parse.y"
 { yyval.string = NULL; }
 break;
-case 97:
-#line 717 "config_parse.y"
+case 101:
+#line 689 "config_parse.y"
 {
 #if SOCKS_SERVER
 		rule.src = src;
@@ -1411,126 +1444,116 @@ case 97:
 
 		bzero(&src, sizeof(src));
 		bzero(&dst, sizeof(dst));
-		rule = ruleinit;
+		rule = ruleinitmem;
 
 		src.atype	= SOCKS_ADDR_IPV4;
 		dst.atype	= SOCKS_ADDR_IPV4;
 #endif
 	}
 break;
-case 105:
-#line 744 "config_parse.y"
+case 109:
+#line 716 "config_parse.y"
 { yyval.string = NULL; }
 break;
-case 107:
-#line 748 "config_parse.y"
+case 111:
+#line 720 "config_parse.y"
 {
 #if SOCKS_SERVER
 		rule.verdict	= VERDICT_BLOCK;
-		command			= &rule.state.command;
-		methodv			= rule.state.methodv;
-		methodc			= &rule.state.methodc;
-		protocol			= &rule.state.protocol;
-		proxyprotocol	= &rule.state.proxyprotocol;
-		userbase			= &rule.user;
+		ruleinit(&rule);
 	}
 break;
-case 108:
-#line 758 "config_parse.y"
+case 112:
+#line 725 "config_parse.y"
 {
 		rule.verdict	= VERDICT_PASS;
-		command			= &rule.state.command;
-		methodv			= rule.state.methodv;
-		methodc			= &rule.state.methodc;
-		protocol			= &rule.state.protocol;
-		proxyprotocol	= &rule.state.proxyprotocol;
-		userbase			= &rule.user;
+		ruleinit(&rule);
 #endif
 	}
 break;
-case 110:
-#line 773 "config_parse.y"
+case 114:
+#line 736 "config_parse.y"
 {
 			command->bind = 1;
 	}
 break;
-case 111:
-#line 776 "config_parse.y"
+case 115:
+#line 739 "config_parse.y"
 {
 			command->connect = 1;
 	}
 break;
-case 112:
-#line 779 "config_parse.y"
+case 116:
+#line 742 "config_parse.y"
 {
 			command->udpassociate = 1;
 	}
 break;
-case 113:
-#line 785 "config_parse.y"
+case 117:
+#line 748 "config_parse.y"
 {
 			command->bindreply = 1;
 	}
 break;
-case 114:
-#line 789 "config_parse.y"
+case 118:
+#line 752 "config_parse.y"
 {
 			command->udpreply = 1;
 	}
 break;
-case 118:
-#line 801 "config_parse.y"
+case 122:
+#line 764 "config_parse.y"
 {
 		protocol->tcp = 1;
 	}
 break;
-case 119:
-#line 804 "config_parse.y"
+case 123:
+#line 767 "config_parse.y"
 {
 		protocol->udp = 1;
 	}
 break;
-case 124:
-#line 820 "config_parse.y"
+case 128:
+#line 783 "config_parse.y"
 {
 #if SOCKS_SERVER
 	rule.log.connect = 1;
 	}
 break;
-case 125:
-#line 824 "config_parse.y"
+case 129:
+#line 787 "config_parse.y"
 {
 			rule.log.data = 1;
 	}
 break;
-case 126:
-#line 827 "config_parse.y"
+case 130:
+#line 790 "config_parse.y"
 {
 			rule.log.disconnect = 1;
 	}
 break;
-case 127:
-#line 830 "config_parse.y"
+case 131:
+#line 793 "config_parse.y"
 {
 			rule.log.error = 1;
 	}
 break;
-case 128:
-#line 833 "config_parse.y"
+case 132:
+#line 796 "config_parse.y"
 {
 			rule.log.iooperation = 1;
 #endif
 	}
 break;
-case 131:
-#line 844 "config_parse.y"
+case 135:
+#line 807 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 		struct request_info request;
 		char libwrap[LIBWRAPBUF];
 
 		if (strlen(yyvsp[0].string) >= sizeof(rule.libwrap))
-			yyerror("libwrap line too long, make LIBWRAPBUF bigger");
+			yyerror("libwrapline too long, make LIBWRAPBUF bigger");
 		strcpy(rule.libwrap, yyvsp[0].string);
 
 		/* libwrap modifies the passed buffer. */
@@ -1549,73 +1572,83 @@ case 131:
 #endif
 	}
 break;
-case 140:
-#line 889 "config_parse.y"
+case 144:
+#line 852 "config_parse.y"
 { yyval.string = NULL; }
 break;
-case 142:
-#line 893 "config_parse.y"
+case 146:
+#line 856 "config_parse.y"
 {
 		addressinit(&src);
 	}
 break;
-case 143:
-#line 899 "config_parse.y"
+case 147:
+#line 862 "config_parse.y"
 {
 		addressinit(&dst);
 	}
 break;
-case 144:
-#line 905 "config_parse.y"
+case 148:
+#line 868 "config_parse.y"
 {
 #if SOCKS_CLIENT
 		addressinit(&gw);
 #endif
 	}
 break;
-case 150:
-#line 924 "config_parse.y"
+case 154:
+#line 887 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_IPV4;
 
 		if (inet_aton(yyvsp[0].string, ipaddr) != 1)
-			yyerror("bad address");
+			yyerror("bad address: %s", yyvsp[0].string);
 	}
 break;
-case 151:
-#line 933 "config_parse.y"
+case 155:
+#line 896 "config_parse.y"
 {
 		if (atoi(yyvsp[0].string) < 0 || atoi(yyvsp[0].string) > 32)
-			yyerror("bad netmask");
+			yyerror("bad netmask: %d", yyvsp[0].string);
 
 		netmask->s_addr
 		= atoi(yyvsp[0].string) == 0 ? 0 : htonl(0xffffffff << (32 - atoi(yyvsp[0].string)));
 	}
 break;
-case 152:
-#line 940 "config_parse.y"
+case 156:
+#line 903 "config_parse.y"
 {
 			if (!inet_aton(yyvsp[0].string, netmask))
-				yyerror("bad netmask");
+				yyerror("bad netmask: %s", yyvsp[0].string);
 	}
 break;
-case 153:
-#line 946 "config_parse.y"
+case 157:
+#line 909 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_DOMAIN;
 
 		if (strlen(yyvsp[0].string) >= MAXHOSTNAMELEN)
-			yyerror("domain too long");
+			yyerror("domainname too long");
 		strcpy(domain, yyvsp[0].string);
 	}
 break;
-case 154:
-#line 955 "config_parse.y"
+case 158:
+#line 918 "config_parse.y"
+{
+		*atype = SOCKS_ADDR_IFNAME;
+
+		if (strlen(yyvsp[0].string) >= MAXIFNAMELEN)
+			yyerror("interfacename too long");
+		strcpy(ifname, yyvsp[0].string);
+	}
+break;
+case 159:
+#line 928 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_DOMAIN;
 
 		if (strlen(yyvsp[0].string) >= MAXHOSTNAMELEN)
-			yyerror("domain too long");
+			yyerror("domainname too long");
 		strcpy(domain, yyvsp[0].string);
 
 #if SOCKS_CLIENT
@@ -1623,26 +1656,26 @@ case 154:
 #endif
 	}
 break;
-case 155:
-#line 968 "config_parse.y"
+case 160:
+#line 941 "config_parse.y"
 { yyval.string = NULL; }
 break;
-case 161:
-#line 981 "config_parse.y"
+case 166:
+#line 954 "config_parse.y"
 {
 		*port_tcp	= htons((in_port_t)atoi(yyvsp[0].string));
 		*port_udp	= htons((in_port_t)atoi(yyvsp[0].string));
 	}
 break;
-case 162:
-#line 987 "config_parse.y"
+case 167:
+#line 960 "config_parse.y"
 {
 		ruleaddress->portend		= htons((in_port_t)atoi(yyvsp[0].string));
 		ruleaddress->operator	= range;
 	}
 break;
-case 163:
-#line 993 "config_parse.y"
+case 168:
+#line 966 "config_parse.y"
 {
 		struct servent	*service;
 		struct protocol_t	protocolunset;
@@ -1661,7 +1694,7 @@ case 163:
 		if (protocol->tcp) {
 			if ((service = getservbyname(yyvsp[0].string, "tcp")) == NULL) {
 				if (set)
-					yyerror("bad servicename for tcp");
+					yyerror("bad servicename for tcp: %s", yyvsp[0].string);
 				else
 					*port_tcp = htons(0);
 			}
@@ -1672,7 +1705,7 @@ case 163:
 		if (protocol->udp) {
 			if ((service = getservbyname(yyvsp[0].string, "udp")) == NULL) {
 				if (set)
-					yyerror("bad servicename for udp");
+					yyerror("bad servicename for udp: %s", yyvsp[0].string);
 				else
 					*port_udp = htons(0);
 			}
@@ -1689,13 +1722,13 @@ case 163:
 			*port_udp = *port_tcp;
 	}
 break;
-case 164:
-#line 1041 "config_parse.y"
+case 169:
+#line 1014 "config_parse.y"
 {
 		*operator = string2operator(yyvsp[0].string);
 	}
 break;
-#line 1699 "y.tab.c"
+#line 1732 "y.tab.c"
     }
     yyssp -= yym;
     yystate = *yyssp;

@@ -1,6 +1,10 @@
-# $Id: TODO,v 1.138 2000/10/27 07:41:53 michaels Exp $
+# $Id: TODO,v 1.142 2001/02/05 14:43:25 michaels Exp $
 
-* sync setting of flag in udpassociate to latest draft (or remove it).
+* change _t struct's to typedef.
+
+* allocate fd_set's with malloc() for overflow protection.
+
+* select() if we get EINTR in socks_connect() and SOCKS_SERVER?
 
 * share host/addr cache across processes.
 
@@ -11,8 +15,6 @@
 * make requestchildren support multiple clients too.
 
 * shrink io_t, too big.
-
-* support giving a interface name instead of ip address?
 
 * possible to specify what address/portrange server should use for
   outgoing connection in each rule?

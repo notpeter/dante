@@ -81,7 +81,7 @@ VERSION = @VERSION@
 YACC = @YACC@
 
 noinst_LTLIBRARIES = libscompat.la
-libscompat_la_SOURCES = difftime.c daemon.c getdtablesize.c hstrerror.c 	inet_aton.c inet_ntoa.c inet_pton.c issetugid.c memmove.c       	setproctitle.c snprintf.c sockatmark.c strerror.c strvis.c      	vsyslog.c seteuid.c
+libscompat_la_SOURCES = difftime.c daemon.c getdtablesize.c hstrerror.c 	inet_aton.c inet_ntoa.c inet_pton.c issetugid.c memmove.c       	setproctitle.c snprintf.c sockatmark.c strerror.c strvis.c      	vsyslog.c seteuid.c getifaddrs.c
 
 
 noinst_HEADERS = compat.h
@@ -102,7 +102,7 @@ libscompat_la_LIBADD =
 libscompat_la_OBJECTS =  difftime.lo daemon.lo getdtablesize.lo \
 hstrerror.lo inet_aton.lo inet_ntoa.lo inet_pton.lo issetugid.lo \
 memmove.lo setproctitle.lo snprintf.lo sockatmark.lo strerror.lo \
-strvis.lo vsyslog.lo seteuid.lo
+strvis.lo vsyslog.lo seteuid.lo getifaddrs.lo
 CFLAGS = @CFLAGS@
 COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -231,6 +231,9 @@ difftime.lo difftime.o : difftime.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
 	../include/config.h
 getdtablesize.lo getdtablesize.o : getdtablesize.c ../include/autoconf.h \
+	../include/redefac.h ../include/common.h ../include/yacconfig.h \
+	../include/config.h
+getifaddrs.lo getifaddrs.o : getifaddrs.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
 	../include/config.h
 hstrerror.lo hstrerror.o : hstrerror.c ../include/autoconf.h \

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.135 2000/11/21 09:20:53 michaels Exp $";
+"$Id: config.c,v 1.139 2001/02/06 15:58:52 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -161,8 +161,16 @@ addressmatch(rule, address, protocol, alias)
 	struct hostent *hostent;
 	in_port_t ruleport;
 	int matched, doresolve;
+	char rstring[MAXRULEADDRSTRING], astring[MAXSOCKSHOSTSTRING];
 
-	/* test port first since we have all info needed for that locally. */
+	slog(LOG_DEBUG, "%s: %s, %s, %s, %d", 
+	function,
+	ruleaddress2string(rule, rstring, sizeof(rstring)),
+	sockshost2string(address, astring, sizeof(astring)),
+	protocol2string(protocol),
+	alias);
+
+	/* test port first since we always have all info needed for that locally. */
 	switch (protocol) {
 		case SOCKS_TCP:
 			ruleport = rule->port.tcp;
@@ -240,12 +248,14 @@ addressmatch(rule, address, protocol, alias)
 	 */
 
 	matched = 0;
+
 	if (rule->atype == SOCKS_ADDR_IPV4 && address->atype == SOCKS_ADDR_DOMAIN) {
 		/*
 		 * match(rule.ipaddress, address.hostname)
 		 * resolve address to ipaddress(es) and try to match each
 		 *	resolved ipaddress against rule.
-		 *		rule is in address->ipaddress(es)
+		 *		rule isin address->ipaddress(es)
+		 *		.
 		 */
 
 		if (!doresolve)
@@ -280,7 +290,8 @@ addressmatch(rule, address, protocol, alias)
 			 * Didn't match.  If alias is set, try to resolve address
 			 * to hostname(s), the hostname back to ipaddress(es) and
 			 * then match those ipaddress(es) against rule.
-			 *		rule is in address->hostname(s)->ipaddress(es)
+			 *		rule isin address->hostname(s)->ipaddress(es)
+			 *		.
 			 */
 
 			if (!doresolve)
@@ -315,7 +326,7 @@ addressmatch(rule, address, protocol, alias)
 						continue;
 					}
 
-					/* rule is in address->hostname(s)->ipaddress(es) */
+					/* rule isin address->hostname(s)->ipaddress(es) */
 					if (addrisinlist(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
 					(const struct in_addr **)iphostent->h_addr_list)) {
 						matched = 1;
@@ -341,7 +352,8 @@ addressmatch(rule, address, protocol, alias)
 		 * resolve both rule and address to ipaddress(es) and compare
 		 * each ipaddress of resolved rule against each ipaddress of
 		 * resolved address.
-		 *		rule->ipaddress(es) is in address->ipaddress(es)
+		 *		rule->ipaddress(es) isin address->ipaddress(es)
+		 *		.
 		 *
 		 */
 		if (hostareeq(rule->addr.domain, address->addr.domain))
@@ -370,7 +382,7 @@ addressmatch(rule, address, protocol, alias)
 			}
 
 			/*
-			 *	rule->ipaddress(es) is in address->ipaddress(es)
+			 *	rule->ipaddress(es) isin address->ipaddress(es)
 			 */
 
 			for (i = 0, mask.s_addr = htonl(0xffffffff);
@@ -396,23 +408,26 @@ addressmatch(rule, address, protocol, alias)
 		 * match(rule.hostname, address.ipaddress)
 		 * If rule is not a domain, try resolving rule to ipaddress(es)
 		 * and match against address.
-		 *		address is in rule->ipaddress
+		 *		address isin rule->ipaddress
+		 *		.
 		 *
 		 * If no match, resolve address to hostname(s) and match each
 		 * against rule.
-		 *		rule is in address->hostname
+		 *		rule isin address->hostname
+		 *		.
 		 *
 		 * If still no match and alias is set, resolve all ipaddresses
 		 * of all hostname(s) resolved from address back to hostname(s)
 		 * and match them against rule.
-		 *		rule is in address->hostname->ipaddress->hostname
+		 *		rule isin address->hostname->ipaddress->hostname
+		 *		.
 		 */
 
 		if (!doresolve)
 			return 0;
 
 		if (*rule->addr.domain != '.') {
-			/* address is in rule->ipaddress */
+			/* address isin rule->ipaddress */
 			struct in_addr mask;
 
 			if ((hostent = gethostbyname(rule->addr.domain)) == NULL) {
@@ -428,7 +443,7 @@ addressmatch(rule, address, protocol, alias)
 		}
 
 		if (!matched) {
-			/* rule is in address->hostname */
+			/* rule isin address->hostname */
 
 			/* LINTED pointer casts may be troublesome */
 			if ((hostent = gethostbyaddr((const char *)&address->addr.ipv4,
@@ -445,7 +460,7 @@ addressmatch(rule, address, protocol, alias)
 
 		if (!matched && alias) {
 			/*
-			 * rule is in address->hostname->ipaddress->hostname.
+			 * rule isin address->hostname->ipaddress->hostname.
 			 * hostent is already address->hostname due to above.
 			 */
 			char *nexthost;

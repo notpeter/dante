@@ -197,6 +197,8 @@
 /* System V getpwnam 'improvement' workaround */
 #undef HAVE_WORKING_GETPWNAM
 
+#undef HAVE_SOCKADDR_SA_LEN
+
 /* interposition.c prototypes */
 #undef HAVE_PROT_CONNECT_0
 #undef HAVE_PROT_CONNECT_1

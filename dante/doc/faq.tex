@@ -1,15 +1,59 @@
-%@(#)$Id: faq.tex,v 1.19 2000/06/09 10:45:15 karls Exp $
+%@(#)$Id: faq.tex,v 1.32 2001/02/17 20:17:07 michaels Exp $
+%/*
+% * Copyright (c) 1997, 1998, 1999, 2000, 2001
+% *      Inferno Nettverk A/S, Norway.  All rights reserved.
+% *
+% * Redistribution and use in source and binary forms, with or without
+% * modification, are permitted provided that the following conditions
+% * are met:
+% * 1. The above copyright notice, this list of conditions and the following
+% *    disclaimer must appear in all copies of the software, derivative works
+% *    or modified versions, and any portions thereof, aswell as in all
+% *    supporting documentation.
+% * 2. All advertising materials mentioning features or use of this software
+% *    must display the following acknowledgement:
+% *      This product includes software developed by
+% *      Inferno Nettverk A/S, Norway.
+% * 3. The name of the author may not be used to endorse or promote products
+% *    derived from this software without specific prior written permission.
+% *
+% * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+% * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+% * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+% * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+% * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+% * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+% * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+% * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+% * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+% * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+% *
+% * Inferno Nettverk A/S requests users of this software to return to
+% *
+% *  Software Distribution Coordinator  or  sdc@inet.no
+% *  Inferno Nettverk A/S
+% *  Oslo Research Park
+% *  Gaustadalléen 21
+% *  NO-0349 Oslo
+% *  Norway
+% *
+% * any improvements or extensions that they make and grant Inferno Nettverk A/S
+% * the rights to redistribute these changes.
+% *
+% */
+
 \documentclass[a4paper, final, twoside, english]{article}
 \usepackage[latin1]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{babel}
+\usepackage{html}
 
 \title{Dante FAQ}
 \author{
 	Inferno Nettverk A/S \\
 	Oslo Research Park   \\
-	Gaustadaléen 21   \\
-	N-0349 Oslo          \\
+	Gaustadalléen 21   \\
+	NO-0349 Oslo          \\
 	Norway}
 
 \makeindex
@@ -18,16 +62,22 @@
 
 \maketitle
 
-\emph{See http://www.inet.no/dante/FAQ for the latest version of this faq.}
+ \begin{center}
 
-\section{Reporting bugs in Dante}
+  \emph{See
+   \htmladdnormallink{http://www.inet.no/dante/FAQ}{http://www.inet.no/dante/FAQ}
+   for the latest version of this faq.}
+  \end{center}
 
- \subsection{Why was I told to read this in response to my superb bug report?}
-  Because you were unable to provide a usable bug report.  Since
+\section{Reporting problems or bugs in Dante}
+
+ \subsection{Why was I told to read this in response to my superb
+  problem/bug report?}
+  Because you were unable to provide a usable report.  Since
   there are so many of you, we prefer to refer you to this FAQ rather
   than repeating ourselves over and over.
 
- \subsection{Why is "it does not work" not a good bug report?}
+ \subsection{Why is "it does not work" not a good report?}
   It's a common misconception among users who have never done any
   programming that by stating something along the lines of "it does
   not work", or "I get a segmentation fault" (these are real examples,
@@ -53,8 +103,7 @@
   arguments you usually start the server with.
 
   Repeat whatever you did to produce the error and look at the
-  log messages.  Do they provide any hints?  Could this be
-  a user error on your part rather than a bug?  (of course not.)
+  log messages.  Do they provide any hints? 
 
   If it looks like a user error, you configured something wrong, etc.
   you can try sending a mail to dante-misc@inet.no, a public mailing
@@ -138,6 +187,96 @@
        for it, we rarely need it).
   \end{enumerate}
 
+\section{System installation}
+ \subsection{Where can I find configuration file examples?}
+
+ Several examples are included in the archive. They can also be
+ downloaded via
+ \htmladdnormallink{ftp}{ftp://ftp.inet.no/pub/socks/extracted/example/}.
+
+ \subsection{SuSE 7}
+	\begin{enumerate} 
+	 \item{} Install the Dante package from SuSE (Version 1.1.2 is included
+	         in SuSE 7)
+	 \item{} Edit the /etc/rc.config and set the line START\_SOCKD="yes"
+    \item{} If you have an dynamic IP you have to have a
+            script which modifies /etc/sockd.conf every time you
+            get a new external IP. I provide this modified script
+            for folks who use ISDN (ippp0 device).  Change "ippp0"
+            to the name of the device you use for Dialin.
+				Save the script as /etc/socks.sh
+		\begin{verbatim}
+		 ---
+		 #!/bin/bash
+		 #
+	
+ 		 SOCKD_CONF="/etc/sockd.conf"
+		 EXPIP=`ifconfig ippp0 | grep inet | cut -d : -f 2 | cut -d \  -f 1`
+		 ex - +'1,\$s/^external:.*/external: '$EXPIP'/ | wq' $SOCKD_CONF
+		 killall -HUP sockd
+		 exit 0
+		 ----
+		\end{verbatim}
+
+		\begin{enumerate}
+       \item{} Then do chmod a+x /etc/socks.sh.
+		 \item{} Edit the script /etc/ppp/poll.tcpip. 
+					Put the line /etc/socks.sh in the last line.
+		\end{enumerate}
+		
+		\item{} Edit the config file /etc/sockd.conf and reboot linux (or
+              start sockd -D if you know what you are doing).
+
+				  Be sure that you have one client pass rule which allows
+              you client to connect from your internal network and
+              one pass rule that allows a client that is connected
+              to use the proxy to the desired destinations (this
+              is most likely to everywhere = 0.0.0.0/0 )
+
+	  \end{enumerate}
+   \emph{Thanks to: Andreas John <dante@systemdesign.net>}
+		
+\section{How can I socksify the whole system?}
+ On some systems doing the global equivalent of running a program with
+ socksify is possible.
+
+ \subsection{Linux}
+  In Linux you can easily do the following:
+  \begin{verbatim}
+   edit the file /etc/ld.so.preload
+   and add two lines saying:
+      libdl.so
+      libdsocks.so
+  \end{verbatim}
+ \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+
+
+ \subsection{Generic}
+  There is another way that gives you more control over what will and what
+  will not be socksified. Instead of using the wrapper-script 'socksify',
+  you could add
+
+  \begin{verbatim}
+   LD_PRELOAD="libdl.so libdsocks.so"
+   export LD_PRELOAD
+  \end{verbatim}
+  to the environment. (/etc/profile ~/.profile ~/.bashrc)
+  \\ \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+
+  \subsubsection{Why do I want to be able to control this?}
+   In same rare cases programs fail to work in a socksified environment
+   (e.g. acroread 4.0 for linux segfaults) or programs like rpm depend on a
+   clean build-environment to get its (library) dependencies.
+   \\ \emph{Thanks to Dag Wieers <dag@mind.be>.}
+
+
+ \subsubsection{How can I easily unsocksify the current shell?}
+  By issuing
+  \begin{verbatim}
+   unset LD_PRELOAD
+  \end{verbatim}
+  \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+
 
 \section{Technical Problems}
  \subsection{Why doesn't the socksify program work with glibc-2?}
@@ -165,10 +304,15 @@
   Put the server in a chroot jail to manage a separate passwordfile.
 
  \subsection{How can I more easily get the Dante server to work when the
-	     external interface is using dynamic ipaddresses?}
+	          external interface is using dynamic ipaddresses?}
 
   \subsubsection{Generic}
-   It's on the TODO list but no one has done the work for that yet.
+   Either specify the external address as a interfacename (available
+   since Dante v1.1.7), in which case the Dante server will
+   automatically use the new address whenever it changes, or if you
+   must use a ipaddress, try the below.
+
+
    Automatically running a script that changes the "external:" line
    in your sockd.conf and then sends the server a SIGHUP when you get
    a new address should be simple enough though.
@@ -219,45 +363,27 @@
    \end{verbatim}
    \emph{Thanks to: Tin Yu Mak <makty@usa.net>.}
 
-\section{How can I socksify the whole system?}
- On some systems doing the global equivalent of running a program with
- socksify is possible.
+ \subsection{I have problems rotating Dante's logfiles.  What can I do
+             except log via syslog?}
 
- \subsection{Linux}
-  In Linux you can easily do the following:
-  \begin{verbatim}
-   edit the file /etc/ld.so.preload
-   and add two lines saying:
-      libdl.so
-      libdsocks.so
-  \end{verbatim}
- \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+   Making Dante reopen the logfiles on SIGHUP would be a way to
+   provide support for this.  That however involves adding more
+   code to Dante, code that in practice duplicates code that
+   already exists in syslog.  Since Dante opens the logfiles in
+   appendmode the below may work.
 
+   A quick and dirty solution for dealing with most daemons that
+   don't like having their logs rotated. Copy them instead of moving
+   the files and then redirect an echo into them. Kick it off via
+   cron every day at 11:59.  I get 7 days of rotated logs like this:
 
- \subsection{Generic}
-  There is another way that gives you more control over what will and what
-  will not be socksified. Instead of using the wrapper-script 'socksify',
-  you could add
+   \begin{verbatim}
+    sleep 60
+    DAY=`date +%a`
+    cp /var/log/banned.log /var/log/banned.log.${DAY}
+    echo > /var/log/banned.log
+   \end{verbatim}
+   \emph{Thanks to: James Coe <starascendant@hotmail.com>.}
 
-  \begin{verbatim}
-   LD_PRELOAD="libdl.so libdsocks.so"
-   export LD_PRELOAD
-  \end{verbatim}
-  to the environment. (/etc/profile ~/.profile ~/.bashrc)
-  \\ \emph{Thanks to: Dag Wieers <dag@mind.be>.}
-
-  \subsubsection{Why do I want to be able to control this?}
-   In same rare cases programs fail to work in a socksified environment
-   (e.g. acroread 4.0 for linux segfaults) or programs like rpm depend on a
-   clean build-environment to get its (library) dependencies.
-   \\ \emph{Thanks to Dag Wieers <dag@mind.be>.}
-
-
- \subsubsection{How can I easily unsocksify the current shell?}
-  By issuing
-  \begin{verbatim}
-   unset LD_PRELOAD
-  \end{verbatim}
-  \emph{Thanks to: Dag Wieers <dag@mind.be>.}
 
 \end{document}

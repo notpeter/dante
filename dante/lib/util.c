@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.108 2000/11/21 09:20:54 michaels Exp $";
+"$Id: util.c,v 1.113 2001/02/06 15:59:00 michaels Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -234,6 +234,7 @@ sockscode(version, code)
 					return HTTP_SUCCESS;
 
 				case SOCKS_FAILURE:
+					/* CONSTCOND */
 					return !HTTP_SUCCESS;
 
 				default:
@@ -453,6 +454,14 @@ ruleaddress2string(address, string, len)
 	size_t len;
 {
 
+	/* for debuging. */
+	if (string == NULL) {
+		static char addrstring[MAXRULEADDRSTRING];
+
+		string = addrstring;
+		len = sizeof(addrstring);
+	}
+
 	switch (address->atype) {
 		case SOCKS_ADDR_IPV4: {
 			char *a, *b;
@@ -471,6 +480,14 @@ ruleaddress2string(address, string, len)
 		case SOCKS_ADDR_DOMAIN:
 			snprintfn(string, len, "%s, tcp port: %d, udp port: %d op: %s %d",
 			address->addr.domain,
+			ntohs(address->port.tcp), ntohs(address->port.udp),
+			operator2string(address->operator),
+			ntohs(address->portend));
+			break;
+
+		case SOCKS_ADDR_IFNAME:
+			snprintfn(string, len, "%s, tcp port: %d, udp port: %d op: %s %d",
+			address->addr.ifname,
 			ntohs(address->port.tcp), ntohs(address->port.udp),
 			operator2string(address->operator),
 			ntohs(address->portend));
@@ -566,6 +583,28 @@ sockaddr2ruleaddress(addr, ruleaddr)
 	return ruleaddr;
 }
 
+struct sockaddr *
+ifname2sockaddr(ifname, addr)
+	const char *ifname;
+	struct sockaddr *addr;
+{
+	struct ifaddrs ifa, *ifap = &ifa, *iface; 
+
+	if (getifaddrs(&ifap) != 0)
+		return NULL;
+	 
+	for (iface = ifap; iface != NULL; iface = iface->ifa_next) 
+		if (strcmp(iface->ifa_name, ifname) == 0 
+		&& iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET) { 
+			*addr = *iface->ifa_addr;
+			free(ifap); 
+			return addr;
+		}
+
+	freeifaddrs(ifap); 
+	return NULL;
+}
+
 const char *
 protocol2string(protocol)
 	int protocol;
@@ -593,6 +632,7 @@ sockaddr2string(address, string, len)
 	size_t len;
 {
 
+	/* for debuging. */
 	if (string == NULL) {
 		static char addrstring[MAXSOCKADDRSTRING];
 

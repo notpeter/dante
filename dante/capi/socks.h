@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -41,82 +41,34 @@
  *
  */
 
-#include "common.h"
+/* $Id: socks.h,v 1.4 2001/02/17 21:29:25 michaels Exp $ */
 
-static const char rcsid[] =
-"$Id: userio.c,v 1.21 2001/02/06 15:58:59 michaels Exp $";
+#define accept Raccept
+#define bind Rbind
+#define bindresvport Rbindresvport
+#define connect Rconnect
+#define gethostbyname Rgethostbyname
+#define gethostbyname2 Rgethostbyname2
+#define getpeername Rgetpeername
+#define getsockname Rgetsockname
+#define read Rread
+#define readv Rreadv
+#define recv Rrecv
+#define recvfrom Rrecvfrom
+#define recvfrom Rrecvfrom
+#define recvmsg Rrecvmsg
+#define rresvport Rrresvport
+#define send Rsend
+#define sendmsg Rsendmsg
+#define sendto Rsendto
+#define write Rwrite
+#define writev Rwritev
 
-/* ARGSUSED */
-char *
-socks_getusername(host, buf, buflen)
-	const struct sockshost_t *host;
-	char *buf;
-	size_t buflen;
-{
-	const char *function = "socks_getusername()";
-	char *name;
-
-	if ((name = getenv("SOCKS_USERNAME"))	!= NULL
-	||  (name = getenv("SOCKS_USER"))		!= NULL
-	||  (name = getenv("SOCKS5_USER"))		!= NULL)
-		;
-	else if ((name = getlogin()) != NULL)
-		;
-	else {
-		struct passwd *pw;
-
-		if ((pw = getpwuid(getuid())) != NULL)
-			name = pw->pw_name;
-	}
-
-	if (name == NULL)
-		return NULL;
-
-	if (strlen(name) >= buflen) {
-		swarnx("%s: socks username %d characters too long, truncated",
-		function, (strlen(name) + 1) - buflen);
-		name[buflen - 1] = NUL;
-	}
-
-	strcpy(buf, name);
-
-	return buf;
-}
-
-char *
-socks_getpassword(host, user, buf, buflen)
-	const struct sockshost_t *host;
-	const char *user;
-	char *buf;
-	size_t buflen;
-{
-	const char *function = "socks_getpassword()";
-	char *password;
-
-	if ((password = getenv("SOCKS_PASSWORD"))		!= NULL
-	||  (password = getenv("SOCKS_PASSWD"))		!= NULL
-	||  (password = getenv("SOCKS5_PASSWD"))		!= NULL)
-		;
-	else {
-		char prompt[256 + MAXSOCKSHOSTSTRING];
-		char hstring[MAXSOCKSHOSTSTRING];
-
-		snprintfn(prompt, sizeof(prompt), "%s@%s sockspassword: ",
-		user, sockshost2string(host, hstring, sizeof(hstring)));
-		password = getpass(prompt);
-	}
-
-	if (password == NULL)
-		return NULL;
-
-	if (strlen(password) >= buflen) {
-		swarnx("%s: socks password %d characters too long, truncated",
-		function, (strlen(password) + 1) - buflen);
-		password[buflen - 1] = NUL;
-	}
-
-	strcpy(buf, password);
-	bzero(password, strlen(password));
-
-	return buf;
-}
+int
+SOCKSinit(char *progname);
+/*
+ * If you want to, call this function with "progname" as the name of
+ * your program.  For systems that do not have __progname.
+ * Returns:
+ *		On success: 0.
+*/

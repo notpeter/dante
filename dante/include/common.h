@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.255 2000/08/31 06:56:59 karls Exp $ */
+/* $Id: common.h,v 1.262 2001/02/06 15:58:37 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -85,6 +85,7 @@
 #endif  /* __GNUC__ */
 #endif  /* WE_DONT_WANT_NO_SOCKADDR_ARG_UNION */
 #include <sys/socket.h>
+#include <net/if.h>
 #ifdef __HAD_GNUC
 #define __GNUC__ __HAD_GNUC
 #endif  /* __HAD_GNUC */
@@ -153,6 +154,9 @@
 #endif /* HAVE_DEC_PROTO */
 #endif  /* HAVE_UNISTD_H */
 #include <resolv.h>
+#if HAVE_IFADDRS_H
+#include <ifaddrs.h>
+#endif /* HAVE_IFADDRS_H */
 
 #include "yacconfig.h"
 
@@ -345,6 +349,33 @@ struct sockaddr_storage {
 #endif /* !HAVE_SOCKADDR_STORAGE */
 #endif
 
+
+#if !HAVE_GETIFADDRS
+/* Taken from OpenBSD <ifaddrs.h> */
+struct ifaddrs {
+	struct ifaddrs  *ifa_next;
+	char		*ifa_name;
+	unsigned int	 ifa_flags;
+	struct sockaddr	*ifa_addr;
+	struct sockaddr	*ifa_netmask;
+/*XXX*/
+#undef ifa_dstaddr
+	struct sockaddr	*ifa_dstaddr;
+	void		*ifa_data;
+};
+
+/*
+ * This may have been defined in <net/if.h>.  Note that if <net/if.h> is
+ * to be included it must be included before this header file.
+ */
+#ifndef	ifa_broadaddr
+#define	ifa_broadaddr	ifa_dstaddr	/* broadcast address interface */
+#endif
+
+
+#endif /* !HAVE_GETIFADDRS */
+
+
 /* global variables needed by everyone. */
 extern struct config_t config;
 extern char *__progname;
@@ -379,6 +410,8 @@ extern int h_errno;
 #endif
 #define	MAXPWLEN				(255 + 1)		/* socks5: 255, +1 for len. */
 
+
+#define	MAXIFNAMELEN		255
 
 /*									"255." "255." "255." "255" "." "65535" + NUL */
 #define	MAXSOCKADDRSTRING	 (4   +   4   + 4   +  3  + 1 +    5   + 1)
@@ -440,11 +473,7 @@ extern int h_errno;
 
 #define ELEMENTS(array) (sizeof(array) / sizeof(array[0]))
 
-#if UCHAR_MAX > 0xff
 #define OCTETIFY(a) ((a) = ((a) & 0xff))
-#else
-#define OCTETIFY(a)	((a) = (a))
-#endif
 /*
  * Note that it's the argument that will be truncated, not just the
  * returnvalue.
@@ -726,8 +755,11 @@ do {														\
 
 /* address types */
 #define SOCKS_ADDR_IPV4			0x01
+/* not a socks constant but put here for convinience. */
+#define SOCKS_ADDR_IFNAME		0x02
 #define SOCKS_ADDR_DOMAIN		0x03
 #define SOCKS_ADDR_IPV6       0x04
+
 
 /* reply field values */
 #define SOCKS_SUCCESS			0x00
@@ -876,7 +908,7 @@ struct extension_t {
 union socksaddr_t {
 	struct in_addr ipv4;
 	char				ipv6[SOCKS_IPV6_ALEN];
-	char				domain[MAXHOSTNAMELEN]; /* _always_ stored as C string. */
+	char				domain[MAXHOSTNAMELEN]; /* _always_ stored as C string. 		*/
 };
 
 /* the hostspecific part of misc. things */
@@ -1282,9 +1314,8 @@ struct socksstate_t {
 struct ruleaddress_t {
 	char						atype;
 	union {
-
 		char					domain[MAXHOSTNAMELEN];
-
+		char					ifname[MAXIFNAMELEN];
 		struct {
 			struct in_addr	ip;
 			struct in_addr	mask;
@@ -1553,6 +1584,15 @@ sockaddr2ruleaddress __P((const struct sockaddr *addr,
  * Returns: "addr".
  */
 
+struct sockaddr *
+ifname2sockaddr __P((const char *ifname, struct sockaddr *addr));
+/*
+ * Finds the first address found on the interface named "ifname".
+ * Returns:
+ *		On success: "addr", filled in with the address found.
+ *		On failure: NULL (no address found).
+*/
+
 int
 sockatmark __P((int s));
 /*
@@ -1726,14 +1766,24 @@ readconfig __P((const char *filename));
  *		On failure: -1.
  */
 
+#ifdef STDC_HEADERS
 void
-yywarn __P((const char *s));
+yywarn (const char *fmt, ...);
+#else
+void
+yywarn();
+#endif  /* STDC_HEADERS */
 /*
  * Report a error related to (configfile) parsing.
  */
 
+#ifdef STDC_HEADERS
 void
-yyerror __P((const char *s));
+yyerror (const char *fmt, ...);
+#else
+void
+yyerror();
+#endif  /* STDC_HEADERS */
 /*
  * Report a error related to (configfile) parsing and exit.
  */
@@ -2107,6 +2157,11 @@ int issetugid __P((void));
 #if !HAVE_VSYSLOG
 void vsyslog __P((int, const char *, va_list));
 #endif  /* !HAVE_VSYSLOG */
+
+#if !HAVE_GETIFADDRS
+int getifaddrs __P((struct ifaddrs **));
+void freeifaddrs __P((struct ifaddrs *));
+#endif /* !HAVE_GETIFADDRS */
 
 struct passwd *
 socks_getpwnam __P((const char *login));

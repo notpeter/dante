@@ -245,6 +245,11 @@
 #endif
 
 
+#ifndef HAVE_SOCKADDR_SA_LEN
+#define HAVE_SOCKADDR_SA_LEN 0
+#endif
+
+
 #ifndef HAVE_PROT_CONNECT_0
 #define HAVE_PROT_CONNECT_0 0
 #endif
@@ -630,6 +635,11 @@
 #endif
 
 
+#ifndef HAVE_GETIFADDRS
+#define HAVE_GETIFADDRS 0
+#endif
+
+
 #ifndef HAVE_GETPRPWNAM
 #define HAVE_GETPRPWNAM 0
 #endif
@@ -737,6 +747,11 @@
 
 #ifndef HAVE_FCNTL_H
 #define HAVE_FCNTL_H 0
+#endif
+
+
+#ifndef HAVE_IFADDRS_H
+#define HAVE_IFADDRS_H 0
 #endif
 
 

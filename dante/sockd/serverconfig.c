@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.116 2000/08/01 14:13:53 michaels Exp $";
+"$Id: serverconfig.c,v 1.129 2001/02/06 15:59:05 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -111,6 +111,100 @@ const int configtype = CONFIGTYPE_SERVER;
 int allow_severity, deny_severity;
 #endif  /* HAVE_LIBWRAP */
 
+/* expand array by one, increment argc. */
+#define NEWINTERNAL_EXTERNAL(argc, argv)  \
+do { \
+	if ((argv = realloc(argv, sizeof(*argv) * ++argc)) == NULL) \
+		yyerror(NOMEM); \
+} while (lintnoloop_common_h)
+
+
+void
+addinternal(addr)
+	const struct ruleaddress_t *addr;
+{
+
+	if (config.state.init) {
+#if 0 /* don't know how to do this now, seems like too much work. */
+		int i;
+
+		for (i = 0; i < config.internalc; ++i)
+			if (memcmp(&config.internalv[i], addr, sizeof(addr)) == 0)
+				break;
+
+		if (i == config.internalc)
+			swarnx("can't change internal addresses once running");
+#endif
+	}
+	else
+		switch (addr->atype) {
+			case SOCKS_ADDR_IPV4: {
+				struct sockshost_t host;
+
+				NEWINTERNAL_EXTERNAL(config.internalc, config.internalv);
+
+				sockshost2sockaddr(ruleaddress2sockshost(addr, &host, SOCKS_TCP),
+				&config.internalv[config.internalc - 1].addr);
+				break;
+			}
+
+			case SOCKS_ADDR_IFNAME: {
+				struct ifaddrs ifa, *ifap = &ifa, *iface; 
+				int m; 
+			
+				if (getifaddrs(&ifap) != 0) 
+					serr(EXIT_FAILURE, "getifaddrs()"); 
+				 
+				for (m = 0, iface = ifap; iface != NULL; iface = iface->ifa_next) 
+					if (strcmp(iface->ifa_name, addr->addr.ifname) == 0 
+					&& iface->ifa_addr != NULL 
+					&& iface->ifa_addr->sa_family == AF_INET) { 
+						NEWINTERNAL_EXTERNAL(config.internalc, config.internalv);
+
+						/* LINTED pointer casts may be troublesome */
+						((struct sockaddr_in *)iface->ifa_addr)->sin_port
+						= addr->port.tcp;
+
+						config.internalv[config.internalc - 1].addr
+						= *iface->ifa_addr;
+
+						m = 1; 
+					} 
+				freeifaddrs(ifap); 
+			
+				if (!m)
+					yyerror("can't find interface/address: %s", addr->addr.ifname);
+				break;
+			}
+
+			default:
+				SERRX(addr->atype);
+		}
+}
+
+void
+addexternal(addr)
+	const struct ruleaddress_t *addr;
+{
+
+	switch (addr->atype) {
+		case SOCKS_ADDR_IPV4: {
+			if (addr->addr.ipv4.ip.s_addr == htonl(INADDR_ANY))
+				yyerror("external address can't be a wildcard address");
+			/* FALLTHROUGH */
+
+		case SOCKS_ADDR_IFNAME:
+			NEWINTERNAL_EXTERNAL(config.externalc, config.externalv);
+			config.externalv[config.externalc - 1] = *addr;
+			break;
+		}
+
+		default:
+			SERRX(addr->atype);
+	}
+}
+
+
 struct rule_t *
 addclientrule(newrule)
 	const struct rule_t *newrule;
@@ -128,15 +222,9 @@ addclientrule(newrule)
 			case AUTHMETHOD_RFC931:
 				break;
 
-			default: {
-				char buf[256];
-
-				snprintfn(buf, sizeof(buf),
-				"method %s is not valid for clientrules",
+			default:
+				yyerror("method %s is not valid for clientrules",
 				method2string(rule->state.methodv[i]));
-
-				yyerror(buf);
-			}
 		}
 
 	if (rule->user != NULL) {
@@ -146,13 +234,9 @@ addclientrule(newrule)
 				case AUTHMETHOD_RFC931:
 					break;
 
-				default: {
-					char buf[256];
-
-					snprintfn(buf, sizeof(buf), "method \"%s\" can not provide "
-					"usernames", method2string(rule->state.methodv[i]));
-					yyerror(buf);
-				}
+				default:
+					yyerror("method \"%s\" can not provide usernames",
+					method2string(rule->state.methodv[i]));
 			}
 	}
 
@@ -209,8 +293,8 @@ showrule(rule)
 {
 	char addr[MAXRULEADDRSTRING];
 
-	slog(LOG_INFO, "socks-rule #%d",
-	rule->number);
+	slog(LOG_INFO, "socks-rule #%u, line #%lu",
+	rule->number, rule->linenumber);
 
 	slog(LOG_INFO, "verdict: %s",
 	rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs);
@@ -239,7 +323,8 @@ showclient(rule)
 {
 	char addr[MAXRULEADDRSTRING];
 
-	slog(LOG_INFO, "client-rule #%d", rule->number);
+	slog(LOG_INFO, "client-rule #%u, line #%lu",
+	rule->number, rule->linenumber);
 
 	slog(LOG_INFO, "verdict: %s",
 	rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs);
@@ -267,22 +352,24 @@ showconfig(config)
 	const struct config_t *config;
 {
 	int i;
-	char address[MAXSOCKADDRSTRING], buf[1024];
+	char address[MAXRULEADDRSTRING], buf[1024];
 	size_t bufused;
 
 	slog(LOG_INFO, "internal addresses (%d):", config->internalc);
 	for (i = 0; i < config->internalc; ++i)
 		slog(LOG_INFO, "%s",
-		/* LINTED pointer casts may be troublesome */
-		sockaddr2string((struct sockaddr *)&config->internalv[i], address,
-		sizeof(address)));
+		sockaddr2string(&config->internalv[i].addr, address, sizeof(address)));
 
 	slog(LOG_INFO, "external addresses (%d):", config->externalc);
-	for (i = 0; i < config->externalc; ++i)
-		slog(LOG_INFO, "%s",
-		/* LINTED pointer casts may be troublesome */
-		sockaddr2string((struct sockaddr *)&config->externalv[i], address,
-		sizeof(address)));
+	for (i = 0; i < config->externalc; ++i) {
+		ruleaddress2string(&config->externalv[i], address, sizeof(address));
+
+		/* cosmetics; lose portinfo, not used for external address. */
+		SASSERTX(strchr(address, ',') != NULL);
+		*strchr(address, ',') = NUL;
+		
+		slog(LOG_INFO, "%s", address);
+	}
 
 	bufused = snprintfn(buf, sizeof(buf), "compatibility options: ");
 	if (config->compat.reuseaddr)
@@ -782,18 +869,16 @@ rulespermit(s, match, state, src, dst)
 		 * is triggered.
 		 */
 
-		if (src != NULL) {
+		if (src != NULL)
 			if (!addressmatch(&rule->src, src, state->protocol, 0))
 				continue;
-		}
 		else
 			if (rule->verdict == VERDICT_BLOCK)
 				continue; /* continue scan. */
 
-		if (dst != NULL) {
-			if (!addressmatch(&rule->dst, dst, state->protocol, 0))
+		if (dst != NULL)
+			 if (!addressmatch(&rule->dst, dst, state->protocol, 0))
 				continue;
-		}
 		else
 			if (rule->verdict == VERDICT_BLOCK)
 				continue; /* continue scan. */
@@ -953,16 +1038,9 @@ addrule(newrule, rulebase, client)
 	/* warn about methods not set in the global method?  May not be an error. */
 	for (i = 0; i < rule->state.methodc; ++i)
 		if (!methodisset(rule->state.methodv[i], (const int *)&config.methodv,
-		(size_t)config.methodc)) {
-			char buf[256];
-
-			snprintfn(buf, sizeof(buf), "method \"%s\" set in rule but not "
-			"in global method",
+		(size_t)config.methodc))
+			yywarn("method \"%s\" set in rule but not in global method",
 			method2string(rule->state.methodv[i]));
-			yywarn(buf);
-
-		}
-
 
 	/* if no protocol set, set all. */
 	if (memcmp(&state.protocol, &rule->state.protocol, sizeof(state.protocol))
@@ -976,6 +1054,20 @@ addrule(newrule, rulebase, client)
 		sizeof(rule->state.proxyprotocol));
 
 		rule->state.proxyprotocol.msproxy_v2 = 0;
+	}
+
+	if (rule->src.atype == SOCKS_ADDR_IFNAME) {
+		struct sockaddr addr;
+
+		if (ifname2sockaddr(rule->src.addr.ifname, &addr) == NULL)
+			yywarn("can't find interface/address: %s", rule->src.addr.ifname);
+	}
+
+	if (rule->dst.atype == SOCKS_ADDR_IFNAME) {
+		struct sockaddr addr;
+
+		if (ifname2sockaddr(rule->dst.addr.ifname, &addr) == NULL)
+			yywarn("can't find interface/address: %s", rule->dst.addr.ifname);
 	}
 
 	if (*rulebase == NULL) {

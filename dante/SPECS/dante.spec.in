@@ -155,6 +155,7 @@ fi
 %{_libdir}/libsocks.la
 %{_libdir}/libsocks.a
 %{_libdir}/libdsocks.la
+%{_includedir}/socks.h
 
 %changelog
 * Thu Oct 12 2000 Karl-Andre' Skevik <karls@inet.no>

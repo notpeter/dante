@@ -33,14 +33,14 @@
 #  Software Distribution Coordinator  or  sdc@inet.no
 #  Inferno Nettverk A/S
 #  Oslo Research Park
-#  Gaustadaléen 21
-#  N-0349 Oslo
+#  Gaustadalléen 21
+#  NO-0349 Oslo
 #  Norway
 #
 # any improvements or extensions that they make and grant Inferno Nettverk A/S
 # the rights to redistribute these changes.
 #
-# $Id: socksify.in,v 1.20 1999/11/19 09:55:10 karls Exp $
+# $Id: socksify.in,v 1.21 2001/02/06 15:58:13 michaels Exp $
 
 #On systems where a supported preloading mechanism is used, you can
 #do "socksify <program>" and <program> will use socks without having
