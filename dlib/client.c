@@ -18,90 +18,82 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: client.c,v 1.28 1999/03/11 17:28:35 michaels Exp $";
-
 #include "common.h"
 
-struct config_t config;
-const int configtype = CONFIGTYPE_CLIENT;
+static const char rcsid[] =
+"$Id: client.c,v 1.40 1999/05/13 13:12:59 karls Exp $";
+
+extern struct config_t config;
+
+#if !HAVE_PROGNAME
+	char *__progname = "danteclient";
+#endif
 
 int
 SOCKSinit(progname)
 	char *progname;
 {
 
-#ifdef HAVE_PROGNAME
-	extern char *__progname;
-
 	__progname = progname;
-#endif /* HAVE_PROGNAME */
-
 	return 0;
 }
 
 void
 clientinit(void)
 {
-	const char *function = "clientinit()";
-	int i;
-	FILE *fp;
+/*	const char *function = "clientinit()"; */
 
 	if (config.state.init)
 		return;
 
-	if (issetugid()) 
+	config.state.pid				= getpid();
+
+	if (issetugid())
 		config.option.configfile = SOCKS_CONFIGFILE;
 	else
 		if ((config.option.configfile = getenv("SOCKS_CONF")) == NULL)
 			config.option.configfile = SOCKS_CONFIGFILE;
 
-	if ((fp = fopen(config.option.configfile, "r")) == NULL)
-		serr(1, "%s: %s", function, config.option.configfile);
+	/*
+	 * initialize misc options to sensible default.
+	*/
+	config.resolveprotocol		= RESOLVEPROTOCOL_UDP;
+	config.option.lbuf			= 1;
 
-	if (readconfig(fp) != 0)
-		return;
-	
-	config.option.lbuf = 1;
-	if (config.option.lbuf)
-		for (i = 0; i < config.log.fpc; ++i)
-			if (setvbuf(config.log.fpv[i], NULL, _IONBF, 0) != 0)
-				swarnx("%s: setvbuf()", function);
+	genericinit();
 
-	config.state.pid  				= getpid();
-	config.state.init 				= 1;
-
-  	slog(LOG_INFO, "%s/client v%s running", PACKAGE, VERSION);
+	slog(LOG_INFO, "%s/client v%s running", PACKAGE, VERSION);
 }
 
 
 int
-serverreplyisok(version, reply)
+serverreplyisok(version, reply, route)
 	int version;
 	int reply;
+	struct route_t *route;
 {
 	const char *function = "serverreplyisok()";
 
@@ -113,7 +105,7 @@ serverreplyisok(version, reply)
 
 				case SOCKSV4_FAIL:
 					errno = ECONNREFUSED;
-					return 0;
+					break;
 
 				case SOCKSV4_NO_IDENTD:
 					swarnx("%s: proxyserver failed to get your identd response",
@@ -131,24 +123,25 @@ serverreplyisok(version, reply)
 					swarnx("%s: unknown v%d reply from proxyserver: %d",
 					function, version, reply);
 					errno = ECONNREFUSED;
-					return 0;
+					break;
 			}
+			break;
 
 		case SOCKS_V5:
 			switch (reply) {
-				case SOCKS_SUCCESS: 
+				case SOCKS_SUCCESS:
 					return 1;
-					
+
 				case SOCKS_FAILURE:
 					swarnx("%s: unknown proxyserver failure", function);
 					errno = ECONNREFUSED;
-					return 0;
-					
+					break;
+
 				case SOCKS_NOTALLOWED:
 					swarnx("%s: connection denied by proxyserver", function);
 					errno = ECONNREFUSED;
 					return 0;
-						 
+
 				case SOCKS_NETUNREACH:
 					errno = ENETUNREACH;
 					return 0;
@@ -156,43 +149,44 @@ serverreplyisok(version, reply)
 				case SOCKS_HOSTUNREACH:
 					errno = EHOSTUNREACH;
 					return 0;
-						 
+
 				case SOCKS_CONNREFUSED:
 					errno = ECONNREFUSED;
 					return 0;
-					
+
 				case SOCKS_TTLEXPIRED:
 					errno = ETIMEDOUT;
 					return 0;
-						 
+
 				case SOCKS_CMD_UNSUPP:
 					swarnx("%s: command not supported by proxyserver", function);
 					errno = ECONNREFUSED;
-					return 0;
-						 
+					break;
+
 				case SOCKS_ADDR_UNSUPP:
 					swarnx("%s: address type not supported by proxyserver",
 					function);
 					errno = ECONNREFUSED;
-					return 0;
-					
+					break;
+
 				default:
 					swarnx("%s: unknown v%d reply from proxyserver: %d",
 					function, version, reply);
 					errno = ECONNREFUSED;
-					return 0;
+					break;
 			}
+			break;
 
 		case MSPROXY_V2:
 			switch (reply) {
 				case MSPROXY_SUCCESS:
 					return 1;
 
-				case MSPROXY_FAILURE: 
-				case MSPROXY_CONNREFUSED: 
+				case MSPROXY_FAILURE:
+				case MSPROXY_CONNREFUSED:
 					errno = ECONNREFUSED;
 					return 0;
-				
+
 				case MSPROXY_NOTALLOWED:
 					swarnx("%s: connection denied by proxyserver: authenticated?",
 					function);
@@ -210,5 +204,8 @@ serverreplyisok(version, reply)
 			SERRX(version);
 	}
 
-	/* NOTREACHED */
+	if (route != NULL)
+		socks_badroute(route);
+
+	return 0;
 }

@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: authneg.c,v 1.38 1999/03/11 16:59:31 karls Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: authneg.c,v 1.42 1999/05/13 13:12:59 karls Exp $";
 
 int
 negotiate_method(s, packet)
@@ -64,13 +64,13 @@ negotiate_method(s, packet)
 	SASSERTX(packet->gw.state.methodc > 0);
 
 	/* create request packet. */
-	request[AUTH_VERSION] 	= packet->req.version;
+	request[AUTH_VERSION]	= packet->req.version;
 	request[AUTH_NMETHODS]	= packet->gw.state.methodc;
 	memcpy(&request[AUTH_METHODS], packet->gw.state.methodv,
 	(size_t)packet->gw.state.methodc);
 
 	/* send list over methods we support */
-	if (writen(s, request, requestlen) != requestlen)
+	if (writen(s, request, requestlen) != (ssize_t)requestlen)
 		return -1;
 
 	/* read servers response for method to use */
@@ -86,7 +86,7 @@ negotiate_method(s, packet)
 	packet->version = request[AUTH_VERSION];
 
 	switch (packet->auth.method = response[AUTH_METHOD]) {
-		case AUTHMETHOD_NONE: 
+		case AUTHMETHOD_NONE:
 			rc = 0;
 			break;
 
@@ -98,14 +98,14 @@ negotiate_method(s, packet)
 				rc = -1;
 			break;
 
-		case AUTHMETHOD_NOACCEPT: 
+		case AUTHMETHOD_NOACCEPT:
 			swarnx("%s: server accepted no authentication method",
 			function);
 			rc = -1;
 			break;
 
 		default:
-			swarnx("%s: server selected wrong method: %d", 
+			swarnx("%s: server selected wrong method: %d",
 			function, response[AUTH_METHOD]);
 			rc = -1;
 	}

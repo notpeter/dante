@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: Rcompat.c,v 1.6 1999/03/11 16:59:31 karls Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: Rcompat.c,v 1.12 1999/05/14 13:58:19 michaels Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -82,13 +82,12 @@ Rwritev(d, iov, iovcnt)
 	const struct iovec *iov;
 	int iovcnt;
 {
+	static const struct msghdr msginit;
 	struct msghdr msg;
 
-	bzero(&msg, sizeof(msg));
-	msg.msg_name 		= NULL;
-	msg.msg_namelen 	= 0;
-	/* LINTED cast discards 'const' from pointer target type */
-	msg.msg_iov			= (struct iovec *)iov;
+	msg = msginit;
+	/* LINTED operands have incompatible pointer types */
+	msg.msg_iov			= (const struct iovec *)iov;
 	msg.msg_iovlen		= iovcnt;
 
 	return Rsendmsg(d, &msg, 0);
@@ -101,17 +100,15 @@ Rsend(s, msg, len, flags)
 	size_t len;
 	int flags;
 {
+	static const struct msghdr msghdrinit;
 	struct msghdr msghdr;
 	struct iovec iov;
 
-	/* LINTED cast discards 'const' from pointer target type */
-	iov.iov_base		= (void *)msg;
+	/* LINTED operands have incompatible pointer types */
+	iov.iov_base		= (const void *)msg;
 	iov.iov_len			= len;
 
-	bzero(&msg, sizeof(msg));
-	msghdr.msg_name 		= NULL;
-	msghdr.msg_namelen 	= 0;
-	/* LINTED cast discards 'const' from pointer target type */
+	msghdr = msghdrinit;
 	msghdr.msg_iov			= &iov;
 	msghdr.msg_iovlen		= 1;
 
@@ -124,10 +121,10 @@ Rsendmsg(s, msg, flags)
 	const struct msghdr *msg;
 	int flags;
 {
-	size_t sent;
-	ssize_t ioc, rc;
+	size_t sent, ioc;
+	ssize_t rc;
 	struct sockaddr name;
-	int namelen;
+	socklen_t namelen;
 
 	namelen = sizeof(name);
 	if (getsockname(s, &name, &namelen) == -1) {
@@ -148,7 +145,7 @@ Rsendmsg(s, msg, flags)
 			return sendmsg(s, msg, flags);
 	}
 
-	for (sent = 0, ioc = 0, rc = 0; ioc < msg->msg_iovlen; ++ioc) {
+	for (sent = ioc = rc = 0; ioc < msg->msg_iovlen; ++ioc) {
 		/* LINTED pointer casts may be troublesome */
 		if ((rc = Rsendto(s, msg->msg_iov[ioc].iov_base,
 		msg->msg_iov[ioc].iov_len, flags, (struct sockaddr *)msg->msg_name,
@@ -157,7 +154,7 @@ Rsendmsg(s, msg, flags)
 
 		sent += rc;
 
-		if (rc != msg->msg_iov[ioc].iov_len)
+		if (rc != (ssize_t)msg->msg_iov[ioc].iov_len)
 			break;
 	}
 
@@ -181,14 +178,13 @@ Rreadv(d, iov, iovcnt)
 	const struct iovec *iov;
 	int iovcnt;
 {
+	static const struct msghdr msghdrinit;
 	struct msghdr msg;
 
-	bzero(&msg, sizeof(msg));
-	msg.msg_name 		= NULL;
-	msg.msg_namelen 	= 0;
-	/* LINTED cast discards 'const' from pointer target type */
-	msg.msg_iov			= (struct iovec *)iov;
-	msg.msg_iovlen		= iovcnt;
+	msg = msghdrinit;
+	/* LINTED operands have incompatible pointer types */
+	msg.msg_iov		= (const struct iovec *)iov;
+	msg.msg_iovlen	= iovcnt;
 
 	return Rrecvmsg(d, &msg, 0);
 }
@@ -200,6 +196,7 @@ Rrecv(s, msg, len, flags)
 	size_t len;
 	int flags;
 {
+	static const struct msghdr msghdrinit;
 	struct msghdr msghdr;
 	struct iovec iov;
 
@@ -207,10 +204,7 @@ Rrecv(s, msg, len, flags)
 	iov.iov_base		= (void *)msg;
 	iov.iov_len			= len;
 
-	bzero(&msghdr, sizeof(msghdr));
-	msghdr.msg_name 		= NULL;
-	msghdr.msg_namelen 	= 0;
-	/* LINTED warning: cast discards 'const' from pointer target type */
+	msghdr = msghdrinit;
 	msghdr.msg_iov			= &iov;
 	msghdr.msg_iovlen		= 1;
 
@@ -223,10 +217,10 @@ Rrecvmsg(s, msg, flags)
 	struct msghdr *msg;
 	int flags;
 {
-	size_t received;
-	ssize_t ioc, rc;
+	size_t received, ioc;
+	ssize_t rc;
 	struct sockaddr name;
-	int namelen;
+	socklen_t namelen;
 
 	namelen = sizeof(name);
 	if (getsockname(s, &name, &namelen) == -1) {
@@ -247,7 +241,7 @@ Rrecvmsg(s, msg, flags)
 			return recvmsg(s, msg, flags);
 	}
 
-	for (received = 0, ioc = 0, rc = 0; ioc < msg->msg_iovlen; ++ioc) {
+	for (received = ioc = rc = 0; ioc < msg->msg_iovlen; ++ioc) {
 		/* LINTED pointer casts may be troublesome */
 		if ((rc = Rrecvfrom(s, msg->msg_iov[ioc].iov_base,
 		msg->msg_iov[ioc].iov_len, flags, (struct sockaddr *)msg->msg_name,
@@ -256,7 +250,7 @@ Rrecvmsg(s, msg, flags)
 
 		received += rc;
 
-		if (rc != msg->msg_iov[ioc].iov_len)
+		if (rc != (ssize_t)msg->msg_iov[ioc].iov_len)
 			break;
 	}
 

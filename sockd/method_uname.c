@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: method_uname.c,v 1.18 1998/11/13 21:18:38 michaels Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: method_uname.c,v 1.25 1999/05/13 13:13:04 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -75,7 +75,7 @@ method_uname(s, request, state)
 	int s;
 	struct request_t *request;
 	struct negotiate_state_t *state;
-	
+
 {
 
 	state->rcurrent = recv_unamever;
@@ -89,11 +89,11 @@ recv_unamever(s, request, state)
 	struct negotiate_state_t *state;
 {
 
-	INIT(sizeof(request->auth->mdata.uname.version)); 
+	INIT(sizeof(request->auth->mdata.uname.version));
 	CHECK(&request->auth->mdata.uname.version, NULL);
 
 	switch (request->auth->mdata.uname.version) {
-		case SOCKS_V5:
+		case SOCKS_UNAMEVERSION:
 			break;
 
 		default:
@@ -101,7 +101,7 @@ recv_unamever(s, request, state)
 			request->auth->mdata.uname.version);
 			return -1;
 	}
-	
+
 	state->rcurrent = recv_ulen;
 	return state->rcurrent(s, request, state);
 }
@@ -114,7 +114,7 @@ recv_ulen(s, request, state)
 	struct negotiate_state_t *state;
 {
 
-	INIT(sizeof(*request->auth->mdata.uname.name)); 
+	INIT(sizeof(*request->auth->mdata.uname.name));
 	CHECK(request->auth->mdata.uname.name, NULL);
 
 	OCTETIFY(*request->auth->mdata.uname.name);
@@ -153,7 +153,7 @@ recv_plen(s, request, state)
 	struct negotiate_state_t *state;
 {
 
-	INIT(sizeof(*request->auth->mdata.uname.password)); 
+	INIT(sizeof(*request->auth->mdata.uname.password));
 	CHECK(request->auth->mdata.uname.password, NULL);
 
 	OCTETIFY(*request->auth->mdata.uname.password);
@@ -170,13 +170,13 @@ recv_passwd(s, request, state)
 	struct request_t *request;
 	struct negotiate_state_t *state;
 {
+/*	const char *function = "recv_passwd()"; */
 	const size_t plen = (size_t)*request->auth->mdata.uname.password;
 	uid_t euid;
 	struct passwd *passwd;
 	char status;
-	char response[
-		  sizeof(char)				/* version. */
-		+ sizeof(char)				/* status.	*/
+	char response[sizeof(char)				/* version. */
+					+ sizeof(char)				/* status.	*/
 	];
 	char *salt, *password;
 
@@ -188,11 +188,9 @@ recv_passwd(s, request, state)
 	request->auth->mdata.uname.password + 1, plen);
 	request->auth->mdata.uname.password[plen] = NUL;
 
-	if ((euid = geteuid()) != config.uid.privileged)
-		seteuid(config.uid.privileged);
-
-	if ((passwd = getpwnam(request->auth->mdata.uname.name)) == NULL) {	
-		/* XXX waste cycles correctly. */
+	socks_seteuid(&euid, config.uid.privileged);
+	if ((passwd = getpwnam(request->auth->mdata.uname.name)) == NULL) {
+		/* XXX waste cycles correctly? */
 		salt = "*";
 		password = "*";
 	}
@@ -200,9 +198,7 @@ recv_passwd(s, request, state)
 		salt = passwd->pw_passwd;
 		password = passwd->pw_passwd;
 	}
-
-	if (euid != geteuid())
-		seteuid(euid);
+	socks_reseteuid(euid);
 
 	if (strcmp(crypt(request->auth->mdata.uname.password, salt), password) == 0)
 		status = 0;
@@ -212,7 +208,7 @@ recv_passwd(s, request, state)
 		if (passwd == NULL)
 			slog(LOG_INFO, "denied non-existing user access: %s",
 			request->auth->mdata.uname.name);
-		else 
+		else
 			slog(LOG_INFO, "password authentication failed for user: %s",
 			request->auth->mdata.uname.name);
 	}
@@ -232,5 +228,5 @@ recv_passwd(s, request, state)
 	}
 
 	errno = 0;
-	return -1;	
+	return -1;
 }

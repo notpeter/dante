@@ -1,8 +1,8 @@
-
+ 
    Dante was developed for Inferno Nettverk A/S, Norway by:
-   Michael Shuldman <michaels@inet.no>: Design and implementation.
-   Karl-André Skevik <karls@inet.no>: Autoconf and porting.
-
+      - Michael Shuldman <michaels@inet.no>: Design and implementation.
+      - Karl-André Skevik <karls@inet.no>: Autoconf and porting.
+ 
 
    In order of contribution, at least the following should be credited:
 
@@ -10,6 +10,8 @@
   protocol and implementation.
 
 - Ying-Da Lee (yingda@esd.sgi.com) maintained the socks4 package.
+  Also thanks to him for letting us include the file describing the
+  v4 protocol, "SOCKS4.protocol".
 
 - The people at NEC (http://www.socks.nec.com) have done much for Socks,
   including extension of the orignal protocol.  The idea for "socksify"
@@ -30,9 +32,16 @@
 - Andrew Pimlott's (pimlott@math.harvard.edu) work on analysing
   the msproxy protocol was helpful and served to complement and
   speed up the process of adding msproxy support to Dante.
-  Andrew Pimlott also has his own msproxy implementation but as he
+  Andrew Pimlott also has his own msproxy implementation, but as he
   is busy requests that people only contact him if they are desperate
   and Dante does not work for them.
 
 - Thanks to Oren Tiorsh (oren@hishome.net) who contributed the rpm spec
   files.
+
+- Thanks to Lars Brede Grøndahl from INN (inn.no) for the logo.
+
+- Thanks to Jay Weber (jweb@accessus.net) for help with the
+  digital unix port and an account to test it on.
+
+- Also thanks to everyone who reported bugs and other problems.

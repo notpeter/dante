@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: socket.c,v 1.16 1999/03/11 16:59:33 karls Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: socket.c,v 1.20 1999/05/13 13:13:03 karls Exp $";
 
 int
 socks_connect(s, host)
@@ -58,17 +58,17 @@ socks_connect(s, host)
 
 	bzero(&address, sizeof(address));
 	address.sin_family	= AF_INET;
-	address.sin_port 		= host->port;
+	address.sin_port		= host->port;
 
 	switch (host->atype) {
-		case SOCKS_ADDR_IPV4: 
+		case SOCKS_ADDR_IPV4:
 			address.sin_addr = host->addr.ipv4;
 
 			/* LINTED pointer casts may be troublesome */
 			return connect(s, (struct sockaddr *)&address, sizeof(address));
-			
+
 		case SOCKS_ADDR_DOMAIN:
-			hostent = gethostbyname((char *)host->addr.domain);
+			hostent = gethostbyname((const char *)host->addr.domain);
 			break;
 
 		default:

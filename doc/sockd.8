@@ -14,7 +14,7 @@
 .Oc
 .Sh DESCRIPTION
 .Nm Dante
-implements the Socks standard and functions as a firewall between networks. 
+implements the Socks standard and functions as a firewall between networks.
 .Pp
 It relays TCP and UDP both from outside the network and in, and from inside
 and out.
@@ -31,7 +31,7 @@ Displays the license
 comes under.
 .It Fl N Ar number
 .Nm Dante
-will fork of 
+will fork of
 .Ar number
 copies of itself when starting.  Can be used for very busy servers.
 .It Fl d
@@ -43,21 +43,21 @@ will read its configuration from
 .It Fl h
 Shows the currently valid options.
 .It Fl l
-The log output from 
+The log output from
 .Nm Dante
 will be linebuffered.
 .It Fl n
-Disables TCP keep-alive messages.  Normally 
+Disables TCP keep-alive messages.  Normally
 .Nm Dante
 enables TCP keep-alive messages so that connections from machines that
 have crashed or for other reasons no longer can be reached time out.
 .It Fl v
-Displays versioninfo for 
+Displays versioninfo for
 .Nm Dante.
 .Sh ENVIRONMENT
 .TP
 \fBTMPDIR\fP
-Use TMPDIR for temporary files.  Since 
+Use TMPDIR for temporary files.  Since
 .Nm Dante
 uses lockfiles it is recommended that \fBTMPDIR\fP be set to a local
 filesystem with low latency.

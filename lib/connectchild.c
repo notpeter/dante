@@ -18,34 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: connectchild.c,v 1.66 1999/03/11 16:59:33 karls Exp $";
-
 #include "common.h"
 
+static const char rcsid[] =
+"$Id: connectchild.c,v 1.84 1999/05/13 14:09:19 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -126,7 +125,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	}
 
 	if (config.connectchild == 0) {
-		/* 
+		/*
 		 * Create child process that will do our connections.
 		*/
 		int pipev[2];
@@ -143,7 +142,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 			case 0: {
 				struct itimerval timerval;
-				int i, max;
+				size_t i, max;
 
 				slog(LOG_DEBUG, "%s: connectchild forked", function);
 
@@ -151,19 +150,20 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 				/* close unknown descriptors. */
 				for (i = 0, max = getdtablesize(); i < max; ++i)
-					if (socks_logmatch(i, &config.log)) 
+					if (socks_logmatch(i, &config.log))
 						continue;
 					else if (i == pipev[1])
 						continue;
 					else
-						close(i);
+						close((int)i);
+				initlog();
 
-				/* if using msproxy stuff, don't want mothers mess. */
+				/* in case of using msproxy stuff, don't want mothers mess. */
 				if (signal(SIGALRM, SIG_DFL) == SIG_ERR)
 					swarn("%s: signal()", function);
-				
-				timerval.it_value.tv_sec 	= 0;
-				timerval.it_value.tv_usec 	= 0;
+
+				timerval.it_value.tv_sec	= 0;
+				timerval.it_value.tv_usec	= 0;
 				timerval.it_interval = timerval.it_value;
 
 				if (setitimer(ITIMER_REAL, &timerval, NULL) != 0)
@@ -186,7 +186,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			 * Controlsocket is what later becomes datasocket.
 			 * We don't want to allow the client to read/write/select etc.
 			 * on the socket yet since we need to read/write on it
-			 * ourselves to setup the connection to the socksserver. 
+			 * ourselves to setup the connection to the socksserver.
 			 * We therefore create a new unconnected socket and assign
 			 * it the same descriptor number as the number the client uses.
 			 * When the connection has been set up we duplicate over the
@@ -198,7 +198,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			SASSERTX(control == s);
 			if ((control = socketoptdup(s)) == -1)
 				return NULL;
-			
+
 			if ((tmp = dup(s)) == -1) {
 				close(control);
 				return NULL;
@@ -211,9 +211,10 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			close(control);
 
 			control = tmp;
+
 			/*
 			 * s: new (temp) socket using original index of "s".
-			 * control: original "s" socket but using new descriptor index. 
+			 * control: original "s" socket but using new descriptor index.
 			*/
 
 			break;
@@ -221,7 +222,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 		case MSPROXY_V2:
 			/*
-			 * Controlsocket is separate from datasocket.  
+			 * Controlsocket is separate from datasocket.
 			 * Identical to our fixed sockssetup.
 			*/
 			break;
@@ -229,7 +230,6 @@ socks_nbconnectroute(s, control, packet, src, dst)
 		default:
 			SERRX(packet->req.version);
 	}
-
 
 	bzero(&socksfd, sizeof(socksfd));
 	socksfd.route = socks_connectroute(control, packet, src, dst);
@@ -244,17 +244,46 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	/* LINTED pointer casts may be troublesome */
 	if (getsockname(s, (struct sockaddr *)&local, &len) != 0)
 		return NULL;
-	
+
 	if (!ADDRISBOUND(local)) {
 		bzero(&local, sizeof(local));
 
 		/* bind same ip as control, any fixed address would do though. */
+
 		len = sizeof(local);
 		/* LINTED pointer casts may be troublesome */
-		if (getsockname(control, (struct sockaddr *)&local, &len) != 0)
+		if (getsockname(control, (struct sockaddr *)&local, &len) != 0) {
+			int new_control;
+
+			socks_badroute(socksfd.route);
+
+			if ((new_control = socketoptdup(control)) == -1)
+				return NULL;
+
+			switch (packet->req.version) {
+				case SOCKS_V4:
+				case SOCKS_V5:
+					close(control); /* created here. */
+					control = s;
+					break;
+
+				case MSPROXY_V2:
+					break;
+
+				default:
+					SERRX(packet->req.version);
+			}
+
+			if (dup2(new_control, control) != -1) {
+				close(new_control);
+				/* try again, hopefully there's a backup route. */
+				return socks_nbconnectroute(s, control, packet, src, dst);
+			}
 			return NULL;
+		}
+
 		SASSERTX(ADDRISBOUND(local));
-		local.sin_port 			= htons(0);
+		local.sin_port				= htons(0);
 
 		len = sizeof(local);
 		/* LINTED pointer casts may be troublesome */
@@ -264,10 +293,10 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 	len = sizeof(socksfd.local);
 	if (getsockname(s, &socksfd.local, &len) != 0)
-		swarn("%s: getsockname()", function);
-	socksfd.control 				= control;
-	socksfd.state.command 		= SOCKS_CONNECT;
-	socksfd.state.version 		= packet->req.version;
+		SERR(s);
+	socksfd.control				= control;
+	socksfd.state.command		= SOCKS_CONNECT;
+	socksfd.state.version		= packet->req.version;
 	socksfd.state.inprogress	= 1;
 	sockshost2sockaddr(&packet->req.host, &socksfd.connected);
 
@@ -290,18 +319,18 @@ socks_nbconnectroute(s, control, packet, src, dst)
 		case MSPROXY_V2:
 			CMSG_ADDOBJECT(s, sizeof(s) * fdsent++);
 			break;
-		
+
 		default:
 			SERRX(packet->req.version);
 	}
 
-	childreq.src 		= *src;
-	childreq.dst 		= *dst;
+	childreq.src		= *src;
+	childreq.dst		= *dst;
 	childreq.packet	= *packet;
 
-	iov[0].iov_base 	= &childreq;
+	iov[0].iov_base	= &childreq;
 	iov[0].iov_len		= sizeof(childreq);
-	len 					= sizeof(childreq);
+	len					= sizeof(childreq);
 
 	msg.msg_iov				= iov;
 	msg.msg_iovlen			= ELEMENTS(iov);
@@ -311,7 +340,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
 
 	slog(LOG_DEBUG, "sending request to connectchild");
-	if ((p = sendmsg(config.connect_s, &msg, 0)) != len) {
+	if ((p = sendmsg(config.connect_s, &msg, 0)) != (ssize_t)len) {
 		swarn("%s: sendmsg(): %d of %d", function, p, len);
 		return NULL;
 	}
@@ -321,7 +350,10 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	return socksfd.route;
 }
 
-
+/*
+ * XXX should have more code so we could handle multiple requests at
+ * a time.
+*/
 static void
 run_connectchild(mother)
 	int mother;
@@ -337,8 +369,8 @@ run_connectchild(mother)
 #endif
 
 	sigemptyset(&sig.sa_mask);
-	sig.sa_flags 	= 0;
-	sig.sa_handler = SIG_DFL;  
+	sig.sa_flags	= 0;
+	sig.sa_handler	= SIG_DFL;
 
 	if (sigaction(SIGCONT, &sig, NULL) != 0)
 		serr(EXIT_FAILURE, "%s: sigaction(SIGCONT)", function);
@@ -361,14 +393,14 @@ run_connectchild(mother)
 
 		if (FD_ISSET(mother, &rset)) {
 			/*
-			 * Mother sending us a connected (or in the process of being 
-			 * connected) socket and necessary info to negotiate with 
+			 * Mother sending us a connected (or in the process of being
+			 * connected) socket and necessary info to negotiate with
 			 * proxyserver.
 			*/
 
 			struct childpacket_t req;
 			struct iovec iov[1];
-			size_t len;
+			socklen_t len;
 			int s, control;
 			struct sockaddr local, remote;
 			struct msghdr msg;
@@ -385,15 +417,15 @@ run_connectchild(mother)
 
 			CMSG_SETHDR_RECV(sizeof(cmsgmem));
 
-			if ((p = recvmsgn(mother, &msg, 0, len)) != len) {
+			if ((p = recvmsgn(mother, &msg, 0, len)) != (ssize_t)len) {
 				switch (p) {
 					case -1:
 						serr(EXIT_FAILURE, "%s: recvmsgn()", function);
 						/* NOTREACHED */
-				
+
 					case 0:
 						serrx(LOG_DEBUG, "%s: recvmsgn(): mother closed", function);
-						_exit(EXIT_SUCCESS);	
+						_exit(EXIT_SUCCESS);
 						/* NOTREACHED */
 
 					default:
@@ -405,10 +437,10 @@ run_connectchild(mother)
 
 			/* how many descriptors are we supposed to receive? */
 			switch (req.packet.req.version) {
-				case MSPROXY_V2: 
+				case MSPROXY_V2:
 					len = 2;	/* control + socket for dataflow. */
 					break;
-				
+
 				case SOCKS_V4:
 				case SOCKS_V5:
 					len = 1; /* only controlsocket (which is also datasocket). */
@@ -419,7 +451,7 @@ run_connectchild(mother)
 			}
 
 
-#ifndef HAVE_DEFECT_RECVMSG
+#if !HAVE_DEFECT_RECVMSG
 			SASSERTX(CMSG_GETLEN(msg) == sizeof(int) * len);
 #endif
 
@@ -427,7 +459,7 @@ run_connectchild(mother)
 			CMSG_GETOBJECT(control, sizeof(control) * len++);
 
 			switch (req.packet.req.version) {
-				case MSPROXY_V2: 
+				case MSPROXY_V2:
 					CMSG_GETOBJECT(s, sizeof(s) * len++);
 					break;
 
@@ -440,8 +472,7 @@ run_connectchild(mother)
 					SERRX(req.packet.req.version);
 			}
 
-#ifdef DEBUG
-
+#if DIAGNOSTIC
 			len = sizeof(local);
 			if (getsockname(s, &local, &len) != 0)
 				SERR(-1);
@@ -449,17 +480,17 @@ run_connectchild(mother)
 			function, sockaddr2string(&local, NULL, 0));
 
 			len = sizeof(local);
-			if (getsockname(control, &local, &len) != 0)
-				SERR(-1);
-			slog(LOG_DEBUG, "%s: control local: %s",
-			function, sockaddr2string(&local, NULL, 0));
+			if (getsockname(control, &local, &len) == 0)
+				slog(LOG_DEBUG, "%s: control local: %s",
+				function, sockaddr2string(&local, NULL, 0));
+			else
+				swarn("%s: getsockname(%d)", function, control);
 
 			len = sizeof(local);
 			if (getpeername(control, &local, &len) == 0)
 				slog(LOG_DEBUG, "%s: control remote: %s",
 				function, sockaddr2string(&local, NULL, 0));
-
-#endif /* DEBUG */
+#endif /* DIAGNOSTIC */
 
 			if (1) { /* XXX */
 				int flags;
@@ -474,7 +505,41 @@ run_connectchild(mother)
 			SOCKS_FAILURE);
 			req.packet.res.version = req.packet.req.version;
 
-			p = socks_negotiate(s, control, &req.packet);
+			if (1) { /* XXX wait for the connection to complete. */
+				fd_set wset;
+
+				FD_ZERO(&wset);
+				FD_SET(control, &wset);
+
+				slog(LOG_DEBUG, "%s: waiting for connectresponse...", function);
+				switch (select(control + 1, NULL, &wset, NULL, NULL)) {
+					case -1:
+						SERR(-1);
+						/* NOTREACHED */
+
+					case 0:
+						SERRX(0);
+						/* NOTREACHED */
+				}
+			}
+
+#if !HAVE_SOLARIS_BUGS
+			len = sizeof(errno);
+			if (getsockopt(control, SOL_SOCKET, SO_ERROR, &errno, &len)
+			!= 0)
+				SERR(-1);
+#else /* !HAVE_SOLARIS_2_5_1 */ /* even read() doesn't work right on 2.5.1. */
+			errno = 0;
+			recvfrom(control, NULL, 0, 0, NULL, NULL); /* just get errno. */
+#endif /* !HAVE_SO_ERROR */
+
+			if (errno != 0) {
+				swarn("%s: connect failed", function);
+				req.packet.state.err = errno;
+			}
+			else
+				/* connected ok. */
+				p = socks_negotiate(s, control, &req.packet, NULL);
 
 			if (1) { /* XXX */
 				int flags;
@@ -483,15 +548,28 @@ run_connectchild(mother)
 				||  fcntl(s, F_SETFL, flags & ~NONBLOCKING) == -1)
 					swarn("%s: fcntl(s)");
 			}
-			
 
 			len = sizeof(local);
-			if (getsockname(control, &local, &len) != 0)
-				SERR(-1);
+			if (getsockname(control, &local, &len) != 0) {
+				if (req.packet.state.err == 0) /* not warned. */
+					swarn("%s: getsockname(control)", function);
+
+				/*
+				 * this is pretty bad, but it could happen unfortunately.
+				*/
+				bzero(&local, sizeof(local));
+				local.sa_family = AF_INET;
+				/* LINTED pointer casts may be troublesome */
+				((struct sockaddr_in *)&local)->sin_addr.s_addr
+				= htonl(INADDR_ANY);
+				/* LINTED pointer casts may be troublesome */
+				((struct sockaddr_in *)&local)->sin_port = htons(0);
+			}
 
 			len = sizeof(remote);
 			if (getpeername(control, &remote, &len) != 0) {
-				swarn("%s: getpeername()", function);
+				if (req.packet.state.err != 0) /* not warned. */
+					swarn("%s: getpeername(control)", function);
 
 				bzero(&remote, sizeof(remote));
 				remote.sa_family = AF_INET;
@@ -539,7 +617,7 @@ sigchld(sig)
 				oldsig.sa_handler(sig);
 			}
 			break;
-		
+
 		default: {
 			struct childpacket_t childres;
 			struct sockaddr localmem, *local = &localmem;
@@ -568,14 +646,14 @@ sigchld(sig)
 
 			SASSERTX(WIFSTOPPED(status));
 
-			kill(config.connectchild, SIGCONT); 
+			kill(config.connectchild, SIGCONT);
 
 			if ((p = read(config.connect_s, &childres, sizeof(childres)))
 			!= sizeof(childres)) {
 				swarn("%s: read(): got %d of %d", function, p, sizeof(childres));
 				return;
 			}
-			
+
 			/*
 			 * If address is not bound, something must have gone wrong, didn't
 			 * even manage a connect.
@@ -584,28 +662,19 @@ sigchld(sig)
 			sockshost2sockaddr(&childres.src, local);
 			sockshost2sockaddr(&childres.dst, remote);
 
-			if (!ADDRISBOUND(local))
-				local = NULL;
 			slog(LOG_DEBUG, "%s: local = %s",
-			function, 
-			local == NULL ? "<NULL>" : sockaddr2string(local, NULL, 0));
+			function, sockaddr2string(local, NULL, 0));
 
-			if (!ADDRISBOUND(remote))
-				remote = NULL;
 			slog(LOG_DEBUG, "%s: remote = %s",
-			function,
-			remote == NULL ? "<NULL>" : sockaddr2string(remote, NULL, 0));
+			function, sockaddr2string(remote, NULL, 0));
 
 			if ((s = socks_addrcontrol(local, remote)) == -1) {
 				char lstring[MAXSOCKADDRSTRING];
 				char rstring[MAXSOCKADDRSTRING];
 
 				swarnx("%s: hmm, can't find controlsocket for %s <-> %s",
-				function,
-				local == NULL ?
-				"<unbound>" : sockaddr2string(local, lstring, sizeof(lstring)),
-				remote == NULL ?
-				"<unbound>" : sockaddr2string(remote, rstring, sizeof(rstring)));
+				function, sockaddr2string(local, lstring, sizeof(lstring)),
+				sockaddr2string(remote, rstring, sizeof(rstring)));
 
 				return;
 			}
@@ -614,7 +683,7 @@ sigchld(sig)
 			SASSERTX(socksfd != NULL);
 
 			switch (socksfd->state.version) {
-				case MSPROXY_V2: 
+				case MSPROXY_V2:
 					break; /* nothing to do, control separate from data. */
 
 				case SOCKS_V4:
@@ -653,17 +722,24 @@ sigchld(sig)
 
 			/* child that was supposed to setup relaying finished.  status? */
 			if (!serverreplyisok(childres.packet.res.version,
-			childres.packet.res.reply)) {
+			childres.packet.res.reply, socksfd->route)) {
 				socksfd->state.err = errno;
+				/*
+				 * If it's a servererror, would be nice to retry, could
+				 * be there's a backup route.
+				*/
 				return;
 			}
-		
+
 			slog(LOG_DEBUG, "serverreplyisok, server will use as src: %s",
 			sockshost2string(&childres.packet.res.host, NULL, 0));
 
 			socksfd->state.msproxy		= childres.packet.state.msproxy;
-			socksfd->state.inprogress 	= 0;
+			socksfd->state.inprogress	= 0;
 			sockshost2sockaddr(&childres.packet.res.host, &socksfd->remote);
+
+			/* needed for standard socks bind. */
+			config.state.lastconnect = socksfd->connected;
 		}
 	}
 

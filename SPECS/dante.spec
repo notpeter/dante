@@ -1,6 +1,6 @@
 Summary: A free Socks v4/v5 client implementation 
 Name: dante
-%define version 0.92.0-pre3
+%define version 1.0.0-pre1
 %define prefix /usr
 Version: %{version}
 Release: 1
@@ -33,6 +33,7 @@ allows socks clients to connect through it to the network.
 %package devel
 Summary: development libraries for socks
 Group: Development/Libraries
+Requires: dante
 
 %description devel
 Additional libraries required to compile programs that use socks.
@@ -68,7 +69,7 @@ case "\$1" in
   start)
 	# Start daemons.
 	echo -n "Starting sockd: "
-	daemon %{prefix}/sbin/sockd
+	daemon %{prefix}/sbin/sockd -D
 	echo
 	touch /var/lock/subsys/sockd
 	;;

@@ -18,44 +18,45 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: Rconnect.c,v 1.90 1999/03/11 16:59:31 karls Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: Rconnect.c,v 1.98 1999/05/14 14:44:33 michaels Exp $";
 
 int
 Rconnect(s, name, namelen)
 	int s;
-#ifdef HAVE_FAULTY_CONNECTPROTO
+#if HAVE_FAULTY_CONNECTPROTO
 	struct sockaddr *name;
 #else
 	const struct sockaddr *name;
 #endif  /* HAVE_FAULTY_CONNECTPROTO */
 	socklen_t namelen;
 {
+	const char *function = "Rconnect()";
 	struct sockshost_t src, dst;
 	struct socksfd_t socksfd;
 	struct socks_t packet;
@@ -73,16 +74,16 @@ Rconnect(s, name, namelen)
 		switch (socksfdp->state.command) {
 			case SOCKS_BIND:
 				/*
-				 * Our guess; the client has succeeded to bind to a specific
+				 * Our guess; the client has succeeded to bind a specific
 				 * address and is now trying to connect out from it.
-				 * That also indicates the socksserver is listening on a port 
+				 * That also indicates the socksserver is listening on a port
 				 * for this client.  Can't accept() on a connected socket so
 				 * lets close the connection to the server so it can stop
 				 * listening on our behalf and we continue as if this was an
 				 * ordinary connect().  Can only hope the server will use
 				 * same port as we for connecting out.
 				*/
-				socks_rmaddr((unsigned int)s);  
+				socks_rmaddr((unsigned int)s);
 				break;
 
 			case SOCKS_CONNECT:
@@ -95,13 +96,13 @@ Rconnect(s, name, namelen)
 					errno = EISCONN;	/* can't connect tcpsocket twice */
 
 				return -1;
-			
+
 			case SOCKS_UDPASSOCIATE:
-				/* 
-				 * Trying to connect a udp socket again?  ok, delete old
+				/*
+				 * Trying to connect a udp socket again?  delete old
 				 * socksfd and continue as usual.
 				*/
-				socks_rmaddr((unsigned int)s);  
+				socks_rmaddr((unsigned int)s);
 				break;
 
 			default:
@@ -129,9 +130,9 @@ Rconnect(s, name, namelen)
 					socks_rmaddr((unsigned int)s);
 					return -1;
 				}
-					
+
 				socksfdp->state.udpconnect		= 1;
-				socksfdp->connected 				= *name;
+				socksfdp->connected				= *name;
 
 				return 0;
 			}
@@ -157,16 +158,16 @@ Rconnect(s, name, namelen)
 	src.port			= ((const struct sockaddr_in *)&socksfd.local)->sin_port;
 
 	/* LINTED pointer casts may be troublesome */
-	if (socks_getfakehost(((const struct sockaddr_in *)name)->sin_addr.s_addr) 
+	if (socks_getfakehost(((const struct sockaddr_in *)name)->sin_addr.s_addr)
 	!= NULL) {
 		const char *ipname
 		/* LINTED pointer casts may be troublesome */
 		= socks_getfakehost(((const struct sockaddr_in *)name)->sin_addr.s_addr);
 
 		SASSERTX(ipname != NULL);
-		SASSERTX(strlen(ipname) < sizeof(dst.addr.domain));
 
 		dst.atype = SOCKS_ADDR_DOMAIN;
+		SASSERTX(strlen(ipname) < sizeof(dst.addr.domain));
 		strcpy(dst.addr.domain, ipname);
 	}
 	else {
@@ -178,9 +179,9 @@ Rconnect(s, name, namelen)
 	dst.port	= ((const struct sockaddr_in *)name)->sin_port;
 
 	bzero(&packet, sizeof(packet));
-	packet.req.host 		= dst;
-	packet.req.version 	= SOCKS_V5;
-	packet.req.command 	= SOCKS_CONNECT;
+	packet.req.host		= dst;
+	packet.req.version	= SOCKS_V5;
+	packet.req.command	= SOCKS_CONNECT;
 
 	if (socks_requestpolish(&packet.req, &src, &dst) == NULL)
 		return connect(s, name, namelen);
@@ -188,15 +189,15 @@ Rconnect(s, name, namelen)
 	switch (packet.req.version) {
 		case SOCKS_V4:
 		case SOCKS_V5:
-			socksfd.control = s;	
+			socksfd.control = s;
 			break;
 
 		case MSPROXY_V2:
-			/* needs a separate controlchannel always. */
+			/* always needs a separate controlchannel. */
 			if ((socksfd.control = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
 				return -1;
 			break;
-			
+
 		default:
 			SERRX(packet.req.version);
 	}
@@ -204,49 +205,77 @@ Rconnect(s, name, namelen)
 	if ((p = fcntl(s, F_GETFL, 0)) == -1)
 		return -1;
 
-	if (p & NONBLOCKING) {
-		if ((socksfd.route = socks_nbconnectroute(s, socksfd.control, &packet,
-		&src, &dst)) == NULL) {
-			if (s != socksfd.control)
-				close(socksfd.control);
-			return errno == 0 ? connect(s, name, namelen) : -1;
-		}
-
-		return -1; /* got route, non-blocking connect in progress. */
-	}
+	if (p & NONBLOCKING)
+		socksfd.route
+		= socks_nbconnectroute(s, socksfd.control, &packet, &src, &dst);
 	else
-		/* LINTED pointer casts may be troublesome */
-		if ((socksfd.route
-		= socks_connectroute(socksfd.control, &packet, &src, &dst)) == NULL) {
-			if (s != socksfd.control)
-				close(socksfd.control);
+		socksfd.route = socks_connectroute(socksfd.control, &packet, &src, &dst);
 
-			return errno == 0 ? connect(s, name, namelen) : -1;
+	if (socksfd.route == NULL) {
+		if (s != socksfd.control)
+			close(socksfd.control);
+
+		switch (errno) {
+			case EADDRINUSE: {
+				/*
+				 * This problem can arise when we are socksifying
+				 * a serverapplication that does several outbound
+				 * connections from the same address (e.g. ftpd) to the
+				 * same socksserver.
+				 * It has by now successfully bound the address (it thinks)
+				 * and is not expecting this error.
+				 * Not sure what is best to do, just failing here prevents
+				 * ftpd from working for clients using the PORT command.
+				 *
+				 * For now, lets retry with a new socket.
+				 * This means the server no longer has bound the address
+				 * it (may) think it has ofcourse, so not sure how smart this
+				 * really is.
+				*/
+				int tmp_s;
+
+				swarn("%s: server socksified?  trying to work around problem...",
+				function);
+
+				if ((tmp_s = socketoptdup(s)) == -1)
+					break;
+				if (dup2(tmp_s, s) == -1)
+					break;
+				close(tmp_s);
+				/* XXX bind the same kind of port that was bound. */
+				return Rconnect(s, name, namelen);
+			}
 		}
 
-	if (socks_negotiate(s, socksfd.control, &packet) != 0)
+		return errno == 0 ? connect(s, name, namelen) : -1;
+	}
+
+	if (p & NONBLOCKING)
+		return -1; /* got route, nonblocking connect in progress. */
+
+	if (socks_negotiate(s, socksfd.control, &packet, socksfd.route) != 0)
 		return -1;
 
-	socksfd.state.auth 				= packet.auth;
-	socksfd.state.command 			= packet.req.command;
-	socksfd.state.version 			= packet.req.version;
+	socksfd.state.auth				= packet.auth;
+	socksfd.state.command			= packet.req.command;
+	socksfd.state.version			= packet.req.version;
 	socksfd.state.protocol.tcp		= 1;
 	socksfd.state.msproxy			= packet.state.msproxy;
 	sockshost2sockaddr(&packet.res.host, &socksfd.remote);
-	socksfd.connected 				= *name;
+	socksfd.connected					= *name;
 
 	/* LINTED pointer casts may be troublesome */
 	if (((struct sockaddr_in *)&socksfd.local)->sin_port != htons(0)
-	&&  ((struct sockaddr_in *)&socksfd.local)->sin_port != 
+	&&  ((struct sockaddr_in *)&socksfd.local)->sin_port !=
 		 ((struct sockaddr_in *)&socksfd.remote)->sin_port) {
 		/*
 		 * unfortunate; the client is trying to connect from a specific
 		 * port, a port it has successfully bound, but the port is currently
-		 * in use on the serverside.
+		 * in use on the serverside or the server doesn't care.
 		*/
 
 		/* LINTED pointer casts may be troublesome */
-		slog(LOG_DEBUG, "failed to get wanted port: %d", 
+		slog(LOG_DEBUG, "failed to get wanted port: %d",
 		ntohs(((struct sockaddr_in *)&socksfd.local)->sin_port));
 	}
 
@@ -265,7 +294,7 @@ Rconnect(s, name, namelen)
 	}
 
 	socks_addaddr((unsigned int)s, &socksfd);
-	
+
 	config.state.lastconnect = *name;	/* needed for standard socks bind. */
 
 	return 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -18,33 +18,33 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: protocol.c,v 1.40 1999/03/12 16:09:25 michaels Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: protocol.c,v 1.47 1999/05/13 13:27:35 karls Exp $";
 
 char *
 sockshost2mem(host, mem, version)
@@ -56,8 +56,7 @@ sockshost2mem(host, mem, version)
 	switch (version) {
 		case SOCKS_V4:
 		case SOCKS_V4REPLY_VERSION:
-			/* only ipv4 supported by v4 */
-			SASSERT(host->atype == SOCKS_ADDR_IPV4);
+			SASSERTX(host->atype == SOCKS_ADDR_IPV4);
 
 			/* DSTPORT */
 			memcpy(mem, &host->port, sizeof(host->port));
@@ -100,7 +99,7 @@ sockshost2mem(host, mem, version)
 			/* DST.PORT */
 			memcpy(mem, &host->port, sizeof(host->port));
 			mem += sizeof(host->port);
-			
+
 			break;
 
 		default:
@@ -117,6 +116,7 @@ mem2sockshost(host, mem, len, version)
 	size_t len;
 	int version;
 {
+	const char *function = "mem2sockshost()";
 
 	switch (version) {
 		case SOCKS_V5:
@@ -152,8 +152,13 @@ mem2sockshost(host, mem, len, version)
 					break;
 				}
 
+				case SOCKS_ADDR_IPV6:
+					slog(LOG_INFO, "%s: ipv6 not supported", function, host->atype);
+					return NULL;
+
 				default:
-					slog(LOG_DEBUG, "unknown atype field: %d", host->atype);
+					slog(LOG_INFO, "%s: unknown atype field: %d",
+					function, host->atype);
 					return NULL;
 			}
 
@@ -162,7 +167,7 @@ mem2sockshost(host, mem, len, version)
 			memcpy(&host->port, mem, sizeof(host->port));
 			mem += sizeof(host->port);
 			len -= sizeof(host->port);
-			
+
 			break;
 
 		default:

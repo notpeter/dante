@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -18,36 +18,36 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: Rbindresvport.c,v 1.8 1998/11/13 21:17:49 michaels Exp $";
-
 #include "common.h"
 
-/* 
- * Note that for this function to work correctly the remote socksserver 
+static const char rcsid[] =
+"$Id: Rbindresvport.c,v 1.14 1999/05/14 13:58:17 michaels Exp $";
+
+/*
+ * Note that for this function to work correctly the remote socksserver
  * would have to be using the bind extension.
 */
 
@@ -58,7 +58,7 @@ Rbindresvport(sd, sin)
 
 {
 	struct sockaddr name;
-	int namelen;
+	socklen_t namelen;
 
 	if (bindresvport(sd, sin) != 0)
 		return -1;
@@ -67,6 +67,9 @@ Rbindresvport(sd, sin)
 	if (getsockname(sd, &name, &namelen) != 0)
 		return -1;
 
-	/* Rbind() will accept failure at binding socket that is already bound. */
+	/*
+	 * Rbind() will accept failure at binding socket that is already bound 
+	 * and will try a remote serverbinding too if appropriate.
+	*/
 	return Rbind(sd, &name, namelen);
 }

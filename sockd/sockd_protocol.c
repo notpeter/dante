@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -18,38 +18,38 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inferno Nettverk A/S requests users of this software to return to
- * 
+ *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
  *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  N-0349 Oslo
  *  Norway
- * 
+ *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
 
-static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.60 1999/03/12 16:09:31 michaels Exp $";
-
 #include "common.h"
+
+static const char rcsid[] =
+"$Id: sockd_protocol.c,v 1.73 1999/05/14 07:46:19 michaels Exp $";
 
 __BEGIN_DECLS
 
 static int
-recv_v4req __P((int s, struct request_t *request, 
+recv_v4req __P((int s, struct request_t *request,
 					 struct negotiate_state_t *state));
 
 static int
@@ -81,7 +81,7 @@ recv_atyp __P((int s, struct request_t *request,
 
 static int
 recv_port __P((int s, struct request_t *request,
-			 		struct negotiate_state_t *state));
+					struct negotiate_state_t *state));
 
 static int
 recv_address __P((int s, struct request_t *request,
@@ -92,12 +92,12 @@ recv_domain __P((int s, struct request_t *request,
 					  struct negotiate_state_t *state));
 
 static int
-recv_userid __P((int s, struct request_t *request,
-					  struct negotiate_state_t *state));
+recv_username __P((int s, struct request_t *request,
+						 struct negotiate_state_t *state));
 
 static int
 methodnegotiate __P((int s, struct request_t *request,
-					 		struct negotiate_state_t *state));
+							struct negotiate_state_t *state));
 
 __END_DECLS
 
@@ -111,12 +111,12 @@ recv_request(s, request, state)
 	int rc;
 
 	if (state->complete)
-		return state->complete;
+		return 1;
 
 	if (state->rcurrent != NULL)	/* not first call on this client. */
-		rc = state->rcurrent(s, request, state);	
+		rc = state->rcurrent(s, request, state);
 	else {
-		INIT(sizeof(request->version)); 
+		INIT(sizeof(request->version));
 		CHECK(&request->version, NULL);
 
 		switch (request->version) {
@@ -130,7 +130,7 @@ recv_request(s, request, state)
 
 			default:
 				slog(LOG_NOTICE,
-				"Unsupported version %d request", request->version);
+				"unknown version %d in request", request->version);
 				return -1;
 		}
 
@@ -148,7 +148,7 @@ recv_sockspacket(s, request, state)
 	struct request_t *request;
 	struct negotiate_state_t *state;
 {
-	
+
 	return recv_ver(s, request, state);
 }
 
@@ -159,13 +159,14 @@ recv_v4req (s, request, state)
 	struct negotiate_state_t *state;
 {
 
-	/* first determine length, two possibilities;
-	 * VN  CD  DSTPORT DSTIP USERID NUL
-	 * 1 + 1 +   2   +  4  +  ?   + 1  == 9 + (USERID)
-	 * 
-	 * Minimum length is 9 + the length of USERID.
+	/*
+	 * v4 request:
+	 * VN   CD   DSTPORT  DSTIP  USERID   NUL
+	 * 1  + 1  +  2     +  4   +  ?     +  1 
+	 *
+	 * so minimum length is 9. 
    */
-			
+
 	/* CD */
 	state->rcurrent = recv_cmd;
 	return state->rcurrent(s, request, state);
@@ -180,9 +181,9 @@ recv_v5req (s, request, state)
 	struct negotiate_state_t *state;
 {
 
-	/* 
+	/*
 	 * method negotiation;
-	 *  	client first sends method selection message:
+	 *		client first sends method selection message:
 	 *
 	 *	+----+----------+----------+
 	 *	|VER | NMETHODS | METHODS  |
@@ -192,7 +193,7 @@ recv_v5req (s, request, state)
 	 */
 
 	/* NMETHODS */
-	INIT(sizeof(char)); 
+	INIT(sizeof(char));
 	CHECK(&state->mem[start], NULL);
 	OCTETIFY(state->mem[start]);
 
@@ -208,9 +209,10 @@ recv_methods(s, request, state)
 	struct negotiate_state_t *state;
 
 {
+	const char *function = "recv_methods()";
 	const unsigned char methodc = state->mem[state->reqread - 1];	/* NMETHODS */
-	char reply[ 1 /* VERSION 	*/
-				 + 1 /* METHOD 	*/
+	char reply[ 1 /* VERSION	*/
+				 + 1 /* METHOD		*/
 				 ];
 
 	INIT(methodc);
@@ -227,22 +229,22 @@ recv_methods(s, request, state)
 	 *	+----+--------+
    */
 
-	slog(LOG_DEBUG, "Sending authentication reply: VER: %d METHOD: %d",
-	request->version, request->auth->method);
+	slog(LOG_DEBUG, "%s: sending authentication reply: VER: %d METHOD: %d",
+	function, request->version, request->auth->method);
 
-	reply[AUTH_VERSION] 	= request->version;
+	reply[AUTH_VERSION]	= request->version;
 	reply[AUTH_METHOD]	= request->auth->method;
 
-	if (writen(s, reply, sizeof(reply)) != sizeof(reply)) 
+	if (writen(s, reply, sizeof(reply)) != sizeof(reply))
 		return -1;
 
 	if (request->auth->method == AUTHMETHOD_NOACCEPT) {
-		slog(LOG_DEBUG, "Client sent no acceptable authentication method");
+		slog(LOG_DEBUG, "%s: no acceptable authentication method from client",
+		function);
 		return -1;
 	}
 
 	state->rcurrent = methodnegotiate;
-
 	return state->rcurrent(s, request, state);
 }
 
@@ -259,7 +261,7 @@ methodnegotiate(s, request, state)
 			state->rcurrent = recv_sockspacket;
 			break;
 
-		case AUTHMETHOD_UNAME: 
+		case AUTHMETHOD_UNAME:
 			state->rcurrent = method_uname;
 			break;
 
@@ -277,7 +279,8 @@ recv_ver(s, request, state)
 	struct negotiate_state_t *state;
 {
 
-	/* method and version agreed on, now get the SOCKS request:
+	/* 
+	 * method and version agreed on, now get the request:
 	 *
 	 *	+----+-----+-------+------+----------+----------+
 	 *	|VER | CMD |  RSV  | ATYP | DST.ADDR | DST.PORT |
@@ -295,8 +298,26 @@ recv_ver(s, request, state)
 
 	/* VER */
 	{
-		INIT(sizeof(request->version));
-		CHECK(&request->version, NULL);
+		char version;
+
+		INIT(sizeof(version));
+		CHECK(&version, NULL);
+
+		if (request->version != version) {
+			slog(LOG_NOTICE, "strange, version changed from %d to %d?",
+			request->version, version);
+			request->version = version;
+		}
+
+		switch (request->version) {
+			case SOCKS_V5:
+				break;
+
+			default:
+				slog(LOG_NOTICE,
+				"unknown version %d in request", request->version);
+				return -1;
+		}
 	}
 
 	state->rcurrent = recv_cmd;
@@ -323,7 +344,7 @@ recv_cmd(s, request, state)
 			break;
 
 		default:
-			return -1;
+			SERRX(request->version);
 	}
 
 	return state->rcurrent(s, request, state);
@@ -338,7 +359,7 @@ recv_flag(s, request, state)
 
 	INIT(sizeof(request->flag));
 	CHECK(&request->flag, recv_sockshost);
-	
+
 	SERRX(0); /* NOTREACHED */
 }
 
@@ -350,14 +371,15 @@ recv_sockshost(s, request, state)
 {
 	switch (request->version) {
 		case SOCKS_V4:
-			request->host.atype 	= SOCKS_ADDR_IPV4; /* only one supported by v4. */
-			state->rcurrent 		= recv_port;
+			state->rcurrent = recv_port;
 			break;
-		
+
 		case SOCKS_V5:
 			state->rcurrent = recv_atyp;
 			break;
 
+		default:
+			SERRX(request->version);
 	}
 
 	return state->rcurrent(s, request, state);
@@ -386,9 +408,11 @@ recv_address(s, request, state)
 	switch (request->version) {
 		case SOCKS_V4: {
 			INIT(sizeof(request->host.addr.ipv4));
-			SASSERTX(request->host.atype == SOCKS_ADDR_IPV4);
-			CHECK(&request->host.addr.ipv4, recv_userid);
-			/* NOTREACHED */
+
+			request->host.atype = SOCKS_ADDR_IPV4; /* only one supported in v4. */
+
+			CHECK(&request->host.addr.ipv4, recv_username);
+			SERRX(0); /* NOTREACHED */
 		}
 
 		case SOCKS_V5:
@@ -396,13 +420,13 @@ recv_address(s, request, state)
 				case SOCKS_ADDR_IPV4: {
 					INIT(sizeof(request->host.addr.ipv4));
 					CHECK(&request->host.addr.ipv4, recv_port);
-					/* NOTREACHED */
+					SERRX(0); /* NOTREACHED */
 				}
 
 				case SOCKS_ADDR_IPV6: {
 					INIT(sizeof(request->host.addr.ipv6));
 					CHECK(&request->host.addr.ipv6, recv_port);
-					/* NOTREACHED */
+					SERRX(0); /* NOTREACHED */
 				}
 
 				case SOCKS_ADDR_DOMAIN: {
@@ -413,18 +437,19 @@ recv_address(s, request, state)
 
 					state->rcurrent = recv_domain;
 					return state->rcurrent(s, request, state);
-					/* NOTREACHED */
 				}
 
 				default:
-					slog(LOG_DEBUG,"unknown address format %d in reply\n", 
+					slog(LOG_DEBUG, "unknown address format %d in reply",
 					request->host.atype);
 					return -1;
 			}
+
 		default:
 			SERRX(request->version);
 	}
-	/* NOTREACHED */
+	
+	SERRX(0); /* NOTREACHED */
 }
 
 static int
@@ -463,7 +488,7 @@ recv_port(s, request, state)
 		case SOCKS_V4:
 			state->rcurrent = recv_address;	/* in v4, address after port. */
 			return state->rcurrent(s, request, state);
-	
+
 		case SOCKS_V5:
 			return 1;	/* all done. */
 
@@ -471,51 +496,67 @@ recv_port(s, request, state)
 			SERRX(request->version);
 	}
 
-	/* NOTREACHED */
+	SERRX(0); /* NOTREACHED */
 }
 
 static int
-recv_userid(s, request, state)
+recv_username(s, request, state)
 	int s;
 	struct request_t *request;
 	struct negotiate_state_t *state;
 {
-
-	/*
-	 * since only one v4 packet can be sent over a connection it 
-	 * is ok to read as far as we can, there shouldn't be anything
-	 * after userid except terminating 0.
-	*/
-
+	const char *function = "recv_username()";
+	char *username = &state->mem[sizeof(request->version)
+										+ sizeof(request->command)
+										+ sizeof(request->host.port)
+										+ sizeof(request->host.addr.ipv4)];
+	/* read until 0. */
 	do {
 		INIT(MIN(1, MEMLEFT()));
+
+		if (MEMLEFT() == 0) {
+			/*
+			 * Normally this would indicate an internal error and thus
+			 * be caught in CHECK(), but for this special case it could
+			 * be someone sending a really long username, which is strange
+			 * enough to log a warning about but not an internal error.
+			*/
+
+			state->mem[state->reqread - 1] = NUL;
+
+			slog(LOG_WARNING, "%s: too long username (> %d): \"%s\"",
+			function, strlen(username),
+			strcheck(username = str2vis(username, strlen(username))));
+			free(username);
+
+			return -1;
+		}
+
 		CHECK(&state->mem[start], NULL);
 	} while (state->mem[state->reqread - 1] != 0);
+	state->mem[state->reqread - 1] = NUL;	/* style. */
 
-	slog(LOG_DEBUG, "got username: %s",
-	&state->mem[  sizeof(request->version) 
-					+ sizeof(request->command)
-					+ sizeof(request->host.port)
-					+ sizeof(request->host.addr.ipv4)]);
-	
+	slog(LOG_DEBUG, "%s: got socks v4 username: %s",
+	function, strcheck(username = str2vis(username, strlen(username))));
+	free(username);
+
 	return 1;	/* end of request. */
 }
 
 void
-send_failure(s, response, failure) 
+send_failure(s, response, failure)
 	int s;
 	const struct response_t *response;
 	int failure;
 {
 	struct response_t newresponse;	/* keep const. */
 
-	memcpy(&newresponse, response, sizeof(newresponse));
-
+	newresponse = *response;
 	newresponse.reply = (char)sockscode(newresponse.version, failure);
 
 	send_response(s, &newresponse);
 
-	terminate_connection(s, response->auth);
+	close(s);
 }
 
 
@@ -531,17 +572,18 @@ send_response(s, response)
 
 	switch (response->version) {
 		case SOCKS_V4REPLY_VERSION:
-			/*  socks V4 reply packet:
+			/*
+			 * socks V4 reply packet:
 			 *
 			 *  VN   CD  DSTPORT  DSTIP
 			 *  1  + 1  +  2    +  4
-			 *   
+			 *
 			 *  Always 8 octets long.
 			*/
 
 			memcpy(p, &response->version, sizeof(response->version));
 			p += sizeof(response->version);
-			
+
 			/* CD (reply) */
 			memcpy(p, &response->reply, sizeof(response->reply));
 			p += sizeof(response->reply);
@@ -549,16 +591,17 @@ send_response(s, response)
 			break;
 
 		case SOCKS_V5:
-			/* socks V5 reply:
+			/*
+			 * socks V5 reply:
 			 *
 			 * +----+-----+-------+------+----------+----------+
 			 * |VER | REP |  FLAG | ATYP | BND.ADDR | BND.PORT |
 			 * +----+-----+-------+------+----------+----------+
 			 * | 1  |  1  |   1   |  1   | Variable |    2     |
-			 * +----+-----+-------+------+----------+----------+	
+			 * +----+-----+-------+------+----------+----------+
 			 *   1     1      1      1                   2
 			 *
-			 * Which gives a fixed size of 6 octets.
+			 * Which gives a fixed size of atleast 6 octets.
 			 * The first octet of DST.ADDR when it is SOCKS_ADDR_DOMAINNAME
 			 * contains the length.
 			 *
@@ -585,10 +628,10 @@ send_response(s, response)
 	p = sockshost2mem(&response->host, p, response->version);
 	length = p - responsemem;
 
-	slog(LOG_DEBUG, "sending response: %s", 
+	slog(LOG_DEBUG, "sending response: %s",
 	socks_packet2string(response, SOCKS_RESPONSE));
 
-	if (writen(s, responsemem, length) != length) {
+	if (writen(s, responsemem, length) != (ssize_t)length) {
 		swarn("%s: send_response(): writen()", function);
 		return -1;
 	}

@@ -1,4 +1,4 @@
-#ifndef HAVE_STRVIS
+#if !HAVE_STRVIS
 /*	$OpenBSD: vis.h,v 1.2 1997/09/21 10:46:01 niklas Exp $	*/
 /*	$NetBSD: vis.h,v 1.4 1994/10/26 00:56:41 cgd Exp $	*/
 
@@ -38,7 +38,7 @@
  */
 
 #ifndef _VIS_H_
-#define	_VIS_H_
+#define _VIS_H_
 
 /*
  * to select alternate encoding format
