@@ -1,0 +1,25 @@
+@(#)$Id: PRERELEASE,v 1.185 2004/06/28 11:02:50 michaels Exp $
+
+*
+* This is a prerelease.  Do not use this to upgrade from a previous
+* release of Dante unless you want to help testing. 
+*
+
+o enable setegid() call after moving it to corret place;
+  William Adams <wlarip@earthlink.net>.
+
+o Support for socksification of getipnodebyname(), contributed by
+  Lennart Dahlström <lennart@appgate.com>.
+
+o Support for socksification of getaddrinfo(), contributed by
+  Motoyuki Kasahara <m-kasahr@sra.co.jp>.
+
+o Fix some problems with descriptor passing on platforms without
+  cmsghdr.
+
+o AIX 5.1 ML-03 compilation fixes for IBM Visual Age C/C++ compiler
+  version 5 by Kieron Curtis2 <KCURTIS2@uk.ibm.com>.
+
+o Remove usage of SO_BSDCOMPAT, obsolete and causes warnings with
+  version 2.6 Linux kernels.
+  Noted by Adrian Bridgett <adrian@smop.co.uk>.

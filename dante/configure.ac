@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.50)
-AC_REVISION($Id: configure.ac,v 1.316 2003/07/23 15:47:33 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.321 2004/07/06 11:17:06 karls Exp $)
 
-version=1.1.14
+version=1.1.15
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="1"
+prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -250,6 +250,18 @@ int main()
 	return 0;
 }], [AC_MSG_RESULT([yes])
      comp_flags="${comp_flags} -pipe"],
+    AC_MSG_RESULT([no]))
+CFLAGS="$oCFLAGS"
+
+AC_MSG_CHECKING([for support for -Wbounded compiler flag])
+oCFLAGS=$CFLAGS
+CFLAGS="$CFLAGS -Wbounded"
+AC_TRY_RUN([
+int main()
+{
+        return 0;
+}], [AC_MSG_RESULT([yes])
+     comp_flags="${comp_flags} -Wbounded"],
     AC_MSG_RESULT([no]))
 CFLAGS="$oCFLAGS"
 
@@ -613,6 +625,18 @@ AC_TYPE_OFF_T
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
+
+
+AC_MSG_CHECKING([for in6_addr])
+AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+], [
+struct in6_addr sin6;
+], [AC_MSG_RESULT(yes)
+    AC_DEFINE(HAVE_IN6_ADDR)],
+   [AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([for sockaddr_storage in sys/socket.h])
 AC_TRY_COMPILE([
@@ -1176,6 +1200,10 @@ AC_SEARCH_LIBS(getspnam, sec)
 #FreeBSD has setproctitle in -lutil (Per Hedeland <per@erix.ericsson.se>)
 AC_SEARCH_LIBS(setproctitle, util)
 
+#pthread mutexes is used if getipnodebyname is implemented
+#XXX disable for now
+#AC_HAVE_LIBRARY(pthread)
+
 #Look for functions needed for socksify located in other places than libc
 SOCKSIFY_PRELOAD_LIBS=""
 oLIBS=$LIBS
@@ -1224,6 +1252,12 @@ if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_connect}" = "x-lsocket"; 
 	AC_CHECK_LIB(socket, getsockname,
 		AC_DEFINE(LIBRARY_GETSOCKNAME, LIBRARY_LIBSOCKET))
 
+	AC_CHECK_LIB(socket, getaddrinfo,
+		AC_DEFINE(LIBRARY_GETADDRINFO, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, getaddrinfo,
+		AC_DEFINE(LIBRARY_FREEHOSTENT, LIBRARY_LIBSOCKET))
+
 	AC_CHECK_LIB(socket, recvfrom,
 		AC_DEFINE(LIBRARY_RECVFROM, LIBRARY_LIBSOCKET))
 
@@ -1263,6 +1297,9 @@ if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_inet_addr}" = "x-lnsl"; t
 
 	AC_CHECK_LIB(nsl, gethostbyaddr,
 		[AC_DEFINE(LIBRARY_GETHOSTBYADDR, LIBRARY_LIBNSL)])
+
+ 	AC_CHECK_LIB(nsl, getipnodebyname,
+ 		[AC_DEFINE(LIBRARY_GETIPNODEBYNAME, LIBRARY_LIBNSL)])
 fi
 
 #XXX used for anything but gethostbyname2? consider testing for it
@@ -1478,8 +1515,8 @@ AC_FUNC_VPRINTF
 AC_CHECK_FUNCS(select socket strcspn strdup strspn hstrerror issetugid)
 AC_CHECK_FUNCS(strvis vsnprintf getdtablesize sysconf inet_pton vsyslog)
 AC_CHECK_FUNCS(daemon bzero sockatmark difftime memmove seteuid setproctitle)
-AC_CHECK_FUNCS(inet_aton gethostbyname2 getprpwnam getspnam getifaddrs)
-AC_CHECK_FUNCS(freeifaddrs bindresvport)
+AC_CHECK_FUNCS(inet_aton gethostbyname2 getaddrinfo getipnodebyname)
+AC_CHECK_FUNCS(getprpwnam getspnam getifaddrs freeifaddrs bindresvport)
 
 AC_MSG_CHECKING([for system V getpwnam])
 unset getpwnam_alt
@@ -1513,6 +1550,10 @@ else
 			AC_CHECK_FUNCS(strerror)
 		;;
 	esac
+fi
+
+if false; then
+   AC_DEFINE(HAVE_DUMPCONF)
 fi
 
 #change all #undef's to #define foo 0

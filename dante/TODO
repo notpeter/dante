@@ -1,4 +1,7 @@
-# $Id: TODO,v 1.163 2003/04/18 10:47:50 michaels Exp $
+# $Id: TODO,v 1.164 2004/06/28 11:04:00 michaels Exp $
+
+* check warning about select() behavour incorrect, recent posix may
+  say it's not so.
 
 * checkmodule matches external against licesensed ipaddress, if external
   is an interface name however, it looks like it can contain multiple

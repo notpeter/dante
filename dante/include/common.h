@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.312 2003/07/01 13:21:15 michaels Exp $ */
+/* $Id: common.h,v 1.318 2004/07/06 11:17:07 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -165,7 +165,7 @@
 #endif  /* HAVE_DEC_PROTO */
 #include <unistd.h>
 #ifdef HAVE_DEC_PROTO
-#define _XOPEN_SOURCE_EXTENDED
+#define _XOPEN_SOURCE_EXTENDED 1
 #endif /* HAVE_DEC_PROTO */
 #endif  /* HAVE_UNISTD_H */
 #if HAVE_RESOLV_H
@@ -403,6 +403,18 @@ struct ipoption {
 };
 #endif  /* !HAVE_STRUCT_IPOPTS */
 
+#if !HAVE_IN6_ADDR
+/* from OpenBSD netinet6/in6.h */
+struct in6_addr {
+	union {
+		u_int8_t   __u6_addr8[16];
+		u_int16_t  __u6_addr16[8];
+		u_int32_t  __u6_addr32[4];
+	} __u6_addr;/* 128-bit IP6 address */
+};
+#define s6_addr   __u6_addr.__u6_addr8
+#endif /* !HAVE_IN6_ADDR */
+
 #if 0
 #if !HAVE_SOCKADDR_STORAGE
 /*
@@ -598,13 +610,28 @@ extern int h_errno;
  * Modern CMSG alignment macros. Use them if the platform has them,
  * if not we get the default behaviour.
  */
+
+#if HAVE_CMSGHDR
+
 #if !HAVE_CMSG_LEN
-#define CMSG_LEN(a) (a)
+#define CMSG_LEN(len) (sizeof(struct cmsghdr) + (len))
 #endif /* !HAVE_CMSG_LEN */
 
 #if !HAVE_CMSG_SPACE
-#define CMSG_SPACE(a) (a)
+#define CMSG_SPACE(len) (sizeof(struct cmsghdr) + (len))
 #endif /* !HAVE_CMSG_SPACE */
+
+#else /* HAVE_CMSGHDR */
+
+#if !HAVE_CMSG_LEN
+#define CMSG_LEN(len) (len)
+#endif /* !HAVE_CMSG_LEN */
+
+#if !HAVE_CMSG_SPACE
+#define CMSG_SPACE(len) (len)
+#endif /* !HAVE_CMSG_SPACE */
+
+#endif /* HAVE_CMSGHDR */
 
 /*
  * allocate memory for a controlmessage of size "size".  "name" is the
@@ -848,14 +875,14 @@ do {														\
 #define FAKEIP_END	0x000000ff
 
 #define SOCKS_V4					4
-#define SOCKS_V4s					"socks v4"
+#define SOCKS_V4s					"socks_v4"
 #define SOCKS_V4REPLY_VERSION 0
 #define SOCKS_V5					5
-#define SOCKS_V5s					"socks v5"
+#define SOCKS_V5s					"socks_v5"
 #define MSPROXY_V2				2
-#define MSPROXY_V2s				"msproxy v2"
+#define MSPROXY_V2s				"msproxy_v2"
 #define HTTP_V1_0					1
-#define HTTP_V1_0s				"http v1.0"
+#define HTTP_V1_0s				"http_v1.0"
 
 /* subnegotiation. */
 #define SOCKS_UNAMEVERSION		1
@@ -2167,6 +2194,14 @@ bitcount __P((unsigned long number));
 struct hostent *sys_gethostbyaddr __P((const char *addr, int len, int af));
 struct hostent *sys_gethostbyname __P((const char *));
 struct hostent *sys_gethostbyname2 __P((const char *, int));
+#if HAVE_GETADDRINFO
+int sys_getaddrinfo __P((const char *nodename, const char *servname,
+			 				const struct addrinfo *hints, struct addrinfo **res));
+#endif /* HAVE_GETADDRINFO */
+#if HAVE_GETIPNODEBYNAME
+struct hostent *sys_getipnodebyname __P((const char *name, int af, int flags,
+					 int *error_num));
+#endif /* HAVE_GETIPNODEBYNAME */
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
 #if defined(DEBUG) || HAVE_SOLARIS_BUGS

@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.183 2002/05/01 12:35:14 michaels Exp $";
+"$Id: config_parse.y,v 1.184 2004/06/28 10:58:39 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -62,6 +62,10 @@ addressinit __P((struct ruleaddress_t *address));
 #if SOCKS_SERVER
 static void
 ruleinit __P((struct rule_t *rule));
+
+static void
+fixconfig __P((void));
+
 #endif
 
 __END_DECLS
@@ -1199,6 +1203,10 @@ readconfig(filename)
 	yyparse();
 	fclose(yyin);
 
+#if SOCKS_SERVER
+	fixconfig();
+#endif /* SOCKS_SERVER */
+
 	errno = errno_s; /* some buggy yacc's alter errno sometimes. */
 
 	return 0;
@@ -1315,4 +1323,72 @@ ruleinit(rule)
 
 	dst = rdr_from = rdr_to = src;
 }
-#endif
+
+static void
+fixconfig(void)
+{
+	const char *function = "fixsettings()";
+	int i;
+	uid_t euid;
+
+	/*
+	 * Check arguments and settings, do they make sense?
+	 */
+
+	if (sockscf.clientmethodc == 0)
+		sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_NONE;
+
+#if !HAVE_DUMPCONF
+	if (!sockscf.uid.privileged_isset)
+		sockscf.uid.privileged = sockscf.state.euid;
+	else {
+		socks_seteuid(&euid, sockscf.uid.privileged);
+		socks_reseteuid(sockscf.uid.privileged, euid);
+	}
+
+	if (!sockscf.uid.unprivileged_isset)
+		sockscf.uid.unprivileged = sockscf.state.euid;
+	else {
+		socks_seteuid(&euid, sockscf.uid.unprivileged);
+		socks_reseteuid(sockscf.uid.unprivileged, euid);
+	}
+
+#if HAVE_LIBWRAP
+	if (!sockscf.uid.libwrap_isset)
+		sockscf.uid.libwrap = sockscf.state.euid;
+	else {
+		socks_seteuid(&euid, sockscf.uid.libwrap);
+		socks_reseteuid(sockscf.uid.libwrap, euid);
+	}
+#endif /* HAVE_LIBWRAP */
+#endif /* !HAVE_DUMPCONF */
+
+	if (sockscf.internalc == 0)
+		serrx(EXIT_FAILURE, "%s: no internal address given", function);
+	/* values will be used once and checked there. */
+
+	if (sockscf.external.addrc == 0)
+		serrx(EXIT_FAILURE, "%s: no external address given", function);
+#if !HAVE_DUMPCONF
+	for (i = 0; i < sockscf.external.addrc; ++i)
+		if (!addressisbindable(&sockscf.external.addrv[i]))
+			serrx(EXIT_FAILURE, NULL);
+#endif /* !HAVE_DUMPCONF */
+
+#if !HAVE_DUMPCONF 
+	if (sockscf.methodc == 0)
+		swarnx("%s: no methods enabled (total block)", function);
+
+	if (sockscf.uid.unprivileged == 0)
+		swarnx("%s: setting the unprivileged uid to %d is not recommended",
+		function, sockscf.uid.unprivileged);
+
+#if HAVE_LIBWRAP
+	if (sockscf.uid.libwrap == 0)
+		swarnx("%s: setting the libwrap uid to %d is not recommended",
+		function, sockscf.uid.libwrap);
+#endif /* HAVE_LIBWRAP */
+#endif /* !HAVE_DUMPCONF */
+}
+
+#endif /* SOCKS_SERVER */

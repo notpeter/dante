@@ -47,7 +47,7 @@
 
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.77 2003/07/01 13:21:13 michaels Exp $";
+"$Id: interposition.c,v 1.78 2004/06/20 12:20:42 karls Exp $";
 
 #undef accept
 #undef bind
@@ -56,6 +56,9 @@ static const char rcsid[] =
 #undef gethostbyaddr
 #undef gethostbyname
 #undef gethostbyname2
+#undef getaddrinfo
+#undef getipnodebyname
+#undef freehostent
 #undef getpeername
 #undef getsockname
 #undef read
@@ -96,6 +99,13 @@ static struct libsymbol_t libsymbolv[] = {
 #if HAVE_GETHOSTBYNAME2
 	{	SYMBOL_GETHOSTBYNAME2,			LIBRARY_GETHOSTBYNAME2,	NULL,	NULL },
 #endif /* HAVE_GETHOSTBYNAME2 */
+#if HAVE_GETADDRINFO
+	{	SYMBOL_GETADDRINFO,				LIBRARY_GETADDRINFO,	NULL,	NULL },
+#endif /* HAVE_GETADDRINFO */
+#if HAVE_GETIPNODEBYNAME
+	{	SYMBOL_GETIPNODEBYNAME,			LIBRARY_GETIPNODEBYNAME,	NULL,	NULL },
+ 	{	SYMBOL_FREEHOSTENT,			LIBRARY_FREEHOSTENT,	NULL,	NULL },
+#endif /* HAVE_GETIPNODEBYNAME */
 #endif /* SOCKS_CLIENT */
 	{	SYMBOL_GETHOSTBYNAME,			LIBRARY_GETHOSTBYNAME,	NULL,	NULL },
 
@@ -845,6 +855,83 @@ gethostbyname2(name, af)
 {
 	return Rgethostbyname2(name, af);
 }
+
+#if HAVE_GETADDRINFO
+
+int
+sys_getaddrinfo(nodename, servname, hints, res)
+	const char *nodename;
+	const char *servname;
+	const struct addrinfo *hints;
+	struct addrinfo **res;
+{
+	typedef int (*GETADDRINFO_FUNC_T)(const char *, const char *, 
+					  const struct addrinfo *,
+					  struct addrinfo **);
+	GETADDRINFO_FUNC_T function;
+
+	function = (GETADDRINFO_FUNC_T)symbolfunction(SYMBOL_GETADDRINFO);
+	return function(nodename, servname, hints, res);
+}
+
+int
+getaddrinfo(nodename, servname, hints, res)
+	const char *nodename;
+	const char *servname;
+	const struct addrinfo *hints;
+	struct addrinfo **res;
+{
+	return Rgetaddrinfo(nodename, servname, hints, res);
+}
+
+#endif /* HAVE_GETADDRINFO */
+
+#if HAVE_GETIPNODEBYNAME
+
+struct hostent *
+sys_getipnodebyname(name, af, flags, error_num)
+	const char *name;
+	int af;
+	int flags;
+	int *error_num;
+{
+	typedef struct hostent *(*GETIPNODEBYNAME_FUNC_T)(const char *, int, int, int *);
+	GETIPNODEBYNAME_FUNC_T function;
+
+	function = (GETIPNODEBYNAME_FUNC_T)symbolfunction(SYMBOL_GETIPNODEBYNAME);
+	return function(name, af, flags, error_num);
+}
+
+struct hostent *
+getipnodebyname(name, af, flags, error_num)
+	const char *name;
+	int af;
+	int flags;
+	int *error_num;
+{
+	return Rgetipnodebyname(name, af, flags, error_num);
+}
+
+void
+sys_freehostent(ptr)
+        struct hostent *ptr;
+{
+        typedef struct hostent *(*FREEHOSTENT_FUNC_T)(struct hostent *);
+
+	FREEHOSTENT_FUNC_T function;
+
+	function = (FREEHOSTENT_FUNC_T)symbolfunction(SYMBOL_FREEHOSTENT);
+	function(ptr);
+}
+
+void 
+freehostent(ptr)
+        struct hostent *ptr;
+{
+        Rfreehostent(ptr);
+}
+
+#endif /* HAVE_GETIPNODEBYNAME */
 
 #endif /* SOCKS_CLIENT */
 

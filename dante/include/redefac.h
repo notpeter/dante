@@ -105,6 +105,11 @@
 #endif
 
 
+#ifndef HAVE_IPV6_SUPPORT
+#define HAVE_IPV6_SUPPORT 0
+#endif
+
+
 #ifndef HAVE_SENDMSG_DEADLOCK
 #define HAVE_SENDMSG_DEADLOCK 0
 #endif
@@ -240,6 +245,11 @@
 #endif
 
 
+#ifndef HAVE_IN6_ADDR
+#define HAVE_IN6_ADDR 0
+#endif
+
+
 #ifndef HAVE_VOLATILE_SIG_ATOMIC_T
 #define HAVE_VOLATILE_SIG_ATOMIC_T 0
 #endif
@@ -292,6 +302,11 @@
 
 #ifndef HAVE_SYSTEM_XMSG_MAGIC
 #define HAVE_SYSTEM_XMSG_MAGIC 0
+#endif
+
+
+#ifndef HAVE_DUMPCONF
+#define HAVE_DUMPCONF 0
 #endif
 
 
@@ -705,6 +720,11 @@
 #endif
 
 
+#ifndef HAVE_GETADDRINFO
+#define HAVE_GETADDRINFO 0
+#endif
+
+
 #ifndef HAVE_GETDTABLESIZE
 #define HAVE_GETDTABLESIZE 0
 #endif
@@ -717,6 +737,11 @@
 
 #ifndef HAVE_GETIFADDRS
 #define HAVE_GETIFADDRS 0
+#endif
+
+
+#ifndef HAVE_GETIPNODEBYNAME
+#define HAVE_GETIPNODEBYNAME 0
 #endif
 
 

@@ -41,17 +41,19 @@
  *
  */
 
-/* $Id: tostring.h,v 1.6 2003/07/01 13:21:18 michaels Exp $ */
+/* $Id: tostring.h,v 1.8 2003/11/03 12:56:52 karls Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
 #endif
 
-#ifdef DUMPCONF
+#if HAVE_DUMPCONF
 #define QUOTE(a)	__CONCAT3("\"", a, "\"")
+#define QUOTE0()	"\""
 #else
 #define QUOTE(a)	a
-#endif /* DUMPCONF */
+#define QUOTE0()	""
+#endif /* HAVE_DUMPCONF */
 
 
 enum operator_t

@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.9 2003/07/01 13:21:32 michaels Exp $";
+"$Id: tostring.c,v 1.12 2003/11/10 14:36:48 michaels Exp $";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -270,50 +270,66 @@ ruleaddress2string(address, string, len)
 			char *a;
 
 			snprintfn(string, len,
-			"%s: %s/%d, %s: %d, %s : %d, %s: %s, %s: %d",
-			QUOTE("address"),
-			QUOTE(strcheck(a = strdup(inet_ntoa(address->addr.ipv4.ip)))),
-			QUOTE(bitcount((unsigned long)address->addr.ipv4.mask.s_addr)),
+			"%s/%d%s, %s: %s%d%s, %s: %s%d%s, %s: %s, %s: %s%d",
+			strcheck(a = strdup(inet_ntoa(address->addr.ipv4.ip))),
+			bitcount((unsigned long)address->addr.ipv4.mask.s_addr),
+			QUOTE0(),
 			QUOTE("tcp"),
-			QUOTE(ntohs(address->port.tcp)),
+			QUOTE0(),
+			ntohs(address->port.tcp),
+			QUOTE0(),
 			QUOTE("udp"),
-			QUOTE(ntohs(address->port.udp)),
+			QUOTE0(),
+			ntohs(address->port.udp),
+			QUOTE0(),
 			QUOTE("op"),
-			QUOTE(operator2string(address->operator)),
+			operator2string(address->operator),
 			QUOTE("end"),
-			QUOTE(ntohs(address->portend)));
+			QUOTE0(),
+			ntohs(address->portend));
+
 			free(a);
 			break;
 		}
 
 		case SOCKS_ADDR_DOMAIN:
 			snprintfn(string, len,
-			"%s: %s, %s: %d, %s : %d, %s: %s, %s: %d",
-			QUOTE("address"),
-			QUOTE(address->addr.domain),
+			"%s%s, %s: %s%d%s, %s: %s%d%s, %s: %s, %s: %s%d",
+			address->addr.domain,
+			QUOTE0(),
 			QUOTE("tcp"),
-			QUOTE(ntohs(address->port.tcp)),
+			QUOTE0(),
+			ntohs(address->port.tcp),
+			QUOTE0(),
 			QUOTE("udp"),
-			QUOTE(ntohs(address->port.udp)),
+			QUOTE0(),
+			ntohs(address->port.udp),
+			QUOTE0(),
 			QUOTE("op"),
-			QUOTE(operator2string(address->operator)),
+			operator2string(address->operator),
 			QUOTE("end"),
-			QUOTE(ntohs(address->portend)));
+			QUOTE0(),
+			ntohs(address->portend));
 			break;
 
 		case SOCKS_ADDR_IFNAME:
 			snprintfn(string, len,
-			"%s: %s, %s: %d, %s : %d, %s: %s, %s: %d",
-			QUOTE("address"),
-			QUOTE(address->addr.ifname),
+			"%s%s, %s: %s%d%s, %s : %s%d%s, %s: %s, %s: %s%d",
+			address->addr.ifname,
+			QUOTE0(),
 			QUOTE("tcp"),
-			QUOTE(ntohs(address->port.tcp)),
+			QUOTE0(),
+			ntohs(address->port.tcp),
+			QUOTE0(),
 			QUOTE("udp"),
-			QUOTE(ntohs(address->port.udp)),
+			QUOTE0(),
+			ntohs(address->port.udp),
+			QUOTE0(),
 			QUOTE("op"),
-			QUOTE(operator2string(address->operator)),
+			operator2string(address->operator),
 			QUOTE("end"),
-			QUOTE(ntohs(address->portend)));
+			QUOTE0(),
+			ntohs(address->portend));
 			break;
 
 		default:
@@ -855,11 +871,13 @@ srchosts2string(srchost, prefix, str, strsize)
 
 	strused = 0;
 
-	strused += snprintfn(&str[strused], strsize - strused,
-	"\"%snomismatch\": \"%d\",\n", prefix, srchost->nomismatch);
+	if (srchost->nomismatch)
+		strused += snprintfn(&str[strused], strsize - strused,
+		"\"%snomismatch\", ", prefix);
 
-	strused += snprintfn(&str[strused], strsize - strused,
-	"\"%snounknown\": \"%d\",\n", prefix, srchost->nounknown);
+	if (srchost->nounknown)
+		strused += snprintfn(&str[strused], strsize - strused,
+		"\"%snounknown\",", prefix);
 
 	return str;
 }
@@ -896,7 +914,7 @@ userids2string(userids, prefix, str, strsize)
 	"\"%sprivileged\": \"%s\",\n", prefix, uid2name(userids->privileged));
 
 	strused += snprintfn(&str[strused], strsize - strused,
-	"\"%sunprivileged\": \"%s\",\n", prefix, uid2name(userids->unprivileged));
+	"\"%snotprivileged\": \"%s\",\n", prefix, uid2name(userids->unprivileged));
 
 	strused += snprintfn(&str[strused], strsize - strused,
 	"\"%slibwrap\": \"%s\",\n", prefix, uid2name(userids->libwrap));
@@ -921,10 +939,10 @@ timeouts2string(timeouts, prefix, str, strsize)
 	strused = 0;
 
 	strused += snprintfn(&str[strused], strsize - strused,
-	"\"%snegotiate\": \"%ld\",\n", prefix, (long)timeouts->negotiate);
+	"\"%sconnecttimeout\": \"%ld\",\n", prefix, (long)timeouts->negotiate);
 
 	strused += snprintfn(&str[strused], strsize - strused,
-	"\"%sio\": \"%ld\",\n", prefix, (long)timeouts->io);
+	"\"%siotimeout\": \"%ld\",\n", prefix, (long)timeouts->io);
 
 	return str;
 }
