@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.39 1999/05/14 10:51:37 michaels Exp $";
+"$Id: sockd_util.c,v 1.40 1999/05/26 10:05:44 michaels Exp $";
 
 extern char *__progname;
 
@@ -77,12 +77,14 @@ setsockoptions(s)
 	switch (type) {
 		case SOCK_STREAM:
 			val = 1;
-			if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val)) != 0)
+			if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val))
+			!= 0)
 				swarn("%s: setsockopt(SO_OOBINLINE)", function);
 
 			if (config.option.keepalive) {
 				val = 1;
-				if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) != 0)
+				if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val,
+				sizeof(val)) != 0)
 					swarn("%s: setsockopt(SO_KEEPALIVE)", function);
 			}
 
@@ -125,7 +127,7 @@ sockdexit(sig)
 				abort();
 		}
 	else
-		if (*config.state.pidv == getpid())
+		if (*config.state.motherpidv == config.state.pid) /* main mother. */
 			exit(-sig);
 		else
 			_exit(-sig);

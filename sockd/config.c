@@ -44,26 +44,34 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.103 1999/05/13 14:09:18 karls Exp $";
+"$Id: config.c,v 1.109 1999/05/28 11:40:40 michaels Exp $";
 
 __BEGIN_DECLS
 
 static int
 hostcmp __P((const char *domain, const char *remotedomain));
+/*
+ * Compares the rulegiven domain "domain" against "remotedomain".
+ * If "remotedomain" only contains a hostname, the local domainname
+ * is appended to it before a comparison is done.
+ * Returns:
+ *		On match: 0
+ *		If no match: something else.
+*/
 
 __END_DECLS
 
 void
 genericinit(void)
 {
-	const char *function = "init()";
+	const char *function = "genericinit()";
 	int i;
 
 	if (!config.state.init) {
 #if !HAVE_SETPROCTITLE
-		/* create a backup to avoid having setproctitle overwriting it */
+		/* create a backup to avoid setproctitle replacement overwriting it. */
 		if ((__progname = strdup(__progname)) == NULL)
-			serrx(EXIT_FAILURE, NOMEM);
+			serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
 #endif /* !HAVE_SETPROCTITLE */
 	}
 
@@ -81,7 +89,6 @@ genericinit(void)
 #endif /* !HAVE_NO_RESOLVSTUFF */
 
 	if (*config.domain == NUL) {
-
 #if HAVE_NO_RESOLVESTUFF
 		strncpy(config.domain, SOCKS_DOMAINNAME, sizeof(config.domain));
 #else /* !HAVE_NO_RESOLVESTUFF */
@@ -96,11 +103,11 @@ genericinit(void)
 
 	switch (config.resolveprotocol) {
 		case RESOLVEPROTOCOL_TCP:
-#if HAVE_NO_RESOLVESTUFF
-			swarnx("%s: resolveprotocol keyword not supported for you", function);
-#else /* !HAVE_NO_RESOLVESTUFF */
+#if !HAVE_NO_RESOLVESTUFF
 			_res.options |= RES_USEVC;
-#endif /* !HAVE_NO_RESOLVESTUFF */
+#else /* HAVE_NO_RESOLVESTUFF */
+			SERRX(config.resolveprotocol);
+#endif  /* HAVE_NO_RESOLVESTUFF */
 			break;
 
 		case RESOLVEPROTOCOL_UDP:
@@ -128,9 +135,8 @@ addressmatch(rule, address, protocol, alias)
 	int alias;
 {
 	const char *function = "addressmatch()";
-	struct hostent *hostent;
 	in_port_t ruleport;
-	int matched = 0;
+	int matched;
 
 	/* test port first since we have all info needed for that locally. */
 	switch (protocol) {
@@ -208,6 +214,8 @@ addressmatch(rule, address, protocol, alias)
 	 *			addressmatch(host, each hostmember of ip, 0)
 	*/
 
+	matched = 0;
+
 	/* try for exact match first, avoid gethostby*() call. */
 	switch (rule->atype) {
 		case SOCKS_ADDR_IPV4:
@@ -252,6 +260,8 @@ addressmatch(rule, address, protocol, alias)
 		}
 
 		if (alias) {
+			struct hostent *hostent;
+
 			switch (address->atype) {
 				case SOCKS_ADDR_IPV4:
 					/* LINTED pointer casts may be troublesome */
@@ -274,6 +284,8 @@ addressmatch(rule, address, protocol, alias)
 				default:
 					SERRX(address->atype);
 			}
+
+			SASSERTX(hostent != NULL);
 
 			/* resolved, try to match. */
 			switch (rule->atype) {
@@ -347,10 +359,10 @@ hostcmp(domain, remotedomain)
 
 	/* if no domain, assume local host and append ours. */
 	if (strchr(remotedomain, '.') == NULL) {
-		snprintf(buf, sizeof(buf), "%s.%s",
-		remotedomain, config.domain);
+		snprintf(buf, sizeof(buf), "%s.%s", remotedomain, config.domain);
 		remotedomain = buf;
 	}
+
 	remotedomainlen = strlen(remotedomain);
 
 	if	(*domain == '.')	{ /* match everything ending in domain */
@@ -376,7 +388,6 @@ addroute(newroute)
 
 	if ((route = (struct route_t *)malloc(sizeof(*route))) == NULL)
 		serrx(1, "%s: %s", function, NOMEM);
-
 	*route = *newroute;
 
 	/* check gateway. */
@@ -415,15 +426,15 @@ addroute(newroute)
 		config.route->number = 1;
 	}
 	else {
-		/* append this rule to the end of our list. */
+		/* append rule to the end of list. */
 		struct route_t *lastroute;
 
 		lastroute = config.route;
 		while (lastroute->next != NULL)
 			lastroute = lastroute->next;
 
-		lastroute->next = route;
 		route->number = lastroute->number + 1;
+		lastroute->next = route;
 	}
 	route->next = NULL;
 
@@ -486,7 +497,6 @@ socks_getroute(req, src, dst)
 					default:
 						SERRX(req->host.atype); /* failure, nothing else exists. */
 				}
-
 				break;
 
 			case SOCKS_V5:
@@ -585,22 +595,42 @@ socks_connectroute(s, packet, src, dst)
 	const struct sockshost_t *dst;
 {
 	const char *function = "socks_connectroute()";
-	int current_s;
+	int sdup, current_s, errno_s;
 	struct route_t *route;
 
-	errno = 0;		/* let caller differentiate between missing route and not.	*/
-	current_s = s; /* we may have other gateways to try if first found fails.	*/
+	/*
+	 * This is a little tricky since we attempt to support trying
+	 * more than one socksserver.  If the first one fails, we try
+	 * the next, etc.  Ofcourse, if connect() on one socket fails,
+	 * that socket can no longer be used, so we need to be able to
+	 * copy/dup the original socket as much as possible.  Later,
+	 * if it turned out a connection failed and we had to use a 
+	 * different socket than the orignal 's', we try to dup the
+	 * differentnumbered socket to 's' and hope the best.
+	 *
+	 * sdup: 		copy of the original socket.  Need to create this
+	 *					before the first connectattempt since the connectattempt
+	 *				   could prevent us from doing it later, depending on failure
+	 *					reason.
+	 *
+	 * current_s:	socket to use for next connection attempt.  For the
+	 *					first attempt this is 's'.
+	*/
+
+	errno 		= 0; /* let caller differentiate between missing route and not.*/
+	current_s 	= s;
+	sdup 			= -1;
 
 	while ((route = socks_getroute(&packet->req, src, dst)) != NULL) {
 		char hstring[MAXSOCKSHOSTSTRING];
 
-		if (current_s != s) {
-			if (current_s != -1)
-				close(current_s);
+		/* inside loop since if no route, no need for it. */
+		if (sdup == -1)
+			sdup = socketoptdup(s);
 
-			if ((current_s = socketoptdup(s)) == -1)
+		if (current_s == -1)
+			if ((current_s = socketoptdup(sdup == -1 ? s : sdup)) == -1)
 				return NULL;
-		}
 
 		slog(LOG_DEBUG, "%s: trying route #%d (%s)",
 		function, route->number,
@@ -608,28 +638,37 @@ socks_connectroute(s, packet, src, dst)
 
 		if (socks_connect(current_s, &route->gw.host) == 0)
 			break;
-
-		if (errno == EINPROGRESS) {
-			SASSERTX(current_s == s);
-			break;
-		}
-
-		switch (errno) {
-			case EADDRINUSE:
+		else
+			/*
+			 * Check whether the error indicates bad socksserver or
+			 * something else.
+			*/
+			if (errno == EINPROGRESS) {
+				SASSERTX(current_s == s);
+				break;
+			}
+			else if (errno == EADDRINUSE) {
 				/* see Rbind() for explanation. */
 				SASSERTX(current_s == s);
-				return NULL;
-
-			default:
+				route = NULL;
+				break;
+			}
+			else {
 				swarn("%s: socks_connect(%s)",
 				function, sockshost2string(&route->gw.host, hstring,
 				sizeof(hstring)));
 				socks_badroute(route);
+				close(current_s);
 				current_s = -1;
 		}
 	}
 
-	if (current_s != -1 && current_s != s)	{
+	errno_s = errno;
+
+	if (sdup != -1)
+		close(sdup);
+
+	if (current_s != s && current_s != -1)	{
 		/* created a new socket for connect, need to make it same descriptor #. */
 		if (dup2(current_s, s) == -1) {
 			close(current_s);
@@ -651,8 +690,20 @@ socks_connectroute(s, packet, src, dst)
 		}
 	}
 
+	errno = errno_s;
 	return route;
 }
+
+void
+socks_badroute(route)
+	struct route_t *route;
+{
+	const char *function = "socks_badroute()";
+
+	slog(LOG_DEBUG, "%s: badrouting route #%d", function, route->number);
+	route->state.bad = 1;
+}
+
 
 struct request_t *
 socks_requestpolish(req, src, dst)
@@ -703,7 +754,7 @@ socks_requestpolish(req, src, dst)
 	switch (req->command) {
 		case SOCKS_BIND:
 			if (req->host.addr.ipv4.s_addr == htonl(0)) {
-				/* attempting to use bind extension, can we retry without it. */
+				/* attempting to use bind extension, can we retry without it? */
 
 				/* LINTED */
 				if (ADDRISBOUND(config.state.lastconnect)) {
@@ -730,7 +781,7 @@ socks_requestpolish(req, src, dst)
 				}
 				else
 					slog(LOG_DEBUG,
-					"%s: couldn't find route for bind, try enabling bind extension",
+					"%s: couldn't find route for bind, try enabling bind extension?",
 					function);
 			}
 			break;
@@ -794,13 +845,3 @@ showstate(state)
 	slog(LOG_INFO, buf);
 }
 
-
-void
-socks_badroute(route)
-	struct route_t *route;
-{
-	const char *function = "socks_badroute()";
-
-	slog(LOG_DEBUG, "%s: badrouting route #%d", function, route->number);
-	route->state.bad = 1;
-}

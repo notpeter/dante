@@ -1,4 +1,5 @@
- 
+# $Id: CREDITS,v 1.20 1999/05/24 11:01:22 michaels Exp $
+
    Dante was developed for Inferno Nettverk A/S, Norway by:
       - Michael Shuldman <michaels@inet.no>: Design and implementation.
       - Karl-André Skevik <karls@inet.no>: Autoconf and porting.
@@ -26,7 +27,7 @@
 
 - Jörgen Lundman (lundman@argonaut.com) provided invaluable help
   during the process of getting msproxy support into Dante.  Thanks
-  a lot.  J\xf6rgen Lundman would also like to thank Paul Leask
+  a lot.  Jörgen Lundman would also like to thank Paul Leask
   for his time and effort in this project.
 
 - Andrew Pimlott's (pimlott@math.harvard.edu) work on analysing

@@ -1,8 +1,7 @@
-To report a new bug, mail dante-bugs@inet.no.  Make sure
-you read the faq first.
+# $Id: BUGS,v 1.15 1999/05/24 11:01:20 michaels Exp $
 
+To report a new bug, mail dante-bugs@inet.no.  Make sure you read
+the faq first.
 
 	Things known not to work:
-
-- documentation is lacking.  Help on this would be especially appreciated.
 

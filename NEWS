@@ -1,13 +1,73 @@
-@(#)$Id: NEWS,v 1.10 1999/03/01 16:21:10 michaels Exp $
+@(#)$Id: NEWS,v 1.11 1999/05/28 11:41:45 michaels Exp $
 
-NOTE: The contents of this file is only updated for releases.
+(NOTE: The contents of this file is only updated for releases.)
 
 
-***  Monday, December 14, 1998  -  Dante v0.91.1.
+***  Monday, May 31, 1999 -- Dante v1.0.0
+
+ o support for sun/dec/sgi cc.
+
+ o osf4.0a port.  Thanks to Jay Weber (jweb@accessus.net) for help
+   with the port and an account to test it on.
+
+ o Set subnegotiationversion in username method correctly.  Thanks to
+   Marc Haber (Marc.Haber@gmx.de) and Olaf Titz (olaf@bigred.inka.de).
+
+ o Caches resolved hostnames/addresses.  Problem of not having it
+   first brought up by Devin Nate (devin.nate@bridgecomm.net), thanks.
+   Several new variables were added to config.h for tuning the cache.
+ 
+ o srchost flags settable in configfile, see sockd.conf(8) for more info.
+
+ o Addressmatching much improved and should now be "complete".
+
+ o libtool-1.3
+
+ o Try to locate newest libc on linux, allow manual specification
+   in worst case.
+
+ o irix 6.2 port.
+
+ o Update to autoconf 2.13 and automake 1.4.
+
+ o New keyword in client configfile: "resolveprotocol".  Must
+   be set to "fake" on clients that can not resolve hostnames.
+
+ o Support resolving hostnames for socks v4 clients too (requires
+   the Dante client but should work with any socks server).
+
+ o Compilation problems on Solaris 7 fixed.  Reported by and fixed
+   with the help of Stephen C. Hailey <haileyn@flash.net>.
+
+ o Library conflict on linux systems with several libc versions
+   (gnu/non-gnu?) resolved, reported by 
+   Martin Piskernig <martin.piskernig@stuwo.at>.
+
+ o Configparsing reworked, should no longer care much about the order
+   of things.
+
+ o The library with dlopen should be correctly found for socksify.
+ 
+ o Let user know if we failed due to authentication on at msproxy
+   server.
+
+ o "protocolversion" renamed to "proxyprotocol" in clientconfig, 
+   also changed the value names.
+
+ o version in reply for socksv4 is not same as in request, reported
+   by Stefan Reiner (stefanr@segue.at).
+
+ o added experimental support for msproxy v2, supports tcp.
+
+ o better support for clients that can't resolve hostnames.
+
+ o nonblocking connects have a chance of working on linux too now.
+
+***  Monday, December 14, 1998 -- Dante v0.91.1.
 
  o  a nasty typo.
 
-***  Monday, December 14, 1998  -  Dante v0.91.0.
+***  Monday, December 14, 1998 -- Dante v0.91.0.
 
  o  all reported bugs and compilation problems fixed.
      
@@ -33,8 +93,7 @@ NOTE: The contents of this file is only updated for releases.
 
  o  Socksify program now also works on SunOS and Linux.
 
-
-***  Monday, November 16, 1998  -  Dante v0.90.0.
+***  Monday, November 16, 1998 -- Dante v0.90.0.
  
  o  A socks client and server implementation for UNIX.
 

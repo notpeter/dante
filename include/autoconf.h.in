@@ -238,6 +238,11 @@
 #undef HAVE_NO_RESOLVESTUFF
 #undef SOCKS_DOMAINNAME
 
+/* not all platforms allow free(NULL) */
+#undef HAVE_NONULL_FREE
+/* XXX run include/redefgen.sh manually to regenerate redefac.h after
+   changes have been made to this file */
+
 /* The number of bytes in a char.  */
 #undef SIZEOF_CHAR
 

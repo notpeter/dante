@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.36 1999/05/13 13:13:01 karls Exp $";
+"$Id: io.c,v 1.37 1999/05/25 17:22:30 michaels Exp $";
 
 /* this file defines the functions. */
 #undef select
@@ -127,8 +127,8 @@ recvmsgn(s, msg, flags, len)
 		/*
 		 * Even if solaris (2.5.1) fails on recvmsg() it may still have
 		 * gotten a descriptor or more as ancillary data which it neglects
-		 * to get rid of, so we have to check for it ourselves and close it
-		 * or it just gets lost in the void.
+		 * to get rid of, so we have to check for it ourselves and close it,
+		 * else it just gets lost in the void.
 		*/
 		int i, leaked;
 		caddr_t mem;

@@ -50,7 +50,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.48 1999/05/13 13:39:20 karls Exp $";
+"$Id: interposition.c,v 1.49 1999/05/23 15:43:35 michaels Exp $";
 
 #undef accept
 #undef bind
@@ -318,7 +318,7 @@ sys_read(d, buf, nbytes)
 	size_t nbytes;
 {
 	ssize_t rc;
-	int (*function)(int d, void *buf, size_t nbutes);
+	int (*function)(int d, void *buf, size_t nbytes);
 
 	SYSCALL_START(d);
 	function = symbolfunction(SYMBOL_READ);

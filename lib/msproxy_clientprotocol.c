@@ -48,7 +48,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.17 1999/05/13 14:09:19 karls Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.19 1999/05/23 15:43:56 michaels Exp $";
 
 static char executable[] = "TELNET.EXE";
 static struct sigaction oldsigio;
@@ -854,7 +854,7 @@ recv_mspresponse(s, state, response)
 	/* CONSTCOND */
 	while (1) {
 		if ((r = read(s, responsemem, sizeof(responsemem))) < MSPROXY_MINLENGTH) {
-			swarnx("%s: expected to read atleast %d, read %d",
+			swarn("%s: expected to read atleast %d, read %d",
 			function, MSPROXY_MINLENGTH, r);
 			return -1;
 		}
@@ -930,7 +930,7 @@ send_msprequest(s, state, request)
 	}
 
 	if ((w = write(s, requestmem, (size_t)(p - requestmem)))
-	!= (size_t)(p - requestmem)) {
+	!= (ssize_t)(p - requestmem)) {
 		swarn("%s: write()", function);
 		return -1;
 	}
@@ -1933,36 +1933,4 @@ msproxy_keepalive(sig)
 		== -1)
 			return;
 	}
-}
-
-
-int
-sockscommand2msproxycommand(version, command)
-	int version;
-	int command;
-{
-
-	switch (version) {
-		case SOCKS_V4:
-		case SOCKS_V5:
-			switch (command) {
-				case SOCKS_BIND:
-					return MSPROXY_BIND;
-
-				case SOCKS_CONNECT:
-					return MSPROXY_CONNECT;
-
-				case SOCKS_UDPASSOCIATE:
-					return MSPROXY_CONNECT;
-
-				default:
-					SERRX(command);
-			}
-			/* NOTREACHED */
-
-		default:
-			SERRX(version);
-	}
-
-	/* NOTREACHED */
 }

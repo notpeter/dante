@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.137 1999/05/13 13:27:33 karls Exp $ */
+/* $Id: socks.h,v 1.140 1999/05/24 12:41:20 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -463,8 +463,9 @@ socks_addrmatch __P((const struct sockaddr *local,
  * all arguments match.
  * Arguments that are NULL or have "illegal" values are ignored.
  * Returns:
- *		If no match found: -1
- *		Else:  the descriptor the arguments were registered with, >= 0.
+ *		On success: the descriptor the socksfd with matching arguments was
+ *                registered with (>= 0).
+ *		On failure: -1.
 */
 
 
@@ -573,7 +574,7 @@ serverreplyisok __P((int version, int reply, struct route_t *route));
 /*
  * "replycode" is the reply code returned by a socksserver of version
  * "version".
- * "route" is the route that was used for the socksserver and if
+ * "route" is the route that was used for the socksserver.  If
  * the errorcode indicates a serverfailure, it might be "badrouted".
  * Returns true if the reply indicates request succeeded, false otherwise
  * and sets errno accordingly.

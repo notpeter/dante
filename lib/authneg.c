@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.42 1999/05/13 13:12:59 karls Exp $";
+"$Id: authneg.c,v 1.43 1999/05/23 15:43:45 michaels Exp $";
 
 int
 negotiate_method(s, packet)
@@ -53,13 +53,18 @@ negotiate_method(s, packet)
 {
 	const char *function = "negotiate_method()";
 	int rc;
-	/* version, number of methods, the methods. */
-	char request[1 + 1 + METHODS_MAX];
-	/* length of actual request; version, nmethods, methods. */
-	const size_t requestlen = 1 + 1 + packet->gw.state.methodc;
-	/* reply; version, selected method. */
-	unsigned char response[1 + 1];
+	char request[ 1				/* version 					*/
+					+ 1 				/* number of methods.	*/
+					+ METHODS_MAX	/* the methods.			*/
+					];
 
+	const size_t requestlen = 1 									/* version. 	*/
+									+ 1 									/* nmethods.	*/
+									+ packet->gw.state.methodc;	/* methods. */
+
+	unsigned char response[ 1 	/* version. 			*/
+								 + 1	/* selected method. */
+								 ];
 
 	SASSERTX(packet->gw.state.methodc > 0);
 
@@ -73,19 +78,21 @@ negotiate_method(s, packet)
 	if (writen(s, request, requestlen) != (ssize_t)requestlen)
 		return -1;
 
-	/* read servers response for method to use */
+	/* read servers response for method it wants to use */
 	if (readn(s, response, sizeof(response)) != sizeof(response))
 		return -1;
 
 	if (request[AUTH_VERSION] != response[AUTH_VERSION]) {
-		swarnx("%s: got reply version %d, expected %d",
+		swarnx("%s: got replyversion %d, expected %d",
       function, response[AUTH_VERSION], request[AUTH_VERSION]);
 		errno = ECONNREFUSED;
 		return -1;
 	}
-	packet->version = request[AUTH_VERSION];
 
-	switch (packet->auth.method = response[AUTH_METHOD]) {
+	packet->version 		= request[AUTH_VERSION];
+	packet->auth.method 	= response[AUTH_METHOD];
+
+	switch (packet->auth.method) {
 		case AUTHMETHOD_NONE:
 			rc = 0;
 			break;
@@ -99,20 +106,19 @@ negotiate_method(s, packet)
 			break;
 
 		case AUTHMETHOD_NOACCEPT:
-			swarnx("%s: server accepted no authentication method",
-			function);
+			swarnx("%s: server accepted no authentication method", function);
 			rc = -1;
 			break;
 
 		default:
-			swarnx("%s: server selected wrong method: %d",
+			swarnx("%s: server selected method not offered: %d",
 			function, response[AUTH_METHOD]);
 			rc = -1;
 	}
 
 	if (rc == 0) {
 		slog(LOG_DEBUG,
-		"%s: established SOCKS v%d connection using authentication method %d",
+		"%s: established socks v%d connection using authentication method %d",
 		function, packet->version, packet->auth.method);
 	}
 	else

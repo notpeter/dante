@@ -44,9 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.40 1999/05/13 13:12:59 karls Exp $";
-
-extern struct config_t config;
+"$Id: client.c,v 1.41 1999/05/23 15:43:47 michaels Exp $";
 
 #if !HAVE_PROGNAME
 	char *__progname = "danteclient";
@@ -69,7 +67,7 @@ clientinit(void)
 	if (config.state.init)
 		return;
 
-	config.state.pid				= getpid();
+	config.state.pid = getpid();
 
 	if (issetugid())
 		config.option.configfile = SOCKS_CONFIGFILE;

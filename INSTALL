@@ -1,3 +1,5 @@
+# $Id: INSTALL,v 1.14 1999/05/24 11:01:23 michaels Exp $ 
+
 This file describes how to install Dante.  Dante is a Socks client
 and server firewall implementation.  It can be installed on a machine
 with access to a external TCP/IP network and will allow all other
@@ -61,6 +63,8 @@ The simplest way to compile this package is:
      # the above command should produce some server statistics in your
      # logfile, save it to the file 'stats'.  If you are only using
      # client, skip the 'stats' file but do the rest please.
+     # If you should have any objections to being mentioned by name
+     # please mention that.
 
      $ (echo '<Firstname> <Lastname>'; cat stats include/autoconf.h) \
      | mail dante-qst@inet.no

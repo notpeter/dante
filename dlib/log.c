@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.35 1999/05/13 14:09:19 karls Exp $";
+"$Id: log.c,v 1.36 1999/05/26 10:05:31 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -204,7 +204,13 @@ logformat(priority, buf, buflen, message, ap)
 	bufused = strftime(buf, buflen, "%h %e %T ", localtime(&timenow));
 
 	bufused += snprintf(&buf[bufused], buflen - bufused, "%s[%lu]: ",
-	__progname, (unsigned long)getpid());
+	__progname,
+#if SOCKS_SERVER
+	(unsigned long)config.state.pid
+#else /* !SOCKS_SERVER, can't trust saved state. */
+	(unsigned long)getpid()
+#endif /* !SOCKS_SERVER */
+	);
 
 	vsnprintf(&buf[bufused], buflen - bufused, message, ap);
 

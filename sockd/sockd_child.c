@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.106 1999/05/14 10:51:31 michaels Exp $";
+"$Id: sockd_child.c,v 1.107 1999/05/26 10:07:22 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -294,6 +294,8 @@ addchild(type)
 			size_t i, maxfd;
 			int cansetuid;
 			struct sigaction sigact;
+
+			config.state.pid = getpid();
 
 #if 0
 			slog(LOG_DEBUG, "sleeping...");

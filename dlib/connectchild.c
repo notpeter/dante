@@ -44,7 +44,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.84 1999/05/13 14:09:19 karls Exp $";
+"$Id: connectchild.c,v 1.87 1999/05/26 10:05:29 michaels Exp $";
+
+#define MOTHER 0	/* descriptor mother reads/writes on.  */
+#define CHILD	1	/* descriptor child reads/writes on.   */
 
 __BEGIN_DECLS
 
@@ -103,10 +106,19 @@ socks_nbconnectroute(s, control, packet, src, dst)
 		*/
 		struct sigaction oursig;
 
-		if (sigaction(SIGCHLD, NULL, &oldsig) != 0) {
-			swarn("%s: sigaction(SIGCHLD)", function);
-			return NULL;
-		}
+		oldsig = currentsig;
+
+		/*
+		 * This is far from 100% but...
+		*/
+
+		if (oldsig.sa_flags != 0)
+			swarnx("%s: sigchld sa_flags not handled currently,\n"
+					 "contact Inferno Nettverk A/S for more information", function);
+			
+		if (oldsig.sa_handler == SIG_DFL
+		||	 oldsig.sa_handler == SIG_IGN) 
+			oldsig.sa_handler = NULL;
 
 		if (oldsig.sa_handler == NULL) {
 			/* no signal handler, free to do what we want. */
@@ -117,11 +129,11 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			/* duplicate old handler as much as possible */
 			oursig = oldsig;
 
-			oursig.sa_handler = sigchld;
-			if (sigaction(SIGCHLD, &oursig, NULL) != 0) {
-				swarn("%s: sigaction(SIGCHLD)", function);
-				return NULL;
-			}
+		oursig.sa_handler = sigchld;
+		if (sigaction(SIGCHLD, &oursig, NULL) != 0) {
+			swarn("%s: sigaction(SIGCHLD)", function);
+			return NULL;
+		}
 	}
 
 	if (config.connectchild == 0) {
@@ -144,21 +156,27 @@ socks_nbconnectroute(s, control, packet, src, dst)
 				struct itimerval timerval;
 				size_t i, max;
 
+				config.state.pid = getpid();
+
 				slog(LOG_DEBUG, "%s: connectchild forked", function);
 
 				setsid();
 
 				/* close unknown descriptors. */
 				for (i = 0, max = getdtablesize(); i < max; ++i)
-					if (socks_logmatch(i, &config.log))
-						continue;
-					else if (i == pipev[1])
+					if (socks_logmatch(i, &config.log)
+					|| i == (unsigned int)pipev[CHILD])
 						continue;
 					else
 						close((int)i);
+
 				initlog();
 
-				/* in case of using msproxy stuff, don't want mothers mess. */
+				/*
+				 * in case of using msproxy stuff, don't want mothers mess,
+				 * disable alarmtimers.
+				*/
+
 				if (signal(SIGALRM, SIG_DFL) == SIG_ERR)
 					swarn("%s: signal()", function);
 
@@ -169,13 +187,13 @@ socks_nbconnectroute(s, control, packet, src, dst)
 				if (setitimer(ITIMER_REAL, &timerval, NULL) != 0)
 					swarn("%s: setitimer()", function);
 
-				run_connectchild(pipev[1]);
+				run_connectchild(pipev[CHILD]);
 				/* NOTREACHED */
 			}
 
 			default:
-				config.connect_s = pipev[0];
-				close(pipev[1]);
+				config.connect_s = pipev[MOTHER];
+				close(pipev[CHILD]);
 		}
 	}
 
@@ -263,7 +281,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			switch (packet->req.version) {
 				case SOCKS_V4:
 				case SOCKS_V5:
-					close(control); /* created here. */
+					close(control); /* created in this function. */
 					control = s;
 					break;
 
@@ -279,13 +297,13 @@ socks_nbconnectroute(s, control, packet, src, dst)
 				/* try again, hopefully there's a backup route. */
 				return socks_nbconnectroute(s, control, packet, src, dst);
 			}
+			close(new_control);
 			return NULL;
 		}
 
 		SASSERTX(ADDRISBOUND(local));
 		local.sin_port				= htons(0);
 
-		len = sizeof(local);
 		/* LINTED pointer casts may be troublesome */
 		if (bind(s, (struct sockaddr *)&local, sizeof(local)) != 0)
 			return NULL;
@@ -304,8 +322,8 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 	/*
 	 * send the request to our connectprocess and let it do the rest.
-	 * When it's done, we get a signal and dup "s" over "socksfd.control" in
-	 * the handler.
+	 * When it's done, we get a signal and dup "s" over "socksfd.control" 
+	 * in the handler.
 	*/
 
 	fdsent = 0;
@@ -397,7 +415,6 @@ run_connectchild(mother)
 			 * connected) socket and necessary info to negotiate with
 			 * proxyserver.
 			*/
-
 			struct childpacket_t req;
 			struct iovec iov[1];
 			socklen_t len;
@@ -525,8 +542,7 @@ run_connectchild(mother)
 
 #if !HAVE_SOLARIS_BUGS
 			len = sizeof(errno);
-			if (getsockopt(control, SOL_SOCKET, SO_ERROR, &errno, &len)
-			!= 0)
+			if (getsockopt(control, SOL_SOCKET, SO_ERROR, &errno, &len) != 0)
 				SERR(-1);
 #else /* !HAVE_SOLARIS_2_5_1 */ /* even read() doesn't work right on 2.5.1. */
 			errno = 0;
@@ -589,7 +605,7 @@ run_connectchild(mother)
 			close(s);
 
 			slog(LOG_DEBUG, "raising SIGSTOP");
-			if (kill(getpid(), SIGSTOP) != 0)
+			if (kill(config.state.pid, SIGSTOP) != 0)
 				serr(EXIT_FAILURE, "raise(SIGSTOP)");
 		}
 	}
@@ -629,7 +645,7 @@ sigchld(sig)
 			/* XXX if child dies, set err in all "inprogress" socksfd's. */
 
 			if (WIFSIGNALED(status)) {
-				swarnx("%s: connect child terminated on signal %d",
+				swarnx("%s: connectchild terminated on signal %d",
 				function, WTERMSIG(status));
 				config.connectchild = 0;
 				close(config.connect_s);
@@ -637,7 +653,7 @@ sigchld(sig)
 			}
 
 			if (WIFEXITED(status)) {
-				swarnx("%s: nbcconnect child exited with status %d",
+				swarnx("%s: cconnectchild exited with status %d",
 				function, WEXITSTATUS(status));
 				config.connectchild = 0;
 				close(config.connect_s);
@@ -653,11 +669,6 @@ sigchld(sig)
 				swarn("%s: read(): got %d of %d", function, p, sizeof(childres));
 				return;
 			}
-
-			/*
-			 * If address is not bound, something must have gone wrong, didn't
-			 * even manage a connect.
-			*/
 
 			sockshost2sockaddr(&childres.src, local);
 			sockshost2sockaddr(&childres.dst, remote);
@@ -725,7 +736,7 @@ sigchld(sig)
 			childres.packet.res.reply, socksfd->route)) {
 				socksfd->state.err = errno;
 				/*
-				 * If it's a servererror, would be nice to retry, could
+				 * XXX If it's a servererror it would be nice to retry, could
 				 * be there's a backup route.
 				*/
 				return;

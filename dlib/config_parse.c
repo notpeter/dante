@@ -86,7 +86,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.97 1999/05/13 13:13:00 karls Exp $";
+"$Id: config_parse.y,v 1.99 1999/05/21 09:54:50 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -280,15 +280,15 @@ static const short yyrline[] = { 0,
    324,   328,   345,   381,   390,   408,   409,   410,   413,   416,
    449,   450,   453,   454,   455,   458,   466,   474,   487,   497,
    504,   511,   516,   519,   523,   529,   530,   533,   536,   539,
-   542,   547,   550,   554,   562,   563,   567,   570,   573,   576,
-   581,   582,   588,   605,   606,   609,   610,   613,   631,   632,
-   633,   634,   635,   636,   639,   640,   643,   652,   663,   666,
-   669,   672,   678,   683,   684,   687,   690,   693,   698,   699,
-   703,   706,   709,   713,   716,   719,   722,   728,   729,   733,
-   758,   762,   766,   769,   770,   771,   772,   773,   776,   777,
-   780,   786,   792,   800,   801,   805,   806,   807,   811,   820,
-   827,   833,   842,   855,   856,   857,   860,   861,   864,   868,
-   874,   922,   928
+   546,   551,   554,   558,   566,   567,   571,   574,   577,   580,
+   585,   586,   592,   609,   610,   613,   614,   617,   635,   636,
+   637,   638,   639,   640,   643,   644,   647,   656,   667,   670,
+   673,   676,   682,   687,   688,   691,   694,   697,   702,   703,
+   707,   710,   713,   717,   720,   723,   726,   732,   733,   737,
+   762,   766,   770,   773,   774,   775,   776,   777,   780,   781,
+   784,   790,   796,   804,   805,   809,   810,   811,   815,   824,
+   831,   837,   846,   859,   860,   861,   864,   865,   868,   872,
+   878,   926,   932
 };
 #endif
 
@@ -1277,24 +1277,28 @@ case 69:
 case 70:
 #line 539 "config_parse.y"
 {
+#if HAVE_NO_RESOLVESTUFF
+			yyerror("resolveprotocol keyword not supported on this installation");
+#else /* HAVE_NO_RESOLVESTUFF */
 			config.resolveprotocol = RESOLVEPROTOCOL_TCP;
+#endif /* !HAVE_NO_RESOLVESTUFF */
 	;
     break;}
 case 71:
-#line 542 "config_parse.y"
+#line 546 "config_parse.y"
 {
 			config.resolveprotocol = RESOLVEPROTOCOL_UDP;
 	;
     break;}
 case 73:
-#line 550 "config_parse.y"
+#line 554 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 			config.srchost.nomismatch = 1;
 	;
     break;}
 case 74:
-#line 554 "config_parse.y"
+#line 558 "config_parse.y"
 {
 			config.srchost.nounknown = 1;
 #else
@@ -1303,25 +1307,25 @@ case 74:
 	;
     break;}
 case 78:
-#line 570 "config_parse.y"
+#line 574 "config_parse.y"
 {
 		methodv[(*methodc)++] = AUTHMETHOD_NONE;
 	;
     break;}
 case 79:
-#line 573 "config_parse.y"
+#line 577 "config_parse.y"
 {
 		yyerror("GSSAPI not supported");
 	;
     break;}
 case 80:
-#line 576 "config_parse.y"
+#line 580 "config_parse.y"
 {
 		methodv[(*methodc)++] = AUTHMETHOD_UNAME;
 	;
     break;}
 case 83:
-#line 588 "config_parse.y"
+#line 592 "config_parse.y"
 {
 #if SOCKS_SERVER
 		rule.src = src;
@@ -1339,11 +1343,11 @@ case 83:
 	;
     break;}
 case 86:
-#line 609 "config_parse.y"
+#line 613 "config_parse.y"
 { yyval.string = NULL; ;
     break;}
 case 88:
-#line 613 "config_parse.y"
+#line 617 "config_parse.y"
 {
 #if SOCKS_SERVER
 		rule.src = src;
@@ -1361,11 +1365,11 @@ case 88:
 	;
     break;}
 case 95:
-#line 639 "config_parse.y"
+#line 643 "config_parse.y"
 { yyval.string = NULL; ;
     break;}
 case 97:
-#line 643 "config_parse.y"
+#line 647 "config_parse.y"
 {
 #if SOCKS_SERVER
 		rule.verdict	= VERDICT_BLOCK;
@@ -1377,7 +1381,7 @@ case 97:
 	;
     break;}
 case 98:
-#line 652 "config_parse.y"
+#line 656 "config_parse.y"
 {
 		rule.verdict	= VERDICT_PASS;
 		command			= &rule.state.command;
@@ -1389,81 +1393,81 @@ case 98:
 	;
     break;}
 case 100:
-#line 666 "config_parse.y"
+#line 670 "config_parse.y"
 {
 			command->bind = 1;
 	;
     break;}
 case 101:
-#line 669 "config_parse.y"
+#line 673 "config_parse.y"
 {
 			command->connect = 1;
 	;
     break;}
 case 102:
-#line 672 "config_parse.y"
+#line 676 "config_parse.y"
 {
 			command->udpassociate = 1;
 	;
     break;}
 case 103:
-#line 678 "config_parse.y"
+#line 682 "config_parse.y"
 {
 			command->bindreply = 1;
 	;
     break;}
 case 107:
-#line 690 "config_parse.y"
+#line 694 "config_parse.y"
 {
 		protocol->tcp = 1;
 	;
     break;}
 case 108:
-#line 693 "config_parse.y"
+#line 697 "config_parse.y"
 {
 		protocol->udp = 1;
 	;
     break;}
 case 113:
-#line 709 "config_parse.y"
+#line 713 "config_parse.y"
 {
 #if SOCKS_SERVER
 	rule.log.connect = 1;
 	;
     break;}
 case 114:
-#line 713 "config_parse.y"
+#line 717 "config_parse.y"
 {
 			rule.log.data = 1;
 	;
     break;}
 case 115:
-#line 716 "config_parse.y"
+#line 720 "config_parse.y"
 {
 			rule.log.disconnect = 1;
 	;
     break;}
 case 116:
-#line 719 "config_parse.y"
+#line 723 "config_parse.y"
 {
 			rule.log.error = 1;
 	;
     break;}
 case 117:
-#line 722 "config_parse.y"
+#line 726 "config_parse.y"
 {
 			rule.log.iooperation = 1;
 #endif
 	;
     break;}
 case 120:
-#line 733 "config_parse.y"
+#line 737 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 		struct request_info request;
 
 		if (strlen(yyvsp[0].string) >= sizeof(rule.libwrap))
-			yyerror("libwrap line too long.  Make buffer bigger");
+			yyerror("libwrap line too long, make LIBWRAPBUF bigger");
 		strcpy(rule.libwrap, yyvsp[0].string);
 
 		if (config.option.debug)
@@ -1482,23 +1486,23 @@ case 120:
 	;
     break;}
 case 129:
-#line 776 "config_parse.y"
+#line 780 "config_parse.y"
 { yyval.string = NULL; ;
     break;}
 case 131:
-#line 780 "config_parse.y"
+#line 784 "config_parse.y"
 {
 		addressinit(&src);
 	;
     break;}
 case 132:
-#line 786 "config_parse.y"
+#line 790 "config_parse.y"
 {
 		addressinit(&dst);
 	;
     break;}
 case 133:
-#line 792 "config_parse.y"
+#line 796 "config_parse.y"
 {
 #if SOCKS_CLIENT
 		addressinit(&gw);
@@ -1506,7 +1510,7 @@ case 133:
 	;
     break;}
 case 139:
-#line 811 "config_parse.y"
+#line 815 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_IPV4;
 
@@ -1515,7 +1519,7 @@ case 139:
 	;
     break;}
 case 140:
-#line 820 "config_parse.y"
+#line 824 "config_parse.y"
 {
 		if (atoi(yyvsp[0].string) < 0 || atoi(yyvsp[0].string) > 32)
 			yyerror("bad netmask");
@@ -1525,14 +1529,14 @@ case 140:
 	;
     break;}
 case 141:
-#line 827 "config_parse.y"
+#line 831 "config_parse.y"
 {
 			if (!inet_aton(yyvsp[0].string, netmask))
 				yyerror("bad netmask");
 	;
     break;}
 case 142:
-#line 833 "config_parse.y"
+#line 837 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_DOMAIN;
 
@@ -1542,7 +1546,7 @@ case 142:
 	;
     break;}
 case 143:
-#line 842 "config_parse.y"
+#line 846 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_DOMAIN;
 
@@ -1556,18 +1560,18 @@ case 143:
 	;
     break;}
 case 144:
-#line 855 "config_parse.y"
+#line 859 "config_parse.y"
 { yyval.string = NULL; ;
     break;}
 case 150:
-#line 868 "config_parse.y"
+#line 872 "config_parse.y"
 {
 		*port_tcp	= htons((in_port_t)atoi(yyvsp[0].string));
 		*port_udp	= htons((in_port_t)atoi(yyvsp[0].string));
 	;
     break;}
 case 151:
-#line 874 "config_parse.y"
+#line 878 "config_parse.y"
 {
 		struct servent	*service;
 		struct protocol_t	protocolunset;
@@ -1615,14 +1619,14 @@ case 151:
 	;
     break;}
 case 152:
-#line 922 "config_parse.y"
+#line 926 "config_parse.y"
 {
 		ruleaddress->portend = htons((in_port_t)atoi(yyvsp[0].string));
 		ruleaddress->operator = range;
 	;
     break;}
 case 153:
-#line 928 "config_parse.y"
+#line 932 "config_parse.y"
 {
 		*operator = string2operator(yyvsp[0].string);
 	;
@@ -1825,10 +1829,18 @@ yyerrhandle:
   yystate = yyn;
   goto yynewstate;
 }
-#line 933 "config_parse.y"
+#line 937 "config_parse.y"
 
 
-#define INTERACTIVE 0
+#define INTERACTIVE 		0
+#define ELECTRICFENCE 	0
+
+#if ELECTRICFENCE
+	extern int EF_PROTECT_FREE;
+	extern int EF_ALLOW_MALLOC_0;
+	extern int EF_ALIGNMENT;
+	extern int EF_PROTECT_BELOW;
+#endif /* ELECTRICFENCE */
 
 extern FILE *yyin;
 
@@ -1839,6 +1851,14 @@ readconfig(filename)
 	const char *filename;
 {
 	const char *function = "readconfig()";
+
+#if ELECTRICFENCE
+	EF_PROTECT_FREE         = 1;
+	EF_ALLOW_MALLOC_0       = 1;
+	EF_ALIGNMENT            = 0;
+	EF_PROTECT_BELOW			= 0;
+#endif /* ELECTRICFENCE */
+
 
 	yydebug = 0;
 	parseinit = 0;

@@ -53,7 +53,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.76 1999/05/14 13:14:44 michaels Exp $";
+"$Id: util.c,v 1.80 1999/05/26 10:05:33 michaels Exp $";
 
 /* fake "ip address", for clients without dns access. */
 static char **ipv;
@@ -73,7 +73,7 @@ sockshost2string(host, string, len)
 	size_t len;
 {
 
-	if (string == NULL) {
+	if (string == NULL) { /* to ease debugging. */
 		static char hstring[MAXSOCKSHOSTSTRING];
 
 		string = hstring;
@@ -561,11 +561,12 @@ serr(eval, fmt, va_alist)
 	va_dcl
 #endif  /* STDC_HEADERS */
 {
-	va_list ap;
-	char buf[2048];
-	size_t bufused;
 
 	if (fmt != NULL) {
+		va_list ap;
+		char buf[2048];
+		size_t bufused;
+
 #ifdef STDC_HEADERS
 		/* LINTED pointer casts may be troublesome */
 		va_start(ap, fmt);
@@ -576,8 +577,7 @@ serr(eval, fmt, va_alist)
 		bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
 
 		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-		": %s (errno = %d)",
-		strerror(errno), errno);
+		": %s (errno = %d)", strerror(errno), errno);
 
 		slog(LOG_ERR, buf);
 
@@ -588,9 +588,7 @@ serr(eval, fmt, va_alist)
 #if SOCKS_SERVER
 	sockdexit(-eval);
 #else
-	if (config.state.pid == 0 || config.state.pid == getpid())
-		exit(eval);
-	_exit(eval);
+	exit(eval);
 #endif
 }
 
@@ -604,9 +602,10 @@ serrx(eval, fmt, va_alist)
       va_dcl
 #endif  /* STDC_HEADERS */
 {
-	va_list ap;
 
 	if (fmt != NULL) {
+		va_list ap;
+
 #ifdef STDC_HEADERS
 		/* LINTED pointer casts may be troublesome */
 		va_start(ap, fmt);
@@ -622,9 +621,7 @@ serrx(eval, fmt, va_alist)
 #if SOCKS_SERVER
 	sockdexit(-eval);
 #else
-	if (config.state.pid == 0 || config.state.pid == getpid())
-		exit(eval);
-	_exit(eval);
+	exit(eval);
 #endif
 }
 
@@ -637,11 +634,12 @@ swarn(fmt, va_alist)
 	va_dcl
 #endif  /* STDC_HEADERS */
 {
-	va_list ap;
-	char buf[2048];
-	size_t bufused;
 
 	if (fmt != NULL) {
+		va_list ap;
+		char buf[2048];
+		size_t bufused;
+
 #ifdef STDC_HEADERS
 	/* LINTED pointer casts may be troublesome */
 		va_start(ap, fmt);
@@ -670,9 +668,10 @@ swarnx(fmt, va_alist)
 	va_dcl
 #endif  /* STDC_HEADERS */
 {
-	va_list ap;
 
 	if (fmt != NULL) {
+		va_list ap;
+
 #ifdef STDC_HEADERS
 		/* LINTED pointer casts may be troublesome */
 		va_start(ap, fmt);
@@ -698,6 +697,10 @@ socks_addfakeip(host)
 	if (socks_getfakeip(host, &addr) == 1)
 		return addr.s_addr;
 
+#if FAKEIP_END < FAKEIP_START
+error "\"FAKEIP_END\" can't be smaller than \"FAKEIP_START\""
+#endif
+
 	if (ipc >= FAKEIP_END - FAKEIP_START) {
 		swarnx("%s: fakeip range (%d - %d) exhausted",
 		function, FAKEIP_START, FAKEIP_END);
@@ -705,7 +708,7 @@ socks_addfakeip(host)
 	}
 
 	if ((tmpmem = (char **)realloc(ipv, sizeof(*ipv) * (ipc + 1))) == NULL
-	|| (tmpmem[ipc] = (char *)malloc(sizeof(char) * (strlen(host) + 1)))
+	|| (tmpmem[ipc] = (char *)malloc(sizeof(*tmpmem) * (strlen(host) + 1)))
 	== NULL) {
 		swarnx("%s: %s", function, NOMEM);
 		return INADDR_NONE;
@@ -824,11 +827,9 @@ socks_logmatch(d, log)
 	int i;
 
 	for (i = 0; i < log->fpc; ++i)
-		if (d == log->fplockv[i])
+		if (d == (unsigned int)log->fplockv[i]
+		||	 d == (unsigned int)fileno(log->fpv[i]))
 			return 1;
-		else if (d == fileno(log->fpv[i]))
-			return 1;
-
 	return 0;
 }
 
@@ -849,7 +850,7 @@ sockaddrcmp(a, b)
 			const struct sockaddr_in *in_b = (const struct sockaddr_in *)b;
 
 			if (in_a->sin_addr.s_addr != in_b->sin_addr.s_addr
-			||  in_a->sin_port != in_b->sin_port)
+			||  in_a->sin_port 		  != in_b->sin_port)
 				return -1;
 			return 0;
 		}
@@ -1046,13 +1047,16 @@ socketoptdup(s)
 
 	};
 
-
 	len = sizeof(val);
-	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) == -1)
+	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) == -1) {
+		swarn("%s: getsockopt(SO_TYPE)", function);
 		return -1;
+	}
 
-	if ((new_s = socket(AF_INET, val.int_val, 0)) == -1)
+	if ((new_s = socket(AF_INET, val.int_val, 0)) == -1) {
+		swarn("%s: socket(AF_INET, %d)", function, val.int_val);
 		return -1;
+	}
 
 	for (i = 0; i < ELEMENTS(levelname); ++i) {
 		len = sizeof(val);
@@ -1084,10 +1088,9 @@ str2vis(string, len)
 	char *visstring;
 
 	/* see vis(3) for "* 4" */
-	if ((visstring = (char *)malloc((sizeof(char) * len * 4) + sizeof(char)))
-	!= NULL)
+	if ((visstring = (char *)malloc((sizeof(*visstring) * len * 4)
+	+ sizeof(char))) != NULL)
 		strvisx(visstring, string, len, visflag);
-
 	return visstring;
 }
 
@@ -1108,7 +1111,7 @@ socks_mklock(template)
 		prefix = "/tmp";
 
 	len = strlen(prefix) + strlen("/") + strlen(template) + 1;
-	if ((newtemplate = (char *)malloc(sizeof(char) * len)) == NULL)
+	if ((newtemplate = (char *)malloc(sizeof(*newtemplate) * len)) == NULL)
 		return -1;
 
 	snprintf(newtemplate, len, "%s/%s", prefix, template);
@@ -1254,19 +1257,6 @@ fdisopen(fd)
 	if (fcntl(fd, F_GETFD, 0) == 0)
 		return 1;
 	return 0;
-}
-
-ssize_t
-strnlen(s, len)
-	const char *s;
-	size_t len;
-{
-	const char *p;
-
-	if ((p = memchr(s, NUL, len)) == NULL)
-		return -1;
-
-	return p - s;
 }
 
 void
