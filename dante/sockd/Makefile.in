@@ -84,8 +84,8 @@ sockd_SOURCES = sockd.c sockd_child.c sockd_io.c io.c sockd_negotiate.c 	sockd_r
 
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
-
-sockd_LDADD = ../libscompat/libscompat.la
+@STATIC_SOCKD_TRUE@sockd_LDADD = ../libscompat/sockatmark.o
+@STATIC_SOCKD_FALSE@sockd_LDADD = ../libscompat/libscompat.la
 
 INCLUDES = -I../libscompat
 PREFIX = socks_yy
@@ -93,7 +93,7 @@ YFLAGS = -d -p${PREFIX}
 LFLAGS = -P${PREFIX} -olex.yy.c
 
 @STATIC_SOCKD_TRUE@STATIC = -all-static
-@SPROFIL_TRUE@PROFIL = -pg
+@SPROFIL_TRUE@PROFIL = -pg -DPROFILING
 @SPROFIL_FALSE@PROFIL = 
 #XXX some systems do not appear to need this
 @SPROFIL_TRUE@sockd_LDFLAGS = ${STATIC}
@@ -124,6 +124,8 @@ sockd_OBJECTS =  sockd.o sockd_child.o sockd_io.o io.o sockd_negotiate.o \
 sockd_request.o method_uname.o debug.o udp_util.o util.o log.o socket.o \
 sockd_socket.o config_parse.o config_scan.o config.o sockd_util.o \
 sockd_protocol.o serverconfig.o lib_protocol.o hostcache.o
+@STATIC_SOCKD_TRUE@sockd_DEPENDENCIES =  ../libscompat/sockatmark.o
+@STATIC_SOCKD_FALSE@sockd_DEPENDENCIES =  ../libscompat/libscompat.la
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LEXLIB = @LEXLIB@
 CFLAGS = @CFLAGS@

@@ -59,7 +59,7 @@
 /* define by other name */
 #undef NEED_DYNA_RTLD
 
-/* XXX needed for proper behaviour for now */
+/* needed for better performance */
 #undef HAVE_SO_SNDLOWAT
 
 /* SIGINFO signal */
@@ -162,6 +162,14 @@
 
 /* not all platforms allow free(NULL) */
 #undef HAVE_NONULL_FREE
+
+/* allow default file locations to be overridden */
+#undef HAVE_ALT_SOCKS_CONFIGFILE
+#undef HAVE_ALT_SOCKD_CONFIGFILE
+#undef HAVE_ALT_SOCKD_PIDFILE
+#undef HAVE_SOCKD_PIDFILE
+#undef HAVE_SOCKD_CONFIGFILE
+#undef HAVE_SOCKS_CONFIGFILE
 
 /* interposition.c prototypes */
 #undef HAVE_PROT_CONNECT_0

@@ -8,7 +8,12 @@ sockd_SOURCES = sockd.c sockd_child.c sockd_io.c io.c sockd_negotiate.c \
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
 
+#XXXhack
+if STATIC_SOCKD
+sockd_LDADD = ../libscompat/sockatmark.o
+else
 sockd_LDADD = ../libscompat/libscompat.la
+endif
 
 INCLUDES = -I../libscompat
 PREFIX = socks_yy
@@ -20,7 +25,7 @@ STATIC = -all-static
 endif
 
 if SPROFIL
-PROFIL = -pg
+PROFIL = -pg -DPROFILING
 #XXX some systems do not appear to need this
 sockd_LDFLAGS = ${STATIC}
 else

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.141 1999/07/03 16:36:21 karls Exp $ */
+/* $Id: socks.h,v 1.143 1999/07/08 18:54:42 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -638,7 +638,7 @@ __P((HAVE_PROT_BIND_1, HAVE_PROT_BIND_2, HAVE_PROT_BIND_3));
 #if HAVE_OSF_OLDSTYLE
 int sys_connect __P((int, const struct sockaddr *, int));
 #else
-HAVE_PROT_CONNECT_0 sys_connect 
+HAVE_PROT_CONNECT_0 sys_connect
 __P((HAVE_PROT_CONNECT_1, HAVE_PROT_CONNECT_2, HAVE_PROT_CONNECT_3));
 #endif  /* HAVE_OSF_OLDSTYLE */
 
@@ -685,11 +685,11 @@ __P((HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3, HAVE_PROT_SENDT
 #endif /* !HAVE_OSF_OLDSTYLE */
 
 #if HAVE_EXTRA_OSF_SYMBOLS
-int sys_Eaccept __P((int, __SOCKADDR_ARG, socklen_t *));
-int sys_Egetpeername __P((int, __SOCKADDR_ARG, socklen_t *));
-int sys_Egetsockname __P((int, __SOCKADDR_ARG, socklen_t *));
+int sys_Eaccept __P((int, struct sockaddr *, socklen_t *));
+int sys_Egetpeername __P((int, struct sockaddr *, socklen_t *));
+int sys_Egetsockname __P((int, struct sockaddr *, socklen_t *));
 ssize_t sys_Ereadv __P((int, const struct iovec *, int));
-int sys_Erecvfrom __P((int, void *, size_t, int, __SOCKADDR_ARG, size_t *));
+int sys_Erecvfrom __P((int, void *, size_t, int, struct sockaddr *, size_t *));
 ssize_t sys_Erecvmsg __P((int, struct msghdr *, int));
 ssize_t sys_Esendmsg __P((int, const struct msghdr *, int));
 ssize_t sys_Ewritev __P((int, const struct iovec *, int));

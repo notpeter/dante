@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.110 1999/06/30 11:17:32 michaels Exp $";
+"$Id: sockd_child.c,v 1.112 1999/07/10 13:52:35 karls Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -69,15 +69,6 @@ findchild __P((pid_t pid, int childc, const struct sockd_child_t *childv));
  *		On success: the index of the child in "childv".
  *		On failure: -1.
 */
-
-static const char *
-childtype2string __P((int type));
-/*
- * returns the string representation of "type".
-*/
-
-extern int exitsignalv[];
-extern size_t exitsignalc;
 
 __END_DECLS
 
@@ -187,7 +178,7 @@ addchild(type)
 				swarn("%s: setsockopt(SO_RCVBUF/SO_SNDBUF)", function);
 
 #if HAVE_SO_SNDLOWAT
-			optval = sizeof(struct sockd_request_t);
+			optval = sizeof(struct sockd_request_t) * LOWATSKEW;
 			if (setsockopt(pipev[CHILD], SOL_SOCKET, SO_SNDLOWAT, &optval,
 			sizeof(optval)) != 0
 			|| setsockopt(pipev[MOTHER], SOL_SOCKET, SO_RCVLOWAT, &optval,
@@ -221,14 +212,14 @@ addchild(type)
 				swarn("%s: setsockopt()", function);
 
 #if HAVE_SO_SNDLOWAT
-			optval = sizeof(struct sockd_request_t);
+			optval = sizeof(struct sockd_request_t) * LOWATSKEW;
 			if (setsockopt(pipev[CHILD], SOL_SOCKET, SO_RCVLOWAT, &optval,
 			sizeof(optval)) != 0
 			|| setsockopt(pipev[MOTHER], SOL_SOCKET, SO_SNDLOWAT, &optval,
 			sizeof(optval)) != 0)
 				swarn("%s: setsockopt(SO_RCVLOWAT)", function);
 
-			optval = sizeof(struct sockd_io_t);
+			optval = sizeof(struct sockd_io_t) * LOWATSKEW;
 			if (setsockopt(pipev[CHILD], SOL_SOCKET, SO_SNDLOWAT, &optval,
 			sizeof(optval)) != 0
 			|| setsockopt(pipev[MOTHER], SOL_SOCKET, SO_RCVLOWAT, &optval,
@@ -262,7 +253,7 @@ addchild(type)
 				swarn("%s: setsockopt(SO_RCVBUF/SO_SNDBUF)", function);
 
 #if HAVE_SO_SNDLOWAT
-			optval = sizeof(struct sockd_io_t);
+			optval = sizeof(struct sockd_io_t) * LOWATSKEW;
 			if (setsockopt(pipev[CHILD], SOL_SOCKET, SO_RCVLOWAT, &optval,
 			sizeof(optval)) != 0
 			|| setsockopt(pipev[MOTHER], SOL_SOCKET, SO_SNDLOWAT, &optval,
@@ -294,7 +285,8 @@ addchild(type)
 			size_t i, maxfd;
 			struct sigaction sigact;
 
-			config.state.pid = getpid();
+			config.state.type	= type;
+			config.state.pid	= getpid();
 
 			initlog();
 
@@ -311,14 +303,14 @@ addchild(type)
 			 * but unfourtenatly we can't.
 			 *
 			 * negotiation children:
-			 *		could need to be privileged to check password. 
-			 * 	
+			 *		could need to be privileged to check password.
+			 *
 			 * request children:
 			 *		could need privileges to bind port.
 			 *
 			 * io children:
-			 * 	doesn't really need any, but a sighup() performs misc.
-			 * 	seteuid() tests that would fail if we lose privileges.
+			 *		doesn't really need any, but a sighup() performs misc.
+			 *		seteuid() tests that would fail if we lose privileges.
 			*/
 
 			switch (type) {
@@ -347,21 +339,15 @@ addchild(type)
 					resident = 1;
 #endif /* SOCKD_IOMAX > 1 */
 #endif  /* HAVE_LIBWRAP */
-					
+
 					break;
 
 				default:
 					SERRX(type);
 			}
-			
-			/* A child does not need a exit handler, reset to default. */
+
 			sigemptyset(&sigact.sa_mask);
 			sigact.sa_flags	= 0;
-			sigact.sa_handler = SIG_DFL;
-
-			for (i = 0; i < exitsignalc; ++i)
-				if (sigaction(exitsignalv[i], &sigact, NULL) != 0)
-					swarn("%s: sigaction(%d)", function, exitsignalv[i]);
 
 			/* signals mother has set up but which we ignore at this point. */
 			sigact.sa_handler = SIG_IGN;
@@ -790,7 +776,11 @@ childtype(pid)
 	if (findchild(pid, reqchildc, reqchildv) != -1)
 		return CHILD_REQUEST;
 
-	return CHILD_UNKNOWN;
+	if (pidismother(pid))
+		return CHILD_MOTHER;
+
+	SERRX(pid);
+	/* NOTREACHED */
 }
 
 static int
@@ -816,8 +806,18 @@ getchild(pid)
 	int *childc;
 	struct sockd_child_t **childv;
 
-	if ((type = childtype(pid)) == CHILD_UNKNOWN)
-		return NULL;
+	switch (type = childtype(pid)) {
+		case CHILD_IO:
+		case CHILD_NEGOTIATE:
+		case CHILD_REQUEST:
+			break;
+
+		case CHILD_MOTHER:
+			return NULL;
+
+		default:
+			SERRX(type);
+	}
 
 	setchildtype(type, &childv, &childc, NULL);
 
@@ -953,8 +953,7 @@ send_req(s, req)
 	return 0;
 }
 
-
-static const char *
+const char *
 childtype2string(type)
 	int type;
 {
@@ -962,6 +961,9 @@ childtype2string(type)
 	switch (type) {
 		case CHILD_IO:
 			return "io";
+
+		case CHILD_MOTHER:
+			return "mother";
 
 		case CHILD_NEGOTIATE:
 			return "negotiator";

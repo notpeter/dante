@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id */
+/* $Id: config.h,v 1.37 1999/07/10 13:52:26 karls Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -51,14 +51,28 @@
  * Everything in this file is put here so you can change it to suit
  * your particular installation. You should not need to change
  * any other files.
+ *
+ * Several of the variables can have a big impact on performance,
+ * latency and throughput.  Tuning the server to the optimum for
+ * your particular environment might be difficult but hopefully
+ * the defaults as set in this file will provide a adequate
+ * compromise.  Should you wish for more optimum tuning, you
+ * might want to look at the SUPPORT file coming with Dante.
 */
+
 
 	/*
 	 * client/server stuff.
 	*/
 
-/* default server/client lockfile */
-#define SOCKS_LOCKFILE				".sockslockXXXXXXXXXX"
+/*
+ * default client/server lockfile.
+ * Put this on a fast, low-latency fs, under /tmp is usually good.
+*/
+#define SOCKS_LOCKFILE				"./sockslockXXXXXXXXXX"
+
+/* if profiling is enabled, directory to store profile files in. */
+#define SOCKS_PROFILEDIR			"./prof"
 
 
 	/*
@@ -66,20 +80,24 @@
 	*/
 
 /* default client config file. */
+#if !HAVE_SOCKS_CONFIGFILE
 #define SOCKS_CONFIGFILE			"/etc/socks.conf"
+#else
+#define SOCKS_CONFIGFILE			HAVE_ALT_SOCKS_CONFIGFILE
+#endif /* !HAVE_SOCKS_CONFIGFILE */
 
 
 	/*
 	 * server stuff.
 	*/
 
-/* 
+/*
  * If we are compiling with libwrap support, this sets the maximum
  * linelength for a libwrap line.  Should be the same or less as the
  * one libwrap uses internally, but we don't have access to that size.
 */
 #if HAVE_LIBWRAP
-#define LIBWRAPBUF			256
+#define LIBWRAPBUF			80
 #endif  /* HAVE_LIBWRAP */
 
 /*
@@ -94,19 +112,21 @@
  * The file the server will write it's process id to.
  * Note that this file should be in a restricted directory.
 */
+#if !HAVE_SOCKD_PIDFILE
 #define SOCKD_PIDFILE				"/var/run/sockd.pid"
+#else
+#define SOCKD_PIDFILE				HAVE_ALT_SOCKD_PIDFILE
+#endif /* !HAVE_SOCKD_PIDFILE */
 
 /* default port for server to listen on. */
 #define SOCKD_PORT					1080
 
 /* default server configfile */
+#if !HAVE_SOCKD_CONFIGFILE
 #define SOCKD_CONFIGFILE			"/etc/sockd.conf"
-
-/* default server buffersize for network i/o using TCP. */
-#define SOCKD_BUFSIZETCP			(1024 * 16)
-
-/* default server buffersize for network i/o using UDP. */
-#define SOCKD_BUFSIZEUDP			(1024 * 256)
+#else
+#define SOCKD_CONFIGFILE			HAVE_ALT_SOCKD_CONFIGFILE
+#endif /* !HAVE_SOCKD_CONFIGFILE */
 
 /* max number of clients pending to server (argument to listen()). */
 #define SOCKD_MAXCLIENTQUE			5
@@ -141,21 +161,22 @@
 */
 #define SOCKD_IOTIMEOUT				86400
 
-
-#define SOCKD_FREESLOTS				4
 /*
  * Number of slots to try and keep available for new clients at any given time.
  * The server tries to be a little more intelligent about this, but not much.
 */
+#define SOCKD_FREESLOTS				4
 
 /*
- * Dante supports one process handling N clients, where the max value for 'N'
- * is limited by your system.  There will probably be a minor degradation
- * in performance for the clients with a big N, but less resources/processes
- * will be used on the machine the Dante server is running on.
- * There are two defines that govern this; SOCKD_NEGOTIATEMAX and SOCKD_IOMAX. 
- * Note that this are per process basis, Dante will automatically create as
- * many process as it thinks it needs as it goes along.
+ * Dante supports one process handling N clients, where the max value for
+ * 'N' is limited by your system.  There will be a degradation in
+ * performance as N increases, the biggest hop being from one to two,
+ * but significantly less resources/processes might be used on the machine
+ * the Dante server is running on.
+ *
+ * There are two defines that govern this; SOCKD_NEGOTIATEMAX and SOCKD_IOMAX.
+ * Note that these are per process basis, Dante will automatically create as
+ * many processes as it thinks it needs as it goes along.
 */
 
 /*
@@ -164,7 +185,6 @@
  * Each client will occupy one descriptor.
 */
 #define SOCKD_NEGOTIATEMAX			24
-
 
 /*
  * max number of clients each i/o process will handle.
@@ -176,13 +196,27 @@
 */
 #define SOCKD_IOMAX					8
 
+/* server buffersize for network i/o using TCP. */
+#define SOCKD_BUFSIZETCP			(1024 * 16)
+
+/* server buffersize for network i/o using UDP. */
+#define SOCKD_BUFSIZEUDP			(1024 * 16)
+
+/*
+ * skew watermarks by this factor compared to "optimal".
+ * Setting it to one minimises cputime used by the server at a
+ * possibly big cost in performance.  Never set it to more than one.
+ * I'd be interested in hearing peoples result with this.
+*/
+#define LOWATSKEW						(0.75)
 
 /*
  * For systems that do not have the "low watermarks" socket option.
- * The more accurate you can set this, the better performance.
  * It is important not to set it to too high a value as that will
- * degrade performance for clients even more, causing starvation.
+ * probably degrade performance for clients even more, causing starvation.
+ * Basicly; low value  -> better interactive performance,
+ *				high value -> better throughput.
 */
 #if !HAVE_SO_SNDLOWAT
-#define SO_SNDLOWAT_SIZE			1024
+#define SO_SNDLOWAT_SIZE			(1024 * 4)
 #endif

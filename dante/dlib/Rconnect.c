@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.101 1999/07/03 16:36:22 karls Exp $";
+"$Id: Rconnect.c,v 1.102 1999/07/10 13:52:27 karls Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -219,8 +219,8 @@ Rconnect(s, name, namelen)
 				if (dup2(tmp_s, s) == -1)
 					break;
 				close(tmp_s);
-				
-				/* 
+
+				/*
 				 * if s was bound to a privileged port, try to bind the new
 				 * s too to a privileged port.
 				*/

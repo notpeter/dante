@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.28 1999/05/14 14:44:39 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.30 1999/07/10 13:52:28 karls Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -91,8 +91,21 @@ Rgetsockname(s, name, namelen)
 		case SOCKS_UDPASSOCIATE:
 			swarnx("%s: getsockname() on udp sockets is not supported,\n"
 					 "contact Inferno Nettverk A/S for more information", function);
-			errno = EADDRNOTAVAIL;
-			return -1;
+
+			/*
+			 * some clients might call this for no good reason, try to
+			 * help them by returning a invalid address; if they are
+			 * going to use it for anything, they will fail later though.
+			*/
+
+			addr = &socksfd->remote;
+			/* LINTED pointer casts may be troublesome */
+			((struct sockaddr_in *)addr)->sin_family			= AF_INET;
+			/* LINTED pointer casts may be troublesome */
+			((struct sockaddr_in *)addr)->sin_addr.s_addr	= htonl(INADDR_ANY);
+			/* LINTED pointer casts may be troublesome */
+			((struct sockaddr_in *)addr)->sin_port				= htons(0);
+			break;
 
 		default:
 			SERRX(socksfd->state.command);

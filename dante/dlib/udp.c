@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.104 1999/07/03 16:36:22 karls Exp $";
+"$Id: udp.c,v 1.105 1999/07/10 13:52:30 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -191,7 +191,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 				 * Not sure what to do now, return error or retry?
 				 * Going with returning error for now.
 				*/
-				 
+
 #if 0
 				if ((p = fcntl(s, F_GETFL, 0)) == -1)
 					return -1;

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.125 1999/07/03 16:36:21 karls Exp $ */
+/* $Id: sockd.h,v 1.127 1999/07/10 13:52:26 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -129,9 +129,9 @@ do {																			\
 #define IO_CLOSE				0
 
 /* types of children. */
-#define CHILD_UNKNOWN		0
-#define CHILD_IO				1
-#define CHILD_NEGOTIATE		2
+#define CHILD_MOTHER			1
+#define CHILD_IO				2
+#define CHILD_NEGOTIATE		3
 #define CHILD_REQUEST		4
 
 #define FDPASS_MAX			3	/* max number of descriptors we send/receive. */
@@ -176,7 +176,7 @@ struct timeout_t {
 
 
 struct linkedname_t {
-	char 						*name;
+	char						*name;
 	struct linkedname_t	*next;	/* next name in list.								*/
 };
 
@@ -226,9 +226,10 @@ struct userid_t {
 struct configstate_t {
 	unsigned						init:1;
 	volatile sig_atomic_t	addchild;				/* okay to do a addchild()?	*/
-	uid_t							euid;						/* original euid. 				*/
-	pid_t							pid;						/* pid of current process.		*/
+	uid_t							euid;						/* original euid.					*/
 	pid_t							*motherpidv;			/* pid of mothers.				*/
+	pid_t							pid;						/* pid of current process.		*/
+	int							type;						/* process type we are.			*/
 };
 
 struct listenaddress_t {
@@ -438,6 +439,13 @@ sockdio __P((struct sockd_io_t *io));
  *    On failure: -1, io was not accepted by any child.
 */
 
+int
+pidismother __P((pid_t pid));
+/*
+ * If "pid" refers to a mother, the number of "pid" in
+ * state.motherpidv is returned.  Numbers are counted from 1.
+ * IF "pid" is no mother, 0 is returned.
+*/
 
 
 int
@@ -454,9 +462,13 @@ childcheck __P((int type));
 int
 childtype __P((pid_t pid));
 /*
- * If there is a known child with pid "pid", this function returns it's
- * type.
- * If there is no such child, CHILD_UNKNOWN is returned.
+ * Returns the type of child the child with pid "pid" is.
+*/
+
+const char *
+childtype2string __P((int type));
+/*
+ * returns the string representation of "type".
 */
 
 int
@@ -488,7 +500,7 @@ adduser __P((struct linkedname_t **ruleuser, const char *name));
  * Adds a user with the name "name" to the list hanging of "ruleuser".
  * Returns:
  *		On success: a pointer ruleuser.
- * 	On failure: NULL.
+ *		On failure: NULL.
 */
 void
 showrule __P((const struct rule_t *rule));
@@ -851,14 +863,14 @@ socks_seteuid __P((uid_t *old, uid_t new));
 void
 socks_reseteuid __P((uid_t current, uid_t new));
 /*
- * "Resets" euid back from "current" to "new". 
+ * "Resets" euid back from "current" to "new".
  * If the operation fails, it's flagged as an internal error.
 */
 
 int
 passwordmatch __P((const char *name, const char *cleartextpassword));
 /*
- * Checks whether "name" is in the passwordfile and if "name"'s 
+ * Checks whether "name" is in the passwordfile and if "name"'s
  * cleartext password is "cleartextpassword".
  * Returns:
  *		If "name" and "cleartextpassword" matches: 1

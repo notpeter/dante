@@ -1,4 +1,4 @@
-/* redefac.h generated from autoconf.h.in on Sat Jul 3 18:46:35 MEST 1999  */
+/* redefac.h generated from autoconf.h.in on Thu Jul 8 19:19:57 MEST 1999  */
 
 #ifndef HAVE_DOPRNT
 #define HAVE_DOPRNT 0
@@ -207,6 +207,36 @@
 
 #ifndef HAVE_NONULL_FREE
 #define HAVE_NONULL_FREE 0
+#endif
+
+
+#ifndef HAVE_ALT_SOCKS_CONFIGFILE
+#define HAVE_ALT_SOCKS_CONFIGFILE 0
+#endif
+
+
+#ifndef HAVE_ALT_SOCKD_CONFIGFILE
+#define HAVE_ALT_SOCKD_CONFIGFILE 0
+#endif
+
+
+#ifndef HAVE_ALT_SOCKD_PIDFILE
+#define HAVE_ALT_SOCKD_PIDFILE 0
+#endif
+
+
+#ifndef HAVE_SOCKD_PIDFILE
+#define HAVE_SOCKD_PIDFILE 0
+#endif
+
+
+#ifndef HAVE_SOCKD_CONFIGFILE
+#define HAVE_SOCKD_CONFIGFILE 0
+#endif
+
+
+#ifndef HAVE_SOCKS_CONFIGFILE
+#define HAVE_SOCKS_CONFIGFILE 0
 #endif
 
 

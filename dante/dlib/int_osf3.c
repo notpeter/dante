@@ -54,7 +54,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: int_osf3.c,v 1.9 1999/05/13 13:12:55 karls Exp $";
+"$Id: int_osf3.c,v 1.10 1999/07/08 18:54:41 karls Exp $";
 
 #undef accept
 #undef bind
@@ -114,7 +114,7 @@ sys_accept(s, addr, addrlen)
 	int *addrlen;
 {
 	int rc;
-	int (*function)(int s, __SOCKADDR_ARG addr, socklen_t *addrlen);
+	int (*function)(int s, struct sockaddr * addr, socklen_t *addrlen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_ACCEPT);
@@ -130,7 +130,7 @@ sys_getpeername(s, name, namelen)
 	int *namelen;
 {
 	int rc;
-	int (*function)(int s, const __SOCKADDR_ARG name, socklen_t *namelen);
+	int (*function)(int s, const struct sockaddr * name, socklen_t *namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_GETPEERNAME);
@@ -146,7 +146,7 @@ sys_getsockname(s, name, namelen)
 	int *namelen;
 {
 	int rc;
-	int (*function)(int s, const __SOCKADDR_ARG name, socklen_t *namelen);
+	int (*function)(int s, const struct sockaddr * name, socklen_t *namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_GETSOCKNAME);
@@ -166,7 +166,7 @@ sys_recvfrom(s, buf, len, flags, from, fromlen)
 {
 	int rc;
 	int (*function)(int s, void *buf, size_t len, int flags,
-					    __SOCKADDR_ARG from, socklen_t *fromlen);
+					    struct sockaddr * from, socklen_t *fromlen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_RECVFROM);
@@ -210,7 +210,7 @@ sys_sendmsg(s, msg, flags)
 ssize_t
 sys_readv(d, iov, iovcnt)
 	int d;
-	struct iovec *iov;
+	const struct iovec *iov;
 	int iovcnt;
 {
 	ssize_t rc;
@@ -246,7 +246,7 @@ sys_connect(s, name, namelen)
 	int namelen;
 {
 	int rc;
-	int (*function)(int s, __CONST_SOCKADDR_ARG name, socklen_t namelen);
+	int (*function)(int s, const struct sockaddr * name, socklen_t namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_CONNECT);
@@ -263,7 +263,7 @@ sys_bind(s, name, namelen)
 	int namelen;
 {
 	int rc;
-	int (*function)(int s, __CONST_SOCKADDR_ARG name, socklen_t namelen);
+	int (*function)(int s, const struct sockaddr *name, socklen_t namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_BIND);
@@ -283,7 +283,7 @@ sys_sendto(s, msg, len, flags, to, tolen)
 {
 	ssize_t rc;
 	int (*function)(int s, const void *msg, size_t len, int flags,
-					    __CONST_SOCKADDR_ARG to, socklen_t tolen);
+					    const struct sockaddr *to, socklen_t tolen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_SENDTO);

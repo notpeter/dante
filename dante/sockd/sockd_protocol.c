@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.73 1999/05/14 07:46:19 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.74 1999/07/10 13:52:36 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -162,9 +162,9 @@ recv_v4req (s, request, state)
 	/*
 	 * v4 request:
 	 * VN   CD   DSTPORT  DSTIP  USERID   NUL
-	 * 1  + 1  +  2     +  4   +  ?     +  1 
+	 * 1  + 1  +  2     +  4   +  ?     +  1
 	 *
-	 * so minimum length is 9. 
+	 * so minimum length is 9.
    */
 
 	/* CD */
@@ -279,7 +279,7 @@ recv_ver(s, request, state)
 	struct negotiate_state_t *state;
 {
 
-	/* 
+	/*
 	 * method and version agreed on, now get the request:
 	 *
 	 *	+----+-----+-------+------+----------+----------+
@@ -448,7 +448,7 @@ recv_address(s, request, state)
 		default:
 			SERRX(request->version);
 	}
-	
+
 	SERRX(0); /* NOTREACHED */
 }
 

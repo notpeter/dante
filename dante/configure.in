@@ -1,7 +1,7 @@
 AC_INIT(include/socks.h)
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+prerelease="2"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else
@@ -125,7 +125,7 @@ case $host in
     ;;
 
     alpha-dec-osf*)
-        if test x"`basename $ac_cv_prog_CC`" = xcc; then
+	if test x"`basename $ac_cv_prog_CC`" = xcc; then
 	    comp_flags="-std1 -oldc"
 	fi
 	AC_MSG_RESULT($comp_flags)
@@ -142,9 +142,9 @@ AC_TRY_RUN([
 int main()
 {
 	return 0;
-}], [comp_flags="${comp_flags} -pipe" 
+}], [comp_flags="${comp_flags} -pipe"
      AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
-CFLAGS="$oCFLAGS"	
+CFLAGS="$oCFLAGS"
 
 
 AC_MSG_CHECKING(for compilation with debugging)
@@ -203,7 +203,7 @@ if test x$enable_warnings; then
 
 	    *) #try -Wall (gcc)
 		warn="-Wall"
-            ;;
+	    ;;
 	esac
     else
 #	warn="-Wall -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
@@ -259,7 +259,7 @@ else
 	AC_MSG_RESULT(no)
 fi], AC_MSG_RESULT(no))
 
-#add /usr/local/include to directories to include path if tcpd.h 
+#add /usr/local/include to directories to include path if tcpd.h
 #can be found there)
 for dir in /local/include /usr/local/include; do
     if test -f $dir/tcpd.h; then
@@ -319,6 +319,33 @@ else
 	AC_MSG_WARN(unable to locate domainname, specify if necessary)
     fi
 fi
+
+#allow default file locations to be overridden
+AC_MSG_CHECKING(for socks config file location)
+AC_ARG_WITH(socks-conf,
+[  --with-socks-conf=FILE  change location of socks client configuration file],
+[AC_MSG_RESULT($withval)
+ AC_DEFINE(HAVE_SOCKS_CONFIGFILE)
+ AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKS_CONFIGFILE, "$withval")
+], [AC_MSG_RESULT(default)])
+
+AC_MSG_CHECKING(for sockd config file location)
+AC_ARG_WITH(sockd-conf,
+[  --with-sockd-conf=FILE  change location of socks server configuration file],
+[AC_MSG_RESULT($withval)
+ AC_DEFINE(HAVE_SOCKD_CONFIGFILE)
+ AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_CONFIGFILE, "$withval")
+], [AC_MSG_RESULT(default)])
+
+AC_MSG_CHECKING(for pid file location)
+AC_ARG_WITH(pidfile,
+[  --with-pidfile=FILE     change location of server pidfile],
+[AC_MSG_RESULT($withval)
+ AC_DEFINE(HAVE_SOCKD_PIDFILE)
+ AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_PIDFILE, "$withval")
+], [AC_MSG_RESULT(default)
+])
+
 
 # SOCKSLIBRARY_DYNAMIC is set in the lib directory when preloading
 # is supported (and requested).
@@ -513,6 +540,13 @@ unset failproto
 
 if test "x${ac_cv_header_stdc}" = xyes; then
 
+#does $CPP define __STDC__?
+AC_EGREP_CPP(yes,[
+#ifdef __STDC__
+yes
+#endif
+], [CPPFLAG_STDC=""], [CPPFLAG_STDC="-D__STDC__"])
+
 #L_SOCKPROTO is used to determine the argument types of the functions
 #which are used in dlib/interposition.c. It compares the prototypes in
 #(mainly) <sys/socket.h> and compares them to a list of known
@@ -650,27 +684,27 @@ else
     AC_DEFINE(HAVE_PROT_CONNECT_1, int)
     AC_DEFINE(HAVE_PROT_CONNECT_2, const struct sockaddr *)
     AC_DEFINE(HAVE_PROT_CONNECT_3, socklen_t)
-	     
+
     AC_DEFINE(HAVE_PROT_ACCEPT_0, int)
     AC_DEFINE(HAVE_PROT_ACCEPT_1, int)
     AC_DEFINE(HAVE_PROT_ACCEPT_2, struct sockaddr *)
     AC_DEFINE(HAVE_PROT_ACCEPT_3, socklen_t *)
-	     
+
     AC_DEFINE(HAVE_PROT_BIND_0, int)
     AC_DEFINE(HAVE_PROT_BIND_1, int)
     AC_DEFINE(HAVE_PROT_BIND_2, const struct sockaddr *)
     AC_DEFINE(HAVE_PROT_BIND_3, socklen_t)
-	     
+
     AC_DEFINE(HAVE_PROT_GETPEERNAME_0, int)
     AC_DEFINE(HAVE_PROT_GETPEERNAME_1, int)
     AC_DEFINE(HAVE_PROT_GETPEERNAME_2, struct sockaddr *)
     AC_DEFINE(HAVE_PROT_GETPEERNAME_3, socklen_t *)
-	     
+
     AC_DEFINE(HAVE_PROT_GETSOCKNAME_0, int)
     AC_DEFINE(HAVE_PROT_GETSOCKNAME_1, int)
     AC_DEFINE(HAVE_PROT_GETSOCKNAME_2, struct sockaddr *)
     AC_DEFINE(HAVE_PROT_GETSOCKNAME_3, socklen_t *)
-	     
+
     AC_DEFINE(HAVE_PROT_RECVFROM_0, ssize_t)
     AC_DEFINE(HAVE_PROT_RECVFROM_1, int)
     AC_DEFINE(HAVE_PROT_RECVFROM_2, void *)
@@ -678,19 +712,19 @@ else
     AC_DEFINE(HAVE_PROT_RECVFROM_4, int)
     AC_DEFINE(HAVE_PROT_RECVFROM_5, struct sockaddr *)
     AC_DEFINE(HAVE_PROT_RECVFROM_6, socklen_t *)
-	     
+
     AC_DEFINE(HAVE_PROT_SEND_0, ssize_t)
     AC_DEFINE(HAVE_PROT_SEND_1, int)
     AC_DEFINE(HAVE_PROT_SEND_2, const void *)
     AC_DEFINE(HAVE_PROT_SEND_3, size_t)
     AC_DEFINE(HAVE_PROT_SEND_4, int)
-	     
+
     AC_DEFINE(HAVE_PROT_RECV_0, ssize_t)
     AC_DEFINE(HAVE_PROT_RECV_1, int)
     AC_DEFINE(HAVE_PROT_RECV_2, void *)
     AC_DEFINE(HAVE_PROT_RECV_3, size_t)
     AC_DEFINE(HAVE_PROT_RECV_4, int)
-	     
+
     AC_DEFINE(HAVE_PROT_SENDTO_0, ssize_t)
     AC_DEFINE(HAVE_PROT_SENDTO_1, int)
     AC_DEFINE(HAVE_PROT_SENDTO_2, const void *)
@@ -698,38 +732,38 @@ else
     AC_DEFINE(HAVE_PROT_SENDTO_4, int)
     AC_DEFINE(HAVE_PROT_SENDTO_5, const struct sockaddr *)
     AC_DEFINE(HAVE_PROT_SENDTO_6, socklen_t)
-	     
+
     AC_DEFINE(HAVE_PROT_READV_0, ssize_t)
     AC_DEFINE(HAVE_PROT_READV_1, int)
     AC_DEFINE(HAVE_PROT_READV_2, const struct iovec *)
     AC_DEFINE(HAVE_PROT_READV_3, int)
-	     
+
     AC_DEFINE(HAVE_PROT_WRITEV_0, ssize_t)
     AC_DEFINE(HAVE_PROT_WRITEV_1, int)
     AC_DEFINE(HAVE_PROT_WRITEV_2, const struct iovec *)
     AC_DEFINE(HAVE_PROT_WRITEV_3, int)
-	     
+
     AC_DEFINE(HAVE_PROT_RECVMSG_0, ssize_t)
     AC_DEFINE(HAVE_PROT_RECVMSG_1, int)
     AC_DEFINE(HAVE_PROT_RECVMSG_2, struct msghdr *)
     AC_DEFINE(HAVE_PROT_RECVMSG_3, int)
-	     
+
     AC_DEFINE(HAVE_PROT_SENDMSG_0, ssize_t)
     AC_DEFINE(HAVE_PROT_SENDMSG_1, int)
     AC_DEFINE(HAVE_PROT_SENDMSG_2, const struct msghdr *)
     AC_DEFINE(HAVE_PROT_SENDMSG_3, int)
-	     
+
     AC_DEFINE(HAVE_PROT_WRITE_0, ssize_t)
     AC_DEFINE(HAVE_PROT_WRITE_1, int)
     AC_DEFINE(HAVE_PROT_WRITE_2, const void *)
     AC_DEFINE(HAVE_PROT_WRITE_3, size_t)
-	     
+
     AC_DEFINE(HAVE_PROT_READ_0, ssize_t)
     AC_DEFINE(HAVE_PROT_READ_1, int)
     AC_DEFINE(HAVE_PROT_READ_2, void *)
     AC_DEFINE(HAVE_PROT_READ_3, size_t)
 fi #stdc_headers
-   
+
 fi #no preload
 
 AC_MSG_CHECKING(if getsockopt needs cast)
@@ -1116,7 +1150,7 @@ if test "x${LIBC_NAME}" = x; then
 		#can't set it to libc.so directly, might be ld script
 		LIBC_NAME=`ls /usr/lib/libc.so* /lib/libc.so* | sed -e 's/.*\///' | sort -nr | head -1`
 		if test "x${LIBC_NAME}" = x; then
-		        #nothing found, set libc.so anyway
+			#nothing found, set libc.so anyway
 			LIBC_NAME="${base_library_path}libc.so"
 		fi
 	;;

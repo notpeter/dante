@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.44 1999/06/30 11:15:16 michaels Exp $";
+"$Id: authneg.c,v 1.45 1999/07/10 13:52:28 karls Exp $";
 
 int
 negotiate_method(s, packet)
@@ -53,17 +53,17 @@ negotiate_method(s, packet)
 {
 	const char *function = "negotiate_method()";
 	int rc;
-	char request[ 1						/* version 					*/
-					+ 1 						/* number of methods.	*/
+	char request[ 1						/* version					*/
+					+ 1						/* number of methods.	*/
 					+ AUTHMETHOD_MAX		/* the methods.			*/
 					];
 
-	const size_t requestlen = 1 									/* version. 	*/
-									+ 1 									/* nmethods.	*/
-									+ packet->gw.state.methodc;	/* methods. */
+	const size_t requestlen = 1									/* version.		*/
+									+ 1									/* nmethods.	*/
+									+ packet->gw.state.methodc;	/* methods.		*/
 
-	unsigned char response[ 1 	/* version. 			*/
-								 + 1	/* selected method. */
+	unsigned char response[ 1	/* version.				*/
+								 + 1	/* selected method.	*/
 								 ];
 
 	SASSERTX(packet->gw.state.methodc > 0);
@@ -89,8 +89,8 @@ negotiate_method(s, packet)
 		return -1;
 	}
 
-	packet->version 		= request[AUTH_VERSION];
-	packet->auth.method 	= response[AUTH_METHOD];
+	packet->version		= request[AUTH_VERSION];
+	packet->auth.method	= response[AUTH_METHOD];
 
 	switch (packet->auth.method) {
 		case AUTHMETHOD_NONE:

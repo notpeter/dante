@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.68 1999/06/21 11:50:52 michaels Exp $";
+"$Id: address.c,v 1.69 1999/07/10 13:52:28 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -57,7 +57,7 @@ static unsigned int socksfdc;
 static int
 socks_sigblock __P((sigset_t *oldmask));
 /*
- * Blocks signals that can change socksfdv, writting the old 
+ * Blocks signals that can change socksfdv, writting the old
  *	signalmask to "oldmask".
  * Returns:
  *		On success: 0
@@ -162,7 +162,7 @@ socks_rmaddr(d)
 			if (!socksfdv[d].state.system)
 				switch (socksfdv[d].state.command) {
 					case SOCKS_BIND:
-						if (socksfdv[d].control != -1 
+						if (socksfdv[d].control != -1
 						&& d != (unsigned int)socksfdv[d].control)
 							close(socksfdv[d].control);
 						break;
@@ -221,7 +221,7 @@ socks_addrisok(s)
 		socklen_t locallen;
 
 		locallen = sizeof(local);
-		if (getsockname((int)s, &local, &locallen) != 0) 
+		if (getsockname((int)s, &local, &locallen) != 0)
 			break;
 
 		socksfd = socks_getaddr(s);
@@ -229,7 +229,7 @@ socks_addrisok(s)
 		if (socksfd != NULL) {
 			if (!sockaddrareeq(&local, &socksfd->local))
 				break;
-			
+
 			/* check remote endpoint too? */
 
 			matched = 1;

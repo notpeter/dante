@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.75 1999/07/02 13:26:38 michaels Exp $";
+"$Id: serverconfig.c,v 1.76 1999/07/10 13:52:34 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -117,11 +117,11 @@ addclientrule(newrule)
 	const struct rule_t *newrule;
 {
 	struct rule_t *rule;
-	
+
 	rule = addrule(newrule, &config.crule);
 
 	/*
-	 * there are a few things that need to be changed versus the generic 
+	 * there are a few things that need to be changed versus the generic
 	 * init done by addrule().
 	*/
 
@@ -153,14 +153,14 @@ struct rule_t *
 addsocksrule(newrule)
 	const struct rule_t *newrule;
 {
-	
+
 	struct rule_t *rule;
-	
+
 	rule = addrule(newrule, &config.srule);
 
 	if (rule->user == NULL) {
 		/*
-		 * For each method taking a username, default to 
+		 * For each method taking a username, default to
 		 * allowing everybody that's in the passwordfile.
 		*/
 		int i;
@@ -206,7 +206,7 @@ adduser(ruleuser, name)
 
 	return *ruleuser;
 }
-		
+
 
 void
 showrule(rule)
@@ -229,7 +229,7 @@ showrule(rule)
 	showuser(rule->user);
 
 	showstate(&rule->state);
-	
+
 	showlog(&rule->log);
 
 #if HAVE_LIBWRAP
@@ -469,7 +469,7 @@ iolog(rule, state, operation, src, dst, data, count)
 		case AUTHMETHOD_RFC931:
 			name = state->auth.mdata.rfc931.name;
 			break;
-		
+
 		default:
 			SERRX(state->auth.method);
 	}
@@ -690,7 +690,7 @@ rulespermit(s, match, state, src, dst)
 		(size_t)rule->state.methodc))
 			/*
 			 * There are some "extra" methods that are independent of
-			 * socks protocol negotiation and it's thus possible 
+			 * socks protocol negotiation and it's thus possible
 			 * to get a match on them even if above check failed.
 			 * Currently it's only rfc931.
 			*/
@@ -719,12 +719,12 @@ rulespermit(s, match, state, src, dst)
 
 		switch (state->auth.method) {
 			case AUTHMETHOD_UNAME:
-				name 		= state->auth.mdata.uname.name;
+				name		= state->auth.mdata.uname.name;
 				password	= state->auth.mdata.uname.password;
 				break;
-			
+
 			case AUTHMETHOD_RFC931:
-				name 		= state->auth.mdata.rfc931.name;
+				name		= state->auth.mdata.rfc931.name;
 				password	= NULL;
 				break;
 
@@ -753,7 +753,7 @@ rulespermit(s, match, state, src, dst)
 					slog(LOG_INFO, "%s: suspicious username from %s: %s",
 					function, sockshost2string(src, srcstring, sizeof(srcstring)),
 					name);
-				else if (strcmp(name, ruleuser->name) 	== 0)
+				else if (strcmp(name, ruleuser->name)	== 0)
 					break;
 			} while ((ruleuser = ruleuser->next) != NULL);
 
@@ -888,7 +888,7 @@ checkrule(rule)
 	const struct rule_t *rule;
 {
 
-	if (rule->user != NULL) 
+	if (rule->user != NULL)
 		if (rule->state.methodc == 0)
 			yyerror("rule restricts by name, but no username-based method given");
 }
@@ -961,7 +961,7 @@ connectisok(request, rule, state)
 {
 
 #if HAVE_LIBWRAP
-	const char *function = "connectisok()"; 
+	const char *function = "connectisok()";
 	char libwrap[LIBWRAPBUF];
 	uid_t euid;
 	int checkforname;
@@ -987,7 +987,7 @@ connectisok(request, rule, state)
 		case AUTHMETHOD_NONE:	/* doesn't take any memory from rfc931. */
 			checkforname = 1;
 			break;
-		
+
 		default:
 			checkforname = 0;	/* either can't take it or should already have it. */
 	}

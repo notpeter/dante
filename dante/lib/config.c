@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.112 1999/06/30 11:15:19 michaels Exp $";
+"$Id: config.c,v 1.113 1999/07/10 13:52:28 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -61,7 +61,7 @@ addrisinlist __P((const struct in_addr *addr, const struct in_addr *mask,
 
 static int
 addrareeq __P((const struct in_addr *addr, const struct in_addr *mask,
-				 	const struct in_addr *against));
+					const struct in_addr *against));
 /*
  * Compares "addr" bitwise anded with "mask" against "against" bitwise
  * anded with "mask".
@@ -86,7 +86,7 @@ static int
 hostareeq __P((const char *domain, const char *remotedomain));
 /*
  * Compares the rulegiven domain "domain" against "remotedomain".
- * Note that if "domain" starts with a dot, it will match 
+ * Note that if "domain" starts with a dot, it will match
  * "remotedomain" if the last part of "remotedomain" matches
  * the part after the dot in "domain".
  * Returns:
@@ -256,7 +256,7 @@ addressmatch(rule, address, protocol, alias)
 	if (rule->atype == SOCKS_ADDR_IPV4 && address->atype == SOCKS_ADDR_DOMAIN) {
 		/*
 		 * match(rule.ipaddress, address.hostname)
-		 * resolve address to ipaddress(es) and try to match each 
+		 * resolve address to ipaddress(es) and try to match each
 		 *	resolved ipaddress against rule.
 		 *		rule isin address->ipaddress(es)
 		*/
@@ -270,7 +270,7 @@ addressmatch(rule, address, protocol, alias)
 			function, address->addr.domain, hstrerror(h_errno));
 			return 0;
 		}
-		
+
 		if (addrisinlist(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
 		(const struct in_addr **)hostent->h_addr_list))
 			matched = 1;
@@ -289,7 +289,7 @@ addressmatch(rule, address, protocol, alias)
 			 * Didn't match.  If alias is set, try to resolve address
 			 * to hostname(s), the hostname back to ipaddress(es) and
 			 * then match those ipaddress(es) against rule.
-			 * 	rule isin address->hostname(s)->ipaddress(es)
+			 *		rule isin address->hostname(s)->ipaddress(es)
 			*/
 
 			if (!doresolve)
@@ -306,7 +306,7 @@ addressmatch(rule, address, protocol, alias)
 					function, inet_ntoa(address->addr.ipv4), hstrerror(h_errno));
 					return 0;
 				}
-				
+
 				if ((hostent = hostentdup(hostent)) == NULL) {
 					swarnx("%s: hostentdup()", function);
 					return 0;
@@ -316,15 +316,15 @@ addressmatch(rule, address, protocol, alias)
 				i = 0;
 				do {
 					struct hostent *iphostent;
-					
+
 					/* iphostent = address->hostname(s)->ipaddress(es) */
 					if ((iphostent = gethostbyname(nexthost)) == NULL) {
 						slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
 						function, nexthost, hstrerror(h_errno));
 						continue;
 					}
-					
-			 		/* rule isin address->hostname(s)->ipaddress(es) */
+
+					/* rule isin address->hostname(s)->ipaddress(es) */
 					if (addrisinlist(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
 					(const struct in_addr **)iphostent->h_addr_list)) {
 						matched = 1;
@@ -342,7 +342,7 @@ addressmatch(rule, address, protocol, alias)
 	}
 	else if (rule->atype == SOCKS_ADDR_DOMAIN
 	&& address->atype == SOCKS_ADDR_DOMAIN) {
-		/* 
+		/*
 		 * match(rule.hostname, address.hostname)
 		 * Try simple match first.
 		 *
@@ -350,8 +350,8 @@ addressmatch(rule, address, protocol, alias)
 		 * resolve both rule and address to ipaddress(es) and compare
 		 * each ipaddress of resolved rule against each ipaddress of
 		 * resolved address.
-		 * 	rule->ipaddress(es) isin address->ipaddress(es)
-		 * 
+		 *		rule->ipaddress(es) isin address->ipaddress(es)
+		 *
 		*/
 		if (hostareeq(rule->addr.domain, address->addr.domain))
 			matched = 1;
@@ -379,11 +379,11 @@ addressmatch(rule, address, protocol, alias)
 			}
 
 			/*
-		 	 *	rule->ipaddress(es) isin address->ipaddress(es)
+			 *	rule->ipaddress(es) isin address->ipaddress(es)
 			*/
 
 			for (i = 0, mask.s_addr = htonl(0xffffffff);
-		  	hostent->h_addr_list != NULL && hostent->h_addr_list[i] != NULL;
+			hostent->h_addr_list != NULL && hostent->h_addr_list[i] != NULL;
 			++i) {
 				/* LINTED pointer casts may be troublesome */
 				if (addrisinlist((const struct in_addr *)hostent->h_addr_list[i],
@@ -392,7 +392,7 @@ addressmatch(rule, address, protocol, alias)
 					break;
 				}
 			}
-			
+
 			hostentfree(hostent);
 		}
 
@@ -406,7 +406,7 @@ addressmatch(rule, address, protocol, alias)
 		 * If rule is not a domain, try resolving rule to ipaddress(es)
 		 * and match against address.
 		 *		address isin rule->ipaddress
-		 *	
+		 *
 		 * If no match, resolve address to hostname(s) and match each
 		 * against rule.
 		 *		rule isin address->hostname
@@ -414,7 +414,7 @@ addressmatch(rule, address, protocol, alias)
 		 * If still no match and alias is set, resolve all ipaddresses
 		 * of all hostname(s) resolved from address back to hostname(s)
 		 * and match them against rule.
-		 * 	rule isin address->hostname->ipaddress->hostname
+		 *		rule isin address->hostname->ipaddress->hostname
 		*/
 
 		if (!doresolve)
@@ -437,7 +437,7 @@ addressmatch(rule, address, protocol, alias)
 		}
 
 		if (!matched) {
-		 	/* rule isin address->hostname */
+			/* rule isin address->hostname */
 
 			/* LINTED pointer casts may be troublesome */
 			if ((hostent = gethostbyaddr((const char *)&address->addr.ipv4,
@@ -453,7 +453,7 @@ addressmatch(rule, address, protocol, alias)
 		}
 
 		if (!matched && alias) {
-		 	/*
+			/*
 			 * rule isin address->hostname->ipaddress->hostname.
 			 * hostent is already address->hostname due to above.
 			*/
@@ -470,7 +470,7 @@ addressmatch(rule, address, protocol, alias)
 			do {
 				int ii;
 				struct hostent *host;
-				
+
 				/* host; address->hostname->ipaddress */
 				if ((host = gethostbyname(nexthost)) == NULL) {
 					slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
@@ -484,7 +484,7 @@ addressmatch(rule, address, protocol, alias)
 				}
 
 				/* LINTED pointer casts may be troublesome */
-				for (ii = 0; 
+				for (ii = 0;
 				host->h_addr_list != NULL && host->h_addr_list[ii] != NULL;
 				++ii) {
 					struct hostent *ip;
@@ -518,7 +518,7 @@ addressmatch(rule, address, protocol, alias)
 	}
 	else
 		SERRX(0);
-		
+
 	return matched;
 }
 
@@ -528,7 +528,7 @@ addrisinlist(addr, mask, list)
 	const struct in_addr *mask;
 	const struct in_addr **list;
 {
-	
+
 	if (list == NULL)
 		return 0;
 
@@ -816,11 +816,11 @@ socks_connectroute(s, packet, src, dst)
 	 * the next, etc.  Ofcourse, if connect() on one socket fails,
 	 * that socket can no longer be used, so we need to be able to
 	 * copy/dup the original socket as much as possible.  Later,
-	 * if it turned out a connection failed and we had to use a 
+	 * if it turned out a connection failed and we had to use a
 	 * different socket than the orignal 's', we try to dup the
 	 * differentnumbered socket to 's' and hope the best.
 	 *
-	 * sdup: 		copy of the original socket.  Need to create this
+	 * sdup:			copy of the original socket.  Need to create this
 	 *					before the first connectattempt since the connectattempt
 	 *				   could prevent us from doing it later, depending on failure
 	 *					reason.
@@ -829,9 +829,9 @@ socks_connectroute(s, packet, src, dst)
 	 *					first attempt this is 's'.
 	*/
 
-	errno 		= 0; /* let caller differentiate between missing route and not.*/
-	current_s 	= s;
-	sdup 			= -1;
+	errno			= 0; /* let caller differentiate between missing route and not.*/
+	current_s	= s;
+	sdup			= -1;
 
 	while ((route = socks_getroute(&packet->req, src, dst)) != NULL) {
 		char hstring[MAXSOCKSHOSTSTRING];
@@ -1004,7 +1004,7 @@ socks_requestpolish(req, src, dst)
 					/*
 					 * else, it may be that socks_requestpolish() was
 					 * forced to change req.version to succeed, we then
-					 * need to change req->host.port due to difference in 
+					 * need to change req->host.port due to difference in
 					 * v4 and v5 semantics.
 					*/
 
@@ -1020,7 +1020,7 @@ socks_requestpolish(req, src, dst)
 							case SOCKS_V5:
 								req->host.port = originalport;
 								break;
-								
+
 							default:
 								SERRX(req->version);
 						}
@@ -1094,4 +1094,3 @@ showstate(state)
 		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "msproxy v2");
 	slog(LOG_INFO, buf);
 }
-
