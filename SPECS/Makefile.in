@@ -10,6 +10,8 @@
 # even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 # PARTICULAR PURPOSE.
 
+#XXX includes dante.spec which is generated when configure is run
+
 
 SHELL = /bin/sh
 
@@ -73,11 +75,12 @@ RANLIB = @RANLIB@
 VERSION = @VERSION@
 YACC = @YACC@
 
-EXTRA_DIST = socks.conf sockd.conf
+EXTRA_DIST=dante.spec
+CLEANFILES=dante.spec
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = ../include/autoconf.h
-CONFIG_CLEAN_FILES = 
-DIST_COMMON =  Makefile.am Makefile.in
+CONFIG_CLEAN_FILES =  dante.spec dante.spec
+DIST_COMMON =  Makefile.am Makefile.in dante.spec.in
 
 
 DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
@@ -88,19 +91,23 @@ all: Makefile
 
 .SUFFIXES:
 $(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4)
-	cd $(top_srcdir) && $(AUTOMAKE) --gnu --include-deps example/Makefile
+	cd $(top_srcdir) && $(AUTOMAKE) --gnu --include-deps SPECS/Makefile
 
 Makefile: $(srcdir)/Makefile.in  $(top_builddir)/config.status
 	cd $(top_builddir) \
 	  && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= $(SHELL) ./config.status
 
+dante.spec: $(top_builddir)/config.status dante.spec.in
+	cd $(top_builddir) && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= ./config.status
+dante.spec: $(top_builddir)/config.status dante.spec.in
+	cd $(top_builddir) && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= ./config.status
 tags: TAGS
 TAGS:
 
 
 distdir = $(top_builddir)/$(PACKAGE)-$(VERSION)/$(subdir)
 
-subdir = example
+subdir = SPECS
 
 distdir: $(DISTFILES)
 	@for file in $(DISTFILES); do \

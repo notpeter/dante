@@ -4,6 +4,18 @@
 * release of Dante unless you have to or are willing to help testing.
 *
 
+***  Thursday, Mars 11, 1999  -  Dante v0.92.0-pre2.
+
+ o The library with dlopen should be correctly found for socksify.
+ 
+ o Let user know if we failed due to authentication on at msproxy
+   server.
+
+ o Don't fail if a signalhandler for SIGALRM is already
+   installed, ignore it.  Client will probably timeout after some
+   minutes though, so not a real solution.  (A real solution would
+   entice more work than is currently alloted for this.  Send your
+   free pizza to Inferno Nettverk and it may change.)
 
 ***  Monday, Mars 1, 1998  -  Dante v0.92.0-pre1.
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.9 1999/02/26 22:32:57 michaels Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.13 1999/03/11 17:07:30 karls Exp $";
 
 /*
  * This code is terrible, but that's so it will match the protocol.
@@ -91,6 +91,48 @@ sigio __P((int sig));
 __END_DECLS
 
 int
+msproxy_init(void)
+{
+	const char *function = "msproxy_init()";
+	struct itimerval timerval;
+	struct sigaction sigact, oldsigact;
+
+	if (atexit(msproxy_sessionsend) != 0) {
+		swarn("%s: atexit()", function);
+		return -1;
+	}
+	
+	sigemptyset(&sigact.sa_mask);
+	sigact.sa_flags	= SA_RESTART;
+	sigact.sa_handler	= msproxy_keepalive;
+
+	if (sigaction(SIGALRM, &sigact, &oldsigact) != 0) {
+		swarn("%s: sigaction(SIGALRM)", function);
+		return -1;
+	}
+	
+	/* XXX */
+	if (oldsigact.sa_handler != SIG_DFL 
+	||  oldsigact.sa_handler != SIG_IGN) {
+		swarnx("could not install signalhandler for SIGALRM, already set");
+		return 0;	/* will probably timeout, don't consider it fatal for now. */
+	}
+
+	timerval.it_value.tv_sec 	= MSPROXY_PINGINTERVAL;
+	timerval.it_value.tv_usec 	= 0;
+	timerval.it_interval = timerval.it_value;
+
+	if (setitimer(ITIMER_REAL, &timerval, NULL) != 0) {
+		swarn("%s: setitimer()", function);
+		return -1;
+	}
+
+	srand((unsigned int)time(NULL) * getpid());
+
+	return 0;
+}
+
+int
 msproxy_negotiate(s, control, packet)
 	int s;
 	int control;
@@ -107,9 +149,12 @@ msproxy_negotiate(s, control, packet)
 	req.clientid 	= htonl(0x0a000000);
 	req.command		= htons(MSPROXY_HELLO);
 
+	/* in case we don't get something more sensible. */
+	packet->res.version	= packet->req.version;
+	packet->res.reply 	= MSPROXY_FAILURE;
+
 	switch (packet->req.command) {
 		case SOCKS_BIND:
-			packet->state.msproxy.magic25 = htonl(MSPROXY_WILL_BIND);
 #if 1
 			req.packet._1.magic5		= htons(0x4800);
 			req.packet._1.magic10	= htons(0x1400);
@@ -125,8 +170,6 @@ msproxy_negotiate(s, control, packet)
 			break;
 
 		case SOCKS_CONNECT:
-/*			packet->state.msproxy.magic25 = htonl(MSPROXY_WILL_CONNECT); */
-			packet->state.msproxy.magic25 = htonl(MSPROXY_WILL_BIND);
 #if 0
 			req.packet._1.magic5		= htons(0x4b00);
 			req.packet._1.magic10	= htons(0x1400);
@@ -191,7 +234,8 @@ msproxy_negotiate(s, control, packet)
 
 	/* LINTED pointer casts may be troublesome */
 	slog(LOG_DEBUG, "%s: msproxy controladdress: %s",
-	function, sockaddr2string((struct sockaddr *)&packet->state.msproxy.controladdr,
+	function,
+	sockaddr2string((struct sockaddr *)&packet->state.msproxy.controladdr,
 	NULL, 0));
 
 
@@ -234,41 +278,6 @@ msproxy_negotiate(s, control, packet)
 	}
 		
 	return p;
-}
-
-int
-msproxy_init(void)
-{
-	const char *function = "msproxy_init()";
-	struct itimerval timerval;
-	struct sigaction sigact, oldsigact;
-
-	sigemptyset(&sigact.sa_mask);
-	sigact.sa_flags	= SA_RESTART;
-	sigact.sa_handler	= msproxy_keepalive;
-
-	if (sigaction(SIGALRM, &sigact, &oldsigact) != 0)
-		swarn("%s: sigalrm()", function);
-	
-	SASSERTX(oldsigact.sa_handler == SIG_DFL 
-	||		   oldsigact.sa_handler == SIG_IGN);
-
-	timerval.it_value.tv_sec 	= MSPROXY_PINGINTERVAL;
-	timerval.it_value.tv_usec 	= 0;
-
-	timerval.it_interval = timerval.it_value;
-
-	if (setitimer(ITIMER_REAL, &timerval, NULL) != 0)
-		swarn("%s: setitimer()", function);
-
-	if (atexit(msproxy_sessionsend) != 0) {
-		swarn("%s: atexit()", function);
-		return -1;
-	}
-	
-	srand((unsigned int)time(NULL) * getpid());
-
-	return 0;
 }
 
 static int
@@ -445,31 +454,10 @@ msproxy_connect(s, control, packet)
 	if (recv_mspresponse(control, &packet->state.msproxy, &res) == -1)
 		return -1;
 
-	slog(LOG_DEBUG, "%s: connect response: 0x%x", function, ntohs(res.command));
-
-	if (ntohs(res.command) == MSPROXY_CONNECT_ACK)
-		;
-
-	else if (ntohs(res.command) >> 8 == MSPROXY_CONNREFUSED
-	||  	   ntohs(res.command) >> 12 == MSPROXY_CONNREFUSED) {
-
-		bzero(&req, sizeof(req));
-		*req.username		= NUL;
-		*req.unknown		= NUL;
-		*req.executable	= NUL;
-		*req.clienthost	= NUL;
-		req.clientid 	= packet->state.msproxy.clientid;
-		req.serverid 	= packet->state.msproxy.serverid;
-		req.command		= htons(MSPROXY_SESSIONEND);
-
-		send_msprequest(control, &packet->state.msproxy, &req);
-		errno = ECONNREFUSED;
-		return -1;
-	}
-	else {
-		swarnx("%s: unknown command from server: 0x%x",
-		function, ntohs(res.command));
-		errno = ECONNREFUSED;
+	if (ntohs(res.command) != MSPROXY_CONNECT_ACK) {
+		swarnx("expected res.command = 0x%x, is 0x%x",
+		MSPROXY_CONNECT_ACK, ntohs(res.command));
+		packet->res.reply = MSPROXY_NOTALLOWED;
 		return -1;
 	}
 
@@ -493,6 +481,18 @@ msproxy_connect(s, control, packet)
 	/* LINTED pointer casts may be troublesome */
 	slog(LOG_DEBUG, "%s: server will use as source address: %s",
 	function, sockshost2string(&packet->res.host, NULL, 0));
+
+
+	slog(LOG_DEBUG, "%s: packet #6", function);
+
+	bzero(&req, sizeof(req));
+	req.clientid	= packet->state.msproxy.clientid;
+	req.serverid	= packet->state.msproxy.serverid;
+	req.command		= htons(MSPROXY_CONNECTED);
+
+	if (send_msprequest(control, &packet->state.msproxy, &req) == -1)
+		return -1;
+
 
 	/* make response look sensible. */
 	packet->res.version 						= packet->req.version;
@@ -541,10 +541,13 @@ msproxy_bind(s, control, packet)
 		serrx(EXIT_FAILURE, "expected serverid = 0x%x, is 0x%x",
 		packet->state.msproxy.serverid, res.serverid);
 
-	if (ntohs(res.command) != MSPROXY_BIND_ACK)
-		serrx(EXIT_FAILURE, "expected res.command = 0x%x, is 0x%x",
+	if (ntohs(res.command) != MSPROXY_BIND_ACK) {
+		swarnx("expected res.command = 0x%x, is 0x%x",
 		MSPROXY_BIND_ACK, ntohs(res.command));
-	
+		packet->res.reply = MSPROXY_NOTALLOWED;
+		return -1;
+	}
+
 	packet->state.msproxy.bindid = res.packet._3.magic10;
 	packet->res.host.atype					= SOCKS_ADDR_IPV4;
 	packet->res.host.port					= res.packet._3.boundport;
@@ -583,7 +586,7 @@ msproxy_bind(s, control, packet)
 
 	if (ntohs(res.command) != MSPROXY_BIND2_ACK) {
 		swarnx("expected res.command = %x, is 0x%x",
-		MSPROXY_BIND_ACK, ntohs(res.command));
+		MSPROXY_BIND2_ACK, ntohs(res.command));
 		return -1;
 	}
 
@@ -670,7 +673,7 @@ sigio(sig)
 {
 	const char *function = "sigio()";
 	const int errno_s = errno;
-	int i, max;
+	int i, max, dset;
 	struct socksfd_t *socksfd;
 	fd_set rset;
 	struct timeval timeout;
@@ -709,121 +712,129 @@ sigio(sig)
 		return; /* old signal handler. */
 	}
 
-	timeout.tv_sec 	= 0;
-	timeout.tv_usec 	= 0;
-	++dbits;
-	switch (select(dbits, &rset, NULL, NULL, &timeout)) {
-		case -1:
-			SERR(-1);
-			/* NOTREACHED */
+	dset = 0;
+	do {
+		fd_set newrset;
+		timeout.tv_sec 	= 0;
+		timeout.tv_usec 	= 0;
 
-		case 0:
-			slog(LOG_DEBUG, "%s: no descriptors readable", function);
-			if (oldsigio.sa_handler != NULL)
-				oldsigio.sa_handler(sig);
-			break;
+		newrset = rset;
+		switch (select(dbits + 1, &newrset, NULL, NULL, &timeout)) {
+			case -1:
+				SERR(-1);
+				/* NOTREACHED */
 
-		default:
-			for (i = 0, max = getdtablesize(); i < max; ++i) {
-				if ((socksfd = socks_getaddr((unsigned int)i)) == NULL)
-					continue;
+			case 0:
+				dset = 0;
+				slog(LOG_DEBUG, "%s: no descriptors readable", function);
+				if (oldsigio.sa_handler != NULL)
+					oldsigio.sa_handler(sig);
+				break;
 
-				if (FD_ISSET(socksfd->control, &rset)) {
-					struct sockshost_t host;
-					struct msproxy_request_t req;
-					struct msproxy_response_t res;
-					int p;
-
-					SASSERTX(socksfd->state.command == SOCKS_BIND
-					&&  	   socksfd->state.version == MSPROXY_V2
-					&&  	 	socksfd->state.inprogress);
-
-					slog(LOG_DEBUG, "%s: attempting to receive bind info...",
-					function);
-
-					FD_CLR(socksfd->control, &rset);
-
-					if (recv_mspresponse(socksfd->control, &socksfd->state.msproxy,
-					&res) == -1)
+			default: {
+				dset = 1;
+				for (i = 0, max = getdtablesize(); i < max; ++i) {
+					if ((socksfd = socks_getaddr((unsigned int)i)) == NULL)
 						continue;
 
-					if (ntohs(res.command) != MSPROXY_BINDINFO) {
-						swarnx("%s: expected res.command = %x, is 0x%x",
-						function, MSPROXY_BINDINFO, ntohs(res.command));
-						continue;
-					}
+					if (FD_ISSET(socksfd->control, &newrset)) {
+						struct sockshost_t host;
+						struct msproxy_request_t req;
+						struct msproxy_response_t res;
+						int p;
 
-					/* no need for more signals on this socket. */
-					p = 0;
-					if (ioctl(socksfd->control, FIOASYNC, &p) == -1) {
-						swarn("%s: ioctl(socksfd->control)", function);
-						continue;
-					}
+						SASSERTX(socksfd->state.command == SOCKS_BIND
+						&&  	   socksfd->state.version == MSPROXY_V2
+						&&  	 	socksfd->state.inprogress);
 
-					slog(LOG_DEBUG, "%s: turned off sigio for %d", 
-					function, socksfd->control);
+						slog(LOG_DEBUG, "%s: attempting to receive bind info...",
+						function);
 
-					/*
-					 * if we asked server to bind INADDR_ANY, we don't know
-					 * what address it bound until now.
-					*/
-					host.atype					= SOCKS_ADDR_IPV4;
-					host.port					= res.packet._5.boundport;
-					host.addr.ipv4.s_addr	= res.packet._5.boundaddr;
-					sockshost2sockaddr(&host, &socksfd->remote);
+						FD_CLR(socksfd->control, &newrset);
 
-					slog(LOG_DEBUG, "%s: server bound address %s", 
-					function, sockshost2string(&host, NULL, 0));
-				
-					host.atype					= SOCKS_ADDR_IPV4;
-					host.port					= res.packet._5.clientport;
-					host.addr.ipv4.s_addr	= res.packet._5.clientaddr;
-					sockshost2sockaddr(&host, &socksfd->accepted);
+						if (recv_mspresponse(socksfd->control,
+						&socksfd->state.msproxy, &res) == -1)
+							continue;
 
-					slog(LOG_DEBUG, "%s: server accepted: %s",
-					function, sockshost2string(&host, NULL, 0));
+						if (ntohs(res.command) != MSPROXY_BINDINFO) {
+							swarnx("%s: expected res.command = %x, is 0x%x",
+							function, MSPROXY_BINDINFO, ntohs(res.command));
+							continue;
+						}
 
-					slog(LOG_DEBUG, "%s: server will connect to us from port %d",
-					function, ntohs(res.packet._5.serverport));
+						/* no need for more signals on this socket. */
+						p = 0;
+						if (ioctl(socksfd->control, FIOASYNC, &p) == -1) {
+							swarn("%s: ioctl(socksfd->control)", function);
+							continue;
+						}
 
-					/* LINTED pointer casts may be troublesome */
-					((struct sockaddr_in *)&socksfd->reply)->sin_port
-					= res.packet._5.serverport;
+						slog(LOG_DEBUG, "%s: turned off sigio for %d", 
+						function, socksfd->control);
 
-					slog(LOG_DEBUG, "%s: packet #6", function);
+						/*
+						 * if we asked server to bind INADDR_ANY, we don't know
+						 * what address it bound until now.
+						*/
+						host.atype					= SOCKS_ADDR_IPV4;
+						host.port					= res.packet._5.boundport;
+						host.addr.ipv4.s_addr	= res.packet._5.boundaddr;
+						sockshost2sockaddr(&host, &socksfd->remote);
 
-					bzero(&req, sizeof(req));
-					req.clientid	= socksfd->state.msproxy.clientid;
-					req.serverid	= socksfd->state.msproxy.serverid;
-					req.command		= htons(MSPROXY_BINDINFO_ACK);
-					req.packet._6.magic1			= res.packet._5.magic1;
-					req.packet._6.magic5			= htons(0x0100);
-					req.packet._6.magic10		= socksfd->state.msproxy.bindid;
-					req.packet._6.magic15		= htons(0x0100);
-					req.packet._6.magic16		= socksfd->state.msproxy.bindid;
-					req.packet._6.magic20		= htons(0x0200);
-					req.packet._6.clientport	= res.packet._5.clientport;
-					req.packet._6.clientaddr	= res.packet._5.clientaddr;
-					req.packet._6.magic30		= res.packet._5.magic10;
-					req.packet._6.magic35		= res.packet._5.magic15;
-					req.packet._6.serverport	= res.packet._5.serverport;
-					req.packet._6.srcport		= res.packet._5.srcport;
-					req.packet._6.boundport		= res.packet._5.boundport;
-					req.packet._6.boundaddr		= res.packet._5.boundaddr;
+						slog(LOG_DEBUG, "%s: server bound address %s", 
+						function, sockshost2string(&host, NULL, 0));
 					
-					if (send_msprequest(socksfd->control, &socksfd->state.msproxy,
-					&req) == -1)
-						continue;
+						host.atype					= SOCKS_ADDR_IPV4;
+						host.port					= res.packet._5.clientport;
+						host.addr.ipv4.s_addr	= res.packet._5.clientaddr;
+						sockshost2sockaddr(&host, &socksfd->accepted);
 
-					if (recv_mspresponse(socksfd->control, &socksfd->state.msproxy,
-					&res) == -1)
-						continue;
-					
-					/* all done.  Can accept(). */
-					socksfd->state.inprogress = 0;
+						slog(LOG_DEBUG, "%s: server accepted: %s",
+						function, sockshost2string(&host, NULL, 0));
+
+						slog(LOG_DEBUG, "%s: server will connect to us from port %d",
+						function, ntohs(res.packet._5.serverport));
+
+						/* LINTED pointer casts may be troublesome */
+						((struct sockaddr_in *)&socksfd->reply)->sin_port
+						= res.packet._5.serverport;
+
+						slog(LOG_DEBUG, "%s: packet #6", function);
+
+						bzero(&req, sizeof(req));
+						req.clientid	= socksfd->state.msproxy.clientid;
+						req.serverid	= socksfd->state.msproxy.serverid;
+						req.command		= htons(MSPROXY_BINDINFO_ACK);
+						req.packet._6.magic1			= res.packet._5.magic1;
+						req.packet._6.magic5			= htons(0x0100);
+						req.packet._6.magic10		= socksfd->state.msproxy.bindid;
+						req.packet._6.magic15		= htons(0x0100);
+						req.packet._6.magic16		= socksfd->state.msproxy.bindid;
+						req.packet._6.magic20		= htons(0x0200);
+						req.packet._6.clientport	= res.packet._5.clientport;
+						req.packet._6.clientaddr	= res.packet._5.clientaddr;
+						req.packet._6.magic30		= res.packet._5.magic10;
+						req.packet._6.magic35		= res.packet._5.magic15;
+						req.packet._6.serverport	= res.packet._5.serverport;
+						req.packet._6.srcport		= res.packet._5.srcport;
+						req.packet._6.boundport		= res.packet._5.boundport;
+						req.packet._6.boundaddr		= res.packet._5.boundaddr;
+						
+						if (send_msprequest(socksfd->control, &socksfd->state.msproxy,
+						&req) == -1)
+							continue;
+
+						if (recv_mspresponse(socksfd->control,
+						&socksfd->state.msproxy, &res) == -1)
+							continue;
+						
+						/* all done.  Can accept(). */
+						socksfd->state.inprogress = 0;
+					}
 				}
 			}
-	}
+		}
+	} while (dset != 0);
 
 	errno = errno_s;
 }
@@ -853,23 +864,37 @@ recv_mspresponse(s, state, response)
 			return -1;
 		}
 
-		/*
-		 * Sometimes the proxyserver doesn't increment the sequence number.
-		 * Don't know why.
-		*/
-		if (state->seq_recv > 0 && response->sequence <= state->seq_recv) {
-			slog(LOG_DEBUG, "%s: seq_recv: %d, dup response, seqnumber: 0x%x", 
-			function, state->seq_recv, response->sequence);
-			
-			if (response->clientack == state->seq_sent) {
-				slog(LOG_DEBUG,
-				"%s: ack matches last sent though, hoping it's a new one...",
-				function);
+		if (state->seq_recv > 0) {
+			if (response->sequence == state->seq_recv + 1)
+				break; /* all ok. */
+			else if (response->sequence < state->seq_recv) {
+				/*
+				 * sequence number less that last, sometimes this happens too,
+				 * don't know why.
+				*/
+				slog(LOG_DEBUG, "%s: sequence (%d) < seq_recv (%d)",
+				function, response->sequence, state->seq_recv);
+				break;
+			}
+			else if (response->sequence == state->seq_recv) {
+				slog(LOG_DEBUG, "%s: seq_recv: %d, dup response, seqnumber: 0x%x", 
+				function, state->seq_recv, response->sequence);
+				
+				if (response->clientack == state->seq_sent) {
+					slog(LOG_DEBUG,
+					"%s: ack matches last sent though, hoping it's a new one...",
+					function);
+					break;
+				}
+			}
+			else if (response->sequence > state->seq_recv) {
+				slog(LOG_DEBUG, "%s: sequence (%d) > seq_recv (%d)",
+				function, response->sequence, state->seq_recv);
 				break;
 			}
 		}
 		else
-			break;
+			break; /* not started incrementing yet. */
 	}
 
 	state->seq_recv = response->sequence;
@@ -888,7 +913,7 @@ send_msprequest(s, state, request)
 	ssize_t w;
 	char requestmem[sizeof(struct msproxy_request_t)], *p;
 
-	request->magic25 = state->magic25;
+	request->magic25 = htonl(MSPROXY_VERSION);
 	request->serverack = state->seq_recv;
 	/* don't start incrementing sequence until we are acking packet #2. */
 	request->sequence
@@ -1217,7 +1242,6 @@ mem2response(res, mem, len)
 		case MSPROXY_SOMETHING_2_ACK:
 		case MSPROXY_SOMETHING_2_ACK2:
 		case MSPROXY_BIND2_ACK:
-		case MSPROXY_ADDRINUSE:
 			if (len < sizeof(res->packet._4.pad5))
 				return NULL;
 			memcpy(res->packet._4.pad5, mem, sizeof(res->packet._4.pad5));
@@ -1325,6 +1349,10 @@ mem2response(res, mem, len)
 			mem += sizeof(res->packet._5.pad10);
 			len -= sizeof(res->packet._5.pad10);
 			
+			break;
+
+		case MSPROXY_CONNECT_AUTHFAILED:
+		case MSPROXY_BIND_AUTHFAILED:
 			break;
 
 		default:
@@ -1893,10 +1921,6 @@ msproxy_keepalive(sig)
 		slog(LOG_DEBUG, "%s: sending keepalive packet", function);
 
 		bzero(&req, sizeof(req));
-		*req.username		= NUL;
-		*req.unknown		= NUL;
-		*req.executable	= NUL;
-		*req.clienthost	= NUL;
 		req.clientid 	= socksfd->state.msproxy.clientid;
 		req.serverid 	= socksfd->state.msproxy.serverid;
 		req.command		= htons(MSPROXY_HELLO);

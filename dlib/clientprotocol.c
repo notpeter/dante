@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.24 1999/02/20 19:18:47 michaels Exp $";
+"$Id: clientprotocol.c,v 1.26 1999/03/11 16:59:32 karls Exp $";
 
 #include "common.h"
 
@@ -259,31 +259,30 @@ socks_negotiate(s, control, packet)
 {
 	
 	switch (packet->req.version) {
-		case SOCKS_V4:
-			break;	/* no pre-request negotiation in v4. */
-
 		case SOCKS_V5:
 			if (negotiate_method(control, packet) != 0)
+				return -1;
+			/* FALLTHROUGH */ /* rest is like v4, which doesn't have method. */
+
+		case SOCKS_V4:
+			if (socks_sendrequest(control, &packet->req) != 0)
+				return -1;
+
+			if (socks_recvresponse(control, &packet->res, packet->req.version)
+			!= 0)
 				return -1;
 			break;
 
 		case MSPROXY_V2:
-			return msproxy_negotiate(s, control, packet);
-			/* NOTREACHED */
+			msproxy_negotiate(s, control, packet);
+			break;
 
 		default:
 			SERRX(packet->req.version);
 	}
 
-	if (socks_sendrequest(control, &packet->req) != 0)
-		return -1;
-
-	if (socks_recvresponse(control, &packet->res, packet->req.version) != 0)
-		return -1;
-
 	if (!serverreplyisok(packet->res.version, packet->res.reply))
 		return -1;
-
 	return 0;
 }
 

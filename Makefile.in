@@ -62,6 +62,8 @@ host_triplet = @host@
 CC = @CC@
 LD = @LD@
 LEX = @LEX@
+LIBRARY_DLOPEN = @LIBRARY_DLOPEN@
+LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
 MAKEINFO = @MAKEINFO@
@@ -72,8 +74,8 @@ VERSION = @VERSION@
 YACC = @YACC@
 
 AUTOMAKE_OPTIONS = foreign
-@BUILD_PRELOAD_LIB_TRUE@SUBDIRS = lib dlib sockd include example doc bin
-@BUILD_PRELOAD_LIB_FALSE@SUBDIRS = lib      sockd include example doc bin
+@BUILD_PRELOAD_LIB_TRUE@SUBDIRS = lib dlib sockd include example doc bin SPECS
+@BUILD_PRELOAD_LIB_FALSE@SUBDIRS = lib      sockd include example doc bin SPECS
 #XXX this is not very pretty, but EXTRA_DIST does not accept conditionals
 @PRERELEASE_TRUE@DIST_COMMON = PRERELEASE README INSTALL Makefile.am Makefile.in NEWS TODO \
 @PRERELEASE_TRUE@aclocal.m4 config.guess config.sub configure configure.in install-sh \
@@ -93,8 +95,8 @@ DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 TAR = tar
 GZIP = --best
-DIST_SUBDIRS =  lib dlib sockd include example doc bin lib sockd include \
-example doc bin
+DIST_SUBDIRS =  lib dlib sockd include example doc bin SPECS lib sockd \
+include example doc bin SPECS
 all: all-recursive all-am
 
 .SUFFIXES:

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.117 1999/02/26 21:41:48 karls Exp $ */
+/* $Id: socks.h,v 1.119 1999/03/11 16:59:29 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -503,6 +503,8 @@ int
 msproxy_init __P((void));
 /*
  * inits things for using a msproxyserver.
+ *		On success: 0
+ *		On failure: -1
 */
 
 #ifdef SOCKSLIBRARY_DYNAMIC

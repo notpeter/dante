@@ -78,7 +78,7 @@
 
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.78 1999/02/20 19:18:49 michaels Exp $";
+"$Id: config_parse.y,v 1.79 1999/03/11 16:59:32 karls Exp $";
 
 #include "common.h"
 

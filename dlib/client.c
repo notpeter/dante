@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: client.c,v 1.24 1999/02/20 19:18:46 michaels Exp $";
+"$Id: client.c,v 1.28 1999/03/11 17:28:35 michaels Exp $";
 
 #include "common.h"
 
@@ -93,6 +93,8 @@ clientinit(void)
 
 	config.state.pid  				= getpid();
 	config.state.init 				= 1;
+
+  	slog(LOG_INFO, "%s/client v%s running", PACKAGE, VERSION);
 }
 
 
@@ -114,19 +116,19 @@ serverreplyisok(version, reply)
 					return 0;
 
 				case SOCKSV4_NO_IDENTD:
-					swarnx("%s: socksserver failed to get your identd response",
+					swarnx("%s: proxyserver failed to get your identd response",
 					function);
 					errno = ECONNREFUSED;
 					return 0;
 
 				case SOCKSV4_BAD_ID:
-					swarnx("%s: socksserver claims username/ident mismatch",
+					swarnx("%s: proxyserver claims username/ident mismatch",
 					function);
 					errno = ECONNREFUSED;
 					return 0;
 
 				default:
-					swarnx("%s: unknown v%d reply from socksserver: %d",
+					swarnx("%s: unknown v%d reply from proxyserver: %d",
 					function, version, reply);
 					errno = ECONNREFUSED;
 					return 0;
@@ -138,12 +140,12 @@ serverreplyisok(version, reply)
 					return 1;
 					
 				case SOCKS_FAILURE:
-					swarnx("%s: unknown socksserver failure", function);
+					swarnx("%s: unknown proxyserver failure", function);
 					errno = ECONNREFUSED;
 					return 0;
 					
 				case SOCKS_NOTALLOWED:
-					swarnx("%s: connection denied by socksserver", function);
+					swarnx("%s: connection denied by proxyserver", function);
 					errno = ECONNREFUSED;
 					return 0;
 						 
@@ -164,18 +166,18 @@ serverreplyisok(version, reply)
 					return 0;
 						 
 				case SOCKS_CMD_UNSUPP:
-					swarnx("%s: command not supported by socksserver", function);
+					swarnx("%s: command not supported by proxyserver", function);
 					errno = ECONNREFUSED;
 					return 0;
 						 
 				case SOCKS_ADDR_UNSUPP:
-					swarnx("%s: address type not supported by remote socksserver",
+					swarnx("%s: address type not supported by proxyserver",
 					function);
 					errno = ECONNREFUSED;
 					return 0;
 					
 				default:
-					swarnx("%s: unknown v%d reply from socksserver: %d",
+					swarnx("%s: unknown v%d reply from proxyserver: %d",
 					function, version, reply);
 					errno = ECONNREFUSED;
 					return 0;
@@ -187,12 +189,22 @@ serverreplyisok(version, reply)
 					return 1;
 
 				case MSPROXY_FAILURE: 
+				case MSPROXY_CONNREFUSED: 
+					errno = ECONNREFUSED;
 					return 0;
 				
+				case MSPROXY_NOTALLOWED:
+					swarnx("%s: connection denied by proxyserver: authenticated?",
+					function);
+					errno = ECONNREFUSED;
+					return 0;
+
 				default:
-					SERRX(reply);
+					swarnx("%s: unknown v%d reply from proxyserver: %d",
+					function, version, reply);
+					errno = ECONNREFUSED;
+					return 0;
 			}
-			break;
 
 		default:
 			SERRX(version);

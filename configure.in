@@ -1,7 +1,7 @@
 AC_INIT(include/socks.h)
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+prerelease="2"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else
@@ -661,6 +661,38 @@ if test x$have_lsocket = xt; then
 			AC_MSG_WARN(unable to locate sendto)))
 fi
 
+#look for dlopen in other places than libc; needed for socksify.sh
+AC_CHECK_FUNC(dlopen)
+#XXX $ac_ refs
+if test $ac_cv_func_dlopen = no; then
+	AC_CHECK_LIB(dl, dlopen)
+	if test $ac_cv_lib_dl_dlopen = yes; then
+		LIBRARY_DLOPEN="libdl.so"
+	else
+		AC_MSG_WARN(unable to locate dlopen, socksify might not work)
+		LIBRARY_DLOPEN=""
+	fi
+else
+	LIBRARY_DLOPEN=""
+fi
+AC_SUBST(LIBRARY_DLOPEN)
+
+#specify location of the socks library in socksify too
+#XXX exec_prefix and prefix have the value NONE here if they are unset
+o_exec_prefix=${exec_prefix}
+o_prefix=${prefix}
+if test x${prefix} = xNONE; then
+	prefix=$ac_default_prefix
+fi
+if test x${exec_prefix} = xNONE; then
+	exec_prefix=$prefix
+fi
+LIBRARY_PREFIX=`eval echo \$libdir`
+LIBRARY_PREFIX=`eval echo \$LIBRARY_PREFIX`
+exec_prefix=${o_exec_prefix}
+prefix=${o_prefix}
+AC_SUBST(LIBRARY_PREFIX)
+
 LIBS=$oLIBS
 
 #XXX should be more generic
@@ -801,8 +833,8 @@ if test x$build_preload_lib = xt; then
 	AC_LINK_FILES(lib/userio.c, dlib/userio.c)
 	AC_LINK_FILES(lib/util.c, dlib/util.c)
 
-	AC_OUTPUT(sockd/Makefile include/Makefile lib/Makefile dlib/Makefile Makefile example/Makefile doc/Makefile bin/Makefile)
+	AC_OUTPUT(sockd/Makefile include/Makefile lib/Makefile dlib/Makefile Makefile example/Makefile doc/Makefile bin/Makefile SPECS/Makefile SPECS/dante.spec bin/socksify)
 else
 #do not build anything in dlib
-	AC_OUTPUT(sockd/Makefile include/Makefile lib/Makefile Makefile)
+	AC_OUTPUT(sockd/Makefile include/Makefile lib/Makefile Makefile SPECS/Makefile SPECS/dante.spec bin/socksify)
 fi

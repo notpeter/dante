@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.199 1999/02/26 19:26:48 michaels Exp $";
+"$Id: sockd.c,v 1.201 1999/03/11 16:59:34 karls Exp $";
 
 #include "common.h"
 
@@ -326,7 +326,7 @@ main(argc, argv, envp)
 	||	 childcheck(CHILD_IO)			<= 0)
 		serr(EXIT_FAILURE, "childcheck() failed");
 
-  	slog(LOG_INFO, "%s/sockd v%s running", PACKAGE, VERSION);
+  	slog(LOG_INFO, "%s/server v%s running", PACKAGE, VERSION);
 
 
 	/*

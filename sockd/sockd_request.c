@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,18 +42,19 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.70 1999/02/22 12:03:05 michaels Exp $";
+"$Id: sockd_request.c,v 1.72 1999/03/11 16:59:35 karls Exp $";
 
 #include "common.h"
 
 /*
- * A request child is the simplest of all children, it is specifically
- * designed to handle only one connection so a evil user won't hang
- * any other connection waiting for bad data to time out or whatever.
  * Since it only handles one client at a time there is no possibility
  * for the mother to send a new client before we have got rid of the
  * old one and thus no need for locking even on broken systems.
  * (#ifdef HAVE_SENDMSG_DEADLOCK)
+ * XXX I have started to work on fixing this, so this process too
+ * can support multiple clients, perhaps for a later release I will
+ * have time to complete it.  Will also fix that terrible bindreply
+ * hack of waiting for a query.
 */
 
 __BEGIN_DECLS
