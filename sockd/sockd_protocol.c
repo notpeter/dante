@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadalléen 21
- *  NO-0349 Oslo
+ *  Gaustadaléen 21
+ *  N-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.101 2005/12/31 17:42:45 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.84 2000/04/09 10:14:46 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -212,7 +212,6 @@ recv_v5req (s, request, state)
 	/* NMETHODS */
 	INIT(sizeof(char));
 	CHECK(&state->mem[start], request->auth, NULL);
-	/* LINTED conversion from 'int' may lose accuracy */
 	OCTETIFY(state->mem[start]);
 
 	state->rcurrent = recv_methods;
@@ -230,14 +229,13 @@ recv_methods(s, request, state)
 	const char *function = "recv_methods()";
 	const unsigned char methodc = state->mem[state->reqread - 1];	/* NMETHODS */
 	unsigned char reply[ 1 /* VERSION	*/
-							 + 1 /* METHOD		*/
-							 ];
+				 			 + 1 /* METHOD		*/
+				 			];
 
 	INIT(methodc);
 	CHECK(&state->mem[start], request->auth, NULL);
 
-	request->auth->method = selectmethod(sockscf.methodv, sockscf.methodc,
-	&state->mem[start], (size_t)methodc);
+	request->auth->method = selectmethod(&state->mem[start], (size_t)methodc);
 
 	/* send reply:
 	 *
@@ -257,11 +255,8 @@ recv_methods(s, request, state)
 	if (writen(s, reply, sizeof(reply), request->auth) != sizeof(reply))
 		return -1;
 
-	if (request->auth->method == AUTHMETHOD_NOACCEPT) {
-		snprintf(state->emsg, sizeof(state->emsg),
-		"client offered no acceptable authenticationmethod");
+	if (request->auth->method == AUTHMETHOD_NOACCEPT)
 		return -1;
-	}
 
 	state->rcurrent = methodnegotiate;
 	return state->rcurrent(s, request, state);
@@ -427,7 +422,6 @@ recv_address(s, request, state)
 					INIT(sizeof(*request->host.addr.domain));
 					CHECK(request->host.addr.domain, request->auth, NULL);
 
-					/* LINTED conversion from 'int' may lose accuracy */
 					OCTETIFY(*request->host.addr.domain);
 
 					state->rcurrent = recv_domain;
@@ -453,16 +447,15 @@ recv_domain(s, request, state)
 	struct request_t *request;
 	struct negotiate_state_t *state;
 {
-	unsigned char alen;
-	/* first byte gives length. */
-	INIT((unsigned char)*request->host.addr.domain);
+	size_t alen;
+
+	INIT(*request->host.addr.domain);	/* first byte gives length. */
 	CHECK(request->host.addr.domain + 1, request->auth, NULL);
 
-	alen = *request->host.addr.domain;
+	alen = (size_t)*request->host.addr.domain;
 
 	/* convert to C string. */
-	memmove(request->host.addr.domain, request->host.addr.domain + 1,
-	(size_t)alen);
+	memmove(request->host.addr.domain, request->host.addr.domain + 1, alen);
 	request->host.addr.domain[alen] = NUL;
 
 	state->rcurrent = recv_port;
@@ -511,41 +504,45 @@ recv_username(s, request, state)
 		INIT(MIN(1, MEMLEFT()));
 
 		if (MEMLEFT() == 0) {
-			char *t;
-
 			/*
 			 * Normally this would indicate an internal error and thus
 			 * be caught in CHECK(), but for the v4 case it could be
 			 * someone sending a really long username, which is strange
-			 * enough to log a warning about, but not an internal error.
+			 * enough to log a warning about but not an internal error.
 			 */
 
 			state->mem[state->reqread - 1] = NUL;
 
-			swarnx("%s: username too long (> %d): \"%s\"", function,
-			strlen(username), strcheck(t = str2vis(username, strlen(username))));
-			free(t);
-			
+			slog(LOG_WARNING, "%s: too long username (> %d): \"%s\"",
+			function, strlen(username),
+			strcheck(username = str2vis(username, strlen(username))));
+			free(username);
+
 			return -1;
 		}
 
 		CHECK(&state->mem[start], request->auth, NULL);
-
-		/*
-		 * Since we don't know how long the username is, we can only read one
-		 * byte at a time.  We don't want CHECK() to set state->rcurrent to
-		 * NULL after each successfull read of that one byte, since
-		 * recv_request() will then think we are starting from the begining
-		 * next time we call it.
-		 */
-		state->rcurrent = recv_username;
 	} while (state->mem[state->reqread - 1] != 0);
 	state->mem[state->reqread - 1] = NUL;	/* style. */
 
-	slog(LOG_DEBUG, "%s: got socks v4 username: %s", function, username);
+	slog(LOG_DEBUG, "%s: got socks v4 username: %s",
+	function, strcheck(username = str2vis(username, strlen(username))));
+	free(username);
 
-	state->rcurrent = NULL;
 	return 1;	/* end of request. */
+}
+
+void
+send_failure(s, response, failure)
+	int s;
+	const struct response_t *response;
+	int failure;
+{
+	struct response_t newresponse;	/* keep const. */
+
+	newresponse = *response;
+	newresponse.reply = (char)sockscode(newresponse.version, failure);
+	send_response(s, &newresponse);
 }
 
 
@@ -621,7 +618,7 @@ send_response(s, response)
 	function, socks_packet2string(response, SOCKS_RESPONSE));
 
 	if (writen(s, responsemem, length, response->auth) != (ssize_t)length) {
-		slog(LOG_DEBUG, "%s: writen(): %s", function, strerror(errno));
+		swarn("%s: writen()", function);
 		return -1;
 	}
 

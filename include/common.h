@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadalléen 21
- *  NO-0349 Oslo
+ *  Gaustadaléen 21
+ *  N-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.329 2006/01/15 15:33:38 karls Exp $ */
+/* $Id: common.h,v 1.246 2000/05/31 12:14:49 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -64,24 +64,6 @@
 #include "autoconf.h"
 #endif  /* HAVE_CONFIG_H */
 
-#ifndef __GNUC__
-#define __attribute__(a)
-#endif
-
-#if HAVE_LINUX_ECCENTRICITIES
-/*
- * XXX This is a hack. Avoid transparent sockaddr union used in Linux
- *  to avoid the use of the union in the code. Mainly used in
- *  interposition.c (also for CMSG_)
- */
-
-#ifdef __GNUC__
-#undef __GNUC__
-#define __GNUC__ 0
-#endif /* __GNUC__ */
-
-#endif /* HAVE_LINUX_ECCENTRICITIES */
-
 #include <sys/types.h>
 #if HAVE_SYS_TIME_H
 #include <sys/time.h>
@@ -91,27 +73,28 @@
 #endif  /* HAVE_SYS_FILE_H */
 #include <sys/resource.h>
 #include <sys/ioctl.h>
-#if HAVE_SYS_IPC_H
 #include <sys/ipc.h>
-#endif /* HAVE_SYS_IPC_H */
-#if HAVE_SYS_SEM_H
 #include <sys/sem.h>
-#endif /* HAVE_SYS_SEM_H */
+/* XXX This is a hack. Avoid transparent sockaddr union used in Linux
+   to avoid the use of the union in the code. Mainly used in
+   interposition.c*/
+#ifdef WE_DONT_WANT_NO_SOCKADDR_ARG_UNION
+#ifdef __GNUC__
+#define __HAD_GNUC __GNUC__
+#undef __GNUC__
+#endif  /* __GNUC__ */
+#endif  /* WE_DONT_WANT_NO_SOCKADDR_ARG_UNION */
 #include <sys/socket.h>
-#include <net/if.h>
+#ifdef __HAD_GNUC
+#define __GNUC__ __HAD_GNUC
+#endif  /* __HAD_GNUC */
 #if NEED_SYS_SOCKIO_H
 #include <sys/sockio.h>
 #endif /* NEED_SYS_SOCKIO_H */
 #include <sys/mman.h>
 #include <sys/un.h>
 #include <sys/stat.h>
-#ifdef SOCKS_DLIB_OSF
-#undef __DECC
-#endif /* SOCKS_DLIB_OSF */
 #include <sys/uio.h>
-#ifdef SOCKS_DLIB_OSF
-#define __DECC
-#endif /* SOCKS_DLIB_OSF */
 #include <sys/wait.h>
 #include <netinet/in.h>
 #if HAVE_NETINET_IP_H
@@ -121,17 +104,14 @@
 #include <netinet/ip_var.h>
 #endif  /* HAVE_NETINET_IP_VAR_H */
 #include <arpa/inet.h>
-#if HAVE_ARPA_NAMESER_H
 #include <arpa/nameser.h>
-#endif /* HAVE_ARPA_NAMESER_H */
-#include <sys/mman.h>
 
 #include <assert.h>
 #if HAVE_CRYPT_H
 #include <crypt.h>
 #endif  /* HAVE_CRYPT_H */
 #include <ctype.h>
-#if SOCKSLIBRARY_DYNAMIC
+#if SOCKSLIBRARY_DYNAMIC 
 #include <dlfcn.h>
 #endif  /* SOCKSLIBRARY_DYNAMIC */
 #include <errno.h>
@@ -169,29 +149,12 @@
 #endif  /* HAVE_DEC_PROTO */
 #include <unistd.h>
 #ifdef HAVE_DEC_PROTO
-#define _XOPEN_SOURCE_EXTENDED 1
+#define _XOPEN_SOURCE_EXTENDED
 #endif /* HAVE_DEC_PROTO */
 #endif  /* HAVE_UNISTD_H */
-#if HAVE_RESOLV_H
 #include <resolv.h>
-#endif /* HAVE_RESOLV_H */
-#if HAVE_IFADDRS_H
-#include <ifaddrs.h>
-#endif /* HAVE_IFADDRS_H */
-#if HAVE_PAM
-#include <security/pam_appl.h>
-#endif /* HAVE_PAM */
 
 #include "yacconfig.h"
-
-#if HAVE_LINUX_BUGS
-#if (defined __bswap_16) && (!defined __bswap_32)
-#undef ntohl
-#undef ntohs
-#undef htonl
-#undef htons
-#endif
-#endif /* HAVE_LINUX_BUGS */
 
 #ifdef lint
 extern const int lintnoloop_common_h;
@@ -315,38 +278,6 @@ error "no known 32 bits wide datatype"
 # endif /* SIZEOF_SHORT == 4 */
 #endif /* SIZEOF_INT == 4 */
 
-#if !HAVE_INT8_T
-#define int8_t sbits_8
-#endif /* HAVE_INT8_T */
-
-#if !HAVE_INT16_T
-#define int16_t sbits_16
-#endif /* HAVE_INT16_T */
-
-#if !HAVE_INT32_T
-#define int32_t sbits_32
-#endif /* HAVE_INT32_T */
-
-#if !HAVE_UINT8_T
-#define uint8_t ubits_8
-#endif /* HAVE_UINT8_T */
-
-#if !HAVE_UINT16_T
-#define uint16_t ubits_16
-#endif /* HAVE_UINT16_T */
-
-#if !HAVE_UINT32_T
-#define uint32_t ubits_32
-#endif /* HAVE_UINT32_T */
-
-#if !HAVE_IN_PORT_T
-#define in_port_t ubits_16
-#endif /* HAVE_IN_PORT_T */
-
-#if !HAVE_IN_ADDR_T
-#define in_addr_t ubits_32
-#endif /* HAVE_IN_ADDR_T */
-
 #ifndef INADDR_NONE
 # define INADDR_NONE (ubits_32) 0xffffffff
 #endif  /* !INADDR_NONE */
@@ -390,15 +321,6 @@ error "no known 32 bits wide datatype"
 #endif
 #endif
 
-#ifndef __CONCAT3
-#if defined(__STDC__) || defined(__cplusplus)
-#define __CONCAT3(x,y,z)        x ## y ## z
-#else
-#define __CONCAT3(x,y,z)        x/**/y/**/z
-#endif
-#endif
-
-
 #if !HAVE_STRUCT_IPOPTS
 #define	MAX_IPOPTLEN	40
 struct ipoption {
@@ -406,41 +328,6 @@ struct ipoption {
 	sbits_8	ipopt_list[MAX_IPOPTLEN];
 };
 #endif  /* !HAVE_STRUCT_IPOPTS */
-
-#if !HAVE_IN6_ADDR
-/* from OpenBSD netinet6/in6.h */
-struct in6_addr {
-	union {
-		u_int8_t   __u6_addr8[16];
-		u_int16_t  __u6_addr16[8];
-		u_int32_t  __u6_addr32[4];
-	} __u6_addr;/* 128-bit IP6 address */
-};
-#define s6_addr   __u6_addr.__u6_addr8
-#endif /* !HAVE_IN6_ADDR */
-
-#if !HAVE_TIMER_MACROS
-/* timeval macros, taken from OpenBSD sys/time.h */
-#define timeradd(tvp, uvp, vvp)                                         \
-        do {                                                            \
-                (vvp)->tv_sec = (tvp)->tv_sec + (uvp)->tv_sec;          \
-                (vvp)->tv_usec = (tvp)->tv_usec + (uvp)->tv_usec;       \
-                if ((vvp)->tv_usec >= 1000000) {                        \
-                        (vvp)->tv_sec++;                                \
-                        (vvp)->tv_usec -= 1000000;                      \
-                }                                                       \
-        } while (0)
-
-#define timersub(tvp, uvp, vvp)                                         \
-        do {                                                            \
-                (vvp)->tv_sec = (tvp)->tv_sec - (uvp)->tv_sec;          \
-                (vvp)->tv_usec = (tvp)->tv_usec - (uvp)->tv_usec;       \
-                if ((vvp)->tv_usec < 0) {                               \
-                        (vvp)->tv_sec--;                                \
-                        (vvp)->tv_usec += 1000000;                      \
-                }                                                       \
-        } while (0)
-#endif /* !HAVE_TIMER_MACROS */
 
 #if 0
 #if !HAVE_SOCKADDR_STORAGE
@@ -458,44 +345,8 @@ struct sockaddr_storage {
 #endif /* !HAVE_SOCKADDR_STORAGE */
 #endif
 
-
-#if !HAVE_GETIFADDRS
-/* Taken from OpenBSD <ifaddrs.h> */
-struct ifaddrs {
-	struct ifaddrs  *ifa_next;
-	char		*ifa_name;
-	unsigned int	 ifa_flags;
-	struct sockaddr	*ifa_addr;
-	struct sockaddr	*ifa_netmask;
-/*XXX*/
-#undef ifa_dstaddr
-	struct sockaddr	*ifa_dstaddr;
-	void		*ifa_data;
-};
-
-/*
- * This may have been defined in <net/if.h>.  Note that if <net/if.h> is
- * to be included it must be included before this header file.
- */
-#ifndef	ifa_broadaddr
-#define	ifa_broadaddr	ifa_dstaddr	/* broadcast address interface */
-#endif
-
-#endif /* !HAVE_GETIFADDRS */
-
-/*
- * BSDI 4.1 doesn't have freeifaddrs(), but uses free()
- *  Problem reported by "Zand, Nooshin" <nooshin.zand@intel.com>
- */
-#if HAVE_GETIFADDRS && !HAVE_FREEIFADDRS
-#define freeifaddrs free
-#endif /* HAVE_GETIFADDRS && !HAVE_FREEIFADDRS */
-
-#define TOIN(addr) ((struct sockaddr_in *)(addr))
-#define TOCIN(addr) ((const struct sockaddr_in *)(addr))
-
 /* global variables needed by everyone. */
-extern struct config_t sockscf;
+extern struct config_t config;
 extern char *__progname;
 
 #if !HAVE_H_ERRNO
@@ -506,8 +357,6 @@ extern int h_errno;
 	 * defines
 	 */
 
-
-#define IP_MAXPORT 65535	/* max value for ip port number. */
 
 /*
  * redefine system limits to match that of socks protocol.
@@ -531,8 +380,6 @@ extern int h_errno;
 #define	MAXPWLEN				(255 + 1)		/* socks5: 255, +1 for len. */
 
 
-#define	MAXIFNAMELEN		255
-
 /*									"255." "255." "255." "255" "." "65535" + NUL */
 #define	MAXSOCKADDRSTRING	 (4   +   4   + 4   +  3  + 1 +    5   + 1)
 
@@ -542,8 +389,8 @@ extern int h_errno;
 #define	MAXRULEADDRSTRING	 (MAXSOCKSHOSTSTRING * 2)
 
 
-#define MAXAUTHINFOLEN		(((sizeof("(") - 1) + MAXMETHODSTRING) \
-									+ (sizeof(")") - 1) + (sizeof("@") - 1) + MAXNAMELEN)
+#define MAXAUTHINFOLEN		((sizeof("(") - 1) + MAXMETHODLEN) \
+									+ (sizeof(")" - 1) + (sizeof("@") - 1) + MAXNAMELEN)
 
 #ifndef NUL
 #define NUL '\0'
@@ -582,36 +429,7 @@ extern int h_errno;
 	 */
 
 
-#ifndef _NO_FUNCTION_REDIFINE
 #define close(n)	closen(n)
-
-/* XXX needed on AIX apparently */
-#ifdef recvmsg
-#define recvmsg_system recvmsg
-#undef recvmsg
-#endif /* recvmsg */
-
-#if HAVE_SYSTEM_XMSG_MAGIC
-#undef recvmsg_system
-#define recvmsg_system nrecvmsg
-#endif /* HAVE_SYSTEM_XMSG_MAGIC */
-
-#define recvmsg(s, msg, flags)	recvmsgn(s, msg, flags)
-
-#ifdef sendmsg
-#define sendmsg_system sendmsg
-#undef sendmsg
-#endif /* sendmsg */
-
-#if HAVE_SYSTEM_XMSG_MAGIC
-#undef sendmsg_system
-#define sendmsg_system nsendmsg
-#endif /* HAVE_SYSTEM_XMSG_MAGIC */
-
-#define sendmsg(s, msg, flags)	sendmsgn(s, msg, flags)
-
-#endif /* _NO_FUNCTION_REDIFINE */
-
 
 #define PORTISRESERVED(port)	\
 	(ntohs((port)) != 0 && ntohs((port)) < IPPORT_RESERVED)
@@ -622,10 +440,14 @@ extern int h_errno;
 
 #define ELEMENTS(array) (sizeof(array) / sizeof(array[0]))
 
-#define OCTETIFY(a) ((a) &= 0xff)
+#if UCHAR_MAX > 0xff
+#define OCTETIFY(a) ((a) = ((a) & 0xff))
+#else
+#define OCTETIFY(a)	((a) = (a))
+#endif
 /*
  * Note that it's the argument that will be truncated, not just the
- * return value.
+ * returnvalue.
  */
 
 
@@ -633,157 +455,95 @@ extern int h_errno;
  * macros to manipulate ancillary data depending on if we're on sysv or BSD.
  */
 
-/*
- * Modern CMSG alignment macros. Use them if the platform has them,
- * if not we get the default behaviour.
- */
-
+/* allocate memory for data.  "size" is the amount of memory to allocate. */
 #if HAVE_CMSGHDR
-
-#if !HAVE_CMSG_LEN
-#define CMSG_LEN(len) (sizeof(struct cmsghdr) + (len))
-#endif /* !HAVE_CMSG_LEN */
-
-#if !HAVE_CMSG_SPACE
-#define CMSG_SPACE(len) (sizeof(struct cmsghdr) + (len))
-#endif /* !HAVE_CMSG_SPACE */
-
-#else /* HAVE_CMSGHDR */
-
-#if !HAVE_CMSG_LEN
-#define CMSG_LEN(len) (len)
-#endif /* !HAVE_CMSG_LEN */
-
-#if !HAVE_CMSG_SPACE
-#define CMSG_SPACE(len) (len)
-#endif /* !HAVE_CMSG_SPACE */
-
-#endif /* HAVE_CMSGHDR */
-
-/*
- * allocate memory for a controlmessage of size "size".  "name" is the
- * name of the allocated memory.
- */
-#if HAVE_CMSGHDR
-#define CMSG_AALLOC(name, size) \
+#define CMSG_AALLOC(size) \
 	union { \
-		char cmsgmem[CMSG_SPACE(size)]; \
+		char cmsgmem[sizeof(struct cmsghdr) + (size)]; \
 		struct cmsghdr align; \
-	} __CONCAT3(_, name, mem); \
-	struct cmsghdr *name = &__CONCAT3(_, name, mem).align
+	} cmsgmem; \
+	struct cmsghdr *cmsg = &cmsgmem.align
 #else /* !HAVE_CMSGHDR */
-#define CMSG_AALLOC(name, size) \
-	char name[(size)]
+#define CMSG_AALLOC(size) \
+	char cmsgmem[(size)]
 #endif /* !HAVE_CMSGHDR */
 
-/*
- * Returns the size of the previously allocated controlmessage named
- * "name"
- */
-#if HAVE_CMSGHDR
-#define CMSG_MEMSIZE(name) (sizeof(__CONCAT3(_, name, mem)))
-#else /* !HAVE_CMSGHDR */
-#define CMSG_MEMSIZE(name) (sizeof((name)))
-#endif
 
 /*
- * Returns the controldata member of "msg".
- */
-#if HAVE_CMSGHDR
-/* cast is necessary on AIX, due to buggy headers there?. */
-#define CMSG_CONTROLDATA(msg)	((struct cmsghdr *)((msg).msg_control))
-#else /* !HAVE_CMSGHDR */
-#define CMSG_CONTROLDATA(msg)	((msg).msg_accrights)
-#endif
-
-/*
- * add "object" to "data".  "object" is the object to add to "data" at
+ * add a object to data.  "object" is the object to add to data at
  * offset "offset".
  */
 #if HAVE_CMSGHDR
-#define CMSG_ADDOBJECT(object, data, offset) \
+#define CMSG_ADDOBJECT(object, offset) \
 	do \
-		memcpy(CMSG_DATA(data) + (offset), &(object), sizeof(object)); \
+		memcpy(CMSG_DATA(cmsg) + (offset), &(object), sizeof(object)); \
 	while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_ADDOBJECT(object, data, offset) \
+#define CMSG_ADDOBJECT(object, offset) \
 	do \
-		memcpy(data + (offset), &(object), sizeof((object))); \
+		memcpy(cmsgmem + (offset), &(object), sizeof((object))); \
 	while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
 
 /*
- * get a object from controldata "data".
- * "object" is the object to fill with data gotten from "data" at offset
- * "offset".
+ * get a object from data.  "object" is the object to get from data at
+ * offset "offset".
  */
 #if HAVE_CMSGHDR
-#define CMSG_GETOBJECT(object, data, offset) \
+#define CMSG_GETOBJECT(object, offset) \
 	do \
-		memcpy(&(object), CMSG_DATA((data)) + (offset), sizeof((object))); \
+		memcpy(&(object), CMSG_DATA(cmsg) + (offset), sizeof((object))); \
 	while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_GETOBJECT(object, data, offset) \
+#define CMSG_GETOBJECT(object, offset) \
 	do \
-		memcpy(&(object), ((data) + (offset)), sizeof((object))); \
+		memcpy(&(object), cmsgmem + (offset), sizeof((object))); \
 	while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
 
 
-/*
- * Sets up "object" for sending a controlmessage of size "size".
- * "controlmem" is the memory the controlmessage is stored in.
- */
+/* set cmsg for sending */
 #if HAVE_CMSGHDR
-#define CMSG_SETHDR_SEND(object, controlmem, size) \
+#define CMSG_SETHDR_SEND(size) \
 	do { \
-		controlmem->cmsg_level		= SOL_SOCKET; \
-		controlmem->cmsg_type		= SCM_RIGHTS; \
-		controlmem->cmsg_len			= CMSG_LEN(size); \
+		cmsg->cmsg_level		= SOL_SOCKET; \
+		cmsg->cmsg_type		= SCM_RIGHTS; \
+		cmsg->cmsg_len			= sizeof(struct cmsghdr) + (size); \
 		\
-		object.msg_control		= (caddr_t)controlmem; \
-		object.msg_controllen	= controlmem->cmsg_len; \
+		msg.msg_control		= (caddr_t)cmsg; \
+		msg.msg_controllen	= cmsg->cmsg_len; \
 	} while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_SETHDR_SEND(object, controlmem, size) \
+#define CMSG_SETHDR_SEND(size) \
 	do { \
-		object.msg_accrights		= (caddr_t)controlmem; \
-		object.msg_accrightslen	= (size); \
+		msg.msg_accrights		= (caddr_t)cmsgmem; \
+		msg.msg_accrightslen	= (size); \
 	} while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
-/*
- * Sets up "object" for receiving a controlmessage of size "size".
- * "controlmem" is the memory set aside for the controlmessage.
- */
+/* set cmsg for receiving */
 #if HAVE_CMSGHDR
-#define CMSG_SETHDR_RECV(object, controlmem, size) \
+#define CMSG_SETHDR_RECV(size) \
 	do { \
-		object.msg_control		= (caddr_t)controlmem; \
-		object.msg_controllen	= (size); \
+		msg.msg_control		= (caddr_t)cmsg; \
+		msg.msg_controllen	= (size); \
 	} while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_SETHDR_RECV(object, controlmem, size) \
+#define CMSG_SETHDR_RECV(size) \
 	do { \
-		object.msg_accrights		= (caddr_t)controlmem; \
-		object.msg_accrightslen	= (size); \
+		msg.msg_accrights		= (caddr_t)cmsgmem; \
+		msg.msg_accrightslen	= (size); \
 	} while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
 
 /* returns length of controldata actually sent. */
 #if HAVE_CMSGHDR
-#define CMSG_GETLEN(msg)	((msg).msg_controllen - CMSG_LEN(0))
+#define CMSG_GETLEN(msg)	(msg.msg_controllen - sizeof(struct cmsghdr))
 #else
-#define CMSG_GETLEN(msg)	((msg).msg_accrightslen)
-#endif
-
-#if HAVE_CMSGHDR
-#define CMSG_TOTLEN(msg)	((msg).msg_controllen)
-#else
-#define CMSG_TOTLEN(msg)	((msg).msg_accrightslen)
+#define CMSG_GETLEN(msg)	(msg.msg_accrightslen)
 #endif
 
 
@@ -902,21 +662,14 @@ do {														\
 #define FAKEIP_END	0x000000ff
 
 #define SOCKS_V4					4
-#define SOCKS_V4s					"socks_v4"
 #define SOCKS_V4REPLY_VERSION 0
 #define SOCKS_V5					5
-#define SOCKS_V5s					"socks_v5"
 #define MSPROXY_V2				2
-#define MSPROXY_V2s				"msproxy_v2"
-#define HTTP_V1_0					1
-#define HTTP_V1_0s				"http_v1.0"
 
 /* subnegotiation. */
 #define SOCKS_UNAMEVERSION		1
 
 /* authentication METHOD values. */
-#define AUTHMETHOD_NOTSET		-1
-#define AUTHMETHOD_NOTSETs		"notset"
 #define AUTHMETHOD_NONE			0
 #define AUTHMETHOD_NONEs		"none"
 #define AUTHMETHOD_GSSAPI		1
@@ -931,26 +684,16 @@ do {														\
 #define AUTHMETHOD_NOACCEPT	255
 #define AUTHMETHOD_NOACCEPTs	"no acceptable method"
 
-/* not standard methods, must be > AUTHMETHOD_NOACCEPT. */
-#define AUTHMETHOD_RFC931		(AUTHMETHOD_NOACCEPT + 1)
+/* not standard methods, must be > 255. */
+#define AUTHMETHOD_RFC931		256
 #define AUTHMETHOD_RFC931s		"rfc931"
 
-#define AUTHMETHOD_PAM			(AUTHMETHOD_RFC931 + 1)
-#define AUTHMETHOD_PAMs			"pam"
+#define AUTHMETHOD_MAX			(AUTHMETHOD_RFC931 + 1)
 
-#define AUTHMETHOD_MAX			(AUTHMETHOD_PAM + 1)
-
-#define MAXMETHODSTRING			MAX(sizeof(AUTHMETHOD_NONEs),		\
-										MAX(sizeof(AUTHMETHOD_GSSAPIs),	\
-										MAX(sizeof(AUTHMETHOD_UNAMEs),	\
-										MAX(sizeof(AUTHMETHOD_RFC931s),	\
-										sizeof(AUTHMETHOD_PAMs)))))
-
-/* number of supported methods. */
-#define MAXMETHOD					1 /* NONE		*/	\
-									 + 1 /* UNAME		*/	\
-									 + 1 /* RFC931		*/	\
-									 + 1 /* RFC931		*/
+#define MAXMETHODLEN				MAX(sizeof(AUTHMETHOD_NONEs), 	\
+										MAX(sizeof(AUTHMETHOD_GSSAPIs), 	\
+										MAX(sizeof(AUTHMETHOD_UNAMEs), 	\
+										sizeof(AUTHMETHOD_RFC931s))))
 
 /*
  *  Response commands/codes
@@ -979,17 +722,11 @@ do {														\
 #define SOCKS_DISCONNECT			(SOCKS_ACCEPT + 1)
 #define SOCKS_DISCONNECTs			"disconnect"
 
-#define SOCKS_UNKNOWN				(SOCKS_DISCONNECT + 1)
-#define SOCKS_UNKNOWNs				"unknown"
-
 
 /* address types */
 #define SOCKS_ADDR_IPV4			0x01
-/* not a socks constant but put here for convenience. */
-#define SOCKS_ADDR_IFNAME		0x02
 #define SOCKS_ADDR_DOMAIN		0x03
 #define SOCKS_ADDR_IPV6       0x04
-
 
 /* reply field values */
 #define SOCKS_SUCCESS			0x00
@@ -1009,8 +746,7 @@ do {														\
 #define SOCKSV4_NO_IDENTD		92
 #define SOCKSV4_BAD_ID			93
 
-/* http stuff. */
-#define HTTP_SUCCESS				200
+
 
 
 #define MSPROXY_PINGINTERVAL	(6 * 60)
@@ -1029,7 +765,7 @@ do {														\
 #define MSPROXY_CONNREFUSED			0x4		/* low 12 bits seem to vary.	*/
 
 /*
- * Server seems to ignore low-order bits of a 0x47?? command, so take them
+ * Server seems to ignore loworder bits of a 0x47?? command, so take them
  * for our own use.
  */
 #define MSPROXY_HELLO				0x0500	/* packet 1 from client.				*/
@@ -1109,15 +845,20 @@ do {														\
 
 enum operator_t { none = 0, eq, neq, ge, le, gt, lt, range };
 
+struct compat_t {
+	unsigned reuseaddr:1;				/* set SO_REUSEADDR?								*/
+	unsigned sameport:1;					/* always try to use same port as client?	*/
+	unsigned :0;
+};
+
 
 struct logtype_t {
 	int				type;			/* type of logging (where to).						*/
 	FILE				**fpv;		/* if logging is to file, this is the open file.*/
-	char				**fnamev;	/* if logging is to file, name of file.			*/
-	size_t			fpc;			/* number of files.										*/
+	int				fpc;
 	int				*fplockv;	/* locking of logfiles.									*/
 	int				facility;	/* if logging to syslog, this is the facility.	*/
-	const char		*facilityname;	/* if logging to syslog, name of facility.	*/ };
+};
 
 
 
@@ -1133,7 +874,7 @@ struct extension_t {
 union socksaddr_t {
 	struct in_addr ipv4;
 	char				ipv6[SOCKS_IPV6_ALEN];
-	char				domain[MAXHOSTNAMELEN]; /* _always_ stored as C string.		*/
+	char				domain[MAXHOSTNAMELEN]; /* _always_ stored as C string. */
 };
 
 /* the hostspecific part of misc. things */
@@ -1435,37 +1176,32 @@ struct udpheader_t {
 
 
 /* method username */
-struct authmethod_uname_t {
+struct uname_t {
 	unsigned char	version;
 	unsigned char	name[MAXNAMELEN];
 	unsigned char	password[MAXPWLEN];
 };
 
 /* method rfc931 */
-struct authmethod_rfc931_t {
+struct rfc931_t {
 	unsigned char	name[MAXNAMELEN];
-};
-
-/* method pam. */
-struct authmethod_pam_t {
-	char				servicename[MAXNAMELEN];	/* servicename to use with pam.	*/
-	unsigned char	name[MAXNAMELEN];
-	unsigned char	password[MAXPWLEN];
 };
 
 /* this must be big enough to hold a complete method request. */
 struct authmethod_t {
-	int						method;					/* method in use.						*/
-	int						methodv[MAXMETHOD];	/* methods somewhere matched.		*/
-	size_t					methodc;					/* number of methods matched.		*/
-	int						badmethodv[MAXMETHOD];/* methods not matched.			*/
-	size_t					badmethodc;				/* number of methods not matched.*/
-
+	int						matched;	/* authentication matched?	*/
+	int						method;	/* method in use.				*/
 	union {
-		struct authmethod_uname_t	uname;
-		struct authmethod_rfc931_t	rfc931;
-		struct authmethod_pam_t		pam;
+		struct uname_t		uname;
+		struct rfc931_t	rfc931;
 	} mdata;
+};
+
+
+struct method_t {
+	unsigned none:1;
+	unsigned uname:1;
+	unsigned :0;
 };
 
 
@@ -1492,10 +1228,18 @@ struct proxyprotocol_t {
 	unsigned socks_v4:1;
 	unsigned socks_v5:1;
 	unsigned msproxy_v2:1;
-	unsigned http_v1_0:1;
 	unsigned :0;
 };
 
+
+struct serverstate_t {
+	struct command_t			command;
+	struct extension_t		extension;
+	struct protocol_t			protocol;
+	int							methodv[AUTHMETHOD_MAX];/* methods to offer.			*/
+	int							methodc;						/* number of methods set.	*/
+	struct proxyprotocol_t	proxyprotocol;
+};
 
 
 struct msproxy_state_t {
@@ -1508,6 +1252,11 @@ struct msproxy_state_t {
 	unsigned char				seq_sent;		/* seq number of last packet sent.	*/
 };
 
+
+struct gateway_t {
+	struct sockshost_t			host;
+	struct serverstate_t			state;
+};
 
 /* values in parentheses designate "don't care" values.	*/
 struct socksstate_t {
@@ -1530,8 +1279,9 @@ struct socksstate_t {
 struct ruleaddress_t {
 	char						atype;
 	union {
+
 		char					domain[MAXHOSTNAMELEN];
-		char					ifname[MAXIFNAMELEN];
+
 		struct {
 			struct in_addr	ip;
 			struct in_addr	mask;
@@ -1547,19 +1297,21 @@ struct ruleaddress_t {
 	enum operator_t		operator;	/* operator to compare ports via.			*/
 };
 
-struct serverstate_t {
-	struct command_t			command;
-	struct extension_t		extension;
-	struct protocol_t			protocol;
-	int							methodv[MAXMETHOD];		/* methods to offer.			*/
-	size_t						methodc;						/* number of methods set.	*/
-	struct proxyprotocol_t	proxyprotocol;
-};
+struct route_t {
+	int							number;		/* routenumber.								*/
+
+	struct {
+		unsigned bad:1;		/* route is bad?								*/
+		unsigned direct:1;	/* direct connection, no proxy.			*/
+		unsigned :0;
+	} state;
 
 
-struct gateway_t {
-	struct sockshost_t			host;
-	struct serverstate_t			state;
+	struct ruleaddress_t		src;
+	struct ruleaddress_t		dst;
+	struct gateway_t			gw;
+
+	struct route_t				*next;		/* next route in list.						*/
 };
 
 
@@ -1602,37 +1354,15 @@ struct socksfd_t {
 	struct sockaddr		remote;		/* address server is using on our behalf.	*/
 	unsigned					:0;
 	struct sockaddr		reply;		/* address to expect reply from.				*/
-	unsigned					:0;
 
-	union {
-		struct sockaddr		accepted;	/* address server accepted for us.		*/
-		struct sockaddr		connected;	/* address server connected to for us.	*/
-	} forus;
+	/* XXX union this. */
+	unsigned					:0;
+	struct sockaddr		accepted;	/* address server accepted for us.			*/
+	unsigned					:0;
+	struct sockaddr		connected;	/* address server connected to for us.		*/
 
 	struct route_t		*route;
 };
-
-
-
-struct route_t {
-	int							number;		/* routenumber.								*/
-
-	struct {
-		unsigned bad:1;		/* route is bad?												*/
-		time_t	badtime;		/* if route is bad, time it was marked as such.		*/
-		unsigned direct:1;	/* direct connection, no proxy.							*/
-		unsigned :0;
-	} state;
-
-
-	struct ruleaddress_t		src;
-	struct ruleaddress_t		dst;
-	struct gateway_t			gw;
-
-	struct route_t				*next;		/* next route in list.						*/
-};
-
-
 
 __BEGIN_DECLS
 
@@ -1641,32 +1371,28 @@ __BEGIN_DECLS
  */
 
 #ifdef STDC_HEADERS
-void serr(int eval, const char *fmt, ...)
+void serr(int eval, const char *fmt, ...);
 #else
-void serr()
+void serr();
 #endif  /* STDC_HEADERS */
-__attribute__ ((format (__printf__, 2, 3)));
 
 #ifdef STDC_HEADERS
-void serrx(int eval, const char *fmt, ...)
+void serrx(int eval, const char *fmt, ...);
 #else
-void serrx()
+void serrx();
 #endif  /* STDC_HEADERS */
-__attribute__ ((format (__printf__, 2, 3)));
 
 #ifdef STDC_HEADERS
-void swarn(const char *fmt, ...)
+void swarn(const char *fmt, ...);
 #else
-void swarn()
+void swarn();
 #endif  /* STDC_HEADERS */
-__attribute__ ((format (__printf__, 1, 2)));
 
 #ifdef STDC_HEADERS
-void swarnx(const char *fmt, ...)
+void swarnx(const char *fmt, ...);
 #else
-void swarnx()
+void swarnx();
 #endif  /* STDC_HEADERS */
-__attribute__ ((format (__printf__, 1, 2)));
 
 void
 genericinit __P((void));
@@ -1707,6 +1433,29 @@ udpheader_add __P((const struct sockshost_t *host, char *msg, size_t *len,
  *		On failure: NULL (out of memory).
  */
 
+struct udpheader_t *
+string2udpheader __P((const char *data, size_t len,
+							 struct udpheader_t *header));
+/*
+ * Converts "data" to udpheader_t representation.
+ * "len" is length of "data".
+ * "data" is assumed to be in network order.
+ * Returns:
+ *		On success: pointer to a udpheader_t in static memory.
+ *		On failure: NULL ("data" is not a complete udppacket).
+ */
+
+
+const char *
+socks_packet2string __P((const void *packet, int type));
+/*
+ * debug function; dumps socks packet content
+ * "packet" is a socks packet, "type" indicates it's type.
+ * Returns:
+ *		On success: 0
+ *		On failure: -1
+ */
+
 int
 socks_socketisbound __P((int s));
 /*
@@ -1737,12 +1486,22 @@ socks_logmatch __P((unsigned int d, const struct logtype_t *log));
  * Returns false otherwise.
  */
 
+char *
+sockaddr2string __P((const struct sockaddr *address, char *string, size_t len));
+/*
+ * Returns the IP address and port in "address" on string form.
+ * "address" is assumed to be on network form and it will be
+ * converted to host form before written to "string".
+ * "len" gives length of the NUL terminated string.
+ * Returns: "string".
+ */
+
 
 struct sockaddr *
 sockshost2sockaddr __P((const struct sockshost_t *shost,
 								struct sockaddr *addr));
 /*
- * Converts the sockshost_t "shost" to a sockaddr struct and stores it
+ * Converts the sockhost_t "shost" to a sockaddr struct and stores it
  * in "addr".
  * Returns: "addr".
  */
@@ -1783,29 +1542,11 @@ sockshost2ruleaddress __P((const struct sockshost_t *host,
 
 struct ruleaddress_t *
 sockaddr2ruleaddress __P((const struct sockaddr *addr,
-								  struct ruleaddress_t *ruleaddr));
+							struct ruleaddress_t *ruleaddr));
 /*
- * Converts the struct sockaddr "addr" to a ruleaddress_t struct and stores
- * it in "ruleaddr".
+ * Converts the struct sockaddr "addr" to a ruleaddress_t struct and stores it
+ * in "ruleaddr".
  * Returns: "addr".
- */
-
-struct sockaddr *
-hostname2sockaddr __P((const char *name, int index, struct sockaddr *addr));
-/*
- * Retrieves the address with index "index" for the hostname named "name".
- * Returns:
- *		On success: "addr", filled in with the address found.
- *		On failure: NULL (no address found).
- */
-
-struct sockaddr *
-ifname2sockaddr __P((const char *ifname, int index, struct sockaddr *addr));
-/*
- * Retrieves the address with index "index" on the interface named "ifname".
- * Returns:
- *		On success: "addr", filled in with the address found.
- *		On failure: NULL (no address found).
  */
 
 int
@@ -1816,15 +1557,11 @@ sockatmark __P((int s));
  */
 
 ssize_t
-recvmsgn __P((int s, struct msghdr *msg, int flags));
+recvmsgn __P((int s, struct msghdr *msg, int flags, size_t len));
 /*
- * Like recvmsg(), but tries to read until all has been read.
- */
-
-ssize_t
-sendmsgn __P((int s, const struct msghdr *msg, int flags));
-/*
- * Like sendmsg(), but tries to send until all has been sent.
+ * Like recvmsg(), but tries to read until "len" has been read.
+ * BUGS:
+ *   Assumes msg->msg_iov[n] are laid out next to each others.
  */
 
 ssize_t
@@ -1837,25 +1574,25 @@ readn __P((int, void *, size_t, struct authmethod_t *auth));
 ssize_t
 writen __P((int, const void *, size_t, struct authmethod_t *auth));
 /*
- * like write() but retries and takes an additional "auth" argument
+ * like write() but retries and takes an additional "auth" argument 
  * to be used if not NULL.
  */
 
 ssize_t
 socks_recvfrom __P((int, void *, size_t, int, struct sockaddr *, socklen_t *,
-						  struct authmethod_t *auth));
+   					  struct authmethod_t *auth));
 /*
  * Like recvfrom(), but with an additional auth argument to be used
  * if not NULL.
- */
+*/
 
 ssize_t
 socks_sendto __P((int, const void *, size_t, int, const struct sockaddr *,
-						socklen_t, struct authmethod_t *auth));
+ 						socklen_t, struct authmethod_t *auth));
 /*
  * Like sendto(), but with an additional auth argument to be used
  * if not NULL.
- */
+*/
 
 int
 closen __P((int));
@@ -1875,18 +1612,14 @@ acceptn __P((int, struct sockaddr *, socklen_t *));
  * Wrapper around accept().  Retries on EINTR.
  */
 
-#ifdef STDC_HEADERS
-int
-snprintfn(char *str, size_t size, const char *format, ...);
-#else
-int
-snprintfn();
-#endif
+
+char *
+sockshost2string __P((const struct sockshost_t *host, char *string,
+							 size_t len));
 /*
- * Wrapper around snprintf() for consistent behaviour, same as system
- * snprintf() but the following are also enforced:
- *		returns 0 instead of -1 (rawterminates *str).
- *		never returns a value greater than size - 1.
+ * Writes "host" out as a string.  The string is written to "string",
+ * which is of length "len", including NUL termination.
+ * Returns: "string".
  */
 
 const char *
@@ -1894,6 +1627,37 @@ strcheck __P((const char *string));
 /*
  * Checks "string".  If it is NULL, returns a string indicating memory
  * exhausted, if not, returns the same string it was passed.
+ */
+
+const char *
+command2string __P((int command));
+/*
+ * Returns a printable representation of the socks command "command".
+ * Can't fail.
+ */
+
+const char *
+protocol2string __P((int protocol));
+/*
+ * Returns a printable representation of "protocol".
+ * Can't fail.
+ */
+
+
+
+const char *
+method2string __P((int method));
+/*
+ * Returns a printable representation of the authmethod "method".
+ * Can't fail.
+ */
+
+int
+string2method __P((const char *methodname));
+/*
+ * If "methodname" is the name of a supported method, the protocol
+ * value of that method is returned.
+ * Otherwise, -1 is returned.
  */
 
 
@@ -1920,22 +1684,17 @@ mem2sockshost __P((struct sockshost_t *host, const unsigned char *mem,
  */
 
 #ifdef STDC_HEADERS
-void slog(int priority, const char *fmt, ...)
+void slog(int priority, const char *message, ...);
 #else
-void slog()
+void slog();
 #endif  /* STDC_HEADERS */
-__attribute__ ((format (__printf__, 2, 3)));
 /*
- * Logs message "fmt" at priority "priority" to previously configured
+ * Logs message "message" at priority "priority" to previously configured
  * outputdevice.
  * Checks settings and ignores message if it's of to low a priority.
  */
 
-#ifdef STDC_HEADERS
-void vslog(int priority, const char *fmt, va_list ap);
-#else
-void vslog();
-#endif  /* STDC_HEADERS */
+void vslog __P((int priority, const char *message, va_list ap));
 /*
  * Same as slog() but assumes varargs/stdargs have already processed
  * the arguments.
@@ -1950,26 +1709,14 @@ readconfig __P((const char *filename));
  *		On failure: -1.
  */
 
-#ifdef STDC_HEADERS
 void
-yywarn (const char *fmt, ...)
-#else
-void
-yywarn()
-#endif  /* STDC_HEADERS */
-__attribute__ ((format (__printf__, 1, 2)));
+yywarn __P((const char *s));
 /*
  * Report a error related to (configfile) parsing.
  */
 
-#ifdef STDC_HEADERS
 void
-yyerror (const char *fmt, ...)
-#else
-void
-yyerror()
-#endif  /* STDC_HEADERS */
-__attribute__ ((format (__printf__, 1, 2)));
+yyerror __P((const char *s));
 /*
  * Report a error related to (configfile) parsing and exit.
  */
@@ -2035,7 +1782,8 @@ socks_connectroute __P((int s, struct socks_t *packet,
  *
  * Returns:
  *		On success: the route that was used.
- *		On failure: NULL.  See errno for reason.  0 means no route exists.
+ *		On failure: NULL.  If errno is 0, the reason for failure was
+ *						that no route was found.
  */
 
 
@@ -2057,10 +1805,10 @@ showstate __P((const struct serverstate_t *state));
  */
 
 void
-showmethod __P((size_t methodc, const int *methodv));
+showmethod __P((int methodc, const int *methodv));
 /*
  * Shows "methodv".
- */
+*/
 
 struct route_t *
 addroute __P((const struct route_t *route));
@@ -2093,6 +1841,15 @@ socks_getroute __P((const struct request_t *req, const struct sockshost_t *src,
  *		On failure: NULL (no socks route found).
  */
 
+const char *
+ruleaddress2string __P((const struct ruleaddress_t *rule, char *string,
+								size_t len));
+/*
+ * Writes "rule" out as a string.  The string is written to "string",
+ * which is of length "len", including NUL termination.
+ * Returns: "string".
+ */
+
 
 unsigned char
 sockscode __P((int version, int code));
@@ -2105,6 +1862,20 @@ unsigned char
 errno2reply __P((int errnum, int version));
 /*
  * Returns the socks version "version" reply code for a error of type "errno".
+ */
+
+enum operator_t
+string2operator __P((const char *operator));
+/*
+ * Returns the enum for the string representation of a operator.
+ * Can't fail.
+ */
+
+const char *
+operator2string __P((enum operator_t operator));
+/*
+ * Returns the string representation of the operator.
+ * Can't fail.
  */
 
 char *
@@ -2231,24 +2002,10 @@ socks_unlock __P((int d));
  * Unlocks the filedescriptor "d", previously locked by this process.
  */
 
-int
-bitcount __P((unsigned long number));
-/*
- * Returns the number of bits set in "number".
- */
-
 #if SOCKSLIBRARY_DYNAMIC
 struct hostent *sys_gethostbyaddr __P((const char *addr, int len, int af));
 struct hostent *sys_gethostbyname __P((const char *));
 struct hostent *sys_gethostbyname2 __P((const char *, int));
-#if HAVE_GETADDRINFO
-int sys_getaddrinfo __P((const char *nodename, const char *servname,
-			 				const struct addrinfo *hints, struct addrinfo **res));
-#endif /* HAVE_GETADDRINFO */
-#if HAVE_GETIPNODEBYNAME
-struct hostent *sys_getipnodebyname __P((const char *name, int af, int flags,
-					 int *error_num));
-#endif /* HAVE_GETIPNODEBYNAME */
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
 #if defined(DEBUG) || HAVE_SOLARIS_BUGS
@@ -2281,23 +2038,21 @@ int daemon __P((int, int));
 int getdtablesize __P((void));
 #endif  /* !HAVE_GETDTABLESIZE */
 
-#if !HAVE_VSNPRINTF
+#if !HAVE_SNPRINTF
 # ifdef STDC_HEADERS
 int snprintf __P((char *, size_t, char const *, ...));
 # else
 int snprintf ();
 # endif /* STDC_HEADERS */
 int vsnprintf __P((char *, size_t, const char *, va_list));
-#endif /* !HAVE_VSNPRINTF */
+#endif /* !HAVE_SNPRINTF */
 
 #if !HAVE_SETPROCTITLE
 #ifdef STDC_HEADERS
-void setproctitle __P((const char *fmt, ...))
-__attribute__ ((format (__printf__, 1, 2)));
+void setproctitle __P((const char *fmt, ...));
 int initsetproctitle __P((int, char **, char **));
 #else
-void setproctitle()
-__attribute__ ((format (__printf__, 1, 2)));
+void setproctitle();
 int initsetproctitle __P((int, char **, char **));
 #endif  /* STDC_HEADERS */
 #endif  /* !HAVE_SETPROCTITLE */
@@ -2336,166 +2091,16 @@ int issetugid __P((void));
 void vsyslog __P((int, const char *, va_list));
 #endif  /* !HAVE_VSYSLOG */
 
-#if !HAVE_GETIFADDRS
-int getifaddrs __P((struct ifaddrs **));
-void freeifaddrs __P((struct ifaddrs *));
-#endif /* !HAVE_GETIFADDRS */
-
 struct passwd *
 socks_getpwnam __P((const char *login));
-/*
+/* 
  * Like getpwnam() but works around sysv bug, tries to get the shadow
  * password too.
- */
-
-int
-msproxy_negotiate __P((int s, int control, struct socks_t *packet));
-/*
- * Negotiates with the msproxy server connected to "control".
- * "s" gives the socket to be used for dataflow.
- * "packet" contains the request and on return from the function
- * contains the response.
- * Returns:
- *		On success: 0 (server replied to our request).
- *		On failure: -1
- */
-
-
-int
-send_msprequest __P((int s, struct msproxy_state_t *state,
-						  struct msproxy_request_t *packet));
-/*
- * Sends a msproxy request to "s".
- * "state" is the current state of the connection to "s",
- * "packet" is the request to send.
- */
-
-int
-recv_mspresponse __P((int s, struct msproxy_state_t *state,
-						  struct msproxy_response_t *packet));
-/*
- * Receives a msproxy response from "s".
- * "state" is the current state of the connection to "s",
- * "packet" is the memory the response is read into.
- */
-
-int
-msproxy_sigio __P((int s));
-/*
- * Must be called on sockets where we expect the connection to be forwarded
- * by the msproxy server.
- * "s" is the socket and must have been added with socks_addaddr() beforehand.
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
-int
-msproxy_init __P((void));
-/*
- * inits things for using a msproxyserver.
- *		On success: 0
- *		On failure: -1
- */
-
-int
-httpproxy_negotiate __P((int control, struct socks_t *packet));
-/*
- * Negotiates a method to be used when talking with the server connected
- * to "s".  "packet" is the packet that will later be sent to server.
- * packet->res.reply will be set depending on the result of negotiation.
- * Returns:
- *		On success: 0 (server accepted our request).
- *		On failure: -1.
- */
-
-
-int
-socks_negotiate __P((int s, int control, struct socks_t *packet,
-							struct route_t *route));
-/*
- * "s" is the socket data will flow over.
- * "control" is the control connection to the socks server.
- * "packet" is a socks packet containing the request.
- *	"route" is the connected route.
- * Negotiates method and fills the response to the request into packet->res.
- * Returns:
- *		On success: 0 (server replied to our request).
- *		On failure: -1.
- */
-
-int
-serverreplyisok __P((int version, int reply, struct route_t *route));
-/*
- * "replycode" is the reply code returned by a socksserver of version
- * "version".
- * "route" is the route that was used for the socksserver.  If
- * the errorcode indicates a serverfailure, it might be "badrouted".
- * Returns true if the reply indicates request succeeded, false otherwise
- * and sets errno accordingly.
- */
-
-
-struct route_t *
-socks_nbconnectroute __P((int s, int control, struct socks_t *packet,
-								  const struct sockshost_t *src,
-								  const struct sockshost_t *dst));
-/*
- * The non-blocking version of socks_connectroute(), only used by client.
- * Takes one additional argument, "s", which is the socket to connect
- * and not necessarily the same as "control" (msproxy case).
- */
-
-void
-socks_badroute __P((struct route_t *route));
-/*
- * Marks route "route" as bad.
- */
-
-int
-negotiate_method __P((int s, struct socks_t *packet));
-/*
- * Negotiates a method to be used when talking with the server connected
- * to "s".  "packet" is the packet that will later be sent to server,
- * only the "auth" element in it will be set but other elements are needed
- * too.
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
-
-int
-clientmethod_uname __P((int s, const struct sockshost_t *host, int version,
-								unsigned char *name, unsigned char *password));
-/*
- * Enters username/password negotiation with the socksserver connected to
- * the socket "s".
- * "host" gives the name of the server.
- * "version" gives the socksversion established to use.
- * "name", if not NULL, gives the name to use for authenticating.
- * "password", if not NULL, gives the name to use for authenticating.
- * Returns:
- *		On success: 0
- *		On failure: whatever the remote socksserver returned as status.
- */
-
-
-
-void
-checkmodule __P((const char *name));
-/*
- * Checks that the system has the module "name" and permission to use it.
- * Aborts with a errormessage if not.
- */
-
-int socks_yyparse __P((void));
-int socks_yylex __P((void));
-
+*/
 
 __END_DECLS
 
-#if SOCKSLIBRARY_DYNAMIC
+#if SOCKSLIBRARY_DYNAMIC 
 #include "interposition.h"
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
@@ -2508,5 +2113,3 @@ __END_DECLS
 #include "sockd.h"
 #endif  /* SOCKS_CLIENT */
 #endif  /* SOCKS_CLIENT || SOCKS_SERVER */
-
-#include "tostring.h"

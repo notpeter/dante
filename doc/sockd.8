@@ -1,6 +1,6 @@
-.\" $Id: sockd.8,v 1.29 2005/01/24 10:24:20 karls Exp $
+.\" $Id: sockd.8,v 1.19 2000/04/09 10:14:39 karls Exp $
 .\"
-.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004
+.\" Copyright (c) 1997, 1998, 1999, 2000
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -33,99 +33,88 @@
 .\"  Software Distribution Coordinator  or  sdc@inet.no
 .\"  Inferno Nettverk A/S
 .\"  Oslo Research Park
-.\"  Gaustadalléen 21
-.\"  NO-0349 Oslo
+.\"  Gaustadaléen 21
+.\"  N-0349 Oslo
 .\"  Norway
 .\"
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.TH SOCKD 8 "Feb 17, 2001"
-.SH NAME
-sockd \- network proxyserver
-.SH SYNOPSIS
-.B sockd
-.RB [ \-DLVdhnv ]
-.RB [ \-N
-.IR number ]
-.RB [ \-f
-.IR file ]
-.SH DESCRIPTION
-.B Dante
+.Dd May 26, 1999
+.Dt SOCKD 8
+.Sh NAME
+.Nm sockd
+.Nd network proxyserver
+.Sh SYNOPSIS
+.Nm sockd
+.Op Fl DLdhlnv
+.Oo
+.Fl N Ar number
+.Oc
+.Oo
+.Fl f Ar file
+.Oc
+.Sh DESCRIPTION
+.Nm Dante
 implements the socks standard and can function as a firewall between networks.
-.PP
-.B Dante
+.Pp
+.Nm Dante
 relays TCP and UDP both from outside the network and in, and from inside
 and out.
-.PP
+.Pp
 The options are as follows:
-.TP
-.B \-D
-.B Dante
+.Bl -tag -width Ds
+.It Fl D
+.Nm Dante
 will detach from the controlling terminal and run in
 the background as a system daemon.
-.TP
-.B \-L
+.It Fl L
 Displays the license
-.B Dante
+.Nm Dante
 comes under.
-.TP
-.BI \-N number
-.B Dante
+.It Fl N Ar number
+.Nm Dante
 will fork of
-.I number
+.Ar number
 copies of itself when starting.  Can be used for very busy servers.
-.TP
-.B \-V
-Verifies config file and exits.
-.TP
-.B \-d
+.It Fl d
 Enables debugging.
-.TP
-.BI \-f file
-.B Dante
+.It Fl f Ar file
+.Nm Dante
 will read its configuration from
-.IR file .
-.TP
-.B \-h
+.Ar file .
+.It Fl h
 Shows the currently valid options.
-.TP
-.B \-n
+.It Fl l
+The log output from
+.Nm Dante
+will be linebuffered.
+.It Fl n
 Disables TCP keep-alive messages.  Normally
-.B Dante
+.Nm Dante
 enables TCP keep-alive messages so that connections from machines that
 have crashed or for other reasons no longer can be reached time out.
-.TP
-.B \-v
-Displays
-.B Dante
-version.
-.SH ENVIRONMENT
-.TP
-.B TMPDIR
-Use
-.B TMPDIR
-for temporary files.  Since
-.B Dante
-uses lockfiles it is recommended that
-.B TMPDIR
-be set to a (local) filesystem with low latency.
-.SH FILES
-.TP
-/etc/sockd.conf
-.B Dante
-server configuration file.
-.SH AUTHORS
+.It Fl v
+Displays versioninfo for
+.Nm Dante.
+.Sh ENVIRONMENT
+\fBTMPDIR\fP
+Use TMPDIR for temporary files.  Since
+.Nm Dante
+uses lockfiles it is recommended that \fBTMPDIR\fP be set to a local
+filesystem with low latency.
+.Sh FILES
+.nf
+.ta \w 1
+/etc/sockd.conf	Dante server configuration file.
+.fi
+.Sh AUTHORS
 For Inferno Nettverk A/S, Norway:
- Michael Shuldman <michaels@inet.no>: Design and implementation.
- Karl-Andre' Skevik <karls@inet.no>: Autoconf and porting.
-.SH SEE ALSO
-socks.conf(5) sockd.conf(5)
-.PP
+.Dl Michael Shuldman <michaels@inet.no>: Design and implementation.
+.Dl Karl-Andre' Skevik <karls@inet.no>: Autoconf and porting.
+.Sh SEE ALSO
 Information about new releases and other related issues can be found
-on the
-.B Dante
-WWW home page at http://www.inet.no/dante.
-.SH BUGS
+on the Dante WWW home page at http://www.inet.no/dante.
+.Sh BUGS
 See the accompanying BUGS file.  New ones should be reported to
 dante\-bugs@inet.no.

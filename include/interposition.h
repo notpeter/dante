@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadalléen 21
- *  NO-0349 Oslo
+ *  Gaustadaléen 21
+ *  N-0371 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.38 2004/06/20 12:20:44 karls Exp $ */
+/* $Id: interposition.h,v 1.33 2000/05/31 12:14:50 karls Exp $ */
 
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""
@@ -55,9 +55,6 @@
 #define SYMBOL_GETHOSTBYADDR "gethostbyaddr"
 #define SYMBOL_GETHOSTBYNAME "gethostbyname"
 #define SYMBOL_GETHOSTBYNAME2 "gethostbyname2"
-#define SYMBOL_GETADDRINFO "getaddrinfo"
-#define SYMBOL_GETIPNODEBYNAME "getipnodebyname"
-#define SYMBOL_FREEHOSTENT "freehostent"
 #define SYMBOL_GETPEERNAME "getpeername"
 #define SYMBOL_GETSOCKNAME "getsockname"
 #define SYMBOL_READ "read"
@@ -127,27 +124,6 @@
 #define LIBRARY_GETHOSTBYNAME2				LIBRARY_LIBC
 #endif
 
-#ifndef SYMBOL_GETADDRINFO
-#define SYMBOL_GETADDRINFO						"_getaddrinfo"
-#endif
-#ifndef LIBRARY_GETADDRINFO
-#define LIBRARY_GETADDRINFO					LIBRARY_LIBC
-#endif
-
-#ifndef SYMBOL_GETIPNODEBYNAME
-#define SYMBOL_GETIPNODEBYNAME				"_getipnodebyname"
-#endif
-#ifndef LIBRARY_GETIPNODEBYNAME
-#define LIBRARY_GETIPNODEBYNAME				LIBRARY_LIBC
-#endif
-
-#ifndef SYMBOL_FREEHOSTENT
-#define SYMBOL_FREEHOSTENT				"_freehostent"
-#endif
-#ifndef LIBRARY_FREEHOSTENT
-#define LIBRARY_FREEHOSTENT				LIBRARY_LIBC
-#endif
- 
 #ifndef SYMBOL_GETPEERNAME
 #define SYMBOL_GETPEERNAME						"_getpeername"
 #endif
@@ -431,7 +407,7 @@ do {																					\
 __BEGIN_DECLS
 
 void *
-symbolfunction __P((const char *symbol));
+symbolfunction __P((char *symbol));
 /*
  * Returns the address binding of the symbol "symbol" and updates
  * libsymbol_t structure "symbol" is defined in if necessary.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadalléen 21
- *  NO-0349 Oslo
+ *  Gaustadaléen 21
+ *  N-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: yacconfig.h,v 1.11 2003/07/01 13:21:19 michaels Exp $ */
+/* $Id: yacconfig.h,v 1.8 2000/04/09 10:14:40 karls Exp $ */
 
 #if 1
 #define yyact socks_yyact

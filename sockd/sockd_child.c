@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadalléen 21
- *  NO-0349 Oslo
+ *  Gaustadaléen 21
+ *  N-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.146 2005/12/25 17:22:17 michaels Exp $";
+"$Id: sockd_child.c,v 1.123 2000/05/31 12:14:55 karls Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -100,7 +100,6 @@ addchild(type)
 	int *childc;
 	void (*childfunction)(struct sockd_mother_t *mother);
 	pid_t pid;
-	const pid_t ourpid = sockscf.state.pid;
 	int optval, flags;
 	int pipev[] = { -1, -1 };
 	int ackpipev[] = { -1, -1 };
@@ -252,13 +251,8 @@ addchild(type)
 			SERRX(type);
 	}
 
-	/* so slog() doesn't log wrong pid if we termintate here. */
-	sockscf.state.pid = 0;
-
 	switch ((pid = fork())) {
 		case -1:
-			sockscf.state.pid = ourpid;
-
 			swarn("%s: fork()", function);
 			closev(pipev, ELEMENTS(pipev));
 			closev(ackpipev, ELEMENTS(ackpipev));
@@ -274,10 +268,10 @@ addchild(type)
 			size_t i, maxfd;
 			struct sigaction sigact;
 
-			newprocinit();
+			config.state.type	= type;
 
-			sockscf.state.type	= type;
-			slog(LOG_INFO, "created new %schild", childtype2string(type));
+			config.state.pid	= getpid(); /* for logmessage. */
+			slog(LOG_DEBUG, "created new %schild", childtype2string(type));
 #if 0
 			slog(LOG_DEBUG, "sleeping...");
 			sleep(20);
@@ -297,9 +291,8 @@ addchild(type)
 			 *		could need privileges to bind port.
 			 *
 			 * io children:
-			 *		could need privileges to bind port if using redirect()
-			 *		module, also SIGHUP performs misc. seteuid() tests that
-			 *    could fail if we lose privileges.
+			 *		doesn't really need any, but a sighup() performs misc.
+			 *		seteuid() tests that would fail if we lose privileges.
 			 */
 
 			switch (type) {
@@ -355,13 +348,12 @@ addchild(type)
 				||	i == (size_t)mother.ack)
 					continue;
 
-				if (descriptorisreserved((int)i))
+				if (socks_logmatch(i, &config.log))
 					continue;
 
 				close((int)i);
 			}
-			errno = 0;
-			newprocinit(); /* called after closing, since it may open it's own. */
+			newprocinit();
 
 			childfunction(&mother);
 			/* NOTREACHED */
@@ -369,8 +361,6 @@ addchild(type)
 
 		default: {
 			struct sockd_child_t *newchildv;
-
-			sockscf.state.pid = ourpid;
 
 			if ((newchildv = (struct sockd_child_t *)realloc(*childv,
 			sizeof(**childv) * (*childc + 1))) == NULL) {
@@ -419,7 +409,7 @@ childcheck(type)
 	int type;
 {
 	int child, proxyc;
-	int min, max, idle;
+	int min, max;
 	struct sockd_child_t **childv;
 	int *childc;
 
@@ -457,30 +447,17 @@ childcheck(type)
 	 * get a estimate over how many (new) clients our children are able to
 	 * accept in total.
     */
-	for (child = idle = proxyc = 0; child < *childc; ++child) {
+	for (child = 0, proxyc = 0; child < *childc; ++child) {
 		SASSERTX((*childv)[child].freec <= max);
 		proxyc += type < 0 ? max : (*childv)[child].freec;
-
-		if ((*childv)[child].freec == max) {
-			++idle;
-
-			if (sockscf.child.maxidle > 0 && idle > sockscf.child.maxidle) {
-				/* will remove this next, no longer part of free slots pool. */
-				proxyc -= type < 0 ? max : (*childv)[child].freec;
-
-				removechild((*childv)[child].pid);
-				--idle;
-				--child; /* everything was shifted once to the left. */
-			}
-		}
 	}
 
 	if (type >= 0)
-		if (proxyc < min && sockscf.child.addchild)
+		if (proxyc < min && config.state.addchild)
 			if (addchild(type) != NULL)
 				return childcheck(type);
 			else
-				sockscf.child.addchild = 0;	/* don't retry until a child dies. */
+				config.state.addchild = 0;	/* don't retry until a child dies. */
 
 	return proxyc;
 }
@@ -489,7 +466,6 @@ int
 fillset(set)
 	fd_set *set;
 {
-	const char *function = "fillset()";
 	int negc, reqc, ioc;
 	int i, dbits;
 
@@ -508,13 +484,11 @@ fillset(set)
 
 	/* new clients we accept. */
 	if (negc > 0)
-		for (i = 0; i < sockscf.internalc; ++i) {
-			SASSERTX(sockscf.internalv[i].s >= 0);
-			FD_SET(sockscf.internalv[i].s, set);
-			dbits = MAX(dbits, sockscf.internalv[i].s);
+		for (i = 0; i < config.internalc; ++i) {
+			SASSERTX(config.internalv[i].s >= 0);
+			FD_SET(config.internalv[i].s, set);
+			dbits = MAX(dbits, config.internalv[i].s);
 		}
-	else
-		swarn("can't accept new clients, no free negotiate slots");
 
 	/* negotiator children. */
 	for (i = 0; i < negchildc; ++i) {
@@ -524,7 +498,7 @@ fillset(set)
 			dbits = MAX(dbits, negchildv[i].s);
 		}
 
-		/* we can always accept an ack ofcourse. */
+		/* we can always accept a ack ofcourse. */
 		SASSERTX(negchildv[i].ack >= 0);
 		FD_SET(negchildv[i].ack, set);
 		dbits = MAX(dbits, negchildv[i].ack);
@@ -538,7 +512,7 @@ fillset(set)
 			dbits = MAX(dbits, reqchildv[i].s);
 		}
 
-		/* we can always accept an ack ofcourse. */
+		/* we can always accept a ack ofcourse. */
 		SASSERTX(reqchildv[i].ack >= 0);
 		FD_SET(reqchildv[i].ack, set);
 		dbits = MAX(dbits, reqchildv[i].ack);
@@ -654,10 +628,8 @@ removechild(pid)
 	close((*childv)[child].ack);
 
 	/* shift all following one down */
-	while (child < *childc - 1) {
-		(*childv)[child] = (*childv)[child + 1];
-		++child;
-	}
+	while (child < *childc - 1)
+		(*childv)[child] = (*childv)[++child];
 	--*childc;
 
 	if ((newchildv = (struct sockd_child_t *)realloc(*childv,
@@ -836,18 +808,18 @@ send_io(s, io)
 	struct iovec iovec[1];
 	struct msghdr msg;
 	int w, fdsent, length;
-	CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
+	CMSG_AALLOC(sizeof(int) * FDPASS_MAX);
 
 
 	length = 0;
 	/* LINTED operands have incompatible pointer types */
-	iovec[0].iov_base		= (void *)io;
+	iovec[0].iov_base		= (const void *)io;
 	iovec[0].iov_len		= sizeof(*io);
 	length				  += iovec[0].iov_len;
 
 	fdsent = 0;
-	CMSG_ADDOBJECT(io->src.s, cmsg, sizeof(io->src.s) * fdsent++);
-	CMSG_ADDOBJECT(io->dst.s, cmsg, sizeof(io->dst.s) * fdsent++);
+	CMSG_ADDOBJECT(io->src.s, sizeof(io->src.s) * fdsent++);
+	CMSG_ADDOBJECT(io->dst.s, sizeof(io->dst.s) * fdsent++);
 
 	switch (io->state.command) {
 		case SOCKS_BIND:
@@ -857,7 +829,7 @@ send_io(s, io)
 			/* else: */ /* FALLTHROUGH */
 
 		case SOCKS_UDPASSOCIATE:
-			CMSG_ADDOBJECT(io->control.s, cmsg, sizeof(io->control.s) * fdsent++);
+			CMSG_ADDOBJECT(io->control.s, sizeof(io->control.s) * fdsent++);
 			break;
 
 		case SOCKS_CONNECT:
@@ -872,14 +844,14 @@ send_io(s, io)
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-	CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
+	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
 
 	if ((w = sendmsg(s, &msg, 0)) != length)	{
 		swarn("%s: sendmsg(): %d of %d", function, w, length);
 		return -1;
 	}
 
-#if HARDCORE_DEBUG
+#if DEBUG
 	printfd(io, "sent");
 #endif
 
@@ -896,22 +868,22 @@ send_client(s, client)
 	const char command = SOCKD_NEWREQUEST;
 	struct iovec iovec[1];
 	struct msghdr msg;
-	CMSG_AALLOC(cmsg, sizeof(int));
+	CMSG_AALLOC(sizeof(int));
 	int fdsent;
 
 	/* LINTED operands have incompatible pointer types */
-	iovec[0].iov_base		= (void *)&command;
+	iovec[0].iov_base		= (const void *)&command;
 	iovec[0].iov_len		= sizeof(command);
 
 	fdsent = 0;
-	CMSG_ADDOBJECT(client, cmsg, sizeof(client) * fdsent++);
+	CMSG_ADDOBJECT(client, sizeof(client) * fdsent++);
 
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-	CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
+	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
 
 	if (sendmsg(s, &msg, 0) != sizeof(command))	{
 		swarn("%s: sendmsg()", function);
@@ -930,21 +902,21 @@ send_req(s, req)
 	struct iovec iovec[1];
 	struct msghdr msg;
 	int fdsent;
-	CMSG_AALLOC(cmsg, sizeof(int));
+	CMSG_AALLOC(sizeof(int));
 
 	/* LINTED operands have incompatible pointer types */
-	iovec[0].iov_base		= (void *)req;
+	iovec[0].iov_base		= (const void *)req;
 	iovec[0].iov_len		= sizeof(*req);
 
 	fdsent = 0;
-	CMSG_ADDOBJECT(req->s, cmsg, sizeof(req->s) * fdsent++);
+	CMSG_ADDOBJECT(req->s, sizeof(req->s) * fdsent++);
 
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-	CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
+	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
 
 	if (sendmsg(s, &msg, 0) != sizeof(*req))	{
 		swarn("%s: sendmsg()", function);
@@ -952,6 +924,31 @@ send_req(s, req)
 	}
 
 	return 0;
+}
+
+const char *
+childtype2string(type)
+	int type;
+{
+
+	switch (type) {
+		case CHILD_IO:
+			return "io";
+
+		case CHILD_MOTHER:
+			return "mother";
+
+		case CHILD_NEGOTIATE:
+			return "negotiator";
+
+		case CHILD_REQUEST:
+			return "request";
+
+		default:
+			SERRX(type);
+	}
+
+	/* NOTREACHED */
 }
 
 void

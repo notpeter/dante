@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadalléen 21
- *  NO-0349 Oslo
+ *  Gaustadaléen 21
+ *  N-0371 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.52 2005/12/25 13:58:10 michaels Exp $ */
+/* $Id: config.h,v 1.38 2000/01/13 12:12:59 karls Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -66,13 +66,13 @@
 	 */
 
 /*
- * default client/server lockfile (put in $TMPDIR, or /tmp).
+ * default client/server lockfile.
  * Put this on a fast, low-latency fs, under /tmp is usually good.
  */
 #define SOCKS_LOCKFILE				"./sockslockXXXXXXXXXX"
 
 /* if profiling is enabled, directory to store profile files in. */
-#define SOCKS_PROFILEDIR			"./.prof"
+#define SOCKS_PROFILEDIR			"./prof"
 
 
 	/*
@@ -85,18 +85,6 @@
 #else
 #define SOCKS_CONFIGFILE			HAVE_ALT_SOCKS_CONFIGFILE
 #endif /* !HAVE_SOCKS_CONFIGFILE */
-
-/*
- * if we mark a route/socksserver as bad, how many seconds to wait
- * until we expire the badmarking so it will be tried again for new
- * connections.
- * A value of zero means never.
- */
-#if SOCKS_CLIENT
-#define BADROUTE_EXPIRE				(60 * 0)
-#else /* SOCKS_SERVER */
-#define BADROUTE_EXPIRE				(60 * 5)
-#endif
 
 
 	/*
@@ -111,12 +99,6 @@
 #if HAVE_LIBWRAP
 #define LIBWRAPBUF			80
 #endif  /* HAVE_LIBWRAP */
-
-/*
- * Name to give as servicename when starting pam for rules that don't
- * set it.
- */
-#define DEFAULT_PAMSERVICENAME	"sockd"
 
 /*
  * used only if no usable system call is found (getdtablesize()/sysconf()).
@@ -146,13 +128,8 @@
 #define SOCKD_CONFIGFILE			HAVE_ALT_SOCKD_CONFIGFILE
 #endif /* !HAVE_SOCKD_CONFIGFILE */
 
-/* max number of clients pending to server (argument to listen()).
- * The Apache people say:
- *   It defaults to 511 instead of 512 because some systems store it
- *   as an 8-bit datatype; 512 truncated to 8-bits is 0, while 511 is
- *   255 when truncated.
- */
-#define SOCKD_MAXCLIENTQUE			511
+/* max number of clients pending to server (argument to listen()). */
+#define SOCKD_MAXCLIENTQUE			5
 
 
 /*
@@ -207,11 +184,7 @@
  * You can probably set this to a big number.
  * Each client will occupy one descriptor.
  */
-#if DEBUG
-#define SOCKD_NEGOTIATEMAX			2
-#else
 #define SOCKD_NEGOTIATEMAX			24
-#endif /* DEBUG */
 
 /*
  * max number of clients each i/o process will handle.
@@ -221,11 +194,7 @@
  * from doing any i/o untill a i/o slot has become available.  It is
  * therefore important that enough i/o slots are available at all times.
  */
-#if DEBUG
-#define SOCKD_IOMAX					2
-#else
 #define SOCKD_IOMAX					8
-#endif /* DEBUG */
 
 /* server buffersize for network i/o using TCP. */
 #define SOCKD_BUFSIZETCP			(1024 * 16)

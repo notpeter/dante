@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadalléen 21
- *  NO-0349 Oslo
+ *  Gaustadaléen 21
+ *  N-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.51 2005/10/28 13:33:42 michaels Exp $";
+"$Id: method_uname.c,v 1.33 2000/04/09 10:14:44 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -67,38 +67,8 @@ recv_plen __P((int s, struct request_t *request,
 static int
 recv_passwd __P((int s, struct request_t *request,
 					  struct negotiate_state_t *state));
-static int
-passworddbisunique __P((void));
-/*
- * If it's possible for us to fail username/password authentication
- * on one rule, and succeed at another, returns false.
- * Otherwise returns the unique authmethod that would be used.
- */
- 
 
 __END_DECLS
-
-static int
-passworddbisunique(void)
-{
-	if (methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc))
-	  if (!methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc))
-			return AUTHMETHOD_UNAME;
-		else
-			return 0;
-
-#if HAVE_PAM
-	if (methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc))
-		if (!methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)
-	  	&& sockscf.state.pamservicename != NULL)
-			return AUTHMETHOD_PAM;
-		else
-			return 0;
-#endif
-
-	/* no passworddb-based methods set.  Return true. */
-	return -1;
-}
 
 int
 method_uname(s, request, state)
@@ -147,7 +117,6 @@ recv_ulen(s, request, state)
 	INIT(sizeof(*request->auth->mdata.uname.name));
 	CHECK(request->auth->mdata.uname.name, request->auth, NULL);
 
-	/* LINTED conversion from 'int' may lose accuracy */
 	OCTETIFY(*request->auth->mdata.uname.name);
 
 	state->rcurrent = recv_uname;
@@ -187,7 +156,6 @@ recv_plen(s, request, state)
 	INIT(sizeof(*request->auth->mdata.uname.password));
 	CHECK(request->auth->mdata.uname.password, request->auth, NULL);
 
-	/* LINTED conversion from 'int' may lose accuracy */
 	OCTETIFY(*request->auth->mdata.uname.password);
 
 	state->rcurrent = recv_passwd;
@@ -204,6 +172,7 @@ recv_passwd(s, request, state)
 {
 /*	const char *function = "recv_passwd()"; */
 	const size_t plen = (size_t)*request->auth->mdata.uname.password;
+	int status;
 	unsigned char response[1				/* version. */
 								+ 1				/* status.	*/
 	];
@@ -216,81 +185,51 @@ recv_passwd(s, request, state)
 	request->auth->mdata.uname.password + 1, plen);
 	request->auth->mdata.uname.password[plen] = NUL;
 
-	/*
-	 * Very sadly we can't do checking of the username/password here 
-	 * since we don't know what authentication to use yet.  It could
-	 * be username, but it could also be PAM, or some future method. 
-	 * It depends on what the socks request is.  We therfor would have
-	 * liked to give the client success status back no matter what 
-	 * the username/password is, and later deny the connection if need be.
-	 *
-	 * This however creates problems with clients that, naturally, cache
-	 * the wrong username/password if they get success. 
-	 * We therfor check if we have a unique passworddb to use, and if so,
-	 * check it here so we can return an immediate error to client.
-	 * If the database is not unique, we go with returning an 
-	 * unconditional success at this point, and deny it later if need be.
-	*/
-	response[UNAME_VERSION] = request->auth->mdata.uname.version;
-	switch (passworddbisunique()) {
+	switch (status
+	= (unsigned char)passwordcheck((char *)request->auth->mdata.uname.name,
+	(char *)request->auth->mdata.uname.password)) {
 		case 0:
-			/* Return ok, check correct db later. . */
-			response[UNAME_STATUS] = (unsigned char)0;
-			break;
+			request->auth->matched = 1;
+			break; /* ok. */
 
-#if HAVE_PAM
-		case AUTHMETHOD_PAM: {
-			/* it's a union, make a copy first. */
-			const struct authmethod_uname_t uname
-			= request->auth->mdata.uname;
+		case 1: {
+				char *name = (char *)request->auth->mdata.uname.name;
 
-			request->auth->method = AUTHMETHOD_PAM;
-
-			/* move from uname object into pam object. */
-			strcpy((char *)request->auth->mdata.pam.name,
-			(const char *)uname.name);
-			strcpy((char *)request->auth->mdata.pam.password,
-			(const char *)uname.password);
-
-        	SASSERTX(strlen(sockscf.state.pamservicename)
-        	< sizeof(request->auth->mdata.pam.servicename));
-
-			strcpy(request->auth->mdata.pam.servicename,
-			sockscf.state.pamservicename);
-			/* FALLTHROUGH */
+				snprintf(state->emsg, sizeof(state->emsg),
+				"denied access to non-existing user \"%s\"",
+				strcheck(name = str2vis(name, strlen(name))));
+				free(name);
+				break;
 		}
-#endif
 
-		case AUTHMETHOD_UNAME: {
-			struct sockaddr src, dst;
+		case 2: {
+				char *name = (char *)request->auth->mdata.uname.name;
 
-			
-			sockshost2sockaddr(&state->src, &src);
-			sockshost2sockaddr(&state->src, &dst);
-
-			if (accesscheck(s, request->auth, &src, &dst, state->emsg,
-			sizeof(state->emsg)))
-				response[UNAME_STATUS] = (unsigned char)0; /* OK. */
-			else
-				response[UNAME_STATUS] = (unsigned char)1; /* Not OK. */
-
-			break;
+				snprintf(state->emsg, sizeof(state->emsg),
+				"password authentication failed for user \"%s\"",
+				strcheck(name = str2vis(name, strlen(name))));
+				free(name);
+				break;
 		}
 
 		default:
-			SERRX(passworddbisunique);
+			SERRX(status);
 	}
+
+	bzero(request->auth->mdata.uname.password,
+	sizeof(request->auth->mdata.uname.password));
+
+	response[UNAME_VERSION] = request->auth->mdata.uname.version;
+	response[UNAME_STATUS]	= (unsigned char)status;
 
 	if (writen(s, response, sizeof(response), request->auth) != sizeof(response))
 		return -1;
 
-	if (response[UNAME_STATUS] == 0) { /* 0 is success */
+	if (status == 0) {	/* 0 is success. */
 		state->rcurrent = recv_sockspacket;
 		return state->rcurrent(s, request, state);
 	}
 
-	/* else; failed authentication. */
 	errno = 0;
 	return -1;
-
 }

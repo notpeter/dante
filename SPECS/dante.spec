@@ -1,21 +1,15 @@
 Summary: A free Socks v4/v5 client implementation
 Name: dante
-%define version 1.1.19
+%define version 1.1.2-pre1
 %define prefix /usr
 Version: %{version}
 Release: 1
 Copyright: BSD-type
 Group: Networking/Utilities
 URL: http://www.inet.no/dante/
-Vendor: Inferno Nettverk A/S
 Source: ftp://ftp.inet.no/pub/socks/dante-%{version}.tar.gz
-Buildroot: %{_tmppath}/dante-root
+Buildroot: /var/tmp/dante-root
 
-%if %{?rh62:1}%{!?rh62:0}
-BuildRequires: pam
-%else
-BuildRequires: pam-devel
-%endif
 
 %description
 Dante is a free implementation of the proxy protocols socks version 4,
@@ -59,32 +53,32 @@ cat >sockd.init <<EOF
 # description: sockd implements a socks v4/v5 proxy server
 
 # Source function library.
-. %{_initrddir}/functions
+. /etc/rc.d/init.d/functions
 
 # Source networking configuration.
-. %{_sysconfdir}/sysconfig/network
+. /etc/sysconfig/network
 
 # Check that networking is up.
 [ \${NETWORKING} = "no" ] && exit 0
 
-[ -f %{_sbindir}/sockd ] || exit 0
-[ -f %{_sysconfdir}/sockd.conf ] || exit 0
+[ -f %{prefix}/sbin/sockd ] || exit 0
+[ -f /etc/sockd.conf ] || exit 0
 
 # See how we were called.
 case "\$1" in
   start)
 	# Start daemons.
 	echo -n "Starting sockd: "
-	daemon %{_sbindir}/sockd -D
+	daemon %{prefix}/sbin/sockd -D
 	echo
-	touch %{_localstatedir}/lock/subsys/sockd
+	touch /var/lock/subsys/sockd
 	;;
   stop)
 	# Stop daemons.
 	echo -n "Shutting down sockd: "
 	killproc sockd
 	echo
-	rm -f ${_localstatedir}/lock/subsys/sockd
+	rm -f /var/lock/subsys/sockd
 	;;
   restart)
 	\$0 stop
@@ -102,22 +96,25 @@ exit 0
 EOF
 
 %build
-#%serverbuild
-%configure
-%{__make}
+CFLAGS="${RPM_OPT_FLAGS}" ./configure --prefix=%{prefix}
+make
 
 %install
-%makeinstall
+rm -rf ${RPM_BUILD_ROOT}
+make install DESTDIR=${RPM_BUILD_ROOT}
 
 #set library as executable - prevent ldd from complaining
-%{__chmod} +x ${RPM_BUILD_ROOT}%{_libdir}/*.so.*.*
-%{__install} -d ${RPM_BUILD_ROOT}/%{_initrddir} ${RPM_BUILD_ROOT}/%{_bindir}
-%{__install} -m 0644 example/socks-simple.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/socks.conf
-%{__install} -m 0644 example/sockd.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}
-%{__install} -m 0755 sockd.init ${RPM_BUILD_ROOT}/%{_initrddir}/sockd
+chmod +x ${RPM_BUILD_ROOT}%{prefix}/lib/*.so.*.*
+
+install -d ${RPM_BUILD_ROOT}/etc/rc.d/init.d ${RPM_BUILD_ROOT}%{prefix}/bin
+
+install -m 644 example/socks.conf ${RPM_BUILD_ROOT}/etc
+install -m 644 example/sockd.conf ${RPM_BUILD_ROOT}/etc
+
+install -m 755 sockd.init ${RPM_BUILD_ROOT}/etc/rc.d/init.d/sockd
 
 %clean
-%{__rm} -rf $RPM_BUILD_ROOT
+rm -rf $RPM_BUILD_ROOT
 
 %post
 /sbin/ldconfig
@@ -128,50 +125,39 @@ EOF
 %post server
 /sbin/chkconfig --add sockd
 
-%preun server
+%postun server
 if [ $1 = 0 ]; then
    /sbin/chkconfig --del sockd
 fi
 
 %files
-%defattr(-, root, root, 0755)
-%doc BUGS CREDITS NEWS README SUPPORT TODO doc/README* doc/faq.tex example/socks.conf example/socks-simple-withoutnameserver.conf example/sockd.conf example/socks-simple.conf
-%config %{_sysconfdir}/socks.conf
-%{_libdir}/libsocks.so.0.1.0
-%{_libdir}/libsocks.so.0
-%{_libdir}/libsocks.so
-%{_libdir}/libdsocks.so.0.1.0
-%{_libdir}/libdsocks.so.0
-%{_libdir}/libdsocks.so
-%{_bindir}/socksify
-%{_mandir}/man5/socks.conf.5*
+%defattr(-,root,root)
+#files beginning with two capital letters are docs: BUGS, README.foo etc.
+%doc [A-Z][A-Z]*
+%{prefix}/lib/libsocks.so.0.1.0
+%{prefix}/lib/libsocks.so.0
+%{prefix}/lib/libsocks.so
+%{prefix}/lib/libdsocks.so.0.1.0
+%{prefix}/lib/libdsocks.so.0
+%{prefix}/lib/libdsocks.so
+%{prefix}/bin/socksify
+%{prefix}/man/man5/socks.conf.5
+%config /etc/socks.conf
 
 %files server
-%defattr(-, root, root, 0755)
-%config %{_sysconfdir}/sockd.conf
-%config %{_initrddir}/sockd
-%{_sbindir}/sockd
-%{_mandir}/man5/sockd.conf.5*
-%{_mandir}/man8/sockd.8*
+%defattr(-,root,root)
+%{prefix}/man/man8/sockd.8
+%{prefix}/sbin/sockd
+%{prefix}/man/man5/sockd.conf.5
+%config /etc/sockd.conf
+%config /etc/rc.d/init.d/sockd
 
 %files devel
-%defattr(-, root, root, 0755)
-%doc INSTALL doc/rfc* doc/SOCKS4.protocol
-%{_libdir}/libsocks.la
-%{_libdir}/libsocks.a
-%{_libdir}/libdsocks.la
-%{_includedir}/socks.h
+%{prefix}/lib/libsocks.la
+%{prefix}/lib/libsocks.a
+%{prefix}/lib/libdsocks.la
 
 %changelog
-* Wed Mar 26 2003 Karl-Andre' Skevik <karls@inet.no>
--Integrated changes from spec file by <dag@wieers.com>, located
- at <URL:ftp://dag.wieers.com/home-made/dante/dante.spec>.
-
-* Thu Oct 12 2000 Karl-Andre' Skevik <karls@inet.no>
--use of macros for directory locations/paths
--explicitly name documentation files
--run chkconfig --del before files are deleted on uninstall
-
 * Wed Mar 10 1999 Karl-Andre' Skevik <karls@inet.no>
 - Integrated into CVS
 - socksify patch no longer needed

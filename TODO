@@ -1,6 +1,6 @@
-# $Id: TODO,v 1.168 2005/11/08 16:04:05 michaels Exp $
+# $Id: TODO,v 1.123 2000/05/26 17:11:02 karls Exp $
 
-* change _t struct's to typedef.
+* if socks_lock() fails in vslog(), log anyway?
 
 * share host/addr cache across processes.
 
@@ -10,14 +10,18 @@
 
 * make requestchildren support multiple clients too.
 
+* a max value for the number of free io/negotiator's?  mother could kill
+  "redundant" ones.
+
 * shrink io_t, too big.
 
-* Solaris cc needs -misalign due to alignment problems with sockaddr/
+* support giving a interface name instead of ip address?
+
+* possible to specify what address/portrange server should use for
+  outgoing connection in each rule?
+
+* solaris cc needs -misalign due to alignment problems with sockaddr/
   sockaddr_in casts. causes coredump with ftp (passive ls) in client,
   in sockshost2sockaddr (util.c, line 271, version 1.94).
 
 * match configure/manual config/pid location
-
-* port code for interface/route info retrieval to OSF
-
-* IPV6 support
