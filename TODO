@@ -1,3 +1,7 @@
+* clean up INADDR_ANY/0 abuse.
+
+* clean up namespace.
+
 - cleanup autoconf (HAVE_RECVFROM_CHAR+HAVE_FAULTY_XXX_PROTO 
   (rename to HAVE_SOLARIS_PROTO?)
 
