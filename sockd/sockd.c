@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.296 2003/07/01 13:21:42 michaels Exp $";
+"$Id: sockd.c,v 1.297 2004/06/28 10:58:22 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -53,7 +53,7 @@ static const char rcsid[] =
 __BEGIN_DECLS
 
 static void
-fixsettings __P((void));
+modulesetup __P((void));
 
 static void
 siginfo __P((int sig));
@@ -833,10 +833,8 @@ serverinit(argc, argv, envp)
 		sockscf.option.configfile = SOCKD_CONFIGFILE;
 
 	optioninit();
-
 	genericinit();
-	
-	fixsettings();
+	modulesetup();
 
 	if (verifyonly) {
 		showconfig(&sockscf);
@@ -882,70 +880,6 @@ serverinit(argc, argv, envp)
 				serr(EXIT_FAILURE, "%s: socks_mklock()", function);
 #endif
 	}
-}
-
-static void
-fixsettings(void)
-{
-	const char *function = "fixsettings()";
-	int i;
-	uid_t euid;
-
-	/*
-	 * Check arguments and settings, do they make sense?
-	 */
-
-	if (sockscf.clientmethodc == 0)
-		sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_NONE;
-
-	if (!sockscf.uid.privileged_isset)
-		sockscf.uid.privileged = sockscf.state.euid;
-	else {
-		socks_seteuid(&euid, sockscf.uid.privileged);
-		socks_reseteuid(sockscf.uid.privileged, euid);
-	}
-
-	if (!sockscf.uid.unprivileged_isset)
-		sockscf.uid.unprivileged = sockscf.state.euid;
-	else {
-		socks_seteuid(&euid, sockscf.uid.unprivileged);
-		socks_reseteuid(sockscf.uid.unprivileged, euid);
-	}
-
-#if HAVE_LIBWRAP
-	if (!sockscf.uid.libwrap_isset)
-		sockscf.uid.libwrap = sockscf.state.euid;
-	else {
-		socks_seteuid(&euid, sockscf.uid.libwrap);
-		socks_reseteuid(sockscf.uid.libwrap, euid);
-	}
-#endif /* HAVE_LIBWRAP */
-
-	if (sockscf.internalc == 0)
-		serrx(EXIT_FAILURE, "%s: no internal address given", function);
-	/* values will be used once and checked there. */
-
-	if (sockscf.external.addrc == 0)
-		serrx(EXIT_FAILURE, "%s: no external address given", function);
-	for (i = 0; i < sockscf.external.addrc; ++i)
-		if (!addressisbindable(&sockscf.external.addrv[i]))
-			serrx(EXIT_FAILURE, NULL);
-
-	if (sockscf.methodc == 0)
-		swarnx("%s: no methods enabled (total block)", function);
-
-	if (sockscf.uid.unprivileged == 0)
-		swarnx("%s: setting the unprivileged uid to %d is not recommended",
-		function, sockscf.uid.unprivileged);
-
-#if HAVE_LIBWRAP
-	if (sockscf.uid.libwrap == 0)
-		swarnx("%s: setting the libwrap uid to %d is not recommended",
-		function, sockscf.uid.libwrap);
-#endif /* HAVE_LIBWRAP */
-
-	bwsetup();
-	redirectsetup();
 }
 
 /* ARGSUSED */
@@ -1033,7 +967,7 @@ sighup(sig)
 	socks_seteuid(&euid, sockscf.state.euid);
 	genericinit();
 	socks_reseteuid(sockscf.state.euid, euid);
-	fixsettings();
+	modulesetup();
 
 	/* LINTED assignment in conditional context */
 	if ((p = pidismother(sockscf.state.pid))) {
@@ -1122,4 +1056,11 @@ optioninit(void)
 	sockscf.timeout.io			= SOCKD_IOTIMEOUT;
 	sockscf.external.rotation	= ROTATION_NONE;
 
+}
+
+static void
+modulesetup(void)
+{
+	bwsetup();
+	redirectsetup();
 }

@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.217 2003/07/01 13:21:45 michaels Exp $";
+"$Id: sockd_io.c,v 1.218 2004/06/28 10:59:00 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -80,8 +80,8 @@ io_finddescriptor __P((int d));
 static int
 io_fillset __P((fd_set *set, int antiflags, const struct timeval *timenow));
 /*
- * Sets all descriptors in our list in the set "set".  If "flags"
- * is set, io's with any of the flags in "flags" set will be excluded.
+ * Sets all descriptors in our list in the set "set".  If "antiflags"
+ * is set, io's with any of the flags in "antiflags" set will be excluded.
  * "timenow" is the time now.
  * Returns the highest descriptor in our list, or -1 if we don't
  * have any descriptors open currently.
@@ -248,7 +248,7 @@ run_io(mother)
 
 	/* same handler, for systems without SIGINFO. */
 	if (sigaction(SIGUSR1, &sigact, NULL) != 0)
-		serr(EXIT_FAILURE, "%s: sigaction(SIGINFO)", function);
+		serr(EXIT_FAILURE, "%s: sigaction(SIGUSR1)", function);
 
 	proctitleupdate();
 

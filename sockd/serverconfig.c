@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.182 2003/07/01 13:21:41 michaels Exp $";
+"$Id: serverconfig.c,v 1.183 2003/11/06 09:34:09 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -1181,10 +1181,13 @@ addrule(newrule, rulebase, client)
 			yywarn("method \"%s\" set in rule but not in global methodline",
 			method2string(rule->state.methodv[i]));
 
-	/* if no protocol set, set all. */
+	/* if no protocol set, set all for socks-rules, tcp for client-rules. */
 	if (memcmp(&state.protocol, &rule->state.protocol, sizeof(state.protocol))
 	== 0)
-		memset(&rule->state.protocol, UCHAR_MAX, sizeof(rule->state.protocol));
+		if (client)
+			rule->state.protocol.tcp = 1;
+		else
+			memset(&rule->state.protocol, UCHAR_MAX, sizeof(rule->state.protocol));
 
 	/* if no proxyprotocol set, set all socks protocols. */
 	if (memcmp(&state.proxyprotocol, &rule->state.proxyprotocol,

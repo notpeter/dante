@@ -46,16 +46,18 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.62 2003/07/01 13:21:29 michaels Exp $";
+"$Id: io.c,v 1.63 2004/03/28 10:53:56 karls Exp $";
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
 
+#undef sendmsg
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define sendmsg(s, msg, flags)			sys_Esendmsg(s, msg, flags)
 #else
 #define sendmsg(s, msg, flags)			sys_sendmsg(s, msg, flags)
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
+#undef recvmsg
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define recvmsg(s, msg, flags)			sys_Erecvmsg(s, msg, flags)
 #else
@@ -64,10 +66,12 @@ static const char rcsid[] =
 
 /* XXX needed on AIX apparently */
 #ifdef recvmsg_system
+#undef recvmsg
 #define recvmsg recvmsg_system
 #endif /* recvmsg_system */
 
 #ifdef sendmsg_system
+#undef sendmsg
 #define sendmsg sendmsg_system
 #endif /* sendmsg_system */
 

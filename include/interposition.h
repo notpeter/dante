@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.37 2003/07/01 13:21:16 michaels Exp $ */
+/* $Id: interposition.h,v 1.38 2004/06/20 12:20:44 karls Exp $ */
 
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""
@@ -55,6 +55,9 @@
 #define SYMBOL_GETHOSTBYADDR "gethostbyaddr"
 #define SYMBOL_GETHOSTBYNAME "gethostbyname"
 #define SYMBOL_GETHOSTBYNAME2 "gethostbyname2"
+#define SYMBOL_GETADDRINFO "getaddrinfo"
+#define SYMBOL_GETIPNODEBYNAME "getipnodebyname"
+#define SYMBOL_FREEHOSTENT "freehostent"
 #define SYMBOL_GETPEERNAME "getpeername"
 #define SYMBOL_GETSOCKNAME "getsockname"
 #define SYMBOL_READ "read"
@@ -124,6 +127,27 @@
 #define LIBRARY_GETHOSTBYNAME2				LIBRARY_LIBC
 #endif
 
+#ifndef SYMBOL_GETADDRINFO
+#define SYMBOL_GETADDRINFO						"_getaddrinfo"
+#endif
+#ifndef LIBRARY_GETADDRINFO
+#define LIBRARY_GETADDRINFO					LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_GETIPNODEBYNAME
+#define SYMBOL_GETIPNODEBYNAME				"_getipnodebyname"
+#endif
+#ifndef LIBRARY_GETIPNODEBYNAME
+#define LIBRARY_GETIPNODEBYNAME				LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_FREEHOSTENT
+#define SYMBOL_FREEHOSTENT				"_freehostent"
+#endif
+#ifndef LIBRARY_FREEHOSTENT
+#define LIBRARY_FREEHOSTENT				LIBRARY_LIBC
+#endif
+ 
 #ifndef SYMBOL_GETPEERNAME
 #define SYMBOL_GETPEERNAME						"_getpeername"
 #endif

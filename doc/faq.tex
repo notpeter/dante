@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.50 2003/07/15 15:45:55 karls Exp $
+%@(#)$Id: faq.tex,v 1.52 2004/03/02 21:52:23 karls Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -56,7 +56,7 @@
 	Gaustadalléen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2003/07/15 15:45:55 $$$$}
+\date{$$$$Date: 2004/03/02 21:52:23 $$$$}
 
 \makeindex
 
@@ -537,6 +537,12 @@ command).
 
   \emph{Thanks to: albert chin (china@thewrittenword.com)}
 
+ \subsection{Why doesn't socksify work on AIX?}
+  AIX does not support \emph{LD\_PRELOAD}, which is required for
+  socksify to work. The alternative is static compilation, as
+  specified in the
+  \url{ftp://ftp.inet.no/pub/socks/extracted/doc/README.usage} file.
+
  \subsection{Why do I get undefined references to \_\_bswap\_32 during
    compilation on Linux?}
   This is likely due to a bug in one of the system header files. A
@@ -583,13 +589,11 @@ command).
    \emph{Thanks to: Tin Yu Mak <makty@usa.net>.}
 
  \subsection{I have problems rotating Dante's logfiles.  What can I do
-	     except log via syslog?}
+  except log via syslog?}
 
-   Making Dante reopen the logfiles on SIGHUP would be a way to
-   provide support for this.  That however involves adding more
-   code to Dante, code that in practice duplicates code that
-   already exists in syslog.  Since Dante opens the logfiles in
-   appendmode the below may work.
+   Dante now reopens the logfiles on SIGHUP, so you should not have
+	any problems, just rename the file and send the Dante server
+	a SIGHUP signal.
 
    A quick and dirty solution for dealing with most daemons that
    don't like having their logs rotated. Copy them instead of moving

@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.134 2003/07/01 13:21:34 michaels Exp $";
+"$Id: util.c,v 1.135 2004/06/20 12:20:48 karls Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -420,6 +420,8 @@ socks_addfakeip(host)
 	char **tmpmem;
 	struct in_addr addr;
 
+ 	/* XXX mutex_lock */
+
 	if (socks_getfakeip(host, &addr) == 1)
 		return addr.s_addr;
 
@@ -442,6 +444,8 @@ error "\"FAKEIP_END\" can't be smaller than \"FAKEIP_START\""
 	ipv = tmpmem;
 
 	strcpy(ipv[ipc], host);
+
+	/* XXX mutex_unlock */
 
 	return htonl(ipc++ + FAKEIP_START);
 }

@@ -47,12 +47,14 @@
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
 
+#undef sendmsg
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define sendmsg(s, msg, flags)			sys_Esendmsg(s, msg, flags)
 #else
 #define sendmsg(s, msg, flags)			sys_sendmsg(s, msg, flags)
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
+#undef recvmsg
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define recvmsg(s, msg, flags)			sys_Erecvmsg(s, msg, flags)
 #else
@@ -61,10 +63,12 @@
 
 /* XXX needed on AIX apparently */
 #ifdef recvmsg_system
+#undef recvmsg
 #define recvmsg recvmsg_system
 #endif /* recvmsg_system */
 
 #ifdef sendmsg_system
+#undef sendmsg
 #define sendmsg sendmsg_system
 #endif /* sendmsg_system */
 
@@ -72,7 +76,7 @@
 
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.20 2003/07/01 13:21:22 michaels Exp $";
+"$Id: Rcompat.c,v 1.21 2004/03/28 10:53:55 karls Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.80 2003/07/01 13:21:49 michaels Exp $";
+"$Id: sockd_util.c,v 1.82 2004/06/28 10:59:59 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -118,11 +118,6 @@ setsockoptions(s)
 	socklen_t len;
 	int type, val, bufsize;
 
-#ifdef SO_BSDCOMPAT
-	val = 1;
-	if (setsockopt(s, SOL_SOCKET, SO_BSDCOMPAT, &val, sizeof(val)) != 0)
-		swarn("%s: setsockopt(SO_BSDCOMPAT)", function);
-#endif /* SO_BSDCOMPAT */
 
 	len = sizeof(type);
 	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0) {
@@ -264,19 +259,16 @@ socks_seteuid(old, new)
 			SERR(sockscf.state.euid);
 		}
 
-	if (seteuid(new) != 0)
-		serr(EXIT_FAILURE, "%s: seteuid(%d)", function, new);
-
-#if 0 /* he who requested this says it doesn't work but not why. */
-	/* and now groupid. */
-
+	/* groupid ... */
 	if ((pw = getpwuid(new)) == NULL)
 		serr(EXIT_FAILURE, "%s: getpwuid(%d)", function, new);
 
 	if (setegid(pw->pw_gid) != 0)
 		serr(EXIT_FAILURE, "%s: setegid(%d)", function, pw->pw_gid);
-#endif
 
+	/* ... and uid. */
+	if (seteuid(new) != 0)
+		serr(EXIT_FAILURE, "%s: seteuid(%d)", function, new);
 }
 
 void

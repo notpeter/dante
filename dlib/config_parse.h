@@ -75,8 +75,11 @@
 #define TO 331
 #define REDIRECT 332
 #define BANDWIDTH 333
+#ifndef YYSTYPE_DEFINED
+#define YYSTYPE_DEFINED
 typedef union {
 	char	*string;
 	uid_t	uid;
 } YYSTYPE;
+#endif /* YYSTYPE_DEFINED */
 extern YYSTYPE socks_yylval;

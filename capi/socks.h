@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.7 2003/07/01 13:21:10 michaels Exp $ */
+/* $Id: socks.h,v 1.8 2004/06/20 12:20:39 karls Exp $ */
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -53,6 +53,8 @@
 #define connect Rconnect
 #define gethostbyname Rgethostbyname
 #define gethostbyname2 Rgethostbyname2
+#define getaddrinfo Rgetaddrinfo
+#define getipnodebyname Rgetipnodebyname
 #define getpeername Rgetpeername
 #define getsockname Rgetsockname
 #define read Rread
@@ -100,6 +102,9 @@ int Rbindresvport __P((int, struct sockaddr_in *));
 int Rrresvport __P((int *));
 struct hostent *Rgethostbyname __P((const char *));
 struct hostent *Rgethostbyname2 __P((const char *, int af));
+int Rgetaddrinfo __P((const char *nodename, const char *servname,
+					      const struct addrinfo *hints, struct addrinfo **res));
+struct hostent *Rgetipnodebyname __P((const char *name, int af, int flags,
 ssize_t Rwrite __P((int d, const void *buf, size_t nbytes));
 ssize_t Rwritev __P((int d, const struct iovec *iov, int iovcnt));
 ssize_t Rsend __P((int s, const void *msg, size_t len, int flags));

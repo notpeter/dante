@@ -76,6 +76,9 @@
 /* libwrap test needs special care */
 #undef HAVE_LIBWRAP
 
+/* IPv6 support */
+#undef HAVE_IPV6_SUPPORT
+
 /* function location */
 #undef LIBRARY_ACCEPT
 #undef LIBRARY_BIND
@@ -84,6 +87,10 @@
 #undef LIBRARY_GETHOSTBYADDR
 #undef LIBRARY_GETHOSTBYNAME
 #undef LIBRARY_GETHOSTBYNAME2
+#undef LIBRARY_FREEHOSTENT
+#undef LIBRARY_GETADDRINFO
+#undef LIBRARY_GETIPNODEBYNAME
+#undef LIBRARY_FREEHOSTENT
 #undef LIBRARY_GETPEERNAME
 #undef LIBRARY_GETSOCKNAME
 #undef LIBRARY_LIBC
@@ -114,6 +121,7 @@
 #undef SYMBOL_GETHOSTBYADDR
 #undef SYMBOL_GETHOSTBYNAME
 #undef SYMBOL_GETHOSTBYNAME2
+#undef SYMBOL_FREEHOSTENT
 #undef SYMBOL_GETPEERNAME
 #undef SYMBOL_GETSOCKNAME
 #undef SYMBOL_READ
@@ -200,8 +208,9 @@
    -(Pavel Roskin <pavel_roskin@geocities.com>) */
 #undef BSD_COMP
 
-/* sockaddr_storage should aid portability */
+/* IPv6 types */
 #undef HAVE_SOCKADDR_STORAGE
+#undef HAVE_IN6_ADDR
 
 /* AIX has volatile sig_atomic_t */
 #undef HAVE_VOLATILE_SIG_ATOMIC_T
@@ -229,6 +238,9 @@
 
 /* more AIX bandaid */
 #undef HAVE_SYSTEM_XMSG_MAGIC
+
+/* for gui */
+#undef HAVE_DUMPCONF
 
 /* interposition.c prototypes */
 #undef HAVE_PROT_CONNECT_0
