@@ -63,18 +63,17 @@ AWK = @AWK@
 CC = @CC@
 LD = @LD@
 LEX = @LEX@
-LIBRARY_DLOPEN = @LIBRARY_DLOPEN@
-LIBRARY_LIBNSL = @LIBRARY_LIBNSL@
-LIBRARY_LIBRESOLV = @LIBRARY_LIBRESOLV@
-LIBRARY_LIBSOCKET = @LIBRARY_LIBSOCKET@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
 MAKEINFO = @MAKEINFO@
 NM = @NM@
 PACKAGE = @PACKAGE@
+PRELOAD_POSTFIX = @PRELOAD_POSTFIX@
+PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
+PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
-RLD_LIST = @RLD_LIST@
+SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 VERSION = @VERSION@
 YACC = @YACC@
 
@@ -241,6 +240,9 @@ all-redirect all-am all installdirs mostlyclean-generic \
 distclean-generic clean-generic maintainer-clean-generic clean \
 mostlyclean distclean maintainer-clean
 
+
+redefac.h: autoconf.h.in
+	sh redefgen.sh
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

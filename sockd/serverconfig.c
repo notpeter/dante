@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.87 1999/09/25 13:08:04 karls Exp $";
+"$Id: serverconfig.c,v 1.91 1999/12/20 09:07:46 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -189,7 +189,7 @@ adduser(ruleuser, name)
 {
 	struct linkedname_t *user, *last;
 
-	for (user = *ruleuser; user != NULL; user = user->next)
+	for (user = *ruleuser, last = NULL; user != NULL; user = user->next)
 		last = user;
 
 	if ((user = (struct linkedname_t *)malloc(sizeof(*user))) == NULL)
@@ -780,22 +780,23 @@ rulespermit(s, match, state, src, dst)
 			ruleuser = rule->user;
 			do {
 				if (strcmp(methodname, ruleuser->name) == 0)
-					break;
+					break; /* all usernames "match" here. */
 				else if (string2method(name) >= 0)
 					slog(LOG_INFO, "%s: suspicious username from %s: %s",
 					function, sockshost2string(src, srcstring, sizeof(srcstring)),
 					name);
-				else if (strcmp(name, ruleuser->name)	== 0)
+				else if (strcmp(name, ruleuser->name) == 0)
 					break;
 			} while ((ruleuser = ruleuser->next) != NULL);
 
 			if (ruleuser == NULL)
 				continue; /* no match. */
 
-			if (!state->auth.checked) {
-				state->auth.checked = 1;
-				if (!passwordmatch(name, password))
+			if (!state->auth.matched) { /* may have been checked at lower level. */
+				/* all users must also be in passwordfile. */
+				if (passwordcheck(name, password) != 0)
 					continue;
+				state->auth.matched = 1;
 			}
 		}
 
@@ -1027,7 +1028,7 @@ connectisok(request, rule, state)
 #if HAVE_LIBWRAP
 
 	/* do we need to involve libwrap for this rule? */
-	if (rule->libwrap != NULL
+	if (*rule->libwrap != NUL
 	||  config.srchost.nomismatch
 	||  config.srchost.nounknown) {
 		const char *function = "connectisok()";

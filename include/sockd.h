@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.134 1999/09/02 10:45:11 michaels Exp $ */
+/* $Id: sockd.h,v 1.135 1999/12/10 20:02:35 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -351,6 +351,7 @@ struct negotiate_state_t {
 									];
 	int						reqread;								/* read so far.			*/
 	size_t					start;								/* start of current req */
+	char						emsg[256];							/* errormessage, if any.*/
 	int						(*rcurrent)(int s,
 											   struct request_t *request,
 												struct negotiate_state_t *state);
@@ -408,7 +409,7 @@ int
 sockd_bind __P((int s, const struct sockaddr *addr, size_t retries));
 /*
  * Binds the address "addr" to the socket "s".  The bind call will
- * be be tried "retries" + 1 times if the error is EADDRINUSE, or until
+ * be tried "retries" + 1 times if the error is EADDRINUSE, or until
  * successful, whatever comes first.
  * Returns:
  *		On success: 0.
@@ -885,13 +886,16 @@ socks_reseteuid __P((uid_t current, uid_t new));
  */
 
 int
-passwordmatch __P((const char *name, const char *cleartextpassword));
+passwordcheck __P((const char *name, const char *cleartextpassword));
 /*
- * Checks whether "name" is in the passwordfile and if "name"'s
- * cleartext password is "cleartextpassword".
+ * Checks whether "name" is in the passwordfile.
+ * If "cleartextpassword" is not NULL, also checks if "name"'s
+ * password is "cleartextpassword".
+ *
  * Returns:
- *		If "name" and "cleartextpassword" matches: 1
- *		else: 0
+ *		If "name" and "cleartextpassword" is matched: 0
+ *		If "name" is unknown: 1
+ *		If "cleartextpassword" does not match: 2
  */
 
 

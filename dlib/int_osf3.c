@@ -51,10 +51,15 @@
 
 #if SOCKSLIBRARY_DYNAMIC
 
+/*
+ * use of bzero in SYSCALL_START produces vast amounts of warnings
+ * when compiling int_osf3.c (on osf)
+ */
+#define bzero(a, b) (memset(a, 0, b))
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: int_osf3.c,v 1.13 1999/09/17 12:50:11 karls Exp $";
+"$Id: int_osf3.c,v 1.15 1999/12/09 08:18:07 karls Exp $";
 
 #undef accept
 #undef bind
@@ -101,6 +106,7 @@ int Rgetsockname __P((int, struct n_sockaddr *, socklen_t *));
 int Rgetpeername __P((int, struct n_sockaddr *, socklen_t *));
 int Raccept __P((int, struct n_sockaddr *, socklen_t *));
 ssize_t Rrecvmsg __P((int s, struct n_msghdr *msg, int flags));
+int Rbind __P((int, const struct n_sockaddr *, socklen_t));
 
 __END_DECLS
 
@@ -512,16 +518,13 @@ connect(s, name, namelen)
 {
 	struct n_sockaddr n_name;
 	int n_namelen;
-	int rc;
 
 	if (ISSYSCALL(s))
 		return sys_connect(s, name, namelen);
 
 	SOCKADDR_COPYPARAM(name, &namelen, &n_name, &n_namelen);
 
-	rc = Rconnect(s, &n_name, n_namelen);
-
-	return rc;
+	return Rconnect(s, &n_name, n_namelen);
 }
 
 int
@@ -532,19 +535,13 @@ bind(s, name, namelen)
 {
 	struct n_sockaddr n_name;
 	int n_namelen;
-	int rc;
 
 	if (ISSYSCALL(s))
 		return sys_bind(s, name, namelen);
 
 	SOCKADDR_COPYPARAM(name, &namelen, &n_name, &n_namelen);
 
-	rc = Rbind(s, &n_name, n_namelen);
-
-	if (rc != -1)
-		SOCKADDR_COPYRES(&n_name, &n_namelen, name, &namelen);
-
-	return rc;
+	return Rbind(s, &n_name, n_namelen);
 }
 
 int
@@ -558,16 +555,13 @@ sendto(s, msg, len, flags, to, tolen)
 {
 	struct n_sockaddr n_to;
 	int n_tolen;
-	int rc;
 
 	if (ISSYSCALL(s))
 		return sys_sendto(s, msg, len, flags, to, tolen);
 
 	SOCKADDR_COPYPARAM(to, &tolen, &n_to, &n_tolen);
 
-	rc = Rsendto(s, msg, len, flags, &n_to, n_tolen);
-
-	return rc;
+	return Rsendto(s, msg, len, flags, &n_to, n_tolen);
 }
 
 ssize_t

@@ -1,4 +1,4 @@
-/* redefac.h generated from autoconf.h.in on Fri Sep 24 11:07:03 MEST 1999  */
+/* redefac.h generated from autoconf.h.in on Wed Dec 8 13:59:15 MET 1999  */
 
 #ifndef HAVE_DOPRNT
 #define HAVE_DOPRNT 0
@@ -90,11 +90,6 @@
 #endif
 
 
-#ifndef HAVE_INET_ATON
-#define HAVE_INET_ATON 0
-#endif
-
-
 #ifndef NEED_ACCEPTLOCK
 #define NEED_ACCEPTLOCK 0
 #endif
@@ -175,11 +170,6 @@
 #endif
 
 
-#ifndef NEED_UCBINCLUDE_SYS_IOCTL
-#define NEED_UCBINCLUDE_SYS_IOCTL 0
-#endif
-
-
 #ifndef HAVE_STRUCT_IPOPTS
 #define HAVE_STRUCT_IPOPTS 0
 #endif
@@ -247,6 +237,16 @@
 
 #ifndef HAVE_H_ERRNO
 #define HAVE_H_ERRNO 0
+#endif
+
+
+#ifndef HAVE_NO_SYMBOL_UNDERSCORE
+#define HAVE_NO_SYMBOL_UNDERSCORE 0
+#endif
+
+
+#ifndef HAVE_PROFILING
+#define HAVE_PROFILING 0
 #endif
 
 
@@ -615,6 +615,11 @@
 #endif
 
 
+#ifndef HAVE_INET_ATON
+#define HAVE_INET_ATON 0
+#endif
+
+
 #ifndef HAVE_INET_PTON
 #define HAVE_INET_PTON 0
 #endif
@@ -632,6 +637,11 @@
 
 #ifndef HAVE_SELECT
 #define HAVE_SELECT 0
+#endif
+
+
+#ifndef HAVE_SETEUID
+#define HAVE_SETEUID 0
 #endif
 
 
@@ -757,16 +767,6 @@
 
 #ifndef HAVE_UNISTD_H
 #define HAVE_UNISTD_H 0
-#endif
-
-
-#ifndef HAVE_LIBCRYPT
-#define HAVE_LIBCRYPT 0
-#endif
-
-
-#ifndef HAVE_LIBDL
-#define HAVE_LIBDL 0
 #endif
 
 

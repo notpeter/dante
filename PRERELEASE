@@ -1,0 +1,26 @@
+
+*
+* This is a prerelease.  Do not use this to upgrade from a previous
+* release of Dante unless you have to or are willing to help testing.
+*
+
+***  Monday
+ 
+ o Can't do rulespermit() that early, move to after connect().
+   Fixes a hang that could occur when using libwrap, thanks
+   to Marc G. Fournier (marc.fournier@acadiau.ca) for help
+   and testing.
+
+ o socksify on elf-based FreeBSD systems should hopefully work now;
+   thanks to Andre Albsmeier <andre.albsmeier@mchp.siemens.de> for
+   testing.
+
+ o Allow specifying what facility to use for syslog output.
+   Code mostly from Per Hedeland (per@erix.ericsson.se).
+
+ o Fix bug preventing one of the serverchilds from dying when
+   the server is killed.  Reported by Per Hedeland (per@erix.ericsson.se).
+
+ o config.c: increment pointed to area, not pointer.
+   Patch from Per Hedeland (per@erix.ericsson.se).
+

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.73 1999/09/02 10:41:23 michaels Exp $";
+"$Id: address.c,v 1.74 1999/12/20 13:07:40 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -57,7 +57,7 @@ static unsigned int socksfdc;
 static int
 socks_sigblock __P((sigset_t *oldmask));
 /*
- * Blocks signals that can change socksfdv, writting the old
+ * Blocks signals that can change socksfdv, writing the old
  *	signalmask to "oldmask".
  * Returns:
  *		On success: 0
@@ -504,4 +504,3 @@ cc_socksfdv(sig)
 	}
 }
 #endif /* DIAGNOSTIC */
-

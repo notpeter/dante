@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.55 1999/08/25 11:33:17 michaels Exp $";
+"$Id: sockd_util.c,v 1.58 1999/12/10 20:03:29 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -117,20 +117,24 @@ setsockoptions(s)
 			bufsize = SOCKD_BUFSIZETCP;
 
 			val = 1;
-			if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val))
-			!= 0)
+			if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val)) != 0)
 				swarn("%s: setsockopt(SO_OOBINLINE)", function);
 
 			if (config.option.keepalive) {
 				val = 1;
-				if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val,
-				sizeof(val)) != 0)
+				if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) != 0)
 					swarn("%s: setsockopt(SO_KEEPALIVE)", function);
 			}
 			break;
 
 		case SOCK_DGRAM:
 			bufsize = SOCKD_BUFSIZEUDP;
+
+			val = 1;
+			if (setsockopt(s, SOL_SOCKET, SO_BROADCAST, &val, sizeof(val)) != 0)
+				if (errno != ENOPROTOOPT)
+					swarn("%s: setsockopt(SO_BROADCAST)", function);
+
 			break;
 
 		default:
@@ -168,7 +172,7 @@ sockdexit(sig)
 			swarn("%s: signal(SIGCHLD, SIG_IGN)", function);
 	}
 
-#if PROFILING
+#if HAVE_PROFILING
 	if (chdir(SOCKS_PROFILEDIR) != 0)
 		swarn("%s: chdir(%s)", function, SOCKS_PROFILEDIR);
 	else {
@@ -183,7 +187,7 @@ sockdexit(sig)
 			if (chdir(dir) != 0)
 				swarn("%s: chdir(%s)", function, dir);
 	}
-#endif /* PROFILING */
+#endif /* HAVE_PROFILING */
 
 	for (i = 0;  i < config.log.fpc; ++i) {
 		fclose(config.log.fpv[i]);
@@ -206,11 +210,11 @@ sockdexit(sig)
 	if (*config.state.motherpidv == config.state.pid) /* main mother. */
 		exit(sig > 0 ? EXIT_FAILURE : -sig);
 	else
-#if PROFILING
+#if HAVE_PROFILING
 		exit(sig > 0 ? EXIT_FAILURE : -sig);
 #else
 		_exit(sig > 0 ? EXIT_FAILURE : -sig);
-#endif /* PROFILING */
+#endif /* HAVE_PROFILING */
 }
 
 void
@@ -267,42 +271,40 @@ socks_reseteuid(current, new)
 }
 
 int
-passwordmatch(name, clearpassword)
+passwordcheck(name, clearpassword)
 	const char *name;
 	const char *clearpassword;
 {
-/*	const char *function = "passwordmatch()"; */
+/*	const char *function = "passwordcheck()"; */
 	struct passwd *pw;
 	char *salt, *password;
 	uid_t euid;
-	int match;
+	int ok;
 
 	socks_seteuid(&euid, config.uid.privileged);
 	if ((pw = getpwnam(name)) == NULL) {
-		/* XXX waste cycles correctly? */
 		salt		= "*";
 		password = "*";
-		match = 0;
+		ok 		= 0;
 	}
 	else {
 		salt		= pw->pw_passwd;
 		password = pw->pw_passwd;
-		match		= 1;
+		ok			= 1;
 	}
 	socks_reseteuid(config.uid.privileged, euid);
 
-	if (clearpassword != NULL)
+	if (clearpassword != NULL) /* XXX waste cycles correctly? */
 		if (strcmp(crypt(clearpassword, salt), password) == 0)
-			match = 1;
+			ok = 1;
 		else
-			match = 0;
+			ok = 0;
 
-	if (!match)
-		/* XXX should get passed higher up somehow. */
-		if (pw == NULL)
-			slog(LOG_INFO, "denied non-existing user access: %s", name);
-		else
-			slog(LOG_INFO, "password authentication failed for user: %s", name);
+	if (ok)
+		return 0;
 
-	return match;
+	if (pw == NULL)
+		return 1;
+	else
+		return 2;
 }

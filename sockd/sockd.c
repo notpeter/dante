@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.246 1999/09/10 10:55:27 michaels Exp $";
+"$Id: sockd.c,v 1.248 1999/12/20 13:07:42 karls Exp $";
 
 	/*
 	 * signal handlers
@@ -386,7 +386,7 @@ main(argc, argv, envp)
 
 					/* set descriptor to blocking for request... */
 					if ((flags = fcntl(req.s, F_GETFL, 0)) == -1
-					||  fcntl(req.s, F_SETFL, flags & NONBLOCKING) == -1)
+					||  fcntl(req.s, F_SETFL, flags & ~O_NONBLOCK) == -1)
 						swarn("%s: fcntl()");
 
 					/* and send it to a request child. */
@@ -807,7 +807,7 @@ serverinit(argc, argv, envp)
 			serr(EXIT_FAILURE, "%s: listen(%d)", function, SOCKD_MAXCLIENTQUE);
 
 		if ((flags = fcntl(l->s, F_GETFL, 0)) == -1
-		||  fcntl(l->s, F_SETFL, flags | NONBLOCKING) == -1)
+		||  fcntl(l->s, F_SETFL, flags | O_NONBLOCK) == -1)
 			serr(EXIT_FAILURE, "%s: fcntl()", function);
 
 #if NEED_ACCEPTLOCK
@@ -996,7 +996,7 @@ sigchld(sig)
 		int i;
 
 		/*
-		 * No child should normaly die, but try to cope with it happening.
+		 * No child should normally die, but try to cope with it happening.
 		 */
 
 		/* LINTED assignment in conditional context */

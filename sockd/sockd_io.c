@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.159 1999/09/02 10:42:04 michaels Exp $";
+"$Id: sockd_io.c,v 1.163 1999/12/20 09:09:18 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -239,13 +239,14 @@ run_io(mother)
 		}
 		else /* no mother.  Do we have any other descriptors to work with? */
 			if (rbits == -1) {
+				SASSERTX(allocated() == 0);
 				slog(LOG_DEBUG, "%s: can't find mother and no io's", function);
 				sockdexit(-EXIT_FAILURE);
 			}
 
 		/*
 		 * first find descriptors that are readable; we won't write if
-		 * we can't read.  Also select for exception so we can tell
+		 * we can't read.  Also select for exceptions so we can tell
 		 * the i/o function if there's one pending later.
  		 */
 		++rbits;
@@ -275,7 +276,7 @@ run_io(mother)
 		 * below select() returns, the io objects we get from wset will
 		 * be both readable and writable.
 		 *
-		 * A problem is that if while we wait for writability, a new
+		 * Another problem is that if while we wait for writability, a new
 		 * descriptor becomes readable, we thus can't block forever here.
 		 * We solve this by in the below select() also checking for
 		 * readability, but now only the descriptors that were not found
@@ -316,24 +317,29 @@ run_io(mother)
 			if (io->in.s == p) {
 				/* read from in requires out to be writable. */
 				FD_SET(io->out.s, &wset);
-				continue;
+				bits = MAX(bits, io->out.s);
 			}
 			else if (io->out.s == p) {
 				/* read from out requires in to be writable. */
 				FD_SET(io->in.s, &wset);
-				continue;
+				bits = MAX(bits, io->in.s);
 			}
 			else {
 				SASSERTX(io->control.s == p);
-				/* doesn't need matching writable. */
-				FD_SET(io->control.s, &newrset);
 				FD_SET(io->control.s, &controlset);
+				/* also readable without matching writable. */
+				FD_SET(io->control.s, &newrset);
+
 				bits = MAX(bits, io->control.s);
 			}
 		}
-		bits = MAX(bits, rbits);
 
-		++bits;
+		if (bits++ < 0) {
+			SASSERTX(allocated() == 0
+			&& mother->s == mother->ack && mother->s < 0);
+			continue;
+		}
+
 		switch (selectn(bits, &newrset, &wset, NULL, io_gettimeout(&timeout))) {
 			case -1:
 				SERR(-1);
@@ -749,7 +755,8 @@ doio(mother, io, rset, wset, flags)
 {
 	const char *function = "doio()";
 	/* CONSTCOND */
-	char buf[MAX(SOCKD_BUFSIZETCP, SOCKD_BUFSIZEUDP)];
+	char buf[MAX(SOCKD_BUFSIZETCP, SOCKD_BUFSIZEUDP)
+	+ sizeof(struct udpheader_t)];
 	ssize_t r, w;
 
 
@@ -819,11 +826,11 @@ doio(mother, io, rset, wset, flags)
 
 				/*
 				 * If client hasn't sent us it's address yet we have to
-				 * assume the first packet is from is it.  Client can only
-				 * blame itself if not.
+				 * assume the first packet is from is it.
+				 * Client can only blame itself if not.
 				 */
 				if (io->in.raddr.sin_addr.s_addr == htonl(INADDR_ANY)
-				||  io->in.raddr.sin_port == htons(0)) {
+				||  io->in.raddr.sin_port 			== htons(0)) {
 					if (io->in.raddr.sin_addr.s_addr == htonl(INADDR_ANY))
 					/* LINTED pointer casts may be troublesome */
 						io->in.raddr.sin_addr.s_addr
@@ -836,30 +843,21 @@ doio(mother, io, rset, wset, flags)
 					
 					/* LINTED pointer casts may be troublesome */
 					sockaddr2sockshost((struct sockaddr *)&io->in.raddr, &io->src);
-
-					/*
-					 * Do a rulecheck here with destination set to NULL, 
-					 * if that isn't permitted nothing else is either from
-					 * this source so disconnect it.
-					 */
-					if (!rulespermit(io->in.s, &io->rule, &io->state, &io->src,
-					NULL)) {
-						delete_io(mother, io, io->in.s, IO_SRCBLOCK);
-						return;
-					}
 				}
 
 				/*
-				 * When we receive the first packet we also have a fixed
-				 * source so connect the socket, both for better performance
-				 * and so that getpeername() will work on it, for
-				 * libwrap/rulespermit(). 
+				 * When we receive the first packet we also have a fixed source
+				 * so connect the socket, both for better performance and so
+				 * that getpeername() will work on it (libwrap/rulespermit()). 
 				 */
-				if (io->in.read == 0) { /* could happend more than once, but ok. */
+				if (io->in.read == 0) { /* could happen more than once, but ok. */
+					struct connectionstate_t rstate;
+
 					/* LINTED pointer casts may be troublesome */
 					if (!sockaddrareeq((struct sockaddr *)&io->in.raddr, &from)) {
 						char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING];
 
+						/* perhaps this should be LOG_DEBUG. */
 						slog(LOG_NOTICE,
 						"%s(0): %s: expected from %s, got it from %s",
 						VERDICT_BLOCKs, protocol2string(io->state.protocol),
@@ -871,6 +869,16 @@ doio(mother, io, rset, wset, flags)
 
 					if (connect(io->in.s, &from, sizeof(from)) != 0) {
 						delete_io(mother, io, io->in.s, IO_ERROR);
+						return;
+					}
+
+					rstate 				= io->state;
+					rstate.command		= SOCKS_UDPREPLY;
+
+					if (!rulespermit(io->in.s, &io->rule, &io->state, &io->src, NULL)
+					&&  !rulespermit(io->in.s, &io->rule, &rstate, NULL, &io->src)) {
+						/* can't send, can't receive; drop it. */
+						delete_io(mother, io, io->in.s, IO_SRCBLOCK);
 						return;
 					}
 				}
@@ -941,7 +949,7 @@ doio(mother, io, rset, wset, flags)
 				struct connectionstate_t state;
 				struct sockaddr from;
 				struct sockshost_t srcsh;
-				char *newmsg;
+				char *newbuf;
 
 				/* MSG_PEEK because of libwrap, see above. */
 				fromlen = sizeof(from);
@@ -962,8 +970,8 @@ doio(mother, io, rset, wset, flags)
 				 * We check for this case specifically, though we only catch
 				 * the last case, which may not always be good enough.
 				 * We could expand the below check, using addressmatch()
-				 * instead, but that need not always be right, better safe
-				 * than sorry for now.
+				 * instead, but that need not always be right. 
+				 * Better safe than sorry for now.
 				 */
 
 				/* LINTED possible pointer alignment problem */
@@ -997,21 +1005,17 @@ doio(mother, io, rset, wset, flags)
 
 				/* add socks udpheader.  */
 				/* LINTED pointer casts may be troublesome */
-				if ((newmsg = udpheader_add(&srcsh, buf, (size_t *)&r)) == NULL) {
-					swarnx("%s: %s", function, NOMEM);
-					break;
-				}
+				newbuf = udpheader_add(&srcsh, buf, (size_t *)&r, sizeof(buf));
+				SASSERTX(newbuf != NULL);
 
 				/*
 				 * XXX socket must be connected but that should always be the
 				 * case for now since binding udp addresses is not supported.
 				 */
-				if ((w = sendto(io->in.s, newmsg, (size_t)r, lflags, NULL, 0))
+				if ((w = sendto(io->in.s, newbuf, (size_t)r, lflags, NULL, 0))
 				!= r)
 					iolog(&io->rule, &state, OPERATION_ERROR, &srcsh, &io->src,
 					NULL, 0);
-				free(newmsg);
-
 				io->in.written += MAX(0, w);
 			}
 			break;

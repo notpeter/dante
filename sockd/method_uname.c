@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.27 1999/06/30 11:15:33 michaels Exp $";
+"$Id: method_uname.c,v 1.29 1999/12/20 09:07:44 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -172,9 +172,9 @@ recv_passwd(s, request, state)
 {
 /*	const char *function = "recv_passwd()"; */
 	const size_t plen = (size_t)*request->auth->mdata.uname.password;
-	char status;
-	char response[sizeof(char)				/* version. */
-					+ sizeof(char)				/* status.	*/
+	int status;
+	unsigned char response[1				/* version. */
+								+ 1				/* status.	*/
 	];
 
 	INIT(plen);
@@ -185,23 +185,47 @@ recv_passwd(s, request, state)
 	request->auth->mdata.uname.password + 1, plen);
 	request->auth->mdata.uname.password[plen] = NUL;
 
-	if (passwordmatch(request->auth->mdata.uname.name,
-	request->auth->mdata.uname.password))
-		status = 0;
-	else
-		status = 1;
-	request->auth->checked = 1;
+	switch (status
+	= (unsigned char) passwordcheck(request->auth->mdata.uname.name,
+	request->auth->mdata.uname.password)) {
+		case 0:
+			request->auth->matched = 1;
+			break; /* ok. */
+
+		case 1: {
+				char *name = request->auth->mdata.uname.name;
+
+				snprintf(state->emsg, sizeof(state->emsg),
+				"denied access to non-existing user \"%s\"",
+				strcheck(name = str2vis(name, strlen(name))));
+				free(name);
+				break;
+		}
+
+		case 2: {
+				char *name = request->auth->mdata.uname.name;
+
+				snprintf(state->emsg, sizeof(state->emsg), 
+				"password authentication failed for user \"%s\"",
+				strcheck(name = str2vis(name, strlen(name))));
+				free(name);
+				break;
+		}
+
+		default: 
+			SERRX(status);
+	}
 
 	bzero(request->auth->mdata.uname.password,
 	sizeof(request->auth->mdata.uname.password));
 
 	response[UNAME_VERSION] = request->auth->mdata.uname.version;
-	response[UNAME_STATUS]	= status;
+	response[UNAME_STATUS]	= (unsigned char)status;
 
 	if (writen(s, response, sizeof(response)) != sizeof(response))
 		return -1;
 
-	if (status == 0) {	/* 0 is success, anything else is failure. */
+	if (status == 0) {	/* 0 is success. */
 		state->rcurrent = recv_sockspacket;
 		return state->rcurrent(s, request, state);
 	}

@@ -63,18 +63,17 @@ AWK = @AWK@
 CC = @CC@
 LD = @LD@
 LEX = @LEX@
-LIBRARY_DLOPEN = @LIBRARY_DLOPEN@
-LIBRARY_LIBNSL = @LIBRARY_LIBNSL@
-LIBRARY_LIBRESOLV = @LIBRARY_LIBRESOLV@
-LIBRARY_LIBSOCKET = @LIBRARY_LIBSOCKET@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
 MAKEINFO = @MAKEINFO@
 NM = @NM@
 PACKAGE = @PACKAGE@
+PRELOAD_POSTFIX = @PRELOAD_POSTFIX@
+PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
+PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
-RLD_LIST = @RLD_LIST@
+SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 VERSION = @VERSION@
 YACC = @YACC@
 
@@ -276,9 +275,6 @@ distdir: $(DISTFILES)
 	    || cp -p $$d/$$file $(distdir)/$$file || :; \
 	  fi; \
 	done
-compat.o: compat.c ../include/autoconf.h ../include/redefac.h \
-	../include/common.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
 config.o: config.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/sockd.h
@@ -342,9 +338,6 @@ udp_util.o: udp_util.c ../include/common.h ../include/autoconf.h \
 util.o: util.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/sockd.h
-vsyslog.o: ../libscompat/vsyslog.c ../include/autoconf.h \
-	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h ../include/sockd.h
 
 info-am:
 info: info-am

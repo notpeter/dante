@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.39 1999/09/02 10:41:39 michaels Exp $";
+"$Id: log.c,v 1.40 1999/10/11 08:08:13 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -73,7 +73,7 @@ initlog(void)
 		 * LOG_NDELAY so we don't end up in a situation where we
 		 * have no free descriptors and haven't yet syslog-ed anything.
 		 */
-		openlog(__progname, LOG_NDELAY | LOG_PID, LOG_DAEMON);
+		openlog(__progname, LOG_NDELAY | LOG_PID, config.log.facility);
 	}
 #endif /* SOCKS_SERVER */
 

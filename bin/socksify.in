@@ -40,33 +40,27 @@
 # any improvements or extensions that they make and grant Inferno Nettverk A/S
 # the rights to redistribute these changes.
 #
-# $Id: socksify.in,v 1.18 1999/05/12 11:22:16 michaels Exp $
+# $Id: socksify.in,v 1.20 1999/11/19 09:55:10 karls Exp $
 
+#On systems where a supported preloading mechanism is used, you can
+#do "socksify <program>" and <program> will use socks without having
+#been relinked or recompiled.  This will not work on statically linked
+#binaries.
 
-# On systems where LD_PRELOAD is supported, if LIBRARY below contains
-# any libraries libdsocks needs, you can do "socksify <program>" and
-# <program> will use socks without having been relinked or recompiled.
-# This will not work on statically linked binaries.
+SOCKSIFY_PRELOAD_LIBS="@SOCKSIFY_PRELOAD_LIBS@"
 
-LIBRARY_DLOPEN=@LIBRARY_DLOPEN@
-LIBRARY_LIBRESOLV=@LIBRARY_LIBRESOLV@
-LIBRARY_LIBSOCKET=@LIBRARY_LIBSOCKET@
-LIBRARY_LIBNSL=@LIBRARY_LIBNSL@
-LIBDIR=@LIBRARY_PREFIX@
+LIBDIR="@LIBRARY_PREFIX@"
+
 #XXX shared library name should be generated too (possibly including version)
-LIBRARY=${SOCKS_LIBRARY-${LIBDIR}/libdsocks.so}
-_RLD_LIST=@RLD_LIST@
+LIBRARY="${SOCKS_LIBRARY-${LIBDIR}/libdsocks.so}"
 
-LD_PRELOAD="${LIBRARY}${LIBRARY_DLOPEN:+ }${LIBRARY_DLOPEN}${LD_PRELOAD:+ }${LD_PRELOAD}${LIBRARY_LIBRESOLV:+ }${LIBRARY_LIBRESOLV}${LIBRARY_LIBSOCKET:+ }${LIBRARY_LIBSOCKET}${LIBRARY_LIBNSL:+ }${LIBRARY_LIBNSL}"
-if test x$_RLD_LIST = x; then
-    export LD_PRELOAD
-else
-    #XXX
-    _RLD_LIST=`echo $LD_PRELOAD | sed -e 's/ /:/g'`:${_RLD_LIST}
-    export _RLD_LIST
-fi
+PRELOAD_SEPERATOR="@PRELOAD_SEPERATOR@"
+PRELOAD_POSTFIX="@PRELOAD_POSTFIX@"
 
-LD_LIBRARY_PATH=${LD_LIBRARY_PATH}${LD_LIBRARY_PATH:+:}${LIBDIR}
+@PRELOAD_VARIABLE@="${LIBRARY}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${SOCKSIFY_PRELOAD_LIBS}${PRELOAD_POSTFIX:+${PRELOAD_SEPERATOR}}${PRELOAD_POSTFIX}"
+export @PRELOAD_VARIABLE@
+
+LD_LIBRARY_PATH="${LD_LIBRARY_PATH}${LD_LIBRARY_PATH:+:}${LIBDIR}"
 export LD_LIBRARY_PATH
 
 exec "$@"

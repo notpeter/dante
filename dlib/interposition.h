@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.17 1999/09/02 10:41:08 michaels Exp $ */
+/* $Id: interposition.h,v 1.22 1999/12/09 08:18:07 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -50,6 +50,28 @@
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""
 #endif
+
+#if HAVE_NO_SYMBOL_UNDERSCORE
+#define SYMBOL_ACCEPT "accept"
+#define SYMBOL_BIND "bind"
+#define SYMBOL_BINDRESVPORT "bindresvport"
+#define SYMBOL_CONNECT "connect"
+#define SYMBOL_GETHOSTBYNAME "gethostbyname"
+#define SYMBOL_GETHOSTBYNAME2 "gethostbyname2"
+#define SYMBOL_GETPEERNAME "getpeername"
+#define SYMBOL_GETSOCKNAME "getsockname"
+#define SYMBOL_RRESVPORT "rresvport"
+#define SYMBOL_RECVFROM "recvfrom"
+#define SYMBOL_SENDTO "sendto"
+#define SYMBOL_READV "readv"
+#define SYMBOL_WRITEV "writev"
+#define SYMBOL_SEND "send"
+#define SYMBOL_RECV "recv"
+#define SYMBOL_RECVMSG "recvmsg"
+#define SYMBOL_SENDMSG "sendmsg"
+#define SYMBOL_WRITE "write"
+#define SYMBOL_READ "read"
+#endif /* HAVE_NO_SYMBOL_UNDERSCORE */
 
 /* XXX */
 #ifndef LIBRARY_LIBC
@@ -308,7 +330,7 @@ struct libsymbol_t {
 	void *function;		/* the bound symbol.				*/
 };
 
-#if DIAGNOSTIC && SYSCALL_IS_SYSCALL
+#if DIAGNOSTIC
 #define SIGBLOCK() \
 sigset_t oldmask;																	\
 do { 																					\
@@ -323,7 +345,7 @@ do { 																					\
 #define SIGBLOCK() do { } while (lintnoloop_interposition_h)
 #endif																				\
 
-#if DIAGNOSTIC && SYSCALL_IS_SYSCALL
+#if DIAGNOSTIC
 #define SIGUNBLOCK() \
 do { \
 	if (socksfd->state.system == 0)											\
@@ -352,7 +374,6 @@ do {																					\
 	SASSERTX(socksfd->state.system >= 0);									\
 	++socksfd->state.system;													\
 } while (lintnoloop_interposition_h)
-
 
 #define SYSCALL_END(s) \
 do {																					\

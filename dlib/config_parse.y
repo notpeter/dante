@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.113 1999/09/02 10:41:31 michaels Exp $";
+"$Id: config_parse.y,v 1.120 1999/12/20 09:07:38 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -97,7 +97,49 @@ static struct protocol_t		*protocol;		/* new protocol.						*/
 static struct command_t			*command;		/* new command.						*/
 static enum operator_t			*operator;		/* new operator.						*/
 
+static const struct {
+	const char *name;
+	const int value;
+} syslogfacility[] = {
+#ifdef LOG_AUTH
+	{ "auth",	LOG_AUTH		},
+#endif /* LOG_AUTH */
+#ifdef LOG_AUTHPRIV
+	{ "authpriv",	LOG_AUTHPRIV		},
+#endif /* LOG_AUTHPRIV */
+#ifdef LOG_DAEMON
+	{ "daemon",	LOG_DAEMON 	},
+#endif /* LOG_DAEMON */
+#ifdef LOG_USER
+	{ "user",	LOG_USER 	},
+#endif /* LOG_USER */
+#ifdef LOG_LOCAL0
+	{ "local0",	LOG_LOCAL0 	},
+#endif /* LOG_LOCAL0 */
+#ifdef LOG_LOCAL1
+	{ "local1",	LOG_LOCAL1 	},
+#endif /* LOG_LOCAL1 */
+#ifdef LOG_LOCAL2
+	{ "local2",	LOG_LOCAL2 	},
+#endif /* LOG_LOCAL2 */
+#ifdef LOG_LOCAL3
+	{ "local3",	LOG_LOCAL3 	},
+#endif /* LOG_LOCAL3 */
+#ifdef LOG_LOCAL4
+	{ "local4",	LOG_LOCAL4 	},
+#endif /* LOG_LOCAL4 */
+#ifdef LOG_LOCAL5
+	{ "local5",	LOG_LOCAL5 	},
+#endif /* LOG_LOCAL5 */
+#ifdef LOG_LOCAL6
+	{ "local6",	LOG_LOCAL6 	},
+#endif /* LOG_LOCAL6 */
+#ifdef LOG_LOCAL7
+	{ "local7",	LOG_LOCAL7 	}
+#endif /* LOG_LOCAL7 */
+};
 
+	 
 #define YYDEBUG 1
 
 #define ADDMETHOD(method) \
@@ -322,7 +364,7 @@ username:	USERNAME {
 #endif /* !HAVE_LIBWRAP */
 		if (adduser(userbase, $1) == NULL)
 			yyerror(NOMEM);
-#endif SOCKS_SERVER
+#endif /* SOCKS_SERVER */
 	}
 	;
 
@@ -433,11 +475,29 @@ logoutput: LOGOUTPUT ':' logoutputdevices
 	;
 
 logoutputdevice:	LOGFILE {
-		int flag;
-
 		if (!config.state.init) {
-			if (strcmp($1, "syslog") == 0)
+			const char *syslogname = "syslog";
+
+			if (strncmp($1, syslogname, strlen(syslogname)) == 0
+			&& ($1[strlen(syslogname)] == NUL || $1[strlen(syslogname)] == '/')) {
+				char *sl;
+
 				config.log.type |= LOGTYPE_SYSLOG;
+
+				if (*(sl = &($1[strlen(syslogname)])) == '/') { /* facility. */
+					size_t i;
+
+					for (i = 0, ++sl; i < ELEMENTS(syslogfacility); ++i)
+						if (strcmp(sl, syslogfacility[i].name) == 0)
+							break;
+
+					if (i == ELEMENTS(syslogfacility))
+						serrx(EXIT_FAILURE, "unknown syslog facility \"%s\"", sl);
+					config.log.facility = syslogfacility[i].value;
+				}
+				else
+					config.log.facility = LOG_DAEMON; /* default. */
+			}
 			else {
 				config.log.type |= LOGTYPE_FILE;
 
@@ -456,6 +516,8 @@ logoutputdevice:	LOGFILE {
 				else if (strcmp($1, "stderr") == 0)
 					config.log.fpv[config.log.fpc] = stderr;
 				else {
+					int flag;
+
 					if ((config.log.fpv[config.log.fpc] = fopen($1, "a"))
 					== NULL)
 						serr(EXIT_FAILURE, "fopen(%s)", $1);

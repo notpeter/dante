@@ -1,4 +1,13 @@
-# $Id: TODO,v 1.106 1999/08/30 12:56:54 karls Exp $
+# $Id: TODO,v 1.112 1999/12/20 13:07:34 karls Exp $
+
+* clean up (char)version (unsigned char)version and etc. stuff.
+
+* always call gettimedout() regardless of select()?  Brought
+  up by Per Hedeland (per@erix.ericsson.se).
+
+* dl magic to get libwrap to share hostcache?
+
+* if socks_lock() fails in vslog(), log anyway?
 
 * share host/addr cache across processes.
 
@@ -6,11 +15,9 @@
 
 * clean up namespace.
 
-* clean up (char)version (unsigned char)version and etc. stuff.
-
 * make requestchildren support multiple clients too.
   
-* continue work on udp bind.
+* continue work on udp bind, or junk it completely?
 
 * a max value for the number of free io/negotiator's?  mother could kill
   "redundant" ones.
@@ -21,3 +28,7 @@
 
 * possible to specify what address/portrange server should use for
   outgoing connection in each rule?
+
+* solaris cc needs -misalign due to alignment problems with sockaddr/
+  sockaddr_in casts. causes coredump with ftp (passive ls) in client,
+  in sockshost2sockaddr (util.c, line 271, version 1.94).

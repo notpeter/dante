@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.90 1999/09/02 10:41:35 michaels Exp $";
+"$Id: connectchild.c,v 1.91 1999/10/04 12:43:37 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -397,8 +397,9 @@ run_connectchild(mother)
 
 	/* CONSTCOND */
 	while (1) {
-		FD_ZERO(&rset);
+		int flags;
 
+		FD_ZERO(&rset);
 		FD_SET(mother, &rset);
 		rbits = mother;
 
@@ -509,13 +510,10 @@ run_connectchild(mother)
 				function, sockaddr2string(&local, NULL, 0));
 #endif /* DIAGNOSTIC */
 
-			if (1) { /* XXX */
-				int flags;
-
-				if ((flags = fcntl(s, F_GETFL, 0)) == -1
-				||  fcntl(s, F_SETFL, flags & ~NONBLOCKING) == -1)
-					swarn("%s: fcntl(s)");
-			}
+			/* XXX set socket to blocking while we use it. */
+			if ((flags = fcntl(s, F_GETFL, 0)) == -1
+			|| fcntl(s, F_SETFL, flags & ~NONBLOCKING) == -1)
+				swarn("%s: fcntl(s)");
 
 			/* default, in case we don't even get a response. */
 			req.packet.res.reply = (char)sockscode(req.packet.req.version,
@@ -557,13 +555,9 @@ run_connectchild(mother)
 				/* connected ok. */
 				p = socks_negotiate(s, control, &req.packet, NULL);
 
-			if (1) { /* XXX */
-				int flags;
-
-				if ((flags = fcntl(s, F_GETFL, 0)) == -1
-				||  fcntl(s, F_SETFL, flags & ~NONBLOCKING) == -1)
-					swarn("%s: fcntl(s)");
-			}
+			/* XXX back to original. */
+			if (fcntl(s, F_SETFL, flags) == -1)
+				swarn("%s: fcntl(s)");
 
 			len = sizeof(local);
 			if (getsockname(control, &local, &len) != 0) {
