@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.20 1999/05/13 13:13:03 karls Exp $";
+"$Id: socket.c,v 1.21 1999/05/25 17:22:35 michaels Exp $";
 
 int
 socks_connect(s, host)
@@ -94,8 +94,11 @@ socks_connect(s, host)
 		if (connect(new_s, (struct sockaddr *)&address, sizeof(address)) == 0)
 			break;
 
+		if (new_s != s)
+			close(new_s);
+
 		/*
-		 * Only try next server if errno indicated server/network error.
+		 * Only try next address if errno indicates server/network error.
 		*/
 		switch (errno) {
 			case ETIMEDOUT:
@@ -107,13 +110,10 @@ socks_connect(s, host)
 			default:
 				return -1;
 		}
-
-		if (new_s != s)
-			close(new_s);
 	} while (*++ip != NULL);
 
 	if (*ip == NULL)
-		return -1;
+		return -1; /* list exhausted, no successfull connect. */
 
 	if (new_s != s) {	/* had to create a new socket of our own. */
 		if (dup2(new_s, s) == -1) {

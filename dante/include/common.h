@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.192 1999/05/13 14:58:15 karls Exp $ */
+/* $Id: common.h,v 1.194 1999/05/25 17:22:23 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -322,6 +322,10 @@ error "no known 32 bits wide datatype"
 #if HAVE_NOMALLOC_REALLOC
 #define realloc(p,s) (((p) == NULL) ? (malloc(s)) : (realloc((p),(s))))
 #endif  /* HAVE_NOMALLOC_REALLOC */
+
+#if HAVE_NONULL_FREE
+#define free(p)	(((p) == NULL) ? ((void)(p)) : (free(p)))
+#endif
 
 /* __CONCAT macro from anoncvs */
 #ifndef __CONCAT
@@ -1932,15 +1936,6 @@ socks_unlock __P((int fd, int timeout));
  * Returns:
  *		On success: 0
  *		On error  : -1
-*/
-
-
-ssize_t
-strnlen __P((const char *s, size_t len));
-/*
- * Returns the number of characters that precede the terminating NUL
- * character, or (size_t)-1 if no terminating NUL character is found
- * within "len" characters.
 */
 
 

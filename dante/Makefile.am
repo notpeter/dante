@@ -19,4 +19,4 @@ DIST_COMMON = README INSTALL Makefile.am Makefile.in NEWS TODO aclocal.m4  \
 endif
 
 EXTRA_DIST = BUGS CREDITS LICENSE SUPPORT README.socksify README.usage \
-	README.msproxy doc/rfc1928.txt doc/rfc1929.txt doc/SOCKS4.protocol
+	README.msproxy

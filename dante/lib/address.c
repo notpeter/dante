@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.66 1999/05/14 14:44:42 michaels Exp $";
+"$Id: address.c,v 1.67 1999/05/20 16:06:56 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -57,8 +57,8 @@ static unsigned int socksfdc;
 static int
 socks_sigblock __P((sigset_t *oldmask));
 /*
- * Blocks signals affecting the function, returning the old signalmask
- *	in "oldmask".
+ * Blocks signals that can change socksfdv, writting the old 
+ *	signalmask to "oldmask".
  * Returns:
  *		On success: 0
  *		On failure: -1
@@ -79,9 +79,9 @@ socks_addaddr(clientfd, socksfd)
 #endif
 
 	SASSERTX(socksfd->state.command		== -1
-	||	 socksfd->state.command		== SOCKS_BIND
-	||	 socksfd->state.command		== SOCKS_CONNECT
-	||	 socksfd->state.command		== SOCKS_UDPASSOCIATE);
+	||	 socksfd->state.command				== SOCKS_BIND
+	||	 socksfd->state.command				== SOCKS_CONNECT
+	||	 socksfd->state.command				== SOCKS_UDPASSOCIATE);
 
 	if (socks_addfd(clientfd) != 0)
 		serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
@@ -129,10 +129,9 @@ struct socksfd_t *
 socks_getaddr(d)
 	unsigned int d;
 {
-	if (!socks_isaddr(d))
-		return NULL;
-
-	return &socksfdv[d];
+	if (socks_isaddr(d))
+		return &socksfdv[d];
+	return NULL;
 }
 
 void
@@ -163,13 +162,13 @@ socks_rmaddr(d)
 			if (!socksfdv[d].state.system)
 				switch (socksfdv[d].state.command) {
 					case SOCKS_BIND:
-						if (d != (unsigned int)socksfdv[d].control
-						&& socksfdv[d].control != -1)
+						if (socksfdv[d].control != -1 
+						&& d != (unsigned int)socksfdv[d].control)
 							close(socksfdv[d].control);
 						break;
 
 					case SOCKS_CONNECT:
-						break;
+						break; /* no separate controlconnection. */
 
 					case SOCKS_UDPASSOCIATE:
 						if (socksfdv[d].control != -1)
@@ -197,10 +196,10 @@ int
 socks_isaddr(d)
 	unsigned int d;
 {
+
 	if (d < socksfdc && socksfdv[d].allocated)
 		return 1;
-	else
-		return 0;
+	return 0;
 }
 
 int
@@ -213,50 +212,45 @@ socks_addrisok(s)
 	sigset_t oldmask;
 
 	if (socks_sigblock(&oldmask) != 0)
-		return -1;
+		return 0;
 
-	matched = 1;
+	matched = 0;
 	do {
 		struct socksfd_t *socksfd;
 		struct sockaddr local;
 		socklen_t locallen;
 
 		locallen = sizeof(local);
-		if (getsockname((int)s, &local, &locallen) != 0) {
-				matched = 0;
-				break;
-		}
+		if (getsockname((int)s, &local, &locallen) != 0) 
+			break;
 
 		socksfd = socks_getaddr(s);
 
-		if (socksfd != NULL)
-			if (sockaddrcmp(&local, &socksfd->local) != 0) {
-				matched = 0;
+		if (socksfd != NULL) {
+			if (sockaddrcmp(&local, &socksfd->local) != 0)
 				break;
-			}
+			
+			/* check remote endpoint too? */
 
-		/* check remote endpoint too? */
-
-		if (socksfd == NULL) {	/* unknown descriptor, a dup? */
-			struct socksfd_t newsocksfd;
+			matched = 1;
+		}
+		else { /* unknown descriptor.  Try to check whether it's a dup. */
 			int duped;
 
-			if ((duped = socks_addrmatch(&local, NULL, NULL)) >= 0) {
-				socksfd
-				= socksfddup(socks_getaddr((unsigned int)duped), &newsocksfd);
+			if ((duped = socks_addrmatch(&local, NULL, NULL)) != -1) {
+				struct socksfd_t nsocksfd;
+
+				socksfd = socksfddup(socks_getaddr((unsigned int)duped), &nsocksfd);
 
 				if (socksfd == NULL) {
-					matched = 0;
+					swarn("%s: socksfddup()", function);
 					break;
 				}
 
 				socks_addaddr(s, socksfd);
-				break;
+				matched = 1;
 			}
-			else {
-				matched = 0;
-				break;
-			}
+			break;
 		}
 	/* CONSTCOND */
 	} while (0);
@@ -278,13 +272,12 @@ socks_addrcontrol(local, remote)
 
 	for (i = 0; i < socksfdc; ++i) {
 		struct sockaddr localcontrol, remotecontrol;
-		socklen_t len;
 
 		if (!socks_isaddr((unsigned int)i))
 			continue;
 
 		if (local != NULL) {
-			len = sizeof(localcontrol);
+			socklen_t len = sizeof(localcontrol);
 			if (getsockname(socksfdv[i].control, &localcontrol, &len) != 0)
 				continue;
 
@@ -293,7 +286,7 @@ socks_addrcontrol(local, remote)
 		}
 
 		if (remote != NULL) {
-			len = sizeof(remotecontrol);
+			socklen_t len = sizeof(remotecontrol);
 			if (getpeername(socksfdv[i].control, &remotecontrol, &len) != 0)
 				continue;
 
@@ -373,7 +366,7 @@ socks_addfd(d)
 
 		newfdc = MAX(d + 1, (unsigned int)getdtablesize());
 		if ((newfdv = (int *)realloc(dv, sizeof(*dv) * newfdc)) == NULL)
-			serrx(EXIT_FAILURE, NOMEM);
+			serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
 		dv = newfdv;
 
 		/* init all to -1, a illegal value for a d. */

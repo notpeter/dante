@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.228 1999/05/14 10:51:28 michaels Exp $";
+"$Id: sockd.c,v 1.231 1999/05/26 10:05:41 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -69,6 +69,14 @@ sigserverbroadcast __P((int sig));
 /*
  * Broadcasts "sig" to all other servers.
  *
+*/
+
+static int
+pidismother __P((pid_t pid));
+/*
+ * If "pid" refers to a motherserver, the index of "pid" in
+ * state.motherpidv is returned.
+ * Otherwise -1 is returned.
 */
 
 static void
@@ -98,19 +106,9 @@ showlicense __P((void));
  * shows license and exits.
 */
 
-#define ELECTRICFENCE 0
-
-#if ELECTRICFENCE
-	extern int EF_PROTECT_FREE;
-	extern int EF_ALLOW_MALLOC_0;
-	extern int EF_ALIGNMENT;
-	extern int EF_PROTECT_BELOW;
-#endif /* ELECTRICFENCE */
-
 #if DIAGNOSTIC && HAVE_MALLOC_OPTIONS
 	extern char *malloc_options;
 #endif  /* DIAGNOSTIC && HAVE_MALLOC_OPTIONS */
-
 
 #if HAVE_PROGNAME
 extern char *__progname;
@@ -155,13 +153,6 @@ main(argc, argv, envp)
 #if DIAGNOSTIC && HAVE_MALLOC_OPTIONS
 	malloc_options = "AJ";
 #endif  /* DIAGNOSTIC && HAVE_MALLOC_OPTIONS */
-
-#if ELECTRICFENCE
-	EF_PROTECT_FREE         = 1;
-	EF_ALLOW_MALLOC_0       = 1;
-	EF_ALIGNMENT            = 0;
-	EF_PROTECT_BELOW			= 0;
-#endif /* ELECTRICFENCE */
 
 	serverinit(argc, argv, envp);
 	showconfig(&config);
@@ -285,7 +276,7 @@ main(argc, argv, envp)
 	socks_seteuid(NULL, config.uid.unprivileged);
 
 	if (fp != NULL) {
-		if (fprintf(fp, "%ld\n", (long)getpid()) == EOF)
+		if (fprintf(fp, "%lu\n", (unsigned long)config.state.pid) == EOF)
 			swarn("fprintf(%s)", SOCKD_PIDFILE);
 		fclose(fp);
 	}
@@ -304,7 +295,7 @@ main(argc, argv, envp)
 			break;
 		}
 		else
-			config.state.pidv[p] = pid;
+			config.state.motherpidv[p] = pid;
 	}
 
 	if (childcheck(CHILD_NEGOTIATE)	<= 0
@@ -703,9 +694,7 @@ serverinit(argc, argv, envp)
 
 	config.option.serverc	= 1;	/* ourselves. ;-) */
 	config.state.addchild	= 1;
-
-	if (config.state.pid == 0)
-		config.state.pid = getpid();
+	config.state.pid 			= getpid();
 
 	while ((ch = getopt(argc, argv, "DLN:df:hlnvw:")) != -1) {
 		switch (ch) {
@@ -728,7 +717,13 @@ serverinit(argc, argv, envp)
 				break;
 
 			case 'f':
+#if !HAVE_SETPROCTITLE
+				/* let it point outside argv for replacement setproctitle(). */
+				if ((config.option.configfile = strdup(optarg)) == NULL)
+					serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
+#else
 				config.option.configfile = optarg;
+#endif /* !HAVE_SETPROCTITLE */					
 				break;
 
 			case 'h':
@@ -756,10 +751,11 @@ serverinit(argc, argv, envp)
 		}
 	}
 
-	if ((config.state.pidv = (pid_t *)malloc(sizeof(config.state.pidv)
-	* config.option.serverc)) == NULL)
+	if ((config.state.motherpidv
+	= (pid_t *)malloc(sizeof(*config.state.motherpidv) * config.option.serverc))
+	== NULL)
 		serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
-	*config.state.pidv = getpid();	/* main server. */
+	*config.state.motherpidv = config.state.pid;	/* main server. */
 
 	if (config.option.configfile == NULL)
 		config.option.configfile = SOCKD_CONFIGFILE;
@@ -779,7 +775,8 @@ serverinit(argc, argv, envp)
 		setsockoptions(l->s);
 
 		ch = 1;
-		if (setsockopt(l->s, SOL_SOCKET, SO_REUSEADDR, &ch, sizeof(ch)) != 0)
+		if (setsockopt(l->s, SOL_SOCKET, SO_REUSEADDR, &ch, sizeof(ch))
+		!= 0)
 			swarn("%s: setsockopt(SO_REUSEADDR)", function);
 
 		/* LINTED pointer casts may be troublesome */
@@ -847,6 +844,18 @@ checksettings(void)
 		swarnx("%s: local domainname not set", function);
 }
 
+static int
+pidismother(pid)
+	pid_t pid;
+{
+	int i;
+	
+	for (i = 0; i < config.option.serverc; ++i)
+		if (config.state.motherpidv[i] == pid)
+			return i;
+	return -1;
+}
+
 
 /* ARGSUSED */
 static void
@@ -909,7 +918,7 @@ siginfo(sig)
 	(unsigned long)config.stat.io.sendt, (unsigned long)config.stat.io.sendt,
 	(unsigned long)childcheck(-CHILD_IO) - childcheck(CHILD_IO));
 
-	if (*config.state.pidv == config.state.pid)	/* main mother */
+	if (*config.state.motherpidv == config.state.pid)	/* main mother */
 		sigserverbroadcast(sig);
 }
 
@@ -929,8 +938,8 @@ sighup(sig)
 
 	checksettings();
 
-	if (config.state.pid == getpid()) {	/* a mother. */
-		if (*config.state.pidv == config.state.pid) { /* main mother. */
+	if (pidismother(config.state.pid) != -1) {
+		if (*config.state.motherpidv == config.state.pid) { /* main mother. */
 			showconfig(&config);
 			sigserverbroadcast(sig);
 		}
@@ -950,13 +959,11 @@ sigchld(sig)
 	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
 		int i;
 
-		for (i = 1; i < config.option.serverc; ++i)
-			if (config.state.pidv[i] == pid)
-				config.state.pidv[i] = 0;	/* a server died. */
-
-		if (i == config.option.serverc)
+		if ((i = pidismother(pid)) != -1)
+			config.state.motherpidv[i] = 0;	/* a mother died. */
+		else
 			/*
-			 * assume a relay child died.  Shouldn't happen but
+			 * assume a relay child died.  Shouldn't normaly happen but
 			 * we can try to add a new one later.
 			*/
 			config.state.addchild = 1;
@@ -970,9 +977,9 @@ sigserverbroadcast(sig)
 {
 	int i;
 
-	SASSERTX(*config.state.pidv == config.state.pid);
+	SASSERTX(*config.state.motherpidv == config.state.pid);
 
 	for (i = 1; i < config.option.serverc; ++i)
-		if (config.state.pidv[i] != 0)
-			kill(config.state.pidv[i], sig);
+		if (config.state.motherpidv[i] != 0)
+			kill(config.state.motherpidv[i], sig);
 }

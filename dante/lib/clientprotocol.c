@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.32 1999/05/13 13:12:59 karls Exp $";
+"$Id: clientprotocol.c,v 1.33 1999/05/23 15:43:49 michaels Exp $";
 
 int
 socks_sendrequest(s, request)
@@ -72,7 +72,7 @@ socks_sendrequest(s, request)
 
 			p = sockshost2mem(&request->host, p, request->version);
 
-			*p++ = 0; /* not bothering to send any userid, should we? */
+			*p++ = 0; /* not bothering to send any userid.  Should we? */
 
 			break; /* SOCKS_V4 */
 
@@ -142,9 +142,9 @@ socks_recvresponse(s, response, version)
 			 * VN   CD  DSTPORT  DSTIP
 			 *  1 + 1  +   2   +   4
 			 */
-			char responsemem[sizeof(response->version)
-								+ sizeof(response->reply)
-								];
+			char responsemem[ sizeof(response->version)
+								 + sizeof(response->reply)
+								 ];
 			char *p = responsemem;
 
 			if (readn(s, responsemem, sizeof(responsemem)) != sizeof(responsemem)){
@@ -156,11 +156,11 @@ socks_recvresponse(s, response, version)
 			memcpy(&response->version, p, sizeof(response->version));
 			p += sizeof(response->version);
 			if (response->version != SOCKS_V4REPLY_VERSION) {
-				swarnx("%s: unexpected version (%d != %d) from server",
+				swarnx("%s: unexpected version from server (%d != %d)",
 				function, response->version, SOCKS_V4REPLY_VERSION);
 				return -1;
 			}
-			response->version = SOCKS_V4; /* silly v4 semantics, we ignore. */
+			response->version = SOCKS_V4; /* silly v4 semantics, ignore it. */
 
 			/* CD */
 			memcpy(&response->reply, p, sizeof(response->reply));
@@ -196,7 +196,7 @@ socks_recvresponse(s, response, version)
 			memcpy(&response->version, p, sizeof(response->version));
 			p += sizeof(response->version);
 			if (version != response->version) {
-				swarnx("%s: unexpected version (%d != %d) from server",
+				swarnx("%s: unexpected version from server (%d != %d)",
 				function, version, response->version);
 				return -1;
 			}
@@ -302,8 +302,8 @@ recv_sockshost(s, host, version)
 			 * DSTPORT  DSTIP
 			 *   2    +   4
 			*/
-			char hostmem[sizeof(host->port)
-						  + sizeof(host->addr.ipv4)
+			char hostmem[ sizeof(host->port)
+						   + sizeof(host->addr.ipv4)
 							];
 			char *p = hostmem;
 
@@ -364,13 +364,13 @@ recv_sockshost(s, host, version)
 
 					OCTETIFY(alen);
 
+					SASSERTX(alen < sizeof(host->addr.domain));
+
 					/* BND.ADDR, alen octets */
 					if (readn(s, host->addr.domain, (size_t)alen) != (ssize_t)alen) {
 						swarn("%s: readn()", function);
 						return -1;
 					}
-
-					SASSERTX(alen < sizeof(host->addr.domain));
 					host->addr.domain[alen] = NUL;
 
 					break;

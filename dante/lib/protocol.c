@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.47 1999/05/13 13:27:35 karls Exp $";
+"$Id: protocol.c,v 1.48 1999/05/25 17:22:34 michaels Exp $";
 
 char *
 sockshost2mem(host, mem, version)
@@ -138,22 +138,24 @@ mem2sockshost(host, mem, len, version)
 				case SOCKS_ADDR_DOMAIN: {
 					size_t domainlen = (size_t)*mem;
 
+					mem += sizeof(*mem);
+
 					OCTETIFY(domainlen);
 
-					if (len < domainlen)
+					if (len < domainlen + 1) /* +1 for NUL to be added. */
 						return NULL;
 
 					SASSERTX(domainlen < sizeof(host->addr.domain));
 
-					memcpy(host->addr.domain, mem + 1, domainlen);
+					memcpy(host->addr.domain, mem, domainlen);
 					host->addr.domain[domainlen] = NUL;
-					mem += domainlen + 1;
-					len -= domainlen + 1;
+					mem += domainlen;
+					len -= domainlen + 1; /* +1 for added NUL. */
 					break;
 				}
 
 				case SOCKS_ADDR_IPV6:
-					slog(LOG_INFO, "%s: ipv6 not supported", function, host->atype);
+					slog(LOG_INFO, "%s: ipv6 not supported", function);
 					return NULL;
 
 				default:

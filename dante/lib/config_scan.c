@@ -1138,8 +1138,11 @@ char *yytext;
 #include "yacconfig.h"
 #include "config_parse.h"
 
+extern int parseinit;
+extern const int configtype;
+
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.44 1999/05/13 13:13:00 karls Exp $";
+"$Id: config_scan.l,v 1.45 1999/05/24 12:41:26 michaels Exp $";
 
 /*%option debug       */
 /* non-exclusive startconditions. */
@@ -1172,7 +1175,7 @@ static const char rcsid[] =
 
 #define start_protocol 14
 
-#line 1176 "lex.yy.c"
+#line 1179 "lex.yy.c"
 
 /* Macros after this point can all be overridden by user definitions in
  * section 1.
@@ -1323,7 +1326,7 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
 
-#line 78 "config_scan.l"
+#line 81 "config_scan.l"
 
 
 
@@ -1333,9 +1336,6 @@ YY_DECL
 	*/
 
 
-
-	extern int parseinit;
-	extern const int configtype;
 
 	if (!parseinit) {
 		parseinit = 1;
@@ -1348,7 +1348,7 @@ YY_DECL
 				return CLIENTCONFIG;
 
 			default:
-				SERR(configtype);
+				SERRX(configtype);
 		}
 	}
 

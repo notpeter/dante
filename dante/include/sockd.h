@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.118 1999/05/13 14:09:17 karls Exp $ */
+/* $Id: sockd.h,v 1.121 1999/05/26 10:05:22 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -175,11 +175,6 @@ struct timeout_t {
 };
 
 
-
-#if HAVE_LIBWRAP
-#define LIBWRAPBUF			2048	/* max size of a libwrap line */
-#endif  /* HAVE_LIBWRAP */
-
 /* linked list over current rules. */
 struct rule_t {
 	int							verdict;			/* verdict for this rule.				*/
@@ -226,8 +221,8 @@ struct userid_t {
 struct configstate_t {
 	volatile sig_atomic_t	addchild;				/* okay to do a addchild()?	*/
 	unsigned						init:1;
-	pid_t							pid;
-	pid_t							*pidv;					/* all main servers.				*/
+	pid_t							pid;						/* pid of current process.		*/
+	pid_t							*motherpidv;			/* pid of mothers.				*/
 };
 
 struct listenaddress_t {
@@ -261,7 +256,6 @@ struct statistic_t {
 
 /* Make sure to keep in sync with clearconfig(). */
 struct config_t {
-
 	struct listenaddress_t		*internalv;				/* internal address'.		*/
 	int								internalc;
 

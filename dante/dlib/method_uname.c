@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.25 1999/05/13 13:13:01 karls Exp $";
+"$Id: method_uname.c,v 1.26 1999/05/25 17:22:32 michaels Exp $";
 
 int
 clientmethod_uname(s, host, version)
@@ -53,9 +53,9 @@ clientmethod_uname(s, host, version)
 	int version;
 {
 	const char *function = "clientmethod_uname()";
-	static struct uname_t uname;				/* cache userinfo.					*/
+	static struct uname_t uname;				/* cached userinfo.					*/
 	static struct sockshost_t unamehost;	/* host cache was gotten for.		*/
-	static int unameisok;						/* cached is ok?						*/
+	static int unameisok;						/* cached data is ok?				*/
 	char *offset, *name, *password;
 	char request[ 1					/* version.				*/
 					+ 1					/* username length.	*/
@@ -79,7 +79,6 @@ clientmethod_uname(s, host, version)
 			SERRX(version);
 	}
 
-
 	/* fill in request. */
 
 	offset = request;
@@ -88,7 +87,7 @@ clientmethod_uname(s, host, version)
 
 	if (!unameisok) {
 		if ((name = socks_getusername(host, offset + 1, MAXNAMELEN)) == NULL) {
-			swarnx("%s: socks_getusername() failed", function);
+			swarnx("%s: could not determine username of client", function);
 			return -1;
 		}
 
@@ -108,7 +107,7 @@ clientmethod_uname(s, host, version)
 	if (!unameisok) {
 		if ((password = socks_getpassword(host, name, offset + 1, MAXPWLEN))
 		== NULL) {
-			swarnx("could not determine password of client");
+			swarnx("%s: could not determine password of client", function);
 			return -1;
 		}
 
@@ -137,7 +136,7 @@ clientmethod_uname(s, host, version)
 
 	if (request[UNAME_VERSION] != response[UNAME_VERSION]) {
 		swarnx("%s: sent v%d, got v%d",
-		function, (int)request[UNAME_VERSION], response[UNAME_VERSION]);
+		function, request[UNAME_VERSION], response[UNAME_VERSION]);
 		return -1;
 	}
 

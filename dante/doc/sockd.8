@@ -1,8 +1,50 @@
-.Dd November 13, 1998
+.\" $Id: sockd.8,v 1.15 1999/05/26 11:24:39 michaels Exp $
+.\"
+.\" Copyright (c) 1997, 1998, 1999
+.\"      Inferno Nettverk A/S, Norway.  All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. The above copyright notice, this list of conditions and the following
+.\"    disclaimer must appear in all copies of the software, derivative works
+.\"    or modified versions, and any portions thereof, aswell as in all
+.\"    supporting documentation.
+.\" 2. All advertising materials mentioning features or use of this software
+.\"    must display the following acknowledgement:
+.\"      This product includes software developed by
+.\"      Inferno Nettverk A/S, Norway.
+.\" 3. The name of the author may not be used to endorse or promote products
+.\"    derived from this software without specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+.\" IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+.\" OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+.\" IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+.\" INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+.\" NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+.\" DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+.\" THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+.\" (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+.\" THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\"
+.\" Inferno Nettverk A/S requests users of this software to return to
+.\"
+.\"  Software Distribution Coordinator  or  sdc@inet.no
+.\"  Inferno Nettverk A/S
+.\"  Oslo Research Park
+.\"  Gaustadaléen 21
+.\"  N-0349 Oslo
+.\"  Norway
+.\"
+.\" any improvements or extensions that they make and grant Inferno Nettverk A/S
+.\" the rights to redistribute these changes.
+.\"
+.Dd May 26, 1999
 .Dt SOCKD 8
 .Sh NAME
 .Nm sockd
-.Nd Relay data and firewall network
+.Nd network proxyserver
 .Sh SYNOPSIS
 .Nm sockd
 .Op Fl DLdhlnv
@@ -14,17 +56,18 @@
 .Oc
 .Sh DESCRIPTION
 .Nm Dante
-implements the Socks standard and functions as a firewall between networks.
+implements the socks standard and can function as a firewall between networks.
 .Pp
-It relays TCP and UDP both from outside the network and in, and from inside
+.Nm Dante
+relays TCP and UDP both from outside the network and in, and from inside
 and out.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
 .It Fl D
 .Nm Dante
-will detach itself from the controlling terminal and run in
-the background as system daemons.
+will detach from the controlling terminal and run in
+the background as a system daemon.
 .It Fl L
 Displays the license
 .Nm Dante
@@ -55,7 +98,6 @@ have crashed or for other reasons no longer can be reached time out.
 Displays versioninfo for
 .Nm Dante.
 .Sh ENVIRONMENT
-.TP
 \fBTMPDIR\fP
 Use TMPDIR for temporary files.  Since
 .Nm Dante
@@ -65,10 +107,8 @@ filesystem with low latency.
 .Pa /etc/sockd.conf
 .Sh AUTHORS
 For Inferno Nettverk A/S, Norway:
-.D1
-Michael Shuldman <michaels@inet.no>: Design and implementation.
-.D1
-Karl-André Skevik <karls@inet.no>: Autoconf and porting.
+.Dl Michael Shuldman <michaels@inet.no>: Design and implementation.
+.Dl Karl-André Skevik <karls@inet.no>: Autoconf and porting.
 .Sh SEE ALSO
 Information about new releases and other related issues can be found
 on the Dante WWW home page at http://www.inet.no/dante.

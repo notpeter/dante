@@ -1,7 +1,7 @@
 AC_INIT(include/socks.h)
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+#prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else
@@ -106,15 +106,6 @@ case $host in
 esac
 AC_SUBST(RLD_LIST)
 
-#add /usr/local/include to directories to include path if tcpd.h 
-#can be found there)
-for dir in /local/include /usr/local/include; do
-    if test -f $dir/tcpd.h; then
-	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I${dir}"
-	break
-    fi
-done
-
 #define with hosttype
 AC_DEFINE_UNQUOTED(HAVE_HOST_TYPE, "$host")
 
@@ -144,9 +135,17 @@ case $host in
     *)
 	AC_MSG_RESULT(none)
     ;;
-
 esac
 
+AC_MSG_CHECKING(for support for -pipe compiler flag)
+CFLAGS="$oCFLAGS -pipe"
+AC_TRY_RUN([
+int main()
+{
+	return 0;
+}], [comp_flags="${comp_flags} -pipe" 
+     AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
+CFLAGS="$oCFLAGS"	
 
 
 AC_MSG_CHECKING(for compilation with debugging)
@@ -210,12 +209,11 @@ if test x$enable_warnings; then
     else
 	warn="-Wall"
 	#XXX some extra warnings
-	#-Wshadow
 #	warn="$warn -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
     fi
     CFLAGS="$CFLAGS $warn"
     #make sure compilation is still possible
-    AC_TRY_COMPILE([],[ return 0],
+    AC_TRY_COMPILE([],[],
    [AC_MSG_RESULT($warn)],
    [AC_MSG_RESULT(none)
     CFLAGS=$oCFLAGS])
@@ -263,6 +261,15 @@ else
 	AC_MSG_RESULT(no)
 fi], AC_MSG_RESULT(no))
 
+#add /usr/local/include to directories to include path if tcpd.h 
+#can be found there)
+for dir in /local/include /usr/local/include; do
+    if test -f $dir/tcpd.h; then
+	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I${dir}"
+	break
+    fi
+done
+
 dnl Checks for programs.
 AC_PROG_YACC
 AM_PROG_LEX
@@ -306,8 +313,8 @@ AC_ARG_WITH(domainname,
 
 if test x${domainname_hardcoded} != x; then
     AC_DEFINE_UNQUOTED(SOCKS_DOMAINNAME, "${domainname_hardcoded}")
-    AC_MSG_WARN(using hardcoded domainname ${domainname_hardcoded})
     AC_MSG_RESULT(yes)
+    AC_MSG_WARN(using hardcoded domainname ${domainname_hardcoded})
 else
     AC_MSG_RESULT(no)
     if test x${no_res_init} = xt; then
@@ -471,8 +478,11 @@ esac
 AC_MSG_CHECKING(whether realloc with a NULL pointer calls malloc)
 AC_TRY_RUN([
 #include <stdlib.h>
+#ifndef NULL
+#define NULL (char *)0
+#endif
 
-int main(void)
+int main()
 {
 	/* will assume this test doesn\'t fail because of lack of memory */
 	if (realloc(NULL, 1) == NULL)
@@ -481,26 +491,19 @@ int main(void)
 		return 0;
 }], AC_MSG_RESULT(yes), [AC_DEFINE(HAVE_NOMALLOC_REALLOC) AC_MSG_RESULT(no)])
 
-#XXX try to detect gcc bug (irix 64 problem, affacts among others inet_ntoa)
-AC_MSG_CHECKING(for incorrect inet_ntoa behaviour)
+AC_MSG_CHECKING(whether free with can be called with NULL)
 AC_TRY_RUN([
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-int main(void)
-{
-  struct sockaddr_in addr;
-  char *a, *b = "195.195.195.195";
-  addr.sin_addr.s_addr = inet_addr(b);
-  a = inet_ntoa(addr.sin_addr);
-  if (strcmp(a, b) == 0)
-    return 1;
-  else
-    return 0;
+#include <stdlib.h>
+#ifndef NULL
+#define NULL (char *)0
+#endif
 
-}
-], [AC_DEFINE(HAVE_BROKEN_INET_NTOA) AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
+int main()
+{
+	/* will assume core dump/seg fault if it doesn't work */
+	free(NULL);
+	return 0;
+}], AC_MSG_RESULT(yes), [AC_DEFINE(HAVE_NONULL_FREE) AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING(getsockopt param 4 pointer type)
 AC_TRY_COMPILE([
@@ -666,8 +669,7 @@ if test x$have_inet_aton_in_lresolv != xt; then
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-inet_aton(0,0);
-], [ 1 ],
+], [ inet_aton(0,0); ],
     [AC_DEFINE(HAVE_INET_ATON) AC_MSG_RESULT(yes)],  AC_MSG_RESULT(no))
 fi
 
@@ -716,8 +718,7 @@ LIBS="$LIBS $oLIBS"
 AC_MSG_CHECKING(for gethostbyname2)
 AC_TRY_LINK([
 #include <netdb.h>
-gethostbyname2(0, 0);
-], [ 1 ],
+], [ gethostbyname2(0, 0); ],
  [AC_DEFINE(HAVE_GETHOSTBYNAME2)
   AC_MSG_RESULT(yes)
   have_gethostbyname2=t],
@@ -765,7 +766,6 @@ LIBS=$oLIBS
 #XXX
 oLIBS=$LIBS
 LIBS=""
-AC_DEFINE_UNQUOTED(LIBRARY_LIBC, "${base_library_path}libc.so")
 if test x$have_lnsl = xt; then
 	AC_DEFINE_UNQUOTED(LIBRARY_LIBNSL, "${base_library_path}libnsl.so")
 	LIBRARY_LIBNSL="${base_library_path}libnsl.so"
@@ -1069,7 +1069,26 @@ case $host in
 	;;
 esac
 
+#XXX try to detect gcc bug (irix 64 problem, affects among others inet_ntoa)
+AC_MSG_CHECKING(for incorrect inet_ntoa behaviour)
+AC_TRY_RUN([
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+int main(void)
+{
+  struct sockaddr_in addr;
+  char *a, *b = "195.195.195.195";
+  addr.sin_addr.s_addr = inet_addr(b);
+  a = inet_ntoa(addr.sin_addr);
+  if (strcmp(a, b) == 0)
+    return 1;
+  else
+    return 0;
 
+}
+], [AC_DEFINE(HAVE_BROKEN_INET_NTOA) AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
 
 dnl Check for in_port_t type
 #solaris2.6

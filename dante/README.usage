@@ -1,4 +1,4 @@
-$Id: README.usage,v 1.3 1998/12/11 11:06:19 karls Exp $
+$Id: README.usage,v 1.4 1999/05/26 14:33:24 michaels Exp $
 
 The socks package can be used in two ways.
 
@@ -14,16 +14,17 @@ otherwise.  If setting LD_PRELOAD is not possible, compilation is
 another possibility.
 
 	If the application can be compiled dynamically socks support
-can be added by linking with libdsocks (usually done by adding
+can be added explicitly by linking with libdsocks (usually done by adding
 '-ldsocks').  This will automagically give the application socks
 support without making any code changes.
 
 Static Compilation
 
 	If the source code for an application is available it can be
-changed to use socks.  Several systemcalls must be changed to use the
-socksified versions instead of the normal ones.  The application is
-then linked with the libsocks library in the distribution.
+changed to use socks, even if it is not linked dynamically.
+Several systemcalls must be changed to use the socksified versions
+instead of the standard ones.  The application is then linked with
+the libsocks library in the distribution (-lsocks, not -ldsocks).
 
 These system calls can be found in the socks library:
 

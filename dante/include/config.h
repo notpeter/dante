@@ -73,6 +73,15 @@
 	 * server stuff.
 	*/
 
+/* 
+ * If we are compiling with libwrap support, this sets the maximum
+ * linelength for a libwrap line.  Should be the same or less as the
+ * one libwrap uses internaly, but we don't have access to that size.
+*/
+#if HAVE_LIBWRAP
+#define LIBWRAPBUF			256
+#endif  /* HAVE_LIBWRAP */
+
 /*
  * used only if no usable system call is found (getdtablesize()/sysconf()).
  * If you are missing the system calls, but know what the value should
@@ -118,7 +127,7 @@
 #define SOCKD_CACHETIMEOUT			3600
 
 /* print some statistics for every SOCKD_CACHESTAT lookup.  0 to disable. */
-#define SOCKD_CACHESTAT				8 /* XXX increase before release. */
+#define SOCKD_CACHESTAT				0
 
 /*
  * number of seconds a client can negotiate with server.

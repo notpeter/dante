@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.97 1999/05/13 13:13:00 karls Exp $";
+"$Id: config_parse.y,v 1.99 1999/05/21 09:54:50 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -537,7 +537,11 @@ resolveprotocolname:	PROTOCOL_FAKE {
 			config.resolveprotocol = RESOLVEPROTOCOL_FAKE;
 	}
 	|  PROTOCOL_TCP {
+#if HAVE_NO_RESOLVESTUFF
+			yyerror("resolveprotocol keyword not supported on this installation");
+#else /* HAVE_NO_RESOLVESTUFF */
 			config.resolveprotocol = RESOLVEPROTOCOL_TCP;
+#endif /* !HAVE_NO_RESOLVESTUFF */
 	}
 	|	PROTOCOL_UDP {
 			config.resolveprotocol = RESOLVEPROTOCOL_UDP;
@@ -735,7 +739,7 @@ libwrap:	LIBWRAPSTART ':' LINE {
 		struct request_info request;
 
 		if (strlen($3) >= sizeof(rule.libwrap))
-			yyerror("libwrap line too long.  Make buffer bigger");
+			yyerror("libwrap line too long, make LIBWRAPBUF bigger");
 		strcpy(rule.libwrap, $3);
 
 		if (config.option.debug)
@@ -932,7 +936,15 @@ portoperator:	OPERATOR {
 
 %%
 
-#define INTERACTIVE 0
+#define INTERACTIVE 		0
+#define ELECTRICFENCE 	0
+
+#if ELECTRICFENCE
+	extern int EF_PROTECT_FREE;
+	extern int EF_ALLOW_MALLOC_0;
+	extern int EF_ALIGNMENT;
+	extern int EF_PROTECT_BELOW;
+#endif /* ELECTRICFENCE */
 
 extern FILE *yyin;
 
@@ -943,6 +955,14 @@ readconfig(filename)
 	const char *filename;
 {
 	const char *function = "readconfig()";
+
+#if ELECTRICFENCE
+	EF_PROTECT_FREE         = 1;
+	EF_ALLOW_MALLOC_0       = 1;
+	EF_ALIGNMENT            = 0;
+	EF_PROTECT_BELOW			= 0;
+#endif /* ELECTRICFENCE */
+
 
 	yydebug = 0;
 	parseinit = 0;

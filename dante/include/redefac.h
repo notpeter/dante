@@ -1,4 +1,4 @@
-/* redefac.h generated from autoconf.h.in on Thu May 13 13:31:44 MEST 1999  */
+/* redefac.h generated from autoconf.h.in on Thu May 20 12:36:02 MEST 1999  */
 
 #ifndef HAVE_DOPRNT
 #define HAVE_DOPRNT 0
@@ -252,6 +252,11 @@
 
 #ifndef HAVE_NO_RESOLVESTUFF
 #define HAVE_NO_RESOLVESTUFF 0
+#endif
+
+
+#ifndef HAVE_NONULL_FREE
+#define HAVE_NONULL_FREE 0
 #endif
 
 

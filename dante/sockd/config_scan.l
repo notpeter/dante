@@ -48,8 +48,11 @@
 #include "yacconfig.h"
 #include "config_parse.h"
 
+extern int parseinit;
+extern const int configtype;
+
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.44 1999/05/13 13:13:00 karls Exp $";
+"$Id: config_scan.l,v 1.45 1999/05/24 12:41:26 michaels Exp $";
 
 %}
 
@@ -85,9 +88,6 @@ static const char rcsid[] =
 
 
 %{
-	extern int parseinit;
-	extern const int configtype;
-
 	if (!parseinit) {
 		parseinit = 1;
 
@@ -99,7 +99,7 @@ static const char rcsid[] =
 				return CLIENTCONFIG;
 
 			default:
-				SERR(configtype);
+				SERRX(configtype);
 		}
 	}
 %}

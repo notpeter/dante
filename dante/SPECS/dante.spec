@@ -1,6 +1,6 @@
 Summary: A free Socks v4/v5 client implementation 
 Name: dante
-%define version 1.0.0-pre1
+%define version 1.0.0
 %define prefix /usr
 Version: %{version}
 Release: 1
@@ -134,10 +134,10 @@ fi
 %defattr(-,root,root)
 #files beginning with two capital letters are docs: BUGS, README.foo etc.
 %doc [A-Z][A-Z]*
-%{prefix}/lib/libsocks.so.0.0.9
+%{prefix}/lib/libsocks.so.0.1.0
 %{prefix}/lib/libsocks.so.0
 %{prefix}/lib/libsocks.so
-%{prefix}/lib/libdsocks.so.0.0.9
+%{prefix}/lib/libdsocks.so.0.1.0
 %{prefix}/lib/libdsocks.so.0
 %{prefix}/lib/libdsocks.so
 %{prefix}/bin/socksify

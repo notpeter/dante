@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.98 1999/05/13 14:09:19 karls Exp $";
+"$Id: udp.c,v 1.100 1999/05/26 08:09:57 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -57,11 +57,9 @@ Rsendto(s, msg, len, flags, to, tolen)
 	socklen_t tolen;
 {
 	struct socksfd_t *socksfd;
-	const struct sockaddr *nto;
 	char *nmsg;
 	size_t nlen;
 	ssize_t n;
-
 
 	if (to != NULL && to->sa_family != AF_INET)
 		return sendto(s, msg, len, flags, to, tolen);
@@ -74,17 +72,15 @@ Rsendto(s, msg, len, flags, to, tolen)
 
 	if (to == NULL) {
 		if (socksfd->state.udpconnect)
-			nto = &socksfd->connected;
+			to = &socksfd->connected;
 		else
 			/* have to assume tcp socket. */
 			return sendto(s, msg, len, flags, NULL, 0);
 	}
-	else
-		nto = to;
 
 	/* prefix a udp header to the msg */
 	nlen = len;
-	if ((nmsg = udpheader_add(nto, msg, &nlen)) == NULL) {
+	if ((nmsg = udpheader_add(to, msg, &nlen)) == NULL) {
 		errno = ENOBUFS;
 		return -1;
 	}
@@ -121,8 +117,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 	struct sockaddr newfrom;
 	socklen_t newfromlen;
 	size_t newlen;
-	int n;
-
+	ssize_t n;
 
 	if (!socks_addrisok((unsigned int)s)) {
 		socks_rmaddr((unsigned int)s);
@@ -136,40 +131,38 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 	SASSERTX(socksfd != NULL);
 
 	if (!socksfd->state.protocol.udp)
-		/* assume tcp connection. */
+		/* assume tcp connection, nothing to do there. */
 		return recvfrom(s, buf, len, flags, from, fromlen);
 
 	/* if packet is from socksserver it will be prefixed with a header. */
 	newlen = len + sizeof(header);
-	if ((newbuf = (char *)malloc(sizeof(char) * newlen)) == NULL) {
+	if ((newbuf = (char *)malloc(sizeof(*newbuf) * newlen)) == NULL) {
 		errno = ENOBUFS;
 		return -1;
 	}
 
 	newfromlen = sizeof(newfrom);
-	if ((n = recvfrom(s, newbuf, newlen, flags, &newfrom, &newfromlen)) <= 0) {
+	if ((n = recvfrom(s, newbuf, newlen, flags, &newfrom, &newfromlen)) == -1) {
 		free(newbuf);
 		return n;
 	}
+	SASSERTX(newfromlen > 0);
 
 	if (sockaddrcmp(&newfrom, &socksfd->reply) == 0) {
-		/* packet is from socksserver. */
+		/*
+		 * packet is from socksserver.
+		*/
 
 		if (string2udpheader(newbuf, (size_t)n, &header) == NULL) {
 			char badfrom[MAXSOCKADDRSTRING];
 
-			swarnx("%s: unrecognized udp packet from %s",
+			swarnx("%s: unrecognized socks udppacket from %s",
 			function, sockaddr2string(&newfrom, badfrom, sizeof(badfrom)));
 			errno = EAGAIN;
 			return -1;	/* don't know if callee wants to retry. */
 		}
-		sockshost2sockaddr(&header.host, &newfrom);
 
-		/* callee doesn't get socksheader. */
-		n -= PACKETSIZE_UDP(&header);
-		SASSERTX(n >= 0);
-		SASSERTX(n <= (int)len);
-		memcpy(buf, &newbuf[PACKETSIZE_UDP(&header)], (size_t)n);
+		sockshost2sockaddr(&header.host, &newfrom);
 
 		/* if connected udpsocket, only forward from "connected" source. */
 		if (socksfd->state.udpconnect) {
@@ -177,28 +170,52 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 				char a[MAXSOCKADDRSTRING];
 				char b[MAXSOCKADDRSTRING];
 
+				free(newbuf);
+
 				slog(LOG_DEBUG, "%s: expected udpreply from %s, got it from %s",
 				function,
 				sockaddr2string(&socksfd->connected, a, sizeof(a)),
 				sockaddr2string(&newfrom, b, sizeof(b)));
 
-				free(newbuf);
-				errno = EAGAIN;
-				return -1;	/* don't know if callee wants to retry. */
+				/*
+				 * Not sure what to do now, return error or retry?
+				 * Going with returning error for now.
+				*/
+				 
+#if 0
+				if ((p = fcntl(s, F_GETFL, 0)) == -1)
+					return -1;
+
+				if (p & NONBLOCKING) {
+#endif
+
+					errno = EAGAIN;
+					return -1;
+
+#if 0
+				}
+				/* else; assume the best thing is to retry. */
+				return Rrecvfrom(s, buf, len, flags, from, fromlen);
+#endif
 			}
 		}
+
+		/* callee doesn't get socksheader. */
+		n -= PACKETSIZE_UDP(&header);
+		SASSERTX(n >= 0);
+		memcpy(buf, &newbuf[PACKETSIZE_UDP(&header)], MIN(len, (size_t)n));
 	}
-	else
-		memcpy(buf, newbuf, (size_t)n); /* not from socksserver. */
+	else /* ordinary udppacket, not from socksserver. */
+		memcpy(buf, newbuf, MIN(len, (size_t)n));
 
 	free(newbuf);
 
-	if (from != NULL && fromlen != NULL) {
+	if (from != NULL) {
 		*fromlen = MIN(*fromlen, newfromlen);
 		memcpy(from, &newfrom, (size_t)*fromlen);
 	}
 
-	return n;
+	return MIN(len, (size_t)n);
 }
 
 
@@ -219,7 +236,7 @@ udpsetup(s, to, type)
 		socks_rmaddr((unsigned int)s);
 
 	if (socks_getaddr((unsigned int)s) != NULL)
-		return 0;
+		return 0; /* all set up. */
 
 	/*
 	 * if this socket has not previously been used we need to
@@ -319,7 +336,7 @@ udpsetup(s, to, type)
 		if (port != htons(0)) {
 			/*
 			 * port is bound.  We will try to unbind and then rebind same port
-			 * but now also bind ip address.
+			 * but now also bind ip address.  XXX Dangerous stuff.
 			*/
 
 			if ((p = socketoptdup(s)) == -1) {
