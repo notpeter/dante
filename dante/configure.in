@@ -1,5 +1,6 @@
-2AC_INIT(include/socks.h)
+AC_INIT(include/socks.h)
 
+version=1.1.8
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="2"
 if test x$prerelease != x; then
@@ -8,7 +9,7 @@ else
 	prename=""
 fi
 
-AM_INIT_AUTOMAKE(dante, 1.1.7$prename)
+AM_INIT_AUTOMAKE(dante, ${version}${prename})
 AM_CONFIG_HEADER(include/autoconf.h)
 #NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
@@ -1459,4 +1460,4 @@ AC_LINK_FILES(dlib/interposition.c, sockd/interposition.c)
 AC_OUTPUT([sockd/Makefile include/Makefile lib/Makefile dlib/Makefile \
 	   Makefile example/Makefile doc/Makefile bin/Makefile \
 	   capi/Makefile SPECS/Makefile SPECS/dante.spec bin/socksify \
-	   libscompat/Makefile VERSION])
+	   libscompat/Makefile contrib/Makefile VERSION])
