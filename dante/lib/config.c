@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.133 2000/09/22 17:30:41 michaels Exp $";
+"$Id: config.c,v 1.134 2000/10/02 07:53:23 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -938,7 +938,7 @@ socks_requestpolish(req, src, dst)
 	const struct sockshost_t *dst;
 {
 	const char *function = "socks_requestpolish()";
-	const int originalversion = req->version;
+	const unsigned char originalversion = req->version;
 
 	if (socks_getroute(req, src, dst) != NULL)
 		return req;
@@ -970,9 +970,10 @@ socks_requestpolish(req, src, dst)
 
 	req->version = SOCKS_V4;
 	if (socks_getroute(req, src, dst) != NULL) {
-		/* v4/v5 difference in portsemantics. */
-		req->host.port
-		= ((struct sockaddr_in *)&config.state.lastconnect)->sin_port;
+		if (req->command == SOCKS_BIND) /* v4/v5 difference in portsemantics. */
+			/* LINTED pointer casts may be troublesome */
+			req->host.port
+			= ((struct sockaddr_in *)&config.state.lastconnect)->sin_port;
 		return req;
 	}
 

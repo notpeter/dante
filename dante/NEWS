@@ -1,6 +1,14 @@
-@(#)$Id: NEWS,v 1.23 2000/09/25 08:07:35 michaels Exp $
+@(#)$Id: NEWS,v 1.24 2000/10/05 08:48:09 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Thursday, October 5, 2000 -- Dante v1.1.4
+
+ o fix bug affecting clients going through socks v4 servers.
+   Reported and nicely diagnosed by Jack Keane (jkeane@OpenReach.com).
+
+ o increase default listen backlog to 511, based on request by
+   Doug Hardie (bc979@lafn.org).
 
 ***  Monday, September 25, 2000 -- Dante v1.1.3
 
