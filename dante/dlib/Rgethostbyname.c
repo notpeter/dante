@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.27 2001/05/04 08:11:04 michaels Exp $";
+"$Id: Rgethostbyname.c,v 1.37 2001/11/12 14:10:01 michaels Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -53,16 +53,15 @@ Rgethostbyname2(name, af)
 {
 	const char *function = "Rgethostbyname2()"; 
 	static struct hostent hostentmem;
-	static char **addrlist;
+	static char *aliases[] = { NULL };
 	struct in_addr ipindex;
 	struct hostent *hostent;
 
-	/* needs to be done before gethostbyname calls. */
 	clientinit();
 
-	slog(LOG_DEBUG, "%s: %s", function, name);  
+	slog(LOG_DEBUG, "%s: %s", function, name);
 
-	switch (config.resolveprotocol) {
+	switch (socksconfig.resolveprotocol) {
 		case RESOLVEPROTOCOL_TCP:
 		case RESOLVEPROTOCOL_UDP:
 			if ((hostent = gethostbyname(name)) != NULL)
@@ -71,19 +70,20 @@ Rgethostbyname2(name, af)
 
 		case RESOLVEPROTOCOL_FAKE:
 			hostent = NULL;
-			h_errno = NO_RECOVERY;
 			break;
 
 		default:
-			SERRX(config.resolveprotocol);
+			SERRX(socksconfig.resolveprotocol);
 	}
 
-
-	if (hostent == NULL) 
-		slog(LOG_DEBUG, "%s; gethostbyname(%s): %s",
-		function, name, hstrerror(h_errno));
-	else
+	if (hostent != NULL)
 		return hostent;
+
+	if (socksconfig.resolveprotocol != RESOLVEPROTOCOL_FAKE) 
+		slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
+		function, name, hstrerror(h_errno));
+
+	/* continue as if resolveprotocol is set to fake and hope that works. */
 
 	hostent = &hostentmem;
 
@@ -94,20 +94,23 @@ Rgethostbyname2(name, af)
 	if ((hostent->h_name = strdup(name)) == NULL)
 		return NULL;
 
-	hostent->h_aliases	= NULL;
+	hostent->h_aliases	= aliases;
 	hostent->h_addrtype	= af;
 
-	if (addrlist == NULL)
-		/* * 2; NULL terminated. */
-		if ((addrlist = (char **)malloc(sizeof(addrlist) * 2)) == NULL)
+	if (hostent->h_addr_list == NULL) {
+		/* * 2; NULL terminated and always only one valid entry (fake). */
+		if ((hostent->h_addr_list
+		= (char **)malloc(sizeof(hostent->h_addr_list) * 2)) == NULL)
 			return NULL;
+		hostent->h_addr_list[1] = NULL;
+	}
 
 	switch (af) {
 		case AF_INET: {
-			static char ipv4[4]; /* XXX */
+			static char ipv4[sizeof(in_addr_t)];
 
-			hostent->h_length = sizeof(ipv4);
-			*addrlist = ipv4;
+			hostent->h_length 		= sizeof(ipv4);
+			*hostent->h_addr_list 	= ipv4;
 			break;
 		}
 
@@ -115,8 +118,8 @@ Rgethostbyname2(name, af)
 		case AF_INET6: {
 			static char ipv6[16]; /* XXX */
 
-			hostent->h_length = sizeof(ipv6);
-			*addrlist = ipv6;
+			hostent->h_length 		= sizeof(ipv6);
+			*hostent->h_addr_list 	= ipv6;
 			break;
 		}
 #endif  /* SOCKS_IPV6 */
@@ -129,10 +132,8 @@ Rgethostbyname2(name, af)
 	if ((ipindex.s_addr = socks_addfakeip(name)) == htonl(INADDR_NONE))
 		return NULL;
 
-	if (inet_pton(af, inet_ntoa(ipindex), *addrlist) != 1)
+	if (inet_pton(af, inet_ntoa(ipindex), *hostent->h_addr_list) != 1)
 		return NULL;
-	hostent->h_addr_list = addrlist++;
-	*addrlist = NULL;
 
 	return hostent;
 }

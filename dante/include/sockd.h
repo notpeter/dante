@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.170 2001/05/14 11:47:25 michaels Exp $ */
+/* $Id: sockd.h,v 1.186 2001/11/12 14:09:57 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -152,6 +152,9 @@ do {																			\
 #define VERDICT_BLOCKs		"block"
 #define VERDICT_PASSs		"pass"
 
+/* how to rotate addresses. */
+#define ROTATION_NONE		0
+#define ROTATION_ROUTE		1
 
 #define LOG_CONNECTs			"connect"
 #define LOG_DISCONNECTs		"disconnect"
@@ -166,6 +169,12 @@ do {																			\
 #define OPERATION_ABORT			(OPERATION_IO + 1)
 #define OPERATION_ERROR			(OPERATION_ABORT + 1)
 
+
+struct compat_t {
+	unsigned reuseaddr:1;				/* set SO_REUSEADDR?								*/
+	unsigned sameport:1;					/* always try to use same port as client?	*/
+	unsigned :0;
+};
 
 
 struct log_t {
@@ -189,12 +198,20 @@ struct linkedname_t {
 	struct linkedname_t	*next;	/* next name in list.								*/
 };
 
+typedef struct {
+	unsigned int			expired:1;			/* the rule has expired.				*/
+	int						clients;				/* clients using this bw_t.			*/
+	struct timeval			time;					/* time of last i/o operation.		*/
+	long						bytes;				/* amount of bytes done at time. 	*/
+	long						maxbps;				/* maximal b/s allowed.					*/
+} bw_t;
+
 /* linked list over current rules. */
 struct rule_t {
 	struct ruleaddress_t		src;				/* src.										*/
 	struct ruleaddress_t		dst;				/* dst.										*/
 	struct log_t				log;				/* type of logging to do.				*/
-	unsigned int				number;			/* rulenumber; info/debugging only.	*/
+	unsigned int				number;			/* rulenumber.								*/
 	unsigned long				linenumber;		/* linenumber; info/debugging only.	*/
 	struct serverstate_t		state;
 	struct linkedname_t		*user;			/* name of users allowed.				*/
@@ -207,6 +224,11 @@ struct rule_t {
 #if HAVE_PAM
 	char							pamservicename[MAXNAMELEN];/* name for pamservice.	*/
 #endif /* HAVE_PAM */
+
+	struct ruleaddress_t		rdr_from;
+	struct ruleaddress_t		rdr_to;
+
+	bw_t							*bw;				/* pointer since shared.				*/
 
 	struct rule_t				*next;			/* next rule in list.					*/
 };
@@ -241,7 +263,7 @@ struct configstate_t {
 	unsigned						init:1;
 
 	/* allows us to optimize a few things a little based on configuration. */
-	unsigned						unfixedpamdata:1;		/* have rules with pamdata.*/
+	unsigned						unfixedpamdata:1;		/* have rules with pamdata.	*/
 
 #ifdef HAVE_VOLATILE_SIG_ATOMIC_T
 	sig_atomic_t				addchild;				/* okay to do a addchild()?	*/
@@ -260,6 +282,12 @@ struct listenaddress_t {
 #if NEED_ACCEPTLOCK
 	int						lock;							/* lock on structure.			*/
 #endif
+};
+
+struct externaladdress_t {
+	struct ruleaddress_t			*addrv;				/*	address'.						*/
+	int								addrc;
+	int								rotation;			/* how to rotate, if at all.	*/
 };
 
 struct statistic_t {
@@ -288,12 +316,21 @@ struct config_t {
 	struct listenaddress_t		*internalv;				/* internal address'.		*/
 	int								internalc;
 
-	struct ruleaddress_t			*externalv;				/*	external address'.		*/
-	int								externalc;
+	struct externaladdress_t	external;				/*	external address'.		*/
 
 	struct rule_t					*crule;					/* clientrules, list.		*/
 	struct rule_t					*srule;					/* socksrules, list.			*/
 	struct route_t					*route;					/* not in use yet.			*/
+
+	bw_t								*bwv;						/* bw for rules.				*/
+	int								bwc;
+
+	/*
+	 * should have one for each rule instead, but sadly some systems seem to
+	 * have trouble with sysv-style shared memory/semaphores so we use
+	 * the older/better supported filelock, and a global to at that.
+	 */
+	int								bwlock;					/* lock for modifying bw.	*/
 
 	struct compat_t				compat;					/* compatibility options.  */
 	struct extension_t			extension;				/* extensions set.			*/
@@ -306,12 +343,11 @@ struct config_t {
 	struct timeout_t				timeout;					/* timeout values.			*/
 	struct userid_t				uid;						/* userids.						*/
 
-	int								methodv[MAXMETHOD];  /* methods by priority.		*/
-	size_t							methodc;					/* methods in list.			*/
-
 	int								clientmethodv[MAXMETHOD]; /* clientmethods.		*/
 	size_t							clientmethodc;				  /* methods in list.	*/
 
+	int								methodv[MAXMETHOD];  /* methods by priority.		*/
+	size_t							methodc;					/* methods in list.			*/
 };
 
 
@@ -365,7 +401,7 @@ struct sockd_io_t {
 	struct rule_t						acceptrule;	/* rule matched for accept().		*/
 	struct rule_t						rule;			/* matched rule for i/o.			*/
 
-	time_t								time;			/* time of last i/o operation.	*/
+	struct timeval						time;			/* time of last i/o operation.	*/
 	struct sockd_io_t					*next;		/* for some special cases.			*/
 };
 
@@ -434,11 +470,13 @@ __BEGIN_DECLS
 
 
 int
-sockd_bind __P((int s, const struct sockaddr *addr, size_t retries));
+sockd_bind __P((int s, struct sockaddr *addr, size_t retries));
 /*
  * Binds the address "addr" to the socket "s".  The bind call will
  * be tried "retries" + 1 times if the error is EADDRINUSE, or until
  * successful, whatever comes first.
+ * 
+ * If successfull, "addr" is filled in with the bound address.
  * Returns:
  *		On success: 0.
  *		On failure:	-1
@@ -478,7 +516,13 @@ pidismother __P((pid_t pid));
  * IF "pid" is no mother, 0 is returned.
  */
 
-
+int
+descriptorisreserved __P((int d));
+/*
+ * If "d" is a descriptor reserved for use globaly, the function
+ * returns true.
+ * Otherwise, false.
+*/
 int
 childcheck __P((int type));
 /*
@@ -494,18 +538,6 @@ int
 childtype __P((pid_t pid));
 /*
  * Returns the type of child the child with pid "pid" is.
- */
-
-const char *
-childtype2string __P((int type));
-/*
- * returns the string representation of "type".
- */
-
-const char *
-verdict2string __P((int verdict));
-/*
- * returns the string representation of "verdict".
  */
 
 int
@@ -542,6 +574,16 @@ addexternal __P((const struct ruleaddress_t *addr));
 /*
  * Adds "addr" to the list of internal addresses (to listen on).
 */
+
+int
+addressisbindable __P((const struct ruleaddress_t *addr));
+/*
+ * Checks whether "addr" is bindable.
+ * Returns:
+ *		On success: true.
+ *		On failure: false.
+ */
+
 
 struct linkedname_t *
 adduser __P((struct linkedname_t **ruleuser, const char *name));
@@ -984,6 +1026,85 @@ pam_passwordcheck __P((int s,
  *		Otherwise: -1.  "emsg" is filled in with the errormessage.
  */
 
+int
+redirect __P((int s, struct sockaddr *addr, struct sockshost_t *host,
+				  int command, const struct ruleaddress_t *from,
+				  const struct ruleaddress_t *to));
+/*
+ * "s" is the socket to use for performing "command".
+ * The meaning of "addr" and "host" varies depending on what "command" is:
+ *		SOCKS_BIND:
+ *			"addr" is local address of "s", to accept connection on.
+ *			"host" is ignored.
+ *		
+ *		SOCKS_BINDREPLY:
+ *			"addr" is the address to say connection is from.
+ *			"host" is the address to send reply to.
+ *
+ * 	SOCKS_CONNECT:
+ *			"addr" is local address of "s".
+ *			"host" is host to connect to.
+ *		
+ *		case SOCKS_UDPASSOCIATE:
+ *			"addr" is local address of "s", to send udp packet from.
+ *			"host" is address to send packet to.
+ *
+ *		case SOCKS_UDPREPLY:
+ *			"addr" is the address to say reply is from.
+ *			"host" is the adress to send reply to.
+ *
+ * "host", "addr", and the address of "s" will be changed if needed.
+ * Returns:
+ *		On success: 0.
+ *		On failure: -1.
+ */
+
+void
+bwsetup __P((void));
+/*
+ * sets up bw structures, must be called at start and after sighup by
+ * main mother, but only main mother.
+ */
+
+void
+bwuse __P((bw_t *bw));
+/*
+ * Marks "bw" as in use.
+ */
+
+void
+bwfree __P((bw_t *bw));
+/*
+ * Says we are no longer using "bw".
+ */
+
+ssize_t
+bwleft __P((const bw_t *bw));
+/*
+ * Returns the bw left in bytes for "bw".
+ */
+
+void
+bwupdate __P((bw_t *bw, size_t bwused, const struct timeval *bwusedtime));
+/*
+ * Updates "bw".  "bwused" is the bandwidth used (in bytes) at time
+ * "bwusedtime".
+ */
+
+struct timeval *
+isbwoverflow __P((bw_t *bw, const struct timeval *timenow,
+					 	struct timeval *overflow));
+/*
+ * Checks whether "bw" would overflow if we transfered more data through it.
+ * "timenow" is the time now.  
+ * Returns:
+ * 	If "bw" would overflow: how long we have to wait until we can again
+ *		transfer data through it.  The memory used for those values is
+ *		"overflow".
+ *		
+ *		If "bw" would not overflow: NULL.  "overflow" is not touched.
+ */
+	
 
 #ifdef DEBUG
 void
@@ -994,4 +1115,11 @@ printfd __P((const struct sockd_io_t *io, const char *prefix));
  */
 #endif
 
+struct in_addr
+getifa __P((struct in_addr addr));
+/*
+ * Returns the address the system would chose to use for connecting
+ * to the ipaddress "addr".
+ * Returns INADDR_NONE on error. 
+ */
 __END_DECLS

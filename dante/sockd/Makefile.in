@@ -1,4 +1,4 @@
-# Makefile.in generated automatically by automake 1.4 from Makefile.am
+# Makefile.in generated automatically by automake 1.4-p4 from Makefile.am
 
 # Copyright (C) 1994, 1995-8, 1999 Free Software Foundation, Inc.
 # This Makefile.in is free software; the Free Software Foundation
@@ -59,29 +59,34 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_alias = @host_alias@
 host_triplet = @host@
+AS = @AS@
 AWK = @AWK@
 CC = @CC@
 CPP = @CPP@
-LD = @LD@
+DLLTOOL = @DLLTOOL@
+ECHO = @ECHO@
+EXEEXT = @EXEEXT@
 LEX = @LEX@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
 MAKEINFO = @MAKEINFO@
-NM = @NM@
+OBJDUMP = @OBJDUMP@
+OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PRELOAD_POSTFIX = @PRELOAD_POSTFIX@
 PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
 PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
+STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 
 sbin_PROGRAMS = sockd
-sockd_SOURCES = sockd.c sockd_child.c io.c sockd_negotiate.c 	sockd_request.c method_uname.c debug.c udp_util.c util.c log.c  	socket.c sockd_socket.c config_parse.y config_scan.l config.c   	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c     	hostcache.c interposition.c broken.c serr.c sockd_io.c accesscheck.c 	auth_password.c auth_pam.c
+sockd_SOURCES = sockd.c sockd_child.c io.c sockd_negotiate.c 	sockd_request.c method_uname.c debug.c udp_util.c util.c log.c  	socket.c sockd_socket.c config_parse.y config_scan.l config.c   	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c     	hostcache.c interposition.c broken.c serr.c sockd_io.c accesscheck.c 	auth_password.c auth_pam.c tostring.c redirect.c redirect_key.c 	addressmatch.c checkmodule.c bandwidth.c bandwidth_key.c getifa.c
 
 
 noinst_HEADERS = config_parse.h
@@ -122,6 +127,7 @@ SUFFIXES = .ln
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = ../include/autoconf.h
 CONFIG_CLEAN_FILES = 
+sbin_PROGRAMS =  sockd$(EXEEXT)
 PROGRAMS =  $(sbin_PROGRAMS)
 
 
@@ -129,12 +135,18 @@ DEFS = @DEFS@ -I. -I$(srcdir) -I../include
 CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-sockd_OBJECTS =  sockd.o sockd_child.o io.o sockd_negotiate.o \
-sockd_request.o method_uname.o debug.o udp_util.o util.o log.o socket.o \
-sockd_socket.o config_parse.o config_scan.o config.o sockd_util.o \
-sockd_protocol.o serverconfig.o lib_protocol.o hostcache.o \
-interposition.o broken.o serr.o sockd_io.o accesscheck.o \
-auth_password.o auth_pam.o
+sockd_OBJECTS =  sockd.$(OBJEXT) sockd_child.$(OBJEXT) io.$(OBJEXT) \
+sockd_negotiate.$(OBJEXT) sockd_request.$(OBJEXT) \
+method_uname.$(OBJEXT) debug.$(OBJEXT) udp_util.$(OBJEXT) \
+util.$(OBJEXT) log.$(OBJEXT) socket.$(OBJEXT) sockd_socket.$(OBJEXT) \
+config_parse.$(OBJEXT) config_scan.$(OBJEXT) config.$(OBJEXT) \
+sockd_util.$(OBJEXT) sockd_protocol.$(OBJEXT) serverconfig.$(OBJEXT) \
+lib_protocol.$(OBJEXT) hostcache.$(OBJEXT) interposition.$(OBJEXT) \
+broken.$(OBJEXT) serr.$(OBJEXT) sockd_io.$(OBJEXT) \
+accesscheck.$(OBJEXT) auth_password.$(OBJEXT) auth_pam.$(OBJEXT) \
+tostring.$(OBJEXT) redirect.$(OBJEXT) redirect_key.$(OBJEXT) \
+addressmatch.$(OBJEXT) checkmodule.$(OBJEXT) bandwidth.$(OBJEXT) \
+bandwidth_key.$(OBJEXT) getifa.$(OBJEXT)
 @STATIC_SOCKD_TRUE@sockd_DEPENDENCIES =  ../libscompat/sockatmark.o
 @STATIC_SOCKD_FALSE@sockd_DEPENDENCIES =  ../libscompat/libscompat.la
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
@@ -158,8 +170,8 @@ OBJECTS = $(sockd_OBJECTS)
 
 all: all-redirect
 .SUFFIXES:
-.SUFFIXES: .S .c .l .ln .lo .o .s .y
-$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) 
+.SUFFIXES: .S .c .l .ln .lo .o .obj .s .y
+$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.ac $(ACLOCAL_M4) 
 	cd $(top_srcdir) && $(AUTOMAKE) --gnu --include-deps sockd/Makefile
 
 Makefile: $(srcdir)/Makefile.in  $(top_builddir)/config.status
@@ -195,6 +207,11 @@ uninstall-sbinPROGRAMS:
 .c.o:
 	$(COMPILE) -c $<
 
+# FIXME: We should only use cygpath when building on Windows,
+# and only if it is available.
+.c.obj:
+	$(COMPILE) -c `cygpath -w $<`
+
 .s.o:
 	$(COMPILE) -c $<
 
@@ -203,6 +220,7 @@ uninstall-sbinPROGRAMS:
 
 mostlyclean-compile:
 	-rm -f *.o core *.core
+	-rm -f *.$(OBJEXT)
 
 clean-compile:
 
@@ -230,8 +248,8 @@ distclean-libtool:
 
 maintainer-clean-libtool:
 
-sockd: $(sockd_OBJECTS) $(sockd_DEPENDENCIES)
-	@rm -f sockd
+sockd$(EXEEXT): $(sockd_OBJECTS) $(sockd_DEPENDENCIES)
+	@rm -f sockd$(EXEEXT)
 	$(LINK) $(sockd_LDFLAGS) $(sockd_OBJECTS) $(sockd_LDADD) $(LIBS)
 .l.c:
 	$(LEX) $(AM_LFLAGS) $(LFLAGS) $< && mv $(LEX_OUTPUT_ROOT).c $@
@@ -289,90 +307,150 @@ distdir: $(DISTFILES)
 	done
 accesscheck.o: accesscheck.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
+addressmatch.o: addressmatch.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 auth_pam.o: auth_pam.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 auth_password.o: auth_password.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
+bandwidth.o: bandwidth.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
+bandwidth_key.o: bandwidth_key.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 broken.o: broken.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
+checkmodule.o: checkmodule.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 config.o: config.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 config_parse.o: config_parse.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 config_scan.o: config_scan.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h config_parse.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h config_parse.h
 debug.o: debug.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
+getifa.o: getifa.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 hostcache.o: hostcache.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 interposition.o: interposition.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 io.o: io.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 lib_protocol.o: lib_protocol.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 log.o: log.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 method_uname.o: method_uname.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
+redirect.o: redirect.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
+redirect_key.o: redirect_key.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 serr.o: serr.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 serverconfig.o: serverconfig.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h config_parse.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h config_parse.h
 sockd.o: sockd.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 sockd_child.o: sockd_child.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 sockd_io.o: sockd_io.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h config_parse.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h config_parse.h
 sockd_negotiate.o: sockd_negotiate.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 sockd_protocol.o: sockd_protocol.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 sockd_request.o: sockd_request.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 sockd_socket.o: sockd_socket.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 sockd_util.o: sockd_util.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 socket.o: socket.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
+tostring.o: tostring.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h config_parse.h
 udp_util.o: udp_util.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 util.o: util.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h \
+	../include/tostring.h
 
 info-am:
 info: info-am

@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.121 2001/05/15 14:45:46 michaels Exp $";
+"$Id: util.c,v 1.128 2001/11/12 14:10:04 michaels Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -62,136 +62,6 @@ strcheck(string)
 	const char *string;
 {
 	return string == NULL ? NOMEM : string;
-}
-
-char *
-sockshost2string(host, string, len)
-	const struct sockshost_t *host;
-	char *string;
-	size_t len;
-{
-
-	if (string == NULL) { /* to ease debugging. */
-		static char hstring[MAXSOCKSHOSTSTRING];
-
-		string = hstring;
-		len = sizeof(hstring);
-	}
-
-	switch (host->atype) {
-		case SOCKS_ADDR_IPV4:
-			snprintfn(string, len, "%s.%d",
-			inet_ntoa(host->addr.ipv4), ntohs(host->port));
-			break;
-
-		case SOCKS_ADDR_IPV6:
-				snprintfn(string, len, "%s.%d",
-				"<IPv6 address not supported>", ntohs(host->port));
-				break;
-
-		case SOCKS_ADDR_DOMAIN: {
-			char *name;
-
-			snprintfn(string, len, "%s.%d",
-			strcheck(name = str2vis(host->addr.domain, strlen(host->addr.domain))),
-			ntohs(host->port));
-			free(name);
-			break;
-		}
-
-		default:
-			SERRX(host->atype);
-	}
-
-	return string;
-}
-
-const char *
-command2string(command)
-	int command;
-{
-
-	switch (command) {
-		case SOCKS_BIND:
-			return SOCKS_BINDs;
-
-		case SOCKS_CONNECT:
-			return SOCKS_CONNECTs;
-
-		case SOCKS_UDPASSOCIATE:
-			return SOCKS_UDPASSOCIATEs;
-
-		/* pseudo commands. */
-		case SOCKS_ACCEPT:
-			return SOCKS_ACCEPTs;
-
-		case SOCKS_BINDREPLY:
-			return SOCKS_BINDREPLYs;
-
-		case SOCKS_UDPREPLY:
-			return SOCKS_UDPREPLYs;
-
-		case SOCKS_DISCONNECT:
-			return SOCKS_DISCONNECTs;
-
-		default:
-			SERRX(command);
-	}
-
-	/* NOTREACHED */
-}
-
-const char *
-method2string(method)
-	int method;
-{
-
-	switch (method) {
-		case AUTHMETHOD_NONE:
-			return AUTHMETHOD_NONEs;
-
-		case AUTHMETHOD_GSSAPI:
-			return AUTHMETHOD_GSSAPIs;
-
-		case AUTHMETHOD_UNAME:
-			return AUTHMETHOD_UNAMEs;
-
-		case AUTHMETHOD_NOACCEPT:
-			return AUTHMETHOD_NOACCEPTs;
-
-		case AUTHMETHOD_RFC931:
-			return AUTHMETHOD_RFC931s;
-
-		case AUTHMETHOD_PAM:
-			return AUTHMETHOD_PAMs;
-
-		default:
-			SERRX(method);
-	}
-
-	/* NOTREACHED */
-}
-
-int
-string2method(methodname)
-	const char *methodname;
-{
-	struct {
-		char	*methodname;
-		int	method;
-	} method[] = {
-		{ AUTHMETHOD_NONEs,		AUTHMETHOD_NONE	},
-		{ AUTHMETHOD_UNAMEs,		AUTHMETHOD_UNAME	},
-		{ AUTHMETHOD_RFC931s,	AUTHMETHOD_RFC931	},
-		{ AUTHMETHOD_PAMs,		AUTHMETHOD_PAM		}
-	};
-	size_t i;
-
-	for (i = 0; i < ELEMENTS(method); ++i)
-		if (strcmp(method[i].methodname, methodname) == 0)
-			return method[i].method;
-
-	return -1;
 }
 
 unsigned char
@@ -238,7 +108,7 @@ sockscode(version, code)
 					return HTTP_SUCCESS;
 
 				case SOCKS_FAILURE:
-					/* CONSTCOND */
+					/* LINTED constant argument to NOT */
 					return !HTTP_SUCCESS;
 
 				default:
@@ -398,126 +268,6 @@ sockaddr2sockshost(addr, host)
 	return host;
 }
 
-const char *
-operator2string(operator)
-	enum operator_t operator;
-{
-
-	switch (operator) {
-		case none:
-			return "none";
-
-		case eq:
-			return "eq";
-
-		case neq:
-			return "neq";
-
-		case ge:
-			return "ge";
-
-		case le:
-			return "le";
-
-		case gt:
-			return "gt";
-
-		case lt:
-			return "lt";
-
-		case range:
-			return "range";
-
-		default:
-			SERRX(operator);
-	}
-
-	/* NOTREACHED */
-}
-
-enum operator_t
-string2operator(string)
-	const char *string;
-{
-
-	if (strcmp(string, "eq") == 0 || strcmp(string, "=") == 0)
-		return eq;
-
-	if (strcmp(string, "neq") == 0 || strcmp(string, "!=") == 0)
-		return neq;
-
-	if (strcmp(string, "ge") == 0 || strcmp(string, ">=") == 0)
-		return ge;
-
-	if (strcmp(string, "le") == 0 || strcmp(string, "<=") == 0)
-		return le;
-
-	if (strcmp(string, "gt") == 0 || strcmp(string, ">") == 0)
-		return gt;
-
-	if (strcmp(string, "lt") == 0 || strcmp(string, "<") == 0)
-		return lt;
-
-	/* parser should make sure this never happens. */
-	SERRX(string);
-
-	/* NOTREACHED */
-}
-
-
-const char *
-ruleaddress2string(address, string, len)
-	const struct ruleaddress_t *address;
-	char *string;
-	size_t len;
-{
-
-	/* for debuging. */
-	if (string == NULL) {
-		static char addrstring[MAXRULEADDRSTRING];
-
-		string = addrstring;
-		len = sizeof(addrstring);
-	}
-
-	switch (address->atype) {
-		case SOCKS_ADDR_IPV4: {
-			char *a, *b;
-
-			snprintfn(string, len, "%s/%s, tcp port: %d, udp port: %d op: %s %d",
-			strcheck(a = strdup(inet_ntoa(address->addr.ipv4.ip))),
-			strcheck(b = strdup(inet_ntoa(address->addr.ipv4.mask))),
-			ntohs(address->port.tcp), ntohs(address->port.udp),
-			operator2string(address->operator),
-			ntohs(address->portend));
-			free(a);
-			free(b);
-			break;
-		}
-
-		case SOCKS_ADDR_DOMAIN:
-			snprintfn(string, len, "%s, tcp port: %d, udp port: %d op: %s %d",
-			address->addr.domain,
-			ntohs(address->port.tcp), ntohs(address->port.udp),
-			operator2string(address->operator),
-			ntohs(address->portend));
-			break;
-
-		case SOCKS_ADDR_IFNAME:
-			snprintfn(string, len, "%s, tcp port: %d, udp port: %d op: %s %d",
-			address->addr.ifname,
-			ntohs(address->port.tcp), ntohs(address->port.udp),
-			operator2string(address->operator),
-			ntohs(address->portend));
-			break;
-
-		default:
-			SERRX(address->atype);
-	}
-
-	return string;
-}
-
 struct sockshost_t *
 ruleaddress2sockshost(address, host, protocol)
 	const struct ruleaddress_t *address;
@@ -602,18 +352,56 @@ sockaddr2ruleaddress(addr, ruleaddr)
 }
 
 struct sockaddr *
-ifname2sockaddr(ifname, addr)
-	const char *ifname;
+hostname2sockaddr(name, index, addr)
+	const char *name;
+	int index;
 	struct sockaddr *addr;
 {
+	struct hostent *hostent;
+	int i;
+
+
+	if ((hostent = gethostbyname(name)) == NULL)
+		return NULL;
+
+	for (i = 0; hostent->h_addr_list[i] != NULL; ++i)
+		if (i == index) {
+			bzero(addr, sizeof(*addr));
+			addr->sa_family = (uint8_t)hostent->h_addrtype;
+#if HAVE_SOCKADDR_SA_LEN
+			addr->sa_len = hostent->h_length;
+#endif /* HAVE_SOCKADDR_SA_LEN */
+			SASSERTX(addr->sa_family == AF_INET);
+			/* LINTED pointer casts may be troublesome */
+			TOIN(addr)->sin_addr = *(struct in_addr *)hostent->h_addr_list[i];
+			/* LINTED pointer casts may be troublesome */
+			TOIN(addr)->sin_port = htons(0);
+			
+			return addr;
+		}
+	
+	return NULL;
+}
+
+struct sockaddr *
+ifname2sockaddr(ifname, index, addr)
+	const char *ifname;
+	int index;
+	struct sockaddr *addr;
+{
+	int i;
 	struct ifaddrs ifa, *ifap = &ifa, *iface; 
 
 	if (getifaddrs(&ifap) != 0)
 		return NULL;
 	 
-	for (iface = ifap; iface != NULL; iface = iface->ifa_next) 
+	for (iface = ifap, i = 0; i <= index && iface != NULL;
+	iface = iface->ifa_next) 
 		if (strcmp(iface->ifa_name, ifname) == 0 
 		&& iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET) { 
+			if (i++ != index)
+				continue;
+
 			*addr = *iface->ifa_addr;
 			freeifaddrs(ifap); 
 			return addr;
@@ -623,66 +411,6 @@ ifname2sockaddr(ifname, addr)
 	return NULL;
 }
 
-const char *
-protocol2string(protocol)
-	int protocol;
-{
-
-	switch (protocol) {
-		case SOCKS_TCP:
-			return PROTOCOL_TCPs;
-
-		case SOCKS_UDP:
-			return PROTOCOL_UDPs;
-
-		default:
-			SERRX(protocol);
-	}
-
-	/* NOTREACHED */
-}
-
-
-char *
-sockaddr2string(address, string, len)
-	const struct sockaddr *address;
-	char *string;
-	size_t len;
-{
-
-	/* for debuging. */
-	if (string == NULL) {
-		static char addrstring[MAXSOCKADDRSTRING];
-
-		string = addrstring;
-		len = sizeof(addrstring);
-	}
-
-	switch (address->sa_family) {
-		case AF_UNIX: {
-			/* LINTED pointer casts may be troublesome */
-			const struct sockaddr_un *addr = (const struct sockaddr_un *)address;
-
-			strncpy(string, addr->sun_path, len - 1);
-			string[len - 1] = NUL;
-			break;
-		}
-
-		case AF_INET: {
-			/* LINTED pointer casts may be troublesome */
-			const struct sockaddr_in *addr = TOCIN(address);
-
-			snprintfn(string, len, "%s.%d",
-			inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
-			break;
-		}
-
-		default:
-			SERRX(address->sa_family);
-	}
-
-	return string;
-}
 
 in_addr_t
 socks_addfakeip(host)
@@ -781,84 +509,12 @@ fakesockaddr2sockshost(addr, host)
 	return host;
 }
 
-const char *
-socks_packet2string(packet, type)
-	  const void *packet;
-	  int type;
-{
-	static char buf[1024];
-	char hstring[MAXSOCKSHOSTSTRING];
-	unsigned char version;
-	const struct request_t *request = NULL;
-	const struct response_t *response = NULL;
-
-	switch (type) {
-		case SOCKS_REQUEST:
-			request = (const struct request_t *)packet;
-			version = request->version;
-			break;
-
-		case SOCKS_RESPONSE:
-			response = (const struct response_t *)packet;
-			version	= response->version;
-			break;
-
-	  default:
-		 SERRX(type);
-  }
-
-	switch (version) {
-		case SOCKS_V4:
-		case SOCKS_V4REPLY_VERSION:
-			switch (type) {
-				case SOCKS_REQUEST:
-					snprintfn(buf, sizeof(buf),
-					"(V4) VN: %d CD: %d address: %s",
-					request->version, request->command,
-					sockshost2string(&request->host, hstring, sizeof(hstring)));
-					break;
-
-				case SOCKS_RESPONSE:
-					snprintfn(buf, sizeof(buf), "(V4) VN: %d CD: %d address: %s",
-					response->version, response->reply,
-					sockshost2string(&response->host, hstring, sizeof(hstring)));
-					break;
-			}
-			break;
-
-		case SOCKS_V5:
-			switch (type) {
-				case SOCKS_REQUEST:
-					snprintfn(buf, sizeof(buf),
-					"VER: %d CMD: %d FLAG: %d ATYP: %d address: %s",
-					request->version, request->command, request->flag,
-					request->host.atype,
-					sockshost2string(&request->host, hstring, sizeof(hstring)));
-					break;
-
-				case SOCKS_RESPONSE:
-					snprintfn(buf, sizeof(buf),
-					"VER: %d REP: %d FLAG: %d ATYP: %d address: %s",
-					response->version, response->reply, response->flag,
-					response->host.atype,
-					sockshost2string(&response->host, hstring, sizeof(hstring)));
-					break;
-			}
-			break;
-
-		default:
-			SERRX(version);
-  }
-
-	return buf;
-}
-
 int
 socks_logmatch(d, log)
 	unsigned int d;
 	const struct logtype_t *log;
 {
-	int i;
+	size_t i;
 
 	for (i = 0; i < log->fpc; ++i)
 		if (d == (unsigned int)log->fplockv[i]
@@ -1241,16 +897,16 @@ socks_lock(descriptor, type, timeout)
 	int type;
 	int timeout;
 {
-/*	const char *function = "socks_lock()"; */
+	const char *function = "socks_lock()"; 
 	struct flock lock;
 	int rc;
+
+	SASSERTX(timeout <= 0);
 
 	lock.l_type		= (short)type;
 	lock.l_start	= 0;
 	lock.l_whence	= SEEK_SET;
 	lock.l_len		= 0;
-
-	SASSERTX(timeout <= 0);
 
 #if 0 /* missing some bits here to handle racecondition. */
 	if (timeout > 0) {
@@ -1279,6 +935,7 @@ socks_lock(descriptor, type, timeout)
 	}
 #endif
 
+retry:
 	do
 		rc = fcntl(descriptor, timeout ? F_SETLKW : F_SETLK, &lock);
 	while (rc == -1 && timeout == -1 && errno == EINTR);
@@ -1291,8 +948,9 @@ socks_lock(descriptor, type, timeout)
 				break;
 
 			case ENOLCK:
+				swarn("%s: fcntl()", function);
 				sleep(1);
-				return socks_lock(descriptor, type, timeout);
+				goto retry; /* don't exhaust the stack by calling socks_lock(). */
 
 			default:
 				SERR(descriptor);
@@ -1406,4 +1064,21 @@ snprintfn(str, size, format, va_alist
 	}
 
 	return MIN(rc, (int)(size - 1));
+}
+
+/*
+ * Posted by Kien Ha (Kien_Ha@Mitel.COM) in comp.lang.c once upon a 
+ * time.
+*/
+int
+bitcount(number)
+	unsigned long number;
+{
+	int bitsset;
+
+	for (bitsset = 0; number > 0; number >>= 1)
+		if (number & 1)
+			++bitsset;
+
+	return bitsset;
 }

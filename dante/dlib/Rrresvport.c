@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rrresvport.c,v 1.19 2001/02/06 15:58:49 michaels Exp $";
+"$Id: Rrresvport.c,v 1.20 2001/10/15 18:00:39 karls Exp $";
 
 /*
  * Note that for this function to work the remote socksserver is required
@@ -55,9 +55,14 @@ int
 Rrresvport(port)
 	int *port;
 {
+	const char *function = "Rrresvport()"; 
 	int s;
 	struct sockaddr name;
 	socklen_t namelen;
+
+	clientinit();
+
+	slog(LOG_DEBUG, "%s", function);  
 
 	if ((s = rresvport(port)) == -1)
 		return -1;

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.44 2001/02/06 15:58:59 michaels Exp $";
+"$Id: udp_util.c,v 1.45 2001/06/18 13:28:33 michaels Exp $";
 
 struct udpheader_t *
 sockaddr2udpheader(to, header)
@@ -102,30 +102,3 @@ udpheader_add(host, msg, len, msgsize)
 	return (char *)newmsg;
 }
 
-struct udpheader_t *
-string2udpheader(data, len, header)
-	const char *data;
-	size_t len;
-	struct udpheader_t *header;
-{
-
-	bzero(header, sizeof(*header));
-
-	if (len < sizeof(header->flag))
-		return NULL;
-	memcpy(&header->flag, data, sizeof(header->flag));
-	data += sizeof(header->flag);
-	len -= sizeof(header->flag);
-
-	if (len < sizeof(header->frag))
-		return NULL;
-	memcpy(&header->frag, data, sizeof(header->frag));
-	data += sizeof(header->frag);
-	len -= sizeof(header->frag);
-
-	if ((data = (const char *)mem2sockshost(&header->host,
-	(const unsigned char *)data, len, SOCKS_V5)) == NULL)
-		return NULL;
-
-	return header;
-}

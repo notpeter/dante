@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.163 2001/02/06 15:58:41 michaels Exp $ */
+/* $Id: socks.h,v 1.164 2001/10/06 12:37:11 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -678,7 +678,7 @@ __P((HAVE_PROT_RECVFROM_1, HAVE_PROT_RECVFROM_2, HAVE_PROT_RECVFROM_3, HAVE_PROT
 #endif
 
 #if HAVE_OSF_OLDSTYLE
-ssize_t sys_writev __P((int, struct iovec *, int));
+ssize_t sys_writev __P((int, const struct iovec *, int));
 #else
 HAVE_PROT_WRITEV_0 sys_writev
 __P((HAVE_PROT_WRITEV_1, HAVE_PROT_WRITEV_2, HAVE_PROT_WRITEV_3));

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.9 2001/05/15 13:45:31 karls Exp $";
+"$Id: accesscheck.c,v 1.10 2001/11/11 13:38:32 michaels Exp $";
 
 
 /* ARGSUSED */
@@ -161,7 +161,7 @@ accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
 		 */
 		switch (auth->method) {
 			case AUTHMETHOD_PAM:
-				if (config.state.unfixedpamdata)
+				if (socksconfig.state.unfixedpamdata)
 					break;
 				/* else; */ /* FALLTHROUGH */
 

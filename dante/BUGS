@@ -1,4 +1,4 @@
-# $Id: BUGS,v 1.20 2001/05/10 12:54:43 michaels Exp $
+# $Id: BUGS,v 1.21 2001/10/16 11:49:20 michaels Exp $
 
 To report a new bug, mail dante-bugs@inet.no.  Make sure you read
 the faq first.
@@ -6,7 +6,7 @@ the faq first.
 	Things known not to work:
 
 - there appear to be some problems with "socksify" and nis on at least
-  some systems.
+  some systems.  Somebody needs to look into what the problem is.
 
 - documentation could be much better.  You can help with that by
   actually contributing something yourself.

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.71 2001/05/02 11:37:15 michaels Exp $";
+"$Id: Raccept.c,v 1.74 2001/10/15 18:00:37 karls Exp $";
 
 int
 Raccept(s, addr, addrlen)
@@ -59,6 +59,10 @@ Raccept(s, addr, addrlen)
 	struct socksfd_t *socksfd;
 	fd_set rset;
 	int fdbits, p, iotype, remote;
+
+	clientinit();
+
+	slog(LOG_DEBUG, "%s", function);  
 
 	/* can't call Raccept() on unknown descriptors. */
 	if (!socks_addrisok((unsigned int)s)) {
@@ -176,14 +180,17 @@ Raccept(s, addr, addrlen)
 						sockaddr2sockshost(&accepted, &packet.req.host);
 						packet.req.auth		= &socksfd->state.auth;
 
-						if (socks_sendrequest(socksfd->control, &packet.req) != 0)
+						if (socks_sendrequest(socksfd->control, &packet.req) != 0) {
+							close(remote);
 							return -1;
+						}
 
 						if (socks_recvresponse(socksfd->control, &packet.res,
 						packet.req.version) != 0) {
 #if SOCKS_TRYHARDER
 							socks_unlock(socksfd->state.lock);
 #endif
+							close(remote);
 							return -1;
 						}
 
@@ -193,6 +200,8 @@ Raccept(s, addr, addrlen)
 #if SOCKS_TRYHARDER
 							socks_unlock(socksfd->state.lock);
 #endif
+							close(remote);
+							errno = ECONNABORTED;
 							return -1;
 						}
 
@@ -204,9 +213,10 @@ Raccept(s, addr, addrlen)
 
 					case MSPROXY_V2:
 						if (sockaddrareeq(&socksfd->reply, &accepted)) {
-							/* socksfd->accepted filled in by sigio(). */
-							accepted = socksfd->accepted;
-							sockaddr2sockshost(&socksfd->accepted, &packet.res.host);
+							/* socksfd->forus.accepted filled in by sigio(). */
+							accepted = socksfd->forus.accepted;
+							sockaddr2sockshost(&socksfd->forus.accepted,
+							&packet.res.host);
 
 							/* seems to support only one forward. */
 							socksfd->state.acceptpending = 0;
@@ -225,7 +235,7 @@ Raccept(s, addr, addrlen)
 					socksfd = socks_addaddr((unsigned int)remote, socksfd);
 
 					fakesockshost2sockaddr(&packet.res.host, &accepted);
-					socksfd->accepted = accepted;
+					socksfd->forus.accepted = accepted;
 
 					/* has a different local address if INADDR_ANY was bound. */
 
@@ -260,7 +270,7 @@ Raccept(s, addr, addrlen)
 				}
 
 				fakesockshost2sockaddr(&packet.res.host, &accepted);
-				socksfd->accepted = accepted;
+				socksfd->forus.accepted = accepted;
 				remote = socksfd->control;
 				break;
 

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.112 2001/05/02 11:37:16 michaels Exp $";
+"$Id: Rconnect.c,v 1.116 2001/11/11 13:38:21 michaels Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -60,8 +60,20 @@ Rconnect(s, name, namelen)
 	char namestring[MAXSOCKADDRSTRING];
 	int type, p;
 
-	if (name->sa_family != AF_INET)
+	clientinit();
+
+	if (name == NULL) {
+		slog(LOG_DEBUG,
+		"%s: sockaddr argument NULL, fallback to system connect()", function);
 		return connect(s, name, namelen);
+	}
+
+	if (name->sa_family != AF_INET) {
+		slog(LOG_DEBUG,
+		"%s: unsupported address family '%d', fallback to system connect()",
+		function, name->sa_family);
+		return connect(s, name, namelen);
+	}
 
 	slog(LOG_DEBUG, "%s: %s",
 	function, sockaddr2string(name, namestring, sizeof(namestring)));
@@ -125,7 +137,7 @@ Rconnect(s, name, namelen)
 				}
 
 				socksfd->state.udpconnect	= 1;
-				socksfd->connected			= *name;
+				socksfd->forus.connected	= *name;
 
 				return 0;
 			}
@@ -258,7 +270,7 @@ Rconnect(s, name, namelen)
 	socksfd->state.protocol.tcp	= 1;
 	socksfd->state.msproxy			= packet.state.msproxy;
 	sockshost2sockaddr(&packet.res.host, &socksfd->remote);
-	socksfd->connected					= *name;
+	socksfd->forus.connected		= *name;
 
 	/* LINTED pointer casts may be troublesome */
 	if (TOIN(&socksfd->local)->sin_port != htons(0)
@@ -290,7 +302,7 @@ Rconnect(s, name, namelen)
 
 	socks_addaddr((unsigned int)s, socksfd);
 
-	config.state.lastconnect = *name;	/* needed for standard socks bind. */
+	socksconfig.state.lastconnect = *name;	/* needed for standard socks bind. */
 
 	return 0;
 }

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.45 2001/05/15 13:45:30 karls Exp $ */
+/* $Id: config.h,v 1.46 2001/07/11 10:04:30 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -202,7 +202,11 @@
  * You can probably set this to a big number.
  * Each client will occupy one descriptor.
  */
+#if DEBUG
+#define SOCKD_NEGOTIATEMAX			2
+#else
 #define SOCKD_NEGOTIATEMAX			24
+#endif /* DEBUG */
 
 /*
  * max number of clients each i/o process will handle.
@@ -212,7 +216,11 @@
  * from doing any i/o untill a i/o slot has become available.  It is
  * therefore important that enough i/o slots are available at all times.
  */
+#if DEBUG
+#define SOCKD_IOMAX					2
+#else
 #define SOCKD_IOMAX					8
+#endif /* DEBUG */
 
 /* server buffersize for network i/o using TCP. */
 #define SOCKD_BUFSIZETCP			(1024 * 16)

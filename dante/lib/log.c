@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.48 2001/05/13 13:59:38 michaels Exp $";
+"$Id: log.c,v 1.54 2001/11/11 13:38:27 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -66,14 +66,14 @@ newprocinit(void)
 {
 
 #if SOCKS_SERVER	/* don't want to override original clients stuff. */
-	if (config.log.type & LOGTYPE_SYSLOG) {
+	if (socksconfig.log.type & LOGTYPE_SYSLOG) {
 		closelog();
 
 		/*
 		 * LOG_NDELAY so we don't end up in a situation where we
 		 * have no free descriptors and haven't yet syslog-ed anything.
 		 */
-		openlog(__progname, LOG_NDELAY | LOG_PID, config.log.facility);
+		openlog(__progname, LOG_NDELAY | LOG_PID, socksconfig.log.facility);
 	}
 #endif /* SOCKS_SERVER */
 
@@ -81,7 +81,7 @@ newprocinit(void)
 	symbolcheck();
 #endif
 
-	config.state.pid = getpid();
+	socksconfig.state.pid = getpid();
 
 }
 
@@ -119,28 +119,41 @@ vslog(priority, message, ap)
 	const int errno_s = errno;
 	char buf[2048];
 
-	if (!config.state.init) {
+#if SOCKS_SERVER /* no idea where stdout points to in client case. */
+	if (!socksconfig.state.init) {
 		if (logformat(priority, buf, sizeof(buf), message, ap) != NULL)
 			fprintf(stdout, "%s\n", buf);
 		return;
 	}
+#endif 
 
-	if (config.log.type & LOGTYPE_SYSLOG)
-		if (priority == LOG_DEBUG && config.state.init && !config.option.debug)
+	if (socksconfig.log.type & LOGTYPE_SYSLOG)
+		if (priority == LOG_DEBUG && socksconfig.state.init
+		&& !socksconfig.option.debug)
 			; /* don't waste resources on this. */
 		else
 			vsyslog(priority, message, ap);
 
-	if (config.log.type & LOGTYPE_FILE) {
-		int i;
+	if (socksconfig.log.type & LOGTYPE_FILE) {
+		size_t i;
 
 		if (logformat(priority, buf, sizeof(buf), message, ap) == NULL)
 			return;
 
-		for (i = 0; i < config.log.fpc; ++i) {
-			socks_lock(config.log.fplockv[i], F_WRLCK, -1);
-			fprintf(config.log.fpv[i], "%s\n", buf);
-			socks_unlock(config.log.fplockv[i]);
+		for (i = 0; i < socksconfig.log.fpc; ++i) {
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC /* XXX should not need SOCKS_CLIENT. */
+			SYSCALL_START(fileno(socksconfig.log.fpv[i]));
+#endif
+
+			socks_lock(socksconfig.log.fplockv[i], F_WRLCK, -1);
+			fprintf(socksconfig.log.fpv[i], "%s%s",
+			buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
+/*			fflush(socksconfig.log.fpv[i]); */ /* XXX needed or not?  why? */
+			socks_unlock(socksconfig.log.fplockv[i]);
+
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+			SYSCALL_END(fileno(socksconfig.log.fpv[i]));
+#endif
 		}
 	}
 
@@ -160,7 +173,7 @@ logformat(priority, buf, buflen, message, ap)
 
 	switch (priority) {
 		case LOG_DEBUG:
-			if (config.state.init && !config.option.debug)
+			if (socksconfig.state.init && !socksconfig.option.debug)
 				return NULL;
 			break;
 
@@ -172,7 +185,7 @@ logformat(priority, buf, buflen, message, ap)
 	bufused += snprintfn(&buf[bufused], buflen - bufused, "%s[%lu]: ",
 	__progname,
 #if SOCKS_SERVER
-	(unsigned long)config.state.pid
+	(unsigned long)socksconfig.state.pid
 #else /* !SOCKS_SERVER, can't trust saved state. */
 	(unsigned long)getpid()
 #endif /* !SOCKS_SERVER */

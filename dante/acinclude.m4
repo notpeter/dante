@@ -1,4 +1,58 @@
-# -- acinclude --
+# -- acinclude start --
+
+#can it really be this simple?
+#nope, doesn't handle coff files which also have no underscore
+AC_DEFUN(L_SYMBOL_UNDERSCORE,
+[AC_MSG_CHECKING(for object file type)
+AC_TRY_RUN([
+/* look for ELF identification header at the start of argv[0] */
+
+#include <stdio.h>
+#include <fcntl.h>
+#include <string.h>
+
+/*
+ * ELF header, from ELF standard (Portable Formats Specification,
+ *  Version 1.1).
+ */
+char elfheader[] = { 0x7f, 'E', 'L', 'F' };
+
+int
+main (argc, argv)
+	int argc;
+	char *argv[];
+{
+	int fd;
+	int len = sizeof(elfheader);
+	char header[len];
+
+	if ((fd = open(argv[0], O_RDONLY, 0)) == -1) {
+		perror("open");
+		exit(1);
+	}
+	if (read(fd, header, len) != len) {
+		perror("read");
+		exit(1);
+	}
+	if (memcmp(header, elfheader, len) == 0)
+		exit(0); /* pointy ears */
+	else
+		exit(1);
+}
+], [AC_MSG_RESULT(elf)
+    AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)],
+   [
+	#XXX exceptions for coff platforms, should be detected automatically
+	case $host in
+		alpha*-dec-osf*)
+			AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)
+			AC_MSG_RESULT(coff)
+			;;
+		*)
+			AC_MSG_RESULT(a.out)
+			;;
+	esac])])
+
 
 define(testparam,[
 _arg=[$2]
@@ -158,3 +212,4 @@ fi
 
 rm -f conftest.*
 ])dnl
+# -- acinclude end --

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.27 2001/02/06 15:58:58 michaels Exp $";
+"$Id: socket.c,v 1.28 2001/09/04 12:28:17 michaels Exp $";
 
 int
 socks_connect(s, host)
@@ -52,7 +52,7 @@ socks_connect(s, host)
 	const struct sockshost_t *host;
 {
 	const char *function = "socks_connect()";
-	int new_s;
+	int failed;
 	struct hostent *hostent;
 	struct sockaddr_in address;
 	char **ip;
@@ -78,59 +78,84 @@ socks_connect(s, host)
 			SERRX(host->atype);
 	}
 
-	if (hostent == NULL)
+	if (hostent == NULL || (ip = hostent->h_addr_list) == NULL)
 		return -1;
 
-	new_s = -1;
-	ip = hostent->h_addr_list;
+	failed = 0;
 	do {
-		if (new_s == -1)
-			new_s = s;	/* try to use given descriptor before creating our own. */
-		else
+		if (failed) {	/* previosly failed, need to create a new socket. */
+			struct sockaddr name;
+			socklen_t namelen;
+			int new_s;
+
+			/* will also try to get the same portbinding. */
+			namelen = sizeof(name);
+			if (getsockname(s, &name, &namelen) != 0)
+				return -1;
+
 			if ((new_s = socketoptdup(s)) == -1)
 				return -1;
+
+			if (dup2(new_s, s) == -1) {
+				close(new_s);
+				return -1;
+			}
+			close(new_s); /* s is now a new socket but keeps the same index. */
+
+#if SOCKS_SERVER
+			if (sockd_bind(s, &name, 1) != 0)
+				return -1;
+#else /* SOCKS_SERVER */
+			if (bind(s, &name, namelen) != 0)
+				return -1;
+#endif /* !SOCKS_SERVER */
+
+		}
 
 		/* LINTED pointer casts may be troublesome */
 		address.sin_addr = *((struct in_addr *)*ip);
 
 		/* LINTED pointer casts may be troublesome */
-		if (connect(new_s, (struct sockaddr *)&address, sizeof(address)) == 0)
+		if (connect(s, (struct sockaddr *)&address, sizeof(address)) == 0)
 			break;
 
-		if (new_s != s)
-			close(new_s);
+#if SOCKS_SERVER /* clients may have set up alarms to interrupt. */
+		if (errno == EINTR) {
+			fd_set rset;
+
+			FD_ZERO(&rset);
+			FD_SET(s, &rset);
+
+			if (selectn(s + 1, &rset, NULL, NULL, NULL) != 1)
+				SERR(0);
+
+			if (read(s, NULL, 0) == 0)
+				break; 
+			/*
+			 * else; errno gets set and we can handle it as there was no
+			 * interrupt.
+			 */
+		}
+#endif /* SOCKS_SERVER */				
 
 		/*
-		 * Only try next address if errno indicates server/network error.
+		 * Only retry/try next address if errno indicates server/network error.
 		 */
 		switch (errno) {
 			case ETIMEDOUT:
 			case EINVAL:
 			case ECONNREFUSED:
 			case ENETUNREACH:
+				failed = 1;
 				break;
 
 			default:
 				return -1;
 		}
-	} while (ip != NULL && *++ip != NULL);
+	} while (*++ip != NULL);
 
-	if (ip == NULL || *ip == NULL)
+	if (*ip == NULL)
 		return -1; /* list exhausted, no successful connect. */
-
-	if (new_s != s) {	/* had to create a new socket of our own. */
-		if (dup2(new_s, s) == -1) {
-			close(new_s);
-			return -1;
-		}
-		close(new_s);
-
-#if SOCKS_SERVER && HAVE_LIBWRAP
-		if ((new_s = fcntl(s, F_GETFD, 0)) == -1
-		|| fcntl(s, F_SETFD, new_s | FD_CLOEXEC) == -1)
-			swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
-#endif
-	}
 
 	return 0;
 }

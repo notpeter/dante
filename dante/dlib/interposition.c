@@ -41,15 +41,13 @@
  *
  */
 
-#define WE_DONT_WANT_NO_SOCKADDR_ARG_UNION
-
 #include "common.h"
 
 #if SOCKSLIBRARY_DYNAMIC
 
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.74 2001/02/06 15:58:22 michaels Exp $";
+"$Id: interposition.c,v 1.76 2001/11/08 16:09:48 karls Exp $";
 
 #undef accept
 #undef bind
@@ -462,7 +460,7 @@ sys_send(s, msg, len, flags)
 	SEND_FUNC_T function;
 
 	SYSCALL_START(s);
-	function = symbolfunction(SYMBOL_SEND);
+	function = (SEND_FUNC_T)symbolfunction(SYMBOL_SEND);
 	rc = function(s, msg, len, flags);
 	SYSCALL_END(s);
 	return rc;

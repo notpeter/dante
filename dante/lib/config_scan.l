@@ -48,11 +48,11 @@
 #include "yacconfig.h"
 #include "config_parse.h"
 
-extern int parseinit;
-extern const int configtype;
+extern int socks_parseinit;
+extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.61 2001/05/10 12:31:25 michaels Exp $";
+"$Id: config_scan.l,v 1.67 2001/11/11 13:38:25 michaels Exp $";
 
 %}
 
@@ -93,10 +93,10 @@ PORTNUMBER [0-9]{1,5}
 
 
 %{
-	if (!parseinit) {
-		parseinit = 1;
+	if (!socks_parseinit) {
+		socks_parseinit = 1;
 
-		switch (configtype) {
+		switch (socks_configtype) {
 			case CONFIGTYPE_SERVER:
 				return SERVERCONFIG;
 
@@ -104,7 +104,7 @@ PORTNUMBER [0-9]{1,5}
 				return CLIENTCONFIG;
 
 			default:
-				SERRX(configtype);
+				SERRX(socks_configtype);
 		}
 	}
 %}
@@ -229,7 +229,7 @@ PORTNUMBER [0-9]{1,5}
 	BEGIN(start_port);
 
 	yylval.string = yytext;
-	return DOMAIN;
+	return DOMAINNAME;
 }
 
 <start_address>[a-zA-Z]+[0-9]+ {
@@ -343,6 +343,15 @@ command {
 	return COMMAND;
 }
 
+redirect {
+	yylval.string = yytext;
+	return REDIRECT;
+}
+
+bandwidth {
+	yylval.string = yytext;
+	return BANDWIDTH;
+}
 
 from {
 	BEGIN(start_address);
@@ -373,12 +382,29 @@ internal {
 	return INTERNAL;
 }
 
+external.rotation {
+	yylval.string = yytext;
+	return EXTERNAL_ROTATION;
+}
+
+route {
+	yylval.string = yytext;
+	return ROUTE;
+}
+
+none {
+	yylval.string = yytext;
+	return NONE;
+}
+
+
 external {
 	BEGIN(start_address);
 
 	yylval.string = yytext;
 	return EXTERNAL;
 }
+
 
 user {
 	BEGIN(start_username);
@@ -527,7 +553,7 @@ libwrap {
 	return LIBWRAPSTART;
 }
 
-pamservicename {
+pam\.servicename|pamservicename {
 	BEGIN(start_servicename);
 
 	yylval.string = yytext;

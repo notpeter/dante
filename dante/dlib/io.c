@@ -44,11 +44,13 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.51 2001/05/08 12:03:17 michaels Exp $";
+"$Id: io.c,v 1.53 2001/11/12 14:10:03 michaels Exp $";
 
 /* this file defines the functions. */
 #undef select
 #undef close
+#undef recvmsg
+#undef sendmsg
 
 
 ssize_t
@@ -58,6 +60,7 @@ readn(d, buf, nbytes, auth)
 	size_t nbytes;
 	struct authmethod_t *auth;
 {
+	const char *function = "readn()";
 	ssize_t p;
 	size_t left = nbytes;
 
@@ -68,6 +71,18 @@ readn(d, buf, nbytes, auth)
 			if (errno == EINTR)
 				continue;
 #endif
+
+			if (errno == EAGAIN) {
+				fd_set rset;
+				
+				FD_ZERO(&rset);
+				FD_SET(d, &rset);
+				if (select(d + 1, &rset, NULL, NULL, NULL) == -1)
+					swarn("%s: select()", function);
+
+				continue;
+			}
+
 			break;
 		}
 		else if (p == 0)
@@ -88,6 +103,7 @@ writen(d, buf, nbytes, auth)
 	size_t nbytes;
 	struct authmethod_t *auth;
 {
+	const char *function = "writen()";
 	ssize_t p;
 	size_t left = nbytes;
 
@@ -98,6 +114,17 @@ writen(d, buf, nbytes, auth)
 			if (errno == EINTR)
 				continue;
 #endif
+			if (errno == EAGAIN) {
+				fd_set wset;
+				
+				FD_ZERO(&wset);
+				FD_SET(d, &wset);
+				if (select(d + 1, NULL, &wset , NULL, NULL) == -1)
+					swarn("%s: select()", function);
+
+				continue;
+			}
+
 			break;
 		}
 		left -= p;
@@ -170,14 +197,17 @@ socks_sendto(s, msg, len, flags, to, tolen, auth)
 
 
 ssize_t
-recvmsgn(s, msg, flags, len)
+recvmsgn(s, msg, flags)
 	int s;
 	struct msghdr *msg;
 	int flags;
-	size_t len;
 {
-	size_t left = len;
+	const char *function = "recvmsgn()";
 	ssize_t p;
+	size_t len, left;
+
+	for (p = len = 0; p < (ssize_t)msg->msg_iovlen; ++p)
+		len += msg->msg_iov[p].iov_len;
 
 	while ((p = recvmsg(s, msg, flags)) == -1 && errno == EINTR)
 #if SOCKS_SERVER
@@ -194,22 +224,19 @@ recvmsgn(s, msg, flags, len)
 		 * to get rid of, so we have to check for it ourselves and close it,
 		 * else it just gets lost in the void.
 		 */
-		size_t i;
-		int leaked;
-		caddr_t mem;
+		size_t leaked;
+		int d;
 
-		mem = msg->msg_accrights;
-		for (i = 0; i * sizeof(leaked) < msg->msg_accrightslen; ++i) {
-			memcpy(&leaked, mem, sizeof(leaked));
-			mem += sizeof(leaked);
-			close(leaked);
+		for (leaked = 0; leaked * sizeof(d) < CMSG_GETLEN(*msg); ++leaked) {
+			CMSG_GETOBJECT(d, CMSG_CONTROLDATA(*msg), leaked * sizeof(d));
+			close(d);
 		}
 	}
 #endif /* HAVE_SOLARIS_BUGS */
 
 	if (p <= 0)
 		return p;
-	left -= p;
+	left = len - p;
 
 	if (left > 0) {
 		size_t i, count, done;
@@ -227,10 +254,27 @@ recvmsgn(s, msg, flags, len)
 			const struct iovec *io = &msg->msg_iov[i];
 
 			count += io->iov_len;
-			if (count > done) {
-				if ((p = readn(s, &((char *)(io->iov_base))[io->iov_len -
-				(count - done)], count - done, NULL)) != ((ssize_t)(count - done)))
+			if (count > done) { /* didn't read all of this iovec. */
+				if ((p = readn(s,
+				&((char *)(io->iov_base))[io->iov_len - (count - done)],
+				count - done, NULL)) != ((ssize_t)(count - done))) {
+					/*
+					 * Failed to read all data, close any descriptors we
+					 * may have gotten then.
+					 */
+					size_t leaked;
+					int d;
+
+					swarn("%s: %d bytes left", function, left);
+
+					for (leaked = 0; leaked * sizeof(d) < CMSG_GETLEN(*msg);
+					++leaked) {
+						CMSG_GETOBJECT(d, CMSG_CONTROLDATA(*msg), leaked * sizeof(d));
+						close(d);
+					}
+
 					break;
+				}
 
 				left -= p;
 				done += p;
@@ -244,6 +288,72 @@ recvmsgn(s, msg, flags, len)
 		return p; /* nothing read. */
 	return len - left;
 }
+
+ssize_t
+sendmsgn(s, msg, flags)
+	int s;
+	const struct msghdr *msg;
+	int flags;
+{
+	const char *function = "sendmsgn()";
+	ssize_t p;
+	size_t len, left;
+
+	for (p = len = 0; p < (ssize_t)msg->msg_iovlen; ++p)
+		len += msg->msg_iov[p].iov_len;
+
+	while ((p = sendmsg(s, msg, flags)) == -1 && errno == EINTR)
+#if SOCKS_SERVER
+		;
+#else
+		return -1;
+#endif
+
+	if (p <= 0)
+		return p;
+	left = len - p;
+
+	if (left > 0) {
+		size_t i, count, done;
+
+		/*
+		 * Can't call sendmsg() again since we could be sending ancillary data,
+		 * send the elements one by one.
+		 */
+
+		SASSERTX(p >= 0);
+
+		done = p;
+		i = count = p = 0;
+		while (i < msg->msg_iovlen && left > 0) {
+			const struct iovec *io = &msg->msg_iov[i];
+
+			count += io->iov_len;
+			if (count > done) { /* didn't send all of this iovec. */
+				while ((p = writen(s,
+				&((char *)(io->iov_base))[io->iov_len - (count - done)],
+				count - done, NULL)) != ((ssize_t)(count - done))) {
+					/*
+					 * yes, we only re-try once.  What errors should we
+					 * retry again on?
+					 */
+					swarn("%s: failed on re-try", function);
+					break;
+				}
+
+				left -= p;
+				done += p;
+			}
+
+			++i;
+		}
+	}
+
+	if (left == len)
+		return p; /* nothing read. */
+	return len - left;
+}
+
 
 int
 closen(d)

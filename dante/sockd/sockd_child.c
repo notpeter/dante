@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.125 2001/02/06 15:59:08 michaels Exp $";
+"$Id: sockd_child.c,v 1.131 2001/11/11 13:38:39 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -268,9 +268,9 @@ addchild(type)
 			size_t i, maxfd;
 			struct sigaction sigact;
 
-			config.state.type	= type;
+			socksconfig.state.type	= type;
 
-			config.state.pid	= getpid(); /* for logmessage. */
+			socksconfig.state.pid	= getpid(); /* for logmessage. */
 			slog(LOG_DEBUG, "created new %schild", childtype2string(type));
 #if 0
 			slog(LOG_DEBUG, "sleeping...");
@@ -291,8 +291,9 @@ addchild(type)
 			 *		could need privileges to bind port.
 			 *
 			 * io children:
-			 *		doesn't really need any, but a sighup() performs misc.
-			 *		seteuid() tests that would fail if we lose privileges.
+			 *		could need privileges to bind port if using redirect()
+			 * 	module, also SIGHUP performs misc. seteuid() tests that
+			 *    could fail if we lose privileges.
 			 */
 
 			switch (type) {
@@ -348,7 +349,7 @@ addchild(type)
 				||	i == (size_t)mother.ack)
 					continue;
 
-				if (socks_logmatch(i, &config.log))
+				if (descriptorisreserved(i))
 					continue;
 
 				close((int)i);
@@ -453,11 +454,11 @@ childcheck(type)
 	}
 
 	if (type >= 0)
-		if (proxyc < min && config.state.addchild)
+		if (proxyc < min && socksconfig.state.addchild)
 			if (addchild(type) != NULL)
 				return childcheck(type);
 			else
-				config.state.addchild = 0;	/* don't retry until a child dies. */
+				socksconfig.state.addchild = 0;	/* don't retry until a child dies. */
 
 	return proxyc;
 }
@@ -466,6 +467,7 @@ int
 fillset(set)
 	fd_set *set;
 {
+	const char *function = "fillset()";
 	int negc, reqc, ioc;
 	int i, dbits;
 
@@ -484,10 +486,10 @@ fillset(set)
 
 	/* new clients we accept. */
 	if (negc > 0)
-		for (i = 0; i < config.internalc; ++i) {
-			SASSERTX(config.internalv[i].s >= 0);
-			FD_SET(config.internalv[i].s, set);
-			dbits = MAX(dbits, config.internalv[i].s);
+		for (i = 0; i < socksconfig.internalc; ++i) {
+			SASSERTX(socksconfig.internalv[i].s >= 0);
+			FD_SET(socksconfig.internalv[i].s, set);
+			dbits = MAX(dbits, socksconfig.internalv[i].s);
 		}
 
 	/* negotiator children. */
@@ -628,8 +630,10 @@ removechild(pid)
 	close((*childv)[child].ack);
 
 	/* shift all following one down */
-	while (child < *childc - 1)
-		(*childv)[child] = (*childv)[++child];
+	while (child < *childc - 1) {
+		(*childv)[child] = (*childv)[child + 1];
+		++child;
+	}
 	--*childc;
 
 	if ((newchildv = (struct sockd_child_t *)realloc(*childv,
@@ -808,7 +812,7 @@ send_io(s, io)
 	struct iovec iovec[1];
 	struct msghdr msg;
 	int w, fdsent, length;
-	CMSG_AALLOC(sizeof(int) * FDPASS_MAX);
+	CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
 
 	length = 0;
@@ -818,8 +822,8 @@ send_io(s, io)
 	length				  += iovec[0].iov_len;
 
 	fdsent = 0;
-	CMSG_ADDOBJECT(io->src.s, sizeof(io->src.s) * fdsent++);
-	CMSG_ADDOBJECT(io->dst.s, sizeof(io->dst.s) * fdsent++);
+	CMSG_ADDOBJECT(io->src.s, cmsg, sizeof(io->src.s) * fdsent++);
+	CMSG_ADDOBJECT(io->dst.s, cmsg, sizeof(io->dst.s) * fdsent++);
 
 	switch (io->state.command) {
 		case SOCKS_BIND:
@@ -829,7 +833,7 @@ send_io(s, io)
 			/* else: */ /* FALLTHROUGH */
 
 		case SOCKS_UDPASSOCIATE:
-			CMSG_ADDOBJECT(io->control.s, sizeof(io->control.s) * fdsent++);
+			CMSG_ADDOBJECT(io->control.s, cmsg, sizeof(io->control.s) * fdsent++);
 			break;
 
 		case SOCKS_CONNECT:
@@ -844,14 +848,14 @@ send_io(s, io)
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
+	CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
 
 	if ((w = sendmsg(s, &msg, 0)) != length)	{
 		swarn("%s: sendmsg(): %d of %d", function, w, length);
 		return -1;
 	}
 
-#if DEBUG
+#if HARDCORE_DEBUG
 	printfd(io, "sent");
 #endif
 
@@ -868,7 +872,7 @@ send_client(s, client)
 	const char command = SOCKD_NEWREQUEST;
 	struct iovec iovec[1];
 	struct msghdr msg;
-	CMSG_AALLOC(sizeof(int));
+	CMSG_AALLOC(cmsg, sizeof(int));
 	int fdsent;
 
 	/* LINTED operands have incompatible pointer types */
@@ -876,14 +880,14 @@ send_client(s, client)
 	iovec[0].iov_len		= sizeof(command);
 
 	fdsent = 0;
-	CMSG_ADDOBJECT(client, sizeof(client) * fdsent++);
+	CMSG_ADDOBJECT(client, cmsg, sizeof(client) * fdsent++);
 
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
+	CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
 
 	if (sendmsg(s, &msg, 0) != sizeof(command))	{
 		swarn("%s: sendmsg()", function);
@@ -902,21 +906,21 @@ send_req(s, req)
 	struct iovec iovec[1];
 	struct msghdr msg;
 	int fdsent;
-	CMSG_AALLOC(sizeof(int));
+	CMSG_AALLOC(cmsg, sizeof(int));
 
 	/* LINTED operands have incompatible pointer types */
 	iovec[0].iov_base		= (const void *)req;
 	iovec[0].iov_len		= sizeof(*req);
 
 	fdsent = 0;
-	CMSG_ADDOBJECT(req->s, sizeof(req->s) * fdsent++);
+	CMSG_ADDOBJECT(req->s, cmsg, sizeof(req->s) * fdsent++);
 
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
+	CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
 
 	if (sendmsg(s, &msg, 0) != sizeof(*req))	{
 		swarn("%s: sendmsg()", function);
@@ -924,31 +928,6 @@ send_req(s, req)
 	}
 
 	return 0;
-}
-
-const char *
-childtype2string(type)
-	int type;
-{
-
-	switch (type) {
-		case CHILD_IO:
-			return "io";
-
-		case CHILD_MOTHER:
-			return "mother";
-
-		case CHILD_NEGOTIATE:
-			return "negotiator";
-
-		case CHILD_REQUEST:
-			return "request";
-
-		default:
-			SERRX(type);
-	}
-
-	/* NOTREACHED */
 }
 
 void

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.8 2001/02/06 15:58:55 michaels Exp $";
+"$Id: httpproxy.c,v 1.9 2001/08/27 13:38:19 michaels Exp $";
 
 int
 httpproxy_negotiate(s, packet)
@@ -103,7 +103,7 @@ httpproxy_negotiate(s, packet)
 			buf[len] = NUL;
 		}
 
-		if ((eol = strstr(buf, terminator)) != NULL) { /* new line. */
+		while ((eol = strstr(buf, terminator)) != NULL) { /* new line. */
 			*eol = NUL;
 			slog(LOG_DEBUG, "%s: read: %s", function, buf);
 
@@ -166,9 +166,10 @@ httpproxy_negotiate(s, packet)
 			buf[len] = NUL;
 
 			if (strncmp(buf, terminator, strlen(terminator)) == 0)
-				break;	/* empty line, all done. */
+				eof = 1;	/* empty line, all done. */
 		}
-		else if (eof) { /* won't get any new line, dump what we have. */
+
+		if (eof && !checked) { /* won't get any new line, dump what we have. */
 			slog(LOG_DEBUG, "%s: read: %s", function, buf);
 			len = 0;
 			buf[len] = 0;

@@ -1,4 +1,4 @@
-# Makefile.in generated automatically by automake 1.4 from Makefile.am
+# Makefile.in generated automatically by automake 1.4-p4 from Makefile.am
 
 # Copyright (C) 1994, 1995-8, 1999 Free Software Foundation, Inc.
 # This Makefile.in is free software; the Free Software Foundation
@@ -61,22 +61,27 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_alias = @host_alias@
 host_triplet = @host@
+AS = @AS@
 AWK = @AWK@
 CC = @CC@
 CPP = @CPP@
-LD = @LD@
+DLLTOOL = @DLLTOOL@
+ECHO = @ECHO@
+EXEEXT = @EXEEXT@
 LEX = @LEX@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
 MAKEINFO = @MAKEINFO@
-NM = @NM@
+OBJDUMP = @OBJDUMP@
+OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PRELOAD_POSTFIX = @PRELOAD_POSTFIX@
 PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
 PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
+STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
@@ -124,8 +129,8 @@ OBJECTS = $(libscompat_la_OBJECTS)
 
 all: all-redirect
 .SUFFIXES:
-.SUFFIXES: .S .c .lo .o .s
-$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) 
+.SUFFIXES: .S .c .lo .o .obj .s
+$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.ac $(ACLOCAL_M4) 
 	cd $(top_srcdir) && $(AUTOMAKE) --gnu --include-deps libscompat/Makefile
 
 Makefile: $(srcdir)/Makefile.in  $(top_builddir)/config.status
@@ -145,6 +150,11 @@ maintainer-clean-noinstLTLIBRARIES:
 .c.o:
 	$(COMPILE) -c $<
 
+# FIXME: We should only use cygpath when building on Windows,
+# and only if it is available.
+.c.obj:
+	$(COMPILE) -c `cygpath -w $<`
+
 .s.o:
 	$(COMPILE) -c $<
 
@@ -153,6 +163,7 @@ maintainer-clean-noinstLTLIBRARIES:
 
 mostlyclean-compile:
 	-rm -f *.o core *.core
+	-rm -f *.$(OBJEXT)
 
 clean-compile:
 
@@ -228,54 +239,56 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 daemon.lo daemon.o : daemon.c ../include/autoconf.h ../include/redefac.h \
-	../include/common.h ../include/yacconfig.h ../include/config.h
+	../include/common.h ../include/yacconfig.h ../include/config.h \
+	../include/tostring.h
 difftime.lo difftime.o : difftime.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 getdtablesize.lo getdtablesize.o : getdtablesize.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 getifaddrs.lo getifaddrs.o : getifaddrs.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 hstrerror.lo hstrerror.o : hstrerror.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 inet_aton.lo inet_aton.o : inet_aton.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 inet_ntoa.lo inet_ntoa.o : inet_ntoa.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 inet_pton.lo inet_pton.o : inet_pton.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 issetugid.lo issetugid.o : issetugid.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 memmove.lo memmove.o : memmove.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 seteuid.lo seteuid.o : seteuid.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 setproctitle.lo setproctitle.o : setproctitle.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 snprintf.lo snprintf.o : snprintf.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 sockatmark.lo sockatmark.o : sockatmark.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 strerror.lo strerror.o : strerror.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 strvis.lo strvis.o : strvis.c ../include/autoconf.h ../include/redefac.h \
-	../include/common.h ../include/yacconfig.h ../include/config.h
+	../include/common.h ../include/yacconfig.h ../include/config.h \
+	../include/tostring.h
 vsyslog.lo vsyslog.o : vsyslog.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
-	../include/config.h
+	../include/config.h ../include/tostring.h
 
 info-am:
 info: info-am
