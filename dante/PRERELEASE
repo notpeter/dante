@@ -3,6 +3,10 @@
 * This is a prerelease.  Do not use this to upgrade from a previous
 * release of Dante unless you have to or are willing to help testing.
 *
+***  Friday, Mars 12, 1999  -  Dante v0.92.0-pre3.
+
+ o Socks v4 support got broken, reported by
+   Devin Nate (nated@bridgecomm.net).
 
 ***  Thursday, Mars 11, 1999  -  Dante v0.92.0-pre2.
 

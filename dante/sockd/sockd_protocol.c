@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.59 1998/11/13 21:18:56 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.60 1999/03/12 16:09:31 michaels Exp $";
 
 #include "common.h"
 
@@ -530,7 +530,7 @@ send_response(s, response)
 	char *p = responsemem;
 
 	switch (response->version) {
-		case SOCKS_V4:
+		case SOCKS_V4REPLY_VERSION:
 			/*  socks V4 reply packet:
 			 *
 			 *  VN   CD  DSTPORT  DSTIP

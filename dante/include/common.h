@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.155 1999/03/11 16:59:29 karls Exp $ */
+/* $Id: common.h,v 1.156 1999/03/12 16:10:33 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -590,11 +590,10 @@ do {														\
 #define FAKEIP_END	255
 
 
-#define SOCKS_V4 		4
-#define SOCKS_V5 		5
-#define MSPROXY_V2	2
-
+#define SOCKS_V4 					4
 #define SOCKS_V4REPLY_VERSION 0
+#define SOCKS_V5 					5
+#define MSPROXY_V2				2
 
 /* connection authentication METHOD values from rfc19228 */
 #define AUTHMETHOD_NONE   	0x00

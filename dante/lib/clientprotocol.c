@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.26 1999/03/11 16:59:32 karls Exp $";
+"$Id: clientprotocol.c,v 1.27 1999/03/12 16:09:23 michaels Exp $";
 
 #include "common.h"
 
@@ -156,11 +156,12 @@ socks_recvresponse(s, response, version)
 			/* VN */
 			memcpy(&response->version, p, sizeof(response->version));
 			p += sizeof(response->version);
-			if (version != SOCKS_V4REPLY_VERSION) {
+			if (response->version != SOCKS_V4REPLY_VERSION) {
 				swarnx("%s: unexpected version (%d != %d) from server",
-				function, version, SOCKS_V4REPLY_VERSION);
+				function, response->version, SOCKS_V4REPLY_VERSION);
 				return -1;
 			}
+			response->version = SOCKS_V4; /* silly v4 semantics, we ignore. */
 
 			/* CD */
 			memcpy(&response->reply, p, sizeof(response->reply));
