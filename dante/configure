@@ -711,7 +711,7 @@ fi
 
 PACKAGE=dante
 
-VERSION=0.91.0
+VERSION=0.91.1
 
 if test "`cd $srcdir && pwd`" != "`pwd`" && test -f $srcdir/config.status; then
   { echo "configure: error: source directory already configured; run "make distclean" there first" 1>&2; exit 1; }

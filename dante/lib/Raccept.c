@@ -155,8 +155,8 @@ Raccept(s, addr, addrlen)
 			 * connect?
 			*/
 			/* LINTED pointer casts may be troublesome */
-			if (((struct sockaddr_in *)&socksfd->reply)->sin_addr.s_addr
-			==  ((struct sockaddr_in *)&socksfd->remote)->sin_addr.s_addr) {
+			if (((struct sockaddr_in *)&socksfd->accepted)->sin_addr.s_addr
+			==  ((struct sockaddr_in *)&socksfd->reply)->sin_addr.s_addr) {
 				/* matches socksservers ip address, could be forwarded; ask. */
 
 				packet.req.version	= (char)socksfd->state.version;
@@ -169,13 +169,20 @@ Raccept(s, addr, addrlen)
 					return -1;
 
 				if (socks_recvresponse(socksfd->s, &packet.res, packet.req.version)
-				!= 0)
+				!= 0) {
+#ifdef SOCKS_TRYHARDER
+					socks_unlock(socksfd->state.lock, 0);
+#endif
 					return -1;
+				}
 
 				if (packet.res.host.atype != SOCKS_ADDR_IPV4) {
 					swarnx("%s: unexpected atype in bindquery response from "
 					"server: %d",
 					function, packet.res.host.atype);
+#ifdef SOCKS_TRYHARDER
+					socks_unlock(socksfd->state.lock, 0);
+#endif
 					return -1;
 				}
 
@@ -191,8 +198,13 @@ Raccept(s, addr, addrlen)
 	else { /* no pending connection, server wants to forward to us then. */
 		SASSERTX(FD_ISSET(socksfd->s, &rset));
 
-		if (socks_recvresponse(socksfd->s, &packet.res, packet.version) != 0)
+		if (socks_recvresponse(socksfd->s, &packet.res, packet.version) != 0) {
+#ifdef SOCKS_TRYHARDER
+			socks_unlock(socksfd->state.lock, 0);
+#endif
 			return -1;
+		}
+
 		sockshost2sockaddr(&packet.res.host, &socksfd->accepted);
 		remote = socksfd->s;
 	}

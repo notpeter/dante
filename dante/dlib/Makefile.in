@@ -263,6 +263,8 @@ Rgetpeername.lo Rgetpeername.o: Rgetpeername.c ../include/common.h \
 	../include/autoconf.h ../include/config.h ../include/socks.h
 Rgetsockname.lo Rgetsockname.o: Rgetsockname.c ../include/common.h \
 	../include/autoconf.h ../include/config.h ../include/socks.h
+Rlisten.lo Rlisten.o: Rlisten.c ../include/common.h \
+	../include/autoconf.h ../include/config.h ../include/socks.h
 Rrresvport.lo Rrresvport.o: Rrresvport.c ../include/common.h \
 	../include/autoconf.h ../include/config.h ../include/socks.h
 address.lo address.o: address.c ../include/common.h \

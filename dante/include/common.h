@@ -132,7 +132,9 @@ extern const int lintnoloop_common_h;
 #include "config.h"
 #endif
 
+#if 0 	/* BUGS */
 #define SOCKS_TRYHARDER 	/* XXX should be configure option. */
+#endif
 
 #ifndef RLIMIT_OFILE
 #define RLIMIT_OFILE RLIMIT_NOFILE
