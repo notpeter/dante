@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.11 1999/06/22 08:21:16 michaels Exp $";
+"$Id: hostcache.c,v 1.12 1999/07/10 13:52:33 karls Exp $";
 
 /* we want the real thing. */
 #undef gethostbyname
@@ -249,18 +249,18 @@ hostentdup(hostent)
 		return NULL;
 
 	*duped = dupedinit;
-	
+
 	if ((duped->h_name = strdup(hostent->h_name)) == NULL) {
 		hostentfree(duped);
 		return NULL;
 	}
-	
+
 	if (listrealloc(&duped->h_aliases, (const char ***)&hostent->h_aliases, -1)
 	== NULL) {
 		hostentfree(duped);
 		return NULL;
 	}
-	
+
 	duped->h_addrtype = hostent->h_addrtype;
 	duped->h_length	= hostent->h_length;
 
@@ -284,7 +284,7 @@ hostentfree(hostent)
 
 	free(hostent->h_name);
 	hostent->h_name = NULL;
-	
+
 	if (hostent->h_aliases != NULL)
 		for (p = hostent->h_aliases; *p != NULL; ++p)
 			free(*p);

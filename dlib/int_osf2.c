@@ -50,7 +50,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: int_osf2.c,v 1.3 1999/05/13 13:12:55 karls Exp $";
+"$Id: int_osf2.c,v 1.4 1999/07/08 18:54:41 karls Exp $";
 
 #undef accept
 #undef getpeername
@@ -64,11 +64,11 @@ static const char rcsid[] =
 int
 sys_naccept(s, addr, addrlen)
 	int s;
-	__SOCKADDR_ARG addr;
+	struct sockaddr * addr;
 	socklen_t *addrlen;
 {
 	int rc;
-	int (*function)(int s, __SOCKADDR_ARG addr, socklen_t *addrlen);
+	int (*function)(int s, struct sockaddr * addr, socklen_t *addrlen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_NACCEPT);
@@ -80,11 +80,11 @@ sys_naccept(s, addr, addrlen)
 int
 sys_ngetpeername(s, name, namelen)
 	int s;
-	__SOCKADDR_ARG name;
+	struct sockaddr * name;
 	socklen_t *namelen;
 {
 	int rc;
-	int (*function)(int s, const __SOCKADDR_ARG name, socklen_t *namelen);
+	int (*function)(int s, const struct sockaddr * name, socklen_t *namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_NGETPEERNAME);
@@ -96,11 +96,11 @@ sys_ngetpeername(s, name, namelen)
 int
 sys_ngetsockname(s, name, namelen)
 	int s;
-	__SOCKADDR_ARG name;
+	struct sockaddr * name;
 	socklen_t *namelen;
 {
 	int rc;
-	int (*function)(int s, const __SOCKADDR_ARG name, socklen_t *namelen);
+	int (*function)(int s, const struct sockaddr * name, socklen_t *namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_NGETSOCKNAME);
@@ -115,12 +115,12 @@ sys_nrecvfrom(s, buf, len, flags, from, fromlen)
 	void *buf;
 	size_t len;
 	int flags;
-	__SOCKADDR_ARG from;
+	struct sockaddr * from;
 	size_t *fromlen;
 {
 	int rc;
 	int (*function)(int s, void *buf, size_t len, int flags,
-					    __SOCKADDR_ARG from, socklen_t *fromlen);
+					    struct sockaddr * from, socklen_t *fromlen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_NRECVFROM);
@@ -170,7 +170,7 @@ sys_nsendmsg(s, msg, flags)
 int
 naccept(s, addr, addrlen)
 	int s;
-	__SOCKADDR_ARG addr;
+	struct sockaddr * addr;
 	socklen_t *addrlen;
 {
 	if (ISSYSCALL(s))
@@ -180,7 +180,7 @@ naccept(s, addr, addrlen)
 int
 ngetpeername(s, name, namelen)
 	int s;
-	__SOCKADDR_ARG name;
+	struct sockaddr * name;
 	socklen_t *namelen;
 {
 	if (ISSYSCALL(s))
@@ -191,7 +191,7 @@ ngetpeername(s, name, namelen)
 int
 ngetsockname(s, name, namelen)
 	int s;
-	__SOCKADDR_ARG name;
+	struct sockaddr * name;
 	socklen_t *namelen;
 {
 	if (ISSYSCALL(s))
@@ -205,7 +205,7 @@ nrecvfrom(s, buf, len, flags, from, fromlen)
 	void *buf;
 	size_t len;
 	int flags;
-	__SOCKADDR_ARG from;
+	struct sockaddr * from;
 	size_t *fromlen;
 {
 	if (ISSYSCALL(s))

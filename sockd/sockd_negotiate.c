@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.60 1999/06/30 11:15:39 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.61 1999/07/10 13:52:36 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -151,7 +151,7 @@ neg_gettimedout __P((void));
 
 static void
 siginfo __P((int sig));
-/* 
+/*
  * Print information about our current connections.
 */
 
@@ -300,7 +300,7 @@ send_negotiate(mother, neg)
 	/* LINTED pointer casts may be troublesome */
 	sockshost2sockaddr(&neg->src, (struct sockaddr *)&req.from);
 	req.req				= neg->req;
-	req.rule 			= neg->rule;
+	req.rule			= neg->rule;
 	req.state			= neg->state;
 	req.state.command	= req.req.command;
 	req.state.version	= req.req.version;
@@ -624,4 +624,3 @@ siginfo(sig)
 			difftime(timenow, negv[i].state.time.negotiate_start));
 		}
 }
-

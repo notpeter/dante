@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbindresvport.c,v 1.14 1999/05/14 13:58:17 michaels Exp $";
+"$Id: Rbindresvport.c,v 1.15 1999/07/10 13:52:27 karls Exp $";
 
 /*
  * Note that for this function to work correctly the remote socksserver
@@ -68,7 +68,7 @@ Rbindresvport(sd, sin)
 		return -1;
 
 	/*
-	 * Rbind() will accept failure at binding socket that is already bound 
+	 * Rbind() will accept failure at binding socket that is already bound
 	 * and will try a remote serverbinding too if appropriate.
 	*/
 	return Rbind(sd, &name, namelen);

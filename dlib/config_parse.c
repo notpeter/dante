@@ -88,7 +88,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.107 1999/07/02 13:26:34 michaels Exp $";
+"$Id: config_parse.y,v 1.108 1999/07/10 13:52:29 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -105,10 +105,10 @@ extern int yylineno;
 extern char *yytext;
 
 #if SOCKS_SERVER
-static struct rule_t 			ruleinit;	
+static struct rule_t				ruleinit;
 static struct rule_t				rule;				/* new rule.							*/
 static struct protocol_t		protocolmem;	/* new protocolmem.					*/
-struct linkedname_t 				**userbase;		/* users rule applies to.			*/
+struct linkedname_t				**userbase;		/* users rule applies to.			*/
 #endif
 
 #if SOCKS_CLIENT
@@ -1502,7 +1502,7 @@ case 127:
 		strcpy(rule.libwrap, yyvsp[0].string);
 
 		/* libwrap modifies the passed buffer. */
-	 	SASSERTX(strlen(rule.libwrap) < sizeof(libwrap));
+		SASSERTX(strlen(rule.libwrap) < sizeof(libwrap));
 		strcpy(libwrap, rule.libwrap);
 
 		++dry_run;
@@ -1864,12 +1864,12 @@ yyerrhandle:
 #line 967 "config_parse.y"
 
 
-#define INTERACTIVE 		0
+#define INTERACTIVE		0
 
 #if SOCKS_SERVER
-#define ELECTRICFENCE 	0
+#define ELECTRICFENCE	0
 #else
-#define ELECTRICFENCE 	0
+#define ELECTRICFENCE	0
 #endif
 
 

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.94 1999/07/05 08:03:52 michaels Exp $";
+"$Id: sockd_request.c,v 1.96 1999/07/10 13:52:37 karls Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -227,7 +227,7 @@ dorequest(mother, request)
 	io = ioinit;
 	io.acceptrule			= request->rule;
 	io.state					= request->state;
-	io.state.extension 	= config.extension;
+	io.state.extension	= config.extension;
 
 	/*
 	 * examine client request; valid and supported?
@@ -1080,18 +1080,17 @@ flushio(mother, clientcontrol, response, io)
 
 	/* set socket options for relay process. */
 
-#if SOCKD_IOMAX <= 1
-	/* only one client per process, doesn't matter much whether we block. */
+#if SOCKD_IOMAX == 1
+	/* only one client per process; doesn't matter much whether we block. */
 	io->in.sndlowat	= sndlowat;
 	io->out.sndlowat	= sndlowat;
-#elif	HAVE_SO_SNDLOWAT
 
-	/* perhaps we should attempt to change the buffersize too. */
+#elif	HAVE_SO_SNDLOWAT
 
 	len = sizeof(value);
 	if (getsockopt(io->in.s, SOL_SOCKET, SO_SNDBUF, &value, &len) != 0)
 		swarn("%s: getsockopt(in, SO_SNDBUF)", function);
-	sndlowat = MIN(sndlowat, value);
+	sndlowat = MIN(sndlowat, value * LOWATSKEW);
 
 	if (setsockopt(io->in.s, SOL_SOCKET, SO_SNDLOWAT, &sndlowat,
 	sizeof(sndlowat)) != 0)
@@ -1105,7 +1104,7 @@ flushio(mother, clientcontrol, response, io)
 	len = sizeof(value);
 	if (getsockopt(io->out.s, SOL_SOCKET, SO_SNDBUF, &value, &len) != 0)
 		swarn("%s: getsockopt(out, SO_SNDBUF)", function);
-	sndlowat = MIN(sndlowat, value);
+	sndlowat = MIN(sndlowat, value * LOWATSKEW);
 
 	if (setsockopt(io->out.s, SOL_SOCKET, SO_SNDLOWAT, &sndlowat,
 	sizeof(sndlowat)) != 0)
@@ -1149,7 +1148,8 @@ flushio(mother, clientcontrol, response, io)
 	}
 #endif  /* SOCKD_IOMAX > 1 && !HAVE_SO_SNDLOWAT */
 
-	SASSERTX(io->in.sndlowat > 0 && io->out.sndlowat > 0);
+	SASSERTX(io->in.sndlowat > 0
+	&& io->out.sndlowat >= sizeof(struct udpheader_t));
 
 	if (send_response(clientcontrol, response) == 0)
 		if (send_io(mother, io) != 0)

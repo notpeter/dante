@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.203 1999/07/05 10:31:29 michaels Exp $ */
+/* $Id: common.h,v 1.207 1999/07/12 08:41:47 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -156,10 +156,7 @@ extern const int lintnoloop_common_h;
 #define lintnoloop_common_h 0
 #endif
 
-/*XXX?*/
-#ifndef _CONFIG_H_
 #include "config.h"
-#endif
 
 #define SOCKS_TRYHARDER	0	/* XXX BUGS */ /* XXX should be configure option. */
 
@@ -628,11 +625,12 @@ do {														\
  * FAKEIP_START is the first address in the range of "fake" ip addresses,
  * FAKEIP_END is the last.
  * There can thus be FAKEIP_END - FAKEIP_START number of fake ip addresses
- * supported per program.  INADDR_ANY must not be within the range.
+ * supported per program.
+ *
+ * INADDR_NONE and INADDR_ANY may not be part of the range.
 */
 #define FAKEIP_START 0x00000001
 #define FAKEIP_END	0x000000ff
-
 
 #define SOCKS_V4					4
 #define SOCKS_V4REPLY_VERSION 0
@@ -646,20 +644,20 @@ do {														\
 #define AUTHMETHOD_NONE			0
 #define AUTHMETHOD_NONEs		"none"
 #define AUTHMETHOD_GSSAPI		1
-#define AUTHMETHOD_GSSAPIs 	"gssapi"
+#define AUTHMETHOD_GSSAPIs		"gssapi"
 #define AUTHMETHOD_UNAME		2
-#define AUTHMETHOD_UNAMEs  	"username"
+#define AUTHMETHOD_UNAMEs		"username"
 
 /* X'03' to X'7F' IANA ASSIGNED						*/
 
 /* X'80' to X'FE' RESERVED FOR PRIVATE METHODS	*/
 
-#define AUTHMETHOD_NOACCEPT 	255
-#define AUTHMETHOD_NOACCEPTs 	"no acceptable method"
+#define AUTHMETHOD_NOACCEPT	255
+#define AUTHMETHOD_NOACCEPTs	"no acceptable method"
 
 /* not standard methods, must be > 255. */
-#define AUTHMETHOD_RFC931  	256
-#define AUTHMETHOD_RFC931s  	"rfc931"
+#define AUTHMETHOD_RFC931		256
+#define AUTHMETHOD_RFC931s		"rfc931"
 
 #define AUTHMETHOD_MAX			(AUTHMETHOD_RFC931 + 1)
 
@@ -1506,7 +1504,7 @@ struct sockaddr *
 fakesockshost2sockaddr __P((const struct sockshost_t *host,
 									 struct sockaddr *addr));
 /*
- * Like sockshost2sockaddr(), but checks whether the address in 
+ * Like sockshost2sockaddr(), but checks whether the address in
  * "host" is fake when converting.
 */
 
@@ -1691,7 +1689,7 @@ yyerror __P((const char *s));
 /*
  * Report a error related to (configfile) parsing and exit.
 */
-  
+
 int
 addressmatch __P((const struct ruleaddress_t *rule,
 						const struct sockshost_t *address, int protocol,
@@ -1881,7 +1879,7 @@ socks_getfakeip __P((const char *host, struct in_addr *addr));
 */
 
 struct sockshost_t *
-fakesockaddr2sockshost __P((const struct sockaddr *addr, 
+fakesockaddr2sockshost __P((const struct sockaddr *addr,
 									 struct sockshost_t *host));
 /*
  * Identical to sockaddr2sockshost, but checks whether
@@ -1906,18 +1904,20 @@ sockshostareeq __P((const struct sockshost_t *a, const struct sockshost_t *b));
  *		else: false
 */
 
-fd_set *
-fdsetop __P((int nfds, const fd_set *a, const fd_set *b, int op));
+int
+fdsetop __P((int nfds, int op, const fd_set *a, const fd_set *b,
+				 fd_set *result));
 /*
  * Performs operation on descriptor sets.
  * "nfds" is the number of descriptors to perform "op" on in the sets
  * "a" and "b".
  * "op" is the operation to be performed on the descriptor sets and
  * can take on the value of standard C bitwise operators.
- * Returns a pointer to the set that is the result of doing "a" "op" "b".
- * The memory used is static.
+ * The result of the operation is stored in "result".
+ *
+ * Returns the number of the highest descriptor set in "result".
  * NOTES:
- *		Only operator currently supported is XOR ('^').
+ *		Operators supported is: AND ('&') and XOR ('^') 
 */
 
 int

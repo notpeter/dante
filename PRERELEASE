@@ -4,7 +4,29 @@
 * release of Dante unless you have to or are willing to help testing.
 *
 
- o libtool-1.3.2
+***  Monday, Jul 12, 1999 -- Dante v1.1.0-pre2
+
+ o fixed some of the finer details of the main i/o loop, lets hope 
+   it doesn't brake anything.
+
+ o pretend Rgetsockname() works on udp sockets; might help some programs.
+
+ o tuned some things for better i/o performance though also greater
+   resource usage.
+ 
+ o better support for profiling.
+
+ o The name and location of the configuration files can now be changed.
+   Requested by Albert Chin-A-Young (china@thewrittenword.com).
+
+ o fix bug introduced with last prerelease related to udp i/o in server;
+   packet would get truncated if size was greater than about 256 bytes.
+
+ o Problems with glibc-2.1 diagnosed. See the FAQ for details.
+
+ o libtool-1.3.3
+
+***  Monday, Jul 5, 1999 -- Dante v1.1.0-pre1
 
  o Building of dlib/interposition.c cleaned up.
 

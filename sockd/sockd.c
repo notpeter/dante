@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.236 1999/06/29 15:51:40 michaels Exp $";
+"$Id: sockd.c,v 1.239 1999/07/10 13:52:34 karls Exp $";
 
 	/*
 	 * signal handlers
@@ -73,14 +73,6 @@ sigserverbroadcast __P((int sig));
 /*
  * Broadcasts "sig" to all other servers.
  *
-*/
-
-static int
-pidismother __P((pid_t pid));
-/*
- * If "pid" refers to a motherserver, the index of "pid" in
- * state.motherpidv is returned.
- * Otherwise -1 is returned.
 */
 
 static void
@@ -123,16 +115,6 @@ char *__progname = "sockd";	/* default. */
 extern char *optarg;
 extern struct config_t config;
 
-int exitsignalv[] = {
-	SIGINT, SIGQUIT, SIGBUS, SIGSEGV, SIGTERM
-};
-const size_t exitsignalc = ELEMENTS(exitsignalv);
-
-int ignoresignalv[] = {
-	SIGPIPE
-};
-const size_t ignoresignalc = ELEMENTS(ignoresignalv);
-
 __END_DECLS
 
 int
@@ -154,14 +136,23 @@ main(argc, argv, envp)
 	char *envp[] = {NULL};	/* dummy. */
 #endif /* HAVE_SETPROCTITLE */
 
+	const int exitsignalv[] = {
+		SIGINT, SIGQUIT, SIGBUS, SIGSEGV, SIGTERM
+	};
+	const size_t exitsignalc = ELEMENTS(exitsignalv);
+
+	const int ignoresignalv[] = {
+		SIGPIPE
+	};
+	const size_t ignoresignalc = ELEMENTS(ignoresignalv);
+
 #if DIAGNOSTIC && HAVE_MALLOC_OPTIONS
 	malloc_options = "AJ";
 #endif  /* DIAGNOSTIC && HAVE_MALLOC_OPTIONS */
 
+
 	serverinit(argc, argv, envp);
-
 	showconfig(&config);
-
 	socks_seteuid(NULL, config.uid.unprivileged);
 
 	/* for chroot and needing every descriptor we can get. */
@@ -350,9 +341,11 @@ main(argc, argv, envp)
 			if ((p = readn(child->ack, &command, sizeof(command)))
 			!= sizeof(command)) {
 				if (p == 0)
-					swarnx("readn(child->ack): child closed connection");
+					swarnx("%schild closed connection",
+					childtype2string(child->type));
 				else
-					swarn("readn(child->ack)");
+					swarn("readn(child->ack) from %schild",
+					childtype2string(child->type));
 				childisbad = 1;
 			}
 			else {
@@ -596,6 +589,18 @@ main(argc, argv, envp)
 	/* NOTREACHED */
 }
 
+int
+pidismother(pid)
+	pid_t pid;
+{
+	int i;
+
+	for (i = 0; i < config.option.serverc; ++i)
+		if (config.state.motherpidv[i] == pid)
+			return i + 1;
+	return 0;
+}
+
 
 static void
 usage(code)
@@ -705,6 +710,7 @@ serverinit(argc, argv, envp)
 
 	config.state.addchild	= 1;
 	config.state.euid			= geteuid();
+	config.state.type			= CHILD_MOTHER;
 	config.option.serverc	= 1;	/* ourselves. ;-) */
 
 	while ((ch = getopt(argc, argv, "DLN:df:hlnvw:")) != -1) {
@@ -734,7 +740,7 @@ serverinit(argc, argv, envp)
 					serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
 #else
 				config.option.configfile = optarg;
-#endif /* !HAVE_SETPROCTITLE */					
+#endif /* !HAVE_SETPROCTITLE */
 				break;
 
 			case 'h':
@@ -885,19 +891,6 @@ checksettings(void)
 		swarnx("%s: local domainname not set", function);
 }
 
-static int
-pidismother(pid)
-	pid_t pid;
-{
-	int i;
-	
-	for (i = 0; i < config.option.serverc; ++i)
-		if (config.state.motherpidv[i] == pid)
-			return i;
-	return -1;
-}
-
-
 /* ARGSUSED */
 static void
 siginfo(sig)
@@ -973,6 +966,7 @@ sighup(sig)
 {
 	const char *function = "sighup()";
 	uid_t euid;
+	int p;
 
 	slog(LOG_INFO, "%s: got SIGHUP signal", function);
 
@@ -984,8 +978,9 @@ sighup(sig)
 
 	checksettings();
 
-	if (pidismother(config.state.pid) != -1) {
-		if (*config.state.motherpidv == config.state.pid) { /* main mother. */
+	/* LINTED assignment in conditional context */
+	if ((p = pidismother(config.state.pid))) {
+		if (p == 1) { /* main mother. */
 			showconfig(&config);
 			sigserverbroadcast(sig);
 		}
@@ -1012,15 +1007,17 @@ sigchld(sig)
 		/*
 		 * No child should normaly die, but try to cope with it happening.
 		*/
-		if ((i = pidismother(pid)) != -1)
-			config.state.motherpidv[i] = 0;
+
+		/* LINTED assignment in conditional context */
+		if ((i = pidismother(pid)))
+			config.state.motherpidv[i - 1] = 0;
 		else
 			; /* assume relay child. */
 
 		++deaths;
 	}
-	
-	/* 
+
+	/*
 	 * If we get alot of childdeaths in a short time, assume something
 	 * is wrong.
 	*/
@@ -1036,10 +1033,10 @@ sigchld(sig)
 	if (deaths >= 10) {
 		if (deaths == 10) { /* log once. */
 			slog(LOG_ERR, "%s: %d childdeaths in %.0fs; locking count for a while",
-		 	function, deaths, difftime(time(NULL), deathtime));
+			function, deaths, difftime(time(NULL), deathtime));
 			config.state.addchild = 0;
 		}
-		time(&deathtime); /* once the ball starts rolling... */ 
+		time(&deathtime); /* once the ball starts rolling... */
 		alarm(60);
 	}
 	else
@@ -1051,7 +1048,7 @@ static void
 sigalrm(sig)
 	int sig;
 {
-	
+
 	config.state.addchild = 1;
 }
 

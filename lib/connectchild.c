@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.88 1999/06/29 15:33:38 michaels Exp $";
+"$Id: connectchild.c,v 1.89 1999/07/10 13:52:30 karls Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -115,9 +115,9 @@ socks_nbconnectroute(s, control, packet, src, dst)
 		if (oldsig.sa_flags != 0)
 			swarnx("%s: sigchld sa_flags not handled currently,\n"
 					 "contact Inferno Nettverk A/S for more information", function);
-			
+
 		if (oldsig.sa_handler == SIG_DFL
-		||	 oldsig.sa_handler == SIG_IGN) 
+		||	 oldsig.sa_handler == SIG_IGN)
 			oldsig.sa_handler = NULL;
 
 		if (oldsig.sa_handler == NULL) {
@@ -322,7 +322,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 	/*
 	 * send the request to our connectprocess and let it do the rest.
-	 * When it's done, we get a signal and dup "s" over "socksfd.control" 
+	 * When it's done, we get a signal and dup "s" over "socksfd.control"
 	 * in the handler.
 	*/
 

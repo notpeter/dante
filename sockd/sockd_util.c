@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.47 1999/07/05 07:04:40 michaels Exp $";
+"$Id: sockd_util.c,v 1.49 1999/07/10 13:52:37 karls Exp $";
 
 #define SOCKS_DEBUGER	0
 
@@ -74,7 +74,7 @@ selectmethod(methodv, methodc)
 				case AUTHMETHOD_RFC931: {
 					/* can select any standard method. */
 					size_t ii;
-					
+
 					for (ii = 0; ii < ELEMENTS(stdmethodv); ++i)
 						if (methodisset(stdmethodv[i], intmethodv, methodc))
 							return stdmethodv[i];
@@ -100,14 +100,24 @@ setsockoptions(s)
 {
 	const char *function = "setsockoptions()";
 	socklen_t len;
-	int type, val;
+	int type, val, bufsize;
+
+#ifdef SO_BSDCOMPAT
+	val = 1;
+	if (setsockopt(s, SOL_SOCKET, SO_BSDCOMPAT, &val, sizeof(val)) != 0)
+		swarn("%s: setsockopt(SO_BSDCOMPAT)", function);
+#endif /* SO_BSDCOMPAT */
 
 	len = sizeof(type);
-	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0)
+	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0) {
+		swarn("%s: getsockopt(SO_TYPE)", function);
 		return;
+	}
 
 	switch (type) {
 		case SOCK_STREAM:
+			bufsize = SOCKD_BUFSIZETCP;
+
 			val = 1;
 			if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val))
 			!= 0)
@@ -119,26 +129,49 @@ setsockoptions(s)
 				sizeof(val)) != 0)
 					swarn("%s: setsockopt(SO_KEEPALIVE)", function);
 			}
+			break;
 
-		break;
+		case SOCK_DGRAM:
+			bufsize = SOCKD_BUFSIZEUDP;
+			break;
+
+		default:
+			SERRX(type);
 	}
 
-#ifdef SO_BSDCOMPAT
-	val = 1;
-	if (setsockopt(s, SOL_SOCKET, SO_BSDCOMPAT, &val, sizeof(val)) != 0)
-		swarn("%s: setsockopt(SO_BSDCOMPAT)", function);
-#endif /* SO_BSDCOMPAT */
-
+	val = bufsize;
+	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val)) != 0
+	||  setsockopt(s, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val)) != 0)
+		swarn("%s: setsockopt(SO_SNDBUF/SO_RCVBUF)", function);
 }
 
 void
 sockdexit(sig)
 	int sig;
 {
+	const char *function = "sockdexit()";
 	int i;
 
 	if (sig > 0)
-		slog(LOG_ALERT, "terminating on signal %d", sig);
+		if (*config.state.motherpidv == config.state.pid) /* main mother. */
+				slog(LOG_ALERT, "%s: terminating on signal %d", function, sig);
+
+#if PROFILING
+	if (chdir(SOCKS_PROFILEDIR) != 0)
+		swarn("%s: chdir(%s)", function, SOCKS_PROFILEDIR);
+	else {
+		char dir[80];
+
+		snprintf(dir, sizeof(dir), "%s.%d",
+		childtype2string(config.state.type), getpid());
+
+		if (mkdir(dir, S_IRWXU) != 0)
+			swarn("%s: mkdir(%s)", function, dir);
+		else
+			if (chdir(dir) != 0)
+				swarn("%s: chdir(%s)", function, dir);
+	}
+#endif /* PROFILING */
 
 	for (i = 0;  i < config.log.fpc; ++i) {
 		fclose(config.log.fpv[i]);
@@ -162,7 +195,11 @@ sockdexit(sig)
 		if (*config.state.motherpidv == config.state.pid) /* main mother. */
 			exit(-sig);
 		else
+#if PROFILING
+			exit(sig);
+#else
 			_exit(-sig);
+#endif /* PROFILING */
 }
 
 void
@@ -177,7 +214,7 @@ socks_seteuid(old, new)
 		old = &oldmem;
 	*old = geteuid();
 
-	slog(LOG_DEBUG, "%s: old: %lu, new: %lu", function, *old, new); 
+	slog(LOG_DEBUG, "%s: old: %lu, new: %lu", function, *old, new);
 
 	if (*old == new)
 		return;
@@ -200,11 +237,11 @@ socks_reseteuid(current, new)
 	uid_t current;
 	uid_t new;
 {
-	const char *function = "socks_reseteuid()"; 
+	const char *function = "socks_reseteuid()";
 
-	slog(LOG_DEBUG, "%s: current: %lu, new: %lu", function, current, new); 
+	slog(LOG_DEBUG, "%s: current: %lu, new: %lu", function, current, new);
 
-#if !SOCKS_DEBUGER && DIAGNOSTIC 
+#if !SOCKS_DEBUGER && DIAGNOSTIC
 	SASSERTX(current == geteuid());
 #endif /* DIAGNOSTIC */
 
@@ -246,14 +283,14 @@ passwordmatch(name, clearpassword)
 	socks_seteuid(&euid, config.uid.privileged);
 	if ((pw = getpwnam(name)) == NULL) {
 		/* XXX waste cycles correctly? */
-		salt 		= "*";
+		salt		= "*";
 		password = "*";
 		match = 0;
 	}
 	else {
-		salt 		= pw->pw_passwd;
+		salt		= pw->pw_passwd;
 		password = pw->pw_passwd;
-		match 	= 1;
+		match		= 1;
 	}
 	socks_reseteuid(config.uid.privileged, euid);
 
@@ -272,4 +309,3 @@ passwordmatch(name, clearpassword)
 
 	return match;
 }
-

@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.88 1999/07/05 10:32:24 michaels Exp $";
+"$Id: util.c,v 1.90 1999/07/12 08:42:23 michaels Exp $";
 
 /* fake "ip address", for clients without dns access. */
 static char **ipv;
@@ -166,11 +166,11 @@ string2method(methodname)
 	const char *methodname;
 {
 	struct {
-		char 	*methodname;
+		char	*methodname;
 		int	method;
-	} method[] = { 
-		{ AUTHMETHOD_NONEs, 		AUTHMETHOD_NONE 	},
-		{ AUTHMETHOD_UNAMEs,		AUTHMETHOD_UNAME 	},
+	} method[] = {
+		{ AUTHMETHOD_NONEs,		AUTHMETHOD_NONE	},
+		{ AUTHMETHOD_UNAMEs,		AUTHMETHOD_UNAME	},
 		{ AUTHMETHOD_RFC931s,	AUTHMETHOD_RFC931	}
 	};
 	size_t i;
@@ -286,7 +286,7 @@ sockshost2sockaddr(host, addr)
 			/* LINTED pointer casts may be troublesome */
 			((struct sockaddr_in *)addr)->sin_addr
 			= *(struct in_addr *)(*hostent->h_addr_list);
-			
+
 			break;
 		}
 
@@ -324,9 +324,9 @@ fakesockshost2sockaddr(host, addr)
 			&((struct sockaddr_in *)addr)->sin_addr)) {
 				/* LINTED pointer casts may be troublesome */
 				break;
-			}	
+			}
 			/* else; */ /* FALLTHROUGH */
-		
+
 		default:
 			return sockshost2sockaddr(host, addr);
 	}
@@ -802,7 +802,7 @@ fakesockaddr2sockshost(addr, host)
 	const struct sockaddr *addr;
 	struct sockshost_t *host;
 {
-	const char *function = "fakesockaddr2sockshost()"; 
+	const char *function = "fakesockaddr2sockshost()";
 
 #if SOCKS_CLIENT /* may be called before normal init, log to right place. */
 	clientinit();
@@ -812,9 +812,9 @@ fakesockaddr2sockshost(addr, host)
 	slog(LOG_DEBUG, "%s: %s -> %s",
 	function, sockaddr2string(addr, NULL, 0),
 	socks_getfakehost(((const struct sockaddr_in *)addr)->sin_addr.s_addr)
-	== NULL ? sockaddr2string(addr, NULL, 0) 
+	== NULL ? sockaddr2string(addr, NULL, 0)
 	: socks_getfakehost(((const struct sockaddr_in *)addr)->sin_addr.s_addr));
-	
+
 	/* LINTED pointer casts may be troublesome */
 	if (socks_getfakehost(((const struct sockaddr_in *)addr)->sin_addr.s_addr)
 	!= NULL) {
@@ -830,7 +830,7 @@ fakesockaddr2sockshost(addr, host)
 		/* LINTED pointer casts may be troublesome */
 		host->port	= ((const struct sockaddr_in *)addr)->sin_port;
 	}
-	else 
+	else
 		sockaddr2sockshost(addr, host);
 
 	return host;
@@ -939,7 +939,7 @@ sockaddrareeq(a, b)
 			const struct sockaddr_in *in_b = (const struct sockaddr_in *)b;
 
 			if (in_a->sin_addr.s_addr != in_b->sin_addr.s_addr
-			||  in_a->sin_port 		  != in_b->sin_port)
+			||  in_a->sin_port		  != in_b->sin_port)
 				return 0;
 			return 1;
 		}
@@ -956,7 +956,7 @@ sockshostareeq(a, b)
 	const struct sockshost_t *a;
 	const struct sockshost_t *b;
 {
-	
+
 	if (a->atype != b->atype)
 		return 0;
 
@@ -985,30 +985,41 @@ sockshostareeq(a, b)
 	return 1;
 }
 
-fd_set *
-fdsetop(nfds, a, b, op)
+int
+fdsetop(nfds, op, a, b, result)
 	int nfds;
+	int op;
 	const fd_set *a;
 	const fd_set *b;
-	int op;
+	fd_set *result;
 {
-	static fd_set result;
-	int i;
+	int i, bits;
 
-	FD_ZERO(&result);
+	FD_ZERO(result);
+	bits = -1;
 
 	switch (op) {
+		case '&':
+			for (i = 0; i < nfds; ++i)
+				if (FD_ISSET(i, a) && FD_ISSET(i, b)) {
+					FD_SET(i, result);
+					bits = MAX(i, bits);
+				}
+			break;
+
 		case '^':
 			for (i = 0; i < nfds; ++i)
-				if (FD_ISSET(i, a) != FD_ISSET(i, b))
-					FD_SET(i, &result);
+				if (FD_ISSET(i, a) != FD_ISSET(i, b)) {
+					FD_SET(i, result);
+					bits = MAX(i, bits);
+				}
 			break;
 
 		default:
 			SERRX(op);
 	}
 
-	return &result;
+	return bits;
 }
 
 int

@@ -52,7 +52,7 @@ extern int parseinit;
 extern const int configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.47 1999/06/30 11:15:25 michaels Exp $";
+"$Id: config_scan.l,v 1.48 1999/07/10 13:52:30 karls Exp $";
 
 %}
 
@@ -354,7 +354,7 @@ user {
 	BEGIN(start_username);
 	return USER;
 }
-	
+
 user\.privileged {
 	BEGIN(start_username);
 

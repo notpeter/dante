@@ -53,14 +53,14 @@ cat > conftest.$ac_ext <<EOF
 EOF
 
 changequote(<<, >>)dnl
-${CPP} ${CPPFLAGS} -D__STDC__ conftest.$ac_ext | $AWK "{ if (/[^a-z0-9]${func}[^a-z0-9]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9]${func}[^a-z0-9]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
+${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9]${func}[^a-z0-9]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9]${func}[^a-z0-9]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
 
 cnt=0
 while test $cnt -lt $paramcnt; do
 	if test $cnt -eq 0; then
-    		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
+		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
 	else
-    		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
+		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
 	fi
 dnl	XXXstrip whatever's behind any *?
 

@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.22 1999/07/02 13:32:26 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.23 1999/07/10 13:52:22 karls Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -96,7 +96,7 @@ It is especially important that these do not use hostnames
 but only IP addresses, both for security and performance reasons.
 These rules work at the TCP/IP level.
 
-The other rules, which we will call "socks-rules" are a level higher 
+The other rules, which we will call "socks-rules" are a level higher
 and are checked after the client connection has been accepted by the
 client-rules.  The socks-rules are used to evaluate the socks request
 that the client sends.  They thus work at the socks protocol level.
@@ -122,7 +122,7 @@ actions.  For each rule, all conditions are checked and if they
 match the request, the actions are executed.
 
 The list of condition keywords is:
-\fBfrom\fP, \fBto\fP, \fBcommand\fP, \fBmethod\fP, 
+\fBfrom\fP, \fBto\fP, \fBcommand\fP, \fBmethod\fP,
 \fBprotocol\fP, \fBproxyprotocol\fP, \fBuser\fP.
 
 The list of actions keywords is: \fBlibwrap\fP, \fBlog\fP.
