@@ -1,9 +1,13 @@
-@(#)$Id: PRERELEASE,v 1.150 2001/11/23 11:55:34 michaels Exp $
+@(#)$Id: PRERELEASE,v 1.152 2001/12/04 13:20:41 michaels Exp $
 
 *
 * This is a prerelease.  Do not use this to upgrade from a previous
 * release of Dante unless you want to help testing. 
 *
+
+Tuesday, Dec 4, 2001
+ o Fixes for libdsocks on HP-UX 11.00. Thanks to
+   'albert chin (china@thewrittenword.com)' for testing.
 
 Friday, Nov 23, 2001
  o Fix some problems related to "external.rotation = route" on some

@@ -60,6 +60,10 @@ main (argc, argv)
 			AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)
 			AC_MSG_RESULT(coff)
 			;;
+	        *-*-hpux*) #XXX apparently does not use underscore
+			AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)
+			AC_MSG_RESULT(a.out?)
+			;;
 		*)
 			AC_MSG_RESULT(a.out)
 			;;
