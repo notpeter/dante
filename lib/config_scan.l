@@ -52,14 +52,14 @@ extern int parseinit;
 extern const int configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.54 2000/06/09 10:45:18 karls Exp $";
+"$Id: config_scan.l,v 1.55 2000/08/08 12:36:10 michaels Exp $";
 
 %}
 
 
 %option yylineno
 %option noyywrap
-/*%option debug          */
+/*%option debug           */
 
 PORTNUMBER [0-9]{1,5}
 
@@ -123,6 +123,11 @@ PORTNUMBER [0-9]{1,5}
 <start_proxyprotocol>msproxy_v2 {
 	yylval.string = yytext;
 	return PROXYPROTOCOL_MSPROXY_V2;
+}
+
+<start_proxyprotocol>http_v1.0 {
+	yylval.string = yytext;
+	return PROXYPROTOCOL_HTTP_V1_0;
 }
 
 <start_command>bind {

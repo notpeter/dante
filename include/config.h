@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.38 2000/01/13 12:12:59 karls Exp $ */
+/* $Id: config.h,v 1.40 2000/08/02 12:19:23 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -86,6 +86,13 @@
 #define SOCKS_CONFIGFILE			HAVE_ALT_SOCKS_CONFIGFILE
 #endif /* !HAVE_SOCKS_CONFIGFILE */
 
+/*
+ * if we mark a route/socksserver as bad, how many seconds to wait
+ * until we expire the badmarking so it will be tried again for new 
+ * connections.
+ * A value of zero means never.
+*/
+#define BADROUTE_EXPIRE				(60 * 0)
 
 	/*
 	 * server stuff.

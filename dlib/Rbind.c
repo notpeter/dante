@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.103 2000/05/31 12:14:51 karls Exp $";
+"$Id: Rbind.c,v 1.104 2000/08/08 12:34:03 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -99,7 +99,7 @@ Rbind(s, name, namelen)
 		}
 	}
 
-	/* hack for performance (testing). */
+	/* hack for performance testing. */
 	if (getenv("SOCKS_BINDLOCALONLY") != NULL)
 		return rc;
 
@@ -152,6 +152,8 @@ Rbind(s, name, namelen)
 
 	if (socks_requestpolish(&packet.req, NULL, NULL) == NULL)
 		return 0;	/* socket bound, assume ok. */
+
+	packet.version = packet.req.version;
 
 	switch (packet.req.version) {
 		case SOCKS_V4:

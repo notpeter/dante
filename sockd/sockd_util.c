@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.62 2000/06/01 09:53:18 michaels Exp $";
+"$Id: sockd_util.c,v 1.63 2000/08/01 14:00:10 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -181,7 +181,7 @@ sockdexit(sig)
 	else {
 		char dir[80];
 
-		snprintf(dir, sizeof(dir), "%s.%d",
+		snprintfn(dir, sizeof(dir), "%s.%d",
 		childtype2string(config.state.type), getpid());
 
 		if (mkdir(dir, S_IRWXU) != 0)

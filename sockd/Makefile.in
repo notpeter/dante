@@ -79,7 +79,7 @@ VERSION = @VERSION@
 YACC = @YACC@
 
 sbin_PROGRAMS = sockd
-sockd_SOURCES = sockd.c sockd_child.c sockd_io.c io.c sockd_negotiate.c 	sockd_request.c method_uname.c debug.c udp_util.c util.c log.c  	socket.c sockd_socket.c config_parse.y config_scan.l config.c   	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c     	hostcache.c interposition.c broken.c
+sockd_SOURCES = sockd.c sockd_child.c sockd_io.c io.c sockd_negotiate.c 	sockd_request.c method_uname.c debug.c udp_util.c util.c log.c  	socket.c sockd_socket.c config_parse.y config_scan.l config.c   	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c     	hostcache.c interposition.c broken.c serr.c
 
 
 noinst_HEADERS = config_parse.h
@@ -94,7 +94,7 @@ MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
 @STATIC_SOCKD_TRUE@sockd_LDADD = ../libscompat/sockatmark.o ${LIBWRAP}
 @STATIC_SOCKD_FALSE@sockd_LDADD = ../libscompat/libscompat.la ${LIBWRAP}
 
-INCLUDES = -I../libscompat
+INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
 PREFIX = socks_yy
 YFLAGS = -d -p${PREFIX}
 LFLAGS = -P${PREFIX} -olex.yy.c
@@ -131,7 +131,7 @@ sockd_OBJECTS =  sockd.o sockd_child.o sockd_io.o io.o sockd_negotiate.o \
 sockd_request.o method_uname.o debug.o udp_util.o util.o log.o socket.o \
 sockd_socket.o config_parse.o config_scan.o config.o sockd_util.o \
 sockd_protocol.o serverconfig.o lib_protocol.o hostcache.o \
-interposition.o broken.o
+interposition.o broken.o serr.o
 @STATIC_SOCKD_TRUE@sockd_DEPENDENCIES =  ../libscompat/sockatmark.o
 @STATIC_SOCKD_FALSE@sockd_DEPENDENCIES =  ../libscompat/libscompat.la
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
@@ -318,6 +318,9 @@ log.o: log.c ../include/common.h ../include/autoconf.h \
 method_uname.o: method_uname.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/interposition.h ../include/sockd.h
+serr.o: serr.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
 serverconfig.o: serverconfig.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/interposition.h ../include/sockd.h config_parse.h
@@ -329,7 +332,7 @@ sockd_child.o: sockd_child.c ../include/common.h ../include/autoconf.h \
 	../include/interposition.h ../include/sockd.h
 sockd_io.o: sockd_io.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/interposition.h ../include/sockd.h
+	../include/interposition.h ../include/sockd.h config_parse.h
 sockd_negotiate.o: sockd_negotiate.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h \

@@ -1,8 +1,4 @@
-# $Id: TODO,v 1.126 2000/06/21 09:41:33 michaels Exp $
-
-* expire "bad" marking on routes.
-
-* if socks_lock() fails in vslog(), log anyway?
+# $Id: TODO,v 1.135 2000/08/11 11:24:08 michaels Exp $
 
 * share host/addr cache across processes.
 
@@ -11,9 +7,6 @@
 * clean up namespace.
 
 * make requestchildren support multiple clients too.
-
-* a max value for the number of free io/negotiator's?  mother could kill
-  "redundant" ones.
 
 * shrink io_t, too big.
 

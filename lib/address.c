@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.75 1999/12/22 09:29:22 karls Exp $";
+"$Id: address.c,v 1.77 2000/08/08 12:36:07 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -159,12 +159,25 @@ socks_rmaddr(d)
 
 		case SOCKS_V4:
 		case SOCKS_V5:
+		case HTTP_V1_0:
 			if (!socksfdv[d].state.system)
 				switch (socksfdv[d].state.command) {
 					case SOCKS_BIND:
-						if (socksfdv[d].control != -1
-						&& d != (unsigned int)socksfdv[d].control)
-							close(socksfdv[d].control);
+						if (socksfdv[d].control == -1
+						||  socksfdv[d].control == (int)d)
+							break;
+
+						/*
+						 * If we are using the bind extension it's possible
+						 * that this controlconnection is shared with other
+						 * (accept()'ed) addresses, if so we must leave it 
+						 * open for the other connections.
+						*/
+						if (socks_addrcontrol(&socksfdv[d].local, &socksfdv[d].remote)
+						== -1)
+							break;
+
+						close(socksfdv[d].control);
 						break;
 
 					case SOCKS_CONNECT:

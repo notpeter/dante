@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.124 2000/06/09 10:45:17 karls Exp $";
+"$Id: config.c,v 1.133 2000/09/22 17:30:41 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -611,6 +611,16 @@ addroute(newroute)
 		route->gw.state.proxyprotocol.msproxy_v2 = 0;
 	}
 
+	/* switch off commands/protocols set but not supported by proxyprotocol. */
+	if (!route->gw.state.proxyprotocol.socks_v5) {
+		route->gw.state.command.udpassociate 	= 0;
+		route->gw.state.protocol.udp 				= 0;
+	}
+
+	if (!route->gw.state.proxyprotocol.socks_v4
+	&& !route->gw.state.proxyprotocol.msproxy_v2)
+		route->gw.state.command.bind = 0;
+
 	/* if no method set, set all we support. */
 	if (route->gw.state.methodc == 0) {
 		int *methodv = route->gw.state.methodv;
@@ -669,6 +679,7 @@ socks_getroute(req, src, dst)
 	const struct sockshost_t *src;
 	const struct sockshost_t *dst;
 {
+/*	const char *function = "socks_getroute()"; */
 	struct route_t *route;
 	int protocol;
 
@@ -678,7 +689,11 @@ socks_getroute(req, src, dst)
 
 	for (route = config.route; route != NULL; route = route->next) {
 		if (route->state.bad)
-			continue; /* XXX code to retry and remove bad status when ok. */
+			if (route->state.badtime == 0 
+			||  difftime(time(NULL), route->state.badtime) <= BADROUTE_EXPIRE)
+				continue;
+			else 
+				route->state.bad = 0;
 
 		switch (req->version) {
 			case SOCKS_V4:
@@ -715,6 +730,11 @@ socks_getroute(req, src, dst)
 
 			case MSPROXY_V2:
 				if (!route->gw.state.proxyprotocol.msproxy_v2)
+					continue;
+				break;
+
+			case HTTP_V1_0:
+				if (!route->gw.state.proxyprotocol.http_v1_0)
 					continue;
 				break;
 
@@ -907,6 +927,7 @@ socks_badroute(route)
 
 	slog(LOG_DEBUG, "%s: badrouting route #%d", function, route->number);
 	route->state.bad = 1;
+	time(&route->state.badtime);
 }
 
 
@@ -917,13 +938,21 @@ socks_requestpolish(req, src, dst)
 	const struct sockshost_t *dst;
 {
 	const char *function = "socks_requestpolish()";
-	unsigned char version;
+	const int originalversion = req->version;
 
 	if (socks_getroute(req, src, dst) != NULL)
 		return req;
 
 	switch (req->command) {
 		case SOCKS_BIND:
+			/*
+			 * bind semenatics differ between v4 and everything else.
+			 * Assuming we always start with v5 semenatics makes the
+			 * following code much simpler.
+			*/
+			SASSERTX(req->version == SOCKS_V5);
+			break;
+
 		case SOCKS_CONNECT:
 			break;
 
@@ -935,97 +964,69 @@ socks_requestpolish(req, src, dst)
 			SERRX(req->command);
 	}
 
-	/* unsupported version? */
-	switch (req->version) {
-		case SOCKS_V4:
-			req->version = SOCKS_V5;
-			break;
+	/*
+	 * Try all proxyprotocols we support.
+	 */
 
-		case SOCKS_V5:
-			req->version = SOCKS_V4;
-			break;
+	req->version = SOCKS_V4;
+	if (socks_getroute(req, src, dst) != NULL) {
+		/* v4/v5 difference in portsemantics. */
+		req->host.port
+		= ((struct sockaddr_in *)&config.state.lastconnect)->sin_port;
+		return req;
 	}
 
+	req->version = HTTP_V1_0;
 	if (socks_getroute(req, src, dst) != NULL)
 		return req;
 
-	SASSERTX(req->version != MSPROXY_V2); /* never gets set outside function. */
-	version = req->version;
 	req->version = MSPROXY_V2;
 	if (socks_getroute(req, src, dst) != NULL)
 		return req;
-	req->version = version;
 
+	req->version = originalversion;
+
+	/* changing proxyprotocol didn't do it, can we try other things? */
 	switch (req->command) {
 		case SOCKS_BIND:
 			if (req->host.addr.ipv4.s_addr == htonl(0)) {
-				const in_port_t originalport = req->host.port;
-				const int originalversion = req->version;
+				in_port_t originalport;
 
 				/* attempting to use bind extension, can we retry without it? */
 				/* LINTED pointer casts may be troublesome */
-				if (ADDRISBOUND(config.state.lastconnect)) {
+				if (!ADDRISBOUND(config.state.lastconnect)) {
+					slog(LOG_DEBUG, "%s: couldn't find route for bind(2), "
+					"try enabling \"extension: bind\"?", function);
+					return NULL;
+				}
 
-					fakesockaddr2sockshost(&config.state.lastconnect, &req->host);
+				originalport = req->host.port;
+				fakesockaddr2sockshost(&config.state.lastconnect, &req->host);
+				/* keep portnumber req. for bind(2), not a previous connect(2). */
+				req->host.port = originalport;
 
-					/*
-					 * v4 and v5 differ in how portnumber is treated
-					 * so we need to be a little smarter than just returning
-					 * the result of the next socks_requestpolish()
-					 * while we still have the original portnumber.
-					 */
+				if (socks_requestpolish(req, src, dst) == NULL)
+					return NULL; /* giving up. */
+
+				/*
+				 * else, it may be that socks_requestpolish() was
+				 * forced to change req.version to succeed.  We may 
+				 * the need to change req->host.port due to difference 
+				 * in v4 and v5 semantics.
+				*/
+				if (req->version != originalversion) { /* version changed. */
+					SASSERTX(originalversion == SOCKS_V5);
 
 					switch (req->version) {
-						case SOCKS_V4:
+						case SOCKS_V4: /* the only one with this strangeness. */
 							/* LINTED pointer casts may be troublesome */
 							req->host.port = ((struct sockaddr_in *)
 							&config.state.lastconnect)->sin_port;
 							break;
-
-						case SOCKS_V5:
-							/* only wants ip address. */
-							req->host.port = originalport;
-							break;
-
-						default:
-							SERRX(req->version);
 					}
-
-					if (socks_requestpolish(req, src, dst) == NULL)
-						return NULL;
-
-					/*
-					 * else, it may be that socks_requestpolish() was
-					 * forced to change req.version to succeed, we then
-					 * need to change req->host.port due to difference in
-					 * v4 and v5 semantics.
-					*/
-
-					if (req->version != originalversion) { /* version changed. */
-						/* currently it can only change from 4 to 5, or 5 to 4. */
-						switch (req->version) {
-							case SOCKS_V4:
-								/* LINTED pointer casts may be troublesome */
-								req->host.port = ((struct sockaddr_in *)
-								&config.state.lastconnect)->sin_port;
-								break;
-
-							case SOCKS_V5:
-								req->host.port = originalport;
-								break;
-
-							default:
-								SERRX(req->version);
-						}
-
-					}
-
-					return socks_requestpolish(req, src, dst);
 				}
-				else
-					slog(LOG_DEBUG,
-					"%s: couldn't find route for bind, try enabling bind extension?",
-					function);
+
+				return req;
 			}
 			break;
 	}
@@ -1042,47 +1043,47 @@ showstate(state)
 	char buf[1024];
 	size_t bufused;
 
-	bufused = snprintf(buf, sizeof(buf), "command(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "command(s): ");
 	if (state->command.bind)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_BINDs);
 	if (state->command.bindreply)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_BINDREPLYs);
 	if (state->command.connect)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_CONNECTs);
 	if (state->command.udpassociate)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_UDPASSOCIATEs);
 	if (state->command.udpreply)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_UDPREPLYs);
 	slog(LOG_INFO, buf);
 
-	bufused = snprintf(buf, sizeof(buf), "extension(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "extension(s): ");
 	if (state->extension.bind)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "bind");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "bind");
 	slog(LOG_INFO, buf);
 
-	bufused = snprintf(buf, sizeof(buf), "protocol(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "protocol(s): ");
 	if (state->protocol.tcp)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		PROTOCOL_TCPs);
 	if (state->protocol.udp)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		PROTOCOL_UDPs);
 	slog(LOG_INFO, buf);
 
 	showmethod(state->methodc, state->methodv);
 
-	bufused = snprintf(buf, sizeof(buf), "proxyprotocol(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "proxyprotocol(s): ");
 	if (state->proxyprotocol.socks_v4)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "socks v4, ");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "socks v4, ");
 	if (state->proxyprotocol.socks_v5)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "socks v5, ");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "socks v5, ");
 	if (state->proxyprotocol.msproxy_v2)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "msproxy v2");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "msproxy v2");
 	slog(LOG_INFO, buf);
 }
 
@@ -1095,9 +1096,9 @@ showmethod(methodc, methodv)
 	char buf[1024];
 	size_t bufused;
 
-	bufused = snprintf(buf, sizeof(buf), "method(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "method(s): ");
 	for (i = 0; i < methodc; ++i)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		method2string(methodv[i]));
 	slog(LOG_INFO, buf);
 }

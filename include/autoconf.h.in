@@ -371,9 +371,6 @@ geocities.com>) */
 /* Define if you have the setproctitle function.  */
 #undef HAVE_SETPROCTITLE
 
-/* Define if you have the snprintf function.  */
-#undef HAVE_SNPRINTF
-
 /* Define if you have the sockatmark function.  */
 #undef HAVE_SOCKATMARK
 
@@ -397,6 +394,9 @@ geocities.com>) */
 
 /* Define if you have the sysconf function.  */
 #undef HAVE_SYSCONF
+
+/* Define if you have the vsnprintf function.  */
+#undef HAVE_VSNPRINTF
 
 /* Define if you have the vsyslog function.  */
 #undef HAVE_VSYSLOG

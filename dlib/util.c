@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.101 2000/05/31 12:14:54 karls Exp $";
+"$Id: util.c,v 1.107 2000/09/10 13:29:24 michaels Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -80,17 +80,17 @@ sockshost2string(host, string, len)
 
 	switch (host->atype) {
 		case SOCKS_ADDR_IPV4:
-			snprintf(string, len, "%s.%d",
+			snprintfn(string, len, "%s.%d",
 			inet_ntoa(host->addr.ipv4), ntohs(host->port));
 			break;
 
 		case SOCKS_ADDR_IPV6:
-				snprintf(string, len, "%s.%d",
+				snprintfn(string, len, "%s.%d",
 				"<IPv6 address not supported>", ntohs(host->port));
 				break;
 
 		case SOCKS_ADDR_DOMAIN:
-			snprintf(string, len, "%s.%d",
+			snprintfn(string, len, "%s.%d",
 			host->addr.domain, ntohs(host->port));
 			break;
 
@@ -221,7 +221,20 @@ sockscode(version, code)
 				default:
 					SERRX(code);
 			}
-		/* NOTREACHED */
+			/* NOTREACHED */
+		
+		case HTTP_V1_0:
+			switch (code) {
+				case SOCKS_SUCCESS:
+					return HTTP_SUCCESS;
+
+				case SOCKS_FAILURE:
+					return !HTTP_SUCCESS;
+
+				default:
+					SERRX(code);
+			}
+			/* NOTREACHED */
 
 		default:
 			SERRX(version);
@@ -439,7 +452,7 @@ ruleaddress2string(address, string, len)
 		case SOCKS_ADDR_IPV4: {
 			char *a, *b;
 
-			snprintf(string, len, "%s/%s, tcp port: %d, udp port: %d op: %s %d",
+			snprintfn(string, len, "%s/%s, tcp port: %d, udp port: %d op: %s %d",
 			strcheck(a = strdup(inet_ntoa(address->addr.ipv4.ip))),
 			strcheck(b = strdup(inet_ntoa(address->addr.ipv4.mask))),
 			ntohs(address->port.tcp), ntohs(address->port.udp),
@@ -451,7 +464,7 @@ ruleaddress2string(address, string, len)
 		}
 
 		case SOCKS_ADDR_DOMAIN:
-			snprintf(string, len, "%s, tcp port: %d, udp port: %d op: %s %d",
+			snprintfn(string, len, "%s, tcp port: %d, udp port: %d op: %s %d",
 			address->addr.domain,
 			ntohs(address->port.tcp), ntohs(address->port.udp),
 			operator2string(address->operator),
@@ -596,7 +609,7 @@ sockaddr2string(address, string, len)
 			/* LINTED pointer casts may be troublesome */
 			const struct sockaddr_in *addr = (const struct sockaddr_in *)address;
 
-			snprintf(string, len, "%s.%d",
+			snprintfn(string, len, "%s.%d",
 			inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
 			break;
 		}
@@ -606,142 +619,6 @@ sockaddr2string(address, string, len)
 	}
 
 	return string;
-}
-
-
-void
-#ifdef STDC_HEADERS
-serr(int eval, const char *fmt, ...)
-#else
-serr(eval, fmt, va_alist)
-	int eval;
-	const char *fmt;
-	va_dcl
-#endif  /* STDC_HEADERS */
-{
-
-	if (fmt != NULL) {
-		va_list ap;
-		char buf[2048];
-		size_t bufused;
-
-#ifdef STDC_HEADERS
-		/* LINTED pointer casts may be troublesome */
-		va_start(ap, fmt);
-#else
-		va_start(ap);
-#endif  /* STDC_HEADERS */
-
-		bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
-
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-		": %s (errno = %d)", strerror(errno), errno);
-
-		slog(LOG_ERR, buf);
-
-		/* LINTED expression has null effect */
-		va_end(ap);
-	}
-
-#if SOCKS_SERVER
-	sockdexit(-eval);
-#else
-	exit(eval);
-#endif
-}
-
-void
-#ifdef STDC_HEADERS
-serrx(int eval, const char *fmt, ...)
-#else
-serrx(eval, fmt, va_alist)
-      int eval;
-      const char *fmt;
-      va_dcl
-#endif  /* STDC_HEADERS */
-{
-
-	if (fmt != NULL) {
-		va_list ap;
-
-#ifdef STDC_HEADERS
-		/* LINTED pointer casts may be troublesome */
-		va_start(ap, fmt);
-#else
-		va_start(ap);
-#endif  /* STDC_HEADERS */
-		vslog(LOG_ERR, fmt, ap);
-
-		/* LINTED expression has null effect */
-		va_end(ap);
-	}
-
-#if SOCKS_SERVER
-	sockdexit(-eval);
-#else
-	exit(eval);
-#endif
-}
-
-void
-#ifdef STDC_HEADERS
-swarn(const char *fmt, ...)
-#else
-swarn(fmt, va_alist)
-	const char *fmt;
-	va_dcl
-#endif  /* STDC_HEADERS */
-{
-
-	if (fmt != NULL) {
-		va_list ap;
-		char buf[2048];
-		size_t bufused;
-
-#ifdef STDC_HEADERS
-	/* LINTED pointer casts may be troublesome */
-		va_start(ap, fmt);
-#else
-		va_start(ap);
-#endif  /* STDC_HEADERS */
-
-		bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
-
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-		": %s (errno = %d)", strerror(errno), errno);
-
-		slog(LOG_ERR, buf);
-
-		/* LINTED expression has null effect */
-		va_end(ap);
-	}
-}
-
-void
-#ifdef STDC_HEADERS
-swarnx(const char *fmt, ...)
-#else
-swarnx(fmt, va_alist)
-	const char *fmt;
-	va_dcl
-#endif  /* STDC_HEADERS */
-{
-
-	if (fmt != NULL) {
-		va_list ap;
-
-#ifdef STDC_HEADERS
-		/* LINTED pointer casts may be troublesome */
-		va_start(ap, fmt);
-#else
-		va_start(ap);
-#endif  /* STDC_HEADERS */
-
-		vslog(LOG_ERR, fmt, ap);
-
-		/* LINTED expression has null effect */
-		va_end(ap);
-	}
 }
 
 in_addr_t
@@ -874,14 +751,14 @@ socks_packet2string(packet, type)
 		case SOCKS_V4REPLY_VERSION:
 			switch (type) {
 				case SOCKS_REQUEST:
-					snprintf(buf, sizeof(buf),
+					snprintfn(buf, sizeof(buf),
 					"(V4) VN: %d CD: %d address: %s",
 					request->version, request->command,
 					sockshost2string(&request->host, hstring, sizeof(hstring)));
 					break;
 
 				case SOCKS_RESPONSE:
-					snprintf(buf, sizeof(buf), "(V4) VN: %d CD: %d address: %s",
+					snprintfn(buf, sizeof(buf), "(V4) VN: %d CD: %d address: %s",
 					response->version, response->reply,
 					sockshost2string(&response->host, hstring, sizeof(hstring)));
 					break;
@@ -891,7 +768,7 @@ socks_packet2string(packet, type)
 		case SOCKS_V5:
 			switch (type) {
 				case SOCKS_REQUEST:
-					snprintf(buf, sizeof(buf),
+					snprintfn(buf, sizeof(buf),
 					"VER: %d CMD: %d FLAG: %d ATYP: %d address: %s",
 					request->version, request->command, request->flag,
 					request->host.atype,
@@ -899,7 +776,7 @@ socks_packet2string(packet, type)
 					break;
 
 				case SOCKS_RESPONSE:
-					snprintf(buf, sizeof(buf),
+					snprintfn(buf, sizeof(buf),
 					"VER: %d REP: %d FLAG: %d ATYP: %d address: %s",
 					response->version, response->reply, response->flag,
 					response->host.atype,
@@ -1204,15 +1081,17 @@ socketoptdup(s)
 	for (i = 0; i < ELEMENTS(levelname); ++i) {
 		len = sizeof(val);
 		if (getsockopt(s, levelname[i][0], levelname[i][1], &val, &len) == -1) {
-			if (config.option.debug)
+			if (errno != ENOPROTOOPT)
 				swarn("%s: getsockopt(%d, %d)",
 				function, levelname[i][0], levelname[i][1]);
+
 			continue;
 		}
 
 		if (setsockopt(new_s, levelname[i][0], levelname[i][1], &val, len) == -1)
-			swarn("%s: setsockopt(%d, %d)",
-			function, levelname[i][0], levelname[i][1]);
+			if (errno != ENOPROTOOPT)
+				swarn("%s: setsockopt(%d, %d)",
+				function, levelname[i][0], levelname[i][1]);
 	}
 
 	if ((flags = fcntl(s, F_GETFL, 0)) == -1
@@ -1265,7 +1144,7 @@ socks_mklock(template)
 	if ((newtemplate = (char *)malloc(sizeof(*newtemplate) * len)) == NULL)
 		return -1;
 
-	snprintf(newtemplate, len, "%s/%s", prefix, template);
+	snprintfn(newtemplate, len, "%s/%s", prefix, template);
 
 	if ((s = mkstemp(newtemplate)) == -1) {
 		swarn("%s: mkstemp(%s)", function, newtemplate);
@@ -1428,4 +1307,38 @@ closev(array, count)
 		if (array[count] >= 0)
 			if (close(array[count]) != 0)
 				SERR(-1);
+}
+
+int
+#ifdef STDC_HEADERS
+snprintfn(char *str, size_t size, const char *format, ...)
+#else
+snprintfn(str, size, format, va_alist
+	char *str;
+	size_t size;
+	const char *format;
+	va_dcl
+#endif
+{
+	va_list ap;
+	int rc;
+
+#ifdef STDC_HEADERS
+	/* LINTED pointer casts may be troublesome */
+	va_start(ap, format);
+#else
+	va_start(ap);
+#endif  /* STDC_HEADERS */
+	
+	rc = vsnprintf(str, size, format, ap);
+
+	/* LINTED expression has null effect */
+	va_end(ap);
+
+	if (rc == -1) {
+		*str = NUL;
+		return 0;
+	}
+
+	return MIN(rc, (int)(size - 1));
 }

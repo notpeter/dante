@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.37 2000/04/09 10:14:41 karls Exp $";
+"$Id: clientprotocol.c,v 1.39 2000/08/08 12:49:13 michaels Exp $";
 
 int
 socks_sendrequest(s, request)
@@ -253,7 +253,13 @@ socks_negotiate(s, control, packet, route)
 			break;
 
 		case MSPROXY_V2:
-			msproxy_negotiate(s, control, packet);
+			if (msproxy_negotiate(s, control, packet) != 0)
+				return -1;
+			break;
+
+		case HTTP_V1_0:
+			if (httpproxy_negotiate(control, packet) != 0)
+				return -1;
 			break;
 
 		default:

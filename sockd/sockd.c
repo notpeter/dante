@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.256 2000/05/31 12:14:55 karls Exp $";
+"$Id: sockd.c,v 1.258 2000/07/01 08:59:46 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -701,7 +701,7 @@ serverinit(argc, argv, envp)
 
 #if !HAVE_SETPROCTITLE
 	if (initsetproctitle(argc, argv, envp) == -1)
-		serr(EXIT_FAILURE, "malloc");
+		serr(EXIT_FAILURE, "%s: malloc", function);
 #endif  /* !HAVE_SETPROCTITLE*/
 
 	config.state.addchild	= 1;
@@ -719,11 +719,15 @@ serverinit(argc, argv, envp)
 				showlicense();
 				/* NOTREACHED */
 
-			case 'N':
-				if ((config.option.serverc = atoi(optarg)) < 1)
-					serrx(EXIT_FAILURE, "%s: illegal value for -%c: %d",
-					function, ch, config.option.serverc);
+			case 'N': {
+				char *endptr;
+
+				if ((config.option.serverc = (int)strtol(optarg, &endptr, 10)) < 1
+				||   *endptr != NUL)
+					serrx(EXIT_FAILURE, "%s: illegal value for -%c: %s",
+					function, ch, optarg);
 				break;
+			}
 
 			case 'd':
 				++config.option.debug;
@@ -764,9 +768,15 @@ serverinit(argc, argv, envp)
 		}
 	}
 
+	argc -= optind;
+	argv += optind;
+
+	if (argc > 0) 
+		serrx(EXIT_FAILURE, "%s: unknown argument %s", function, *argv);
+
 	if (config.option.daemon)
 		if (daemon(1, 0) != 0)
-			serr(EXIT_FAILURE, "daemon()");
+			serr(EXIT_FAILURE, "%s: daemon()", function);
 
 	newprocinit();
 
