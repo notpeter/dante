@@ -44,13 +44,14 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.20 1999/05/14 14:44:36 michaels Exp $";
+"$Id: Rgethostbyname.c,v 1.21 1999/07/05 10:32:13 michaels Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
 	const char *name;
 	int af;
 {
+/*	const char *function = "Rgethostbyname2()"; */
 	static struct hostent hostentmem;
 	static char **addrlist;
 	struct in_addr ipindex;
@@ -58,6 +59,8 @@ Rgethostbyname2(name, af)
 
 	/* needs to be done before gethostbyname calls. */
 	clientinit();
+
+/*	slog(LOG_DEBUG, "%s: %s", function, name); */
 
 	switch (config.resolveprotocol) {
 		case RESOLVEPROTOCOL_TCP:
@@ -123,7 +126,7 @@ Rgethostbyname2(name, af)
 			return NULL;
 	}
 
-	if ((ipindex.s_addr = socks_addfakeip(name)) == INADDR_NONE)
+	if ((ipindex.s_addr = socks_addfakeip(name)) == htonl(INADDR_NONE))
 		return NULL;
 
 	if (inet_pton(af, inet_ntoa(ipindex), *addrlist) != 1)

@@ -44,16 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.98 1999/05/14 14:44:33 michaels Exp $";
+"$Id: Rconnect.c,v 1.101 1999/07/03 16:36:22 karls Exp $";
 
 int
 Rconnect(s, name, namelen)
 	int s;
-#if HAVE_FAULTY_CONNECTPROTO
-	struct sockaddr *name;
-#else
 	const struct sockaddr *name;
-#endif  /* HAVE_FAULTY_CONNECTPROTO */
 	socklen_t namelen;
 {
 	const char *function = "Rconnect()";
@@ -157,26 +153,7 @@ Rconnect(s, name, namelen)
 	/* LINTED pointer casts may be troublesome */
 	src.port			= ((const struct sockaddr_in *)&socksfd.local)->sin_port;
 
-	/* LINTED pointer casts may be troublesome */
-	if (socks_getfakehost(((const struct sockaddr_in *)name)->sin_addr.s_addr)
-	!= NULL) {
-		const char *ipname
-		/* LINTED pointer casts may be troublesome */
-		= socks_getfakehost(((const struct sockaddr_in *)name)->sin_addr.s_addr);
-
-		SASSERTX(ipname != NULL);
-
-		dst.atype = SOCKS_ADDR_DOMAIN;
-		SASSERTX(strlen(ipname) < sizeof(dst.addr.domain));
-		strcpy(dst.addr.domain, ipname);
-	}
-	else {
-		dst.atype		= SOCKS_ADDR_IPV4;
-		/* LINTED pointer casts may be troublesome */
-		dst.addr.ipv4	= ((const struct sockaddr_in *)name)->sin_addr;
-	}
-	/* LINTED pointer casts may be troublesome */
-	dst.port	= ((const struct sockaddr_in *)name)->sin_port;
+	fakesockaddr2sockshost(name, &dst);
 
 	bzero(&packet, sizeof(packet));
 	packet.req.host		= dst;
@@ -242,7 +219,20 @@ Rconnect(s, name, namelen)
 				if (dup2(tmp_s, s) == -1)
 					break;
 				close(tmp_s);
-				/* XXX bind the same kind of port that was bound. */
+				
+				/* 
+				 * if s was bound to a privileged port, try to bind the new
+				 * s too to a privileged port.
+				*/
+				/* LINTED pointer casts may be troublesome */
+				if (PORTISRESERVED(((struct sockaddr_in *)
+				&socksfd.local)->sin_port)) {
+					/* LINTED pointer casts may be troublesome */
+					((struct sockaddr_in *)&socksfd.local)->sin_port = htons(0);
+
+					/* LINTED pointer casts may be troublesome */
+					bindresvport(s, (struct sockaddr_in *)&socksfd.local);
+				}
 				return Rconnect(s, name, namelen);
 			}
 		}

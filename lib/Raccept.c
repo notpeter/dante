@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.62 1999/05/14 13:58:13 michaels Exp $";
+"$Id: Raccept.c,v 1.65 1999/06/29 15:33:35 michaels Exp $";
 
 int
 Raccept(s, addr, addrlen)
@@ -125,13 +125,13 @@ Raccept(s, addr, addrlen)
 		timeout.tv_sec		= 0;
 		timeout.tv_usec	= 0;
 
-		if ((p = select(fdbits, &rset, NULL, NULL, &timeout)) == 0) {
+		if ((p = selectn(fdbits, &rset, NULL, NULL, &timeout)) == 0) {
 			errno = EWOULDBLOCK;
 			p = -1;
 		}
 	}
 	else
-		p = select(fdbits, &rset, NULL, NULL, NULL);
+		p = selectn(fdbits, &rset, NULL, NULL, NULL);
 
 	if (p == -1) {
 #if SOCKS_TRYHARDER
@@ -204,7 +204,7 @@ Raccept(s, addr, addrlen)
 						break;
 
 					case MSPROXY_V2:
-						if (sockaddrcmp(&socksfd->reply, &accepted) == 0) {
+						if (sockaddrareeq(&socksfd->reply, &accepted)) {
 							/* socksfd->accepted filled in by sigio(). */
 							accepted = socksfd->accepted;
 							sockaddr2sockshost(&socksfd->accepted, &packet.res.host);
@@ -225,7 +225,7 @@ Raccept(s, addr, addrlen)
 					/* a separate socket with it's own remote address. */
 					socksfd = socks_addaddr((unsigned int)remote, socksfd);
 
-					sockshost2sockaddr(&packet.res.host, &accepted);
+					fakesockshost2sockaddr(&packet.res.host, &accepted);
 					socksfd->accepted = accepted;
 
 					/* has a different local address if INADDR_ANY was bound. */
@@ -260,7 +260,7 @@ Raccept(s, addr, addrlen)
 					return -1;
 				}
 
-				sockshost2sockaddr(&packet.res.host, &accepted);
+				fakesockshost2sockaddr(&packet.res.host, &accepted);
 				socksfd->accepted = accepted;
 				remote = socksfd->control;
 				break;

@@ -61,6 +61,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_alias = @host_alias@
 host_triplet = @host@
+AWK = @AWK@
 CC = @CC@
 LD = @LD@
 LEX = @LEX@
@@ -80,8 +81,9 @@ VERSION = @VERSION@
 YACC = @YACC@
 
 noinst_LTLIBRARIES = libscompat.la
-libscompat_la_SOURCES = difftime.c daemon.c getdtablesize.c hstrerror.c 	inet_aton.c inet_ntoa.c inet_pton.c issetugid.c memmove.c       	setproctitle.c snprintf.c sockatmark.c strerror.c strvis.c      	vsyslog.c vwarnx.c
+libscompat_la_SOURCES = difftime.c daemon.c getdtablesize.c hstrerror.c 	inet_aton.c inet_ntoa.c inet_pton.c issetugid.c memmove.c       	setproctitle.c snprintf.c sockatmark.c strerror.c strvis.c      	vsyslog.c
 
+#XXX vwarnx.c
 
 noinst_HEADERS = compat.h
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -99,7 +101,7 @@ libscompat_la_LIBADD =
 libscompat_la_OBJECTS =  difftime.lo daemon.lo getdtablesize.lo \
 hstrerror.lo inet_aton.lo inet_ntoa.lo inet_pton.lo issetugid.lo \
 memmove.lo setproctitle.lo snprintf.lo sockatmark.lo strerror.lo \
-strvis.lo vsyslog.lo vwarnx.lo
+strvis.lo vsyslog.lo
 CFLAGS = @CFLAGS@
 COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -265,8 +267,6 @@ strvis.lo strvis.o : strvis.c ../include/autoconf.h ../include/redefac.h \
 vsyslog.lo vsyslog.o : vsyslog.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
 	../include/config.h
-vwarnx.lo vwarnx.o : vwarnx.c ../include/autoconf.h ../include/redefac.h \
-	../include/common.h ../include/yacconfig.h ../include/config.h
 
 info-am:
 info: info-am

@@ -1,4 +1,4 @@
-/* redefac.h generated from autoconf.h.in on Thu May 20 12:36:02 MEST 1999  */
+/* redefac.h generated from autoconf.h.in on Sat Jul 3 18:46:35 MEST 1999  */
 
 #ifndef HAVE_DOPRNT
 #define HAVE_DOPRNT 0
@@ -50,11 +50,6 @@
 #endif
 
 
-#ifndef HAVE_OPTHDR
-#define HAVE_OPTHDR 0
-#endif
-
-
 #ifndef HAVE_MSG_WAITALL
 #define HAVE_MSG_WAITALL 0
 #endif
@@ -77,36 +72,6 @@
 
 #ifndef NEED_GETSOCKOPT_CAST
 #define NEED_GETSOCKOPT_CAST 0
-#endif
-
-
-#ifndef HAVE_FAULTY_BINDPROTO
-#define HAVE_FAULTY_BINDPROTO 0
-#endif
-
-
-#ifndef HAVE_FAULTY_CONNECTPROTO
-#define HAVE_FAULTY_CONNECTPROTO 0
-#endif
-
-
-#ifndef HAVE_FAULTY_READVPROTO
-#define HAVE_FAULTY_READVPROTO 0
-#endif
-
-
-#ifndef HAVE_LINUX_SOCKADDR_TYPE
-#define HAVE_LINUX_SOCKADDR_TYPE 0
-#endif
-
-
-#ifndef HAVE_RECVFROM_CHAR
-#define HAVE_RECVFROM_CHAR 0
-#endif
-
-
-#ifndef HAVE_SENDTO_ALT
-#define HAVE_SENDTO_ALT 0
 #endif
 
 
@@ -210,21 +175,6 @@
 #endif
 
 
-#ifndef HAVE_PSOCKLEN_T
-#define HAVE_PSOCKLEN_T 0
-#endif
-
-
-#ifndef HAVE_VOID_SOCKADDR
-#define HAVE_VOID_SOCKADDR 0
-#endif
-
-
-#ifndef HAVE_RECV_LEN_INT
-#define HAVE_RECV_LEN_INT 0
-#endif
-
-
 #ifndef HAVE_STRUCT_IPOPTS
 #define HAVE_STRUCT_IPOPTS 0
 #endif
@@ -257,6 +207,346 @@
 
 #ifndef HAVE_NONULL_FREE
 #define HAVE_NONULL_FREE 0
+#endif
+
+
+#ifndef HAVE_PROT_CONNECT_0
+#define HAVE_PROT_CONNECT_0 0
+#endif
+
+
+#ifndef HAVE_PROT_CONNECT_1
+#define HAVE_PROT_CONNECT_1 0
+#endif
+
+
+#ifndef HAVE_PROT_CONNECT_2
+#define HAVE_PROT_CONNECT_2 0
+#endif
+
+
+#ifndef HAVE_PROT_CONNECT_3
+#define HAVE_PROT_CONNECT_3 0
+#endif
+
+
+#ifndef HAVE_PROT_ACCEPT_0
+#define HAVE_PROT_ACCEPT_0 0
+#endif
+
+
+#ifndef HAVE_PROT_ACCEPT_1
+#define HAVE_PROT_ACCEPT_1 0
+#endif
+
+
+#ifndef HAVE_PROT_ACCEPT_2
+#define HAVE_PROT_ACCEPT_2 0
+#endif
+
+
+#ifndef HAVE_PROT_ACCEPT_3
+#define HAVE_PROT_ACCEPT_3 0
+#endif
+
+
+#ifndef HAVE_PROT_BIND_0
+#define HAVE_PROT_BIND_0 0
+#endif
+
+
+#ifndef HAVE_PROT_BIND_1
+#define HAVE_PROT_BIND_1 0
+#endif
+
+
+#ifndef HAVE_PROT_BIND_2
+#define HAVE_PROT_BIND_2 0
+#endif
+
+
+#ifndef HAVE_PROT_BIND_3
+#define HAVE_PROT_BIND_3 0
+#endif
+
+
+#ifndef HAVE_PROT_GETPEERNAME_0
+#define HAVE_PROT_GETPEERNAME_0 0
+#endif
+
+
+#ifndef HAVE_PROT_GETPEERNAME_1
+#define HAVE_PROT_GETPEERNAME_1 0
+#endif
+
+
+#ifndef HAVE_PROT_GETPEERNAME_2
+#define HAVE_PROT_GETPEERNAME_2 0
+#endif
+
+
+#ifndef HAVE_PROT_GETPEERNAME_3
+#define HAVE_PROT_GETPEERNAME_3 0
+#endif
+
+
+#ifndef HAVE_PROT_GETSOCKNAME_0
+#define HAVE_PROT_GETSOCKNAME_0 0
+#endif
+
+
+#ifndef HAVE_PROT_GETSOCKNAME_1
+#define HAVE_PROT_GETSOCKNAME_1 0
+#endif
+
+
+#ifndef HAVE_PROT_GETSOCKNAME_2
+#define HAVE_PROT_GETSOCKNAME_2 0
+#endif
+
+
+#ifndef HAVE_PROT_GETSOCKNAME_3
+#define HAVE_PROT_GETSOCKNAME_3 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVFROM_0
+#define HAVE_PROT_RECVFROM_0 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVFROM_1
+#define HAVE_PROT_RECVFROM_1 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVFROM_2
+#define HAVE_PROT_RECVFROM_2 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVFROM_3
+#define HAVE_PROT_RECVFROM_3 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVFROM_4
+#define HAVE_PROT_RECVFROM_4 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVFROM_5
+#define HAVE_PROT_RECVFROM_5 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVFROM_6
+#define HAVE_PROT_RECVFROM_6 0
+#endif
+
+
+#ifndef HAVE_PROT_SEND_0
+#define HAVE_PROT_SEND_0 0
+#endif
+
+
+#ifndef HAVE_PROT_SEND_1
+#define HAVE_PROT_SEND_1 0
+#endif
+
+
+#ifndef HAVE_PROT_SEND_2
+#define HAVE_PROT_SEND_2 0
+#endif
+
+
+#ifndef HAVE_PROT_SEND_3
+#define HAVE_PROT_SEND_3 0
+#endif
+
+
+#ifndef HAVE_PROT_SEND_4
+#define HAVE_PROT_SEND_4 0
+#endif
+
+
+#ifndef HAVE_PROT_RECV_0
+#define HAVE_PROT_RECV_0 0
+#endif
+
+
+#ifndef HAVE_PROT_RECV_1
+#define HAVE_PROT_RECV_1 0
+#endif
+
+
+#ifndef HAVE_PROT_RECV_2
+#define HAVE_PROT_RECV_2 0
+#endif
+
+
+#ifndef HAVE_PROT_RECV_3
+#define HAVE_PROT_RECV_3 0
+#endif
+
+
+#ifndef HAVE_PROT_RECV_4
+#define HAVE_PROT_RECV_4 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDTO_0
+#define HAVE_PROT_SENDTO_0 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDTO_1
+#define HAVE_PROT_SENDTO_1 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDTO_2
+#define HAVE_PROT_SENDTO_2 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDTO_3
+#define HAVE_PROT_SENDTO_3 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDTO_4
+#define HAVE_PROT_SENDTO_4 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDTO_5
+#define HAVE_PROT_SENDTO_5 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDTO_6
+#define HAVE_PROT_SENDTO_6 0
+#endif
+
+
+#ifndef HAVE_PROT_READV_0
+#define HAVE_PROT_READV_0 0
+#endif
+
+
+#ifndef HAVE_PROT_READV_1
+#define HAVE_PROT_READV_1 0
+#endif
+
+
+#ifndef HAVE_PROT_READV_2
+#define HAVE_PROT_READV_2 0
+#endif
+
+
+#ifndef HAVE_PROT_READV_3
+#define HAVE_PROT_READV_3 0
+#endif
+
+
+#ifndef HAVE_PROT_WRITEV_0
+#define HAVE_PROT_WRITEV_0 0
+#endif
+
+
+#ifndef HAVE_PROT_WRITEV_1
+#define HAVE_PROT_WRITEV_1 0
+#endif
+
+
+#ifndef HAVE_PROT_WRITEV_2
+#define HAVE_PROT_WRITEV_2 0
+#endif
+
+
+#ifndef HAVE_PROT_WRITEV_3
+#define HAVE_PROT_WRITEV_3 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVMSG_0
+#define HAVE_PROT_RECVMSG_0 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVMSG_1
+#define HAVE_PROT_RECVMSG_1 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVMSG_2
+#define HAVE_PROT_RECVMSG_2 0
+#endif
+
+
+#ifndef HAVE_PROT_RECVMSG_3
+#define HAVE_PROT_RECVMSG_3 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDMSG_0
+#define HAVE_PROT_SENDMSG_0 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDMSG_1
+#define HAVE_PROT_SENDMSG_1 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDMSG_2
+#define HAVE_PROT_SENDMSG_2 0
+#endif
+
+
+#ifndef HAVE_PROT_SENDMSG_3
+#define HAVE_PROT_SENDMSG_3 0
+#endif
+
+
+#ifndef HAVE_PROT_WRITE_0
+#define HAVE_PROT_WRITE_0 0
+#endif
+
+
+#ifndef HAVE_PROT_WRITE_1
+#define HAVE_PROT_WRITE_1 0
+#endif
+
+
+#ifndef HAVE_PROT_WRITE_2
+#define HAVE_PROT_WRITE_2 0
+#endif
+
+
+#ifndef HAVE_PROT_WRITE_3
+#define HAVE_PROT_WRITE_3 0
+#endif
+
+
+#ifndef HAVE_PROT_READ_0
+#define HAVE_PROT_READ_0 0
+#endif
+
+
+#ifndef HAVE_PROT_READ_1
+#define HAVE_PROT_READ_1 0
+#endif
+
+
+#ifndef HAVE_PROT_READ_2
+#define HAVE_PROT_READ_2 0
+#endif
+
+
+#ifndef HAVE_PROT_READ_3
+#define HAVE_PROT_READ_3 0
 #endif
 
 
@@ -360,18 +650,8 @@
 #endif
 
 
-#ifndef HAVE_VWARNX
-#define HAVE_VWARNX 0
-#endif
-
-
 #ifndef HAVE_CRYPT_H
 #define HAVE_CRYPT_H 0
-#endif
-
-
-#ifndef HAVE_DIRENT_H
-#define HAVE_DIRENT_H 0
 #endif
 
 
@@ -387,11 +667,6 @@
 
 #ifndef HAVE_MALLOC_H
 #define HAVE_MALLOC_H 0
-#endif
-
-
-#ifndef HAVE_NDIR_H
-#define HAVE_NDIR_H 0
 #endif
 
 
@@ -415,11 +690,6 @@
 #endif
 
 
-#ifndef HAVE_SYS_DIR_H
-#define HAVE_SYS_DIR_H 0
-#endif
-
-
 #ifndef HAVE_SYS_FILE_H
 #define HAVE_SYS_FILE_H 0
 #endif
@@ -427,11 +697,6 @@
 
 #ifndef HAVE_SYS_IOCTL_H
 #define HAVE_SYS_IOCTL_H 0
-#endif
-
-
-#ifndef HAVE_SYS_NDIR_H
-#define HAVE_SYS_NDIR_H 0
 #endif
 
 

@@ -59,6 +59,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_alias = @host_alias@
 host_triplet = @host@
+AWK = @AWK@
 CC = @CC@
 LD = @LD@
 LEX = @LEX@

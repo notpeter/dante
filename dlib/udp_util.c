@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.37 1999/05/13 13:13:03 karls Exp $";
+"$Id: udp_util.c,v 1.38 1999/06/16 08:26:22 michaels Exp $";
 
 struct udpheader_t *
 sockaddr2udpheader(to, header)
@@ -56,39 +56,22 @@ sockaddr2udpheader(to, header)
 
 	bzero(header, sizeof(*header));
 
-	/* LINTED pointer casts may be troublesome */
-	if (socks_getfakehost(((const struct sockaddr_in *)to)->sin_addr.s_addr)) {
-		const char *ipname
-		/* LINTED pointer casts may be troublesome */
-		= socks_getfakehost(((const struct sockaddr_in *)to)->sin_addr.s_addr);
-
-		SASSERTX(ipname != NULL);
-		SASSERTX(strlen(ipname) < sizeof(header->host.addr.domain));
-
-		header->host.atype = SOCKS_ADDR_DOMAIN;
-		strcpy(header->host.addr.domain, ipname);
-	}
-	else {
-		header->host.atype		= SOCKS_ADDR_IPV4;
-		/* LINTED pointer casts may be troublesome */
-		header->host.addr.ipv4	= ((const struct sockaddr_in *)to)->sin_addr;
-	}
-	/* LINTED cast */
-	header->host.port = ((const struct sockaddr_in *)to)->sin_port;
+	fakesockaddr2sockshost(to, &header->host);
 
 	return header;
 }
 
 char *
-udpheader_add(to, msg, len)
-	const struct sockaddr *to;
+udpheader_add(host, msg, len)
+	const struct sockshost_t *host;
 	const char *msg;
 	size_t *len;
 {
 	struct udpheader_t header;
 	char *newmsg, *offset;
 
-	sockaddr2udpheader(to, &header);
+	bzero(&header, sizeof(header));
+	header.host = *host;
 
 	if ((newmsg = (char *)malloc(sizeof(char) * *len * PACKETSIZE_UDP(&header)))
 	== NULL)

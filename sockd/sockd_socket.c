@@ -44,16 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.22 1999/05/14 10:51:35 michaels Exp $";
+"$Id: sockd_socket.c,v 1.23 1999/07/03 16:36:24 karls Exp $";
 
 int
 sockd_bind(s, addr, retries)
 	int s;
-#if HAVE_FAULTY_BINDPROTO
-	struct sockaddr *addr;
-#else
 	const struct sockaddr *addr;
-#endif  /* HAVE_FAULTY_BINDPROTO */
 	size_t retries;
 {
 	const char *function = "sockd_bind()";

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.10 1999/05/13 14:09:20 karls Exp $";
+"$Id: hostcache.c,v 1.11 1999/06/22 08:21:16 michaels Exp $";
 
 /* we want the real thing. */
 #undef gethostbyname
@@ -53,7 +53,7 @@ static const char rcsid[] =
 __BEGIN_DECLS
 
 static struct hostent *
-hostentupdate __P((struct hostent *old, struct hostent *new));
+hostentupdate __P((struct hostent *old, const struct hostent *new));
 /*
  * Updates "old" with the contents of "new", freeing any
  * resources currently used by "old".
@@ -76,9 +76,8 @@ addrhash __P((in_addr_t addr, size_t size));
  * Size of hashtable is given by "size".
 */
 
-
 static char **
-listrealloc __P((char ***old, char ***new, int length));
+listrealloc __P((char ***old, const char ***new, int length));
 /*
  * Reallocates "old" and copies in the contents of "new".
  * The last element of both "old" and "new" must be NULL.
@@ -239,6 +238,68 @@ cgethostbyaddr(addr, len, type)
 	return &freehost->hostent;
 }
 
+struct hostent *
+hostentdup(hostent)
+	const struct hostent *hostent;
+{
+	static struct hostent dupedinit;
+	struct hostent *duped;
+
+	if ((duped = (struct hostent *)malloc(sizeof(*duped))) == NULL)
+		return NULL;
+
+	*duped = dupedinit;
+	
+	if ((duped->h_name = strdup(hostent->h_name)) == NULL) {
+		hostentfree(duped);
+		return NULL;
+	}
+	
+	if (listrealloc(&duped->h_aliases, (const char ***)&hostent->h_aliases, -1)
+	== NULL) {
+		hostentfree(duped);
+		return NULL;
+	}
+	
+	duped->h_addrtype = hostent->h_addrtype;
+	duped->h_length	= hostent->h_length;
+
+	if (listrealloc(&duped->h_addr_list, (const char ***)&hostent->h_addr_list,
+	hostent->h_length) == NULL) {
+		hostentfree(duped);
+		return NULL;
+	}
+
+	return duped;
+}
+
+void
+hostentfree(hostent)
+	struct hostent *hostent;
+{
+	char **p;
+
+	if (hostent == NULL)
+		return;
+
+	free(hostent->h_name);
+	hostent->h_name = NULL;
+	
+	if (hostent->h_aliases != NULL)
+		for (p = hostent->h_aliases; *p != NULL; ++p)
+			free(*p);
+	free(hostent->h_aliases);
+	hostent->h_aliases = NULL;
+
+	if (hostent->h_addr_list != NULL)
+		for (p = hostent->h_addr_list; *p != NULL; ++p)
+			free(*p);
+	free(hostent->h_addr_list);
+	hostent->h_addr_list = NULL;
+
+	free(hostent);
+}
+
 static int
 hosthash(name, size)
 	const char *name;
@@ -273,7 +334,7 @@ addrhash(addr, size)
 static struct hostent *
 hostentupdate(old, new)
 	struct hostent *old;
-	struct hostent *new;
+	const struct hostent *new;
 {
 
 	if ((old->h_name = (char *)realloc(old->h_name, strlen(new->h_name) + 1))
@@ -281,13 +342,15 @@ hostentupdate(old, new)
 		return NULL;
 	strcpy(old->h_name, new->h_name);
 
-	if (listrealloc(&old->h_aliases, &new->h_aliases, -1) == NULL)
+	if (listrealloc(&old->h_aliases, (const char ***)&new->h_aliases, -1)
+	== NULL)
 		return NULL;
 
 	old->h_addrtype	= new->h_addrtype;
 	old->h_length		= new->h_length;
 
-	if (listrealloc(&old->h_addr_list, &new->h_addr_list, new->h_length) == NULL)
+	if (listrealloc(&old->h_addr_list, (const char ***)&new->h_addr_list,
+	new->h_length) == NULL)
 		return NULL;
 
 	return old;
@@ -296,7 +359,7 @@ hostentupdate(old, new)
 static char **
 listrealloc(old, new, length)
 	char ***old;
-	char ***new;
+	const char ***new;
 	int length;
 {
 	int i, oldi, newi;
@@ -327,7 +390,7 @@ listrealloc(old, new, length)
 		else
 			memcpy((*old)[newi], (*new)[newi], (size_t)length);
 	}
-	(*old)[newi] = (*new)[newi];
+	(*old)[newi] = NULL;
 
 	return *old;
 }

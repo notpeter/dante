@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.21 1999/05/25 17:22:35 michaels Exp $";
+"$Id: socket.c,v 1.22 1999/06/22 08:26:19 michaels Exp $";
 
 int
 socks_connect(s, host)
@@ -110,9 +110,9 @@ socks_connect(s, host)
 			default:
 				return -1;
 		}
-	} while (*++ip != NULL);
+	} while (ip != NULL && *++ip != NULL);
 
-	if (*ip == NULL)
+	if (ip == NULL || *ip == NULL)
 		return -1; /* list exhausted, no successfull connect. */
 
 	if (new_s != s) {	/* had to create a new socket of our own. */

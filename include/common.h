@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.194 1999/05/25 17:22:23 michaels Exp $ */
+/* $Id: common.h,v 1.203 1999/07/05 10:31:29 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -75,17 +75,7 @@
 #undef __GNUC__
 #endif  /* __GNUC__ */
 #endif  /* WE_DONT_WANT_NO_SOCKADDR_ARG_UNION */
-/* XXX solaris 7 prototype change workaround */
-#if HAVE_PSOCKLEN_T
-#define _SOCKLEN_T
-#define socklen_t size_t
-#define Psocklen_t socklen_t *
 #include <sys/socket.h>
-#undef Psocklen_t
-#undef _SOCKLEN_T
-#else
-#include <sys/socket.h>
-#endif  /* HAVE_PSOCKLEN_T */
 #ifdef __HAD_GNUC
 #define __GNUC__ __HAD_GNUC
 #endif  /* __HAD_GNUC */
@@ -115,9 +105,11 @@
 #ifdef SOCKSLIBRARY_DYNAMIC
 #include <dlfcn.h>
 #endif  /* SOCKSLIBRARY_DYNAMIC */
+#if 0 /* XXX */
 #if HAVE_VWARNX
 #include <err.h>
 #endif  /* HAVE_VWARNX */
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #if HAVE_LIMITS_H
@@ -309,16 +301,6 @@ error "no known 32 bits wide datatype"
 #define AF_LOCAL AF_UNIX
 #endif  /* NEED_AF_LOCAL */
 
-#if !HAVE_LINUX_SOCKADDR_TYPE
-#if HAVE_VOID_SOCKADDR
-#define __SOCKADDR_ARG void *
-#define __CONST_SOCKADDR_ARG const void *
-#else
-#define __SOCKADDR_ARG struct sockaddr *
-#define __CONST_SOCKADDR_ARG const struct sockaddr *
-#endif  /* HAVE_VOID_SOCKADDR */
-#endif  /* ! HAVE_LINUX_SOCKADDR_TYPE */
-
 #if HAVE_NOMALLOC_REALLOC
 #define realloc(p,s) (((p) == NULL) ? (malloc(s)) : (realloc((p),(s))))
 #endif  /* HAVE_NOMALLOC_REALLOC */
@@ -375,10 +357,10 @@ extern char *__progname;
 #define	MAXPWLEN				(255 + 1)		/* socks5: 255, +1 for len. */
 
 
-/*									"255." "255." "255." "255" "," "65535" + NUL */
+/*									"255." "255." "255." "255" "." "65535" + NUL */
 #define	MAXSOCKADDRSTRING	 (4   +   4   + 4   +  3  + 1 +    5   + 1)
 
-/*													"," + "65535" + NUL */
+/*														   "." + "65535" + NUL */
 #define	MAXSOCKSHOSTSTRING (MAXHOSTNAMELEN + 1  +    5)
 
 #define	MAXRULEADDRSTRING	 (MAXSOCKSHOSTSTRING * 2)
@@ -422,10 +404,7 @@ extern char *__progname;
 
 #define close(n)	closen(n)
 
-#define select(nfds, readfds, writefds, exceptfds, timeout) \
-		 selectn(nfds, readfds, writefds, exceptfds, timeout)
-
-#define PORTRESERVED(port)	(ntohs((port)) == 0 ? \
+#define PORTISRESERVED(port)	(ntohs((port)) == 0 ? \
 	0 : ntohs((port)) < IPPORT_RESERVED ? 1 : 0)
 
 #define ADDRISBOUND(addr) \
@@ -644,13 +623,15 @@ do {														\
 
 
 /*
- * This is for Rgethostbyname() support.  FAKEIP_START is the first
- * address in the range of "fake" ip addresses, FAKEIP_END is the last.
- * There can thus be FAKEIP_END - FAKEIP_START number of fake ip addresses'
+ * This is for Rgethostbyname() support for clients without access to
+ * dns.
+ * FAKEIP_START is the first address in the range of "fake" ip addresses,
+ * FAKEIP_END is the last.
+ * There can thus be FAKEIP_END - FAKEIP_START number of fake ip addresses
  * supported per program.  INADDR_ANY must not be within the range.
 */
-#define FAKEIP_START 1
-#define FAKEIP_END	255
+#define FAKEIP_START 0x00000001
+#define FAKEIP_END	0x000000ff
 
 
 #define SOCKS_V4					4
@@ -661,23 +642,26 @@ do {														\
 /* subnegotiation. */
 #define SOCKS_UNAMEVERSION		1
 
-/* connection authentication METHOD values from rfc19228 */
-#define AUTHMETHOD_NONE		0x00
-#define AUTHMETHOD_NONEs	"none"
-#define AUTHMETHOD_GSSAPI	0x01
-#define AUTHMETHOD_GSSAPIs "GSS-API"
-#define AUTHMETHOD_UNAME	0x02
-#define AUTHMETHOD_UNAMEs  "username/password"
-
+/* authentication METHOD values. */
+#define AUTHMETHOD_NONE			0
+#define AUTHMETHOD_NONEs		"none"
+#define AUTHMETHOD_GSSAPI		1
+#define AUTHMETHOD_GSSAPIs 	"gssapi"
+#define AUTHMETHOD_UNAME		2
+#define AUTHMETHOD_UNAMEs  	"username"
 
 /* X'03' to X'7F' IANA ASSIGNED						*/
 
 /* X'80' to X'FE' RESERVED FOR PRIVATE METHODS	*/
 
-#define AUTHMETHOD_NOACCEPT 0xff
-#define AUTHMETHOD_NOACCEPTs "no acceptable method"
+#define AUTHMETHOD_NOACCEPT 	255
+#define AUTHMETHOD_NOACCEPTs 	"no acceptable method"
 
-#define METHODS_MAX	255
+/* not standard methods, must be > 255. */
+#define AUTHMETHOD_RFC931  	256
+#define AUTHMETHOD_RFC931s  	"rfc931"
+
+#define AUTHMETHOD_MAX			(AUTHMETHOD_RFC931 + 1)
 
 /*
  *  Response commands/codes
@@ -1192,19 +1176,25 @@ struct interfacerequest_t {
 };
 
 
-/* username */
+/* method username */
 struct uname_t {
 	unsigned char	version;
 	char				name[MAXNAMELEN];
 	char				password[MAXPWLEN];
 };
 
+/* method rfc931 */
+struct rfc931_t {
+	char				name[MAXNAMELEN];
+};
 
 /* this must be big enough to hold a complete method request. */
 struct authmethod_t {
-	unsigned char			method;
+	unsigned					checked:1;	/* authentication has been checked?	*/
+	int						method;		/* method in use.							*/
 	union {
 		struct uname_t		uname;
+		struct rfc931_t	rfc931;
 	} mdata;
 };
 
@@ -1246,8 +1236,8 @@ struct serverstate_t {
 	struct command_t			command;
 	struct extension_t		extension;
 	struct protocol_t			protocol;
-	char							methodv[METHODS_MAX];	/* methods to offer.			*/
-	unsigned	char				methodc;						/* number of methods set.	*/
+	int							methodv[AUTHMETHOD_MAX];/* methods to offer.			*/
+	int							methodc;						/* number of methods set.	*/
 	struct proxyprotocol_t	proxyprotocol;
 };
 
@@ -1428,13 +1418,14 @@ sockaddr2udpheader __P((const struct sockaddr *to, struct udpheader_t *header));
 */
 
 char *
-udpheader_add __P((const struct sockaddr *to, const char *msg, size_t *len));
+udpheader_add __P((const struct sockshost_t *host, const char *msg,
+						 size_t *len));
 /*
- * Prefixes the udpheader_t version of "to" to "msg", which is of
- * length "len".
- * Upon return "len" gives the length of the returned "msg".
+ * Prefixes the udpheader_t version of "host" to a copy of "msg",
+ * which is of length "len".
+ * Upon return "len" gives the length of the new "msg".
  *	Returns:
- *		On success: the new string.
+ *		On success: the new "msg".
  *		On failure: NULL.
 */
 
@@ -1478,20 +1469,6 @@ fdisopen __P((int fd));
 */
 
 void
-socks_seteuid __P((uid_t *old, uid_t new));
-/*
- * Sets euid to "new".  If "old" is not NULL, current euid is saved in it.
- * Exits on failure.
-*/
-
-void
-socks_reseteuid __P((uid_t uid));
-/*
- * "Resets" euid back to "uid".  If this fails, it's assumed to
- * be a internal error.
-*/
-
-void
 closev __P((int *array, int count));
 /*
  * Goes through "array", which contains "count" elements.
@@ -1523,6 +1500,14 @@ sockshost2sockaddr __P((const struct sockshost_t *shost,
  * Converts the sockhost_t "shost" to a sockaddr struct and stores it
  * in "addr".
  * Returns: "addr".
+*/
+
+struct sockaddr *
+fakesockshost2sockaddr __P((const struct sockshost_t *host,
+									 struct sockaddr *addr));
+/*
+ * Like sockshost2sockaddr(), but checks whether the address in 
+ * "host" is fake when converting.
 */
 
 struct sockshost_t *
@@ -1645,6 +1630,13 @@ method2string __P((int method));
  * Can't fail.
 */
 
+int
+string2method __P((const char *methodname));
+/*
+ * If "methodname" is the name of a supported method, the protocol
+ * value of that method is returned.
+ * Otherwise, -1 is returned.
+*/
 
 
 char *
@@ -1694,7 +1686,12 @@ readconfig __P((const char *filename));
  *		On failure: -1.
 */
 
-
+void
+yyerror __P((const char *s));
+/*
+ * Report a error related to (configfile) parsing and exit.
+*/
+  
 int
 addressmatch __P((const struct ruleaddress_t *rule,
 						const struct sockshost_t *address, int protocol,
@@ -1707,8 +1704,24 @@ addressmatch __P((const struct ruleaddress_t *rule,
  * "address"'s might have if appropriate, this can be useful to match
  * multihomed hosts where the client requests e.g a bind connection.
  * Returns true if "rule" matched "address".
-
 */
+
+struct hostent *
+hostentdup __P((const struct hostent *hostent));
+/*
+ * Duplicates "hostent".
+ * Returns:
+ *		On success: a pointer to the duplicated hostent.
+ *		On failure: NULL.
+*/
+
+void
+hostentfree __P((struct hostent *hostent));
+/*
+ * Free's all resourced used by "hostent", including "hostent"
+ * itself.  If "hostent" is NULL, nothing is done.
+*/
+
 
 
 int
@@ -1867,11 +1880,30 @@ socks_getfakeip __P((const char *host, struct in_addr *addr));
  *		Else: 0
 */
 
-int
-sockaddrcmp __P((const struct sockaddr *a, const struct sockaddr *b));
+struct sockshost_t *
+fakesockaddr2sockshost __P((const struct sockaddr *addr, 
+									 struct sockshost_t *host));
 /*
- * Compares the address in "a" against "b", returning 0 if they are
- * identical, something else otherwise.
+ * Identical to sockaddr2sockshost, but checks whether
+ * the address in "addr" is a "fake" one when converting.
+*/
+
+int
+sockaddrareeq __P((const struct sockaddr *a, const struct sockaddr *b));
+/*
+ * Compares the address "a" against "b".
+ * Returns:
+ *		If "a" and "b" are equal: true
+ *		else: false
+*/
+
+int
+sockshostareeq __P((const struct sockshost_t *a, const struct sockshost_t *b));
+/*
+ * Compares the address "a" against "b".
+ * Returns:
+ *		If "a" and "b" are equal: true
+ *		else: false
 */
 
 fd_set *
@@ -1884,12 +1916,12 @@ fdsetop __P((int nfds, const fd_set *a, const fd_set *b, int op));
  * can take on the value of standard C bitwise operators.
  * Returns a pointer to the set that is the result of doing "a" "op" "b".
  * The memory used is static.
- * BUGS:
+ * NOTES:
  *		Only operator currently supported is XOR ('^').
 */
 
 int
-methodisset __P((int method, const char *methodv, size_t methodc));
+methodisset __P((int method, const int *methodv, size_t methodc));
 /*
  * Returns true if the method "method" is set in "methodv", false otherwise.
  * "methodc" is the length of "methodv".
@@ -1960,9 +1992,11 @@ fd_isset __P((int fd, fd_set *fdset));
 
 /* replacements */
 
+#if 0 /* XXX */
 #if !HAVE_VWARNX
 void vwarnx __P((const char *, va_list ap));
 #endif  /* !HAVE_VWARNX */
+#endif
 
 #if !HAVE_DAEMON
 int daemon __P((int, int));

@@ -48,7 +48,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.19 1999/05/23 15:43:56 michaels Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.20 1999/06/29 15:33:40 michaels Exp $";
 
 static char executable[] = "TELNET.EXE";
 static struct sigaction oldsigio;
@@ -719,7 +719,7 @@ sigio(sig)
 		timeout.tv_usec	= 0;
 
 		newrset = rset;
-		switch (select(dbits + 1, &newrset, NULL, NULL, &timeout)) {
+		switch (selectn(dbits + 1, &newrset, NULL, NULL, &timeout)) {
 			case -1:
 				SERR(-1);
 				/* NOTREACHED */

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.56 1999/05/13 17:06:31 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.60 1999/06/30 11:15:39 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -149,6 +149,12 @@ neg_gettimedout __P((void));
  *		Else: NULL.
 */
 
+static void
+siginfo __P((int sig));
+/* 
+ * Print information about our current connections.
+*/
+
 __END_DECLS
 
 static struct sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
@@ -159,6 +165,21 @@ void
 run_negotiate(mother)
 	struct sockd_mother_t *mother;
 {
+	const char *function = "run_negotiate()";
+	struct sigaction sigact;
+
+	sigemptyset(&sigact.sa_mask);
+	sigact.sa_flags	= SA_RESTART;
+	sigact.sa_handler = siginfo;
+
+#if HAVE_SIGNAL_SIGINFO
+	if (sigaction(SIGINFO, &sigact, NULL) != 0)
+		serr(EXIT_FAILURE, "%s: sigaction(SIGINFO)", function);
+#endif  /* HAVE_SIGNAL_SIGINFO */
+
+	/* same handler, for systems without SIGINFO. */
+	if (sigaction(SIGUSR1, &sigact, NULL) != 0)
+		serr(EXIT_FAILURE, "%s: sigaction(SIGINFO)", function);
 
 	proctitleupdate();
 
@@ -181,7 +202,7 @@ run_negotiate(mother)
 		}
 
 		++fdbits;
-		switch (select(fdbits, &rset, wset, NULL, neg_gettimeout(&timeout))) {
+		switch (selectn(fdbits, &rset, wset, NULL, neg_gettimeout(&timeout))) {
 			case -1:
 				SERR(-1);
 				/* NOTREACHED */
@@ -276,11 +297,14 @@ send_negotiate(mother, neg)
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
 	/* copy needed fields from negotiate */
-	req.req	= neg->req;
-	req.auth	= neg->auth;
-	req.rule = neg->rule;
 	/* LINTED pointer casts may be troublesome */
 	sockshost2sockaddr(&neg->src, (struct sockaddr *)&req.from);
+	req.req				= neg->req;
+	req.rule 			= neg->rule;
+	req.state			= neg->state;
+	req.state.command	= req.req.command;
+	req.state.version	= req.req.version;
+
 	/* LINTED pointer casts may be troublesome */
 	sockshost2sockaddr(&neg->dst, (struct sockaddr *)&req.to);
 
@@ -400,23 +424,24 @@ recv_negotiate(mother)
 
 	neg->state.command		= SOCKS_ACCEPT;
 	neg->state.protocol		= SOCKS_TCP;
+	neg->state.version		= SOCKS_V5; /* anything valid. */
 	neg->state.auth.method	= AUTHMETHOD_NONE;
 	/* pointer fixup */
-	neg->req.auth = &neg->auth;
-	neg->allocated = 1;
+	neg->req.auth = &neg->state.auth;
 
-	permit = clientaddressisok(neg->s, &neg->src, &neg->dst, neg->state.protocol,
-	&neg->rule);
+	permit = rulespermit(neg->s, &neg->rule, &neg->state, &neg->src, &neg->dst);
 
 	iolog(&neg->rule, &neg->state, OPERATION_ACCEPT, &neg->src, &neg->dst,
 	NULL, 0);
+
+	neg->allocated = 1;
 
 	if (!permit) {
 		delete_negotiate(mother, neg);
 		return 0;
 	}
 
-	time(&neg->start);
+	time(&neg->state.time.negotiate_start);
 
 	proctitleupdate();
 
@@ -548,7 +573,8 @@ neg_gettimeout(timeout)
 			continue;
 		else
 			timeout->tv_sec = MAX(0, MIN(timeout->tv_sec,
-			config.timeout.negotiate - (timenow - negv[i].start)));
+			difftime(config.timeout.negotiate,
+			(time_t)difftime(timenow, negv[i].state.time.negotiate_start))));
 
 	return timeout;
 }
@@ -569,9 +595,33 @@ neg_gettimedout(void)
 		if (negv[i].ignore)
 			continue;
 		else
-			if (timenow - negv[i].start >= config.timeout.negotiate)
+			if (difftime(timenow, negv[i].state.time.negotiate_start)
+			>= config.timeout.negotiate)
 				return &negv[i];
 	}
 
 	return NULL;
 }
+
+/* ARGSUSED */
+static void
+siginfo(sig)
+	int sig;
+{
+	int i;
+	time_t timenow;
+
+	time(&timenow);
+
+	for (i = 0; i < negc; ++i)
+		if (!negv[i].allocated)
+			continue;
+		else {
+			char srcstring[MAXSOCKSHOSTSTRING];
+
+			slog(LOG_INFO, "%s: negotiating for %.0fs",
+			sockshost2string(&negv[i].src, srcstring, sizeof(srcstring)),
+			difftime(timenow, negv[i].state.time.negotiate_start));
+		}
+}
+

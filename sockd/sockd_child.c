@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.107 1999/05/26 10:07:22 michaels Exp $";
+"$Id: sockd_child.c,v 1.110 1999/06/30 11:17:32 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -292,10 +292,11 @@ addchild(type)
 
 		case 0: {
 			size_t i, maxfd;
-			int cansetuid;
 			struct sigaction sigact;
 
 			config.state.pid = getpid();
+
+			initlog();
 
 #if 0
 			slog(LOG_DEBUG, "sleeping...");
@@ -305,26 +306,28 @@ addchild(type)
 			mother.s		= pipev[CHILD];
 			mother.ack	= ackpipev[CHILD];
 
-			/* can't save this since SIGHUP could change things. */
-			cansetuid = 1;
+			/*
+			 * It would be nice to be able to lose all privileges here
+			 * but unfourtenatly we can't.
+			 *
+			 * negotiation children:
+			 *		could need to be privileged to check password. 
+			 * 	
+			 * request children:
+			 *		could need privileges to bind port.
+			 *
+			 * io children:
+			 * 	doesn't really need any, but a sighup() performs misc.
+			 * 	seteuid() tests that would fail if we lose privileges.
+			*/
 
 			switch (type) {
 				case CHILD_NEGOTIATE: {
-					/* methods that may require us to be privileged. */
-					const char methodv[] = { AUTHMETHOD_UNAME };
-
 #if HAVE_LIBWRAP
 #if SOCKD_NEGOTIATEMAX > 1
 					resident = 1;
 #endif /* SOCKD_NEGOTIATEMAX > 1 */
 #endif  /* HAVE_LIBWRAP */
-
-					for (i = 0; i < ELEMENTS(methodv); ++i)
-						if (methodisset(methodv[i], config.methodv,
-						(size_t)config.methodc)) {
-							cansetuid = 0;
-							break;
-						}
 
 					break;
 				}
@@ -336,11 +339,6 @@ addchild(type)
 #endif /* SOCKD_REQUESTMAX > 1 */
 #endif  /* HAVE_LIBWRAP */
 
-					if (config.compat.sameport) {
-						cansetuid = 0;
-						break;
-					}
-
 					break;
 
 				case CHILD_IO:
@@ -349,20 +347,13 @@ addchild(type)
 					resident = 1;
 #endif /* SOCKD_IOMAX > 1 */
 #endif  /* HAVE_LIBWRAP */
-
+					
 					break;
 
 				default:
 					SERRX(type);
 			}
-
-			if (cansetuid)
-				if (setuid(config.uid.unprivileged) != 0)
-					serr(EXIT_FAILURE, "%s: setuid(%d)",
-					function, config.uid.unprivileged);
-
-			initlog();
-
+			
 			/* A child does not need a exit handler, reset to default. */
 			sigemptyset(&sigact.sa_mask);
 			sigact.sa_flags	= 0;
@@ -371,6 +362,9 @@ addchild(type)
 			for (i = 0; i < exitsignalc; ++i)
 				if (sigaction(exitsignalv[i], &sigact, NULL) != 0)
 					swarn("%s: sigaction(%d)", function, exitsignalv[i]);
+
+			/* signals mother has set up but which we ignore at this point. */
+			sigact.sa_handler = SIG_IGN;
 
 #if HAVE_SIGNAL_SIGINFO
 			if (sigaction(SIGINFO, &sigact, NULL) != 0)
@@ -502,7 +496,7 @@ childcheck(type)
 			if (addchild(type) != NULL)
 				return childcheck(type);
 			else
-				config.state.addchild = 0;	/* useless to retry until child dies. */
+				config.state.addchild = 0;	/* don't retry until a child dies. */
 
 	return proxyc;
 }
@@ -716,7 +710,7 @@ nextchild(type)
 	timeout.tv_sec		= 0;
 	timeout.tv_usec	= 0;
 
-	switch (select(maxd, NULL, &wset, NULL, &timeout)) {
+	switch (selectn(maxd, NULL, &wset, NULL, &timeout)) {
 		case -1:
 			SERR(-1);
 			/* NOTREACHED */

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.138 1999/06/07 08:10:46 michaels Exp $";
+"$Id: sockd_io.c,v 1.145 1999/06/30 11:17:36 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -162,6 +162,18 @@ io_gettimedout __P((void));
  *		Else: NULL.
 */
 
+static void
+siginfo __P((int sig));
+/* 
+ * Print information about our current connections.
+*/
+
+#ifdef xlint
+extern const int lintnoloop_sockd_io_c;
+#else
+#define lintnoloop_sockd_io_c 0
+#endif
+
 #define UDPFROMLENCHECK(socket, fromlen) \
 	do { \
 		if (fromlen == 0) { \
@@ -171,14 +183,14 @@ io_gettimedout __P((void));
 			function); \
 \
 			if (++failures > 5) { \
-				swarnx("%s: running Solaris 2.5.1 are we?  " \
+				swarnx("%s: running Solaris 2.5 are we?  " \
 				"giving up after %d failures", function, failures); \
 				delete_io(mother, io, (socket), IO_ERROR); \
 				failures = 0; \
 			} \
 			return; \
 		} \
-	} while (0)
+	} while (lintnoloop_sockd_io_c)
 
 __END_DECLS
 
@@ -191,7 +203,22 @@ run_io(mother)
 	struct sockd_mother_t *mother;
 {
 	const char *function = "run_io()";
+	struct sigaction sigact;
 	int p;
+
+	sigemptyset(&sigact.sa_mask);
+	sigact.sa_flags	= SA_RESTART;
+	sigact.sa_handler = siginfo;
+
+#if HAVE_SIGNAL_SIGINFO
+	if (sigaction(SIGINFO, &sigact, NULL) != 0)
+		serr(EXIT_FAILURE, "%s: sigaction(SIGINFO)", function);
+#endif  /* HAVE_SIGNAL_SIGINFO */
+
+	/* same handler, for systems without SIGINFO. */
+	if (sigaction(SIGUSR1, &sigact, NULL) != 0)
+		serr(EXIT_FAILURE, "%s: sigaction(SIGINFO)", function);
+
 
 	proctitleupdate();
 
@@ -220,7 +247,7 @@ run_io(mother)
 		 * read.  Since we receive oob data inline we can delay checking for
 		 * exception until next select().
 		*/
-		switch (select(rbits, &rset, NULL, NULL, io_gettimeout(&timeout))) {
+		switch (selectn(rbits, &rset, NULL, NULL, io_gettimeout(&timeout))) {
 			case -1:
 				SERR(-1);
 				/* NOTREACHED */
@@ -315,7 +342,7 @@ run_io(mother)
 		}
 
 		++rbits;
-		switch (select(rbits, &newrset, &wset, &xset, io_gettimeout(&timeout))) {
+		switch (selectn(rbits, &newrset, &wset, &xset, io_gettimeout(&timeout))) {
 			case -1:
 				SERR(-1);
 				/* NOTREACHED */
@@ -453,6 +480,7 @@ delete_io(mother, io, fd, status)
 			SERRX(fd);
 	}
 
+	/* this may end up logging same disconnect twice, but not our choice. */
 	if (io->acceptrule.log.disconnect) {
 		struct connectionstate_t state = io->state;
 
@@ -720,7 +748,6 @@ doio(mother, io, rset, wset, flags)
 
 		case SOCKS_UDP: {
 			struct udpheader_t header;
-			struct sockaddr from, to;
 			socklen_t fromlen;
 			int permit;
 
@@ -738,6 +765,7 @@ doio(mother, io, rset, wset, flags)
 			/* udp to relay from client to destination? */
 			if (FD_ISSET(io->in.s, rset) && FD_ISSET(io->out.s, wset)) {
 				const int lflags = flags & ~MSG_OOB;
+				struct sockaddr from;
 
 				fromlen = sizeof(from);
 				/* LINTED pointer casts may be troublesome */
@@ -768,10 +796,13 @@ doio(mother, io, rset, wset, flags)
 						= ((struct sockaddr_in *)&from)->sin_port;
 				}
 
-				/* first packet; check and connect socket for performance. */
-				if (io->in.read == 0) {
+				/* 
+				 * When we receive the first packet we also have a fixed
+				 * source, so connect the socket for better performance.
+				*/
+				if (io->in.read == 0) { /* could happend more than once, but ok. */
 					/* LINTED pointer casts may be troublesome */
-					if (sockaddrcmp((struct sockaddr *)&io->in.raddr, &from) != 0) {
+					if (!sockaddrareeq((struct sockaddr *)&io->in.raddr, &from)) {
 						char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING];
 
 						slog(LOG_NOTICE,
@@ -853,13 +884,19 @@ doio(mother, io, rset, wset, flags)
 				if (!permit)
 					break;
 
-				sockshost2sockaddr(&header.host, &to);
+				/* LINTED pointer casts may be troublesome */
+				sockshost2sockaddr(&header.host, (struct sockaddr *)&io->out.raddr);
 				if ((w = sendto(io->out.s, &buf[PACKETSIZE_UDP(&header)],
-				(size_t)r, lflags, &to, sizeof(to))) != r) {
+				/* LINTED pointer casts may be troublesome */
+				(size_t)r, lflags, (struct sockaddr *)&io->out.raddr,
+				sizeof(io->out.raddr))) != r) {
 					char badsend[MAXSOCKADDRSTRING];
 
+					/* LINTED pointer casts may be troublesome */
 					swarn("%s: sendto(%s): %d of %d",
-					function, sockaddr2string(&to, badsend, sizeof(badsend)), w, r);
+					function,
+					sockaddr2string((struct sockaddr *)&io->out.raddr,
+					badsend, sizeof(badsend)), w, r);
 				}
 				else
 					io->out.written += w;
@@ -868,6 +905,7 @@ doio(mother, io, rset, wset, flags)
 			/* datagram reply from remote present? */
 			if (FD_ISSET(io->out.s, rset) && FD_ISSET(io->in.s, wset)) {
 				const int lflags = flags & ~MSG_OOB;
+				struct sockaddr from;
 				struct sockshost_t srcsh;
 				char *newmsg;
 
@@ -881,14 +919,34 @@ doio(mother, io, rset, wset, flags)
 				}
 				UDPFROMLENCHECK(io->out.s, fromlen);
 
-				sockaddr2sockshost(&from, &srcsh);
+				/*
+				 * We can get some problems here in the case that
+				 * the client sends a hostname for destination.
+				 * If it does it probably means it can't resolve and if
+				 * we then send it a ipaddress as source, the client
+				 * wont be able to match our source as it's destination,
+				 * even if they are the same. 
+				 * We check for this case specifically, though we only catch
+				 * the last case, which may not always be good enough.
+				 * One could expand the below check, using addressmatch()
+				 * instead, but don't think that would always be right, 
+				 * so better safe than sorry for now.
+				*/
+
+				/* LINTED possible pointer alignment problem */
+				if (io->dst.atype == SOCKS_ADDR_DOMAIN 
+				&& sockaddrareeq((struct sockaddr *)&io->out.raddr, &from))
+					srcsh = io->dst;
+				else
+					sockaddr2sockshost(&from, &srcsh);
 
 				permit
 				= rulespermit(io->out.s, &io->rule, &io->state, &srcsh, &io->src);
 
+				fromlen = sizeof(from);
 				/* read the peeked packet out of the buffer. */
-				if ((r = recvfrom(io->out.s, buf, io->in.sndlowat, lflags, &from,
-				&fromlen)) == -1) {
+				if ((r = recvfrom(io->out.s, buf, io->in.sndlowat, lflags,
+				&from, &fromlen)) == -1) {
 					delete_io(mother, io, io->out.s, r);
 					return;
 				}
@@ -900,14 +958,17 @@ doio(mother, io, rset, wset, flags)
 				if (!permit)
 					break;
 
-				/* add socks udpheader */
+				/* add socks udpheader.  */
 				/* LINTED pointer casts may be troublesome */
-				if ((newmsg = udpheader_add(&from, buf, (size_t *)&r)) == NULL) {
+				if ((newmsg = udpheader_add(&srcsh, buf, (size_t *)&r)) == NULL) {
 					swarnx("%s: %s", function, NOMEM);
 					break;
 				}
 
-				/* XXX socket must be connected. */
+				/*
+				 * XXX socket must be connected but that should always be the
+				 * case * for now since binding udp addresses is not supported.
+				*/
 				if ((w = sendto(io->in.s, newmsg, (size_t)r, lflags, NULL, 0))
 				!= r) {
 					char badsend[MAXSOCKADDRSTRING];
@@ -1130,7 +1191,7 @@ io_gettimeout(timeout)
 			continue;
 		else
 			timeout->tv_sec = MAX(0, MIN(timeout->tv_sec,
-			config.timeout.io - (timenow - iov[i].time)));
+			difftime(config.timeout.io, (time_t)difftime(timenow, iov[i].time))));
 
 	return timeout;
 }
@@ -1150,8 +1211,34 @@ io_gettimedout(void)
 		if (!iov[i].allocated)
 			continue;
 		else
-			if (timenow - iov[i].time >= config.timeout.io)
+			if (difftime(timenow, iov[i].time) >= config.timeout.io)
 				return &iov[i];
 
 	return NULL;
 }
+
+/* ARGSUSED */
+static void
+siginfo(sig)
+	int sig;
+{
+	int i;
+	time_t timenow;
+
+	time(&timenow);
+
+	for (i = 0; i < ioc; ++i)
+		if (!iov[i].allocated)
+			continue;
+		else {
+			char srcstring[MAXSOCKSHOSTSTRING];
+			char dststring[MAXSOCKSHOSTSTRING];
+
+			slog(LOG_INFO, "%s <-> %s: idle %.0fs",
+			sockshost2string(&iov[i].src, srcstring, sizeof(srcstring)),
+			sockshost2string(&iov[i].dst, dststring, sizeof(dststring)),
+			difftime(timenow, iov[i].time));
+		}
+
+}
+

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.37 1999/05/25 17:22:30 michaels Exp $";
+"$Id: io.c,v 1.38 1999/06/14 08:10:04 michaels Exp $";
 
 /* this file defines the functions. */
 #undef select
@@ -155,8 +155,8 @@ recvmsgn(s, msg, flags, len)
 		*/
 
 		SASSERTX(p >= 0);
-		done = p;
 
+		done = p;
 		i = count = p = 0;
 		while (i < msg->msg_iovlen && left > 0) {
 			const struct iovec *io = &msg->msg_iov[i];

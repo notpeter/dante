@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.99 1999/05/21 09:54:50 michaels Exp $";
+"$Id: config_parse.y,v 1.107 1999/07/02 13:26:34 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -59,26 +59,16 @@ __BEGIN_DECLS
 static void
 addressinit __P((struct ruleaddress_t *address));
 
-static void
-yyerror __P((const char *s));
-/*
- * Report a error related to (configfile) parsing.
-*/
-
 __END_DECLS
-
-/* hmm. */
-extern int yylex();
-extern int yyparse();
-
-extern struct config_t config;
 
 extern int yylineno;
 extern char *yytext;
 
 #if SOCKS_SERVER
+static struct rule_t 			ruleinit;	
 static struct rule_t				rule;				/* new rule.							*/
 static struct protocol_t		protocolmem;	/* new protocolmem.					*/
+struct linkedname_t 				**userbase;		/* users rule applies to.			*/
 #endif
 
 #if SOCKS_CLIENT
@@ -101,14 +91,22 @@ static char							*domain;			/* new domain.							*/
 
 static in_port_t					*port_tcp;		/* new tcp portnumber.				*/
 static in_port_t					*port_udp;		/* new udp portnumber.				*/
-static char							*methodv;		/* new authmethods.					*/
-static unsigned char				*methodc;		/* number of them.					*/
+static int							*methodv;		/* new authmethods.					*/
+static int							*methodc;		/* number of them.					*/
 static struct protocol_t		*protocol;		/* new protocol.						*/
 static struct command_t			*command;		/* new command.						*/
 static enum operator_t			*operator;		/* new operator.						*/
 
 
 #define YYDEBUG 1
+
+#define ADDMETHOD(method) \
+	do { \
+		if (*methodc >= AUTHMETHOD_MAX)	\
+			yyerror("internal error or duplicate methods given");	\
+		methodv[(*methodc)++] = method; \
+	} while (0)
+
 
 %}
 
@@ -123,6 +121,7 @@ static enum operator_t			*operator;		/* new operator.						*/
 
 %type	<string> protocol protocols protocolname
 %type	<string> proxyprotocol proxyprotocolname proxyprotocols
+%type	<string> user username usernames
 %type	<string> resolveprotocol resolveprotocolname
 %type	<string> srchost srchostoption srchostoptions
 %type	<string> command commands commandname
@@ -143,7 +142,7 @@ static enum operator_t			*operator;		/* new operator.						*/
 %type	<string> authmethod authmethods authmethodname
 %type	<string> serveroption
 %type	<string> serverinit serverconfig
-%type	<string> users user_privileged user_unprivileged user_libwrap
+%type	<string> userids user_privileged user_unprivileged user_libwrap
 %type	<uid>		userid
 
 %token	<string> CLIENTRULE
@@ -152,9 +151,10 @@ static enum operator_t			*operator;		/* new operator.						*/
 %token	<string> SRCHOST NOMISMATCH NOUNKNOWN
 %token	<string> EXTENSION BIND PRIVILEGED
 %token	<string> IOTIMEOUT CONNECTTIMEOUT
-%token	<string> METHOD NONE GSSAPI UNAME
+%token	<string> METHOD NONE GSSAPI UNAME RFC931
 %token	<string> COMPATIBILITY REUSEADDR SAMEPORT
-%token	<string> USERNAME USER_PRIVILEGED USER_UNPRIVILEGED USER_LIBWRAP
+%token	<string> USERNAME
+%token	<string> USER_PRIVILEGED USER_UNPRIVILEGED USER_LIBWRAP
 %token	<string> LOGOUTPUT LOGFILE
 
 	/* route */
@@ -180,6 +180,7 @@ static enum operator_t			*operator;		/* new operator.						*/
 %token <string> PROTOCOL PROTOCOL_TCP PROTOCOL_UDP PROTOCOL_FAKE
 %token <string> PROXYPROTOCOL PROXYPROTOCOL_SOCKS_V4 PROXYPROTOCOL_SOCKS_V5
 					 PROXYPROTOCOL_MSPROXY_V2
+%token <string> USER
 %token <string> COMMAND COMMAND_BIND COMMAND_CONNECT COMMAND_UDPASSOCIATE								 COMMAND_BINDREPLY
 %token <string> ACTION
 %token <string> LINE
@@ -243,7 +244,7 @@ serverconfig:	authmethod
 	|	external
 	|	logoutput
 	|	serveroption
-	|	users
+	|	userids
 	;
 
 serveroption:	compatibility
@@ -292,7 +293,6 @@ routeinit: {
 	;
 
 
-
 proxyprotocol:	PROXYPROTOCOL ':' proxyprotocols
 	;
 
@@ -311,6 +311,24 @@ proxyprotocols: proxyprotocolname
 	|	proxyprotocolname proxyprotocols
 	;
 
+user: USER ':' usernames
+	;
+
+username:	USERNAME {
+#if SOCKS_SERVER
+#if !HAVE_LIBWRAP
+		if (strcmp($1, method2string(AUTHMETHOD_RFC931)) == 0)
+			yyerror("user rfc931 requires libwrap");
+#endif /* !HAVE_LIBWRAP */
+		if (adduser(userbase, $1) == NULL)
+			yyerror(NOMEM);
+#endif SOCKS_SERVER
+	}
+	;
+
+usernames:	username
+	|	username usernames
+	;
 
 extension:	EXTENSION ':' extensions
 	;
@@ -336,7 +354,7 @@ internal:	INTERNAL internalinit ':' ipaddress port {
 					break;
 
 			if (i == config.internalc)
-				swarnx("can not change internal address' once running");
+				swarnx("can not change internal addresses once running");
 		}
 #endif /* SOCKS_SERVER */
 	}
@@ -361,19 +379,20 @@ internalinit: {
 
 		ipaddr		= &config.internalv[config.internalc - 1].addr.sin_addr;
 		port_tcp		= &config.internalv[config.internalc - 1].addr.sin_port;
-
-		if ((service = getservbyname("socks", "tcp")) == NULL)
-			*port_tcp = htons(SOCKD_PORT);
-		else
-			*port_tcp = service->s_port;
 	}
-	else { /* can only set internal address' once. */
+	else { /* can only set internal addresses once. */
 		static struct in_addr inaddrmem;
 		static in_port_t portmem;
 
 		ipaddr		= &inaddrmem;
 		port_tcp		= &portmem;
 	}
+
+	/* set default port. */
+	if ((service = getservbyname("socks", "tcp")) == NULL)
+		*port_tcp = htons(SOCKD_PORT);
+	else
+		*port_tcp = service->s_port;
 #endif
 	}
 	;
@@ -425,20 +444,20 @@ logoutputdevice:	LOGFILE {
 				|| (config.log.fplockv = (int *)realloc(config.log.fplockv,
 				sizeof(*config.log.fplockv) * (config.log.fpc + 1))) == NULL)
 					serrx(EXIT_FAILURE, NOMEM);
-				++config.log.fpc;
 
-				if ((config.log.fplockv[config.log.fpc - 1]
+				if ((config.log.fplockv[config.log.fpc]
 				= socks_mklock(SOCKS_LOCKFILE)) == -1)
 					serr(EXIT_FAILURE, "socks_mklock()");
 
 				if (strcmp($1, "stdout") == 0)
-					config.log.fpv[config.log.fpc - 1] = stdout;
+					config.log.fpv[config.log.fpc] = stdout;
 				else if (strcmp($1, "stderr") == 0)
-					config.log.fpv[config.log.fpc - 1] = stderr;
+					config.log.fpv[config.log.fpc] = stderr;
 				else
-					if ((config.log.fpv[config.log.fpc - 1] = fopen($1, "a"))
+					if ((config.log.fpv[config.log.fpc] = fopen($1, "a"))
 					== NULL)
 						serr(EXIT_FAILURE, "fopen(%s)", $1);
+				++config.log.fpc;
 			}
 		}
 		else
@@ -450,7 +469,7 @@ logoutputdevices:	logoutputdevice
 	|	logoutputdevice logoutputdevices
 	;
 
-users:	user_privileged
+userids:	user_privileged
 	|	user_unprivileged
 	|	user_libwrap
 	;
@@ -472,14 +491,12 @@ user_unprivileged:	USER_UNPRIVILEGED ':' userid {
 	;
 
 user_libwrap:	USER_LIBWRAP ':' userid {
-#if SOCKS_SERVER
-#if !HAVE_LIBWRAP
-		yyerror("libwrap support not compiled in");
-#else  /* HAVE_LIBWRAP */
+#if HAVE_LIBWRAP && SOCKS_SERVER
 		config.uid.libwrap			= $3;
 		config.uid.libwrap_isset	= 1;
-#endif /* HAVE_LIBWRAP */
-#endif /* SOCKS_SERVER */
+#else  /* HAVE_LIBWRAP */
+		yyerror("libwrap support not compiled in");
+#endif /* !HAVE_LIBWRAP */
 	}
 	;
 
@@ -572,13 +589,20 @@ authmethod:	METHOD ':' authmethods
 	;
 
 authmethodname:	NONE {
-		methodv[(*methodc)++] = AUTHMETHOD_NONE;
+		ADDMETHOD(AUTHMETHOD_NONE);
 	};
 	|	GSSAPI {
 		yyerror("GSSAPI not supported");
 	}
 	|	UNAME {
-		methodv[(*methodc)++] = AUTHMETHOD_UNAME;
+		ADDMETHOD(AUTHMETHOD_UNAME);
+	}
+	|	RFC931 {
+#if HAVE_LIBWRAP && SOCKS_SERVER
+		ADDMETHOD(AUTHMETHOD_RFC931);
+#else /* !HAVE_LIBWRAP */
+		yyerror("method rfc931 requires libwrap");
+#endif /* !HAVE_LIBWRAP */
 	}
 	;
 
@@ -594,11 +618,11 @@ clientrule: CLIENTRULE verdict '{' clientruleoptions fromto clientruleoptions '}
 		rule.src = src;
 		rule.dst = dst;
 
-		addclient(&rule);
+		addclientrule(&rule);
 
 		bzero(&src, sizeof(src));
 		bzero(&dst, sizeof(dst));
-		bzero(&rule, sizeof(rule));
+		rule = ruleinit;
 
 		src.atype = SOCKS_ADDR_IPV4;
 		dst.atype = SOCKS_ADDR_IPV4;
@@ -608,6 +632,7 @@ clientrule: CLIENTRULE verdict '{' clientruleoptions fromto clientruleoptions '}
 
 clientruleoption:	libwrap
 	|	log
+	|	user
 	;
 
 clientruleoptions:	{ $$ = NULL; }
@@ -619,11 +644,11 @@ rule:	verdict '{' ruleoptions fromto ruleoptions '}' {
 		rule.src = src;
 		rule.dst = dst;
 
-		addrule(&rule);
+		addsocksrule(&rule);
 
 		bzero(&src, sizeof(src));
 		bzero(&dst, sizeof(dst));
-		bzero(&rule, sizeof(rule));
+		rule = ruleinit;
 
 		src.atype	= SOCKS_ADDR_IPV4;
 		dst.atype	= SOCKS_ADDR_IPV4;
@@ -638,6 +663,7 @@ ruleoption:	authmethod
 	|	log
 	|	protocol
 	|	proxyprotocol
+	|	user
 	;
 
 ruleoptions:	{ $$ = NULL; }
@@ -652,6 +678,7 @@ verdict:	VERDICT_BLOCK {
 		methodc			= &rule.state.methodc;
 		protocol			= &rule.state.protocol;
 		proxyprotocol	= &rule.state.proxyprotocol;
+		userbase			= &rule.user;
 	}
 	|	VERDICT_PASS {
 		rule.verdict	= VERDICT_PASS;
@@ -660,6 +687,7 @@ verdict:	VERDICT_BLOCK {
 		methodc			= &rule.state.methodc;
 		protocol			= &rule.state.protocol;
 		proxyprotocol	= &rule.state.proxyprotocol;
+		userbase			= &rule.user;
 #endif
 	}
 	;
@@ -737,19 +765,21 @@ logs:	logname
 libwrap:	LIBWRAPSTART ':' LINE {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 		struct request_info request;
+		char libwrap[LIBWRAPBUF];
 
 		if (strlen($3) >= sizeof(rule.libwrap))
 			yyerror("libwrap line too long, make LIBWRAPBUF bigger");
 		strcpy(rule.libwrap, $3);
 
-		if (config.option.debug)
-			hosts_access_verbose = 1;
+		/* libwrap modifies the passed buffer. */
+	 	SASSERTX(strlen(rule.libwrap) < sizeof(libwrap));
+		strcpy(libwrap, rule.libwrap);
 
 		++dry_run;
 		request_init(&request, RQ_FILE, -1, RQ_DAEMON, __progname, 0);
 		if (setjmp(tcpd_buf) != 0)
 			yyerror("bad libwrap line");
-		process_options(rule.libwrap, &request);
+		process_options(libwrap, &request);
 		--dry_run;
 
 #else /* !HAVE_LIBWRAP */
@@ -937,7 +967,13 @@ portoperator:	OPERATOR {
 %%
 
 #define INTERACTIVE 		0
+
+#if SOCKS_SERVER
 #define ELECTRICFENCE 	0
+#else
+#define ELECTRICFENCE 	0
+#endif
+
 
 #if ELECTRICFENCE
 	extern int EF_PROTECT_FREE;
@@ -981,14 +1017,14 @@ readconfig(filename)
 }
 
 
-static void
+void
 yyerror(s)
 	const char *s;
 {
 
-	serrx(1, "%s: %d: %s, near '%.50s'",
-	config.option.configfile, yylineno, s,
-	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
+	serrx(1, "%s: error on line %d, near '%.10s': %s",
+	config.option.configfile, yylineno,
+	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext, s);
 }
 
 

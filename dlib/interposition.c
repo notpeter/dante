@@ -50,7 +50,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.49 1999/05/23 15:43:35 michaels Exp $";
+"$Id: interposition.c,v 1.50 1999/07/03 16:36:18 karls Exp $";
 
 #undef accept
 #undef bind
@@ -174,18 +174,17 @@ symbolfunction(symbol)
 }
 
 
-
 	/* the real system calls. */
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_ACCEPT_0
 sys_accept(s, addr, addrlen)
-	int s;
-	__SOCKADDR_ARG addr;
-	socklen_t *addrlen;
+	HAVE_PROT_ACCEPT_1 s;
+	HAVE_PROT_ACCEPT_2 addr;
+	HAVE_PROT_ACCEPT_3 addrlen;
 {
 	int rc;
-	int (*function)(int s, __SOCKADDR_ARG addr, socklen_t *addrlen);
+	HAVE_PROT_ACCEPT_0 (*function)(HAVE_PROT_ACCEPT_1 s, HAVE_PROT_ACCEPT_2 addr, HAVE_PROT_ACCEPT_3 addrlen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_ACCEPT);
@@ -196,18 +195,14 @@ sys_accept(s, addr, addrlen)
 #endif  /* !HAVE_EXTRA_OSF_SYMBOLS */
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_BIND_0
 sys_bind(s, name, namelen)
-	int s;
-#if HAVE_FAULTY_BINDPROTO
-	struct sockaddr *name;
-#else
-	__CONST_SOCKADDR_ARG name;
-#endif  /* HAVE_FAULTY_BINDPROTO */
-	socklen_t namelen;
+	HAVE_PROT_BIND_1 s;
+	HAVE_PROT_BIND_2 name;
+	HAVE_PROT_BIND_3 namelen;
 {
 	int rc;
-	int (*function)(int s, __CONST_SOCKADDR_ARG name, socklen_t namelen);
+	HAVE_PROT_BIND_0 (*function)(HAVE_PROT_BIND_1 s, HAVE_PROT_BIND_2 name, HAVE_PROT_BIND_3 namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_BIND);
@@ -233,18 +228,14 @@ sys_bindresvport(sd, sin)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_CONNECT_0
 sys_connect(s, name, namelen)
-	int s;
-#if HAVE_FAULTY_CONNECTPROTO
-	struct sockaddr *name;
-#else
-	__CONST_SOCKADDR_ARG name;
-#endif  /* HAVE_FAULTY_CONNECTPROTO */
-	socklen_t namelen;
+	HAVE_PROT_CONNECT_1 s;
+	HAVE_PROT_CONNECT_2 name;
+	HAVE_PROT_CONNECT_3 namelen;
 {
 	int rc;
-	int (*function)(int s, __CONST_SOCKADDR_ARG name, socklen_t namelen);
+	HAVE_PROT_CONNECT_0 (*function)(HAVE_PROT_CONNECT_1 s, HAVE_PROT_CONNECT_2 name, HAVE_PROT_CONNECT_3 namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_CONNECT);
@@ -276,14 +267,14 @@ sys_gethostbyname2(name, af)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_GETPEERNAME_0
 sys_getpeername(s, name, namelen)
-	int s;
-	__SOCKADDR_ARG name;
-	socklen_t *namelen;
+	HAVE_PROT_GETPEERNAME_1 s;
+	HAVE_PROT_GETPEERNAME_2 name;
+	HAVE_PROT_GETPEERNAME_3 namelen;
 {
 	int rc;
-	int (*function)(int s, const __SOCKADDR_ARG name, socklen_t *namelen);
+	HAVE_PROT_GETPEERNAME_0 (*function)(HAVE_PROT_GETPEERNAME_1 s, HAVE_PROT_GETPEERNAME_2 name, HAVE_PROT_GETPEERNAME_3 namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_GETPEERNAME);
@@ -294,14 +285,14 @@ sys_getpeername(s, name, namelen)
 #endif /* ! HAVE_EXTRA_OSF_SYMBOLS */
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_GETSOCKNAME_0
 sys_getsockname(s, name, namelen)
-	int s;
-	__SOCKADDR_ARG name;
-	socklen_t *namelen;
+	HAVE_PROT_GETSOCKNAME_1 s;
+	HAVE_PROT_GETSOCKNAME_2 name;
+	HAVE_PROT_GETSOCKNAME_3 namelen;
 {
 	int rc;
-	int (*function)(int s, const __SOCKADDR_ARG name, socklen_t *namelen);
+	HAVE_PROT_GETSOCKNAME_0 (*function)(HAVE_PROT_GETSOCKNAME_1 s, HAVE_PROT_GETSOCKNAME_2 name, HAVE_PROT_GETSOCKNAME_3 namelen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_GETSOCKNAME);
@@ -309,16 +300,16 @@ sys_getsockname(s, name, namelen)
 	SYSCALL_END(s);
 	return rc;
 }
-#endif /* HAVE_FAULTY_CONNECTPROTO */
+#endif /* !HAVE_EXTRA_OSF_SYMBOLS */
 
-ssize_t
+HAVE_PROT_READ_0
 sys_read(d, buf, nbytes)
-	int d;
-	void *buf;
-	size_t nbytes;
+	HAVE_PROT_READ_1 d;
+	HAVE_PROT_READ_2 buf;
+	HAVE_PROT_READ_3 nbytes;
 {
 	ssize_t rc;
-	int (*function)(int d, void *buf, size_t nbytes);
+	HAVE_PROT_READ_0 (*function)(HAVE_PROT_READ_1 d, HAVE_PROT_READ_2 buf, HAVE_PROT_READ_3 nbytes);
 
 	SYSCALL_START(d);
 	function = symbolfunction(SYMBOL_READ);
@@ -328,18 +319,14 @@ sys_read(d, buf, nbytes)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_READV_0
 sys_readv(d, iov, iovcnt)
-	int d;
-#if HAVE_FAULTY_READVPROTO
-	struct iovec *iov;
-#else
-	const struct iovec *iov;
-#endif
-	int iovcnt;
+	HAVE_PROT_READV_1 d;
+	HAVE_PROT_READV_2 iov;
+	HAVE_PROT_READV_3 iovcnt;
 {
 	ssize_t rc;
-	int (*function)(int d, const struct iovec *iov, int iovcnt);
+	HAVE_PROT_READV_0 (*function)(HAVE_PROT_READV_1 d, HAVE_PROT_READV_2 iov, HAVE_PROT_READV_3 iovcnt);
 
 	SYSCALL_START(d);
 	function = symbolfunction(SYMBOL_READV);
@@ -349,21 +336,15 @@ sys_readv(d, iov, iovcnt)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
-ssize_t
+HAVE_PROT_RECV_0
 sys_recv(s, buf, len, flags)
-	int s;
-/* XXX rename */
-#if HAVE_RECVFROM_CHAR
-	char *buf;
-	int len;
-#else
-	void *buf;
-	size_t len;
-#endif
-	int flags;
+	HAVE_PROT_RECV_1 s;
+	HAVE_PROT_RECV_2 buf;
+	HAVE_PROT_RECV_3 len;
+	HAVE_PROT_RECV_4 flags;
 {
 	ssize_t rc;
-	int (*function)(int s, void *buf, size_t len, int flags);
+	HAVE_PROT_RECV_0 (*function)(HAVE_PROT_RECV_1 s, HAVE_PROT_RECV_2 buf, HAVE_PROT_RECV_3 len, HAVE_PROT_RECV_4 flags);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_RECV);
@@ -373,28 +354,17 @@ sys_recv(s, buf, len, flags)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_RECVFROM_0
 sys_recvfrom(s, buf, len, flags, from, fromlen)
-	int s;
-#if HAVE_RECVFROM_CHAR
-	char *buf;
-	int len;
-#else
-	void *buf;
-	size_t len;
-#endif  /* HAVE_RECVFROM_CHAR */
-	int flags;
-#if HAVE_RECVFROM_CHAR
-	struct sockaddr *from;
-	int *fromlen;
-#else
-	__SOCKADDR_ARG from;
-	socklen_t *fromlen;
-#endif  /* HAVE_RECVFROM_CHAR */
+	HAVE_PROT_RECVFROM_1 s;
+	HAVE_PROT_RECVFROM_2 buf;
+	HAVE_PROT_RECVFROM_3 len;
+	HAVE_PROT_RECVFROM_4 flags;
+	HAVE_PROT_RECVFROM_5 from;
+	HAVE_PROT_RECVFROM_6 fromlen;
 {
 	int rc;
-	int (*function)(int s, void *buf, size_t len, int flags,
-					    __SOCKADDR_ARG from, socklen_t *fromlen);
+	HAVE_PROT_RECVFROM_0 (*function)(HAVE_PROT_RECVFROM_1 s, HAVE_PROT_RECVFROM_2 buf, HAVE_PROT_RECVFROM_3 len, HAVE_PROT_RECVFROM_4 flags, HAVE_PROT_RECVFROM_5 from, HAVE_PROT_RECVFROM_6 fromlen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_RECVFROM);
@@ -405,14 +375,14 @@ sys_recvfrom(s, buf, len, flags, from, fromlen)
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_RECVMSG_0
 sys_recvmsg(s, msg, flags)
-	int s;
-	struct msghdr *msg;
-	int flags;
+	HAVE_PROT_RECVMSG_1 s;
+	HAVE_PROT_RECVMSG_2 msg;
+	HAVE_PROT_RECVMSG_3 flags;
 {
 	ssize_t rc;
-	int (*function)(int s, struct msghdr *msg, int flags);
+	HAVE_PROT_RECVMSG_0 (*function)(HAVE_PROT_RECVMSG_1 s, HAVE_PROT_RECVMSG_2 msg, HAVE_PROT_RECVMSG_3 flags);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_RECVMSG);
@@ -432,20 +402,15 @@ sys_rresvport(port)
 	return function(port);
 }
 
-ssize_t
+HAVE_PROT_SEND_0
 sys_send(s, msg, len, flags)
-	int s;
-#if HAVE_RECVFROM_CHAR
-	const char *msg;
-	int len;
-#else
-	const void *msg;
-	size_t len;
-#endif
-	int flags;
+	HAVE_PROT_SEND_1 s;
+	HAVE_PROT_SEND_2 msg;
+	HAVE_PROT_SEND_3 len;
+	HAVE_PROT_SEND_4 flags;
 {
 	ssize_t rc;
-	int (*function)(int s, const void *msg, size_t len, int flags);
+	HAVE_PROT_SEND_0 (*function)(HAVE_PROT_SEND_1 s, HAVE_PROT_SEND_2 msg, HAVE_PROT_SEND_3 len, HAVE_PROT_SEND_4 flags);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_SEND);
@@ -455,14 +420,14 @@ sys_send(s, msg, len, flags)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_SENDMSG_0
 sys_sendmsg(s, msg, flags)
-	int s;
-	const struct msghdr *msg;
-	int flags;
+	HAVE_PROT_SENDMSG_1 s;
+	HAVE_PROT_SENDMSG_2 msg;
+	HAVE_PROT_SENDMSG_3 flags;
 {
 	ssize_t rc;
-	int (*function)(int s, const struct msghdr *msg, int flags);
+	HAVE_PROT_SENDMSG_0 (*function)(HAVE_PROT_SENDMSG_1 s, HAVE_PROT_SENDMSG_2 msg, HAVE_PROT_SENDMSG_3  flags);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_SENDMSG);
@@ -473,23 +438,17 @@ sys_sendmsg(s, msg, flags)
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_SENDTO_0
 sys_sendto(s, msg, len, flags, to, tolen)
-	int s;
-#if HAVE_SENDTO_ALT
-	const char *msg;
-	int len;
-#else
-	const void *msg;
-	size_t len;
-#endif  /* HAVE_SENDTO_ALT */
-	int flags;
-	__CONST_SOCKADDR_ARG to;
-	socklen_t tolen;
+	HAVE_PROT_SENDTO_1 s;
+	HAVE_PROT_SENDTO_2 msg;
+	HAVE_PROT_SENDTO_3 len;
+	HAVE_PROT_SENDTO_4 flags;
+	HAVE_PROT_SENDTO_5 to;
+	HAVE_PROT_SENDTO_6 tolen;
 {
 	ssize_t rc;
-	int (*function)(int s, const void *msg, size_t len, int flags,
-					    __CONST_SOCKADDR_ARG to, socklen_t tolen);
+	HAVE_PROT_SENDTO_0 (*function)(HAVE_PROT_SENDTO_1 s, HAVE_PROT_SENDTO_2 msg, HAVE_PROT_SENDTO_3 len, HAVE_PROT_SENDTO_4 flags, HAVE_PROT_SENDTO_5 to, HAVE_PROT_SENDTO_6 tolen);
 
 	SYSCALL_START(s);
 	function = symbolfunction(SYMBOL_SENDTO);
@@ -499,14 +458,14 @@ sys_sendto(s, msg, len, flags, to, tolen)
 }
 #endif /* !HAVE_EXTRA_OSF_SYMBOLS */
 
-ssize_t
+HAVE_PROT_WRITE_0
 sys_write(d, buf, nbytes)
-	int d;
-	const void *buf;
-	size_t nbytes;
+	HAVE_PROT_WRITE_1 d;
+	HAVE_PROT_WRITE_2 buf;
+	HAVE_PROT_WRITE_3 nbytes;
 {
 	ssize_t rc;
-	int (*function)(int d, const void *buf, size_t nbutes);
+	HAVE_PROT_WRITE_0 (*function)(HAVE_PROT_WRITE_1 d, HAVE_PROT_WRITE_2 buf, HAVE_PROT_WRITE_3 nbutes);
 
 	SYSCALL_START(d);
 	function = symbolfunction(SYMBOL_WRITE);
@@ -516,14 +475,14 @@ sys_write(d, buf, nbytes)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_WRITEV_0
 sys_writev(d, iov, iovcnt)
-	int d;
-	const struct iovec *iov;
-	int iovcnt;
+	HAVE_PROT_WRITEV_1 d;
+	HAVE_PROT_WRITEV_2 iov;
+	HAVE_PROT_WRITEV_3 iovcnt;
 {
 	ssize_t rc;
-	int (*function)(int d, const struct iovec *buf, int iovcnt);
+	HAVE_PROT_WRITEV_0 (*function)(HAVE_PROT_WRITEV_1 d, HAVE_PROT_WRITEV_2 buf, HAVE_PROT_WRITEV_3 iovcnt);
 
 	SYSCALL_START(d);
 	function = symbolfunction(SYMBOL_WRITEV);
@@ -533,17 +492,17 @@ sys_writev(d, iov, iovcnt)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
+
 	/*
 	 * the interpositioned functions.
 	*/
 
-
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_ACCEPT_0
 accept(s, addr, addrlen)
-	int s;
-	__SOCKADDR_ARG addr;
-	socklen_t *addrlen;
+	HAVE_PROT_ACCEPT_1 s;
+	HAVE_PROT_ACCEPT_2 addr;
+	HAVE_PROT_ACCEPT_3 addrlen;
 {
 	if (ISSYSCALL(s))
 		return sys_accept(s, addr, addrlen);
@@ -551,15 +510,11 @@ accept(s, addr, addrlen)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
-int
+HAVE_PROT_BIND_0
 bind(s, name, namelen)
-	int s;
-#if HAVE_FAULTY_BINDPROTO
-	struct sockaddr *name;
-#else
-	__CONST_SOCKADDR_ARG name;
-#endif  /* HAVE_FAULTY_BINDPROTO */
-	socklen_t namelen;
+	HAVE_PROT_BIND_1 s;
+	HAVE_PROT_BIND_2 name;
+	HAVE_PROT_BIND_3 namelen;
 {
 	if (ISSYSCALL(s))
 		return sys_bind(s, name, namelen);
@@ -577,15 +532,11 @@ bindresvport(sd, sin)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_CONNECT_0
 connect(s, name, namelen)
-	int s;
-#if HAVE_FAULTY_CONNECTPROTO
-	struct sockaddr *name;
-#else
-	__CONST_SOCKADDR_ARG name;
-#endif  /* HAVE_FAULTY_CONNECTPROTO */
-	socklen_t namelen;
+	HAVE_PROT_CONNECT_1 s;
+	HAVE_PROT_CONNECT_2 name;
+	HAVE_PROT_CONNECT_3 namelen;
 {
 	if (ISSYSCALL(s))
 		return sys_connect(s, name, namelen);
@@ -610,11 +561,11 @@ gethostbyname2(name, af)
 
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_GETPEERNAME_0
 getpeername(s, name, namelen)
-	int s;
-	__SOCKADDR_ARG name;
-	socklen_t *namelen;
+	HAVE_PROT_GETPEERNAME_1 s;
+	HAVE_PROT_GETPEERNAME_2 name;
+	HAVE_PROT_GETPEERNAME_3 namelen;
 {
 	if (ISSYSCALL(s))
 		return sys_getpeername(s, name, namelen);
@@ -622,13 +573,12 @@ getpeername(s, name, namelen)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
-
 #if !HAVE_EXTRA_OSF_SYMBOLS
-int
+HAVE_PROT_GETSOCKNAME_0
 getsockname(s, name, namelen)
-	int s;
-	__SOCKADDR_ARG name;
-	socklen_t *namelen;
+	HAVE_PROT_GETSOCKNAME_1 s;
+	HAVE_PROT_GETSOCKNAME_2 name;
+	HAVE_PROT_GETSOCKNAME_3 namelen;
 {
 	if (ISSYSCALL(s))
 		return sys_getpeername(s, name, namelen);
@@ -636,11 +586,11 @@ getsockname(s, name, namelen)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
-ssize_t
+HAVE_PROT_READ_0
 read(d, buf, nbytes)
-	int d;
-	void *buf;
-	size_t nbytes;
+	HAVE_PROT_READ_1 d;
+	HAVE_PROT_READ_2 buf;
+	HAVE_PROT_READ_3 nbytes;
 {
 	if (ISSYSCALL(d))
 		return sys_read(d, buf, nbytes);
@@ -648,15 +598,11 @@ read(d, buf, nbytes)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_READV_0
 readv(d, iov, iovcnt)
-	int d;
-#if HAVE_FAULTY_READVPROTO
-	struct iovec *iov;
-#else
-	const struct iovec *iov;
-#endif  /* HAVE_FAULTY_READVPROTO */
-	int iovcnt;
+	HAVE_PROT_READV_1 d;
+	HAVE_PROT_READV_2 iov;
+	HAVE_PROT_READV_3 iovcnt;
 {
 	if (ISSYSCALL(d))
 		return sys_readv(d, iov, iovcnt);
@@ -664,20 +610,12 @@ readv(d, iov, iovcnt)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
-ssize_t
+HAVE_PROT_RECV_0
 recv(s, msg, len, flags)
-	int s;
-#if HAVE_RECVFROM_CHAR
-	char *msg;
-#else
-	void *msg;
-#endif
-#if HAVE_RECVFROM_CHAR || HAVE_RECV_LEN_INT
-	int len;
-#else
-	size_t len;
-#endif
-	int flags;
+	HAVE_PROT_RECV_1 s;
+	HAVE_PROT_RECV_2 msg;
+	HAVE_PROT_RECV_3 len;
+	HAVE_PROT_RECV_4 flags;
 {
 	if (ISSYSCALL(s))
 		return sys_recv(s, msg, len, flags);
@@ -685,26 +623,14 @@ recv(s, msg, len, flags)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-#ifdef HAVE_DEC_PROTO
-ssize_t
-#else
-int
-#endif
+HAVE_PROT_RECVFROM_0
 recvfrom(s, buf, len, flags, from, fromlen)
-	int s;
-#if HAVE_RECVFROM_CHAR
-	char *buf;
-#else
-	void *buf;
-#endif  /* HAVE_RECVFROM_CHAR */
-#if HAVE_RECVFROM_CHAR || HAVE_RECV_LEN_INT
-	int len;
-#else
-	size_t len;
-#endif
-	int flags;
-	__SOCKADDR_ARG from;
-	socklen_t *fromlen;
+	HAVE_PROT_RECVFROM_1 s;
+	HAVE_PROT_RECVFROM_2 buf;
+	HAVE_PROT_RECVFROM_3 len;
+	HAVE_PROT_RECVFROM_4 flags;
+	HAVE_PROT_RECVFROM_5 from;
+	HAVE_PROT_RECVFROM_6 fromlen;
 {
 	if (ISSYSCALL(s))
 		return sys_recvfrom(s, buf, len, flags, from, fromlen);
@@ -713,11 +639,11 @@ recvfrom(s, buf, len, flags, from, fromlen)
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_RECVMSG_0
 recvmsg(s, msg, flags)
-	int s;
-	struct msghdr *msg;
-	int flags;
+	HAVE_PROT_RECVMSG_1 s;
+	HAVE_PROT_RECVMSG_2 msg;
+	HAVE_PROT_RECVMSG_3 flags;
 {
 	if (ISSYSCALL(s))
 		return sys_recvmsg(s, msg, flags);
@@ -732,11 +658,11 @@ rresvport(port)
 	return Rrresvport(port);
 }
 
-ssize_t
+HAVE_PROT_WRITE_0
 write(d, buf, nbytes)
-	int d;
-	const void *buf;
-	size_t nbytes;
+	HAVE_PROT_WRITE_1 d;
+	HAVE_PROT_WRITE_2 buf;
+	HAVE_PROT_WRITE_3 nbytes;
 {
 	if (ISSYSCALL(d))
 		return sys_write(d, buf, nbytes);
@@ -744,11 +670,11 @@ write(d, buf, nbytes)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_WRITEV_0
 writev(d, iov, iovcnt)
-	int d;
-	const struct iovec *iov;
-	int iovcnt;
+	HAVE_PROT_WRITEV_1 d;
+	HAVE_PROT_WRITEV_2 iov;
+	HAVE_PROT_WRITEV_3 iovcnt;
 {
 	if (ISSYSCALL(d))
 		return sys_writev(d, iov, iovcnt);
@@ -756,20 +682,12 @@ writev(d, iov, iovcnt)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
-ssize_t
+HAVE_PROT_SEND_0
 send(s, msg, len, flags)
-	int s;
-#if HAVE_RECVFROM_CHAR
-	const char *msg;
-#else
-	const void *msg;
-#endif  /* HAVE_RECVFROM_CHAR */
-#if HAVE_RECVFROM_CHAR || HAVE_RECV_LEN_INT
-	int len;
-#else
-	size_t len;
-#endif
-	int flags;
+	HAVE_PROT_SEND_1 s;
+	HAVE_PROT_SEND_2 msg;
+	HAVE_PROT_SEND_3 len;
+	HAVE_PROT_SEND_4 flags;
 {
 	if (ISSYSCALL(s))
 		return sys_send(s, msg, len, flags);
@@ -777,11 +695,11 @@ send(s, msg, len, flags)
 }
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_SENDMSG_0
 sendmsg(s, msg, flags)
-	int s;
-	const struct msghdr *msg;
-	int flags;
+	HAVE_PROT_SENDMSG_1 s;
+	HAVE_PROT_SENDMSG_2 msg;
+	HAVE_PROT_SENDMSG_3 flags;
 {
 	if (ISSYSCALL(s))
 		return sys_sendmsg(s, msg, flags);
@@ -790,28 +708,19 @@ sendmsg(s, msg, flags)
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
-ssize_t
+HAVE_PROT_SENDTO_0
 sendto(s, msg, len, flags, to, tolen)
-	int s;
-#if HAVE_SENDTO_ALT
-	const char *msg;
-#else
-	const void *msg;
-#endif  /* HAVE_SENDTO_ALT */
-#if HAVE_SENDTO_ALT || HAVE_RECV_LEN_INT
-	int len;
-#else
-	size_t len;
-#endif
-	int flags;
-	__CONST_SOCKADDR_ARG to;
-	socklen_t tolen;
+	HAVE_PROT_SENDTO_1 s;
+	HAVE_PROT_SENDTO_2 msg;
+	HAVE_PROT_SENDTO_3 len;
+	HAVE_PROT_SENDTO_4 flags;
+	HAVE_PROT_SENDTO_5 to;
+	HAVE_PROT_SENDTO_6 tolen;
 {
 	if (ISSYSCALL(s))
 		return sys_sendto(s, msg, len, flags, to, tolen);
 	return Rsendto(s, msg, len, flags, to, tolen);
 }
 #endif /* !HAVE_EXTRA_OSF_SYMBOLS */
-
 
 #endif /* SOCKSLIBRARY_DYNAMIC */

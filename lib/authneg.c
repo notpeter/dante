@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.43 1999/05/23 15:43:45 michaels Exp $";
+"$Id: authneg.c,v 1.44 1999/06/30 11:15:16 michaels Exp $";
 
 int
 negotiate_method(s, packet)
@@ -53,9 +53,9 @@ negotiate_method(s, packet)
 {
 	const char *function = "negotiate_method()";
 	int rc;
-	char request[ 1				/* version 					*/
-					+ 1 				/* number of methods.	*/
-					+ METHODS_MAX	/* the methods.			*/
+	char request[ 1						/* version 					*/
+					+ 1 						/* number of methods.	*/
+					+ AUTHMETHOD_MAX		/* the methods.			*/
 					];
 
 	const size_t requestlen = 1 									/* version. 	*/
@@ -71,8 +71,8 @@ negotiate_method(s, packet)
 	/* create request packet. */
 	request[AUTH_VERSION]	= packet->req.version;
 	request[AUTH_NMETHODS]	= packet->gw.state.methodc;
-	memcpy(&request[AUTH_METHODS], packet->gw.state.methodv,
-	(size_t)packet->gw.state.methodc);
+	for (rc = 0; rc < packet->gw.state.methodc; ++rc)
+		request[AUTH_METHODS + rc] = (char)packet->gw.state.methodv[rc];
 
 	/* send list over methods we support */
 	if (writen(s, request, requestlen) != (ssize_t)requestlen)

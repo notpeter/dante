@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.67 1999/05/20 16:06:56 michaels Exp $";
+"$Id: address.c,v 1.68 1999/06/21 11:50:52 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -227,7 +227,7 @@ socks_addrisok(s)
 		socksfd = socks_getaddr(s);
 
 		if (socksfd != NULL) {
-			if (sockaddrcmp(&local, &socksfd->local) != 0)
+			if (!sockaddrareeq(&local, &socksfd->local))
 				break;
 			
 			/* check remote endpoint too? */
@@ -281,7 +281,7 @@ socks_addrcontrol(local, remote)
 			if (getsockname(socksfdv[i].control, &localcontrol, &len) != 0)
 				continue;
 
-			if (sockaddrcmp(local, &localcontrol) != 0)
+			if (!sockaddrareeq(local, &localcontrol))
 				continue;
 		}
 
@@ -290,7 +290,7 @@ socks_addrcontrol(local, remote)
 			if (getpeername(socksfdv[i].control, &remotecontrol, &len) != 0)
 				continue;
 
-			if (sockaddrcmp(remote, &remotecontrol) != 0)
+			if (!sockaddrareeq(remote, &remotecontrol))
 				continue;
 		}
 
@@ -318,11 +318,11 @@ socks_addrmatch(local, remote, state)
 		*/
 
 		if (local != NULL)
-			if (sockaddrcmp(local, &socksfdv[i].local) != 0)
+			if (!sockaddrareeq(local, &socksfdv[i].local))
 				continue;
 
 		if (remote != NULL)
-			if (sockaddrcmp(remote, &socksfdv[i].remote) != 0)
+			if (!sockaddrareeq(remote, &socksfdv[i].remote))
 				continue;
 
 		if (state != NULL) {
