@@ -8,7 +8,7 @@ else
 	prename=""
 fi
 
-AM_INIT_AUTOMAKE(dante, 1.1.6$prename)
+AM_INIT_AUTOMAKE(dante, 1.1.7$prename)
 AM_CONFIG_HEADER(include/autoconf.h)
 #NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
@@ -46,7 +46,7 @@ esac
 #XXX add proper test for this?
 case $host in
 
-	*-*-*bsd* | alpha-dec-osf* | *-*-hpux* | *-*-aix4*)
+	*-*-*bsd* | alpha*-dec-osf* | *-*-hpux* | *-*-aix4*)
 		no_acceptlock=t
 	;;
 
@@ -69,7 +69,7 @@ esac
 
 case $host in
 
-	alpha-dec-osf*)
+	alpha*-dec-osf*)
 		AC_DEFINE(HAVE_DEC_PROTO)
 		AC_DEFINE(HAVE_EXTRA_OSF_SYMBOLS)
 		PRELOAD="RLD"
@@ -176,7 +176,7 @@ case $host in
 #	AC_MSG_RESULT($comp_flags)
     ;;
 
-    alpha-dec-osf*) #XXX is it possible to get it to work with -newc?
+    alpha*-dec-osf*) #XXX is it possible to get it to work with -newc?
 	if test "x$GCC" = x; then
 	    comp_flags="-std1 -oldc"
 	fi
@@ -265,7 +265,7 @@ if test x$enable_warnings != x; then
 		true
 	    ;;
 
-	    alpha-dec-osf*) #osf cc
+	    alpha*-dec-osf*) #osf cc
 #		warn="-w0 -check -portable -warnprotos"
 		true
 	    ;;
@@ -365,10 +365,10 @@ AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS(fcntl.h limits.h malloc.h paths.h strings.h syslog.h)
 AC_CHECK_HEADERS(unistd.h crypt.h sys/file.h sys/ioctl.h sys/time.h)
-AC_CHECK_HEADERS(netinet/ip_var.h tcpd.h shadow.h)
+AC_CHECK_HEADERS(netinet/ip_var.h tcpd.h shadow.h ifaddrs.h)
 
 case $host in
-	alpha-dec-osf*)
+	alpha*-dec-osf*)
 		AC_CHECK_HEADERS(netinet/ip.h)
 	;;
 	*) ;;
@@ -1020,6 +1020,16 @@ case $host in
 	;;
 esac
 
+AC_MSG_CHECKING(for sa_len in sockaddr)
+AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/socket.h>
+], [struct sockaddr foo;
+foo.sa_len = 0;
+], [AC_DEFINE(HAVE_SOCKADDR_SA_LEN)
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
+
 AC_MSG_CHECKING(to see if malloc_options exists)
 AC_TRY_LINK([extern char *malloc_options;],
 [ malloc_options = 0; ],
@@ -1248,7 +1258,7 @@ case $host in
 		#a.out (XXX 3.x also elf; "Jacques A . Vidrine" <n@nectar.com>)
 	;;
 	*-*-freebsd* | *-*-solaris* | *-*-linux-* | *-*-irix* | \
-	alpha-dec-osf* | *-*-aix4* | *-*-bsdi*)
+	alpha*-dec-osf* | *-*-aix4* | *-*-bsdi*)
 		AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)
 	;;
 esac
@@ -1308,7 +1318,7 @@ AC_TRY_COMPILE([
 
 if test x"$socklen_found" = x; then
     case $host in
-	alpha-dec-osf* | *-*-aix*)
+	alpha*-dec-osf* | *-*-aix*)
 		AC_DEFINE(socklen_t, size_t)
 		;;
 	*)
@@ -1344,7 +1354,7 @@ AC_FUNC_VPRINTF
 AC_CHECK_FUNCS(select socket strcspn strdup strspn hstrerror issetugid)
 AC_CHECK_FUNCS(strvis vsnprintf getdtablesize sysconf inet_pton vsyslog)
 AC_CHECK_FUNCS(daemon bzero sockatmark difftime memmove seteuid setproctitle)
-AC_CHECK_FUNCS(inet_aton gethostbyname2 getprpwnam getspnam)
+AC_CHECK_FUNCS(inet_aton gethostbyname2 getprpwnam getspnam getifaddrs)
 
 AC_MSG_CHECKING(for system V getpwnam)
 unset getpwnam_alt
@@ -1448,5 +1458,5 @@ AC_LINK_FILES(dlib/interposition.c, sockd/interposition.c)
 
 AC_OUTPUT([sockd/Makefile include/Makefile lib/Makefile dlib/Makefile \
 	   Makefile example/Makefile doc/Makefile bin/Makefile \
-	   SPECS/Makefile SPECS/dante.spec bin/socksify \
+	   capi/Makefile SPECS/Makefile SPECS/dante.spec bin/socksify \
 	   libscompat/Makefile VERSION])

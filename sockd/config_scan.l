@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -52,14 +52,14 @@ extern int parseinit;
 extern const int configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.55 2000/08/08 12:36:10 michaels Exp $";
+"$Id: config_scan.l,v 1.58 2001/02/06 15:58:53 michaels Exp $";
 
 %}
 
 
 %option yylineno
 %option noyywrap
-/*%option debug           */
+/*%option debug            */
 
 PORTNUMBER [0-9]{1,5}
 
@@ -223,11 +223,18 @@ PORTNUMBER [0-9]{1,5}
 	return PORTNUMBER;
 }
 
-<start_address>[\.a-zA-Z]+[^ \t\n]* {
+<start_address>([a-zA-Z0-9-]*\.[a-zA-Z0-9-]+[a-zA-Z\.-]*|\.) {
 	BEGIN(start_port);
 
 	yylval.string = yytext;
 	return DOMAIN;
+}
+
+<start_address>[a-zA-Z]+[0-9]+ {
+	BEGIN(start_port);
+
+	yylval.string = yytext;
+	return IFNAME;
 }
 
 <start_logoutput>[^: \t\n]+ {

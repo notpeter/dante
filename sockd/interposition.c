@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -49,7 +49,7 @@
 
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.71 2000/06/21 08:48:16 michaels Exp $";
+"$Id: interposition.c,v 1.74 2001/02/06 15:58:22 michaels Exp $";
 
 #undef accept
 #undef bind
@@ -148,7 +148,7 @@ symbolcheck(void)
 
 void *
 symbolfunction(symbol)
-	char *symbol;
+	const char *symbol;
 {
 	const char *function = "symbolfunction()";
 	struct libsymbol_t *lib;
@@ -191,6 +191,7 @@ libsymbol(symbol)
 		if (strcmp(libsymbolv[i].symbol, symbol) == 0)
 			return &libsymbolv[i];
 
+	/* CONSTCOND */
 	SASSERTX(0);	/* should never happen. */
 
 	/* NOTREACHED */

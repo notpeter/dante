@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.132 2000/08/08 12:36:09 michaels Exp $";
+"$Id: config_parse.y,v 1.140 2001/02/06 15:58:52 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -59,13 +59,18 @@ __BEGIN_DECLS
 static void
 addressinit __P((struct ruleaddress_t *address));
 
+#if SOCKS_SERVER
+static void
+ruleinit __P((const struct rule_t *rule));
+#endif
+
 __END_DECLS
 
 extern int yylineno;
 extern char *yytext;
 
 #if SOCKS_SERVER
-static struct rule_t				ruleinit;
+static struct rule_t				ruleinitmem;
 static struct rule_t				rule;				/* new rule.							*/
 static struct protocol_t		protocolmem;	/* new protocolmem.					*/
 struct linkedname_t				**userbase;		/* users rule applies to.			*/
@@ -88,6 +93,7 @@ static char							*atype;			/* atype of new address.			*/
 static struct in_addr			*ipaddr;			/* new ipaddress						*/
 static struct in_addr			*netmask;		/* new netmask							*/
 static char							*domain;			/* new domain.							*/
+static char							*ifname;			/* new ifname.							*/
 
 static in_port_t					*port_tcp;		/* new TCP portnumber.				*/
 static in_port_t					*port_udp;		/* new UDP portnumber.				*/
@@ -148,7 +154,6 @@ static const struct {
 			yyerror("internal error or duplicate methods given");	\
 		methodv[(*methodc)++] = method; \
 	} while (0)
-
 
 %}
 
@@ -213,7 +218,8 @@ static const struct {
 %type	<string> log logs logname
 %type	<string> libwrap
 %type	<string> srcaddress dstaddress
-%type	<string> address ipaddress gwaddress domain direct
+%type	<string> address ipaddress gwaddress domain ifname direct
+%type	<string> externaladdress internaladdress
 %type	<string> from to
 %type	<string> netmask
 %type	<string> port portrange portstart portoperator portnumber portservice
@@ -229,7 +235,7 @@ static const struct {
 %token <string> LIBWRAPSTART
 %token <string> OPERATOR
 %token <string> LOG LOG_CONNECT  LOG_DATA LOG_DISCONNECT LOG_ERROR									    LOG_IOOPERATION
-%token <string> IPADDRESS DOMAIN DIRECT
+%token <string> IPADDRESS DOMAIN DIRECT IFNAME
 %token <string> PORT PORTNUMBER SERVICENAME
 %token <string> NUMBER
 %token <string> FROM TO
@@ -245,7 +251,6 @@ static const struct {
 configtype:	serverinit serverline
 	|	clientinit clientline
 	;
-
 
 serverinit:	SERVERCONFIG {
 #if SOCKS_SERVER
@@ -328,8 +333,8 @@ routeinit: {
 		bzero(&gw, sizeof(gw));
 		bzero(&src, sizeof(src));
 		bzero(&dst, sizeof(dst));
-		src.atype		= SOCKS_ADDR_IPV4;
-		dst.atype		= SOCKS_ADDR_IPV4;
+		src.atype = SOCKS_ADDR_IPV4;
+		dst.atype = SOCKS_ADDR_IPV4;
 #endif
 	}
 	;
@@ -363,7 +368,7 @@ username:	USERNAME {
 #if SOCKS_SERVER
 #if !HAVE_LIBWRAP
 		if (strcmp($1, method2string(AUTHMETHOD_RFC931)) == 0)
-			yyerror("method rfc931 requires libwrap");
+			yyerror("method %s requires libwrap", AUTHMETHOD_RFC931s);
 #endif /* !HAVE_LIBWRAP */
 		if (adduser(userbase, $1) == NULL)
 			yyerror(NOMEM);
@@ -388,20 +393,10 @@ extensions:	extensionname
 	;
 
 
-internal:	INTERNAL internalinit ':' ipaddress port {
+internal:	INTERNAL internalinit ':' internaladdress {
 #if SOCKS_SERVER
-		if (config.state.init) {
-			int i;
-
-			for (i = 0; i < config.internalc; ++i)
-				if (config.internalv[i].addr.sin_addr.s_addr == ipaddr->s_addr
-				&&	 config.internalv[i].addr.sin_port == *port_tcp)
-					break;
-
-			if (i == config.internalc)
-				swarnx("can not change internal addresses once running");
-		}
-#endif /* SOCKS_SERVER */
+		addinternal(ruleaddress);
+#endif
 	}
 	;
 
@@ -412,27 +407,6 @@ internalinit: {
 
 	addressinit(&mem);
 
-	if (!config.state.init) {
-		if ((config.internalv = (struct listenaddress_t *)
-		realloc(config.internalv, sizeof(*config.internalv) * ++config.internalc))
-		== NULL)
-			yyerror(NOMEM);
-
-		bzero(&config.internalv[config.internalc - 1].addr,
-		sizeof((*config.internalv).addr));
-		config.internalv[config.internalc - 1].addr.sin_family = AF_INET;
-
-		ipaddr		= &config.internalv[config.internalc - 1].addr.sin_addr;
-		port_tcp		= &config.internalv[config.internalc - 1].addr.sin_port;
-	}
-	else { /* can only set internal addresses once. */
-		static struct in_addr inaddrmem;
-		static in_port_t portmem;
-
-		ipaddr		= &inaddrmem;
-		port_tcp		= &portmem;
-	}
-
 	/* set default port. */
 	if ((service = getservbyname("socks", "tcp")) == NULL)
 		*port_tcp = htons(SOCKD_PORT);
@@ -442,32 +416,30 @@ internalinit: {
 	}
 	;
 
-external:	EXTERNAL externalinit ':' ipaddress {
+internaladdress: ipaddress port 
+	|	ifname port
+	;
+
+external:	EXTERNAL externalinit ':' externaladdress {
 #if SOCKS_SERVER
-		if (config.externalv[config.externalc - 1].sin_addr.s_addr
-		== htonl(INADDR_ANY))
-			yyerror("external address can't be a wildcard address");
+		addexternal(ruleaddress);
 #endif
-		}
+	}
 	;
 
 externalinit: {
 #if SOCKS_SERVER
 		static struct ruleaddress_t mem;
 
-		if ((config.externalv = (struct sockaddr_in *)realloc(config.externalv,
-		sizeof(*config.externalv) * ++config.externalc)) == NULL)
-			yyerror(NOMEM);
-
-		bzero(&config.externalv[config.externalc - 1], sizeof(*config.externalv));
-		config.externalv[config.externalc - 1].sin_family = AF_INET;
-
 		addressinit(&mem);
-
-		ipaddr = &config.externalv[config.externalc - 1].sin_addr;
 #endif
 	}
 	;
+
+externaladdress: ipaddress
+	| ifname
+	;
+
 
 clientoption:	logoutput
 	|	debuging
@@ -569,7 +541,7 @@ user_libwrap:	USER_LIBWRAP ':' userid {
 		config.uid.libwrap			= $3;
 		config.uid.libwrap_isset	= 1;
 #else  /* HAVE_LIBWRAP */
-		yyerror("libwrap support not compiled in");
+		yyerror("libwrapsupport not compiled in");
 #endif /* !HAVE_LIBWRAP */
 	}
 	;
@@ -666,7 +638,7 @@ authmethodname:	NONE {
 		ADDMETHOD(AUTHMETHOD_NONE);
 	};
 	|	GSSAPI {
-		yyerror("GSSAPI not supported");
+		yyerror("%s not supported", AUTHMETHOD_GSSAPIs);
 	}
 	|	UNAME {
 		ADDMETHOD(AUTHMETHOD_UNAME);
@@ -675,7 +647,7 @@ authmethodname:	NONE {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 		ADDMETHOD(AUTHMETHOD_RFC931);
 #else /* !HAVE_LIBWRAP */
-		yyerror("method rfc931 requires libwrap");
+		yyerror("method %s requires libwrap", AUTHMETHOD_RFC931s);
 #endif /* !HAVE_LIBWRAP */
 	}
 	;
@@ -696,7 +668,7 @@ clientrule: CLIENTRULE verdict '{' clientruleoptions fromto clientruleoptions '}
 
 		bzero(&src, sizeof(src));
 		bzero(&dst, sizeof(dst));
-		rule = ruleinit;
+		rule = ruleinitmem;
 
 		src.atype = SOCKS_ADDR_IPV4;
 		dst.atype = SOCKS_ADDR_IPV4;
@@ -723,7 +695,7 @@ rule:	verdict '{' ruleoptions fromto ruleoptions '}' {
 
 		bzero(&src, sizeof(src));
 		bzero(&dst, sizeof(dst));
-		rule = ruleinit;
+		rule = ruleinitmem;
 
 		src.atype	= SOCKS_ADDR_IPV4;
 		dst.atype	= SOCKS_ADDR_IPV4;
@@ -748,24 +720,15 @@ ruleoptions:	{ $$ = NULL; }
 verdict:	VERDICT_BLOCK {
 #if SOCKS_SERVER
 		rule.verdict	= VERDICT_BLOCK;
-		command			= &rule.state.command;
-		methodv			= rule.state.methodv;
-		methodc			= &rule.state.methodc;
-		protocol			= &rule.state.protocol;
-		proxyprotocol	= &rule.state.proxyprotocol;
-		userbase			= &rule.user;
+		ruleinit(&rule);
 	}
 	|	VERDICT_PASS {
 		rule.verdict	= VERDICT_PASS;
-		command			= &rule.state.command;
-		methodv			= rule.state.methodv;
-		methodc			= &rule.state.methodc;
-		protocol			= &rule.state.protocol;
-		proxyprotocol	= &rule.state.proxyprotocol;
-		userbase			= &rule.user;
+		ruleinit(&rule);
 #endif
 	}
 	;
+
 
 command:	COMMAND ':' commands
 	;
@@ -847,7 +810,7 @@ libwrap:	LIBWRAPSTART ':' LINE {
 		char libwrap[LIBWRAPBUF];
 
 		if (strlen($3) >= sizeof(rule.libwrap))
-			yyerror("libwrap line too long, make LIBWRAPBUF bigger");
+			yyerror("libwrapline too long, make LIBWRAPBUF bigger");
 		strcpy(rule.libwrap, $3);
 
 		/* libwrap modifies the passed buffer. */
@@ -925,21 +888,21 @@ ipaddress:	IPADDRESS {
 		*atype = SOCKS_ADDR_IPV4;
 
 		if (inet_aton($1, ipaddr) != 1)
-			yyerror("bad address");
+			yyerror("bad address: %s", $1);
 	}
 	;
 
 
 netmask:	NUMBER {
 		if (atoi($1) < 0 || atoi($1) > 32)
-			yyerror("bad netmask");
+			yyerror("bad netmask: %d", $1);
 
 		netmask->s_addr
 		= atoi($1) == 0 ? 0 : htonl(0xffffffff << (32 - atoi($1)));
 	}
 	|	IPADDRESS {
 			if (!inet_aton($1, netmask))
-				yyerror("bad netmask");
+				yyerror("bad netmask: %s", $1);
 	}
 	;
 
@@ -947,16 +910,26 @@ domain:	DOMAIN {
 		*atype = SOCKS_ADDR_DOMAIN;
 
 		if (strlen($1) >= MAXHOSTNAMELEN)
-			yyerror("domain too long");
+			yyerror("domainname too long");
 		strcpy(domain, $1);
 	}
 	;
+
+ifname:	IFNAME {
+		*atype = SOCKS_ADDR_IFNAME;
+
+		if (strlen($1) >= MAXIFNAMELEN)
+			yyerror("interfacename too long");
+		strcpy(ifname, $1);
+	}
+	;
+
 
 direct:	DIRECT {
 		*atype = SOCKS_ADDR_DOMAIN;
 
 		if (strlen($1) >= MAXHOSTNAMELEN)
-			yyerror("domain too long");
+			yyerror("domainname too long");
 		strcpy(domain, $1);
 
 #if SOCKS_CLIENT
@@ -1008,7 +981,7 @@ portservice:	SERVICENAME {
 		if (protocol->tcp) {
 			if ((service = getservbyname($1, "tcp")) == NULL) {
 				if (set)
-					yyerror("bad servicename for tcp");
+					yyerror("bad servicename for tcp: %s", $1);
 				else
 					*port_tcp = htons(0);
 			}
@@ -1019,7 +992,7 @@ portservice:	SERVICENAME {
 		if (protocol->udp) {
 			if ((service = getservbyname($1, "udp")) == NULL) {
 				if (set)
-					yyerror("bad servicename for udp");
+					yyerror("bad servicename for udp: %s", $1);
 				else
 					*port_udp = htons(0);
 			}
@@ -1079,7 +1052,7 @@ readconfig(filename)
 	EF_PROTECT_BELOW			= 0;
 #endif /* ELECTRICFENCE */
 
-/*	yydebug		= 1;    */
+/*	yydebug		= 1;        */
 	yylineno		= 1;
 	parseinit	= 0;
 
@@ -1098,23 +1071,73 @@ readconfig(filename)
 
 
 void
-yyerror(s)
-	const char *s;
+#ifdef STDC_HEADERS
+yyerror(const char *fmt, ...)
+#else
+yyerror(fmt, va_alist)
+	const char *fmt;
+	va_dcl
+#endif  /* STDC_HEADERS */
 {
+	va_list ap;
+	char buf[2048];
+	size_t bufused;
 
-	serrx(EXIT_FAILURE, "%s: error on line %d, near '%.10s': %s",
+#ifdef STDC_HEADERS
+		/* LINTED pointer casts may be troublesome */
+		va_start(ap, fmt);
+#else
+		va_start(ap);
+#endif  /* STDC_HEADERS */
+
+	bufused = snprintfn(buf, sizeof(buf),
+	"%s: error on line %d, near '%.10s': ",
 	config.option.configfile, yylineno,
-	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext, s);
+	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
+
+	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
+
+	/* LINTED expression has null effect */
+	va_end(ap);
+
+	if (errno)
+		serr(EXIT_FAILURE, buf);
+	serrx(EXIT_FAILURE, buf);
 }
 
-
 void
-yywarn(s)
-	const char *s;
+#ifdef STDC_HEADERS
+yywarn(const char *fmt, ...)
+#else
+yywarn(fmt, va_alist)
+	const char *fmt;
+	va_dcl
+#endif  /* STDC_HEADERS */
 {
-	swarnx("%s: warning on line %d, near '%.10s': %s",
+	va_list ap;
+	char buf[2048];
+	size_t bufused;
+
+#ifdef STDC_HEADERS
+		/* LINTED pointer casts may be troublesome */
+		va_start(ap, fmt);
+#else
+		va_start(ap);
+#endif  /* STDC_HEADERS */
+
+	bufused = snprintfn(buf, sizeof(buf),
+	"%s: warning on line %d, near '%.10s': ",
 	config.option.configfile, yylineno,
-	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext, s);
+	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
+
+	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
+
+	/* LINTED expression has null effect */
+	va_end(ap);
+
+	if (errno)
+		swarn(buf);
+	swarnx(buf);
 }
 
 static void
@@ -1127,7 +1150,24 @@ addressinit(address)
 		ipaddr		= &ruleaddress->addr.ipv4.ip;
 		netmask		= &ruleaddress->addr.ipv4.mask;
 		domain		= ruleaddress->addr.domain;
+		ifname		= ruleaddress->addr.ifname;
 		port_tcp		= &ruleaddress->port.tcp;
 		port_udp		= &ruleaddress->port.udp;
 		operator		= &ruleaddress->operator;
 }
+
+#if SOCKS_SERVER
+static void
+ruleinit(rule)
+	const struct rule_t *rule;
+{
+	rule->linenumber = yylineno;
+
+	command			= &rule->state.command;
+	methodv			= rule->state.methodv;
+	methodc			= &rule->state.methodc;
+	protocol			= &rule->state.protocol;
+	proxyprotocol	= &rule->state.proxyprotocol;
+	userbase			= &rule->user;
+}
+#endif

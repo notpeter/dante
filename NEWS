@@ -1,6 +1,32 @@
-@(#)$Id: NEWS,v 1.27 2000/11/21 09:33:10 michaels Exp $
+@(#)$Id: NEWS,v 1.31 2001/02/19 17:57:33 karls Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Tuesday, February 20, 2001 -- Dante v1.1.7
+
+ o contrib/sockd-stat.awk, provides statistics based on sockd logfiles.
+	Contributed by Stephan Eisvogel <eisvogel@hawo.stw.uni-erlangen.de>.
+
+ o If gethostbyname() fails, treat it as if resolveprotocol was set to
+   fake, meaning we hope the socksserver will be able to resolve it.
+   Will presumably make certain dns configurations work better for
+   client.
+
+ o When showing rule (debug mode), print out linenumber too.
+   loosely based on suggestion from "N. Kremla" (kremlanh@aramco.com.sa).
+
+ o contrib/ directory added.
+
+ o Support for giving interfacenames as internal/external address.
+
+ o osf host test in configure did not match all alpha based machines;
+   Dobrica Pavlinusic <dpavlin@rot13.org>.
+
+ o -V flag added to sockd, which causes the server to exit after
+   parsing the configuration file.
+
+ o Header file (socks.h) with socks function prototypes added. By
+   default installed in /usr/local/include.
 
 ***  Tuesday, November 21, 2000 -- Dante v1.1.6
 

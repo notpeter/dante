@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.33 2000/05/31 12:14:50 karls Exp $ */
+/* $Id: interposition.h,v 1.36 2001/02/06 15:58:39 michaels Exp $ */
 
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""
@@ -407,7 +407,7 @@ do {																					\
 __BEGIN_DECLS
 
 void *
-symbolfunction __P((char *symbol));
+symbolfunction __P((const char *symbol));
 /*
  * Returns the address binding of the symbol "symbol" and updates
  * libsymbol_t structure "symbol" is defined in if necessary.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.121 2000/10/26 08:03:21 michaels Exp $";
+"$Id: sockd_request.c,v 1.126 2001/02/06 15:59:12 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -172,6 +172,7 @@ recv_req(s, req)
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
+	/* LINTED pointer casts may be troublesome */
 	CMSG_SETHDR_RECV(sizeof(cmsgmem));
 
 	if ((r = recvmsgn(s, &msg, 0, sizeof(*req))) != sizeof(*req)) {
@@ -199,6 +200,7 @@ recv_req(s, req)
 #endif
 
 	fdreceived = 0;
+	/* LINTED pointer casts may be troublesome */
 	CMSG_GETOBJECT(req->s, sizeof(req->s) * fdreceived++);
 
 	/* pointer fixup */
@@ -387,8 +389,30 @@ dorequest(mother, request)
 	}
 	setsockoptions(out);
 
-	/* find out what address to bind on clients behalf. */
-	bound	= *config.externalv;
+	/* find address to bind on clients behalf. */
+	switch ((*config.externalv).atype) {
+		case SOCKS_ADDR_IFNAME:
+			if (ifname2sockaddr((*config.externalv).addr.ifname,
+			(struct sockaddr *)&bound) == NULL) {
+				slog(LOG_ALERT, "%s: can't find external interface/address: %s",
+				function, (*config.externalv).addr.ifname);
+				close(request->s);
+				return;
+			}
+			break;
+	
+		case SOCKS_ADDR_IPV4: {
+			struct sockshost_t host;
+
+			sockshost2sockaddr(ruleaddress2sockshost(&*config.externalv, &host,
+			SOCKS_TCP), (struct sockaddr *)&bound);
+			break;
+		}
+
+		default:
+			SERRX((*config.externalv).atype);
+	}
+
 	switch (request->req.command) {
 		case SOCKS_BIND:
 			/* find out what port to bind;  v4/v5 semantics?  bind extension? */

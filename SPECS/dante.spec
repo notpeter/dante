@@ -1,6 +1,6 @@
 Summary: A free Socks v4/v5 client implementation
 Name: dante
-%define version 1.1.6
+%define version 1.1.7
 %define prefix /usr
 Version: %{version}
 Release: 1
@@ -155,6 +155,7 @@ fi
 %{_libdir}/libsocks.la
 %{_libdir}/libsocks.a
 %{_libdir}/libdsocks.la
+%{_includedir}/socks.h
 
 %changelog
 * Thu Oct 12 2000 Karl-Andre' Skevik <karls@inet.no>
