@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.135 2004/06/20 12:20:48 karls Exp $";
+"$Id: util.c,v 1.136 2004/10/05 05:10:09 karls Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -698,13 +698,17 @@ socketoptdup(s)
 		{ SOL_SOCKET,	SO_SNDBUF			},
 #endif
 
+#if HAVE_SO_SNDLOWAT
 #ifdef SO_RCVLOWAT
 		{ SOL_SOCKET,	SO_RCVLOWAT			},
 #endif
+#endif /* HAVE_SO_SNDLOWAT */
 
+#if HAVE_SO_SNDLOWAT
 #ifdef SO_SNDLOWAT
 		{ SOL_SOCKET,	SO_SNDLOWAT			},
 #endif
+#endif /* HAVE_SO_SNDLOWAT */
 
 #ifdef SO_RCVTIMEO
 		{ SOL_SOCKET,	SO_RCVTIMEO			},

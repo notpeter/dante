@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.50)
-AC_REVISION($Id: configure.ac,v 1.321 2004/07/06 11:17:06 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.331 2004/11/11 12:42:11 karls Exp $)
 
 version=1.1.15
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+prerelease="2"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -22,7 +22,7 @@ AM_CONFIG_HEADER(include/autoconf.h)
 oCFLAGS=$CFLAGS
 unset CFLAGS
 AC_AIX #evidently also modifies CFLAGS
-AM_PROG_LIBTOOL
+AC_PROG_LIBTOOL
 autoconf_compflags=$CFLAGS
 CFLAGS=$oCFLAGS
 
@@ -31,7 +31,7 @@ AC_PROG_CPP
 AM_CONDITIONAL(PRERELEASE, test x$prerelease != x)
 
 #known keywords for --enable/disable-foo(=yes/no)?
-LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll"
+LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77"
 KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|pidfile"
 for keyword in `set | egrep '^enable_' | sed -e 's/^enable_\(.*\)=.*/\1/'`;
 do
@@ -46,7 +46,7 @@ done
 case $host in
     *-*-solaris2.5.1)
 	AC_MSG_WARN([the server might not work properly on solaris 2.5.1])
-	AC_DEFINE(HAVE_SOLARIS_2_5_1)
+	AC_DEFINE(HAVE_SOLARIS_2_5_1, 1, [broken platform])
     ;;
 esac
 
@@ -81,8 +81,8 @@ SOLIB_POSTFIX=so
 case $host in
 
 	alpha*-dec-osf*)
-		AC_DEFINE(HAVE_DEC_PROTO)
-		AC_DEFINE(HAVE_EXTRA_OSF_SYMBOLS)
+		AC_DEFINE(HAVE_DEC_PROTO, 1, [DEC workarounds])
+		AC_DEFINE(HAVE_EXTRA_OSF_SYMBOLS, 1, [DEC workarounds])
 		PRELOAD="RLD"
 		CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE_EXTENDED -DBYTE_ORDER=LITTLE_ENDIAN -D_POSIX_SOURCE -D_POSIX_C_SOURCE=199309L -D_OSF_SOURCE"
 	;;
@@ -96,31 +96,31 @@ case $host in
 
 	*-*-sunos4*)
 		#XXX hardcode library path (find better way to do this?)
-		AC_DEFINE(LIBRARY_PATH, "/usr/lib/")
+		AC_DEFINE(LIBRARY_PATH, "/usr/lib/", [hardcoded path])
 		base_library_path="/usr/lib/"
 		AC_MSG_WARN([notice: hardcoding /usr/lib for dlopen])
 		#nonstandard libfunction workaround #XXX proper test
-		AC_DEFINE(HAVE_BROKEN_VSPRINTF)
+		AC_DEFINE(HAVE_BROKEN_VSPRINTF, 1, [nonstandard])
 		#link problems with libresolv, hardcode domainname
 		if test -s /etc/resolv.conf; then
 		    domainname_hardcoded=`grep domain /etc/resolv.conf | awk '{ print $2 }'`
 		fi
 		no_res_init=t
-		AC_DEFINE(HAVE_NO_RESOLVESTUFF)
+		AC_DEFINE(HAVE_NO_RESOLVESTUFF, 1, [primitive platform])
 	;;
 
 	*-*-solaris*)
-		AC_DEFINE(HAVE_SENDMSG_DEADLOCK)
-		AC_DEFINE(HAVE_SOLARIS_BUGS)
-		AC_DEFINE(BSD_COMP)
-		AC_DEFINE(HAVE_SOLARIS_PAM_BUG)
+		AC_DEFINE(HAVE_SENDMSG_DEADLOCK, 1, [bug workaround])
+		AC_DEFINE(HAVE_SOLARIS_BUGS, 1, [bug workaround])
+		AC_DEFINE(BSD_COMP, 1, [enable BSD compatibility])
+		AC_DEFINE(HAVE_SOLARIS_PAM_BUG, 1, [bug workaround])
 	;;
 
 	*-*-linux-*) # XXX This might only concern 2.0.x kernels (add test?)
-		AC_DEFINE(HAVE_DEFECT_RECVMSG)
-		AC_DEFINE(HAVE_LINUX_BUGS)
-		AC_DEFINE(HAVE_LINUX_ECCENTRICITIES)
-		AC_DEFINE(SPT_PADCHAR, '\0')
+		AC_DEFINE(HAVE_DEFECT_RECVMSG, 1, [bug workaround])
+		AC_DEFINE(HAVE_LINUX_BUGS, 1, [bug workaround])
+		AC_DEFINE(HAVE_LINUX_ECCENTRICITIES, 1, [platform workarounds])
+		AC_DEFINE(SPT_PADCHAR, '\0', [setproctitle])
 	;;
 
 	*-*-openbsd*) #static sockd when profiling is enabled
@@ -132,7 +132,7 @@ case $host in
 	;;
 	*-*-aix4* | *-*-aix5*)
 		OSPIDFILE="/etc/sockd.pid"
-		AC_DEFINE(HAVE_SYSTEM_XMSG_MAGIC)
+		AC_DEFINE(HAVE_SYSTEM_XMSG_MAGIC, 1, [platform workaround])
 	;;
 	*-*-cygwin)
 		AC_MSG_WARN([disabling preloading])
@@ -140,7 +140,7 @@ case $host in
 		no_preload_server=t
 		no_preload=t
 		no_res_init=t
-		AC_DEFINE(HAVE_NO_RESOLVESTUFF)
+		AC_DEFINE(HAVE_NO_RESOLVESTUFF, 1, [primitive platform])
 	;;
 
 esac
@@ -166,11 +166,11 @@ AC_SUBST(PRELOAD_VARIABLE)
 AC_SUBST(PRELOAD_POSTFIX)
 
 #define hosttype
-AC_DEFINE_UNQUOTED(HAVE_HOST_TYPE, "$host")
+AC_DEFINE_UNQUOTED(HAVE_HOST_TYPE, "$host", [system hosttype])
 
 #XXX add proper test for this?
 if test x$no_acceptlock != xt; then
-	AC_DEFINE(NEED_ACCEPTLOCK)
+	AC_DEFINE(NEED_ACCEPTLOCK, 1, [platform workaround])
 fi
 
 AC_MSG_CHECKING([for compiler flags])
@@ -359,12 +359,13 @@ CFLAGS="$CFLAGS $comp_flags"
 
 #-DDIAGNOSTICS?
 AC_MSG_CHECKING([for compliation with DIAGNOSTIC])
+AH_TEMPLATE([DIAGNOSTIC], [for debugging])
 AC_ARG_ENABLE(diagnostic,
 [  --enable-diagnostic     enable diagnostic],
-	[AC_DEFINE(DIAGNOSTIC)
+	[AC_DEFINE(DIAGNOSTIC, 1)
 	 AC_MSG_RESULT([yes])],
 	[if test x$prerelease != x; then
-	      AC_DEFINE(DIAGNOSTIC)
+	      AC_DEFINE(DIAGNOSTIC, 1)
 	      AC_MSG_RESULT([yes])
 	 else
 	      AC_MSG_RESULT([no])
@@ -372,7 +373,7 @@ AC_ARG_ENABLE(diagnostic,
 
 AC_ARG_ENABLE(profiling,
 [  --enable-profiling      compile with profiling support in server],
-[   AC_DEFINE(HAVE_PROFILING)
+[   AC_DEFINE(HAVE_PROFILING, 1, [for profiling])
     s_profiling=t])
 
 AM_CONDITIONAL(SPROFIL, test x$s_profiling = xt)
@@ -414,8 +415,29 @@ AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS(fcntl.h limits.h malloc.h paths.h strings.h syslog.h)
 AC_CHECK_HEADERS(unistd.h crypt.h sys/file.h sys/ioctl.h sys/time.h)
-AC_CHECK_HEADERS(netinet/ip_var.h tcpd.h shadow.h ifaddrs.h sys/sem.h)
-AC_CHECK_HEADERS(sys/ipc.h arpa/nameser.h resolv.h)
+AC_CHECK_HEADERS(tcpd.h shadow.h ifaddrs.h sys/sem.h netinet/in.h)
+AC_CHECK_HEADERS(sys/ipc.h arpa/nameser.h)
+
+AC_CHECK_HEADERS([netinet/ip_var.h], [], [], [
+#if HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#if HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+])
+
+AC_CHECK_HEADERS([resolv.h], [], [], [
+#if HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#if HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#if HAVE_ARPA_NAMESER_H
+#include <arpa/nameser.h>
+#endif
+])
 
 case $host in
 	alpha*-dec-osf*)
@@ -430,7 +452,7 @@ AC_ARG_WITH(domainname,
 [  --with-domainname=NAME  hardcode local domainname (only on broken platforms)], [domainname_hardcoded=$withval])
 
 if test x${domainname_hardcoded} != x; then
-    AC_DEFINE_UNQUOTED(SOCKS_DOMAINNAME, "${domainname_hardcoded}")
+    AC_DEFINE_UNQUOTED(SOCKS_DOMAINNAME, "${domainname_hardcoded}", [platform workaround])
     AC_MSG_RESULT([yes])
     AC_MSG_WARN([using hardcoded domainname ${domainname_hardcoded}])
 else
@@ -445,28 +467,30 @@ AC_MSG_CHECKING([for socks config file location])
 AC_ARG_WITH(socks-conf,
 [  --with-socks-conf=FILE  change location of socks client configuration file],
 [AC_MSG_RESULT($withval)
- AC_DEFINE(HAVE_SOCKS_CONFIGFILE)
- AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKS_CONFIGFILE, "$withval")
+ AC_DEFINE(HAVE_SOCKS_CONFIGFILE, 1, [alternate location])
+ AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKS_CONFIGFILE, "$withval", [alternate location])
 ], [AC_MSG_RESULT(default)])
 
 AC_MSG_CHECKING([for sockd config file location])
 AC_ARG_WITH(sockd-conf,
 [  --with-sockd-conf=FILE  change location of socks server configuration file],
 [AC_MSG_RESULT($withval)
- AC_DEFINE(HAVE_SOCKD_CONFIGFILE)
- AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_CONFIGFILE, "$withval")
+ AC_DEFINE(HAVE_SOCKD_CONFIGFILE, 1, [alternate location])
+ AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_CONFIGFILE, "$withval", [alternate location])
 ], [AC_MSG_RESULT(default)])
 
 #pidfile
 AC_ARG_ENABLE(pidfile,
 [  --disable-pidfile       disable server pidfile creation],
-   [AC_DEFINE(HAVE_DISABLED_PIDFILE)])
+   [AC_DEFINE(HAVE_DISABLED_PIDFILE, 1, [pidfile disabled])])
 
 AC_MSG_CHECKING([for pid file location])
+AH_TEMPLATE([HAVE_SOCKD_PIDFILE], [alternate location])
+AH_TEMPLATE([HAVE_ALT_SOCKD_PIDFILE], [alternate location])
 AC_ARG_WITH(pidfile,
 [  --with-pidfile=FILE     change location of server pidfile],
 [AC_MSG_RESULT($withval)
- AC_DEFINE(HAVE_SOCKD_PIDFILE)
+ AC_DEFINE(HAVE_SOCKD_PIDFILE, 1)
  AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_PIDFILE, "$withval")
  have_pidfile=t
 ], [AC_MSG_RESULT(default)])
@@ -474,7 +498,7 @@ AC_ARG_WITH(pidfile,
 #os default?
 if test x"${have_pidfile}" != xt; then
     if test x"$OSPIDFILE" != x; then
-	AC_DEFINE(HAVE_SOCKD_PIDFILE)
+	AC_DEFINE(HAVE_SOCKD_PIDFILE, 1)
 	AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_PIDFILE, "$OSPIDFILE")
     fi
 fi
@@ -485,7 +509,7 @@ fi
 
 # HAVE_DLFCN_H only determines if the include file exists
 AC_CHECK_HEADER(dlfcn.h,
-[AC_DEFINE(HAVE_DLFCN_H)
+[AC_DEFINE(HAVE_DLFCN_H, 1, [dlfcn.h exists])
  have_dlfcn_h=t],
 [AC_MSG_WARN([dlfcn.h missing, preloading disabled])
  no_preload_client=t
@@ -553,7 +577,7 @@ AC_SUBST(TOPSUBDIRS)
 
 
 AC_CHECK_HEADER(sys/sockio.h,
-[AC_DEFINE(HAVE_SYS_SOCKIO_H)
+[AC_DEFINE(HAVE_SYS_SOCKIO_H, 1, [sys/sockio.h exists])
  have_sys_sockio_h=t])
 
 dnl Checks for typedefs, structures, and compiler characteristics.
@@ -572,22 +596,23 @@ fi
 
 #looks for linux + systems with RTAX_GATEWAY defined in net/route.h
 AC_MSG_CHECKING([for supported routing socket communication])
+AH_TEMPLATE([HAVE_ROUTE_SOURCE], [routing socket communication supported])
 unset no_routeinfo
 AC_EGREP_CPP(yes, [
 #include <net/route.h>
 #ifdef linux
 yes
 #endif /* linux */
-], [AC_DEFINE(HAVE_ROUTE_SOURCE)
-    AC_DEFINE(HAVE_ROUTEINFO_LINUX)
+], [AC_DEFINE(HAVE_ROUTE_SOURCE, 1)
+    AC_DEFINE(HAVE_ROUTEINFO_LINUX, 1, [Linux type routing socket])
     AC_MSG_RESULT(yes)],
    [AC_EGREP_CPP(yes, [
 #include <net/route.h>
 #ifdef RTA_GATEWAY
 yes
 #endif /* RTA_GATEWAY */
-],  [AC_DEFINE(HAVE_ROUTE_SOURCE)
-     AC_DEFINE(HAVE_ROUTEINFO_BSD)
+],  [AC_DEFINE(HAVE_ROUTE_SOURCE, 1)
+     AC_DEFINE(HAVE_ROUTEINFO_BSD, 1, [BSD type routing socket])
      AC_MSG_RESULT(yes)],
      [AC_MSG_RESULT([no, might result in reduced functionality])
       no_routeinfo=t])])
@@ -595,7 +620,7 @@ yes
 AC_MSG_CHECKING([whether <netdb.h> declares h_errno])
 AC_EGREP_CPP(h_errno, [
 #include <netdb.h>
-], [AC_DEFINE(HAVE_H_ERRNO)
+], [AC_DEFINE(HAVE_H_ERRNO, 1, [netdb.h defines h_errno])
     AC_MSG_RESULT(yes)],
    [AC_MSG_RESULT(no)])
 
@@ -603,7 +628,7 @@ AC_EGREP_CPP(h_errno, [
 AC_MSG_CHECKING([for struct ip_opts in <netinet/in.h>])
 AC_EGREP_CPP([struct.*ipoption], [
 #include <netinet/ip_var.h>
-], [AC_DEFINE(HAVE_STRUCT_IPOPTS)
+], [AC_DEFINE(HAVE_STRUCT_IPOPTS, 1, [ip_opts defined in netinet/in.h])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
@@ -626,6 +651,8 @@ AC_TYPE_PID_T
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
 
+#XXX
+AC_DEFINE(HAVE_IPV6_SUPPORT, 0, [ipv6 not supported currently])
 
 AC_MSG_CHECKING([for in6_addr])
 AC_TRY_COMPILE([
@@ -635,7 +662,7 @@ AC_TRY_COMPILE([
 ], [
 struct in6_addr sin6;
 ], [AC_MSG_RESULT(yes)
-    AC_DEFINE(HAVE_IN6_ADDR)],
+    AC_DEFINE(HAVE_IN6_ADDR, 1, [in6_addr defined])],
    [AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([for sockaddr_storage in sys/socket.h])
@@ -647,7 +674,7 @@ struct sockaddr_storage __ss;
 struct sockaddr_in *sin;
 sin = (struct sockaddr_in *) &__ss;
 ], [AC_MSG_RESULT(yes)
-    AC_DEFINE(HAVE_SOCKADDR_STORAGE)],
+    AC_DEFINE(HAVE_SOCKADDR_STORAGE, 1, [sockaddr_storate defined])],
    [AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([to see if openlog accepts LOG_PERROR])
@@ -656,7 +683,7 @@ AC_EGREP_CPP(yes, [
 #ifdef LOG_PERROR
 yes
 #endif
-], [AC_DEFINE(HAVE_OPENLOG_LOG_PERROR)
+], [AC_DEFINE(HAVE_OPENLOG_LOG_PERROR, 1, [openlog supports LOG_PERROR])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
@@ -667,7 +694,7 @@ AC_EGREP_CPP(yes, [
 yes
 #endif
 ], [AC_MSG_RESULT(yes)],
-   [AC_DEFINE(NEED_EXIT_FAILURE)
+   [AC_DEFINE(NEED_EXIT_FAILURE, 1, [EXIT_FAILURE not defined in stdlib.h])
     AC_MSG_RESULT(no)])
 
 #XXX actually checks if AF_UNIX should be used instead of AF_LOCAL
@@ -681,7 +708,7 @@ AC_EGREP_CPP(yes, [
 yes
 #endif
 #endif
-], [AC_DEFINE(NEED_AF_LOCAL)
+], [AC_DEFINE(NEED_AF_LOCAL, 1, [use AF_LOCATL, not AF_UNIX])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
@@ -691,7 +718,7 @@ AC_EGREP_CPP(yes, [
 #ifdef SIGINFO
 yes
 #endif
-], [AC_DEFINE(HAVE_SIGNAL_SIGINFO)
+], [AC_DEFINE(HAVE_SIGNAL_SIGINFO, 1, [signal.h defined SIGINFO])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
@@ -701,7 +728,7 @@ AC_EGREP_CPP(yes, [
 #ifdef MSG_WAITALL
 yes
 #endif
-], [AC_DEFINE(HAVE_MSG_WAITALL)
+], [AC_DEFINE(HAVE_MSG_WAITALL, 1, [sys/socket.h defines MSG_WAITALL])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
@@ -724,7 +751,7 @@ case $host in
 	;;
 esac
 if test "x${so_sndlowat}" = xt; then
-	AC_DEFINE(HAVE_SO_SNDLOWAT)
+	AC_DEFINE(HAVE_SO_SNDLOWAT, 1, [platform supports SO_SNDLOWAT socket option])
 	AC_MSG_RESULT(yes)
 else
 	AC_MSG_RESULT(disabled)
@@ -757,7 +784,7 @@ int main()
 	else
 		return 0;
 }], [AC_MSG_RESULT(yes)],
-    [AC_DEFINE(HAVE_NOMALLOC_REALLOC)
+    [AC_DEFINE(HAVE_NOMALLOC_REALLOC, 1, [realloc never calls malloc])
      AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([whether free can be called with NULL])
@@ -773,7 +800,7 @@ int main()
 	free(NULL);
 	return 0;
 }], [AC_MSG_RESULT(yes)],
-    [AC_DEFINE(HAVE_NONULL_FREE)
+    [AC_DEFINE(HAVE_NONULL_FREE, 1, [free does not accept NULL parameter])
      AC_MSG_RESULT(no)])
 
 #A good time to save the cache (L_SOCKPROTO might fail)
@@ -925,10 +952,10 @@ yes
 #XXX
 case $host in
 	mips-sgi-irix*)
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_0, struct hostent *)
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_1, const char *)
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_2, int)
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_3, int)
+	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_0, struct hostent *, [proto])
+	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_1, const char *, [proto])
+	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_2, int, [proto])
+	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_3, int, [proto])
 	;;
 	*)
 
@@ -974,93 +1001,93 @@ esac
 	fi
     else #non ansi
 	#defaults
-	AC_DEFINE(HAVE_PROT_CONNECT_0, int)
-	AC_DEFINE(HAVE_PROT_CONNECT_1, int)
-	AC_DEFINE(HAVE_PROT_CONNECT_2, const struct sockaddr *)
-	AC_DEFINE(HAVE_PROT_CONNECT_3, socklen_t)
+	AC_DEFINE(HAVE_PROT_CONNECT_0, int, [proto])
+	AC_DEFINE(HAVE_PROT_CONNECT_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_CONNECT_2, const struct sockaddr *, [proto])
+	AC_DEFINE(HAVE_PROT_CONNECT_3, socklen_t, [proto])
 
-	AC_DEFINE(HAVE_PROT_ACCEPT_0, int)
-	AC_DEFINE(HAVE_PROT_ACCEPT_1, int)
-	AC_DEFINE(HAVE_PROT_ACCEPT_2, struct sockaddr *)
-	AC_DEFINE(HAVE_PROT_ACCEPT_3, socklen_t *)
+	AC_DEFINE(HAVE_PROT_ACCEPT_0, int, [proto])
+	AC_DEFINE(HAVE_PROT_ACCEPT_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_ACCEPT_2, struct sockaddr *, [proto])
+	AC_DEFINE(HAVE_PROT_ACCEPT_3, socklen_t *, [proto])
 
-	AC_DEFINE(HAVE_PROT_BIND_0, int)
-	AC_DEFINE(HAVE_PROT_BIND_1, int)
-	AC_DEFINE(HAVE_PROT_BIND_2, const struct sockaddr *)
-	AC_DEFINE(HAVE_PROT_BIND_3, socklen_t)
+	AC_DEFINE(HAVE_PROT_BIND_0, int, [proto])
+	AC_DEFINE(HAVE_PROT_BIND_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_BIND_2, const struct sockaddr *, [proto])
+	AC_DEFINE(HAVE_PROT_BIND_3, socklen_t, [proto])
 
-	AC_DEFINE(HAVE_PROT_GETPEERNAME_0, int)
-	AC_DEFINE(HAVE_PROT_GETPEERNAME_1, int)
-	AC_DEFINE(HAVE_PROT_GETPEERNAME_2, struct sockaddr *)
-	AC_DEFINE(HAVE_PROT_GETPEERNAME_3, socklen_t *)
+	AC_DEFINE(HAVE_PROT_GETPEERNAME_0, int, [proto])
+	AC_DEFINE(HAVE_PROT_GETPEERNAME_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_GETPEERNAME_2, struct sockaddr *, [proto])
+	AC_DEFINE(HAVE_PROT_GETPEERNAME_3, socklen_t *, [proto])
 
-	AC_DEFINE(HAVE_PROT_GETSOCKNAME_0, int)
-	AC_DEFINE(HAVE_PROT_GETSOCKNAME_1, int)
-	AC_DEFINE(HAVE_PROT_GETSOCKNAME_2, struct sockaddr *)
-	AC_DEFINE(HAVE_PROT_GETSOCKNAME_3, socklen_t *)
+	AC_DEFINE(HAVE_PROT_GETSOCKNAME_0, int, [proto])
+	AC_DEFINE(HAVE_PROT_GETSOCKNAME_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_GETSOCKNAME_2, struct sockaddr *, [proto])
+	AC_DEFINE(HAVE_PROT_GETSOCKNAME_3, socklen_t *, [proto])
 
-	AC_DEFINE(HAVE_PROT_RECVFROM_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_RECVFROM_1, int)
-	AC_DEFINE(HAVE_PROT_RECVFROM_2, void *)
-	AC_DEFINE(HAVE_PROT_RECVFROM_3, size_t)
-	AC_DEFINE(HAVE_PROT_RECVFROM_4, int)
-	AC_DEFINE(HAVE_PROT_RECVFROM_5, struct sockaddr *)
-	AC_DEFINE(HAVE_PROT_RECVFROM_6, socklen_t *)
+	AC_DEFINE(HAVE_PROT_RECVFROM_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_RECVFROM_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_RECVFROM_2, void *, [proto])
+	AC_DEFINE(HAVE_PROT_RECVFROM_3, size_t, [proto])
+	AC_DEFINE(HAVE_PROT_RECVFROM_4, int, [proto])
+	AC_DEFINE(HAVE_PROT_RECVFROM_5, struct sockaddr *, [proto])
+	AC_DEFINE(HAVE_PROT_RECVFROM_6, socklen_t *, [proto])
 
-	AC_DEFINE(HAVE_PROT_SEND_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_SEND_1, int)
-	AC_DEFINE(HAVE_PROT_SEND_2, const void *)
-	AC_DEFINE(HAVE_PROT_SEND_3, size_t)
-	AC_DEFINE(HAVE_PROT_SEND_4, int)
+	AC_DEFINE(HAVE_PROT_SEND_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_SEND_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_SEND_2, const void *, [proto])
+	AC_DEFINE(HAVE_PROT_SEND_3, size_t, [proto])
+	AC_DEFINE(HAVE_PROT_SEND_4, int, [proto])
 
-	AC_DEFINE(HAVE_PROT_RECV_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_RECV_1, int)
-	AC_DEFINE(HAVE_PROT_RECV_2, void *)
-	AC_DEFINE(HAVE_PROT_RECV_3, size_t)
-	AC_DEFINE(HAVE_PROT_RECV_4, int)
+	AC_DEFINE(HAVE_PROT_RECV_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_RECV_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_RECV_2, void *, [proto])
+	AC_DEFINE(HAVE_PROT_RECV_3, size_t, [proto])
+	AC_DEFINE(HAVE_PROT_RECV_4, int, [proto])
 
-	AC_DEFINE(HAVE_PROT_SENDTO_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_SENDTO_1, int)
-	AC_DEFINE(HAVE_PROT_SENDTO_2, const void *)
-	AC_DEFINE(HAVE_PROT_SENDTO_3, size_t)
-	AC_DEFINE(HAVE_PROT_SENDTO_4, int)
-	AC_DEFINE(HAVE_PROT_SENDTO_5, const struct sockaddr *)
-	AC_DEFINE(HAVE_PROT_SENDTO_6, socklen_t)
+	AC_DEFINE(HAVE_PROT_SENDTO_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_SENDTO_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_SENDTO_2, const void *, [proto])
+	AC_DEFINE(HAVE_PROT_SENDTO_3, size_t, [proto])
+	AC_DEFINE(HAVE_PROT_SENDTO_4, int, [proto])
+	AC_DEFINE(HAVE_PROT_SENDTO_5, const struct sockaddr *, [proto])
+	AC_DEFINE(HAVE_PROT_SENDTO_6, socklen_t, [proto])
 
-	AC_DEFINE(HAVE_PROT_READV_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_READV_1, int)
-	AC_DEFINE(HAVE_PROT_READV_2, const struct iovec *)
-	AC_DEFINE(HAVE_PROT_READV_3, int)
+	AC_DEFINE(HAVE_PROT_READV_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_READV_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_READV_2, const struct iovec *, [proto])
+	AC_DEFINE(HAVE_PROT_READV_3, int, [proto])
 
-	AC_DEFINE(HAVE_PROT_WRITEV_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_WRITEV_1, int)
-	AC_DEFINE(HAVE_PROT_WRITEV_2, const struct iovec *)
-	AC_DEFINE(HAVE_PROT_WRITEV_3, int)
+	AC_DEFINE(HAVE_PROT_WRITEV_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_WRITEV_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_WRITEV_2, const struct iovec *, [proto])
+	AC_DEFINE(HAVE_PROT_WRITEV_3, int, [proto])
 
-	AC_DEFINE(HAVE_PROT_RECVMSG_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_RECVMSG_1, int)
-	AC_DEFINE(HAVE_PROT_RECVMSG_2, struct msghdr *)
-	AC_DEFINE(HAVE_PROT_RECVMSG_3, int)
+	AC_DEFINE(HAVE_PROT_RECVMSG_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_RECVMSG_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_RECVMSG_2, struct msghdr *, [proto])
+	AC_DEFINE(HAVE_PROT_RECVMSG_3, int, [proto])
 
-	AC_DEFINE(HAVE_PROT_SENDMSG_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_SENDMSG_1, int)
-	AC_DEFINE(HAVE_PROT_SENDMSG_2, const struct msghdr *)
-	AC_DEFINE(HAVE_PROT_SENDMSG_3, int)
+	AC_DEFINE(HAVE_PROT_SENDMSG_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_SENDMSG_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_SENDMSG_2, const struct msghdr *, [proto])
+	AC_DEFINE(HAVE_PROT_SENDMSG_3, int, [proto])
 
-	AC_DEFINE(HAVE_PROT_WRITE_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_WRITE_1, int)
-	AC_DEFINE(HAVE_PROT_WRITE_2, const void *)
-	AC_DEFINE(HAVE_PROT_WRITE_3, size_t)
+	AC_DEFINE(HAVE_PROT_WRITE_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_WRITE_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_WRITE_2, const void *, [proto])
+	AC_DEFINE(HAVE_PROT_WRITE_3, size_t, [proto])
 
-	AC_DEFINE(HAVE_PROT_READ_0, ssize_t)
-	AC_DEFINE(HAVE_PROT_READ_1, int)
-	AC_DEFINE(HAVE_PROT_READ_2, void *)
-	AC_DEFINE(HAVE_PROT_READ_3, size_t)
+	AC_DEFINE(HAVE_PROT_READ_0, ssize_t, [proto])
+	AC_DEFINE(HAVE_PROT_READ_1, int, [proto])
+	AC_DEFINE(HAVE_PROT_READ_2, void *, [proto])
+	AC_DEFINE(HAVE_PROT_READ_3, size_t, [proto])
 
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_0, struct hostent *)
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_1, const char *)
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_2, int)
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_3, int)
+	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_0, struct hostent *, [proto])
+	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_1, const char *, [proto])
+	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_2, int, [proto])
+	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_3, int, [proto])
     fi #stdc_headers
 fi #no preload
 
@@ -1070,7 +1097,7 @@ AC_TRY_COMPILE([
 #include <sys/socket.h>
 int getsockopt(int, int, int, char *, int *);
 ], [ 1 ],
- [AC_DEFINE(NEED_GETSOCKOPT_CAST)
+ [AC_DEFINE(NEED_GETSOCKOPT_CAST, 1, [getsockopt needs cast])
   AC_MSG_RESULT(yes)],
  AC_MSG_RESULT(no))
 
@@ -1086,7 +1113,7 @@ if test x$have_sys_sockio_h = xt; then
 yes
 #endif
 #endif
-], [AC_DEFINE(NEED_SYS_SOCKIO_H)
+], [AC_DEFINE(NEED_SYS_SOCKIO_H, 1, [sys/sockio.h must be included])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 fi
@@ -1101,7 +1128,7 @@ AC_EGREP_CPP(yes, [
 yes
 # endif
 #endif
-], [AC_DEFINE(NEED_DYNA_RTLD)
+], [AC_DEFINE(NEED_DYNA_RTLD, 1, [dlopen has RTLD_ prefix])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
@@ -1116,7 +1143,7 @@ AC_EGREP_CPP(yes, [
 yes
 # endif
 #endif
-], [AC_DEFINE(NEED_SA_RESTART)
+], [AC_DEFINE(NEED_SA_RESTART, 1, [use SA_RESTART, not SV_INTERRUPT])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
@@ -1135,7 +1162,7 @@ case $host in
  foo.cmsg_type = SCM_RIGHTS;
  foo.cmsg_level = SOL_SOCKET;
  bar.msg_controllen = 1;
-], [AC_DEFINE(HAVE_CMSGHDR)
+], [AC_DEFINE(HAVE_CMSGHDR, 1, [struct cmsghdr exists])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 	;;
@@ -1151,7 +1178,7 @@ int main()
    return 0;
 }
 ], [AC_MSG_RESULT(yes)
-    AC_DEFINE(HAVE_CMSG_SPACE)],
+    AC_DEFINE(HAVE_CMSG_SPACE, 1, CMSG_SPACE exists)],
    [AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([for CMSG_LEN in sys/socket.h])
@@ -1164,7 +1191,7 @@ int main()
    int d = CMSG_LEN(4);
    return 0;
 }], [AC_MSG_RESULT(yes)
-    AC_DEFINE(HAVE_CMSG_LEN)],
+    AC_DEFINE(HAVE_CMSG_LEN, 1, [CMSG_LEN exists])],
    [AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([for sa_len in sockaddr])
@@ -1173,21 +1200,21 @@ AC_TRY_COMPILE([
 #include <sys/socket.h>
 ], [struct sockaddr foo;
 foo.sa_len = 0;
-], [AC_DEFINE(HAVE_SOCKADDR_SA_LEN)
+], [AC_DEFINE(HAVE_SOCKADDR_SA_LEN, 1, [sa_len exists in sockaddr])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING([to see if malloc_options exists])
 AC_TRY_LINK([extern char *malloc_options;],
 [ malloc_options = 0; ],
-[AC_DEFINE(HAVE_MALLOC_OPTIONS)
+[AC_DEFINE(HAVE_MALLOC_OPTIONS, 1, [support for malloc debugging])
  AC_MSG_RESULT(yes)],
 AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING([to see if __progname exists])
 AC_TRY_LINK([extern char *__progname;],
 [ __progname = 0; ],
-[AC_DEFINE(HAVE_PROGNAME)
+[AC_DEFINE(HAVE_PROGNAME, 1, [programe name symbol exists])
  AC_MSG_RESULT(yes)],
 AC_MSG_RESULT(no))
 
@@ -1217,10 +1244,10 @@ LIBS=""
 
 #ignore when preloading is disabled (only the AC_SEARCH_LIBS test is needed)
 if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_bindresvport}" = "x-lrpcsoc"; then
-	AC_DEFINE_UNQUOTED(LIBRARY_LIBRPCSOC, "${base_library_path}librpcsoc.sl")
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBRPCSOC, "${base_library_path}librpcsoc.sl", [libname])
 	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}librpcsoc.sl"
 
-	AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBRPCSOC)
+	AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBRPCSOC, [function loc])
 fi
 
 
@@ -1232,52 +1259,52 @@ LIBS=""
 
 #ignore when preloading is disabled (only the AC_SEARCH_LIBS test is needed)
 if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_connect}" = "x-lsocket"; then
-	AC_DEFINE_UNQUOTED(LIBRARY_LIBSOCKET, "${base_library_path}libsocket.${SOLIB_POSTFIX}")
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBSOCKET, "${base_library_path}libsocket.${SOLIB_POSTFIX}", [libloc])
 	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libsocket.${SOLIB_POSTFIX}"
 
-	AC_DEFINE(LIBRARY_CONNECT, LIBRARY_LIBSOCKET)
+	AC_DEFINE(LIBRARY_CONNECT, LIBRARY_LIBSOCKET, [function loc])
 
 	AC_CHECK_LIB(socket, accept,
-		AC_DEFINE(LIBRARY_ACCEPT, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_ACCEPT, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, bind,
-		AC_DEFINE(LIBRARY_BIND, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_BIND, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, bindresvport,
-		AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, getpeername,
-		AC_DEFINE(LIBRARY_GETPEERNAME, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_GETPEERNAME, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, getsockname,
-		AC_DEFINE(LIBRARY_GETSOCKNAME, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_GETSOCKNAME, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, getaddrinfo,
-		AC_DEFINE(LIBRARY_GETADDRINFO, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_GETADDRINFO, LIBRARY_LIBSOCKET, [function loc]))
 
-	AC_CHECK_LIB(socket, getaddrinfo,
-		AC_DEFINE(LIBRARY_FREEHOSTENT, LIBRARY_LIBSOCKET))
+	AC_CHECK_LIB(socket, freehostent,
+		AC_DEFINE(LIBRARY_FREEHOSTENT, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, recvfrom,
-		AC_DEFINE(LIBRARY_RECVFROM, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_RECVFROM, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, rresvport,
-		AC_DEFINE(LIBRARY_RRESVPORT, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_RRESVPORT, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, recvmsg,
-		AC_DEFINE(LIBRARY_RECVMSG, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_RECVMSG, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, sendmsg,
-		AC_DEFINE(LIBRARY_SENDMSG, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_SENDMSG, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, send,
-		AC_DEFINE(LIBRARY_SEND, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_SEND, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, recv,
-		AC_DEFINE(LIBRARY_RECV, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_RECV, LIBRARY_LIBSOCKET, [function loc]))
 
 	AC_CHECK_LIB(socket, sendto,
-		AC_DEFINE(LIBRARY_SENDTO, LIBRARY_LIBSOCKET))
+		AC_DEFINE(LIBRARY_SENDTO, LIBRARY_LIBSOCKET, [function loc]))
 fi
 
 #doesn't work if test links with -lsocket (Solaris)
@@ -1287,19 +1314,21 @@ NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
 LIBS=""
 
 if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_inet_addr}" = "x-lnsl"; then
-	AC_DEFINE_UNQUOTED(LIBRARY_LIBNSL, "${base_library_path}libnsl.${SOLIB_POSTFIX}")
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBNSL, "${base_library_path}libnsl.${SOLIB_POSTFIX}", [libloc])
 
 	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libnsl.${SOLIB_POSTFIX}"
 
 	AC_CHECK_LIB(nsl, gethostbyname,
-		AC_DEFINE(LIBRARY_GETHOSTBYNAME, LIBRARY_LIBNSL))
-
+		[AC_DEFINE(LIBRARY_GETHOSTBYNAME, LIBRARY_LIBNSL, [function loc])])
 
 	AC_CHECK_LIB(nsl, gethostbyaddr,
-		[AC_DEFINE(LIBRARY_GETHOSTBYADDR, LIBRARY_LIBNSL)])
+		[AC_DEFINE(LIBRARY_GETHOSTBYADDR, LIBRARY_LIBNSL, [function loc])])
+
+	AC_CHECK_LIB(nsl, freehostent,
+		AC_DEFINE(LIBRARY_FREEHOSTENT, LIBRARY_LIBNSL, [function loc]))
 
  	AC_CHECK_LIB(nsl, getipnodebyname,
- 		[AC_DEFINE(LIBRARY_GETIPNODEBYNAME, LIBRARY_LIBNSL)])
+ 		[AC_DEFINE(LIBRARY_GETIPNODEBYNAME, LIBRARY_LIBNSL, [function loc])])
 fi
 
 #XXX used for anything but gethostbyname2? consider testing for it
@@ -1313,12 +1342,12 @@ NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
 LIBS=""
 
 if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_inet_aton}" = "x-lresolv"; then
-	AC_DEFINE_UNQUOTED(LIBRARY_LIBRESOLV, "${base_library_path}libresolv.${SOLIB_POSTFIX}")
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBRESOLV, "${base_library_path}libresolv.${SOLIB_POSTFIX}", [libloc])
 
 	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libresolv.${SOLIB_POSTFIX}"
 
 	AC_CHECK_LIB(resolv, gethostbyname2,
-		[AC_DEFINE(LIBRARY_GETHOSTBYNAME2, LIBRARY_LIBRESOLV)])
+		[AC_DEFINE(LIBRARY_GETHOSTBYNAME2, LIBRARY_LIBRESOLV, [function loc])])
 fi
 
 #XXX gcc on Solaris (using gnu ld) doesn't seems to implicitly link
@@ -1393,7 +1422,7 @@ if test "x${LIBC_NAME}" = x; then
 fi
 
 AC_MSG_RESULT(${LIBC_NAME})
-AC_DEFINE_UNQUOTED(LIBRARY_LIBC, "${LIBC_NAME}")
+AC_DEFINE_UNQUOTED(LIBRARY_LIBC, "${LIBC_NAME}", [libc name])
 
 dnl #XXX include header in compilation test?
 dnl normal library testing doesn't work for libwrap (doesn't link
@@ -1416,7 +1445,7 @@ int allow_severity;
 int deny_severity;
 ], [hosts_access(0);],
  [AC_MSG_RESULT(yes)
-  AC_DEFINE(HAVE_LIBWRAP)
+  AC_DEFINE(HAVE_LIBWRAP, 1, [use tcpwrappers])
   want_libwrap=t],
  [AC_MSG_RESULT(no)])
     fi
@@ -1431,7 +1460,7 @@ AC_CHECK_HEADERS(security/pam_appl.h, [have_pam_header=t])
 AC_SEARCH_LIBS(pam_start, pam, [have_libpam=t])
 
 if test x"${have_pam_header}" != x -a x"${have_libpam}" != x; then
-	AC_DEFINE(HAVE_PAM)
+	AC_DEFINE(HAVE_PAM, 1, [PAM support])
 fi
 
 L_SYMBOL_UNDERSCORE()
@@ -1455,7 +1484,7 @@ int main(void)
     return 0;
 
 }
-], [AC_DEFINE(HAVE_BROKEN_INET_NTOA)
+], [AC_DEFINE(HAVE_BROKEN_INET_NTOA, 1, [platform bug])
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
@@ -1471,6 +1500,7 @@ AC_TRY_COMPILE([
    [AC_MSG_RESULT(no)
     socklen_found=""])
 
+AH_TEMPLATE([socklen_t], [platform workaround])
 if test x"$socklen_found" = x; then
     case $host in
 	alpha*-dec-osf* | *-*-aix*)
@@ -1486,10 +1516,10 @@ fi
 AC_MSG_CHECKING([for sig_atomic_t in <signal.h>])
 AC_EGREP_CPP(sig_atomic_t, [
 #include <signal.h>
-], [AC_DEFINE(HAVE_SIG_ATOMIC_T)
+], [AC_DEFINE(HAVE_SIG_ATOMIC_T, 1, [sig_atomic_t defined in signal.h])
     case $host in
 	*-*-aix*)
-		AC_DEFINE(HAVE_VOLATILE_SIG_ATOMIC_T)
+		AC_DEFINE(HAVE_VOLATILE_SIG_ATOMIC_T, 1, [platform workaround])
 	;;
     esac
     AC_MSG_RESULT(yes)],
@@ -1517,6 +1547,7 @@ AC_CHECK_FUNCS(strvis vsnprintf getdtablesize sysconf inet_pton vsyslog)
 AC_CHECK_FUNCS(daemon bzero sockatmark difftime memmove seteuid setproctitle)
 AC_CHECK_FUNCS(inet_aton gethostbyname2 getaddrinfo getipnodebyname)
 AC_CHECK_FUNCS(getprpwnam getspnam getifaddrs freeifaddrs bindresvport)
+AC_CHECK_FUNCS(setegid)
 
 AC_MSG_CHECKING([for system V getpwnam])
 unset getpwnam_alt
@@ -1530,7 +1561,7 @@ fi
 
 #XXX
 if test x"${getpwnam_alt}" = x; then
-    AC_DEFINE(HAVE_WORKING_GETPWNAM)
+    AC_DEFINE(HAVE_WORKING_GETPWNAM, 1, [system V getpwnam])
     AC_MSG_RESULT(no)
 else
     AC_MSG_RESULT(yes)
@@ -1553,7 +1584,7 @@ else
 fi
 
 if false; then
-   AC_DEFINE(HAVE_DUMPCONF)
+   AC_DEFINE(HAVE_DUMPCONF, 1, [GUI tool])
 fi
 
 #change all #undef's to #define foo 0
@@ -1604,7 +1635,7 @@ AC_LINK_FILES(${MOD_CHECKMODULE}licensed/checkmodule.c, sockd/checkmodule.c)
 #redirect module
 if test -f "licensed/redirect.c"; then
 	unset MOD_REDIRECT
-	AC_DEFINE(HAVE_MODULE_REDIRECT)
+	AC_DEFINE(HAVE_MODULE_REDIRECT, 1, [module installed])
 	echo "module found: redirect"
 else
 	MOD_REDIRECT=un
@@ -1615,7 +1646,7 @@ AC_LINK_FILES(${MOD_REDIRECT}licensed/redirect_key.c, sockd/redirect_key.c)
 #bandwidth
 if test -f "licensed/bandwidth.c"; then
 	unset MOD_BANDWIDTH
-	AC_DEFINE(HAVE_MODULE_BANDWIDTH)
+	AC_DEFINE(HAVE_MODULE_BANDWIDTH, 1, [module installed])
 	echo "module found: bandwidth"
 else
 	MOD_BANDWIDTH=un
@@ -1720,3 +1751,16 @@ else
 	echo "bandwidth:         not found"
 fi
 echo ""
+
+if test x$prerelease != x; then
+   echo "
+This is a pre-release.  We ask that everyone who can, test it to the
+extent possible, to help reduce problems in the upcoming release.
+Problems can be reported to dante-bugs@inet.no.
+
+Note that Dante pre-releases are often configured in a way that can
+significantly increase the load on the machine.  This is done to
+stress the server more, increasing the chances of detecting potential
+problems.
+"
+fi

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.43 2003/07/01 13:21:26 michaels Exp $";
+"$Id: clientprotocol.c,v 1.44 2004/11/10 12:21:01 michaels Exp $";
 
 int
 socks_sendrequest(s, request)
@@ -350,7 +350,9 @@ recv_sockshost(s, host, version, auth)
 
 					OCTETIFY(alen);
 
+#if MAXHOSTNAMELEN < 0xff
 					SASSERTX(alen < sizeof(host->addr.domain));
+#endif
 
 					/* BND.ADDR, alen octets */
 					if (readn(s, host->addr.domain, (size_t)alen, auth)

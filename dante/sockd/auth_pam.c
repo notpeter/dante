@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.18 2003/07/01 13:21:39 michaels Exp $";
+"$Id: auth_pam.c,v 1.19 2004/11/11 11:26:59 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -86,7 +86,8 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 	int rc;
 	uid_t	euid;
 	struct pam_conv _pam_conv = {
-		&_pam_conversation,
+		(int (*)(int,struct pam_message **,struct pam_response **,void *))
+			&_pam_conversation,
 		NULL
 	};
 
@@ -126,8 +127,8 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 		return -1;
 	}
 
-	pw.user		= auth->name;
-	pw.password = auth->password;
+	pw.user		= (const char *)(auth->name);
+	pw.password = (const char *)(auth->password);
 	_pam_conv.appdata_ptr = (char *)&pw;
 #ifdef HAVE_SOLARIS_PAM_BUG
 	_pam_priv_data = &pw;

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.318 2004/07/06 11:17:07 karls Exp $ */
+/* $Id: common.h,v 1.320 2004/11/11 11:38:32 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -595,7 +595,7 @@ extern int h_errno;
 
 #define ELEMENTS(array) (sizeof(array) / sizeof(array[0]))
 
-#define OCTETIFY(a) ((a) = ((a) & 0xff))
+#define OCTETIFY(a) ((a) &= 0xff)
 /*
  * Note that it's the argument that will be truncated, not just the
  * return value.
@@ -2305,6 +2305,10 @@ checkmodule __P((const char *name));
  * Checks that the system has the module "name" and permission to use it.
  * Aborts with a errormessage if not.
  */
+
+int socks_yyparse __P((void));
+int socks_yylex __P((void));
+
 
 __END_DECLS
 

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetpeername.c,v 1.32 2003/07/01 13:21:23 michaels Exp $";
+"$Id: Rgetpeername.c,v 1.33 2004/11/10 12:21:00 michaels Exp $";
 
 int
 Rgetpeername(s, name, namelen)
@@ -94,7 +94,7 @@ Rgetpeername(s, name, namelen)
 	}
 
 
-	*namelen = MIN(*namelen, sizeof(*addr));
+	*namelen = MIN(*namelen, (socklen_t)sizeof(*addr));
 	memcpy(name, addr, (size_t)*namelen);
 
 	return 0;

@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.63 2004/03/28 10:53:56 karls Exp $";
+"$Id: io.c,v 1.64 2004/11/10 12:21:02 michaels Exp $";
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
 
@@ -291,7 +291,8 @@ recvmsgn(s, msg, flags)
 
 					swarn("%s: %d bytes left", function, left);
 
-					for (leaked = 0; CMSG_SPACE(leaked * sizeof(d)) < CMSG_TOTLEN(*msg);
+					for (leaked = 0;
+					CMSG_SPACE(leaked * sizeof(d)) < (size_t)CMSG_TOTLEN(*msg);
 					++leaked) {
 						CMSG_GETOBJECT(d, CMSG_CONTROLDATA(*msg), leaked * sizeof(d));
 						close(d);

@@ -11,7 +11,7 @@ libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c int_osf3.c   \
 
 #libdsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info
-libdsocks_la_LDFLAGS = -version-info 1:0:1 -all-dynamic
+libdsocks_la_LDFLAGS = -avoid-version -all-dynamic
 libdsocks_la_LIBADD = ../libscompat/libscompat.la
 
 noinst_HEADERS = config_parse.h
@@ -22,5 +22,5 @@ INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
 AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=1
 #XXXlibrary name needed for socksify
 PREFIX = socks_yy
-YFLAGS = -d -p${PREFIX}
-LFLAGS = -P${PREFIX} -olex.yy.c
+AM_YFLAGS = -d -p${PREFIX}
+AM_LFLAGS = -P${PREFIX} -olex.yy.c

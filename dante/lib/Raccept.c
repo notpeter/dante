@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.77 2003/07/01 13:21:21 michaels Exp $";
+"$Id: Raccept.c,v 1.78 2004/11/10 12:20:59 michaels Exp $";
 
 int
 Raccept(s, addr, addrlen)
@@ -288,7 +288,7 @@ Raccept(s, addr, addrlen)
 #endif
 
 	if (addr != NULL) {
-		*addrlen = MIN(*addrlen, sizeof(accepted));
+		*addrlen = MIN(*addrlen, (socklen_t)sizeof(accepted));
 		memcpy(addr, &accepted, (size_t)*addrlen);
 	}
 

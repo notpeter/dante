@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.42 2003/07/01 13:21:24 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.43 2004/11/10 12:21:01 michaels Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -142,7 +142,7 @@ Rgetsockname(s, name, namelen)
 			SERRX(socksfd->state.command);
 	}
 
-	*namelen = MIN(*namelen, sizeof(*addr));
+	*namelen = MIN(*namelen, (socklen_t)sizeof(*addr));
 	memcpy(name, addr, (size_t)*namelen);
 
 	return 0;

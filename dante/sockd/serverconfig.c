@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.183 2003/11/06 09:34:09 michaels Exp $";
+"$Id: serverconfig.c,v 1.185 2004/11/02 17:57:36 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -460,8 +460,8 @@ showconfig(sockscf)
 	slog(LOG_DEBUG, "userid:\n%s",
 	userids2string(&sockscf->uid, "", buf, sizeof(buf)));
 
-	slog(LOG_DEBUG, "child.maxidlenumber: %d",
-	sockscf->child.maxidlenumber);
+	slog(LOG_DEBUG, "child.maxidle: %d",
+	sockscf->child.maxidle);
 
 	bufused = snprintfn(buf, sizeof(buf), "method(s): ");
 	for (i = 0; (size_t)i < sockscf->methodc; ++i)
@@ -583,7 +583,11 @@ resetconfig(void)
 	bzero(&sockscf.uid, sizeof(sockscf.uid));
 
 	/* childstate, some read from configfile, some not. */
-	sockscf.child.maxidlenumber = 0;
+#if DEBUG
+	sockscf.child.maxidle = SOCKD_FREESLOTS;
+#else
+	sockscf.child.maxidle = 0;
+#endif
 }
 
 void

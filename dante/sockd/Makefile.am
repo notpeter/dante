@@ -37,8 +37,8 @@ endif
 
 INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
 PREFIX = socks_yy
-YFLAGS = -d -p${PREFIX}
-LFLAGS = -P${PREFIX} -olex.yy.c
+AM_YFLAGS = -d -p${PREFIX}
+AM_LFLAGS = -P${PREFIX} -olex.yy.c
 
 if STATIC_SOCKD
 STATIC = -all-static

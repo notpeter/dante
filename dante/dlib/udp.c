@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.127 2003/07/01 13:21:32 michaels Exp $";
+"$Id: udp.c,v 1.128 2004/11/10 12:21:02 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -96,8 +96,8 @@ Rsendto(s, msg, len, flags, to, tolen)
 	/* prefix a UDP header to the msg */
 	nlen = len;
 	/* LINTED warning: cast discards 'const' from pointer target type */
-	if ((nmsg = udpheader_add(fakesockaddr2sockshost(to, &host), (char *)msg,
-	&nlen, 0)) == NULL) {
+	if ((nmsg = udpheader_add(fakesockaddr2sockshost(to, &host),
+	(const char *)msg, &nlen, 0)) == NULL) {
 		errno = ENOBUFS;
 		return -1;
 	}

@@ -76,7 +76,7 @@
 
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.21 2004/03/28 10:53:55 karls Exp $";
+"$Id: Rcompat.c,v 1.22 2004/11/10 12:21:00 michaels Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -130,7 +130,7 @@ Rwritev(d, iov, iovcnt)
 
 	msg = msginit;
 	/* LINTED operands have incompatible pointer types */
-	msg.msg_iov			= (const struct iovec *)iov;
+	msg.msg_iov			= (struct iovec *)iov;
 	msg.msg_iovlen		= iovcnt;
 
 	return Rsendmsg(d, &msg, 0);
@@ -153,7 +153,7 @@ Rsend(s, msg, len, flags)
 	slog(LOG_DEBUG, "%s", function);
 
 	/* LINTED operands have incompatible pointer types */
-	iov.iov_base		= (const void *)msg;
+	iov.iov_base		= msg;
 	iov.iov_len			= len;
 
 	msghdr = msghdrinit;
@@ -247,7 +247,7 @@ Rreadv(d, iov, iovcnt)
 
 	msg = msghdrinit;
 	/* LINTED operands have incompatible pointer types */
-	msg.msg_iov		= (const struct iovec *)iov;
+	msg.msg_iov		= (struct iovec *)iov;
 	msg.msg_iovlen	= iovcnt;
 
 	return Rrecvmsg(d, &msg, 0);
