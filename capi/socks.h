@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.4 2001/02/17 21:29:25 michaels Exp $ */
+/* $Id: socks.h,v 1.5 2001/10/07 12:38:35 karls Exp $ */
 
 #define accept Raccept
 #define bind Rbind
@@ -72,3 +72,36 @@ SOCKSinit(char *progname);
  * Returns:
  *		On success: 0.
 */
+
+#undef __P
+#if defined (__STDC__) || defined (_AIX) \
+	|| (defined (__mips) && defined (_SYSTYPE_SVR4)) \
+	|| defined(WIN32) || defined(__cplusplus)
+# define __P(protos) protos
+#else
+# define __P(protos) ()
+#endif
+
+int Raccept __P((int, struct sockaddr *, socklen_t *));
+int Rconnect __P((int, const struct sockaddr *, socklen_t));
+int Rgetsockname __P((int, struct sockaddr *, socklen_t *));
+int Rgetpeername __P((int, struct sockaddr *, socklen_t *));
+ssize_t Rsendto __P((int s, const void *msg, size_t len, int flags, const struct sockaddr *to, socklen_t tolen));
+ssize_t Rrecvfrom __P((int s, void *buf, size_t len, int flags, struct sockaddr * from, socklen_t *fromlen));
+ssize_t Rsendmsg __P((int s, const struct msghdr *msg, int flags));
+ssize_t Rrecvmsg __P((int s, struct msghdr *msg, int flags));
+int Rbind __P((int, const struct sockaddr *, socklen_t));
+
+int Rbindresvport __P((int, struct sockaddr_in *));
+int Rrresvport __P((int *));
+struct hostent *Rgethostbyname __P((const char *));
+struct hostent *Rgethostbyname2 __P((const char *, int af));
+ssize_t Rwrite __P((int d, const void *buf, size_t nbytes));
+ssize_t Rwritev __P((int d, const struct iovec *iov, int iovcnt));
+ssize_t Rsend __P((int s, const void *msg, size_t len, int flags));
+ssize_t Rread __P((int d, void *buf, size_t nbytes));
+ssize_t Rreadv __P((int d, const struct iovec *iov, int iovcnt));
+ssize_t Rrecv __P((int s, void *msg, size_t len, int flags));
+
+int Rlisten __P((int, int));
+int Rselect __P((int, fd_set *, fd_set *, fd_set *, struct timeval *));

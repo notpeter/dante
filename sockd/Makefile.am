@@ -4,7 +4,8 @@ sockd_SOURCES = sockd.c sockd_child.c io.c sockd_negotiate.c \
 	socket.c sockd_socket.c config_parse.y config_scan.l config.c   \
 	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c     \
 	hostcache.c interposition.c broken.c serr.c sockd_io.c accesscheck.c \
-	auth_password.c auth_pam.c
+	auth_password.c auth_pam.c tostring.c redirect.c redirect_key.c \
+	addressmatch.c checkmodule.c bandwidth.c bandwidth_key.c getifa.c
 
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c

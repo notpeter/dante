@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.48 2001/05/15 13:54:33 karls Exp $
+.\" $Id: sockd.conf.5,v 1.56 2001/10/15 17:15:56 karls Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -42,7 +42,7 @@
 .\"
 .TH SOCKD.CONF 5 "May 11, 2001"
 .SH NAME
-sockd.conf \- Dante server configuration file syntax
+sockd.conf \- \fBDante\fP server configuration file syntax
 .SH DESCRIPTION
 The configuration file for the \fBDante\fP server controls both access
 controls and logging.  It is divided into two parts, server settings
@@ -65,9 +65,15 @@ Set it to 0 for forever.
 .IP \fBexternal\fP
 The address to be used for outgoing connections.
 The address given may be either a ipaddress or a interfacename.
+Can be given multiple times for different addresses.
+.IP \fBexternal.rotation\fP
+If more than one external address is given, this governs which
+address is selected.  Valid values are \fBnone\fP (the default) and
+\fBroute\fP.  Note that \fBroute\fP might create problems for 
+ftp-clients using active ftp if the \fBDante\fP bind extension
+is enabled for the ftp-client.
 .IP \fBinternal\fP
-The internal address.  Connections will only be accepted on this address.
-Multiple \fBinternal\fP lines may be given.
+The internal addresses.  Connections will only be accepted on these addresses.
 The address given may be either a ipaddress or a interfacename.
 .IP \fBiotimeout\fP
 The number of seconds an established connection can be idle.  Set it
@@ -114,9 +120,27 @@ User which the server runs as most of the time.
 .IP \fBuser.libwrap\fP
 User used to execute libwrap commands.
 
+.SH MODULES
+The following modules are supported by \fBDante\fP.  Modules are purchased
+separately from Inferno Nettverk A/S.  See the \fBDante\fP homepage
+for more information.
+
+.IP \fBredirect\fP
+The \fBredirect\fP module gives you control over what addresses the
+server will use on behalf of the client and allows you to both
+redirect client requests to a different addresses aswell as control
+the range of addresses and ports to be used on behalf of the client.
+
+It can also be used to restrict the number of concurrent sessions
+from each client.
+
+.IP \fBbandwidth\fP
+The \fBbandwidth\fP module gives you control over how much
+bandwidth the Dante server uses on behalf of different clients.
+
 .SH METHODS
 The \fBDante\fP server supports the following methods.  Some
-installations of Dante may support only a subset of these.
+installations of \fBDante\fP may support only a subset of these.
 
 .IP \fBnone\fP
 The method requires no form of authentication.
@@ -176,7 +200,8 @@ The list of condition keywords is:
 \fBfrom\fP, \fBto\fP, \fBcommand\fP, \fBmethod\fP,
 \fBprotocol\fP, \fBproxyprotocol\fP, \fBuser\fP.
 
-The list of actions keywords is: \fBlibwrap\fP, \fBlog\fP.
+The list of actions keywords is: \fBbandwidth\fP, \fBlibwrap\fP,
+\fBlog\fP and \fBredirect\fP.
 
 The format and content of the rules is identical, but client-rules
 may contain only a subset of the socks-rules.  More concrete, they
@@ -208,7 +233,7 @@ The rule must also allow usernamebased methods.
 .IP \fBmethod\fP
 Require that the connection be "authenticated" using one of the
 given methods. 
-.IP \fBpamservicename\fP
+.IP \fBpam.servicename\fP
 Which servicename to use when involving pam.  Default is "sockd".
 
 .IP
@@ -224,6 +249,9 @@ Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
 \fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
 A portrange can also be given as "port <start #> - <end #>", which
 will match all port numbers within the range <start #> and <end #>.
+
+.IP \fBbandwidth\fP
+The clients matching this rule will all share this amount of bandwidth.
 .IP \fBcommand\fP
 The rule applies to the given commands.  Valid commands
 are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP
@@ -239,7 +267,7 @@ Require that the connection be established using one of the
 given methods.  \fBmethod\fP always refers to the source part of
 the rule.
 Valid values are the same as in the global \fBmethod\fP line.
-.IP \fBpamservicename\fP
+.IP \fBpam.servicename\fP
 What servicename to use when involving pam.  Default is "sockd".
 .IP \fBprotocol\fP
 The rule applies to the given protocols.  Valid values are
@@ -248,6 +276,20 @@ form is used since it provides more accuracy in defining rules.
 .IP \fBproxyprotocol\fP
 The rule applies to requests using the given proxyprotocol.
 Valid proxyprotocols are \fBsocks_v4\fP and \fBsocks_v5\fP.
+.IP \fBredirect\fP
+The source and/or destination can be redirected using the
+\fBredirect\fP statement.  The syntax of the statement is 
+as follows:
+
+.D1
+\fBredirect\fP from: \fBADDRESS\fP 
+
+.D1
+\fBredirect\fP to: \fBADDRESS\fP 
+
+The semantics of \fBfrom\fP and \fBto\fP vary according to 
+\fBcommand\fP and should be intuitive enough.
+
 .IP \fBuser\fP
 The server will accept connections from users matching one
 of the names given as value.
@@ -259,7 +301,7 @@ See the example directory in the distribution.
 .SH FILES
 .nf
 .ta \w 1
-/etc/sockd.conf	Dante server configuration file.
+/etc/sockd.conf	\fBDante\fP server configuration file.
 /etc/passwd	file used when checking username/passwords.
 .fi
 .SH AUTHORS
@@ -271,5 +313,5 @@ sockd(8), hosts_access(5)
 .Pp
 Information about new releases and other related issues can be found
 on the 
-.Nm Dante
+.Nm \fBDante\fP
 WWW home page at http://www.inet.no/dante.

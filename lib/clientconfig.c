@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientconfig.c,v 1.13 2001/02/06 15:58:51 michaels Exp $";
+"$Id: clientconfig.c,v 1.14 2001/11/11 13:38:23 michaels Exp $";
 
-struct config_t config;
-const int configtype = CONFIGTYPE_CLIENT;
+struct config_t socksconfig;
+const int socks_configtype = CONFIGTYPE_CLIENT;

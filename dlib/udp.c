@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.121 2001/05/02 11:37:20 michaels Exp $";
+"$Id: udp.c,v 1.124 2001/10/16 07:22:23 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -64,8 +64,14 @@ Rsendto(s, msg, len, flags, to, tolen)
 	size_t nlen;
 	ssize_t n;
 
-	if (to != NULL && to->sa_family != AF_INET)
+	clientinit();
+
+	if (to != NULL && to->sa_family != AF_INET) {
+		slog(LOG_DEBUG,
+		"%s: unsupported address family '%d', fallback to system sendto()",
+		function, to->sa_family);
 		return sendto(s, msg, len, flags, to, tolen);
+	}
 
 	if (udpsetup(s, to, SOCKS_SEND) != 0)
 		return errno == 0 ? sendto(s, msg, len, flags, to, tolen) : -1;
@@ -75,7 +81,7 @@ Rsendto(s, msg, len, flags, to, tolen)
 
 	if (to == NULL)
 		if (socksfd->state.udpconnect)
-			to = &socksfd->connected;
+			to = &socksfd->forus.connected;
 		else { /* tcp. */
 			n =  sendto(s, msg, len, flags, NULL, 0);
 
@@ -142,6 +148,8 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 	SASSERTX(socksfd != NULL);
 
 	if (socksfd->state.protocol.tcp) {
+		struct sockaddr *forus;
+
 		if (socksfd->state.err != 0) {
 			errno = socksfd->state.err;
 			return -1;
@@ -154,13 +162,28 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 
 		n = recvfrom(s, buf, len, flags, from, fromlen);
 
+		switch (socksfd->state.command) {
+			case SOCKS_CONNECT:
+				forus = &socksfd->forus.connected;
+				break;
+			
+			case SOCKS_BIND:
+				forus = &socksfd->forus.accepted;
+				break;
+			
+			default:
+				SERRX(socksfd->state.command);
+		}
+
 		slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)", 
 		function, protocol2string(SOCKS_TCP),
-		sockaddr2string(&socksfd->connected, srcstring, sizeof(srcstring)),
+		sockaddr2string(forus, srcstring, sizeof(srcstring)),
 		sockaddr2string(&socksfd->local, dststring, sizeof(dststring)), n);
 		
 		return n;
 	}
+
+	SASSERTX(socksfd->state.protocol.udp);
 
 	/* udp.  If packet is from socksserver it will be prefixed with a header. */
 	newlen = len + sizeof(header);
@@ -195,7 +218,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 			struct sockshost_t host;
 
 			if (!sockshostareeq(&header.host,
-			fakesockaddr2sockshost(&socksfd->connected, &host))) {
+			fakesockaddr2sockshost(&socksfd->forus.connected, &host))) {
 				char a[MAXSOCKSHOSTSTRING];
 				char b[MAXSOCKSHOSTSTRING];
 
@@ -214,7 +237,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 
 				slog(LOG_DEBUG, "%s: expected udpreply from %s, got it from %s",
 				function,
-				sockshost2string(fakesockaddr2sockshost(&socksfd->connected,
+				sockshost2string(fakesockaddr2sockshost(&socksfd->forus.connected,
 				&host), a, sizeof(a)),
 				sockshost2string(&header.host, b, sizeof(b)));
 

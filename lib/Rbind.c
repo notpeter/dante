@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.109 2001/05/13 14:26:46 michaels Exp $";
+"$Id: Rbind.c,v 1.113 2001/10/16 07:22:21 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -58,13 +58,21 @@ Rbind(s, name, namelen)
 	int type, rc;
 	socklen_t len;
 
+	clientinit();
+
+	slog(LOG_DEBUG, "%s", function);  
+
 	/*
 	 * Nothing can be called before Rbind(), delete any old cruft.
 	 */
 	socks_rmaddr((unsigned int)s);
 
-	if (name->sa_family != AF_INET)
+	if (name->sa_family != AF_INET) {
+		slog(LOG_DEBUG,
+		"%s: unsupported address family '%d', fallback to system bind()",
+		function, name->sa_family);
 		return bind(s, name, namelen);
+	}
 
 	if ((rc = bind(s, name, namelen)) != 0) {
 		switch (errno) {
@@ -97,12 +105,8 @@ Rbind(s, name, namelen)
 
 				namelen = sizeof(addr);
 				/* LINTED pointer casts may be troublesome */
-				if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0) {
-					errno = errno_s;
-					return -1;
-				}
-
-				if (addr.sin_port == htons(0)) {
+				if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0
+				||  addr.sin_port == htons(0)) {
 					errno = errno_s;
 					return -1;
 				}
@@ -130,8 +134,9 @@ Rbind(s, name, namelen)
 
 	switch (type) {
 		case SOCK_DGRAM: {
-			swarnx("%s: binding UDP sockets is not supported by socks protocol,\n"
-				    "contact Inferno Nettverk A/S for more information.", function);
+			swarnx("%s: binding UDP sockets is not supported by the socks "
+			"protocol,\n"
+			"contact Inferno Nettverk A/S for more information.", function);
 			return 0; /* cross our fingers and hope the local bind is enough. */
 
 #if 0

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.49 2001/02/06 15:58:51 michaels Exp $";
+"$Id: client.c,v 1.51 2001/11/11 13:38:23 michaels Exp $";
 
 #if !HAVE_PROGNAME
 	char *__progname = "danteclient";
@@ -63,27 +63,31 @@ void
 clientinit(void)
 {
 /*	const char *function = "clientinit()"; */
+	static int initing;
 
-	if (config.state.init)
+	if (socksconfig.state.init)
 		return;
 
-	newprocinit();
+	if (initing)
+		return;
+	initing = 1;
 
 	if (issetugid())
-		config.option.configfile = SOCKS_CONFIGFILE;
+		socksconfig.option.configfile = SOCKS_CONFIGFILE;
 	else
-		if ((config.option.configfile = getenv("SOCKS_CONF")) == NULL)
-			config.option.configfile = SOCKS_CONFIGFILE;
+		if ((socksconfig.option.configfile = getenv("SOCKS_CONF")) == NULL)
+			socksconfig.option.configfile = SOCKS_CONFIGFILE;
 
 	/*
 	 * initialize misc. options to sensible default.
 	 */
-	config.resolveprotocol		= RESOLVEPROTOCOL_UDP;
-	config.option.lbuf			= 1;
+	socksconfig.resolveprotocol	= RESOLVEPROTOCOL_UDP;
+	socksconfig.option.lbuf			= 1;
 
 	genericinit();
 
 	slog(LOG_INFO, "%s/client v%s running", PACKAGE, VERSION);
+	initing = 0;
 }
 
 

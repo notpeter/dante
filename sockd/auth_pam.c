@@ -46,7 +46,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.11 2001/05/13 14:21:34 michaels Exp $";
+"$Id: auth_pam.c,v 1.12 2001/11/11 13:38:33 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -100,7 +100,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 		}
 
 
-	socks_seteuid(&euid, config.uid.privileged); 
+	socks_seteuid(&euid, socksconfig.uid.privileged); 
 
 	if (pamh == NULL) {
 		if ((rc = pam_start(*auth->servicename == NUL ?
@@ -109,7 +109,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 			snprintf(emsg, emsgsize, "unable to obtain PAM authenticator: %s",
 			pam_strerror(pamh, rc));
 			pam_end(pamh, rc);
-			socks_reseteuid(config.uid.privileged, euid);
+			socks_reseteuid(socksconfig.uid.privileged, euid);
 			pamh = NULL;
 			return -1;
 		}
@@ -119,7 +119,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 	}
 
 	if ((rc = pam_set_item(pamh, PAM_USER, auth->name)) != PAM_SUCCESS) {
-		socks_reseteuid(config.uid.privileged, euid);
+		socks_reseteuid(socksconfig.uid.privileged, euid);
 		snprintf(emsg, emsgsize, "failed to set PAM_USER: %s",
 		pam_strerror(pamh, rc));
 		return -1;
@@ -133,7 +133,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 #endif /* HAVE_SOLARIS_PAM_BUG */
 
 	if ((rc = pam_set_item(pamh, PAM_CONV, &_pam_conv)) != PAM_SUCCESS) {
-		socks_reseteuid(config.uid.privileged, euid);
+		socks_reseteuid(socksconfig.uid.privileged, euid);
 		snprintf(emsg, emsgsize, "failed to set PAM_CONV: %s",
 		pam_strerror(pamh, rc));
 		return -1;
@@ -148,7 +148,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 			break;
 
 		default:
-			socks_reseteuid(config.uid.privileged, euid);
+			socks_reseteuid(socksconfig.uid.privileged, euid);
 			snprintf(emsg, emsgsize, "pam %s", pam_strerror(pamh, rc));
 			return -1;
 	}
@@ -158,12 +158,12 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 			break;
 
 		default:
-			socks_reseteuid(config.uid.privileged, euid);
+			socks_reseteuid(socksconfig.uid.privileged, euid);
 			snprintf(emsg, emsgsize, "pam %s", pam_strerror(pamh, rc));
 			return -1;
 	}
 
-	socks_reseteuid(config.uid.privileged, euid);
+	socks_reseteuid(socksconfig.uid.privileged, euid);
 	return 0;
 }
 

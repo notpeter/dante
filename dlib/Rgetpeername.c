@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetpeername.c,v 1.27 2001/02/06 15:58:48 michaels Exp $";
+"$Id: Rgetpeername.c,v 1.29 2001/10/15 18:00:38 karls Exp $";
 
 int
 Rgetpeername(s, name, namelen)
@@ -52,8 +52,13 @@ Rgetpeername(s, name, namelen)
 	struct sockaddr *name;
 	socklen_t *namelen;
 {
+	const char *function = "Rgetpeername()"; 
 	struct socksfd_t *socksfd;
 	struct sockaddr *addr;
+
+	clientinit();
+
+	slog(LOG_DEBUG, "%s", function);  
 
 	if (!socks_addrisok((unsigned int)s)) {
 		socks_rmaddr((unsigned int)s);
@@ -65,7 +70,7 @@ Rgetpeername(s, name, namelen)
 
 	switch (socksfd->state.command) {
 		case SOCKS_BIND:
-			addr = &socksfd->accepted;
+			addr = &socksfd->forus.accepted;
 			break;
 
 		case SOCKS_CONNECT:
@@ -73,7 +78,7 @@ Rgetpeername(s, name, namelen)
 				errno = ENOTCONN;
 				return -1;
 			}
-			addr = &socksfd->connected;
+			addr = &socksfd->forus.connected;
 			break;
 
 		case SOCKS_UDPASSOCIATE:
@@ -81,7 +86,7 @@ Rgetpeername(s, name, namelen)
 				errno = ENOTCONN;
 				return -1;
 			}
-			addr = &socksfd->connected;
+			addr = &socksfd->forus.connected;
 			break;
 
 		default:

@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.184 2001/05/02 10:57:16 michaels Exp $";
+"$Id: sockd_io.c,v 1.199 2001/11/12 14:10:22 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -107,13 +107,12 @@ doio __P((int mother, struct sockd_io_t *io, fd_set *rset, fd_set *wset,
 
 static int
 io_rw __P((struct sockd_io_direction_t *in, struct sockd_io_direction_t *out,
-			  int *bad, char *buf, int flags));
+			  int *bad, void *buf, size_t bufsize, int flags));
 /*
  * Transfers data from "in" to "out" using flag "flags".
  * "inauth" is the authentication used for reading from "in",
  * "outauth" is the authentication * used when writing to out.
- * The data transfered uses "buf" as a buffer, which must be big
- * enough to hold the data transfered.
+ * The data transfered uses "buf" as a buffer, which is of size "bufsize".
  * The function never transfers more than the receive low watermark
  * of "out".
  *
@@ -159,7 +158,7 @@ io_gettimeout __P((struct timeval *timeout));
 static struct sockd_io_t *
 io_gettimedout __P((void));
 /*
- * Scans all clients for one that has timed out according to config
+ * Scans all clients for one that has timed out according to socksconfig
  * settings.
  * Returns:
  *		If timed out client found: pointer to it.
@@ -203,6 +202,7 @@ __END_DECLS
 
 static struct sockd_io_t iov[SOCKD_IOMAX];	/* each child has these io's. */
 static int ioc = ELEMENTS(iov);
+static struct timeval bwoverflow;
 
 void
 run_io(mother)
@@ -436,7 +436,7 @@ delete_io(mother, io, fd, status)
 
 	SASSERTX(io->allocated);
 
-	/* if client or socks-rules specifies logging disconnect, log once. */
+	/* if client or socks-rules specifies logging disconnect, log, but once. */
 	if (io->rule.log.disconnect)
 		rule = &io->rule;
 	else if (io->acceptrule.log.disconnect)
@@ -445,6 +445,7 @@ delete_io(mother, io, fd, status)
 		rule = NULL;
 
 	if (rule != NULL && rule->log.disconnect) {
+		/* LINTED constant in conditional context */
 		char in[MAXSOCKADDRSTRING + MAXAUTHINFOLEN];
 		char out[sizeof(in)];
 		char logmsg[sizeof(in) + sizeof(out) + 1024];
@@ -552,6 +553,10 @@ delete_io(mother, io, fd, status)
 	}
 
 	close_iodescriptors(io);
+
+	/* request handled. */
+	bwfree(rule->bw);
+
 	io->allocated = 0;
 
 	if (mother != -1) {
@@ -559,7 +564,7 @@ delete_io(mother, io, fd, status)
 
 		/* ack io slot free. */
 		if (writen(mother, &b, sizeof(b), NULL) != sizeof(b))
-			swarn("%s: writen(): mother", function);
+			 swarn("%s: writen(): mother", function);
 	}
 
 	proctitleupdate();
@@ -604,7 +609,7 @@ recv_io(s, io)
 	size_t length = 0;
 	struct iovec iovec[1];
 	struct msghdr msg;
-	CMSG_AALLOC(sizeof(int) * FDPASS_MAX);
+	CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
 	if (io == NULL) {	/* child semantics; find a io ourselves. */
 		for (i = 0; i < ioc; ++i)
@@ -636,10 +641,10 @@ recv_io(s, io)
 	msg.msg_namelen		= 0;
 
 	/* LINTED pointer casts may be troublesome */
-	CMSG_SETHDR_RECV(sizeof(cmsgmem));
+	CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
 
-	if (recvmsgn(s, &msg, 0, length) != (ssize_t)length) {
-		swarn("%s: recvmsgn()", function);
+	if (recvmsg(s, &msg, 0) != (ssize_t)length) {
+		swarn("%s: recvmsg()", function);
 		return -1;
 	}
 
@@ -678,16 +683,17 @@ recv_io(s, io)
 	fdreceived = 0;
 
 	/* LINTED pointer casts may be troublesome */
-	CMSG_GETOBJECT(io->src.s, sizeof(io->src.s) * fdreceived++);
+	CMSG_GETOBJECT(io->src.s, cmsg, sizeof(io->src.s) * fdreceived++);
 	/* LINTED pointer casts may be troublesome */
-	CMSG_GETOBJECT(io->dst.s, sizeof(io->dst.s) * fdreceived++);
+	CMSG_GETOBJECT(io->dst.s, cmsg, sizeof(io->dst.s) * fdreceived++);
 
 	switch (io->state.command) {
 		case SOCKS_BIND:
 		case SOCKS_BINDREPLY:
 			if (io->state.extension.bind)
 				/* LINTED pointer casts may be troublesome */
-				CMSG_GETOBJECT(io->control.s, sizeof(io->control.s) * fdreceived++);
+				CMSG_GETOBJECT(io->control.s, cmsg,
+				sizeof(io->control.s) * fdreceived++);
 			else
 				io->control.s = -1;
 			break;
@@ -698,17 +704,18 @@ recv_io(s, io)
 
 		case SOCKS_UDPASSOCIATE:
 			/* LINTED pointer casts may be troublesome */
-			CMSG_GETOBJECT(io->control.s, sizeof(io->control.s) * fdreceived++);
+			CMSG_GETOBJECT(io->control.s, cmsg,
+			sizeof(io->control.s) * fdreceived++);
 			break;
 
 		default:
 			SERRX(io->state.command);
 	}
 
-	time(&io->time);
+	gettimeofday(&io->time, NULL);
 	io->allocated = 1;
 
-#if DEBUG
+#if HARDCORE_DEBUG
 	printfd(io, "received");
 #endif
 
@@ -770,6 +777,8 @@ doio(mother, io, rset, wset, flags)
 	char buf[MAX(SOCKD_BUFSIZETCP, SOCKD_BUFSIZEUDP)
 	+ sizeof(struct udpheader_t)];
 	ssize_t r, w;
+	size_t bwused;
+	struct timeval timenow;
 
 
 	SASSERTX(io->allocated);
@@ -779,14 +788,40 @@ doio(mother, io, rset, wset, flags)
 	||			(flags & MSG_OOB)
 	||			(io->control.s != -1 && FD_ISSET(io->control.s, rset)));
 
+	/* we are only called when we have i/o to do. */
+	gettimeofday(&timenow, NULL);
+
+	bwused = 0;
 	switch (io->state.protocol) {
 		case SOCKS_TCP: {
 			int bad;
+			size_t bufsize;
 
-			/* from in to out... */
+			if (io->rule.bw != NULL) {
+				ssize_t left;
+
+				if ((left = bwleft(io->rule.bw)) <= 0) {
+					/* 
+					 * update data (new time) so next bwleft() presumably
+					 * has some left.
+					 * No harm in calling bwupdate() without le 0 check, but
+					 * maybe this is smarter (avaids extra lock in gt 0 case).
+					 */
+					bwupdate(io->rule.bw, 0, &timenow);
+					left = bwleft(io->rule.bw);
+				}
+
+				if ((bufsize = MIN(sizeof(buf), (size_t)left)) == 0)
+					break;
+			}
+			else
+				bufsize = sizeof(buf);
+
+
+			/* from in to out ... */
 			if (FD_ISSET(io->src.s, rset) && FD_ISSET(io->dst.s, wset)) {
 				bad = -1;
-				r = io_rw(&io->src, &io->dst, &bad, buf, flags);
+				r = io_rw(&io->src, &io->dst, &bad, buf, bufsize, flags);
 				if (bad != -1) {
 					delete_io(mother, io, bad, r);
 					return;
@@ -794,12 +829,31 @@ doio(mother, io, rset, wset, flags)
 
 				iolog(&io->rule, &io->state, OPERATION_IO, &io->src.host,
 				&io->src.auth, &io->dst.host, &io->dst.auth, buf, (size_t)r);
+				
+				bwused += r;
 			}
 
 			/* ... and out to in. */
+#if 0
+			/*
+			 * This doesn't work too good since we can end up doing i/o
+			 * only in -> out for a long time.  Also since we assume one
+			 * side is on the lan (where b/w isn't that critical)
+			 * and the other side is the net, assume some slack on
+			 * one side is ok.  Same applices to udp case.
+			 * Another option would be to alternate which direction we
+			 * do i/o on first each time, but we instead do the simple 
+			 * thing and just don't subtract bufsize.
+			 */
+			bufsize = ...
+#endif
+
+			if (bufsize == 0)
+				break;
+
 			if (FD_ISSET(io->dst.s, rset) && FD_ISSET(io->src.s, wset)) {
 				bad = -1;
-				r = io_rw(&io->dst, &io->src, &bad, buf, flags);
+				r = io_rw(&io->dst, &io->src, &bad, buf, bufsize, flags);
 				if (bad != -1) {
 					delete_io(mother, io, bad, r);
 					return;
@@ -807,6 +861,8 @@ doio(mother, io, rset, wset, flags)
 
 				iolog(&io->rule, &io->state, OPERATION_IO, &io->dst.host,
 				&io->dst.auth, &io->src.host, &io->src.auth, buf, (size_t)r);
+
+				bwused += r;
 			}
 
 			break;
@@ -821,6 +877,11 @@ doio(mother, io, rset, wset, flags)
 			 * UDP is sadly considerably more complex than TCP;
 			 * need to check rules on each packet, need to check if it
 			 * was received from expected in.host, etc.
+			 */
+
+			/* 
+			 * We are less strict about it in the udp case since we don't 
+			 * want to truncate packets.
 			 */
 
 			/* UDP to relay from client to destination? */
@@ -838,7 +899,7 @@ doio(mother, io, rset, wset, flags)
 
 				/*
 				 * If client hasn't sent us it's address yet we have to
-				 * assume the first packet is from is it.
+				 * assume the first packet is from it.
 				 * Client can only blame itself if not.
 				 */
 
@@ -928,6 +989,8 @@ doio(mother, io, rset, wset, flags)
 				&io->control.laddr, &io->rule, &io->state, &io->src.host,
 				&io->dst.host, NULL, 0);
 
+				bwuse(io->rule.bw);
+
 				/* set r to bytes sent by client sans socks UDP header. */
 				r -= PACKETSIZE_UDP(&header);
 
@@ -938,8 +1001,14 @@ doio(mother, io, rset, wset, flags)
 				if (!permit)
 					break;
 
+				if (redirect(io->dst.s, &io->dst.laddr, &io->dst.host,
+				io->state.command, &io->rule.rdr_from, &io->rule.rdr_to) != 0) {
+					swarn("%s: redirect()", function);
+					break;
+				}
+
 				/* LINTED pointer casts may be troublesome */
-				sockshost2sockaddr(&header.host, &io->dst.raddr);
+				sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
 
 				/* LINTED pointer casts may be troublesome */
 				if ((w = socks_sendto(io->dst.s, &buf[PACKETSIZE_UDP(&header)],
@@ -947,7 +1016,9 @@ doio(mother, io, rset, wset, flags)
 				&io->dst.auth)) != r)
 					iolog(&io->rule, &io->state, OPERATION_ERROR, &io->src.host,
 					&io->src.auth, &io->dst.host, &io->dst.auth, NULL, 0);
+
 				io->dst.written += MAX(0, w);
+				bwused += MAX(0, w);
 			}
 
 
@@ -961,17 +1032,24 @@ doio(mother, io, rset, wset, flags)
 			 * We only peek enough to get the source but this still involves
 			 * an extra systemcall.  Can we find a better/faster way to do it?
 			 */
+
+#if 0 /* see comment for tcp case. */
+			if (bwused >= io->rule.bw->maxbps)
+				break;
+#endif
+
 			if (FD_ISSET(io->dst.s, rset) && FD_ISSET(io->src.s, wset)) {
 				const int lflags = flags & ~MSG_OOB;
 				struct connectionstate_t state;
-				struct sockaddr from;
-				struct sockshost_t srcsh;
+				struct sockaddr rfrom;
+				struct sockshost_t rfromhost, replyto;
 				char *newbuf;
+				int s = io->src.s;
 
 				/* MSG_PEEK because of libwrap, see above. */
-				fromlen = sizeof(from);
-				if ((r = socks_recvfrom(io->dst.s, buf, 1, lflags | MSG_PEEK, &from,
-				&fromlen, &io->dst.auth)) == -1) {
+				fromlen = sizeof(rfrom);
+				if ((r = socks_recvfrom(io->dst.s, buf, 1, lflags | MSG_PEEK,
+				&rfrom, &fromlen, &io->dst.auth)) == -1) {
 					delete_io(mother, io, io->dst.s, r);
 					return;
 				}
@@ -993,50 +1071,79 @@ doio(mother, io, rset, wset, flags)
 
 				/* LINTED possible pointer alignment problem */
 				if (io->dst.host.atype == SOCKS_ADDR_DOMAIN
-				&& sockaddrareeq(&io->dst.raddr, &from))
-					srcsh = io->dst.host;
+				&& sockaddrareeq(&io->dst.raddr, &rfrom))
+					rfromhost = io->dst.host;
 				else
-					sockaddr2sockshost(&from, &srcsh);
+					sockaddr2sockshost(&rfrom, &rfromhost);
 
 				/* only set temporary here for one replypacket at a time. */
 				state				= io->state;
 				state.command	= SOCKS_UDPREPLY;
 
 				permit = rulespermit(io->dst.s, &io->control.raddr,
-				&io->control.laddr, &io->rule, &state, &srcsh, &io->src.host,
-				NULL, 0);
+				&io->control.laddr, &io->rule, &state, &rfromhost,
+				&io->src.host, NULL, 0);
+
+				bwuse(io->rule.bw);
 
 				io->dst.auth = io->state.auth;
 
 				/* read the peeked packet out of the buffer. */
-				fromlen = sizeof(from);
+				fromlen = sizeof(rfrom);
 				if ((r = socks_recvfrom(io->dst.s, buf, io->src.sndlowat, lflags,
-				&from, &fromlen, &io->dst.auth)) == -1) {
+				&rfrom, &fromlen, &io->dst.auth)) == -1) {
 					delete_io(mother, io, io->dst.s, r);
 					return;
 				}
 				io->dst.read += r;
+				bwused += r;
 
-				iolog(&io->rule, &state, OPERATION_IO, &srcsh, &io->dst.auth,
-				&io->src.host, &io->src.auth, buf, (size_t)r);
+				iolog(&io->rule, &state, OPERATION_IO, &rfromhost,
+				&io->dst.auth, &io->src.host, &io->src.auth, buf, (size_t)r);
 
 				if (!permit)
 					break;
 
+				replyto = io->src.host;
+				if (redirect(io->src.s, &rfrom, &replyto, 
+				state.command, &io->rule.rdr_from, &io->rule.rdr_to) != 0) {
+					swarn("%s: redirect()", function);
+					break;
+				}
+				
+				if (!sockshostareeq(&replyto, &io->src.host)) {
+					/* need to redirect reply. */
+					if ((s = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+						swarn("%s: socket()", function);
+						break;
+					}
+						
+					if (socks_connect(s, &replyto) != 0) {
+						swarn("%s: socks_connect()", function);
+						break;
+					}
+				}
+
+				/* in case redirect() changed it . */
+				sockaddr2sockshost(&rfrom, &rfromhost);
+
 				/* add socks UDP header.  */
 				/* LINTED pointer casts may be troublesome */
-				newbuf = udpheader_add(&srcsh, buf, (size_t *)&r, sizeof(buf));
+				newbuf = udpheader_add(&rfromhost, buf, (size_t *)&r, sizeof(buf));
 				SASSERTX(newbuf == buf);
 
 				/*
 				 * XXX socket must be connected but that should always be the
 				 * case for now since binding UDP addresses is not supported.
 				 */
-				if ((w = socks_sendto(io->src.s, newbuf, (size_t)r, lflags, NULL, 0,
+				if ((w = socks_sendto(s, newbuf, (size_t)r, lflags, NULL, 0,
 				&io->src.auth)) != r)
-					iolog(&io->rule, &state, OPERATION_ERROR, &srcsh, &io->dst.auth,
-					&io->src.host, &io->src.auth, NULL, 0);
+					iolog(&io->rule, &state, OPERATION_ERROR, &rfromhost,
+					&io->dst.auth, &io->src.host, &io->src.auth, NULL, 0);
 				io->src.written += MAX(0, w);
+
+				if (s != io->src.s) /* socket temporarly created for redirect. */
+					close(s);
 			}
 			break;
 		}
@@ -1066,16 +1173,27 @@ doio(mother, io, rset, wset, flags)
 		}
 	}
 
-	/* don't care what direction/descriptors i/o was done over. */
-	time(&io->time);
+
+	if (bwused) {
+		io->time = timenow;
+
+		if (io->rule.bw != NULL) {
+			bwupdate(io->rule.bw, bwused, &io->time);
+		}
+	}
+
+	/* not saving rules used for udp, free after each usage. */
+	if (io->state.protocol == SOCKS_UDP)
+		bwfree(io->rule.bw);
 }
 
 static int
-io_rw(in, out, bad, buf, flag)
+io_rw(in, out, bad, buf, bufsize, flag)
 	struct sockd_io_direction_t *in;
 	struct sockd_io_direction_t *out;
 	int *bad;
-	char *buf;
+	void *buf;
+	size_t bufsize;
 	int flag;
 {
 	ssize_t r, w;
@@ -1086,7 +1204,7 @@ io_rw(in, out, bad, buf, flag)
 			flag &= ~MSG_OOB;
 
 	/* we receive oob inline. */
-	len = flag & MSG_OOB ? 1 : out->sndlowat;
+	len = MIN(bufsize, flag & MSG_OOB ? 1 : out->sndlowat);
 	if ((r = socks_recvfrom(in->s, buf, len, flag & ~MSG_OOB, NULL, NULL,
 	&in->auth)) <= 0) {
 		*bad = in->s;
@@ -1121,14 +1239,15 @@ io_getset(set)
 	fd_set *set;
 {
 	int i;
+	struct sockd_io_t *best, *evaluating;
 
-	for (i = 0; i < ioc; ++i)
+	for (i = 0, best = evaluating = NULL; i < ioc; ++i)
 		if (iov[i].allocated) {
 			if (FD_ISSET(iov[i].src.s, set))
-				return &iov[i];
+					evaluating = &iov[i];
 
 			if (FD_ISSET(iov[i].dst.s, set))
-				return &iov[i];
+				evaluating = &iov[i];
 
 			switch (iov[i].state.command) {
 				case SOCKS_BIND:
@@ -1139,15 +1258,19 @@ io_getset(set)
 
 				case SOCKS_UDPASSOCIATE:
 					if (FD_ISSET(iov[i].control.s, set))
-						return &iov[i];
+						evaluating = &iov[i];
 					break;
 
 				default:
 					break;
 			}
+
+			/* select the i/o that has least recently done i/o. */
+			if (best == NULL || timercmp(&evaluating->time, &best->time, <))
+				best = evaluating;
 		}
 
-	return NULL;
+	return best;
 }
 
 
@@ -1188,33 +1311,42 @@ io_fillset(set, antiflags)
 	fd_set *set;
 	int antiflags;
 {
+	const char *function = "io_fillset()";
+	struct timeval timenow;
 	int i, max;
 
 	FD_ZERO(set);
+	gettimeofday(&timenow, NULL);
 
-	for (i = 0, max = -1; i < ioc; ++i)
-		if (iov[i].allocated) {
-			if (! (antiflags & iov[i].src.flags)) {
-				FD_SET(iov[i].src.s, set);
-				max = MAX(max, iov[i].src.s);
+	for (i = 0, max = -1; i < ioc; ++i) {
+		struct sockd_io_t *io = &iov[i];
+
+		if (io->allocated) {
+			if (io->rule.bw != NULL)
+				if (isbwoverflow(io->rule.bw, &timenow, &bwoverflow) != NULL)
+					continue;
+
+			if (! (antiflags & io->src.flags)) {
+				FD_SET(io->src.s, set);
+				max = MAX(max, io->src.s);
 			}
 
-			if (! (antiflags & iov[i].dst.flags)) {
-				FD_SET(iov[i].dst.s, set);
-				max = MAX(max, iov[i].dst.s);
+			if (! (antiflags & io->dst.flags)) {
+				FD_SET(io->dst.s, set);
+				max = MAX(max, io->dst.s);
 			}
 
-			switch (iov[i].state.command) {
+			switch (io->state.command) {
 				case SOCKS_BIND:
 				case SOCKS_BINDREPLY:
-					if (!iov[i].state.extension.bind)
+					if (!io->state.extension.bind)
 						break;
 					/* else: */ /* FALLTHROUGH */
 
 				case SOCKS_UDPASSOCIATE:
-					if (! (antiflags & iov[i].control.flags)) {
-						FD_SET(iov[i].control.s, set);
-						max = MAX(max, iov[i].control.s);
+					if (! (antiflags & io->control.flags)) {
+						FD_SET(io->control.s, set);
+						max = MAX(max, io->control.s);
 					}
 					break;
 
@@ -1222,6 +1354,7 @@ io_fillset(set, antiflags)
 					break;
 			}
 		}
+	}
 
 	return max;
 }
@@ -1230,13 +1363,17 @@ static struct timeval *
 io_gettimeout(timeout)
 	struct timeval *timeout;
 {
+	const char *function = "io_gettimeout()";
 	time_t timenow;
 	int i;
 
-	if (allocated() == 0 || config.timeout.io == 0)
+	if (allocated() == 0)
 		return NULL;
 
-	timeout->tv_sec	= config.timeout.io;
+	if (socksconfig.timeout.io == 0 && !timerisset(&bwoverflow))
+		return NULL;
+
+	timeout->tv_sec	= socksconfig.timeout.io;
 	timeout->tv_usec	= 0;
 
 	time(&timenow);
@@ -1245,7 +1382,17 @@ io_gettimeout(timeout)
 			continue;
 		else
 			timeout->tv_sec = MAX(0, MIN(timeout->tv_sec,
-			difftime(config.timeout.io, (time_t)difftime(timenow, iov[i].time))));
+			difftime(socksconfig.timeout.io,
+			(time_t)difftime(timenow, (time_t)iov[i].time.tv_sec))));
+
+	if (timerisset(&bwoverflow))
+		if (timercmp(&bwoverflow, timeout, <))
+			*timeout = bwoverflow;
+
+#if 0
+	slog(LOG_DEBUG, "%s: timeout = %d.%d",
+	function, timeout->tv_sec, timeout->tv_usec);
+#endif
 
 	return timeout;
 }
@@ -1256,7 +1403,7 @@ io_gettimedout(void)
 	int i;
 	time_t timenow;
 
-	if (config.timeout.io == 0)
+	if (socksconfig.timeout.io == 0)
 		return NULL;
 
 	time(&timenow);
@@ -1264,7 +1411,8 @@ io_gettimedout(void)
 		if (!iov[i].allocated)
 			continue;
 		else
-			if (difftime(timenow, iov[i].time) >= config.timeout.io)
+			if (difftime(timenow, (time_t)iov[i].time.tv_sec)
+			>= socksconfig.timeout.io)
 				return &iov[i];
 
 	return NULL;
@@ -1309,7 +1457,7 @@ siginfo(sig)
 			slog(LOG_INFO, "%s <-> %s: idle %.0fs",
 			sockshost2string(&iov[i].src.host, srcstring, sizeof(srcstring)),
 			sockshost2string(&iov[i].dst.host, dststring, sizeof(dststring)),
-			difftime(timenow, iov[i].time));
+			difftime(timenow, (time_t)iov[i].time.tv_sec));
 		}
 
 }

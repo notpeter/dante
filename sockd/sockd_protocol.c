@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.90 2001/05/08 08:47:31 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.92 2001/11/11 13:38:43 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -236,7 +236,7 @@ recv_methods(s, request, state)
 	INIT(methodc);
 	CHECK(&state->mem[start], request->auth, NULL);
 
-	request->auth->method = selectmethod(config.methodv, config.methodc,
+	request->auth->method = selectmethod(socksconfig.methodv, socksconfig.methodc,
 	&state->mem[start], (size_t)methodc);
 
 	/* send reply:
@@ -625,7 +625,7 @@ send_response(s, response)
 	function, socks_packet2string(response, SOCKS_RESPONSE));
 
 	if (writen(s, responsemem, length, response->auth) != (ssize_t)length) {
-		swarn("%s: writen()", function);
+		slog(LOG_DEBUG, "%s: writen(): %s", function, strerror(errno));
 		return -1;
 	}
 

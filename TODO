@@ -1,10 +1,8 @@
-# $Id: TODO,v 1.146 2001/05/11 09:29:51 michaels Exp $
+# $Id: TODO,v 1.153 2001/11/09 10:20:29 karls Exp $
 
 * change _t struct's to typedef.
 
 * allocate fd_set's with malloc() for overflow protection.
-
-* select() if we get EINTR in socks_connect() and SOCKS_SERVER?
 
 * share host/addr cache across processes.
 
@@ -16,11 +14,12 @@
 
 * shrink io_t, too big.
 
-* possible to specify what address/portrange server should use for
-  outgoing connection in each rule?
-
 * solaris cc needs -misalign due to alignment problems with sockaddr/
   sockaddr_in casts. causes coredump with ftp (passive ls) in client,
   in sockshost2sockaddr (util.c, line 271, version 1.94).
 
 * match configure/manual config/pid location
+
+* port code for interface/route info retrieval to OSF
+
+* IPV6 support

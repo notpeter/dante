@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.36 2001/05/02 11:37:17 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.39 2001/10/15 18:00:38 karls Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -56,6 +56,10 @@ Rgetsockname(s, name, namelen)
 	struct socksfd_t *socksfd;
 	struct sockaddr *addr;
 
+	clientinit();
+
+	slog(LOG_DEBUG, "%s", function);  
+
 	if (!socks_addrisok((unsigned int)s)) {
 		socks_rmaddr((unsigned int)s);
 		return getsockname(s, name, namelen);
@@ -65,34 +69,59 @@ Rgetsockname(s, name, namelen)
 	SASSERTX(socksfd != NULL);
 
 	switch (socksfd->state.command) {
-		case SOCKS_CONNECT:
-			if (socksfd->state.inprogress) {
-				if (socksfd->state.err != 0) /* connect failed. */
-					errno = socksfd->state.err;
-				else
-				 	/* 
-					 * XXX
-					 * this is bad but we don't know what address the socksserver
-					 * will use on our behalf yet.  Lets hope the client
-					 * will retry on this error.
-					 * Another option might be to wait here until the 
-					 * socksnegotiation has completed, but applications probably
-					 * don't expect getsockname(2) to block.
-					*/
-					errno = ENOBUFS;
+		case SOCKS_CONNECT: {
+			sigset_t set, oset;
+
+			/* for non-blocking connect, we get a SIGCHLD upon completion. */
+			sigemptyset(&set);
+			sigaddset(&set, SIGCHLD);
+			if (sigprocmask(SIG_BLOCK, &set, &oset) != 0) {
+				swarn("%s: sigprocmask()", function);
 				return -1;
 			}
 
+			if (socksfd->state.inprogress) { /* non-blocking connect. */
+				/* 
+				 * this is bad.  We don't know what address the socksserver
+				 * will use on our behalf yet.  Lets wait for a SIGCHLD
+				 * and then retry, unless client is blocking that signal, 
+				 * then we can only hope the client will retry on ENOBUFS,
+				 * but we are probably screwed anyway.
+				*/
+				if (sigismember(&oset, SIGCHLD)) {
+					slog(LOG_DEBUG, "%s: SIGCHLD blocked by client", function);
+
+					if (sigprocmask(SIG_BLOCK, &oset, NULL) != 0) {
+						swarn("%s: sigprocmask()", function);
+						return -1;
+					}
+
+					errno = ENOBUFS;
+					return -1;
+				}
+
+				sigsuspend(&oset);
+				if (sigprocmask(SIG_BLOCK, &oset, NULL) != 0) {
+					swarn("%s: sigprocmask()", function);
+					return -1;
+				}
+
+				return Rgetsockname(s, name, namelen);
+			}
+
+			if (sigprocmask(SIG_SETMASK, &oset, NULL) != 0)
+				swarn("%s: sigprocmask()", function);
 			addr = &socksfd->remote;
 			break;
+		}
 
 		case SOCKS_BIND:
 			addr = &socksfd->remote;
 			break;
 
 		case SOCKS_UDPASSOCIATE:
-			swarnx("%s: getsockname() on udp sockets is not supported,\n"
-					 "contact Inferno Nettverk A/S for more information", function);
+			swarnx("%s: getsockname() on udp sockets is not supported by the "
+			"socks protocol, trying to fake it.", function);
 
 			/*
 			 * some clients might call this for no good reason, try to

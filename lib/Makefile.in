@@ -1,4 +1,4 @@
-# Makefile.in generated automatically by automake 1.4 from Makefile.am
+# Makefile.in generated automatically by automake 1.4-p4 from Makefile.am
 
 # Copyright (C) 1994, 1995-8, 1999 Free Software Foundation, Inc.
 # This Makefile.in is free software; the Free Software Foundation
@@ -59,29 +59,34 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_alias = @host_alias@
 host_triplet = @host@
+AS = @AS@
 AWK = @AWK@
 CC = @CC@
 CPP = @CPP@
-LD = @LD@
+DLLTOOL = @DLLTOOL@
+ECHO = @ECHO@
+EXEEXT = @EXEEXT@
 LEX = @LEX@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
 MAKEINFO = @MAKEINFO@
-NM = @NM@
+OBJDUMP = @OBJDUMP@
+OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PRELOAD_POSTFIX = @PRELOAD_POSTFIX@
 PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
 PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
+STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 
 lib_LTLIBRARIES = libsocks.la
-libsocks_la_SOURCES = config_parse.y config_scan.l Raccept.c Rbind.c 	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    	address.c authneg.c client.c clientconfig.c clientprotocol.c 	udp.c userio.c method_uname.c connectchild.c config.c  	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  	Rconnect.c Rgethostbyname.c debug.c Rcompat.c 	msproxy_clientprotocol.c hostcache.c broken.c serr.c httpproxy.c
+libsocks_la_SOURCES = config_parse.y config_scan.l Raccept.c Rbind.c 	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    	address.c authneg.c client.c clientconfig.c clientprotocol.c 	udp.c userio.c method_uname.c connectchild.c config.c  	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  	Rconnect.c Rgethostbyname.c debug.c Rcompat.c 	msproxy_clientprotocol.c hostcache.c broken.c serr.c httpproxy.c 	tostring.c addressmatch.c
 
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
@@ -117,7 +122,7 @@ authneg.lo client.lo clientconfig.lo clientprotocol.lo udp.lo userio.lo \
 method_uname.lo connectchild.lo config.lo log.lo protocol.lo socket.lo \
 udp_util.lo util.lo Rbindresvport.lo Rconnect.lo Rgethostbyname.lo \
 debug.lo Rcompat.lo msproxy_clientprotocol.lo hostcache.lo broken.lo \
-serr.lo httpproxy.lo
+serr.lo httpproxy.lo tostring.lo addressmatch.lo
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LEXLIB = @LEXLIB@
 CFLAGS = @CFLAGS@
@@ -139,8 +144,8 @@ OBJECTS = $(libsocks_la_OBJECTS)
 
 all: all-redirect
 .SUFFIXES:
-.SUFFIXES: .S .c .l .lo .o .s .y
-$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) 
+.SUFFIXES: .S .c .l .lo .o .obj .s .y
+$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.ac $(ACLOCAL_M4) 
 	cd $(top_srcdir) && $(AUTOMAKE) --gnu --include-deps lib/Makefile
 
 Makefile: $(srcdir)/Makefile.in  $(top_builddir)/config.status
@@ -176,6 +181,11 @@ uninstall-libLTLIBRARIES:
 .c.o:
 	$(COMPILE) -c $<
 
+# FIXME: We should only use cygpath when building on Windows,
+# and only if it is available.
+.c.obj:
+	$(COMPILE) -c `cygpath -w $<`
+
 .s.o:
 	$(COMPILE) -c $<
 
@@ -184,6 +194,7 @@ uninstall-libLTLIBRARIES:
 
 mostlyclean-compile:
 	-rm -f *.o core *.core
+	-rm -f *.$(OBJEXT)
 
 clean-compile:
 
@@ -267,6 +278,135 @@ distdir: $(DISTFILES)
 	    || cp -p $$d/$$file $(distdir)/$$file || :; \
 	  fi; \
 	done
+Raccept.lo Raccept.o : Raccept.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+Rbind.lo Rbind.o : Rbind.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+Rbindresvport.lo Rbindresvport.o : Rbindresvport.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+Rcompat.lo Rcompat.o : Rcompat.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+Rconnect.lo Rconnect.o : Rconnect.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+Rgethostbyname.lo Rgethostbyname.o : Rgethostbyname.c \
+	../include/common.h ../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+Rgetpeername.lo Rgetpeername.o : Rgetpeername.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+Rgetsockname.lo Rgetsockname.o : Rgetsockname.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+Rrresvport.lo Rrresvport.o : Rrresvport.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+address.lo address.o : address.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+addressmatch.lo addressmatch.o : addressmatch.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+authneg.lo authneg.o : authneg.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+broken.lo broken.o : broken.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+client.lo client.o : client.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+clientconfig.lo clientconfig.o : clientconfig.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+clientprotocol.lo clientprotocol.o : clientprotocol.c \
+	../include/common.h ../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+config.lo config.o : config.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+config_parse.lo config_parse.o : config_parse.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+config_scan.lo config_scan.o : config_scan.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h config_parse.h
+connectchild.lo connectchild.o : connectchild.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+debug.lo debug.o : debug.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+hostcache.lo hostcache.o : hostcache.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+httpproxy.lo httpproxy.o : httpproxy.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+io.lo io.o : io.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+log.lo log.o : log.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+method_uname.lo method_uname.o : method_uname.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+msproxy_clientprotocol.lo msproxy_clientprotocol.o : \
+	msproxy_clientprotocol.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+protocol.lo protocol.o : protocol.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+serr.lo serr.o : serr.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+socket.lo socket.o : socket.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+tostring.lo tostring.o : tostring.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h config_parse.h
+udp.lo udp.o : udp.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+udp_util.lo udp_util.o : udp_util.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h \
+	../include/tostring.h
+userio.lo userio.o : userio.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
+util.lo util.o : util.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h ../include/tostring.h
 
 info-am:
 info: info-am

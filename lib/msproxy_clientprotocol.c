@@ -48,7 +48,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.27 2001/05/11 09:28:27 michaels Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.28 2001/06/26 12:58:34 michaels Exp $";
 
 static char executable[] = "TELNET.EXE";
 static struct sigaction oldsigio;
@@ -795,7 +795,7 @@ sigio(sig)
 						host.atype					= SOCKS_ADDR_IPV4;
 						host.port					= res.packet._5.clientport;
 						host.addr.ipv4.s_addr	= res.packet._5.clientaddr;
-						sockshost2sockaddr(&host, &socksfd->accepted);
+						sockshost2sockaddr(&host, &socksfd->forus.accepted);
 
 						slog(LOG_DEBUG, "%s: server accepted: %s",
 						function, sockshost2string(&host, string, sizeof(string)));

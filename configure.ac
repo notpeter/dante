@@ -1,8 +1,10 @@
-AC_INIT(include/socks.h)
+AC_INIT
+AC_PREREQ(2.50)
+AC_REVISION($Id: configure.ac,v 1.277 2001/11/12 15:29:06 karls Exp $)
 
-version=1.1.10
+version=1.1.11
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="1"
+prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -11,22 +13,24 @@ else
 fi
 
 AM_INIT_AUTOMAKE(dante, ${version}${prename})
+AC_CONFIG_SRCDIR(include/common.h)
 AM_CONFIG_HEADER(include/autoconf.h)
+
 #NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
 unset CFLAGS
+AC_AIX #evidently also needed here
 AM_PROG_LIBTOOL
 autoconf_compflags=$CFLAGS
 CFLAGS=$oCFLAGS
 
 AC_PROG_CPP
 
-AC_CANONICAL_HOST
-
 AM_CONDITIONAL(PRERELEASE, test x$prerelease != x)
 
 #known keywords for --enable/disable-foo(=yes/no)?
-KNOWN_KEYWORDS="shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal"
+LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll"
+KNOWN_KEYWORDS="shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|$LTINTERNAL"
 for keyword in `set | egrep '^enable_' | sed -e 's/^enable_\(.*\)=.*/\1/'`;
 do
 	echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
@@ -109,6 +113,7 @@ case $host in
 	*-*-linux-*) # XXX This might only concern 2.0.x kernels (add test?)
 		AC_DEFINE(HAVE_DEFECT_RECVMSG)
 		AC_DEFINE(HAVE_LINUX_BUGS)
+		AC_DEFINE(HAVE_LINUX_ECCENTRICITIES)
 		AC_DEFINE(SPT_PADCHAR, '\0')
 	;;
 
@@ -121,8 +126,6 @@ case $host in
 	;;
 	*-*-aix4*)
 		OSPIDFILE="/etc/sockd.pid"
-		AC_AIX
-		AC_DEFINE(_ALL_SOURCE)
 	;;
 
 esac
@@ -177,6 +180,13 @@ case $host in
 	    fi
 	fi
 #	AC_MSG_RESULT($comp_flags)
+    ;;
+
+    alphaev6-dec-osf*)
+	if test "x$GCC" = x; then
+	    comp_flags="-std1"
+	fi
+	AC_MSG_RESULT($comp_flags)
     ;;
 
     alpha*-dec-osf*) #XXX is it possible to get it to work with -newc?
@@ -496,11 +506,13 @@ fi
 
 
 #construct SUBDIRS variable
-SUBDIRS="lib sockd include example doc bin SPECS capi contrib"
+SUBDIRS="lib sockd unlicensed example doc bin SPECS capi contrib"
 if test x"${build_preload_lib}" = xt; then
     SUBDIRS="dlib $SUBDIRS"
 fi
-TOPSUBDIRS="$subdirs libscompat $SUBDIRS"
+#include should be done before compilation to ensure that
+#redefac is executed first
+TOPSUBDIRS="$subdirs include libscompat $SUBDIRS"
 
 AC_SUBST(TOPSUBDIRS)
 
@@ -522,6 +534,25 @@ yes
 if test x$check_const = xyes; then
     AC_C_CONST
 fi
+
+#looks for linux + systems with RTAX_GATEWAY defined in net/route.h
+AC_MSG_CHECKING(for supported routing socket communication)
+AC_EGREP_CPP(yes, [
+#include <net/route.h>
+#ifdef linux
+yes
+#endif /* linux */
+], [AC_DEFINE(HAVE_ROUTE_SOURCE)
+    AC_MSG_RESULT(yes)],
+   [AC_EGREP_CPP(yes, [
+#include <net/route.h>
+#ifdef RTAX_GATEWAY
+yes
+#endif /* RTAX_GATEWAY */
+],  [AC_DEFINE(HAVE_ROUTE_SOURCE)
+     AC_DEFINE(HAVE_RTAX_GATEWAY)
+     AC_MSG_RESULT(yes)],
+     [AC_MSG_RESULT(no, might result in reduced functionality)])])
 
 AC_MSG_CHECKING(whether <netdb.h> declares h_errno)
 AC_EGREP_CPP(h_errno, [
@@ -669,7 +700,7 @@ int main()
     [AC_DEFINE(HAVE_NOMALLOC_REALLOC)
      AC_MSG_RESULT(no)])
 
-AC_MSG_CHECKING(whether free with can be called with NULL)
+AC_MSG_CHECKING(whether free can be called with NULL)
 AC_TRY_RUN([
 #include <stdlib.h>
 #ifndef NULL
@@ -868,6 +899,13 @@ esac
 	    echo "       3. Fix the problem yourself. If you have autoconf installed,"
 	    echo "          using the output above to modify configure.in should"
 	    echo "          enable you to compile without problems."
+	    case $host in
+		 *-*-solaris*)
+			echo "       4. Remove '/usr/ucb' if it is in the PATH."
+			;;
+		 
+	    esac
+	    echo ""
 	    exit 1
 	fi
     else #non ansi
@@ -1279,77 +1317,7 @@ if test x"${have_pam_header}" != x -a x"${have_libpam}" != x; then
 	AC_DEFINE(HAVE_PAM)
 fi
 
-#XXX should be more generic
-bintype1="a.out"
-case $host in
-	*-*-freebsd1.* | *-*-freebsd2.*)
-		#a.out (XXX 3.x also elf; "Jacques A . Vidrine" <n@nectar.com>)
-	;;
-	*-*-freebsd* | *-*-solaris* | *-*-linux-* | *-*-irix* | \
-	alpha*-dec-osf* | *-*-aix4* | *-*-bsdi*)
-		AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)
-		bintype1="elf"
-	;;
-	*-*-netbsd*)
-		AC_MSG_CHECKING(for NetBSD object type)
-		AC_EGREP_CPP(yes, [
-#ifdef __ELF__
-  yes
-#endif
-		], [bintype1="elf"
-		    AC_MSG_RESULT(ELF)
-		    AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)],
-		   [bintype1="a.out"
-		    AC_MSG_RESULT(a.out)])
-	;;
-esac
-
-#can it really be this simple?
-unset bintype2
-AC_MSG_CHECKING(for object file type)
-AC_TRY_RUN([
-/* look for ELF identification header at the start of argv[0] */
-
-#include <stdio.h>
-#include <fcntl.h>
-#include <string.h>
-
-/*
- * ELF header, from ELF standard (Portable Formats Specification,
- *  Version 1.1).
- */
-char elfheader[] = { 0x7f, 'E', 'L', 'F' };
-
-int
-main (argc, argv)
-	int argc;
-	char *argv[];
-{
-	int fd;
-	int len = sizeof(elfheader);
-	char header[len];
-
-	if ((fd = open(argv[0], O_RDONLY, 0)) == -1) {
-		perror("open");
-		exit(1);
-	}
-	if (read(fd, header, len) != len) {
-		perror("read");
-		exit(1);
-	}
-	if (memcmp(header, elfheader, len) == 0)
-		exit(0); /* pointy ears */
-	else
-		exit(1);
-}], [bintype2="elf"
-    AC_MSG_RESULT(elf)],
-   [bintype2="a.out"
-    AC_MSG_RESULT(a.out)])
-if test x"$bintype1" != x"$bintype2";then
-	AC_MSG_WARN(OBJECT FILETYPE IDENTIFICATION FAILURE ($bintype1 != $bintype2))
-	AC_MSG_WARN(Please report this to dante-bugs@inet.no)
-fi
-
+L_SYMBOL_UNDERSCORE()
 
 #try to detect gcc bug (irix 64 problem, affects among others inet_ntoa)
 AC_MSG_CHECKING(for incorrect inet_ntoa behaviour)
@@ -1373,24 +1341,6 @@ int main(void)
 ], [AC_DEFINE(HAVE_BROKEN_INET_NTOA)
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
-
-AC_CHECK_TYPE(ssize_t, int)
-
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <netinet/in.h>
-], [
-    in_port_t foo = 42;
-], [],
-   [AC_CHECK_TYPE(in_port_t, ubits_16)])
-
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <netinet/in.h>
-], [
-    in_addr_t foo = 42;
-], [],
-   [AC_CHECK_TYPE(in_addr_t, ubits_32)])
 
 #Linux (redhat 5.2) defines socklen_t in <socketbits.h>, which is
 #included by <sys/socket.h>.  check for this first.
@@ -1428,8 +1378,14 @@ AC_EGREP_CPP(sig_atomic_t, [
     AC_MSG_RESULT(yes)],
    [AC_MSG_RESULT(no)])
 
-AC_CHECK_TYPE(int32_t, sbits_32)
-AC_CHECK_TYPE(int16_t, sbits_16)
+AC_CHECK_TYPES([int8_t, int16_t, int32_t, uint8_t, uint16_t, uint32_t,
+		in_port_t, in_addr_t],
+		, ,
+[
+#include <sys/types.h>
+#include <netinet/in.h>
+])
+AC_CHECK_TYPE(ssize_t, int)
 
 dnl Checks for library functions.
 AC_PROG_GCC_TRADITIONAL
@@ -1479,6 +1435,12 @@ else
 	esac
 fi
 
+#change all #undef's to #define foo 0
+AH_BOTTOM([
+#include "redefac.h"
+])
+
+
 #add any warning flags (value set above)
 CFLAGS="$CFLAGS $warn"
 
@@ -1506,6 +1468,35 @@ AC_LINK_FILES(lib/debug.c, sockd/debug.c)
 AC_LINK_FILES(lib/hostcache.c, sockd/hostcache.c)
 AC_LINK_FILES(lib/serr.c, sockd/serr.c)
 AC_LINK_FILES(lib/broken.c, sockd/broken.c)
+AC_LINK_FILES(lib/tostring.c, sockd/tostring.c)
+AC_LINK_FILES(lib/addressmatch.c, sockd/addressmatch.c)
+AC_LINK_FILES(dlib/interposition.c, sockd/interposition.c)
+
+
+if test -f "licensed/checkmodule.c"; then
+	unset MOD_CHECKMODULE
+else
+	MOD_CHECKMODULE=un
+fi
+AC_LINK_FILES(${MOD_CHECKMODULE}licensed/checkmodule.c, sockd/checkmodule.c)
+
+#redirect module
+if test -f "licensed/redirect.c"; then
+	unset MOD_REDIRECT
+else
+	MOD_REDIRECT=un
+fi
+AC_LINK_FILES(${MOD_REDIRECT}licensed/redirect.c, sockd/redirect.c)
+AC_LINK_FILES(${MOD_REDIRECT}licensed/redirect_key.c, sockd/redirect_key.c)
+
+#bandwidth
+if test -f "licensed/bandwidth.c"; then
+	unset MOD_BANDWIDTH
+else
+	MOD_BANDWIDTH=un
+fi
+AC_LINK_FILES(${MOD_BANDWIDTH}licensed/bandwidth.c, sockd/bandwidth.c)
+AC_LINK_FILES(${MOD_BANDWIDTH}licensed/bandwidth_key.c, sockd/bandwidth_key.c)
 
 #The dlib directory is for building a shared library with preloading
 #support (SOCKSLIBRARY_DYNAMIC is defined), when dlopen support is
@@ -1544,10 +1535,13 @@ AC_LINK_FILES(lib/broken.c, dlib/broken.c)
 AC_LINK_FILES(lib/hostcache.c, dlib/hostcache.c)
 AC_LINK_FILES(lib/serr.c, dlib/serr.c)
 AC_LINK_FILES(lib/httpproxy.c, dlib/httpproxy.c)
+AC_LINK_FILES(lib/tostring.c, dlib/tostring.c)
+AC_LINK_FILES(lib/addressmatch.c, dlib/addressmatch.c)
 
-AC_LINK_FILES(dlib/interposition.c, sockd/interposition.c)
+AC_CONFIG_FILES(sockd/Makefile include/Makefile lib/Makefile dlib/Makefile)
+AC_CONFIG_FILES(Makefile example/Makefile doc/Makefile bin/Makefile)
+AC_CONFIG_FILES(capi/Makefile SPECS/Makefile SPECS/dante.spec bin/socksify)
+AC_CONFIG_FILES(libscompat/Makefile contrib/Makefile unlicensed/Makefile)
+AC_CONFIG_FILES(doc/module/Makefile VERSION)
 
-AC_OUTPUT([sockd/Makefile include/Makefile lib/Makefile dlib/Makefile \
-	   Makefile example/Makefile doc/Makefile bin/Makefile \
-	   capi/Makefile SPECS/Makefile SPECS/dante.spec bin/socksify \
-	   libscompat/Makefile contrib/Makefile VERSION])
+AC_OUTPUT

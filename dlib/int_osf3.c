@@ -57,10 +57,16 @@
  */
 #define bzero(a, b) (memset(a, 0, b))
 
+#define SOCKS_DLIB_OSF
+
+/* XXX prevents DEC cc from redefining these to _Ereadv/_Ewritev */
+#define readv XXX
+#define writev XXX
+
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: int_osf3.c,v 1.22 2001/02/06 15:58:22 michaels Exp $";
+"$Id: int_osf3.c,v 1.24 2001/10/06 12:37:12 karls Exp $";
 
 #undef accept
 #undef bind
@@ -233,7 +239,7 @@ sys_readv(d, iov, iovcnt)
 ssize_t
 sys_writev(d, iov, iovcnt)
 	int d;
-	struct iovec *iov;
+	const struct iovec *iov;
 	int iovcnt;
 {
 	ssize_t rc;
@@ -568,7 +574,7 @@ sendto(s, msg, len, flags, to, tolen)
 ssize_t
 writev(d, iov, iovcnt)
 	int d;
-	struct iovec *iov;
+	const struct iovec *iov;
 	int iovcnt;
 {
 	if (ISSYSCALL(d))
@@ -580,7 +586,7 @@ writev(d, iov, iovcnt)
 ssize_t
 readv(d, iov, iovcnt)
 	int d;
-	struct iovec *iov;
+	const struct iovec *iov;
 	int iovcnt;
 {
 	if (ISSYSCALL(d))

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.130 2001/05/13 14:26:50 michaels Exp $";
+"$Id: sockd_request.c,v 1.141 2001/11/11 13:38:44 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -120,7 +120,7 @@ run_request(mother)
 	const char *function = "run_request()";
 	struct sockd_request_t req;
 #if DIAGNOSTIC
-	const int freec = freedescriptors(config.option.debug ? "start" : NULL);
+	const int freec = freedescriptors(socksconfig.option.debug ? "start" : NULL);
 #endif /* DIAGNOSTIC */
 
 	proctitleupdate(NULL);
@@ -146,7 +146,8 @@ run_request(mother)
 			serr(EXIT_FAILURE, "%s: sending ack to mother failed", function);
 
 #if DIAGNOSTIC
-		SASSERTX(freec == freedescriptors(config.option.debug ? "end" : NULL));
+		SASSERTX(freec == freedescriptors(socksconfig.option.debug ?
+		"end" : NULL));
 #endif /* DIAGNOSTIC */
 	}
 }
@@ -161,7 +162,7 @@ recv_req(s, req)
 	int fdexpect, fdreceived, r;
 	struct iovec iovec[1];
 	struct msghdr msg;
-	CMSG_AALLOC(sizeof(int));
+	CMSG_AALLOC(cmsg, sizeof(int));
 
 	iovec[0].iov_base		= req;
 	iovec[0].iov_len		= sizeof(*req);
@@ -172,9 +173,9 @@ recv_req(s, req)
 	msg.msg_namelen		= 0;
 
 	/* LINTED pointer casts may be troublesome */
-	CMSG_SETHDR_RECV(sizeof(cmsgmem));
+	CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
 
-	if ((r = recvmsgn(s, &msg, 0, sizeof(*req))) != sizeof(*req)) {
+	if ((r = recvmsgn(s, &msg, 0)) != sizeof(*req)) {
 		switch (r) {
 			case -1:
 				swarn("%s: recvmsg() from mother", function);
@@ -200,7 +201,7 @@ recv_req(s, req)
 
 	fdreceived = 0;
 	/* LINTED pointer casts may be troublesome */
-	CMSG_GETOBJECT(req->s, sizeof(req->s) * fdreceived++);
+	CMSG_GETOBJECT(req->s, cmsg, sizeof(req->s) * fdreceived++);
 
 	/* pointer fixup */
 	req->req.auth = &req->state.auth;
@@ -222,6 +223,7 @@ dorequest(mother, request)
 	char msg[256];
 	int p, permit, out;
 
+
 	slog(LOG_DEBUG, "received request: %s",
 	socks_packet2string(&request->req, SOCKS_REQUEST));
 
@@ -232,7 +234,7 @@ dorequest(mother, request)
 	io							= ioinit;
 	io.acceptrule			= request->rule;
 	io.state					= request->state;
-	io.state.extension	= config.extension;
+	io.state.extension	= socksconfig.extension;
 
 	/*
 	 * examine client request.
@@ -365,52 +367,32 @@ dorequest(mother, request)
 			SERRX(request->req.command);
 	}
 
-	/* socket to use for outgoing connection. */
-	switch (io.state.protocol) {
-		case SOCKS_TCP:
-			if ((out = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-				swarn("%s: socket(SOCK_STREAM)", function);
-			break;
+	bzero(&bound, sizeof(bound));
 
-		case SOCKS_UDP:
-			if ((out = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
-				swarn("%s: socket(SOCK_DGRAM)", function);
-			break;
+	/*
+	 * Find address to bind on clients behalf.
+	 * First get the ipaddress.
+	*/
+	switch (request->req.command) {
+		case SOCKS_BIND: /* either 0.0.0.0 or previous connectionaddress, ok. */
+		case SOCKS_CONNECT:
+		case SOCKS_UDPASSOCIATE: { /* dst is 0.0.0.0. */
+			struct sockaddr dst;
 
-		default:
-			SERRX(io.state.protocol);
-	}
-
-	if (out == -1) {
-		send_failure(request->s, &response, SOCKS_FAILURE);
-		close(request->s);
-		return;
-	}
-	setsockoptions(out);
-
-	/* find address to bind on clients behalf. */
-	switch ((*config.externalv).atype) {
-		case SOCKS_ADDR_IFNAME:
-			if (ifname2sockaddr((*config.externalv).addr.ifname, &bound) == NULL) {
-				slog(LOG_ALERT, "%s: can't find external interface/address: %s",
-				function, (*config.externalv).addr.ifname);
+			sockshost2sockaddr(&io.dst.host, &dst);
+			if ((TOIN(&bound)->sin_addr = getifa(TOIN(&dst)->sin_addr)).s_addr
+			== htonl(INADDR_NONE)) {
 				close(request->s);
 				return;
 			}
 			break;
-	
-		case SOCKS_ADDR_IPV4: {
-			struct sockshost_t host;
-
-			sockshost2sockaddr(ruleaddress2sockshost(&*config.externalv, &host,
-			SOCKS_TCP), &bound);
-			break;
 		}
 
 		default:
-			SERRX((*config.externalv).atype);
+			SERRX(request->req.command);
 	}
 
+	/* ... and now the port. */
 	switch (request->req.command) {
 		case SOCKS_BIND:
 			/* find out what port to bind;  v4/v5 semantics?  bind extension? */
@@ -449,30 +431,41 @@ dorequest(mother, request)
 			SERRX(request->req.command);
 	}
 
+	/* create outgoing socket. */
+	switch (io.state.protocol) {
+		case SOCKS_TCP:
+			if ((out = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+				swarn("%s: socket(SOCK_STREAM)", function);
+			break;
 
-	/*
-	 * bind socket.
-	 */
+		case SOCKS_UDP:
+			if ((out = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+				swarn("%s: socket(SOCK_DGRAM)", function);
+			break;
 
-	if (config.compat.reuseaddr) {
+		default:
+			SERRX(io.state.protocol);
+	}
+
+	if (out == -1) {
+		send_failure(request->s, &response, SOCKS_FAILURE);
+		close(request->s);
+		return;
+	}
+	setsockoptions(out);
+
+	/* bind it. */
+	TOIN(&bound)->sin_family = AF_INET;
+	if (socksconfig.compat.reuseaddr) {/* XXX and not rebinding in redirect(). */
 		p = 1;
 		if (setsockopt(out, SOL_SOCKET, SO_REUSEADDR, &p, sizeof(p)) != 0)
 			swarn("%s: setsockopt(SO_REUSEADDR)", function);
 	}
 
-	/* LINTED pointer casts may be troublesome */
-	if (PORTISRESERVED(TOIN(&bound)->sin_port) && config.compat.sameport) {
-		uid_t euid;
+	/* need to bind address so rulespermit() has a address to compare against. */
+	if ((p = sockd_bind(out, &bound, 1)) != 0) {
+		/* no such luck, bind any port and let client decide if ok. */
 
-		socks_seteuid(&euid, config.uid.privileged);
-		/* LINTED pointer casts may be troublesome */
-		p = bindresvport(out, TOIN(&bound));
-		socks_reseteuid(config.uid.privileged, euid);
-	}
-	else
-		p = sockd_bind(out, &bound, 1);
-
-	if (p != 0) { /* no such luck, bind any port and let client decide if ok. */
 		/* LINTED pointer casts may be troublesome */
 		TOIN(&bound)->sin_port = htons(0);
 		if ((p = sockd_bind(out, &bound, 0)) != 0)
@@ -486,22 +479,11 @@ dorequest(mother, request)
 		return;
 	}
 
-
 	/* rules permit? */
 	switch (request->req.command) {
 		case SOCKS_BIND: {
 			struct sockshost_t boundhost;
-			socklen_t boundlen;
 
-			boundlen = sizeof(bound);
-			/* LINTED pointer casts may be troublesome */
-			if (getsockname(out, &bound, &boundlen) != 0) {
-				swarn("%s: getsockname(out)", function);
-				close(request->s);
-				close(out);
-				return;
-			}
-			/* LINTED pointer casts may be troublesome */
 			sockaddr2sockshost(&bound, &boundhost);
 
 			permit = rulespermit(request->s, &request->from, &request->to, 
@@ -538,7 +520,7 @@ dorequest(mother, request)
 			else
 				src = &io.src.host;
 
-			/* check for i/o both ways. */
+			/* make a temp to check for i/o both ways. */
 			replystate				= io.state;
 			replystate.command	= SOCKS_UDPREPLY;
 
@@ -566,6 +548,22 @@ dorequest(mother, request)
 		return;
 	}
 
+	switch (request->req.command) {
+		case SOCKS_UDPASSOCIATE:
+			break; /* does a rulecheck for each packet. */
+		
+		default:
+			bwuse(io.rule.bw);
+	}
+
+	if (redirect(out, &bound, &io.dst.host, request->req.command, 
+	&io.rule.rdr_from, &io.rule.rdr_to) != 0) {
+		send_failure(request->s, &response, errno2reply(errno, response.version));
+		close(request->s);
+		close(out);
+		return;
+	}
+	
 	/*
 	 * Set up missing bits of io and send it to mother.
 	 */
@@ -577,7 +575,6 @@ dorequest(mother, request)
 			struct sockd_io_t *iolist;
 			struct sockd_io_t bindio;			/* send this to proxyrelayer.			*/
 			struct sockaddr boundaddr;			/* address we listen on.				*/
-			struct sockaddr clientaddr;		/* clientaddress we forward to.		*/
 			socklen_t len;
 			int flags, emfile;
 			enum socketindex { client, childpipe, ourpipe, reply, remote };
@@ -587,7 +584,7 @@ dorequest(mother, request)
 			SASSERTX(sv[ELEMENTS(sv) - 1] == -1);
 			sv[client] = request->s;
 
-			if (listen(out, 5) != 0) {
+			if (listen(out, SOCKD_MAXCLIENTQUE) != 0) {
 				swarn("%s: listen(out)", function);
 				send_failure(sv[client], &response, SOCKS_FAILURE);
 				closev(sv, ELEMENTS(sv));
@@ -614,8 +611,6 @@ dorequest(mother, request)
 			sockaddr2sockshost(&boundaddr, &response.host);
 			response.reply	= (char)sockscode(response.version, SOCKS_SUCCESS);
 
-			clientaddr = request->from;
-
 			if (io.state.extension.bind) {
 				int pipev[2];
 
@@ -640,9 +635,6 @@ dorequest(mother, request)
 
 				sv[childpipe]	= pipev[0];
 				sv[ourpipe]		= pipev[1];
-
-				/* LINTED pointer casts may be troublesome */
-				TOIN(&clientaddr)->sin_port = io.dst.host.port;
 			}
 
 			/* let client know what address we bound to on it's behalf. */
@@ -655,7 +647,7 @@ dorequest(mother, request)
 
 			setproctitle("bindrelayer: %s -> %s",
 			sockaddr2string(&boundaddr, a, sizeof(a)),
-			sockaddr2string(&clientaddr, b, sizeof(b)));
+			sockshost2string(&io.src.host, b, sizeof(b)));
 
 			/*
 			 * regardless of what kind of bind semantics are in use,
@@ -671,7 +663,9 @@ dorequest(mother, request)
 				struct ruleaddress_t ruleaddr;
 				struct sockaddr remoteaddr;		/* remote address we accepted.	*/
 				struct sockshost_t remotehost;	/* remote address, sockhost form.*/
+				struct sockshost_t dsthost;		/* host to send reply to. 			*/
 				struct sockaddr replyaddr;			/* address of bindreply socket.	*/
+				int replyredirect;
 				int fdbits = -1;
 				fd_set rset;
 
@@ -713,9 +707,15 @@ dorequest(mother, request)
 							&io.src.auth, &response.host, &io.dst.auth, NULL, 0);
 							break;
 
-						case 0:
+						case 0: {
+							char *emsg = "eof from client before bindreply received";
+
+							iolog(&io.rule, &io.state, OPERATION_ABORT, &io.src.host,
+							&io.src.auth, &response.host, &io.dst.auth, emsg,
+							strlen(emsg));
 							p = -1; /* session ended. */
 							break;
+						}
 
 						default: {
 							struct sockd_io_t *fio;
@@ -808,13 +808,13 @@ dorequest(mother, request)
 				}
 				sockaddr2sockshost(&remoteaddr, &remotehost);
 
-				/* accepted connection; does remote address match requested? */
+				/* accepted connection.  Does remote address match requested? */
 				if (io.state.extension.bind
 				|| addressmatch(sockshost2ruleaddress(&io.dst.host, &ruleaddr),
 				&remotehost, SOCKS_TCP, 1)) {
 					bindio						= io; /* quick init of most stuff. */
 					bindio.src.host			= remotehost;
-					sockaddr2sockshost(&clientaddr, &bindio.dst.host);
+					bindio.dst.host			= io.src.host;
 					bindio.state.command		= SOCKS_BINDREPLY;
 					bindio.dst.auth			= io.src.auth;
 
@@ -823,6 +823,8 @@ dorequest(mother, request)
 					permit = rulespermit(sv[remote], &request->from, &request->to,
 					&bindio.rule, &bindio.state, &bindio.src.host, &bindio.dst.host,
 					msg, sizeof(msg));
+
+					bwuse(bindio.rule.bw);
 
 					bindio.src.auth = bindio.state.auth;
 
@@ -847,14 +849,28 @@ dorequest(mother, request)
 					continue; /* wait for next connect, but will there be one? */
 				}
 
+				dsthost = io.dst.host;
+				if (redirect(sv[reply], &remoteaddr, &dsthost, SOCKS_BINDREPLY,
+				&bindio.rule.rdr_from, &bindio.rule.rdr_to) != 0) {
+					swarn("%s: redirect(sv[reply])", function);
+					close(sv[remote]);
+					close(sv[reply]);
+					continue;
+				}
+
 				/*
 				 * Someone connected to socket we listen to on behalf of client.
-				 * If we are using the bind extension, connect to address client
-				 * is listening on.  Otherwise, send the data on the connection
-				 * we already have.
+				 * If we are using the bind extension, or are redirecting
+				 * the reply, connect to address client is listening on.
+				 * Otherwise, send the data on the connection we already have.
 				 */
 
-				if (bindio.state.extension.bind) {
+				if (sockshostareeq(&dsthost, &io.dst.host))
+					replyredirect = 0;
+				else
+					replyredirect = 1;
+
+				if (bindio.state.extension.bind || replyredirect) {
 					if ((sv[reply] = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 						swarn("%s: socket(SOCK_STREAM)", function);
 
@@ -894,20 +910,28 @@ dorequest(mother, request)
 						break;
 					}
 
-					slog(LOG_DEBUG, "connecting to %s",
-					sockaddr2string(&clientaddr, a, sizeof(a)));
+					slog(LOG_DEBUG, "%s: connecting to %s",
+					function, sockshost2string(&dsthost, a, sizeof(a)));
 
-					if (connect(sv[reply], &clientaddr, sizeof(clientaddr)) != 0) {
+					if (socks_connect(sv[reply], &dsthost) != 0) {
 						iolog(&bindio.rule, &bindio.state, OPERATION_ABORT,
-						&bindio.src.host, &bindio.src.auth, &bindio.dst.host,
-						&bindio.dst.auth, NULL, 0);
+						&bindio.src.host, &bindio.src.auth,
+						&dsthost, &bindio.dst.auth, NULL, 0);
+
+						close(sv[remote]);
 						break;
+					}
+
+					if (replyredirect) {
+						close(sv[client]);
+						sv[client] = sv[reply];
+						sv[reply] = -1;
 					}
 				}
 
 				if (bindio.state.extension.bind) {
 					/*
-					 * flushio() will close all descriptors set in io packet
+					 * flushio() will close all descriptors set in io packet,
 					 * so dup what we need to keep going.
 					 */
 
@@ -917,6 +941,7 @@ dorequest(mother, request)
 							case ENFILE:
 								swarn("%s: dup()", function);
 								++emfile;
+								close(sv[remote]);
 								continue;
 
 							default:
@@ -936,15 +961,18 @@ dorequest(mother, request)
 					break;
 				}
 
-				if (bindio.state.extension.bind) {
-					bindio.dst.s		= sv[reply];
+				if (bindio.state.extension.bind || replyredirect) {
+					if (bindio.state.extension.bind)
+						bindio.dst.s		= sv[reply];
+					else /* replyredirect */
+						bindio.dst.s		= sv[client];
 					bindio.dst.laddr	= replyaddr;
 				}
 				else {
 					bindio.dst			= bindio.control;
 					bindio.dst.laddr	= request->from;
 				}
-				bindio.dst.raddr		= clientaddr;
+				sockshost2sockaddr(&bindio.dst.host, &bindio.dst.raddr);
 
 				bindio.src.s		= sv[remote];
 				bindio.src.laddr	= boundaddr;
@@ -955,10 +983,12 @@ dorequest(mother, request)
 					iolist = io_add(iolist, &bindio);
 				else {
 					response.host = bindio.dst.host;
+
 					flushio(mother, sv[client], &response, &bindio);
 
 					/* flushio() closes these, not closev(). */
 					sv[client] = sv[remote] = -1;
+
 					break;	/* only one connection to relay and that is done. */
 				}
 			}
@@ -1078,7 +1108,7 @@ dorequest(mother, request)
 				close(clientfd);
 				break;
 			}
-			/* remote out changes each time, set to INADDR_ANY for now. */
+			/* remote out can change each time, set to INADDR_ANY for now. */
 			bzero(&io.dst.raddr, sizeof(io.dst.raddr));
 			/* LINTED pointer casts may be troublesome */
 			TOIN(&io.dst.raddr)->sin_family			= AF_INET;
@@ -1140,7 +1170,7 @@ flushio(mother, clientcontrol, response, io)
 
 	len = sizeof(value);
 	if (getsockopt(io->src.s, SOL_SOCKET, SO_SNDBUF, &value, &len) != 0)
-		swarn("%s: getsockopt(in, SO_SNDBUF)", function);
+		swarn("%s: getsockopt(io->src.s, SO_SNDBUF)", function);
 	sndlowat = MIN(sndlowat, value * skew);
 
 	if (setsockopt(io->src.s, SOL_SOCKET, SO_SNDLOWAT, &sndlowat,
@@ -1150,21 +1180,21 @@ flushio(mother, clientcontrol, response, io)
 	len = sizeof(io->src.sndlowat);
 	if (getsockopt(io->src.s, SOL_SOCKET, SO_SNDLOWAT, &io->src.sndlowat, &len)
 	!= 0)
-		swarn("%s: getsockopt(in, SO_SNDLOWAT)", function);
+		swarn("%s: getsockopt(io-.src.s, SO_SNDLOWAT)", function);
 
 	len = sizeof(value);
 	if (getsockopt(io->dst.s, SOL_SOCKET, SO_SNDBUF, &value, &len) != 0)
-		swarn("%s: getsockopt(out, SO_SNDBUF)", function);
+		swarn("%s: getsockopt(io->dst.s, SO_SNDBUF)", function);
 	sndlowat = MIN(sndlowat, value * skew);
 
 	if (setsockopt(io->dst.s, SOL_SOCKET, SO_SNDLOWAT, &sndlowat,
 	sizeof(sndlowat)) != 0)
-		swarn("%s: setsockopt(out, SO_SNDLOWAT", function);
+		swarn("%s: setsockopt(io->dst.s, SO_SNDLOWAT", function);
 
 	len = sizeof(io->dst.sndlowat);
 	if (getsockopt(io->src.s, SOL_SOCKET, SO_SNDLOWAT, &io->dst.sndlowat, &len)
 	!= 0)
-		swarn("%s: getsockopt(in, SO_SNDLOWAT", function);
+		swarn("%s: getsockopt(io->src.s, SO_SNDLOWAT)", function);
 
 #else	/* SOCKD_IOMAX > 1 && !HAVE_SO_SNDLOWAT. */
 	switch (io->state.command) {
@@ -1172,7 +1202,7 @@ flushio(mother, clientcontrol, response, io)
 			len = sizeof(sndlowat);
 			if (getsockopt(io->src.s, SOL_SOCKET, SO_SNDBUF, &sndlowat, &len)
 			!= 0) {
-				swarn("%s: getsockopt(SO_SNDBUF", function);
+				swarn("%s: getsockopt(io->src.s, SO_SNDBUF)", function);
 				io->src.sndlowat = SOCKD_BUFSIZEUDP;
 			}
 			else if (sndlowat == 0)
@@ -1183,7 +1213,7 @@ flushio(mother, clientcontrol, response, io)
 			len = sizeof(sndlowat);
 			if (getsockopt(io->dst.s, SOL_SOCKET, SO_SNDBUF, &sndlowat, &len)
 			!= 0) {
-				swarn("%s: getsockopt(SO_SNDBUF", function);
+				swarn("%s: getsockopt(io->dst.s, SO_SNDBUF)", function);
 				io->dst.sndlowat = SOCKD_BUFSIZEUDP;
 			}
 			else if (sndlowat == 0)

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.76 2001/05/13 14:26:50 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.79 2001/11/11 13:38:42 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -142,7 +142,7 @@ neg_gettimeout __P((struct timeval *timeout));
 static struct sockd_negotiate_t *
 neg_gettimedout __P((void));
 /*
- * Scans all clients for one that has timed out according to config
+ * Scans all clients for one that has timed out according to socksconfig
  * settings.
  * Returns:
  *		If timed out client found: pointer to it.
@@ -289,7 +289,7 @@ send_negotiate(mother, neg)
 	struct sockd_request_t req;
 	int fdsendt, w;
 	struct msghdr msg;
-	CMSG_AALLOC(sizeof(int));
+	CMSG_AALLOC(cmsg, sizeof(int));
 
 #if HAVE_SENDMSG_DEADLOCK
 	if (socks_lock(mother->lock, F_WRLCK, 0) != 0)
@@ -300,7 +300,7 @@ send_negotiate(mother, neg)
 	/* LINTED pointer casts may be troublesome */
 	sockshost2sockaddr(&neg->src, (struct sockaddr *)&req.from);
 	req.req				= neg->req;
-	req.rule			= neg->rule;
+	req.rule				= neg->rule;
 	req.state			= neg->state;
 	req.state.command	= req.req.command;
 	req.state.version	= req.req.version;
@@ -313,7 +313,7 @@ send_negotiate(mother, neg)
 
 	fdsendt = 0;
 	/* LINTED pointer casts may be troublesome */
-	CMSG_ADDOBJECT(neg->s, sizeof(neg->s) * fdsendt++);
+	CMSG_ADDOBJECT(neg->s, cmsg, sizeof(neg->s) * fdsendt++);
 
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
@@ -321,7 +321,7 @@ send_negotiate(mother, neg)
 	msg.msg_namelen		= 0;
 
 	/* LINTED pointer casts may be troublesome */
-	CMSG_SETHDR_SEND(sizeof(int) * fdsendt);
+	CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsendt);
 
 	slog(LOG_DEBUG, "sending request to mother");
 	if ((w = sendmsg(mother->s, &msg, 0)) != sizeof(req))
@@ -356,7 +356,7 @@ recv_negotiate(mother)
 	int permit, i, r, fdexpect, fdreceived;
 	struct msghdr msg;
 	char ruleinfo[256];
-	CMSG_AALLOC(sizeof(int));
+	CMSG_AALLOC(cmsg, sizeof(int));
 
 
 	iovec[0].iov_base		= &command;
@@ -368,9 +368,9 @@ recv_negotiate(mother)
 	msg.msg_namelen		= 0;
 
 	/* LINTED pointer casts may be troublesome */
-	CMSG_SETHDR_RECV(sizeof(cmsgmem));
+	CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
 
-	if ((r = recvmsgn(mother->s, &msg, 0, sizeof(command))) != sizeof(command)) {
+	if ((r = recvmsg(mother->s, &msg, 0)) != sizeof(command)) {
 		switch (r) {
 			case -1:
 				swarn("%s: recvmsg() from mother", function);
@@ -408,20 +408,20 @@ recv_negotiate(mother)
 
 	fdreceived = 0;
 	/* LINTED pointer casts may be troublesome */
-	CMSG_GETOBJECT(neg->s, sizeof(neg->s) * fdreceived++);
+	CMSG_GETOBJECT(neg->s, cmsg, sizeof(neg->s) * fdreceived++);
 
 	/* get local and remote address. */
 
 	len = sizeof(from);
 	if (getpeername(neg->s, &from, &len) != 0) {
-		swarn("%s: getpeername()", function);
+		slog(LOG_DEBUG, "%s: getpeername(): %s", function, strerror(errno));
 		return 1;
 	}
 	sockaddr2sockshost(&from, &neg->src);
 
 	len = sizeof(to);
 	if (getsockname(neg->s, &to, &len) != 0) {
-		swarn("%s: getsockname()", function);
+		slog(LOG_DEBUG, "%s: getsockname(): %s", function, strerror(errno));
 		return 1;
 	}
 	sockaddr2sockshost(&to, &neg->dst);
@@ -567,10 +567,10 @@ neg_gettimeout(timeout)
 	time_t timenow;
 	int i;
 
-	if (config.timeout.negotiate == 0 || (allocated() == completed()))
+	if (socksconfig.timeout.negotiate == 0 || (allocated() == completed()))
 		return NULL;
 
-	timeout->tv_sec	= config.timeout.negotiate;
+	timeout->tv_sec	= socksconfig.timeout.negotiate;
 	timeout->tv_usec	= 0;
 	time(&timenow);
 
@@ -579,7 +579,7 @@ neg_gettimeout(timeout)
 			continue;
 		else
 			timeout->tv_sec = MAX(0, MIN(timeout->tv_sec,
-			difftime(config.timeout.negotiate,
+			difftime(socksconfig.timeout.negotiate,
 			(time_t)difftime(timenow, negv[i].state.time.negotiate_start))));
 
 	return timeout;
@@ -591,7 +591,7 @@ neg_gettimedout(void)
 	int i;
 	time_t timenow;
 
-	if (config.timeout.negotiate == 0)
+	if (socksconfig.timeout.negotiate == 0)
 		return NULL;
 
 	time(&timenow);
@@ -602,7 +602,7 @@ neg_gettimedout(void)
 			continue;
 		else
 			if (difftime(timenow, negv[i].state.time.negotiate_start)
-			>= config.timeout.negotiate)
+			>= socksconfig.timeout.negotiate)
 				return &negv[i];
 	}
 

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.102 2001/05/11 09:28:27 michaels Exp $";
+"$Id: connectchild.c,v 1.107 2001/11/11 13:38:26 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -87,7 +87,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	socklen_t len;
 	ssize_t p, fdsent;
 	struct msghdr msg;
-	CMSG_AALLOC(sizeof(int) * FDPASS_MAX);
+	CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
 
 	slog(LOG_DEBUG, function);
@@ -136,7 +136,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 		}
 	}
 
-	if (config.connectchild == 0) {
+	if (socksconfig.connectchild == 0) {
 		/*
 		 * Create child process that will do our connections.
 		 */
@@ -147,7 +147,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			return NULL;
 		}
 
-		switch (config.connectchild = fork()) {
+		switch (socksconfig.connectchild = fork()) {
 			case -1:
 				swarn("%s: fork()", function);
 				return NULL;
@@ -160,7 +160,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 				/* close unknown descriptors. */
 				for (i = 0, max = getdtablesize(); i < max; ++i)
-					if (socks_logmatch((unsigned int)i, &config.log)
+					if (socks_logmatch((unsigned int)i, &socksconfig.log)
 					|| i == pipev[CHILD])
 						continue;
 					else if (isatty(i))
@@ -190,7 +190,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			}
 
 			default:
-				config.connect_s = pipev[MOTHER];
+				socksconfig.connect_s = pipev[MOTHER];
 				close(pipev[CHILD]);
 		}
 	}
@@ -319,7 +319,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	socksfd.state.version		= packet->req.version;
 	socksfd.state.protocol.tcp	= 1;
 	socksfd.state.inprogress	= 1;
-	sockshost2sockaddr(&packet->req.host, &socksfd.connected);
+	sockshost2sockaddr(&packet->req.host, &socksfd.forus.connected);
 
 	socks_addaddr((unsigned int)s, &socksfd);
 
@@ -330,7 +330,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	 */
 
 	fdsent = 0;
-	CMSG_ADDOBJECT(control, sizeof(control) * fdsent++);
+	CMSG_ADDOBJECT(control, cmsg, sizeof(control) * fdsent++);
 
 	switch (packet->req.version) {
 		case SOCKS_V4:
@@ -339,7 +339,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			break;
 
 		case MSPROXY_V2:
-			CMSG_ADDOBJECT(s, sizeof(s) * fdsent++);
+			CMSG_ADDOBJECT(s, cmsg, sizeof(s) * fdsent++);
 			break;
 
 		default:
@@ -359,10 +359,13 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
+	CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
 
 	slog(LOG_DEBUG, "sending request to connectchild");
-	if ((p = sendmsg(config.connect_s, &msg, 0)) != (ssize_t)len) {
+#if 0
+	sleep(20);
+#endif
+	if ((p = sendmsg(socksconfig.connect_s, &msg, 0)) != (ssize_t)len) {
 		swarn("%s: sendmsg(): %d of %d", function, p, len);
 		return NULL;
 	}
@@ -387,8 +390,8 @@ run_connectchild(mother)
 	struct sigaction sig;
 
 #if 0
-	slog(LOG_DEBUG, "%s: sleeping for 10s", function);
-	sleep(10);
+	slog(LOG_DEBUG, "%s: sleeping ...", function);
+	sleep(20);
 #endif
 
 	sigemptyset(&sig.sa_mask);
@@ -427,7 +430,7 @@ run_connectchild(mother)
 			int s, control;
 			struct sockaddr local, remote;
 			struct msghdr msg;
-			CMSG_AALLOC(sizeof(int) * FDPASS_MAX);
+			CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
 			iov[0].iov_base	= &req;
 			iov[0].iov_len		= sizeof(req);
@@ -438,9 +441,9 @@ run_connectchild(mother)
 			msg.msg_name         = NULL;
 			msg.msg_namelen      = 0;
 
-			CMSG_SETHDR_RECV(sizeof(cmsgmem));
+			CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
 
-			if ((p = recvmsgn(mother, &msg, 0, len)) != (ssize_t)len) {
+			if ((p = recvmsgn(mother, &msg, 0)) != (ssize_t)len) {
 				switch (p) {
 					case -1:
 						serr(EXIT_FAILURE, "%s: recvmsgn()", function);
@@ -480,11 +483,11 @@ run_connectchild(mother)
 #endif
 
 			len = 0;
-			CMSG_GETOBJECT(control, sizeof(control) * len++);
+			CMSG_GETOBJECT(control, cmsg, sizeof(control) * len++);
 
 			switch (req.packet.req.version) {
 				case MSPROXY_V2:
-					CMSG_GETOBJECT(s, sizeof(s) * len++);
+					CMSG_GETOBJECT(s, cmsg, sizeof(s) * len++);
 					break;
 
 				case SOCKS_V4:
@@ -498,11 +501,19 @@ run_connectchild(mother)
 			}
 
 #if DIAGNOSTIC
+			/* 
+			 * XXX
+			 * This fails (on OpenBSD at least) if the connect(2) failed.
+			 * This means mother does not know what address we are returning
+			 * the error for (we don't know either) and prevents us from
+			 * returning a error to the client, the socket being "in progress"
+			 * all the time as far as mother knows.
+			 */
+
 			len = sizeof(local);
-			if (getsockname(s, &local, &len) != 0)
-				SERR(-1);
-			slog(LOG_DEBUG, "%s: s local: %s",
-			function, sockaddr2string(&local, string, sizeof(string)));
+			if (getsockname(s, &local, &len) == 0)
+				slog(LOG_DEBUG, "%s: s local: %s",
+				function, sockaddr2string(&local, string, sizeof(string)));
 
 			len = sizeof(local);
 			if (getsockname(control, &local, &len) == 0)
@@ -604,7 +615,7 @@ run_connectchild(mother)
 			close(s);
 
 			slog(LOG_DEBUG, "raising SIGSTOP");
-			if (kill(config.state.pid, SIGSTOP) != 0)
+			if (kill(socksconfig.state.pid, SIGSTOP) != 0)
 				serr(EXIT_FAILURE, "raise(SIGSTOP)");
 		}
 	}
@@ -620,9 +631,9 @@ sigchld(sig)
 	char string[MAX(sizeof(MAXSOCKADDRSTRING), sizeof(MAXSOCKSHOSTSTRING))];
 	int status;
 
-	slog(LOG_DEBUG, "%s: connectchild: %d", function, config.connectchild);
+	slog(LOG_DEBUG, "%s: connectchild: %d", function, socksconfig.connectchild);
 
-	switch (waitpid(config.connectchild, &status, WNOHANG | WUNTRACED)) {
+	switch (waitpid(socksconfig.connectchild, &status, WNOHANG | WUNTRACED)) {
 		case -1:
 			break;
 
@@ -647,24 +658,24 @@ sigchld(sig)
 			if (WIFSIGNALED(status)) {
 				swarnx("%s: connectchild terminated on signal %d",
 				function, WTERMSIG(status));
-				config.connectchild = 0;
-				close(config.connect_s);
+				socksconfig.connectchild = 0;
+				close(socksconfig.connect_s);
 				break;
 			}
 
 			if (WIFEXITED(status)) {
 				swarnx("%s: cconnectchild exited with status %d",
 				function, WEXITSTATUS(status));
-				config.connectchild = 0;
-				close(config.connect_s);
+				socksconfig.connectchild = 0;
+				close(socksconfig.connect_s);
 				break;
 			}
 
 			SASSERTX(WIFSTOPPED(status));
 
-			kill(config.connectchild, SIGCONT);
+			kill(socksconfig.connectchild, SIGCONT);
 
-			if ((p = read(config.connect_s, &childres, sizeof(childres)))
+			if ((p = read(socksconfig.connect_s, &childres, sizeof(childres)))
 			!= sizeof(childres)) {
 				swarn("%s: read(): got %d of %d", function, p, sizeof(childres));
 				return;
@@ -752,7 +763,7 @@ sigchld(sig)
 			sockshost2sockaddr(&childres.packet.res.host, &socksfd->remote);
 
 			/* needed for standard socks bind. */
-			config.state.lastconnect = socksfd->connected;
+			socksconfig.state.lastconnect = socksfd->forus.connected;
 		}
 	}
 

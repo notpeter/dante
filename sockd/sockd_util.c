@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.72 2001/05/11 09:14:44 michaels Exp $";
+"$Id: sockd_util.c,v 1.76 2001/11/11 13:38:46 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -138,7 +138,7 @@ setsockoptions(s)
 			if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val)) != 0)
 				swarn("%s: setsockopt(SO_OOBINLINE)", function);
 
-			if (config.option.keepalive) {
+			if (socksconfig.option.keepalive) {
 				val = 1;
 				if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) != 0)
 					swarn("%s: setsockopt(SO_KEEPALIVE)", function);
@@ -176,11 +176,12 @@ sockdexit(sig)
 	int sig;
 {
 	const char *function = "sockdexit()";
-	int i, mainmother;
+	size_t i;
+	int mainmother;
 
-	mainmother = config.state.motherpidv == NULL
-	|| (pidismother(config.state.pid)
-	  && *config.state.motherpidv == config.state.pid);
+	mainmother = socksconfig.state.motherpidv == NULL
+	|| (pidismother(socksconfig.state.pid)
+	  && *socksconfig.state.motherpidv == socksconfig.state.pid);
 
 	if (mainmother) {
 		if (sig > 0)
@@ -200,7 +201,7 @@ sockdexit(sig)
 		char dir[80];
 
 		snprintfn(dir, sizeof(dir), "%s.%d",
-		childtype2string(config.state.type), getpid());
+		childtype2string(socksconfig.state.type), getpid());
 
 		if (mkdir(dir, S_IRWXU) != 0)
 			swarn("%s: mkdir(%s)", function, dir);
@@ -210,9 +211,9 @@ sockdexit(sig)
 	}
 #endif /* HAVE_PROFILING */
 
-	for (i = 0;  i < config.log.fpc; ++i) {
-		fclose(config.log.fpv[i]);
-		close(config.log.fplockv[i]);
+	for (i = 0;  i < socksconfig.log.fpc; ++i) {
+		fclose(socksconfig.log.fpv[i]);
+		close(socksconfig.log.fplockv[i]);
 	}
 
 	if (sig > 0)
@@ -245,6 +246,7 @@ socks_seteuid(old, new)
 {
 	const char *function = "socks_seteuid()";
 	uid_t oldmem;
+	struct passwd *pw;
 
 	if (old == NULL)
 		old = &oldmem;
@@ -255,15 +257,26 @@ socks_seteuid(old, new)
 	if (*old == new)
 		return;
 
-	if (*old != config.state.euid)
+	if (*old != socksconfig.state.euid)
 		/* need to revert back to original (presumably 0) euid before changing. */
-		if (seteuid(config.state.euid) != 0) {
+		if (seteuid(socksconfig.state.euid) != 0) {
 			slog(LOG_ERR, "running Linux are we?");
-			SERR(config.state.euid);
+			SERR(socksconfig.state.euid);
 		}
 
 	if (seteuid(new) != 0)
 		serr(EXIT_FAILURE, "%s: seteuid(%d)", function, new);
+
+#if 0 /* he who requested this says it doesn't work but not why. */
+	/* and now groupid. */
+
+	if ((pw = getpwuid(new)) == NULL)
+		serr(EXIT_FAILURE, "%s: getpwuid(%d)", function, new);
+
+	if (setegid(pw->pw_gid) != 0)
+		serr(EXIT_FAILURE, "%s: setegid(%d)", function, pw->pw_gid);
+#endif
+
 }
 
 void
@@ -272,6 +285,7 @@ socks_reseteuid(current, new)
 	uid_t new;
 {
 	const char *function = "socks_reseteuid()";
+	struct passwd *pw;
 
 	slog(LOG_DEBUG, "%s: current: %lu, new: %lu", function, current, new);
 
@@ -282,13 +296,25 @@ socks_reseteuid(current, new)
 	if (current == new)
 		return;
 
-	if (new != config.state.euid)
+	if (new != socksconfig.state.euid)
 		/* need to revert back to original (presumably 0) euid before changing. */
-		if (seteuid(config.state.euid) != 0)
-			SERR(config.state.euid);
+		if (seteuid(socksconfig.state.euid) != 0)
+			SERR(socksconfig.state.euid);
 
 	if (seteuid(new) != 0)
 		SERR(new);
+
+#if 0 /* he who requested this says it doesn't work but not why. */
+	/*
+	 * and now groupid.
+	 */
+
+	if ((pw = getpwuid(new)) == NULL)
+		serr(EXIT_FAILURE, "%s: getpwuid(%d)", function, new);
+
+	if (setegid(pw->pw_gid) != 0)
+		serr(EXIT_FAILURE, "%s: setegid(%d)", function, pw->pw_gid);
+#endif
 }
 
 int
@@ -297,9 +323,25 @@ pidismother(pid)
 {
 	int i;
 
-	for (i = 0; i < config.option.serverc; ++i)
-		if (config.state.motherpidv[i] == pid)
+	for (i = 0; i < socksconfig.option.serverc; ++i)
+		if (socksconfig.state.motherpidv[i] == pid)
 			return i + 1;
 	return 0;
 }
 
+int
+descriptorisreserved(d)
+	int d;
+{
+
+#if HAVE_MODULE_BANDWIDTH
+	if (d == socksconfig.bwlock)
+		return 1;
+#endif
+
+	/* don't close socksconfig/log files. */
+	if (socks_logmatch((size_t)d, &socksconfig.log))
+		return 1;
+	
+	return 0;
+}

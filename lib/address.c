@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.79 2001/02/06 15:58:49 michaels Exp $";
+"$Id: address.c,v 1.80 2001/06/26 13:00:28 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -84,7 +84,7 @@ socks_addaddr(clientfd, socksfd)
 	||	 socksfd->state.command				== SOCKS_UDPASSOCIATE);
 
 	if (socks_addfd(clientfd) != 0)
-		serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
+		serrx(EXIT_FAILURE, "%s: error adding descriptor %d", function, clientfd);
 
 	if (socksfdc < dc) { /* init/reallocate */
 		sigset_t oldmask;
@@ -368,6 +368,9 @@ socks_addfd(d)
 	unsigned int d;
 {
 	const char *function = "socks_addfd()";
+
+	if (d + 1 < d) /* integer overflow. */
+		return -1;
 
 	if (d >= dc)	{ /* init/reallocate */
 		sigset_t oldmask;
