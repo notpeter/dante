@@ -8,7 +8,7 @@ else
 	prename=""
 fi
 
-AM_INIT_AUTOMAKE(dante, 1.1.4$prename)
+AM_INIT_AUTOMAKE(dante, 1.1.5$prename)
 AM_CONFIG_HEADER(include/autoconf.h)
 #NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
@@ -824,8 +824,8 @@ case $host in
 
 	L_SOCKPROTO(gethostbyaddr, [failproto=t],
 	["struct hostent *"],
-	["const char *" "const void *" "__const char *"],
-	["int" "size_t"],
+	["const char *" "const void *" "__const char *" "__const void *"],
+	["int" "size_t" "__socklen_t"],
 	["int"])
 	;;
 esac
@@ -1214,8 +1214,14 @@ AC_DEFINE_UNQUOTED(LIBRARY_LIBC, "${LIBC_NAME}")
 dnl #XXX include header in compilation test?
 dnl normal library testing doesn't work for libwrap (doesn't link
 dnl without allow/deny_severity)
-oLIBS=$LIBS
 if test "x${ac_cv_header_tcpd_h}" = "xyes"; then
+    case $host in
+	*-*-linux-*)
+	    #XXX needed on atleast redhat
+	    AC_SEARCH_LIBS(yp_get_default_domain, nsl) 
+	;;
+    esac
+    oLIBS=$LIBS
     AC_MSG_CHECKING(for libwrap)
     if test x$no_libwrap = xt; then
 	echo "disabled"
@@ -1230,8 +1236,8 @@ int deny_severity;
   want_libwrap=t],
  [AC_MSG_RESULT(no)])
     fi
+    LIBS="$oLIBS"
 fi
-LIBS="$oLIBS"
 #programs wanting libwrap should test for this Makefile.am conditional
 #(programs which don't use it probably won't enjoy being linked with it)
 AM_CONDITIONAL(WANT_LIBWRAP, test "x${want_libwrap}" != "x")

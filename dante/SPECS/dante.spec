@@ -1,6 +1,6 @@
 Summary: A free Socks v4/v5 client implementation
 Name: dante
-%define version 1.1.4
+%define version 1.1.5
 %define prefix /usr
 Version: %{version}
 Release: 1
@@ -8,7 +8,7 @@ Copyright: BSD-type
 Group: Networking/Utilities
 URL: http://www.inet.no/dante/
 Source: ftp://ftp.inet.no/pub/socks/dante-%{version}.tar.gz
-Buildroot: /var/tmp/dante-root
+Buildroot: %{_tmppath}/dante-root
 
 
 %description
@@ -61,24 +61,24 @@ cat >sockd.init <<EOF
 # Check that networking is up.
 [ \${NETWORKING} = "no" ] && exit 0
 
-[ -f %{prefix}/sbin/sockd ] || exit 0
-[ -f /etc/sockd.conf ] || exit 0
+[ -f %{_sbindir}/sockd ] || exit 0
+[ -f %{_sysconfdir}/sockd.conf ] || exit 0
 
 # See how we were called.
 case "\$1" in
   start)
 	# Start daemons.
 	echo -n "Starting sockd: "
-	daemon %{prefix}/sbin/sockd -D
+	daemon %{_sbindir}/sockd -D
 	echo
-	touch /var/lock/subsys/sockd
+	touch %{_localstatedir}/lock/subsys/sockd
 	;;
   stop)
 	# Stop daemons.
 	echo -n "Shutting down sockd: "
 	killproc sockd
 	echo
-	rm -f /var/lock/subsys/sockd
+	rm -f ${_localstatedir}/lock/subsys/sockd
 	;;
   restart)
 	\$0 stop
@@ -96,25 +96,25 @@ exit 0
 EOF
 
 %build
-CFLAGS="${RPM_OPT_FLAGS}" ./configure --prefix=%{prefix}
-make
+CFLAGS="${RPM_OPT_FLAGS}" ./configure --prefix=%{prefix} --mandir=%{_mandir}
+%{__make}
 
 %install
-rm -rf ${RPM_BUILD_ROOT}
-make install DESTDIR=${RPM_BUILD_ROOT}
+%{__rm} -rf ${RPM_BUILD_ROOT}
+%{__make} install DESTDIR=${RPM_BUILD_ROOT}
 
 #set library as executable - prevent ldd from complaining
-chmod +x ${RPM_BUILD_ROOT}%{prefix}/lib/*.so.*.*
+%{__chmod} +x ${RPM_BUILD_ROOT}%{prefix}/lib/*.so.*.*
 
-install -d ${RPM_BUILD_ROOT}/etc/rc.d/init.d ${RPM_BUILD_ROOT}%{prefix}/bin
+%{__install}  -d ${RPM_BUILD_ROOT}/etc/rc.d/init.d ${RPM_BUILD_ROOT}%{prefix}/bin
 
-install -m 644 example/socks.conf ${RPM_BUILD_ROOT}/etc
-install -m 644 example/sockd.conf ${RPM_BUILD_ROOT}/etc
+%{__install} -m 644 example/socks-simple.conf ${RPM_BUILD_ROOT}/etc/socks.conf
+%{__install} -m 644 example/sockd.conf ${RPM_BUILD_ROOT}/etc
 
-install -m 755 sockd.init ${RPM_BUILD_ROOT}/etc/rc.d/init.d/sockd
+%{__install} -m 755 sockd.init ${RPM_BUILD_ROOT}/etc/rc.d/init.d/sockd
 
 %clean
-rm -rf $RPM_BUILD_ROOT
+%{__rm} -rf $RPM_BUILD_ROOT
 
 %post
 /sbin/ldconfig
@@ -125,39 +125,43 @@ rm -rf $RPM_BUILD_ROOT
 %post server
 /sbin/chkconfig --add sockd
 
-%postun server
+%preun server
 if [ $1 = 0 ]; then
    /sbin/chkconfig --del sockd
 fi
 
 %files
 %defattr(-,root,root)
-#files beginning with two capital letters are docs: BUGS, README.foo etc.
-%doc [A-Z][A-Z]*
-%{prefix}/lib/libsocks.so.0.1.0
-%{prefix}/lib/libsocks.so.0
-%{prefix}/lib/libsocks.so
-%{prefix}/lib/libdsocks.so.0.1.0
-%{prefix}/lib/libdsocks.so.0
-%{prefix}/lib/libdsocks.so
-%{prefix}/bin/socksify
-%{prefix}/man/man5/socks.conf.5
-%config /etc/socks.conf
+%doc BUGS CREDITS INSTALL LICENSE NEWS README SUPPORT TODO doc/README* doc/rfc* doc/SOCKS4.protocol doc/faq.tex example/socks.conf example/socks-simple-withoutnameserver.conf example/sockd.conf example/socks-simple.conf
+%{_libdir}/libsocks.so.0.1.0
+%{_libdir}/libsocks.so.0
+%{_libdir}/libsocks.so
+%{_libdir}/libdsocks.so.0.1.0
+%{_libdir}/libdsocks.so.0
+%{_libdir}/libdsocks.so
+%{_bindir}/socksify
+%{_mandir}/man5/socks.conf.5*
+%config %{_sysconfdir}/socks.conf
 
 %files server
 %defattr(-,root,root)
-%{prefix}/man/man8/sockd.8
-%{prefix}/sbin/sockd
-%{prefix}/man/man5/sockd.conf.5
-%config /etc/sockd.conf
-%config /etc/rc.d/init.d/sockd
+%{_mandir}/man8/sockd.8*
+%{_sbindir}/sockd
+%{_mandir}/man5/sockd.conf.5*
+%config %{_sysconfdir}/sockd.conf
+%config %{_sysconfdir}/rc.d/init.d/sockd
 
 %files devel
-%{prefix}/lib/libsocks.la
-%{prefix}/lib/libsocks.a
-%{prefix}/lib/libdsocks.la
+%{_libdir}/libsocks.la
+%{_libdir}/libsocks.a
+%{_libdir}/libdsocks.la
 
 %changelog
+* Thu Oct 12 2000 Karl-Andre' Skevik <karls@inet.no>
+-use of macros for directory locations/paths
+-explicitly name documentation files
+-run chkconfig --del before files are deleted on uninstall
+
 * Wed Mar 10 1999 Karl-Andre' Skevik <karls@inet.no>
 - Integrated into CVS
 - socksify patch no longer needed

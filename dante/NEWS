@@ -1,6 +1,13 @@
-@(#)$Id: NEWS,v 1.24 2000/10/05 08:48:09 michaels Exp $
+@(#)$Id: NEWS,v 1.25 2000/10/15 13:25:32 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Monday, October 16, 2000 -- Dante v1.1.5
+
+ o New prototype for gethostbyaddr in RedHat 7.0 added.
+   First reported by Paul R Streitman <prs@us.ibm.com>.
+
+ o RedHat needs libnsl for tcpwrappers to work.
 
 ***  Thursday, October 5, 2000 -- Dante v1.1.4
 
