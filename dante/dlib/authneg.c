@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.35 1998/12/05 18:01:14 michaels Exp $";
+"$Id: authneg.c,v 1.37 1999/02/21 18:52:36 michaels Exp $";
 
 #include "common.h"
 
@@ -53,24 +53,21 @@ negotiate_method(s, packet)
 {
 	const char *function = "negotiate_method()";
 	int rc;
-
 	/* version, number of methods, the methods. */
 	char request[1 + 1 + METHODS_MAX];
-
 	/* length of actual request; version, nmethods, methods. */
-	const size_t requestlen = 1 + 1 + packet->gw->state.methodc;
-
+	const size_t requestlen = 1 + 1 + packet->gw.state.methodc;
 	/* reply; version, selected method. */
 	unsigned char response[1 + 1];
 
 
-	SASSERTX(packet->gw->state.methodc > 0);
+	SASSERTX(packet->gw.state.methodc > 0);
 
 	/* create request packet. */
 	request[AUTH_VERSION] 	= packet->req.version;
-	request[AUTH_NMETHODS]	= packet->gw->state.methodc;
-	memcpy(&request[AUTH_METHODS], packet->gw->state.methodv,
-	(size_t)packet->gw->state.methodc);
+	request[AUTH_NMETHODS]	= packet->gw.state.methodc;
+	memcpy(&request[AUTH_METHODS], packet->gw.state.methodv,
+	(size_t)packet->gw.state.methodc);
 
 	/* send list over methods we support */
 	if (writen(s, request, requestlen) != requestlen)
@@ -94,7 +91,7 @@ negotiate_method(s, packet)
 			break;
 
 		case AUTHMETHOD_UNAME:
-			if (clientmethod_uname(s, &packet->gw->host, packet->req.version)
+			if (clientmethod_uname(s, &packet->gw.host, packet->req.version)
 			== 0)
 				rc = 0;
 			else

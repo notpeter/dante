@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.31 1998/12/12 16:26:39 karls Exp $";
+"$Id: interposition.c,v 1.32 1999/02/20 18:10:21 michaels Exp $";
 
 #define WE_DONT_WANT_NO_SOCKADDR_ARG_UNION
 
@@ -154,9 +154,10 @@ symbolfunction(symbol)
 		if ((lib->function = dlsym(lib->handle, symbol)) == NULL)
 			serrx(EXIT_FAILURE, "%s: %s: %s", function, symbol, dlerror());
 
-#if 0
-	slog(LOG_DEBUG, "found symbol %s in library %s",
-	lib->symbol, lib->library);
+#if 0 
+	if (strcmp(symbol, SYMBOL_WRITE) != 0)
+		slog(LOG_DEBUG, "found symbol %s in library %s\n",
+		lib->symbol, lib->library);
 #endif
 
 	return lib->function;

@@ -44,7 +44,7 @@
 %{
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.32 1998/12/08 19:34:23 michaels Exp $";
+"$Id: config_scan.l,v 1.34 1999/02/20 19:18:51 michaels Exp $";
 
 #include "common.h"
 
@@ -57,7 +57,7 @@ static const char rcsid[] =
 
 %option yylineno
 %option noyywrap
-/* %option debug */
+/*%option debug  */
 
 
 	/* startconditions */
@@ -71,6 +71,8 @@ static const char rcsid[] =
 %x start_logoutput
 %x start_method
 %x start_option
+%x start_port
+%x start_proxyprotocol
 %x start_service
 %x start_username
 %%
@@ -122,11 +124,27 @@ route {
 }
 
 
-protocolversion {
+proxyprotocol {
+	BEGIN(start_proxyprotocol);
+
 	yylval.string = yytext;
-	return PROTOCOLVERSION;
+	return PROXYPROTOCOL;
 }
 
+<start_proxyprotocol>socks_v4 {
+	yylval.string = yytext;
+	return PROXYPROTOCOL_SOCKS_V4;
+}
+
+<start_proxyprotocol>socks_v5 {
+	yylval.string = yytext;
+	return PROXYPROTOCOL_SOCKS_V5;
+}
+
+<start_proxyprotocol>msproxy_v2 {
+	yylval.string = yytext;
+	return PROXYPROTOCOL_MSPROXY_V2;
+}
 
 logoutput {
 	BEGIN(start_logoutput);
@@ -217,12 +235,15 @@ command {
 
 
 <start_address>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ { 
+	BEGIN(start_port);
+	
 	yylval.string = yytext;
 	return IPADDRESS; 
 }
 
-	/* XXX check rfc for what constitutes a valid domain */
-<start_address>[0-9A-Za-z]*\.[0-9A-Za-z]*[\.A-Za-z]*[a-z][a-z][a-z]? {
+<start_address>[\.a-zA-Z0-9]* {
+	BEGIN(start_port);
+
 	yylval.string = yytext;
 	return DOMAIN;
 }
@@ -233,7 +254,7 @@ command {
 }
 
 
-<start_address>port {
+<start_port>port {
 	BEGIN(start_service);
 
 	yylval.string = yytext;

@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.4 1998/12/04 14:21:53 michaels Exp $";
+"$Id: Rcompat.c,v 1.5 1999/02/20 19:22:36 michaels Exp $";
 
 #include "common.h"
 
@@ -62,6 +62,7 @@ Rlisten(s, backlog)
 	int s;
 	int backlog;
 {
+
 	return listen(s, backlog);
 }
 

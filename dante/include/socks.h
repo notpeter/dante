@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.113 1998/12/12 16:26:44 karls Exp $ */
+/* $Id: socks.h,v 1.117 1999/02/26 21:41:48 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -83,8 +83,8 @@ extern const int lintnoloop_socks_h;
 
 struct configstate_t {
 	unsigned int		init:1;
+	struct sockaddr 	lastconnect;		/* address we last connected to. 		*/
 	pid_t					pid;
-	struct sockaddr 	lastconnect;	/* address we last connected to. */
 };
 
 struct option_t {
@@ -97,10 +97,16 @@ struct config_t {
 	struct configstate_t state;
 	char						domain[MAXHOSTNAMELEN];	/* local domainname.				*/
 	struct logtype_t		log;							/* where to log.					*/
-	struct option_t 		option;						/* misc options.					*/
+	struct option_t 		option;						/* misc. options.					*/
 	pid_t						connectchild;				/* connect process.				*/
 	int						connect_s;					/* socket to connect process. */
 	struct route_t			*route;						/* linked list of routes.		*/
+};
+
+struct childpacket_t {
+   struct sockshost_t   src;
+   struct sockshost_t   dst;
+   struct socks_t       packet;
 };
 
 
@@ -117,25 +123,26 @@ clientinit __P((void));
 */
 
 
-#ifdef HAVE_FAULTY_CONNECTPROTO
-int Rconnect __P((int, struct sockaddr *, int));
-#else
-int Rconnect __P((int, const struct sockaddr *, socklen_t));
-#endif  /* HAVE_FAULTY_CONNECTPROTO */
+int Raccept __P((int, struct sockaddr *, socklen_t *));
 #ifdef HAVE_FAULTY_BINDPROTO
 int Rbind __P((int, struct sockaddr *, int));
 #else
 int Rbind __P((int, const struct sockaddr *, socklen_t));
 #endif  /* HAVE_FAULTY_BINDPROTO */
+int Rbindresvport __P((int, struct sockaddr_in *));
+#ifdef HAVE_FAULTY_CONNECTPROTO
+int Rconnect __P((int, struct sockaddr *, int));
+#else
+int Rconnect __P((int, const struct sockaddr *, socklen_t));
+#endif  /* HAVE_FAULTY_CONNECTPROTO */
 int Rgetsockname __P((int, struct sockaddr *, socklen_t *));
 int Rgetpeername __P((int, struct sockaddr *, socklen_t *));
-int Raccept __P((int, struct sockaddr *, socklen_t *));
+
 int Rrresvport __P((int *));
-int Rbindresvport __P((int, struct sockaddr_in *));
 struct hostent *Rgethostbyname __P((const char *));
 struct hostent *Rgethostbyname2 __P((const char *, int af));
 ssize_t Rsendto __P((int s, const void *msg, size_t len, int flags,
-		  					const struct sockaddr *to, int tolen));
+		  					const struct sockaddr *to, socklen_t tolen));
 #ifdef HAVE_RECVFROM_CHAR
 ssize_t Rrecvfrom __P((int s, char *buf, int len, int flags, 
 					  struct sockaddr *from, socklen_t *fromlen);)
@@ -235,25 +242,27 @@ socks_recvresponse __P((int s, struct response_t *response, int version));
 
 
 int
-socks_negotiate __P((int s, struct socks_t *dst));
+socks_negotiate __P((int s, int control, struct socks_t *dst));
 /*
- * "s" is the connection to the socks server and "dst" is a socks
- * request packet.
- * Negotiates method and fills the response to the  request into dst->res.
+ * "s" is the socket data will flow over.
+ * "control" is the control connection to the socks server.
+ * "dst" is a socks packet containing the request.
+ * Negotiates method and fills the response to the request into dst->res.
  * Returns:
- *		On success: 0  (server accepted our request)
- *		On failure: -1.  If errno is 0, the reason for failure was
- *   						  that no route was found and "s" is untouched.
+ *		On success: 0.  (server accepted our request.)
+ *		On failure: -1. 
 */
 
 
 
 struct route_t *
-socks_nbconnectroute __P((int s, struct socks_t *packet,
-						 const struct sockshost_t *src,
-						 const struct sockshost_t *dst));
+socks_nbconnectroute __P((int s, int control, struct socks_t *packet,
+						 		  const struct sockshost_t *src,
+						 		  const struct sockshost_t *dst));
 /*
  * The non-blocking version of socks_connectroute(), only used by client.
+ * Takes one additional argument, "s", which is the socket to connect 
+ * and not necessarily the same as "control" (msproxy case).
 */
 
 
@@ -270,7 +279,7 @@ recv_sockshost __P((int s, struct sockshost_t *host, int version));
 
 
 	/* 
-	 *  Misc functions to help keep track of our connection(s) to the server.
+	 *  Misc. functions to help keep track of our connection(s) to the server.
 	*/
 
 struct socksfd_t *
@@ -320,7 +329,8 @@ socks_addrcontrol(const struct sockaddr *local, const struct sockaddr *remote);
 /*
  * Goes through all addresses registered and tries to find one where
  * the control socket has a local address of "local" and peer address
- * of "remote".
+ * of "remote".  If either of "local" or "remote" is NULL, that
+ * endpoint is not checked against.
  *	Returns:
  *		On success: the descriptor the socksfd struct was registered with.
  *		On failure: -1
@@ -431,7 +441,7 @@ socks_getpassword __P((const struct sockshost_t *host, const char *user,
 
 int
 send_interfacerequest __P((int s, const struct interfacerequest_t *ifreq,
-							 int version));
+							 	   int version));
 /*
  * Sends the interfacerequest "ifreq" to server connected to "s".
  * "version" is the protocolversion previously negotiated with server.
@@ -445,6 +455,54 @@ serverreplyisok __P((int version, int reply));
 /*
  * "replycode" is the reply code returned by a socksserver of version "version".
  * Returns true if the reply indicates request succeeded, false otherwise.
+*/
+
+int
+msproxy_negotiate __P((int s, int control, struct socks_t *packet));
+/*
+ * Negotiates with the msproxy server connected to "control".
+ * "s" gives the socket to be used for dataflow.
+ * "packet" contains the request and on return from the function
+ * contains the response.
+ * Returns:
+ *		On success: 0
+ *		On failure: -1
+*/
+
+
+int
+send_msprequest __P((int s, struct msproxy_state_t *state,
+						  struct msproxy_request_t *packet));
+/*
+ * Sends a msproxy request to "s".
+ * "state" is the current state of the connection to "s", 
+ * "packet" is the request to send.
+*/
+
+int
+recv_mspresponse __P((int s, struct msproxy_state_t *state,
+						  struct msproxy_response_t *packet));
+/*
+ * Receives a msproxy response from "s".
+ * "state" is the current state of the connection to "s", 
+ * "packet" is the memory the response is read into.
+*/
+
+int
+msproxy_sigio __P((int s));
+/*
+ * Must be called on sockets where we expect the connection to be forwarded
+ * by the msproxy server.  
+ * "s" is the socket and must have been added with socks_addaddr() beforehand.
+ * Returns:
+ *		On success: 0
+ *		On failure: -1
+*/
+
+int
+msproxy_init __P((void));
+/*
+ * inits things for using a msproxyserver.
 */
 
 #ifdef SOCKSLIBRARY_DYNAMIC
@@ -465,6 +523,7 @@ struct hostent *sys_gethostbyname __P((const char *));
 struct hostent *sys_gethostbyname2 __P((const char *, int));
 int sys_getpeername __P((int, __SOCKADDR_ARG, socklen_t *));
 int sys_getsockname __P((int, __SOCKADDR_ARG, socklen_t *));
+
 ssize_t sys_read __P((int, void *, size_t));
 #ifdef HAVE_FAULTY_READVPROTO
 ssize_t sys_readv __P((int, struct iovec *, int));

@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.52 1998/12/13 14:32:10 michaels Exp $";
+"$Id: util.c,v 1.56 1999/02/22 16:26:53 karls Exp $";
 
 #include "common.h"
 
@@ -181,6 +181,20 @@ sockscode(version, code)
 				default:
 					return code;	/* current codes are all V5. */
 			}
+		/* NOTREACHED */
+
+		case MSPROXY_V2:
+			switch (code) {
+				case SOCKS_SUCCESS:
+					return MSPROXY_SUCCESS;
+
+				case SOCKS_FAILURE:
+					return MSPROXY_FAILURE;
+
+				default:
+					SERRX(code);
+			}
+		/* NOTREACHED */
 
 		default:
 			SERRX(version);
@@ -232,7 +246,14 @@ sockshost2sockaddr(host, addr)
 		
 		case SOCKS_ADDR_DOMAIN: {
 			struct hostent *hostent;
+			struct in_addr fakeaddr;
 
+			if (socks_getfakeip(host->addr.domain, &fakeaddr) == 1) {
+				/* LINTED pointer casts may be troublesome */
+				((struct sockaddr_in *)addr)->sin_addr = fakeaddr;
+				break;
+			}
+				
 			if ((hostent = gethostbyname(host->addr.domain)) == NULL) {
 				/* LINTED pointer casts may be troublesome */
 				swarnx("%s: gethostbyname(%s): %s",
@@ -240,12 +261,14 @@ sockshost2sockaddr(host, addr)
 
 				/* LINTED pointer casts may be troublesome */
 				((struct sockaddr_in *)addr)->sin_addr.s_addr = htonl(INADDR_ANY);
+
+				break;
 			}
 
-			if (!inet_aton(hostent->h_addr_list[0],
+			if (inet_aton(hostent->h_addr_list[0],
 			/* LINTED pointer casts may be troublesome */
-			&((struct sockaddr_in *)addr)->sin_addr))
-				swarnx("%s: inet_aton(%s)", function, hostent->h_addr_list[0]);
+			&((struct sockaddr_in *)addr)->sin_addr) != 1)
+				swarn("%s: inet_aton(%s)", function, hostent->h_addr_list[0]);
 			break;
 		}
 
@@ -544,23 +567,25 @@ serr(eval, fmt, va_alist)
 	char buf[2048];
 	size_t bufused;
 
+	if (fmt != NULL) {
 #ifdef STDC_HEADERS
-	/* LINTED pointer casts may be troublesome */
-	va_start(ap, fmt);
+		/* LINTED pointer casts may be troublesome */
+		va_start(ap, fmt);
 #else
-	va_start(ap);
+		va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
+		bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
 
-	bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-	": %s (errno = %d)", 
-	strerror(errno), errno);
+		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+		": %s (errno = %d)", 
+		strerror(errno), errno);
 
-	slog(LOG_ERR, buf);
+		slog(LOG_ERR, buf);
 
-	/* LINTED expression has null effect */
-	va_end(ap);
+		/* LINTED expression has null effect */
+		va_end(ap);
+	}
 
 #ifdef SOCKS_SERVER
 	sockdexit(-eval);
@@ -583,16 +608,17 @@ serrx(eval, fmt, va_alist)
 {
 	va_list ap;
 
-	/* LINTED pointer casts may be troublesome */
+	if (fmt != NULL) {
 #ifdef STDC_HEADERS
-	va_start(ap, fmt);
+		va_start(ap, fmt);
 #else
-	va_start(ap);
+		va_start(ap);
 #endif  /* STDC_HEADERS */
-	vslog(LOG_ERR, fmt, ap);
+		vslog(LOG_ERR, fmt, ap);
 
-	/* LINTED expression has null effect */
-	va_end(ap);
+		/* LINTED expression has null effect */
+		va_end(ap);
+	}
 
 #ifdef SOCKS_SERVER
 	sockdexit(-eval);
@@ -616,23 +642,25 @@ swarn(fmt, va_alist)
 	char buf[2048];
 	size_t bufused;
 
+	if (fmt != NULL) {
 #ifdef STDC_HEADERS
 	/* LINTED pointer casts may be troublesome */
-	va_start(ap, fmt);
+		va_start(ap, fmt);
 #else
-	va_start(ap);
+		va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
+		bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
 
-	bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-	": %s (errno = %d)", 
-	strerror(errno), errno);
+		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+		": %s (errno = %d)", 
+		strerror(errno), errno);
 
-	slog(LOG_ERR, buf);
+		slog(LOG_ERR, buf);
 
-	/* LINTED expression has null effect */
-	va_end(ap);
+		/* LINTED expression has null effect */
+		va_end(ap);
+	}
 }
 
 void
@@ -646,53 +674,75 @@ swarnx(fmt, va_alist)
 {
 	va_list ap;
 
+	if (fmt != NULL) {
 #ifdef STDC_HEADERS
-	/* LINTED pointer casts may be troublesome */
-	va_start(ap, fmt);
+		/* LINTED pointer casts may be troublesome */
+		va_start(ap, fmt);
 #else
-	va_start(ap);
+		va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	vslog(LOG_ERR, fmt, ap);
+		vslog(LOG_ERR, fmt, ap);
 
-	/* LINTED expression has null effect */
-	va_end(ap);
+		/* LINTED expression has null effect */
+		va_end(ap);
+	}
 }
 
 in_addr_t
-socks_addfakeip(name)
-	const char *name;
+socks_addfakeip(host)
+	const char *host;
 {
 	const char *function = "socks_addfakeip()";
 	char **tmpmem;
+	struct in_addr addr;
+
+	if (socks_getfakeip(host, &addr) == 1)
+		return addr.s_addr;
 
 	if (ipc >= FAKEIP_END - FAKEIP_START) {
-		swarnx("%s: fakeip range (%d-%d) exhausted",
+		swarnx("%s: fakeip range (%d - %d) exhausted",
 		function, FAKEIP_START, FAKEIP_END);
 		return INADDR_NONE;
 	}
 
 	if ((tmpmem = (char **)realloc(ipv, sizeof(*ipv) * (ipc + 1))) == NULL
-	|| (tmpmem[ipc] = (char *)malloc(sizeof(char) * (strlen(name) + 1)))
+	|| (tmpmem[ipc] = (char *)malloc(sizeof(char) * (strlen(host) + 1)))
 	== NULL) {
 		swarnx("%s: %s", function, NOMEM);	
 		return INADDR_NONE;
 	}
 	ipv = tmpmem;
 
-	strcpy(ipv[ipc], name);
+	strcpy(ipv[ipc], host);
 
 	return htonl(ipc++ + FAKEIP_START);
 }
 
 const char *
-socks_getfakeip(ip)
-	in_addr_t ip;
+socks_getfakehost(addr)
+	in_addr_t addr;
 {
 
-	if (ntohl(ip) - FAKEIP_START < ipc)
-		return ipv[ntohl(ip) - FAKEIP_START];
+	if (ntohl(addr) - FAKEIP_START < ipc)
+		return ipv[ntohl(addr) - FAKEIP_START];
 	return NULL;
+}
+
+int
+socks_getfakeip(host, addr)
+	const char *host;
+	struct in_addr *addr;
+{
+	int i;
+
+	for (i = 0; i < ipc; ++i)
+		if (strcasecmp(host, ipv[i]) == 0) {
+			addr->s_addr = htonl(i + FAKEIP_START);
+			return 1;
+		}
+
+	return 0;
 }
 
 
@@ -1047,6 +1097,7 @@ int
 socks_mklock(template)
 	const char *template;
 {
+	const char *function = "socks_mklock()";
 	char *prefix, *newtemplate;
 	int s;
 	size_t len;
@@ -1055,22 +1106,23 @@ socks_mklock(template)
 		if (*prefix == NUL)
 			prefix = NULL;
 
-	len = strlen(template) + (prefix == NULL ? 0 : strlen(prefix) + 1) + 1;
+	if (prefix == NULL)
+		prefix = "/tmp";
+
+	len = strlen(prefix) + strlen("/") + strlen(template) + 1;
 	if ((newtemplate = (char *)malloc(sizeof(char) * len)) == NULL)
 		return -1;
 
-	snprintf(newtemplate, len, "%s%s%s",
-	prefix == NULL ? "" : prefix,
-	prefix == NULL ? "" : "/",
-	template);
+	snprintf(newtemplate, len, "%s/%s", prefix, template);
 
 	if ((s = mkstemp(newtemplate)) == -1) {
-		swarn(newtemplate);
+		swarn("%s: mkstemp(%s)", function, newtemplate);
 		free(newtemplate);
 		return -1;
 	}
 	
 	if (unlink(newtemplate) == -1) {
+		swarn("%s: unlink(%s)", function, newtemplate);
 		free(newtemplate);
 		return -1;
 	}
@@ -1156,6 +1208,21 @@ socks_unlock(descriptor, timeout)
 
 
 int
+socks_socketisbound(s)
+	int s;
+{
+	struct sockaddr_in addr;
+	socklen_t len;
+
+	len = sizeof(addr);
+	/* LINTED pointer casts may be troublesome */
+	if (getsockname(s, (struct sockaddr *)&addr, &len) != 0)
+		return -1;
+
+	return ADDRISBOUND(addr);
+}
+
+int
 freedescriptors(message)
 	const char *message;
 {
@@ -1184,3 +1251,15 @@ fdisopen(fd)
 	return 0;
 }
 
+ssize_t
+strnlen(s, len)
+	const char *s;
+	size_t len;
+{
+	const char *p;
+
+	if ((p = memchr(s, NUL, len)) == NULL)
+		return -1;
+
+	return p - s;
+}

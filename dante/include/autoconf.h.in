@@ -31,9 +31,6 @@
 /* Define if you have the vprintf function.  */
 #undef HAVE_VPRINTF
 
-/* Define if you have the wait3 system call.  */
-#undef HAVE_WAIT3
-
 /* Define as __inline if that's what the C compiler calls it.  */
 #undef inline
 
@@ -82,6 +79,9 @@
 #undef in_port_t
 #undef in_addr_t
 #undef ssize_t
+#undef socklen_t
+#undef int16_t
+#undef int32_t
 
 /* send/recvmsg cmsg types */
 #undef HAVE_CMSGHDR
@@ -184,6 +184,10 @@
 #undef SYMBOL_RECVMSG
 #undef SYMBOL_SENDMSG
 #undef SYMBOL_WRITEV
+#undef SYMBOL_SEND
+#undef SYMBOL_RECV
+#undef SYMBOL_WRITE
+#undef SYMBOL_READ
 
 /* workaround for solaris bug */
 #undef HAVE_SENDMSG_DEADLOCK
@@ -208,6 +212,9 @@
 
 /* diagnostic */
 #undef DIAGNOSTIC
+
+/* solaris/sysv include fun */
+#undef NEED_UCBINCLUDE_SYS_IOCTL
 
 /* The number of bytes in a char.  */
 #undef SIZEOF_CHAR

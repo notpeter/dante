@@ -1,0 +1,31 @@
+This is the first version of Dante that attempts to support 
+the msproxy protocol.  This is a protocol not described in any
+publicly known document and it was implemented based on
+watching networkpackets crossing the wire and guessing their 
+meaning. 
+
+This prerelease is made public in order to get feedback 
+on the msproxy stuff.  Current status:
+ - TCP bind and connect is expected to work.
+ - hostnames are resolved (via the proxy).
+ - sometimes the server returns a unexpected response to our
+   connect request.  MS clients understand when the response
+   means "wait a little, then continue or retry", we currently
+   don't.
+
+Atleast in one installation the msproxy server seems to "die" after
+a while.  This seems to be somehow related to the data we send it,
+but it's unknown why and when it happens.  Can it be reproduced on
+other installations?
+
+
+We appreciate any feedback at all, does it work, does it not, that
+will determine whether Inferno Nettverk will continue to support
+work on this.
+Code for UDP support will probably be added later if there is demand
+for it.
+
+If you're a UNIX user trapped behind a msproxy server, here's to you.
+
+   -- Inferno Nettverk A/S, Oslo Research Park, Norway.
+

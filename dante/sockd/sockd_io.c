@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.123 1998/12/11 11:35:16 michaels Exp $";
+"$Id: sockd_io.c,v 1.125 1999/02/22 12:03:00 michaels Exp $";
 
 #include "common.h"
 
@@ -490,20 +490,11 @@ recv_io(s, io)
 	struct sockd_io_t *io;
 {
 	const char *function = "recv_io()";
-	int i, fdexpect, fdreceived = 0;
+	int i, fdexpect, fdreceived;
 	size_t length = 0;
 	struct iovec iovec[1];
 	struct msghdr msg;
-
-#ifdef HAVE_CMSGHDR
-	union {
-		char cmsgmem[sizeof(struct cmsghdr) + sizeof(int) * FDPASS_MAX];
-		struct cmsghdr align;
-	} cmsgmem;
-	struct cmsghdr *cmsg = &cmsgmem.align;
-#else
-	char cmsgmem[sizeof(int) * FDPASS_MAX];
-#endif  /* HAVE_CMSGHDR */
+	CMSG_AALLOC(sizeof(int) * FDPASS_MAX);
 
 	if (io == NULL) {	/* child semantics; find a io ourselves. */ 
 		for (i = 0; i < ioc; ++i)
@@ -538,26 +529,12 @@ recv_io(s, io)
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	msg.msg_control		= (caddr_t)cmsg;
-	msg.msg_controllen	= sizeof(cmsgmem);
-#else
-	msg.msg_accrights		= (caddr_t) cmsgmem;
-	msg.msg_accrightslen = sizeof(int) * FDPASS_MAX;
-#endif  /* HAVE_CMSGHDR */
+	CMSG_SETHDR_RECV(sizeof(cmsgmem));
 
 	if (recvmsgn(s, &msg, 0, length) != length) {
 		swarn("%s: recvmsgn()", function);
 		return -1;
 	}
-
-#ifdef HAVE_CMSGHDR
-#ifndef HAVE_DEFECT_RECVMSG
-	if (msg.msg_flags & MSG_CTRUNC)
-		SERR(msg.msg_flags);
-#endif /* !HAVE_DEFECT_RECVMSG */
-#endif  /* HAVE_CMSGHDR */
 
 	/* figure out how many descriptors we are supposed to be passed. */
 	switch (io->state.command) {
@@ -584,45 +561,26 @@ recv_io(s, io)
 	}
 
 	/* calculate expected datalen */
-#ifdef HAVE_CMSGHDR
+
 #ifndef HAVE_DEFECT_RECVMSG
-	length = sizeof(*cmsg) + sizeof(int) * fdexpect;
-	if (msg.msg_controllen != length)
-		SERRX(msg.msg_controllen);
-#endif /* !HAVE_DEFECT_RECVMSG */
-#else
-	length = sizeof(int) * fdexpect;
-	if (msg.msg_accrightslen != length)
-		SERRX(0);
-#endif  /* HAVE_CMSGHDR */
+	SASSERT(CMSG_GETLEN(msg) == sizeof(int) * fdexpect);
+#endif
 
 
 	/* 
 	 * Get descriptors sent us.
 	*/
 
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	io->in.s = *(int *)(CMSG_DATA(cmsg) + sizeof(int) * fdreceived++);
+	fdreceived = 0;
 
-	/* LINTED pointer casts may be troublesome */
-	io->out.s = *(int *)(CMSG_DATA(cmsg) + sizeof(int) * fdreceived++);
-#else
-	memcpy(&io->in.s,  cmsgmem + sizeof(int) * fdreceived++, sizeof(int));
-	memcpy(&io->out.s, cmsgmem + sizeof(int) * fdreceived++, sizeof(int));
-#endif  /* HAVE_CMSGHDR */
+	CMSG_GETOBJECT(io->in.s, sizeof(io->in.s) * fdreceived++);
+	CMSG_GETOBJECT(io->out.s, sizeof(io->out.s) * fdreceived++);
 
 	switch (io->state.command) {
 		case SOCKS_BIND:
 		case SOCKS_BINDREPLY:
 		case SOCKS_UDPASSOCIATE:
-#ifdef HAVE_CMSGHDR
-			/* LINTED pointer casts may be troublesome */
-			io->control.s = *(int *)(CMSG_DATA(cmsg) + sizeof(int) * fdreceived++);
-#else
-			memcpy(&io->control.s, cmsgmem + sizeof(int) * fdreceived++,
-			sizeof(int));
-#endif  /* HAVE_CMSGHDR */
+			CMSG_GETOBJECT(io->control.s, sizeof(io->control.s) * fdreceived++);
 			break;
 
 		case SOCKS_CONNECT:
@@ -737,7 +695,8 @@ doio(mother, io, rset, wset, flags)
 		case SOCKS_UDP: {
 			struct udpheader_t header;
 			struct sockaddr from, to;
-			int fromlen, permit;
+			socklen_t fromlen;
+			int permit;
 
 			/*
 			 * UDP is sadly considerably more complex than TCP;
@@ -778,8 +737,8 @@ doio(mother, io, rset, wset, flags)
 
 					if (io->in.raddr.sin_addr.s_addr == htonl(INADDR_ANY))
 					/* LINTED pointer casts may be troublesome */
-					io->in.raddr.sin_addr.s_addr
-					= ((struct sockaddr_in *)&from)->sin_addr.s_addr;
+						io->in.raddr.sin_addr.s_addr
+						= ((struct sockaddr_in *)&from)->sin_addr.s_addr;
 
 					if (io->in.raddr.sin_port == htons(0))
 						/* LINTED pointer casts may be troublesome */

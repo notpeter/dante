@@ -44,7 +44,7 @@
 %{
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.76 1998/12/13 17:05:53 michaels Exp $";
+"$Id: config_parse.y,v 1.78 1999/02/20 19:18:49 michaels Exp $";
 
 #include "common.h"
 
@@ -85,7 +85,7 @@ static struct ruleaddress_t	src;				/* new src.								*/
 static struct ruleaddress_t	dst;				/* new dst.								*/
 static struct ruleaddress_t	*ruleaddress;	/* current ruleaddress				*/
 static struct extension_t		*extension;		/* new extensions						*/
-static struct version_t			*version;
+static struct proxyprotocol_t	*proxyprotocol;/* proxy protocol.					*/
 
 static char							*atype;			/* atype of new address.			*/
 static struct in_addr			*ipaddr;			/* new ipaddress						*/
@@ -115,7 +115,7 @@ static enum operator_t			*operator;		/* new operator.						*/
 %token <string> SERVERCONFIG CLIENTCONFIG
 
 %type	<string> protocol protocol_list protocolname 
-%type	<string> protocolversion protocolversionname protocolversion_list 
+%type	<string> proxyprotocol proxyprotocolname proxyprotocol_list 
 %type	<string> command command_list commandname
 %type <string> routeinit
 
@@ -169,7 +169,8 @@ static enum operator_t			*operator;		/* new operator.						*/
 
 %token <string> VERDICT_BLOCK VERDICT_PASS 
 %token <string> PROTOCOL PROTOCOL_TCP PROTOCOL_UDP
-%token <string> PROTOCOLVERSION
+%token <string> PROXYPROTOCOL PROXYPROTOCOL_SOCKS_V4 PROXYPROTOCOL_SOCKS_V5
+                PROXYPROTOCOL_MSPROXY_V2
 %token <string> COMMAND COMMAND_BIND COMMAND_CONNECT COMMAND_UDPASSOCIATE 								 COMMAND_BINDREPLY
 %token <string> ACTION
 %token <string> AUTH AUTHMETHOD
@@ -255,49 +256,45 @@ route:	ROUTE routeinit '{' fromto gateway '}' {
 
 routeinit: {
 #ifdef SOCKS_CLIENT
-		command		= &state.command;
-		extension 	= &state.extension;	
-		methodv		= state.methodv;
-		methodc		= &state.methodc;
-		protocol		= &state.protocol;
-		version		= &state.version;
+		command			= &state.command;
+		extension 		= &state.extension;	
+		methodv			= state.methodv;
+		methodc			= &state.methodc;
+		protocol			= &state.protocol;
+		proxyprotocol	= &state.proxyprotocol;
 
 		bzero(&state, sizeof(state));
 		bzero(&route, sizeof(route));
 		bzero(&gw, sizeof(gw));
 		bzero(&src, sizeof(src));
 		bzero(&dst, sizeof(dst));
-		src.atype	= SOCKS_ADDR_IPV4;
-		dst.atype	= SOCKS_ADDR_IPV4;
+		src.atype		= SOCKS_ADDR_IPV4;
+		dst.atype		= SOCKS_ADDR_IPV4;
 #endif
 	}
 	;
 
 
 
-protocolversion:	{ $$ = NULL; }
-	|	PROTOCOLVERSION ':' protocolversionname protocolversion_list
+proxyprotocol:	{ $$ = NULL; }
+	|	PROXYPROTOCOL ':' proxyprotocolname proxyprotocol_list
 	;
 
 
-protocolversionname:	NUMBER {
-		switch (atoi($1)) {
-			case 4:
-				version->v4 = 1;
-				break;
-
-			case 5:
-				version->v5 = 1;
-				break;
-
-			default:
-				yyerror("unknown protocol version");
-		}
+proxyprotocolname:	PROXYPROTOCOL_SOCKS_V4 {
+			proxyprotocol->socks_v4 = 1;
 	}
+	|	PROXYPROTOCOL_SOCKS_V5 {
+			proxyprotocol->socks_v5 = 1;
+	}
+	|  PROXYPROTOCOL_MSPROXY_V2 {
+			proxyprotocol->msproxy_v2 = 1;
+	}
+		
 	;
 
-protocolversion_list:	{ $$ = NULL; }
-	|	protocolversionname protocolversion_list
+proxyprotocol_list:	{ $$ = NULL; }
+	|	proxyprotocolname proxyprotocol_list
 	;
 
 extension:	{ $$ = NULL; }
@@ -600,7 +597,7 @@ rule:	verdict '{' protocol fromto ruleoption '}' {
 	;
 
 
-ruleoption:	authmethod command libwrap log privileged protocolversion 
+ruleoption:	authmethod command libwrap log privileged proxyprotocol 
 	;
 
 
@@ -611,7 +608,7 @@ verdict:	VERDICT_BLOCK {
 		methodv			= rule.state.methodv;
 		methodc			= &rule.state.methodc;
 		protocol 		= &rule.state.protocol;
-		version			= &rule.state.version;
+		proxyprotocol	= &rule.state.proxyprotocol;
 	}
 	|	VERDICT_PASS {
 		rule.verdict 	= VERDICT_PASS;
@@ -619,7 +616,7 @@ verdict:	VERDICT_BLOCK {
 		methodv			= rule.state.methodv;
 		methodc			= &rule.state.methodc;
 		protocol 		= &rule.state.protocol;
-		version			= &rule.state.version;
+		proxyprotocol	= &rule.state.proxyprotocol;
 #endif 
 	}
 	;
@@ -633,19 +630,19 @@ command_list:	{ $$ = NULL; }
 	;
 
 commandname:	COMMAND_BIND {
-		command->bind = 1;
+			command->bind = 1;
 	}
 	|	COMMAND_CONNECT {
-		command->connect = 1;
+			command->connect = 1;
 	}
 	|	COMMAND_UDPASSOCIATE {
-		command->udpassociate = 1;
+			command->udpassociate = 1;
 	}
 
 	/* pseudocommands */
 
 	|	COMMAND_BINDREPLY	{
-		command->bindreply = 1;
+			command->bindreply = 1;
 	}
 	;
 
@@ -732,7 +729,7 @@ dstaddress:	{ $$ = NULL; }
 gateway:	via ':' gwaddress gatewayoption
 	;
 
-gatewayoption:	command extension protocol protocolversion authmethod
+gatewayoption:	command extension protocol proxyprotocol authmethod
 	;
 
 
@@ -770,7 +767,7 @@ gwaddress:	ipaddress port
 ipaddress:	IPADDRESS {
 		*atype = SOCKS_ADDR_IPV4;
 
-		if (!inet_aton($1, ipaddr))
+		if (inet_aton($1, ipaddr) != 1)
 			yyerror("bad address");
 	}
 	;

@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.22 1998/11/13 21:18:06 michaels Exp $";
+"$Id: clientprotocol.c,v 1.24 1999/02/20 19:18:47 michaels Exp $";
 
 #include "common.h"
 
@@ -156,9 +156,9 @@ socks_recvresponse(s, response, version)
 			/* VN */
 			memcpy(&response->version, p, sizeof(response->version));
 			p += sizeof(response->version);
-			if (version != response->version) {
+			if (version != SOCKS_V4REPLY_VERSION) {
 				swarnx("%s: unexpected version (%d != %d) from server",
-				function, version, response->version);
+				function, version, SOCKS_V4REPLY_VERSION);
 				return -1;
 			}
 
@@ -252,8 +252,9 @@ send_interfacerequest(s, ifreq, version)
 }
 
 int
-socks_negotiate(s, packet)
+socks_negotiate(s, control, packet)
 	int s;
+	int control;
 	struct socks_t	*packet;
 {
 	
@@ -262,24 +263,26 @@ socks_negotiate(s, packet)
 			break;	/* no pre-request negotiation in v4. */
 
 		case SOCKS_V5:
-			if (negotiate_method(s, packet) != 0)
+			if (negotiate_method(control, packet) != 0)
 				return -1;
 			break;
+
+		case MSPROXY_V2:
+			return msproxy_negotiate(s, control, packet);
+			/* NOTREACHED */
 
 		default:
 			SERRX(packet->req.version);
 	}
 
-	if (socks_sendrequest(s, &packet->req) != 0)
+	if (socks_sendrequest(control, &packet->req) != 0)
 		return -1;
 
-	if (socks_recvresponse(s, &packet->res, packet->req.version) != 0)
+	if (socks_recvresponse(control, &packet->res, packet->req.version) != 0)
 		return -1;
 
 	if (!serverreplyisok(packet->res.version, packet->res.reply))
 		return -1;
-
-	SASSERTX(packet->req.version == packet->res.version);
 
 	return 0;
 }

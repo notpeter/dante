@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.83 1998/12/13 14:35:02 michaels Exp $";
+"$Id: sockd_child.c,v 1.85 1999/02/22 12:02:57 michaels Exp $";
 
 #include "common.h"
 
@@ -114,7 +114,8 @@ addchild(type)
 	void (*childfunction)(struct sockd_mother_t *mother);
 	int pipev[2], ackpipev[2];
 	pid_t pid;
-	int optval, optlen, flags;
+	socklen_t optlen;
+	int optval, flags;
 
 	if (freedescriptors(NULL) < reserved) {
 		errno = EMFILE;
@@ -832,79 +833,41 @@ send_io(s, io)
 	const char *function = "send_io()";
 	struct iovec iovec[1];
 	struct msghdr msg;
-#ifdef HAVE_CMSGHDR
-	union {
-		char cmsgmem[sizeof(struct cmsghdr) + sizeof(int) * FDPASS_MAX];
-		struct cmsghdr align;
-	} cmsgmem;
-	struct cmsghdr *cmsg = &cmsgmem.align;
-#else
-	char cmsgmem[sizeof(int) * FDPASS_MAX];
-#endif /* HAVE_CMSGHDR */
-	int w, fdsent = 0;
-	int length = 0;
+	int w, fdsent, length;
+	CMSG_AALLOC(sizeof(int) * FDPASS_MAX);
 
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	*(int *)(CMSG_DATA(cmsg) + sizeof(io->in.s) * fdsent++) = io->in.s;
-	
-	/* LINTED pointer casts may be troublesome */
-	*(int *)(CMSG_DATA(cmsg) + sizeof(io->out.s) * fdsent++) = io->out.s;
 
-	switch (io->state.command) {
-		case SOCKS_BIND:
-		case SOCKS_BINDREPLY:
-		case SOCKS_UDPASSOCIATE:
-			/* LINTED pointer casts may be troublesome */
-			*(int *)(CMSG_DATA(cmsg) + sizeof(io->control.s) * fdsent++)
-			= io->control.s;
-			break;
-
-		case SOCKS_CONNECT:
-			break;
-
-		default:
-			SERRX(io->state.command);
-	}
-
-	cmsg->cmsg_level		= SOL_SOCKET;
-	cmsg->cmsg_type		= SCM_RIGHTS;
-	cmsg->cmsg_len			= sizeof(struct cmsghdr) + sizeof(int) * fdsent;
-#else
-	memcpy(cmsgmem + fdsent++ * sizeof(int), &io->in.s, sizeof(int));
-	memcpy(cmsgmem + fdsent++ * sizeof(int), &io->out.s, sizeof(int));
-	switch (io->state.command) {
-		case SOCKS_BIND:
-		case SOCKS_BINDREPLY:
-		case SOCKS_UDPASSOCIATE:
-			memcpy(cmsgmem + fdsent++ * sizeof(int), &io->control.s, sizeof(int));
-			break;
-
-		case SOCKS_CONNECT:
-			break;
-
-		default:
-			SERRX(io->state.command);
-	}
-
-	msg.msg_accrights		= (caddr_t) cmsgmem;
-	msg.msg_accrightslen	= sizeof(int) * fdsent;
-#endif  /* HAVE_CMSGHDR */
-
+	length = 0;
 	/* LINTED cast discards 'const' from pointer target type */
 	iovec[0].iov_base 	= (void *)io;
 	iovec[0].iov_len	 	= sizeof(*io);
 	length 				  += iovec[0].iov_len;
 
+
+	fdsent = 0;
+	CMSG_ADDOBJECT(io->in.s, sizeof(io->in.s) * fdsent++);
+	CMSG_ADDOBJECT(io->out.s, sizeof(io->out.s) * fdsent++);
+
+	switch (io->state.command) {
+		case SOCKS_BIND:
+		case SOCKS_BINDREPLY:
+		case SOCKS_UDPASSOCIATE:
+			CMSG_ADDOBJECT(io->control.s, sizeof(io->control.s) * fdsent++);
+			break;
+
+		case SOCKS_CONNECT:
+			break;
+
+		default:
+			SERRX(io->state.command);
+	}
+
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
-	/* LINTED pointer casts may be troublesome */
-#ifdef HAVE_CMSGHDR
-	msg.msg_control		= (caddr_t)cmsg;
-	msg.msg_controllen 	= cmsg->cmsg_len;
-#endif  /* HAVE_CMSGHDR */
+
+	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
 
 	if ((w = sendmsg(s, &msg, 0)) != length)	{
 		swarn("%s: sendmsg(): %d of %d", function, w, length);
@@ -928,42 +891,22 @@ send_client(s, client)
 	const char command = SOCKD_NEWREQUEST;
 	struct iovec iovec[1];
 	struct msghdr msg;
-#ifdef HAVE_CMSGHDR
-	union {
-		char cmsgmem[sizeof(struct cmsghdr) + sizeof(int)];
-		struct cmsghdr align;
-	} cmsgmem;
-	struct cmsghdr *cmsg = &cmsgmem.align;
-	int fdsent = 0;
-#endif  /* HAVE_CMSGHDR */
-
+	CMSG_AALLOC(sizeof(int));
+	int fdsent;
 
 	/* LINTED cast discards 'const' from pointer target type */
 	iovec[0].iov_base 	= (void *)&command;
 	iovec[0].iov_len 		= sizeof(command);
 
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	*(int *)(CMSG_DATA(cmsg) + 0 * fdsent++) = client;
-
-	cmsg->cmsg_level		= SOL_SOCKET;
-	cmsg->cmsg_type		= SCM_RIGHTS;
-	cmsg->cmsg_len			= sizeof(cmsgmem);
-#else
-	msg.msg_accrights		= (caddr_t) &client;
-	msg.msg_accrightslen	= sizeof(int);
-#endif  /* HAVE_CMSGHDR */
+	fdsent = 0;
+	CMSG_ADDOBJECT(client, sizeof(client) * fdsent++);
 
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	msg.msg_control		= (caddr_t)cmsg;
-	msg.msg_controllen 	= cmsg->cmsg_len;
-#endif  /* HAVE_CMSGHDR */
+	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
 
 	if (sendmsg(s, &msg, 0) != sizeof(command))	{
 		swarn("%s: sendmsg()", function);
@@ -980,43 +923,24 @@ send_req(s, req)
 	const struct sockd_request_t *req;
 {
 	const char *function = "send_req()";
-#ifdef HAVE_CMSGHDR
-	union {
-		char cmsgmem[sizeof(struct cmsghdr) + sizeof(int)];
-		struct cmsghdr align;
-	} cmsgmem;
-	struct cmsghdr *cmsg = &cmsgmem.align;
-	int fdsent = 0;
-#endif  /* HAVE_CMSGHDR */
 	struct iovec iovec[1];
 	struct msghdr msg;
+	int fdsent;
+	CMSG_AALLOC(sizeof(int));
 
 	/* LINTED cast discards 'const' from pointer target type */
 	iovec[0].iov_base 	= (void *)req;
 	iovec[0].iov_len 		= sizeof(*req);
 
-#if HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	*(int *)(CMSG_DATA(cmsg) + 0 * fdsent++) = req->s;
-
-	cmsg->cmsg_level		= SOL_SOCKET;
-	cmsg->cmsg_type		= SCM_RIGHTS;
-	cmsg->cmsg_len			= sizeof(cmsgmem);
-#else
-	msg.msg_accrights		= (caddr_t)&req->s;
-	msg.msg_accrightslen = sizeof(int);
-#endif  /* HAVE_CMSGHDR */
-
+	fdsent = 0;
+	CMSG_ADDOBJECT(req->s, sizeof(req->s) * fdsent++); 
 
 	msg.msg_iov				= iovec;
 	msg.msg_iovlen			= ELEMENTS(iovec);
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
-#ifdef HAVE_CMSGHDR
-	/* LINTED pointer casts may be troublesome */
-	msg.msg_control		= (caddr_t)cmsg;
-	msg.msg_controllen 	= cmsg->cmsg_len;
-#endif  /* HAVE_CMSGHDR */
+
+	CMSG_SETHDR_SEND(sizeof(int) * fdsent);
 
 	if (sendmsg(s, &msg, 0) != sizeof(*req))	{
 		swarn("%s: sendmsg()", function);

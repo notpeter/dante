@@ -1,14 +1,30 @@
-dnl Process this file with autoconf to produce a configure script.
 AC_INIT(include/socks.h)
-AM_INIT_AUTOMAKE(dante, 0.91.1)
+
+#set this to enable prerelease, changes some defaults (debug enabled)
+prerelease="1"
+if test x$prerelease != x; then
+	prename="-pre$prerelease"
+else
+	prename=""
+fi
+
+AM_INIT_AUTOMAKE(dante, 0.92.0$prename)
 AM_CONFIG_HEADER(include/autoconf.h)
+#XXX save CFLAGS; wish to compile without -O2 when debugging
+oCFLAGS=$CFLAGS
 AM_PROG_LIBTOOL
 
 AC_CANONICAL_HOST
 
+AM_CONDITIONAL(PRERELEASE, test x$prerelease != x)
+
 #XXX generic
 case $host in
 	*-*-*bsd*)
+		#XXX add proper test for this?
+		no_acceptlock=t
+	;;
+	*-*-solaris2.6)
 		#XXX add proper test for this?
 		no_acceptlock=t
 	;;
@@ -30,13 +46,13 @@ case $host in
 		AC_DEFINE(HAVE_SOLARIS_BUGS)
 	;;
 
-	*-*-solaris2.6)
-		#XXX won't get here
-		#XXX add proper test for this?
-		no_acceptlock=t
-	;;
+#	*-*-solaris2.6)
+#		#XXX won't ever get here
+#		#XXX add proper test for this?
+#		no_acceptlock=t
+#	;;
 
-	*-*-linux-*) # XXX This might only concern 2.0.x kernels (XXXbetter test)
+	*-*-linux-*) # XXX This might only concern 2.0.x kernels (add test?)
 		AC_DEFINE(HAVE_DEFECT_RECVMSG)
 		AC_DEFINE(HAVE_LINUX_BUGS)
 	;;
@@ -54,13 +70,54 @@ if test x$no_acceptlock != xt; then
 	AC_DEFINE(NEED_ACCEPTLOCK)
 fi
 
+AC_MSG_CHECKING(for compilation with debugging)
+AC_ARG_ENABLE(debug,
+[  --enable-debug          compile with debugging support], 
+	debug_enabled=t,
+	[if test x$prerelease != x; then 
+	   debug_enabled=t
+	 fi])
+
+if test x$debug_enabled = xt; then
+    #no optimalization wanted
+    if test $ac_cv_prog_cc_g = yes; then
+	CFLAGS="$oCFLAGS -g"
+    else
+	CFLAGS=$oCFLAGS
+    fi
+    CPPFLAGS="-DDEBUG $CPPFLAGS"
+    AC_MSG_RESULT(yes)
+else
+    AC_MSG_RESULT(no)
+fi
+
+#-Wall ?
+AC_MSG_CHECKING(for compilation with warnings)
 AC_ARG_ENABLE(warnings,
 [  --enable-warnings       show compilation warnings], 
-	[CFLAGS="-Wall $CFLAGS"])
+	[enable_warnings=t],
+	[if test x$prerelease != x; then
+	    enable_warnings=t
+	 fi])
+if test x$enable_warning; then
+    CFLAGS="-Wall $CFLAGS"
+    AC_MSG_RESULT(yes)
+else
+    AC_MSG_RESULT(no)
+fi
 
+#-DDIAGNOSTICS?
+AC_MSG_CHECKING(for compliation with DIAGNOSTIC)
 AC_ARG_ENABLE(diagnostic,
 [  --enable-diagnostic     enable diagnostic], 
-	[AC_DEFINE(DIAGNOSTIC)])
+	[AC_DEFINE(DIAGNOSTIC)
+	 AC_MSG_RESULT(yes)],
+	[if test x$prerelease != x; then
+	      AC_DEFINE(DIAGNOSTIC)
+	      AC_MSG_RESULT(yes)
+	 else
+	      AC_MSG_RESULT(no)
+	 fi])
 
 AC_ARG_ENABLE(profiling,
 [  --enable-profiling      compile with profiling support in server],
@@ -77,14 +134,9 @@ AC_ARG_ENABLE(linting,
 	s_linting=t)
 AM_CONDITIONAL(LINT, test x$s_linting = xt)
 
-AC_ARG_ENABLE(debug,
-[  --enable-debug          compile with debugging support], 
-#	[CFLAGS="-g $CFLAGS" CPPFLAGS="-DDEBUG $CPPFLAGS"])
-	[CPPFLAGS="-DDEBUG $CPPFLAGS"])
-
 AC_MSG_CHECKING(whether libwrap should be disabled)
 AC_ARG_ENABLE(libwrap,
-[  --disable-libwrap	  don't use libwrap, even if it is available],
+[  --disable-libwrap	  never use libwrap, even if it is available],
 [if test x$enableval = xno; then 
 	no_libwrap=t
 	AC_MSG_RESULT(yes)
@@ -93,8 +145,6 @@ else
 fi], AC_MSG_RESULT(no))
 
 dnl Checks for programs.
-AC_PROG_CC
-
 AC_PROG_YACC
 AM_PROG_LEX
 dnl Checking variable sizes
@@ -144,7 +194,8 @@ AC_EGREP_CPP(yes,[
 #include <sys/types.h>
 #ifdef const
 yes
-#endif], AC_MSG_RESULT(yes), [check_const="yes" AC_MSG_RESULT(no)])
+#endif
+], AC_MSG_RESULT(yes), [check_const="yes" AC_MSG_RESULT(no)])
 if test x$check_const = xyes; then
 AC_C_CONST
 fi
@@ -154,9 +205,36 @@ AC_EGREP_CPP(yes,[
 #include <sys/types.h>
 #ifdef inline
 yes
-#endif], AC_MSG_RESULT(yes), [check_inline="yes" AC_MSG_RESULT(no)])
+#endif
+], AC_MSG_RESULT(yes), [check_inline="yes" AC_MSG_RESULT(no)])
 if test x$check_inline="yes";then
 AC_C_INLINE
+fi
+
+#XXX it would perhaps be better to be consistent and use
+#/usr/ucbinclude always?
+#XXX not sure if the test is that good either, the problem
+#surfaced when FIOASYNC was missing
+AC_MSG_CHECKING(if /usr/ucbinclude/sys/ioctl.h should be used)
+AC_EGREP_CPP(yes,[
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#ifdef FIOASYNC
+yes
+#endif
+], [AC_MSG_RESULT(no)],
+   [check_ucbinclude="yes"])
+
+if test x$check_ucbinclude = xyes; then
+AC_EGREP_CPP(yes,[
+#include <sys/types.h>
+#include "/usr/ucbinclude/sys/ioctl.h"
+#ifdef FIOASYNC
+yes
+#endif
+], [AC_MSG_RESULT(yes)
+    AC_DEFINE(NEED_UCBINCLUDE_SYS_IOCTL)],
+   [AC_MSG_WARN(FIOASYNC not found in <sys/ioctl.h>, program might not compile)])
 fi
 
 AC_TYPE_UID_T
@@ -242,7 +320,7 @@ AC_TRY_RUN([
 
 int main(void)
 {
-	/* will assume this test doesn't fail because of lack of memory */
+	/* will assume this test doesn\'t fail because of lack of memory */
 	if (realloc(NULL, 1) == NULL)
 		return 1;
 	else
@@ -252,8 +330,8 @@ int main(void)
 AC_MSG_CHECKING(getsockopt param 4 pointer type)
 AC_TRY_COMPILE([
 #include <sys/types.h>
-#include <sys/socket.h>],
-[ int getsockopt(int s, int level, int optname, void *optval, int *optlen);
+#include <sys/socket.h>
+], [int getsockopt(int s, int level, int optname, void *optval, int *optlen);
 int main() {return(0);}
 ], AC_MSG_RESULT(void), 
 [AC_DEFINE(NEED_GETSOCKOPT_CAST) AC_MSG_RESULT(char)])
@@ -261,16 +339,16 @@ int main() {return(0);}
 AC_MSG_CHECKING(to see if bind prototype lacks const)
 AC_TRY_COMPILE([
 #include <sys/types.h>
-#include <sys/socket.h>],
-[int bind(int s, struct sockaddr *name, int namelen);
+#include <sys/socket.h>
+], [int bind(int s, struct sockaddr *name, int namelen);
 int main(){return(0);}
 ], AC_DEFINE(HAVE_FAULTY_BINDPROTO) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(to see if connect prototype lacks const)
 AC_TRY_COMPILE([
 #include <sys/types.h>
-#include <sys/socket.h>],
-[int connect(int s, struct sockaddr *name, int namelen);
+#include <sys/socket.h>
+], [int connect(int s, struct sockaddr *name, int namelen);
 ], AC_DEFINE(HAVE_FAULTY_CONNECTPROTO) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(to see if readv prototype lacks const)
@@ -279,33 +357,31 @@ AC_TRY_COMPILE([
 #include <sys/uio.h>
 #include <sys/socket.h>
 #include <unistd.h>
-],
-
-[ssize_t readv(int, struct iovec *, int);
+], [ssize_t readv(int, struct iovec *, int);
 ], AC_DEFINE(HAVE_FAULTY_READVPROTO) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
 
 #linux (redhat 5.1) socket prototype
 AC_MSG_CHECKING(socket address type for __SOCKADDR_ARG)
 AC_TRY_COMPILE([
 #include <sys/types.h>
-#include <sys/socket.h>],
-[extern int accept __P ((int __fd, __SOCKADDR_ARG __addr,
+#include <sys/socket.h>
+], [extern int accept __P ((int __fd, __SOCKADDR_ARG __addr,
                         socklen_t *__addr_len));
 ], AC_DEFINE(HAVE_LINUX_SOCKADDR_TYPE) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(to see it recvfrom takes a char pointer)
 AC_TRY_COMPILE([
 #include <sys/types.h>
-#include <sys/socket.h>],
-[int recvfrom(int s, char *buf, int len, int flags, struct sockaddr *from,
+#include <sys/socket.h>
+], [int recvfrom(int s, char *buf, int len, int flags, struct sockaddr *from,
 	int *fromlen);
 ], AC_DEFINE(HAVE_RECVFROM_CHAR) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(for alternate sendto prototype)
 AC_TRY_COMPILE([
 #include <sys/types.h>
-#include <sys/socket.h>],
-[int sendto(int s, const char *msg, int len, int flags, const struct sockaddr *to, int tolen);
+#include <sys/socket.h>
+], [int sendto(int s, const char *msg, int len, int flags, const struct sockaddr *to, int tolen);
 ], AC_DEFINE(HAVE_SENDTO_ALT) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
 
 
@@ -321,7 +397,7 @@ if test x$have_sys_sockio_h = xt; then
 yes
 #endif
 #endif
-	], AC_DEFINE(NEED_SYS_SOCKIO_H) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+], AC_DEFINE(NEED_SYS_SOCKIO_H) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
 fi
 
 #XXX should be more generic, check if nonexistent
@@ -354,13 +430,12 @@ yes
 AC_MSG_CHECKING(if cmsghdr exists in <sys/socket.h>)
 AC_TRY_COMPILE([
 #include <sys/types.h>
-#include <sys/socket.h>],
-[struct cmsghdr foo = {1,1,1};
+#include <sys/socket.h>
+], [struct cmsghdr foo = {1,1,1};
  struct msghdr bar;
  foo.cmsg_len = 0;
  bar.msg_controllen = 1;
-],
-[AC_DEFINE(HAVE_CMSGHDR) 
+], [AC_DEFINE(HAVE_CMSGHDR) 
 AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(to see if malloc_options exists)
@@ -396,9 +471,9 @@ if test x$have_inet_aton_in_lresolv != xt; then
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>],
-	[ inet_aton(0,0);
-	], [AC_DEFINE(HAVE_INET_ATON) AC_MSG_RESULT(yes)],  AC_MSG_RESULT(no))
+#include <arpa/inet.h>
+], [ inet_aton(0,0); ],
+    [AC_DEFINE(HAVE_INET_ATON) AC_MSG_RESULT(yes)],  AC_MSG_RESULT(no))
 fi
 
 dnl Checks for libraries.
@@ -429,8 +504,8 @@ AC_CHECK_LIB(nsl, inet_addr,
 
 AC_MSG_CHECKING(for gethostbyname2)
 AC_TRY_LINK([
-#include <netdb.h>],
-[gethostbyname2(NULL, 0);], AC_DEFINE(HAVE_GETHOSTBYNAME2) AC_MSG_RESULT(yes), 
+#include <netdb.h>
+], [gethostbyname2(NULL, 0);], AC_DEFINE(HAVE_GETHOSTBYNAME2) AC_MSG_RESULT(yes), 
 AC_MSG_RESULT(no))
 
 #determine library names and function placement for lib/interposition.c
@@ -468,6 +543,7 @@ if test x$have_lsocket = xt; then
 fi
 
 #connect
+#XXX already tested for
 if test x$have_lsocket = xt; then
 	AC_CHECK_LIB(c, connect,
 	[AC_DEFINE(LIBRARY_CONNECT, LIBRARY_LIBC)],
@@ -611,10 +687,10 @@ case $host in
 		AC_DEFINE(SYMBOL_WRITEV, "writev")
 		AC_DEFINE(SYMBOL_SEND, "send")
 		AC_DEFINE(SYMBOL_RECV, "recv")
-		AC_DEFINE(SYMBOL_RECVMSG, "sendmsg")
-		AC_DEFINE(SYMBOL_SENDMSG, "recvmsg")
+		AC_DEFINE(SYMBOL_RECVMSG, "recvmsg")
+		AC_DEFINE(SYMBOL_SENDMSG, "sendmsg")
 		AC_DEFINE(SYMBOL_WRITE, "write")
-		AC_DEFINE(SYMBOL_WRITE, "read")
+		AC_DEFINE(SYMBOL_READ, "read")
 	;;
 esac
 
@@ -625,14 +701,28 @@ dnl Check for in_port_t type
 AC_MSG_CHECKING(whether an in_port_t typedef exists in <netinet/in.h>)
 AC_EGREP_CPP(in_port_t,[
 #include <netinet/in.h>
-], 
-[AC_MSG_RESULT(yes)],[
+], [AC_MSG_RESULT(yes)],[
 AC_MSG_RESULT(no)
 AC_CHECK_TYPE(in_port_t, ubits_16)
 dnl Check for in_addr_t type
 AC_CHECK_TYPE(in_addr_t, ubits_32)
 dnl Check for ssize_t type
 AC_CHECK_TYPE(ssize_t, int)])
+
+#linux (redhat 5.2) defines socklen_t in <socketbits.h>, which is
+#included by <sys/socket.h>.  check for this first.
+AC_MSG_CHECKING(for socklen_t)
+AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/socket.h>
+], [socklen_t foo;], 
+   [AC_MSG_RESULT(yes)
+    socklen_found=t],
+   [AC_MSG_RESULT(no)
+    AC_DEFINE(socklen_t, int)])
+
+AC_CHECK_TYPE(int32_t, sbits_32)
+AC_CHECK_TYPE(int16_t, sbits_16)
 
 dnl Checks for library functions.
 AC_PROG_GCC_TRADITIONAL
@@ -642,7 +732,6 @@ AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_UTIME_NULL
 AC_FUNC_VPRINTF
-AC_FUNC_WAIT3
 AC_CHECK_FUNCS(select socket strcspn strdup strspn vwarnx hstrerror)
 AC_CHECK_FUNCS(issetugid strvis snprintf getdtablesize sysconf inet_pton)
 AC_CHECK_FUNCS(daemon setproctitle bzero sockatmark difftime memmove)
@@ -694,6 +783,7 @@ if test x$build_preload_lib = xt; then
 	AC_LINK_FILES(lib/client.c, dlib/client.c)
 	AC_LINK_FILES(lib/clientconfig.c, dlib/clientconfig.c)
 	AC_LINK_FILES(lib/clientprotocol.c, dlib/clientprotocol.c)
+	AC_LINK_FILES(lib/msproxy_clientprotocol.c, dlib/msproxy_clientprotocol.c)
 	AC_LINK_FILES(lib/compat.c, dlib/compat.c)
 	AC_LINK_FILES(lib/compat.h, dlib/compat.h)
 	AC_LINK_FILES(lib/config.c, dlib/config.c)

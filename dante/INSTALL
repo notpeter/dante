@@ -59,7 +59,8 @@ The simplest way to compile this package is:
      $ kill -USR1 `cat /var/run/sockd.pid`
 
      # the above command should produce some server statistics in your
-     # logfile, save it to the file 'stats'
+     # logfile, save it to the file 'stats'.  If you are only using
+     # client, skip the 'stats' file but do the rest please.
 
      $ (echo '<Firstname> <Lastname>'; cat stats include/autoconf.h) \
      | mail dante-qst@inet.no

@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: client.c,v 1.23 1998/11/14 15:44:05 michaels Exp $";
+"$Id: client.c,v 1.24 1999/02/20 19:18:46 michaels Exp $";
 
 #include "common.h"
 
@@ -91,8 +91,8 @@ clientinit(void)
 			if (setvbuf(config.log.fpv[i], NULL, _IONBF, 0) != 0)
 				swarnx("%s: setvbuf()", function);
 
-	config.state.pid  = getpid();
-	config.state.init = 1;
+	config.state.pid  				= getpid();
+	config.state.init 				= 1;
 }
 
 
@@ -180,6 +180,19 @@ serverreplyisok(version, reply)
 					errno = ECONNREFUSED;
 					return 0;
 			}
+
+		case MSPROXY_V2:
+			switch (reply) {
+				case MSPROXY_SUCCESS:
+					return 1;
+
+				case MSPROXY_FAILURE: 
+					return 0;
+				
+				default:
+					SERRX(reply);
+			}
+			break;
 
 		default:
 			SERRX(version);

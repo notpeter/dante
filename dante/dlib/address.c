@@ -42,13 +42,13 @@
  */
 
 static const char rcsid[] =
-"$Id: address.c,v 1.51 1998/12/10 11:29:44 michaels Exp $";
+"$Id: address.c,v 1.56 1999/02/26 21:29:25 karls Exp $";
 
 #include "common.h"
 
 static struct socksfd_t socksfdinit;
-static int *fdv;
-static unsigned int fdc;
+static int *dv;
+static unsigned int dc;
 static struct socksfd_t *socksfdv;
 static unsigned int socksfdc;
 
@@ -57,6 +57,12 @@ socks_addaddr(clientfd, socksfd)
 	unsigned int clientfd;
 	struct socksfd_t *socksfd;
 {
+	const char *function = "socks_addaddr()";
+
+#if 0 /* DEBUG */
+	if (socksfd->state.command != -1 && !socksfd->state.system)
+		slog(LOG_DEBUG, "%s: %d", function, clientfd);
+#endif
 
 	SASSERTX(socksfd->state.command 	== -1
 	|| 	 socksfd->state.command 	== SOCKS_BIND
@@ -66,13 +72,18 @@ socks_addaddr(clientfd, socksfd)
 	if (socks_addfd(clientfd) != 0)
 		serrx(1, NOMEM);
 
-	if (socksfdc < fdc) { /* init/reallocate */
+	if (socksfdc < dc) { /* init/reallocate */
+		if (socksfdinit.control == 0) {	/* not initialized */
+			socksfdinit.control = -1;
+			/* other elements have ok default value. */
+		}
+
 		if ((socksfdv = (struct socksfd_t *)realloc(socksfdv,
-		sizeof(*socksfdv) * fdc)) == NULL)
+		sizeof(*socksfdv) * dc)) == NULL)
 			serrx(1, NOMEM);
 
 		/* init new objects */
-		while (socksfdc < fdc)
+		while (socksfdc < dc)
 			socksfdv[socksfdc++] = socksfdinit;
 	}
 
@@ -93,60 +104,78 @@ socks_addaddr(clientfd, socksfd)
 
 
 struct socksfd_t *
-socks_getaddr(fd)
-	unsigned int fd;
+socks_getaddr(d)
+	unsigned int d;
 {
-	if (!socks_isaddr(fd))
+	if (!socks_isaddr(d))
 		return NULL;
 
-	return &socksfdv[fd];
+	return &socksfdv[d];
 }
 
 void
-socks_rmaddr(fd)
-	unsigned int fd;
+socks_rmaddr(d)
+	unsigned int d;
 {
+	const char *function = "socks_rmaddr()";
 
-	if (!socks_isaddr(fd))
+#if 0 /* DEBUG */
+	if (!socks_isaddr(d)
+	|| (!socksfdv[d].state.command != -1 && !socksfdv[d].state.system))
+		slog(LOG_DEBUG, "%s: %d", function, d);
+#endif
+
+
+	if (!socks_isaddr(d))
 		return;
 
-	socks_rmfd(fd);
+	socks_rmfd(d);
 
-	if (!socksfdv[fd].state.system)
-		switch (socksfdv[fd].state.command) {
-			case SOCKS_BIND:
-				if (fd != socksfdv[fd].s)
-					close(socksfdv[fd].s);
-				break;
-
-			case SOCKS_CONNECT:
-				break;
-
-			case SOCKS_UDPASSOCIATE:
-				close(socksfdv[fd].s);
-				break;
-
-			default:
-				SERRX(socksfdv[fd].state.command);
-		}
-
-	switch (socksfdv[fd].state.command) {
-		case SOCKS_BIND:
-#ifdef SOCKS_TRYHARDER
-			if (close(socksfdv[fd].state.lock) != 0)
-				swarn("socks_rmaddr()");
-#endif	
+	switch (socksfdv[d].state.version) {
+		case MSPROXY_V2:
+			if (socksfdv[d].control != -1)
+				close(socksfdv[d].control);
 			break;
+
+		case SOCKS_V4:
+		case SOCKS_V5:
+			if (!socksfdv[d].state.system)
+				switch (socksfdv[d].state.command) {
+					case SOCKS_BIND:
+						if (d != socksfdv[d].control && socksfdv[d].control != -1)
+							close(socksfdv[d].control);
+						break;
+
+					case SOCKS_CONNECT:
+						break;
+
+					case SOCKS_UDPASSOCIATE:
+						if (socksfdv[d].control != -1)
+							close(socksfdv[d].control);
+						break;
+
+					default:
+						SERRX(socksfdv[d].state.command);
+				}
+
+			switch (socksfdv[d].state.command) {
+				case SOCKS_BIND:
+#ifdef SOCKS_TRYHARDER
+					if (close(socksfdv[d].state.lock) != 0)
+						swarn("socks_rmaddr()");
+#endif	
+					break;
+			}
 	}
 
-	socksfdv[fd] = socksfdinit;
+	socksfdv[d] = socksfdinit;
 }
 
 int
-socks_isaddr(fd)
-	unsigned int fd;
+socks_isaddr(d)
+	unsigned int d;
 {
-	if (fd < socksfdc && socksfdv[fd].allocated)
+	if (d < socksfdc && socksfdv[d].allocated)
 		return 1;
 	else
 		return 0;
@@ -156,39 +185,73 @@ int
 socks_addrisok(s)
 	unsigned int s;
 {
-	struct socksfd_t *socksfd;
-	struct sockaddr local;
-	int locallen;
+	const char *function = "socks_addrisok()";
+	int matched;
+	sigset_t newmask, oldmask;
 
-	locallen = sizeof(local);
-	if (getsockname((int)s, &local, &locallen) != 0)
-			return 0;
-
-	socksfd = socks_getaddr(s);
-
-	if (socksfd != NULL)
-		if (sockaddrcmp(&local, &socksfd->local) != 0)
-			return 0;
-
-	/* check remote endpoint too? */
-	
-	if (socksfd == NULL) {	/* unknown. */
-		struct socksfd_t newsocksfd;
-		int duped;
-
-		if ((duped = socks_addrmatch(&local, NULL, NULL)) >= 0) {
-			socksfd = socksfddup(socks_getaddr((unsigned int)duped), &newsocksfd);
-
-			if (socksfd == NULL)
-				return 0;
-			socks_addaddr(s, socksfd);
-		}
-		else
-			return 0;
+	/*
+	 * block signals that might change socksfd.
+	*/
+	sigemptyset(&newmask);
+	sigaddset(&newmask, SIGIO);
+	sigaddset(&newmask, SIGCHLD);
+	if (sigprocmask(SIG_BLOCK, &newmask, &oldmask) != 0) {
+		swarn("%s: sigprocmask()", function);
+		return -1;
 	}
 
-	/* known and match. */
-	return 1;
+	matched = 1;
+	do {
+		struct socksfd_t *socksfd;
+		struct sockaddr local;
+		socklen_t locallen;
+
+		locallen = sizeof(local);
+		if (getsockname((int)s, &local, &locallen) != 0) {
+				matched = 0;
+				break;
+		}
+
+		socksfd = socks_getaddr(s);
+
+		if (socksfd != NULL)
+			if (sockaddrcmp(&local, &socksfd->local) != 0) {
+				matched = 0;
+				break;
+			}
+
+		/* check remote endpoint too? */
+		
+		if (socksfd == NULL) {	/* unknown descriptor, a dup? */
+			struct socksfd_t newsocksfd;
+			int duped;
+
+			if ((duped = socks_addrmatch(&local, NULL, NULL)) >= 0) {
+				socksfd
+				= socksfddup(socks_getaddr((unsigned int)duped), &newsocksfd);
+
+				if (socksfd == NULL) {
+					matched = 0;
+					break;
+				}
+
+				socks_addaddr(s, socksfd);
+				break;
+			}
+			else {
+				matched = 0;
+				break;
+			}
+		}
+	/* CONSTCOND */
+	} while (0);
+
+	if (sigprocmask(SIG_SETMASK, &oldmask, NULL) != 0) {
+		swarn("%s: sigprocmask()", function);
+		return -1;
+	}
+
+	return matched;
 }
 
 int 
@@ -197,25 +260,33 @@ socks_addrcontrol(local, remote)
 	const struct sockaddr *remote;
 {
 	int i;
-
+	
 	for (i = 0; i < socksfdc; ++i) {
 		struct sockaddr localcontrol, remotecontrol;
-		int len;
+		socklen_t len;
 
 		if (!socks_isaddr((unsigned int)i))
 			continue;
 		
-		len = sizeof(localcontrol);
-		if (getsockname(socksfdv[i].s, &localcontrol, &len) != 0)
-			continue;
+		if (local != NULL) {
+			len = sizeof(localcontrol);
+			if (getsockname(socksfdv[i].control, &localcontrol, &len) != 0)
+				continue;
 
-		len = sizeof(remotecontrol);
-		if (getpeername(socksfdv[i].s, &remotecontrol, &len) != 0)
-			continue;
+			if (sockaddrcmp(local, &localcontrol) != 0)
+				continue;
+		}
 
-		if (sockaddrcmp(local, &localcontrol) == 0
-		&&  sockaddrcmp(remote, &remotecontrol) == 0)
-			return i;
+		if (remote != NULL) {
+			len = sizeof(remotecontrol);
+			if (getpeername(socksfdv[i].control, &remotecontrol, &len) != 0)
+				continue;
+
+			if (sockaddrcmp(remote, &remotecontrol) != 0)
+				continue;
+		}
+
+		return i;
 	}
 
 	return -1;
@@ -272,43 +343,43 @@ socks_addrmatch(local, remote, state)
 
 
 int
-socks_addfd(fd)
-	unsigned int fd;
+socks_addfd(d)
+	unsigned int d;
 {
 
-	if (fd >= fdc)	{ /* init/reallocate */
+	if (d >= dc)	{ /* init/reallocate */
 		int *newfdv, newfdc;
 
-		newfdc = MAX(fd + 1, getdtablesize());
-		if ((newfdv = (int *)realloc(fdv, sizeof(*fdv) * newfdc)) == NULL)
+		newfdc = MAX(d + 1, getdtablesize());
+		if ((newfdv = (int *)realloc(dv, sizeof(*dv) * newfdc)) == NULL)
 			return -1;
-		fdv = newfdv;
+		dv = newfdv;
 
-		/* init all to -1, a illegal value for a fd. */
-		while (fdc < newfdc)
-			fdv[fdc++] = -1;
+		/* init all to -1, a illegal value for a d. */
+		while (dc < newfdc)
+			dv[dc++] = -1;
 	}
 	
-	fdv[fd] = fd;
+	dv[d] = d;
 
 	return 0;
 }
 
 int
-socks_isfd(fd)
-	unsigned int fd;
+socks_isfd(d)
+	unsigned int d;
 {
-	if (fd >= fdc || fdv[fd] == -1)	
+	if (d >= dc || dv[d] == -1)	
 		return 0;
 	return 1;
 }
 
 void
-socks_rmfd(fd)
-	unsigned int fd;
+socks_rmfd(d)
+	unsigned int d;
 {
-	if (socks_isfd(fd))
-		fdv[fd] = -1;
+	if (socks_isfd(d))
+		dv[d] = -1;
 }
 
 struct socksfd_t *
@@ -322,7 +393,7 @@ socksfddup(old, new)
 	switch (old->state.command) {
 		case SOCKS_BIND:
 		case SOCKS_UDPASSOCIATE:
-			if ((new->s = socketoptdup(old->s)) == -1)
+			if ((new->control = socketoptdup(old->control)) == -1)
 				return NULL;
 			break;
 

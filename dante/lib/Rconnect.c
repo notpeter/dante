@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.82 1998/12/07 18:43:07 michaels Exp $";
+"$Id: Rconnect.c,v 1.89 1999/02/26 21:29:25 karls Exp $";
 
 #include "common.h"
 
@@ -59,15 +59,18 @@ Rconnect(s, name, namelen)
 	struct sockshost_t src, dst;
 	struct socksfd_t socksfd;
 	struct socks_t packet;
-	int type, len, p;
+	socklen_t len;
+	int type, p;
 
 	if (name->sa_family != AF_INET)
 		return connect(s, name, namelen);
 
 	if (socks_addrisok((unsigned int)s)) {
-		socksfd = *socks_getaddr((unsigned int)s);
+		struct socksfd_t *socksfdp;
 
-		switch (socksfd.state.command) {
+		socksfdp = socks_getaddr((unsigned int)s);
+
+		switch (socksfdp->state.command) {
 			case SOCKS_BIND:
 				/*
 				 * Our guess; the client has succeeded to bind to a specific
@@ -76,18 +79,16 @@ Rconnect(s, name, namelen)
 				 * for this client.  Can't accept() on a connected socket so
 				 * lets close the connection to the server so it can stop
 				 * listening on our behalf and we continue as if this was an
-				 * ordinary connect().
+				 * ordinary connect().  Can only hope the server will use
+				 * same port as we for connecting out.
 				*/
 				socks_rmaddr((unsigned int)s);  
 				break;
 
 			case SOCKS_CONNECT:
-				if (socksfd.state.inprogress)
-					if (socksfd.state.err != 0) { /* connect failed. */
-						errno = socksfd.state.err;
-						close(socksfd.s);
-						socks_rmaddr((unsigned int)s);
-					}
+				if (socksfdp->state.inprogress)
+					if (socksfdp->state.err != 0) /* connect failed. */
+						errno = socksfdp->state.err;
 					else
 						errno = EALREADY;
 				else
@@ -104,7 +105,7 @@ Rconnect(s, name, namelen)
 				break;
 
 			default:
-				SERRX(socksfd.state.command);
+				SERRX(socksfdp->state.command);
 		}
 	}
 	else {
@@ -124,8 +125,7 @@ Rconnect(s, name, namelen)
 				socksfdp = socks_getaddr((unsigned int)s);
 				SASSERTX(socksfdp != NULL);
 
-				if (connect(s, &socksfdp->reply, sizeof(socksfdp->reply))
-				!= 0) {
+				if (connect(s, &socksfdp->reply, sizeof(socksfdp->reply)) != 0) {
 					socks_rmaddr((unsigned int)s);
 					return -1;
 				}
@@ -157,11 +157,11 @@ Rconnect(s, name, namelen)
 	src.port			= ((const struct sockaddr_in *)&socksfd.local)->sin_port;
 
 	/* LINTED pointer casts may be troublesome */
-	if (socks_getfakeip(((const struct sockaddr_in *)name)->sin_addr.s_addr) 
+	if (socks_getfakehost(((const struct sockaddr_in *)name)->sin_addr.s_addr) 
 	!= NULL) {
 		const char *ipname
 		/* LINTED pointer casts may be troublesome */
-		= socks_getfakeip(((const struct sockaddr_in *)name)->sin_addr.s_addr);
+		= socks_getfakehost(((const struct sockaddr_in *)name)->sin_addr.s_addr);
 
 		SASSERTX(ipname != NULL);
 		SASSERTX(strlen(ipname) < sizeof(dst.addr.domain));
@@ -182,43 +182,56 @@ Rconnect(s, name, namelen)
 	packet.req.version 	= SOCKS_V5;
 	packet.req.command 	= SOCKS_CONNECT;
 
+	if (socks_requestpolish(&packet.req, &src, &dst) == NULL)
+		return connect(s, name, namelen);
+
+	switch (packet.req.version) {
+		case SOCKS_V4:
+		case SOCKS_V5:
+			socksfd.control = s;	
+			break;
+
+		case MSPROXY_V2:
+			/* needs a separate controlchannel always. */
+			if ((socksfd.control = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+				return -1;
+			break;
+			
+		default:
+			SERRX(packet.req.version);
+	}
+
 	if ((p = fcntl(s, F_GETFL, 0)) == -1)
 		return -1;
-	
+
 	if (p & NONBLOCKING) {
-		if ((socksfd.route = socks_nbconnectroute(s, &packet, &src, &dst)) == NULL
-		&& errno == 0)
-			if (packet.req.version != SOCKS_V4) {
-				packet.req.version = SOCKS_V4;
-				socksfd.route = socks_nbconnectroute(s, &packet, &src, &dst);
-			}
+		if ((socksfd.route = socks_nbconnectroute(s, socksfd.control, &packet,
+		&src, &dst)) == NULL) {
+			if (s != socksfd.control)
+				close(socksfd.control);
+			return errno == 0 ? connect(s, name, namelen) : -1;
+		}
 
-		if (socksfd.route == NULL)
-			if (errno == 0)
-				return connect(s, name, namelen);
-
-		return -1;	/* if no route; bad, if route; good.  Nothing to do anyway. */
+		return -1; /* got route, non-blocking connect in progress. */
 	}
 	else
 		/* LINTED pointer casts may be troublesome */
-		if ((socksfd.route = socks_connectroute(s, &packet, &src, &dst)) == NULL
-		&& errno == 0)
-			if (packet.req.version != SOCKS_V4) {
-				packet.req.version = SOCKS_V4;
-				socksfd.route = socks_connectroute(s, &packet, &src, &dst);
-			}
+		if ((socksfd.route
+		= socks_connectroute(socksfd.control, &packet, &src, &dst)) == NULL) {
+			if (s != socksfd.control)
+				close(socksfd.control);
 
-		if (socksfd.route == NULL)
 			return errno == 0 ? connect(s, name, namelen) : -1;
+		}
 
-	if (socks_negotiate(s, &packet) != 0)
+	if (socks_negotiate(s, socksfd.control, &packet) != 0)
 		return -1;
 
 	socksfd.state.auth 				= packet.auth;
-	socksfd.state.command 			= SOCKS_CONNECT;
+	socksfd.state.command 			= packet.req.command;
 	socksfd.state.version 			= packet.req.version;
 	socksfd.state.protocol.tcp		= 1;
-	socksfd.s							= s;
+	socksfd.state.msproxy			= packet.state.msproxy;
 	sockshost2sockaddr(&packet.res.host, &socksfd.remote);
 	socksfd.connected 				= *name;
 
@@ -231,19 +244,25 @@ Rconnect(s, name, namelen)
 		 * port, a port it has successfully bound, but the port is currently
 		 * in use on the serverside.
 		*/
+
 		/* LINTED pointer casts may be troublesome */
 		slog(LOG_DEBUG, "failed to get wanted port: %d", 
 		ntohs(((struct sockaddr_in *)&socksfd.local)->sin_port));
 	}
 
 	len = sizeof(socksfd.server);
-	if (getpeername(socksfd.s, &socksfd.server, &len) != 0) {
-		close(socksfd.s);
+	if (getpeername(s, &socksfd.server, &len) != 0) {
+		if (s != socksfd.control)
+			close(socksfd.control);
 		return -1;
 	}
 
 	len = sizeof(socksfd.local);
-	getsockname(socksfd.s, &socksfd.local, &len);
+	if (getsockname(s, &socksfd.local, &len) != 0) {
+		if (s != socksfd.control)
+			close(socksfd.control);
+		return -1;
+	}
 
 	socks_addaddr((unsigned int)s, &socksfd);
 	
