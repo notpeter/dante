@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.16 1999/05/26 11:19:02 karls Exp $
+.\" $Id: sockd.conf.5,v 1.17 1999/06/04 08:13:56 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -42,14 +42,14 @@
 .\"
 .TH SOCKD.CONF 5 "December 3, 1998"
 .SH NAME
-sockd.conf \- socks server configuration file syntax
+sockd.conf \- Dante server configuration file syntax
 .SH DESCRIPTION
-The configuration file for \fBsockd\fP controls the both access control for
-the server and logging.  It is divided into two parts, serversettings
+The configuration file for the \fBDante\fP server controls both access
+controls and logging.  It is divided into two parts, server settings
 and rules.  A line can be commented using the standard comment
 character \fB#\fP.
-.SH SERVERSETTINGS
-The serversettings control the generic behaviour of the server.  Each
+.SH SERVER SETTINGS
+The server settings control the generic behaviour of the server.  Each
 keyword is separated from it's value by a \fB':'\fP character.
 .IP \fBlogouput\fP
 This value controls where the server sends logoutput.  It can
@@ -88,20 +88,48 @@ Set it to 0 for forever.
 The number of seconds an established connection can be idle.  Set it
 to 0 for forever.
 .SH RULES
-There are two sets of rules.  Rules prefixed with \fBclient\fP are
-checked to see if the client is allowed to connect.  These should not
-use hostnames (on ip addresses), for security and performance reasons.
-The other rules are checked after the request has been accepted.  In
-the client context \fBto\fP means the address the request is accepted
-on, otherwise it means the client's destination address.  The rules
-specify a \fBfrom\fP/\fBto\fP ipmask pair and a \fBpass\fP or
-\fBdeny\fP keyword which determines if connections matching the
-netmask are allowed or not.  In addition to the netmask there are a
-set of extra keywords which can be given.  The format of each
-rules contents is:
-.IP \fBprotocol\fP
-The rule applies only to the given protocols.  Valid values are
-\fBtcp\fP and \fBudp\fP.
+There are two sets of rules and they work at different levels.
+Rules prefixed with \fBclient\fP are checked first and are used to
+see if the client is allowed to connect to the \fBDante\fP server.
+We will call them "client-rules".
+It is especially important that these do not use hostnames
+but only ip addresses, both for security and performance reasons.
+
+The other rules, which are a level higher, are checked after the
+client connection has been accepted and are used to evaluate the
+socks request that the client sends.  We will call them "rules".
+
+In both contexts, \fBfrom\fP means the clients address.
+
+In the client-rule context, \fBto\fP means the address the request
+is accepted on, i.e. the address the \fBDante\fP server listens
+on.
+
+In the rule context, \fBto\fP means the client's destination address,
+as formulated in the client's proxy request.
+
+Both set of rules start with a \fBpass\fP/\fBdeny\fP keyword (the
+client-rules have "client" prefixed to the \fBpass\fP/\fBdeny\fP
+keyword) which determines if connections matching the rule are to
+pass or be blocked.  Both set of rules also specify a \fBfrom\fP/\fBto\fP
+address pair which gives the addresses the rule will match.  In
+addition to the addresses there is a set of optional keywords which
+can be given.
+
+.IP
+The format of the client-rules contents is:
+.IP \fBfrom\fP
+The rule applies only to requests coming from the address given as value.
+.IP \fBto\fP
+The rule applies only to requests going to the address given as value.
+.IP \fBlibwrap\fP
+The server will pass the line to libwrap for execution.
+.IP \fBlog\fP
+Used to control logging.  Accepted keywords are \fBconnect\fP,
+\fBdisconnect\fP, \fBdata\fP and \fBiooperation\fP.
+
+.IP
+The format of the rules contents is:
 .IP \fBfrom\fP
 The rule applies only to requests coming from the address given as value.
 .IP \fBto\fP
@@ -109,7 +137,7 @@ The rule applies only to requests going to the address given as value.
 .IP \fBcommand\fP
 The rule applies only to the given commands.  Valid commands
 are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP.
-Can be used instead, or to complement, \fBprotocol\fP.
+Can be used instead of, or to complement, \fBprotocol\fP.
 .IP \fBlibwrap\fP
 The server will pass the line to libwrap for execution.
 .IP \fBlog\fP
@@ -119,6 +147,9 @@ Used to control logging.  Accepted keywords are \fBconnect\fP,
 Require that the connection be established using one of the
 given methods.
 Valid values are the same as in the global \fBmethod\fP line.
+.IP \fBprotocol\fP
+The rule applies only to the given protocols.  Valid values are
+\fBtcp\fP and \fBudp\fP.
 .IP \fBproxyprotocol\fP
 The rule applies only to requests using the given proxyprotocol.
 Valid proxyprotocols are \fBsocks_v4\fP and \fBsocks_v5\fP.

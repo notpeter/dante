@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.137 1999/05/13 13:13:05 karls Exp $";
+"$Id: sockd_io.c,v 1.138 1999/06/07 08:10:46 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -406,11 +406,11 @@ delete_io(mother, io, fd, status)
 					break;
 
 				case IO_TIMEOUT:
-					slog(LOG_INFO, "%s: connection timed out", logmsg);
+					slog(LOG_INFO, "%s: connection i/o expired", logmsg);
 					break;
 
 				default:
-					slog(LOG_INFO, "%s: connection short read/write", logmsg);
+					slog(LOG_INFO, "%s: short read/write", logmsg);
 			}
 		else if (fd == io->in.s || fd == io->control.s) {
 			switch (status) {
@@ -423,7 +423,7 @@ delete_io(mother, io, fd, status)
 					break;
 
 				case IO_TIMEOUT:
-					slog(LOG_INFO, "%s: client timed out", logmsg);
+					slog(LOG_INFO, "%s: client i/o expired", logmsg);
 					break;
 
 				default:
@@ -441,7 +441,7 @@ delete_io(mother, io, fd, status)
 					break;
 
 				case IO_TIMEOUT:
-					slog(LOG_INFO, "%s: remote timed out", logmsg);
+					slog(LOG_INFO, "%s: remote i/o expired", logmsg);
 					break;
 
 				default:
@@ -522,8 +522,6 @@ recv_io(s, io)
 		for (i = 0; i < ioc; ++i)
 			if (!iov[i].allocated) {
 				io = &iov[i];
-				if (time(&io->time) == (time_t)-1)
-					SERR(-1);
 				break;
 			}
 
@@ -614,6 +612,7 @@ recv_io(s, io)
 			SERRX(io->state.command);
 	}
 
+	time(&io->time);
 	io->allocated = 1;
 
 #if DEBUG
@@ -954,8 +953,7 @@ doio(mother, io, rset, wset, flags)
 	}
 
 	/* don't care what direction/descriptors i/o was done over. */
-	if (time(&io->time) == (time_t)-1)
-		SERR((time_t)-1);
+	time(&io->time);
 }
 
 static int
@@ -1125,8 +1123,7 @@ io_gettimeout(timeout)
 	timeout->tv_sec	= config.timeout.io;
 	timeout->tv_usec	= 0;
 
-	if (time(&timenow) == (time_t)-1)
-		SERR((time_t)-1);
+	time(&timenow);
 
 	for (i = 0; i < ioc; ++i)
 		if (!iov[i].allocated)
@@ -1147,8 +1144,7 @@ io_gettimedout(void)
 	if (config.timeout.io == 0)
 		return NULL;
 
-	if (time(&timenow) == (time_t)-1)
-		SERR((time_t)-1);
+	time(&timenow);
 
 	for (i = 0; i < ioc; ++i)
 		if (!iov[i].allocated)

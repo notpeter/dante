@@ -8,7 +8,7 @@ else
 	prename=""
 fi
 
-AM_INIT_AUTOMAKE(dante, 1.0.0$prename)
+AM_INIT_AUTOMAKE(dante, 1.0.1$prename)
 AM_CONFIG_HEADER(include/autoconf.h)
 #XXX save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
