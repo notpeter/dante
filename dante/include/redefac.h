@@ -1,12 +1,7 @@
-/* redefac.h generated from autoconf.h.in on Wed Dec 8 13:59:15 MET 1999  */
+/* Do not modify, generated from ../include/autoconf.h.in */
 
 #ifndef HAVE_DOPRNT
 #define HAVE_DOPRNT 0
-#endif
-
-
-#ifndef HAVE_ST_BLKSIZE
-#define HAVE_ST_BLKSIZE 0
 #endif
 
 
@@ -17,16 +12,6 @@
 
 #ifndef HAVE_SYS_WAIT_H
 #define HAVE_SYS_WAIT_H 0
-#endif
-
-
-#ifndef HAVE_TM_ZONE
-#define HAVE_TM_ZONE 0
-#endif
-
-
-#ifndef HAVE_TZNAME
-#define HAVE_TZNAME 0
 #endif
 
 
@@ -117,11 +102,6 @@
 
 #ifndef HAVE_SIGNAL_SIGINFO
 #define HAVE_SIGNAL_SIGINFO 0
-#endif
-
-
-#ifndef HAVE_GETHOSTBYNAME2
-#define HAVE_GETHOSTBYNAME2 0
 #endif
 
 
@@ -247,6 +227,36 @@
 
 #ifndef HAVE_PROFILING
 #define HAVE_PROFILING 0
+#endif
+
+
+#ifndef HAVE_SOCKADDR_STORAGE
+#define HAVE_SOCKADDR_STORAGE 0
+#endif
+
+
+#ifndef HAVE_VOLATILE_SIG_ATOMIC_T
+#define HAVE_VOLATILE_SIG_ATOMIC_T 0
+#endif
+
+
+#ifndef HAVE_WORKING_GETPWNAM
+#define HAVE_WORKING_GETPWNAM 0
+#endif
+
+
+#ifndef HAVE_SOCKADDR_SA_LEN
+#define HAVE_SOCKADDR_SA_LEN 0
+#endif
+
+
+#ifndef HAVE_PAM
+#define HAVE_PAM 0
+#endif
+
+
+#ifndef HAVE_SOLARIS_PAM_BUG
+#define HAVE_SOLARIS_PAM_BUG 0
 #endif
 
 
@@ -590,6 +600,26 @@
 #endif
 
 
+#ifndef HAVE_PROT_GETHOSTBYADDR_0
+#define HAVE_PROT_GETHOSTBYADDR_0 0
+#endif
+
+
+#ifndef HAVE_PROT_GETHOSTBYADDR_1
+#define HAVE_PROT_GETHOSTBYADDR_1 0
+#endif
+
+
+#ifndef HAVE_PROT_GETHOSTBYADDR_2
+#define HAVE_PROT_GETHOSTBYADDR_2 0
+#endif
+
+
+#ifndef HAVE_PROT_GETHOSTBYADDR_3
+#define HAVE_PROT_GETHOSTBYADDR_3 0
+#endif
+
+
 #ifndef HAVE_BZERO
 #define HAVE_BZERO 0
 #endif
@@ -605,8 +635,33 @@
 #endif
 
 
+#ifndef HAVE_FREEIFADDRS
+#define HAVE_FREEIFADDRS 0
+#endif
+
+
 #ifndef HAVE_GETDTABLESIZE
 #define HAVE_GETDTABLESIZE 0
+#endif
+
+
+#ifndef HAVE_GETHOSTBYNAME2
+#define HAVE_GETHOSTBYNAME2 0
+#endif
+
+
+#ifndef HAVE_GETIFADDRS
+#define HAVE_GETIFADDRS 0
+#endif
+
+
+#ifndef HAVE_GETPRPWNAM
+#define HAVE_GETPRPWNAM 0
+#endif
+
+
+#ifndef HAVE_GETSPNAM
+#define HAVE_GETSPNAM 0
 #endif
 
 
@@ -650,11 +705,6 @@
 #endif
 
 
-#ifndef HAVE_SNPRINTF
-#define HAVE_SNPRINTF 0
-#endif
-
-
 #ifndef HAVE_SOCKATMARK
 #define HAVE_SOCKATMARK 0
 #endif
@@ -695,6 +745,11 @@
 #endif
 
 
+#ifndef HAVE_VSNPRINTF
+#define HAVE_VSNPRINTF 0
+#endif
+
+
 #ifndef HAVE_VSYSLOG
 #define HAVE_VSYSLOG 0
 #endif
@@ -707,6 +762,11 @@
 
 #ifndef HAVE_FCNTL_H
 #define HAVE_FCNTL_H 0
+#endif
+
+
+#ifndef HAVE_IFADDRS_H
+#define HAVE_IFADDRS_H 0
 #endif
 
 
@@ -735,6 +795,16 @@
 #endif
 
 
+#ifndef HAVE_SECURITY_PAM_APPL_H
+#define HAVE_SECURITY_PAM_APPL_H 0
+#endif
+
+
+#ifndef HAVE_SHADOW_H
+#define HAVE_SHADOW_H 0
+#endif
+
+
 #ifndef HAVE_STRINGS_H
 #define HAVE_STRINGS_H 0
 #endif
@@ -747,6 +817,11 @@
 
 #ifndef HAVE_SYS_IOCTL_H
 #define HAVE_SYS_IOCTL_H 0
+#endif
+
+
+#ifndef HAVE_SYS_SEM_H
+#define HAVE_SYS_SEM_H 0
 #endif
 
 

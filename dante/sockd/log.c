@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.41 1999/12/22 09:29:24 karls Exp $";
+"$Id: log.c,v 1.48 2001/05/13 13:59:38 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -62,7 +62,7 @@ logformat __P((int priority, char *buf, size_t buflen, const char *message,
 __END_DECLS
 
 void
-initlog(void)
+newprocinit(void)
 {
 
 #if SOCKS_SERVER	/* don't want to override original clients stuff. */
@@ -77,8 +77,12 @@ initlog(void)
 	}
 #endif /* SOCKS_SERVER */
 
-	if (config.log.type & LOGTYPE_FILE)
-		;
+#if SOCKSLIBRARY_DYNAMIC
+	symbolcheck();
+#endif
+
+	config.state.pid = getpid();
+
 }
 
 void
@@ -122,7 +126,10 @@ vslog(priority, message, ap)
 	}
 
 	if (config.log.type & LOGTYPE_SYSLOG)
-		vsyslog(priority, message, ap);
+		if (priority == LOG_DEBUG && config.state.init && !config.option.debug)
+			; /* don't waste resources on this. */
+		else
+			vsyslog(priority, message, ap);
 
 	if (config.log.type & LOGTYPE_FILE) {
 		int i;
@@ -148,54 +155,21 @@ logformat(priority, buf, buflen, message, ap)
 	const char *message;
 	va_list ap;
 {
-	const char *prefix;
 	size_t bufused;
 	time_t timenow;
 
-	/* not sure if we should use this. */
 	switch (priority) {
-		case LOG_EMERG:
-			prefix = "*** EMERGENCY: ";
-			break;
-
-		case LOG_ALERT:
-			prefix = "*** ALERT: ";
-			break;
-
-		case LOG_CRIT:
-			prefix = "*** Critical: ";
-			break;
-
-		case LOG_ERR:
-			prefix = "error: ";
-			break;
-
-		case LOG_WARNING:
-			prefix = "warning: ";
-			break;
-
-		case LOG_NOTICE:
-			prefix = "notice: ";
-			break;
-
-		case LOG_INFO:
-			prefix = "info: ";
-			break;
-
 		case LOG_DEBUG:
 			if (config.state.init && !config.option.debug)
 				return NULL;
-			prefix = "debug: ";
 			break;
 
-		default:
-			prefix = "";
 	}
 
 	time(&timenow);
 	bufused = strftime(buf, buflen, "%h %e %T ", localtime(&timenow));
 
-	bufused += snprintf(&buf[bufused], buflen - bufused, "%s[%lu]: ",
+	bufused += snprintfn(&buf[bufused], buflen - bufused, "%s[%lu]: ",
 	__progname,
 #if SOCKS_SERVER
 	(unsigned long)config.state.pid

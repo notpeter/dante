@@ -18,7 +18,7 @@
 /* send/recvmsg cmsg types */
 #undef HAVE_CMSGHDR
 
-/* solaris 2.5 name */
+/* Solaris 2.5 name */
 #undef HAVE_OPTHDR
 
 /* recvmsg MSG_WAITALL flag */
@@ -45,7 +45,7 @@
 #undef NEED_EXIT_FAILURE
 
 /* defined on systems which doesn't support more than one process
-   doing accept on the same descriptor.  BSD systems and solaris 2.6 is
+   doing accept on the same descriptor.  BSD systems and Solaris 2.6 is
    supposed to support this (Stevens) */
 #undef NEED_ACCEPTLOCK
 
@@ -69,11 +69,11 @@
 #undef HAVE_LIBWRAP
 
 /* function location */
-#undef LIBRARY_PATH
 #undef LIBRARY_ACCEPT
 #undef LIBRARY_BIND
 #undef LIBRARY_BINDRESVPORT
 #undef LIBRARY_CONNECT
+#undef LIBRARY_GETHOSTBYADDR
 #undef LIBRARY_GETHOSTBYNAME
 #undef LIBRARY_GETHOSTBYNAME2
 #undef LIBRARY_GETPEERNAME
@@ -83,49 +83,57 @@
 #undef LIBRARY_LIBRESOLV
 #undef LIBRARY_LIBSOCKET
 #undef LIBRARY_LISTEN
+#undef LIBRARY_PATH
+#undef LIBRARY_READ
+#undef LIBRARY_READV
+#undef LIBRARY_RECV
 #undef LIBRARY_RECVFROM
-#undef LIBRARY_RRESVPORT
-#undef LIBRARY_SENDTO
 #undef LIBRARY_RECVMSG
+#undef LIBRARY_RECVMSG
+#undef LIBRARY_RRESVPORT
+#undef LIBRARY_SEND
 #undef LIBRARY_SENDMSG
+#undef LIBRARY_SENDTO
+#undef LIBRARY_WRITE
+#undef LIBRARY_WRITEV
 
 /* symbol names */
-#undef SYMBOL_GETHOSTBYNAME
-#undef SYMBOL_GETHOSTBYNAME2
-#undef SYMBOL_GETSOCKNAME
-#undef SYMBOL_CONNECT
-#undef SYMBOL_GETPEERNAME
-#undef SYMBOL_RECVFROM
 #undef SYMBOL_ACCEPT
 #undef SYMBOL_BIND
 #undef SYMBOL_BINDRESVPORT
-#undef SYMBOL_SENDTO
-#undef SYMBOL_LISTEN
-#undef SYMBOL_RRESVPORT
-#undef SYMBOL_READV
-#undef SYMBOL_RECVMSG
-#undef SYMBOL_SENDMSG
-#undef SYMBOL_WRITEV
-#undef SYMBOL_SEND
-#undef SYMBOL_RECV
-#undef SYMBOL_WRITE
+#undef SYMBOL_CONNECT
+#undef SYMBOL_GETHOSTBYADDR
+#undef SYMBOL_GETHOSTBYNAME
+#undef SYMBOL_GETHOSTBYNAME2
+#undef SYMBOL_GETPEERNAME
+#undef SYMBOL_GETSOCKNAME
 #undef SYMBOL_READ
+#undef SYMBOL_READV
+#undef SYMBOL_RECV
+#undef SYMBOL_RECVFROM
+#undef SYMBOL_RECVMSG
+#undef SYMBOL_RRESVPORT
+#undef SYMBOL_SEND
+#undef SYMBOL_SENDMSG
+#undef SYMBOL_SENDTO
+#undef SYMBOL_WRITE
+#undef SYMBOL_WRITEV
 
 
-/* workaround for solaris bug */
+/* workaround for Solaris bug */
 #undef HAVE_SENDMSG_DEADLOCK
 
 /* no support for NULL pointer to realloc? */
 #undef HAVE_NOMALLOC_REALLOC
 
-/* linux (2.0.x?) doesn't seem to set some recvmsg related values in some cases */
+/* Linux (2.0.x?) doesn't seem to set some recvmsg related values in some cases */
 #undef HAVE_DEFECT_RECVMSG
 
-/* XXX used to enable alternative code to avoid broken solaris libsocket */
+/* XXX used to enable alternative code to avoid broken Solaris libsocket */
 #undef HAVE_SOLARIS_2_5_1
 #undef HAVE_SOLARIS_BUGS
 
-/* problems on linux */
+/* problems on Linux */
 #undef HAVE_LINUX_BUGS
 
 /* sun4 vsprintf doesn't seem to return length */
@@ -176,9 +184,25 @@
 
 #undef HAVE_PROFILING
 
-/* Solaris 2.5.1 needs it. Otherwise FIOASYNC will not be defined 
+/* Solaris 2.5.1 needs it. Otherwise FIOASYNC will not be defined
    -(Pavel Roskin <pavel_roskin@geocities.com>) */
 #undef BSD_COMP
+
+/* sockaddr_storage should aid portability */
+#undef HAVE_SOCKADDR_STORAGE
+
+/* AIX has volatile sig_atomic_t */
+#undef HAVE_VOLATILE_SIG_ATOMIC_T
+
+/* System V getpwnam 'improvement' workaround */
+#undef HAVE_WORKING_GETPWNAM
+
+#undef HAVE_SOCKADDR_SA_LEN
+
+/* PAM (Pluggable Authentication Module) found? */
+#undef HAVE_PAM
+/* more Solaris bugs */
+#undef HAVE_SOLARIS_PAM_BUG
 
 /* interposition.c prototypes */
 #undef HAVE_PROT_CONNECT_0
@@ -263,6 +287,11 @@
 #undef HAVE_PROT_READ_1
 #undef HAVE_PROT_READ_2
 #undef HAVE_PROT_READ_3
+
+#undef HAVE_PROT_GETHOSTBYADDR_0
+#undef HAVE_PROT_GETHOSTBYADDR_1
+#undef HAVE_PROT_GETHOSTBYADDR_2
+#undef HAVE_PROT_GETHOSTBYADDR_3
 
 /* XXX autoheader snafu */
 /*#undef HAVE_PROT__*/

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -48,7 +48,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.22 1999/09/02 10:41:41 michaels Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.27 2001/05/11 09:28:27 michaels Exp $";
 
 static char executable[] = "TELNET.EXE";
 static struct sigaction oldsigio;
@@ -144,6 +144,7 @@ msproxy_negotiate(s, control, packet)
 	struct socks_t *packet;
 {
 	const char *function = "msproxy_negotiate()";
+	char string[MAXSOCKADDRSTRING];
 	struct msproxy_request_t req;
 	struct msproxy_response_t res;
 	int p;
@@ -241,7 +242,7 @@ msproxy_negotiate(s, control, packet)
 	slog(LOG_DEBUG, "%s: msproxy controladdress: %s",
 	function,
 	sockaddr2string((struct sockaddr *)&packet->state.msproxy.controladdr,
-	NULL, 0));
+	string, sizeof(string)));
 
 
 	slog(LOG_DEBUG, "%s: packet #2", function);
@@ -292,6 +293,7 @@ msproxy_connect(s, control, packet)
 	struct socks_t *packet;
 {
 	const char *function = "msproxy_connect()";
+	char string[MAXSOCKSHOSTSTRING];
 	struct msproxy_request_t req;
 	struct msproxy_response_t res;
 	struct sockaddr_in addr;
@@ -405,7 +407,7 @@ msproxy_connect(s, control, packet)
 				MSPROXY_RESOLVE_ACK, ntohs(res.command));
 
 			addr.sin_addr.s_addr = res.packet.resolve.hostaddr;
-			slog(LOG_DEBUG, "%s: ip address of %s: %s",
+			slog(LOG_DEBUG, "%s: IP address of %s: %s",
 			function, packet->req.host.addr.domain, inet_ntoa(addr.sin_addr));
 
 			break;
@@ -472,12 +474,12 @@ msproxy_connect(s, control, packet)
 
 	if (socks_connect(s, &packet->res.host) != 0) {
 		swarn("%s: failed to connect to %s",
-		function, sockshost2string(&packet->res.host, NULL, 0));
+		function, sockshost2string(&packet->res.host, string, sizeof(string)));
 		return -1;
 	}
 	else
 		slog(LOG_DEBUG, "%s: connected to %s",
-		function, sockshost2string(&packet->res.host, NULL, 0));
+		function, sockshost2string(&packet->res.host, string, sizeof(string)));
 
 	packet->res.host.atype					= SOCKS_ADDR_IPV4;
 	packet->res.host.port					= res.packet._5.clientport;
@@ -485,7 +487,7 @@ msproxy_connect(s, control, packet)
 
 	/* LINTED pointer casts may be troublesome */
 	slog(LOG_DEBUG, "%s: server will use as source address: %s",
-	function, sockshost2string(&packet->res.host, NULL, 0));
+	function, sockshost2string(&packet->res.host, string, sizeof(string)));
 
 
 	slog(LOG_DEBUG, "%s: packet #6", function);
@@ -515,6 +517,7 @@ msproxy_bind(s, control, packet)
 	struct socks_t *packet;
 {
 	const char *function = "msproxy_bind()";
+	char string[MAXSOCKSHOSTSTRING];
 	struct msproxy_request_t req;
 	struct msproxy_response_t res;
 	struct sockaddr_in addr;
@@ -559,8 +562,7 @@ msproxy_bind(s, control, packet)
 	packet->res.host.addr.ipv4.s_addr	= res.packet._3.boundaddr;
 
 	slog(LOG_DEBUG, "%s: server bound for us: %s",
-	function, sockshost2string(&packet->res.host, NULL, 0));
-
+	function, sockshost2string(&packet->res.host, string, sizeof(string)));
 
 	slog(LOG_DEBUG, "%s: packet #4", function);
 
@@ -678,6 +680,7 @@ sigio(sig)
 {
 	const char *function = "sigio()";
 	const int errno_s = errno;
+	char string[MAXSOCKSHOSTSTRING];
 	int i, max, dset;
 	struct socksfd_t *socksfd;
 	fd_set rset;
@@ -787,7 +790,7 @@ sigio(sig)
 						sockshost2sockaddr(&host, &socksfd->remote);
 
 						slog(LOG_DEBUG, "%s: server bound address %s",
-						function, sockshost2string(&host, NULL, 0));
+						function, sockshost2string(&host, string, sizeof(string)));
 
 						host.atype					= SOCKS_ADDR_IPV4;
 						host.port					= res.packet._5.clientport;
@@ -795,14 +798,13 @@ sigio(sig)
 						sockshost2sockaddr(&host, &socksfd->accepted);
 
 						slog(LOG_DEBUG, "%s: server accepted: %s",
-						function, sockshost2string(&host, NULL, 0));
+						function, sockshost2string(&host, string, sizeof(string)));
 
 						slog(LOG_DEBUG, "%s: server will connect to us from port %d",
 						function, ntohs(res.packet._5.serverport));
 
 						/* LINTED pointer casts may be troublesome */
-						((struct sockaddr_in *)&socksfd->reply)->sin_port
-						= res.packet._5.serverport;
+						TOIN(&socksfd->reply)->sin_port = res.packet._5.serverport;
 
 						slog(LOG_DEBUG, "%s: packet #6", function);
 

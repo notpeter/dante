@@ -61,6 +61,7 @@ host_alias = @host_alias@
 host_triplet = @host@
 AWK = @AWK@
 CC = @CC@
+CPP = @CPP@
 LD = @LD@
 LEX = @LEX@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
@@ -74,21 +75,26 @@ PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
 PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
+TOPEXTRADIST = @TOPEXTRADIST@
+TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 
 lib_LTLIBRARIES = libsocks.la
-libsocks_la_SOURCES = config_parse.y config_scan.l Raccept.c Rbind.c 	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    	address.c authneg.c client.c clientconfig.c clientprotocol.c 	udp.c userio.c method_uname.c connectchild.c config.c  	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  	Rconnect.c Rgethostbyname.c debug.c Rcompat.c 	msproxy_clientprotocol.c hostcache.c
+libsocks_la_SOURCES = config_parse.y config_scan.l Raccept.c Rbind.c 	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    	address.c authneg.c client.c clientconfig.c clientprotocol.c 	udp.c userio.c method_uname.c connectchild.c config.c  	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  	Rconnect.c Rgethostbyname.c debug.c Rcompat.c 	msproxy_clientprotocol.c hostcache.c broken.c serr.c httpproxy.c
+
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info
 libsocks_la_LDFLAGS = -version-info 1:0:1
+
 libsocks_la_LIBADD = ../libscompat/libscompat.la
 
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
 
-INCLUDES = -I../libscompat
+INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
+
 #XXX
 AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0
 PREFIX = socks_yy
@@ -110,7 +116,8 @@ Rbind.lo Rgetpeername.lo Rgetsockname.lo Rrresvport.lo io.lo address.lo \
 authneg.lo client.lo clientconfig.lo clientprotocol.lo udp.lo userio.lo \
 method_uname.lo connectchild.lo config.lo log.lo protocol.lo socket.lo \
 udp_util.lo util.lo Rbindresvport.lo Rconnect.lo Rgethostbyname.lo \
-debug.lo Rcompat.lo msproxy_clientprotocol.lo hostcache.lo
+debug.lo Rcompat.lo msproxy_clientprotocol.lo hostcache.lo broken.lo \
+serr.lo httpproxy.lo
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LEXLIB = @LEXLIB@
 CFLAGS = @CFLAGS@
@@ -253,7 +260,7 @@ distdir: $(DISTFILES)
 	@for file in $(DISTFILES); do \
 	  d=$(srcdir); \
 	  if test -d $$d/$$file; then \
-	    cp -pr $$/$$file $(distdir)/$$file; \
+	    cp -pr $$d/$$file $(distdir)/$$file; \
 	  else \
 	    test -f $(distdir)/$$file \
 	    || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
@@ -293,6 +300,9 @@ address.lo address.o : address.c ../include/common.h \
 authneg.lo authneg.o : authneg.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h ../include/socks.h
+broken.lo broken.o : broken.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h
 client.lo client.o : client.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/socks.h
@@ -321,6 +331,9 @@ debug.lo debug.o : debug.c ../include/common.h ../include/autoconf.h \
 hostcache.lo hostcache.o : hostcache.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h ../include/socks.h
+httpproxy.lo httpproxy.o : httpproxy.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h ../include/socks.h
 io.lo io.o : io.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/socks.h
@@ -337,6 +350,9 @@ msproxy_clientprotocol.lo msproxy_clientprotocol.o : \
 protocol.lo protocol.o : protocol.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h ../include/socks.h
+serr.lo serr.o : serr.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/socks.h
 socket.lo socket.o : socket.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/socks.h

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.119 1999/12/20 13:07:41 karls Exp $";
+"$Id: config.c,v 1.142 2001/05/14 12:35:41 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -118,7 +118,7 @@ genericinit(void)
 		return;
 #endif
 
-	initlog();
+	newprocinit();
 
 #if !HAVE_NO_RESOLVESTUFF
 	res_init();
@@ -161,8 +161,16 @@ addressmatch(rule, address, protocol, alias)
 	struct hostent *hostent;
 	in_port_t ruleport;
 	int matched, doresolve;
+	char rstring[MAXRULEADDRSTRING], astring[MAXSOCKSHOSTSTRING];
 
-	/* test port first since we have all info needed for that locally. */
+	slog(LOG_DEBUG, "%s: %s, %s, %s, %d", 
+	function,
+	ruleaddress2string(rule, rstring, sizeof(rstring)),
+	sockshost2string(address, astring, sizeof(astring)),
+	protocol2string(protocol),
+	alias);
+
+	/* test port first since we always have all info needed for that locally. */
 	switch (protocol) {
 		case SOCKS_TCP:
 			ruleport = rule->port.tcp;
@@ -240,12 +248,14 @@ addressmatch(rule, address, protocol, alias)
 	 */
 
 	matched = 0;
+
 	if (rule->atype == SOCKS_ADDR_IPV4 && address->atype == SOCKS_ADDR_DOMAIN) {
 		/*
 		 * match(rule.ipaddress, address.hostname)
 		 * resolve address to ipaddress(es) and try to match each
 		 *	resolved ipaddress against rule.
-		 *		rule is in address->ipaddress(es)
+		 *		rule isin address->ipaddress(es)
+		 *		.
 		 */
 
 		if (!doresolve)
@@ -253,8 +263,12 @@ addressmatch(rule, address, protocol, alias)
 
 		/* LINTED pointer casts may be troublesome */
 		if ((hostent = gethostbyname(address->addr.domain)) == NULL) {
+			char *name;
+
 			slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-			function, address->addr.domain, hstrerror(h_errno));
+			function, strcheck(name = str2vis(address->addr.domain,
+			strlen(address->addr.domain))), hstrerror(h_errno));
+			free(name);
 			return 0;
 		}
 
@@ -276,7 +290,8 @@ addressmatch(rule, address, protocol, alias)
 			 * Didn't match.  If alias is set, try to resolve address
 			 * to hostname(s), the hostname back to ipaddress(es) and
 			 * then match those ipaddress(es) against rule.
-			 *		rule is in address->hostname(s)->ipaddress(es)
+			 *		rule isin address->hostname(s)->ipaddress(es)
+			 *		.
 			 */
 
 			if (!doresolve)
@@ -311,7 +326,7 @@ addressmatch(rule, address, protocol, alias)
 						continue;
 					}
 
-					/* rule is in address->hostname(s)->ipaddress(es) */
+					/* rule isin address->hostname(s)->ipaddress(es) */
 					if (addrisinlist(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
 					(const struct in_addr **)iphostent->h_addr_list)) {
 						matched = 1;
@@ -337,7 +352,8 @@ addressmatch(rule, address, protocol, alias)
 		 * resolve both rule and address to ipaddress(es) and compare
 		 * each ipaddress of resolved rule against each ipaddress of
 		 * resolved address.
-		 *		rule->ipaddress(es) is in address->ipaddress(es)
+		 *		rule->ipaddress(es) isin address->ipaddress(es)
+		 *		.
 		 *
 		 */
 		if (hostareeq(rule->addr.domain, address->addr.domain))
@@ -366,7 +382,7 @@ addressmatch(rule, address, protocol, alias)
 			}
 
 			/*
-			 *	rule->ipaddress(es) is in address->ipaddress(es)
+			 *	rule->ipaddress(es) isin address->ipaddress(es)
 			 */
 
 			for (i = 0, mask.s_addr = htonl(0xffffffff);
@@ -392,23 +408,26 @@ addressmatch(rule, address, protocol, alias)
 		 * match(rule.hostname, address.ipaddress)
 		 * If rule is not a domain, try resolving rule to ipaddress(es)
 		 * and match against address.
-		 *		address is in rule->ipaddress
+		 *		address isin rule->ipaddress
+		 *		.
 		 *
 		 * If no match, resolve address to hostname(s) and match each
 		 * against rule.
-		 *		rule is in address->hostname
+		 *		rule isin address->hostname
+		 *		.
 		 *
 		 * If still no match and alias is set, resolve all ipaddresses
 		 * of all hostname(s) resolved from address back to hostname(s)
 		 * and match them against rule.
-		 *		rule is in address->hostname->ipaddress->hostname
+		 *		rule isin address->hostname->ipaddress->hostname
+		 *		.
 		 */
 
 		if (!doresolve)
 			return 0;
 
 		if (*rule->addr.domain != '.') {
-			/* address is in rule->ipaddress */
+			/* address isin rule->ipaddress */
 			struct in_addr mask;
 
 			if ((hostent = gethostbyname(rule->addr.domain)) == NULL) {
@@ -424,7 +443,7 @@ addressmatch(rule, address, protocol, alias)
 		}
 
 		if (!matched) {
-			/* rule is in address->hostname */
+			/* rule isin address->hostname */
 
 			/* LINTED pointer casts may be troublesome */
 			if ((hostent = gethostbyaddr((const char *)&address->addr.ipv4,
@@ -441,7 +460,7 @@ addressmatch(rule, address, protocol, alias)
 
 		if (!matched && alias) {
 			/*
-			 * rule is in address->hostname->ipaddress->hostname.
+			 * rule isin address->hostname->ipaddress->hostname.
 			 * hostent is already address->hostname due to above.
 			 */
 			char *nexthost;
@@ -586,7 +605,7 @@ addroute(newroute)
 	struct route_t *route;
 
 	if ((route = (struct route_t *)malloc(sizeof(*route))) == NULL)
-		serrx(1, "%s: %s", function, NOMEM);
+		serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
 	*route = *newroute;
 
 	/* check gateway. */
@@ -610,6 +629,16 @@ addroute(newroute)
 		sizeof(route->gw.state.proxyprotocol));
 		route->gw.state.proxyprotocol.msproxy_v2 = 0;
 	}
+
+	/* switch off commands/protocols set but not supported by proxyprotocol. */
+	if (!route->gw.state.proxyprotocol.socks_v5) {
+		route->gw.state.command.udpassociate 	= 0;
+		route->gw.state.protocol.udp 				= 0;
+	}
+
+	if (!route->gw.state.proxyprotocol.socks_v4
+	&& !route->gw.state.proxyprotocol.msproxy_v2)
+		route->gw.state.command.bind = 0;
 
 	/* if no method set, set all we support. */
 	if (route->gw.state.methodc == 0) {
@@ -669,6 +698,7 @@ socks_getroute(req, src, dst)
 	const struct sockshost_t *src;
 	const struct sockshost_t *dst;
 {
+/*	const char *function = "socks_getroute()"; */
 	struct route_t *route;
 	int protocol;
 
@@ -678,7 +708,11 @@ socks_getroute(req, src, dst)
 
 	for (route = config.route; route != NULL; route = route->next) {
 		if (route->state.bad)
-			continue; /* XXX code to retry and remove bad status when ok. */
+			if (route->state.badtime == 0 
+			||  difftime(time(NULL), route->state.badtime) <= BADROUTE_EXPIRE)
+				continue;
+			else 
+				route->state.bad = 0;
 
 		switch (req->version) {
 			case SOCKS_V4:
@@ -715,6 +749,11 @@ socks_getroute(req, src, dst)
 
 			case MSPROXY_V2:
 				if (!route->gw.state.proxyprotocol.msproxy_v2)
+					continue;
+				break;
+
+			case HTTP_V1_0:
+				if (!route->gw.state.proxyprotocol.http_v1_0)
 					continue;
 				break;
 
@@ -907,6 +946,7 @@ socks_badroute(route)
 
 	slog(LOG_DEBUG, "%s: badrouting route #%d", function, route->number);
 	route->state.bad = 1;
+	time(&route->state.badtime);
 }
 
 
@@ -917,13 +957,21 @@ socks_requestpolish(req, src, dst)
 	const struct sockshost_t *dst;
 {
 	const char *function = "socks_requestpolish()";
-	unsigned char version;
+	const unsigned char originalversion = req->version;
 
 	if (socks_getroute(req, src, dst) != NULL)
 		return req;
 
 	switch (req->command) {
 		case SOCKS_BIND:
+			/*
+			 * bind semenatics differ between v4 and everything else.
+			 * Assuming we always start with v5 semenatics makes the
+			 * following code much simpler.
+			*/
+			SASSERTX(req->version == SOCKS_V5);
+			break;
+
 		case SOCKS_CONNECT:
 			break;
 
@@ -935,97 +983,68 @@ socks_requestpolish(req, src, dst)
 			SERRX(req->command);
 	}
 
-	/* unsupported version? */
-	switch (req->version) {
-		case SOCKS_V4:
-			req->version = SOCKS_V5;
-			break;
+	/*
+	 * Try all proxyprotocols we support.
+	 */
 
-		case SOCKS_V5:
-			req->version = SOCKS_V4;
-			break;
+	req->version = SOCKS_V4;
+	if (socks_getroute(req, src, dst) != NULL) {
+		if (req->command == SOCKS_BIND) /* v4/v5 difference in portsemantics. */
+			/* LINTED pointer casts may be troublesome */
+			req->host.port = TOIN(&config.state.lastconnect)->sin_port;
+		return req;
 	}
 
+	req->version = HTTP_V1_0;
 	if (socks_getroute(req, src, dst) != NULL)
 		return req;
 
-	SASSERTX(req->version != MSPROXY_V2); /* never gets set outside function. */
-	version = req->version;
 	req->version = MSPROXY_V2;
 	if (socks_getroute(req, src, dst) != NULL)
 		return req;
-	req->version = version;
 
+	req->version = originalversion;
+
+	/* changing proxyprotocol didn't do it, can we try other things? */
 	switch (req->command) {
 		case SOCKS_BIND:
 			if (req->host.addr.ipv4.s_addr == htonl(0)) {
-				const in_port_t originalport = req->host.port;
-				const int originalversion = req->version;
+				in_port_t originalport;
 
 				/* attempting to use bind extension, can we retry without it? */
 				/* LINTED pointer casts may be troublesome */
-				if (ADDRISBOUND(config.state.lastconnect)) {
+				if (!ADDRISBOUND(config.state.lastconnect)) {
+					slog(LOG_DEBUG, "%s: couldn't find route for bind(2), "
+					"try enabling \"extension: bind\"?", function);
+					return NULL;
+				}
 
-					fakesockaddr2sockshost(&config.state.lastconnect, &req->host);
+				originalport = req->host.port;
+				fakesockaddr2sockshost(&config.state.lastconnect, &req->host);
+				/* keep portnumber req. for bind(2), not a previous connect(2). */
+				req->host.port = originalport;
 
-					/*
-					 * v4 and v5 differ in how portnumber is treated
-					 * so we need to be a little smarter than just returning
-					 * the result of the next socks_requestpolish()
-					 * while we still have the original portnumber.
-					 */
+				if (socks_requestpolish(req, src, dst) == NULL)
+					return NULL; /* giving up. */
+
+				/*
+				 * else, it may be that socks_requestpolish() was
+				 * forced to change req.version to succeed.  We may 
+				 * the need to change req->host.port due to difference 
+				 * in v4 and v5 semantics.
+				*/
+				if (req->version != originalversion) { /* version changed. */
+					SASSERTX(originalversion == SOCKS_V5);
 
 					switch (req->version) {
-						case SOCKS_V4:
+						case SOCKS_V4: /* the only one with this strangeness. */
 							/* LINTED pointer casts may be troublesome */
-							req->host.port = ((struct sockaddr_in *)
-							&config.state.lastconnect)->sin_port;
+							req->host.port = TOIN(&config.state.lastconnect)->sin_port;
 							break;
-
-						case SOCKS_V5:
-							/* only wants ip address. */
-							req->host.port = originalport;
-							break;
-
-						default:
-							SERRX(req->version);
 					}
-
-					if (socks_requestpolish(req, src, dst) == NULL)
-						return NULL;
-
-					/*
-					 * else, it may be that socks_requestpolish() was
-					 * forced to change req.version to succeed, we then
-					 * need to change req->host.port due to difference in
-					 * v4 and v5 semantics.
-					*/
-
-					if (req->version != originalversion) { /* version changed. */
-						/* currently it can only change from 4 to 5, or 5 to 4. */
-						switch (req->version) {
-							case SOCKS_V4:
-								/* LINTED pointer casts may be troublesome */
-								req->host.port = ((struct sockaddr_in *)
-								&config.state.lastconnect)->sin_port;
-								break;
-
-							case SOCKS_V5:
-								req->host.port = originalport;
-								break;
-
-							default:
-								SERRX(req->version);
-						}
-
-					}
-
-					return socks_requestpolish(req, src, dst);
 				}
-				else
-					slog(LOG_DEBUG,
-					"%s: couldn't find route for bind, try enabling bind extension?",
-					function);
+
+				return req;
 			}
 			break;
 	}
@@ -1039,54 +1058,67 @@ void
 showstate(state)
 	const struct serverstate_t *state;
 {
-	int i;
 	char buf[1024];
 	size_t bufused;
 
-	bufused = snprintf(buf, sizeof(buf), "command(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "command(s): ");
 	if (state->command.bind)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_BINDs);
 	if (state->command.bindreply)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_BINDREPLYs);
 	if (state->command.connect)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_CONNECTs);
 	if (state->command.udpassociate)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_UDPASSOCIATEs);
 	if (state->command.udpreply)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		SOCKS_UDPREPLYs);
 	slog(LOG_INFO, buf);
 
-	bufused = snprintf(buf, sizeof(buf), "extension(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "extension(s): ");
 	if (state->extension.bind)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "bind");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "bind");
 	slog(LOG_INFO, buf);
 
-	bufused = snprintf(buf, sizeof(buf), "protocol(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "protocol(s): ");
 	if (state->protocol.tcp)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		PROTOCOL_TCPs);
 	if (state->protocol.udp)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		PROTOCOL_UDPs);
 	slog(LOG_INFO, buf);
 
-	bufused = snprintf(buf, sizeof(buf), "method(s): ");
-	for (i = 0; i < state->methodc; ++i)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
-		method2string(state->methodv[i]));
-	slog(LOG_INFO, buf);
+	showmethod(state->methodc, state->methodv);
 
-	bufused = snprintf(buf, sizeof(buf), "proxyprotocol(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "proxyprotocol(s): ");
 	if (state->proxyprotocol.socks_v4)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "socks v4, ");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "socks v4, ");
 	if (state->proxyprotocol.socks_v5)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "socks v5, ");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "socks v5, ");
 	if (state->proxyprotocol.msproxy_v2)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "msproxy v2");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "msproxy v2");
+	if (state->proxyprotocol.http_v1_0)
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "http v1.0");
+	slog(LOG_INFO, buf);
+}
+
+void
+showmethod(methodc, methodv)
+	size_t methodc;
+	const int *methodv;
+{
+	size_t i;
+	char buf[1024];
+	size_t bufused;
+
+	bufused = snprintfn(buf, sizeof(buf), "method(s): ");
+	for (i = 0; i < methodc; ++i)
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		method2string(methodv[i]));
 	slog(LOG_INFO, buf);
 }

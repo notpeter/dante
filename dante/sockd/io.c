@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.39 1999/09/02 10:41:37 michaels Exp $";
+"$Id: io.c,v 1.51 2001/05/08 12:03:17 michaels Exp $";
 
 /* this file defines the functions. */
 #undef select
@@ -52,16 +52,18 @@ static const char rcsid[] =
 
 
 ssize_t
-readn(d, buf, nbytes)
+readn(d, buf, nbytes, auth)
 	int d;
 	void *buf;
 	size_t nbytes;
+	struct authmethod_t *auth;
 {
 	ssize_t p;
 	size_t left = nbytes;
 
 	do {
-		if ((p = read(d, &((char *)buf)[nbytes - left], left)) == -1) {
+		if ((p = socks_recvfrom(d, &((char *)buf)[nbytes - left], left, 0, NULL,
+		NULL, auth)) == -1) {
 #if SOCKS_SERVER
 			if (errno == EINTR)
 				continue;
@@ -80,16 +82,18 @@ readn(d, buf, nbytes)
 
 
 ssize_t
-writen(d, buf, nbytes)
+writen(d, buf, nbytes, auth)
 	int d;
 	const void *buf;
 	size_t nbytes;
+	struct authmethod_t *auth;
 {
 	ssize_t p;
 	size_t left = nbytes;
 
 	do {
-		if ((p = write(d, &((const char *)buf)[nbytes - left], left)) == -1) {
+		if ((p = socks_sendto(d, &((const char *)buf)[nbytes - left], left, 0,
+		NULL, 0, auth)) == -1) {
 #if SOCKS_SERVER
 			if (errno == EINTR)
 				continue;
@@ -102,6 +106,66 @@ writen(d, buf, nbytes)
 	if (left == nbytes)
 		return p;	/* nothing written. */
 	return nbytes - left;
+}
+
+ssize_t
+socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
+	int s;
+	void *buf;
+	size_t len;
+	int flags;
+	struct sockaddr *from;
+	socklen_t *fromlen;
+	struct authmethod_t *auth;
+{
+
+	if (auth != NULL)
+		switch (auth->method) {
+			case AUTHMETHOD_NONE:
+			case AUTHMETHOD_UNAME:
+			case AUTHMETHOD_NOACCEPT:
+			case AUTHMETHOD_RFC931:
+			case AUTHMETHOD_PAM:
+				break;
+
+			default:
+				SERRX(auth->method);
+		}
+
+	if (from == NULL && flags == 0)
+		/* may not be a socket and read(2) will work just as well then. */
+		return read(s, buf, len);
+	return recvfrom(s, buf, len, flags, from, fromlen);
+}
+
+ssize_t
+socks_sendto(s, msg, len, flags, to, tolen, auth)
+	int s;
+	const void *msg;
+	size_t len;
+	int flags;
+	const struct sockaddr *to;
+	socklen_t tolen;
+	struct authmethod_t *auth;
+{
+
+	if (auth != NULL)
+		switch (auth->method) {
+			case AUTHMETHOD_NONE:
+			case AUTHMETHOD_UNAME:
+			case AUTHMETHOD_NOACCEPT:
+			case AUTHMETHOD_RFC931:
+			case AUTHMETHOD_PAM:
+				break;
+
+			default:
+				SERRX(auth->method);
+		}
+
+	if (to == NULL && flags == 0)
+		/* may not be a socket and write(2) will work just as well then. */
+		return write(s, msg, len);
+	return sendto(s, msg, len, flags, to, tolen);
 }
 
 
@@ -125,12 +189,13 @@ recvmsgn(s, msg, flags, len)
 #if HAVE_SOLARIS_BUGS
 	if (p == -1 && (errno == EMFILE || errno == ENFILE)) {
 		/*
-		 * Even if solaris (2.5.1) fails on recvmsg() it may still have
+		 * Even if Solaris (2.5.1) fails on recvmsg() it may still have
 		 * gotten a descriptor or more as ancillary data which it neglects
 		 * to get rid of, so we have to check for it ourselves and close it,
 		 * else it just gets lost in the void.
 		 */
-		int i, leaked;
+		size_t i;
+		int leaked;
 		caddr_t mem;
 
 		mem = msg->msg_accrights;
@@ -164,7 +229,7 @@ recvmsgn(s, msg, flags, len)
 			count += io->iov_len;
 			if (count > done) {
 				if ((p = readn(s, &((char *)(io->iov_base))[io->iov_len -
-				(count - done)], count - done)) != ((ssize_t)(count - done)))
+				(count - done)], count - done, NULL)) != ((ssize_t)(count - done)))
 					break;
 
 				left -= p;

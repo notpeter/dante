@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.26 1999/05/25 17:22:32 michaels Exp $";
+"$Id: method_uname.c,v 1.34 2001/05/08 11:59:54 michaels Exp $";
 
 int
 clientmethod_uname(s, host, version)
@@ -53,18 +53,18 @@ clientmethod_uname(s, host, version)
 	int version;
 {
 	const char *function = "clientmethod_uname()";
-	static struct uname_t uname;				/* cached userinfo.					*/
-	static struct sockshost_t unamehost;	/* host cache was gotten for.		*/
-	static int unameisok;						/* cached data is ok?				*/
-	char *offset, *name, *password;
-	char request[ 1					/* version.				*/
-					+ 1					/* username length.	*/
-					+ MAXNAMELEN		/* username.			*/
-					+ 1					/* password length.	*/
-					+ MAXPWLEN			/* password.			*/
+	static struct authmethod_uname_t uname;	/* cached userinfo.					*/
+	static struct sockshost_t unamehost;		/* host cache was gotten for.		*/
+	static int unameisok;							/* cached data is ok?				*/
+	unsigned char *offset, *name, *password;
+	unsigned char request[ 1					/* version.				*/
+								+ 1					/* username length.	*/
+								+ MAXNAMELEN		/* username.			*/
+								+ 1					/* password length.	*/
+								+ MAXPWLEN			/* password.			*/
 	];
-	char response[ 1 /* version.	*/
-					+	1 /* status.	*/
+	unsigned char response[ 1 /* version.	*/
+								 +	1 /* status.	*/
 	];
 
 
@@ -83,53 +83,55 @@ clientmethod_uname(s, host, version)
 
 	offset = request;
 
-	*offset++ = (char)SOCKS_UNAMEVERSION;
+	*offset++ = (unsigned char)SOCKS_UNAMEVERSION;
 
 	if (!unameisok) {
-		if ((name = socks_getusername(host, offset + 1, MAXNAMELEN)) == NULL) {
-			swarnx("%s: could not determine username of client", function);
+		if ((name = (unsigned char *)socks_getusername(host, (char *)offset + 1,
+		MAXNAMELEN)) == NULL) {
+			swarn("%s: could not determine username of client", function);
 			return -1;
 		}
 
-		SASSERTX(strlen(name) < sizeof(uname.name));
-		strcpy(uname.name, name);
+		SASSERTX(strlen((char *)name) < sizeof(uname.name));
+		strcpy((char *)uname.name, (char *)name);
 	}
 	else {
 		name = uname.name;
-		strcpy(offset + 1, name);
+		strcpy((char *)offset + 1, (char *)name);
 	}
 
 	/* first byte gives length. */
-	*offset = (char)strlen(name);
+	*offset = (unsigned char)strlen((char *)name);
 	OCTETIFY(*offset);
 	offset += *offset + 1;
 
 	if (!unameisok) {
-		if ((password = socks_getpassword(host, name, offset + 1, MAXPWLEN))
-		== NULL) {
-			swarnx("%s: could not determine password of client", function);
+		if ((password = (unsigned char *)socks_getpassword(host, (char *)name,
+		(char *)offset + 1, MAXPWLEN)) == NULL) {
+			swarn("%s: could not determine password of client", function);
 			return -1;
 		}
 
-		SASSERTX(strlen(password) < sizeof(uname.password));
-		strcpy(uname.password, password);
+		SASSERTX(strlen((char *)password) < sizeof(uname.password));
+		strcpy((char *)uname.password, (char *)password);
 	}
 	else {
 		password = uname.password;
-		strcpy(offset + 1, password);
+		strcpy((char *)offset + 1, (char *)password);
 	}
 
 	/* first byte gives length. */
-	*offset = (char)strlen(password);
+	*offset = (unsigned char)strlen((char *)password);
 	OCTETIFY(*offset);
 	offset += *offset + 1;
 
-	if (writen(s, request, (size_t)(offset - request)) != offset - request) {
+	if (writen(s, request, (size_t)(offset - request), NULL)
+	!= offset - request) {
 		swarn("%s: writen()", function);
 		return -1;
 	}
 
-	if (readn(s, response, sizeof(response)) != sizeof(response)) {
+	if (readn(s, response, sizeof(response), NULL) != sizeof(response)) {
 		swarn("%s: readn()", function);
 		return -1;
 	}

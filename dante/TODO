@@ -1,21 +1,10 @@
-# $Id: TODO,v 1.115 2000/01/05 10:38:29 michaels Exp $
+# $Id: TODO,v 1.146 2001/05/11 09:29:51 michaels Exp $
 
-* add to exitsignalv.
+* change _t struct's to typedef.
 
-* assume config.method is set when checking addedd rules, warn
-  on error/strangeness.
+* allocate fd_set's with malloc() for overflow protection.
 
-* clean up (char)version (unsigned char)version and etc. stuff.
-
-* always call gettimedout() regardless of select()?  Brought
-  up by Per Hedeland (per@erix.ericsson.se).
-
-* dl magic to get libwrap to share hostcache?
-
-* if socks_lock() fails in vslog(), log anyway?
-
-* sepearte auth struct per io object?  (could log ident username
-  for bindreply)
+* select() if we get EINTR in socks_connect() and SOCKS_SERVER?
 
 * share host/addr cache across processes.
 
@@ -25,14 +14,7 @@
 
 * make requestchildren support multiple clients too.
 
-* continue work on udp bind, or junk it completely?
-
-* a max value for the number of free io/negotiator's?  mother could kill
-  "redundant" ones.
-
 * shrink io_t, too big.
-
-* support giving a interface name instead of ip address?
 
 * possible to specify what address/portrange server should use for
   outgoing connection in each rule?
@@ -40,3 +22,5 @@
 * solaris cc needs -misalign due to alignment problems with sockaddr/
   sockaddr_in casts. causes coredump with ftp (passive ls) in client,
   in sockshost2sockaddr (util.c, line 271, version 1.94).
+
+* match configure/manual config/pid location

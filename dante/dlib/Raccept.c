@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.67 1999/09/02 10:41:11 michaels Exp $";
+"$Id: Raccept.c,v 1.71 2001/05/02 11:37:15 michaels Exp $";
 
 int
 Raccept(s, addr, addrlen)
@@ -162,9 +162,9 @@ Raccept(s, addr, addrlen)
 			 */
 
 			/* LINTED pointer casts may be troublesome */
-			if (((struct sockaddr_in *)&accepted)->sin_addr.s_addr
-			==  ((struct sockaddr_in *)&socksfd->reply)->sin_addr.s_addr) {
-				/* matches servers ip address, could be forwarded. */
+			if (TOIN(&accepted)->sin_addr.s_addr
+			==  TOIN(&socksfd->reply)->sin_addr.s_addr) {
+				/* matches servers IP address, could be forwarded. */
 				int forwarded;
 
 				switch (socksfd->state.version) {
@@ -230,7 +230,7 @@ Raccept(s, addr, addrlen)
 					/* has a different local address if INADDR_ANY was bound. */
 
 					/* LINTED pointer casts may be troublesome */
-					if (((struct sockaddr_in *)&socksfd->local)->sin_addr.s_addr
+					if (TOIN(&socksfd->local)->sin_addr.s_addr
 					== htonl(INADDR_ANY)) {
 						len = sizeof(socksfd->local);
 						if (getsockname(remote, &socksfd->local, &len) != 0)

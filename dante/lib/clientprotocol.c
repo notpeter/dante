@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.34 1999/09/02 10:41:26 michaels Exp $";
+"$Id: clientprotocol.c,v 1.41 2001/02/06 15:58:51 michaels Exp $";
 
 int
 socks_sendrequest(s, request)
@@ -52,8 +52,8 @@ socks_sendrequest(s, request)
 	const struct request_t *request;
 {
 	const char *function = "socks_sendrequest()";
-	char requestmem[sizeof(*request)];
-	char *p = requestmem;
+	unsigned char requestmem[sizeof(*request)];
+	unsigned char *p = requestmem;
 
 	switch (request->version) {
 		case SOCKS_V4:
@@ -118,7 +118,8 @@ socks_sendrequest(s, request)
 	/*
 	 * Send the request to the server.
 	 */
-	if (writen(s, requestmem, (size_t)(p - requestmem)) != p - requestmem) {
+	if (writen(s, requestmem, (size_t)(p - requestmem), request->auth)
+	!= p - requestmem) {
 		swarn("%s: writen()", function);
 		return -1;
 	}
@@ -147,7 +148,8 @@ socks_recvresponse(s, response, version)
 								 ];
 			char *p = responsemem;
 
-			if (readn(s, responsemem, sizeof(responsemem)) != sizeof(responsemem)){
+			if (readn(s, responsemem, sizeof(responsemem), response->auth)
+			!= sizeof(responsemem)) {
 				swarn("%s: readn()", function);
 				return -1;
 			}
@@ -187,7 +189,8 @@ socks_recvresponse(s, response, version)
 								];
 			char *p = responsemem;
 
-			if (readn(s, responsemem, sizeof(responsemem)) != sizeof(responsemem)){
+			if (readn(s, responsemem, sizeof(responsemem), response->auth)
+			!= sizeof(responsemem)) {
 				swarn("%s: readn()", function);
 				return -1;
 			}
@@ -216,7 +219,7 @@ socks_recvresponse(s, response, version)
 			SERRX(version);
 	}
 
-	if (recv_sockshost(s, &response->host, version) != 0)
+	if (recv_sockshost(s, &response->host, version, response->auth) != 0)
 		return -1;
 
 	slog(LOG_DEBUG, "%s: received response: %s",
@@ -225,31 +228,6 @@ socks_recvresponse(s, response, version)
 	return 0;
 }
 
-
-int
-send_interfacerequest(s, ifreq, version)
-	int s;
-	const struct interfacerequest_t *ifreq;
-	int version;
-{
-	char request[sizeof(*ifreq)];
-	char *p = request;
-
-	memcpy(p, &ifreq->rsv, sizeof(ifreq->rsv));
-	p += sizeof(ifreq->rsv);
-
-	memcpy(p, &ifreq->sub, sizeof(ifreq->sub));
-	p += sizeof(ifreq->sub);
-
-	memcpy(p, &ifreq->flag, sizeof(ifreq->flag));
-	p += sizeof(ifreq->flag);
-
-	p = sockshost2mem(&ifreq->host, p, version);
-
-	if (writen(s, request, (size_t)(p - request)) != p - request)
-		return -1;
-	return 0;
-}
 
 int
 socks_negotiate(s, control, packet, route)
@@ -275,7 +253,13 @@ socks_negotiate(s, control, packet, route)
 			break;
 
 		case MSPROXY_V2:
-			msproxy_negotiate(s, control, packet);
+			if (msproxy_negotiate(s, control, packet) != 0)
+				return -1;
+			break;
+
+		case HTTP_V1_0:
+			if (httpproxy_negotiate(control, packet) != 0)
+				return -1;
 			break;
 
 		default:
@@ -289,10 +273,11 @@ socks_negotiate(s, control, packet, route)
 
 
 int
-recv_sockshost(s, host, version)
+recv_sockshost(s, host, version, auth)
 	int s;
 	struct sockshost_t *host;
 	int version;
+	struct authmethod_t *auth;
 {
 	const char *function = "recv_sockshost()";
 
@@ -307,7 +292,7 @@ recv_sockshost(s, host, version)
 							];
 			char *p = hostmem;
 
-			if (readn(s, hostmem, sizeof(hostmem)) != sizeof(hostmem)){
+			if (readn(s, hostmem, sizeof(hostmem), auth) != sizeof(hostmem)) {
 				swarn("%s: readn()", function);
 				return -1;
 			}
@@ -335,12 +320,13 @@ recv_sockshost(s, host, version)
 			 */
 
 			/* ATYP */
-			if (readn(s, &host->atype, sizeof(host->atype)) != sizeof(host->atype))
+			if (readn(s, &host->atype, sizeof(host->atype), auth)
+			!= sizeof(host->atype))
 				return -1;
 
 			switch(host->atype) {
 				case SOCKS_ADDR_IPV4:
-					if (readn(s, &host->addr.ipv4, sizeof(host->addr.ipv4))
+					if (readn(s, &host->addr.ipv4, sizeof(host->addr.ipv4), auth)
 					!= sizeof(host->addr.ipv4)) {
 						swarn("%s: readn()", function);
 						return -1;
@@ -348,7 +334,7 @@ recv_sockshost(s, host, version)
 					break;
 
 				case SOCKS_ADDR_IPV6:
-					if (readn(s, host->addr.ipv6, sizeof(host->addr.ipv6))
+					if (readn(s, host->addr.ipv6, sizeof(host->addr.ipv6), auth)
 					!= sizeof(host->addr.ipv6)) {
 						swarn("%s: readn()", function);
 						return -1;
@@ -359,7 +345,7 @@ recv_sockshost(s, host, version)
 					unsigned char alen;
 
 					/* read length of domainname. */
-					if (readn(s, &alen, sizeof(alen)) < (ssize_t)sizeof(alen))
+					if (readn(s, &alen, sizeof(alen), auth) < (ssize_t)sizeof(alen))
 						return -1;
 
 					OCTETIFY(alen);
@@ -367,7 +353,8 @@ recv_sockshost(s, host, version)
 					SASSERTX(alen < sizeof(host->addr.domain));
 
 					/* BND.ADDR, alen octets */
-					if (readn(s, host->addr.domain, (size_t)alen) != (ssize_t)alen) {
+					if (readn(s, host->addr.domain, (size_t)alen, auth)
+					!= (ssize_t)alen) {
 						swarn("%s: readn()", function);
 						return -1;
 					}
@@ -383,7 +370,8 @@ recv_sockshost(s, host, version)
 			}
 
 			/* BND.PORT */
-			if (readn(s, &host->port, sizeof(host->port)) != sizeof(host->port))
+			if (readn(s, &host->port, sizeof(host->port), auth)
+			!= sizeof(host->port))
 				return -1;
 			break;
 	}

@@ -1,4 +1,4 @@
-# $Id: CREDITS,v 1.22 1999/12/22 09:29:10 karls Exp $
+# $Id: CREDITS,v 1.26 2001/05/03 12:21:58 michaels Exp $
 
    Dante was developed for Inferno Nettverk A/S, Norway by:
       - Michael Shuldman <michaels@inet.no>: Design and implementation.
@@ -47,5 +47,15 @@
 
 - Malte Cornils <malte@cornils.net> for help with the HP-UX
   port.
+
+- M. Everett Hinckley (everett@lsli.com) and Tommy Chan ported Dante
+  to AIX.
+
+- Thanks to Per Hedeland (per@erix.ericsson.se) for much appreciated
+  help with some tricky stuff in addressmatching code aswell as
+  several useful codepatches over the years.
+
+- Patrick Bihan-Faou, MindStep Corporation, patrick@mindstep.com
+  contributed support for PAM.
 
 - Also thanks to everyone who reported bugs and other problems.

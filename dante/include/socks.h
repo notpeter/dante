@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.150 1999/12/22 09:29:20 karls Exp $ */
+/* $Id: socks.h,v 1.163 2001/02/06 15:58:41 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -57,8 +57,7 @@ extern const int lintnoloop_socks_h;
 #define HAVE_OSF_OLDSTYLE 0
 #endif  /* !HAVE_OSF_OLDSTYLE */
 
-
-#ifdef SOCKSLIBRARY_DYNAMIC
+#if SOCKSLIBRARY_DYNAMIC
 
 #ifdef accept
 #undef accept
@@ -87,7 +86,15 @@ extern const int lintnoloop_socks_h;
 #ifdef gethostbyname
 #undef gethostbyname
 #endif  /* gethostbyname */
+#if HAVE_GETHOSTBYNAME2
+/*
+ * a little tricky ... we need it to be at the bottom of the stack,
+ * like a syscall.
+*/
+#define gethostbyname(name)				sys_gethostbyname2(name, AF_INET)
+#else
 #define gethostbyname(name)				sys_gethostbyname(name)
+#endif
 
 #ifdef gethostbyname2
 #undef gethostbyname2
@@ -331,7 +338,7 @@ socks_negotiate __P((int s, int control, struct socks_t *packet,
  *	"route" is the connected route.
  * Negotiates method and fills the response to the request into packet->res.
  * Returns:
- *		On success: 0.  (server accepted our request.)
+ *		On success: 0 (server replied to our request).
  *		On failure: -1.
  */
 
@@ -354,7 +361,8 @@ socks_badroute __P((struct route_t *route));
  */
 
 int
-recv_sockshost __P((int s, struct sockshost_t *host, int version));
+recv_sockshost __P((int s, struct sockshost_t *host, int version,
+						  struct authmethod_t *auth));
 /*
  * Fills "host" based on data read from "s".  "version" is the version
  * the remote peer is expected to send data in.
@@ -367,7 +375,7 @@ recv_sockshost __P((int s, struct sockshost_t *host, int version));
 
 	/*
 	 *  Misc. functions to help keep track of our connection(s) to the server.
-	*/
+	 */
 
 struct socksfd_t *
 socks_addaddr __P((unsigned int clientfd, struct socksfd_t *socksaddress));
@@ -507,7 +515,7 @@ socks_getusername __P((const struct sockshost_t *host, char *buf,
 /*
  * Tries to determine the username of the current user, to be used
  * when negotiating with the server "host".
- * The NUL-terminated username is written to "buf", which is of length
+ * The NUL-terminated username is written to "buf", which is of size
  * "buflen".
  * Returns:
  *		On success: pointer to "buf" with the username.
@@ -529,17 +537,6 @@ socks_getpassword __P((const struct sockshost_t *host, const char *user,
 
 
 int
-send_interfacerequest __P((int s, const struct interfacerequest_t *ifreq,
-								   int version));
-/*
- * Sends the interfacerequest "ifreq" to server connected to "s".
- * "version" is the protocolversion previously negotiated with server.
- *  Returns:
- *			On success: 0
- *			On failure: -1
- */
-
-int
 serverreplyisok __P((int version, int reply, struct route_t *route));
 /*
  * "replycode" is the reply code returned by a socksserver of version
@@ -558,7 +555,7 @@ msproxy_negotiate __P((int s, int control, struct socks_t *packet));
  * "packet" contains the request and on return from the function
  * contains the response.
  * Returns:
- *		On success: 0
+ *		On success: 0 (server replied to our request).
  *		On failure: -1
  */
 
@@ -600,21 +597,30 @@ msproxy_init __P((void));
  *		On failure: -1
  */
 
+int
+httpproxy_negotiate __P((int control, struct socks_t *packet));
+/*
+ * Negotiates a method to be used when talking with the server connected
+ * to "s".  "packet" is the packet that will later be sent to server.
+ * packet->res.reply will be set depending on the result of negotiation.
+ * Returns:
+ *		On success: 0 (server replied to our request).
+ *		On failure: -1.
+ */
+
 #if DIAGNOSTIC
 void
 cc_socksfdv(int sig);
 /*
- * concistencycheck on socksfdv.
+ * consistencycheck on socksfdv.
  */
 #endif
 
 
-#ifdef SOCKSLIBRARY_DYNAMIC
+#if SOCKSLIBRARY_DYNAMIC
 
 int sys_rresvport __P((int *));
 int sys_bindresvport __P((int, struct sockaddr_in *));
-struct hostent *sys_gethostbyname __P((const char *));
-struct hostent *sys_gethostbyname2 __P((const char *, int));
 
 HAVE_PROT_READ_0 sys_read
 __P((HAVE_PROT_READ_1, HAVE_PROT_READ_2, HAVE_PROT_READ_3));

@@ -61,6 +61,7 @@ host_alias = @host_alias@
 host_triplet = @host@
 AWK = @AWK@
 CC = @CC@
+CPP = @CPP@
 LD = @LD@
 LEX = @LEX@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
@@ -74,10 +75,12 @@ PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
 PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
+TOPEXTRADIST = @TOPEXTRADIST@
+TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 
-EXTRA_DIST = socks.conf sockd.conf
+EXTRA_DIST = socks-simple.conf socks.conf sockd.conf socks-simple-withoutnameserver.conf
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = ../include/autoconf.h
 CONFIG_CLEAN_FILES = 
@@ -109,7 +112,7 @@ distdir: $(DISTFILES)
 	@for file in $(DISTFILES); do \
 	  d=$(srcdir); \
 	  if test -d $$d/$$file; then \
-	    cp -pr $$/$$file $(distdir)/$$file; \
+	    cp -pr $$d/$$file $(distdir)/$$file; \
 	  else \
 	    test -f $(distdir)/$$file \
 	    || ln $$d/$$file $(distdir)/$$file 2> /dev/null \

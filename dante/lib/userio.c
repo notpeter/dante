@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.17 1999/05/25 17:22:39 michaels Exp $";
+"$Id: userio.c,v 1.21 2001/02/06 15:58:59 michaels Exp $";
 
 /* ARGSUSED */
 char *
@@ -59,6 +59,8 @@ socks_getusername(host, buf, buflen)
 	if ((name = getenv("SOCKS_USERNAME"))	!= NULL
 	||  (name = getenv("SOCKS_USER"))		!= NULL
 	||  (name = getenv("SOCKS5_USER"))		!= NULL)
+		;
+	else if ((name = getlogin()) != NULL)
 		;
 	else {
 		struct passwd *pw;
@@ -99,7 +101,7 @@ socks_getpassword(host, user, buf, buflen)
 		char prompt[256 + MAXSOCKSHOSTSTRING];
 		char hstring[MAXSOCKSHOSTSTRING];
 
-		snprintf(prompt, sizeof(prompt), "%s@%s sockspassword: ",
+		snprintfn(prompt, sizeof(prompt), "%s@%s sockspassword: ",
 		user, sockshost2string(host, hstring, sizeof(hstring)));
 		password = getpass(prompt);
 	}

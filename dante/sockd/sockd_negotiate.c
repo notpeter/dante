@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.65 1999/12/22 09:29:26 karls Exp $";
+"$Id: sockd_negotiate.c,v 1.76 2001/05/13 14:26:50 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -190,6 +190,14 @@ run_negotiate(mother)
 		struct sockd_negotiate_t *neg;
 		struct timeval timeout;
 
+		while ((neg = neg_gettimedout()) != NULL) {
+			const char *reason = "negotiation timed out";
+
+			iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->src,
+			&neg->state.auth, &neg->dst, NULL, reason, strlen(reason));
+			delete_negotiate(mother, neg);
+		}
+
 		fdbits = neg_fillset(&rset);
 		FD_SET(mother->s, &rset);
 		fdbits = MAX(fdbits, mother->s);
@@ -207,19 +215,8 @@ run_negotiate(mother)
 				SERR(-1);
 				/* NOTREACHED */
 
-			case 0: {
-				const char *reason = "negotiation timed out";
-
-				if ((neg = neg_gettimedout()) == NULL)
-					continue; /* should only be possible if sighup received. */
-
-				iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->src,
-				&neg->dst, reason, strlen(reason));
-
-				delete_negotiate(mother, neg);
-
+			case 0:
 				continue;
-			}
 		}
 
 		if (FD_ISSET(mother->s, &rset)) {
@@ -230,6 +227,8 @@ run_negotiate(mother)
 
 		while ((neg = neg_getset(&rset)) != NULL) {
 			neg_clearset(neg, &rset);
+
+			errno = 0;
 
 			if ((p = recv_request(neg->s, &neg->req, &neg->negstate)) <= 0) {
 				const char *reason = NULL;	/* init or gcc complains. */
@@ -259,7 +258,7 @@ run_negotiate(mother)
 				}
 
 				iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->src,
-				&neg->dst, reason, strlen(reason));
+				&neg->state.auth, &neg->dst, NULL, reason, strlen(reason));
 
 				delete_negotiate(mother, neg);
 			}
@@ -313,6 +312,7 @@ send_negotiate(mother, neg)
 	iovec[0].iov_len		= sizeof(req);
 
 	fdsendt = 0;
+	/* LINTED pointer casts may be troublesome */
 	CMSG_ADDOBJECT(neg->s, sizeof(neg->s) * fdsendt++);
 
 	msg.msg_iov				= iovec;
@@ -320,6 +320,7 @@ send_negotiate(mother, neg)
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
+	/* LINTED pointer casts may be troublesome */
 	CMSG_SETHDR_SEND(sizeof(int) * fdsendt);
 
 	slog(LOG_DEBUG, "sending request to mother");
@@ -349,11 +350,12 @@ recv_negotiate(mother)
 	const char *function = "recv_negotiate()";
 	struct sockd_negotiate_t *neg;
 	struct iovec iovec[1];
-	struct sockaddr addr;
+	struct sockaddr from, to;
 	socklen_t len;
 	unsigned char command;
 	int permit, i, r, fdexpect, fdreceived;
 	struct msghdr msg;
+	char ruleinfo[256];
 	CMSG_AALLOC(sizeof(int));
 
 
@@ -365,6 +367,7 @@ recv_negotiate(mother)
 	msg.msg_name			= NULL;
 	msg.msg_namelen		= 0;
 
+	/* LINTED pointer casts may be troublesome */
 	CMSG_SETHDR_RECV(sizeof(cmsgmem));
 
 	if ((r = recvmsgn(mother->s, &msg, 0, sizeof(command))) != sizeof(command)) {
@@ -404,24 +407,26 @@ recv_negotiate(mother)
 #endif
 
 	fdreceived = 0;
+	/* LINTED pointer casts may be troublesome */
 	CMSG_GETOBJECT(neg->s, sizeof(neg->s) * fdreceived++);
 
 	/* get local and remote address. */
 
-	len = sizeof(addr);
-	if (getpeername(neg->s, &addr, &len) != 0) {
+	len = sizeof(from);
+	if (getpeername(neg->s, &from, &len) != 0) {
 		swarn("%s: getpeername()", function);
 		return 1;
 	}
-	sockaddr2sockshost(&addr, &neg->src);
+	sockaddr2sockshost(&from, &neg->src);
 
-	len = sizeof(addr);
-	if (getsockname(neg->s, &addr, &len) != 0) {
+	len = sizeof(to);
+	if (getsockname(neg->s, &to, &len) != 0) {
 		swarn("%s: getsockname()", function);
 		return 1;
 	}
-	sockaddr2sockshost(&addr, &neg->dst);
+	sockaddr2sockshost(&to, &neg->dst);
 
+	/* init state correctly for checking a connection to us. */
 	neg->state.command		= SOCKS_ACCEPT;
 	neg->state.protocol		= SOCKS_TCP;
 	neg->state.version		= SOCKS_V5; /* anything valid. */
@@ -429,10 +434,11 @@ recv_negotiate(mother)
 	/* pointer fixup */
 	neg->req.auth = &neg->state.auth;
 
-	permit = rulespermit(neg->s, &neg->rule, &neg->state, &neg->src, &neg->dst);
+	permit = rulespermit(neg->s, &from, &to, &neg->rule, &neg->state,
+	&neg->src, &neg->dst, ruleinfo, sizeof(ruleinfo));
 
-	iolog(&neg->rule, &neg->state, OPERATION_ACCEPT, &neg->src, &neg->dst,
-	NULL, 0);
+	iolog(&neg->rule, &neg->state, OPERATION_ACCEPT, &neg->src, &neg->state.auth,
+	&neg->dst, NULL, ruleinfo, strlen(ruleinfo));
 
 	neg->allocated = 1;
 
@@ -464,7 +470,7 @@ delete_negotiate(mother, neg)
 	*neg = neginit;
 
 	/* ack we have freed a slot. */
-	if (writen(mother->ack, &command, sizeof(command)) != sizeof(command))
+	if (writen(mother->ack, &command, sizeof(command), NULL) != sizeof(command))
 		swarn("%s: writen()", function);
 
 	proctitleupdate();

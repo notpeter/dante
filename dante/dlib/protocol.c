@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,12 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.48 1999/05/25 17:22:34 michaels Exp $";
+"$Id: protocol.c,v 1.53 2001/02/06 15:58:57 michaels Exp $";
 
-char *
+unsigned char *
 sockshost2mem(host, mem, version)
 	const struct sockshost_t *host;
-	char *mem;
+	unsigned char *mem;
 	int version;
 {
 
@@ -87,7 +87,7 @@ sockshost2mem(host, mem, version)
 
 				case SOCKS_ADDR_DOMAIN:
 					/* first byte gives length of rest. */
-					*mem = (char)strlen(host->addr.domain);
+					*mem = (unsigned char)strlen(host->addr.domain);
 					memcpy(mem + 1, host->addr.domain, (size_t)*mem);
 					mem += *mem + 1;
 					break;
@@ -109,10 +109,10 @@ sockshost2mem(host, mem, version)
 	return mem;
 }
 
-const char *
+const unsigned char *
 mem2sockshost(host, mem, len, version)
 	struct sockshost_t *host;
-	const char *mem;
+	const unsigned char *mem;
 	size_t len;
 	int version;
 {
@@ -155,7 +155,7 @@ mem2sockshost(host, mem, len, version)
 				}
 
 				case SOCKS_ADDR_IPV6:
-					slog(LOG_INFO, "%s: ipv6 not supported", function);
+					slog(LOG_INFO, "%s: IPv6 not supported", function);
 					return NULL;
 
 				default:

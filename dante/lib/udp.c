@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.110 1999/12/22 09:29:24 karls Exp $";
+"$Id: udp.c,v 1.121 2001/05/02 11:37:20 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -56,8 +56,10 @@ Rsendto(s, msg, len, flags, to, tolen)
 	const struct sockaddr *to;
 	socklen_t tolen;
 {
+	const char *function = "Rsendto()";
 	struct socksfd_t *socksfd;
 	struct sockshost_t host;
+	char srcstring[MAXSOCKADDRSTRING], dststring[sizeof(srcstring)];
 	char *nmsg;
 	size_t nlen;
 	ssize_t n;
@@ -74,11 +76,18 @@ Rsendto(s, msg, len, flags, to, tolen)
 	if (to == NULL)
 		if (socksfd->state.udpconnect)
 			to = &socksfd->connected;
-		else
-			/* best we can do. */
-			return sendto(s, msg, len, flags, NULL, 0);
+		else { /* tcp. */
+			n =  sendto(s, msg, len, flags, NULL, 0);
 
-	/* prefix a udp header to the msg */
+			slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)", 
+			function, protocol2string(SOCKS_TCP),
+			sockaddr2string(&socksfd->local, dststring, sizeof(dststring)),
+			sockaddr2string(&socksfd->server, srcstring, sizeof(srcstring)), n);
+
+			return n;
+		}
+
+	/* prefix a UDP header to the msg */
 	nlen = len;
 	/* LINTED warning: cast discards 'const' from pointer target type */
 	if ((nmsg = udpheader_add(fakesockaddr2sockshost(to, &host), (char *)msg,
@@ -87,12 +96,17 @@ Rsendto(s, msg, len, flags, to, tolen)
 		return -1;
 	}
 
-	n = sendto(s, nmsg, nlen, flags, 
-	socksfd->state.udpconnect ? NULL : &socksfd->reply, 
+	n = sendto(s, nmsg, nlen, flags,
+	socksfd->state.udpconnect ? NULL : &socksfd->reply,
 	socksfd->state.udpconnect ? 0		: sizeof(socksfd->reply));
 	n -= nlen - len;
 
 	free(nmsg);
+
+	slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)", 
+	function, protocol2string(SOCKS_TCP),
+	sockaddr2string(&socksfd->local, dststring, sizeof(dststring)),
+	sockaddr2string(&socksfd->reply, srcstring, sizeof(srcstring)), n);
 
 	return MAX(-1, n);
 }
@@ -109,9 +123,10 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 	const char *function = "Rrecvfrom()";
 	struct socksfd_t *socksfd;
 	struct udpheader_t header;
-	char *newbuf;
 	struct sockaddr newfrom;
+	char srcstring[MAXSOCKADDRSTRING], dststring[sizeof(srcstring)];
 	socklen_t newfromlen;
+	char *newbuf;
 	size_t newlen;
 	ssize_t n;
 
@@ -126,11 +141,28 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 	socksfd = socks_getaddr((unsigned int)s);
 	SASSERTX(socksfd != NULL);
 
-	if (!socksfd->state.protocol.udp)
-		/* assume tcp connection, nothing to do there. */
-		return recvfrom(s, buf, len, flags, from, fromlen);
+	if (socksfd->state.protocol.tcp) {
+		if (socksfd->state.err != 0) {
+			errno = socksfd->state.err;
+			return -1;
+		}
+		else
+			if (socksfd->state.inprogress) {
+				errno = ENOTCONN;
+				return -1;
+			}
 
-	/* if packet is from socksserver it will be prefixed with a header. */
+		n = recvfrom(s, buf, len, flags, from, fromlen);
+
+		slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)", 
+		function, protocol2string(SOCKS_TCP),
+		sockaddr2string(&socksfd->connected, srcstring, sizeof(srcstring)),
+		sockaddr2string(&socksfd->local, dststring, sizeof(dststring)), n);
+		
+		return n;
+	}
+
+	/* udp.  If packet is from socksserver it will be prefixed with a header. */
 	newlen = len + sizeof(header);
 	if ((newbuf = (char *)malloc(sizeof(*newbuf) * newlen)) == NULL) {
 		errno = ENOBUFS;
@@ -221,6 +253,11 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 		memcpy(buf, newbuf, MIN(len, (size_t)n));
 
 	free(newbuf);
+
+	slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)", 
+	function, protocol2string(SOCKS_UDP), 
+	sockaddr2string(&newfrom, srcstring, sizeof(srcstring)),
+	sockaddr2string(&socksfd->local, dststring, sizeof(dststring)), n);
 
 	if (from != NULL) {
 		*fromlen = MIN(*fromlen, newfromlen);
@@ -314,22 +351,21 @@ udpsetup(s, to, type)
 	}
 
 	/* LINTED  pointer casts may be troublesome */
-	if ((((struct sockaddr_in *)(&socksfd.local))->sin_addr.s_addr
-	== htonl(INADDR_ANY))
+	if ((TOIN((&socksfd.local))->sin_addr.s_addr == htonl(INADDR_ANY))
 	/* LINTED  pointer casts may be troublesome */
-	|| ((struct sockaddr_in *)(&socksfd.local))->sin_port == htons(0)) {
+	|| TOIN((&socksfd.local))->sin_port == htons(0)) {
 		/*
 		 * local name not fixed, set it, port may be bound, we need to bind
-		 * ip too however.
+		 * IP too however.
 		 */
 
 		/* LINTED  pointer casts may be troublesome */
-		const in_port_t port = ((struct sockaddr_in *)(&socksfd.local))->sin_port;
+		const in_port_t port = TOIN((&socksfd.local))->sin_port;
 
 		if (port != htons(0)) {
 			/*
 			 * port is bound.  We will try to unbind and then rebind same port
-			 * but now also bind ip address.  XXX Dangerous stuff.
+			 * but now also bind IP address.  XXX Dangerous stuff.
 			 */
 
 			if ((p = socketoptdup(s)) == -1) {
@@ -346,7 +382,7 @@ udpsetup(s, to, type)
 		}
 
 		/*
-		 * don't have much of an idea on what ip address to use so might as
+		 * don't have much of an idea on what IP address to use so might as
 		 * well use same as tcp connection to socksserver uses.
 		 */
 		len = sizeof(socksfd.local);
@@ -355,7 +391,7 @@ udpsetup(s, to, type)
 			return -1;
 		}
 		/* LINTED  pointer casts may be troublesome */
-		((struct sockaddr_in *)&socksfd.local)->sin_port = port;
+		TOIN(&socksfd.local)->sin_port = port;
 
 		if (bind(s, &socksfd.local, sizeof(socksfd.local)) != 0) {
 			close(socksfd.control);
@@ -387,27 +423,6 @@ udpsetup(s, to, type)
 		close(socksfd.control);
 		return -1;
 	}
-
-#if 0
-	/*
-	 * if the remote server supports interface requests, try to get
-	 * the address it's using on our behalf.
-	 */
-	if (packet.res.flag & SOCKS_INTERFACEREQUEST) {
-		struct interfacerequest_t ifreq;
-
-		ifreq.rsv				= 0;
-		ifreq.sub				= SOCKS_INTERFACEDATA;
-		ifreq.flag				= 0;
-		ifreq.host.atype		= SOCKS_ADDR_IPV4;
-		ifreq.host.addr.ipv4	= ((const struct sockaddr_in *)to)->sin_addr;
-		ifreq.host.port		= ((const struct sockaddr_in *)to)->sin_port;
-
-		if (send_interfacerequest(socksfd.control, &ifreq,
-		socksfd.state.version) == 0) {
-		}
-	}
-#endif
 
 	if (socks_addaddr((unsigned int)s, &socksfd) == NULL) {
 		close(socksfd.control);

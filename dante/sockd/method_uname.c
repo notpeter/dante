@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.30 1999/12/22 09:29:25 karls Exp $";
+"$Id: method_uname.c,v 1.38 2001/04/20 13:11:27 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -90,7 +90,7 @@ recv_unamever(s, request, state)
 {
 
 	INIT(sizeof(request->auth->mdata.uname.version));
-	CHECK(&request->auth->mdata.uname.version, NULL);
+	CHECK(&request->auth->mdata.uname.version, request->auth, NULL);
 
 	switch (request->auth->mdata.uname.version) {
 		case SOCKS_UNAMEVERSION:
@@ -115,8 +115,9 @@ recv_ulen(s, request, state)
 {
 
 	INIT(sizeof(*request->auth->mdata.uname.name));
-	CHECK(request->auth->mdata.uname.name, NULL);
+	CHECK(request->auth->mdata.uname.name, request->auth, NULL);
 
+	/* LINTED conversion from 'int' may lose accuracy */
 	OCTETIFY(*request->auth->mdata.uname.name);
 
 	state->rcurrent = recv_uname;
@@ -134,7 +135,7 @@ recv_uname(s, request, state)
 	const size_t ulen = (size_t)*request->auth->mdata.uname.name;
 
 	INIT(ulen);
-	CHECK(request->auth->mdata.uname.name + 1, NULL);
+	CHECK(request->auth->mdata.uname.name + 1, request->auth, NULL);
 
 	/* convert to string. */
 	memcpy(request->auth->mdata.uname.name, request->auth->mdata.uname.name + 1,
@@ -154,8 +155,9 @@ recv_plen(s, request, state)
 {
 
 	INIT(sizeof(*request->auth->mdata.uname.password));
-	CHECK(request->auth->mdata.uname.password, NULL);
+	CHECK(request->auth->mdata.uname.password, request->auth, NULL);
 
+	/* LINTED conversion from 'int' may lose accuracy */
 	OCTETIFY(*request->auth->mdata.uname.password);
 
 	state->rcurrent = recv_passwd;
@@ -172,64 +174,30 @@ recv_passwd(s, request, state)
 {
 /*	const char *function = "recv_passwd()"; */
 	const size_t plen = (size_t)*request->auth->mdata.uname.password;
-	int status;
 	unsigned char response[1				/* version. */
 								+ 1				/* status.	*/
 	];
 
 	INIT(plen);
-	CHECK(request->auth->mdata.uname.password + 1, NULL);
+	CHECK(request->auth->mdata.uname.password + 1, request->auth, NULL);
 
 	/* convert to string. */
 	memcpy(request->auth->mdata.uname.password,
 	request->auth->mdata.uname.password + 1, plen);
 	request->auth->mdata.uname.password[plen] = NUL;
 
-	switch (status
-	= (unsigned char) passwordcheck(request->auth->mdata.uname.name,
-	request->auth->mdata.uname.password)) {
-		case 0:
-			request->auth->matched = 1;
-			break; /* ok. */
-
-		case 1: {
-				char *name = request->auth->mdata.uname.name;
-
-				snprintf(state->emsg, sizeof(state->emsg),
-				"denied access to non-existing user \"%s\"",
-				strcheck(name = str2vis(name, strlen(name))));
-				free(name);
-				break;
-		}
-
-		case 2: {
-				char *name = request->auth->mdata.uname.name;
-
-				snprintf(state->emsg, sizeof(state->emsg),
-				"password authentication failed for user \"%s\"",
-				strcheck(name = str2vis(name, strlen(name))));
-				free(name);
-				break;
-		}
-
-		default:
-			SERRX(status);
-	}
-
-	bzero(request->auth->mdata.uname.password,
-	sizeof(request->auth->mdata.uname.password));
-
+	/*
+	 * Very sadly we can't do any checking of the username/password here since
+	 * we don't know what database to use, it depends on what the socks
+	 request is.
+	*/
 	response[UNAME_VERSION] = request->auth->mdata.uname.version;
-	response[UNAME_STATUS]	= (unsigned char)status;
+	response[UNAME_STATUS]	= (unsigned char)0;
 
-	if (writen(s, response, sizeof(response)) != sizeof(response))
+	if (writen(s, response, sizeof(response), request->auth)
+	!= sizeof(response))
 		return -1;
 
-	if (status == 0) {	/* 0 is success. */
-		state->rcurrent = recv_sockspacket;
-		return state->rcurrent(s, request, state);
-	}
-
-	errno = 0;
-	return -1;
+	state->rcurrent = recv_sockspacket;
+	return state->rcurrent(s, request, state);
 }

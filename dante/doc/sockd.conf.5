@@ -1,6 +1,6 @@
-.\" $Id: sockd.conf.5,v 1.28 1999/12/22 09:29:18 karls Exp $
+.\" $Id: sockd.conf.5,v 1.48 2001/05/15 13:54:33 karls Exp $
 .\"
-.\" Copyright (c) 1997, 1998, 1999
+.\" Copyright (c) 1997, 1998, 1999, 2000, 2001
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -33,14 +33,14 @@
 .\"  Software Distribution Coordinator  or  sdc@inet.no
 .\"  Inferno Nettverk A/S
 .\"  Oslo Research Park
-.\"  Gaustadaléen 21
-.\"  N-0349 Oslo
+.\"  Gaustadalléen 21
+.\"  NO-0349 Oslo
 .\"  Norway
 .\"
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.TH SOCKD.CONF 5 "June 14, 1999"
+.TH SOCKD.CONF 5 "May 11, 2001"
 .SH NAME
 sockd.conf \- Dante server configuration file syntax
 .SH DESCRIPTION
@@ -51,24 +51,6 @@ character \fB#\fP.
 .SH SERVER SETTINGS
 The server settings control the generic behaviour of the server.  Each
 keyword is separated from it's value by a \fB':'\fP character.
-.IP \fBlogouput\fP
-This value controls where the server sends logoutput.  It can
-be either \fBsyslog\fP[/\fBfacility\fP], \fBstdout\fP, \fBstderr\fP,
-a filename, or a combination.
-.IP \fBinternal\fP
-The internal address.  Connections will only be accepted on this address.
-Multiple \fBinternal\fP lines may be given.
-.IP \fBexternal\fP
-The address to be used for outgoing connections.
-.IP \fBmethod\fP
-A list of acceptable authentication methods, in order of preference.
-Supported values are \fBusername\fP, \fBnone\fP and \fBrfc931\fP.
-.IP \fBuser.privileged\fP
-Username which will be used for doing privileged operations.
-.IP \fBuser.notprivileged\fP
-User which the server runs as most of the time.
-.IP \fBuser.libwrap\fP
-User used to execute libwrap commands.
 .IP \fBcompatibility\fP
 With the \fBsameport\fP keyword, the server attempts to use the same
 port on the server and the client.  This functionality is the default, but
@@ -77,18 +59,85 @@ The \fBreuseaddr\fP keyword might solve problems when the
 bind extension is used but the effects of enabling \fBreuseaddr\fP
 is currently unknown, do not enable it unless you understand
 the effects.
+.IP \fBconnecttimeout\fP
+The number of seconds a client has to send the request after a connect.
+Set it to 0 for forever.
+.IP \fBexternal\fP
+The address to be used for outgoing connections.
+The address given may be either a ipaddress or a interfacename.
+.IP \fBinternal\fP
+The internal address.  Connections will only be accepted on this address.
+Multiple \fBinternal\fP lines may be given.
+The address given may be either a ipaddress or a interfacename.
+.IP \fBiotimeout\fP
+The number of seconds an established connection can be idle.  Set it
+to 0 for forever.
+.IP \fBlogouput\fP
+This value controls where the server sends logoutput.  It can
+be either \fBsyslog\fP[/\fBfacility\fP], \fBstdout\fP, \fBstderr\fP,
+a filename, or a combination.
+.IP \fBmethod\fP
+A list of acceptable authentication methods for socks-rules, in order
+of preference.
+Supported values are \fBusername\fP, \fBnone\fP, \fBrfc931\fP and \fBpam\fP.
+This list is used as the default for all coming rules until
+changed.  Then the changed list is used as the default for
+the next rules.
+
+If a method is not set in this list it will never be selected.
+
+See the section on methods for a explanation of the different methods.
+
+.IP \fBclientmethod\fP
+A list of acceptable authentication methods for client-rules,
+in order of preference.  These are the authenticationmethods
+that can provide authentications based on just the client's 
+TCP connection.
+Supported values are \fBnone\fP, \fBrfc931\fP and \fBpam\fP.
+This list is used as the default for all coming rules until
+changed.  Then the changed list is used as the default for
+the next rules.  The default value is \fBnone\fP.
+
+If a method is not set in this list it will never be selected.
+
 .IP \fBsrchost\fP
 With the \fBnomismatch\fP keyword, the server will not accept
 connects from addresses having a mismatch between DNS address and hostname.
 Default is to accept them.
 With the \fBnounknown\fP keyword, the server will not accept connects
 from addresses without a DNS record.  Default is to accept them.
-.IP \fBconnecttimeout\fP
-The number of seconds a client has to send the request after a connect.
-Set it to 0 for forever.
-.IP \fBiotimeout\fP
-The number of seconds an established connection can be idle.  Set it
-to 0 for forever.
+
+.IP \fBuser.privileged\fP
+Username which will be used for doing privileged operations.
+.IP \fBuser.notprivileged\fP
+User which the server runs as most of the time.
+.IP \fBuser.libwrap\fP
+User used to execute libwrap commands.
+
+.SH METHODS
+The \fBDante\fP server supports the following methods.  Some
+installations of Dante may support only a subset of these.
+
+.IP \fBnone\fP
+The method requires no form of authentication.
+.IP \fBusername\fP
+The method requires the client to provide a username and password.
+This must match the username and password given in the system
+passwordfile.
+.IP \fBrfc931\fP
+The method requires the client host to provide a rfc931 ("ident")
+reply for the connecting client.  The name given in the reply
+must be present in the password database.
+.IP \fBpam\fP
+The method requires the available clientdata to match against the
+pam database.
+
+
+.SH ADDRESSES
+Each address field can consist of a ipaddress (and where meaningful,
+a netmask, separated from the ipaddress by a '\fB/\fP' sign.), a hostname,
+or a domainname (designated so by the leading '\fB.\fP').
+Each address can be followed by a optional \fBport\fP specifier.
 .SH RULES
 There are two sets of rules and they work at different levels.
 Rules prefixed with \fBclient\fP are checked first and are used to
@@ -134,7 +183,7 @@ may contain only a subset of the socks-rules.  More concrete, they
 may not contain any keywords related to the socks protocol.
 
 .IP
-The contents of the client-rule is be:
+The contents of a client-rule is:
 
 .IP \fBfrom\fP
 The rule applies to requests coming from the address given as value.
@@ -149,20 +198,21 @@ will match all port numbers within the range <start #> and <end #>.
 The server will pass the line to libwrap for execution.
 .IP \fBlog\fP
 Used to control logging.  Accepted keywords are \fBconnect\fP,
-\fBdisconnect\fP, \fBdata\fP and \fBiooperation\fP.
+\fBdisconnect\fP, \fBdata\fP, \fBerror\fP and \fBiooperation\fP.
 .IP \fBuser\fP
 The server will only accept connections from users matching one
 of the names given as value.
-It is possible to implicitly list all users in the passwordfile for
-a given authentication method by giving the name of the
-authentication method as value to \fBuser\fP.
-The given username \fBmust\fP regardless always be present in the
-passwordfile used by \fBDante\fP.
-The rule (and global methods) must also allow a usernamebased
-method.  For client-rules this is method \fBrfc931\fP.
+If no \fBuser\fP value is given, everyone in the passwordfile
+will be matched.
+The rule must also allow usernamebased methods.
+.IP \fBmethod\fP
+Require that the connection be "authenticated" using one of the
+given methods. 
+.IP \fBpamservicename\fP
+Which servicename to use when involving pam.  Default is "sockd".
 
 .IP
-The contents of the socks-rules is:
+The contents of a socks-rule is:
 
 .IP \fBfrom\fP
 The rule applies to requests coming from the address given as value.
@@ -186,8 +236,11 @@ Used to control logging.  Accepted keywords are \fBconnect\fP,
 \fBdisconnect\fP, \fBdata\fP and \fBiooperation\fP.
 .IP \fBmethod\fP
 Require that the connection be established using one of the
-given methods.
+given methods.  \fBmethod\fP always refers to the source part of
+the rule.
 Valid values are the same as in the global \fBmethod\fP line.
+.IP \fBpamservicename\fP
+What servicename to use when involving pam.  Default is "sockd".
 .IP \fBprotocol\fP
 The rule applies to the given protocols.  Valid values are
 \fBtcp\fP and \fBudp\fP.  It is recommended that the \fBcommand\fP
@@ -198,22 +251,25 @@ Valid proxyprotocols are \fBsocks_v4\fP and \fBsocks_v5\fP.
 .IP \fBuser\fP
 The server will accept connections from users matching one
 of the names given as value.
-It is possible to implicitly list all users in the passwordfile for
-a given authentication method by giving the name of the
-authentication method as value to \fBuser\fP.
-If no \fBuser\fP value is given, one will automatically be provided
-that will match all users for the username-based methods in the rule.
-The given username \fBmust\fP regardless always be present in the
-passwordfile used by \fBDante\fP.
-The rule (and global methods) must also allow a usernamebased
-method.  For socks-rules this is method \fBrfc931\fP and \fBusername\fP.
+If no \fBuser\fP value is given, everyone in the passwordfile
+will be matched.
+The rule must also allow usernamebased methods.
 .SH EXAMPLES
 See the example directory in the distribution.
 .SH FILES
-.I /etc/sockd.conf
+.nf
+.ta \w 1
+/etc/sockd.conf	Dante server configuration file.
+/etc/passwd	file used when checking username/passwords.
+.fi
 .SH AUTHORS
 For Inferno Nettverk A/S, Norway:
  Michael Shuldman <michaels@inet.no>: Design and implementation.
  Karl-Andre' Skevik <karls@inet.no>: Autoconf and porting.
 .SH SEE ALSO
 sockd(8), hosts_access(5)
+.Pp
+Information about new releases and other related issues can be found
+on the 
+.Nm Dante
+WWW home page at http://www.inet.no/dante.

@@ -1,6 +1,207 @@
-@(#)$Id: NEWS,v 1.20 1999/12/22 09:29:10 karls Exp $
+@(#)$Id: NEWS,v 1.34 2001/03/14 12:03:33 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Tuesday, March 13, 2001 -- Dante v1.1.9
+
+ o fix big bug in rulespermit().
+   Problem reported by Stephan Eisvogel <eisvogel@hawo.stw.uni-erlangen.de>.
+
+***  Tuesday, February 20, 2001 -- Dante v1.1.8
+
+ o contrib directory actually added to distributed archive
+
+***  Tuesday, February 20, 2001 -- Dante v1.1.7
+
+ o contrib/sockd-stat.awk, provides statistics based on sockd logfiles.
+   Contributed by Stephan Eisvogel <eisvogel@hawo.stw.uni-erlangen.de>.
+
+ o If gethostbyname() fails, treat it as if resolveprotocol was set to
+   fake, meaning we hope the socksserver will be able to resolve it.
+   Will presumably make certain dns configurations work better for
+   client.
+
+ o When showing rule (debug mode), print out linenumber too.
+   loosely based on suggestion from "N. Kremla" (kremlanh@aramco.com.sa).
+
+ o contrib/ directory added.
+
+ o Support for giving interfacenames as internal/external address.
+
+ o osf host test in configure did not match all alpha based machines;
+   Dobrica Pavlinusic <dpavlin@rot13.org>.
+
+ o -V flag added to sockd, which causes the server to exit after
+   parsing the configuration file.
+
+ o Header file (socks.h) with socks function prototypes added. By
+   default installed in /usr/local/include.
+
+***  Tuesday, November 21, 2000 -- Dante v1.1.6
+
+ o fix a bug related to hostnamelength parsing in server.
+   Thanks to "Thomas Jarosch" <thomas.jarosch@styletec.de>.
+
+***  Monday, October 16, 2000 -- Dante v1.1.5
+
+ o New prototype for gethostbyaddr in RedHat 7.0 added.
+   First reported by Paul R Streitman <prs@us.ibm.com>.
+
+ o RedHat needs libnsl for tcpwrappers to work.
+
+***  Thursday, October 5, 2000 -- Dante v1.1.4
+
+ o fix bug affecting clients going through socks v4 servers.
+   Reported and nicely diagnosed by Jack Keane (jkeane@OpenReach.com).
+
+ o increase default listen backlog to 511, based on request by
+   Doug Hardie (bc979@lafn.org).
+
+***  Monday, September 25, 2000 -- Dante v1.1.3
+
+ o some fixes/additions to example/ files.
+
+ o HP-UX 11.00 should now work.
+   Thanks to Malte Cornils <malte@cornils.net> for testing.
+
+ o httpproxysupport in client (meaning "socksify" can work 
+   when going through webproxies too).
+
+ o expire badmarking on bad/non-working routes/proxyservers after
+   configured time.  Default to never expiring, as in previous
+   versions.  See BADROUTE_EXPIRE in config.h.
+
+ o say what address we expected the bindreply to come from in
+   "unexpected bindreply ..."
+
+ o don't close controlconnection if another socket is using it.
+   Fixes a bug triggered when using the bindextension in certain
+   cases.  Problem reported by Jacques A. Vidrine (n@nectar.com).
+
+ o compilation outside source directory fixed, based on patch from
+   NISHIMURA Daisuke <nishi@graco.c.u-tokyo.ac.jp>
+
+ o bsdi uses elf; NISHIMURA Daisuke <nishi@graco.c.u-tokyo.ac.jp>
+
+ o dlib/hostcache.c now compiled again. First reported by
+   "Jacques A. Vidrine" <n@nectar.com>
+
+***  Monday, Jun 26, 2000 -- Dante v1.1.2
+
+ o minor additions and standardization to logformat.
+
+ o slightly smarter about what descriptors we leave open when
+   forking of connectchild in client for non-blocking connect.
+   Also don't setsid() in connectchild.
+
+ o work around linux/sysv bug involving getpwnam() preventing
+   password authentication from working in some cases. 
+   hp-ux may need similar workaround but not yet verified.
+
+ o Prefer the result of getlogin() to getpwuid(getuid()).
+
+ o HP-UX port.  Many thanks to Malte Cornils <malte@cornils.net>
+   for help with the port. HP-UX 10.20 should work, HP-UX 11.00
+   currently doesn't.
+
+ o AIX port.  Many thanks to M. Everett Hinckley (everett@lsli.com)
+   and Tommy Chan for doing the port.  Great work.
+   AIX 4.2.1 should work.
+
+ o share some of the client interposition code with the server;
+   lets libwrap (and any other external library) use the
+   hostname/hostaddress cache too, making things faster for
+   those using libwrap.
+
+ o always call gettimedout() regardless of select(), fixes an
+   theoretically possible problem.
+   Brought up by Per Hedeland (per@erix.ericsson.se).
+
+ o assume the globally allowed methods are already set when parsing
+   the rules.  Allows more checking/warning about "strange" rules.
+
+ o fix a bug so portranges get parsed again, instead of reporting
+   syntax error.
+
+ o some cleanup/generalization in preparation for cryptography
+   support.
+
+ o in the case of the commands "bindreply" and "udpreply",
+   "method" based itself on the controlconnection rather than the
+   remote "reply".  Corrected to base itself on the remote reply.
+
+ o when printing authinfo, include what the name of authmethod used
+   is.
+
+ o removed the "feature" that a user listed with the same name as
+   a method would be considered special; too complex for practical
+   use.  No more magic names.
+
+ o clientrules now also take a method field, only non-socks
+   method can be listed there of course; currently that's "none"
+   and "rfc931".
+
+ o call gethostbyname2() internally instead of gethostbyname();
+   fixes a client problem present in some environments.
+   Problem described by Per Hedeland (per@erix.ericsson.se).
+
+Special compatibility notes for users upgrading from
+previous versions of Dante:
+  Server part:
+    -  In the previous versions the "method" field in the rules
+       specifying bind/udp-replies wasn't used entirely correct;
+       it used the socksclient as the source when matching the
+       method field, rather than the source of the reply, a 
+		 non-socks connection.
+
+       The correct usage should be that the method field is relative
+       to the sourceaddress, and the sourceaddress for replies is
+       a "non-socks" connection.  Special care might have to be
+       taken to not accidently block the replies since most of them
+       can only be using method "none" (the only other alternative
+       is "rfc931").
+    
+    -  The "feature" that a "user" listed with the same name as
+       a "method" would be considered special has been removed.
+       Instead "client-rules" now take a "method" specification on
+       the same form as the "socks-rules".  They also use the global
+       method line in the same way as socks-rules.
+    
+    -  The feature that "libwrap: rfc931" would include the rfc931
+       (ident) name in logging has been removed.  This functionality
+       should instead be provided by adding a additional rule,
+       almost identical to the rule with "libwrap: rfc931", before
+       the "libwrap: rfc931" rule.
+
+       The only difference is that the added rule should have
+       "method: rfc931" specified instead of "libwrap: rfc931".
+       "libwrap: rfc931" should also be removed from the old rule.
+
+       The first rule will try to do send a rfc931 query to the
+       client address.  If that fails, Dante moves on to the next
+       rule, which in this case does not require a successful
+       rfc931 lookup.  Refer to example/sockd.conf for more
+       information.
+
+***  Wednesday, January 5, 2000 -- Dante v1.1.1
+
+ o Can't do rulespermit() that early, move to after connect().
+   Fixes a hang that could occur when using libwrap, thanks
+   to Marc G. Fournier (marc.fournier@acadiau.ca) for help
+   and testing.
+
+ o socksify on elf-based FreeBSD systems should hopefully work now;
+   thanks to Andre Albsmeier <andre.albsmeier@mchp.siemens.de> for
+   testing.
+
+ o Allow specifying what facility to use for syslog output.
+   Code mostly from Per Hedeland (per@erix.ericsson.se).
+
+ o Fix bug preventing one of the serverchilds from dying when
+   the server is killed.  Reported by Per Hedeland (per@erix.ericsson.se).
+
+ o config.c: increment pointed to area, not pointer.
+   Patch from Per Hedeland (per@erix.ericsson.se).
 
 ***  Monday, Sep 27, 1999 -- Dante v1.1
 

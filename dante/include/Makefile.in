@@ -61,6 +61,7 @@ host_alias = @host_alias@
 host_triplet = @host@
 AWK = @AWK@
 CC = @CC@
+CPP = @CPP@
 LD = @LD@
 LEX = @LEX@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
@@ -74,10 +75,13 @@ PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
 PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
+TOPEXTRADIST = @TOPEXTRADIST@
+TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 
-noinst_HEADERS = common.h sockd.h socks.h config.h yacconfig.h redefac.h
+noinst_HEADERS = common.h sockd.h socks.h config.h yacconfig.h redefac.h 		 interposition.h
+
 EXTRA_DIST = redefgen.sh
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = autoconf.h
@@ -166,7 +170,7 @@ distdir: $(DISTFILES)
 	@for file in $(DISTFILES); do \
 	  d=$(srcdir); \
 	  if test -d $$d/$$file; then \
-	    cp -pr $$/$$file $(distdir)/$$file; \
+	    cp -pr $$d/$$file $(distdir)/$$file; \
 	  else \
 	    test -f $(distdir)/$$file \
 	    || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
@@ -242,7 +246,7 @@ mostlyclean distclean maintainer-clean
 
 
 redefac.h: autoconf.h.in
-	sh redefgen.sh
+	sh $(top_srcdir)/include/redefgen.sh $(top_srcdir)/include
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

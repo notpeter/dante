@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -52,14 +52,16 @@ extern int parseinit;
 extern const int configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.51 1999/12/22 09:29:24 karls Exp $";
+"$Id: config_scan.l,v 1.61 2001/05/10 12:31:25 michaels Exp $";
 
 %}
 
 
 %option yylineno
 %option noyywrap
-/*%option debug        */
+/*%option debug             */
+
+PORTNUMBER [0-9]{1,5}
 
 	/* non-exclusive startconditions. */
 %s start_address
@@ -72,12 +74,15 @@ static const char rcsid[] =
 %x start_line
 %x start_log
 %x start_logoutput
+%x start_method
+%x start_operator
 %x start_option
 %x start_proxyprotocol
 %x start_username
-%x start_service
+%x start_portnumber
 %x start_srchost
 %x start_protocol
+%x start_servicename
 %%
 
 
@@ -122,6 +127,11 @@ static const char rcsid[] =
 	return PROXYPROTOCOL_MSPROXY_V2;
 }
 
+<start_proxyprotocol>http_v1.0 {
+	yylval.string = yytext;
+	return PROXYPROTOCOL_HTTP_V1_0;
+}
+
 <start_command>bind {
 	yylval.string = yytext;
 	return COMMAND_BIND;
@@ -155,14 +165,15 @@ static const char rcsid[] =
 
 
 <start_port>port {
-	BEGIN(start_service);
+	BEGIN(start_operator);
 
 	yylval.string = yytext;
 	return PORT;
 }
 
-	/* compare */
-<start_service>eq|=|neq|!=|ge|>=|le|<=|gt|>|lt|< {
+<start_operator>eq|=|neq|!=|ge|>=|le|<=|gt|>|lt|< {
+	BEGIN(start_portnumber);
+
 	yylval.string = yytext;
 	return OPERATOR;
 }
@@ -193,25 +204,39 @@ static const char rcsid[] =
 	return LOG_IOOPERATION;
 }
 
-<start_service>[a-zA-Z]+[^: /\t\n]* {
+<start_portnumber,start_servicename>[a-zA-Z]+[^: /\t\n]* {
 	BEGIN(INITIAL);
 
 	yylval.string = yytext;
 	return SERVICENAME;
 }
 
-<start_service>[0-9]{1,5} {
+<start_operator>{PORTNUMBER} {
+	BEGIN(start_portnumber); /* no operator, first port in range then. */
+
+	yylval.string = yytext;
+	return PORTNUMBER;
+}
+
+<start_portnumber>{PORTNUMBER} {
 	BEGIN(INITIAL);
 
 	yylval.string = yytext;
 	return PORTNUMBER;
 }
 
-<start_address>[\.a-zA-Z]+[^ \t\n]* {
+<start_address>([a-zA-Z0-9-]*\.[a-zA-Z0-9-]+[a-zA-Z\.-]*|\.) {
 	BEGIN(start_port);
 
 	yylval.string = yytext;
 	return DOMAIN;
+}
+
+<start_address>[a-zA-Z]+[0-9]+ {
+	BEGIN(start_port);
+
+	yylval.string = yytext;
+	return IFNAME;
 }
 
 <start_logoutput>[^: \t\n]+ {
@@ -426,29 +451,44 @@ client {
 
 
 method {
+	BEGIN(start_method);
+
 	yylval.string = yytext;
 	return METHOD;
 }
 
-none {
+clientmethod {
+	BEGIN(start_method);
+
+	yylval.string = yytext;
+	return CLIENTMETHOD;
+}
+
+<start_method>none {
 	yylval.string = yytext;
 	return NONE;
 }
 
-gssapi {
+<start_method>gssapi {
 	yylval.string = yytext;
 	return GSSAPI;
 }
 
-username {
+<start_method>username {
 	yylval.string = yytext;
 	return UNAME;
 }
 
-rfc931 {
+<start_method>rfc931 {
 	yylval.string = yytext;
 	return RFC931;
 }
+
+<start_method>pam {
+	yylval.string = yytext;
+	return PAM;
+}
+
 
 	/* filterrules */
 
@@ -487,6 +527,14 @@ libwrap {
 	return LIBWRAPSTART;
 }
 
+pamservicename {
+	BEGIN(start_servicename);
+
+	yylval.string = yytext;
+	return PAMSERVICENAME;
+}
+
+
  /*
   * Old keywords that are no longer used.
   */
@@ -498,7 +546,7 @@ localdomain.*:.* {
 
 
 
-	/* misc generic stuff. */
+	/* misc. generic stuff. */
 
 <*>[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3} {
 	BEGIN(start_port);
