@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.45 2000/06/09 10:45:18 karls Exp $";
+"$Id: io.c,v 1.47 2000/07/03 12:55:06 michaels Exp $";
 
 /* this file defines the functions. */
 #undef select

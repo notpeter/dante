@@ -78,7 +78,7 @@ SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 VERSION = @VERSION@
 YACC = @YACC@
 
-EXTRA_DIST = socks.conf sockd.conf
+EXTRA_DIST = socks-simple.conf socks.conf sockd.conf
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = ../include/autoconf.h
 CONFIG_CLEAN_FILES = 

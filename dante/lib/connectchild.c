@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.96 2000/06/08 12:47:56 michaels Exp $";
+"$Id: connectchild.c,v 1.98 2000/08/08 12:36:10 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -154,19 +154,19 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 			case 0: {
 				struct itimerval timerval;
-				size_t i, max;
+				int i, max;
 
 				slog(LOG_DEBUG, "%s: connectchild forked", function);
 
 				/* close unknown descriptors. */
 				for (i = 0, max = getdtablesize(); i < max; ++i)
-					if (socks_logmatch(i, &config.log)
-					|| i == (unsigned int)pipev[CHILD])
+					if (socks_logmatch((unsigned int)i, &config.log)
+					|| i == pipev[CHILD])
 						continue;
 					else if (isatty(i))
 						continue;
 					else
-						close((int)i);
+						close(i);
 
 				newprocinit();
 
@@ -197,7 +197,8 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 	switch (packet->req.version) {
 		case SOCKS_V4:
-		case SOCKS_V5: {
+		case SOCKS_V5: 
+		case HTTP_V1_0: {
 			/*
 			 * Controlsocket is what later becomes datasocket.
 			 * We don't want to allow the client to read/write/select etc.
@@ -279,6 +280,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			switch (packet->req.version) {
 				case SOCKS_V4:
 				case SOCKS_V5:
+				case HTTP_V1_0:
 					close(control); /* created in this function. */
 					control = s;
 					break;
@@ -310,9 +312,12 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	len = sizeof(socksfd.local);
 	if (getsockname(s, &socksfd.local, &len) != 0)
 		SERR(s);
+
+	/* this has to be done here or there would be a race against the signal. */
 	socksfd.control				= control;
-	socksfd.state.command		= SOCKS_CONNECT;
+	socksfd.state.command		= packet->req.command;
 	socksfd.state.version		= packet->req.version;
+	socksfd.state.protocol.tcp	= 1;
 	socksfd.state.inprogress	= 1;
 	sockshost2sockaddr(&packet->req.host, &socksfd.connected);
 
@@ -330,6 +335,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	switch (packet->req.version) {
 		case SOCKS_V4:
 		case SOCKS_V5:
+		case HTTP_V1_0:
 			break;
 
 		case MSPROXY_V2:
@@ -459,6 +465,7 @@ run_connectchild(mother)
 
 				case SOCKS_V4:
 				case SOCKS_V5:
+				case HTTP_V1_0:
 					len = 1; /* only controlsocket (which is also datasocket). */
 					break;
 
@@ -481,6 +488,7 @@ run_connectchild(mother)
 
 				case SOCKS_V4:
 				case SOCKS_V5:
+				case HTTP_V1_0:
 					s = control;	/* datachannel is controlchannel. */
 					break;
 
@@ -691,6 +699,7 @@ sigchld(sig)
 
 				case SOCKS_V4:
 				case SOCKS_V5:
+				case HTTP_V1_0:
 					slog(LOG_DEBUG, "%s: duping %d over %d",
 					function, socksfd->control, s);
 
@@ -737,6 +746,7 @@ sigchld(sig)
 			slog(LOG_DEBUG, "serverreplyisok, server will use as src: %s",
 			sockshost2string(&childres.packet.res.host, NULL, 0));
 
+			socksfd->state.auth			= childres.packet.auth;
 			socksfd->state.msproxy		= childres.packet.state.msproxy;
 			socksfd->state.inprogress	= 0;
 			sockshost2sockaddr(&childres.packet.res.host, &socksfd->remote);

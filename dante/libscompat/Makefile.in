@@ -85,6 +85,8 @@ libscompat_la_SOURCES = difftime.c daemon.c getdtablesize.c hstrerror.c 	inet_at
 
 
 noinst_HEADERS = compat.h
+
+INCLUDES = -I$(top_srcdir)/include
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = ../include/autoconf.h
 CONFIG_CLEAN_FILES = 

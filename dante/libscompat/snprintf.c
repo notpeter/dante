@@ -1,4 +1,4 @@
-/* $Id: snprintf.c,v 1.4 1999/05/13 16:35:58 karls Exp $ */
+/* $Id: snprintf.c,v 1.5 2000/08/31 06:57:00 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -6,7 +6,7 @@
 
 #include "common.h"
 
-#if !HAVE_SNPRINTF
+#if !HAVE_VSNPRINTF
 
 /*
  * Revision 12: http://theos.com/~deraadt/snprintf.c
@@ -177,4 +177,4 @@ static void avoid_error()
 {
 	avoid_error();
 }
-#endif  /* !HAVE_SNPRINTF */
+#endif  /* !HAVE_VSNPRINTF */

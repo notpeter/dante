@@ -81,7 +81,7 @@ VERSION = @VERSION@
 YACC = @YACC@
 
 lib_LTLIBRARIES = libdsocks.la
-libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c int_osf3.c   	config_parse.y io.c debug.c Rgetpeername.c Rgetsockname.c udp.c   	Rrresvport.c Rbind.c config_scan.l address.c authneg.c client.c   	clientconfig.c clientprotocol.c Raccept.c userio.c method_uname.c 	connectchild.c config.c log.c protocol.c socket.c udp_util.c      	Rbindresvport.c Rconnect.c util.c Rgethostbyname.c Rcompat.c      	msproxy_clientprotocol.c broken.c
+libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c int_osf3.c   	config_parse.y io.c debug.c Rgetpeername.c Rgetsockname.c udp.c   	Rrresvport.c Rbind.c config_scan.l address.c authneg.c client.c   	clientconfig.c clientprotocol.c Raccept.c userio.c method_uname.c 	connectchild.c config.c log.c protocol.c socket.c udp_util.c      	Rbindresvport.c Rconnect.c util.c Rgethostbyname.c Rcompat.c      	msproxy_clientprotocol.c broken.c hostcache.c serr.c httpproxy.c
 
 
 #libdsocks version info, interfaceversion:revision:old interfaces supported
@@ -92,7 +92,7 @@ libdsocks_la_LIBADD = ../libscompat/libscompat.la
 noinst_HEADERS = config_parse.h 
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
 
-INCLUDES = -I../libscompat
+INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
 #XXX
 AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=1
 #XXXlibrary name needed for socksify
@@ -116,7 +116,8 @@ Rgetsockname.lo udp.lo Rrresvport.lo Rbind.lo config_scan.lo address.lo \
 authneg.lo client.lo clientconfig.lo clientprotocol.lo Raccept.lo \
 userio.lo method_uname.lo connectchild.lo config.lo log.lo protocol.lo \
 socket.lo udp_util.lo Rbindresvport.lo Rconnect.lo util.lo \
-Rgethostbyname.lo Rcompat.lo msproxy_clientprotocol.lo broken.lo
+Rgethostbyname.lo Rcompat.lo msproxy_clientprotocol.lo broken.lo \
+hostcache.lo serr.lo httpproxy.lo
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LEXLIB = @LEXLIB@
 CFLAGS = @CFLAGS@
@@ -341,6 +342,14 @@ connectchild.lo connectchild.o : connectchild.c ../include/common.h \
 debug.lo debug.o : debug.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/interposition.h ../include/socks.h
+hostcache.lo hostcache.o : hostcache.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/socks.h
+httpproxy.lo httpproxy.o : httpproxy.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/socks.h
 int_osf1.lo int_osf1.o : int_osf1.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h \
@@ -373,6 +382,9 @@ msproxy_clientprotocol.lo msproxy_clientprotocol.o : \
 protocol.lo protocol.o : protocol.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/socks.h
+serr.lo serr.o : serr.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/interposition.h ../include/socks.h
 socket.lo socket.o : socket.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \

@@ -6,3 +6,5 @@ libscompat_la_SOURCES = difftime.c daemon.c getdtablesize.c hstrerror.c \
 	vsyslog.c seteuid.c
 
 noinst_HEADERS = compat.h
+
+INCLUDES = -I$(top_srcdir)/include

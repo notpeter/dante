@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.150 2000/06/21 09:38:22 michaels Exp $ */
+/* $Id: sockd.h,v 1.151 2000/07/01 09:22:01 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -543,6 +543,13 @@ showconfig __P((const struct config_t *config));
  */
 
 
+const char *
+authinfo __P((const struct authmethod_t *auth, char *info, size_t infolen));
+/*
+ * Fills in "info" with a printable representation of the "auth".
+ * Returns a pointer to "info".
+*/
+
 
 int
 rulespermit __P((int s, struct rule_t *rule,
@@ -640,9 +647,10 @@ method_uname __P((int s, struct request_t *request,
 						struct negotiate_state_t *state));
 /*
  * Enters username/password subnegotiation.  If successful,
- * "uname" is filled in with values read from client, if unsuccessful,
- * the contents of "uname" is indeterminate.  After negotiation has
- * finished and response to client is sent the function returns.
+ * "request->auth.mdata.uname" is filled in with values read from client.
+ * If unsuccessful, the contents of "uname" is indeterminate.
+ * After negotiation has finished and the response to client has been sent
+ * the function returns.
  * Returns:
  *		On success: 0 (user/password accepted)
  *		On failure: -1  (user/password not accepted, communication failure,

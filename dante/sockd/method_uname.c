@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.33 2000/04/09 10:14:44 karls Exp $";
+"$Id: method_uname.c,v 1.34 2000/08/01 14:00:07 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -195,7 +195,7 @@ recv_passwd(s, request, state)
 		case 1: {
 				char *name = (char *)request->auth->mdata.uname.name;
 
-				snprintf(state->emsg, sizeof(state->emsg),
+				snprintfn(state->emsg, sizeof(state->emsg),
 				"denied access to non-existing user \"%s\"",
 				strcheck(name = str2vis(name, strlen(name))));
 				free(name);
@@ -205,7 +205,7 @@ recv_passwd(s, request, state)
 		case 2: {
 				char *name = (char *)request->auth->mdata.uname.name;
 
-				snprintf(state->emsg, sizeof(state->emsg),
+				snprintfn(state->emsg, sizeof(state->emsg),
 				"password authentication failed for user \"%s\"",
 				strcheck(name = str2vis(name, strlen(name))));
 				free(name);

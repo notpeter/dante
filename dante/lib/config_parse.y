@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.130 2000/06/09 10:45:18 karls Exp $";
+"$Id: config_parse.y,v 1.132 2000/08/08 12:36:09 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -221,7 +221,7 @@ static const struct {
 %token <string> VERDICT_BLOCK VERDICT_PASS
 %token <string> PROTOCOL PROTOCOL_TCP PROTOCOL_UDP PROTOCOL_FAKE
 %token <string> PROXYPROTOCOL PROXYPROTOCOL_SOCKS_V4 PROXYPROTOCOL_SOCKS_V5
-					 PROXYPROTOCOL_MSPROXY_V2
+					 PROXYPROTOCOL_MSPROXY_V2 PROXYPROTOCOL_HTTP_V1_0
 %token <string> USER
 %token <string> COMMAND COMMAND_BIND COMMAND_CONNECT COMMAND_UDPASSOCIATE								 COMMAND_BINDREPLY COMMAND_UDPREPLY
 %token <string> ACTION
@@ -299,7 +299,7 @@ serveroption:	compatibility
 
 
 deprecated:	DEPRECATED {
-		yyerror("given keyword is deprecated");
+		yywarn("given keyword is deprecated");
 	}
 
 route:	ROUTE routeinit '{' routeoptions fromto gateway routeoptions '}' {
@@ -339,13 +339,16 @@ proxyprotocol:	PROXYPROTOCOL ':' proxyprotocols
 	;
 
 proxyprotocolname:	PROXYPROTOCOL_SOCKS_V4 {
-			proxyprotocol->socks_v4 = 1;
+			proxyprotocol->socks_v4 	= 1;
 	}
 	|	PROXYPROTOCOL_SOCKS_V5 {
-			proxyprotocol->socks_v5 = 1;
+			proxyprotocol->socks_v5 	= 1;
 	}
 	|  PROXYPROTOCOL_MSPROXY_V2 {
-			proxyprotocol->msproxy_v2 = 1;
+			proxyprotocol->msproxy_v2 	= 1;
+	}
+	|  PROXYPROTOCOL_HTTP_V1_0 {
+			proxyprotocol->http_v1_0 	= 1;
 	}
 	;
 
@@ -1067,6 +1070,7 @@ readconfig(filename)
 	const char *filename;
 {
 	const char *function = "readconfig()";
+	const int errno_s = errno;
 
 #if ELECTRICFENCE
 	EF_PROTECT_FREE         = 1;
@@ -1075,7 +1079,7 @@ readconfig(filename)
 	EF_PROTECT_BELOW			= 0;
 #endif /* ELECTRICFENCE */
 
-/*	yydebug		= 0; */
+/*	yydebug		= 1;    */
 	yylineno		= 1;
 	parseinit	= 0;
 
@@ -1087,7 +1091,7 @@ readconfig(filename)
 	yyparse();
 	fclose(yyin);
 
-	errno = 0; /* yacc for some reason alters errno sometimes. */
+	errno = errno_s; /* yacc for some reason alters errno sometimes. */
 
 	return 0;
 }

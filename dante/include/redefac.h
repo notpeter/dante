@@ -1,4 +1,4 @@
-/* redefac.h generated from autoconf.h.in on Sat May 13 14:30:09 MEST 2000  */
+/* Do not modify, generated from ../include/autoconf.h.in */
 
 #ifndef HAVE_DOPRNT
 #define HAVE_DOPRNT 0
@@ -680,11 +680,6 @@
 #endif
 
 
-#ifndef HAVE_SNPRINTF
-#define HAVE_SNPRINTF 0
-#endif
-
-
 #ifndef HAVE_SOCKATMARK
 #define HAVE_SOCKATMARK 0
 #endif
@@ -722,6 +717,11 @@
 
 #ifndef HAVE_SYSCONF
 #define HAVE_SYSCONF 0
+#endif
+
+
+#ifndef HAVE_VSNPRINTF
+#define HAVE_VSNPRINTF 0
 #endif
 
 

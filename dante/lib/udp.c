@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.114 2000/06/09 10:45:18 karls Exp $";
+"$Id: udp.c,v 1.117 2000/07/25 13:06:25 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -126,9 +126,18 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 	socksfd = socks_getaddr((unsigned int)s);
 	SASSERTX(socksfd != NULL);
 
-	if (!socksfd->state.protocol.udp)
-		/* assume tcp connection, nothing to do there. */
+	if (socksfd->state.protocol.tcp) {
+		if (socksfd->state.err != 0) {
+			errno = socksfd->state.err;
+			return -1;
+		}
+		else
+			if (socksfd->state.inprogress) {
+				errno = ENOTCONN;
+				return -1;
+			}
 		return recvfrom(s, buf, len, flags, from, fromlen);
+	}
 
 	/* if packet is from socksserver it will be prefixed with a header. */
 	newlen = len + sizeof(header);

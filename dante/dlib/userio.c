@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.18 2000/05/12 12:37:54 michaels Exp $";
+"$Id: userio.c,v 1.19 2000/08/01 14:00:04 michaels Exp $";
 
 /* ARGSUSED */
 char *
@@ -101,7 +101,7 @@ socks_getpassword(host, user, buf, buflen)
 		char prompt[256 + MAXSOCKSHOSTSTRING];
 		char hstring[MAXSOCKSHOSTSTRING];
 
-		snprintf(prompt, sizeof(prompt), "%s@%s sockspassword: ",
+		snprintfn(prompt, sizeof(prompt), "%s@%s sockspassword: ",
 		user, sockshost2string(host, hstring, sizeof(hstring)));
 		password = getpass(prompt);
 	}

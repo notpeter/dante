@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.46 2000/05/31 12:14:51 karls Exp $";
+"$Id: client.c,v 1.47 2000/08/08 12:36:08 michaels Exp $";
 
 #if !HAVE_PROGNAME
 	char *__progname = "danteclient";
@@ -198,6 +198,17 @@ serverreplyisok(version, reply, route)
 					return 0;
 			}
 
+		case HTTP_V1_0:
+			switch (reply) {
+				case HTTP_SUCCESS:
+					return 1;
+
+				default:
+					errno = ECONNREFUSED;
+					return 0;
+			}
+			break;
+			
 		default:
 			SERRX(version);
 	}

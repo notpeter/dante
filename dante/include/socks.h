@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.159 2000/05/31 12:14:50 karls Exp $ */
+/* $Id: socks.h,v 1.161 2000/08/08 12:49:10 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -338,7 +338,7 @@ socks_negotiate __P((int s, int control, struct socks_t *packet,
  *	"route" is the connected route.
  * Negotiates method and fills the response to the request into packet->res.
  * Returns:
- *		On success: 0.  (server accepted our request.)
+ *		On success: 0 (server replied to our request).
  *		On failure: -1.
  */
 
@@ -555,7 +555,7 @@ msproxy_negotiate __P((int s, int control, struct socks_t *packet));
  * "packet" contains the request and on return from the function
  * contains the response.
  * Returns:
- *		On success: 0
+ *		On success: 0 (server replied to our request).
  *		On failure: -1
  */
 
@@ -595,6 +595,17 @@ msproxy_init __P((void));
  * inits things for using a msproxyserver.
  *		On success: 0
  *		On failure: -1
+ */
+
+int
+httpproxy_negotiate __P((int control, struct socks_t *packet));
+/*
+ * Negotiates a method to be used when talking with the server connected
+ * to "s".  "packet" is the packet that will later be sent to server.
+ * packet->res.reply will be set depending on the result of negotiation.
+ * Returns:
+ *		On success: 0 (server replied to our request).
+ *		On failure: -1.
  */
 
 #if DIAGNOSTIC

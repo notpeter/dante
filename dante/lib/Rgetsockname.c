@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.31 1999/09/02 10:41:20 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.33 2000/08/08 13:47:25 michaels Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -70,18 +70,20 @@ Rgetsockname(s, name, namelen)
 				if (socksfd->state.err != 0) /* connect failed. */
 					errno = socksfd->state.err;
 				else
-					errno = EINPROGRESS;
+				 	/* 
+					 * XXX
+					 * this is bad but we don't know what address the socksserver
+					 * will use on our behalf yet.  Lets hope the client
+					 * will retry on this error.
+					 * Another option might be to wait here until the 
+					 * socksnegotiation has completed, but applications probably
+					 * don't expect getsockname(2) to block.
+					*/
+					errno = ENOBUFS;
 				return -1;
 			}
 
 			addr = &socksfd->remote;
-
-			/* LINTED pointer casts may be troublesome */
-			if (!ADDRISBOUND(addr)) {
-				SWARNX(0);
-				errno = EADDRNOTAVAIL;
-				return -1;
-			}
 			break;
 
 		case SOCKS_BIND:

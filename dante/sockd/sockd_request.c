@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.119 2000/06/09 10:45:20 karls Exp $";
+"$Id: sockd_request.c,v 1.120 2000/08/01 12:48:56 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -807,8 +807,12 @@ dorequest(mother, request)
 
 				}
 				else {
-					slog(LOG_INFO, "%s(0): unexpected bindreply: %s -> %s",
+					char expected[MAXSOCKSHOSTSTRING];
+
+					slog(LOG_INFO,
+					"%s(0): unexpected bindreply: %s (expected: %s) -> %s",
 					VERDICT_BLOCKs, sockaddr2string(&remoteaddr, a, sizeof(a)),
+					sockshost2string(&io.dst.host, expected, sizeof(expected)),
 					sockshost2string(&io.src.host, b, sizeof(b)));
 					permit = 0;
 				}

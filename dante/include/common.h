@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.247 2000/06/09 10:45:16 karls Exp $ */
+/* $Id: common.h,v 1.255 2000/08/31 06:56:59 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -665,6 +665,7 @@ do {														\
 #define SOCKS_V4REPLY_VERSION 0
 #define SOCKS_V5					5
 #define MSPROXY_V2				2
+#define HTTP_V1_0					1
 
 /* subnegotiation. */
 #define SOCKS_UNAMEVERSION		1
@@ -746,7 +747,8 @@ do {														\
 #define SOCKSV4_NO_IDENTD		92
 #define SOCKSV4_BAD_ID			93
 
-
+/* http stuff. */
+#define HTTP_SUCCESS				200
 
 
 #define MSPROXY_PINGINTERVAL	(6 * 60)
@@ -1228,6 +1230,7 @@ struct proxyprotocol_t {
 	unsigned socks_v4:1;
 	unsigned socks_v5:1;
 	unsigned msproxy_v2:1;
+	unsigned http_v1_0:1;
 	unsigned :0;
 };
 
@@ -1301,8 +1304,9 @@ struct route_t {
 	int							number;		/* routenumber.								*/
 
 	struct {
-		unsigned bad:1;		/* route is bad?								*/
-		unsigned direct:1;	/* direct connection, no proxy.			*/
+		unsigned bad:1;		/* route is bad?												*/
+		time_t	badtime;		/* if route is bad, time it was marked as such.		*/
+		unsigned direct:1;	/* direct connection, no proxy.							*/
 		unsigned :0;
 	} state;
 
@@ -1612,6 +1616,19 @@ acceptn __P((int, struct sockaddr *, socklen_t *));
  * Wrapper around accept().  Retries on EINTR.
  */
 
+#ifdef STDC_HEADERS
+int
+snprintfn(char *str, size_t size, const char *format, ...);
+#else
+int
+snprintfn();
+#endif
+/*
+ * Wrapper around snprintf() for consistent behaviour, same as system
+ * snprintf() but the following are also enforced:
+ * 	returns 0 instead of -1 (rawterminates *str).
+ *		never returns a value greater than size - 1.
+*/
 
 char *
 sockshost2string __P((const struct sockshost_t *host, char *string,
@@ -2038,14 +2055,14 @@ int daemon __P((int, int));
 int getdtablesize __P((void));
 #endif  /* !HAVE_GETDTABLESIZE */
 
-#if !HAVE_SNPRINTF
+#if !HAVE_VSNPRINTF
 # ifdef STDC_HEADERS
 int snprintf __P((char *, size_t, char const *, ...));
 # else
 int snprintf ();
 # endif /* STDC_HEADERS */
 int vsnprintf __P((char *, size_t, const char *, va_list));
-#endif /* !HAVE_SNPRINTF */
+#endif /* !HAVE_VSNPRINTF */
 
 #if !HAVE_SETPROCTITLE
 #ifdef STDC_HEADERS

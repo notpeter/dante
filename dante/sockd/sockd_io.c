@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.178 2000/06/23 09:03:48 michaels Exp $";
+"$Id: sockd_io.c,v 1.180 2000/08/01 14:00:08 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -445,30 +445,37 @@ delete_io(mother, io, fd, status)
 		rule = NULL;
 
 	if (rule != NULL && rule->log.disconnect) {
-		char in[MAXSOCKADDRSTRING], out[MAXSOCKADDRSTRING];
+		char in[MAXSOCKADDRSTRING + MAXAUTHINFOLEN];
+		char out[sizeof(in)];
 		char logmsg[sizeof(in) + sizeof(out) + 1024];
+		int p;
 
+		authinfo(&io->src.auth, in, sizeof(in)); p = strlen(in);
 		/* LINTED pointer casts may be troublesome */
-		sockaddr2string((struct sockaddr *)&io->src.raddr, in, sizeof(in));
+		sockaddr2string((struct sockaddr *)&io->src.raddr, &in[p],
+		sizeof(in) - p);
+
+		authinfo(&io->dst.auth, out, sizeof(out));
+		p = strlen(out);
 
 		switch (io->state.command) {
 			case SOCKS_BIND:
 			case SOCKS_BINDREPLY:
 			case SOCKS_CONNECT:
 				/* LINTED pointer casts may be troublesome */
-				sockaddr2string((struct sockaddr *)&io->dst.raddr, out,
-				sizeof(out));
+				sockaddr2string((struct sockaddr *)&io->dst.raddr, &out[p],
+				sizeof(out) - p);
 				break;
 
 			case SOCKS_UDPASSOCIATE:
-				snprintf(out, sizeof(out), "`world'");
+				snprintfn(&out[p], sizeof(out) - p, "`world'");
 				break;
 
 			default:
 				SERRX(io->state.command);
 		}
 
-		snprintf(logmsg, sizeof(logmsg),
+		snprintfn(logmsg, sizeof(logmsg),
 		"%s(%d): %s/%s ]: %lu -> %s -> %lu,  %lu -> %s -> %lu",
 		rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
 		rule->number,

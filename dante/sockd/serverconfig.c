@@ -45,16 +45,9 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.113 2000/06/26 10:43:21 karls Exp $";
+"$Id: serverconfig.c,v 1.116 2000/08/01 14:13:53 michaels Exp $";
 
 __BEGIN_DECLS
-
-static const char *
-authinfo __P((const struct authmethod_t *auth, char *info, size_t infolen));
-/*
- * Fills in "info" with a printable representation of the "auth".
- * Returns a pointer to "info".
-*/
 
 static void
 showuser __P((const struct linkedname_t *user));
@@ -138,7 +131,8 @@ addclientrule(newrule)
 			default: {
 				char buf[256];
 
-				snprintf(buf, sizeof(buf), "method %s is not valid for clientrules",
+				snprintfn(buf, sizeof(buf),
+				"method %s is not valid for clientrules",
 				method2string(rule->state.methodv[i]));
 
 				yyerror(buf);
@@ -155,7 +149,7 @@ addclientrule(newrule)
 				default: {
 					char buf[256];
 
-					snprintf(buf, sizeof(buf), "method \"%s\" can not provide "
+					snprintfn(buf, sizeof(buf), "method \"%s\" can not provide "
 					"usernames", method2string(rule->state.methodv[i]));
 					yyerror(buf);
 				}
@@ -290,43 +284,43 @@ showconfig(config)
 		sockaddr2string((struct sockaddr *)&config->externalv[i], address,
 		sizeof(address)));
 
-	bufused = snprintf(buf, sizeof(buf), "compatibility options: ");
+	bufused = snprintfn(buf, sizeof(buf), "compatibility options: ");
 	if (config->compat.reuseaddr)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "reuseaddr, ");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "reuseaddr, ");
 	if (config->compat.sameport)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "sameport, ");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "sameport, ");
 	slog(LOG_INFO, buf);
 
-	bufused = snprintf(buf, sizeof(buf), "extensions enabled: ");
+	bufused = snprintfn(buf, sizeof(buf), "extensions enabled: ");
 	if (config->extension.bind)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "bind, ");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "bind, ");
 	slog(LOG_INFO, buf);
 
-	bufused = snprintf(buf, sizeof(buf), "logoutput goes to: ");
+	bufused = snprintfn(buf, sizeof(buf), "logoutput goes to: ");
 	if (config->log.type & LOGTYPE_SYSLOG)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "syslog, ");
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "syslog, ");
 	if (config->log.type & LOGTYPE_FILE)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "files (%d)",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "files (%d)",
 		config->log.fpc);
 	slog(LOG_INFO, buf);
 
 	slog(LOG_INFO, "debug level: %d",
 	config->option.debug);
 
-	bufused = snprintf(buf, sizeof(buf), "resolveprotocol: ");
+	bufused = snprintfn(buf, sizeof(buf), "resolveprotocol: ");
 	switch (config->resolveprotocol) {
 		case RESOLVEPROTOCOL_TCP:
-			bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+			bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
 			PROTOCOL_TCPs);
 			break;
 
 		case RESOLVEPROTOCOL_UDP:
-			bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+			bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
 			PROTOCOL_UDPs);
 			break;
 
 		case RESOLVEPROTOCOL_FAKE:
-			bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+			bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
 			"fake");
 			break;
 
@@ -354,9 +348,9 @@ showconfig(config)
 	slog(LOG_INFO, "userid.libwrap: %lu",
 	(unsigned long)config->uid.libwrap);
 
-	bufused = snprintf(buf, sizeof(buf), "method(s): ");
+	bufused = snprintfn(buf, sizeof(buf), "method(s): ");
 	for (i = 0; i < config->methodc; ++i)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s%s",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s%s",
 		i > 0 ? ", " : "", method2string(config->methodv[i]));
 	slog(LOG_INFO, buf);
 
@@ -497,7 +491,7 @@ iolog(rule, state, operation, src, srcauth, dst, dstauth, data, count)
 	p = strlen(dststring);
 	sockshost2string(dst, &dststring[p], sizeof(dststring) - p);
 
-	snprintf(rulecommand, sizeof(rulecommand), "%s(%d): %s/%s", 
+	snprintfn(rulecommand, sizeof(rulecommand), "%s(%d): %s/%s", 
 	rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
 	rule->number, protocol2string(state->protocol),
 	command2string(state->command));
@@ -837,7 +831,7 @@ rulespermit(s, match, state, src, dst)
 	return match->verdict == VERDICT_PASS;
 }
 
-static const char *
+const char *
 authinfo(auth, info, infolen)
 	const struct authmethod_t *auth;
 	char *info;
@@ -872,7 +866,7 @@ authinfo(auth, info, infolen)
 	if (authname == NULL || *authname == NUL)
 		*info = NUL;
 	else
-		snprintf(info, infolen, "%s%%%s@", methodname, authname);
+		snprintfn(info, infolen, "%s%%%s@", methodname, authname);
 
 	return info;
 }
@@ -962,7 +956,7 @@ addrule(newrule, rulebase, client)
 		(size_t)config.methodc)) {
 			char buf[256];
 
-			snprintf(buf, sizeof(buf), "method \"%s\" set in rule but not "
+			snprintfn(buf, sizeof(buf), "method \"%s\" set in rule but not "
 			"in global method",
 			method2string(rule->state.methodv[i]));
 			yywarn(buf);
@@ -1022,9 +1016,9 @@ showuser(user)
 	char buf[10240];
 	size_t bufused;
 
-	bufused = snprintf(buf, sizeof(buf), "user: ");
+	bufused = snprintfn(buf, sizeof(buf), "user: ");
 	for (; user != NULL; user = user->next)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		user->name);
 
 	if (bufused > sizeof("user: "))
@@ -1038,26 +1032,26 @@ showlog(log)
 	char buf[1024];
 	size_t bufused;
 
-	bufused = snprintf(buf, sizeof(buf), "log: ");
+	bufused = snprintfn(buf, sizeof(buf), "log: ");
 
 	if (log->connect)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		LOG_CONNECTs);
 
 	if (log->disconnect)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		LOG_DISCONNECTs);
 
 	if (log->data)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		LOG_DATAs);
 
 	if (log->error)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		LOG_ERRORs);
 
 	if (log->iooperation)
-		bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s, ",
+		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s, ",
 		LOG_IOOPERATIONs);
 
 	slog(LOG_INFO, buf);

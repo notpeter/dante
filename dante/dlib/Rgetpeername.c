@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetpeername.c,v 1.24 1999/05/14 14:44:38 michaels Exp $";
+"$Id: Rgetpeername.c,v 1.25 2000/07/25 10:13:10 michaels Exp $";
 
 int
 Rgetpeername(s, name, namelen)
@@ -69,8 +69,8 @@ Rgetpeername(s, name, namelen)
 			break;
 
 		case SOCKS_CONNECT:
-			if (socksfd->state.inprogress) {
-				errno = EINPROGRESS;
+			if (socksfd->state.err != 0) {
+				errno = ENOTCONN;
 				return -1;
 			}
 			addr = &socksfd->connected;
