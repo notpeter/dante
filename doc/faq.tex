@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.38 2001/11/20 09:52:45 karls Exp $
+%@(#)$Id: faq.tex,v 1.39 2001/12/07 13:30:08 karls Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -55,7 +55,7 @@
 	Gaustadalléen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2001/11/20 09:52:45 $$$$}
+\date{$$$$Date: 2001/12/07 13:30:08 $$$$}
 
 \makeindex
 
@@ -525,6 +525,12 @@ command).
   Solution: strip off the suid bit if possible or recompile the binary
   (rsh, ssh, etc) with explicit socks support (adding "-ldsocks"
   to the linkoptions is usually enough.)
+
+ \subsection{Why doesn't socksify work on HP-UX 11.00?}
+  You might have to install patch \emph{PHSS\_22478}, or one of its
+  successors, which adds \emph{LD\_PRELOAD} support to the loader.
+
+  \emph{Thanks to: albert chin (china@thewrittenword.com)}
 
  \subsection{How do I setup a password file for authenticating users?}
   The Dante server uses the standard system passwordfile.
