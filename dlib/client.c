@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.54 2001/12/12 14:42:09 karls Exp $";
+"$Id: client.c,v 1.55 2002/06/05 09:59:48 michaels Exp $";
 
 #if !HAVE_PROGNAME
 	char *__progname = "danteclient";
@@ -82,7 +82,6 @@ clientinit(void)
 	 * initialize misc. options to sensible default.
 	 */
 	sockscf.resolveprotocol	= RESOLVEPROTOCOL_UDP;
-	sockscf.option.lbuf			= 1;
 
 	genericinit();
 

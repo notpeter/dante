@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.134 2001/12/18 12:38:51 karls Exp $";
+"$Id: sockd_child.c,v 1.138 2002/04/18 09:56:39 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -349,7 +349,7 @@ addchild(type)
 				||	i == (size_t)mother.ack)
 					continue;
 
-				if (descriptorisreserved(i))
+				if (descriptorisreserved((int)i))
 					continue;
 
 				close((int)i);
@@ -410,7 +410,7 @@ childcheck(type)
 	int type;
 {
 	int child, proxyc;
-	int min, max;
+	int min, max, idle;
 	struct sockd_child_t **childv;
 	int *childc;
 
@@ -448,17 +448,27 @@ childcheck(type)
 	 * get a estimate over how many (new) clients our children are able to
 	 * accept in total.
     */
-	for (child = 0, proxyc = 0; child < *childc; ++child) {
+	for (child = idle = proxyc = 0; child < *childc; ++child) {
 		SASSERTX((*childv)[child].freec <= max);
 		proxyc += type < 0 ? max : (*childv)[child].freec;
+
+#if 0 /* supposedly doesn't work. */
+		if ((*childv)[child].freec == max) {
+			++idle;
+
+			if (sockscf.child.maxidlenumber > 0
+			&& idle > sockscf.child.maxidlenumber)
+				removechild((*childv)[child].pid);	
+		}
+#endif
 	}
 
 	if (type >= 0)
-		if (proxyc < min && sockscf.state.addchild)
+		if (proxyc < min && sockscf.child.addchild)
 			if (addchild(type) != NULL)
 				return childcheck(type);
 			else
-				sockscf.state.addchild = 0;	/* don't retry until a child dies. */
+				sockscf.child.addchild = 0;	/* don't retry until a child dies. */
 
 	return proxyc;
 }

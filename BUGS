@@ -1,4 +1,4 @@
-# $Id: BUGS,v 1.25 2002/04/03 08:58:48 michaels Exp $
+# $Id: BUGS,v 1.26 2002/06/06 09:52:22 michaels Exp $
 
 To report a new bug, mail dante-bugs@inet.no.  Make sure you read
 the FAQ first.
@@ -20,3 +20,6 @@ the FAQ first.
   from the client, at which point the request will fail if
   the username/password is incorrect in the same way it would if
   there was no "pass" rule for the request.
+
+- The clientlibrary is not threadsafe, this can cause problems
+  when trying to socksify programs that use threads.

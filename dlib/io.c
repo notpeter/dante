@@ -41,16 +41,26 @@
  *
  */
 
+#define _NO_FUNCTION_REDIFINE
+
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.56 2001/12/12 14:42:12 karls Exp $";
+"$Id: io.c,v 1.59 2002/06/05 10:09:09 michaels Exp $";
 
-/* this file defines the functions. */
-#undef select
-#undef close
-#undef recvmsg
-#undef sendmsg
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+
+#if HAVE_EXTRA_OSF_SYMBOLS
+#define sendmsg(s, msg, flags)			sys_Esendmsg(s, msg, flags)
+#else
+#define sendmsg(s, msg, flags)			sys_sendmsg(s, msg, flags)
+#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+
+#if HAVE_EXTRA_OSF_SYMBOLS
+#define recvmsg(s, msg, flags)			sys_Erecvmsg(s, msg, flags)
+#else
+#define recvmsg(s, msg, flags)			sys_recvmsg(s, msg, flags)
+#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
 /* XXX needed on AIX apparently */
 #ifdef recvmsg_system
@@ -61,6 +71,7 @@ static const char rcsid[] =
 #define sendmsg sendmsg_system
 #endif /* sendmsg_system */
 
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
 ssize_t
 readn(d, buf, nbytes, auth)
@@ -388,11 +399,20 @@ selectn(nfds, readfds, writefds, exceptfds, timeout)
 	fd_set *exceptfds;
 	struct timeval *timeout;
 {
+	const char *function = "selectn()";
+
 	/* const */ fd_set rset = readfds	== NULL ? rset : *readfds;
 	/* const */ fd_set wset = writefds	== NULL ? wset : *writefds;
 	/* const */ fd_set eset = exceptfds	== NULL ? eset : *exceptfds;
 	/* const */ struct timeval tout = timeout == NULL ? tout : *timeout;
 	int rc;
+
+	if (timeout != NULL)
+		slog(LOG_DEBUG, "%s, tv_sec = %ld, tv_usec = %ld",
+		function, timeout->tv_sec, timeout->tv_usec);
+	else
+		slog(LOG_DEBUG, "%s, timeout = NULL", function);
+
 
 	while ((rc = select(nfds, readfds, writefds, exceptfds, timeout)) == -1
 	&& errno == EINTR) {

@@ -1,6 +1,7 @@
-# $Id: TODO,v 1.155 2002/01/29 11:16:29 michaels Exp $
+# $Id: TODO,v 1.157 2002/05/01 09:36:17 michaels Exp $
 
-* make "unexpected source" in relation to bindreply go through iolog().
+* there is a race condition in bw stuff between rulespermit() and
+  bwuse().
 
 * change _t struct's to typedef.
 

@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.42 2001/12/12 13:18:07 karls Exp $
+%@(#)$Id: faq.tex,v 1.44 2002/06/05 09:59:34 michaels Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -55,7 +55,7 @@
 	Gaustadalléen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2001/12/12 13:18:07 $$$$}
+\date{$$$$Date: 2002/06/05 09:59:34 $$$$}
 
 \makeindex
 
@@ -103,7 +103,7 @@
 
   If the problem is with the client, also uncomment the line containing
   "debug".
-  If the problem is with the server, also add "-dl" to whatever
+  If the problem is with the server, also add "-d" to whatever
   arguments you usually start the server with.
 
   Repeat whatever you did to produce the error and look at the
@@ -595,5 +595,88 @@ command).
    \end{verbatim}
    \emph{Thanks to: James Coe <starascendant@hotmail.com>.}
 
+\section{Authentication}
+ \subsection{How do I use LDAP authentication with Dante?}
+
+  First, make sure that you compile Dante with support for PAM.  The
+  configure script should do this for you if the PAM development libraries
+  are installed.  Under RedHat Linux, make sure you have the PAM-devel RPM
+  installed.
+  
+  You will also have to add LDAP support to your PAM implementation, if it
+  is not already there.  Check if you have /lib/security/pam\_ldap.so or
+  the equivalent.  If not, use pam\_ldap from http://www.padl.com/.  
+  
+  pam\_ldap gets its configuration from /etc/ldap.conf.  Make sure you set
+  host to your LDAP server, and base to your base DN.You can also set
+  pam\_filter and pam\_group\_dn to restrict logins to particular objecttypes
+  or members of particular groups.
+  
+  Point sockd at LDAP by creating /etc/pam.d/sockd.  An exapmle of this
+  files contents is;
+
+  \begin{verbatim}
+  #%PAM-1.0
+  auth       sufficient /lib/security/pam_ldap.so
+  auth       required   /lib/security/pam_unix_auth.so try_first_pass
+  account    sufficient /lib/security/pam_ldap.so
+  account    required   /lib/security/pam_unix_acct.so
+  password   required   /lib/security/pam_ldap.so
+  \end{verbatim}
+  
+  Finally, you need to configure sockd.conf to restrict access based on
+  PAM.  this is accomplished with the following:
+  
+  \begin{verbatim}
+  # allowable authentication methods for socks-rules.
+  # values are username, none, rfc931 and pam
+  method: pam none
+  
+  # allowable authentication methods for client-rules.
+  # values are username, none, rfc931 and pam
+  clientmethod: pam none
+  
+  # Client rules, controls who may connect
+  #
+  ## everyone who authenticates is allowed to use tcp
+  ## and udp
+  pass {
+         from: 0.0.0.0/0 to: 0.0.0.0/0
+         protocol: tcp udp
+         log: connect disconnect error
+         method: pam
+  }
+  
+  # last line, block everyone else.  This is the default but if you
+  provide
+  # one  yourself you can specify your own logging/actions
+  block {
+         from: 0.0.0.0/0 to: 0.0.0.0/0
+         log: connect error
+  }
+  \end{verbatim}
+
+  \emph{Thanks to: Sean Burford <sean.burford@adelaide.edu.au>.}
+
+  \subsubsection{... and against Microsoft Active Directory?}
+   To authenticate against a Microsoft Active Directory the following bare
+   minimum example configuration for 'test.org' with an active directory
+   server
+   at 123.123.123.123 of /etc/ldap.conf Directory is what you would
+   require:
+   
+	\begin{verbatim}
+   host 123.123.123.123
+   base cn=Users,dc=test,dc=org
+   rootbinddn cn=Administrator,cn=Users,dc=test,dc=org
+   pam_filter objectclass=user
+   pam_login_attribute cn
+	\end{verbatim}
+   
+   With the password for the Administrator user in the file
+   /etc/ldap.secret and chowned to 0600.
+
+
+   \emph{Thanks to: Alexander Cohen <A.Cohen@latrobe.edu.au>.}
 
 \end{document}

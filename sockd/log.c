@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.59 2001/12/12 14:42:12 karls Exp $";
+"$Id: log.c,v 1.60 2002/04/24 09:06:22 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -154,7 +154,7 @@ vslog(priority, message, ap)
 			socks_lock(sockscf.log.fplockv[i], F_WRLCK, -1);
 			fprintf(sockscf.log.fpv[i], "%s%s",
 			buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
-/*			fflush(sockscf.log.fpv[i]); */ /* XXX needed or not?  why? */
+/*			fflush(sockscf.log.fpv[i]); */ /* should not be needed. */
 			socks_unlock(sockscf.log.fplockv[i]);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
