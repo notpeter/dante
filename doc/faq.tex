@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.49 2003/04/21 12:09:06 karls Exp $
+%@(#)$Id: faq.tex,v 1.50 2003/07/15 15:45:55 karls Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -47,6 +47,7 @@
 \usepackage[T1]{fontenc}
 \usepackage{babel}
 \usepackage{html}
+\usepackage{url}
 
 \title{Dante FAQ}
 \author{
@@ -55,7 +56,7 @@
 	Gaustadalléen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2003/04/21 12:09:06 $$$$}
+\date{$$$$Date: 2003/07/15 15:45:55 $$$$}
 
 \makeindex
 
@@ -602,6 +603,34 @@ command).
     echo > /var/log/banned.log
    \end{verbatim}
    \emph{Thanks to: James Coe <starascendant@hotmail.com>.}
+
+Another solution:
+
+I use dante under supervise with multilog for log rotation (based on
+size, not date).  This will run Dante under supervise (and limit its
+memory usage to 5 megabytes) and redirect its logging to
+/var/log/dante/current, rotated based on its size.
+
+\url{http://cr.yp.to/daemontools.html}{http://cr.yp.to/daemontools.html}
+for more information.
+
+\begin{verbatim}
+   /service/dante/run:
+
+#!/bin/sh
+
+exec 2>&1
+exec softlimit -m 5000000 -p 30 -c 0 \
+         /usr/sbin/sockd -f /etc/sockd.conf -N 1 -l # -d
+
+/service/dante/log/run:
+
+#!/bin/sh
+
+exec setuidgid logging multilog t /var/log/dante
+\end{verbatim}
+   \emph{Thanks to: Michael T. Babcock" <mbabcock@fibrespeed.net>}
+
 
 \section{Authentication}
  \subsection{How do I use LDAP authentication with Dante?}

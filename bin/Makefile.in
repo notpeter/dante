@@ -90,8 +90,6 @@ am__quote = @am__quote@
 install_sh = @install_sh@
 
 bin_SCRIPTS = socksify
-#XXX
-EXTRA_DIST = sockd-graphgen
 subdir = bin
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/include/autoconf.h

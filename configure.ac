@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.50)
-AC_REVISION($Id: configure.ac,v 1.315 2003/05/30 13:05:58 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.316 2003/07/23 15:47:33 karls Exp $)
 
 version=1.1.14
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+#prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"

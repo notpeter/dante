@@ -1,6 +1,27 @@
-@(#)$Id: NEWS,v 1.39 2002/06/24 08:35:02 michaels Exp $
+@(#)$Id: NEWS,v 1.40 2003/07/28 11:53:49 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Monday, July 28, 2002 -- Dante v1.1.14
+ o Fix some problems involving use of bindresvport() when running
+   the server on a privileged port.  Problem brought up by Anton A
+   Golubev <anton@engec.ru> and Silvio Macedo <smacedo@imperial.ac.uk>.
+
+ o Avoid nameclash with sa_len define on IRIX, patch from
+   Herb Lewis <herb@sgi.com>
+
+ o Startup item for Dante on Mac OS X.  From Gerben Wierda <Sherlock@rna.nl>.
+
+ o Fix bug that prevented rfc931 auth (ident) from working, patch from
+  "Meno Abels" <Meno.Abels@7d.net>.
+
+ o Fixes for 'configure' under AIX 5.
+   Problem reported by "Scott Rickard" <rickard43@insightbb.com>.
+
+ o Workaround for 'bswap_32' header bug on linux.
+
+ o CMSG alignment fix. Problem reported by
+   Ibrahim Khalifa <ibo@toontown.org>.
 
 ***  Monday, June 24, 2002 -- Dante v1.1.13
  o AIX needs n{recv,send}msg when calling system functions.
