@@ -1,4 +1,6 @@
-# $Id: TODO,v 1.137 2000/10/15 13:02:48 michaels Exp $
+# $Id: TODO,v 1.138 2000/10/27 07:41:53 michaels Exp $
+
+* sync setting of flag in udpassociate to latest draft (or remove it).
 
 * share host/addr cache across processes.
 

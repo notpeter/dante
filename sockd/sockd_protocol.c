@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.85 2000/06/09 10:45:20 karls Exp $";
+"$Id: sockd_protocol.c,v 1.86 2000/11/21 09:20:24 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -447,15 +447,16 @@ recv_domain(s, request, state)
 	struct request_t *request;
 	struct negotiate_state_t *state;
 {
-	size_t alen;
-
-	INIT(*request->host.addr.domain);	/* first byte gives length. */
+	unsigned char alen;
+	/* first byte gives length. */
+	INIT((unsigned char)*request->host.addr.domain);
 	CHECK(request->host.addr.domain + 1, request->auth, NULL);
 
-	alen = (size_t)*request->host.addr.domain;
+	alen = *request->host.addr.domain;
 
 	/* convert to C string. */
-	memmove(request->host.addr.domain, request->host.addr.domain + 1, alen);
+	memmove(request->host.addr.domain, request->host.addr.domain + 1,
+	(size_t)alen);
 	request->host.addr.domain[alen] = NUL;
 
 	state->rcurrent = recv_port;

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.134 2000/10/02 07:53:23 michaels Exp $";
+"$Id: config.c,v 1.135 2000/11/21 09:20:53 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -253,8 +253,12 @@ addressmatch(rule, address, protocol, alias)
 
 		/* LINTED pointer casts may be troublesome */
 		if ((hostent = gethostbyname(address->addr.domain)) == NULL) {
+			char *name;
+
 			slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-			function, address->addr.domain, hstrerror(h_errno));
+			function, strcheck(name = str2vis(address->addr.domain,
+			strlen(address->addr.domain))), hstrerror(h_errno));
+			free(name);
 			return 0;
 		}
 
