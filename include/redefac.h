@@ -255,8 +255,23 @@
 #endif
 
 
-#ifndef HAVE_RTAX_GATEWAY
-#define HAVE_RTAX_GATEWAY 0
+#ifndef HAVE_ROUTEINFO_BSD
+#define HAVE_ROUTEINFO_BSD 0
+#endif
+
+
+#ifndef HAVE_ROUTEINFO_LINUX
+#define HAVE_ROUTEINFO_LINUX 0
+#endif
+
+
+#ifndef HAVE_MODULE_REDIRECT
+#define HAVE_MODULE_REDIRECT 0
+#endif
+
+
+#ifndef HAVE_MODULE_BANDWIDTH
+#define HAVE_MODULE_BANDWIDTH 0
 #endif
 
 

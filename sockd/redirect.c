@@ -43,6 +43,13 @@
 
 #include "common.h"
 
+static const char rcsid[] =
+"$Id: redirect.c,v 1.2 2001/11/22 13:40:03 michaels Exp $";
+
+const char module_redirect_version[] =
+"$Id: redirect.c,v 1.2 2001/11/22 13:40:03 michaels Exp $";
+
+
 int
 redirect(s, addr, host, command, from, to)
 	int s;

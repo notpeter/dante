@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.199 2001/11/12 14:10:22 michaels Exp $";
+"$Id: sockd_io.c,v 1.203 2001/11/23 12:44:30 karls Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -78,10 +78,11 @@ io_finddescriptor __P((int d));
  */
 
 static int
-io_fillset __P((fd_set *set, int antiflags));
+io_fillset __P((fd_set *set, int antiflags, const struct timeval *timenow));
 /*
  * Sets all descriptors in our list in the set "set".  If "flags"
  * is set, io's with any of the flags in "flags" set will be excluded.
+ * "timenow" is the time now.
  * Returns the highest descriptor in our list, or -1 if we don't
  * have any descriptors open currently.
  */
@@ -145,7 +146,7 @@ proctitleupdate __P((void));
  */
 
 static struct timeval *
-io_gettimeout __P((struct timeval *timeout));
+io_gettimeout __P((struct timeval *timeout, const struct timeval *timenow));
 /*
  * If there is a timeout on the current clients for how long to exist
  * without doing i/o, this function fills in "timeout" with the appropriate
@@ -156,10 +157,10 @@ io_gettimeout __P((struct timeval *timeout));
  */
 
 static struct sockd_io_t *
-io_gettimedout __P((void));
+io_gettimedout __P((const struct timeval *timenow));
 /*
  * Scans all clients for one that has timed out according to socksconfig
- * settings.
+ * settings. "timenow" is the time now.
  * Returns:
  *		If timed out client found: pointer to it.
  *		Else: NULL.
@@ -197,6 +198,20 @@ siginfo __P((int sig));
 		} \
 	} while (lintnoloop_sockd_h)
 
+
+/* timersub macro from OpenBSD */
+#define timersub_hack(tvp, uvp, vvp)                                    \
+        do {                                                            \
+                (vvp)->tv_sec = (tvp)->tv_sec - (uvp)->tv_sec;          \
+                (vvp)->tv_usec = (tvp)->tv_usec - (uvp)->tv_usec;       \
+                if ((vvp)->tv_usec < 0) {                               \
+                        (vvp)->tv_sec--;                                \
+                        (vvp)->tv_usec += 1000000;                      \
+                }                                                       \
+        } while (0)
+
+
+
 __END_DECLS
 
 
@@ -232,14 +247,19 @@ run_io(mother)
 		int rbits, bits;
 		fd_set rset, wset, xset, newrset, controlset, tmpset;
 		struct sockd_io_t *io;
-		struct timeval timeout;
+		struct timeval timeout, timenow;
+
+		gettimeofday(&timenow, NULL);
 
 		/* look for timed-out clients. */
-		while ((io = io_gettimedout()) != NULL)
+		while ((io = io_gettimedout(&timenow)) != NULL)
 			delete_io(mother->ack, io, -1, IO_TIMEOUT);
 
-		io_fillset(&xset, MSG_OOB);
-		rbits = io_fillset(&rset, 0);
+		/* starting a new run. */
+		timerclear(&bwoverflow);
+
+		io_fillset(&xset, MSG_OOB, &timenow);
+		rbits = io_fillset(&rset, 0, &timenow);
 
 		if (mother->s != -1) {
 			FD_SET(mother->s, &rset);
@@ -258,7 +278,8 @@ run_io(mother)
 		 * the i/o function if there's one pending later.
 		 */
 		++rbits;
-		switch (selectn(rbits, &rset, NULL, &xset, io_gettimeout(&timeout))) {
+		switch (selectn(rbits, &rset, NULL, &xset,
+		io_gettimeout(&timenow, &timeout))) {
 			case -1:
 				SERR(-1);
 				/* NOTREACHED */
@@ -296,8 +317,10 @@ run_io(mother)
 		 * we have reason to care about them.
 		 */
 
+		gettimeofday(&timenow, NULL);
+
 		/* descriptors to check for readability; those not already set. */
-		bits = io_fillset(&tmpset, 0);
+		bits = io_fillset(&tmpset, 0, &timenow);
 		bits = fdsetop(bits + 1, '^', &rset, &tmpset, &newrset);
 		if (mother->s != -1) { /* mother status may change too. */
 			FD_SET(mother->s, &newrset);
@@ -345,7 +368,8 @@ run_io(mother)
 			continue;
 		}
 
-		switch (selectn(bits, &newrset, &wset, NULL, io_gettimeout(&timeout))) {
+		switch (selectn(bits, &newrset, &wset, NULL,
+		io_gettimeout(&timeout, &timenow))) {
 			case -1:
 				SERR(-1);
 				/* NOTREACHED */
@@ -435,6 +459,10 @@ delete_io(mother, io, fd, status)
 	struct rule_t *rule;
 
 	SASSERTX(io->allocated);
+
+	if (io->state.protocol == SOCKS_TCP) /* udp rules are temporary. */
+		/* request handled. */
+		bwfree(io->rule.bw);
 
 	/* if client or socks-rules specifies logging disconnect, log, but once. */
 	if (io->rule.log.disconnect)
@@ -553,9 +581,6 @@ delete_io(mother, io, fd, status)
 	}
 
 	close_iodescriptors(io);
-
-	/* request handled. */
-	bwfree(rule->bw);
 
 	io->allocated = 0;
 
@@ -788,7 +813,11 @@ doio(mother, io, rset, wset, flags)
 	||			(flags & MSG_OOB)
 	||			(io->control.s != -1 && FD_ISSET(io->control.s, rset)));
 
-	/* we are only called when we have i/o to do. */
+	/*
+	 * we are only called when we have i/o to do.
+	 * Could probably remove this gettimeofday() call to, but there are
+	 * platforms without SO_SNDLOWAT which prevents us.
+	 */
 	gettimeofday(&timenow, NULL);
 
 	bwused = 0;
@@ -1307,24 +1336,35 @@ io_finddescriptor(d)
 
 
 static int
-io_fillset(set, antiflags)
+io_fillset(set, antiflags, timenow)
 	fd_set *set;
 	int antiflags;
+	const struct timeval *timenow;
 {
 	const char *function = "io_fillset()";
-	struct timeval timenow;
 	int i, max;
 
 	FD_ZERO(set);
-	gettimeofday(&timenow, NULL);
 
 	for (i = 0, max = -1; i < ioc; ++i) {
 		struct sockd_io_t *io = &iov[i];
 
 		if (io->allocated) {
-			if (io->rule.bw != NULL)
-				if (isbwoverflow(io->rule.bw, &timenow, &bwoverflow) != NULL)
+			if (io->rule.bw != NULL) {
+				struct timeval new_bwoverflow;
+
+				if (isbwoverflow(io->rule.bw, timenow, &new_bwoverflow) != NULL) {
+					if (!timerisset(&bwoverflow)
+					|| timercmp(&new_bwoverflow, &bwoverflow, <))
+						bwoverflow = new_bwoverflow;
+
+					/*
+					 * XXX this also means we won't catch errors on this
+					 * client for the duration.  Hopefully not a problem.
+					 */
 					continue;
+				}
+			}
 
 			if (! (antiflags & io->src.flags)) {
 				FD_SET(io->src.s, set);
@@ -1360,11 +1400,11 @@ io_fillset(set, antiflags)
 }
 
 static struct timeval *
-io_gettimeout(timeout)
+io_gettimeout(timeout, timenow)
 	struct timeval *timeout;
+	const struct timeval *timenow;
 {
 	const char *function = "io_gettimeout()";
-	time_t timenow;
 	int i;
 
 	if (allocated() == 0)
@@ -1376,42 +1416,59 @@ io_gettimeout(timeout)
 	timeout->tv_sec	= socksconfig.timeout.io;
 	timeout->tv_usec	= 0;
 
-	time(&timenow);
-	for (i = 0; i < ioc; ++i)
-		if (!iov[i].allocated)
-			continue;
-		else
-			timeout->tv_sec = MAX(0, MIN(timeout->tv_sec,
-			difftime(socksconfig.timeout.io,
-			(time_t)difftime(timenow, (time_t)iov[i].time.tv_sec))));
-
-	if (timerisset(&bwoverflow))
-		if (timercmp(&bwoverflow, timeout, <))
+	if (timerisset(timeout))
+		for (i = 0; i < ioc; ++i)
+			if (!iov[i].allocated)
+				continue;
+			else
+				timeout->tv_sec = MAX(0, MIN(timeout->tv_sec,
+				difftime(socksconfig.timeout.io,
+				(time_t)difftime((time_t)timenow->tv_sec,
+				(time_t)iov[i].time.tv_sec))));
+	else {
+		if (timerisset(&bwoverflow))
 			*timeout = bwoverflow;
+		else
+			timeout = NULL;
+		return timeout;
+	}
+
+	if (timerisset(&bwoverflow)) {
+		struct timeval timetobw;
+		
+		if (timercmp(timenow, &bwoverflow, >))
+			/* CONSTCOND */ /* macro operation. */
+			timersub_hack(timenow, &bwoverflow, &timetobw);
+		else
+			timerclear(&timetobw);
+
+		if (timercmp(&timetobw, timeout, <)) {
+			*timeout = timetobw;
+		}
+	}
 
 #if 0
-	slog(LOG_DEBUG, "%s: timeout = %d.%d",
-	function, timeout->tv_sec, timeout->tv_usec);
+slog(LOG_DEBUG, "%s: timeout = %d.%d",
+function, timeout->tv_sec, timeout->tv_usec);
 #endif
 
 	return timeout;
 }
 
 static struct sockd_io_t *
-io_gettimedout(void)
+io_gettimedout(timenow)
+	const struct timeval *timenow;
 {
 	int i;
-	time_t timenow;
 
 	if (socksconfig.timeout.io == 0)
 		return NULL;
 
-	time(&timenow);
 	for (i = 0; i < ioc; ++i)
 		if (!iov[i].allocated)
 			continue;
 		else
-			if (difftime(timenow, (time_t)iov[i].time.tv_sec)
+			if (difftime((time_t)timenow->tv_sec, (time_t)iov[i].time.tv_sec)
 			>= socksconfig.timeout.io)
 				return &iov[i];
 

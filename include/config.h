@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.46 2001/07/11 10:04:30 michaels Exp $ */
+/* $Id: config.h,v 1.47 2001/11/22 14:00:40 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -72,7 +72,7 @@
 #define SOCKS_LOCKFILE				"./sockslockXXXXXXXXXX"
 
 /* if profiling is enabled, directory to store profile files in. */
-#define SOCKS_PROFILEDIR			"./prof"
+#define SOCKS_PROFILEDIR			"./.prof"
 
 
 	/*
