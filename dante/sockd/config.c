@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: config.c,v 1.75 1999/02/26 19:24:58 michaels Exp $";
+"$Id: config.c,v 1.77 1999/03/11 16:59:32 karls Exp $";
 
 #include "common.h"
 
@@ -532,7 +532,8 @@ socks_connectroute(s, packet, src, dst)
 
 		/* need to set up misc. crap for msproxy stuff. */
 		if (route->gw.state.proxyprotocol.msproxy_v2 && !init) {
-			msproxy_init();
+			if (msproxy_init() != 0)
+				;	/* yes, then what? */
 			init = 1;
 		}
 	}

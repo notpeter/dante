@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.64 1999/02/26 21:36:20 michaels Exp $";
+"$Id: connectchild.c,v 1.66 1999/03/11 16:59:33 karls Exp $";
 
 #include "common.h"
 
@@ -232,7 +232,6 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 
 	bzero(&socksfd, sizeof(socksfd));
-	/* needs to be before bellow getsockname(). */
 	socksfd.route = socks_connectroute(control, packet, src, dst);
 	SASSERTX(socksfd.route != NULL);
 
@@ -254,6 +253,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 		/* LINTED pointer casts may be troublesome */
 		if (getsockname(control, (struct sockaddr *)&local, &len) != 0)
 			return NULL;
+		SASSERTX(ADDRISBOUND(local));
 		local.sin_port 			= htons(0);
 
 		len = sizeof(local);

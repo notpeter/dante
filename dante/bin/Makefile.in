@@ -10,8 +10,6 @@
 # even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 # PARTICULAR PURPOSE.
 
-# XXX bin_SCPRIPTS = socksify
-
 
 SHELL = /bin/sh
 
@@ -64,6 +62,8 @@ host_triplet = @host@
 CC = @CC@
 LD = @LD@
 LEX = @LEX@
+LIBRARY_DLOPEN = @LIBRARY_DLOPEN@
+LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
 MAKEINFO = @MAKEINFO@
@@ -73,18 +73,21 @@ RANLIB = @RANLIB@
 VERSION = @VERSION@
 YACC = @YACC@
 
-EXTRA_DIST = socksify.sh
+bin_SCRIPTS	= socksify
+CLEANFILES	= socksify
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = ../include/autoconf.h
-CONFIG_CLEAN_FILES = 
-DIST_COMMON =  Makefile.am Makefile.in
+CONFIG_CLEAN_FILES =  socksify socksify
+SCRIPTS =  $(bin_SCRIPTS)
+
+DIST_COMMON =  Makefile.am Makefile.in socksify.in
 
 
 DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 TAR = tar
 GZIP = --best
-all: Makefile
+all: Makefile $(SCRIPTS)
 
 .SUFFIXES:
 $(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4)
@@ -94,6 +97,29 @@ Makefile: $(srcdir)/Makefile.in  $(top_builddir)/config.status
 	cd $(top_builddir) \
 	  && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= $(SHELL) ./config.status
 
+socksify: $(top_builddir)/config.status socksify.in
+	cd $(top_builddir) && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= ./config.status
+socksify: $(top_builddir)/config.status socksify.in
+	cd $(top_builddir) && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= ./config.status
+
+install-binSCRIPTS: $(bin_SCRIPTS)
+	@$(NORMAL_INSTALL)
+	$(mkinstalldirs) $(DESTDIR)$(bindir)
+	@list='$(bin_SCRIPTS)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    echo " $(INSTALL_SCRIPT) $$p $(DESTDIR)$(bindir)/`echo $$p|sed '$(transform)'`"; \
+	    $(INSTALL_SCRIPT) $$p $(DESTDIR)$(bindir)/`echo $$p|sed '$(transform)'`; \
+	  else if test -f $(srcdir)/$$p; then \
+	    echo " $(INSTALL_SCRIPT) $(srcdir)/$$p $(DESTDIR)$(bindir)/`echo $$p|sed '$(transform)'`"; \
+	    $(INSTALL_SCRIPT) $(srcdir)/$$p $(DESTDIR)$(bindir)/`echo $$p|sed '$(transform)'`; \
+	  else :; fi; fi; \
+	done
+
+uninstall-binSCRIPTS:
+	@$(NORMAL_UNINSTALL)
+	list='$(bin_SCRIPTS)'; for p in $$list; do \
+	  rm -f $(DESTDIR)$(bindir)/`echo $$p|sed '$(transform)'`; \
+	done
 tags: TAGS
 TAGS:
 
@@ -114,7 +140,7 @@ dvi:
 check: all
 	$(MAKE)
 installcheck:
-install-exec: 
+install-exec: install-binSCRIPTS
 	@$(NORMAL_INSTALL)
 
 install-data: 
@@ -123,11 +149,12 @@ install-data:
 install: install-exec install-data all
 	@:
 
-uninstall: 
+uninstall: uninstall-binSCRIPTS
 
 install-strip:
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' INSTALL_SCRIPT='$(INSTALL_PROGRAM)' install
 installdirs:
+	$(mkinstalldirs)  $(DATADIR)$(bindir)
 
 
 mostlyclean-generic:
@@ -156,10 +183,10 @@ maintainer-clean:  maintainer-clean-generic distclean
 	@echo "This command is intended for maintainers to use;"
 	@echo "it deletes files that may require special tools to rebuild."
 
-.PHONY: tags distdir info dvi installcheck install-exec install-data \
-install uninstall all installdirs mostlyclean-generic distclean-generic \
-clean-generic maintainer-clean-generic clean mostlyclean distclean \
-maintainer-clean
+.PHONY: uninstall-binSCRIPTS install-binSCRIPTS tags distdir info dvi \
+installcheck install-exec install-data install uninstall all \
+installdirs mostlyclean-generic distclean-generic clean-generic \
+maintainer-clean-generic clean mostlyclean distclean maintainer-clean
 
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

@@ -1,8 +1,8 @@
 AUTOMAKE_OPTIONS = foreign
 if BUILD_PRELOAD_LIB
-SUBDIRS = lib dlib sockd include example doc bin
+SUBDIRS = lib dlib sockd include example doc bin SPECS
 else
-SUBDIRS = lib      sockd include example doc bin
+SUBDIRS = lib      sockd include example doc bin SPECS
 endif
 #XXX this is not very pretty, but EXTRA_DIST does not accept conditionals
 if PRERELEASE

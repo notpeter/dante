@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.153 1999/02/26 21:41:47 karls Exp $ */
+/* $Id: common.h,v 1.155 1999/03/11 16:59:29 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -672,13 +672,16 @@ do {														\
 
 #define MSPROXY_SUCCESS			0
 #define MSPROXY_FAILURE			1
+#define MSPROXY_NOTALLOWED		2
 
-#define MSPROXY_MINLENGTH		172
+#define MSPROXY_MINLENGTH		172			/* minum length of packet.				*/
+#define MSPROXY_VERSION			0x00010200 	/* perhaps?									*/
 
-#define MSPROXY_WILL_CONNECT	0x00000100
-#define MSPROXY_WILL_BIND		0x00010200
-
-#define MSPROXY_ADDRINUSE			0x0701
+/* errors */
+#define MSPROXY_ADDRINUSE				0x0701
+#define MSPROXY_BIND_AUTHFAILED		0x0804	/* auth failed for connect.	*/
+#define MSPROXY_CONNECT_AUTHFAILED	0x081e	/* auth failed for bind. 		*/
+#define MSPROXY_CONNREFUSED			0x4		/* low 12 bits seem to vary.	*/
 
 /*
  * Server seems to ignore loworder bits of a 0x47?? command, so take them
@@ -723,10 +726,6 @@ do {														\
 #define MSPROXY_UDPASSOCIATE_ACK	0x0706	/* udp associate request accepted.	*/
 
 #define MSPROXY_CONNECTED			0x042c	/* client connected to server?		*/
-
-#define MSPROXY_CONNREFUSED		0x4		/* low 12 bits seem to vary.			*/
-
-#define MSPROXY_ADDRINUSE			0x0701	/* maybe...									*/
 
 #define MSPROXY_SESSIONEND			0x251e	/* maybe...									*/
 
@@ -847,7 +846,7 @@ struct msproxy_request_t {
 	char						pad15[8];			/* 29-36										*/
 	int16_t					command;				/* 37-38										*/
 
-	/* packet specifics start at 39. */
+	/* packet spesifics start at 39. */
 	union {
 		struct {
 			char				pad1[18];			/* 39-56										*/
@@ -1507,7 +1506,7 @@ char *
 sockshost2string __P((const struct sockshost_t *host, char *string,
 							 size_t len));
 /*
- * Writes "host" out as a string.  The string is written to "string",
+ * Writes "host" out as a string.  The string is writtin to "string",
  * which is of length "len", including NUL termination.
  * Returns: "string".
 */
@@ -1685,7 +1684,7 @@ const char *
 ruleaddress2string __P((const struct ruleaddress_t *rule, char *string,
 								size_t len));
 /*
- * Writes "rule" out as a string.  The string is written to "string",
+ * Writes "rule" out as a string.  The string is writtin to "string",
  * which is of length "len", including NUL termination.
  * Returns: "string".
 */
@@ -1829,7 +1828,7 @@ strnlen(const char *s, size_t len);
 /*
  * Returns the number of characters that precede the terminating NUL
  * character, or (size_t)-1 if no terminating NUL character is found
- * within "len" characters.
+ * withing "len" characters.
 */
 
 #if defined(DEBUG) || defined(HAVE_SOLARIS_BUGS)

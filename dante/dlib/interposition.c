@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.32 1999/02/20 18:10:21 michaels Exp $";
+"$Id: interposition.c,v 1.33 1999/03/11 16:59:28 karls Exp $";
 
 #define WE_DONT_WANT_NO_SOCKADDR_ARG_UNION
 

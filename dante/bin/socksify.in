@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -
 #
 # Copyright (c) 1997, 1998
 #      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -40,17 +40,19 @@
 # any improvements or extensions that they make and grant Inferno Nettverk A/S
 # the rights to redistribute these changes.
 #
-# $Id: socksify.sh,v 1.9 1998/12/07 13:43:09 michaels Exp $
+# $Id: socksify.in,v 1.10 1999/03/10 15:54:38 karls Exp $
 
 
-#
-# On systems where it's supported, if you set the below LIBRARY
-# variable correctly, you can do "socksify <program>" and <program>
-# will get sockssuport without having been relinked or recompiled.
+# On systems where LD_PRELOAD is supported, if LIBRARY below contains
+# any libraries libdsocks needs, you can do "socksify <program>" and
+# <program> will use socks without having been relinked or recompiled.
+# This will not work on statically linked binaries.
 
-LIBRARY=${SOCKS_LIBRARY-/usr/local/lib/libdsocks.so}
+LIBRARY_DLOPEN=@LIBRARY_DLOPEN@
+LIBDIR=@LIBRARY_PREFIX@
+LIBRARY=${SOCKS_LIBRARY-${LIBDIR}/libdsocks.so}
 
-LD_PRELOAD="${LIBRARY}${LD_PRELOAD+ }${LD_PRELOAD}"
+LD_PRELOAD="${LIBRARY}${LIBRARY_DLOPEN:+ }${LIBRARY_DLOPEN}${LD_PRELOAD:+ }${LD_PRELOAD}"
 export LD_PRELOAD
 
 exec "$@"

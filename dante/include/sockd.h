@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.99 1999/02/26 21:41:47 karls Exp $ */
+/* $Id: sockd.h,v 1.100 1999/03/11 16:59:29 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.5 1999/02/20 19:22:36 michaels Exp $";
+"$Id: Rcompat.c,v 1.6 1999/03/11 16:59:31 karls Exp $";
 
 #include "common.h"
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998
+ * Copyright (c) 1997, 1998, 1999
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: yacconfig.h,v 1.3 1998/11/13 21:17:23 michaels Exp $ */
+/* $Id: yacconfig.h,v 1.4 1999/03/11 16:59:30 karls Exp $ */
 
 #if 1
 #define yyact socks_yyact

@@ -13,10 +13,14 @@ on the msproxy stuff.  Current status:
    means "wait a little, then continue or retry", we currently
    don't.
 
-Atleast in one installation the msproxy server seems to "die" after
+At least in one installation the msproxy server seems to "die" after
 a while.  This seems to be somehow related to the data we send it,
 but it's unknown why and when it happens.  Can it be reproduced on
 other installations?
+
+Someone reports failure to get the it to work if authentication
+is turned on on the msproxy side, even if he's authenticated
+himself from the unix machine.  Can anyone else reproduce this?
 
 
 We appreciate any feedback at all, does it work, does it not, that
