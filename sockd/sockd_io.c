@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.213 2002/05/02 10:06:59 michaels Exp $";
+"$Id: sockd_io.c,v 1.217 2003/07/01 13:21:45 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -712,7 +712,7 @@ recv_io(s, io)
 	/* calculate expected datalen */
 
 #if !HAVE_DEFECT_RECVMSG
-	SASSERT(CMSG_GETLEN(msg) == sizeof(int) * fdexpect);
+	SASSERT(CMSG_TOTLEN(msg) == CMSG_SPACE(sizeof(int) * fdexpect));
 #endif
 
 	/*
@@ -1274,7 +1274,7 @@ io_rw(in, out, bad, buf, bufsize, flag)
 	else
 		in->flags &= ~MSG_OOB;	/* did not read oob data.	*/
 
-	if ((w = socks_sendto(out->s, buf, (size_t)r, flag, NULL, NULL, &out->auth))
+	if ((w = socks_sendto(out->s, buf, (size_t)r, flag, NULL, 0, &out->auth))
 	!= r) {
 		*bad = out->s;
 		return w;

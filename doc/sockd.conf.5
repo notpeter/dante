@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.60 2002/04/18 09:56:41 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.62 2003/03/10 13:50:40 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -72,7 +72,10 @@ Can be given multiple times for different addresses.
 .IP \fBexternal.rotation\fP
 If more than one external address is given, this governs which
 address is selected.  Valid values are \fBnone\fP (the default) and
-\fBroute\fP.  Note that \fBroute\fP might create problems for
+\fBroute\fP.  The latter might require you to set \fBuser.privileged\fP to
+\fBroot\fP.
+
+Note that \fBroute\fP might create problems for
 ftp-clients using active ftp if the \fBDante\fP bind extension
 is enabled for the ftp-client.
 .IP \fBinternal\fP
@@ -81,7 +84,7 @@ The address given may be either a IP address or a interfacename.
 .IP \fBiotimeout\fP
 The number of seconds an established connection can be idle.  Set it
 to 0 for forever.
-.IP \fBlogouput\fP
+.IP \fBlogoutput\fP
 This value controls where the server sends logoutput.  It can
 be either \fBsyslog\fP[/\fBfacility\fP], \fBstdout\fP, \fBstderr\fP,
 a filename, or a combination.

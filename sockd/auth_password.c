@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: auth_password.c,v 1.6 2001/12/11 14:31:32 karls Exp $";
+"$Id: auth_password.c,v 1.8 2003/07/01 13:21:40 michaels Exp $";
 
 int
 passwordcheck(name, clearpassword, emsg, emsglen)
@@ -78,6 +78,8 @@ passwordcheck(name, clearpassword, emsg, emsglen)
 			return -1;
 		}
 	}
+	else
+		return 0;
 
 	return -1;
 }

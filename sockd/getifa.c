@@ -1,7 +1,7 @@
 /*
- * $Id: getifa.c,v 1.29 2002/04/23 11:43:09 michaels Exp $
+ * $Id: getifa.c,v 1.30 2003/07/01 13:21:40 michaels Exp $
  *
- * Copyright (c) 2001
+ * Copyright (c) 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getifa.c,v 1.29 2002/04/23 11:43:09 michaels Exp $";
+"$Id: getifa.c,v 1.30 2003/07/01 13:21:40 michaels Exp $";
 
 
 /*===========================================================================

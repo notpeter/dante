@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.59 2002/06/05 10:09:09 michaels Exp $";
+"$Id: io.c,v 1.62 2003/07/01 13:21:29 michaels Exp $";
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
 
@@ -247,7 +247,7 @@ recvmsgn(s, msg, flags)
 		size_t leaked;
 		int d;
 
-		for (leaked = 0; leaked * sizeof(d) < CMSG_GETLEN(*msg); ++leaked) {
+		for (leaked = 0; CMSG_SPACE(leaked * sizeof(d)) < CMSG_TOTLEN(*msg); ++leaked) {
 			CMSG_GETOBJECT(d, CMSG_CONTROLDATA(*msg), leaked * sizeof(d));
 			close(d);
 		}
@@ -287,7 +287,7 @@ recvmsgn(s, msg, flags)
 
 					swarn("%s: %d bytes left", function, left);
 
-					for (leaked = 0; leaked * sizeof(d) < CMSG_GETLEN(*msg);
+					for (leaked = 0; CMSG_SPACE(leaked * sizeof(d)) < CMSG_TOTLEN(*msg);
 					++leaked) {
 						CMSG_GETOBJECT(d, CMSG_CONTROLDATA(*msg), leaked * sizeof(d));
 						close(d);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.119 2001/12/12 14:42:07 karls Exp $";
+"$Id: Rconnect.c,v 1.120 2003/07/01 13:21:22 michaels Exp $";
 
 int
 Rconnect(s, name, namelen)

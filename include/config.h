@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.50 2002/05/01 09:56:40 michaels Exp $ */
+/* $Id: config.h,v 1.51 2003/07/01 13:21:16 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_

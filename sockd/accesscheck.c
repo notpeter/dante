@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.17 2002/05/18 08:19:25 michaels Exp $";
+"$Id: accesscheck.c,v 1.19 2003/07/01 13:21:39 michaels Exp $";
 
 
 /* ARGSUSED */
@@ -185,6 +185,14 @@ accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
 				SASSERTX(auth->badmethodc + 1 <= sizeof(auth->badmethodv));
 				auth->badmethodv[auth->badmethodc++] = auth->method;
 			}
+
+			/*
+			 * We might have wanted to bzero() the password here, but
+			 * then we wouldn't be able to use the password if we
+			 * at a later point needed to check for access against
+			 * a different method.  (For instance, PAM on setup,
+			 * UNAME on UDP packet.  Strange, but in theory possible.)
+			 */
 			break;
 	}
 

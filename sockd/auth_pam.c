@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001
+ * Copyright (c) 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.17 2002/01/29 11:17:32 michaels Exp $";
+"$Id: auth_pam.c,v 1.18 2003/07/01 13:21:39 michaels Exp $";
 
 __BEGIN_DECLS
 

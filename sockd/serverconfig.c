@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.179 2002/03/25 10:33:17 michaels Exp $";
+"$Id: serverconfig.c,v 1.182 2003/07/01 13:21:41 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -631,14 +631,14 @@ iolog(rule, state, operation, src, srcauth, dst, dstauth, data, count)
 			if (rule->log.disconnect || rule->log.error)
 				slog(LOG_INFO, "%s ]: %s -> %s: %s",
 				rulecommand, srcstring, dststring,
-				data == NULL ? strerror(errno) : data);
+				(data == NULL || *data == NUL) ? strerror(errno) : data);
 			break;
 
 		case OPERATION_ERROR:
 			if (rule->log.error)
 				slog(LOG_INFO, "%s ]: %s -> %s: %s",
 				rulecommand, srcstring, dststring,
-				data == NULL ? strerror(errno) : data);
+				(data == NULL || *data == NUL) ? strerror(errno) : data);
 			break;
 
 		case OPERATION_IO:
@@ -1085,7 +1085,7 @@ addressisbindable(addr)
 			sockshost2sockaddr(ruleaddress2sockshost(addr, &host, SOCKS_TCP),
 			&saddr);
 
-			if (sockd_bind(s, &saddr, 0) != 0) {
+			if (bind(s, &saddr, sizeof(saddr)) != 0) {
 				swarn("%s: can't bind address: %s",
 				function, sockaddr2string(&saddr, saddrs, sizeof(saddrs)));
 				close(s);
@@ -1101,7 +1101,7 @@ addressisbindable(addr)
 				return 0;
 			}
 
-			if (sockd_bind(s, &saddr, 0) != 0) {
+			if (bind(s, &saddr, sizeof(saddr)) != 0) {
 				swarn("%s: can't bind address %s of interface %s",
 				function, sockaddr2string(&saddr, saddrs, sizeof(saddrs)),
 				addr->addr.ifname);

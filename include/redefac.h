@@ -10,6 +10,16 @@
 #endif
 
 
+#ifndef HAVE_CMSG_LEN
+#define HAVE_CMSG_LEN 0
+#endif
+
+
+#ifndef HAVE_CMSG_SPACE
+#define HAVE_CMSG_SPACE 0
+#endif
+
+
 #ifndef HAVE_OPTHDR
 #define HAVE_OPTHDR 0
 #endif

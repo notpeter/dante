@@ -1,16 +1,18 @@
 AC_INIT
 AC_PREREQ(2.50)
-AC_REVISION($Id: configure.ac,v 1.309 2002/06/23 15:20:59 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.315 2003/05/30 13:05:58 karls Exp $)
 
-version=1.1.13
+version=1.1.14
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="1"
+prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
 else
 	prename=""
 fi
+
+echo "Configuring Dante ${version}${prename}:"
 
 AM_INIT_AUTOMAKE(dante, ${version}${prename})
 AC_CONFIG_SRCDIR(include/common.h)
@@ -52,7 +54,7 @@ esac
 #XXX add proper test for this?
 case $host in
 
-	*-*-*bsd* | alpha*-dec-osf* | *-*-hpux* | *-*-aix4*)
+	*-*-*bsd* | alpha*-dec-osf* | *-*-hpux* | *-*-aix4* | *-*-aix5*)
 		no_acceptlock=t
 	;;
 
@@ -128,7 +130,7 @@ case $host in
 	*-*-irix*)
 		PRELOAD="RLD"
 	;;
-	*-*-aix4*)
+	*-*-aix4* | *-*-aix5*)
 		OSPIDFILE="/etc/sockd.pid"
 		AC_DEFINE(HAVE_SYSTEM_XMSG_MAGIC)
 	;;
@@ -224,7 +226,7 @@ case $host in
 	AC_MSG_RESULT([$comp_flags])
 	;;
 
-    *-*-aix4*)
+    *-*-aix4* | *-*-aix5*)
 	if test "x$GCC" = x; then
 	    comp_flags="-qlanglvl=ansi"
 	    #XXX
@@ -276,6 +278,7 @@ if test x$debug_enabled = xt; then
 else
     AC_MSG_RESULT([no])
     #autoconf_compflags is set to "-g -O2" with GCC
+    #override CFLAGS when running configure to avoid this
     CFLAGS="$CFLAGS $autoconf_compflags"
 fi
 
@@ -778,7 +781,7 @@ yes
 	#the list. (to add a new function a set of #undef statements in
 	#acconfig.h is also needed).
 	case $host in
-		*-*-aix4*)
+		*-*-aix4* | *-*-aix5*)
 			PROTO_ACCEPT=naccept
 			PROTO_GETPEERNAME=ngetpeername
 			PROTO_GETSOCKNAME=ngetsockname
@@ -1113,6 +1116,32 @@ case $host in
    AC_MSG_RESULT(no))
 	;;
 esac
+
+AC_MSG_CHECKING([for CMSG_SPACE in sys/socket.h])
+AC_TRY_RUN([
+#include <sys/types.h>
+#include <sys/socket.h>
+int main()
+{
+   int d = CMSG_SPACE(4);
+   return 0;
+}
+], [AC_MSG_RESULT(yes)
+    AC_DEFINE(HAVE_CMSG_SPACE)],
+   [AC_MSG_RESULT(no)])
+
+AC_MSG_CHECKING([for CMSG_LEN in sys/socket.h])
+AC_TRY_RUN([
+#include <sys/types.h>
+#include <sys/socket.h>
+
+int main()
+{
+   int d = CMSG_LEN(4);
+   return 0;
+}], [AC_MSG_RESULT(yes)
+    AC_DEFINE(HAVE_CMSG_LEN)],
+   [AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([for sa_len in sockaddr])
 AC_TRY_COMPILE([
@@ -1634,6 +1663,7 @@ else
 fi
 echo ""
 echo "This software should perform optimally when all the lines above report 'OK'."
+echo "This is not possible on all platforms."
 echo ""
 
 echo "                     Modules:"

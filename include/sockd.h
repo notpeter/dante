@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.192 2002/06/05 09:59:44 michaels Exp $ */
+/* $Id: sockd.h,v 1.195 2003/07/01 13:21:16 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -479,6 +479,8 @@ sockd_bind __P((int s, struct sockaddr *addr, size_t retries));
  * Binds the address "addr" to the socket "s".  The bind call will
  * be tried "retries" + 1 times if the error is EADDRINUSE, or until
  * successful, whatever comes first.
+ * If the portnumber is privileged, it will set and reset the euid
+ * as appropriate.
  *
  * If successful, "addr" is filled in with the bound address.
  * Returns:
@@ -766,14 +768,16 @@ iolog __P((struct rule_t *rule, const struct connectionstate_t *state,
  * If "operation" is
  *    OPERATION_ACCEPT
  *		OPERATION_CONNECT
- *			"data" and "count" is ignored.
+ *			"count" is ignored.
+ *			If "data" is not NULL or NUL, it is a string giving additional
+ * 		information about the operation.
  *
  *		OPERATION_ABORT
  *		OPERATION_ERROR
  *			"count" is ignored.
- *			If "data" is not NULL, it is a string giving the reason for abort
- *			or error.
- *			If "data" is NULL, the reason is the errormessage affiliated
+ *			If "data" is not NULL or NUL, it is a string giving the reason for 
+ *			abort or error.
+ *			If "data" is NULL or NUL, the reason is the errormessage affiliated
  *			with the current errno.
  *
  *		OPERATION_IO
