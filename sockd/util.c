@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.57 1999/03/11 16:59:34 karls Exp $";
+"$Id: util.c,v 1.58 1999/03/12 16:09:27 michaels Exp $";
 
 #include "common.h"
 
@@ -167,6 +167,7 @@ sockscode(version, code)
 	
 	switch (version) {
 		case SOCKS_V4:
+		case SOCKS_V4REPLY_VERSION:
 			switch (code) {
 				case SOCKS_SUCCESS:
 					return SOCKSV4_SUCCESS;
@@ -774,6 +775,7 @@ socks_packet2string(packet, type)
 
 	switch (version) {
 		case SOCKS_V4:
+		case SOCKS_V4REPLY_VERSION:
 		 	switch (type) {
 				case SOCKS_REQUEST:
 					snprintf(buf, sizeof(buf),

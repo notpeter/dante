@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.39 1998/11/13 21:18:20 michaels Exp $";
+"$Id: protocol.c,v 1.40 1999/03/12 16:09:25 michaels Exp $";
 
 #include "common.h"
 
@@ -55,6 +55,7 @@ sockshost2mem(host, mem, version)
 
 	switch (version) {
 		case SOCKS_V4:
+		case SOCKS_V4REPLY_VERSION:
 			/* only ipv4 supported by v4 */
 			SASSERT(host->atype == SOCKS_ADDR_IPV4);
 

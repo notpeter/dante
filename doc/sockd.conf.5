@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.9 1999/03/01 14:34:43 karls Exp $
+.\" $Id: sockd.conf.5,v 1.10 1999/03/12 16:17:16 michaels Exp $
 .TH SOCKD.CONF 5 "December 3, 1998"
 .SH NAME
 sockd.conf \- socks server configuration file syntax
@@ -75,9 +75,9 @@ The server will pass the line to libwrap for execution.
 .IP \fBlog\fP
 Used to control logging.  Accepted keywords are \fBconnect\fP,
 \fBdisconnect\fP, \fBdata\fP and \fBiooperation\fP.
-.IP \fBprotocolversion\fP
-The rule applies only to requests using the given protocolversion.
-Valid versions are \fB4\fP and \fB5\fP.
+.IP \fBproxyprotocol\fP
+The rule applies only to requests using the given proxyprotocol.
+Valid proxyprotocols are \fBsocks_v4\fP and \fBsocks_v5\fP.
 .SH EXAMPLES
 See the example directory in the distribution.
 .SH FILES
