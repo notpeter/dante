@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.217 1999/12/20 09:07:33 michaels Exp $ */
+/* $Id: common.h,v 1.218 1999/12/22 09:29:19 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -1415,7 +1415,7 @@ udpheader_add __P((const struct sockshost_t *host, char *msg, size_t *len,
 						 size_t msgsize));
 /*
  * Prefixes the udpheader_t version of "host" to a copy of "msg",
- * which is of length "len". 
+ * which is of length "len".
  * "msgsize" gives the size of the memory pointed to by "msg".
  * If "msgsize" is large enough the function will prepend the udpheader
  * to "msg" directly (moving the old contents to the right) rather than
@@ -1917,7 +1917,7 @@ fdsetop __P((int nfds, int op, const fd_set *a, const fd_set *b,
  *
  * Returns the number of the highest descriptor set in "result".
  * NOTES:
- *		Operators supported is: AND ('&') and XOR ('^') 
+ *		Operators supported is: AND ('&') and XOR ('^')
  */
 
 int

@@ -40,7 +40,7 @@ destination port number, the userid, and information it may obtain by
 consulting IDENT, cf. RFC 1413.  If the request is granted, the SOCKS
 server makes a connection to the specified port of the destination host.
 A reply packet is sent to the client when this connection is established,
-or when the request is rejected or the operation fails. 
+or when the request is rejected or the operation fails.
 
 		+----+----+----+----+----+----+----+----+
 		| VN | CD | DSTPORT |      DSTIP        |

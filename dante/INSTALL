@@ -1,4 +1,4 @@
-# $Id: INSTALL,v 1.17 1999/12/20 09:07:29 michaels Exp $ 
+# $Id: INSTALL,v 1.18 1999/12/22 09:29:10 karls Exp $
 
 This file describes how to install Dante.  Dante is a Socks client
 and server firewall implementation.  It can be installed on a machine
@@ -68,7 +68,7 @@ The simplest way to compile this package is:
 
      $ (echo '<Firstname> <Lastname>'; cat stats include/autoconf.h) \
      | mail dante-qst@inet.no
-    
+
 
 Compilers and Options
 =====================
@@ -245,13 +245,13 @@ These `configure' options are also supported (run `configure' with
 
 FURTHER CONFIGURATION
 
-The file include/config.h contains defines you might wish to 
-change, but usually they are ok as they come. 
+The file include/config.h contains defines you might wish to
+change, but usually they are ok as they come.
 
 RUNTIME CONFIGURATION FILES
 
 No configuration-files are installed, these must be installed
-manually. 
+manually.
 The Dante server expects it's configuration file to be in /etc/sockd.conf.
 The client library uses the file /etc/socks.conf.
 

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.105 1999/09/02 10:41:17 michaels Exp $";
+"$Id: Rconnect.c,v 1.106 1999/12/22 09:29:21 karls Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -78,7 +78,7 @@ Rconnect(s, name, namelen)
 				 * listening on our behalf and we continue as if this was an
 				 * ordinary connect().  Can only hope the server will use
 				 * same port as we for connecting out.
- 				 */
+				 */
 				socks_rmaddr((unsigned int)s);
 				break;
 

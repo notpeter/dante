@@ -1,4 +1,4 @@
-@(#)$Id: FAQ,v 1.21 1999/12/20 13:09:35 karls Exp $
+@(#)$Id: FAQ,v 1.24 2000/01/05 11:08:29 michaels Exp $
 
 Submit your question with an answer to dante-faq@inet.no.
 
@@ -12,7 +12,6 @@ Submit your question with an answer to dante-faq@inet.no.
 2.2. Why doesn't the socksify program work with cvs?
 
 1. Reporting bugs in Dante
-
 1.1. Why was I told to read this in response to my superb bug report?
 Because you were unable to provide a usable bug report.  Since
 there are so many of you, we prefer to refer you to this FAQ rather
@@ -44,7 +43,7 @@ If the problem is with the server, also add "-dl" to whatever
 arguments you usually start the server with.
 
 Repeat whatever you did to produce the error and look at the
-log messages.  Do they provide any hints?  Could this be 
+log messages.  Do they provide any hints?  Could this be
 a user error on your part rather than a bug?  (of course not.)
 
 If it looks like a user error, you configured something wrong, etc.
@@ -55,15 +54,12 @@ And remember, unless you are a customer of Inferno Nettverk, no one
 owes you any support or help, you are the one asking someone to
 spend their time to help you, not the other way around.
 
-If it looks like a bug, first perform the following steps.
- a) The first thing to make sure is that you are using the latest
-    version of Dante, even if the latest version is a "prerelease" 
-    and you are using formal release.
-    Always check ftp.inet.no:/pub/socks/ to see if there's a later
-    version before sending a bugreport.
-
- b) In addition to the server/client specific files mentioned below,
-    include the output from configure and the file "include/autoconf.h".
+If it looks like a bug, first perform the following step:
+ a) Make sure that you are using the latest
+    version of Dante, even if the latest version is a "prerelease"
+    and you are using official release.  Always check
+    ftp.inet.no:/pub/socks/ to see if there's a later version before
+    sending a bugreport.
 
 Next, depending on whether the suspected bug is in the client
 or sever, do one of the following:
@@ -75,23 +71,55 @@ or sever, do one of the following:
   3) Set debug and logoutput as described above.
   4) cp /dev/null <logoutput file> (to make sure it's empty.)
   5) ktrace/truss/strace/<whatever> socksify <bad program>.  Save the
-     output to a file.  If you have a program that can trace 
+     output to a file.  If you have a program that can trace
      library calls too (late version of Solaris truss and redhat
      linux apparently do), please include information about that too.
-  6) If a coredump was generated, do "gdb <bad program> <corefile>"
+
+  6) If a coredump was generated do 
+       $ gdb <bad program> <coredump>
+       (gdb) backtrace 50
+     Save the output to a file.
+ 
+ If it's a bug in the server:
+  1) Compile Dante with "-g" (--enable-debugging option to configure).
+  2) Set debug and logoutput as described above.
+  3) cp /dev/null <logoutput file> (to make sure it's empty.)
+  4) If the server crashed/exited due to the bug, a coredump should
+     be generated.
+     If you do not find a coredump in the directory you started
+     the Dante server from you need to find out why.
+     Some possible reasons are:
+      a) your shell has disabled coredumps (check what ulimit(1)) says.
+      b) some systems by default disable coredumps on processes that
+	 are either setuid, or that are run by root.
+
+     When you have found the coredump do 
+	$ gdb <Dante server> <coredump>
         (gdb) backtrace 50
      Save the output to a file.
-  7) Collect <logoutput file>, ktrace/truss/strace/whatever output and
-     gdb output in a orderly fashion so it's easy to read and understand
-     and send it to us.  The address to use for Dante bugs is
-     dante-bugs@inet.no.  See the BUGS file coming with Dante.
-  8) If you have the possibility to create a temporary account for
-     one of the Dante developers in the case we are unable to reproduce the
-     error on our own systems, please mention that in the bugreport
-     (but don't create the account until we ask for it, we rarely need it).
- 
-2. Technical Problems
 
+Then:
+  b) In addition to the server/client specific files mentioned below,
+    include the output from configure and the file "include/autoconf.h".
+
+  c) Collect the output from configure and the file include/autoconf.h,
+     the <logoutput file>, gdb/ktrace/truss/strace/whatever output
+     in a orderly fashion so it's easy to read and understand, and
+     send it to us.  Make sure you include information about what
+     all the ipaddresses in the logfiles are (10.0.0.1 is "client
+     using lynx", 10.0.0.2 is "remote webserver", etc.).
+
+     The address to use for Dante bugs is dante-bugs@inet.no.  See
+     the BUGS file coming with Dante.
+
+  d) If you have the possibility to create a temporary account for
+     one of the Dante developers in the case we are unable to
+     reproduce the error on our own systems, please mention that
+     in the bugreport (but don't create the account until we ask
+     for it, we rarely need it).
+
+
+2. Technical Problems
 2.1. Why doesn't the socksify program work with glibc-2?
 If glibc is not correctly installed (old header files are still
 installed) socksify won't work if logging is enabled. The server will

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.109 1999/12/20 09:09:22 michaels Exp $";
+"$Id: sockd_request.c,v 1.110 1999/12/22 09:29:27 karls Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -226,7 +226,7 @@ dorequest(mother, request)
 	response.host	= request->req.host;
 	response.auth	= request->req.auth;
 
-	io 						= ioinit;
+	io							= ioinit;
 	io.acceptrule			= request->rule;
 	io.state					= request->state;
 	io.state.extension	= config.extension;
@@ -454,7 +454,7 @@ dorequest(mother, request)
 		close(out);
 		return;
 	}
-		
+
 	/* rules permit? */
 	switch (request->req.command) {
 		case SOCKS_BIND: {
@@ -494,14 +494,14 @@ dorequest(mother, request)
 			/*
 			 * Client is allowed to send a "incomplete" address.
 			 */
-			if (io.src.atype == SOCKS_ADDR_IPV4 
+			if (io.src.atype == SOCKS_ADDR_IPV4
 			&& (io.src.addr.ipv4.s_addr == htonl(0) || io.src.port == htons(0)))
 				src = NULL;
 			else
 				src = &io.src;
 
 			/* only set temporary here for one replypacket at a time. */
-			replystate 				= io.state;
+			replystate				= io.state;
 			replystate.command	= SOCKS_UDPREPLY;
 
 			/* one direction is atleast in theory good enough. */
@@ -613,8 +613,8 @@ dorequest(mother, request)
 			sockaddr2string(&boundaddr, a, sizeof(a)),
 			sockaddr2string(&clientaddr, b, sizeof(b)));
 
-		 	/*
-		 	 * regardless of what kind of bind semantics are in use, 
+			/*
+			 * regardless of what kind of bind semantics are in use,
 			 * portnumber is something we ignore when checking remote peer.
 			 */
 			io.dst.port = htons(0);
@@ -687,8 +687,8 @@ dorequest(mother, request)
 								case SOCKS_V5:
 									queryresponse.version = query.version;
 									break;
-								
-								default:	
+
+								default:
 									SERRX(query.version);
 							}
 
@@ -1092,7 +1092,7 @@ flushio(mother, clientcontrol, response, io)
 
 		default:
 			sndlowat = SOCKD_BUFSIZETCP;
-			skew 		= LOWATSKEW;
+			skew		= LOWATSKEW;
 	}
 
 	/* set socket options for relay process. */

@@ -1,4 +1,4 @@
-@(#)$Id: NEWS,v 1.19 1999/12/20 12:47:45 michaels Exp $
+@(#)$Id: NEWS,v 1.20 1999/12/22 09:29:10 karls Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
 
@@ -22,7 +22,7 @@
 
  o tuned some things for better i/o performance though also greater
    resource usage.
- 
+
  o better support for profiling.
 
  o The name and location of the configuration files can now be
@@ -41,7 +41,7 @@
  o added a new method: "rfc931"; matches users against rfc931/ident
    lookup.  Requested by Per Hedeland (per@erix.ericsson.se).
 
- o added a new keyword: "user:"; limits the acceptable users on 
+ o added a new keyword: "user:"; limits the acceptable users on
    a rule-by-rule basis.
 
  o rewrote addressmatch().  This sort of reverses the logic and is
@@ -59,7 +59,7 @@
    Problem reported by Per Hedeland (per@erix.ericsson.se).
 
  o depending on how one configured the userid's used by the server,
-   it could sometimes fail. 
+   it could sometimes fail.
    Problem described by Per Hedeland (per@erix.ericsson.se).
 
 ***  Monday, Jun 7, 1999 -- Dante v1.0.1
@@ -82,7 +82,7 @@
  o Caches resolved hostnames/addresses.  Problem of not having it
    first brought up by Devin Nate (devin.nate@bridgecomm.net), thanks.
    Several new variables were added to config.h for tuning the cache.
- 
+
  o srchost flags settable in configfile, see sockd.conf(8) for more info.
 
  o Addressmatching much improved and should now be "complete".
@@ -106,18 +106,18 @@
    with the help of Stephen C. Hailey <haileyn@flash.net>.
 
  o Library conflict on linux systems with several libc versions
-   (gnu/non-gnu?) resolved, reported by 
+   (gnu/non-gnu?) resolved, reported by
    Martin Piskernig <martin.piskernig@stuwo.at>.
 
  o Configparsing reworked, should no longer care much about the order
    of things.
 
  o The library with dlopen should be correctly found for socksify.
- 
+
  o Let user know if we failed due to authentication on at msproxy
    server.
 
- o "protocolversion" renamed to "proxyprotocol" in clientconfig, 
+ o "protocolversion" renamed to "proxyprotocol" in clientconfig,
    also changed the value names.
 
  o version in reply for socksv4 is not same as in request, reported
@@ -136,7 +136,7 @@
 ***  Monday, December 14, 1998 -- Dante v0.91.0.
 
  o  all reported bugs and compilation problems fixed.
-     
+
  o  much improved UDP support, using calls other than sendto()/recvfrom()
     on UDP sockets should now work.
 
@@ -160,6 +160,5 @@
  o  Socksify program now also works on SunOS and Linux.
 
 ***  Monday, November 16, 1998 -- Dante v0.90.0.
- 
- o  A socks client and server implementation for UNIX.
 
+ o  A socks client and server implementation for UNIX.

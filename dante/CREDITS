@@ -1,9 +1,9 @@
-# $Id: CREDITS,v 1.21 1999/10/04 13:58:38 karls Exp $
+# $Id: CREDITS,v 1.22 1999/12/22 09:29:10 karls Exp $
 
    Dante was developed for Inferno Nettverk A/S, Norway by:
       - Michael Shuldman <michaels@inet.no>: Design and implementation.
       - Karl-André Skevik <karls@inet.no>: Autoconf and porting.
- 
+
 
    In order of contribution, at least the following should be credited:
 

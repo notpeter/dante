@@ -1,7 +1,7 @@
 AC_INIT(include/socks.h)
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+#prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else
@@ -249,7 +249,7 @@ if test x$enable_warnings != x; then
 	    ;;
 	esac
     else
-        #gcc warnings
+	#gcc warnings
 	warn="-Wall -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
 	#warn="$warn -Wold-style-cast -Winline -Waggregate-return -Wconversion -Wwrite-strings -Wtraditional -Wshadow"
     fi
@@ -535,7 +535,7 @@ case $host in
 esac
 if test "x${so_sndlowat}" = xt; then
 	AC_DEFINE(HAVE_SO_SNDLOWAT)
-        AC_MSG_RESULT(yes)
+	AC_MSG_RESULT(yes)
 else
 	AC_MSG_RESULT(disabled)
 	AC_MSG_WARN(performance in the server might be degraded without support for the SO_SNDLOWAT socket option)

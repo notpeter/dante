@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.64 1999/12/10 20:03:28 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.65 1999/12/22 09:29:26 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -242,7 +242,7 @@ run_negotiate(mother)
 					case -1:
 						switch (errno) {
 							case 0:
-								reason = *neg->negstate.emsg == NUL ? 
+								reason = *neg->negstate.emsg == NUL ?
 								"socks protocol error" : neg->negstate.emsg;
 								break;
 

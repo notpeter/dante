@@ -1,4 +1,9 @@
-# $Id: TODO,v 1.112 1999/12/20 13:07:34 karls Exp $
+# $Id: TODO,v 1.115 2000/01/05 10:38:29 michaels Exp $
+
+* add to exitsignalv.
+
+* assume config.method is set when checking addedd rules, warn
+  on error/strangeness.
 
 * clean up (char)version (unsigned char)version and etc. stuff.
 
@@ -9,6 +14,9 @@
 
 * if socks_lock() fails in vslog(), log anyway?
 
+* sepearte auth struct per io object?  (could log ident username
+  for bindreply)
+
 * share host/addr cache across processes.
 
 * get and send all argument to old signalhandler when necessary.
@@ -16,7 +24,7 @@
 * clean up namespace.
 
 * make requestchildren support multiple clients too.
-  
+
 * continue work on udp bind, or junk it completely?
 
 * a max value for the number of free io/negotiator's?  mother could kill

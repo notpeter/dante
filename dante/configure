@@ -557,7 +557,7 @@ fi
 
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+#prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else
@@ -1677,7 +1677,7 @@ if test x$enable_warnings != x; then
 	    ;;
 	esac
     else
-        #gcc warnings
+	#gcc warnings
 	warn="-Wall -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
 	#warn="$warn -Wold-style-cast -Winline -Waggregate-return -Wconversion -Wwrite-strings -Wtraditional -Wshadow"
     fi
@@ -3494,7 +3494,7 @@ if test "x${so_sndlowat}" = xt; then
 #define HAVE_SO_SNDLOWAT 1
 EOF
 
-        echo "$ac_t""yes" 1>&6
+	echo "$ac_t""yes" 1>&6
 else
 	echo "$ac_t""disabled" 1>&6
 	echo "configure: warning: performance in the server might be degraded without support for the SO_SNDLOWAT socket option" 1>&2

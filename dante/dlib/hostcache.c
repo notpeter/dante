@@ -44,12 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.14 1999/09/02 11:28:21 karls Exp $";
+"$Id: hostcache.c,v 1.15 1999/12/22 09:29:24 karls Exp $";
 
 
 __BEGIN_DECLS
 
-#if SOCKS_SERVER 
+#if SOCKS_SERVER
 
 /* we want the real thing. */
 #undef gethostbyname

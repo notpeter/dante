@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.58 1999/12/10 20:03:29 michaels Exp $";
+"$Id: sockd_util.c,v 1.59 1999/12/22 09:29:27 karls Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -166,7 +166,7 @@ sockdexit(sig)
 				slog(LOG_ALERT, "%s: terminating on signal %d", function, sig);
 			else
 				slog(LOG_ALERT, "%s: terminating", function, sig);
-		
+
 		/* don't want this while cleaning up, which is all that's left. */
 		if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
 			swarn("%s: signal(SIGCHLD, SIG_IGN)", function);
@@ -285,7 +285,7 @@ passwordcheck(name, clearpassword)
 	if ((pw = getpwnam(name)) == NULL) {
 		salt		= "*";
 		password = "*";
-		ok 		= 0;
+		ok			= 0;
 	}
 	else {
 		salt		= pw->pw_passwd;

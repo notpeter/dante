@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.149 1999/12/11 16:59:40 karls Exp $ */
+/* $Id: socks.h,v 1.150 1999/12/22 09:29:20 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -603,7 +603,7 @@ msproxy_init __P((void));
 #if DIAGNOSTIC
 void
 cc_socksfdv(int sig);
-/* 
+/*
  * concistencycheck on socksfdv.
  */
 #endif

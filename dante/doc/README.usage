@@ -1,4 +1,4 @@
-$Id: README.usage,v 1.4 1999/05/26 14:33:24 michaels Exp $
+$Id: README.usage,v 1.5 1999/12/22 09:29:17 karls Exp $
 
 The socks package can be used in two ways.
 
@@ -96,5 +96,5 @@ Libraries
  libsocks.a   - static version of the above.
 
  libdsocks.so - shared library which does socksification through the
-	        runtime linker.  Contains wrappers for standard I/O
+		runtime linker.  Contains wrappers for standard I/O
 		calls.

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.163 1999/12/20 09:09:18 michaels Exp $";
+"$Id: sockd_io.c,v 1.165 1999/12/29 08:58:54 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -248,7 +248,7 @@ run_io(mother)
 		 * first find descriptors that are readable; we won't write if
 		 * we can't read.  Also select for exceptions so we can tell
 		 * the i/o function if there's one pending later.
- 		 */
+		 */
 		++rbits;
 		switch (selectn(rbits, &rset, NULL, &xset, io_gettimeout(&timeout))) {
 			case -1:
@@ -284,7 +284,7 @@ run_io(mother)
 		 * This means that a positive return from below select does not
 		 * necessarily indicate we have i/o to do, but it does mean we
 		 * either have it or a new descriptor became readable; in either
-		 * case, something has happened. 
+		 * case, something has happened.
 		 * Reason we do not check for exceptions in this select is that
 		 * there is nothing we do about them until the descriptor becomes
 		 * readable too, thus any new exceptions will be in newrset before
@@ -365,7 +365,7 @@ run_io(mother)
 		 *	controlset; subset of newrset containing control descriptors
 		 *					that are readable.
 		 *
-		 * rset; descriptors readable, not necessarily with a match in wset. 
+		 * rset; descriptors readable, not necessarily with a match in wset.
 		 *
 		 * xset; subset of rset with exceptions pending.
 		 *
@@ -374,7 +374,7 @@ run_io(mother)
 		 */
 
 		/*
-		 * First check all io's which have an exception pending. 
+		 * First check all io's which have an exception pending.
 		 * Getting a io here does not mean we can do i/o over it
 		 * however.
 		 */
@@ -763,7 +763,7 @@ doio(mother, io, rset, wset, flags)
 	SASSERTX(io->allocated);
 
 	SASSERTX((FD_ISSET(io->in.s, rset) && FD_ISSET(io->out.s, wset))
-	|| 		(FD_ISSET(io->in.s, wset) && FD_ISSET(io->out.s, rset))
+	||			(FD_ISSET(io->in.s, wset) && FD_ISSET(io->out.s, rset))
 	||			(flags & MSG_OOB)
 	||			(io->control.s != -1 && FD_ISSET(io->control.s, rset)));
 
@@ -830,7 +830,7 @@ doio(mother, io, rset, wset, flags)
 				 * Client can only blame itself if not.
 				 */
 				if (io->in.raddr.sin_addr.s_addr == htonl(INADDR_ANY)
-				||  io->in.raddr.sin_port 			== htons(0)) {
+				||  io->in.raddr.sin_port			== htons(0)) {
 					if (io->in.raddr.sin_addr.s_addr == htonl(INADDR_ANY))
 					/* LINTED pointer casts may be troublesome */
 						io->in.raddr.sin_addr.s_addr
@@ -840,7 +840,7 @@ doio(mother, io, rset, wset, flags)
 						/* LINTED pointer casts may be troublesome */
 						io->in.raddr.sin_port
 						= ((struct sockaddr_in *)&from)->sin_port;
-					
+
 					/* LINTED pointer casts may be troublesome */
 					sockaddr2sockshost((struct sockaddr *)&io->in.raddr, &io->src);
 				}
@@ -848,7 +848,7 @@ doio(mother, io, rset, wset, flags)
 				/*
 				 * When we receive the first packet we also have a fixed source
 				 * so connect the socket, both for better performance and so
-				 * that getpeername() will work on it (libwrap/rulespermit()). 
+				 * that getpeername() will work on it (libwrap/rulespermit()).
 				 */
 				if (io->in.read == 0) { /* could happen more than once, but ok. */
 					struct connectionstate_t rstate;
@@ -872,7 +872,7 @@ doio(mother, io, rset, wset, flags)
 						return;
 					}
 
-					rstate 				= io->state;
+					rstate				= io->state;
 					rstate.command		= SOCKS_UDPREPLY;
 
 					if (!rulespermit(io->in.s, &io->rule, &io->state, &io->src, NULL)
@@ -970,7 +970,7 @@ doio(mother, io, rset, wset, flags)
 				 * We check for this case specifically, though we only catch
 				 * the last case, which may not always be good enough.
 				 * We could expand the below check, using addressmatch()
-				 * instead, but that need not always be right. 
+				 * instead, but that need not always be right.
 				 * Better safe than sorry for now.
 				 */
 
@@ -982,7 +982,7 @@ doio(mother, io, rset, wset, flags)
 					sockaddr2sockshost(&from, &srcsh);
 
 				/* only set temporary here for one replypacket at a time. */
-				state 			= io->state;
+				state				= io->state;
 				state.command	= SOCKS_UDPREPLY;
 
 				permit
@@ -1006,7 +1006,7 @@ doio(mother, io, rset, wset, flags)
 				/* add socks udpheader.  */
 				/* LINTED pointer casts may be troublesome */
 				newbuf = udpheader_add(&srcsh, buf, (size_t *)&r, sizeof(buf));
-				SASSERTX(newbuf != NULL);
+				SASSERTX(newbuf == buf);
 
 				/*
 				 * XXX socket must be connected but that should always be the

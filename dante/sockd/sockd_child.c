@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.117 1999/12/20 13:07:42 karls Exp $";
+"$Id: sockd_child.c,v 1.118 2000/01/05 10:38:58 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -99,9 +99,10 @@ addchild(type)
 	struct sockd_child_t **childv;
 	int *childc;
 	void (*childfunction)(struct sockd_mother_t *mother);
-	int pipev[2], ackpipev[2];
 	pid_t pid;
 	int optval, flags;
+	int pipev[] = { -1, -1 };
+	int ackpipev[] = { -1, -1 };
 
 	/*
 	 * XXX This is a expensive test which shouldn't be hard to optimize

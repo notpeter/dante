@@ -1,6 +1,6 @@
-Summary: A free Socks v4/v5 client implementation 
+Summary: A free Socks v4/v5 client implementation
 Name: dante
-%define version 1.1.1-pre1
+%define version 1.1.1
 %define prefix /usr
 Version: %{version}
 Release: 1
@@ -17,7 +17,7 @@ socks version 5 (rfc1928) and msproxy. It can be used as a firewall
 between networks. It is being developed by Inferno Nettverk A/S, a
 Norwegian consulting company. Commercial support is available.
 
-This package contains the dynamic libraries required to "socksify" 
+This package contains the dynamic libraries required to "socksify"
 existing applications to become socks clients.
 
 %package server
@@ -27,7 +27,7 @@ Requires: dante
 
 %description server
 This package contains the socks proxy daemon and its documentation.
-The sockd is the server part of the Dante socks proxy package and 
+The sockd is the server part of the Dante socks proxy package and
 allows socks clients to connect through it to the network.
 
 %package devel
@@ -39,7 +39,7 @@ Requires: dante
 Additional libraries required to compile programs that use socks.
 
 %prep
-%setup 
+%setup
 
 # This file is embedded here instead of being another source in order
 # to the prefix directory
@@ -163,7 +163,7 @@ fi
 - socksify patch no longer needed
 
 * Thu Mar 04 1999 Oren Tirosh <oren@hishome.net>
-- configurable %{prefix}, fixed daemon init script 
+- configurable %{prefix}, fixed daemon init script
 - added /lib/libdl.so to socksify
 
 * Wed Mar 03 1999 Oren Tirosh <oren@hishome.net>

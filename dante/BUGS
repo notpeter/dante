@@ -1,9 +1,9 @@
-# $Id: BUGS,v 1.16 1999/07/22 08:41:54 michaels Exp $
+# $Id: BUGS,v 1.17 1999/12/22 09:29:09 karls Exp $
 
 To report a new bug, mail dante-bugs@inet.no.  Make sure you read
 the faq first.
 
 	Things known not to work:
 
-- msproxycode seems to crash at least some msproxy servers.  See 
+- msproxycode seems to crash at least some msproxy servers.  See
   README.msproxy for more information.
