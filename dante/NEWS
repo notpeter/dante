@@ -1,6 +1,30 @@
-@(#)$Id: NEWS,v 1.34 2001/03/14 12:03:33 michaels Exp $
+@(#)$Id: NEWS,v 1.35 2001/05/29 07:52:56 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Tuesday, May 29, 2001 -- Dante v1.1.10
+
+ o new method added: "pam".  Code contributed by
+   Patrick Bihan-Faou, MindStep Corporation, patrick@mindstep.com.
+
+ o let client-rules have their own global methodline, "clientmethod",
+   default value set to "none".
+   The global "method" is only used for socks-rules now.
+
+ o delay checking of password/etc til we have received the socks
+   request (rather than during negotiation, as was the case).
+   Required for supporting passwordbased authentication via non-socks
+   methods, e.g. pam.
+
+ o socklen_t definition updated for NetBSD 1.5U.
+   Problem report and patch submitted by Janne Snabb <snabb@ssh.com>.
+
+ o Output from 'config.guess' is not sufficient to determine use
+   of elf on NetBSD.
+   Problem report and patch submitted by Janne Snabb <snabb@ssh.com>
+
+ o BSDI 4.1 doesn't have freeifaddrs(), but uses free()
+   Problem reported by "Zand, Nooshin" <nooshin.zand@intel.com>
 
 ***  Tuesday, March 13, 2001 -- Dante v1.1.9
 
