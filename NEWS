@@ -1,7 +1,13 @@
-@(#)$Id: NEWS,v 1.11 1999/05/28 11:41:45 michaels Exp $
+@(#)$Id: NEWS,v 1.13 1999/06/07 08:32:51 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
 
+***  Monday, Jun 7, 1999 -- Dante v1.0.1
+
+ o fixes bug preventing "iotimeout" variable in sockd.conf from
+   working correctly.
+
+ o minor improvements to sockd.conf.5 manpage.
 
 ***  Monday, May 31, 1999 -- Dante v1.0.0
 
