@@ -1,0 +1,11 @@
+	Things known not to work.
+
+- using something else than sendto()/recvfrom() on udp sockets.
+
+- calling getsockname() on a connection established with a nonblocking
+  descriptor. (breaks ftpclient in lynx)
+
+- static dlib should not be built
+
+- documentation is severely lacking.  Help on this would be especially
+  appreciated.

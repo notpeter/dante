@@ -1,0 +1,1098 @@
+/*
+ * Copyright (c) 1997, 1998
+ *      Inferno Nettverk A/S, Norway.  All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. The above copyright notice, this list of conditions and the following
+ *    disclaimer must appear in all copies of the software, derivative works
+ *    or modified versions, and any portions thereof, aswell as in all
+ *    supporting documentation.
+ * 2. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *      This product includes software developed by
+ *      Inferno Nettverk A/S, Norway.
+ * 3. The name of the author may not be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Inferno Nettverk A/S requests users of this software to return to
+ * 
+ *  Software Distribution Coordinator  or  sdc@inet.no
+ *  Inferno Nettverk A/S
+ *  Oslo Research Park
+ *  Gaustadaléen 21
+ *  N-0371 Oslo
+ *  Norway
+ * 
+ * any improvements or extensions that they make and grant Inferno Nettverk A/S
+ * the rights to redistribute these changes.
+ *
+ */
+
+static const char rcsid[] =
+"$Id: util.c,v 1.44 1998/11/13 21:18:32 michaels Exp $";
+
+#include "common.h"
+
+/* XXX */
+#ifdef HAVE_STRVIS
+#include <vis.h>
+#else
+#include "compat.h"
+#endif  /* HAVE_STRVIS */
+
+/* fake "ip address", for clients without dns access. */
+static char **ipv;
+static in_addr_t ipc;
+
+const char *
+strcheck(string)
+	const char *string;
+{
+	return string == NULL ? NOMEM : string;
+}
+
+char *
+sockshost2string(host)
+	const struct sockshost_t *host;
+{
+	static char address[MAXHOSTNAMELEN + sizeof(",") - 1 + sizeof("65535")];
+
+	switch (host->atype) {
+		case SOCKS_ADDR_IPV4:
+			snprintf(address, sizeof(address), "%s,%d", 
+			inet_ntoa(host->addr.ipv4), ntohs(host->port));
+			break;
+
+		case SOCKS_ADDR_IPV6:
+				snprintf(address, sizeof(address), "%s,%d", 
+				"<IPV6 address not supported>", ntohs(host->port));
+				break;
+
+		case SOCKS_ADDR_DOMAIN:
+			snprintf(address, sizeof(address), "%s,%d",
+			host->addr.domain, ntohs(host->port));
+			break;
+
+		default:
+			SERRX(host->atype);
+	}
+
+	return address;
+}
+
+const char *
+command2string(command)
+	int command;
+{
+
+	switch (command) {
+		case SOCKS_BIND:
+			return SOCKS_BINDs;
+
+		case SOCKS_CONNECT:
+			return SOCKS_CONNECTs;
+
+		case SOCKS_UDPASSOCIATE:
+			return SOCKS_UDPASSOCIATEs;
+
+		/* pseudo commands. */
+		case SOCKS_ACCEPT:
+			return SOCKS_ACCEPTs;
+
+		case SOCKS_BINDREPLY:
+			return SOCKS_BINDREPLYs;
+
+		case SOCKS_DISCONNECT:
+			return SOCKS_DISCONNECTs;
+		
+		default:
+			SERRX(command);
+	}
+
+	/* NOTREACHED */
+}
+
+const char *
+method2string(method)
+	int method;
+{
+
+	switch (method) {
+		case AUTHMETHOD_NONE:
+			return AUTHMETHOD_NONEs;
+
+		case AUTHMETHOD_GSSAPI:
+			return AUTHMETHOD_GSSAPIs;
+
+		case AUTHMETHOD_UNAME:
+			return AUTHMETHOD_UNAMEs;
+
+		case AUTHMETHOD_NOACCEPT:
+			return AUTHMETHOD_NOACCEPTs;
+
+		default:
+			SERRX(method);
+	}
+
+	/* NOTREACHED */
+}
+
+
+int
+sockscode(version, code)
+	int version;
+	int code;
+{
+	
+	switch (version) {
+		case SOCKS_V4:
+			switch (code) {
+				case SOCKS_SUCCESS:
+					return SOCKSV4_SUCCESS;
+
+				default:
+					return SOCKSV4_FAIL;		/* v4 is not very specific. */
+			}
+		/* NOTREACHED */
+
+		case SOCKS_V5:
+			switch (code) {
+				default:
+					return code;	/* current codes are all V5. */
+			}
+
+		default:
+			SERRX(version);
+	}
+
+	/* NOTREACHED */
+}
+
+int
+errno2reply(errnum, version)
+	int errnum;
+	int version;
+{
+
+	switch (errnum) {
+		case ENETUNREACH:
+			return sockscode(version, SOCKS_NETUNREACH);
+
+		case EHOSTUNREACH:
+			return sockscode(version, SOCKS_HOSTUNREACH);
+
+		case ECONNREFUSED:
+			return sockscode(version, SOCKS_CONNREFUSED);
+
+		case ETIMEDOUT:
+			return sockscode(version, SOCKS_TTLEXPIRED);
+	}
+
+	return sockscode(version, SOCKS_FAILURE);
+}
+
+
+struct sockaddr *
+sockshost2sockaddr(host)
+	const struct sockshost_t *host;
+{
+	static struct sockaddr_in address;
+
+	bzero(&address, sizeof(address));
+	address.sin_family = AF_INET;
+
+	switch (host->atype) {
+		case SOCKS_ADDR_IPV4:
+			address.sin_addr = host->addr.ipv4;
+			break;
+		
+		case SOCKS_ADDR_DOMAIN: {
+			struct hostent *hostent;
+
+			if ((hostent = gethostbyname(host->addr.domain)) == NULL)
+				address.sin_addr.s_addr = htonl(INADDR_ANY);	/* XXX */
+
+			/* LINTED pointer casts may be troublesome */
+			address.sin_addr = *(struct in_addr *)hostent->h_addr_list[0];
+			break;
+		}
+
+		default:
+			SERRX(host->atype);
+	}
+	address.sin_port = host->port;
+
+	/* LINTED pointer casts may be troublesome */
+	return (struct sockaddr *)&address;
+}
+
+struct sockshost_t *
+sockaddr2sockshost(addr)
+	const struct sockaddr *addr;
+{
+	static struct sockshost_t host;
+
+	switch (addr->sa_family) {
+		case AF_INET:
+			host.atype 		= SOCKS_ADDR_IPV4;
+			/* LINTED pointer casts may be troublesome */
+			host.addr.ipv4	= ((struct sockaddr_in *)addr)->sin_addr;
+			/* LINTED pointer casts may be troublesome */
+			host.port 		= ((struct sockaddr_in *)addr)->sin_port;
+			break;
+			
+		default:
+			SERRX(addr->sa_family);
+	}
+
+	return &host;
+}
+
+const char *
+operator2string(operator)
+	enum operator_t operator;
+{
+
+	switch (operator) {
+		case none:
+			return "none";
+
+		case eq:
+			return "eq";
+
+		case neq:
+			return "neq";
+
+		case ge:
+			return "ge";
+
+		case le:
+			return "le";
+
+		case gt:
+			return "gt";
+
+		case lt:
+			return "lt";
+		
+		case range:
+			return "range";
+
+		default:
+			SERRX(operator);
+	}
+
+	/* NOTREACHED */
+}
+
+enum operator_t
+string2operator(string)
+	const char *string;
+{
+	
+	if (strcmp(string, "eq") == 0 || strcmp(string, "=") == 0)
+		return eq;
+
+	if (strcmp(string, "neq") == 0 || strcmp(string, "!=") == 0)
+		return neq;
+
+	if (strcmp(string, "ge") == 0 || strcmp(string, ">=") == 0)
+		return ge;
+
+	if (strcmp(string, "le") == 0 || strcmp(string, "<=") == 0)
+		return le;
+
+	if (strcmp(string, "gt") == 0 || strcmp(string, ">") == 0)
+		return gt;
+
+	if (strcmp(string, "lt") == 0 || strcmp(string, "<") == 0)
+		return lt;
+
+	/* parser should make sure this never happens. */
+	SERRX(string);
+
+	/* NOTREACHED */
+}
+
+
+const char *
+ruleaddress2string(address)
+	const struct ruleaddress_t *address;
+{
+	static char buf[MAXHOSTNAMELEN + 512];
+
+	switch (address->atype) {
+		case SOCKS_ADDR_IPV4: {
+			char *a, *b;
+
+			snprintf(buf, sizeof(buf), "%s/%s, tcp: %d, udp: %d  %s %d",
+			strcheck(a = strdup(inet_ntoa(address->addr.ipv4.ip))),
+			strcheck(b = strdup(inet_ntoa(address->addr.ipv4.mask))),
+			ntohs(address->port.tcp), ntohs(address->port.udp),
+			operator2string(address->operator),
+			ntohs(address->portend));
+			free(a);
+			free(b);
+			break;
+		}
+
+		case SOCKS_ADDR_DOMAIN:	
+			snprintf(buf, sizeof(buf), "%s, tcp: %d, udp: %d  %s %d",
+			address->addr.domain,
+			ntohs(address->port.tcp), ntohs(address->port.udp),
+			operator2string(address->operator),
+			ntohs(address->portend));
+			break;
+
+		default:
+			SERRX(address->atype);
+	}
+
+	return buf;
+}
+
+struct sockshost_t *
+ruleaddress2sockshost(address, protocol)
+	const struct ruleaddress_t *address;
+	int protocol;
+{
+	static struct sockshost_t host;
+
+	host.atype = address->atype;
+	switch (address->atype) {
+		case SOCKS_ADDR_IPV4:
+			host.addr.ipv4	= address->addr.ipv4.ip;
+			break;
+
+		case SOCKS_ADDR_DOMAIN:
+			SASSERTX(strlen(address->addr.domain) < sizeof(host.addr.domain));
+			strcpy(host.addr.domain, address->addr.domain);
+			break;
+
+		default:
+			SERRX(address->atype);
+	}
+
+	switch (protocol) {
+		case SOCKS_TCP:
+			host.port = address->port.tcp;
+			break;
+
+		case SOCKS_UDP:
+			host.port = address->port.udp;
+			break;
+	
+		default:
+			SERRX(protocol);
+	}
+
+	return &host;
+}
+
+struct ruleaddress_t *
+sockshost2ruleaddress(host)
+	const struct sockshost_t *host;
+{
+	static struct ruleaddress_t address;
+
+	address.atype = host->atype;
+	switch (host->atype) {
+		case SOCKS_ADDR_IPV4:
+			address.addr.ipv4.ip				= host->addr.ipv4;
+			address.addr.ipv4.mask.s_addr	= 0xffffffff;
+			break;
+
+		case SOCKS_ADDR_DOMAIN:
+			SASSERTX(strlen(host->addr.domain) < sizeof(address.addr.domain));
+			strcpy(address.addr.domain, host->addr.domain);
+			break;
+
+		default:
+			SERRX(host->atype);
+	}
+
+	address.port.tcp 	= host->port;
+	address.port.udp 	= host->port;
+	address.portend	= host->port;
+	address.operator	= none;
+
+	return &address;
+}
+
+struct ruleaddress_t *
+sockaddr2ruleaddress(addr)
+	const struct sockaddr *addr;
+{
+	static struct ruleaddress_t ruleaddress;
+	struct sockshost_t host;
+
+	host 			= *sockaddr2sockshost(addr);
+	ruleaddress = *sockshost2ruleaddress(&host);
+
+	return &ruleaddress;
+}
+
+const char *
+protocol2string(protocol)
+	int protocol;
+{
+
+	switch (protocol) {
+		case SOCKS_TCP:
+			return PROTOCOL_TCPs;
+
+		case SOCKS_UDP:
+			return PROTOCOL_UDPs;
+
+		default:
+			SERRX(protocol);
+	}
+
+	/* NOTREACHED */
+}
+
+
+char *
+sockaddr2string(address)
+	const struct sockaddr *address;
+{
+	static char buf[sizeof("255.255.255.255,65536")];
+
+	snprintf(buf, sizeof(buf), "%s,%d",
+	/* LINTED pointer casts may be troublesome */
+	inet_ntoa(((const struct sockaddr_in *)address)->sin_addr),
+	/* LINTED pointer casts may be troublesome */
+	ntohs(((const struct sockaddr_in *)address)->sin_port));
+
+	return buf;
+}
+
+
+void
+#ifdef STDC_HEADERS
+serr(int eval, const char *fmt, ...)
+#else
+serr(eval, fmt, va_alist)
+	int eval;
+	const char *fmt;
+	va_dcl
+#endif  /* STDC_HEADERS */
+{
+	va_list ap;
+	char buf[2048];
+	size_t bufused;
+
+#ifdef STDC_HEADERS
+	/* LINTED pointer casts may be troublesome */
+	va_start(ap, fmt);
+#else
+	va_start(ap);
+#endif  /* STDC_HEADERS */
+
+	bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
+
+	bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+	": %s (errno = %d)", 
+	strerror(errno), errno);
+
+	slog(LOG_ERR, buf);
+
+	/* LINTED expression has null effect */
+	va_end(ap);
+
+	if (config.state.pid == 0 || config.state.pid == getpid())
+		exit(eval);
+	_exit(eval);
+}
+
+void
+#ifdef STDC_HEADERS
+serrx(int eval, const char *fmt, ...)
+#else
+serrx(eval, fmt, va_alist)
+      int eval;
+      const char *fmt;
+      va_dcl
+#endif  /* STDC_HEADERS */
+{
+	va_list ap;
+
+	/* LINTED pointer casts may be troublesome */
+#ifdef STDC_HEADERS
+	va_start(ap, fmt);
+#else
+	va_start(ap);
+#endif  /* STDC_HEADERS */
+	vslog(LOG_ERR, fmt, ap);
+
+	/* LINTED expression has null effect */
+	va_end(ap);
+
+	if (config.state.pid == 0 || config.state.pid == getpid())
+		exit(eval);
+	_exit(eval);
+}
+
+void
+#ifdef STDC_HEADERS
+swarn(const char *fmt, ...)
+#else
+swarn(fmt, va_alist)
+	const char *fmt;
+	va_dcl
+#endif  /* STDC_HEADERS */
+{
+	va_list ap;
+	char buf[2048];
+	size_t bufused;
+
+#ifdef STDC_HEADERS
+	/* LINTED pointer casts may be troublesome */
+	va_start(ap, fmt);
+#else
+	va_start(ap);
+#endif  /* STDC_HEADERS */
+
+	bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
+
+	bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+	": %s (errno = %d)", 
+	strerror(errno), errno);
+
+	slog(LOG_ERR, buf);
+
+	/* LINTED expression has null effect */
+	va_end(ap);
+}
+
+void
+#ifdef STDC_HEADERS
+swarnx(const char *fmt, ...)
+#else
+swarnx(fmt, va_alist)
+	const char *fmt;
+	va_dcl
+#endif  /* STDC_HEADERS */
+{
+	va_list ap;
+
+#ifdef STDC_HEADERS
+	/* LINTED pointer casts may be troublesome */
+	va_start(ap, fmt);
+#else
+	va_start(ap);
+#endif  /* STDC_HEADERS */
+
+	vslog(LOG_ERR, fmt, ap);
+
+	/* LINTED expression has null effect */
+	va_end(ap);
+}
+
+in_addr_t
+socks_addfakeip(name)
+	const char *name;
+{
+	const char *function = "socks_addfakeip()";
+	char **tmpmem;
+
+	if (ipc >= FAKEIP_END - FAKEIP_START) {
+		swarnx("%s: fakeip range (%d-%d) exhausted",
+		function, FAKEIP_START, FAKEIP_END);
+		return INADDR_NONE;
+	}
+
+	if ((tmpmem = (char **)realloc(ipv, sizeof(*ipv) * (ipc + 1))) == NULL
+	|| (tmpmem[ipc] = (char *)malloc(sizeof(char) * (strlen(name) + 1)))
+	== NULL) {
+		swarnx("%s: %s", function, NOMEM);	
+		return INADDR_NONE;
+	}
+	ipv = tmpmem;
+
+	strcpy(ipv[ipc], name);
+
+	return htonl(ipc++ + FAKEIP_START);
+}
+
+const char *
+socks_getfakeip(ip)
+	in_addr_t ip;
+{
+
+	if (ntohl(ip) - FAKEIP_START < ipc)
+		return ipv[ntohl(ip) - FAKEIP_START];
+	return NULL;
+}
+
+
+const char *
+socks_packet2string(packet, type)
+	  const void *packet;
+	  int type;
+{
+	static char buf[1024];
+	unsigned char version; 
+	const struct request_t *request = NULL;
+	const struct response_t *response = NULL;
+
+	switch (type) {
+		case SOCKS_REQUEST:
+			request = (const struct request_t *)packet;
+			version = request->version;
+		 	break;
+
+		case SOCKS_RESPONSE:
+			response = (const struct response_t *)packet;
+			version = response->version;
+		 	break;
+
+	  default:
+		 SERRX(type);
+  }
+
+	switch (version) {
+		case SOCKS_V4:
+		 	switch (type) {
+				case SOCKS_REQUEST:
+					snprintf(buf, sizeof(buf),
+					"(V4) VN: %d CD: %d address: %s",
+					request->version, request->command,
+					sockshost2string(&request->host));
+					break;
+
+				case SOCKS_RESPONSE:
+					snprintf(buf, sizeof(buf), "(V4) VN: %d CD: %d address: %s",
+					response->version, response->reply,
+					sockshost2string(&response->host));
+					break;
+			} 
+			break;
+
+		case SOCKS_V5: 
+		 	switch (type) {
+				case SOCKS_REQUEST:
+					snprintf(buf, sizeof(buf), 
+					"VER: %d CMD: %d FLAG: %d ATYP: %d address: %s",
+					request->version, request->command, request->flag,
+					request->host.atype, sockshost2string(&request->host));
+					break;
+
+				case SOCKS_RESPONSE:
+					snprintf(buf, sizeof(buf), 
+					"VER: %d REP: %d FLAG: %d ATYP: %d address: %s",
+					response->version, response->reply, response->flag,
+					response->host.atype, sockshost2string(&response->host));
+					break;
+			}	
+			break;
+
+		default:
+			SERRX(version);
+  }
+
+	return buf;
+}
+
+int
+socks_logmatch(d, log)
+	int d;
+	const struct logtype_t *log;
+{
+	int i;
+
+	for (i = 0; i < log->fpc; ++i)
+		if (d == log->fplockv[i])
+			return 1;
+		else if (d == fileno(log->fpv[i]))
+			return 1;
+
+	return 0;
+}
+
+int
+sockaddrcmp(a, b)
+	const struct sockaddr *a;
+	const struct sockaddr *b;
+{
+	
+	if (a->sa_family != b->sa_family)
+		return -1;
+
+	switch (a->sa_family) {
+		case AF_INET: {
+			/* LINTED pointer casts may be troublesome */
+			const struct sockaddr_in *in_a = (struct sockaddr_in *)a;
+			/* LINTED pointer casts may be troublesome */
+			const struct sockaddr_in *in_b = (struct sockaddr_in *)b;
+
+			if (in_a->sin_addr.s_addr != in_b->sin_addr.s_addr
+			||  in_a->sin_port != in_b->sin_port)
+				return -1;
+			return 0;
+		}
+
+		default:
+			SERRX(a->sa_family);
+	}
+
+	/* NOTREACHED */
+}
+
+
+fd_set *
+fdsetop(nfds, a, b, op)
+	int nfds;
+	const fd_set *a;
+	const fd_set *b;
+	int op;
+{
+	static fd_set result;
+	int i;
+
+	FD_ZERO(&result);
+
+	switch (op) {
+		case '^':
+			for (i = 0; i < nfds; ++i)
+				if (FD_ISSET(i, a) != FD_ISSET(i, b))
+					FD_SET(i, &result);
+			break;
+	
+		default:
+			SERRX(op);
+	}
+
+	return &result;
+}
+
+int
+methodisset(method, methodv, methodc)
+	int method;
+	const char *methodv;
+	size_t methodc;
+{
+	if (memchr(methodv, method, methodc) != NULL)
+		return 1;
+	return 0;
+}
+
+int
+socketoptdup(s)
+	int s;
+{
+	const char *function = "socketoptdup()";
+	int i, flags, new_s;
+	socklen_t len;
+	union {
+		int					int_val;
+		struct linger		linger_val;
+		struct timeval		timeval_val;
+		struct in_addr		in_addr_val;
+		u_char				u_char_val;
+		struct sockaddr	sockaddr_val;
+	} val;
+	int levelname[][2] = {
+
+		/* socket options */
+
+#ifdef SO_BROADCAST
+		{ SOL_SOCKET, 	SO_BROADCAST 		},
+#endif
+
+#ifdef SO_DEBUG
+		{ SOL_SOCKET, 	SO_DEBUG				},
+#endif
+
+#ifdef SO_DONTROUTE
+		{ SOL_SOCKET, 	SO_DONTROUTE		},
+#endif
+
+#ifdef SO_ERROR
+		{ SOL_SOCKET, 	SO_ERROR 			},
+#endif
+
+#ifdef SO_KEEPALIVE
+		{ SOL_SOCKET, 	SO_KEEPALIVE		},
+#endif
+
+#ifdef SO_LINGER
+		{ SOL_SOCKET, 	SO_LINGER			},
+#endif
+
+#ifdef SO_OOBINLINE
+		{ SOL_SOCKET, 	SO_OOBINLINE		},
+#endif
+
+#ifdef SO_RCVBUF
+		{ SOL_SOCKET, 	SO_RCVBUF			},
+#endif
+
+#ifdef SO_SNDBUF
+		{ SOL_SOCKET, 	SO_SNDBUF			},
+#endif
+
+#ifdef SO_RCVLOWAT
+		{ SOL_SOCKET, 	SO_RCVLOWAT			},
+#endif
+
+#ifdef SO_SNDLOWAT
+		{ SOL_SOCKET, 	SO_SNDLOWAT			},
+#endif
+
+#ifdef SO_RCVTIMEO
+		{ SOL_SOCKET, 	SO_RCVTIMEO			},
+#endif
+
+#ifdef SO_SNDTIMEO
+		{ SOL_SOCKET, 	SO_SNDTIMEO			},
+#endif
+
+#ifdef SO_REUSEADDR
+		{ SOL_SOCKET, 	SO_REUSEADDR		},
+#endif
+
+#ifdef SO_REUSEPORT
+		{ SOL_SOCKET, 	SO_REUSEPORT		},
+#endif
+
+#ifdef SO_USELOOPBACK
+		{ SOL_SOCKET, 	SO_USELOOPBACK		},
+#endif
+	
+		/* IP options */
+
+#ifdef IP_HDRINCL
+		{ IPPROTO_IP, 	IP_HDRINCL 			},
+#endif
+
+#if 0 /* XXX */
+#ifdef IP_OPTIONS
+		{ IPPROTO_IP, 	IP_OPTIONS 			},
+#endif
+#endif
+
+#ifdef IP_RECVDSTADDR
+		{ IPPROTO_IP, 	IP_RECVDSTADDR		},
+#endif
+
+#ifdef IP_RECVIF
+		{ IPPROTO_IP, 	IP_RECVIF 			},
+#endif
+
+#ifdef IP_TOS
+		{ IPPROTO_IP, 	IP_TOS 				},
+#endif
+
+#ifdef IP_TTL
+		{ IPPROTO_IP, 	IP_TTL 				},
+#endif
+
+#ifdef IP_MULTICAST_IF
+		{ IPPROTO_IP, 	IP_MULTICAST_IF	},
+#endif
+
+#ifdef IP_MULTICAST_TTL
+		{ IPPROTO_IP, 	IP_MULTICAST_TTL	},
+#endif
+
+#ifdef IP_MULTICAST_LOOP
+		{ IPPROTO_IP, 	IP_MULTICAST_LOOP	},
+#endif
+		
+		/* TCP options */
+
+#ifdef TCP_KEEPALIVE
+		{ IPPROTO_TCP,	TCP_KEEPALIVE		},
+#endif
+
+#ifdef TCP_MAXRT
+		{ IPPROTO_TCP,	TCP_MAXRT			},
+#endif
+
+#ifdef TCP_MAXSEG
+		{ IPPROTO_TCP,	TCP_MAXSEG			},
+#endif
+
+#ifdef TCP_NODELAY
+		{ IPPROTO_TCP,	TCP_NODELAY			},
+#endif
+
+#ifdef TCP_STDURG
+		{ IPPROTO_TCP,	TCP_STDURG			}
+#endif
+
+	};
+
+
+	len = sizeof(val);
+	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) == -1)
+		return -1;
+
+	if ((new_s = socket(AF_INET, val.int_val, 0)) == -1)
+		return -1;
+
+	for (i = 0; i < ELEMENTS(levelname); ++i) {
+		len = sizeof(val);
+		if (getsockopt(s, levelname[i][0], levelname[i][1], &val, &len) == -1) {
+			if (config.option.debug)
+				swarn("%s: getsockopt(%d, %d)",
+				function, levelname[i][0], levelname[i][1]);
+
+			continue;
+		}
+
+		if (setsockopt(new_s, levelname[i][0], levelname[i][1], &val, len) == -1)
+			swarn("%s: setsockopt(%d, %d)",
+			function, levelname[i][0], levelname[i][1]);
+	}
+
+	if ((flags = fcntl(s, F_GETFL, 0)) == -1
+	||  fcntl(new_s, F_SETFL, flags) == -1)
+		swarn("%s: fcntl()", function);
+
+	return new_s;
+}
+
+char *
+str2vis(string, len)
+	const char *string;
+	size_t len;
+{
+	const int visflag = VIS_TAB | VIS_NL | VIS_CSTYLE | VIS_OCTAL;
+	char *visstring;
+
+	/* see vis(3) for '* 4' */
+	if ((visstring = (char *)malloc((sizeof(char) * len * 4) + sizeof(char)))
+	!= NULL)
+		strvisx(visstring, string, len, visflag);
+	
+	return visstring;
+}
+
+int
+socks_mklock(template)
+	const char *template;
+{
+	char *prefix, *newtemplate;
+	int s;
+	size_t len;
+
+	if ((prefix = getenv("TMPDIR")) != NULL)
+		if (*prefix == NUL)
+			prefix = NULL;
+
+	len = strlen(template) + (prefix == NULL ? 0 : strlen(prefix) + 1) + 1;
+	if ((newtemplate = (char *)malloc(sizeof(char) * len)) == NULL)
+		return -1;
+
+	snprintf(newtemplate, len, "%s%s%s",
+	prefix == NULL ? "" : prefix,
+	prefix == NULL ? "" : "/",
+	template);
+
+	if ((s = mkstemp(newtemplate)) == -1) {
+		free(newtemplate);
+		return -1;
+	}
+	
+	if (unlink(newtemplate) == -1) {
+		free(newtemplate);
+		return -1;
+	}
+	
+	free(newtemplate);
+
+	return s;
+}
+		
+
+int
+socks_lock(descriptor, type, timeout)
+	int descriptor;
+	int type;
+	int timeout;
+{
+	const char *function = "socks_lock()";
+	struct flock lock;
+	int rc;
+	
+	lock.l_type 	= (short)type;
+	lock.l_start 	= 0;
+	lock.l_whence	= SEEK_SET;
+	lock.l_len		= 0;
+
+	if (timeout > 0) {
+		struct sigaction sigact;
+
+#ifdef SOCKS_CLIENT
+		if (sigaction(SIGALRM, NULL, &sigact) != 0)
+			return -1;
+
+		/* if handler already set for signal, don't override. */
+		if (sigact.sa_handler == SIG_DFL || sigact.sa_handler == SIG_IGN) {
+#else	/* !SOCKS_CLIENT */
+		/* CONSTCOND */
+		if (1) {
+#endif /* !SOCKS_CLIENT */
+
+			sigemptyset(&sigact.sa_mask);
+			sigact.sa_flags	= 0;
+			sigact.sa_handler = SIG_IGN;
+
+			if (sigaction(SIGALRM, &sigact, NULL) != 0)
+				return -1;
+		}
+
+		alarm((unsigned int)timeout);
+	}
+
+	do
+		rc = fcntl(descriptor, timeout ? F_SETLKW : F_SETLK, &lock);
+	while (rc == -1 && timeout == -1 && errno == EINTR);
+
+	if (rc == -1)
+		switch (errno) {
+			case EINTR:
+			case EAGAIN:
+#if 0
+				/* FALLTHROUGH */
+#else
+				break;
+#endif
+
+			case ENOLCK:
+				swarn("%s: fcntl()", function);
+				break;
+
+			default:
+				SERR(descriptor);
+		}
+
+	if (timeout > 0)
+		alarm(0);
+
+	return rc == -1 ? rc : 0;
+}
+
+int
+socks_unlock(descriptor, timeout)
+	int descriptor;
+	int timeout;
+{
+	
+	return socks_lock(descriptor, F_UNLCK, timeout);
+}

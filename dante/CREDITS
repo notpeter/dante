@@ -1,0 +1,16 @@
+
+   In order of contribution, at least the following should be credited:
+
+- David Koblas (koblas@netcom.com) authored the original Socks
+  protocol and implementation.
+
+- Ying-Da Lee (yingda@esd.sgi.com) maintained the socks4 package.
+
+- The people at NEC (http://www.socks.nec.com) have done much for Socks,
+  including extension of the orignal protocol.  The idea for "socksify"
+  also came from them.
+
+- Most of the compatibility functions were taken from OpenBSD and
+  are copyright The Regents of the University of California.
+  The snprintf function is copyright Theo de Raadt (deraadt@theos.com)
+
