@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.107 2000/06/09 10:45:19 karls Exp $";
+"$Id: serverconfig.c,v 1.113 2000/06/26 10:43:21 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -78,17 +78,14 @@ libwrapinit __P((int s, struct request_info *request));
  */
 
 static int
-connectisok __P((struct request_info *request, const struct rule_t *rule,
-					  struct connectionstate_t *state));
+connectisok __P((struct request_info *request, const struct rule_t *rule));
 #else /* !HAVE_LIBWRAP */
 static int
-connectisok __P((void *request, const struct rule_t *rule,
-					  struct connectionstate_t *state));
+connectisok __P((void *request, const struct rule_t *rule));
 #endif /* !HAVE_LIBWRAP */
 /*
  * Checks the connection on "s".
- * "rule" is the rule that matched the connection and "state" is the current
- * state.
+ * "rule" is the rule that matched the connection.
  * This function should be called after each rulecheck for a new
  * connection/packet.
  *
@@ -489,6 +486,7 @@ iolog(rule, state, operation, src, srcauth, dst, dstauth, data, count)
 	/* CONSTCOND */
 	char srcstring[MAXSOCKSHOSTSTRING + MAXAUTHINFOLEN];
 	char dststring[sizeof(srcstring)];
+	char rulecommand[256];
 	int p;
 
 	authinfo(srcauth, srcstring, sizeof(srcstring));
@@ -499,31 +497,30 @@ iolog(rule, state, operation, src, srcauth, dst, dstauth, data, count)
 	p = strlen(dststring);
 	sockshost2string(dst, &dststring[p], sizeof(dststring) - p);
 
+	snprintf(rulecommand, sizeof(rulecommand), "%s(%d): %s/%s", 
+	rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
+	rule->number, protocol2string(state->protocol),
+	command2string(state->command));
+
 	switch (operation) {
 		case OPERATION_ACCEPT:
-		case OPERATION_DISCONNECT:
 		case OPERATION_CONNECT:
-			if (rule->log.connect || rule->log.disconnect)
-				slog(LOG_INFO, "%s(%d): %s: %s -> %s",
-				rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
-				rule->number, command2string(state->command),
-				srcstring, dststring);
+			if (rule->log.connect)
+				slog(LOG_INFO, "%s [: %s -> %s", rulecommand, srcstring, dststring);
 			break;
 
 		case OPERATION_ABORT:
 			if (rule->log.disconnect || rule->log.error)
-				slog(LOG_INFO, "%s(%d): %s abort: %s -> %s: %s",
-				rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
-				rule->number, command2string(state->command), srcstring, dststring,
+				slog(LOG_INFO, "%s ]: %s -> %s: %s",
+				rulecommand, srcstring, dststring,
 				data == NULL ? strerror(errno) : data);
 			break;
 
 		case OPERATION_ERROR:
 			if (rule->log.error)
-				slog(LOG_INFO, "%s(%d): %s error: %s -> %s: %s",
-				rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
-				rule->number, protocol2string(state->protocol), srcstring,
-				dststring, data == NULL ? strerror(errno) : data);
+				slog(LOG_INFO, "%s ]: %s -> %s: %s",
+				rulecommand, srcstring, dststring,
+				data == NULL ? strerror(errno) : data);
 			break;
 
 		case OPERATION_IO:
@@ -532,19 +529,17 @@ iolog(rule, state, operation, src, srcauth, dst, dstauth, data, count)
 
 				SASSERTX(data != NULL);
 
-				slog(LOG_INFO, "%s(%d): %s: %s -> %s (%lu): %s",
-				rule->verdict == VERDICT_BLOCK ? VERDICT_BLOCKs : VERDICT_PASSs,
-				rule->number, protocol2string(state->protocol),
-				srcstring, dststring, (unsigned long)count,
+				slog(LOG_INFO, "%s -: %s -> %s (%lu): %s",
+				rulecommand, srcstring, dststring, (unsigned long)count,
 				strcheck(visdata = str2vis(data, count)));
 
 				free(visdata);
+				break;
 			}
-			else if (rule->log.iooperation)
-				slog(LOG_INFO, "%s(%d): %s: %s -> %s (%lu)",
-				rule->verdict == VERDICT_BLOCK ? VERDICT_BLOCKs : VERDICT_PASSs,
-				rule->number, protocol2string(state->protocol),
-				srcstring, dststring, (unsigned long)count);
+
+			if (rule->log.iooperation)
+				slog(LOG_INFO, "%s -: %s -> %s (%lu)",
+				rulecommand, srcstring, dststring, (unsigned long)count);
 			break;
 
 		default:
@@ -821,7 +816,7 @@ rulespermit(s, match, state, src, dst)
 	 * requires the rule matched so needs to be delayed til here.
 	 */
 
-	if (!connectisok(&libwraprequest, match, state))
+	if (!connectisok(&libwraprequest, match))
 		match->verdict = VERDICT_BLOCK;
 
 	/*
@@ -1082,14 +1077,13 @@ libwrapinit(s, request)
 #endif /* HAVE_LIBWRAP */
 
 static int
-connectisok(request, rule, state)
+connectisok(request, rule)
 #if HAVE_LIBWRAP
 	struct request_info *request;
 #else
 	void *request;
 #endif
 	const struct rule_t *rule;
-	struct connectionstate_t *state;
 {
 
 #if HAVE_LIBWRAP
@@ -1101,7 +1095,6 @@ connectisok(request, rule, state)
 		const char *function = "connectisok()";
 		char libwrap[LIBWRAPBUF];
 		uid_t euid;
-		int checkforname;
 
 		socks_seteuid(&euid, config.uid.libwrap);
 
@@ -1116,34 +1109,6 @@ connectisok(request, rule, state)
 			return 0;	/* something got screwed up. */
 		}
 		process_options(libwrap, request);
-
-		/*
-		 * check if we got a username and won't clobber anything by saving it.
-		 */
-		switch (state->auth.method) {
-			case AUTHMETHOD_NONE:	/* doesn't take any memory from rfc931. */
-				checkforname = 1;
-				break;
-
-			default:
-				checkforname = 0;	/* can't take it or should already have it. */
-		}
-
-		if (checkforname) {
-			/* XXX can't use eval_user() since it always does rfc931 lookup. */
-			if (*request->user != NUL) {
-				strncpy((char *)state->auth.mdata.rfc931.name, request->user,
-				sizeof(state->auth.mdata.rfc931.name) - 1);
-
-				if (state->auth.mdata.rfc931.name
-				[sizeof(state->auth.mdata.rfc931.name) - 1] != NUL) {
-					slog(LOG_DEBUG, "%s: rfc931 name too long, truncated", function);
-					state->auth.mdata.rfc931.name
-					[sizeof(state->auth.mdata.rfc931.name)
-					- 1] = NUL;
-				}
-			}
-		}
 
 		if (config.srchost.nounknown)
 			if (strcmp(eval_hostname(request->client), STRING_UNKNOWN) == 0) {

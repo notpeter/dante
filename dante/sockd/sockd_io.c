@@ -42,9 +42,10 @@
  */
 
 #include "common.h"
+#include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.174 2000/06/09 10:45:20 karls Exp $";
+"$Id: sockd_io.c,v 1.178 2000/06/23 09:03:48 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -431,12 +432,21 @@ delete_io(mother, io, fd, status)
 {
 	const char *function = "delete_io()";
 	const int errno_s = errno;
+	struct rule_t *rule;
 
 	SASSERTX(io->allocated);
 
-	if (io->rule.log.disconnect) {
-		char logmsg[MAXHOSTNAMELEN * 2 + 1024];
+	/* if client or socks-rules specifies logging disconnect, log once. */
+	if (io->rule.log.disconnect)
+		rule = &io->rule;
+	else if (io->acceptrule.log.disconnect)
+		rule = &io->acceptrule;
+	else
+		rule = NULL;
+
+	if (rule != NULL && rule->log.disconnect) {
 		char in[MAXSOCKADDRSTRING], out[MAXSOCKADDRSTRING];
+		char logmsg[sizeof(in) + sizeof(out) + 1024];
 
 		/* LINTED pointer casts may be troublesome */
 		sockaddr2string((struct sockaddr *)&io->src.raddr, in, sizeof(in));
@@ -459,8 +469,10 @@ delete_io(mother, io, fd, status)
 		}
 
 		snprintf(logmsg, sizeof(logmsg),
-		"%s: %lu -> %s -> %lu,  %lu -> %s -> %lu",
-		protocol2string(io->state.protocol),
+		"%s(%d): %s/%s ]: %lu -> %s -> %lu,  %lu -> %s -> %lu",
+		rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
+		rule->number,
+		protocol2string(io->state.protocol), command2string(io->state.command),
 		(unsigned long)io->src.written, in, (unsigned long)io->src.read,
 		(unsigned long)io->dst.written, out, (unsigned long)io->dst.read);
 
@@ -534,18 +546,7 @@ delete_io(mother, io, fd, status)
 			SERRX(fd);
 	}
 
-	/* this may end up logging same disconnect twice; user's choice. */
-	if (io->acceptrule.log.disconnect) {
-		struct connectionstate_t state = io->state;
-
-		state.command = SOCKS_DISCONNECT;
-
-		iolog(&io->acceptrule, &state, OPERATION_DISCONNECT, &io->src.host,
-		&io->src.auth, &io->dst.host, &io->dst.auth, NULL, 0);
-	}
-
 	close_iodescriptors(io);
-
 	io->allocated = 0;
 
 	if (mother != -1) {
