@@ -1,7 +1,7 @@
 2AC_INIT(include/socks.h)
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="2"
+#prerelease="2"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else

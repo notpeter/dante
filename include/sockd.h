@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.149 2000/06/09 10:45:17 karls Exp $ */
+/* $Id: sockd.h,v 1.150 2000/06/21 09:38:22 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -164,8 +164,7 @@ do {																			\
 #define OPERATION_ACCEPT		1
 #define OPERATION_CONNECT		(OPERATION_ACCEPT + 1)
 #define OPERATION_IO				(OPERATION_CONNECT + 1)
-#define OPERATION_DISCONNECT	(OPERATION_IO + 1)
-#define OPERATION_ABORT			(OPERATION_DISCONNECT + 1)
+#define OPERATION_ABORT			(OPERATION_IO + 1)
 #define OPERATION_ERROR			(OPERATION_ABORT + 1)
 
 
@@ -673,7 +672,6 @@ iolog __P((struct rule_t *rule, const struct connectionstate_t *state,
  * If "operation" is
  *    OPERATION_ACCEPT
  *		OPERATION_CONNECT
- *    OPERATION_DISCONNECT
  *			"data" and "count" is ignored.
  *
  *		OPERATION_ABORT

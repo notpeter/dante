@@ -49,7 +49,7 @@
 
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.70 2000/06/09 10:45:15 karls Exp $";
+"$Id: interposition.c,v 1.71 2000/06/21 08:48:16 michaels Exp $";
 
 #undef accept
 #undef bind
@@ -162,13 +162,13 @@ symbolfunction(symbol)
 	if (lib->handle == NULL)
 		if ((lib->handle = dlopen(lib->library, DL_LAZY)) == NULL)
 			serrx(EXIT_FAILURE, "%s: compiletime configuration error?  "
-			"Expected being able to open \"%s\", but: %s",
+			"Failed to open \"%s\": %s",
 			function, lib->library, dlerror());
 
 	if (lib->function == NULL)
 		if ((lib->function = dlsym(lib->handle, symbol)) == NULL)
 			serrx(EXIT_FAILURE, "%s: compiletime configuration error?  "
-			"Expected to find \"%s\" in \"%s\", but: %s",
+			"Failed to find \"%s\" in \"%s\": %s",
 			function, symbol, lib->library, dlerror());
 
 #if 0
