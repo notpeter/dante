@@ -1,9 +1,26 @@
+@(#)$Id: PRERELEASE,v 1.84 2000/06/09 10:24:02 michaels Exp $
+
 *
 * This is a prerelease.  Do not use this to upgrade from a previous
 * release of Dante unless you have to or are willing to help testing.
 *
 
-***  Monday
+
+*** Friday, June 9, 2000 
+
+  o slightly smarter about what descriptors we leave open when
+    forking of connectchild in client for non-blocking connect.
+    Also don't setsid() in connectchild.
+
+  o gethostbyaddr now correctly located on Solaris; prevented sockd
+    from running, at least on Solaris 2.7 with libwrap.
+    Reported by James Coe <jcoe@webstreetsecurities.com>.
+
+*** Wednesday, May 31, 2000
+
+ o work around linux/sysv bug involving getpwnam() preventing
+   password authentication from working in some cases. 
+   hp-ux may need similar workaround but not yet verified.
 
  o Prefer the result of getlogin() to getpwuid(getuid()).
 

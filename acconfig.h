@@ -184,7 +184,7 @@
 
 #undef HAVE_PROFILING
 
-/* Solaris 2.5.1 needs it. Otherwise FIOASYNC will not be defined 
+/* Solaris 2.5.1 needs it. Otherwise FIOASYNC will not be defined
    -(Pavel Roskin <pavel_roskin@geocities.com>) */
 #undef BSD_COMP
 

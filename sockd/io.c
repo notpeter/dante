@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.44 2000/05/31 12:14:52 karls Exp $";
+"$Id: io.c,v 1.45 2000/06/09 10:45:18 karls Exp $";
 
 /* this file defines the functions. */
 #undef select
@@ -92,7 +92,7 @@ writen(d, buf, nbytes, auth)
 	size_t left = nbytes;
 
 	do {
-		if ((p = socks_sendto(d, &((const char *)buf)[nbytes - left], left, 0, 
+		if ((p = socks_sendto(d, &((const char *)buf)[nbytes - left], left, 0,
 		NULL, 0, auth)) == -1) {
 #if SOCKS_SERVER
 			if (errno == EINTR)

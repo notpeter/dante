@@ -49,7 +49,7 @@
 
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.67 2000/05/31 10:58:10 michaels Exp $";
+"$Id: interposition.c,v 1.70 2000/06/09 10:45:15 karls Exp $";
 
 #undef accept
 #undef bind
@@ -105,7 +105,7 @@ static struct libsymbol_t libsymbolv[] = {
 	{	SYMBOL_GETHOSTBYADDR,			LIBRARY_GETHOSTBYADDR,	NULL,	NULL },
 #endif
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
 #if HAVE_EXTRA_OSF_SYMBOLS
 	{	SYMBOL_EACCEPT,					LIBRARY_EACCEPT,			NULL,	NULL },
 	{	SYMBOL_EGETPEERNAME,				LIBRARY_EGETPEERNAME,	NULL,	NULL },
@@ -161,11 +161,15 @@ symbolfunction(symbol)
 
 	if (lib->handle == NULL)
 		if ((lib->handle = dlopen(lib->library, DL_LAZY)) == NULL)
-			serrx(EXIT_FAILURE, "%s: %s: %s", function, lib->library, dlerror());
+			serrx(EXIT_FAILURE, "%s: compiletime configuration error?  "
+			"Expected being able to open \"%s\", but: %s",
+			function, lib->library, dlerror());
 
 	if (lib->function == NULL)
 		if ((lib->function = dlsym(lib->handle, symbol)) == NULL)
-			serrx(EXIT_FAILURE, "%s: %s: %s", function, symbol, dlerror());
+			serrx(EXIT_FAILURE, "%s: compiletime configuration error?  "
+			"Expected to find \"%s\" in \"%s\", but: %s",
+			function, symbol, lib->library, dlerror());
 
 #if 0
 	if (strcmp(symbol, SYMBOL_WRITE) != 0)
@@ -180,16 +184,16 @@ static struct libsymbol_t *
 libsymbol(symbol)
 	const char *symbol;
 {
-	const char *function = "libsymbol()";
+/*	const char *function = "libsymbol()"; */
 	size_t i;
 
 	for (i = 0; i < ELEMENTS(libsymbolv); ++i)
 		if (strcmp(libsymbolv[i].symbol, symbol) == 0)
 			return &libsymbolv[i];
 
-	serrx(EXIT_FAILURE,
-	"%s: compiletime configuration error, can't find symbol %s",
-	function, symbol);
+	SASSERTX(0);	/* should never happen. */
+
+	/* NOTREACHED */
 	return NULL; /* please compiler. */
 }
 
@@ -287,8 +291,8 @@ sys_getpeername(s, name, namelen)
 {
 	int rc;
 	typedef HAVE_PROT_GETPEERNAME_0
-		 (*GETPEERNAME_FUNC_T)(HAVE_PROT_GETPEERNAME_1, 
-									  HAVE_PROT_GETPEERNAME_2, 
+		 (*GETPEERNAME_FUNC_T)(HAVE_PROT_GETPEERNAME_1,
+									  HAVE_PROT_GETPEERNAME_2,
 									  HAVE_PROT_GETPEERNAME_3);
 	GETPEERNAME_FUNC_T function;
 
@@ -771,7 +775,7 @@ sendto(s, msg, len, flags, to, tolen)
 
 #endif /* SOCKS_CLIENT */
 
-#if SOCKS_SERVER 
+#if SOCKS_SERVER
 
 struct hostent *
 sys_gethostbyaddr(addr, len, af)
@@ -820,7 +824,7 @@ gethostbyname(name)
 #endif
 }
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
 
 struct hostent *
 sys_gethostbyname2(name, af)

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.123 2000/04/09 10:14:42 karls Exp $";
+"$Id: config.c,v 1.124 2000/06/09 10:45:17 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -1089,7 +1089,7 @@ showstate(state)
 void
 showmethod(methodc, methodv)
 	int methodc;
-	const int *methodv; 
+	const int *methodv;
 {
 	int i;
 	char buf[1024];

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.113 2000/05/31 12:14:53 karls Exp $";
+"$Id: udp.c,v 1.114 2000/06/09 10:45:18 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -87,8 +87,8 @@ Rsendto(s, msg, len, flags, to, tolen)
 		return -1;
 	}
 
-	n = sendto(s, nmsg, nlen, flags, 
-	socksfd->state.udpconnect ? NULL : &socksfd->reply, 
+	n = sendto(s, nmsg, nlen, flags,
+	socksfd->state.udpconnect ? NULL : &socksfd->reply,
 	socksfd->state.udpconnect ? 0		: sizeof(socksfd->reply));
 	n -= nlen - len;
 

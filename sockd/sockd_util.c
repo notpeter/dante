@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.61 2000/05/31 12:14:56 karls Exp $";
+"$Id: sockd_util.c,v 1.62 2000/06/01 09:53:18 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -158,14 +158,17 @@ sockdexit(sig)
 	int sig;
 {
 	const char *function = "sockdexit()";
-	int i;
+	int i, mainmother;
 
-	if (pidismother(config.state.pid)) {
-		if (*config.state.motherpidv == config.state.pid) /* main mother. */
-			if (sig > 0)
-				slog(LOG_ALERT, "%s: terminating on signal %d", function, sig);
-			else
-				slog(LOG_ALERT, "%s: terminating", function, sig);
+	mainmother = config.state.motherpidv == NULL
+	|| (pidismother(config.state.pid)
+	  && *config.state.motherpidv == config.state.pid);
+
+	if (mainmother) {
+		if (sig > 0)
+			slog(LOG_ALERT, "%s: terminating on signal %d", function, sig);
+		else
+			slog(LOG_ALERT, "%s: terminating", function, sig);
 
 		/* don't want this while cleaning up, which is all that's left. */
 		if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
@@ -207,7 +210,7 @@ sockdexit(sig)
 				abort();
 		}
 
-	if (*config.state.motherpidv == config.state.pid) /* main mother. */
+	if (mainmother)
 		exit(sig > 0 ? EXIT_FAILURE : -sig);
 	else
 #if HAVE_PROFILING
