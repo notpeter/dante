@@ -16,5 +16,4 @@ DIST_COMMON = README INSTALL Makefile.am Makefile.in NEWS TODO aclocal.m4  \
 	ltmain.sh missing mkinstalldirs acinclude.m4 acconfig.h
 endif
 
-EXTRA_DIST = BUGS CREDITS LICENSE SUPPORT README.socksify README.usage \
-	README.msproxy README.survey
+EXTRA_DIST = BUGS CREDITS LICENSE SUPPORT VERSION VERSION.in

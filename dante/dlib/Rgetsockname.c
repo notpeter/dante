@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.30 1999/07/10 13:52:28 karls Exp $";
+"$Id: Rgetsockname.c,v 1.31 1999/09/02 10:41:20 michaels Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -96,7 +96,7 @@ Rgetsockname(s, name, namelen)
 			 * some clients might call this for no good reason, try to
 			 * help them by returning a invalid address; if they are
 			 * going to use it for anything, they will fail later though.
-			*/
+			 */
 
 			addr = &socksfd->remote;
 			/* LINTED pointer casts may be troublesome */

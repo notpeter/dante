@@ -1,6 +1,4 @@
-# $Id: TODO,v 1.105 1999/07/03 17:03:17 karls Exp $
-
-* vwarnx doesn't appear to be in use; remove?
+# $Id: TODO,v 1.106 1999/08/30 12:56:54 karls Exp $
 
 * share host/addr cache across processes.
 

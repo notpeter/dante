@@ -44,13 +44,13 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.151 1999/07/12 10:13:52 michaels Exp $";
+"$Id: sockd_io.c,v 1.159 1999/09/02 10:42:04 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
  * send back ancillary data, only ordinary data, so no need for
  * locking here even on broken systems (#ifdef HAVE_SENDMSG_DEADLOCK).
-*/
+ */
 
 
 __BEGIN_DECLS
@@ -59,7 +59,7 @@ static int
 allocated __P((void));
 /*
  * Returns the number of allocated (active) io's
-*/
+ */
 
 
 static struct sockd_io_t *
@@ -68,13 +68,13 @@ io_getset __P((fd_set *set));
  * Goes through our list until it finds a io object where atleast one of the
  * descriptors is set.
  * Returns NULL if none found.
-*/
+ */
 
 static struct sockd_io_t *
 io_finddescriptor __P((int d));
 /*
  * Finds the io object where one of the descriptors matches "fd".
-*/
+ */
 
 static int
 io_fillset __P((fd_set *set, int antiflags));
@@ -83,14 +83,14 @@ io_fillset __P((fd_set *set, int antiflags));
  * is set, io's with any of the flags in "flags" set will be excluded.
  * Returns the highest descriptor in our list, or -1 if we don't
  * have any descriptors open currently.
-*/
+ */
 
 
 static void
 io_clearset __P((const struct sockd_io_t *io, fd_set *set));
 /*
  * Clears all filedescriptors in "io" from "set".
-*/
+ */
 
 static void
 doio __P((int mother, struct sockd_io_t *io, fd_set *rset, fd_set *wset,
@@ -102,7 +102,7 @@ doio __P((int mother, struct sockd_io_t *io, fd_set *rset, fd_set *wset,
  * "flags" is the flags to set on the actual i/o calls
  * (read()/write(), recvfrom()/sendto()), currently only MSG_OOB.
  * If any of the calls fails the "io" is deleted.
-*/
+ */
 
 static int
 io_rw __P((struct sockd_io_direction_t *in, struct sockd_io_direction_t *out,
@@ -117,7 +117,7 @@ io_rw __P((struct sockd_io_direction_t *in, struct sockd_io_direction_t *out,
  *		On success: bytes transfered or 0 for eof.
  *		On failure: -1.  "bad" is set to the value of the descriptor that
  *						failure was first detected on.
-*/
+ */
 
 static void
 delete_io __P((int mother, struct sockd_io_t *io, int fd, int status));
@@ -132,14 +132,14 @@ delete_io __P((int mother, struct sockd_io_t *io, int fd, int status));
  *		IO_ERROR			:  error using "fd".
  *		IO_CLOSE			:	socket was closed.
  *		> 0				:  short read/write
-*/
+ */
 
 
 static void
 proctitleupdate __P((void));
 /*
  * Updates the title of this process.
-*/
+ */
 
 static struct timeval *
 io_gettimeout __P((struct timeval *timeout));
@@ -150,7 +150,7 @@ io_gettimeout __P((struct timeval *timeout));
  * Returns:
  *		If there is a timeout: pointer to filled in "timeout".
  *		If there is no timeout: NULL.
-*/
+ */
 
 static struct sockd_io_t *
 io_gettimedout __P((void));
@@ -160,20 +160,22 @@ io_gettimedout __P((void));
  * Returns:
  *		If timed out client found: pointer to it.
  *		Else: NULL.
-*/
+ */
+
+static void
+checkmother __P((struct sockd_mother_t *mother, fd_set *readset));
+/*
+ * Checks if "mother" is set in "readset" and if so receives
+ * a io from "mother".  Closes "mother" if there is an error.
+ */
 
 static void
 siginfo __P((int sig));
 /*
  * Print information about our current connections.
-*/
+ */
 
-#ifdef xlint
-extern const int lintnoloop_sockd_io_c;
-#else
-#define lintnoloop_sockd_io_c 0
-#endif
-
+/* Solaris sometimes fails to return srcaddress in recvfrom(). */
 #define UDPFROMLENCHECK(socket, fromlen) \
 	do { \
 		if (fromlen == 0) { \
@@ -190,7 +192,7 @@ extern const int lintnoloop_sockd_io_c;
 			} \
 			return; \
 		} \
-	} while (lintnoloop_sockd_io_c)
+	} while (lintnoloop_sockd_h)
 
 __END_DECLS
 
@@ -235,18 +237,18 @@ run_io(mother)
 			FD_SET(mother->s, &rset);
 			rbits = MAX(rbits, mother->s);
 		}
-		else /* no mother.  Do we have any descriptors to work with? */
+		else /* no mother.  Do we have any other descriptors to work with? */
 			if (rbits == -1) {
 				slog(LOG_DEBUG, "%s: can't find mother and no io's", function);
 				sockdexit(-EXIT_FAILURE);
 			}
-		++rbits;
 
 		/*
-		 * first find descriptors that are readable, we won't write if
+		 * first find descriptors that are readable; we won't write if
 		 * we can't read.  Also select for exception so we can tell
 		 * the i/o function if there's one pending later.
-		*/
+ 		 */
+		++rbits;
 		switch (selectn(rbits, &rset, NULL, &xset, io_gettimeout(&timeout))) {
 			case -1:
 				SERR(-1);
@@ -259,13 +261,7 @@ run_io(mother)
 				continue;
 		}
 
-		if (mother->s != -1 && FD_ISSET(mother->s, &rset)) {
-			if ((p = recv_io(mother->s, NULL)) != 0)
-				mother->s = -1;
-			else
-				proctitleupdate();
-			FD_CLR(mother->s, &rset);
-		}
+		checkmother(mother, &rset);
 
 		/*
 		 * This is tricky but we need to check for write separately to
@@ -280,10 +276,10 @@ run_io(mother)
 		 * be both readable and writable.
 		 *
 		 * A problem is that if while we wait for writability, a new
-		 * descriptor becomes readable (and writable), we thus can't
-		 * block forever here.  We solve this by in the below select()
-		 * also checking for readability, but now only the descriptors
-		 * that were not found to be readable in the previous select().
+		 * descriptor becomes readable, we thus can't block forever here.
+		 * We solve this by in the below select() also checking for
+		 * readability, but now only the descriptors that were not found
+		 * to be readable in the previous select().
 		 * This means that a positive return from below select does not
 		 * necessarily indicate we have i/o to do, but it does mean we
 		 * either have it or a new descriptor became readable; in either
@@ -292,20 +288,20 @@ run_io(mother)
 		 * there is nothing we do about them until the descriptor becomes
 		 * readable too, thus any new exceptions will be in newrset before
 		 * we have reason to care about them.
-		*/
+		 */
 
-
-		/* 
-		 * descriptors to check for readability, that is, those not 
-		 * already checked.
-		*/
+		/* descriptors to check for readability; those not already set. */
 		bits = io_fillset(&tmpset, 0);
 		bits = fdsetop(bits + 1, '^', &rset, &tmpset, &newrset);
+		if (mother->s != -1) { /* mother status may change too. */
+			FD_SET(mother->s, &newrset);
+			bits = MAX(bits, mother->s);
+		}
 
 		/*
 		 * descriptors to check for writability aswell as
 		 * controldescriptors to check for readability.
-		*/
+		 */
 		FD_ZERO(&wset);
 		FD_ZERO(&controlset);
 		for (p = 0; p < rbits; ++p) {
@@ -314,12 +310,8 @@ run_io(mother)
 				continue;
 			}
 
-			if ((io = io_finddescriptor(p)) == NULL) {
-				SASSERTX(p == mother->s);
-				FD_SET(mother->s, &newrset); /* doesn't need matching writable. */
-				bits = MAX(mother->s, bits);
-				continue;
-			}
+			io = io_finddescriptor(p);
+			SASSERTX(io != NULL);
 
 			if (io->in.s == p) {
 				/* read from in requires out to be writable. */
@@ -348,35 +340,38 @@ run_io(mother)
 				/* NOTREACHED */
 
 			case 0:
-				if ((io = io_gettimedout()) == NULL)
-					continue; /* should only be possible if sighup received. */
-				delete_io(mother->ack, io, -1, IO_TIMEOUT);
+				if ((io = io_gettimedout()) != NULL)
+					delete_io(mother->ack, io, -1, IO_TIMEOUT);
+				/* else: should only be possible if sighup received. */
 				continue;
 		}
+
+		checkmother(mother, &rset);
 
 		tmpset = controlset;
 		fdsetop(bits, '&', &newrset, &tmpset, &controlset);
 
 		/*
-		 * newrset; new descriptors readable.  Don't do anything with them
-		 *          here, loop around and check for writability first.
+		 * newrset; descriptors readable, all new apart from controldescriptors.
+		 *				Don't do anything with them here, loop around and check for
+		 *				writability first.
 		 *
 		 *	controlset; subset of newrset containing control descriptors
 		 *					that are readable.
 		 *
-		 * rset; descriptors readable, not necessarely with a match in wset. 
+		 * rset; descriptors readable, not necessarily with a match in wset. 
 		 *
-		 * wset;	descriptors writable with a matching in rset, what we can do
-		 *			i/o over.
+		 * xset; subset of rset with exceptions pending.
 		 *
-		 * xset; subset of rset.
-		*/
+		 * wset;	descriptors writable with a matching in rset/xset,
+		 *			what we can do i/o over.
+		 */
 
 		/*
 		 * First check all io's which have an exception pending. 
 		 * Getting a io here does not mean we can do i/o over it
 		 * however.
-		*/
+		 */
 		while ((io = io_getset(&xset)) != NULL) {
 			slog(LOG_DEBUG, "select(): exception set");
 
@@ -384,35 +379,43 @@ run_io(mother)
 			io_clearset(io, &xset);
 			io_clearset(io, &wset);
 
-			/* xset is subset of rset, so clear matching entries in rset too. */
+			/* xset is subset of rset so clear rset too. */
 			io_clearset(io, &rset);
 		}
 
 		/*
 		 * Get all io's which are writable.  They will have a matching
 		 * descriptor that is readable.
-		*/
+		 */
 		while ((io = io_getset(&wset)) != NULL) {
 			doio(mother->ack, io, &rset, &wset, 0);
 			io_clearset(io, &rset);
 			io_clearset(io, &wset);
+
+			/* xset is subset of rset so clear xset too. */
+			io_clearset(io, &xset);
 		}
 
 		/*
 		 * Get all io's which have controldescriptors that are readable.
-		*/
+		 */
 		while ((io = io_getset(&controlset)) != NULL) {
 			fd_set nullset;
 
 			FD_ZERO(&nullset);
 			doio(mother->ack, io, &controlset, &nullset, 0);
 			io_clearset(io, &controlset);
+
+			/* controlset is subset of newrset so clear newrset too. */
+			io_clearset(io, &newrset);
 		}
+
+		/* possible future optimization: if newrset not empty, use it? */
 	}
 }
 
 
-void
+static void
 delete_io(mother, io, fd, status)
 	int mother;
 	struct sockd_io_t *io;
@@ -457,6 +460,10 @@ delete_io(mother, io, fd, status)
 		errno = errno_s;
 		if (fd < 0)
 			switch (status) {
+				case IO_SRCBLOCK:
+					slog(LOG_INFO, "%s: delayed sourceblock", logmsg);
+					break;
+
 				case IO_ERROR:
 					swarn("%s: connection error", logmsg);
 					break;
@@ -474,6 +481,10 @@ delete_io(mother, io, fd, status)
 			}
 		else if (fd == io->in.s || fd == io->control.s) {
 			switch (status) {
+				case IO_SRCBLOCK:
+					slog(LOG_INFO, "%s: delayed sourceblock", logmsg);
+					break;
+
 				case IO_ERROR:
 					swarn("%s: client error", logmsg);
 					break;
@@ -492,6 +503,10 @@ delete_io(mother, io, fd, status)
 		}
 		else if (fd == io->out.s) {
 			switch (status) {
+				case IO_SRCBLOCK:
+					slog(LOG_INFO, "%s: delayed sourceblock", logmsg);
+					break;
+
 				case IO_ERROR:
 					swarn("%s: remote error", logmsg);
 					break;
@@ -506,7 +521,6 @@ delete_io(mother, io, fd, status)
 
 				default:
 					slog(LOG_INFO, "%s: remote short read/write", logmsg);
-
 			}
 		}
 		else
@@ -590,7 +604,7 @@ recv_io(s, io)
 			/*
 			 * either mother died/closed connection, or there is another error.
 			 * Both cases should be rare so try to find out what the problem is.
-			*/
+			 */
 			char buf;
 
 			if (recv(s, &buf, sizeof(buf), MSG_PEEK) > 0)
@@ -645,7 +659,7 @@ recv_io(s, io)
 
 	/*
 	 * Get descriptors sent us.
-	*/
+	 */
 
 	fdreceived = 0;
 
@@ -788,14 +802,7 @@ doio(mother, io, rset, wset, flags)
 			 * UDP is sadly considerably more complex than TCP;
 			 * need to check rules on each packet, need to check if it
 			 * was received from expected src, etc.
-			 * We first peek at it so we can find out what address it's from,
-			 * then we check rules and then we read the packet out of the buffer.
-			 * Reason why we first peek is that if the rule calls libwrap,
-			 * libwrap would hang since we'd already read the packet and it
-			 * wants to peek itself.
-			 * We only peek enough to get the header, but this still involves
-			 * an extra systemcall.  Can we find a better/faster way to do it?
-			*/
+			 */
 
 			/* udp to relay from client to destination? */
 			if (FD_ISSET(io->in.s, rset) && FD_ISSET(io->out.s, wset)) {
@@ -803,9 +810,8 @@ doio(mother, io, rset, wset, flags)
 				struct sockaddr from;
 
 				fromlen = sizeof(from);
-				/* LINTED pointer casts may be troublesome */
-				if ((r = recvfrom(io->in.s, buf, sizeof(header), lflags | MSG_PEEK,
-				&from, &fromlen)) == -1) {
+				if ((r = recvfrom(io->in.s, buf, io->out.sndlowat, lflags, &from,
+				&fromlen)) == -1) {
 					delete_io(mother, io, io->in.s, r);
 					return;
 				}
@@ -815,10 +821,9 @@ doio(mother, io, rset, wset, flags)
 				 * If client hasn't sent us it's address yet we have to
 				 * assume the first packet is from is it.  Client can only
 				 * blame itself if not.
-				*/
+				 */
 				if (io->in.raddr.sin_addr.s_addr == htonl(INADDR_ANY)
 				||  io->in.raddr.sin_port == htons(0)) {
-
 					if (io->in.raddr.sin_addr.s_addr == htonl(INADDR_ANY))
 					/* LINTED pointer casts may be troublesome */
 						io->in.raddr.sin_addr.s_addr
@@ -828,40 +833,48 @@ doio(mother, io, rset, wset, flags)
 						/* LINTED pointer casts may be troublesome */
 						io->in.raddr.sin_port
 						= ((struct sockaddr_in *)&from)->sin_port;
+					
+					/* LINTED pointer casts may be troublesome */
+					sockaddr2sockshost((struct sockaddr *)&io->in.raddr, &io->src);
+
+					/*
+					 * Do a rulecheck here with destination set to NULL, 
+					 * if that isn't permitted nothing else is either from
+					 * this source so disconnect it.
+					 */
+					if (!rulespermit(io->in.s, &io->rule, &io->state, &io->src,
+					NULL)) {
+						delete_io(mother, io, io->in.s, IO_SRCBLOCK);
+						return;
+					}
 				}
 
 				/*
 				 * When we receive the first packet we also have a fixed
-				 * source, so connect the socket for better performance.
-				*/
+				 * source so connect the socket, both for better performance
+				 * and so that getpeername() will work on it, for
+				 * libwrap/rulespermit(). 
+				 */
 				if (io->in.read == 0) { /* could happend more than once, but ok. */
 					/* LINTED pointer casts may be troublesome */
 					if (!sockaddrareeq((struct sockaddr *)&io->in.raddr, &from)) {
 						char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING];
 
 						slog(LOG_NOTICE,
-						"%s(u): udp: expected from %s, got it from %s",
-						VERDICT_BLOCKs,
+						"%s(0): %s: expected from %s, got it from %s",
+						VERDICT_BLOCKs, protocol2string(io->state.protocol),
 						/* LINTED pointer casts may be troublesome */
 						sockaddr2string((struct sockaddr *)&io->in.raddr, src,
 						sizeof(src)), sockaddr2string(&from, dst, sizeof(dst)));
-
-						/* need to read the peeked at packet out of socket buffer. */
-						fromlen = 0;
-						if (recvfrom(io->in.s, buf, io->out.sndlowat, lflags, NULL,
-						&fromlen) == -1) {
-							swarn("%s: recvfrom() of peeked data", function);
-							return;
-						}
-
 						break;
 					}
 
 					if (connect(io->in.s, &from, sizeof(from)) != 0) {
-						delete_io(mother, io, io->in.s, r);
+						delete_io(mother, io, io->in.s, IO_ERROR);
 						return;
 					}
 				}
+				io->in.read += r;
 
 				/* got packet, pull out socks udp header. */
 				if (string2udpheader(buf, (size_t)r, &header) == NULL) {
@@ -871,15 +884,6 @@ doio(mother, io, rset, wset, flags)
 					swarnx("%s: bad socks udppacket (length = %d) from %s",
 					function, r, sockaddr2string((struct sockaddr *)&io->in.raddr,
 					badfrom, sizeof(badfrom)));
-
-					/* to read the peeked packet out of the buffer. */
-					fromlen = 0;
-					if (recvfrom(io->in.s, buf, io->out.sndlowat, lflags, NULL,
-					&fromlen) == -1) {
-						swarn("%s: recvfrom() of peeked data", function);
-						return;
-					}
-
 					break;
 				}
 
@@ -887,86 +891,60 @@ doio(mother, io, rset, wset, flags)
 					char badfrom[MAXSOCKADDRSTRING];
 
 					/* LINTED pointer casts may be troublesome */
-					swarnx("%s: udp: fragmented packet from %s.  Not supported",
-					function, sockaddr2string((struct sockaddr *)&io->in.raddr,
-					badfrom, sizeof(badfrom)));
+					swarnx("%s: %s: fragmented packet from %s.  Not supported",
+					function, protocol2string(io->state.protocol),
+					sockaddr2string((struct sockaddr *)&io->in.raddr, badfrom,
+					sizeof(badfrom)));
 					break;
 				}
 
+				io->dst = header.host;
+
 				/* is the packet to be permitted out? */
-				permit = rulespermit(io->in.s, &io->rule, &io->state, &io->src,
-				&header.host);
+				permit
+				= rulespermit(io->in.s, &io->rule, &io->state, &io->src, &io->dst);
 
-				/* read the peeked packet out of socket buffer. */
-				fromlen = 0;
-				if ((r = recvfrom(io->in.s, buf, io->out.sndlowat, lflags, NULL,
-				&fromlen)) == -1) {
-					swarn("%s: recvfrom() of peeked data", function);
-					return;
-				}
-				io->in.read += r;
+				/* set r to bytes sent by client sans socks udp header. */
+				r -= PACKETSIZE_UDP(&header);
 
-				iolog(&io->rule, &io->state, OPERATION_IO, &io->src, &header.host,
+				iolog(&io->rule, &io->state, OPERATION_IO, &io->src, &io->dst,
 				&buf[PACKETSIZE_UDP(&header)], (size_t)r);
 
 				if (!permit)
 					break;
 
-				if (!sockshostareeq(&io->dst, &header.host)) {
-					/*
-					 * A new destination; connect socket for performance.
-					*/
+				/* LINTED pointer casts may be troublesome */
+				sockshost2sockaddr(&header.host, (struct sockaddr *)&io->out.raddr);
 
-					slog(LOG_DEBUG, "%s: new dst: %s, connecting...",
-					function, sockshost2string(&header.host, NULL, 0));
-
-					/* LINTED pointer casts may be troublesome */
-					sockshost2sockaddr(&header.host,
-					(struct sockaddr *)&io->out.raddr);
-
-					if (connect(io->out.s, (struct sockaddr *)&io->out.raddr,
-					sizeof(io->out.raddr)) != 0) {
-						char dststring[MAXSOCKADDRSTRING];
-
-						swarn("%s: connect(%s)", function,
-						sockaddr2string((struct sockaddr *)&io->out.raddr, dststring,
-						sizeof(dststring)));
-
-						return;
-					}
-					io->dst = header.host;
-				}
-
-				/* strip of socks udpheader before sending to destination */
-				r -= PACKETSIZE_UDP(&header);
-
-				if ((w = sendto(io->out.s, &buf[PACKETSIZE_UDP(&header)], (size_t)r,
-				lflags, NULL, 0)) != r) {
-					char badsend[MAXSOCKADDRSTRING];
-
-					/* LINTED pointer casts may be troublesome */
-					slog(LOG_DEBUG, "%s: sendto(%s): %d of %d: %s (errno = %d)",
-					function, sockaddr2string((struct sockaddr *)&io->out.raddr,
-					badsend, sizeof(badsend)), w, r, strerror(errno), errno);
-				}
-				else
-					io->out.written += w;
+				/* LINTED pointer casts may be troublesome */
+				if ((w = sendto(io->out.s, &buf[PACKETSIZE_UDP(&header)],
+				(size_t)r, lflags, (struct sockaddr *)&io->out.raddr,
+				sizeof(io->out.raddr))) != r)
+					iolog(&io->rule, &io->state, OPERATION_ERROR, &io->src, &io->dst,
+					NULL, 0);
+				io->out.written += MAX(0, w);
 			}
 
 
 			/*
-			 * datagram reply from remote present?
-			*/
-
+			 * Datagram reply from remote present?
+			 * We first peek at it so we can find out what address it's from,
+			 * then we check rules and then we read the packet out of the buffer.
+			 * Reason why we first peek is that if the rule calls libwrap,
+			 * libwrap would hang since we'd already read the packet and it
+			 * wants to peek itself.
+			 * We only peek enough to get the source but this still involves
+			 * an extra systemcall.  Can we find a better/faster way to do it?
+			 */
 			if (FD_ISSET(io->out.s, rset) && FD_ISSET(io->in.s, wset)) {
 				const int lflags = flags & ~MSG_OOB;
+				struct connectionstate_t state;
 				struct sockaddr from;
 				struct sockshost_t srcsh;
 				char *newmsg;
 
 				/* MSG_PEEK because of libwrap, see above. */
 				fromlen = sizeof(from);
-				/* LINTED possible pointer alignment problem */
 				if ((r = recvfrom(io->out.s, buf, 1, lflags | MSG_PEEK, &from,
 				&fromlen)) == -1) {
 					delete_io(mother, io, io->out.s, r);
@@ -983,10 +961,10 @@ doio(mother, io, rset, wset, flags)
 				 * even if they are the same.
 				 * We check for this case specifically, though we only catch
 				 * the last case, which may not always be good enough.
-				 * One could expand the below check, using addressmatch()
-				 * instead, but don't think that would always be right,
-				 * so better safe than sorry for now.
-				*/
+				 * We could expand the below check, using addressmatch()
+				 * instead, but that need not always be right, better safe
+				 * than sorry for now.
+				 */
 
 				/* LINTED possible pointer alignment problem */
 				if (io->dst.atype == SOCKS_ADDR_DOMAIN
@@ -995,11 +973,15 @@ doio(mother, io, rset, wset, flags)
 				else
 					sockaddr2sockshost(&from, &srcsh);
 
-				permit
-				= rulespermit(io->out.s, &io->rule, &io->state, &srcsh, &io->src);
+				/* only set temporary here for one replypacket at a time. */
+				state 			= io->state;
+				state.command	= SOCKS_UDPREPLY;
 
-				fromlen = sizeof(from);
+				permit
+				= rulespermit(io->out.s, &io->rule, &state, &srcsh, &io->src);
+
 				/* read the peeked packet out of the buffer. */
+				fromlen = sizeof(from);
 				if ((r = recvfrom(io->out.s, buf, io->in.sndlowat, lflags, &from,
 				&fromlen)) == -1) {
 					delete_io(mother, io, io->out.s, r);
@@ -1007,7 +989,7 @@ doio(mother, io, rset, wset, flags)
 				}
 				io->out.read += r;
 
-				iolog(&io->rule, &io->state, OPERATION_IO, &srcsh, &io->src, buf,
+				iolog(&io->rule, &state, OPERATION_IO, &srcsh, &io->src, buf,
 				(size_t)r);
 
 				if (!permit)
@@ -1022,23 +1004,15 @@ doio(mother, io, rset, wset, flags)
 
 				/*
 				 * XXX socket must be connected but that should always be the
-				 * case * for now since binding udp addresses is not supported.
-				*/
+				 * case for now since binding udp addresses is not supported.
+				 */
 				if ((w = sendto(io->in.s, newmsg, (size_t)r, lflags, NULL, 0))
-				!= r) {
-					char badsend[MAXSOCKADDRSTRING];
-
-					/* LINTED pointer casts may be troublesome */
-					swarn("%s: sendto(%s): %d of %d",
-					function,
-					sockaddr2string((struct sockaddr *)&io->in.raddr, badsend,
-					sizeof(badsend)), w, r);
-					free(newmsg);
-					break;
-				}
+				!= r)
+					iolog(&io->rule, &state, OPERATION_ERROR, &srcsh, &io->src,
+					NULL, 0);
 				free(newmsg);
 
-				io->in.written += w;
+				io->in.written += MAX(0, w);
 			}
 			break;
 		}
@@ -1051,7 +1025,7 @@ doio(mother, io, rset, wset, flags)
 	 * Only thing we expect from client's control connection is a eof.
 	 * For commands that do not have a controlconnection, we
 	 * set descriptor to -1 when receiving others.
-	*/
+	 */
 
 	if (io->control.s != -1 && FD_ISSET(io->control.s, rset)) {
 		if ((r = read(io->control.s, buf, sizeof(buf))) <= 0)
@@ -1240,7 +1214,6 @@ io_gettimeout(timeout)
 	timeout->tv_usec	= 0;
 
 	time(&timenow);
-
 	for (i = 0; i < ioc; ++i)
 		if (!iov[i].allocated)
 			continue;
@@ -1261,7 +1234,6 @@ io_gettimedout(void)
 		return NULL;
 
 	time(&timenow);
-
 	for (i = 0; i < ioc; ++i)
 		if (!iov[i].allocated)
 			continue;
@@ -1270,6 +1242,25 @@ io_gettimedout(void)
 				return &iov[i];
 
 	return NULL;
+}
+
+static void
+checkmother(mother, readset)
+	struct sockd_mother_t *mother;
+	fd_set *readset;
+{
+
+	if (mother->s != -1 && FD_ISSET(mother->s, readset)) {
+		FD_CLR(mother->s, readset);
+
+		if (recv_io(mother->s, NULL) != 0) {
+			close(mother->s);
+			close(mother->ack);
+			mother->s = mother->ack = -1;
+		}
+		else
+			proctitleupdate();
+	}
 }
 
 /* ARGSUSED */

@@ -42,13 +42,13 @@
  */
 
 /*
- * This code is terrible, but that's so it will match the protocol.
-*/
+ * This code is terrible so hopefully it will match the protocol.
+ */
 
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.20 1999/06/29 15:33:40 michaels Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.22 1999/09/02 10:41:41 michaels Exp $";
 
 static char executable[] = "TELNET.EXE";
 static struct sigaction oldsigio;
@@ -71,19 +71,19 @@ static void
 msproxy_sessionsend __P((void));
 /*
  * Terminates all msproxy sessions.
-*/
+ */
 
 static void
 msproxy_sessionend __P((int s, struct msproxy_state_t *msproxy));
 /*
  * ends the session negotiated with "s" and having state "msproxy".
-*/
+ */
 
 static void
 msproxy_keepalive __P((int signal));
 /*
  * Sends a keepalive packet on behalf of all established sessions.
-*/
+ */
 
 static void
 sigio __P((int sig));
@@ -102,20 +102,25 @@ msproxy_init(void)
 		return -1;
 	}
 
-	sigemptyset(&sigact.sa_mask);
-	sigact.sa_flags	= SA_RESTART;
-	sigact.sa_handler	= msproxy_keepalive;
-
-	if (sigaction(SIGALRM, &sigact, &oldsigact) != 0) {
+	if (sigaction(SIGALRM, NULL, &oldsigact) != 0) {
 		swarn("%s: sigaction(SIGALRM)", function);
 		return -1;
 	}
 
 	/* XXX */
 	if (oldsigact.sa_handler != SIG_DFL
-	||  oldsigact.sa_handler != SIG_IGN) {
-		swarnx("could not install signalhandler for SIGALRM, already set");
+	&&  oldsigact.sa_handler != SIG_IGN) {
+		swarnx("%s: could not install signalhandler for SIGALRM, already set",
+		function);
 		return 0;	/* will probably timeout, don't consider it fatal for now. */
+	}
+
+	sigemptyset(&sigact.sa_mask);
+	sigact.sa_flags	= SA_RESTART;
+	sigact.sa_handler	= msproxy_keepalive;
+	if (sigaction(SIGALRM, &sigact, NULL) != 0) {
+		swarn("%s: sigaction(SIGALRM)", function);
+		return -1;
 	}
 
 	timerval.it_value.tv_sec	= MSPROXY_PINGINTERVAL;
@@ -423,7 +428,7 @@ msproxy_connect(s, control, packet)
 	/*
 	 * need to tell server what port we will connect from, so if socket
 	 * is not bound, bind it.
-	*/
+	 */
 
 	len = sizeof(addr);
 	/* LINTED pointer casts may be troublesome */
@@ -434,7 +439,7 @@ msproxy_connect(s, control, packet)
 		/*
 		 * Don't have any specific preference for what address to bind and
 		 * proxyserver only expects to be told port.
-		*/
+		 */
 
 		addr.sin_addr.s_addr = htonl(INADDR_ANY);
 		/* LINTED pointer casts may be troublesome */
@@ -607,7 +612,7 @@ msproxy_bind(s, control, packet)
 	/*
 	 * When the server accepts the client, it will send us a new
 	 * controlpacket.  That will be caught in sigio().
-	*/
+	 */
 
 	slog(LOG_DEBUG, "%s: waiting for forwarded connection...", function);
 
@@ -635,7 +640,7 @@ msproxy_sigio(s)
 	 * before it will connect to us.  We set up the controlsocket
 	 * for signaldriven i/o so we can ack it asynchronously.
 	 *
-	*/
+	 */
 
 	SASSERTX(socks_addrisok((unsigned int)s));
 	socksfd = socks_getaddr((unsigned int)s);
@@ -683,7 +688,7 @@ sigio(sig)
 
 	/*
 	 * Find the socket we were signalled for.
-	*/
+	 */
 
 	dbits = -1;
 	FD_ZERO(&rset);
@@ -775,7 +780,7 @@ sigio(sig)
 						/*
 						 * if we asked server to bind INADDR_ANY, we don't know
 						 * what address it bound until now.
-						*/
+						 */
 						host.atype					= SOCKS_ADDR_IPV4;
 						host.port					= res.packet._5.boundport;
 						host.addr.ipv4.s_addr	= res.packet._5.boundaddr;
@@ -871,7 +876,7 @@ recv_mspresponse(s, state, response)
 				/*
 				 * sequence number less that last, sometimes this happens too,
 				 * don't know why.
-				*/
+				 */
 				slog(LOG_DEBUG, "%s: sequence (%d) < seq_recv (%d)",
 				function, response->sequence, state->seq_recv);
 				break;

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.65 1999/06/29 15:33:35 michaels Exp $";
+"$Id: Raccept.c,v 1.67 1999/09/02 10:41:11 michaels Exp $";
 
 int
 Raccept(s, addr, addrlen)
@@ -82,7 +82,7 @@ Raccept(s, addr, addrlen)
 	 * the same descriptor, try to support that functionality by locking
 	 * the socksfd object ourself in this function, so another process
 	 * calling Raccept() on this object will fail.
-	*/
+	 */
 
 	if (iotype & NONBLOCKING)
 		p = socks_lock(socksfd->state.lock, F_WRLCK, 0);
@@ -135,8 +135,7 @@ Raccept(s, addr, addrlen)
 
 	if (p == -1) {
 #if SOCKS_TRYHARDER
-		if (socks_unlock(socksfd->state.lock, -1) != 0)
-			return -1;
+		socks_unlock(socksfd->state.lock);
 #endif /* SOCKS_TRYHARDER */
 		return -1;
 	}
@@ -149,7 +148,7 @@ Raccept(s, addr, addrlen)
 		len = sizeof(accepted);
 		if ((remote = accept(s, &accepted, &len)) == -1) {
 #if SOCKS_TRYHARDER
-			socks_unlock(socksfd->state.lock, -1);
+			socks_unlock(socksfd->state.lock);
 #endif /* SOCKS_TRYHARDER */
 			return -1;
 		}
@@ -160,7 +159,7 @@ Raccept(s, addr, addrlen)
 		if (socksfd->state.acceptpending) {
 			/*
 			 * connection forwarded by server or a ordinary connect?
-			*/
+			 */
 
 			/* LINTED pointer casts may be troublesome */
 			if (((struct sockaddr_in *)&accepted)->sin_addr.s_addr
@@ -183,7 +182,7 @@ Raccept(s, addr, addrlen)
 						if (socks_recvresponse(socksfd->control, &packet.res,
 						packet.req.version) != 0) {
 #if SOCKS_TRYHARDER
-							socks_unlock(socksfd->state.lock, 0);
+							socks_unlock(socksfd->state.lock);
 #endif
 							return -1;
 						}
@@ -192,7 +191,7 @@ Raccept(s, addr, addrlen)
 							swarnx("%s: unexpected atype in bindquery response: %d",
 							function, packet.res.host.atype);
 #if SOCKS_TRYHARDER
-							socks_unlock(socksfd->state.lock, 0);
+							socks_unlock(socksfd->state.lock);
 #endif
 							return -1;
 						}
@@ -255,7 +254,7 @@ Raccept(s, addr, addrlen)
 				if (socks_recvresponse(socksfd->control, &packet.res,
 				packet.version) != 0) {
 #if SOCKS_TRYHARDER
-					socks_unlock(socksfd->state.lock, 0);
+					socks_unlock(socksfd->state.lock);
 #endif
 					return -1;
 				}
@@ -275,8 +274,7 @@ Raccept(s, addr, addrlen)
 	}
 
 #if SOCKS_TRYHARDER
-	if (socks_unlock(socksfd->state.lock, 0) != 0)
-		return -1;
+	socks_unlock(socksfd->state.lock);
 #endif
 
 	if (addr != NULL) {

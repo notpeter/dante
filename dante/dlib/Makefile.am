@@ -6,7 +6,7 @@ libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c int_osf3.c   \
 	clientconfig.c clientprotocol.c Raccept.c userio.c method_uname.c \
 	connectchild.c config.c log.c protocol.c socket.c udp_util.c      \
 	Rbindresvport.c Rconnect.c util.c Rgethostbyname.c Rcompat.c      \
-	msproxy_clientprotocol.c
+	msproxy_clientprotocol.c hostcache.c
 
 #libdsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info

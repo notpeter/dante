@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.105 1999/07/10 13:52:30 karls Exp $";
+"$Id: udp.c,v 1.107 1999/09/02 10:41:45 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -71,13 +71,12 @@ Rsendto(s, msg, len, flags, to, tolen)
 	socksfd = socks_getaddr((unsigned int)s);
 	SASSERTX(socksfd != NULL);
 
-	if (to == NULL) {
+	if (to == NULL)
 		if (socksfd->state.udpconnect)
 			to = &socksfd->connected;
 		else
-			/* have to assume tcp socket. */
+			/* best we can do. */
 			return sendto(s, msg, len, flags, NULL, 0);
-	}
 
 	/* prefix a udp header to the msg */
 	nlen = len;
@@ -87,10 +86,9 @@ Rsendto(s, msg, len, flags, to, tolen)
 		return -1;
 	}
 
-	if (socksfd->state.udpconnect)
-		n = sendto(s, nmsg, nlen, flags, NULL, 0);
-	else
-		n = sendto(s, nmsg, nlen, flags, &socksfd->reply, sizeof(socksfd->reply));
+	n = sendto(s, nmsg, nlen, flags, 
+	socksfd->state.udpconnect ? NULL : &socksfd->reply, 
+	socksfd->state.udpconnect ? 0 : sizeof(socksfd->reply));
 	n -= nlen - len;
 
 	free(nmsg);
@@ -169,15 +167,15 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 				char b[MAXSOCKSHOSTSTRING];
 
 				/*
-				 * We have a problem here...  If we failed to resolve
+				 * We have a problem here ...  If we failed to resolve
 				 * address we gave to the socksserver and instead gave a
 				 * hostname to it, sockshostareeq() will fail unless the server
 				 * sends the address it is forwarding from as the sockshost too.
 				 *
 				 * It is better to place safe than sorry though, so
 				 * we have to drop the packet in that case, even if it
-				 * is from the correct source.
-				*/
+				 * is from the correct source since we can not verify it.
+				 */
 
 				free(newbuf);
 
@@ -190,7 +188,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 				/*
 				 * Not sure what to do now, return error or retry?
 				 * Going with returning error for now.
-				*/
+				 */
 
 #if 0
 				if ((p = fcntl(s, F_GETFL, 0)) == -1)
@@ -254,14 +252,14 @@ udpsetup(s, to, type)
 	/*
 	 * if this socket has not previously been used we need to
 	 * make a new connection to the socksserver for it.
-	*/
+	 */
 
 	errno = 0;
 	switch (type) {
 		case SOCKS_RECV:
 			/*
 			 * problematic, trying to receive on socket not sent on.
-			*/
+			 */
 
 			bzero(&newto, sizeof(newto));
 			newto.sin_family			= AF_INET;
@@ -286,7 +284,7 @@ udpsetup(s, to, type)
 	 * we need to send the socksserver our address.
 	 * First check if the socket already has a name, if so
 	 * use that, otherwise assign the name ourselves.
-	*/
+	 */
 
 	bzero(&socksfd, sizeof(socksfd));
 
@@ -322,7 +320,7 @@ udpsetup(s, to, type)
 		/*
 		 * local name not fixed, set it, port may be bound, we need to bind
 		 * ip too however.
-		*/
+		 */
 
 		/* LINTED  pointer casts may be troublesome */
 		const in_port_t port = ((struct sockaddr_in *)(&socksfd.local))->sin_port;
@@ -331,7 +329,7 @@ udpsetup(s, to, type)
 			/*
 			 * port is bound.  We will try to unbind and then rebind same port
 			 * but now also bind ip address.  XXX Dangerous stuff.
-			*/
+			 */
 
 			if ((p = socketoptdup(s)) == -1) {
 				close(socksfd.control);
@@ -349,7 +347,7 @@ udpsetup(s, to, type)
 		/*
 		 * don't have much of an idea on what ip address to use so might as
 		 * well use same as tcp connection to socksserver uses.
-		*/
+		 */
 		len = sizeof(socksfd.local);
 		if (getsockname(socksfd.control, &socksfd.local, &len) != 0) {
 			close(socksfd.control);
@@ -390,7 +388,7 @@ udpsetup(s, to, type)
 	/*
 	 * if the remote server supports interface requests, try to get
 	 * the address it's using on our behalf.
-	*/
+	 */
 	if (packet.res.flag & SOCKS_INTERFACEREQUEST) {
 		struct interfacerequest_t ifreq;
 

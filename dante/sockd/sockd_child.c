@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.112 1999/07/10 13:52:35 karls Exp $";
+"$Id: sockd_child.c,v 1.115 1999/09/02 10:42:01 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -57,7 +57,7 @@ setchildtype __P((int type, struct sockd_child_t ***childv, int **childc,
 /*
  * Sets "childv", "childc" and "function" to the correct value depending
  * on "type".
-*/
+ */
 
 
 static int
@@ -68,7 +68,7 @@ findchild __P((pid_t pid, int childc, const struct sockd_child_t *childv));
  * Returns:
  *		On success: the index of the child in "childv".
  *		On failure: -1.
-*/
+ */
 
 __END_DECLS
 
@@ -91,7 +91,7 @@ addchild(type)
 	/*
     * It is better to reserve some descriptors for temporary use
     * than to get errors when passing them and thus lose clients.
-   */
+    */
 	const int reserved = FDPASS_MAX	/* max descriptors we pass.			*/
 							 + 1				/* need a descriptor for accept().	*/
 							 + 2;				/* for each new child.					*/
@@ -104,49 +104,33 @@ addchild(type)
 	int optval, flags;
 
 	/*
-	 * XXX This is a very expensive test which shouldn't be hard to optimize
+	 * XXX This is a expensive test which shouldn't be hard to optimize
 	 * away.  It only happens when we are running low on slots though,
 	 * so assume it's "good enough" until I get the time to fix it.
-	*/
+	 */
 	if (freedescriptors(NULL) < reserved) {
 		errno = EMFILE;
 		swarn(function);
 		return NULL;
 	}
 
+	/* create datapipe. */
 	if (socketpair(AF_LOCAL, SOCK_STREAM, 0, pipev) != 0) {
 		swarn("%s: socketpair(AF_LOCAL, SOCK_STREAM)", function);
 		return NULL;
 	}
 
-	type = setchildtype(type, &childv, &childc, &childfunction);
-
-	/* not all children need a ack pipe, save descriptors if possible. */
-	switch (type) {
-		case CHILD_NEGOTIATE:
-		case CHILD_REQUEST:
-			if (pipe(ackpipev) != 0) {
-				swarn("%s: pipe()", function);
-				closev(pipev, ELEMENTS(pipev));
-				return NULL;
-			}
-			break;
-
-		/* doesn't need separate ack pipe, uses data pipe. */
-		case CHILD_IO:
-			ackpipev[CHILD]	= pipev[CHILD];
-			ackpipev[MOTHER]	= pipev[MOTHER];
-			break;
-
-		default:
-			SERRX(type);
+	/* and ackpipe. */
+	if (pipe(ackpipev) != 0) {
+		swarn("%s: pipe()", function);
+		closev(pipev, ELEMENTS(pipev));
+		return NULL;
 	}
-
 
 	/*
 	 * Try to set socketbuffer and watermarks to a optimal size.
-	*/
-	switch (type) {
+	 */
+	switch (type = setchildtype(type, &childv, &childc, &childfunction)) {
 		case CHILD_NEGOTIATE:
 			/*
 			 * A negotiator child receives only descriptors, so mothers
@@ -154,7 +138,7 @@ addchild(type)
 			 * The child sends a sockd_request_t struct back to mother, so
 			 * mothers recv buffer has to be considerably bigger, as does
 			 * childs send buffer.
-			*/
+			 */
 
 			/* negotiator shouldn't block on sending to mother. */
 			if ((flags = fcntl(pipev[CHILD], F_GETFL, 0)) == -1
@@ -191,7 +175,7 @@ addchild(type)
 			/*
 			 * A request child receives a sockd_request_t structure,
 			 * it sends back a sockd_io_t structure.
-			*/
+			 */
 
 #if HAVE_SENDMSG_DEADLOCK
 			mother.lock = -1;	/* doesn't need lock. */
@@ -232,7 +216,7 @@ addchild(type)
 			/*
 			 * A io child receives a sockd_io_t structure,
 			 * it sends back only a ack.
-			*/
+			 */
 
 #if HAVE_SENDMSG_DEADLOCK
 			mother.lock = -1;	/* doesn't need lock. */
@@ -270,9 +254,7 @@ addchild(type)
 		case -1:
 			swarn("%s: fork()", function);
 			closev(pipev, ELEMENTS(pipev));
-
-			if (pipev[MOTHER] == ackpipev[MOTHER])
-				closev(ackpipev, ELEMENTS(ackpipev));
+			closev(ackpipev, ELEMENTS(ackpipev));
 
 #if HAVE_SENDMSG_DEADLOCK
 			if (mother.lock != -1)
@@ -290,6 +272,7 @@ addchild(type)
 
 			initlog();
 
+			slog(LOG_DEBUG, "created new %schild", childtype2string(type));
 #if 0
 			slog(LOG_DEBUG, "sleeping...");
 			sleep(20);
@@ -300,10 +283,10 @@ addchild(type)
 
 			/*
 			 * It would be nice to be able to lose all privileges here
-			 * but unfourtenatly we can't.
+			 * but unfourtenatly we can't, yet.
 			 *
 			 * negotiation children:
-			 *		could need to be privileged to check password.
+			 *		could need privileges to check password.
 			 *
 			 * request children:
 			 *		could need privileges to bind port.
@@ -311,18 +294,16 @@ addchild(type)
 			 * io children:
 			 *		doesn't really need any, but a sighup() performs misc.
 			 *		seteuid() tests that would fail if we lose privileges.
-			*/
+			 */
 
 			switch (type) {
-				case CHILD_NEGOTIATE: {
+				case CHILD_NEGOTIATE:
 #if HAVE_LIBWRAP
 #if SOCKD_NEGOTIATEMAX > 1
 					resident = 1;
 #endif /* SOCKD_NEGOTIATEMAX > 1 */
 #endif  /* HAVE_LIBWRAP */
-
 					break;
-				}
 
 				case CHILD_REQUEST:
 #if HAVE_LIBWRAP
@@ -330,7 +311,6 @@ addchild(type)
 					resident = 1;
 #endif /* SOCKD_REQUESTMAX > 1 */
 #endif  /* HAVE_LIBWRAP */
-
 					break;
 
 				case CHILD_IO:
@@ -339,7 +319,6 @@ addchild(type)
 					resident = 1;
 #endif /* SOCKD_IOMAX > 1 */
 #endif  /* HAVE_LIBWRAP */
-
 					break;
 
 				default:
@@ -359,8 +338,6 @@ addchild(type)
 
 			if (sigaction(SIGUSR1, &sigact, NULL) != 0)
 				swarn("%s: sigaction(USR1)", function);
-
-			slog(LOG_DEBUG, "created new %schild", childtype2string(type));
 
 			/* delete everything we got from parent. */
 			for (i = 0, maxfd = getdtablesize(); i < maxfd; ++i) {
@@ -404,8 +381,7 @@ addchild(type)
 			(*childv)[*childc].ack	= ackpipev[MOTHER];
 
 			close(pipev[CHILD]);
-			if (pipev[CHILD] != ackpipev[CHILD])
-				close(ackpipev[CHILD]);
+			close(ackpipev[CHILD]);
 
 			switch ((*childv)[*childc].type) {
 				case CHILD_NEGOTIATE:
@@ -471,7 +447,7 @@ childcheck(type)
 	/*
 	 * get a estimate over how many (new) clients our children are able to
 	 * accept in total.
-   */
+    */
 	for (child = 0, proxyc = 0; child < *childc; ++child) {
 		SASSERTX((*childv)[child].freec <= max);
 		proxyc += type < 0 ? max : (*childv)[child].freec;
@@ -498,7 +474,7 @@ fillset(set)
 	 * There is no point in setting data descriptor of child N unless
 	 * child N+1 is able to accept the data from child N.  So find
 	 * out if we have slots of the various types available .
-	*/
+	 */
 
 	ioc	= childcheck(CHILD_IO);
 	reqc	= childcheck(CHILD_REQUEST);
@@ -647,12 +623,10 @@ removechild(pid)
 	setchildtype(childtype(pid), &childv, &childc, NULL);
 
 	child = findchild(pid, *childc, *childv);
-
 	SASSERTX(child >= 0);
 
 	close((*childv)[child].s);
-	if ((*childv)[child].s != (*childv)[child].ack)
-		close((*childv)[child].ack);
+	close((*childv)[child].ack);
 
 	/* shift all following one down */
 	while (child < *childc - 1)

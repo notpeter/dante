@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.207 1999/07/12 08:41:47 michaels Exp $ */
+/* $Id: common.h,v 1.213 1999/09/24 09:41:21 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -202,7 +202,7 @@ typedef int sig_atomic_t;
  * solaris 2.5.1 and it's stream stuff is broken and puts the processes
  * into never-never land forever on half the sendmsg() calls if they
  * involve ancillary data.  (it seems to deadlock the processes.)
-*/
+ */
 
 #ifndef HAVE_SENDMSG_DEADLOCK
 #define HAVE_SENDMSG_DEADLOCK 1
@@ -327,6 +327,10 @@ struct ipoption {
 extern struct config_t config;
 extern char *__progname;
 
+#if !HAVE_H_ERRNO
+extern int h_errno;
+#endif  /* !HAVE_H_ERRNO */
+
 	/*
 	 * defines
 	*/
@@ -336,7 +340,7 @@ extern char *__progname;
  * redefine system limits to match that of socks protocol.
  * No need for these to be bigger than protocol allows, but they
  * _must_ be atleast as big as protocol allows.
-*/
+ */
 
 #ifdef	MAXHOSTNAMELEN
 #undef	MAXHOSTNAMELEN
@@ -370,7 +374,7 @@ extern char *__progname;
  * We don't care whether it's called O_NONBLOCK, FNDELAY or whatever.
  * We just want to know whether the flags set give blocking or nonblocking
  * semantics.
-*/
+ */
 #ifndef FNDELAY
 #define NONBLOCKING	(O_NONBLOCK | O_NDELAY)
 #else
@@ -401,8 +405,8 @@ extern char *__progname;
 
 #define close(n)	closen(n)
 
-#define PORTISRESERVED(port)	(ntohs((port)) == 0 ? \
-	0 : ntohs((port)) < IPPORT_RESERVED ? 1 : 0)
+#define PORTISRESERVED(port)	\
+	(ntohs((port)) != 0 && ntohs((port)) < IPPORT_RESERVED)
 
 #define ADDRISBOUND(addr) \
 	((((struct sockaddr_in *)(&addr))->sin_addr.s_addr != htonl(INADDR_ANY)) \
@@ -418,12 +422,12 @@ extern char *__progname;
 /*
  * Note that it's the argument that will be truncated, not just the
  * returnvalue.
-*/
+ */
 
 
 /*
  * macros to manipulate ancillary data depending on if were on sysv or bsd.
-*/
+ */
 
 /* allocate memory for data.  "size" is the amount of memory to allocate. */
 #if HAVE_CMSGHDR
@@ -442,7 +446,7 @@ extern char *__progname;
 /*
  * add a object to data.  "object" is the object to add to data at
  * offset "offset".
-*/
+ */
 #if HAVE_CMSGHDR
 #define CMSG_ADDOBJECT(object, offset) \
 	do \
@@ -459,7 +463,7 @@ extern char *__progname;
 /*
  * get a object from data.  "object" is the object to get from data at
  * offset "offset".
-*/
+ */
 #if HAVE_CMSGHDR
 #define CMSG_GETOBJECT(object, offset) \
 	do \
@@ -538,7 +542,7 @@ do {									\
  * wrappers around err()/errx()/warn()/warnx() for more consistent error
  * messages.
  * "failure" is the value that was wrong and which caused the internal error.
-*/
+ */
 
 
 #define SERR(failure)				\
@@ -552,7 +556,6 @@ do {										\
 	SWARNX(failure);					\
 	abort();								\
 } while (lintnoloop_common_h)
-
 
 
 #define SWARN(failure)		\
@@ -601,14 +604,14 @@ do {														\
 /*
  * returns the length of the current address field in socks packet "packet".
  * "packet" can be one of pointer to response_t, request_t or udpheader_t.
-*/
+ */
 #define ADDRESSIZE(packet) ( \
 	  ((packet)->version == SOCKS_V4 ? \
 	  (ADDRESSIZE_V4(packet)) : (ADDRESSIZE_V5(packet))))
 
 /*
  *	version specifics
-*/
+ */
 #define ADDRESSIZE_V5(packet) (																\
   (packet)->host.atype == SOCKS_ADDR_IPV4 ?												\
   sizeof((packet)->host.addr.ipv4) :(packet)->host.atype == SOCKS_ADDR_IPV6 ?	\
@@ -628,7 +631,7 @@ do {														\
  * supported per program.
  *
  * INADDR_NONE and INADDR_ANY may not be part of the range.
-*/
+ */
 #define FAKEIP_START 0x00000001
 #define FAKEIP_END	0x000000ff
 
@@ -663,7 +666,7 @@ do {														\
 
 /*
  *  Response commands/codes
-*/
+ */
 #define SOCKS_CONNECT				1
 #define SOCKS_CONNECTs				"connect"
 #define SOCKS_BIND					2
@@ -678,11 +681,11 @@ do {														\
 #define SOCKS_BINDREPLY				(SOCKS_COMMANDEND + 1)
 #define SOCKS_BINDREPLYs			"bindreply"
 
-#define SOCKS_PURECONNECT			(SOCKS_BINDREPLY + 1)
-#define SOCKS_PURECONNECTs			"connect"
+#define SOCKS_UDPREPLY				(SOCKS_BINDREPLY + 1)
+#define SOCKS_UDPREPLYs				"udpreply"
 
 /* misc stuff */
-#define SOCKS_ACCEPT					(SOCKS_PURECONNECT + 1)
+#define SOCKS_ACCEPT					(SOCKS_UDPREPLY + 1)
 #define SOCKS_ACCEPTs				"accept"
 
 #define SOCKS_DISCONNECT			(SOCKS_ACCEPT + 1)
@@ -733,7 +736,7 @@ do {														\
 /*
  * Server seems to ignore loworder bits of a 0x47?? command, so take them
  * for our own use.
-*/
+ */
 #define MSPROXY_HELLO				0x0500	/* packet 1 from client.				*/
 #define MSPROXY_HELLO_ACK			0x1000	/* packet 1 from server.				*/
 
@@ -1216,8 +1219,9 @@ struct command_t {
 	unsigned connect:1;
 	unsigned udpassociate:1;
 
-	/* not real commands as per standard, but they can have their use. */
-	unsigned bindreply:1;		/* allow a reply to bind command.	*/
+	/* not real commands as per standard, but they have their use. */
+	unsigned bindreply:1;		/* reply to bind command.	*/
+	unsigned udpreply:1;			/* reply to udp packet.		*/
 	unsigned :0;
 };
 
@@ -1339,7 +1343,7 @@ typedef enum portcmp Portcmp;
 /*
  * for use in generic functions that take either reply or request
  * packets, include a field indicating what it is.
-*/
+ */
 #define SOCKS_REQUEST	0x1
 #define SOCKS_RESPONSE	0x2
 
@@ -1369,7 +1373,7 @@ __BEGIN_DECLS
 
 /*
  * versions of BSD's error functions that log via slog() instead.
-*/
+ */
 
 #ifdef STDC_HEADERS
 void serr(int eval, const char *fmt, ...);
@@ -1399,13 +1403,13 @@ void
 genericinit __P((void));
 /*
  * Generic init, called after clientinit()/serverinit().
-*/
+ */
 
 void
 initlog __P((void));
 /*
  * (Re)initialize logging.
-*/
+ */
 
 
 struct udpheader_t *
@@ -1413,7 +1417,7 @@ sockaddr2udpheader __P((const struct sockaddr *to, struct udpheader_t *header));
 /*
  * Writes a udpheader representation of "to" to "header".
  * Returns a pointer to "header".
-*/
+ */
 
 char *
 udpheader_add __P((const struct sockshost_t *host, const char *msg,
@@ -1425,7 +1429,7 @@ udpheader_add __P((const struct sockshost_t *host, const char *msg,
  *	Returns:
  *		On success: the new "msg".
  *		On failure: NULL.
-*/
+ */
 
 struct udpheader_t *
 string2udpheader __P((const char *data, size_t len,
@@ -1437,7 +1441,7 @@ string2udpheader __P((const char *data, size_t len,
  * Returns:
  *		On success: pointer to a udpheader_t in static memory.
  *		On failure: NULL ("data" is not a complete udppacket).
-*/
+ */
 
 
 const char *
@@ -1457,28 +1461,28 @@ socks_socketisbound __P((int s));
  *		If "s" is bound: 1
  *		If "s" is not bound: 0
  *		If "s" is not socket or error occurred determining if bound: -1
-*/
+ */
 
 int
 fdisopen __P((int fd));
 /*
  * returns 1 if the filedescriptor "fd" currently references a open object.
  * returns 0 otherwise.
-*/
+ */
 
 void
 closev __P((int *array, int count));
 /*
  * Goes through "array", which contains "count" elements.
  * Each element that does not have a negative value is closed.
-*/
+ */
 
 int
 socks_logmatch __P((unsigned int d, const struct logtype_t *log));
 /*
  * Returns true if "d" is a descriptor matching any descriptor in "log".
  * Returns false otherwise.
-*/
+ */
 
 char *
 sockaddr2string __P((const struct sockaddr *address, char *string, size_t len));
@@ -1488,7 +1492,7 @@ sockaddr2string __P((const struct sockaddr *address, char *string, size_t len));
  * converted to host form before written to "string".
  * "len" gives length of the NUL terminated string.
  * Returns: "string".
-*/
+ */
 
 
 struct sockaddr *
@@ -1498,7 +1502,7 @@ sockshost2sockaddr __P((const struct sockshost_t *shost,
  * Converts the sockhost_t "shost" to a sockaddr struct and stores it
  * in "addr".
  * Returns: "addr".
-*/
+ */
 
 struct sockaddr *
 fakesockshost2sockaddr __P((const struct sockshost_t *host,
@@ -1506,7 +1510,7 @@ fakesockshost2sockaddr __P((const struct sockshost_t *host,
 /*
  * Like sockshost2sockaddr(), but checks whether the address in
  * "host" is fake when converting.
-*/
+ */
 
 struct sockshost_t *
 sockaddr2sockshost __P((const struct sockaddr *addr, struct sockshost_t *host));
@@ -1514,7 +1518,7 @@ sockaddr2sockshost __P((const struct sockaddr *addr, struct sockshost_t *host));
  * Converts the sockaddr struct "shost" to a sockshost_t struct and stores it
  * in "host".
  * Returns: "host".
-*/
+ */
 
 struct sockshost_t *
 ruleaddress2sockshost __P((const struct ruleaddress_t *address,
@@ -1523,7 +1527,7 @@ ruleaddress2sockshost __P((const struct ruleaddress_t *address,
  * Converts the ruleaddress_t "address" to a sockshost_t struct and stores it
  * in "host".
  * Returns: "host".
-*/
+ */
 
 struct ruleaddress_t *
 sockshost2ruleaddress __P((const struct sockshost_t *host,
@@ -1532,7 +1536,7 @@ sockshost2ruleaddress __P((const struct sockshost_t *host,
  * Converts the sockshost_t "host" to a ruleaddress_t struct and stores it
  * in "addr".
  * Returns: "addr".
-*/
+ */
 
 struct ruleaddress_t *
 sockaddr2ruleaddress __P((const struct sockaddr *addr,
@@ -1541,14 +1545,14 @@ sockaddr2ruleaddress __P((const struct sockaddr *addr,
  * Converts the struct sockaddr "addr" to a ruleaddress_t struct and stores it
  * in "ruleaddr".
  * Returns: "addr".
-*/
+ */
 
 int
 sockatmark __P((int s));
 /*
  * If "s" is at oob mark, return 1, otherwise 0.
  * Returns -1 if a error occurred.
-*/
+ */
 
 ssize_t
 recvmsgn __P((int s, struct msghdr *msg, int flags, size_t len));
@@ -1556,37 +1560,37 @@ recvmsgn __P((int s, struct msghdr *msg, int flags, size_t len));
  * Like recvmsg(), but tries to read until "len" has been read.
  * BUGS:
  *   Assumes msg->msg_iov[n] are laid out next to each others.
-*/
+ */
 
 ssize_t
 readn __P((int, void *, size_t));
 /*
  * Like read() but retries.
-*/
+ */
 
 ssize_t
 writen __P((int, const void *, size_t));
 /*
  * like write() but retries.
-*/
+ */
 
 int
 closen __P((int));
 /*
  * Wrapper around close().  Retries on EINTR.
-*/
+ */
 
 int
 selectn __P((int, fd_set *, fd_set *, fd_set *, struct timeval *));
 /*
  * Wrapper around select().  Retries on EINTR.
-*/
+ */
 
 int
 acceptn __P((int, struct sockaddr *, socklen_t *));
 /*
  * Wrapper around accept().  Retries on EINTR.
-*/
+ */
 
 
 char *
@@ -1596,28 +1600,28 @@ sockshost2string __P((const struct sockshost_t *host, char *string,
  * Writes "host" out as a string.  The string is written to "string",
  * which is of length "len", including NUL termination.
  * Returns: "string".
-*/
+ */
 
 const char *
 strcheck __P((const char *string));
 /*
  * Checks "string".  If it is NULL, returns a string indicating memory
  * exhausted, if not, returns the same string it was passed.
-*/
+ */
 
 const char *
 command2string __P((int command));
 /*
  * Returns a printable representation of the socks command "command".
  * Can't fail.
-*/
+ */
 
 const char *
 protocol2string __P((int protocol));
 /*
  * Returns a printable representation of "protocol".
  * Can't fail.
-*/
+ */
 
 
 
@@ -1626,7 +1630,7 @@ method2string __P((int method));
 /*
  * Returns a printable representation of the authmethod "method".
  * Can't fail.
-*/
+ */
 
 int
 string2method __P((const char *methodname));
@@ -1634,7 +1638,7 @@ string2method __P((const char *methodname));
  * If "methodname" is the name of a supported method, the protocol
  * value of that method is returned.
  * Otherwise, -1 is returned.
-*/
+ */
 
 
 char *
@@ -1644,7 +1648,7 @@ sockshost2mem __P((const struct sockshost_t *host, char *mem, int version));
  * is big enough to hold the contents of "host".
  * "version" gives the socks version "host" is to be written out in.
  * Returns a pointer to one element past the last byte written to "mem".
-*/
+ */
 
 const char *
 mem2sockshost __P((struct sockshost_t *host, const char *mem, size_t len,
@@ -1656,7 +1660,7 @@ mem2sockshost __P((struct sockshost_t *host, const char *mem, size_t len,
  *		On success: pointer to one element past last byte used of mem
  *						and fills in "host" appropriately.
  *		On failure: NULL ("mem" is not a valid sockshost.)
-*/
+ */
 
 #ifdef STDC_HEADERS
 void slog(int priority, const char *message, ...);
@@ -1667,13 +1671,13 @@ void slog();
  * Logs message "message" at priority "priority" to previously configured
  * outputdevice.
  * Checks settings and ignores message if it's of to low a priority.
-*/
+ */
 
 void vslog __P((int priority, const char *message, va_list ap));
 /*
  * Same as slog() but assumes varargs/stdargs have already processed
  * the arguments.
-*/
+ */
 
 int
 readconfig __P((const char *filename));
@@ -1682,13 +1686,13 @@ readconfig __P((const char *filename));
  * Returns:
  *		On success: 0.
  *		On failure: -1.
-*/
+ */
 
 void
 yyerror __P((const char *s));
 /*
  * Report a error related to (configfile) parsing and exit.
-*/
+ */
 
 int
 addressmatch __P((const struct ruleaddress_t *rule,
@@ -1702,7 +1706,7 @@ addressmatch __P((const struct ruleaddress_t *rule,
  * "address"'s might have if appropriate, this can be useful to match
  * multihomed hosts where the client requests e.g a bind connection.
  * Returns true if "rule" matched "address".
-*/
+ */
 
 struct hostent *
 hostentdup __P((const struct hostent *hostent));
@@ -1711,14 +1715,14 @@ hostentdup __P((const struct hostent *hostent));
  * Returns:
  *		On success: a pointer to the duplicated hostent.
  *		On failure: NULL.
-*/
+ */
 
 void
 hostentfree __P((struct hostent *hostent));
 /*
  * Free's all resourced used by "hostent", including "hostent"
  * itself.  If "hostent" is NULL, nothing is done.
-*/
+ */
 
 
 
@@ -1731,7 +1735,7 @@ socks_connect __P((int s, const struct sockshost_t *host));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 struct route_t *
 socks_connectroute __P((int s, struct socks_t *packet,
@@ -1753,7 +1757,7 @@ socks_connectroute __P((int s, struct socks_t *packet,
  *		On success: the route that was used.
  *		On failure: NULL.  If errno is 0, the reason for failure was
  *						that no route was found.
-*/
+ */
 
 
 struct request_t *
@@ -1765,13 +1769,13 @@ socks_requestpolish __P((struct request_t *req, const struct sockshost_t *src,
  * Returns:
  *		On success: "req".
  *		On failure: NULL.
-*/
+ */
 
 void
 showstate __P((const struct serverstate_t *state));
 /*
  * Shows "state".
-*/
+ */
 
 
 struct route_t *
@@ -1779,13 +1783,13 @@ addroute __P((const struct route_t *route));
 /*
  * Appends a copy of "route" to our list of routes.
  * Returns a pointer to the added route.
-*/
+ */
 
 void
 showroute __P((const struct route_t *route));
 /*
  * prints the route "route".
-*/
+ */
 
 
 struct route_t *
@@ -1803,7 +1807,7 @@ socks_getroute __P((const struct request_t *req, const struct sockshost_t *src,
  * Returns:
  *		On success: pointer to route that should be used.
  *		On failure: NULL (no socks route found).
-*/
+ */
 
 const char *
 ruleaddress2string __P((const struct ruleaddress_t *rule, char *string,
@@ -1812,7 +1816,7 @@ ruleaddress2string __P((const struct ruleaddress_t *rule, char *string,
  * Writes "rule" out as a string.  The string is written to "string",
  * which is of length "len", including NUL termination.
  * Returns: "string".
-*/
+ */
 
 
 int
@@ -1820,27 +1824,27 @@ sockscode __P((int version, int code));
 /*
  * Maps the socks replycode "code", which is in non-version specific format,
  * to the equivalent replycode in version "version".
-*/
+ */
 
 int
 errno2reply __P((int errnum, int version));
 /*
  * Returns the socks version "version" reply code for a error of type "errno".
-*/
+ */
 
 enum operator_t
 string2operator __P((const char *operator));
 /*
  * Returns the enum for the string representation of a operator.
  * Can't fail.
-*/
+ */
 
 const char *
 operator2string __P((enum operator_t operator));
 /*
  * Returns the string representation of the operator.
  * Can't fail.
-*/
+ */
 
 char *
 str2vis __P((const char *string, size_t len));
@@ -1849,7 +1853,7 @@ str2vis __P((const char *string, size_t len));
  * Returns:
  *		On success: the visually encoded string, to be free()'ed by caller.
  *		On failure: NULL.  (out of memory).
-*/
+ */
 
 in_addr_t
 socks_addfakeip __P((const char *name));
@@ -1858,7 +1862,7 @@ socks_addfakeip __P((const char *name));
  * Returns:
  *		On success: "name"'s index.
  *		On failure:	INADDR_NONE
-*/
+ */
 
 const char *
 socks_getfakehost __P((in_addr_t addr));
@@ -1866,7 +1870,7 @@ socks_getfakehost __P((in_addr_t addr));
  * If "addr" is a "fake" (non-resolved) addr, it returns the name
  * corresponding to it.
  * Else, NULL is returned.
-*/
+ */
 
 int
 socks_getfakeip __P((const char *host, struct in_addr *addr));
@@ -1876,7 +1880,7 @@ socks_getfakeip __P((const char *host, struct in_addr *addr));
  * Returns:
  *		If a fake address exits: 1
  *		Else: 0
-*/
+ */
 
 struct sockshost_t *
 fakesockaddr2sockshost __P((const struct sockaddr *addr,
@@ -1884,7 +1888,7 @@ fakesockaddr2sockshost __P((const struct sockaddr *addr,
 /*
  * Identical to sockaddr2sockshost, but checks whether
  * the address in "addr" is a "fake" one when converting.
-*/
+ */
 
 int
 sockaddrareeq __P((const struct sockaddr *a, const struct sockaddr *b));
@@ -1893,7 +1897,7 @@ sockaddrareeq __P((const struct sockaddr *a, const struct sockaddr *b));
  * Returns:
  *		If "a" and "b" are equal: true
  *		else: false
-*/
+ */
 
 int
 sockshostareeq __P((const struct sockshost_t *a, const struct sockshost_t *b));
@@ -1902,7 +1906,7 @@ sockshostareeq __P((const struct sockshost_t *a, const struct sockshost_t *b));
  * Returns:
  *		If "a" and "b" are equal: true
  *		else: false
-*/
+ */
 
 int
 fdsetop __P((int nfds, int op, const fd_set *a, const fd_set *b,
@@ -1918,14 +1922,14 @@ fdsetop __P((int nfds, int op, const fd_set *a, const fd_set *b,
  * Returns the number of the highest descriptor set in "result".
  * NOTES:
  *		Operators supported is: AND ('&') and XOR ('^') 
-*/
+ */
 
 int
 methodisset __P((int method, const int *methodv, size_t methodc));
 /*
  * Returns true if the method "method" is set in "methodv", false otherwise.
  * "methodc" is the length of "methodv".
-*/
+ */
 
 int
 socketoptdup __P((int s));
@@ -1935,7 +1939,7 @@ socketoptdup __P((int s));
  * Returns:
  *		On success: the descriptor for the new socket
  *		On failure: -1
-*/
+ */
 
 int
 socks_mklock __P((const char *template));
@@ -1945,7 +1949,7 @@ socks_mklock __P((const char *template));
  * Returns:
  *		On success: filedescriptor
  *		On failure: -1
-*/
+ */
 
 int
 socks_lock __P((int fd, int type, int timeout));
@@ -1958,17 +1962,13 @@ socks_lock __P((int fd, int type, int timeout));
  * Returns:
  *		On success: 0
  *		On error  : -1
-*/
+ */
 
-int
-socks_unlock __P((int fd, int timeout));
+void
+socks_unlock __P((int d));
 /*
- * Unlocks the filedescriptor "fd".
- * "timeout" is how long to wait for successful unlock.
- * Returns:
- *		On success: 0
- *		On error  : -1
-*/
+ * Unlocks the filedescriptor "d", previously locked by this process.
+ */
 
 
 #if defined(DEBUG) || HAVE_SOLARIS_BUGS
@@ -1977,7 +1977,7 @@ int
 freedescriptors __P((const char *message));
 /*
  * Returns the number on unallocated descriptors.
-*/
+ */
 
 #endif /* DEBUG) || HAVE_SOLARIS_BUGS */
 

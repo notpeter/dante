@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.90 1999/07/12 08:42:23 michaels Exp $";
+"$Id: util.c,v 1.94 1999/08/23 12:41:43 michaels Exp $";
 
 /* fake "ip address", for clients without dns access. */
 static char **ipv;
@@ -122,6 +122,9 @@ command2string(command)
 
 		case SOCKS_BINDREPLY:
 			return SOCKS_BINDREPLYs;
+
+		case SOCKS_UDPREPLY:
+			return SOCKS_UDPREPLYs;
 
 		case SOCKS_DISCONNECT:
 			return SOCKS_DISCONNECTs;
@@ -523,8 +526,12 @@ sockshost2ruleaddress(host, addr)
 	addr->port.tcp		= host->port;
 	addr->port.udp		= host->port;
 	addr->portend		= host->port;
-	addr->operator		= none;
 
+	if (host->port == htons(0))
+		addr->operator	= none;
+	else
+		addr->operator = eq;
+	
 	return addr;
 }
 
@@ -1210,7 +1217,13 @@ socketoptdup(s)
 
 	if ((flags = fcntl(s, F_GETFL, 0)) == -1
 	||  fcntl(new_s, F_SETFL, flags) == -1)
-		swarn("%s: fcntl()", function);
+		swarn("%s: fcntl(F_GETFL/F_SETFL)", function);
+
+#if SOCKS_SERVER && HAVE_LIBWRAP
+	if ((s = fcntl(new_s, F_GETFD, 0)) == -1
+	|| fcntl(new_s, F_SETFD, s | FD_CLOEXEC) == -1)
+		swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
+#endif
 
 	return new_s;
 }
@@ -1238,6 +1251,9 @@ socks_mklock(template)
 	char *prefix, *newtemplate;
 	int s;
 	size_t len;
+#if SOCKS_SERVER && HAVE_LIBWRAP
+	int flag;
+#endif
 
 	if ((prefix = getenv("TMPDIR")) != NULL)
 		if (*prefix == NUL)
@@ -1265,6 +1281,12 @@ socks_mklock(template)
 	}
 
 	free(newtemplate);
+
+#if SOCKS_SERVER && HAVE_LIBWRAP
+	if ((flag = fcntl(s, F_GETFD, 0)) == -1
+	|| fcntl(s, F_SETFD, flag | FD_CLOEXEC) == -1)
+		swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
+#endif
 
 	return s;
 }
@@ -1338,16 +1360,18 @@ socks_lock(descriptor, type, timeout)
 		alarm(0);
 #endif
 
+	if (rc != 0 && timeout == -1)
+		abort();
+
 	return rc == -1 ? rc : 0;
 }
 
-int
-socks_unlock(descriptor, timeout)
-	int descriptor;
-	int timeout;
+void
+socks_unlock(d)
+	int d;
 {
 
-	return socks_lock(descriptor, F_UNLCK, timeout);
+	socks_lock(d, F_UNLCK, -1);
 }
 
 

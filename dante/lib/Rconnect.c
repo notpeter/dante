@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.102 1999/07/10 13:52:27 karls Exp $";
+"$Id: Rconnect.c,v 1.105 1999/09/02 10:41:17 michaels Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -78,7 +78,7 @@ Rconnect(s, name, namelen)
 				 * listening on our behalf and we continue as if this was an
 				 * ordinary connect().  Can only hope the server will use
 				 * same port as we for connecting out.
-				*/
+ 				 */
 				socks_rmaddr((unsigned int)s);
 				break;
 
@@ -89,26 +89,23 @@ Rconnect(s, name, namelen)
 					else
 						errno = EALREADY;
 				else
-					errno = EISCONN;	/* can't connect tcpsocket twice */
-
+					errno = EISCONN;	/* socket connected. */
 				return -1;
 
 			case SOCKS_UDPASSOCIATE:
 				/*
-				 * Trying to connect a udp socket again?  delete old
-				 * socksfd and continue as usual.
-				*/
-				socks_rmaddr((unsigned int)s);
+				 * Trying to connect a udp socket (to a new address)?
+				 * Just continue as usual, udpsetup() will reuse existing
+				 * setup and we just assign the new ("connected") address.
+				 */
 				break;
 
 			default:
 				SERRX(socksfdp->state.command);
 		}
 	}
-	else {
-		bzero(&socksfd, sizeof(socksfd));
+	else
 		socks_rmaddr((unsigned int)s);
-	}
 
 	len = sizeof(type);
 	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0)
@@ -143,6 +140,7 @@ Rconnect(s, name, namelen)
 	}
 
 
+	bzero(&socksfd, sizeof(socksfd));
 	len = sizeof(socksfd.local);
 	if (getsockname(s, &socksfd.local, &len) != 0)
 		return -1;
@@ -208,7 +206,7 @@ Rconnect(s, name, namelen)
 				 * This means the server no longer has bound the address
 				 * it (may) think it has ofcourse, so not sure how smart this
 				 * really is.
-				*/
+				 */
 				int tmp_s;
 
 				swarn("%s: server socksified?  trying to work around problem...",
@@ -223,7 +221,7 @@ Rconnect(s, name, namelen)
 				/*
 				 * if s was bound to a privileged port, try to bind the new
 				 * s too to a privileged port.
-				*/
+				 */
 				/* LINTED pointer casts may be troublesome */
 				if (PORTISRESERVED(((struct sockaddr_in *)
 				&socksfd.local)->sin_port)) {
@@ -262,7 +260,7 @@ Rconnect(s, name, namelen)
 		 * unfortunate; the client is trying to connect from a specific
 		 * port, a port it has successfully bound, but the port is currently
 		 * in use on the serverside or the server doesn't care.
-		*/
+		 */
 
 		/* LINTED pointer casts may be troublesome */
 		slog(LOG_DEBUG, "failed to get wanted port: %d",

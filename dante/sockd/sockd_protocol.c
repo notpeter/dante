@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.74 1999/07/10 13:52:36 karls Exp $";
+"$Id: sockd_protocol.c,v 1.77 1999/09/02 10:42:09 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -129,8 +129,7 @@ recv_request(s, request, state)
 				break;
 
 			default:
-				slog(LOG_NOTICE,
-				"unknown version %d in request", request->version);
+				slog(LOG_DEBUG, "unknown version %d in request", request->version);
 				return -1;
 		}
 
@@ -165,7 +164,7 @@ recv_v4req (s, request, state)
 	 * 1  + 1  +  2     +  4   +  ?     +  1
 	 *
 	 * so minimum length is 9.
-   */
+    */
 
 	/* CD */
 	state->rcurrent = recv_cmd;
@@ -191,6 +190,24 @@ recv_v5req (s, request, state)
 	 *	| 1  |    1     | 1 to 255 |
 	 *	+----+----------+----------+
 	 */
+
+	/*
+	 * then the request:
+	 *
+	 *	+----+-----+-------+------+----------+----------+
+	 *	|VER | CMD |  RSV  | ATYP | DST.ADDR | DST.PORT |
+	 *	+----+-----+-------+------+----------+----------+
+	 *	| 1  |  1  | X'00' |  1   | Variable |    2     |
+	 *	+----+-----+-------+------+----------+----------+
+	 *
+	 *	  1     1      1      1        ?          2
+	 *
+	 * Since the request can contain different address types
+	 * we do not know how long the request is before we have
+	 * read the address type (ATYP) field.
+	 *
+	 */
+
 
 	/* NMETHODS */
 	INIT(sizeof(char));
@@ -218,7 +235,8 @@ recv_methods(s, request, state)
 	INIT(methodc);
 	CHECK(&state->mem[start], NULL);
 
-	request->auth->method = (char)selectmethod(&state->mem[start], methodc);
+	request->auth->method
+	= (char)selectmethod(&state->mem[start], (size_t)methodc);
 
 	/* send reply:
 	 *
@@ -227,13 +245,13 @@ recv_methods(s, request, state)
 	 *	+----+--------+
 	 *	| 1  |   1    |
 	 *	+----+--------+
-   */
+    */
 
 	slog(LOG_DEBUG, "%s: sending authentication reply: VER: %d METHOD: %d",
 	function, request->version, request->auth->method);
 
 	reply[AUTH_VERSION]	= request->version;
-	reply[AUTH_METHOD]	= request->auth->method;
+	reply[AUTH_METHOD]	= (char)request->auth->method;
 
 	if (writen(s, reply, sizeof(reply)) != sizeof(reply))
 		return -1;
@@ -279,43 +297,18 @@ recv_ver(s, request, state)
 	struct negotiate_state_t *state;
 {
 
-	/*
-	 * method and version agreed on, now get the request:
-	 *
-	 *	+----+-----+-------+------+----------+----------+
-	 *	|VER | CMD |  RSV  | ATYP | DST.ADDR | DST.PORT |
-	 *	+----+-----+-------+------+----------+----------+
-	 *	| 1  |  1  | X'00' |  1   | Variable |    2     |
-	 *	+----+-----+-------+------+----------+----------+
-	 *
-	 *	  1     1      1      1        ?          2
-	 *
-	 * Since the request can contain different address types
-	 * we do not know how long the request is before we have
-	 * read the address type (ATYP) field.
-	 *
-	 */
-
 	/* VER */
 	{
-		char version;
-
-		INIT(sizeof(version));
-		CHECK(&version, NULL);
-
-		if (request->version != version) {
-			slog(LOG_NOTICE, "strange, version changed from %d to %d?",
-			request->version, version);
-			request->version = version;
-		}
+		INIT(sizeof(request->version));
+		CHECK(&request->version, NULL);
 
 		switch (request->version) {
+			case SOCKS_V4:
 			case SOCKS_V5:
 				break;
 
 			default:
-				slog(LOG_NOTICE,
-				"unknown version %d in request", request->version);
+				slog(LOG_DEBUG, "unknown version %d in request", request->version);
 				return -1;
 		}
 	}
@@ -520,7 +513,7 @@ recv_username(s, request, state)
 			 * be caught in CHECK(), but for this special case it could
 			 * be someone sending a really long username, which is strange
 			 * enough to log a warning about but not an internal error.
-			*/
+			 */
 
 			state->mem[state->reqread - 1] = NUL;
 
@@ -553,10 +546,7 @@ send_failure(s, response, failure)
 
 	newresponse = *response;
 	newresponse.reply = (char)sockscode(newresponse.version, failure);
-
 	send_response(s, &newresponse);
-
-	close(s);
 }
 
 
@@ -579,7 +569,7 @@ send_response(s, response)
 			 *  1  + 1  +  2    +  4
 			 *
 			 *  Always 8 octets long.
-			*/
+			 */
 
 			memcpy(p, &response->version, sizeof(response->version));
 			p += sizeof(response->version);
@@ -605,7 +595,7 @@ send_response(s, response)
 			 * The first octet of DST.ADDR when it is SOCKS_ADDR_DOMAINNAME
 			 * contains the length.
 			 *
-			*/
+			 */
 
 			/* VER */
 			memcpy(p, &response->version, sizeof(response->version));

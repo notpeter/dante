@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.143 1999/07/08 18:54:42 karls Exp $ */
+/* $Id: socks.h,v 1.147 1999/09/02 10:45:14 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -238,7 +238,7 @@ void
 clientinit __P((void));
 /*
  * initialises clientstate, reads configfile, etc.
-*/
+ */
 
 
 #if !HAVE_OSF_OLDSTYLE
@@ -270,7 +270,7 @@ int Rselect __P((int, fd_set *, fd_set *, fd_set *, struct timeval *));
 /*
  * unused functions needed to compile programs with support for other
  * socks implementations.
-*/
+ */
 
 
 int
@@ -284,7 +284,7 @@ udpsetup __P((int s, const struct sockaddr *to, int type));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 
 int
@@ -297,7 +297,7 @@ negotiate_method __P((int s, struct socks_t *packet));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 
 int
@@ -307,7 +307,7 @@ socks_sendrequest __P((int s, const struct request_t *request));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 int
 socks_recvresponse __P((int s, struct response_t *response, int version));
@@ -318,7 +318,7 @@ socks_recvresponse __P((int s, struct response_t *response, int version));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 
 int
@@ -333,7 +333,7 @@ socks_negotiate __P((int s, int control, struct socks_t *packet,
  * Returns:
  *		On success: 0.  (server accepted our request.)
  *		On failure: -1.
-*/
+ */
 
 
 
@@ -345,13 +345,13 @@ socks_nbconnectroute __P((int s, int control, struct socks_t *packet,
  * The non-blocking version of socks_connectroute(), only used by client.
  * Takes one additional argument, "s", which is the socket to connect
  * and not necessarily the same as "control" (msproxy case).
-*/
+ */
 
 void
 socks_badroute __P((struct route_t *route));
 /*
  * Marks route "route" as bad.
-*/
+ */
 
 int
 recv_sockshost __P((int s, struct sockshost_t *host, int version));
@@ -362,7 +362,7 @@ recv_sockshost __P((int s, struct sockshost_t *host, int version));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 
 	/*
@@ -383,7 +383,7 @@ socks_addaddr __P((unsigned int clientfd, struct socksfd_t *socksaddress));
  *		On success: pointer to the added socksfd_t structure.
  *		On failure: exits.  (memory exhausted and process grew descriptor size.)
  *
-*/
+ */
 
 struct socksfd_t *
 socks_getaddr __P((unsigned int fd));
@@ -391,7 +391,7 @@ socks_getaddr __P((unsigned int fd));
  * Returns:
  *		On success:  the socketaddress associated with filedescriptor "fd".
  *		On failure:	 NULL.  (no socketaddress associated with "fd").
-*/
+ */
 
 
 void
@@ -399,7 +399,7 @@ socks_rmaddr __P((unsigned int s));
 /*
  * removes the association for the socket "s", also closes the server
  * connection.  If "s" is not registered the request is ignored.
-*/
+ */
 
 struct socksfd_t *
 socksfddup __P((const struct socksfd_t *old, struct socksfd_t *new));
@@ -408,7 +408,7 @@ socksfddup __P((const struct socksfd_t *old, struct socksfd_t *new));
  * Returns:
  *		On success: "new".
  *		On failure: NULL (resource shortage).
-*/
+ */
 
 
 int
@@ -422,7 +422,7 @@ socks_addrcontrol __P((const struct sockaddr *local,
  *	Returns:
  *		On success: the descriptor the socksfd struct was registered with.
  *		On failure: -1
-*/
+ */
 
 int
 socks_addrmatch __P((const struct sockaddr *local,
@@ -436,7 +436,7 @@ socks_addrmatch __P((const struct sockaddr *local,
  *		On success: the descriptor the socksfd with matching arguments was
  *                registered with (>= 0).
  *		On failure: -1.
-*/
+ */
 
 
 int
@@ -444,7 +444,7 @@ socks_isaddr __P((unsigned int fd));
 /*
  * Returns true if there is a address registered for the socket "fd", false
  * otherwise.
-*/
+ */
 
 
 int
@@ -455,7 +455,7 @@ socks_addrisok __P((unsigned int s));
  * Returns:
  *		If current address found to match registered: true.
  *		Else: false.
-*/
+ */
 
 int
 socks_addfd __P((unsigned int fd));
@@ -465,19 +465,19 @@ socks_addfd __P((unsigned int fd));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 int
 socks_isfd __P((unsigned int fd));
 /*
  * returns 1 if "fd" is a filedescriptor in our internal table, 0 if not.
-*/
+ */
 
 void
 socks_rmfd __P((unsigned int fd));
 /*
  * removes the filedescriptor "fd" from our internal table.
-*/
+ */
 
 
 int
@@ -485,7 +485,7 @@ fdisopen __P((int fd));
 /*
  * returns 1 if the filedescriptor "fd" currently references a open object.
  * returns 0 otherwise.
-*/
+ */
 
 
 int
@@ -498,7 +498,7 @@ clientmethod_uname __P((int s, const struct sockshost_t *host, int version));
  * Returns:
  *		On success: 0
  *		On failure: whatever the remote socksserver returned as status.
-*/
+ */
 
 
 char *
@@ -512,7 +512,7 @@ socks_getusername __P((const struct sockshost_t *host, char *buf,
  * Returns:
  *		On success: pointer to "buf" with the username.
  *		On failure: NULL.
-*/
+ */
 
 char *
 socks_getpassword __P((const struct sockshost_t *host, const char *user,
@@ -525,7 +525,7 @@ socks_getpassword __P((const struct sockshost_t *host, const char *user,
  * Returns:
  *		On success: pointer to "buf" with the password.
  *		On failure: NULL.
-*/
+ */
 
 
 int
@@ -537,7 +537,7 @@ send_interfacerequest __P((int s, const struct interfacerequest_t *ifreq,
  *  Returns:
  *			On success: 0
  *			On failure: -1
-*/
+ */
 
 int
 serverreplyisok __P((int version, int reply, struct route_t *route));
@@ -548,7 +548,7 @@ serverreplyisok __P((int version, int reply, struct route_t *route));
  * the errorcode indicates a serverfailure, it might be "badrouted".
  * Returns true if the reply indicates request succeeded, false otherwise
  * and sets errno accordingly.
-*/
+ */
 
 int
 msproxy_negotiate __P((int s, int control, struct socks_t *packet));
@@ -560,7 +560,7 @@ msproxy_negotiate __P((int s, int control, struct socks_t *packet));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 
 int
@@ -570,7 +570,7 @@ send_msprequest __P((int s, struct msproxy_state_t *state,
  * Sends a msproxy request to "s".
  * "state" is the current state of the connection to "s",
  * "packet" is the request to send.
-*/
+ */
 
 int
 recv_mspresponse __P((int s, struct msproxy_state_t *state,
@@ -579,7 +579,7 @@ recv_mspresponse __P((int s, struct msproxy_state_t *state,
  * Receives a msproxy response from "s".
  * "state" is the current state of the connection to "s",
  * "packet" is the memory the response is read into.
-*/
+ */
 
 int
 msproxy_sigio __P((int s));
@@ -590,7 +590,7 @@ msproxy_sigio __P((int s));
  * Returns:
  *		On success: 0
  *		On failure: -1
-*/
+ */
 
 int
 msproxy_init __P((void));
@@ -598,8 +598,16 @@ msproxy_init __P((void));
  * inits things for using a msproxyserver.
  *		On success: 0
  *		On failure: -1
+ */
 
-*/
+#if DIAGNOSTIC
+void
+cc_socksfdv(int sig);
+/* 
+ * concistencycheck on socksfdv.
+ */
+#endif
+
 
 #ifdef SOCKSLIBRARY_DYNAMIC
 

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.98 1999/07/03 16:36:22 karls Exp $";
+"$Id: Rbind.c,v 1.101 1999/09/27 13:16:41 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -55,18 +55,18 @@ Rbind(s, name, namelen)
 	const char *function = "Rbind()";
 	struct socks_t packet;
 	struct socksfd_t socksfd;
-	int type;
+	int type, rc;
 	socklen_t len;
 
 	/*
 	 * Nothing can be called before Rbind(), delete any old cruft.
-	*/
+	 */
 	socks_rmaddr((unsigned int)s);
 
 	if (name->sa_family != AF_INET)
 		return bind(s, name, namelen);
 
-	if (bind(s, name, namelen) != 0) {
+	if ((rc = bind(s, name, namelen)) != 0) {
 		switch (errno) {
 			case EADDRNOTAVAIL: {
 				/* LINTED pointer casts may be troublesome */
@@ -91,13 +91,17 @@ Rbind(s, name, namelen)
 				 * Somehow the socket has been bound locally already.
 				 * Best guess is probably to keep that and attempt a
 				 * remote server binding aswell.
-				*/
+				 */
 				break;
 
 			default:
 				return -1;
 		}
 	}
+
+	/* hack for performance (testing). */
+	if (getenv("SOCKS_BINDLOCALONLY") != NULL)
+		return rc;
 
 	len = sizeof(type);
 	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0)
@@ -151,11 +155,34 @@ Rbind(s, name, namelen)
 
 	switch (packet.req.version) {
 		case SOCKS_V4:
-		case SOCKS_V5:
+		case SOCKS_V5: {
+			int portisreserved;
+
 			if ((socksfd.control = socketoptdup(s)) == -1)
 				return -1;
 
-			if (PORTISRESERVED(packet.req.host.port)) {
+			switch (packet.req.version) {
+				case SOCKS_V4:
+					/*
+					 * v4 can only specify wanted port by using bind extension.
+					 */
+
+					SASSERTX(packet.req.host.atype == SOCKS_ADDR_IPV4);
+					if (packet.req.host.addr.ipv4.s_addr == ntohl(0))
+						portisreserved = PORTISRESERVED(packet.req.host.port);
+					else
+						portisreserved = 0;
+					break;	
+
+				case SOCKS_V5:
+					portisreserved = PORTISRESERVED(packet.req.host.port);
+					break;
+
+				default:
+					SERRX(packet.req.version);
+			}
+
+			if (portisreserved) {
 				int p;
 				struct sockaddr_in controladdr;
 
@@ -164,10 +191,7 @@ Rbind(s, name, namelen)
 				 * server will differentiate between requests coming from
 				 * privileged ports and those not so try to connect to server
 				 * from a privileged port.
-				 * Actually, it just might be we are using socks v4 now
-				 * and port is set to destination port of last connection,
-				 * don't bother to differentiate for now.
-				*/
+				 */
 
 				bzero(&controladdr, sizeof(controladdr));
 				controladdr.sin_family			= AF_INET;
@@ -188,6 +212,7 @@ Rbind(s, name, namelen)
 			}
 
 			break;
+		}
 
 		case MSPROXY_V2:
 			if ((socksfd.control = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
@@ -255,7 +280,7 @@ Rbind(s, name, namelen)
 		/*
 		 * Since the socket is already bound locally, "unbind" it so caller
 		 * doesn't get confused.
-		*/
+		 */
 		int new_s;
 
 		close(socksfd.control);

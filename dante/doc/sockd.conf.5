@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.23 1999/07/10 13:52:22 karls Exp $
+.\" $Id: sockd.conf.5,v 1.25 1999/09/01 14:07:33 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -72,9 +72,11 @@ User used to execute libwrap commands.
 .IP \fBcompatibility\fP
 With the \fBsameport\fP keyword, the server attempts to use the same
 port on the server and the client.  This functionality is the default, but
-when this option is given it will also be done with ports below 1024.
+when this option is given it will also be done with privileged ports.
 The \fBreuseaddr\fP keyword might solve problems when the
-bind extension is used.
+bind extension is used but the effects of enabling \fBreuseaddr\fP
+is currently unknown, do not enable it unless you understand
+the effects.
 .IP \fBsrchost\fP
 With the \fBnomismatch\fP keyword, the server will not accept
 connects from addresses having a mismatch between DNS address and hostname.
@@ -135,9 +137,9 @@ may not contain any keywords related to the socks protocol.
 The contents of the client-rule is be:
 
 .IP \fBfrom\fP
-The rule applies only to requests coming from the address given as value.
+The rule applies to requests coming from the address given as value.
 .IP \fBto\fP
-The rule applies only to requests going to the address given as value.
+The rule applies to requests going to the address given as value.
 .IP \fBlibwrap\fP
 The server will pass the line to libwrap for execution.
 .IP \fBlog\fP
@@ -151,18 +153,22 @@ a given authentication method by giving the name of the
 authentication method as value to \fBuser\fP.
 The given username \fBmust\fP regardless always be present in the
 passwordfile used by \fBDante\fP.
+The rule (and global methods) must also allow a usernamebased
+method.  For client-rules this is method \fBrfc931\fP.
 
 .IP
 The contents of the socks-rules is:
 
 .IP \fBfrom\fP
-The rule applies only to requests coming from the address given as value.
+The rule applies to requests coming from the address given as value.
 .IP \fBto\fP
-The rule applies only to requests going to the address given as value.
+The rule applies to requests going to or using the address given as value.
+Note that the meaning of this address is affected by \fBcommand\fP.
 .IP \fBcommand\fP
-The rule applies only to the given commands.  Valid commands
-are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP.
-Can be used instead of, or to complement, \fBprotocol\fP.
+The rule applies to the given commands.  Valid commands
+are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP
+and \fBudpreply\fP.  Can be used instead of, or to complement,
+\fBprotocol\fP. 
 .IP \fBlibwrap\fP
 The server will pass the line to libwrap for execution.
 .IP \fBlog\fP
@@ -173,14 +179,14 @@ Require that the connection be established using one of the
 given methods.
 Valid values are the same as in the global \fBmethod\fP line.
 .IP \fBprotocol\fP
-The rule applies only to the given protocols.  Valid values are
-\fBtcp\fP and \fBudp\fP.
+The rule applies to the given protocols.  Valid values are
+\fBtcp\fP and \fBudp\fP.  It is recommended that the \fBcommand\fP
+form is used since it provides more accuracy in defining rules.
 .IP \fBproxyprotocol\fP
-The rule applies only to requests using the given proxyprotocol.
+The rule applies to requests using the given proxyprotocol.
 Valid proxyprotocols are \fBsocks_v4\fP and \fBsocks_v5\fP.
 .IP \fBuser\fP
-.IP \fBuser\fP
-The server will only accept connections from users matching one
+The server will accept connections from users matching one
 of the names given as value.
 It is possible to implicitly list all users in the passwordfile for
 a given authentication method by giving the name of the
@@ -189,6 +195,8 @@ If no \fBuser\fP value is given, one will automatically be provided
 that will match all users for the username-based methods in the rule.
 The given username \fBmust\fP regardless always be present in the
 passwordfile used by \fBDante\fP.
+The rule (and global methods) must also allow a usernamebased
+method.  For socks-rules this is method \fBrfc931\fP and \fBusername\fP.
 .SH EXAMPLES
 See the example directory in the distribution.
 .SH FILES

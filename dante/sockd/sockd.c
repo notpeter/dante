@@ -44,11 +44,11 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.239 1999/07/10 13:52:34 karls Exp $";
+"$Id: sockd.c,v 1.246 1999/09/10 10:55:27 michaels Exp $";
 
 	/*
 	 * signal handlers
-   */
+    */
 
 __BEGIN_DECLS
 
@@ -73,7 +73,7 @@ sigserverbroadcast __P((int sig));
 /*
  * Broadcasts "sig" to all other servers.
  *
-*/
+ */
 
 static void
 serverinit __P((int argc, char *argv[], char *envp[]));
@@ -81,26 +81,26 @@ serverinit __P((int argc, char *argv[], char *envp[]));
  * Initialises options/config.  "argc" and "argv" should be
  * the arguments passed to main().
  * Exits on failure.
-*/
+ */
 
 static void
 usage __P((int code));
 /*
  * print usage.
-*/
+ */
 
 static void
 showversion __P((void));
 /*
  * show versioninfo and exits.
-*/
+ */
 
 
 static void
 showlicense __P((void));
 /*
  * shows license and exits.
-*/
+ */
 
 #if DIAGNOSTIC && HAVE_MALLOC_OPTIONS
 	extern char *malloc_options;
@@ -113,7 +113,6 @@ char *__progname = "sockd";	/* default. */
 #endif  /* HAVE_PROGNAME */
 
 extern char *optarg;
-extern struct config_t config;
 
 __END_DECLS
 
@@ -133,7 +132,7 @@ main(argc, argv, envp)
 	int p, maxfd, dforchild;
 	FILE *fp;
 #if HAVE_SETPROCTITLE
-	char *envp[] = {NULL};	/* dummy. */
+	char *envp[] = { NULL }; /* dummy. */
 #endif /* HAVE_SETPROCTITLE */
 
 	const int exitsignalv[] = {
@@ -188,7 +187,7 @@ main(argc, argv, envp)
 	/*
 	 * Check system limits against what we need.
 	 * Enough descriptors for each childprocess?  +2 for mother connections.
-	*/
+	 */
 
 	/* CONSTCOND */
 	maxfd = MAX(SOCKD_NEGOTIATEMAX,
@@ -200,25 +199,24 @@ main(argc, argv, envp)
 		rlimit.rlim_cur = maxfd;
 		rlimit.rlim_max = maxfd;
 
-		if (setrlimit(RLIMIT_OFILE, &rlimit) != 0)
+		if (setrlimit(RLIMIT_OFILE, &rlimit) != 0) {
 			if (errno != EPERM)
 				serr(EXIT_FAILURE, "setrlimit(RLIMIT_OFILE, %d)", rlimit.rlim_max);
-			/* else; tell user what is too big. */
-
-		if (getdtablesize() < SOCKD_NEGOTIATEMAX + 2)
-			serrx(EXIT_FAILURE,
-			"%d descriptors configured for negotiation, %d available",
-			SOCKD_NEGOTIATEMAX + 2, getdtablesize());
-
-		if (getdtablesize() < SOCKD_REQUESTMAX + 2)
-			serrx(EXIT_FAILURE,
-			"%d descriptors configured for requestcompletion, %d available",
-			SOCKD_REQUESTMAX + 2, getdtablesize());
-
-		if (getdtablesize() < SOCKD_IOMAX * FDPASS_MAX + 2)
-			serrx(EXIT_FAILURE,
-			"%d descriptors configured for i/o, %d available",
-			SOCKD_IOMAX * FDPASS_MAX + 2, getdtablesize());
+			else if (getdtablesize() < SOCKD_NEGOTIATEMAX + 2)
+				serr(EXIT_FAILURE,
+				"%d descriptors configured for negotiation, %d available",
+				SOCKD_NEGOTIATEMAX + 2, getdtablesize());
+			else if (getdtablesize() < SOCKD_REQUESTMAX + 2)
+				serr(EXIT_FAILURE,
+				"%d descriptors configured for requestcompletion, %d available",
+				SOCKD_REQUESTMAX + 2, getdtablesize());
+			else if (getdtablesize() < SOCKD_IOMAX * FDPASS_MAX + 2)
+				serr(EXIT_FAILURE,
+				"%d descriptors configured for i/o, %d available",
+				SOCKD_IOMAX * FDPASS_MAX + 2, getdtablesize());
+			else
+				SERRX(getdtablesize());
+		}
 	}
 
 	/* set up signalhandlers. */
@@ -305,7 +303,7 @@ main(argc, argv, envp)
 
 	/*
 	 * main loop; accept new connections and handle our children.
-	*/
+	 */
 
 	/* CONSTCOND */
 	while (1) {
@@ -331,7 +329,7 @@ main(argc, argv, envp)
 
 		/*
 		 * handle our children.
-		*/
+		 */
 
 		/* first, get ack of free slots. */
 		while ((child = getset(SOCKD_FREESLOT, &rset)) != NULL) {
@@ -340,12 +338,8 @@ main(argc, argv, envp)
 
 			if ((p = readn(child->ack, &command, sizeof(command)))
 			!= sizeof(command)) {
-				if (p == 0)
-					swarnx("%schild closed connection",
-					childtype2string(child->type));
-				else
-					swarn("readn(child->ack) from %schild",
-					childtype2string(child->type));
+				swarn("readn(child->ack) from %schild %lu failed",
+				childtype2string(child->type), (unsigned long)child->pid);
 				childisbad = 1;
 			}
 			else {
@@ -371,7 +365,7 @@ main(argc, argv, envp)
 				/*
 				 * in the order a packet travels between children;
 				 * negotiate -> request -> io.
-				*/
+				 */
 
 				case CHILD_NEGOTIATE: {
 					int flags;
@@ -445,7 +439,7 @@ main(argc, argv, envp)
 					/*
 					 * the only thing a iochild should return is a ack each time
 					 * it finishes with a io, that is handled in loop above.
-					*/
+					 */
 					break;
 			}
 
@@ -488,7 +482,7 @@ main(argc, argv, envp)
 				if (socks_lock(negchild->lock, F_WRLCK, 0) != 0) {
 #if NEED_ACCEPTLOCK
 					if (config.option.serverc > 1)
-						socks_unlock(l->lock, -1);
+						socks_unlock(l->lock);
 #endif /* NEED_ACCEPTLOCK */
 					continue;
 				}
@@ -519,11 +513,11 @@ main(argc, argv, envp)
 
 #if NEED_ACCEPTLOCK
 							if (config.option.serverc > 1)
-								socks_unlock(l->lock, -1);
+								socks_unlock(l->lock);
 #endif /* NEED_ACCEPTLOCK */
 
 #if HAVE_SENDMSG_DEADLOCK
-							socks_unlock(negchild->lock, -1);
+							socks_unlock(negchild->lock);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
 							continue; /* connection aborted/failed. */
@@ -535,7 +529,7 @@ main(argc, argv, envp)
 						 * this should never happen since childcheck(), if
 						 * initially successful, should make sure there is
 						 *	always enough descriptors available.
-						*/
+						 */
 						case EMFILE:
 							/* FALLTHROUGH */
 
@@ -547,7 +541,7 @@ main(argc, argv, envp)
 				/*
 				 * yes, linux manages to lose the descriptor flags, workaround
 				 *	might be insufficient.
-				*/
+				 */
 				if (fcntl(client, F_SETFL, fcntl(l->s, F_GETFL, 0)) != 0)
 					swarn("tried to work around linux bug via fcntl()");
 #endif /* HAVE_LINUX_BUGS */
@@ -556,8 +550,7 @@ main(argc, argv, envp)
 
 #if NEED_ACCEPTLOCK
 				if (config.option.serverc > 1)
-					if ((len = socks_unlock(l->lock, -1)) != 0)
-						SERR(len);
+					socks_unlock(l->lock);
 #endif
 
 				slog(LOG_DEBUG, "got accept(): %s",
@@ -578,7 +571,7 @@ main(argc, argv, envp)
 					}
 
 #if HAVE_SENDMSG_DEADLOCK
-				socks_unlock(negchild->lock, -1);
+				socks_unlock(negchild->lock);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
 				close(client);
@@ -835,7 +828,7 @@ checksettings(void)
 
 	/*
 	 * Check arguments and settings, do they make sense?
-	*/
+	 */
 
 	if (config.internalc == 0)
 		serrx(EXIT_FAILURE, "%s: no internal address given", function);
@@ -887,8 +880,6 @@ checksettings(void)
 	socks_reseteuid(config.uid.libwrap, euid);
 #endif /* HAVE_LIBWRAP */
 
-	if (*config.domain == NUL)
-		swarnx("%s: local domainname not set", function);
 }
 
 /* ARGSUSED */
@@ -968,7 +959,7 @@ sighup(sig)
 	uid_t euid;
 	int p;
 
-	slog(LOG_INFO, "%s: got SIGHUP signal", function);
+	slog(LOG_INFO, function);
 
 	resetconfig();
 
@@ -1006,7 +997,7 @@ sigchld(sig)
 
 		/*
 		 * No child should normaly die, but try to cope with it happening.
-		*/
+		 */
 
 		/* LINTED assignment in conditional context */
 		if ((i = pidismother(pid)))
@@ -1020,7 +1011,7 @@ sigchld(sig)
 	/*
 	 * If we get alot of childdeaths in a short time, assume something
 	 * is wrong.
-	*/
+	 */
 
 	if (deathtime == 0)
 		time(&deathtime);

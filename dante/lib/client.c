@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.41 1999/05/23 15:43:47 michaels Exp $";
+"$Id: client.c,v 1.42 1999/09/02 10:41:25 michaels Exp $";
 
 #if !HAVE_PROGNAME
 	char *__progname = "danteclient";
@@ -77,7 +77,7 @@ clientinit(void)
 
 	/*
 	 * initialize misc options to sensible default.
-	*/
+ 	 */
 	config.resolveprotocol		= RESOLVEPROTOCOL_UDP;
 	config.option.lbuf			= 1;
 

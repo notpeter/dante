@@ -54,7 +54,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: int_osf3.c,v 1.10 1999/07/08 18:54:41 karls Exp $";
+"$Id: int_osf3.c,v 1.13 1999/09/17 12:50:11 karls Exp $";
 
 #undef accept
 #undef bind
@@ -294,31 +294,42 @@ sys_sendto(s, msg, len, flags, to, tolen)
 
 	/*
 	 * the interpositioned functions.
-	*/
+	 */
 
 /* sockaddr *, new len */
 #define ADDRLEN_SET(a,b) (((a) == NULL) ? 0 : (b))
 
+#ifdef lint
+extern const int lintnoloop_int_osf3_c;
+#else
+#define lintnoloop_int_osf3_c 0
+#endif
+
 /* source sockaddr, len, dest sockaddr, len */
 #define SOCKADDR_COPYRES(a,b,c,d) \
- { if (((c) != NULL) && (*(d) > 0) && (*(b) > 0)) { \
+ do { if (((c) != NULL) && (*(d) > 0) && (*(b) > 0)) { \
 		struct n_sockaddr n = *(a); \
 		int tmplen = *(d); \
-		memcpy(&(c)->sa_family, &n.sa_family, MIN((size_t) *(d), sizeof(n.sa_family))); \
-		tmplen -= sizeof(n.sa_family); \
+\
+		if (tmplen >= sizeof(n.sa_family)) \
+			(c)->sa_family = (unsigned short)n.sa_family; \
+		tmplen -= sizeof((c)->sa_family); \
 		tmplen = MAX(0, tmplen); \
 		memcpy((c)->sa_data, n.sa_data, (size_t)tmplen); \
 		*(d) = MIN(*d, sizeof(struct sockaddr)); \
 	} \
-  }\
+  } while (lintnoloop_int_osf3_c)
 
 /* source sockaddr, len, dest sockaddr, len */
 #define SOCKADDR_COPYPARAM(a,b,c,d) \
- { if (((a) != NULL) && (*(b) > 0)) { \
+ do { if (((a) != NULL) && (*(b) > 0)) { \
 		struct n_sockaddr n; \
 		int tmplen = *(b); \
+\
 		bzero((char *)&n, sizeof(n));  \
-		memcpy(&n.sa_family, &(a)->sa_family, MIN((size_t) *(b), sizeof(n.sa_family))); \
+		/* struct sockaddr -> sa_family == unsigned short */ \
+		if (tmplen >= sizeof(unsigned short))  \
+			n.sa_family = (sa_family_t)(a)->sa_family; \
 		tmplen -= sizeof(n.sa_family); \
 		tmplen = MAX(0, tmplen); \
 		memcpy(n.sa_data, (a)->sa_data, (size_t)tmplen); \
@@ -327,7 +338,7 @@ sys_sendto(s, msg, len, flags, to, tolen)
 	} else { \
 		*(d) = *(b); \
 	} \
-  }\
+  } while (lintnoloop_int_osf3_c)
 
 int
 accept(s, addr, addrlen)
@@ -346,7 +357,8 @@ accept(s, addr, addrlen)
 
 	rc = Raccept(s, &n_addr, &n_addrlen);
 
-	SOCKADDR_COPYRES(&n_addr, &n_addrlen, addr, addrlen);
+	if (rc != -1)
+		SOCKADDR_COPYRES(&n_addr, &n_addrlen, addr, addrlen);
 
 	return rc;
 }
@@ -368,7 +380,8 @@ getpeername(s, name, namelen)
 
 	rc = Rgetpeername(s, &n_name, &n_namelen);
 
-	SOCKADDR_COPYRES(&n_name, &n_namelen, name, namelen);
+	if (rc != -1)
+		SOCKADDR_COPYRES(&n_name, &n_namelen, name, namelen);
 
 	return rc;
 }
@@ -390,7 +403,8 @@ getsockname(s, name, namelen)
 
 	rc = Rgetsockname(s, &n_name, &n_namelen);
 
-	SOCKADDR_COPYRES(&n_name, &n_namelen, name, namelen);
+	if (rc != -1)
+		SOCKADDR_COPYRES(&n_name, &n_namelen, name, namelen);
 
 	return rc;
 }
@@ -415,7 +429,8 @@ recvfrom(s, buf, len, flags, from, fromlen)
 
 	rc = Rrecvfrom(s, buf, len, flags, (struct n_sockaddr *)&n_from, &n_fromlen);
 
-	SOCKADDR_COPYRES(&n_from, &n_fromlen, from, fromlen);
+	if (rc != -1)
+		SOCKADDR_COPYRES(&n_from, &n_fromlen, from, fromlen);
 
 	return rc;
 }
@@ -441,13 +456,15 @@ recvmsg(s, msg, flags)
 
 	rc = Rrecvmsg(s, &n_msg, flags);
 
-	msg->msg_name = n_msg.msg_name;
-	msg->msg_namelen = n_msg.msg_namelen;
-	msg->msg_iov = n_msg.msg_iov;
-	msg->msg_iovlen = n_msg.msg_iovlen;
-	/* XXX msg_control / msg_accrights */
-	if (n_msg.msg_controllen != 0)
-		swarn("warning: msg_accrights/controllen conversion not supported");
+	if (rc != -1) {
+		msg->msg_name = n_msg.msg_name;
+		msg->msg_namelen = n_msg.msg_namelen;
+		msg->msg_iov = n_msg.msg_iov;
+		msg->msg_iovlen = n_msg.msg_iovlen;
+		/* XXX msg_control / msg_accrights */
+		if (n_msg.msg_controllen != 0)
+			swarn("warning: msg_accrights/controllen conversion not supported");
+	}
 
 	return rc;
 }
@@ -476,11 +493,13 @@ sendmsg(s, msg, flags)
 
 	rc = Rsendmsg(s, (struct n_msghdr *)&n_msg, flags);
 
-	msg->msg_name = n_msg.msg_name;
-	msg->msg_namelen = n_msg.msg_namelen;
-	msg->msg_iov = n_msg.msg_iov;
-	msg->msg_iovlen = n_msg.msg_iovlen;
-	/* XXX msg_control / msg_accrights */
+	if (rc != -1) {
+		msg->msg_name = n_msg.msg_name;
+		msg->msg_namelen = n_msg.msg_namelen;
+		msg->msg_iov = n_msg.msg_iov;
+		msg->msg_iovlen = n_msg.msg_iovlen;
+		/* XXX msg_control / msg_accrights */
+	}
 
 	return rc;
 }
@@ -501,6 +520,29 @@ connect(s, name, namelen)
 	SOCKADDR_COPYPARAM(name, &namelen, &n_name, &n_namelen);
 
 	rc = Rconnect(s, &n_name, n_namelen);
+
+	return rc;
+}
+
+int
+bind(s, name, namelen)
+	int s;
+	const struct sockaddr *name;
+	int namelen;
+{
+	struct n_sockaddr n_name;
+	int n_namelen;
+	int rc;
+
+	if (ISSYSCALL(s))
+		return sys_bind(s, name, namelen);
+
+	SOCKADDR_COPYPARAM(name, &namelen, &n_name, &n_namelen);
+
+	rc = Rbind(s, &n_name, n_namelen);
+
+	if (rc != -1)
+		SOCKADDR_COPYRES(&n_name, &n_namelen, name, &namelen);
 
 	return rc;
 }

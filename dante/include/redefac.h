@@ -1,4 +1,4 @@
-/* redefac.h generated from autoconf.h.in on Thu Jul 8 19:19:57 MEST 1999  */
+/* redefac.h generated from autoconf.h.in on Fri Sep 24 11:07:03 MEST 1999  */
 
 #ifndef HAVE_DOPRNT
 #define HAVE_DOPRNT 0
@@ -130,6 +130,11 @@
 #endif
 
 
+#ifndef HAVE_LIBWRAP
+#define HAVE_LIBWRAP 0
+#endif
+
+
 #ifndef HAVE_SENDMSG_DEADLOCK
 #define HAVE_SENDMSG_DEADLOCK 0
 #endif
@@ -237,6 +242,11 @@
 
 #ifndef HAVE_SOCKS_CONFIGFILE
 #define HAVE_SOCKS_CONFIGFILE 0
+#endif
+
+
+#ifndef HAVE_H_ERRNO
+#define HAVE_H_ERRNO 0
 #endif
 
 
@@ -757,11 +767,6 @@
 
 #ifndef HAVE_LIBDL
 #define HAVE_LIBDL 0
-#endif
-
-
-#ifndef HAVE_LIBWRAP
-#define HAVE_LIBWRAP 0
 #endif
 
 

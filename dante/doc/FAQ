@@ -1,4 +1,4 @@
-@(#)$Id: FAQ,v 1.16 1999/07/05 17:52:30 karls Exp $
+@(#)$Id: FAQ,v 1.18 1999/09/24 16:24:11 michaels Exp $
 
 Submit your question with an answer to dante-faq@inet.no.
 
@@ -11,6 +11,7 @@ Submit your question with an answer to dante-faq@inet.no.
 2.1. Why doesn't the socksify program work with glibc-2?
 2.2. Why do I have trouble compiling on Solaris?
 2.3. Why do I get a error message about setsockopt() and SO_SNDLOWAT?
+2.4. Why doesn't the socksify program work with cvs?
 
 1. Reporting bugs in Dante
 
@@ -41,7 +42,7 @@ to some file that Dante can log output to.
 
 If the problem is with the client, also uncomment the line containing
 "debug".
-If the problem is with the server, also add "-d" to whatever
+If the problem is with the server, also add "-dl" to whatever
 arguments you usually start the server with.
 
 Repeat whatever you did to produce the error and look at the
@@ -109,3 +110,12 @@ later).
 There is a problem with the way Dante tries to detect whether the
 option SO_SNDLOWAT is supported on your system when compiling.  This
 is fixed in version 1.1.0-pre1.
+
+2.4. Why doesn't the socksify program work with cvs?
+It does work.  A problem however is that cvs usually ends up calling
+a setuid program (rsh, ssh, whatever) which will ignore what
+"socksify" sets up.
+Solution: strip off the suid bit if possible or recompile the (rsh,
+ssh, whatever) binary with explicit socks support (adding "-ldsocks"
+to the linkoptions is usually enough.)
+
