@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.17 1998/11/13 21:17:56 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.18 1998/11/30 13:54:05 michaels Exp $";
 
 #include "common.h"
 
@@ -67,13 +67,12 @@ Rgetsockname(s, name, namelen)
 		case SOCKS_CONNECT:
 			addr = &socksfd->remote;
 
-			/* XXX */
 			/* LINTED pointer casts may be troublesome */
 			if (((struct sockaddr_in *)addr)->sin_addr.s_addr == htonl(INADDR_ANY)
 			&& ((struct sockaddr_in *)addr)->sin_port == htons(0)) {
-				swarnx("sorry, getsockname() on nonblocking connect() is\n"
+				swarnx("sorry, getsockname() after nonblocking connect() is\n"
 						 "not supported in this version.\n"
-						 "Please contact Inferno Nettverk for more information.");
+						 "Contact Inferno Nettverk for more information.");
 
 				errno = EADDRNOTAVAIL;
 				return -1;
@@ -81,8 +80,15 @@ Rgetsockname(s, name, namelen)
 			break;
 
 		case SOCKS_BIND:
-		case SOCKS_UDPASSOCIATE:
 			addr = &socksfd->remote;
+			break;
+
+		case SOCKS_UDPASSOCIATE:
+			swarnx("sorry, getsockname() on udp socket is not supported.\n"
+					 "Contact Inferno Nettverk for more information.");
+			errno = EADDRNOTAVAIL;
+			return -1;
+
 			break;
 
 		default:

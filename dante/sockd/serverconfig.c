@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.37 1998/11/13 21:18:40 michaels Exp $";
+"$Id: serverconfig.c,v 1.42 1998/12/13 17:36:26 michaels Exp $";
 
 #include "common.h"
 #include "config_parse.h"
@@ -138,34 +138,38 @@ void
 showrule(rule)
 	const struct rule_t *rule;
 {
+	char addr[MAXRULEADDRSTRING];
 
-	slog(LOG_DEBUG,
+	slog(LOG_INFO,
 	"rule #%d\n"
 	 "\tverdict    : %s\n",
 	rule->number,
 	rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs);
 
-	slog(LOG_DEBUG, "\tsrc: %s", ruleaddress2string(&rule->src));
-	slog(LOG_DEBUG, "\tdst: %s", ruleaddress2string(&rule->dst));
+	slog(LOG_INFO, "\tsrc: %s",
+	ruleaddress2string(&rule->src, addr, sizeof(addr)));
+
+	slog(LOG_INFO, "\tdst: %s",
+	ruleaddress2string(&rule->dst, addr, sizeof(addr)));
 
 	showstate(&rule->state);
 
-	slog(LOG_DEBUG, "\tlog: ");
+	slog(LOG_INFO, "\tlog: ");
 	if (rule->log.connect)
-		slog(LOG_DEBUG, "\t\t%s, ", LOG_CONNECTs);
+		slog(LOG_INFO, "\t\t%s, ", LOG_CONNECTs);
 
 	if (rule->log.disconnect)
-		slog(LOG_DEBUG, "\t\t%s, ", LOG_DISCONNECTs);
+		slog(LOG_INFO, "\t\t%s, ", LOG_DISCONNECTs);
 
 	if (rule->log.iooperation)
-		slog(LOG_DEBUG, "\t\t%s, ", LOG_IOOPERATIONs);
+		slog(LOG_INFO, "\t\t%s, ", LOG_IOOPERATIONs);
 
 	if (rule->log.data)
-		slog(LOG_DEBUG, "\t\t%s, ", LOG_DATAs);
+		slog(LOG_INFO, "\t\t%s, ", LOG_DATAs);
 	
 #ifdef HAVE_LIBWRAP
 	if (*rule->libwrap != NUL)
-		slog(LOG_DEBUG, "\tlibwrap: %s", rule->libwrap);
+		slog(LOG_INFO, "\tlibwrap: %s", rule->libwrap);
 #endif  /* HAVE_LIBWRAP */
 	
 }
@@ -209,32 +213,36 @@ void
 showclient(rule)
 	const struct rule_t *rule;
 {
+	char addr[MAXRULEADDRSTRING];
 
-	slog(LOG_DEBUG, "client #%d", rule->number);
+	slog(LOG_INFO, "client #%d", rule->number);
 
- 	slog(LOG_DEBUG, "\tverdict: %s",
+ 	slog(LOG_INFO, "\tverdict: %s",
 	rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs);
 
-	slog(LOG_DEBUG, "\tfrom: %s", ruleaddress2string(&rule->src));
-	slog(LOG_DEBUG, "\tto  : %s", ruleaddress2string(&rule->dst));
+	slog(LOG_INFO, "\tfrom: %s",
+	ruleaddress2string(&rule->src, addr, sizeof(addr)));
 
-	slog(LOG_DEBUG, "\tlog : ");
+	slog(LOG_INFO, "\tto  : %s",
+	ruleaddress2string(&rule->dst, addr, sizeof(addr)));
+
+	slog(LOG_INFO, "\tlog : ");
 
 	if (rule->log.connect)
-		slog(LOG_DEBUG, "\t\t%s, ", LOG_CONNECTs);
+		slog(LOG_INFO, "\t\t%s, ", LOG_CONNECTs);
 
 	if (rule->log.disconnect)
-		slog(LOG_DEBUG, "\t\t%s, ", LOG_DISCONNECTs);
+		slog(LOG_INFO, "\t\t%s, ", LOG_DISCONNECTs);
 
 	if (rule->log.iooperation)
-		slog(LOG_DEBUG, "\t\t%s, ", LOG_IOOPERATIONs);
+		slog(LOG_INFO, "\t\t%s, ", LOG_IOOPERATIONs);
 
 	if (rule->log.data)
-		slog(LOG_DEBUG, "\t\t%s, ", LOG_DATAs);
+		slog(LOG_INFO, "\t\t%s, ", LOG_DATAs);
 	
 #ifdef HAVE_LIBWRAP
 	if (*rule->libwrap != NUL)
-		slog(LOG_DEBUG, "\tlibwrap: %s", rule->libwrap);
+		slog(LOG_INFO, "\tlibwrap: %s", rule->libwrap);
 #endif  /* HAVE_LIBWRAP */
 }
 
@@ -244,34 +252,36 @@ showconfig(config)
 	const struct config_t *config;
 {
 	int i;
+	char address[MAXSOCKADDRSTRING];
 
-	slog(LOG_DEBUG, "server settings:");
+	slog(LOG_INFO, "server settings:");
 
 	if (config->domain != NULL)
-		slog(LOG_DEBUG, "\tdomain: %s", config->domain);
+		slog(LOG_INFO, "\tdomain: %s", config->domain);
 
-	slog(LOG_DEBUG, "\tinternal addresses (%d):", config->internalc);
+	slog(LOG_INFO, "\tinternal addresses (%d):", config->internalc);
 	for (i = 0; i < config->internalc; ++i)
-		slog(LOG_DEBUG, "\t\t%s",
+		slog(LOG_INFO, "\t\t%s",
 		/* LINTED pointer casts may be troublesome */
-		sockaddr2string((struct sockaddr *)&config->internalv[i]));
+		sockaddr2string((struct sockaddr *)&config->internalv[i], address,
+		sizeof(address)));
 
-	slog(LOG_DEBUG, "\texternal addresses (%d):", config->externalc);
+	slog(LOG_INFO, "\texternal addresses (%d):", config->externalc);
 	for (i = 0; i < config->externalc; ++i)
-		slog(LOG_DEBUG, "\t\t%s\n",
+		slog(LOG_INFO, "\t\t%s\n",
 		/* LINTED pointer casts may be troublesome */
-		sockaddr2string((struct sockaddr *)&config->externalv[i]));
+		sockaddr2string((struct sockaddr *)&config->externalv[i], address,
+		sizeof(address)));
 
-	/* XXX number2text for method needed. */
-	slog(LOG_DEBUG, "\tmethods supported (%d): ", config->methodc);
+	slog(LOG_INFO, "\tmethods supported (%d): ", config->methodc);
 	for (i = 0; i < config->methodc; ++i)
-		slog(LOG_DEBUG, "\t\t%d, ", (int)config->methodv[i]);
+		slog(LOG_INFO, "\t\t%s, ", method2string(config->methodv[i]));
 
-	slog(LOG_DEBUG, "\textensions: ");
+	slog(LOG_INFO, "\textensions: ");
 	if (config->extension.bind)	
-		slog(LOG_DEBUG, "\t\tbind,");
+		slog(LOG_INFO, "\t\tbind,");
 
-	slog(LOG_DEBUG,
+	slog(LOG_INFO,
 	"\tOptions:\n"
 	"\t\tDebug level                        : %d\n"
  	"\t\tNegotiate timeout                  : %lds\n"
@@ -284,7 +294,7 @@ showconfig(config)
  	 config->srchost.mismatch ? "yes" : "no",
 	 config->srchost.unknown ? "yes" : "no");
 	
-	slog(LOG_DEBUG,
+	slog(LOG_INFO,
 	"\tUserid's:\n"
  	"\t\tPrivileged                         : %lu\n"
 	"\t\tUnprivileged                       : %lu\n"
@@ -294,11 +304,11 @@ showconfig(config)
 	(unsigned long)config->uid.libwrap);
 
 
-	slog(LOG_DEBUG, "\tLogoutput goes to: ");
+	slog(LOG_INFO, "\tLogoutput goes to: ");
 	if (config->log.type & LOGTYPE_SYSLOG)
-		slog(LOG_DEBUG, "\t\tsyslog()");
+		slog(LOG_INFO, "\t\tsyslog()");
 	if (config->log.type & LOGTYPE_FILE)
-		slog(LOG_DEBUG, "\t\tfiles (%d)", config->log.fpc);
+		slog(LOG_INFO, "\t\tfiles (%d)", config->log.fpc);
 }
 
 
@@ -359,8 +369,6 @@ clearconfig(void)
 	/* log; only settable at start. */
 }
 
-		
-
 void
 iolog(rule, state, operation, src, dst, data, count)
 	struct rule_t *rule;
@@ -370,11 +378,12 @@ iolog(rule, state, operation, src, dst, data, count)
 	const char *data;
 	size_t count;
 {
-	char *command, *srcstring, *dststring;
+	const char *command;
+	char srcstring[MAXSOCKSHOSTSTRING], dststring[MAXSOCKSHOSTSTRING];
 
-	command		= strdup(command2string(state->command));
-	srcstring 	= strdup(sockshost2string(src));
-	dststring	= strdup(sockshost2string(dst));
+	command = command2string(state->command);
+	sockshost2string(src, srcstring, sizeof(srcstring));
+	sockshost2string(dst, dststring, sizeof(dststring));
 
 	switch (operation) {
 		case OPERATION_ACCEPT:
@@ -385,10 +394,8 @@ iolog(rule, state, operation, src, dst, data, count)
 				if (strcmp(eval_user(&rule->request), STRING_UNKNOWN) != 0) {
 					slog(LOG_INFO, "%s(%d): %s: %s@%s -> %s",
 					rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
-					rule->number,
-					strcheck(command),
-					eval_user(&rule->request),
-					strcheck(srcstring), strcheck(dststring));
+					rule->number, command, eval_user(&rule->request),
+					srcstring, dststring);
 					break;
 				}
 #endif  /* HAVE_LIBWRAP */
@@ -399,16 +406,14 @@ iolog(rule, state, operation, src, dst, data, count)
 			if (rule->log.connect)
 				slog(LOG_INFO, "%s(%d): %s: %s -> %s",
 				rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
-				rule->number, strcheck(command),
-				strcheck(srcstring), strcheck(dststring));
+				rule->number, command, srcstring, dststring);
 			break;
 
 		case OPERATION_ABORT:
 			if (rule->log.disconnect)
 				slog(LOG_INFO, "%s(%d): %s: %s -> %s: %s",
 				rule->verdict == VERDICT_PASS ? VERDICT_PASSs : VERDICT_BLOCKs,
-				rule->number, strcheck(command),
-				strcheck(srcstring), strcheck(dststring), data);
+				rule->number, command, srcstring, dststring, data);
 			break;
 
 		case OPERATION_IO: 
@@ -419,8 +424,7 @@ iolog(rule, state, operation, src, dst, data, count)
 
 				slog(LOG_INFO, "%s(%d): %s: %s -> %s (%lu): %s",
 				rule->verdict == VERDICT_BLOCK ? VERDICT_BLOCKs : VERDICT_PASSs,
-				rule->number,
-				strcheck(command), strcheck(srcstring), strcheck(dststring),
+				rule->number, command, srcstring, dststring,
 				(unsigned long)count, strcheck(visdata = str2vis(data, count)));
 
 				free(visdata);
@@ -428,19 +432,13 @@ iolog(rule, state, operation, src, dst, data, count)
 			else if (rule->log.iooperation)
 				slog(LOG_INFO, "%s(%d): %s: %s -> %s (%lu)",
 				rule->verdict == VERDICT_BLOCK ? VERDICT_BLOCKs : VERDICT_PASSs,
-				rule->number,
-				strcheck(command),
-				strcheck(srcstring), strcheck(dststring), (unsigned long)count);
+				rule->number, command, srcstring, dststring, (unsigned long)count);
 			
 			break;
 
 		default:
 			SERR(operation);
 	}
-
-	free(command);
-	free(srcstring);
-	free(dststring);
 }
 
 
@@ -602,19 +600,31 @@ connectisok(s, rule)
 
 #ifdef HAVE_LIBWRAP
 	extern jmp_buf tcpd_buf;
+	const uid_t euid = geteuid();
+	char libwrap[LIBWRAPBUF];
+
+	seteuid(config.uid.libwrap);
 
 	request_init(&rule->request, RQ_FILE, s, RQ_DAEMON, "sockd", 0);  
 	fromhost(&rule->request); 
+
+	/* libwrap modifies the passed buffer. */
+	SASSERTX(strlen(rule->libwrap) < sizeof(libwrap));
+	strcpy(libwrap, rule->libwrap);
 	
 	/* Wietse Venema says something along the lines of: */
-	if (setjmp(tcpd_buf) != 0)
+	if (setjmp(tcpd_buf) != 0) {
+		seteuid(euid);
 		return 0;	/* something got screwed up. */
-	process_options(rule->libwrap, &rule->request);
+	}
+	process_options(libwrap, &rule->request);
+	
 
 	if (!config.srchost.unknown)
 		if (strcmp(eval_hostname(rule->request.client), STRING_UNKNOWN) == 0) {
 			slog(LOG_INFO, "%s: failed lookup",
 			eval_hostaddr(rule->request.client));
+			seteuid(euid);
 			return 0;
 	}
 
@@ -622,8 +632,11 @@ connectisok(s, rule)
 		if (strcmp(eval_hostname(rule->request.client), STRING_PARANOID) == 0) {
 			slog(LOG_INFO, "%s: ip/hostname mismatch",
 			eval_hostaddr(rule->request.client));
+			seteuid(euid);
 			return 0;
 	}
+
+	seteuid(euid);
 
 	if (&rule->request.client->sin == NULL) {
 		SWARNX(&rule->request.client->sin);

@@ -42,10 +42,9 @@
  */
 
 static const char rcsid[] =
-"$Id: address.c,v 1.47 1998/11/13 21:17:59 michaels Exp $";
+"$Id: address.c,v 1.51 1998/12/10 11:29:44 michaels Exp $";
 
 #include "common.h"
-
 
 static struct socksfd_t socksfdinit;
 static int *fdv;
@@ -75,17 +74,18 @@ socks_addaddr(clientfd, socksfd)
 		/* init new objects */
 		while (socksfdc < fdc)
 			socksfdv[socksfdc++] = socksfdinit;
-
-		socksfdc = fdc;
 	}
 
+	switch (socksfd->state.command) {
+		case SOCKS_BIND:
 #ifdef SOCKS_TRYHARDER
-	if ((socksfd->state.lock = socks_mklock(SOCKS_LOCKFILE)) == -1)
-		swarn("socks_mklock()");
+			if ((socksfd->state.lock = socks_mklock(SOCKS_LOCKFILE)) == -1)
+				swarn("socks_mklock()");
 #endif	
+			break;
+	}
 
 	socksfdv[clientfd] = *socksfd;
-
 	socksfdv[clientfd].allocated = 1;
 
 	return &socksfdv[clientfd];
@@ -130,9 +130,14 @@ socks_rmaddr(fd)
 				SERRX(socksfdv[fd].state.command);
 		}
 
+	switch (socksfdv[fd].state.command) {
+		case SOCKS_BIND:
 #ifdef SOCKS_TRYHARDER
-	close(socksfdv[fd].state.lock);
-#endif
+			if (close(socksfdv[fd].state.lock) != 0)
+				swarn("socks_rmaddr()");
+#endif	
+			break;
+	}
 
 	socksfdv[fd] = socksfdinit;
 }
@@ -186,6 +191,36 @@ socks_addrisok(s)
 	return 1;
 }
 
+int 
+socks_addrcontrol(local, remote)
+	const struct sockaddr *local;
+	const struct sockaddr *remote;
+{
+	int i;
+
+	for (i = 0; i < socksfdc; ++i) {
+		struct sockaddr localcontrol, remotecontrol;
+		int len;
+
+		if (!socks_isaddr((unsigned int)i))
+			continue;
+		
+		len = sizeof(localcontrol);
+		if (getsockname(socksfdv[i].s, &localcontrol, &len) != 0)
+			continue;
+
+		len = sizeof(remotecontrol);
+		if (getpeername(socksfdv[i].s, &remotecontrol, &len) != 0)
+			continue;
+
+		if (sockaddrcmp(local, &localcontrol) == 0
+		&&  sockaddrcmp(remote, &remotecontrol) == 0)
+			return i;
+	}
+
+	return -1;
+}
+
 int
 socks_addrmatch(local, remote, state)
 	const struct sockaddr *local;
@@ -226,10 +261,6 @@ socks_addrmatch(local, remote, state)
 			
 			if (state->acceptpending != -1)
 				if (state->acceptpending != socksfdv[i].state.acceptpending)
-					continue;
-
-			if (state->childpid != 0)
-				if (state->childpid != socksfdv[i].state.childpid)
 					continue;
 		}
 

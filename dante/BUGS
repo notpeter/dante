@@ -1,11 +1,8 @@
-	Things known not to work.
+To report a new bug, mail dante-bugs@inet.no.  Please include
+all necessary information as well as a way to reproduce it.
 
-- using something else than sendto()/recvfrom() on udp sockets.
 
-- calling getsockname() on a connection established with a nonblocking
-  descriptor. (breaks ftpclient in lynx)
+	Things known not to work:
 
-- static dlib should not be built
+- documentation is lacking.  Help on this would be especially appreciated.
 
-- documentation is severely lacking.  Help on this would be especially
-  appreciated.

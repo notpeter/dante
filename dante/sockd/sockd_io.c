@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.115 1998/11/15 15:29:29 michaels Exp $";
+"$Id: sockd_io.c,v 1.123 1998/12/11 11:35:16 michaels Exp $";
 
 #include "common.h"
 
@@ -355,21 +355,22 @@ delete_io(mother, io, fd, status)
 
 	if (io->rule.log.disconnect) {
 		char logmsg[MAXHOSTNAMELEN * 2 + 1024];
-		char *in, *out;
+		char in[MAXSOCKADDRSTRING], out[MAXSOCKADDRSTRING];
 
 		/* LINTED pointer casts may be troublesome */
-		in = strdup(sockaddr2string((struct sockaddr *)&io->in.raddr));
+		sockaddr2string((struct sockaddr *)&io->in.raddr, in, sizeof(in));
 
 		switch (io->state.command) {
 			case SOCKS_BIND:
 			case SOCKS_BINDREPLY:
 			case SOCKS_CONNECT:
 				/* LINTED pointer casts may be troublesome */
-				out = strdup(sockaddr2string((struct sockaddr *)&io->out.raddr));
+				sockaddr2string((struct sockaddr *)&io->out.raddr, out,
+				sizeof(out));
 				break;
 
 			case SOCKS_UDPASSOCIATE:
-				out = strdup("`world'");
+				snprintf(out, sizeof(out), "`world'");
 				break;
 					
 			default:
@@ -379,9 +380,8 @@ delete_io(mother, io, fd, status)
 		snprintf(logmsg, sizeof(logmsg),
 		"%s: %lu -> %s -> %lu,  %lu -> %s -> %lu",
 		protocol2string(io->state.protocol),
-		(unsigned long)io->in.read, strcheck(in), (unsigned long)io->in.written,
-		(unsigned long)io->out.read, strcheck(out),
-		(unsigned long)io->out.written);
+		(unsigned long)io->in.written, in, (unsigned long)io->in.read,
+		(unsigned long)io->out.written, out, (unsigned long)io->out.read);
 
 		errno = errno_s;
 
@@ -441,9 +441,6 @@ delete_io(mother, io, fd, status)
 		}
 		else
 			SERRX(fd);
-
-		free(in);
-		free(out);
 	}
 
 	if (io->acceptrule.log.disconnect) {
@@ -594,11 +591,7 @@ recv_io(s, io)
 		SERRX(msg.msg_controllen);
 #endif /* !HAVE_DEFECT_RECVMSG */
 #else
-#ifndef HAVE_FEEBLE_DESCRIPTOR_PASSING
 	length = sizeof(int) * fdexpect;
-#else
-	length = sizeof(int);
-#endif  /* !HAVE_FEEBLE_DESCRIPTOR_PASSING */
 	if (msg.msg_accrightslen != length)
 		SERRX(0);
 #endif  /* HAVE_CMSGHDR */
@@ -616,15 +609,7 @@ recv_io(s, io)
 	io->out.s = *(int *)(CMSG_DATA(cmsg) + sizeof(int) * fdreceived++);
 #else
 	memcpy(&io->in.s,  cmsgmem + sizeof(int) * fdreceived++, sizeof(int));
-#ifndef HAVE_FEEBLE_DESCRIPTOR_PASSING
 	memcpy(&io->out.s, cmsgmem + sizeof(int) * fdreceived++, sizeof(int));
-#else
-	if ((io->out.s = sockd_read_fd(s)) == -1) {
-		swarn("%s: sockd_read_fd(): io->out.s", function);
-		return -1;
-	}
-	fdreceived++;
-#endif  /* HAVE_FEEBLE_DESCRIPTOR_PASSING */
 #endif  /* HAVE_CMSGHDR */
 
 	switch (io->state.command) {
@@ -635,16 +620,8 @@ recv_io(s, io)
 			/* LINTED pointer casts may be troublesome */
 			io->control.s = *(int *)(CMSG_DATA(cmsg) + sizeof(int) * fdreceived++);
 #else
-#ifndef HAVE_FEEBLE_DESCRIPTOR_PASSING
 			memcpy(&io->control.s, cmsgmem + sizeof(int) * fdreceived++,
 			sizeof(int));
-#else
-			if ((io->control.s = sockd_read_fd(s)) == -1) {
-				swarn("%s: sockd_read_fd(): io->control.s", function);
-				return -1;
-			}
-			fdreceived++;
-#endif  /* !HAVE_FEEBLE_DESCRIPTOR_PASSING */
 #endif  /* HAVE_CMSGHDR */
 			break;
 
@@ -712,7 +689,8 @@ doio(mother, io, rset, wset, flags)
 	int flags;
 {
 	const char *function = "doio()";
-	char buf[SOCKD_BUFSIZE];
+	/* CONSTCOND */
+	char buf[MAX(SOCKD_BUFSIZETCP, SOCKD_BUFSIZEUDP)];
 	ssize_t r, w;
 
 
@@ -729,7 +707,9 @@ doio(mother, io, rset, wset, flags)
 
 			/* from in to out... */
 			if (FD_ISSET(io->in.s, rset) && FD_ISSET(io->out.s, wset)) {
-				if ((r = io_rw(&io->in, &io->out, &bad, buf, flags)) <= 0) {
+				bad = -1;
+				r = io_rw(&io->in, &io->out, &bad, buf, flags);
+				if (bad != -1) {
 					delete_io(mother, io, bad, r);
 					return;
 				}
@@ -740,12 +720,14 @@ doio(mother, io, rset, wset, flags)
 
 			/* and out to in. */
 			if (FD_ISSET(io->out.s, rset) && FD_ISSET(io->in.s, wset)) {
-				if ((r = io_rw(&io->out, &io->in, &bad, buf, flags)) <= 0) {
+				bad = -1;
+				r = io_rw(&io->out, &io->in, &bad, buf, flags);
+				if (bad != -1) {
 					delete_io(mother, io, bad, r);
 					return;
 				}
 
-				iolog(&io->rule, &io->state, OPERATION_IO, &io->src, &io->dst, buf,
+				iolog(&io->rule, &io->state, OPERATION_IO, &io->dst, &io->src, buf,
 				(size_t)r);
 			}
 
@@ -753,7 +735,7 @@ doio(mother, io, rset, wset, flags)
 		}
 
 		case SOCKS_UDP: {
-			struct udpheader_t *header;
+			struct udpheader_t header;
 			struct sockaddr from, to;
 			int fromlen, permit;
 
@@ -770,9 +752,7 @@ doio(mother, io, rset, wset, flags)
 
 			/* udp to relay from client to destination? */
 			if (FD_ISSET(io->in.s, rset) && FD_ISSET(io->out.s, wset)) {
-				int lflags = flags;
-
-				lflags &= ~MSG_OOB;
+				const int lflags = flags & ~MSG_OOB;
 
 				fromlen = sizeof(from);
 				/* LINTED pointer casts may be troublesome */
@@ -781,7 +761,13 @@ doio(mother, io, rset, wset, flags)
 					delete_io(mother, io, io->in.s, r);	
 					return;
 				}
-	
+			
+				if (fromlen == 0) {
+					swarnx("%s: system error, did not get address in recvfrom()",
+					function);
+					return;
+				}
+
 				/*
 				 * If client hasn't sent us it's address yet we have to
 				 * assume the first packet is from is it, client can only 
@@ -803,19 +789,24 @@ doio(mother, io, rset, wset, flags)
 
 				/* first packet, check and connect socket for performance. */
 				if (io->in.read == 0) {
+					/* LINTED pointer casts may be troublesome */
 					if (sockaddrcmp((struct sockaddr *)&io->in.raddr, &from) != 0) {
-						char *src, *dst;
+						char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING];
 
 						slog(LOG_NOTICE, 
 						"%s(u): udp: expected from %s, got it from %s",
 						VERDICT_BLOCKs,
-						strcheck(src = strdup(
 						/* LINTED pointer casts may be troublesome */
-						sockaddr2string((struct sockaddr *)&io->in.raddr))),
-						strcheck(dst = strdup(sockaddr2string(&from))));
-						
-						free(src);
-						free(dst);
+						sockaddr2string((struct sockaddr *)&io->in.raddr, src,
+						sizeof(src)),
+						sockaddr2string(&from, dst, sizeof(dst)));
+
+						/* need to read the peeked at packet out of socket buffer. */
+						fromlen = 0;
+						if (recvfrom(io->in.s, buf, io->out.sndlowat, lflags, NULL, 
+						&fromlen) == -1)
+							SWARN(-1);
+
 						break;
 					}
 
@@ -827,56 +818,71 @@ doio(mother, io, rset, wset, flags)
 				io->in.read += r;
 			
 				/* got packet, pull out socks udp header. */
-				if ((header = string2udpheader(buf, (size_t)r)) == NULL) {
-					slog(LOG_NOTICE, "udp: unrecognized udp packet from %s",
-					sockaddr2string((struct sockaddr *)&io->in.raddr));
+				if (string2udpheader(buf, (size_t)r, &header) == NULL) {
+					char badfrom[MAXSOCKADDRSTRING];
+
+					/* LINTED pointer casts may be troublesome */
+					swarnx("udp: bad udp packet from %s",
+					sockaddr2string((struct sockaddr *)&io->in.raddr, badfrom,
+					sizeof(badfrom)));
 
 					/* need to read the peeked at packet out of socket buffer. */
-					recvfrom(io->in.s, buf, io->out.sndlowat, lflags, NULL, NULL);
+					fromlen = 0;
+					if (recvfrom(io->in.s, buf, io->out.sndlowat, lflags, NULL, 
+					&fromlen) == -1)
+						SWARN(-1);
 
 					break;
 				}
 
-				io->dst = header->host;
+				io->dst = header.host;
 
 				/* strip of socks udpheader before sending to destination */
-				r -= PACKETSIZE_UDP(header);
+				r -= PACKETSIZE_UDP(&header);
 
 				iolog(&io->rule, &io->state, OPERATION_IO, &io->src, &io->dst,
-				&buf[PACKETSIZE_UDP(header)], (size_t)r);
+				&buf[PACKETSIZE_UDP(&header)], (size_t)r);
 
 				/* is the packet to be permitted out? */
 				permit
 				= rulespermit(io->in.s, &io->rule, &io->state, &io->src, &io->dst);
 
 				/* need to read the peeked at packet out of socket buffer. */
-				recvfrom(io->in.s, buf, io->out.sndlowat, lflags, NULL, NULL);
+				fromlen = 0;
+				if (recvfrom(io->in.s, buf, io->out.sndlowat, lflags, NULL,
+				&fromlen) == -1)
+					SWARN(-1);
 
-				if (header->frag != 0) {
-					slog(LOG_INFO, "udp: fragmented packet from %s.  Not supported",
-					sockaddr2string((struct sockaddr *)&io->in.raddr));
+				if (header.frag != 0) {
+					char badfrom[MAXSOCKADDRSTRING];
+
+					/* LINTED pointer casts may be troublesome */
+					swarnx("udp: fragmented packet from %s.  Not supported",
+					sockaddr2string((struct sockaddr *)&io->in.raddr, badfrom,
+					sizeof(badfrom)));
 					break;
 				}
 
 				if (!permit)
 					break;
 
-				to = *sockshost2sockaddr(&header->host);
-				if ((w = sendto(io->out.s, &buf[PACKETSIZE_UDP(header)],
-				(size_t)r, lflags, &to, sizeof(to))) != r)
+				sockshost2sockaddr(&header.host, &to);
+				if ((w = sendto(io->out.s, &buf[PACKETSIZE_UDP(&header)],
+				(size_t)r, lflags, &to, sizeof(to))) != r) {
+					char badsend[MAXSOCKADDRSTRING];
+
 					swarn("%s: sendto(%s): %d of %d",
-					function, sockaddr2string(&to), w, r);
+					function, sockaddr2string(&to, badsend, sizeof(badsend)), w, r);
+				}
 				else 
 					io->out.written += w;
 			}
 
 			/* datagram reply from remote present? */
 			if (FD_ISSET(io->out.s, rset) && FD_ISSET(io->in.s, wset)) {
+				const int lflags = flags & ~MSG_OOB;
 				struct sockshost_t srcsh;
 				char *newmsg;
-				int lflags = flags;
-
-				lflags &= ~MSG_OOB;
 
 				fromlen = sizeof(from);
 				/* LINTED possible pointer alignment problem */
@@ -886,7 +892,7 @@ doio(mother, io, rset, wset, flags)
 					return;
 				}
 
-				srcsh = *sockaddr2sockshost(&from);
+				sockaddr2sockshost(&from, &srcsh);
 
 				/* is the (reply)packet to be permitted in? */
 				permit
@@ -917,10 +923,13 @@ doio(mother, io, rset, wset, flags)
 				/* XXX socket must be connected. */
 				if ((w = sendto(io->in.s, newmsg, (size_t)r, lflags, NULL, 0))
 				!= r) {
+					char badsend[MAXSOCKADDRSTRING];
+
 					/* LINTED pointer casts may be troublesome */
 					swarn("%s: sendto(%s): %d of %d",
-					function, sockaddr2string((struct sockaddr *)&io->in.raddr),
-					w, r);
+					function,
+					sockaddr2string((struct sockaddr *)&io->in.raddr, badsend,
+					sizeof(badsend)), w, r);
 					free(newmsg);
 					break;
 				}
@@ -945,12 +954,12 @@ doio(mother, io, rset, wset, flags)
 		if ((r = read(io->control.s, buf, sizeof(buf))) <= 0)
 			delete_io(mother, io, io->control.s, r);	
 		else {
-			char *unexpected;
+			char *unexpected, hmmread[MAXSOCKADDRSTRING];
 
 			slog(LOG_NOTICE, "%s/control: %d unexpected bytes: %s",
 			/* LINTED pointer casts may be troublesome */
-			sockaddr2string((struct sockaddr *)&io->control.raddr), r,
-			strcheck(unexpected = str2vis(buf, r)));
+			sockaddr2string((struct sockaddr *)&io->control.raddr, hmmread,
+			sizeof(hmmread)), r, strcheck(unexpected = str2vis(buf, r)));
 
 			free(unexpected);
 		}
@@ -989,21 +998,7 @@ io_rw(in, out, bad, buf, flag)
 	else 
 		in->flags &= ~MSG_OOB;	/* did not read oob data.	*/
 
-#ifdef HAVE_SOLARIS_BUGS
-/*
- * solaris, atleast 2.5.1, craps out with ERANGE here half the time if
- * we try to write more than a few bytes with send().
-*/
-	if (flag != 0)
-		w = send(out->s, buf, (size_t)r, flag);
-	else
-		w = write(out->s, buf, (size_t)r);
-
-	if (w != r) {
-#else /* !HAVE_SOLARIS_BUGS */
 	if ((w = send(out->s, buf, (size_t)r, flag)) != r) {
-#endif /* !HAVE_SOLARIS_BUGS */
-
 		*bad = out->s;
 		return w;
 	}

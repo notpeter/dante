@@ -106,6 +106,7 @@
 /* solaris 2.5 include file bugs */
 #undef HAVE_FAULTY_BINDPROTO
 #undef HAVE_FAULTY_CONNECTPROTO
+#undef HAVE_FAULTY_READVPROTO
 
 /* linux sockaddr * types */
 #undef HAVE_LINUX_SOCKADDR_TYPE
@@ -163,6 +164,8 @@
 #undef LIBRARY_RECVFROM
 #undef LIBRARY_RRESVPORT
 #undef LIBRARY_SENDTO
+#undef LIBRARY_RECVMSG
+#undef LIBRARY_SENDMSG
 
 /* symbol names */
 #undef SYMBOL_GETHOSTBYNAME
@@ -177,6 +180,10 @@
 #undef SYMBOL_SENDTO
 #undef SYMBOL_LISTEN
 #undef SYMBOL_RRESVPORT
+#undef SYMBOL_READV
+#undef SYMBOL_RECVMSG
+#undef SYMBOL_SENDMSG
+#undef SYMBOL_WRITEV
 
 /* workaround for solaris bug */
 #undef HAVE_SENDMSG_DEADLOCK
@@ -195,6 +202,12 @@
 
 /* sun4 vsprintf doesn't seem to return length */
 #undef HAVE_BROKEN_VSPRINTF
+
+/* system name */
+#undef HAVE_HOST_TYPE
+
+/* diagnostic */
+#undef DIAGNOSTIC
 
 /* The number of bytes in a char.  */
 #undef SIZEOF_CHAR
@@ -219,6 +232,9 @@
 
 /* Define if you have the getdtablesize function.  */
 #undef HAVE_GETDTABLESIZE
+
+/* Define if you have the hstrerror function.  */
+#undef HAVE_HSTRERROR
 
 /* Define if you have the inet_pton function.  */
 #undef HAVE_INET_PTON

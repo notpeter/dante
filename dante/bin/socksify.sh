@@ -40,7 +40,7 @@
 # any improvements or extensions that they make and grant Inferno Nettverk A/S
 # the rights to redistribute these changes.
 #
-# $Id: socksify.sh,v 1.7 1998/11/15 15:20:28 michaels Exp $
+# $Id: socksify.sh,v 1.9 1998/12/07 13:43:09 michaels Exp $
 
 
 #
@@ -48,9 +48,9 @@
 # variable correctly, you can do "socksify <program>" and <program>
 # will get sockssuport without having been relinked or recompiled.
 
-LIBRARY=${SOCKS_LIBRARY=/usr/local/lib/libdsocks.so}
+LIBRARY=${SOCKS_LIBRARY-/usr/local/lib/libdsocks.so}
 
-LD_PRELOAD=${LIBRARY LD_PRELOAD}
+LD_PRELOAD="${LIBRARY}${LD_PRELOAD+ }${LD_PRELOAD}"
 export LD_PRELOAD
 
 exec "$@"

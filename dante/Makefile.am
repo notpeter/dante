@@ -4,4 +4,4 @@ SUBDIRS = lib dlib sockd include example doc bin
 else
 SUBDIRS = lib      sockd include example doc bin
 endif
-EXTRA_DIST = BUGS CREDITS INSTALL LICENSE README SUPPORT TODO
+EXTRA_DIST = BUGS CREDITS INSTALL LICENSE README SUPPORT TODO README.socksify README.usage

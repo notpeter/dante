@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.33 1998/11/13 21:18:01 michaels Exp $";
+"$Id: authneg.c,v 1.35 1998/12/05 18:01:14 michaels Exp $";
 
 #include "common.h"
 
@@ -58,18 +58,19 @@ negotiate_method(s, packet)
 	char request[1 + 1 + METHODS_MAX];
 
 	/* length of actual request; version, nmethods, methods. */
-	const size_t requestlen = 1 + 1 + *packet->methodc;
+	const size_t requestlen = 1 + 1 + packet->gw->state.methodc;
 
 	/* reply; version, selected method. */
 	unsigned char response[1 + 1];
 
 
-	SASSERTX(*packet->methodc > 0);
+	SASSERTX(packet->gw->state.methodc > 0);
 
 	/* create request packet. */
 	request[AUTH_VERSION] 	= packet->req.version;
-	request[AUTH_NMETHODS]	= *packet->methodc;
-	memcpy(&request[AUTH_METHODS], packet->methodv, (size_t)*packet->methodc);
+	request[AUTH_NMETHODS]	= packet->gw->state.methodc;
+	memcpy(&request[AUTH_METHODS], packet->gw->state.methodv,
+	(size_t)packet->gw->state.methodc);
 
 	/* send list over methods we support */
 	if (writen(s, request, requestlen) != requestlen)
@@ -87,13 +88,14 @@ negotiate_method(s, packet)
 	}
 	packet->version = request[AUTH_VERSION];
 
-	switch (packet->auth->method = response[AUTH_METHOD]) {
+	switch (packet->auth.method = response[AUTH_METHOD]) {
 		case AUTHMETHOD_NONE: 
 			rc = 0;
 			break;
 
 		case AUTHMETHOD_UNAME:
-			if (clientmethod_uname(s, packet->req.version) == 0)
+			if (clientmethod_uname(s, &packet->gw->host, packet->req.version)
+			== 0)
 				rc = 0;
 			else
 				rc = -1;
@@ -114,7 +116,7 @@ negotiate_method(s, packet)
 	if (rc == 0) {
 		slog(LOG_DEBUG,
 		"%s: established SOCKS v%d connection using authentication method %d",
-		function, packet->version, packet->auth->method);
+		function, packet->version, packet->auth.method);
 	}
 	else
 		errno = ECONNREFUSED;

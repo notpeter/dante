@@ -5,12 +5,12 @@
 .Nd Relay data and firewall network
 .Sh SYNOPSIS
 .Nm sockd
-.Op Fl Ddhlv
+.Op Fl DLdhlnv
 .Oo
-.Fl f Ar file
+.Fl N Ar number
 .Oc
 .Oo
-.Fl n Ar number
+.Fl f Ar file
 .Oc
 .Sh DESCRIPTION
 .Nm Dante
@@ -29,26 +29,38 @@ the background as system daemons.
 Displays the license
 .Nm Dante
 comes under.
+.It Fl N Ar number
+.Nm Dante
+will fork of 
+.Ar number
+copies of itself when starting.  Can be used for very busy servers.
 .It Fl d
 Enables debugging.
+.It Fl f Ar file
+.Nm Dante
+will read its configuration from
+.Ar file .
 .It Fl h
 Shows the currently valid options.
 .It Fl l
 The log output from 
 .Nm Dante
 will be linebuffered.
+.It Fl n
+Disables TCP keep-alive messages.  Normally 
+.Nm Dante
+enables TCP keep-alive messages so that connections from machines that
+have crashed or for other reasons no longer can be reached time out.
 .It Fl v
 Displays versioninfo for 
 .Nm Dante.
-.It Fl f Ar file
+.Sh ENVIRONMENT
+.TP
+\fBTMPDIR\fP
+Use TMPDIR for temporary files.  Since 
 .Nm Dante
-will read its configuration from
-.Ar file .
-.It Fl n Ar number
-.Nm Dante
-will fork of 
-.Ar number
-copies of itself when starting.  Can be used for very busy servers.
+uses lockfiles it is recommended that \fBTMPDIR\fP be set to a local
+filesystem with low latency.
 .Sh FILES
 .Pa /etc/sockd.conf
 .Sh SEE ALSO

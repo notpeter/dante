@@ -1,0 +1,71 @@
+.\" $Id: socks.conf.5,v 1.5 1998/12/07 13:34:38 michaels Exp $
+.TH SOCKS.CONF 5 "December 7, 1998"
+.SH NAME
+socks.conf \- socks client configuration file syntax
+.SH DESCRIPTION
+The configuration file for the socks client library allow control over
+logging and server selection.  It is divided into two parts,
+miscellaneous settings and routes.  A line can be commented using the
+standard comment character \fB#\fP.
+.SH MISC
+The miscellaneous settings have a keyword followed by a colon and the
+value.
+.TP
+\fBlogouput\fP
+This value controls where the sends logoutput.  It can
+be either \fBsyslog\fP, \fBstdout\fP, \fBstderr\fP, a filename, or
+a combination.
+.TP
+\fBlocaldomain\fP
+The name of the local domain.
+.TP
+\fBdebug\fP
+Setting this field to 1 turns on debugging.
+.TP
+.SH ROUTES
+The routes are specified with a \fBroute\fP keyword.  Inside a pair of
+parens ({}) a set of keywords control the behavior of the route.  A
+route is selected for a connection based on the values within the
+\fBroute\fP block.  The \fBroute\fP block can contain the following:
+.TP
+.SH ADDRESSES
+Each address spesification consists of a ipaddress/netmask or a hostname
+and a optional \fBport\fP specifier.  Each \fBroute\fP can contain
+three address spesifications; \fBfrom\fP, \fBto\fP and \fBvia\fP.
+.TP
+\fBfrom\fP
+The route is used only by requests coming from the address given as value.
+.TP
+\fBto\fP
+The route is used only by requests going to the address given as value.
+.TP
+\fBvia\fP
+Address of socks server to be used for the connection. 
+.TP
+\fBport\fP
+Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
+\fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
+A portrange can also be given as "port <start #> - <end #>", which
+will match all port numbers withing the range <start #> and <end #>.
+.TP
+\fBprotocol\fP
+The protcols the server supports.
+Currently supported values are \fBtcp\fP and \fBudp\fP.
+.TP
+\fBprotocolversion\fP
+The protcol versions the server supports.
+Currently supported values are \fB4\fP and \fB5\fP.
+.TP
+\fBmethod\fP
+List of authentication methods the \fBclient\fP supports and which
+to offer the server.
+Currently supported values are \fBnone\fP and
+\fBusername\fP.
+.SH EXAMPLES
+See the example directory in the distribution.
+.SH FILES
+.I /etc/socks.conf
+.SH SEE ALSO
+sockd(8)
+.SH BUGS
+The file must be in a rigid order.

@@ -1,0 +1,33 @@
+@(#)$Id: NEWS,v 1.7 1998/12/14 11:43:19 michaels Exp $
+
+***  Monday, December 14, 1998  - Dante v0.91.0.
+
+ o  all reported bugs and compilation problems fixed.
+     
+ o  much improved UDP support, using calls other than sendto()/recvfrom()
+    on UDP sockets should now work.
+
+ o  spread SO_KEEPALIVE to all appropriate sockets, added option
+    "-n" to switch SO_KEEPALIVE off.  Old "-n" became "-N".
+
+ o  nonblocking connect stuff redesigned, should now handle all cases
+    and also makes ftp client in lynx work.
+
+ o  more documentation available.
+
+ o  --enable-diagnostic option added to configure
+
+ o  cache's username/password, does not prompt twice.
+
+ o  Server is no longer tested on Solaris 2.5.1, we have switched
+    to 2.6 due to all the 2.5.1 specific problems.  Much of the bandaid
+    necessary for Solaris 2.5.1 is still present in this version but
+    will probably be removed in next version.
+
+ o  Socksify program now also works on SunOS and Linux.
+
+
+***  Monday, November 16, 1998  - Dante v0.90.0.
+ 
+ o  A socks client and server implementation for UNIX.
+

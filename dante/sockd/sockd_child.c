@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.72 1998/11/13 21:18:49 michaels Exp $";
+"$Id: sockd_child.c,v 1.83 1998/12/13 14:35:02 michaels Exp $";
 
 #include "common.h"
 
@@ -100,6 +100,14 @@ addchild(type)
 	int type;
 {
 	const char *function = "addchild()";
+	/*
+    * It is better to reserve some descriptors for temporary use 
+    * than to get errors when passing them and thus lose clients. 
+   */ 
+	const int reserved = FDPASS_MAX 	/* max descriptors we pass. 			*/
+							 + 1				/* need a descriptor for accept().	*/
+							 + 2;				/* for each new child.					*/
+
 	struct sockd_mother_t mother;
 	struct sockd_child_t **childv;
 	int *childc;
@@ -108,19 +116,11 @@ addchild(type)
 	pid_t pid;
 	int optval, optlen, flags;
 
-#ifdef HAVE_SOLARIS_BUGS
-	/* 
-	 * solaris 2.5.1, it needs free descriptors to even send other descriptors,
-	 * so, keep a small reserve I guess?
-	 * Value gotten through the test and fail algorithm.
-	*/
-	if (freedescriptors(NULL) <= FDPASS_MAX * 2) {
+	if (freedescriptors(NULL) < reserved) {
 		errno = EMFILE;
 		swarn(function);
 		return NULL;
 	}
-#endif /* HAVE_SOLARIS_BUGS */
-
 
 	if (socketpair(AF_LOCAL, SOCK_STREAM, 0, pipev) != 0) {
 		swarn("%s: socketpair(AF_LOCAL, SOCK_STREAM)", function);
@@ -166,7 +166,7 @@ addchild(type)
 
 			/* negotiator shouldn't block on sending to mother. */
 			if ((flags = fcntl(pipev[CHILD], F_GETFL, 0)) == -1
-			||  fcntl(pipev[CHILD], F_SETFL, flags | O_NONBLOCK) == -1)
+			||  fcntl(pipev[CHILD], F_SETFL, flags | NONBLOCKING) == -1)
 				swarn("%s: fcntl()", function);
 
 
@@ -486,9 +486,12 @@ childcheck(type)
 		proxyc += type < 0 ? max : (*childv)[child].freec;
 	}
 
-	if (proxyc < min)
-		if (addchild(type) != NULL)
-			return childcheck(type);
+	if (type >= 0)
+		if (proxyc < min && config.state.addchild)
+			if (addchild(type) != NULL)
+				return childcheck(type);
+			else
+				config.state.addchild = 0;	/* no need to retry until child dies. */
 
 	return proxyc;
 }
@@ -869,7 +872,6 @@ send_io(s, io)
 	cmsg->cmsg_len			= sizeof(struct cmsghdr) + sizeof(int) * fdsent;
 #else
 	memcpy(cmsgmem + fdsent++ * sizeof(int), &io->in.s, sizeof(int));
-#ifndef HAVE_FEEBLE_DESCRIPTOR_PASSING
 	memcpy(cmsgmem + fdsent++ * sizeof(int), &io->out.s, sizeof(int));
 	switch (io->state.command) {
 		case SOCKS_BIND:
@@ -884,13 +886,13 @@ send_io(s, io)
 		default:
 			SERRX(io->state.command);
 	}
-#endif  /* HAVE_FEEBLE_DESCRIPTOR_PASSING */
 
 	msg.msg_accrights		= (caddr_t) cmsgmem;
 	msg.msg_accrightslen	= sizeof(int) * fdsent;
 #endif  /* HAVE_CMSGHDR */
 
-	iovec[0].iov_base 	= io;
+	/* LINTED cast discards 'const' from pointer target type */
+	iovec[0].iov_base 	= (void *)io;
 	iovec[0].iov_len	 	= sizeof(*io);
 	length 				  += iovec[0].iov_len;
 
@@ -908,32 +910,6 @@ send_io(s, io)
 		swarn("%s: sendmsg(): %d of %d", function, w, length);
 		return -1;
 	}
-
-#ifdef HAVE_FEEBLE_DESCRIPTOR_PASSING
-	if (sockd_write_fd(s, io->out.s) == -1) {
-		swarn("%s: sockd_write_fd(): io->out.s", function);
-		return -1;
-	}
-
-	switch (io->state.command) {
-		case SOCKS_BIND:
-		case SOCKS_BINDREPLY:
-		case SOCKS_UDPASSOCIATE:
-				  if (sockd_write_fd(s, io->control.s) == -1) {
-					 swarn("%s: sockd_write_fd(): io->control.s", function);
-					 return -1;
-				  }
-			break;
-
-		case SOCKS_CONNECT:
-			break;
-
-		default:
-			SERRX(io->state.command);
-	}
-
-#endif  /* HAVE_FEEBLE_DESCRIPTOR_PASSING */
-
 
 #ifdef DEBUG
 	printfd(io, "sent");
@@ -962,7 +938,8 @@ send_client(s, client)
 #endif  /* HAVE_CMSGHDR */
 
 
-	iovec[0].iov_base 	= &command;
+	/* LINTED cast discards 'const' from pointer target type */
+	iovec[0].iov_base 	= (void *)&command;
 	iovec[0].iov_len 		= sizeof(command);
 
 #ifdef HAVE_CMSGHDR
@@ -1014,7 +991,8 @@ send_req(s, req)
 	struct iovec iovec[1];
 	struct msghdr msg;
 
-	iovec[0].iov_base 	= req;
+	/* LINTED cast discards 'const' from pointer target type */
+	iovec[0].iov_base 	= (void *)req;
 	iovec[0].iov_len 		= sizeof(*req);
 
 #if HAVE_CMSGHDR
@@ -1111,6 +1089,7 @@ printfd(io, prefix)
 	const char *function = "printfd()";
 	struct sockaddr name;
 	int namelen;
+	char namestring[MAXSOCKADDRSTRING];
 
 	bzero(&name, sizeof(name));
 	namelen = sizeof(name);
@@ -1118,8 +1097,8 @@ printfd(io, prefix)
 	if (getsockname(io->in.s, &name, &namelen) != 0)
 		swarn("%s: getsockname(io->in)", function);
 	else
-		slog(LOG_DEBUG, "%s: io->in (%d), name %s", 
-		prefix, io->in.s, sockaddr2string(&name));
+		slog(LOG_DEBUG, "%s: io->in (%d), name: %s", 
+		prefix, io->in.s, sockaddr2string(&name, namestring, sizeof(namestring)));
 
 	bzero(&name, sizeof(name));
 	namelen = sizeof(name);
@@ -1127,8 +1106,9 @@ printfd(io, prefix)
 	if (getsockname(io->out.s, &name, &namelen) != 0)
 		swarn("%s: getsockname(io->out)", function);
 	else
-		slog(LOG_DEBUG, "%s: io->out (%d), name %s", 
-		prefix, io->out.s, sockaddr2string(&name));
+		slog(LOG_DEBUG, "%s: io->out (%d), name: %s", 
+		prefix, io->out.s,
+		sockaddr2string(&name, namestring, sizeof(namestring)));
 
 	switch (io->state.command) {
 		case SOCKS_BIND:
@@ -1141,9 +1121,15 @@ printfd(io, prefix)
 			if (getpeername(io->control.s, &name, &namelen)
 			!= 0)
 				swarn("%s: getpeername(io->control)", function);
-			else
-				slog(LOG_DEBUG, "%s: io->control (%d), name %s", 
-				prefix, io->control.s, sockaddr2string(&name));
+			else  {
+				if (namelen == 0)
+					slog(LOG_DEBUG, "%s: io->control (%d), name: <none>",
+					prefix, io->control.s);
+				else
+					slog(LOG_DEBUG, "%s: io->control (%d), name: %s", 
+					prefix, io->control.s,
+					sockaddr2string(&name, namestring, sizeof(namestring)));
+			}
 			break;
 
 		case SOCKS_CONNECT:

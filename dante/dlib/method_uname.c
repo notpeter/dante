@@ -42,31 +42,34 @@
  */
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.18 1998/11/13 21:18:19 michaels Exp $";
+"$Id: method_uname.c,v 1.20 1998/12/08 19:37:18 michaels Exp $";
 
 #include "common.h"
 
 int
-clientmethod_uname(s, version)
+clientmethod_uname(s, host, version)
 	int s;
+	const struct sockshost_t *host;
 	int version;
 {
 	const char *function = "clientmethod_uname()";
-	char *offset;
-	char *name, *password;
+	static struct uname_t uname;				/* cache userinfo. 					*/
+	static struct sockshost_t unamehost;	/* host cache was gotten for.	*/
+	static int unameisok;						/* cached is ok? 						*/
+	char *offset, *name, *password;
+	char request[ 1 					/* version.				*/
+					+ 1 					/* username length.	*/
+					+ MAXNAMELEN		/* username.			*/
+					+ 1					/* password length.	*/
+					+ MAXPWLEN			/* password.			*/
+	];
+	char response[ 1 /* version.	*/
+					+ 	1 /* status.	*/
+	];
 
-	char request[
-		  sizeof(char)		/* version.				*/
-		+ sizeof(char)		/* username length.	*/
-		+ MAXNAMELEN		/* username.			*/
-		+ sizeof(char)		/* password length.	*/
-		+ MAXPWLEN			/* password.			*/
-	];
-	
-	unsigned char response[
-		  sizeof(char)		/* version. */
-		+ sizeof(char)		/* status.	*/
-	];
+
+	if (memcmp(&unamehost, host, sizeof(unamehost)) != 0)
+		unameisok = 0;	/* not same host as cache was gotten for. */
 
 	switch (version) {
 		case SOCKS_V5:
@@ -76,36 +79,56 @@ clientmethod_uname(s, version)
 			SERRX(version);
 	}
 
+
 	/* fill in request. */
 
 	offset = request;
 
 	*offset++ = (char)version;
 
-	if ((name = socks_getusername(offset + 1, MAXNAMELEN)) == NULL) {
-		swarnx("%s: socks_getusername() failed", function);
-		return -1;
+	if (!unameisok) {
+		if ((name = socks_getusername(host, offset + 1, MAXNAMELEN)) == NULL) {
+			swarnx("%s: socks_getusername() failed", function);
+			return -1;
+		}
+
+		SASSERTX(strlen(name) < sizeof(uname.name));
+		strcpy(uname.name, name);
 	}
+	else {
+		name = uname.name;
+		strcpy(offset + 1, name);
+	}
+
 	/* first byte gives length. */
 	*offset = (char)strlen(name);
 	OCTETIFY(*offset);
 	offset += *offset + 1;
 	
-	if ((password = socks_getpassword(name, offset + 1, MAXPWLEN)) == NULL) {
-		swarnx("could not determine password of client");
-		return -1;
+	if (!unameisok) {
+		if ((password = socks_getpassword(host, name, offset + 1, MAXPWLEN))
+		== NULL) {
+			swarnx("could not determine password of client");
+			return -1;
+		}
+
+		SASSERTX(strlen(password) < sizeof(uname.password));
+		strcpy(uname.password, password);
 	}
+	else {
+		password = uname.password;
+		strcpy(offset + 1, password);
+	}
+
 	/* first byte gives length. */
 	*offset = (char)strlen(password);
 	OCTETIFY(*offset);
 	offset += *offset + 1;
 	
 	if (writen(s, request, (size_t)(offset - request)) != offset - request) {
-		bzero(password, MAXPWLEN);
 		swarn("%s: writen()", function);	
 		return -1;
 	}
-	bzero(password, MAXPWLEN);
 
 	if (readn(s, response, sizeof(response)) != sizeof(response)) {
 		swarn("%s: readn()", function);	
@@ -118,5 +141,10 @@ clientmethod_uname(s, version)
 		return -1;
 	}
 	
+	if (response[UNAME_STATUS] == 0) { /* server accepted. */
+		unamehost = *host;
+		unameisok = 1;
+	}
+
 	return response[UNAME_STATUS];
 }

@@ -42,43 +42,9 @@
  */
 
 static const char rcsid[] =
-"$Id: debug.c,v 1.14 1998/11/13 21:18:14 michaels Exp $";
+"$Id: debug.c,v 1.16 1998/12/13 14:32:08 michaels Exp $";
 
 #include "common.h"
-
-#if defined(DEBUG) || defined(HAVE_SOLARIS_BUGS)
-
-int
-freedescriptors(message)
-	const char *message;
-{
-	const int errno_s = errno;
-	int i, freed, max;
-
-	/* LINTED expression has null effect */
-	for (freed = 0, i = 0, max = getdtablesize(); i < max; ++i)
-		if (!fdisopen(i))
-			++freed;
-
-	if (message != NULL)
-		slog(LOG_DEBUG, "freedescriptors(%s): %d/%d", message, freed, max);
-
-	errno = errno_s;
-
-	return freed;
-}
-
-int
-fdisopen(fd)
-	int fd;
-{
-	if (fcntl(fd, F_GETFD, 0) == 0)
-		return 1;
-	return 0;
-}
-
-#endif /* DEBUG) || HAVE_SOLARIS_BUGS */
-
 
 #ifdef DEBUG
 

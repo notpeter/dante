@@ -42,12 +42,14 @@
  */
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.11 1998/11/15 14:46:22 michaels Exp $";
+"$Id: userio.c,v 1.12 1998/12/05 18:15:27 michaels Exp $";
 
 #include "common.h"
 
+/* ARGSUSED */
 char *
-socks_getusername(buf, buflen)
+socks_getusername(host, buf, buflen)
+	const struct sockshost_t *host;
 	char *buf;
 	size_t buflen;
 {
@@ -80,7 +82,8 @@ socks_getusername(buf, buflen)
 }
 
 char *
-socks_getpassword(user, buf, buflen)
+socks_getpassword(host, user, buf, buflen)
+	const struct sockshost_t *host;
 	const char *user;
 	char *buf;
 	size_t buflen;
@@ -93,9 +96,10 @@ socks_getpassword(user, buf, buflen)
 	||  (password = getenv("SOCKS5_PASSWD"))		!= NULL)
 		;
 	else {
-		char prompt[256];
+		char prompt[256], hstring[MAXSOCKSHOSTSTRING];
 
-		snprintf(prompt, sizeof(prompt), "socks password for `%s': ", user);
+		snprintf(prompt, sizeof(prompt), "%s@%s sockspassword: ",
+		user, sockshost2string(host, hstring, sizeof(hstring)));
 		password = getpass(prompt);
 	}
 

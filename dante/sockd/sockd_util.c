@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.27 1998/11/13 21:19:02 michaels Exp $";
+"$Id: sockd_util.c,v 1.29 1998/12/02 20:24:06 michaels Exp $";
 
 #include "common.h"
 
@@ -90,5 +90,73 @@ terminate_connection(s, auth)
 {
 
 	close(s);
+}
+
+void
+setsockoptions(s)
+	int s;
+{
+	const char *function = "setsockoptions()";
+	int len, type, val;
+
+	len = sizeof(type);
+	if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0)
+		return;
+
+	switch (type) {
+		case SOCK_STREAM:
+			val = 1;
+			if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val)) != 0)
+				swarn("%s: setsockopt(SO_OOBINLINE)", function);
+
+			if (config.option.keepalive) {
+				val = 1;
+				if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) != 0)
+					swarn("%s: setsockopt(SO_KEEPALIVE)", function);
+			}
+
+		break;
+	}
+
+#ifdef SO_BSDCOMPAT
+	val = 1;
+	if (setsockopt(s, SOL_SOCKET, SO_BSDCOMPAT, &val, sizeof(val)) != 0)
+		swarn("%s: setsockopt(SO_BSDCOMPAT)", function);
+#endif /* SO_BSDCOMPAT */
+
+}
+
+void
+sockdexit(sig)
+	int sig;
+{
+	int i;
+
+	if (sig > 0)
+		slog(LOG_ALERT, "Terminating on signal %d", sig);
+
+	for (i = 0;  i < config.log.fpc; ++i) {
+		fclose(config.log.fpv[i]);
+		close(config.log.fplockv[i]);
+	}
+
+	if (sig > 0)
+		switch (sig) {
+			/* ok signals. */
+			case SIGINT:
+			case SIGQUIT:
+			case SIGTERM:
+				exit(EXIT_FAILURE);
+				/* NOTREACHED */	
+
+			/* bad signals. */
+			default:
+				abort();
+		}
+	else
+		if (config.state.pid == getpid())
+			exit(-sig);
+		else
+			_exit(-sig);
 }
 

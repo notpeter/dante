@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.77 1998/11/13 21:18:27 michaels Exp $";
+"$Id: udp.c,v 1.83 1998/12/12 15:43:07 michaels Exp $";
 
 #include "common.h"
 
@@ -57,9 +57,9 @@ Rsendto(s, msg, len, flags, to, tolen)
 	int tolen;
 {
 	struct socksfd_t *socksfd;
-	const struct sockaddr *newto;
-	char *newmsg;
-	size_t newlen;
+	const struct sockaddr *nto;
+	char *nmsg;
+	size_t nlen;
 	ssize_t n;
 
 
@@ -74,29 +74,31 @@ Rsendto(s, msg, len, flags, to, tolen)
 
 	if (to == NULL) {
 		if (socksfd->state.udpconnect)
-			newto	= &socksfd->connected;
+			nto	= &socksfd->connected;
 		else
 			/* have to assume tcp socket. */
 			return sendto(s, msg, len, flags, NULL, 0);
 	}
 	else
-		newto = to;
+		nto = to;
 
 	/* prefix a udp header to the msg */
-	newlen = len;
-	if ((newmsg = udpheader_add(newto, msg, &newlen)) == NULL) {
+	nlen = len;
+	if ((nmsg = udpheader_add(nto, msg, &nlen)) == NULL) {
 		errno = ENOBUFS;
 		return -1;
 	}
 
-	n = sendto(s, newmsg, newlen, flags, to, tolen);
-	n -= newlen - len;
+	if (socksfd->state.udpconnect)
+		n = sendto(s, nmsg, nlen, flags, NULL, 0);
+	else
+		n = sendto(s, nmsg, nlen, flags, &socksfd->reply, sizeof(socksfd->reply));
+	n -= nlen - len;
 
-	free(newmsg);
+	free(nmsg);
 
 	return MAX(-1, n);
 }
-
 
 ssize_t
 Rrecvfrom(s, buf, len, flags, from, fromlen)
@@ -114,7 +116,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 {
 	const char *function = "Rrecvfrom()";
 	struct socksfd_t *socksfd;
-	struct udpheader_t *header;
+	struct udpheader_t header;
 	char *newbuf;
 	struct sockaddr newfrom;
 	socklen_t newfromlen;
@@ -138,12 +140,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 		return recvfrom(s, buf, len, flags, from, fromlen);
 
 	/* if packet is from socksserver it will be prefixed with a header. */
-	newlen = len 
-			 + sizeof(header->flag)
-			 + sizeof(header->frag)
-			 + sizeof(header->host.atype)
-			 + sizeof(header->host.addr)
-			 + sizeof(header->host.port);
+	newlen = len + sizeof(header);
 	if ((newbuf = (char *)malloc(sizeof(char) * newlen)) == NULL) {
 		errno = ENOBUFS;
 		return -1;
@@ -158,34 +155,32 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 	if (sockaddrcmp(&newfrom, &socksfd->reply) == 0) {
 		/* packet is from socksserver. */
 		
-		if ((header = string2udpheader(newbuf, (size_t)n)) == NULL) {
+		if (string2udpheader(newbuf, (size_t)n, &header) == NULL) {
+			char badfrom[MAXSOCKADDRSTRING];
+
 			swarnx("%s: unrecognized udp packet from %s",
-			function, sockaddr2string(&newfrom));
-			free(newbuf);
+			function, sockaddr2string(&newfrom, badfrom, sizeof(badfrom)));
 			errno = EAGAIN;
 			return -1;	/* don't know if callee wants to retry. */
 		}
-		newfrom = *sockshost2sockaddr(&header->host);
+		sockshost2sockaddr(&header.host, &newfrom);
 
 		/* callee doesn't get socksheader. */
-		n -= PACKETSIZE_UDP(header);
+		n -= PACKETSIZE_UDP(&header);
 		SASSERTX(n >= 0);
 		SASSERTX(n <= len);
-		memcpy(buf, &newbuf[PACKETSIZE_UDP(header)], (size_t)n);
-
+		memcpy(buf, &newbuf[PACKETSIZE_UDP(&header)], (size_t)n);
 
 		/* if connected udpsocket, only forward from "connected" source. */
 		if (socksfd->state.udpconnect) {
 			if (sockaddrcmp(&newfrom, &socksfd->connected) != 0) {
-				char *a, *b;
+				char a[MAXSOCKADDRSTRING];
+				char b[MAXSOCKADDRSTRING];
 
 				slog(LOG_DEBUG, "%s: expected udpreply from %s, got it from %s",
 				function,
-				strcheck(a = strdup(sockaddr2string(&socksfd->connected))),
-				strcheck(b = strdup(sockaddr2string(&newfrom))));
-
-				free(a);
-				free(b);
+				sockaddr2string(&socksfd->connected, a, sizeof(a)),
+				sockaddr2string(&newfrom, b, sizeof(b)));
 
 				free(newbuf);
 				errno = EAGAIN;
@@ -287,7 +282,7 @@ udpsetup(s, to, type)
 	len = sizeof(socksfd.local);
 	if (getsockname(s, &socksfd.local, &len) != 0)
 		return -1;
-	src = *sockaddr2sockshost(&socksfd.local);
+	sockaddr2sockshost(&socksfd.local, &src);
 
 	bzero(&packet, sizeof(packet));
 	packet.version 			= SOCKS_V5;
@@ -296,7 +291,6 @@ udpsetup(s, to, type)
 	packet.req.flag 		  |= SOCKS_USECLIENTPORT;
 /*	packet.req.flag 		  |= SOCKS_INTERFACEREQUEST; */
 	packet.req.host 			= src;
-	packet.auth					= &socksfd.state.auth;
 
 	if ((socksfd.s = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 		return -1;
@@ -311,7 +305,30 @@ udpsetup(s, to, type)
 	if ((((struct sockaddr_in *)(&socksfd.local))->sin_addr.s_addr
 	== htonl(INADDR_ANY))
 	|| ((struct sockaddr_in *)(&socksfd.local))->sin_port == htons(0)) {
-		/* local name not set, set it. */
+		/* 
+		 * local name not fixed, set it, port may be bound, we need to bind
+		 * ip too however.
+		*/
+		const in_port_t port = ((struct sockaddr_in *)(&socksfd.local))->sin_port;
+
+		if (port != htons(0)) {
+			/*
+			 * port is bound.  We will try to unbind and then rebind same port 
+ 			 * but now also bind ip address.
+			*/
+			
+			if ((p = socketoptdup(s)) == -1) {
+				close(socksfd.s);
+				return -1;
+			}
+
+			if (dup2(p, s) == -1) {
+				close(socksfd.s);
+				close(p);
+				return -1;
+			}
+			close(p);
+		}
 
 		/*
 		 * don't have much of an idea on what ip address to use so might as 
@@ -323,7 +340,7 @@ udpsetup(s, to, type)
 			return -1;
 		}	
 		/* LINTED  pointer casts may be troublesome */
-		((struct sockaddr_in *)&socksfd.local)->sin_port = htons(0);
+		((struct sockaddr_in *)&socksfd.local)->sin_port = port;
 		
 		if (bind(s, &socksfd.local, sizeof(socksfd.local)) != 0) {
 			close(socksfd.s);
@@ -335,16 +352,17 @@ udpsetup(s, to, type)
 			return -1;
 		}
 
-		packet.req.host = *sockaddr2sockshost(&socksfd.local);
+		sockaddr2sockshost(&socksfd.local, &packet.req.host);
 	}
 	
 	if (socks_negotiate(socksfd.s, &packet) != 0)
 		return -1;
 
+	socksfd.state.auth 				= packet.auth;
 	socksfd.state.version 			= packet.version;
 	socksfd.state.command 			= SOCKS_UDPASSOCIATE;
 	socksfd.state.protocol.udp		= 1;
-	socksfd.reply 						= *sockshost2sockaddr(&packet.res.host);
+	sockshost2sockaddr(&packet.res.host, &socksfd.reply);
 
 	p = sizeof(socksfd.server);
 	if (getpeername(socksfd.s, &socksfd.server, &p) != 0) {
@@ -371,9 +389,6 @@ udpsetup(s, to, type)
 		socksfd.state.version) == 0) {
 		}
 	}
-#else
-	/* making a wild guess. */
-	socksfd.remote = socksfd.reply;
 #endif
 
 	if (socks_addaddr((unsigned int)s, &socksfd) == NULL) {

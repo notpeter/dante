@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.182 1998/11/15 16:34:42 michaels Exp $";
+"$Id: sockd.c,v 1.197 1998/12/14 11:57:24 karls Exp $";
 
 #include "common.h"
 
@@ -60,17 +60,6 @@ sigchld __P((int sig));
 
 static void
 sighup __P((int sig));
-
-static void
-sockdexit __P((int sig));
-/*
- * Called both by signal and manual.
- * If "sig" is less than 0, assume it's manually and exit with absolute
- * value of "sig".
- * Otherwise report exit due to signal "sig".
-*/
-
-
 
 static void
 sigserverbroadcast __P((int sig));
@@ -133,9 +122,16 @@ const int ignoresignalc = ELEMENTS(ignoresignalv);
 
 
 int
+#ifdef HAVE_SETPROCTITLE
 main(argc, argv)
+#else
+main(argc, argv, envp)
+#endif /* HAVE_SETPROCTITLE */
 	int	argc;
 	char	*argv[];
+#ifndef HAVE_SETPROCTITLE
+	char    *envp[];
+#endif  /* HAVE_SETPROCTITLE */
 {
 	struct sigaction sigact;
 	int p, maxfd, dforchild;
@@ -159,9 +155,22 @@ main(argc, argv)
 	 * initialize misc options to sensible default.
  	*/
 
+	config.option.serverc		= 1;	/* ourselves. ;-) */
+	config.option.keepalive		= 1;
+
+	config.srchost.unknown		= 1;
+
 	config.timeout.negotiate	= DEFAULT_NEGOTIATETIMEOUT;
 	config.timeout.io				= DEFAULT_IOTIMEOUT;	
-	config.option.serverc		= 1;	/* ourselves. ;-) */
+
+	config.state.addchild		= 1;
+
+#ifndef HAVE_SETPROCTITLE
+#if 0 /* XXX */
+	if (initsetproctitle(argc, argv, envp) == -1) 
+		serr(EXIT_FAILURE, "malloc");
+#endif
+#endif  /* !HAVE_SETPROCTITLE*/
 
 	initoptions(argc, argv);
 
@@ -317,7 +326,7 @@ main(argc, argv)
 	||	 childcheck(CHILD_IO)			<= 0)
 		serr(EXIT_FAILURE, "childcheck() failed");
 
-  	slog(LOG_INFO, "%s running", DANTEVERSION);
+  	slog(LOG_INFO, "%s/sockd v%s running", PACKAGE, VERSION);
 
 
 	/*
@@ -352,7 +361,10 @@ main(argc, argv)
 
 			if ((p = readn(child->ack, &command, sizeof(command)))
 			!= sizeof(command)) {
-				swarn("readn(child->ack)");
+				if (p == 0)
+					swarnx("readn(child->ack): child closed connection");
+				else
+					swarn("readn(child->ack)");
 				childisbad = 1;
 			}
 			else {
@@ -399,7 +411,7 @@ main(argc, argv)
 
 					/* set descriptor to blocking for request. */
 					if ((flags = fcntl(req.s, F_GETFL, 0)) == -1
-					||  fcntl(req.s, F_SETFL, flags & ~O_NONBLOCK) == -1)
+					||  fcntl(req.s, F_SETFL, flags & NONBLOCKING) == -1)
 						swarn("%s: fcntl()");
 
 					/* and send it to a request child. */
@@ -476,6 +488,8 @@ main(argc, argv)
 
 		/* handled our children, is there a new connection pending? */
 		for (p = 0; p < config.internalc; ++p) {
+			char accepted[MAXSOCKADDRSTRING];
+
 			if (FD_ISSET(config.internalv[p].s, &rset)) {
 				const struct listenaddress_t *l = &config.internalv[p];
 				struct sockd_child_t *negchild;
@@ -535,15 +549,15 @@ main(argc, argv)
 
 							continue; /* connection aborted/failed. */
 
+						case ENFILE:
+							continue;
+
 						/* 
-						 * this should never happen since childcheck(), because
-						 * initially successful, should make sure there is always
-						 * atleast one (but not necessarily more) descriptors
-						 * available because it frees one up before it returns
-						 * successfully.
+						 * this should never happen since childcheck(), if
+						 * initially successful, should make sure there is
+						 *	always enough descriptors available.
 						*/
 						case EMFILE:
-						case ENFILE:
 							/* FALLTHROUGH */
 
 						default:
@@ -567,7 +581,8 @@ main(argc, argv)
 						SERR(len);
 #endif
 
-				slog(LOG_DEBUG, "got accept(): %s", sockaddr2string(&from));
+				slog(LOG_DEBUG, "got accept(): %s",
+				sockaddr2string(&from, accepted, sizeof(accepted)));
 
 				if (send_client(negchild->s, client) == 0) {
 					--negchild->freec;
@@ -602,14 +617,15 @@ usage(code)
 {
 
 	fprintf(code == 0 ? stdout : stderr,
-	"%s: usage: %s [-Ddfhlnv]\n"
+	"%s: usage: %s [-DLNdfhlnv]\n"
 	"\t -D             : run in daemon mode\n"
 	"\t -L             : shows the license for this program\n"
+   "\t -N <number>    : fork of <number> servers (default: 1)\n"
 	"\t -d             : enable debugging\n"
 	"\t -f <filename>  : use <filename> as configuration file\n"
 	"\t -h             : print this information\n"
 	"\t -l             : linebuffer output\n"
-   "\t -n <number>    : fork of <number> servers (default: 1)\n"
+   "\t -n             : disable TCP keep-alive\n"
 	"\t -v             : print version info\n",
 	__progname, __progname);
 
@@ -620,7 +636,7 @@ static void
 showversion(void)
 {
 
-	printf("%s: %s\n", __progname, DANTEVERSION);
+	printf("%s: %s v%s\n", __progname, PACKAGE, VERSION);
 	exit(EXIT_SUCCESS);
 }
 
@@ -629,49 +645,50 @@ static void
 showlicense(void)
 {
 
-	printf("%s: %s\n %s\n", __progname, DANTEVERSION,
-"/*
-  * Copyright (c) 1997, 1998
-  *      Inferno Nettverk A/S, Norway.  All rights reserved.
-  *
-  * Redistribution and use in source and binary forms, with or without
-  * modification, are permitted provided that the following conditions
-  * are met:
-  * 1. The above copyright notice, this list of conditions and the following
-  *    disclaimer must appear in all copies of the software, derivative works
-  *    or modified versions, and any portions thereof, aswell as in all
-  *    supporting documentation.
-  * 2. All advertising materials mentioning features or use of this software
-  *    must display the following acknowledgement:
-  *      This product includes software developed by
-  *      Inferno Nettverk A/S, Norway.
-  * 3. The name of the author may not be used to endorse or promote products
-  *    derived from this software without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-  * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
-  * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
-  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-  *
-  * Inferno Nettverk A/S requests users of this software to return to
-  * 
-  *  Software Distribution Coordinator  or  sdc@inet.no
-  *  Inferno Nettverk A/S
-  *  Oslo Research Park
-  *  Gaustadaléen 21
-  *  N-0371 Oslo
-  *  Norway
-  * 
-  * any improvements or extensions that they make and grant Inferno Nettverk A/S
-  * the rights to redistribute these changes.
-  *
-  */");
+	printf("%s: %s v%s\n%s\n", __progname, PACKAGE, VERSION,
+"\
+/*\n\
+ * Copyright (c) 1997, 1998\n\
+ *      Inferno Nettverk A/S, Norway.  All rights reserved.\n\
+ *\n\
+ * Redistribution and use in source and binary forms, with or without\n\
+ * modification, are permitted provided that the following conditions\n\
+ * are met:\n\
+ * 1. The above copyright notice, this list of conditions and the following\n\
+ *    disclaimer must appear in all copies of the software, derivative works\n\
+ *    or modified versions, and any portions thereof, aswell as in all\n\
+ *    supporting documentation.\n\
+ * 2. All advertising materials mentioning features or use of this software\n\
+ *    must display the following acknowledgement:\n\
+ *      This product includes software developed by\n\
+ *      Inferno Nettverk A/S, Norway.\n\
+ * 3. The name of the author may not be used to endorse or promote products\n\
+ *    derived from this software without specific prior written permission.\n\
+ *\n\
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR\n\
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES\n\
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. \n\
+ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,\n\
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT\n\
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n\
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\n\
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT \n\
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF\n\
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\
+ *\n\
+ * Inferno Nettverk A/S requests users of this software to return to\n\
+ * \n\
+ *  Software Distribution Coordinator  or  sdc@inet.no\n\
+ *  Inferno Nettverk A/S\n\
+ *  Oslo Research Park\n\
+ *  Gaustadaléen 21\n\
+ *  N-0371 Oslo\n\
+ *  Norway\n\
+ * \n\
+ * any improvements or extensions that they make and grant Inferno Nettverk A/S\n\
+ * the rights to redistribute these changes.\n\
+ *\n\
+ */");
 
 	exit(EXIT_SUCCESS);
 }
@@ -688,7 +705,7 @@ initoptions(argc, argv)
 	if (config.state.pid == 0)
 		config.state.pid = getpid();
 
-	while ((ch = getopt(argc, argv, "DLdf:hln:vw:")) != -1) {
+	while ((ch = getopt(argc, argv, "DLN:df:hlnvw:")) != -1) {
 		switch (ch) {
 			case 'D':
 				config.option.daemon = 1;
@@ -697,6 +714,12 @@ initoptions(argc, argv)
 			case 'L':
 				showlicense();
 				/* NOTREACHED */	
+
+			case 'N':
+				if ((config.option.serverc = atoi(optarg)) < 1)
+					serrx(1, "%s: illegal value for -n: %d",
+					function, config.option.serverc);
+				break;
 				
 			case 'd':
 				++config.option.debug;
@@ -715,11 +738,9 @@ initoptions(argc, argv)
 				break;
 
 			case 'n':
-				if ((config.option.serverc = atoi(optarg)) < 1)
-					serrx(1, "%s: illegal value for -n: %d",
-					function, config.option.serverc);
+				config.option.keepalive = 0;
 				break;
-				
+
 			case 'v':
 				showversion();
 				/* NOTREACHED */	
@@ -757,7 +778,6 @@ initoptions(argc, argv)
 	if (*config.domain == NUL)
 		swarnx("%s: local domainname not set", function);
 		
-
 	euid = geteuid();	/* for reset back to original before function return. */ 
 	if (euid != config.uid.privileged)
 		seteuid(config.uid.privileged);
@@ -785,29 +805,27 @@ initoptions(argc, argv)
 		if ((l->s = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 			serr(EXIT_FAILURE, "%s: socket(SOCK_STREAM)", function);
 
-		ch = 1;
-		if (setsockopt(l->s, SOL_SOCKET, SO_KEEPALIVE, &ch, sizeof(ch)) != 0)
-			swarn("%s: setsockopt(SO_KEEPALIVE)", function);
+		setsockoptions(l->s);
 
 		ch = 1;
 		if (setsockopt(l->s, SOL_SOCKET, SO_REUSEADDR, &ch, sizeof(ch)) != 0)
 			swarn("%s: setsockopt(SO_REUSEADDR)", function);
 
-		ch = 1;
-		if (setsockopt(l->s, SOL_SOCKET, SO_OOBINLINE, &ch, sizeof(ch)) != 0)
-			swarn("%s: setsockopt(SO_OOBINLINE)", function);
-
 		/* LINTED pointer casts may be troublesome */
-		if (sockd_bind(l->s, (struct sockaddr *)&l->addr, 0) != 0)
+		if (sockd_bind(l->s, (struct sockaddr *)&l->addr, 0) != 0) {
+			char badbind[MAXSOCKADDRSTRING];
+
 			/* LINTED pointer casts may be troublesome */
 			serr(EXIT_FAILURE, "%s: bind(%s)",
-			function, sockaddr2string((struct sockaddr *)&l->addr));
+			function, sockaddr2string((struct sockaddr *)&l->addr, badbind,
+			sizeof(badbind)));
+		}
 
 		if (listen(l->s, SOCKD_MAXCLIENTQUE) == -1)
 			serr(EXIT_FAILURE, "%s: listen(%d)", function, SOCKD_MAXCLIENTQUE);
 
 		if ((flags = fcntl(l->s, F_GETFL, 0)) == -1
-		||  fcntl(l->s, F_SETFL, flags | O_NONBLOCK) == -1)
+		||  fcntl(l->s, F_SETFL, flags | NONBLOCKING) == -1)
 			serr(EXIT_FAILURE, "%s: fcntl()", function);
 		
 
@@ -870,9 +888,9 @@ siginfo(sig)
 	else
 		minutes = 0;
 
-	slog(LOG_INFO, "up %lu days, %lu:%.2lu, accepted: %lu, current: %lu", 
-	days, hours, minutes, (unsigned long)config.stat.accepted,
- 	(unsigned long)clients);
+	slog(LOG_INFO, "%s v%s up %lu day%s, %lu:%.2lu, a: %lu, c: %lu",
+	PACKAGE, VERSION, days, days == 1 ? "" : "s", hours, minutes,
+	(unsigned long)config.stat.accepted, (unsigned long)clients);
 
 	slog(LOG_INFO, "negotiators:    a: %lu, h: %lu, c: %ld",
 	config.stat.negotiate.sendt, config.stat.negotiate.received,
@@ -930,39 +948,11 @@ sigchld(sig)
 		for (i = 1; i < config.option.serverc; ++i)
 			if (config.state.pidv[i] == pid)
 				config.state.pidv[i] = 0;	/* a server died. */
+
+		if (i == config.option.serverc)
+			/* assume a relay child died, we can try to add a new one later. */
+			config.state.addchild = 1;
 	}
-}
-
-/* ARGSUSED */
-static void
-sockdexit(sig)
-	int sig;
-{
-	int i;
-
-	if (sig > 0)
-		slog(LOG_ALERT, "Terminating on signal %d", sig);
-
-	for (i = 0;  i < config.log.fpc; ++i) {
-		fclose(config.log.fpv[i]);
-		close(config.log.fplockv[i]);
-	}
-
-	if (sig > 0)
-		switch (sig) {
-			/* ok signals. */
-			case SIGINT:
-			case SIGQUIT:
-			case SIGTERM:
-				exit(EXIT_FAILURE);
-				/* NOTREACHED */	
-
-			/* bad signals. */
-			default:
-				abort();
-		}
-	else
-		exit(-sig);
 }
 
 

@@ -403,7 +403,17 @@ if test -z "$show_help"; then
 	build_old_libs=yes
         break
         ;;
+
+	#XXX
+      -all-dynamic)
+        if test "$build_libtool_libs" = no; then
+	  $echo "$modename: warning: unable to build only dynamic libraries in this configuration" 1>&2
+	fi
+	build_old_libs=no
+	break
+	;;
       esac
+
     done
 
     # See if our shared archives depend on static archives.

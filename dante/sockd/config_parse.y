@@ -44,7 +44,7 @@
 %{
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.72 1998/11/13 21:18:10 michaels Exp $";
+"$Id: config_parse.y,v 1.76 1998/12/13 17:05:53 michaels Exp $";
 
 #include "common.h"
 
@@ -165,7 +165,7 @@ static enum operator_t			*operator;		/* new operator.						*/
 %type <string> address ipaddress gwaddress domain direct
 %type	<string> from to
 %type	<string> netmask
-%type	<string> port portrange portstart portoperator portnumber service
+%type	<string> port portrange portstart portoperator portnumber portservice
 
 %token <string> VERDICT_BLOCK VERDICT_PASS 
 %token <string> PROTOCOL PROTOCOL_TCP PROTOCOL_UDP
@@ -176,7 +176,7 @@ static enum operator_t			*operator;		/* new operator.						*/
 %token <string> LINE
 %token <string> LIBWRAPSTART
 %token <string> OPERATOR
-%token <string> LOG LOG_CONNECT LOG_DISCONNECT LOG_IOOPERATION LOG_DATA 
+%token <string> LOG LOG_CONNECT  LOG_DATA LOG_DISCONNECT LOG_ERROR 									    LOG_IOOPERATION
 %token <string> IPADDRESS DOMAIN DIRECT
 %token <string> PORT SERVICENAME
 %token <string> NUMBER
@@ -245,7 +245,7 @@ route:	ROUTE routeinit '{' fromto gateway '}' {
 #ifdef SOCKS_CLIENT
 		route.src		= src;
 		route.dst 		= dst;
-		route.gw.host	= *ruleaddress2sockshost(&gw, SOCKS_TCP);
+		ruleaddress2sockshost(&gw, &route.gw.host, SOCKS_TCP);
 		route.gw.state	= state;
 
 		addroute(&route);
@@ -323,9 +323,12 @@ internal:	{ $$ = NULL; }
 			int i;
 
 			for (i = 0; i < config.internalc; ++i)
-				if (config.internalv[i].addr.sin_addr.s_addr != ipaddr->s_addr
-				||	 config.internalv[i].addr.sin_port != *port_tcp)
-					swarnx("can not change internal address' once running");
+				if (config.internalv[i].addr.sin_addr.s_addr == ipaddr->s_addr
+				&&	 config.internalv[i].addr.sin_port == *port_tcp)
+					break;
+
+			if (i == config.internalc)
+				swarnx("can not change internal address' once running");
 		}
 #endif /* SOCKS_SERVER */
 	}
@@ -333,7 +336,7 @@ internal:	{ $$ = NULL; }
 
 internalinit: {
 #ifdef SOCKS_SERVER
-	struct ruleaddress_t mem;
+	static struct ruleaddress_t mem;
 	struct servent	*service;
 	
 	addressinit(&mem);
@@ -357,8 +360,8 @@ internalinit: {
 			*port_tcp = service->s_port;
 	}
 	else { /* can only set internal address' once. */
-		struct in_addr inaddrmem;
-		in_port_t portmem;
+		static struct in_addr inaddrmem;
+		static in_port_t portmem;
 
 		ipaddr 		= &inaddrmem;
 		port_tcp		= &portmem;
@@ -372,7 +375,7 @@ external:	EXTERNAL externalinit ':' ipaddress
 
 externalinit: {
 #ifdef SOCKS_SERVER
-		struct ruleaddress_t mem;
+		static struct ruleaddress_t mem;
 
 		if ((config.externalv = (struct sockaddr_in *)realloc(config.externalv,
 		sizeof(*config.externalv) * ++config.externalc)) == NULL)
@@ -680,16 +683,19 @@ logname:  LOG_CONNECT {
 #ifdef SOCKS_SERVER
 	rule.log.connect = 1;
 	}
-	|	LOG_DISCONNECT {
-			rule.log.disconnect = 1;
-		}
-	|	LOG_IOOPERATION {
-			rule.log.iooperation = 1;
-		}
 	|	LOG_DATA {
 			rule.log.data = 1;
+	}
+	|	LOG_DISCONNECT {
+			rule.log.disconnect = 1;
+	}
+	|	LOG_ERROR {
+			rule.log.error = 1;
+	}
+	|	LOG_IOOPERATION {
+			rule.log.iooperation = 1;
 #endif
-		}
+	}
 	;
 
 
@@ -810,7 +816,7 @@ port: { $$ = NULL; }
 	|	PORT portrange
 	;
 
-portnumber:	service
+portnumber:	portservice
 	|	portstart 
 	;
 
@@ -824,7 +830,7 @@ portstart:	NUMBER {
 	}
 	;
 
-service:	SERVICENAME {
+portservice:	SERVICENAME {
 		struct servent	*service;
 		struct protocol_t	protocolunset;
 		

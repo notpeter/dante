@@ -42,23 +42,19 @@
  */
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.31 1998/11/13 21:18:29 michaels Exp $";
+"$Id: udp_util.c,v 1.32 1998/11/30 13:44:46 michaels Exp $";
 
 #include "common.h"
 
 struct udpheader_t *
-sockaddr2udpheader(to)
+sockaddr2udpheader(to, header)
 	const struct sockaddr *to;
-{
 	struct udpheader_t *header;
+{
 
 	SASSERTX(to->sa_family == AF_INET);
 
-	if ((header = (struct udpheader_t *)malloc(sizeof(*header))) == NULL)
-		return NULL;
-
-	bzero(header->flag, sizeof(header->flag));
-	header->frag = 0;
+	bzero(header, sizeof(*header));
 	
 	/* LINTED pointer casts may be troublesome */
 	if (socks_getfakeip(((const struct sockaddr_in *)to)->sin_addr.s_addr)) {
@@ -89,29 +85,23 @@ udpheader_add(to, msg, len)
 	const char *msg;
 	size_t *len;
 {
-	struct udpheader_t *header;
+	struct udpheader_t header;
 	char *newmsg, *offset;
 
-	if ((header = sockaddr2udpheader(to)) == NULL)
-		return NULL;
+	sockaddr2udpheader(to, &header);
 
-	if ((newmsg = (char *)malloc(sizeof(char) * *len * PACKETSIZE_UDP(header)))
-	== NULL) {
-		free(header);
+	if ((newmsg = (char *)malloc(sizeof(char) * *len * PACKETSIZE_UDP(&header)))
+	== NULL)
 		return NULL;
-	}
-
 	offset = newmsg;
 
-	memcpy(offset, &header->flag, sizeof(header->flag));
-	offset += sizeof(header->flag);
+	memcpy(offset, &header.flag, sizeof(header.flag));
+	offset += sizeof(header.flag);
 
-	memcpy(offset, &header->frag, sizeof(header->frag));
-	offset += sizeof(header->frag);
+	memcpy(offset, &header.frag, sizeof(header.frag));
+	offset += sizeof(header.frag);
 
-	offset = sockshost2mem(&header->host, offset, SOCKS_V5);
-
-	free(header);
+	offset = sockshost2mem(&header.host, offset, SOCKS_V5);
 
 	memcpy(offset, msg, *len);
 	offset += *len;
@@ -122,26 +112,28 @@ udpheader_add(to, msg, len)
 }
 
 struct udpheader_t *
-string2udpheader(data, len)
+string2udpheader(data, len, header)
 	const char *data;
 	size_t len;
+	struct udpheader_t *header;
 {
-	static struct udpheader_t header;
 
-	if (len < sizeof(header.flag))
+	bzero(header, sizeof(*header));
+
+	if (len < sizeof(header->flag))
 		return NULL;
-	memcpy(&header.flag, data, sizeof(header.flag));
-	data += sizeof(header.flag);
-	len -= sizeof(header.flag);
+	memcpy(&header->flag, data, sizeof(header->flag));
+	data += sizeof(header->flag);
+	len -= sizeof(header->flag);
 
-	if (len < sizeof(header.frag))
+	if (len < sizeof(header->frag))
 		return NULL;
-	memcpy(&header.frag, data, sizeof(header.frag));
-	data += sizeof(header.frag);
-	len -= sizeof(header.frag);
+	memcpy(&header->frag, data, sizeof(header->frag));
+	data += sizeof(header->frag);
+	len -= sizeof(header->frag);
 
-	if ((data = mem2sockshost(&header.host, data, len, SOCKS_V5)) == NULL)
+	if ((data = mem2sockshost(&header->host, data, len, SOCKS_V5)) == NULL)
 		return NULL;
 
-	return &header;
+	return header;
 }

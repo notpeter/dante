@@ -1,0 +1,107 @@
+.\" $Id: sockd.conf.5,v 1.7 1998/12/07 12:18:22 karls Exp $
+.TH SOCKD.CONF 5 "December 3, 1998"
+.SH NAME
+sockd.conf \- socks server configuration file syntax
+.SH DESCRIPTION
+The configuration file for
+.Xr sockd 8
+controls the both access control for the server and logging.  It is
+divided into two parts, serversettings and rules.
+A line can be commented using the standard comment character \fB#\fP.
+.SH SERVERSETTINGS
+The serversettings control the generic behaviour of the server.  Each
+keyword is separated from it's value by a \fB':'\fP character.
+.TP
+\fBlogouput\fP
+This value controls where the server sends logoutput.  It can
+be either \fBsyslog\fP, \fBstdout\fP, \fBstderr\fP, a filename, or
+a combination.
+.TP
+\fBinternal\fP
+The ipaddress of the internal interface.  The port server port number
+can also be specified here.  Connections will only be accepted on this
+ipaddress.  Multiple \fBinternal\fP lines can be given.
+.TP
+\fBexternal\fP
+The interface to be used for outgoing connections.
+.TP
+\fBlocaldomain\fP
+The name of the local domain.
+.TP
+\fBmethod\fP
+A list of accepted authentication method, in order of preference.
+Supported values now are \fBusername\fP and \fBnone\fP.
+.TP
+\fBuser.privileged\fP
+Username which will be used for doing privileged operations.
+.TP
+\fBuser.notprivileged\fP
+User which the server runs as most of the time.
+.TP
+\fBuser.libwrap\fP
+User used to execute libwrap commands.
+.TP
+\fBcompatibility\fP
+With the \fBsameport\fP keyword, the server attempts to use the same
+port on the server and the client.  This functionality is the default, but 
+when this option is given it will also be done with ports below 1024.
+The \fBreuseaddr\fP keyword might solve problems when the
+bind extension is used.
+.TP
+\fBconnecttimeout\fP
+The number of seconds a client has to send the request after a connect.
+Set it to 0 for forever.
+.TP
+\fBiotimeout\fP
+The number of seconds an established connection can be idle.  Set it
+to 0 for forever.
+.SH RULES
+There are two sets of rules.  Rules prefixed with \fBclient\fP are
+checked to see if the client is allowed to connect.  These should not
+use hostnames (on ip addresses), for security and performance reasons.
+The other rules are checked after the request has been accepted.  In
+the client context \fBto\fP means the address the request is accepted
+on, otherwise it means the client's destination address.  The rules
+specify a \fBfrom\fP/\fBto\fP ipmask pair and a \fBpass\fP or
+\fBdeny\fP keyword which determines if connections matching the
+netmask are allowed or not.  In addition to the netmask there are a
+set of extra keywords which can be given.  The format of each
+rules contents is:
+.TP
+\fBprotocol\fP
+The rule applies only to the given protocols.  Valid values are
+\fBtcp\fP and \fBudp\fP.
+.TP
+\fBfrom\fP
+The rule applies only to requests coming from the address given as value.
+.TP
+\fBto\fP
+The rule applies only to requests going to the address given as value.
+.Tp
+\fBauthmethod\fP
+The server will only use the methods given as value.  If the client
+fails to offer one of these methods, the connection will be closed.
+.TP
+\fBcommand\fP
+The rule applies only to the given commands.  Valid commands
+are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP.
+Can be used instead, or to complement, \fBprotocol\fP.
+.TP
+\fBlibwrap\fP
+The server will pass the line to libwrap for execution. 
+.TP
+\fBlog\fP
+Used to control logging.  Accepted keywords are \fBconnect\fP,
+\fBdisconnect\fP, \fBdata\fP and \fBiooperation\fP.
+.TP
+\fBprotocolversion\fP
+The rule applies only to requests using the given protocolversion.
+Valid versions are \fB4\fP and \fB5\fP.
+.SH EXAMPLES
+See the example directory in the distribution.
+.SH FILES
+.I /etc/sockd.conf
+.SH SEE ALSO
+sockd(8) hosts_access(5)
+.SH BUGS
+The file must be in a rigid order.

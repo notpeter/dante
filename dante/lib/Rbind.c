@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.70 1998/11/13 21:17:47 michaels Exp $";
+"$Id: Rbind.c,v 1.78 1998/12/12 15:42:22 michaels Exp $";
 
 #include "common.h"
 
@@ -57,13 +57,8 @@ Rbind(s, name, namelen)
 	socklen_t namelen;
 {
 	struct socks_t packet;
-	struct socksfd_t socksfd, *p;
+	struct socksfd_t socksfd;
 	int len, type;
-
-	/* see comment further down for this hack. */
-	if ((p = socks_getaddr((unsigned int)s)) != NULL)
-		if (p->state.system)
-			return bind(s, name, namelen);
 
 	/*
 	 * Nothing can be called before Rbind(), delete any old cruft.
@@ -113,11 +108,12 @@ Rbind(s, name, namelen)
 	switch (type) {
 		case SOCK_DGRAM: {
 			/*
-			 * bad; protocol does not support binding udp sockets, try to fake
-			 * it by sending to a empty packet to 0.0.0.0,0. 
-			 * Should be legal as per socks rfc.
+			 * bad; protocol does not support binding udp sockets.
 			*/
-
+			slog(LOG_DEBUG,
+				  "binding UDP sockets is not supported by socks protocol.\n"
+				  "Contact Inferno Nettverk A/S for more information.");
+			errno = EPROTOTYPE;
 			return -1;
 #if 0
 			/* LINTED pointer casts may be troublesome */
@@ -149,8 +145,6 @@ Rbind(s, name, namelen)
 	bzero(&packet, sizeof(packet));
 	packet.req.version  		= SOCKS_V5;
 	packet.req.command 		= SOCKS_BIND;
-	/* sharing socksfds memory, that's where it will end up anyway. */
-	packet.auth					= &socksfd.state.auth;
 
 	/* try to get a server that supports our bindextension first. */
 	packet.req.host.atype 				= SOCKS_ADDR_IPV4;
@@ -177,24 +171,10 @@ Rbind(s, name, namelen)
 		controladdr.sin_addr.s_addr 	= htonl(INADDR_ANY);
 		controladdr.sin_port				= htons(0);
 
-		/*
-		 * This is ugly but we can't just call bindresvport() since
-		 * it will probably end up calling bind, and thus Rbind() and thus...
-		 * We therefor temporarily add "socksfd.s" and set the system
-		 * field, so when bindresvport() ends up calling Rbind(), we
-		 * just return the system version of bind().
-		*/
-
-		socksfd.state.system 	= 1;
-		socksfd.state.command	= SOCKS_BIND;
-
-		socks_addaddr((unsigned int)socksfd.s, &socksfd);
 		if (bindresvport(socksfd.s, &controladdr) == -1) {
-			socks_rmaddr((unsigned int)socksfd.s);
 			close(socksfd.s);
 			return -1;
 		}
-		socks_rmaddr((unsigned int)socksfd.s);
 	}
 
 	if ((socksfd.route = socks_connectroute(socksfd.s, &packet, NULL, NULL))
@@ -241,12 +221,13 @@ Rbind(s, name, namelen)
 		return -1;
 	}
 
-	socksfd.state.version			= packet.req.version;
-	socksfd.state.command			= SOCKS_BIND;
 	socksfd.state.acceptpending	= socksfd.route->gw.state.extension.bind;
+	socksfd.state.auth 				= packet.auth;
+	socksfd.state.command			= SOCKS_BIND;
 	socksfd.state.protocol.tcp		= 1;
-	socksfd.remote 					= *sockshost2sockaddr(&packet.res.host);
+	sockshost2sockaddr(&packet.res.host, &socksfd.remote);
 	socksfd.reply						= socksfd.remote;	/* same ip address. */
+	socksfd.state.version			= packet.req.version;
 
 	if (socksfd.route->gw.state.extension.bind)
 		/* did we get the requested port? */
@@ -261,6 +242,7 @@ Rbind(s, name, namelen)
 			if ((new_s = socketoptdup(s)) == -1)
 				return -1;
 			dup2(new_s, s);
+			close(new_s);
 			errno = EADDRINUSE;
 			return -1;
 		}

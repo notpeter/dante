@@ -44,7 +44,7 @@
 %{
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.30 1998/11/13 21:18:12 michaels Exp $";
+"$Id: config_scan.l,v 1.32 1998/12/08 19:34:23 michaels Exp $";
 
 #include "common.h"
 
@@ -57,7 +57,7 @@ static const char rcsid[] =
 
 %option yylineno
 %option noyywrap
-/*%option debug */
+/* %option debug */
 
 
 	/* startconditions */
@@ -242,12 +242,9 @@ command {
 
 	/* compare */
 <start_service>eq|=|neq|!=|ge|>=|le|<=|gt|>|lt|< {
-	BEGIN(0);
-
 	yylval.string = yytext;
 	return OPERATOR; 
 }
-
 
 <start_service>[a-zA-Z]+ {
 	BEGIN(0);
@@ -430,19 +427,24 @@ log {
 	return LOG_CONNECT;
 }
 
+<start_log>data {
+	yylval.string = yytext;
+	return LOG_DATA;
+}
+
 <start_log>disconnect {
 	yylval.string = yytext;
 	return LOG_DISCONNECT;
 }
 
+<start_log>error {
+	yylval.string = yytext;
+	return LOG_ERROR;
+}
+
 <start_log>iooperation {
 	yylval.string = yytext;
 	return LOG_IOOPERATION;
-}
-
-<start_log>data {
-	yylval.string = yytext;
-	return LOG_DATA;
 }
 
 libwrap {

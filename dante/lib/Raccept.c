@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.45 1998/11/13 21:17:45 michaels Exp $";
+"$Id: Raccept.c,v 1.48 1998/12/07 18:43:04 michaels Exp $";
 
 #include "common.h"
 
@@ -82,7 +82,7 @@ Raccept(s, addr, addrlen)
 	 * calling Raccept() on this object will fail.
 	*/
 
-	if (iotype & (O_NONBLOCK | FNDELAY))
+	if (iotype & NONBLOCKING)
 		p = socks_lock(socksfd->state.lock, F_WRLCK, 0);
 	else
 		p = socks_lock(socksfd->state.lock, F_WRLCK, -1);
@@ -106,7 +106,7 @@ Raccept(s, addr, addrlen)
 
 	++fdbits;
 	
-	if (iotype & (O_NONBLOCK | FNDELAY)) {
+	if (iotype & NONBLOCKING) {
 		struct timeval timeout;
 
 		timeout.tv_sec 	= 0;
@@ -141,14 +141,14 @@ Raccept(s, addr, addrlen)
 			return -1;
 		}
 
-		/* update address info, may have gotten a new local name. */
-		len = sizeof(socksfd->local);
-		if (getsockname(s, &socksfd->local, &len) != 0)
-			return -1;
-
 		/* this is a separate socket and it has it's own remote address. */
 		socksfd = socks_addaddr((unsigned int)remote, socksfd);
 		
+		/* it will have a different local address if INADDR_ANY was bound. */
+		len = sizeof(socksfd->local);
+		if (getsockname(remote, &socksfd->local, &len) != 0)
+			swarn("%s: getsockname(remote)", function);
+
 		if (socksfd->state.acceptpending) {
 			/*
 			 * accepted a connection forwarded by socksserver or a ordinary
@@ -162,7 +162,7 @@ Raccept(s, addr, addrlen)
 				packet.req.version	= (char)socksfd->state.version;
 				packet.req.command  	= SOCKS_BIND;
 				packet.req.flag		= 0;
-				packet.req.host		= *sockaddr2sockshost(&socksfd->accepted);
+				sockaddr2sockshost(&socksfd->accepted, &packet.req.host);
 				packet.req.auth		= &socksfd->state.auth;
 	 
 				if (socks_sendrequest(socksfd->s, &packet.req) != 0)
@@ -181,7 +181,7 @@ Raccept(s, addr, addrlen)
 
 				if (packet.res.host.addr.ipv4.s_addr != htonl(INADDR_ANY))
 					/* forwarded from socksserver. */
-					socksfd->accepted = *sockshost2sockaddr(&packet.res.host);
+					sockshost2sockaddr(&packet.res.host, &socksfd->accepted);
 
 				/* else; ordinary connect. */
 			}
@@ -193,7 +193,7 @@ Raccept(s, addr, addrlen)
 
 		if (socks_recvresponse(socksfd->s, &packet.res, packet.version) != 0)
 			return -1;
-		socksfd->accepted = *sockshost2sockaddr(&packet.res.host);
+		sockshost2sockaddr(&packet.res.host, &socksfd->accepted);
 		remote = socksfd->s;
 	}
 

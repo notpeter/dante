@@ -1,25 +1,19 @@
-* print filename if socks_mklock() fails.
+- cleanup autoconf (HAVE_RECVFROM_CHAR+HAVE_FAULTY_XXX_PROTO 
+  (rename to HAVE_SOLARIS_PROTO?)
+
+* look at difference between v4 and v5 bind.
 
 * clean up (char)version (unsigned char)version and etc. stuff.
 
-* make a strlen() that takes a length arg?
+* add support for srchost_t in serverconfig.
 
-* option for keepalive or not, and also spread it to outgoing connections.
-
-* support truncating/replacing logfiles somehow.
-
-* try to have all functions using static memory get memory from caller.
+* overkill to reserve a requestchild just to forward bindreplys, 
+  fix it via SIGIO probably. 
 
 * continue work on udp bind.
 
-* more verbose error msg. from client when server fails?
-  -include value
-
 * a max value for the number of free io/negotiator's?  mother could kill
   "redundant" ones.
-
-* add test routines which sends bogus queries to the server (to test
-  error msg) 
 
 * shrink io_t, too big.
 
@@ -31,24 +25,9 @@
 * lib manpages, trim away most of Rfoo references. make/use general
   socks man page
 
-* test routines (chroot to get config files?), client + server which
-  sends/reads to stdout, compare with expected output...
-
-* nonblocking-connect stuff in client will probably not scale very well
-  perhaps adapt a similar approach as to that used in the server.
-  It is also wrong, we don't get access to the replypacket from server,
-  only connection ok or not, means socksfd.remote will be wrong.
-  Fix both things at same time.
-
-* benchmark; calculate extra memory consumption
-
 * support giving a interface name instead of ip address?
-
-* look at what it is possible to support in sendmsg/recvmsg.
 
 * should be possible to specify what address/portrange server should use for
   outgoing connection in each rule?
 
 * support a "state" keyword similar to ipf for udp?
-
-* a separate, or additional passwordfile for socks server? 

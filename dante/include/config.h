@@ -62,17 +62,31 @@
 	 * server stuff.
 	*/
 
-/* what file the server will write it's process id to. */
+/*
+ * used only if no usable system call is found (getdtablesize()/sysconf()). 
+ * If you are missing the system calls, but know what the value should
+ * be for max open files per process on your system, you should set
+ * this define to the correct value.
+*/
+#define SOCKS_FD_MAX 		64
+
+/*
+ * The file the server will write it's process id to.
+ * Note that this file should be in a restricted directory.
+*/
 #define SOCKD_PIDFILE		"/var/run/sockd.pid"
 
-/* default port for server to bind to. */
+/* default port for server to listen on. */
 #define SOCKD_PORT			1080
 
 /* default server configfile */
 #define SOCKD_CONFIGFILE		"/etc/sockd.conf"
 
-/* default server buffersize for network i/o */
-#define SOCKD_BUFSIZE		16384
+/* default server buffersize for network i/o using TCP. */
+#define SOCKD_BUFSIZETCP	(1024 * 16)
+
+/* default server buffersize for network i/o using UDP. */
+#define SOCKD_BUFSIZEUDP	(1024 * 256)
 
 /* max number of clients pending to server (listen()). */
 #define SOCKD_MAXCLIENTQUE	5
@@ -94,23 +108,34 @@
 #define SOCKD_FREESLOTS		4
 /* 
  * Number of slots to try and keep available for new clients at any given time.
- * The server tries to be a little more intelligent about this and make
- * some things relevant to each other.
+ * The server tries to be a little more intelligent about this, but not much.
+*/
+
+/*
+ * Dante supports one process handling N clients, where the max value for 'N'
+ * is limited by your system.  There will probably be a minor degredation
+ * in performance for the clients with a big N, but less resources/processes
+ * will be used on the machine the Dante server is running on. 
+ * There are two defines that govern this; SOCKD_NEGOTIATEMAX and 
+ * SOCKD_IOMAX.  Tailor to your preference.
 */
 
 /*
  * max number of clients each negotiate process will handle.
+ * You can probably set this to a big number.
  * Each client will occupy one descriptor.
 */
 #define SOCKD_NEGOTIATEMAX 4
 
+
 /*
  * max number of clients each i/o process will handle.
- * Each client will occupy upto three descriptors.
+ * Each client will occupy up to three descriptors.
  * While shortage of slots in the other process' will create a delay
  * for the client, shortage of i/o process' will prevent the client
  * from doing any i/o to it's destination untill a i/o slot has become
- * available.
+ * available.  It is therefore important that enough i/o slots are
+ * available at all times.
 */
 #define SOCKD_IOMAX			4
 
@@ -119,7 +144,7 @@
  * For systems that do not have low watermarks.
  * The more accurate you can set this, the better performance. 
  * It is important not to set it to too high a value as it will degrade
- * performance even more, causing starvation of clients.
+ * performance for clients even more, causing starvation.
 */
 #ifndef HAVE_SO_SNDLOWAT
 #define SO_SNDLOWAT_SIZE	1024

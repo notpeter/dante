@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: io.c,v 1.24 1998/11/13 21:18:15 michaels Exp $";
+"$Id: io.c,v 1.27 1998/12/05 12:47:33 michaels Exp $";
 
 #include "common.h"
 
@@ -146,18 +146,29 @@ recvmsgn(s, msg, flags, len)
 	left -= p;
 
 	if (left > 0) {
-		/* A correct recvmsgn() would check the iov_base elements. */
-		for (p = 1; p < msg->msg_iovlen; ++p)
-			SASSERTX(&msg->msg_iov[p].iov_base
-			== &msg->msg_iov[p - 1].iov_base + msg->msg_iov[p - 1].iov_len); 
+		ssize_t done = p;
+		int i, count;
 
 		/*	can't call recvmsg() again since we could be getting ancillary data. */
-		p = readn(s, &((char *)((*msg->msg_iov).iov_base))[len - left], left);
-		if (p == -1)
-			return -1;
-		left -= p;
+
+		/* LINTED expression has null effect */
+		for (i = 0, count = 0, p = 0; i < msg->msg_iovlen && left > 0; ++i) {
+			const struct iovec *io = &msg->msg_iov[i];
+
+			count += io->iov_len;
+			if (count > done) {
+				if ((p = readn(s, &((char *)(io->iov_base))[io->iov_len -
+				(count - done)], (size_t)(count - done))) != (size_t)(count - done))
+					break;
+
+				left -= p;
+				done += p;
+			}
+		}
 	}
 
+	if (left == len)
+		return p; /* nothing read. */
 	return len - left;
 }
 
@@ -169,6 +180,10 @@ closen(d)
 
 	while ((rc = close(d)) == -1 && errno == EINTR)
 		;
+
+#ifdef DIAGNOSTICS
+	SASSERT(rc == 0 || d >= 0);
+#endif
 
 	return rc;
 }
