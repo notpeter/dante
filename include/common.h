@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.262 2001/02/06 15:58:37 michaels Exp $ */
+/* $Id: common.h,v 1.263 2001/03/05 13:55:51 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -1229,13 +1229,6 @@ struct authmethod_t {
 		struct uname_t		uname;
 		struct rfc931_t	rfc931;
 	} mdata;
-};
-
-
-struct method_t {
-	unsigned none:1;
-	unsigned uname:1;
-	unsigned :0;
 };
 
 

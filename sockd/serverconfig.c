@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.129 2001/02/06 15:59:05 michaels Exp $";
+"$Id: serverconfig.c,v 1.130 2001/03/13 21:40:14 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -869,16 +869,18 @@ rulespermit(s, match, state, src, dst)
 		 * is triggered.
 		 */
 
-		if (src != NULL)
+		if (src != NULL) {
 			if (!addressmatch(&rule->src, src, state->protocol, 0))
 				continue;
+		}
 		else
 			if (rule->verdict == VERDICT_BLOCK)
 				continue; /* continue scan. */
 
-		if (dst != NULL)
+		if (dst != NULL) {
 			 if (!addressmatch(&rule->dst, dst, state->protocol, 0))
 				continue;
+		}
 		else
 			if (rule->verdict == VERDICT_BLOCK)
 				continue; /* continue scan. */
