@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.52 2004/03/02 21:52:23 karls Exp $
+%@(#)$Id: faq.tex,v 1.53 2004/11/25 13:33:13 michaels Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -56,7 +56,7 @@
 	Gaustadalléen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2004/03/02 21:52:23 $$$$}
+\date{$$$$Date: 2004/11/25 13:33:13 $$$$}
 
 \makeindex
 
@@ -718,7 +718,24 @@ exec setuidgid logging multilog t /var/log/dante
    With the password for the Administrator user in the file
    /etc/ldap.secret and chowned to 0600.
 
-
    \emph{Thanks to: Alexander Cohen <A.Cohen@latrobe.edu.au>.}
+ \subsection{Technical details}
+  \subsubsection{Why do I always get an initial success to
+	my erroneous username/password with Dante?}
+
+   If username/password authentication is used, the socks client will
+   always get a successful response at first.  The username/password
+   is not checked until the full socks request has been received
+   from the client, at which point the request will fail if
+   the username/password is incorrect in the same way it would if
+   there was no "pass" rule for the request.
+
+   The reason for this is that due to the generality of the
+   Dante socks-rules, we do not know what authentication we will
+	be using for this particular clients request, until we have
+	read the request.  That means, the same client address could
+	in theory use one type of authentication for connections
+	to one address, and another authentication type for 
+	connections to another address.
 
 \end{document}

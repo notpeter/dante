@@ -1,10 +1,10 @@
 AC_INIT
-AC_PREREQ(2.50)
-AC_REVISION($Id: configure.ac,v 1.331 2004/11/11 12:42:11 karls Exp $)
+AC_PREREQ(2.59)
+AC_REVISION($Id: configure.ac,v 1.336 2004/12/03 03:55:10 karls Exp $)
 
 version=1.1.15
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="2"
+prerelease="3"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -759,7 +759,7 @@ else
 fi], [AC_MSG_RESULT(no)
       AC_MSG_WARN([performance in the server might be degraded without support for the SO_SNDLOWAT socket option])])
 
-#correct select behaviour?
+#expected select behaviour?
 unset nb_select_err
 L_UNCON_SELECT([],
  [nb_select_err=t])
@@ -803,293 +803,102 @@ int main()
     [AC_DEFINE(HAVE_NONULL_FREE, 1, [free does not accept NULL parameter])
      AC_MSG_RESULT(no)])
 
-#A good time to save the cache (L_SOCKPROTO might fail)
+
+
+#A good time to save the cache (L_NSOCKPROTO might fail)
 AC_CACHE_SAVE
 
-#find prototypes for interposition.c
+
+#find prototypes from dlib/interposition.c
 if test "x$preload_enabled" = "xt"; then
 
-    unset failproto
+	unset failproto
 
-    if test "x${ac_cv_header_stdc}" = xyes; then
+	#prototypes; return value first, then parameters
+	#
+	# Example (accept from OpenBSD manual page):
+	#
+        # int accept(int s, struct sockaddr *addr, socklen_t *addrlen);
+	#
+	# Remove variable names and the result is:
+	# int, int, struct sockaddr *, socklen_t *
+	# This is quoted and added to the L_NSOCKPROTO call below. 
 
-	#does $CPP define __STDC__?
-	AC_EGREP_CPP(yes, [
-#ifdef __STDC__
-yes
-#endif
-	], [CPPFLAG_STDC=""], [CPPFLAG_STDC="-D__STDC__"])
+	L_NSOCKPROTO(accept, [failproto=t], 
+	 [int, int, struct sockaddr *, socklen_t *],
+	 [int, int, struct sockaddr *, Psocklen_t])
 
-	#L_SOCKPROTO is used to determine the argument types of the functions
-	#which are used in dlib/interposition.c. It compares the prototypes in
-	#(mainly) <sys/socket.h> and compares them to a list of known
-	#values. The arguments to L_SOCKPROTO are:
-	#1: the name of the function
-	#2: shell code which is executed if no known prototype is found
-	#3...: a list of known types, the first is a list of known return values,
-	#      the second a list of known values for the first argument etc.
-	#To add new values to the list simply add the new values at the end of
-	#the list. (to add a new function a set of #undef statements in
-	#acconfig.h is also needed).
-	case $host in
-		*-*-aix4* | *-*-aix5*)
-			PROTO_ACCEPT=naccept
-			PROTO_GETPEERNAME=ngetpeername
-			PROTO_GETSOCKNAME=ngetsockname
-			PROTO_RECVFROM=nrecvfrom
-			PROTO_RECVMSG=nrecvmsg
-			PROTO_SENDMSG=nsendmsg
-		;;
-		*)
-			PROTO_ACCEPT=accept
-			PROTO_GETPEERNAME=getpeername
-			PROTO_GETSOCKNAME=getsockname
-			PROTO_RECVFROM=recvfrom
-			PROTO_RECVMSG=recvmsg
-			PROTO_SENDMSG=sendmsg
-		;;
-	esac
+	L_NSOCKPROTO(bind, [failproto=t], 
+	 [int, int, const struct sockaddr *, socklen_t])
 
-	L_SOCKPROTO(connect, [failproto=t],
-	["int"],
-	["int"],
-	["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *" "__const struct sockaddr *"],
-	["socklen_t" "int" "size_t" "__socklen_t"])
+	L_NSOCKPROTO(connect, [failproto=t], 
+	 [int, int, const struct sockaddr *, socklen_t])
 
-	L_SOCKPROTO(${PROTO_ACCEPT}.accept, [failproto=t],
-	["int"],
-	["int"],
-	["struct sockaddr *" "__SOCKADDR_ARG" "__const struct sockaddr *" "void *"],
-	["socklen_t *" "int *" "Psocklen_t" "size_t *" "__socklen_t *"])
+	L_NSOCKPROTO(gethostbyaddr, [failproto=t], 
+	 [struct hostent *, const char *, int, int],
+	 [struct hostent *, const void *, socklen_t, int])
 
-	L_SOCKPROTO(bind, [failproto=t],
-	["int"],
-	["int"],
-	["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *" "__const struct sockaddr *"],
-	["socklen_t" "int" "size_t" "__socklen_t"])
+	L_NSOCKPROTO(getpeername, [failproto=t], 
+	 [int, int, struct sockaddr *, socklen_t *],
+	 [int, int, struct sockaddr *, Psocklen_t])
 
-	L_SOCKPROTO(${PROTO_GETPEERNAME}.getpeername, [failproto=t],
-	["int"],
-	["int"],
-	["struct sockaddr *" "__SOCKADDR_ARG" "void *"],
-	["socklen_t *" "int *" "Psocklen_t" "size_t *" "__socklen_t *"])
+	L_NSOCKPROTO(getsockname, [failproto=t], 
+	 [int, int, struct sockaddr *, socklen_t *],
+	 [int, int, struct sockaddr *, Psocklen_t])
 
-	L_SOCKPROTO(${PROTO_GETSOCKNAME}.getsockname, [failproto=t],
-	["int"],
-	["int"],
-	["struct sockaddr *" "__SOCKADDR_ARG" "void *"],
-	["int *" "socklen_t *" "Psocklen_t" "size_t *" "__socklen_t *"])
+	L_NSOCKPROTO(read, [failproto=t], 
+	 [ssize_t, int, void *, size_t])
 
-	L_SOCKPROTO(${PROTO_RECVFROM}.recvfrom, [failproto=t],
-	["ssize_t" "int"],
-	["int"],
-	["void *" "char *"],
-	["size_t" "int"],
-	["int" "unsigned int"],
-	["struct sockaddr *" "__SOCKADDR_ARG" "void *"],
-	["socklen_t *" "int *" "Psocklen_t" "size_t *" "__socklen_t *"])
+	L_NSOCKPROTO(readv, [failproto=t], 
+	 [ssize_t, int, const struct iovec *, int])
 
-	L_SOCKPROTO(send, [failproto=t],
-	["ssize_t" "int"],
-	["int"],
-	["const void *" "__const void *" "const char *"],
-	["size_t" "int"],
-	["int" "unsigned int"])
+	L_NSOCKPROTO(recv, [failproto=t], 
+	 [ssize_t, int, void *, size_t, int])
 
-	L_SOCKPROTO(sendto, [failproto=t],
-	["ssize_t" "int"],
-	["int"],
-	["const void *" "__const void *" "const char *"],
-	["size_t" "int"],
-	["int" "unsigned int"],
-	["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "const void *" "__const struct sockaddr *"],
-	["socklen_t" "int" "size_t" "__socklen_t"])
+	L_NSOCKPROTO(recvfrom, [failproto=t], 
+	 [ssize_t, int, void *, size_t, int, struct sockaddr *, socklen_t *],
+	 [ssize_t, int, void *, size_t, int, struct sockaddr *, Psocklen_t])
 
-	L_SOCKPROTO(recv, [failproto=t],
-	["ssize_t" "int"],
-	["int"],
-	["void *" "char *"],
-	["size_t" "int"],
-	["int" "unsigned int"])
+	L_NSOCKPROTO(recvmsg, [failproto=t], 
+	 [ssize_t, int, struct msghdr *, int])
 
-	L_SOCKPROTO(readv, [failproto=t],
-	["ssize_t" "int"],
-	["int"],
-	["const struct iovec *" "__const struct iovec *" "struct iovec *"],
-	["int" "size_t"])
+	L_NSOCKPROTO(send, [failproto=t], 
+	 [ssize_t, int, const void *, size_t, int])
 
-	L_SOCKPROTO(${PROTO_RECVMSG}.recvmsg, [failproto=t],
-	["ssize_t" "int"],
-	["int"],
-	["struct msghdr *"],
-	["int" "unsigned int"])
+	L_NSOCKPROTO(sendmsg, [failproto=t], 
+	 [ssize_t, int, const struct msghdr *, int])
 
-	L_SOCKPROTO(writev, [failproto=t],
-	["ssize_t" "int"],
-	["int"],
-	["const struct iovec *" "__const struct iovec *"],
-	["int" "size_t"])
+	L_NSOCKPROTO(sendto, [failproto=t], 
+	 [ssize_t, int, const void *, size_t, int, const struct sockaddr *, socklen_t])
 
-	L_SOCKPROTO(${PROTO_SENDMSG}.sendmsg, [failproto=t],
-	["ssize_t" "int"],
-	["int"],
-	["const struct msghdr *" "__const struct msghdr *"],
-	["int" "unsigned int"])
+	L_NSOCKPROTO(write, [failproto=t], 
+	 [ssize_t, int, const void *, size_t])
 
-	L_SOCKPROTO(write, [failproto=t],
-	["ssize_t"],
-	["int"],
-	["const void *" "__const void *"],
-	["size_t" "unsigned"])
-
-	L_SOCKPROTO(read, [failproto=t],
-	["ssize_t"],
-	["int"],
-	["void *"],
-	["size_t" "unsigned"])
-
-
-#XXX
-case $host in
-	mips-sgi-irix*)
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_0, struct hostent *, [proto])
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_1, const char *, [proto])
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_2, int, [proto])
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_3, int, [proto])
-	;;
-	*)
-
-	L_SOCKPROTO(gethostbyaddr, [failproto=t],
-	["struct hostent *"],
-	["const char *" "const void *" "__const char *" "__const void *"],
-	["int" "size_t" "__socklen_t"],
-	["int"])
-	;;
-esac
+	L_NSOCKPROTO(writev, [failproto=t], 
+	 [ssize_t, int, const struct iovec *, int])
 
 	if test x$failproto != x; then
 	    echo ""
-	    echo "error: some unfamiliar function prototypes were found,"
+	    echo "error: attempt to determine function prototypes failed,"
 	    echo "       and will probably mean that building of libdsocks,"
 	    echo "       which allows on-the-fly socksification of dynamic"
-	    echo "       binaries will not work."
+	    echo "       binaries, will not work."
 	    echo ""
 	    echo "       You have several options:"
 	    echo ""
 	    echo "       1. If you do not need libdsocks, run configure with the"
 	    echo "          option --disable-preload."
-	    echo "       2. Send the output from configure to dante-bugs@inet.no"
-	    echo "          and if possible you'll get a patch fixing the problem."
-	    echo "          If you think this might be a generic problem, sending"
-	    echo "          the output might allow the problem to be solved for all"
-	    echo "          users of your platform in the next release."
-	    echo "       3. Fix the problem yourself. If you have autoconf installed,"
-	    echo "          using the output above to modify configure.in should"
-	    echo "          enable you to compile without problems."
-	    #platform specific problems
-	    case $host in
-		 *-*-solaris*)
-			echo "       4. Remove '/usr/ucb' if it is in the PATH."
-			;;
-			*-*-darwin*)
-			echo "       4. The preprocessed header for unistd.h might be corrupt."
-			echo "          Try to regenerate it or rename unistd.p while you build this package."
-			;;
-	    esac
-	    echo ""
+	    echo "       2. Submit a bugreport."
+	    echo "       3. Find the prototypes used on your platform for the"
+	    echo "          failed functions, and add them to the configure.ac"
+	    echo "          file. Then use autoconf (which must be installed)"
+	    echo "          to regenerate the configure script."
+	    echo "          Function prototype definitions can usually be found"
+	    echo "          in the manual page for the function or in a system"
+	    echo "          include file (usually located under /usr/include)."
 	    exit 1
 	fi
-    else #non ansi
-	#defaults
-	AC_DEFINE(HAVE_PROT_CONNECT_0, int, [proto])
-	AC_DEFINE(HAVE_PROT_CONNECT_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_CONNECT_2, const struct sockaddr *, [proto])
-	AC_DEFINE(HAVE_PROT_CONNECT_3, socklen_t, [proto])
-
-	AC_DEFINE(HAVE_PROT_ACCEPT_0, int, [proto])
-	AC_DEFINE(HAVE_PROT_ACCEPT_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_ACCEPT_2, struct sockaddr *, [proto])
-	AC_DEFINE(HAVE_PROT_ACCEPT_3, socklen_t *, [proto])
-
-	AC_DEFINE(HAVE_PROT_BIND_0, int, [proto])
-	AC_DEFINE(HAVE_PROT_BIND_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_BIND_2, const struct sockaddr *, [proto])
-	AC_DEFINE(HAVE_PROT_BIND_3, socklen_t, [proto])
-
-	AC_DEFINE(HAVE_PROT_GETPEERNAME_0, int, [proto])
-	AC_DEFINE(HAVE_PROT_GETPEERNAME_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_GETPEERNAME_2, struct sockaddr *, [proto])
-	AC_DEFINE(HAVE_PROT_GETPEERNAME_3, socklen_t *, [proto])
-
-	AC_DEFINE(HAVE_PROT_GETSOCKNAME_0, int, [proto])
-	AC_DEFINE(HAVE_PROT_GETSOCKNAME_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_GETSOCKNAME_2, struct sockaddr *, [proto])
-	AC_DEFINE(HAVE_PROT_GETSOCKNAME_3, socklen_t *, [proto])
-
-	AC_DEFINE(HAVE_PROT_RECVFROM_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_RECVFROM_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_RECVFROM_2, void *, [proto])
-	AC_DEFINE(HAVE_PROT_RECVFROM_3, size_t, [proto])
-	AC_DEFINE(HAVE_PROT_RECVFROM_4, int, [proto])
-	AC_DEFINE(HAVE_PROT_RECVFROM_5, struct sockaddr *, [proto])
-	AC_DEFINE(HAVE_PROT_RECVFROM_6, socklen_t *, [proto])
-
-	AC_DEFINE(HAVE_PROT_SEND_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_SEND_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_SEND_2, const void *, [proto])
-	AC_DEFINE(HAVE_PROT_SEND_3, size_t, [proto])
-	AC_DEFINE(HAVE_PROT_SEND_4, int, [proto])
-
-	AC_DEFINE(HAVE_PROT_RECV_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_RECV_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_RECV_2, void *, [proto])
-	AC_DEFINE(HAVE_PROT_RECV_3, size_t, [proto])
-	AC_DEFINE(HAVE_PROT_RECV_4, int, [proto])
-
-	AC_DEFINE(HAVE_PROT_SENDTO_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_SENDTO_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_SENDTO_2, const void *, [proto])
-	AC_DEFINE(HAVE_PROT_SENDTO_3, size_t, [proto])
-	AC_DEFINE(HAVE_PROT_SENDTO_4, int, [proto])
-	AC_DEFINE(HAVE_PROT_SENDTO_5, const struct sockaddr *, [proto])
-	AC_DEFINE(HAVE_PROT_SENDTO_6, socklen_t, [proto])
-
-	AC_DEFINE(HAVE_PROT_READV_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_READV_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_READV_2, const struct iovec *, [proto])
-	AC_DEFINE(HAVE_PROT_READV_3, int, [proto])
-
-	AC_DEFINE(HAVE_PROT_WRITEV_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_WRITEV_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_WRITEV_2, const struct iovec *, [proto])
-	AC_DEFINE(HAVE_PROT_WRITEV_3, int, [proto])
-
-	AC_DEFINE(HAVE_PROT_RECVMSG_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_RECVMSG_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_RECVMSG_2, struct msghdr *, [proto])
-	AC_DEFINE(HAVE_PROT_RECVMSG_3, int, [proto])
-
-	AC_DEFINE(HAVE_PROT_SENDMSG_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_SENDMSG_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_SENDMSG_2, const struct msghdr *, [proto])
-	AC_DEFINE(HAVE_PROT_SENDMSG_3, int, [proto])
-
-	AC_DEFINE(HAVE_PROT_WRITE_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_WRITE_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_WRITE_2, const void *, [proto])
-	AC_DEFINE(HAVE_PROT_WRITE_3, size_t, [proto])
-
-	AC_DEFINE(HAVE_PROT_READ_0, ssize_t, [proto])
-	AC_DEFINE(HAVE_PROT_READ_1, int, [proto])
-	AC_DEFINE(HAVE_PROT_READ_2, void *, [proto])
-	AC_DEFINE(HAVE_PROT_READ_3, size_t, [proto])
-
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_0, struct hostent *, [proto])
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_1, const char *, [proto])
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_2, int, [proto])
-	AC_DEFINE(HAVE_PROT_GETHOSTBYADDR_3, int, [proto])
-    fi #stdc_headers
-fi #no preload
+fi
 
 AC_MSG_CHECKING([if getsockopt needs cast])
 AC_TRY_COMPILE([
@@ -1605,26 +1414,6 @@ fi
 
 AC_SUBST(TOPEXTRADIST)
 
-#XXXslow
-dnl Creating symbolic links
-AC_LINK_FILES(lib/config.c, sockd/config.c)
-AC_LINK_FILES(lib/config_parse.y, sockd/config_parse.y)
-AC_LINK_FILES(lib/config_scan.l, sockd/config_scan.l)
-AC_LINK_FILES(lib/io.c, sockd/io.c)
-AC_LINK_FILES(lib/log.c, sockd/log.c)
-AC_LINK_FILES(lib/protocol.c, sockd/lib_protocol.c)
-AC_LINK_FILES(lib/socket.c, sockd/socket.c)
-AC_LINK_FILES(lib/util.c, sockd/util.c)
-AC_LINK_FILES(lib/udp_util.c, sockd/udp_util.c)
-AC_LINK_FILES(lib/debug.c, sockd/debug.c)
-AC_LINK_FILES(lib/hostcache.c, sockd/hostcache.c)
-AC_LINK_FILES(lib/serr.c, sockd/serr.c)
-AC_LINK_FILES(lib/broken.c, sockd/broken.c)
-AC_LINK_FILES(lib/tostring.c, sockd/tostring.c)
-AC_LINK_FILES(lib/addressmatch.c, sockd/addressmatch.c)
-AC_LINK_FILES(dlib/interposition.c, sockd/interposition.c)
-
-
 if test -f "licensed/checkmodule.c"; then
 	unset MOD_CHECKMODULE
 else
@@ -1654,46 +1443,6 @@ fi
 AC_LINK_FILES(${MOD_BANDWIDTH}licensed/bandwidth.c, sockd/bandwidth.c)
 AC_LINK_FILES(${MOD_BANDWIDTH}licensed/bandwidth_key.c, sockd/bandwidth_key.c)
 
-#The dlib directory is for building a shared library with preloading
-#support (SOCKSLIBRARY_DYNAMIC is defined), when dlopen support is
-#available and requested.
-
-AC_LINK_FILES(lib/Raccept.c, dlib/Raccept.c)
-AC_LINK_FILES(lib/Rbind.c, dlib/Rbind.c)
-AC_LINK_FILES(lib/Rbindresvport.c, dlib/Rbindresvport.c)
-AC_LINK_FILES(lib/Rconnect.c, dlib/Rconnect.c)
-AC_LINK_FILES(lib/Rgethostbyname.c, dlib/Rgethostbyname.c)
-AC_LINK_FILES(lib/Rgetpeername.c, dlib/Rgetpeername.c)
-AC_LINK_FILES(lib/Rgetsockname.c, dlib/Rgetsockname.c)
-AC_LINK_FILES(lib/Rrresvport.c, dlib/Rrresvport.c)
-AC_LINK_FILES(lib/Rcompat.c, dlib/Rcompat.c)
-AC_LINK_FILES(lib/address.c, dlib/address.c)
-AC_LINK_FILES(lib/authneg.c, dlib/authneg.c)
-AC_LINK_FILES(lib/client.c, dlib/client.c)
-AC_LINK_FILES(lib/clientconfig.c, dlib/clientconfig.c)
-AC_LINK_FILES(lib/clientprotocol.c, dlib/clientprotocol.c)
-AC_LINK_FILES(lib/msproxy_clientprotocol.c, dlib/msproxy_clientprotocol.c)
-AC_LINK_FILES(lib/config.c, dlib/config.c)
-AC_LINK_FILES(lib/config_parse.y, dlib/config_parse.y)
-AC_LINK_FILES(lib/config_scan.l, dlib/config_scan.l)
-AC_LINK_FILES(lib/debug.c, dlib/debug.c)
-AC_LINK_FILES(lib/io.c, dlib/io.c)
-AC_LINK_FILES(lib/log.c, dlib/log.c)
-AC_LINK_FILES(lib/method_uname.c, dlib/method_uname.c)
-AC_LINK_FILES(lib/protocol.c, dlib/protocol.c)
-AC_LINK_FILES(lib/socket.c, dlib/socket.c)
-AC_LINK_FILES(lib/connectchild.c, dlib/connectchild.c)
-AC_LINK_FILES(lib/udp.c, dlib/udp.c)
-AC_LINK_FILES(lib/udp_util.c, dlib/udp_util.c)
-AC_LINK_FILES(lib/userio.c, dlib/userio.c)
-AC_LINK_FILES(lib/util.c, dlib/util.c)
-AC_LINK_FILES(lib/broken.c, dlib/broken.c)
-AC_LINK_FILES(lib/hostcache.c, dlib/hostcache.c)
-AC_LINK_FILES(lib/serr.c, dlib/serr.c)
-AC_LINK_FILES(lib/httpproxy.c, dlib/httpproxy.c)
-AC_LINK_FILES(lib/tostring.c, dlib/tostring.c)
-AC_LINK_FILES(lib/addressmatch.c, dlib/addressmatch.c)
-
 AC_CONFIG_FILES(sockd/Makefile include/Makefile lib/Makefile dlib/Makefile)
 AC_CONFIG_FILES(Makefile example/Makefile doc/Makefile bin/Makefile)
 AC_CONFIG_FILES(capi/Makefile SPECS/Makefile SPECS/dante.spec bin/socksify)
@@ -1721,7 +1470,7 @@ else
 	echo "SO_SNDLOWAT:       not enabled for this platform"
 fi
 if test x"${nb_select_err}" = xt; then
-	echo "select:            incorrect select behaviour on unconnected sockets,"
+	echo "select:            unexpected select behaviour on unconnected sockets,"
         echo "                   operations on nonblocking sockets might fail on this platform"
 else
 	echo "select:            OK"
