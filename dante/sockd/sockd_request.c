@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.89 1999/05/14 10:51:34 michaels Exp $";
+"$Id: sockd_request.c,v 1.94 1999/07/05 08:03:52 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -200,7 +200,7 @@ recv_req(s, req)
 	CMSG_GETOBJECT(req->s, sizeof(req->s) * fdreceived++);
 
 	/* pointer fixup */
-	req->req.auth = &req->auth;
+	req->req.auth = &req->state.auth;
 
 	return 0;
 }
@@ -225,7 +225,9 @@ dorequest(mother, request)
 	response.auth	= request->req.auth;
 
 	io = ioinit;
-	io.state.extension = config.extension;
+	io.acceptrule			= request->rule;
+	io.state					= request->state;
+	io.state.extension 	= config.extension;
 
 	/*
 	 * examine client request; valid and supported?
@@ -329,11 +331,6 @@ dorequest(mother, request)
 
 	/* packet ok, fill in remaining bits needed to check rules. */
 
-	io.acceptrule		= request->rule;
-	io.state.auth		= *(request->req.auth);
-	io.state.command	= request->req.command;
-	io.state.version	= request->req.version;
-
 	switch (request->req.command) {
 		case SOCKS_BIND:
 			/* LINTED pointer casts may be troublesome */
@@ -416,12 +413,12 @@ dorequest(mother, request)
 			else
 				bound.sin_port	= request->from.sin_port;
 
-			if (PORTRESERVED(bound.sin_port) && config.compat.sameport) {
+			if (PORTISRESERVED(bound.sin_port) && config.compat.sameport) {
 				uid_t euid;
 
 				socks_seteuid(&euid, config.uid.privileged);
 				p = bindresvport(out, &bound);
-				socks_reseteuid(euid);
+				socks_reseteuid(config.uid.privileged, euid);
 			}
 			else
 				/* LINTED pointer casts may be troublesome */
@@ -446,12 +443,12 @@ dorequest(mother, request)
 			bound					= *config.externalv;
 			bound.sin_port		= request->from.sin_port;
 
-			if (PORTRESERVED(bound.sin_port) && config.compat.sameport) {
+			if (PORTISRESERVED(bound.sin_port) && config.compat.sameport) {
 				uid_t euid;
 
 				socks_seteuid(&euid, config.uid.privileged);
 				p = bindresvport(out, &bound);
-				socks_reseteuid(euid);
+				socks_reseteuid(config.uid.privileged, euid);
 			}
 			else
 				/* LINTED pointer casts may be troublesome */
@@ -487,12 +484,12 @@ dorequest(mother, request)
 			bound				= *config.externalv;
 			bound.sin_port	= request->req.host.port;
 
-			if (PORTRESERVED(bound.sin_port) && config.compat.sameport) {
+			if (PORTISRESERVED(bound.sin_port) && config.compat.sameport) {
 				uid_t euid;
 
 				socks_seteuid(&euid, config.uid.privileged);
 				p = bindresvport(out, &bound);
-				socks_reseteuid(euid);
+				socks_reseteuid(config.uid.privileged, euid);
 			}
 			else
 				/* LINTED pointer casts may be troublesome */
@@ -635,7 +632,7 @@ dorequest(mother, request)
 				}
 
 				++fdbits;
-				if (select(fdbits, &rset, NULL, NULL, NULL) == -1)
+				if (selectn(fdbits, &rset, NULL, NULL, NULL) == -1)
 					SERR(-1);
 
 				if (FD_ISSET(sv[client], &rset)) {
@@ -684,8 +681,8 @@ dorequest(mother, request)
 								SASSERTX(fio->state.command = SOCKS_BINDREPLY);
 
 								/* LINTED pointer casts may be troublesome */
-								SASSERTX(sockaddrcmp((struct sockaddr *)&fio->in.laddr,
-								&queryaddr) == 0);
+								SASSERTX(sockaddrareeq((struct sockaddr *)
+								&fio->in.laddr, &queryaddr));
 
 								/* LINTED pointer casts may be troublesome */
 								sockaddr2sockshost((struct sockaddr *)&fio->out.raddr,
@@ -1247,9 +1244,9 @@ io_find(iolist, addr)
 	io = iolist;
 	while (io != NULL)
 		/* LINTED pointer casts may be troublesome */
-		if (sockaddrcmp((struct sockaddr *)&io->in.laddr, addr)			== 0
-		||  sockaddrcmp((struct sockaddr *)&io->out.laddr, addr)			== 0
-		||  sockaddrcmp((struct sockaddr *)&io->control.laddr, addr)	== 0)
+		if (sockaddrareeq((struct sockaddr *)&io->in.laddr, addr)
+		||  sockaddrareeq((struct sockaddr *)&io->out.laddr, addr)
+		||  sockaddrareeq((struct sockaddr *)&io->control.laddr, addr))
 			return io;
 		else
 			io = io->next;

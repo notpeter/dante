@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.121 1999/05/26 10:05:22 michaels Exp $ */
+/* $Id: sockd.h,v 1.125 1999/07/03 16:36:21 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -175,18 +175,23 @@ struct timeout_t {
 };
 
 
+struct linkedname_t {
+	char 						*name;
+	struct linkedname_t	*next;	/* next name in list.								*/
+};
+
 /* linked list over current rules. */
 struct rule_t {
-	int							verdict;			/* verdict for this rule.				*/
-	int							number;			/* rulenumber, info/debugging only.	*/
-	struct ruleaddress_t		src;				/* from src									*/
-	struct ruleaddress_t		dst;				/* ... to dst.								*/
+	struct ruleaddress_t		dst;				/* dst.										*/
 	struct log_t				log;				/* type of logging to do.				*/
+	int							number;			/* rulenumber, info/debugging only.	*/
+	struct ruleaddress_t		src;				/* src.										*/
 	struct serverstate_t		state;
+	struct linkedname_t		*user;			/* name of users allowed.				*/
+	int							verdict;			/* verdict for this rule.				*/
 
 #if HAVE_LIBWRAP
 	char							libwrap[LIBWRAPBUF];	/* libwrapline.					*/
-	struct request_info		request;
 #endif  /* HAVE_LIBWRAP */
 
 	struct rule_t				*next;			/* next rule in list.					*/
@@ -219,8 +224,9 @@ struct userid_t {
 };
 
 struct configstate_t {
-	volatile sig_atomic_t	addchild;				/* okay to do a addchild()?	*/
 	unsigned						init:1;
+	volatile sig_atomic_t	addchild;				/* okay to do a addchild()?	*/
+	uid_t							euid;						/* original euid. 				*/
 	pid_t							pid;						/* pid of current process.		*/
 	pid_t							*motherpidv;			/* pid of mothers.				*/
 };
@@ -262,8 +268,8 @@ struct config_t {
 	struct sockaddr_in			*externalv;				/*	external address'.		*/
 	int								externalc;
 
-	struct rule_t					*rule;					/* rules, list.				*/
-	struct rule_t					*client;					/* client addresses, list.	*/
+	struct rule_t					*crule;					/* clientrules, list.		*/
+	struct rule_t					*srule;					/* socksrules, list.			*/
 	struct route_t					*route;					/* not in use yet.			*/
 
 	struct compat_t				compat;					/* compatibility options.  */
@@ -278,8 +284,8 @@ struct config_t {
 	struct timeout_t				timeout;					/* timeout values.			*/
 	struct userid_t				uid;						/* userids.						*/
 
-	char								methodv[METHODS_MAX];/* prioritised methods list*/
-	unsigned char					methodc;					/* methods in list.			*/
+	int								methodv[AUTHMETHOD_MAX];/* methods by priority.	*/
+	int								methodc;					/* methods in list.			*/
 
 };
 
@@ -289,12 +295,17 @@ struct connectionstate_t {
 	int						command;
 	struct extension_t	extension;			/* extensions set.						*/
 	int						protocol;
+	struct {
+		time_t				accept;				/* time of connection accept.			*/
+		time_t				negotiate_start;	/* time negotiation started.			*/
+	} time;
 	int						version;
+
 };
 
 struct sockd_io_direction_t {
 	int								s;				/* socket connection.					*/
-	struct sockaddr_in			laddr;		/* loca address of s.					*/
+	struct sockaddr_in			laddr;		/* local address of s.					*/
 	struct sockaddr_in			raddr;		/* address of remote peer for s.		*/
 	struct connectionstate_t	state;
 
@@ -330,9 +341,9 @@ struct sockd_io_t {
 
 struct negotiate_state_t {
 	unsigned					complete:1;							/* completed?				*/
-	unsigned char			mem[sizeof(char)					/* VER						*/
-									+ sizeof(char)					/* NMETHODS					*/
-									+ METHODS_MAX					/* METHODS					*/
+	unsigned char			mem[ 1								/* VER						*/
+									+ 1								/* NMETHODS					*/
+									+ AUTHMETHOD_MAX				/* METHODS					*/
 									+ sizeof(struct request_t)
 									];
 	int						reqread;								/* read so far.			*/
@@ -345,7 +356,6 @@ struct negotiate_state_t {
 struct sockd_negotiate_t {
 	unsigned							allocated:1;
 	unsigned							ignore:1;		/* ignore for now?					*/
-	struct authmethod_t			auth;				/* req.auth's mem.					*/
 	struct request_t				req;
 	struct negotiate_state_t	negstate;
 	struct rule_t					rule;				/* rule matched for accept().		*/
@@ -353,16 +363,15 @@ struct sockd_negotiate_t {
 	struct sockshost_t			src;				/* client address.					*/
 	struct sockshost_t			dst;				/* our address.						*/
 	struct connectionstate_t	state;			/* state of connection.				*/
-	time_t							start;			/* time of connection accept.		*/
 };
 
 
 struct sockd_request_t {
+	struct sockaddr_in			from;			/* client's control address.			*/
 	struct request_t				req;			/* request to perform.					*/
-	struct authmethod_t			auth;			/* req.auth's mem.						*/
 	struct rule_t					rule;			/* rule matched for accept().			*/
 	int								s;				/* clients control connection.		*/
-	struct sockaddr_in			from;			/* client's control address.			*/
+	struct connectionstate_t	state;		/* state of connection.					*/
 	struct sockaddr_in			to;			/* address client was accepted on.	*/
 };
 
@@ -393,11 +402,7 @@ __BEGIN_DECLS
 
 
 int
-#if HAVE_FAULTY_BINDPROTO
-sockd_bind __P((int s, struct sockaddr *addr, size_t retries));
-#else
 sockd_bind __P((int s, const struct sockaddr *addr, size_t retries));
-#endif  /* HAVE_FAULTY_BINDPROTO */
 /*
  * Binds the address "addr" to the socket "s".  The bind call will
  * be be tried "retries" + 1 times if the error is EADDRINUSE, or until
@@ -463,28 +468,34 @@ removechild __P((pid_t childpid));
  *		On failure: -1 (no current proxychild has pid "childpid".)
 */
 
-
 struct rule_t *
-addrule __P((const struct rule_t *rule));
+addclientrule __P((const struct rule_t *rule));
 /*
- * Appends a copy of "rule" to our list of rules.
- * Returns a pointer to the added rule.
+ * Appends a copy of "rule" to our list of client rules.
+ * Returns a pointer to the added rule (not "rule").
 */
 
+struct rule_t *
+addsocksrule __P((const struct rule_t *rule));
+/*
+ * Appends a copy of "rule" to our list of socks rules.
+ * Returns a pointer to the added rule (not "rule").
+*/
+
+struct linkedname_t *
+adduser __P((struct linkedname_t **ruleuser, const char *name));
+/*
+ * Adds a user with the name "name" to the list hanging of "ruleuser".
+ * Returns:
+ *		On success: a pointer ruleuser.
+ * 	On failure: NULL.
+*/
 void
 showrule __P((const struct rule_t *rule));
 /*
  * prints the rule "rule".
 */
 
-
-struct rule_t *
-addclient __P((const struct rule_t *client));
-/*
- * Appends a copy of "client" to our list of rules for what clients
- * can connect.
- * Returns a pointer to the added client.
-*/
 
 void
 showclient __P((const struct rule_t *rule));
@@ -502,7 +513,8 @@ showconfig __P((const struct config_t *config));
 
 
 int
-rulespermit __P((int s, struct rule_t *rule, struct connectionstate_t *state,
+rulespermit __P((int s, struct rule_t *rule,
+					  struct connectionstate_t *state,
 					  const struct sockshost_t *src, const struct sockshost_t *dst));
 /*
  * Checks whether the rules permit data from "src" to "dst".
@@ -582,10 +594,8 @@ send_client __P((int s, int client));
  * be permitted.
 */
 
-int DoConnect __P((int, struct sockshost_t *, char *_msg, struct socks_t *));
-
 int
-selectmethod __P((const unsigned char *methodv, int methodc));
+selectmethod __P((const unsigned char *methodv, size_t methodc));
 /*
  * Selects the best method based on available methods and given
  * priority.  "methodv" is a list over available methods, methodc
@@ -650,24 +660,6 @@ close_iodescriptors __P((const struct sockd_io_t *io));
  * A subset of delete_io().  Will just close all descriptors in
  * "io".
 */
-
-int
-clientaddressisok __P((int s, const struct sockshost_t *from,
-						const struct sockshost_t *to,
-						int protocol,
-						struct rule_t *rule));
-/*
- * Checks our clientlist on whether a client from "from" is allowed
- * to connect to the serveraddress "to".
- * "s" is the socket client was accepted on.
- * "protocol" is the protocol used.
- * Upon return "rule" will contain the rule matched.
- * Returns:
- *		If address ok: true
- *		If address not ok: false
-*/
-
-
 
 int
 sockdnegotiate __P((int s));
@@ -838,15 +830,39 @@ sockdexit __P((int sig));
 */
 
 struct hostent *
-cgethostbyname(const char *name);
+cgethostbyname __P((const char *name));
 /*
  * Identical to gethostbyname() but caches info.
 */
 
 struct hostent *
-cgethostbyaddr(const char *addr, int len, int type);
+cgethostbyaddr __P((const char *addr, int len, int type));
 /*
  * Identical to gethostbyaddr() but caches info.
+*/
+
+void
+socks_seteuid __P((uid_t *old, uid_t new));
+/*
+ * Sets euid to "new".  If "old" is not NULL, current euid is saved in it.
+ * Exits on failure.
+*/
+
+void
+socks_reseteuid __P((uid_t current, uid_t new));
+/*
+ * "Resets" euid back from "current" to "new". 
+ * If the operation fails, it's flagged as an internal error.
+*/
+
+int
+passwordmatch __P((const char *name, const char *cleartextpassword));
+/*
+ * Checks whether "name" is in the passwordfile and if "name"'s 
+ * cleartext password is "cleartextpassword".
+ * Returns:
+ *		If "name" and "cleartextpassword" matches: 1
+ *		else: 0
 */
 
 

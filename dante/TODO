@@ -1,19 +1,12 @@
-# $Id: TODO,v 1.102 1999/05/24 11:01:31 michaels Exp $
+# $Id: TODO,v 1.105 1999/07/03 17:03:17 karls Exp $
 
 * vwarnx doesn't appear to be in use; remove?
 
-* use difftime from openbsd libc.
-
 * share host/addr cache across processes.
-
-* add code to print out information about all current connections.
 
 * get and send all argument to old signalhandler when necessary.
 
 * clean up namespace.
-
-- cleanup autoconf (HAVE_RECVFROM_CHAR+HAVE_FAULTY_XXX_PROTO 
-  (rename to HAVE_SOLARIS_PROTO?)
 
 * clean up (char)version (unsigned char)version and etc. stuff.
 

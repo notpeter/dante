@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.100 1999/05/26 08:09:57 michaels Exp $";
+"$Id: udp.c,v 1.104 1999/07/03 16:36:22 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -57,6 +57,7 @@ Rsendto(s, msg, len, flags, to, tolen)
 	socklen_t tolen;
 {
 	struct socksfd_t *socksfd;
+	struct sockshost_t host;
 	char *nmsg;
 	size_t nlen;
 	ssize_t n;
@@ -80,7 +81,8 @@ Rsendto(s, msg, len, flags, to, tolen)
 
 	/* prefix a udp header to the msg */
 	nlen = len;
-	if ((nmsg = udpheader_add(to, msg, &nlen)) == NULL) {
+	if ((nmsg = udpheader_add(fakesockaddr2sockshost(to, &host), msg, &nlen))
+	== NULL) {
 		errno = ENOBUFS;
 		return -1;
 	}
@@ -99,13 +101,8 @@ Rsendto(s, msg, len, flags, to, tolen)
 ssize_t
 Rrecvfrom(s, buf, len, flags, from, fromlen)
 	int s;
-#if HAVE_RECVFROM_CHAR
-	char *buf;
-	int len;
-#else
 	void *buf;
 	size_t len;
-#endif  /* HAVE_RECVFROM_CHAR */
 	int flags;
 	struct sockaddr *from;
 	socklen_t *fromlen;
@@ -148,7 +145,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 	}
 	SASSERTX(newfromlen > 0);
 
-	if (sockaddrcmp(&newfrom, &socksfd->reply) == 0) {
+	if (sockaddrareeq(&newfrom, &socksfd->reply)) {
 		/*
 		 * packet is from socksserver.
 		*/
@@ -162,20 +159,33 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 			return -1;	/* don't know if callee wants to retry. */
 		}
 
-		sockshost2sockaddr(&header.host, &newfrom);
-
 		/* if connected udpsocket, only forward from "connected" source. */
 		if (socksfd->state.udpconnect) {
-			if (sockaddrcmp(&newfrom, &socksfd->connected) != 0) {
-				char a[MAXSOCKADDRSTRING];
-				char b[MAXSOCKADDRSTRING];
+			struct sockshost_t host;
+
+			if (!sockshostareeq(&header.host,
+			fakesockaddr2sockshost(&socksfd->connected, &host))) {
+				char a[MAXSOCKSHOSTSTRING];
+				char b[MAXSOCKSHOSTSTRING];
+
+				/*
+				 * We have a problem here...  If we failed to resolve
+				 * address we gave to the socksserver and instead gave a
+				 * hostname to it, sockshostareeq() will fail unless the server
+				 * sends the address it is forwarding from as the sockshost too.
+				 *
+				 * It is better to place safe than sorry though, so
+				 * we have to drop the packet in that case, even if it
+				 * is from the correct source.
+				*/
 
 				free(newbuf);
 
 				slog(LOG_DEBUG, "%s: expected udpreply from %s, got it from %s",
 				function,
-				sockaddr2string(&socksfd->connected, a, sizeof(a)),
-				sockaddr2string(&newfrom, b, sizeof(b)));
+				sockshost2string(fakesockaddr2sockshost(&socksfd->connected,
+				&host), a, sizeof(a)),
+				sockshost2string(&header.host, b, sizeof(b)));
 
 				/*
 				 * Not sure what to do now, return error or retry?
@@ -199,6 +209,9 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 #endif
 			}
 		}
+
+		/* replace "newfrom" with the address socksserver says packet is from. */
+		fakesockshost2sockaddr(&header.host, &newfrom);
 
 		/* callee doesn't get socksheader. */
 		n -= PACKETSIZE_UDP(&header);
@@ -275,33 +288,14 @@ udpsetup(s, to, type)
 	 * use that, otherwise assign the name ourselves.
 	*/
 
-	/* LINTED pointer casts may be troublesome */
-	if (socks_getfakehost(((const struct sockaddr_in *)to)->sin_addr.s_addr)
-	!= NULL) {
-		const char *ipname
-		/* LINTED pointer casts may be troublesome */
-		= socks_getfakehost(((const struct sockaddr_in *)to)->sin_addr.s_addr);
-
-		SASSERTX(ipname != NULL);
-		SASSERTX(strlen(ipname) < sizeof(dst.addr.domain));
-
-		dst.atype = SOCKS_ADDR_DOMAIN;
-		strcpy(dst.addr.domain, ipname);
-	}
-	else {
-		dst.atype		= SOCKS_ADDR_IPV4;
-		/* LINTED pointer casts may be troublesome */
-		dst.addr.ipv4	= ((const struct sockaddr_in *)to)->sin_addr;
-	}
-	/* LINTED pointer casts may be troublesome */
-	dst.port			= ((const struct sockaddr_in *)to)->sin_port;
-
 	bzero(&socksfd, sizeof(socksfd));
 
 	len = sizeof(socksfd.local);
 	if (getsockname(s, &socksfd.local, &len) != 0)
 		return -1;
 	sockaddr2sockshost(&socksfd.local, &src);
+
+	fakesockaddr2sockshost(to, &dst);
 
 	bzero(&packet, sizeof(packet));
 	packet.version				= SOCKS_V5;

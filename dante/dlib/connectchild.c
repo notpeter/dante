@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.87 1999/05/26 10:05:29 michaels Exp $";
+"$Id: connectchild.c,v 1.88 1999/06/29 15:33:38 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -403,7 +403,7 @@ run_connectchild(mother)
 		rbits = mother;
 
 		++rbits;
-		switch (select(rbits, &rset, NULL, NULL, NULL)) {
+		switch (selectn(rbits, &rset, NULL, NULL, NULL)) {
 			case -1:
 				SERR(-1);
 				/* NOTREACHED */
@@ -529,7 +529,7 @@ run_connectchild(mother)
 				FD_SET(control, &wset);
 
 				slog(LOG_DEBUG, "%s: waiting for connectresponse...", function);
-				switch (select(control + 1, NULL, &wset, NULL, NULL)) {
+				switch (selectn(control + 1, NULL, &wset, NULL, NULL)) {
 					case -1:
 						SERR(-1);
 						/* NOTREACHED */

@@ -1,0 +1,38 @@
+
+*
+* This is a prerelease.  Do not use this to upgrade from a previous
+* release of Dante unless you have to or are willing to help testing.
+*
+
+ o libtool-1.3.2
+
+ o Building of dlib/interposition.c cleaned up.
+
+ o tried to make logformat a little more consistent, not perfect yet
+   though.
+
+ o try to throttle childcreation if it looks like there is a problem.
+   Suggested by Robert Loomans (robertl@jinx.silas.unsw.edu.au).
+
+ o added a new method: "rfc931"; matches users against rfc931/ident
+   lookup.  Requested by Per Hedeland (per@erix.ericsson.se).
+
+ o added a new keyword: "user:"; limits the acceptable users on 
+   a rule-by-rule basis.
+
+ o rewrote addressmatch().  This sort of reverses the logic and is also no
+   longer recursive.  Much Thanks to Per Hedeland (per@erix.ericsson.se)
+   for pointing out some problems here and helping with making this
+   hopefully more correct, any mistakes are obviously my own.
+
+ o SIGINFO signal is now broadcast to children too.
+
+ o always set default socks serverport so server doesn't complain if
+   using default on sighup; Fix from Per Hedeland (per@erix.ericsson.se).
+
+ o make server write out correct pid when started with -D.
+   Problem reported by Per Hedeland (per@erix.ericsson.se).
+
+ o depending on how one configured the userid's used by the server,
+   it could sometimes fail. 
+   Problem described by Per Hedeland (per@erix.ericsson.se).

@@ -1,4 +1,4 @@
-@(#)$Id: FAQ,v 1.11 1999/06/07 08:08:06 michaels Exp $
+@(#)$Id: FAQ,v 1.13 1999/06/24 11:23:17 michaels Exp $
 
 Submit your question with an answer to dante-faq@inet.no.
 
@@ -9,6 +9,8 @@ Submit your question with an answer to dante-faq@inet.no.
 
 2. Technical Problems
 2.1. Why doesn't the socksify program work with glibc-2?
+2.2. Why do I have trouble compiling on Solaris?
+2.3. Why do I get a error message about setsockopt() and SO_SNDLOWAT?
 
 1. Reporting bugs in Dante
 
@@ -92,7 +94,22 @@ or sever, do one of the following:
 2. Technical Problems
 
 2.1. Why doesn't the socksify program work with glibc-2?
-There appears to several problems with using socksify with the latest
-version of gnu libc.  There is no known fix for this problem, but the
-problem appears to lie with glibc and not Dante.  Use another version
-of glibc or see README.usage for another way to socksify applications.
+There appears to some problems using socksify with the latest
+version of gnu libc.  There is no known fix for this problem except
+using another version of glibc or see README.usage for another way
+to socksify applications.  Configure with --disable-preload for
+now.
+
+2.2. Why do I have trouble compiling on Solaris?
+The libtool included in the latest release of Dante (libtool1.3)
+doesn't work properly on Solaris using gcc and the native linker.
+This is fixed in the latest version of libtool which will be included
+in the next release of Dante.  Contact dante-bugs@info.inet.no if
+you require a patch for this in the meantime.
+   
+2.3. Why do I get a error message about setsockopt() and SO_SNDLOWAT?
+There is a problem with the way Dante tries to detect whether
+the option SO_SNDLOWAT is supported on your system when compiling.
+This will hopefully be fixed in next version of Dante, a work
+around is to after running configure, modify include/autoconf.h
+by removing the lines mentioning SO_SNDLOWAT.

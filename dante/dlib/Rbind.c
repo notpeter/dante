@@ -44,16 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.96 1999/05/14 13:58:15 michaels Exp $";
+"$Id: Rbind.c,v 1.98 1999/07/03 16:36:22 karls Exp $";
 
 int
 Rbind(s, name, namelen)
 	int s;
-#if HAVE_FAULTY_BINDPROTO
-	struct sockaddr *name;
-#else
 	const struct sockaddr *name;
-#endif  /* HAVE_FAULTY_BINDPROTO */
 	socklen_t namelen;
 {
 	const char *function = "Rbind()";
@@ -159,7 +155,7 @@ Rbind(s, name, namelen)
 			if ((socksfd.control = socketoptdup(s)) == -1)
 				return -1;
 
-			if (PORTRESERVED(packet.req.host.port)) {
+			if (PORTISRESERVED(packet.req.host.port)) {
 				int p;
 				struct sockaddr_in controladdr;
 

@@ -1,14 +1,14 @@
 AC_INIT(include/socks.h)
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="1"
+prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else
 	prename=""
 fi
 
-AM_INIT_AUTOMAKE(dante, 1.0.1$prename)
+AM_INIT_AUTOMAKE(dante, 1.1.0$prename)
 AM_CONFIG_HEADER(include/autoconf.h)
 #XXX save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
@@ -24,8 +24,7 @@ for keyword in `set | egrep '^enable_' | sed -e 's/^enable_\(.*\)=.*/\1/'`;
 do
 	echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
 	if test $? -ne 0; then
-		echo "error: unknown option '$keyword'"
-		exit 1
+		AC_MSG_WARN(unknown option '$keyword')
 	fi
 done
 
@@ -207,9 +206,8 @@ if test x$enable_warnings; then
             ;;
 	esac
     else
+#	warn="-Wall -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
 	warn="-Wall"
-	#XXX some extra warnings
-#	warn="$warn -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
     fi
     CFLAGS="$CFLAGS $warn"
     #make sure compilation is still possible
@@ -272,6 +270,7 @@ done
 
 dnl Checks for programs.
 AC_PROG_YACC
+AC_PROG_AWK
 AM_PROG_LEX
 dnl Checking variable sizes
 
@@ -281,7 +280,6 @@ AC_CHECK_SIZEOF(int)
 AC_CHECK_SIZEOF(long)
 
 dnl Checks for header files.
-AC_HEADER_DIRENT
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS(fcntl.h limits.h malloc.h paths.h strings.h syslog.h)
@@ -452,28 +450,31 @@ yes
 ], [AC_DEFINE(HAVE_MSG_WAITALL) AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
 
 #SO_SNDLOWAT
+#irix 6.2 only seems to look at lowest 8 bit of value
+#solaris also seems to be borken (up to 2.6 atleast)
 AC_MSG_CHECKING(whether a working SO_SNDLOWAT exists)
-case $host in
-	*-*-irix*)
-		#irix 6.2 only seems to look at lowest 8 bit of value
-		AC_MSG_RESULT(no)
-	;;
-	#assume all version of solaris are broken XXXadd test
-	*-*-solaris*)
-		#not supported in solaris2.6, but define exists
-		AC_MSG_RESULT(no)
-	;;
-
-	*)
 AC_EGREP_CPP(yes,[
 #include <sys/socket.h>
 #ifdef SO_SNDLOWAT
 yes
 #endif
-], [AC_DEFINE(HAVE_SO_SNDLOWAT) AC_MSG_RESULT(yes)],
+], [
+case $host in
+	*bsd*)
+		so_sndlowat=t
+	;;
+	*-osf*)
+		so_sndlowat=t
+	;;
+esac
+if test "x${so_sndlowat}" = xt; then
+	AC_DEFINE(HAVE_SO_SNDLOWAT) AC_MSG_RESULT(yes)
+else
+	AC_MSG_RESULT(disabled)
+	AC_MSG_WARN(performance in the server might be degraded without support for the SO_SNDLOWAT socket option)
+fi],
 [AC_MSG_RESULT(no)
  AC_MSG_WARN(performance in the server might be degraded without support for the SO_SNDLOWAT socket option)])
-esac
 
 AC_MSG_CHECKING(whether realloc with a NULL pointer calls malloc)
 AC_TRY_RUN([
@@ -500,91 +501,244 @@ AC_TRY_RUN([
 
 int main()
 {
-	/* will assume core dump/seg fault if it doesn't work */
+	/* will assume core dump/seg fault if it doesn\'t work */
 	free(NULL);
 	return 0;
 }], AC_MSG_RESULT(yes), [AC_DEFINE(HAVE_NONULL_FREE) AC_MSG_RESULT(no)])
 
-AC_MSG_CHECKING(getsockopt param 4 pointer type)
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-int getsockopt(int s, int level, int optname, void *optval, int *optlen);
-], [ 1 ], AC_MSG_RESULT(void),
-[AC_DEFINE(NEED_GETSOCKOPT_CAST) AC_MSG_RESULT(char)])
+#find prototypes for interposition.c
+if test x$no_preload != xt; then
 
-AC_MSG_CHECKING(to see if bind prototype lacks const)
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-int bind(int s, struct sockaddr *name, int namelen);],
-[ 1 ], AC_DEFINE(HAVE_FAULTY_BINDPROTO) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+unset failproto
 
-AC_MSG_CHECKING(to see if connect prototype lacks const)
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-int connect(int s, struct sockaddr *name, int namelen);],
-[ 1 ], 
-AC_DEFINE(HAVE_FAULTY_CONNECTPROTO) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+if test "x${ac_cv_header_stdc}" = xyes; then
 
-AC_MSG_CHECKING(to see if readv prototype lacks const)
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <sys/socket.h>
-#include <unistd.h>
-ssize_t readv(int, struct iovec *, int);],
-[ 1 ], AC_DEFINE(HAVE_FAULTY_READVPROTO) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+#L_SOCKPROTO is used to determine the argument types of the functions
+#which are used in dlib/interposition.c. It compares the prototypes in
+#(mainly) <sys/socket.h> and compares them to a list of known
+#values. The arguments to L_SOCKPROTO are:
+#1: the name of the function
+#2: shell code which is executed if no known prototype is found
+#3...: a list of known types, the first is a list of known return values,
+#      the second a list of known values for the first argument etc.
+#To add new values to the list simply add the new values at the end of
+#the list.
 
-#linux (redhat 5.1) socket prototype
-AC_MSG_CHECKING(socket address type for __SOCKADDR_ARG)
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-extern int accept __P ((int __fd, __SOCKADDR_ARG __addr,
-    socklen_t *__addr_len));
-], [ 1 ],
-AC_DEFINE(HAVE_LINUX_SOCKADDR_TYPE) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+L_SOCKPROTO(connect, [failproto=t],
+["int"],
+["int"],
+["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *"],
+["socklen_t" "int" "size_t"])
 
-#mips-sgi-irix6.2 accept prototype
-AC_MSG_CHECKING(void pointer in accept)
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-extern int accept(int, void *, int *);
-], [ 1 ], AC_DEFINE(HAVE_VOID_SOCKADDR) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+L_SOCKPROTO(accept, [failproto=t],
+["int"],
+["int"],
+["struct sockaddr *" "__SOCKADDR_ARG" "__const struct sockaddr *" "void *"],
+["socklen_t *" "int *" "Psocklen_t" "size_t"])
 
-AC_MSG_CHECKING(to see if recvfrom takes a char pointer)
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-int recvfrom(int s, char *buf, int len, int flags, struct sockaddr *from,
-	int *fromlen);
-], [ 1 ], AC_DEFINE(HAVE_RECVFROM_CHAR) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+L_SOCKPROTO(bind, [failproto=t],
+["int"],
+["int"],
+["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *"],
+["socklen_t" "int" "size_t"])
 
-#sgi-irix6.2
-AC_MSG_CHECKING(for int length argument in recv)
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-int recv(int, void *, int, int);
-], [ 1 ], AC_DEFINE(HAVE_RECV_LEN_INT) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+L_SOCKPROTO(getpeername, [failproto=t],
+["int"],
+["int"],
+["struct sockaddr *" "__SOCKADDR_ARG" "void *"],
+["socklen_t *" "int *" "Psocklen_t" "size_t *"])
 
-AC_MSG_CHECKING(for alternate sendto prototype)
-AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-int sendto(int s, const char *msg, int len, int flags, const struct sockaddr *to, int tolen);
-], [ 1 ], AC_DEFINE(HAVE_SENDTO_ALT) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+L_SOCKPROTO(getsockname, [failproto=t],
+["int"],
+["int"],
+["struct sockaddr *" "__SOCKADDR_ARG" "void *"],
+["int *" "socklen_t *" "Psocklen_t" "size_t *"])
 
-#solaris 7 Psocklen_t
-AC_MSG_CHECKING(for Psocklen_t in accept)
+L_SOCKPROTO(recvfrom, [failproto=t],
+["ssize_t" "int"],
+["int"],
+["void *" "char *"],
+["size_t" "int"],
+["int" "unsigned int"],
+["struct sockaddr *" "__SOCKADDR_ARG" "void *"],
+["socklen_t *" "int *" "Psocklen_t" "size_t *"])
+
+L_SOCKPROTO(send, [failproto=t],
+["ssize_t" "int"],
+["int"],
+["const void *" "__const void *" "const char *"],
+["size_t" "int"],
+["int" "unsigned int"])
+
+L_SOCKPROTO(sendto, [failproto=t],
+["ssize_t" "int"],
+["int"],
+["const void *" "__const void *" "const char *"],
+["size_t" "int"],
+["int" "unsigned int"],
+["const struct sockaddr *" "__CONST_SOCKADDR_ARG" "const void *"],
+["socklen_t" "int" "size_t"])
+
+L_SOCKPROTO(recv, [failproto=t],
+["ssize_t" "int"],
+["int"],
+["void *" "char *"],
+["size_t" "int"],
+["int" "unsigned int"])
+
+L_SOCKPROTO(readv, [failproto=t],
+["ssize_t"],
+["int"],
+["const struct iovec *" "__const struct iovec *" "struct iovec *"],
+["int"])
+
+L_SOCKPROTO(recvmsg, [failproto=t],
+["ssize_t" "int"],
+["int"],
+["struct msghdr *"],
+["int" "unsigned int"])
+
+L_SOCKPROTO(writev, [failproto=t],
+["ssize_t"],
+["int"],
+["const struct iovec *" "__const struct iovec *"],
+["int"])
+
+L_SOCKPROTO(sendmsg, [failproto=t],
+["ssize_t" "int"],
+["int"],
+["const struct msghdr *" "__const struct msghdr *"],
+["int" "unsigned int"])
+
+L_SOCKPROTO(write, [failproto=t],
+["ssize_t"],
+["int"],
+["const void *" "__const void *"],
+["size_t" "unsigned"])
+
+L_SOCKPROTO(read, [failproto=t],
+["ssize_t"],
+["int"],
+["void *"],
+["size_t" "unsigned"])
+
+if test x$failproto != x; then
+    echo ""
+    echo "error: some unfamiliar function prototypes were found,"
+    echo "       and will probably mean that building of libdsocks,"
+    echo "       which allows on-the-fly socksification of dynamic"
+    echo "       binaries will not work."
+    echo ""
+    echo "       You have several options:"
+    echo ""
+    echo "       1. If you do not need libdsocks, run configure with the"
+    echo "          option --disable-preload."
+    echo "       2. Send the output from configure to dante-bugs@inet.no"
+    echo "          and if possible you'll get a patch fixing the problem."
+    echo "          If you think this might be a generic problem, sending"
+    echo "          the output might allow the problem to be solved for all"
+    echo "          users of your platform in the next release."
+    echo "       3. Fix the problem yourself. If you have autoconf installed,"
+    echo "          using the output above to modify configure.in should"
+    echo "          enable you to compile without problems."
+    exit 1
+fi
+
+else
+    #defaults
+    AC_DEFINE(HAVE_PROT_CONNECT_0, int)
+    AC_DEFINE(HAVE_PROT_CONNECT_1, int)
+    AC_DEFINE(HAVE_PROT_CONNECT_2, const struct sockaddr *)
+    AC_DEFINE(HAVE_PROT_CONNECT_3, socklen_t)
+	     
+    AC_DEFINE(HAVE_PROT_ACCEPT_0, int)
+    AC_DEFINE(HAVE_PROT_ACCEPT_1, int)
+    AC_DEFINE(HAVE_PROT_ACCEPT_2, struct sockaddr *)
+    AC_DEFINE(HAVE_PROT_ACCEPT_3, socklen_t *)
+	     
+    AC_DEFINE(HAVE_PROT_BIND_0, int)
+    AC_DEFINE(HAVE_PROT_BIND_1, int)
+    AC_DEFINE(HAVE_PROT_BIND_2, const struct sockaddr *)
+    AC_DEFINE(HAVE_PROT_BIND_3, socklen_t)
+	     
+    AC_DEFINE(HAVE_PROT_GETPEERNAME_0, int)
+    AC_DEFINE(HAVE_PROT_GETPEERNAME_1, int)
+    AC_DEFINE(HAVE_PROT_GETPEERNAME_2, struct sockaddr *)
+    AC_DEFINE(HAVE_PROT_GETPEERNAME_3, socklen_t *)
+	     
+    AC_DEFINE(HAVE_PROT_GETSOCKNAME_0, int)
+    AC_DEFINE(HAVE_PROT_GETSOCKNAME_1, int)
+    AC_DEFINE(HAVE_PROT_GETSOCKNAME_2, struct sockaddr *)
+    AC_DEFINE(HAVE_PROT_GETSOCKNAME_3, socklen_t *)
+	     
+    AC_DEFINE(HAVE_PROT_RECVFROM_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_RECVFROM_1, int)
+    AC_DEFINE(HAVE_PROT_RECVFROM_2, void *)
+    AC_DEFINE(HAVE_PROT_RECVFROM_3, size_t)
+    AC_DEFINE(HAVE_PROT_RECVFROM_4, int)
+    AC_DEFINE(HAVE_PROT_RECVFROM_5, struct sockaddr *)
+    AC_DEFINE(HAVE_PROT_RECVFROM_6, socklen_t *)
+	     
+    AC_DEFINE(HAVE_PROT_SEND_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_SEND_1, int)
+    AC_DEFINE(HAVE_PROT_SEND_2, const void *)
+    AC_DEFINE(HAVE_PROT_SEND_3, size_t)
+    AC_DEFINE(HAVE_PROT_SEND_4, int)
+	     
+    AC_DEFINE(HAVE_PROT_RECV_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_RECV_1, int)
+    AC_DEFINE(HAVE_PROT_RECV_2, void *)
+    AC_DEFINE(HAVE_PROT_RECV_3, size_t)
+    AC_DEFINE(HAVE_PROT_RECV_4, int)
+	     
+    AC_DEFINE(HAVE_PROT_SENDTO_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_SENDTO_1, int)
+    AC_DEFINE(HAVE_PROT_SENDTO_2, const void *)
+    AC_DEFINE(HAVE_PROT_SENDTO_3, size_t)
+    AC_DEFINE(HAVE_PROT_SENDTO_4, int)
+    AC_DEFINE(HAVE_PROT_SENDTO_5, const struct sockaddr *)
+    AC_DEFINE(HAVE_PROT_SENDTO_6, socklen_t)
+	     
+    AC_DEFINE(HAVE_PROT_READV_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_READV_1, int)
+    AC_DEFINE(HAVE_PROT_READV_2, const struct iovec *)
+    AC_DEFINE(HAVE_PROT_READV_3, int)
+	     
+    AC_DEFINE(HAVE_PROT_WRITEV_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_WRITEV_1, int)
+    AC_DEFINE(HAVE_PROT_WRITEV_2, const struct iovec *)
+    AC_DEFINE(HAVE_PROT_WRITEV_3, int)
+	     
+    AC_DEFINE(HAVE_PROT_RECVMSG_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_RECVMSG_1, int)
+    AC_DEFINE(HAVE_PROT_RECVMSG_2, struct msghdr *)
+    AC_DEFINE(HAVE_PROT_RECVMSG_3, int)
+	     
+    AC_DEFINE(HAVE_PROT_SENDMSG_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_SENDMSG_1, int)
+    AC_DEFINE(HAVE_PROT_SENDMSG_2, const struct msghdr *)
+    AC_DEFINE(HAVE_PROT_SENDMSG_3, int)
+	     
+    AC_DEFINE(HAVE_PROT_WRITE_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_WRITE_1, int)
+    AC_DEFINE(HAVE_PROT_WRITE_2, const void *)
+    AC_DEFINE(HAVE_PROT_WRITE_3, size_t)
+	     
+    AC_DEFINE(HAVE_PROT_READ_0, ssize_t)
+    AC_DEFINE(HAVE_PROT_READ_1, int)
+    AC_DEFINE(HAVE_PROT_READ_2, void *)
+    AC_DEFINE(HAVE_PROT_READ_3, size_t)
+fi #stdc_headers
+   
+fi #no preload
+
+AC_MSG_CHECKING(if getsockopt needs cast)
 AC_TRY_COMPILE([
-#include <sys/socket.h>
 #include <sys/types.h>
-int accept(int, struct sockaddr *, Psocklen_t);],
-[ 1 ], AC_DEFINE(HAVE_PSOCKLEN_T) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+#include <sys/socket.h>
+int getsockopt(int, int, int, char *, int *);
+], [ 1 ], [AC_DEFINE(NEED_GETSOCKOPT_CAST) AC_MSG_RESULT(yes)],
+ AC_MSG_RESULT(no))
 
 #include both <sys/ioctl.h> and <sys/sockio.h>?
 if test x$have_sys_sockio_h = xt; then
@@ -1143,7 +1297,8 @@ AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_UTIME_NULL
 AC_FUNC_VPRINTF
-AC_CHECK_FUNCS(select socket strcspn strdup strspn vwarnx hstrerror)
+#XXX disabled: vwarnx
+AC_CHECK_FUNCS(select socket strcspn strdup strspn hstrerror)
 AC_CHECK_FUNCS(issetugid strvis snprintf getdtablesize sysconf inet_pton)
 AC_CHECK_FUNCS(daemon setproctitle bzero sockatmark difftime memmove)
 AC_CHECK_FUNCS(vsyslog)

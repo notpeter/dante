@@ -44,22 +44,54 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.40 1999/05/26 10:05:44 michaels Exp $";
+"$Id: sockd_util.c,v 1.47 1999/07/05 07:04:40 michaels Exp $";
 
-extern char *__progname;
+#define SOCKS_DEBUGER	0
+
+#define CM2IM(charmethodv, methodc, intmethodv) \
+	do { \
+		int cm2im = methodc; \
+		while (--cm2im >= 0) \
+			intmethodv[cm2im] = charmethodv[cm2im]; \
+	} while (lintnoloop_sockd_h) \
 
 int
 selectmethod(methodv, methodc)
 	const unsigned char *methodv;
-	int methodc;
+	size_t methodc;
 {
+	const char stdmethodv[] = {AUTHMETHOD_NONE, AUTHMETHOD_UNAME};
 	int i;
 
-	for (i = 0; i < config.methodc; ++i)
-		if (memchr(methodv, config.methodv[i], (size_t)methodc) != NULL)
-			return config.methodv[i];
+	for (i = 0; i < config.methodc; ++i) {
 
-	return AUTHMETHOD_NOACCEPT;	/* no acceptable method found. */
+		if (config.methodv[i] > AUTHMETHOD_NOACCEPT) { /* pseudo method */
+			int intmethodv[AUTHMETHOD_MAX];
+
+			CM2IM(methodv, methodc, intmethodv);
+
+			switch (config.methodv[i]) {
+				case AUTHMETHOD_RFC931: {
+					/* can select any standard method. */
+					size_t ii;
+					
+					for (ii = 0; ii < ELEMENTS(stdmethodv); ++i)
+						if (methodisset(stdmethodv[i], intmethodv, methodc))
+							return stdmethodv[i];
+					break;
+				}
+
+				default:
+					SERRX(config.methodv[i]);
+			}
+		}
+
+		if (memchr(methodv, (unsigned char)config.methodv[i], (size_t)methodc)
+		!= NULL)
+			return config.methodv[i];
+	}
+
+	return AUTHMETHOD_NOACCEPT;
 }
 
 void
@@ -132,3 +164,112 @@ sockdexit(sig)
 		else
 			_exit(-sig);
 }
+
+void
+socks_seteuid(old, new)
+	uid_t *old;
+	uid_t new;
+{
+	const char *function = "socks_seteuid()";
+	uid_t oldmem;
+
+	if (old == NULL)
+		old = &oldmem;
+	*old = geteuid();
+
+	slog(LOG_DEBUG, "%s: old: %lu, new: %lu", function, *old, new); 
+
+	if (*old == new)
+		return;
+
+#if !SOCKS_DEBUGER
+	if (*old != config.state.euid)
+		/* need to revert back to original (presumably 0) euid before changing. */
+		if (seteuid(config.state.euid) != 0) {
+			slog(LOG_ERR, "running linux are we?");
+			SERR(config.state.euid);
+		}
+
+	if (seteuid(new) != 0)
+		serr(EXIT_FAILURE, "%s: seteuid(%d)", function, new);
+#endif /* !SOCKS_DEBUGER */
+}
+
+void
+socks_reseteuid(current, new)
+	uid_t current;
+	uid_t new;
+{
+	const char *function = "socks_reseteuid()"; 
+
+	slog(LOG_DEBUG, "%s: current: %lu, new: %lu", function, current, new); 
+
+#if !SOCKS_DEBUGER && DIAGNOSTIC 
+	SASSERTX(current == geteuid());
+#endif /* DIAGNOSTIC */
+
+	if (current == new)
+		return;
+
+#if !SOCKS_DEBUGER
+	if (new != config.state.euid)
+		/* need to revert back to original (presumably 0) euid before changing. */
+		if (seteuid(config.state.euid) != 0)
+			SERR(config.state.euid);
+
+	if (seteuid(new) != 0)
+		SERR(new);
+#endif
+}
+
+#if SOCKS_DEBUGER
+/* ARGSUSED */
+int
+setuid(uid)
+	uid_t uid;
+{
+	return 0;
+}
+#endif /* SOCKS_DEBUGER */
+
+int
+passwordmatch(name, clearpassword)
+	const char *name;
+	const char *clearpassword;
+{
+/*	const char *function = "passwordmatch()"; */
+	struct passwd *pw;
+	char *salt, *password;
+	uid_t euid;
+	int match;
+
+	socks_seteuid(&euid, config.uid.privileged);
+	if ((pw = getpwnam(name)) == NULL) {
+		/* XXX waste cycles correctly? */
+		salt 		= "*";
+		password = "*";
+		match = 0;
+	}
+	else {
+		salt 		= pw->pw_passwd;
+		password = pw->pw_passwd;
+		match 	= 1;
+	}
+	socks_reseteuid(config.uid.privileged, euid);
+
+	if (clearpassword != NULL)
+		if (strcmp(crypt(clearpassword, salt), password) == 0)
+			match = 1;
+		else
+			match = 0;
+
+	if (!match)
+		/* XXX should get passed higher up somehow. */
+		if (pw == NULL)
+			slog(LOG_INFO, "denied non-existing user access: %s", name);
+		else
+			slog(LOG_INFO, "password authentication failed for user: %s", name);
+
+	return match;
+}
+

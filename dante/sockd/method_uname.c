@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.25 1999/05/13 13:13:04 karls Exp $";
+"$Id: method_uname.c,v 1.27 1999/06/30 11:15:33 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -172,13 +172,10 @@ recv_passwd(s, request, state)
 {
 /*	const char *function = "recv_passwd()"; */
 	const size_t plen = (size_t)*request->auth->mdata.uname.password;
-	uid_t euid;
-	struct passwd *passwd;
 	char status;
 	char response[sizeof(char)				/* version. */
 					+ sizeof(char)				/* status.	*/
 	];
-	char *salt, *password;
 
 	INIT(plen);
 	CHECK(request->auth->mdata.uname.password + 1, NULL);
@@ -188,30 +185,12 @@ recv_passwd(s, request, state)
 	request->auth->mdata.uname.password + 1, plen);
 	request->auth->mdata.uname.password[plen] = NUL;
 
-	socks_seteuid(&euid, config.uid.privileged);
-	if ((passwd = getpwnam(request->auth->mdata.uname.name)) == NULL) {
-		/* XXX waste cycles correctly? */
-		salt = "*";
-		password = "*";
-	}
-	else {
-		salt = passwd->pw_passwd;
-		password = passwd->pw_passwd;
-	}
-	socks_reseteuid(euid);
-
-	if (strcmp(crypt(request->auth->mdata.uname.password, salt), password) == 0)
+	if (passwordmatch(request->auth->mdata.uname.name,
+	request->auth->mdata.uname.password))
 		status = 0;
-	else {
-		status = 1;	/* anything but '0'. */
-
-		if (passwd == NULL)
-			slog(LOG_INFO, "denied non-existing user access: %s",
-			request->auth->mdata.uname.name);
-		else
-			slog(LOG_INFO, "password authentication failed for user: %s",
-			request->auth->mdata.uname.name);
-	}
+	else
+		status = 1;
+	request->auth->checked = 1;
 
 	bzero(request->auth->mdata.uname.password,
 	sizeof(request->auth->mdata.uname.password));

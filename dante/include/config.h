@@ -76,7 +76,7 @@
 /* 
  * If we are compiling with libwrap support, this sets the maximum
  * linelength for a libwrap line.  Should be the same or less as the
- * one libwrap uses internaly, but we don't have access to that size.
+ * one libwrap uses internally, but we don't have access to that size.
 */
 #if HAVE_LIBWRAP
 #define LIBWRAPBUF			256
@@ -139,7 +139,7 @@
  * number of seconds a client can be connected after negotiation is completed
  * without sending/receiving any data.  Can be changed in configfile.
 */
-#define SOCKD_IOTIMEOUT				7200
+#define SOCKD_IOTIMEOUT				86400
 
 
 #define SOCKD_FREESLOTS				4
@@ -153,10 +153,9 @@
  * is limited by your system.  There will probably be a minor degradation
  * in performance for the clients with a big N, but less resources/processes
  * will be used on the machine the Dante server is running on.
- * There are two defines that govern this; SOCKD_NEGOTIATEMAX and
- * SOCKD_IOMAX.  Note that this are per process basis, Dante will
- * automatically create as many process as it thinks it needs as it
- * goes along.  Tailor to your preference.
+ * There are two defines that govern this; SOCKD_NEGOTIATEMAX and SOCKD_IOMAX. 
+ * Note that this are per process basis, Dante will automatically create as
+ * many process as it thinks it needs as it goes along.
 */
 
 /*
@@ -170,8 +169,8 @@
 /*
  * max number of clients each i/o process will handle.
  * Each client will occupy up to three descriptors.
- * While shortage of slots in the other process' will create a delay
- * for the client, shortage of i/o process' will prevent the client
+ * While shortage of slots in the other processes will create a
+ * delay for the client, shortage of i/o slots will prevent the client
  * from doing any i/o untill a i/o slot has become available.  It is
  * therefore important that enough i/o slots are available at all times.
 */
@@ -179,7 +178,7 @@
 
 
 /*
- * For systems that do not have low watermarks.
+ * For systems that do not have the "low watermarks" socket option.
  * The more accurate you can set this, the better performance.
  * It is important not to set it to too high a value as that will
  * degrade performance for clients even more, causing starvation.

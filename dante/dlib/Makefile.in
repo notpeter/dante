@@ -61,6 +61,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_alias = @host_alias@
 host_triplet = @host@
+AWK = @AWK@
 CC = @CC@
 LD = @LD@
 LEX = @LEX@
@@ -307,9 +308,6 @@ clientconfig.lo clientconfig.o : clientconfig.c ../include/common.h \
 clientprotocol.lo clientprotocol.o : clientprotocol.c \
 	../include/common.h ../include/autoconf.h ../include/redefac.h \
 	../include/yacconfig.h ../include/config.h ../include/socks.h
-compat.lo compat.o : compat.c ../include/autoconf.h ../include/redefac.h \
-	../include/common.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h
 config.lo config.o : config.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
 	../include/socks.h

@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.17 1999/06/04 08:13:56 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.22 1999/07/02 13:32:26 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -40,7 +40,7 @@
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.TH SOCKD.CONF 5 "December 3, 1998"
+.TH SOCKD.CONF 5 "June 14, 1999"
 .SH NAME
 sockd.conf \- Dante server configuration file syntax
 .SH DESCRIPTION
@@ -62,7 +62,7 @@ Multiple \fBinternal\fP lines may be given.
 The address to be used for outgoing connections.
 .IP \fBmethod\fP
 A list of acceptable authentication methods, in order of preference.
-Supported values are \fBusername\fP and \fBnone\fP.
+Supported values are \fBusername\fP, \fBnone\fP and \fBrfc931\fP.
 .IP \fBuser.privileged\fP
 Username which will be used for doing privileged operations.
 .IP \fBuser.notprivileged\fP
@@ -77,10 +77,10 @@ The \fBreuseaddr\fP keyword might solve problems when the
 bind extension is used.
 .IP \fBsrchost\fP
 With the \fBnomismatch\fP keyword, the server will not accept
-connects from addresses having a mismatch between dns address and hostname.
+connects from addresses having a mismatch between DNS address and hostname.
 Default is to accept them.
 With the \fBnounknown\fP keyword, the server will not accept connects
-from addresses without a dns record.  Default is to accept them.
+from addresses without a DNS record.  Default is to accept them.
 .IP \fBconnecttimeout\fP
 The number of seconds a client has to send the request after a connect.
 Set it to 0 for forever.
@@ -93,11 +93,19 @@ Rules prefixed with \fBclient\fP are checked first and are used to
 see if the client is allowed to connect to the \fBDante\fP server.
 We will call them "client-rules".
 It is especially important that these do not use hostnames
-but only ip addresses, both for security and performance reasons.
+but only IP addresses, both for security and performance reasons.
+These rules work at the TCP/IP level.
 
-The other rules, which are a level higher, are checked after the
-client connection has been accepted and are used to evaluate the
-socks request that the client sends.  We will call them "rules".
+The other rules, which we will call "socks-rules" are a level higher 
+and are checked after the client connection has been accepted by the
+client-rules.  The socks-rules are used to evaluate the socks request
+that the client sends.  They thus work at the socks protocol level.
+
+Both set of rules start with a \fBpass\fP/\fBdeny\fP keyword (the
+client-rules have "client" prefixed to the \fBpass\fP/\fBdeny\fP
+keyword) which determines if connections matching the rule are to
+pass or be blocked.  Both set of rules also specify a \fBfrom\fP/\fBto\fP
+address pair which gives the addresses the rule will match.
 
 In both contexts, \fBfrom\fP means the clients address.
 
@@ -105,19 +113,27 @@ In the client-rule context, \fBto\fP means the address the request
 is accepted on, i.e. the address the \fBDante\fP server listens
 on.
 
-In the rule context, \fBto\fP means the client's destination address,
+In the socks-rule context, \fBto\fP means the client's destination address,
 as formulated in the client's proxy request.
 
-Both set of rules start with a \fBpass\fP/\fBdeny\fP keyword (the
-client-rules have "client" prefixed to the \fBpass\fP/\fBdeny\fP
-keyword) which determines if connections matching the rule are to
-pass or be blocked.  Both set of rules also specify a \fBfrom\fP/\fBto\fP
-address pair which gives the addresses the rule will match.  In
-addition to the addresses there is a set of optional keywords which
-can be given.
+In addition to the addresses there is a set of optional keywords which
+can be given.  There are two forms of keywords, conditions and
+actions.  For each rule, all conditions are checked and if they
+match the request, the actions are executed.
+
+The list of condition keywords is:
+\fBfrom\fP, \fBto\fP, \fBcommand\fP, \fBmethod\fP, 
+\fBprotocol\fP, \fBproxyprotocol\fP, \fBuser\fP.
+
+The list of actions keywords is: \fBlibwrap\fP, \fBlog\fP.
+
+The format and content of the rules is identical, but client-rules
+may contain only a subset of the socks-rules.  More concrete, they
+may not contain any keywords related to the socks protocol.
 
 .IP
-The format of the client-rules contents is:
+The contents of the client-rule is be:
+
 .IP \fBfrom\fP
 The rule applies only to requests coming from the address given as value.
 .IP \fBto\fP
@@ -127,9 +143,18 @@ The server will pass the line to libwrap for execution.
 .IP \fBlog\fP
 Used to control logging.  Accepted keywords are \fBconnect\fP,
 \fBdisconnect\fP, \fBdata\fP and \fBiooperation\fP.
+.IP \fBuser\fP
+The server will only accept connections from users matching one
+of the names given as value.
+It is possible to implicitly list all users in the passwordfile for
+a given authentication method by giving the name of the
+authentication method as value to \fBuser\fP.
+The given username \fBmust\fP regardless always be present in the
+passwordfile used by \fBDante\fP.
 
 .IP
-The format of the rules contents is:
+The contents of the socks-rules is:
+
 .IP \fBfrom\fP
 The rule applies only to requests coming from the address given as value.
 .IP \fBto\fP
@@ -153,6 +178,17 @@ The rule applies only to the given protocols.  Valid values are
 .IP \fBproxyprotocol\fP
 The rule applies only to requests using the given proxyprotocol.
 Valid proxyprotocols are \fBsocks_v4\fP and \fBsocks_v5\fP.
+.IP \fBuser\fP
+.IP \fBuser\fP
+The server will only accept connections from users matching one
+of the names given as value.
+It is possible to implicitly list all users in the passwordfile for
+a given authentication method by giving the name of the
+authentication method as value to \fBuser\fP.
+If no \fBuser\fP value is given, one will automatically be provided
+that will match all users for the username-based methods in the rule.
+The given username \fBmust\fP regardless always be present in the
+passwordfile used by \fBDante\fP.
 .SH EXAMPLES
 See the example directory in the distribution.
 .SH FILES
@@ -160,6 +196,6 @@ See the example directory in the distribution.
 .SH AUTHORS
 For Inferno Nettverk A/S, Norway:
  Michael Shuldman <michaels@inet.no>: Design and implementation.
- Karl-André Skevik <karls@inet.no>: Autoconf and porting.
+ Karl-Andre' Skevik <karls@inet.no>: Autoconf and porting.
 .SH SEE ALSO
 sockd(8), hosts_access(5)

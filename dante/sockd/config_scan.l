@@ -52,14 +52,14 @@ extern int parseinit;
 extern const int configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.45 1999/05/24 12:41:26 michaels Exp $";
+"$Id: config_scan.l,v 1.47 1999/06/30 11:15:25 michaels Exp $";
 
 %}
 
 
 %option yylineno
 %option noyywrap
-/*%option debug       */
+/*%option debug        */
 
 	/* non-exclusive startconditions. */
 %s start_address
@@ -215,8 +215,6 @@ static const char rcsid[] =
 }
 
 <start_username>[^: \t\n]+ {
-	BEGIN(INITIAL);
-
 	yylval.string = yytext;
 	return USERNAME;
 }
@@ -352,13 +350,11 @@ external {
 	return EXTERNAL;
 }
 
-
-privileged {
-
-	yylval.string = yytext;
-	return PRIVILEGED;
+user {
+	BEGIN(start_username);
+	return USER;
 }
-
+	
 user\.privileged {
 	BEGIN(start_username);
 
@@ -444,6 +440,10 @@ username {
 	return UNAME;
 }
 
+rfc931 {
+	yylval.string = yytext;
+	return RFC931;
+}
 
 	/* filterrules */
 
@@ -515,7 +515,7 @@ localdomain.*:.* {
 }
 
 	/* shell style comment */
-<*>#.* {
+<*>[[:blank:]]*#.* {
 	;
 }
 

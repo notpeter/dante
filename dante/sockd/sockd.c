@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.231 1999/05/26 10:05:41 michaels Exp $";
+"$Id: sockd.c,v 1.236 1999/06/29 15:51:40 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -62,7 +62,11 @@ static void
 sigchld __P((int sig));
 
 static void
+sigalrm __P((int sig));
+
+static void
 sighup __P((int sig));
+
 
 static void
 sigserverbroadcast __P((int sig));
@@ -155,14 +159,12 @@ main(argc, argv, envp)
 #endif  /* DIAGNOSTIC && HAVE_MALLOC_OPTIONS */
 
 	serverinit(argc, argv, envp);
+
 	showconfig(&config);
+
 	socks_seteuid(NULL, config.uid.unprivileged);
 
-	if (config.option.daemon)
-		if (daemon(0, 0) != 0)
-			serr(EXIT_FAILURE, "daemon()");
-
-	/* we need every descriptor we can get. */
+	/* for chroot and needing every descriptor we can get. */
 	dforchild = config.log.type & LOGTYPE_SYSLOG ? -1 : 0; /* syslog takes one */
 	for (p = 0, maxfd = getdtablesize(); p < maxfd; ++p) {
 		int i;
@@ -232,8 +234,8 @@ main(argc, argv, envp)
 
 	sigemptyset(&sigact.sa_mask);
 	sigact.sa_flags	= SA_RESTART | SA_NOCLDSTOP;
-	sigact.sa_handler = siginfo;
 
+	sigact.sa_handler = siginfo;
 #if HAVE_SIGNAL_SIGINFO
 	if (sigaction(SIGINFO, &sigact, NULL) != 0) {
 		swarn("sigaction(SIGINFO)");
@@ -242,7 +244,6 @@ main(argc, argv, envp)
 #endif  /* HAVE_SIGNAL_SIGINFO */
 
 	/* same handler, for systems without SIGINFO. */
-	sigact.sa_handler = siginfo;
 	if (sigaction(SIGUSR1, &sigact, NULL) != 0) {
 		swarn("sigaction(SIGUSR1)");
 		return EXIT_FAILURE;
@@ -270,6 +271,13 @@ main(argc, argv, envp)
 		if (sigaction(ignoresignalv[p], &sigact, NULL) != 0)
 			swarn("sigaction(%d)", ignoresignalv[p]);
 
+	sigact.sa_flags	= 0;	/* want to be interrupted. */
+	sigact.sa_handler = sigalrm;
+	if (sigaction(SIGALRM, &sigact, NULL) != 0) {
+		swarn("sigaction(SIGALRM)");
+		return EXIT_FAILURE;
+	}
+
 	socks_seteuid(NULL, config.uid.privileged);
 	if ((fp = fopen(SOCKD_PIDFILE, "w")) == NULL)
 		swarn("open(%s)", SOCKD_PIDFILE);
@@ -281,8 +289,7 @@ main(argc, argv, envp)
 		fclose(fp);
 	}
 
-	if (time(&config.stat.boot) == (time_t)-1)
-		SERR(-1);
+	time(&config.stat.boot);
 
 	/* fork of requested number of servers.  Start at one 'cause we are "it".  */
 	for (p = 1; p < config.option.serverc; ++p) {
@@ -321,7 +328,12 @@ main(argc, argv, envp)
 		++rbits;
 		switch ((p = select(rbits, &rset, NULL, NULL, NULL))) {
 			case 0:
+				SERR(p);
+				/* NOTREACHED */
+
 			case -1:
+				if (errno == EINTR)
+					continue;
 				SERR(p);
 				/* NOTREACHED */
 		}
@@ -691,10 +703,9 @@ serverinit(argc, argv, envp)
 		serr(EXIT_FAILURE, "malloc");
 #endif  /* !HAVE_SETPROCTITLE*/
 
-
-	config.option.serverc	= 1;	/* ourselves. ;-) */
 	config.state.addchild	= 1;
-	config.state.pid 			= getpid();
+	config.state.euid			= geteuid();
+	config.option.serverc	= 1;	/* ourselves. ;-) */
 
 	while ((ch = getopt(argc, argv, "DLN:df:hlnvw:")) != -1) {
 		switch (ch) {
@@ -751,6 +762,11 @@ serverinit(argc, argv, envp)
 		}
 	}
 
+	if (config.option.daemon)
+		if (daemon(1, 0) != 0)
+			serr(EXIT_FAILURE, "daemon()");
+
+	config.state.pid = getpid();
 	if ((config.state.motherpidv
 	= (pid_t *)malloc(sizeof(*config.state.motherpidv) * config.option.serverc))
 	== NULL)
@@ -761,7 +777,6 @@ serverinit(argc, argv, envp)
 		config.option.configfile = SOCKD_CONFIGFILE;
 
 	genericinit();
-
 	checksettings();
 
 	socks_seteuid(&euid, config.uid.privileged);
@@ -802,13 +817,14 @@ serverinit(argc, argv, envp)
 				serr(EXIT_FAILURE, "%s: socks_mklock()", function);
 #endif
 	}
-	socks_reseteuid(euid);
+	socks_reseteuid(config.uid.privileged, euid);
 }
 
 static void
 checksettings(void)
 {
 	const char *function = "checksettings()";
+	int i;
 	uid_t euid;
 
 	/*
@@ -820,6 +836,30 @@ checksettings(void)
 
 	if (config.externalc == 0)
 		serrx(EXIT_FAILURE, "%s: no external address given", function);
+	for (i = 0; i < config.externalc; ++i) {
+		int s;
+
+		if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+			switch (errno) {
+				case EMFILE:
+				case ENFILE:
+				case ENOBUFS:
+					break; /* assume this is temporary, e.g. after sighup. */
+
+				default:
+					serrx(EXIT_FAILURE, "%s: socket()", function);
+			}
+		else {
+			char addrstring[MAXSOCKADDRSTRING];
+
+			if (bind(s, (struct sockaddr *)&config.externalv[i],
+			sizeof(config.externalv[i])) != 0)
+				serrx(EXIT_FAILURE, "%s: can't bind external address: %s",
+				function, sockaddr2string((struct sockaddr *)&config.externalv[i],
+				addrstring, sizeof(addrstring)));
+			close(s);
+		}
+	}
 
 	if (config.methodc == 0)
 		swarnx("%s: no methods enabled (total block)", function);
@@ -827,18 +867,19 @@ checksettings(void)
 	if (!config.uid.privileged_isset)
 		serrx(EXIT_FAILURE, "%s: privileged user not set", function);
 	socks_seteuid(&euid, config.uid.privileged);
+	socks_reseteuid(config.uid.privileged, euid);
 
 	if (!config.uid.unprivileged_isset)
 		serrx(EXIT_FAILURE, "%s: unprivileged user not set", function);
-	socks_seteuid(NULL, config.uid.unprivileged);
+	socks_seteuid(&euid, config.uid.unprivileged);
+	socks_reseteuid(config.uid.unprivileged, euid);
 
 #if HAVE_LIBWRAP
 	if (!config.uid.libwrap_isset)
 		serrx(EXIT_FAILURE, "%s: libwrap user not set", function);
-	socks_seteuid(NULL, config.uid.libwrap);
+	socks_seteuid(&euid, config.uid.libwrap);
+	socks_reseteuid(config.uid.libwrap, euid);
 #endif /* HAVE_LIBWRAP */
-
-	socks_reseteuid(euid);
 
 	if (*config.domain == NUL)
 		swarnx("%s: local domainname not set", function);
@@ -920,6 +961,8 @@ siginfo(sig)
 
 	if (*config.state.motherpidv == config.state.pid)	/* main mother */
 		sigserverbroadcast(sig);
+
+	sigchildbroadcast(sig, CHILD_NEGOTIATE | CHILD_REQUEST | CHILD_IO);
 }
 
 
@@ -929,12 +972,15 @@ sighup(sig)
 	int sig;
 {
 	const char *function = "sighup()";
+	uid_t euid;
 
 	slog(LOG_INFO, "%s: got SIGHUP signal", function);
 
 	resetconfig();
 
+	socks_seteuid(&euid, config.state.euid);
 	genericinit();
+	socks_reseteuid(config.state.euid, euid);
 
 	checksettings();
 
@@ -953,25 +999,63 @@ static void
 sigchld(sig)
 	int sig;
 {
+	const char *function = "sigchld()";
+	static time_t deathtime;
+	static int deaths;
 	int status;
 	pid_t pid;
+
 
 	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
 		int i;
 
+		/*
+		 * No child should normaly die, but try to cope with it happening.
+		*/
 		if ((i = pidismother(pid)) != -1)
-			config.state.motherpidv[i] = 0;	/* a mother died. */
+			config.state.motherpidv[i] = 0;
 		else
-			/*
-			 * assume a relay child died.  Shouldn't normaly happen but
-			 * we can try to add a new one later.
-			*/
-			config.state.addchild = 1;
+			; /* assume relay child. */
+
+		++deaths;
 	}
+	
+	/* 
+	 * If we get alot of childdeaths in a short time, assume something
+	 * is wrong.
+	*/
+
+	if (deathtime == 0)
+		time(&deathtime);
+
+	if (difftime(time(NULL), deathtime) > 60) { /* enough time passed; reset.	*/
+		deaths = 0;
+		time(&deathtime);
+	}
+
+	if (deaths >= 10) {
+		if (deaths == 10) { /* log once. */
+			slog(LOG_ERR, "%s: %d childdeaths in %.0fs; locking count for a while",
+		 	function, deaths, difftime(time(NULL), deathtime));
+			config.state.addchild = 0;
+		}
+		time(&deathtime); /* once the ball starts rolling... */ 
+		alarm(60);
+	}
+	else
+		config.state.addchild = 1; /* can try to add a new one. */
 }
 
-
+/* ARGSUSED */
 static void
+sigalrm(sig)
+	int sig;
+{
+	
+	config.state.addchild = 1;
+}
+
+void
 sigserverbroadcast(sig)
 	int sig;
 {
