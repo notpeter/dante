@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.107 2000/09/10 13:29:24 michaels Exp $";
+"$Id: util.c,v 1.108 2000/11/21 09:20:54 michaels Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -89,10 +89,15 @@ sockshost2string(host, string, len)
 				"<IPv6 address not supported>", ntohs(host->port));
 				break;
 
-		case SOCKS_ADDR_DOMAIN:
+		case SOCKS_ADDR_DOMAIN: {
+			char *name;
+
 			snprintfn(string, len, "%s.%d",
-			host->addr.domain, ntohs(host->port));
+			strcheck(name = str2vis(host->addr.domain, strlen(host->addr.domain))),
+			ntohs(host->port));
+			free(name);
 			break;
+		}
 
 		default:
 			SERRX(host->atype);

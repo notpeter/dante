@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.120 2000/08/01 12:48:56 michaels Exp $";
+"$Id: sockd_request.c,v 1.121 2000/10/26 08:03:21 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -1024,13 +1024,13 @@ dorequest(mother, request)
 			sockshost2sockaddr(&request->req.host, (struct sockaddr *)&client);
 
 			io.control.s			= request->s;
-			io.control.laddr		= request->from;
-			io.control.raddr		= request->to;
+			io.control.laddr		= request->to;
+			io.control.raddr		= request->from;
 
-			io.src.s					= clientfd;
+			io.src.s						= clientfd;
 			io.src.raddr				= client;
 			io.src.laddr				= request->to;
-			io.src.laddr.sin_port = htons(0);
+			io.src.laddr.sin_port 	= htons(0);
 
 			/*
 			 * bind address for receiving UDP packets so we can tell client
