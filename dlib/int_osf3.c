@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,25 +41,26 @@
  *
  */
 
-#undef _XOPEN_SOURCE_EXTENDED
-#undef _SOCKADDR_LEN
-#define HAVE_OSF_OLDSTYLE 1
-
-#include "common.h"
+#include "autoconf.h"
 
 #if HAVE_EXTRA_OSF_SYMBOLS
 
 #if SOCKSLIBRARY_DYNAMIC
 
+#undef _XOPEN_SOURCE_EXTENDED
+#undef _SOCKADDR_LEN
+#define HAVE_OSF_OLDSTYLE 1
+
 /*
  * use of bzero in SYSCALL_START produces vast amounts of warnings
- * when compiling int_osf3.c (on osf)
+ * when compiling int_osf3.c (on OSF)
  */
 #define bzero(a, b) (memset(a, 0, b))
-#include "interposition.h"
+
+#include "common.h"
 
 static const char rcsid[] =
-"$Id: int_osf3.c,v 1.15 1999/12/09 08:18:07 karls Exp $";
+"$Id: int_osf3.c,v 1.22 2001/02/06 15:58:22 michaels Exp $";
 
 #undef accept
 #undef bind

@@ -1,4 +1,4 @@
-$Id: README.usage,v 1.5 1999/12/22 09:29:17 karls Exp $
+$Id: README.usage,v 1.6 2001/01/02 09:59:31 michaels Exp $
 
 The socks package can be used in two ways.
 
@@ -59,32 +59,13 @@ SOCKSinit
 The source can either be modified directly, or by using defines to
 change the source during compilation.
 
-Either add this line to the command line:
+Either add this line to the command compilation line (e.g. CFLAGS):
 
 -Dconnect=Rconnect -Dbind=Rbind -Dgetsockname=Rgetsockname -Dgetpeername=Rgetpeername -Daccept=Raccept -Drresvport=Rrresvport -Dbindresvport=Rbindresvport -Dgethostbyname=Rgethostbyname -Dgethostbyname2=Rgethostbyname2 -Dsendto=Rsendto -Drecvfrom=Rrecvfrom -Drecvfrom=Rrecvfrom -Dwrite=Rwrite -Dwritev=Rwritev -Dsend=Rsend -Dsendmsg=Rsendmsg -Dread=Rread -Dreadv=Rreadv -Drecv=Rrecv -Drecvmsg=Rrecvmsg
 
-or these lines to an include file, which must be included in all source files.
+or add "include <socks.h>" to every C file in the program you are
+compiling.
 
-#define connect Rconnect
-#define bind Rbind
-#define getsockname Rgetsockname
-#define getpeername Rgetpeername
-#define accept Raccept
-#define rresvport Rrresvport
-#define bindresvport Rbindresvport
-#define gethostbyname Rgethostbyname
-#define gethostbyname2 Rgethostbyname2
-#define sendto Rsendto
-#define recvfrom Rrecvfrom
-#define recvfrom Rrecvfrom
-#define write Rwrite
-#define writev Rwritev
-#define send Rsend
-#define sendmsg Rsendmsg
-#define read Rread
-#define readv Rreadv
-#define recv Rrecv
-#define recvmsg Rrecvmsg
 
 
 Libraries
@@ -95,6 +76,4 @@ Libraries
 
  libsocks.a   - static version of the above.
 
- libdsocks.so - shared library which does socksification through the
-		runtime linker.  Contains wrappers for standard I/O
-		calls.
+ libdsocks.so - shared library which does "on the fly" socksification.

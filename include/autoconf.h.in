@@ -1,5 +1,12 @@
 /* include/autoconf.h.in.  Generated automatically from configure.in by autoheader.  */
 
+/* Define if on AIX 3.
+   System headers sometimes define this.
+   We just want to avoid a redefinition error message.  */
+#ifndef _ALL_SOURCE
+#undef _ALL_SOURCE
+#endif
+
 /* Define to empty if the keyword does not work.  */
 #undef const
 
@@ -9,21 +16,11 @@
 /* Define if you don't have vprintf but do have _doprnt.  */
 #undef HAVE_DOPRNT
 
-/* Define if your struct stat has st_blksize.  */
-#undef HAVE_ST_BLKSIZE
-
 /* Define if you have the strftime function.  */
 #undef HAVE_STRFTIME
 
 /* Define if you have <sys/wait.h> that is POSIX.1 compatible.  */
 #undef HAVE_SYS_WAIT_H
-
-/* Define if your struct tm has tm_zone.  */
-#undef HAVE_TM_ZONE
-
-/* Define if you don't have tm_zone but do have the external array
-   tzname.  */
-#undef HAVE_TZNAME
 
 /* Define if utime(file, NULL) sets file's timestamp to the present.  */
 #undef HAVE_UTIME_NULL
@@ -56,9 +53,6 @@
 
 /* Define if you can safely include both <sys/time.h> and <time.h>.  */
 #undef TIME_WITH_SYS_TIME
-
-/* Define if your <sys/time.h> declares struct tm.  */
-#undef TM_IN_SYS_TIME
 
 /* Define to `int' if <sys/types.h> doesn't define.  */
 #undef uid_t
@@ -101,7 +95,7 @@
 #undef NEED_EXIT_FAILURE
 
 /* defined on systems which doesn't support more than one process
-   doing accept on the same descriptor.  BSD systems and solaris 2.6 is
+   doing accept on the same descriptor.  BSD systems and Solaris 2.6 is
    supposed to support this (Stevens) */
 #undef NEED_ACCEPTLOCK
 
@@ -118,18 +112,15 @@
 /* SIGINFO signal */
 #undef HAVE_SIGNAL_SIGINFO
 
-/* XXX special test for gethostbyname2 */
-#undef HAVE_GETHOSTBYNAME2
-
 /* libwrap test needs special care */
 #undef HAVE_LIBWRAP
 
 /* function location */
-#undef LIBRARY_PATH
 #undef LIBRARY_ACCEPT
 #undef LIBRARY_BIND
 #undef LIBRARY_BINDRESVPORT
 #undef LIBRARY_CONNECT
+#undef LIBRARY_GETHOSTBYADDR
 #undef LIBRARY_GETHOSTBYNAME
 #undef LIBRARY_GETHOSTBYNAME2
 #undef LIBRARY_GETPEERNAME
@@ -139,26 +130,34 @@
 #undef LIBRARY_LIBRESOLV
 #undef LIBRARY_LIBSOCKET
 #undef LIBRARY_LISTEN
+#undef LIBRARY_PATH
+#undef LIBRARY_READ
+#undef LIBRARY_READV
+#undef LIBRARY_RECV
 #undef LIBRARY_RECVFROM
-#undef LIBRARY_RRESVPORT
-#undef LIBRARY_SENDTO
 #undef LIBRARY_RECVMSG
+#undef LIBRARY_RECVMSG
+#undef LIBRARY_RRESVPORT
+#undef LIBRARY_SEND
 #undef LIBRARY_SENDMSG
+#undef LIBRARY_SENDTO
+#undef LIBRARY_WRITE
+#undef LIBRARY_WRITEV
 
-/* workaround for solaris bug */
+/* workaround for Solaris bug */
 #undef HAVE_SENDMSG_DEADLOCK
 
 /* no support for NULL pointer to realloc? */
 #undef HAVE_NOMALLOC_REALLOC
 
-/* linux (2.0.x?) doesn't seem to set some recvmsg related values in some cases */
+/* Linux (2.0.x?) doesn't seem to set some recvmsg related values in some cases */
 #undef HAVE_DEFECT_RECVMSG
 
-/* XXX used to enable alternative code to avoid broken solaris libsocket */
+/* XXX used to enable alternative code to avoid broken Solaris libsocket */
 #undef HAVE_SOLARIS_2_5_1
 #undef HAVE_SOLARIS_BUGS
 
-/* problems on linux */
+/* problems on Linux */
 #undef HAVE_LINUX_BUGS
 
 /* sun4 vsprintf doesn't seem to return length */
@@ -209,10 +208,26 @@
 
 #undef HAVE_PROFILING
 
-/* Solaris 2.5.1 needs it. Otherwise FIOASYNC will not be defined 
+/* Solaris 2.5.1 needs it. Otherwise FIOASYNC will not be defined
    -(Pavel Roskin <pavel_roskin
 geocities.com>) */
 #undef BSD_COMP
+
+/* sockaddr_storage should aid portability */
+#undef HAVE_SOCKADDR_STORAGE
+
+/* AIX has volatile sig_atomic_t */
+#undef HAVE_VOLATILE_SIG_ATOMIC_T
+
+/* System V getpwnam 'improvement' workaround */
+#undef HAVE_WORKING_GETPWNAM
+
+#undef HAVE_SOCKADDR_SA_LEN
+
+/* PAM (Pluggable Authentication Module) found? */
+#undef HAVE_PAM
+/* more Solaris bugs */
+#undef HAVE_SOLARIS_PAM_BUG
 
 /* interposition.c prototypes */
 #undef HAVE_PROT_CONNECT_0
@@ -298,6 +313,11 @@ geocities.com>) */
 #undef HAVE_PROT_READ_2
 #undef HAVE_PROT_READ_3
 
+#undef HAVE_PROT_GETHOSTBYADDR_0
+#undef HAVE_PROT_GETHOSTBYADDR_1
+#undef HAVE_PROT_GETHOSTBYADDR_2
+#undef HAVE_PROT_GETHOSTBYADDR_3
+
 /* XXX autoheader snafu */
 /*#undef HAVE_PROT__*/
 
@@ -322,8 +342,23 @@ geocities.com>) */
 /* Define if you have the difftime function.  */
 #undef HAVE_DIFFTIME
 
+/* Define if you have the freeifaddrs function.  */
+#undef HAVE_FREEIFADDRS
+
 /* Define if you have the getdtablesize function.  */
 #undef HAVE_GETDTABLESIZE
+
+/* Define if you have the gethostbyname2 function.  */
+#undef HAVE_GETHOSTBYNAME2
+
+/* Define if you have the getifaddrs function.  */
+#undef HAVE_GETIFADDRS
+
+/* Define if you have the getprpwnam function.  */
+#undef HAVE_GETPRPWNAM
+
+/* Define if you have the getspnam function.  */
+#undef HAVE_GETSPNAM
 
 /* Define if you have the hstrerror function.  */
 #undef HAVE_HSTRERROR
@@ -349,9 +384,6 @@ geocities.com>) */
 /* Define if you have the setproctitle function.  */
 #undef HAVE_SETPROCTITLE
 
-/* Define if you have the snprintf function.  */
-#undef HAVE_SNPRINTF
-
 /* Define if you have the sockatmark function.  */
 #undef HAVE_SOCKATMARK
 
@@ -376,6 +408,9 @@ geocities.com>) */
 /* Define if you have the sysconf function.  */
 #undef HAVE_SYSCONF
 
+/* Define if you have the vsnprintf function.  */
+#undef HAVE_VSNPRINTF
+
 /* Define if you have the vsyslog function.  */
 #undef HAVE_VSYSLOG
 
@@ -384,6 +419,9 @@ geocities.com>) */
 
 /* Define if you have the <fcntl.h> header file.  */
 #undef HAVE_FCNTL_H
+
+/* Define if you have the <ifaddrs.h> header file.  */
+#undef HAVE_IFADDRS_H
 
 /* Define if you have the <limits.h> header file.  */
 #undef HAVE_LIMITS_H
@@ -400,6 +438,12 @@ geocities.com>) */
 /* Define if you have the <paths.h> header file.  */
 #undef HAVE_PATHS_H
 
+/* Define if you have the <security/pam_appl.h> header file.  */
+#undef HAVE_SECURITY_PAM_APPL_H
+
+/* Define if you have the <shadow.h> header file.  */
+#undef HAVE_SHADOW_H
+
 /* Define if you have the <strings.h> header file.  */
 #undef HAVE_STRINGS_H
 
@@ -408,6 +452,9 @@ geocities.com>) */
 
 /* Define if you have the <sys/ioctl.h> header file.  */
 #undef HAVE_SYS_IOCTL_H
+
+/* Define if you have the <sys/sem.h> header file.  */
+#undef HAVE_SYS_SEM_H
 
 /* Define if you have the <sys/time.h> header file.  */
 #undef HAVE_SYS_TIME_H

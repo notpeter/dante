@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.102 1999/12/22 09:29:21 karls Exp $";
+"$Id: Rbind.c,v 1.109 2001/05/13 14:26:46 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -70,12 +70,12 @@ Rbind(s, name, namelen)
 		switch (errno) {
 			case EADDRNOTAVAIL: {
 				/* LINTED pointer casts may be troublesome */
-				struct sockaddr_in newname = *(const struct sockaddr_in *)name;
+				struct sockaddr_in newname = *TOCIN(name);
 
 				/*
 				 * We try to make the client think it's address is the address
 				 * the server is using on it's behalf.  Some clients might try
-				 * bind that ip address (with a different port, presumably)
+				 * bind that IP address (with a different port, presumably)
 				 * themselves though, in that case, use INADDR_ANY.
 				 */
 
@@ -86,20 +86,41 @@ Rbind(s, name, namelen)
 				break;
 			}
 
-			case EINVAL:
+			case EINVAL: {
+				struct sockaddr_in addr;
+				socklen_t addrlen;
+				int errno_s = errno;
+
+				/*
+				 * Do a little testing on what caused the error.
+				*/
+
+				namelen = sizeof(addr);
+				/* LINTED pointer casts may be troublesome */
+				if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0) {
+					errno = errno_s;
+					return -1;
+				}
+
+				if (addr.sin_port == htons(0)) {
+					errno = errno_s;
+					return -1;
+				}
+					
 				/*
 				 * Somehow the socket has been bound locally already.
 				 * Best guess is probably to keep that and attempt a
 				 * remote server binding aswell.
 				 */
 				break;
+			}
 
 			default:
 				return -1;
 		}
 	}
 
-	/* hack for performance (testing). */
+	/* hack for performance testing. */
 	if (getenv("SOCKS_BINDLOCALONLY") != NULL)
 		return rc;
 
@@ -147,11 +168,12 @@ Rbind(s, name, namelen)
 	/* try to get a server that supports our bindextension. */
 	packet.req.host.addr.ipv4.s_addr = htonl(0);
 	/* LINTED pointer casts may be troublesome */
-	packet.req.host.port					=
-	((struct sockaddr_in *)&socksfd.local)->sin_port;
+	packet.req.host.port					= TOIN(&socksfd.local)->sin_port;
 
 	if (socks_requestpolish(&packet.req, NULL, NULL) == NULL)
 		return 0;	/* socket bound, assume ok. */
+
+	packet.version = packet.req.version;
 
 	switch (packet.req.version) {
 		case SOCKS_V4:
@@ -242,8 +264,8 @@ Rbind(s, name, namelen)
 	switch (packet.req.version) {
 		case SOCKS_V4:
 			/* LINTED pointer casts may be troublesome */
-			if (((struct sockaddr_in *)&socksfd.remote)->sin_addr.s_addr
-			== htonl(0)) { /* v4 spesific; remote doesn't know, set to remote. */
+			if (TOIN(&socksfd.remote)->sin_addr.s_addr == htonl(0)) {
+				/* v4 specific; remote doesn't know, set to remote. */
 				struct sockaddr_in addr;
 
 				len = sizeof(addr);
@@ -253,12 +275,12 @@ Rbind(s, name, namelen)
 					SERR(-1);
 
 				/* LINTED pointer casts may be troublesome */
-				((struct sockaddr_in *)&socksfd.remote)->sin_addr = addr.sin_addr;
+				TOIN(&socksfd.remote)->sin_addr = addr.sin_addr;
 			}
 			/* FALLTHROUGH */
 
 		case SOCKS_V5:
-			socksfd.reply						= socksfd.remote;	/* same ip address. */
+			socksfd.reply						= socksfd.remote;	/* same IP address. */
 			socksfd.state.acceptpending	= socksfd.route->gw.state.extension.bind;
 			break;
 
@@ -274,9 +296,8 @@ Rbind(s, name, namelen)
 
 	/* did we get the requested port? */
 	/* LINTED pointer casts may be troublesome */
-	if (((const struct sockaddr_in *)name)->sin_port != htons(0)
-	&& ((const struct sockaddr_in *)name)->sin_port
-	!= ((struct sockaddr_in *)&socksfd.remote)->sin_port) { /* no. */
+	if (TOIN(name)->sin_port != htons(0)
+	&& TOIN(name)->sin_port != TOIN(&socksfd.remote)->sin_port) { /* no. */
 		/*
 		 * Since the socket is already bound locally, "unbind" it so caller
 		 * doesn't get confused.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,11 +41,23 @@
  *
  */
 
-/* $Id: common.h,v 1.218 1999/12/22 09:29:19 karls Exp $ */
+/* $Id: common.h,v 1.276 2001/05/12 13:16:24 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
 #endif
+
+#ifndef SOCKS_SERVER
+#define SOCKS_SERVER 0
+#endif /* !defined SOCKS_SERVER */
+
+#ifndef SOCKS_CLIENT
+#define SOCKS_CLIENT 0
+#endif /* !defined SOCKS_CLIENT */
+
+#ifndef SOCKSLIBRARY_DYNAMIC
+#define SOCKSLIBRARY_DYNAMIC 0
+#endif /* !defined SOCKSLIBRARY_DYNAMIC */
 
 /* XXX ifdef, not if, defined on command line */
 #ifdef HAVE_CONFIG_H
@@ -53,17 +65,23 @@
 #endif  /* HAVE_CONFIG_H */
 
 #include <sys/types.h>
+#if HAVE_SYS_TIME_H
 #include <sys/time.h>
+#endif /* HAVE_SYS_TIME_H */
 #if HAVE_SYS_FILE_H
 #include <sys/file.h>
 #endif  /* HAVE_SYS_FILE_H */
 #include <sys/resource.h>
 #include <sys/ioctl.h>
 #include <sys/ipc.h>
+#if HAVE_SYS_SEM_H
 #include <sys/sem.h>
-/* XXX This is a hack. Avoid transparent sockaddr union used in linux
-   to avoid the use of the union in the code. Mainly used in
-   interposition.c*/
+#endif /* HAVE_SYS_SEM_H */
+/*
+ * XXX This is a hack. Avoid transparent sockaddr union used in Linux
+ *  to avoid the use of the union in the code. Mainly used in
+ *  interposition.c
+ */
 #ifdef WE_DONT_WANT_NO_SOCKADDR_ARG_UNION
 #ifdef __GNUC__
 #define __HAD_GNUC __GNUC__
@@ -71,6 +89,7 @@
 #endif  /* __GNUC__ */
 #endif  /* WE_DONT_WANT_NO_SOCKADDR_ARG_UNION */
 #include <sys/socket.h>
+#include <net/if.h>
 #ifdef __HAD_GNUC
 #define __GNUC__ __HAD_GNUC
 #endif  /* __HAD_GNUC */
@@ -97,7 +116,7 @@
 #include <crypt.h>
 #endif  /* HAVE_CRYPT_H */
 #include <ctype.h>
-#ifdef SOCKSLIBRARY_DYNAMIC
+#if SOCKSLIBRARY_DYNAMIC
 #include <dlfcn.h>
 #endif  /* SOCKSLIBRARY_DYNAMIC */
 #include <errno.h>
@@ -126,7 +145,9 @@
 #if HAVE_LIBWRAP && HAVE_TCPD_H
 #include <tcpd.h>
 #endif  /* HAVE_LIBWRAP && HAVE_TCPD_H */
+#if TIME_WITH_SYS_TIME || (!TIME_WITH_SYS_TIME && !HAVE_SYS_TIME_H)
 #include <time.h>
+#endif
 #if HAVE_UNISTD_H
 #ifdef HAVE_DEC_PROTO
 #undef  _XOPEN_SOURCE_EXTENDED
@@ -137,6 +158,12 @@
 #endif /* HAVE_DEC_PROTO */
 #endif  /* HAVE_UNISTD_H */
 #include <resolv.h>
+#if HAVE_IFADDRS_H
+#include <ifaddrs.h>
+#endif /* HAVE_IFADDRS_H */
+#if HAVE_PAM
+#include <security/pam_appl.h> 
+#endif /* HAVE_PAM */
 
 #include "yacconfig.h"
 
@@ -189,7 +216,7 @@ typedef int sig_atomic_t;
 #endif  /* !DIAGNOSTIC */
 
 /*
- * solaris 2.5.1 and it's stream stuff is broken and puts the processes
+ * Solaris 2.5.1 and it's stream stuff is broken and puts the processes
  * into never-never land forever on half the sendmsg() calls if they
  * involve ancillary data.  (it seems to deadlock the processes.)
  */
@@ -313,6 +340,58 @@ struct ipoption {
 };
 #endif  /* !HAVE_STRUCT_IPOPTS */
 
+#if 0
+#if !HAVE_SOCKADDR_STORAGE
+/*
+ * sockaddr_storage (see rfc2553).
+ * struct taken from OpenBSD <sys/socket.h>
+ */
+struct sockaddr_storage {
+	u_int8_t    ss_len;		/* total length */
+	sa_family_t ss_family;		/* address family */
+	u_char	    __ss_pad1[6];	/* align to quad */
+	u_int64_t   __ss_pad2;		/* force alignment for stupid compilers */
+	u_char      __ss_pad3[240];	/* pad to a total of 256 bytes */
+};
+#endif /* !HAVE_SOCKADDR_STORAGE */
+#endif
+
+
+#if !HAVE_GETIFADDRS
+/* Taken from OpenBSD <ifaddrs.h> */
+struct ifaddrs {
+	struct ifaddrs  *ifa_next;
+	char		*ifa_name;
+	unsigned int	 ifa_flags;
+	struct sockaddr	*ifa_addr;
+	struct sockaddr	*ifa_netmask;
+/*XXX*/
+#undef ifa_dstaddr
+	struct sockaddr	*ifa_dstaddr;
+	void		*ifa_data;
+};
+
+/*
+ * This may have been defined in <net/if.h>.  Note that if <net/if.h> is
+ * to be included it must be included before this header file.
+ */
+#ifndef	ifa_broadaddr
+#define	ifa_broadaddr	ifa_dstaddr	/* broadcast address interface */
+#endif
+
+#endif /* !HAVE_GETIFADDRS */
+
+/*
+ * BSDI 4.1 doesn't have freeifaddrs(), but uses free()
+ *  Problem reported by "Zand, Nooshin" <nooshin.zand@intel.com>
+ */
+#if HAVE_GETIFADDRS && !HAVE_FREEIFADDRS
+#define freeifaddrs free
+#endif /* HAVE_GETIFADDRS && !HAVE_FREEIFADDRS */
+
+#define TOIN(addr) ((struct sockaddr_in *)(addr))
+#define TOCIN(addr) ((const struct sockaddr_in *)(addr))
+
 /* global variables needed by everyone. */
 extern struct config_t config;
 extern char *__progname;
@@ -323,7 +402,7 @@ extern int h_errno;
 
 	/*
 	 * defines
-	*/
+	 */
 
 
 /*
@@ -348,6 +427,8 @@ extern int h_errno;
 #define	MAXPWLEN				(255 + 1)		/* socks5: 255, +1 for len. */
 
 
+#define	MAXIFNAMELEN		255
+
 /*									"255." "255." "255." "255" "." "65535" + NUL */
 #define	MAXSOCKADDRSTRING	 (4   +   4   + 4   +  3  + 1 +    5   + 1)
 
@@ -355,6 +436,10 @@ extern int h_errno;
 #define	MAXSOCKSHOSTSTRING (MAXHOSTNAMELEN + 1  +    5)
 
 #define	MAXRULEADDRSTRING	 (MAXSOCKSHOSTSTRING * 2)
+
+
+#define MAXAUTHINFOLEN		((sizeof("(") - 1) + MAXMETHODSTRING) \
+									+ (sizeof(")" - 1) + (sizeof("@") - 1) + MAXNAMELEN)
 
 #ifndef NUL
 #define NUL '\0'
@@ -390,7 +475,7 @@ extern int h_errno;
 
 	/*
 	 * macros
-	*/
+	 */
 
 
 #define close(n)	closen(n)
@@ -404,11 +489,7 @@ extern int h_errno;
 
 #define ELEMENTS(array) (sizeof(array) / sizeof(array[0]))
 
-#if UCHAR_MAX > 0xff
 #define OCTETIFY(a) ((a) = ((a) & 0xff))
-#else
-#define OCTETIFY(a)	((a) = (a))
-#endif
 /*
  * Note that it's the argument that will be truncated, not just the
  * returnvalue.
@@ -416,7 +497,7 @@ extern int h_errno;
 
 
 /*
- * macros to manipulate ancillary data depending on if were on sysv or bsd.
+ * macros to manipulate ancillary data depending on if we're on sysv or BSD.
  */
 
 /* allocate memory for data.  "size" is the amount of memory to allocate. */
@@ -584,7 +665,7 @@ do {														\
 	rcsid)
 
 
-/* the size of a udp header "packet" (no padding) */
+/* the size of a UDP header "packet" (no padding) */
 #define PACKETSIZE_UDP(packet) (												\
 	sizeof((packet)->flag) + sizeof((packet)->frag)						\
 	+ sizeof((packet)->host.atype) + sizeof((packet)->host.port)	\
@@ -614,10 +695,10 @@ do {														\
 
 /*
  * This is for Rgethostbyname() support for clients without access to
- * dns.
- * FAKEIP_START is the first address in the range of "fake" ip addresses,
+ * DNS.
+ * FAKEIP_START is the first address in the range of "fake" IP addresses,
  * FAKEIP_END is the last.
- * There can thus be FAKEIP_END - FAKEIP_START number of fake ip addresses
+ * There can thus be FAKEIP_END - FAKEIP_START number of fake IP addresses
  * supported per program.
  *
  * INADDR_NONE and INADDR_ANY may not be part of the range.
@@ -629,6 +710,7 @@ do {														\
 #define SOCKS_V4REPLY_VERSION 0
 #define SOCKS_V5					5
 #define MSPROXY_V2				2
+#define HTTP_V1_0					1
 
 /* subnegotiation. */
 #define SOCKS_UNAMEVERSION		1
@@ -648,11 +730,26 @@ do {														\
 #define AUTHMETHOD_NOACCEPT	255
 #define AUTHMETHOD_NOACCEPTs	"no acceptable method"
 
-/* not standard methods, must be > 255. */
-#define AUTHMETHOD_RFC931		256
+/* not standard methods, must be > AUTHMETHOD_NOACCEPT. */
+#define AUTHMETHOD_RFC931		(AUTHMETHOD_NOACCEPT + 1)
 #define AUTHMETHOD_RFC931s		"rfc931"
 
-#define AUTHMETHOD_MAX			(AUTHMETHOD_RFC931 + 1)
+#define AUTHMETHOD_PAM			(AUTHMETHOD_RFC931 + 1)
+#define AUTHMETHOD_PAMs			"pam"
+
+#define AUTHMETHOD_MAX			(AUTHMETHOD_PAM + 1)
+
+#define MAXMETHODSTRING			MAX(sizeof(AUTHMETHOD_NONEs),		\
+										MAX(sizeof(AUTHMETHOD_GSSAPIs),	\
+										MAX(sizeof(AUTHMETHOD_UNAMEs),	\
+										MAX(sizeof(AUTHMETHOD_RFC931s),	\
+										sizeof(AUTHMETHOD_PAMs)))))
+
+/* number of supported methods. */
+#define MAXMETHOD					1 /* NONE 		*/	\
+									 + 1 /* UNAME		*/	\
+									 + 1 /* RFC931		*/	\
+									 + 1 /* RFC931		*/
 
 /*
  *  Response commands/codes
@@ -674,7 +771,7 @@ do {														\
 #define SOCKS_UDPREPLY				(SOCKS_BINDREPLY + 1)
 #define SOCKS_UDPREPLYs				"udpreply"
 
-/* misc stuff */
+/* misc. stuff */
 #define SOCKS_ACCEPT					(SOCKS_UDPREPLY + 1)
 #define SOCKS_ACCEPTs				"accept"
 
@@ -684,8 +781,11 @@ do {														\
 
 /* address types */
 #define SOCKS_ADDR_IPV4			0x01
+/* not a socks constant but put here for convinience. */
+#define SOCKS_ADDR_IFNAME		0x02
 #define SOCKS_ADDR_DOMAIN		0x03
 #define SOCKS_ADDR_IPV6       0x04
+
 
 /* reply field values */
 #define SOCKS_SUCCESS			0x00
@@ -705,7 +805,8 @@ do {														\
 #define SOCKSV4_NO_IDENTD		92
 #define SOCKSV4_BAD_ID			93
 
-
+/* http stuff. */
+#define HTTP_SUCCESS				200
 
 
 #define MSPROXY_PINGINTERVAL	(6 * 60)
@@ -762,8 +863,8 @@ do {														\
 #define MSPROXY_CONNECT				0x071e	/* connect request.						*/
 #define MSPROXY_CONNECT_ACK		0x0703	/* connect request accepted.			*/
 
-#define MSPROXY_UDPASSOCIATE		0x0705	/* udp associate request.				*/
-#define MSPROXY_UDPASSOCIATE_ACK	0x0706	/* udp associate request accepted.	*/
+#define MSPROXY_UDPASSOCIATE		0x0705	/* UDP associate request.				*/
+#define MSPROXY_UDPASSOCIATE_ACK	0x0706	/* UDP associate request accepted.	*/
 
 #define MSPROXY_CONNECTED			0x042c	/* client connected to server?		*/
 
@@ -784,15 +885,6 @@ do {														\
 #define SOCKS_RECV		0
 #define SOCKS_SEND		1
 
-#if 0
-/* where is this from? (michaels) */
-#if defined(__alpha__)
-typedef unsigned int u_int32;
-#else
-typedef unsigned long u_int32;
-#endif
-#endif
-
 /* offsets into authentication packet */
 #define AUTH_VERSION		0	/* version of method packet.								*/
 
@@ -808,24 +900,8 @@ typedef unsigned long u_int32;
 #define UNAME_VERSION	0
 #define UNAME_STATUS		1
 
-/* XXX no ivp6 support currently. */
+/* XXX no IPv6 support currently. */
 #define SOCKS_IPV6_ALEN 16
-
-#if !defined(SOCKSLIBRARY_DYNAMIC)
-#define sys_accept(s, addr, addrlen)		accept(s, addr, addrlen)
-#define sys_bind(s, name, namelen)			bind(s, name, namelen)
-#define sys_connect(s, name, namelen)		connect(s, name, namelen)
-#define sys_bindresvport(sd, sin)			bindresvport(sd, sin)
-#define sys_gethostbyname(name)				gethostbyname(name)
-#define sys_gethostbyname2(name, af)		gethostbyname2(name, af)
-#define sys_getpeername(s, name, namelen)	getpeername(s, name, namelen)
-#define sys_getsockname(s, name, namelen)	getsockname(s, name, namelen)
-#define sys_recvfrom(s, buf, len, flags, from, fromlen) \
-		  recvfrom(s, buf, len, flags, from, fromlen)
-#define sys_rresvport(port)					rresvport(port)
-#define sys_sendto(s, msg, len, flags, to, tolen) \
-		  sendto(s, msg, len, flags, to, tolen)
-#endif
 
 enum operator_t { none = 0, eq, neq, ge, le, gt, lt, range };
 
@@ -841,7 +917,7 @@ struct logtype_t {
 	FILE				**fpv;		/* if logging is to file, this is the open file.*/
 	int				fpc;
 	int				*fplockv;	/* locking of logfiles.									*/
-	int				facility;	/* if logging to syslog, this is the facility.						*/
+	int				facility;	/* if logging to syslog, this is the facility.	*/
 };
 
 
@@ -858,7 +934,7 @@ struct extension_t {
 union socksaddr_t {
 	struct in_addr ipv4;
 	char				ipv6[SOCKS_IPV6_ALEN];
-	char				domain[MAXHOSTNAMELEN]; /* _always_ stored as C string. */
+	char				domain[MAXHOSTNAMELEN]; /* _always_ stored as C string. 		*/
 };
 
 /* the hostspecific part of misc. things */
@@ -1151,7 +1227,7 @@ struct response_t {
 	struct authmethod_t	*auth;	/* pointer to level above. */
 };
 
-/* encapsulation for udp packets. */
+/* encapsulation for UDP packets. */
 struct udpheader_t {
 	unsigned char			flag[2];
 	unsigned char			frag;
@@ -1159,42 +1235,38 @@ struct udpheader_t {
 };
 
 
-/* interface request packet. */
-struct interfacerequest_t {
-	unsigned char			rsv;
-	unsigned char			sub;
-	unsigned char			flag;
-	struct sockshost_t	host;
-};
-
-
 /* method username */
-struct uname_t {
+struct authmethod_uname_t {
 	unsigned char	version;
-	char				name[MAXNAMELEN];
-	char				password[MAXPWLEN];
+	unsigned char	name[MAXNAMELEN];
+	unsigned char	password[MAXPWLEN];
 };
 
 /* method rfc931 */
-struct rfc931_t {
-	char				name[MAXNAMELEN];
+struct authmethod_rfc931_t {
+	unsigned char	name[MAXNAMELEN];
+};
+
+/* method pam. */
+struct authmethod_pam_t {
+	char				servicename[MAXNAMELEN];	/* servicename to use with pam.	*/
+	unsigned char	name[MAXNAMELEN];
+	unsigned char	password[MAXPWLEN];
 };
 
 /* this must be big enough to hold a complete method request. */
 struct authmethod_t {
-	int						matched;	/* authentication matched?	*/
-	int						method;	/* method in use.				*/
+	int						method;					/* method in use.						*/
+	int						methodv[MAXMETHOD];	/* methods somewhere matched. 	*/
+	size_t					methodc;					/* number of methods matched.		*/
+	int						badmethodv[MAXMETHOD];/* methods not matched. 			*/
+	size_t					badmethodc;				/* number of methods not matched.*/
+
 	union {
-		struct uname_t		uname;
-		struct rfc931_t	rfc931;
+		struct authmethod_uname_t	uname;
+		struct authmethod_rfc931_t	rfc931;
+		struct authmethod_pam_t		pam;
 	} mdata;
-};
-
-
-struct method_t {
-	unsigned none:1;
-	unsigned uname:1;
-	unsigned :0;
 };
 
 
@@ -1212,7 +1284,7 @@ struct command_t {
 
 	/* not real commands as per standard, but they have their use. */
 	unsigned bindreply:1;		/* reply to bind command.	*/
-	unsigned udpreply:1;			/* reply to udp packet.		*/
+	unsigned udpreply:1;			/* reply to UDP packet.		*/
 	unsigned :0;
 };
 
@@ -1221,6 +1293,7 @@ struct proxyprotocol_t {
 	unsigned socks_v4:1;
 	unsigned socks_v5:1;
 	unsigned msproxy_v2:1;
+	unsigned http_v1_0:1;
 	unsigned :0;
 };
 
@@ -1229,14 +1302,14 @@ struct serverstate_t {
 	struct command_t			command;
 	struct extension_t		extension;
 	struct protocol_t			protocol;
-	int							methodv[AUTHMETHOD_MAX];/* methods to offer.			*/
-	int							methodc;						/* number of methods set.	*/
+	int							methodv[MAXMETHOD];		/* methods to offer.			*/
+	size_t						methodc;						/* number of methods set.	*/
 	struct proxyprotocol_t	proxyprotocol;
 };
 
 
 struct msproxy_state_t {
-	struct sockaddr_in		controladdr;	/* udp address of proxyserver.		*/
+	struct sockaddr_in		controladdr;	/* UDP address of proxyserver.		*/
 	int32_t						magic25;
 	int32_t						bindid;
 	int32_t						clientid;
@@ -1263,18 +1336,17 @@ struct socksstate_t {
 #endif
 	struct msproxy_state_t	msproxy;			/* if msproxy, msproxy state.			*/
 	struct protocol_t			protocol;		/* protocol in use.						*/
-	unsigned						udpconnect:1;	/* connected udp socket?				*/
+	unsigned						udpconnect:1;	/* connected UDP socket?				*/
 	int							system;			/* don't check, use system call.		*/
-	int							version;			/* version									*/
+	int							version;			/* version (-1)							*/
 };
 
 
 struct ruleaddress_t {
 	char						atype;
 	union {
-
 		char					domain[MAXHOSTNAMELEN];
-
+		char					ifname[MAXIFNAMELEN];
 		struct {
 			struct in_addr	ip;
 			struct in_addr	mask;
@@ -1283,8 +1355,8 @@ struct ruleaddress_t {
 	} addr;
 
 	struct {
-		in_port_t			tcp;			/* tcp portstart or field to operator on.	*/
-		in_port_t			udp;			/* udp portstart or field to operator on.	*/
+		in_port_t			tcp;			/* TCP portstart or field to operator on.	*/
+		in_port_t			udp;			/* UDP portstart or field to operator on.	*/
 	} port;
 	in_port_t				portend;		/* only used if operator is range.			*/
 	enum operator_t		operator;	/* operator to compare ports via.			*/
@@ -1294,8 +1366,9 @@ struct route_t {
 	int							number;		/* routenumber.								*/
 
 	struct {
-		unsigned bad:1;		/* route is bad?								*/
-		unsigned direct:1;	/* direct connection, no proxy.			*/
+		unsigned bad:1;		/* route is bad?												*/
+		time_t	badtime;		/* if route is bad, time it was marked as such.		*/
+		unsigned direct:1;	/* direct connection, no proxy.							*/
 		unsigned :0;
 	} state;
 
@@ -1324,10 +1397,7 @@ struct socks_t {
 	struct socksstate_t			state;
 };
 
-
-
 enum portcmp { e_lt, e_gt, e_eq, e_neq, e_le, e_ge, e_nil };
-typedef enum portcmp Portcmp;
 
 
 
@@ -1397,9 +1467,11 @@ genericinit __P((void));
  */
 
 void
-initlog __P((void));
+newprocinit __P((void));
 /*
- * (Re)initialize logging.
+ * After a new process is started/forked, this function should
+ * be called.  It will initialize various things, open needed
+ * descriptors, etc. and can be called as many times as wanted.
  */
 
 
@@ -1483,7 +1555,7 @@ socks_logmatch __P((unsigned int d, const struct logtype_t *log));
 char *
 sockaddr2string __P((const struct sockaddr *address, char *string, size_t len));
 /*
- * Returns the ip address and port in "address" on string form.
+ * Returns the IP address and port in "address" on string form.
  * "address" is assumed to be on network form and it will be
  * converted to host form before written to "string".
  * "len" gives length of the NUL terminated string.
@@ -1543,6 +1615,15 @@ sockaddr2ruleaddress __P((const struct sockaddr *addr,
  * Returns: "addr".
  */
 
+struct sockaddr *
+ifname2sockaddr __P((const char *ifname, struct sockaddr *addr));
+/*
+ * Finds the first address found on the interface named "ifname".
+ * Returns:
+ *		On success: "addr", filled in with the address found.
+ *		On failure: NULL (no address found).
+ */
+
 int
 sockatmark __P((int s));
 /*
@@ -1559,15 +1640,33 @@ recvmsgn __P((int s, struct msghdr *msg, int flags, size_t len));
  */
 
 ssize_t
-readn __P((int, void *, size_t));
+readn __P((int, void *, size_t, struct authmethod_t *auth));
 /*
- * Like read() but retries.
+ * Like read() but retries and takes an additional "auth" argument
+ * to be used if not NULL.
  */
 
 ssize_t
-writen __P((int, const void *, size_t));
+writen __P((int, const void *, size_t, struct authmethod_t *auth));
 /*
- * like write() but retries.
+ * like write() but retries and takes an additional "auth" argument
+ * to be used if not NULL.
+ */
+
+ssize_t
+socks_recvfrom __P((int, void *, size_t, int, struct sockaddr *, socklen_t *,
+						  struct authmethod_t *auth));
+/*
+ * Like recvfrom(), but with an additional auth argument to be used
+ * if not NULL.
+ */
+
+ssize_t
+socks_sendto __P((int, const void *, size_t, int, const struct sockaddr *,
+						socklen_t, struct authmethod_t *auth));
+/*
+ * Like sendto(), but with an additional auth argument to be used
+ * if not NULL.
  */
 
 int
@@ -1588,6 +1687,19 @@ acceptn __P((int, struct sockaddr *, socklen_t *));
  * Wrapper around accept().  Retries on EINTR.
  */
 
+#ifdef STDC_HEADERS
+int
+snprintfn(char *str, size_t size, const char *format, ...);
+#else
+int
+snprintfn();
+#endif
+/*
+ * Wrapper around snprintf() for consistent behaviour, same as system
+ * snprintf() but the following are also enforced:
+ * 	returns 0 instead of -1 (rawterminates *str).
+ *		never returns a value greater than size - 1.
+ */
 
 char *
 sockshost2string __P((const struct sockshost_t *host, char *string,
@@ -1637,8 +1749,9 @@ string2method __P((const char *methodname));
  */
 
 
-char *
-sockshost2mem __P((const struct sockshost_t *host, char *mem, int version));
+unsigned char *
+sockshost2mem __P((const struct sockshost_t *host, unsigned char *mem,
+						 int version));
 /*
  * Writes "host" out to "mem".  The caller must make sure "mem"
  * is big enough to hold the contents of "host".
@@ -1646,9 +1759,9 @@ sockshost2mem __P((const struct sockshost_t *host, char *mem, int version));
  * Returns a pointer to one element past the last byte written to "mem".
  */
 
-const char *
-mem2sockshost __P((struct sockshost_t *host, const char *mem, size_t len,
-						 int version));
+const unsigned char *
+mem2sockshost __P((struct sockshost_t *host, const unsigned char *mem,
+						 size_t len, int version));
 /*
  * Writes "mem", which is assumed to be a sockshost string
  * of version "version" in network order, out to "host".
@@ -1684,8 +1797,24 @@ readconfig __P((const char *filename));
  *		On failure: -1.
  */
 
+#ifdef STDC_HEADERS
 void
-yyerror __P((const char *s));
+yywarn (const char *fmt, ...);
+#else
+void
+yywarn();
+#endif  /* STDC_HEADERS */
+/*
+ * Report a error related to (configfile) parsing.
+ */
+
+#ifdef STDC_HEADERS
+void
+yyerror (const char *fmt, ...);
+#else
+void
+yyerror();
+#endif  /* STDC_HEADERS */
 /*
  * Report a error related to (configfile) parsing and exit.
  */
@@ -1698,7 +1827,7 @@ addressmatch __P((const struct ruleaddress_t *rule,
  * Tries to match "address" against "rule".  "address" is resolved
  * if necessary.  "address" supports the wildcard INADDR_ANY and port of 0.
  * "protocol" is the protocol to compare under.
- * If "ipalias" is true, the function will try to match any ip alias
+ * If "ipalias" is true, the function will try to match any IP alias
  * "address"'s might have if appropriate, this can be useful to match
  * multihomed hosts where the client requests e.g a bind connection.
  * Returns true if "rule" matched "address".
@@ -1725,7 +1854,7 @@ hostentfree __P((struct hostent *hostent));
 int
 socks_connect __P((int s, const struct sockshost_t *host));
 /*
- * Tries to connect to "host".  If "host"'s address is not a ip address,
+ * Tries to connect to "host".  If "host"'s address is not a IP address,
  * the function also tries to connect to any alias for "host"'s
  * name.  The connection is done using the open descriptor "s".
  * Returns:
@@ -1773,6 +1902,11 @@ showstate __P((const struct serverstate_t *state));
  * Shows "state".
  */
 
+void
+showmethod __P((size_t methodc, const int *methodv));
+/*
+ * Shows "methodv".
+ */
 
 struct route_t *
 addroute __P((const struct route_t *route));
@@ -1815,14 +1949,14 @@ ruleaddress2string __P((const struct ruleaddress_t *rule, char *string,
  */
 
 
-int
+unsigned char
 sockscode __P((int version, int code));
 /*
  * Maps the socks replycode "code", which is in non-version specific format,
  * to the equivalent replycode in version "version".
  */
 
-int
+unsigned char
 errno2reply __P((int errnum, int version));
 /*
  * Returns the socks version "version" reply code for a error of type "errno".
@@ -1854,7 +1988,7 @@ str2vis __P((const char *string, size_t len));
 in_addr_t
 socks_addfakeip __P((const char *name));
 /*
- * Adds "name" to a internal table indexed by (fake)ip addresses.
+ * Adds "name" to a internal table indexed by (fake)IP addresses.
  * Returns:
  *		On success: "name"'s index.
  *		On failure:	INADDR_NONE
@@ -1966,6 +2100,11 @@ socks_unlock __P((int d));
  * Unlocks the filedescriptor "d", previously locked by this process.
  */
 
+#if SOCKSLIBRARY_DYNAMIC
+struct hostent *sys_gethostbyaddr __P((const char *addr, int len, int af));
+struct hostent *sys_gethostbyname __P((const char *));
+struct hostent *sys_gethostbyname2 __P((const char *, int));
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
 #if defined(DEBUG) || HAVE_SOLARIS_BUGS
 
@@ -1997,14 +2136,14 @@ int daemon __P((int, int));
 int getdtablesize __P((void));
 #endif  /* !HAVE_GETDTABLESIZE */
 
-#if !HAVE_SNPRINTF
+#if !HAVE_VSNPRINTF
 # ifdef STDC_HEADERS
 int snprintf __P((char *, size_t, char const *, ...));
 # else
 int snprintf ();
 # endif /* STDC_HEADERS */
 int vsnprintf __P((char *, size_t, const char *, va_list));
-#endif /* !HAVE_SNPRINTF */
+#endif /* !HAVE_VSNPRINTF */
 
 #if !HAVE_SETPROCTITLE
 #ifdef STDC_HEADERS
@@ -2050,7 +2189,23 @@ int issetugid __P((void));
 void vsyslog __P((int, const char *, va_list));
 #endif  /* !HAVE_VSYSLOG */
 
+#if !HAVE_GETIFADDRS
+int getifaddrs __P((struct ifaddrs **));
+void freeifaddrs __P((struct ifaddrs *));
+#endif /* !HAVE_GETIFADDRS */
+
+struct passwd *
+socks_getpwnam __P((const char *login));
+/*
+ * Like getpwnam() but works around sysv bug, tries to get the shadow
+ * password too.
+ */
+
 __END_DECLS
+
+#if SOCKSLIBRARY_DYNAMIC
+#include "interposition.h"
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
 /* XXX */
 #if defined(SOCKS_CLIENT) || defined(SOCKS_SERVER)

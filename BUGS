@@ -1,9 +1,16 @@
-# $Id: BUGS,v 1.17 1999/12/22 09:29:09 karls Exp $
+# $Id: BUGS,v 1.20 2001/05/10 12:54:43 michaels Exp $
 
 To report a new bug, mail dante-bugs@inet.no.  Make sure you read
 the faq first.
 
 	Things known not to work:
 
+- there appear to be some problems with "socksify" and nis on at least
+  some systems.
+
+- documentation could be much better.  You can help with that by
+  actually contributing something yourself.
+
 - msproxycode seems to crash at least some msproxy servers.  See
-  README.msproxy for more information.
+  README.msproxy for more information.  Also see the http proxy
+  support added to the client.

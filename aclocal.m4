@@ -49,8 +49,18 @@ nargs=[$#]
 
 paramcnt=decr(decr([$#]))
 
-func=translit([$1], ` ')
-ucfunc=translit(translit([$1], ` '), `a-z', `A-Z')
+dnl XXX
+dnl func=translit([$1], ` ')
+dnl ucfunc=translit(translit([$1], ` '), `a-z', `A-Z')
+
+syscmd(echo '$1' | grep "\." > /dev/null)dnl
+func=ifelse(sysval, 0, [esyscmd(echo '$1' | cut -d. -f1)dnl], translit([$1], ` '))
+syscmd(echo '$1' | grep "\." > /dev/null)dnl
+dnl ucfunc=ifelse(sysval, 0, esyscmd(echo '$1' | cut -d. -f2), translit(translit([$1], ` '), `a-z', `A-Z'))
+ucfunc=translit(ifelse(sysval, 0, esyscmd(echo '$1' | cut -d. -f2), translit([$1], ` ')), `a-z', `A-Z')
+
+dnl func=translit([$SYS_NAME], ` ')
+dnl ucfunc=translit(translit([$REAL_NAME], ` '), `a-z', `A-Z')
 
 AC_MSG_CHECKING([prototypes for $func])
 
@@ -61,11 +71,12 @@ cat > conftest.$ac_ext <<EOF
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
+#include <netdb.h>
 #include <unistd.h>
 EOF
 
 changequote(<<, >>)dnl
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9]${func}[^a-z0-9]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9]${func}[^a-z0-9]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
+${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
 
 cnt=0
 while test $cnt -lt $paramcnt; do

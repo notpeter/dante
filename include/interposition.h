@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0371 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,11 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.23 1999/12/22 09:29:15 karls Exp $ */
-
-#ifdef HAVE_CONFIG_H
-#include "autoconf.h"
-#endif  /* HAVE_CONFIG_H */
+/* $Id: interposition.h,v 1.36 2001/02/06 15:58:39 michaels Exp $ */
 
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""
@@ -56,21 +52,22 @@
 #define SYMBOL_BIND "bind"
 #define SYMBOL_BINDRESVPORT "bindresvport"
 #define SYMBOL_CONNECT "connect"
+#define SYMBOL_GETHOSTBYADDR "gethostbyaddr"
 #define SYMBOL_GETHOSTBYNAME "gethostbyname"
 #define SYMBOL_GETHOSTBYNAME2 "gethostbyname2"
 #define SYMBOL_GETPEERNAME "getpeername"
 #define SYMBOL_GETSOCKNAME "getsockname"
-#define SYMBOL_RRESVPORT "rresvport"
-#define SYMBOL_RECVFROM "recvfrom"
-#define SYMBOL_SENDTO "sendto"
-#define SYMBOL_READV "readv"
-#define SYMBOL_WRITEV "writev"
-#define SYMBOL_SEND "send"
-#define SYMBOL_RECV "recv"
-#define SYMBOL_RECVMSG "recvmsg"
-#define SYMBOL_SENDMSG "sendmsg"
-#define SYMBOL_WRITE "write"
 #define SYMBOL_READ "read"
+#define SYMBOL_READV "readv"
+#define SYMBOL_RECV "recv"
+#define SYMBOL_RECVFROM "recvfrom"
+#define SYMBOL_RECVMSG "recvmsg"
+#define SYMBOL_RRESVPORT "rresvport"
+#define SYMBOL_SEND "send"
+#define SYMBOL_SENDMSG "sendmsg"
+#define SYMBOL_SENDTO "sendto"
+#define SYMBOL_WRITE "write"
+#define SYMBOL_WRITEV "writev"
 #endif /* HAVE_NO_SYMBOL_UNDERSCORE */
 
 /* XXX */
@@ -92,6 +89,13 @@
 #define LIBRARY_BIND								LIBRARY_LIBC
 #endif
 
+#ifndef SYMBOL_BINDRESVPORT
+#define SYMBOL_BINDRESVPORT					"_bindresvport"
+#endif
+#ifndef LIBRARY_BINDRESVPORT
+#define LIBRARY_BINDRESVPORT					LIBRARY_LIBC
+#endif
+
 #ifndef SYMBOL_CONNECT
 #define SYMBOL_CONNECT							"_connect"
 #endif
@@ -99,11 +103,11 @@
 #define LIBRARY_CONNECT							LIBRARY_LIBC
 #endif
 
-#ifndef SYMBOL_BINDRESVPORT
-#define SYMBOL_BINDRESVPORT					"_bindresvport"
+#ifndef SYMBOL_GETHOSTBYADDR
+#define SYMBOL_GETHOSTBYADDR					"_gethostbyaddr"
 #endif
-#ifndef LIBRARY_BINDRESVPORT
-#define LIBRARY_BINDRESVPORT					LIBRARY_LIBC
+#ifndef LIBRARY_GETHOSTBYADDR
+#define LIBRARY_GETHOSTBYADDR					LIBRARY_LIBC
 #endif
 
 #ifndef SYMBOL_GETHOSTBYNAME
@@ -155,18 +159,18 @@
 #define LIBRARY_RECV								LIBRARY_LIBC
 #endif
 
-#ifndef SYMBOL_RECVMSG
-#define SYMBOL_RECVMSG							"_recvmsg"
-#endif
-#ifndef LIBRARY_RECVMSG
-#define LIBRARY_RECVMSG							LIBRARY_LIBC
-#endif
-
 #ifndef SYMBOL_RECVFROM
 #define SYMBOL_RECVFROM							"_recvfrom"
 #endif
 #ifndef LIBRARY_RECVFROM
 #define LIBRARY_RECVFROM						LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_RECVMSG
+#define SYMBOL_RECVMSG							"_recvmsg"
+#endif
+#ifndef LIBRARY_RECVMSG
+#define LIBRARY_RECVMSG							LIBRARY_LIBC
 #endif
 
 #ifndef SYMBOL_RRESVPORT
@@ -211,7 +215,7 @@
 #define LIBRARY_WRITEV							LIBRARY_LIBC
 #endif
 
-/* only used on osf */
+/* only used on OSF */
 #if HAVE_EXTRA_OSF_SYMBOLS
 
 #ifndef SYMBOL_EACCEPT
@@ -270,7 +274,7 @@
 #define LIBRARY_EWRITEV							LIBRARY_LIBC
 #endif
 
-/* more osf functions */
+/* more OSF functions */
 
 #ifndef SYMBOL_NACCEPT
 #define SYMBOL_NACCEPT							"naccept"
@@ -316,6 +320,7 @@
 
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
+
 #ifdef lint
 extern const int lintnoloop_interposition_h;
 #else
@@ -324,13 +329,15 @@ extern const int lintnoloop_interposition_h;
 
 
 struct libsymbol_t {
-	char *symbol;			/* the symbol.						*/
+	char *symbol;			/* name of the symbol.			*/
 	char *library;			/* library symbol is in.		*/
-	void *handle;			/* our handle to the library.	*/
+	void *handle;			/* handle to the library.		*/
 	void *function;		/* the bound symbol.				*/
 };
 
-#if DIAGNOSTIC
+#if SOCKS_CLIENT
+
+#if DIAGNOSTIC && 0
 #define SIGBLOCK() \
 sigset_t oldmask;																	\
 do {																					\
@@ -345,7 +352,7 @@ do {																					\
 #define SIGBLOCK() do { } while (lintnoloop_interposition_h)
 #endif																				\
 
-#if DIAGNOSTIC
+#if DIAGNOSTIC && 0
 #define SIGUNBLOCK() \
 do { \
 	if (socksfd->state.system == 0)											\
@@ -395,15 +402,23 @@ do {																					\
 	(socks_getaddr((unsigned int)(s)) != NULL			\
  && socks_getaddr((unsigned int)(s))->state.system)
 
+#endif /* SOCKS_CLIENT */
 
 __BEGIN_DECLS
 
 void *
-symbolfunction __P((char *symbol));
+symbolfunction __P((const char *symbol));
 /*
  * Returns the address binding of the symbol "symbol" and updates
  * libsymbol_t structure "symbol" is defined in if necessary.
  * Exits on failure.
+ */
+
+void
+symbolcheck __P((void));
+/*
+ * Checks that all defined symbols are loadable (and loads them).
+ * Note that this might open filedescriptors (and keep them open).
  */
 
 __END_DECLS

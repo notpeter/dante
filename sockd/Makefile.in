@@ -61,6 +61,7 @@ host_alias = @host_alias@
 host_triplet = @host@
 AWK = @AWK@
 CC = @CC@
+CPP = @CPP@
 LD = @LD@
 LEX = @LEX@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
@@ -74,19 +75,28 @@ PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
 PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
+TOPEXTRADIST = @TOPEXTRADIST@
+TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 
 sbin_PROGRAMS = sockd
-sockd_SOURCES = sockd.c sockd_child.c sockd_io.c io.c sockd_negotiate.c 	sockd_request.c method_uname.c debug.c udp_util.c util.c log.c  	socket.c sockd_socket.c config_parse.y config_scan.l config.c   	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c     	hostcache.c
+sockd_SOURCES = sockd.c sockd_child.c io.c sockd_negotiate.c 	sockd_request.c method_uname.c debug.c udp_util.c util.c log.c  	socket.c sockd_socket.c config_parse.y config_scan.l config.c   	sockd_util.c sockd_protocol.c serverconfig.c lib_protocol.c     	hostcache.c interposition.c broken.c serr.c sockd_io.c accesscheck.c 	auth_password.c auth_pam.c
 
 
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
-@STATIC_SOCKD_TRUE@sockd_LDADD = ../libscompat/sockatmark.o
-@STATIC_SOCKD_FALSE@sockd_LDADD = ../libscompat/libscompat.la
 
-INCLUDES = -I../libscompat
+#use libwrap if it is available
+@WANT_LIBWRAP_TRUE@LIBWRAP = -lwrap
+
+#use preloading anyway?
+@WANT_LIBWRAP_TRUE@@SERVER_INTERPOSITION_TRUE@SERVDL = -DSOCKSLIBRARY_DYNAMIC=1
+@WANT_LIBWRAP_FALSE@@SERVER_INTERPOSITION_ALWAYS_TRUE@SERVDL = -DSOCKSLIBRARY_DYNAMIC=1
+@STATIC_SOCKD_TRUE@sockd_LDADD = ../libscompat/sockatmark.o ${LIBWRAP}
+@STATIC_SOCKD_FALSE@sockd_LDADD = ../libscompat/libscompat.la ${LIBWRAP}
+
+INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
 PREFIX = socks_yy
 YFLAGS = -d -p${PREFIX}
 LFLAGS = -P${PREFIX} -olex.yy.c
@@ -98,10 +108,10 @@ LFLAGS = -P${PREFIX} -olex.yy.c
 @SPROFIL_TRUE@sockd_LDFLAGS = ${STATIC}
 
 #XXX
-AM_CFLAGS = ${PROFIL} -DSOCKS_SERVER=1 -DSOCKS_CLIENT=0
+AM_CFLAGS = ${PROFIL} -DSOCKS_SERVER=1 -DSOCKS_CLIENT=0 ${SERVDL}
 #lint files
 SUFFIXES = .ln
-@LINT_TRUE@LINTFILES = sockd.ln sockd_child.ln sockd_io.ln io.ln udp_util.ln       	sockd_request.ln method_uname.ln debug.ln util.ln socket.ln     	log.ln sockd_socket.ln config_parse.ln config_scan.ln           	sockd_util.ln sockd_protocol.ln serverconfig.ln lib_protocol.ln 	sockd_negotiate.ln config.ln
+@LINT_TRUE@LINTFILES = sockd.ln sockd_child.ln sockd_io.ln io.ln udp_util.ln       	sockd_request.ln method_uname.ln debug.ln util.ln socket.ln     	log.ln sockd_socket.ln config_parse.ln config_scan.ln           	sockd_util.ln sockd_protocol.ln serverconfig.ln lib_protocol.ln 	sockd_negotiate.ln config.ln interposition.ln
 
 @LINT_TRUE@sockd_DEPENDENCIES = $(LINTFILES)
 
@@ -119,10 +129,12 @@ DEFS = @DEFS@ -I. -I$(srcdir) -I../include
 CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-sockd_OBJECTS =  sockd.o sockd_child.o sockd_io.o io.o sockd_negotiate.o \
+sockd_OBJECTS =  sockd.o sockd_child.o io.o sockd_negotiate.o \
 sockd_request.o method_uname.o debug.o udp_util.o util.o log.o socket.o \
 sockd_socket.o config_parse.o config_scan.o config.o sockd_util.o \
-sockd_protocol.o serverconfig.o lib_protocol.o hostcache.o
+sockd_protocol.o serverconfig.o lib_protocol.o hostcache.o \
+interposition.o broken.o serr.o sockd_io.o accesscheck.o \
+auth_password.o auth_pam.o
 @STATIC_SOCKD_TRUE@sockd_DEPENDENCIES =  ../libscompat/sockatmark.o
 @STATIC_SOCKD_FALSE@sockd_DEPENDENCIES =  ../libscompat/libscompat.la
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
@@ -268,76 +280,99 @@ distdir: $(DISTFILES)
 	@for file in $(DISTFILES); do \
 	  d=$(srcdir); \
 	  if test -d $$d/$$file; then \
-	    cp -pr $$/$$file $(distdir)/$$file; \
+	    cp -pr $$d/$$file $(distdir)/$$file; \
 	  else \
 	    test -f $(distdir)/$$file \
 	    || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
 	    || cp -p $$d/$$file $(distdir)/$$file || :; \
 	  fi; \
 	done
+accesscheck.o: accesscheck.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
+auth_pam.o: auth_pam.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
+auth_password.o: auth_password.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
+broken.o: broken.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
 config.o: config.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 config_parse.o: config_parse.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 config_scan.o: config_scan.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h config_parse.h
+	../include/interposition.h ../include/sockd.h config_parse.h
 debug.o: debug.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 hostcache.o: hostcache.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
+interposition.o: interposition.c ../include/common.h \
+	../include/autoconf.h ../include/redefac.h \
+	../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
 io.o: io.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 lib_protocol.o: lib_protocol.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 log.o: log.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 method_uname.o: method_uname.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
+serr.o: serr.c ../include/common.h ../include/autoconf.h \
+	../include/redefac.h ../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
 serverconfig.o: serverconfig.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h config_parse.h
+	../include/interposition.h ../include/sockd.h config_parse.h
 sockd.o: sockd.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 sockd_child.o: sockd_child.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 sockd_io.o: sockd_io.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h config_parse.h
 sockd_negotiate.o: sockd_negotiate.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/sockd.h
+	../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
 sockd_protocol.o: sockd_protocol.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/sockd.h
+	../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
 sockd_request.o: sockd_request.c ../include/common.h \
 	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/sockd.h
+	../include/yacconfig.h ../include/config.h \
+	../include/interposition.h ../include/sockd.h
 sockd_socket.o: sockd_socket.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 sockd_util.o: sockd_util.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 socket.o: socket.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 udp_util.o: udp_util.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 util.o: util.c ../include/common.h ../include/autoconf.h \
 	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/sockd.h
+	../include/interposition.h ../include/sockd.h
 
 info-am:
 info: info-am

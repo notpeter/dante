@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.40 1999/12/14 11:45:39 michaels Exp $";
+"$Id: udp_util.c,v 1.44 2001/02/06 15:58:59 michaels Exp $";
 
 struct udpheader_t *
 sockaddr2udpheader(to, header)
@@ -70,15 +70,15 @@ udpheader_add(host, msg, len, msgsize)
 {
 /*	const char *function = "udpheader_add()"; */
 	struct udpheader_t header;
-	char *newmsg, *offset;
+	unsigned char *newmsg, *offset;
 
 	bzero(&header, sizeof(header));
 	header.host = *host;
 
 	if (msgsize >= sizeof(*newmsg) * (*len + PACKETSIZE_UDP(&header)))
-		newmsg = msg;
+		newmsg = (unsigned char *)msg;
 	else
-		if ((newmsg = (char *)malloc(sizeof(*newmsg)
+		if ((newmsg = (unsigned char *)malloc(sizeof(*newmsg)
 		* (*len + PACKETSIZE_UDP(&header)))) == NULL)
 			return NULL;
 
@@ -99,7 +99,7 @@ udpheader_add(host, msg, len, msgsize)
 
 	*len = offset - newmsg;
 
-	return newmsg;
+	return (char *)newmsg;
 }
 
 struct udpheader_t *
@@ -123,7 +123,8 @@ string2udpheader(data, len, header)
 	data += sizeof(header->frag);
 	len -= sizeof(header->frag);
 
-	if ((data = mem2sockshost(&header->host, data, len, SOCKS_V5)) == NULL)
+	if ((data = (const char *)mem2sockshost(&header->host,
+	(const unsigned char *)data, len, SOCKS_V5)) == NULL)
 		return NULL;
 
 	return header;

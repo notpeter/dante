@@ -1,0 +1,392 @@
+%@(#)$Id: faq.tex,v 1.33 2001/04/26 07:32:20 michaels Exp $
+%/*
+% * Copyright (c) 1997, 1998, 1999, 2000, 2001
+% *      Inferno Nettverk A/S, Norway.  All rights reserved.
+% *
+% * Redistribution and use in source and binary forms, with or without
+% * modification, are permitted provided that the following conditions
+% * are met:
+% * 1. The above copyright notice, this list of conditions and the following
+% *    disclaimer must appear in all copies of the software, derivative works
+% *    or modified versions, and any portions thereof, aswell as in all
+% *    supporting documentation.
+% * 2. All advertising materials mentioning features or use of this software
+% *    must display the following acknowledgement:
+% *      This product includes software developed by
+% *      Inferno Nettverk A/S, Norway.
+% * 3. The name of the author may not be used to endorse or promote products
+% *    derived from this software without specific prior written permission.
+% *
+% * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+% * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+% * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+% * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+% * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+% * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+% * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+% * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+% * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+% * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+% *
+% * Inferno Nettverk A/S requests users of this software to return to
+% *
+% *  Software Distribution Coordinator  or  sdc@inet.no
+% *  Inferno Nettverk A/S
+% *  Oslo Research Park
+% *  Gaustadalléen 21
+% *  NO-0349 Oslo
+% *  Norway
+% *
+% * any improvements or extensions that they make and grant Inferno Nettverk A/S
+% * the rights to redistribute these changes.
+% *
+% */
+
+\documentclass[a4paper, final, twoside, english]{article}
+\usepackage[latin1]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{babel}
+\usepackage{html}
+
+\title{Dante FAQ}
+\author{
+	Inferno Nettverk A/S \\
+	Oslo Research Park   \\
+	Gaustadalléen 21   \\
+	NO-0349 Oslo          \\
+	Norway}
+
+\makeindex
+
+\begin{document}
+
+\maketitle
+
+ \begin{center}
+
+  \emph{See
+   \htmladdnormallink{
+	http://www.inet.no/dante/FAQ}{http://www.inet.no/dante/FAQ} for the
+	latest version of this faq.}
+
+   Send updates/corrections to the public mailinglist dante-misc@inet.no.
+  \end{center}
+  
+\section{Reporting problems or bugs in Dante}
+
+ \subsection{Why was I told to read this in response to my superb
+  problem/bug report?}
+  Because you were unable to provide a usable report.  Since
+  there are so many of you, we prefer to refer you to this FAQ rather
+  than repeating ourselves over and over.
+
+ \subsection{Why is "it does not work" not a good report?}
+  It's a common misconception among users who have never done any
+  programming that by stating something along the lines of "it does
+  not work", or "I get a segmentation fault" (these are real examples,
+  believe it or not), the programmers at Inferno Nettverk will without
+  a shred of doubt be able to pin-point that one line, that one line
+  among the thousands of other lines, responsible for it "not working"
+  or "segmentation faulting".
+
+  The fact is, any one of the tens of thousands of lines could be
+  the "bad" line, we don't have time to re-read them all each time
+  we get a "it does not work" message.
+
+ \subsection{How can I provide you with the information you need?}
+  First of all, look in the config file you are using.
+  If you are using the Dante client, it's /etc/socks.conf.
+  If you are using the Dante server, it's /etc/sockd.conf.
+  Both files contain by default the lines "logoutput:".  Set "logoutput:"
+  to some file that Dante can log output to.
+
+  If the problem is with the client, also uncomment the line containing
+  "debug".
+  If the problem is with the server, also add "-dl" to whatever
+  arguments you usually start the server with.
+
+  Repeat whatever you did to produce the error and look at the
+  log messages.  Do they provide any hints? 
+
+  If it looks like a user error, you configured something wrong, etc.
+  you can try sending a mail to dante-misc@inet.no, a public mailing
+  list where someone might be kind enough to help you if you formulate
+  your question in a understandable way.
+  And remember, unless you are a customer of Inferno Nettverk, no one
+  owes you any support or help, you are the one asking someone to
+  spend their time to help you, not the other way around.
+
+  If it looks like a bug, first perform the following step:
+  \begin{enumerate}
+   \item{} Make sure that you are using the latest
+      version of Dante, even if the latest version is a "prerelease"
+      and you are using official release.  Always check
+      ftp.inet.no:/pub/socks/ to see if there's a later version
+      before sending a bugreport.
+
+  Next, depending on whether the suspected bug is in the client
+  or sever, do one of the following:
+
+   If it's a bug in the client:
+  \begin{enumerate}
+    \item{} Compile the program you are trying to socksify with the compiler
+       option "-g".
+    \item{} Compile Dante with "-g" (--enable-debugging option to configure).
+    \item{} Set debug and logoutput as described above.
+    \item{} cp /dev/null <logoutput file> (to make sure it's empty.)
+    \item{} ktrace/truss/strace/<whatever> socksify <bad program>.
+     Save the output to a file.  If you have a program that can
+     trace library calls too (late version of Solaris truss and redhat
+     linux apparently do), please include information about that too.
+    \item{} If a coredump was generated do
+  \begin{verbatim}
+	$ gdb <bad program> <coredump>
+	(gdb) backtrace 50
+  \end{verbatim}
+
+   Save the output to a file.
+  \end{enumerate}
+
+   If it's a bug in the server:
+  \begin{enumerate}
+   \item{} Compile Dante with "-g" (--enable-debugging option to configure).
+   \item{} Set debug and logoutput as described above.
+   \item{} cp /dev/null <logoutput file> (to make sure it's empty.)
+   \item{} If the server crashed/exited due to the bug, a coredump should
+	be generated.  If you do not find a coredump in the directory
+	you started the Dante server from you need to find out why.
+	Some possible reasons are:
+	a) your shell has disabled coredumps (check what ulimit(1))
+	says.
+	b) some systems by default disable coredumps on
+	processes that are either setuid, or that are run by root.
+
+    When you have found the coredump do
+  \begin{verbatim}
+	$ gdb <Dante server> <coredump>
+	(gdb) backtrace 50
+  \end{verbatim}
+       Save the output to a file.
+  \end{enumerate}
+
+  Then:
+    \item{} In addition to the server/client specific files mentioned below,
+      include the output from configure and the file "include/autoconf.h".
+
+    \item{} Collect the output from configure and the file include/autoconf.h,
+       the <logoutput file>, gdb/ktrace/truss/strace/whatever output
+       in a orderly fashion so it's easy to read and understand, and
+       send it to us.  Make sure you include information about what
+       all the ipaddresses in the logfiles are (10.0.0.1 is "client
+       using lynx", 10.0.0.2 is "remote webserver", etc.).
+
+       The address to use for Dante bugs is dante-bugs@inet.no.  See
+       the BUGS file coming with Dante.
+
+    \item{} If you have the possibility to create a temporary account for
+       one of the Dante developers in the case we are unable to
+       reproduce the error on our own systems, please mention that
+       in the bugreport (but don't create the account until we ask
+       for it, we rarely need it).
+  \end{enumerate}
+
+\section{System installation}
+ \subsection{Where can I find configuration file examples?}
+
+ Several examples are included in the archive. They can also be
+ downloaded via
+ \htmladdnormallink{ftp}{ftp://ftp.inet.no/pub/socks/extracted/example/}.
+
+ \subsection{SuSE 7}
+	\begin{enumerate} 
+	 \item{} Install the Dante package from SuSE (Version 1.1.2 is included
+	         in SuSE 7)
+	 \item{} Edit the /etc/rc.config and set the line START\_SOCKD="yes"
+    \item{} If you have an dynamic IP you have to have a
+            script which modifies /etc/sockd.conf every time you
+            get a new external IP. I provide this modified script
+            for folks who use ISDN (ippp0 device).  Change "ippp0"
+            to the name of the device you use for Dialin.
+				Save the script as /etc/socks.sh
+		\begin{verbatim}
+		 ---
+		 #!/bin/bash
+		 #
+	
+ 		 SOCKD_CONF="/etc/sockd.conf"
+		 EXPIP=`ifconfig ippp0 | grep inet | cut -d : -f 2 | cut -d \  -f 1`
+		 ex - +'1,\$s/^external:.*/external: '$EXPIP'/ | wq' $SOCKD_CONF
+		 killall -HUP sockd
+		 exit 0
+		 ----
+		\end{verbatim}
+
+		\begin{enumerate}
+       \item{} Then do chmod a+x /etc/socks.sh.
+		 \item{} Edit the script /etc/ppp/poll.tcpip. 
+					Put the line /etc/socks.sh in the last line.
+		\end{enumerate}
+		
+		\item{} Edit the config file /etc/sockd.conf and reboot linux (or
+              start sockd -D if you know what you are doing).
+
+				  Be sure that you have one client pass rule which allows
+              you client to connect from your internal network and
+              one pass rule that allows a client that is connected
+              to use the proxy to the desired destinations (this
+              is most likely to everywhere = 0.0.0.0/0 )
+
+	  \end{enumerate}
+   \emph{Thanks to: Andreas John <dante@systemdesign.net>}
+		
+\section{How can I socksify the whole system?}
+ On some systems doing the global equivalent of running a program with
+ socksify is possible.
+
+ \subsection{Linux}
+  In Linux you can easily do the following:
+  \begin{verbatim}
+   edit the file /etc/ld.so.preload
+   and add two lines saying:
+      libdl.so
+      libdsocks.so
+  \end{verbatim}
+ \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+
+
+ \subsection{Generic}
+  There is another way that gives you more control over what will and what
+  will not be socksified. Instead of using the wrapper-script 'socksify',
+  you could add
+
+  \begin{verbatim}
+   LD_PRELOAD="libdl.so libdsocks.so"
+   export LD_PRELOAD
+  \end{verbatim}
+  to the environment. (/etc/profile ~/.profile ~/.bashrc)
+  \\ \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+
+  \subsubsection{Why do I want to be able to control this?}
+   In same rare cases programs fail to work in a socksified environment
+   (e.g. acroread 4.0 for linux segfaults) or programs like rpm depend on a
+   clean build-environment to get its (library) dependencies.
+   \\ \emph{Thanks to Dag Wieers <dag@mind.be>.}
+
+
+ \subsubsection{How can I easily unsocksify the current shell?}
+  By issuing
+  \begin{verbatim}
+   unset LD_PRELOAD
+  \end{verbatim}
+  \emph{Thanks to: Dag Wieers <dag@mind.be>.}
+
+
+\section{Technical Problems}
+ \subsection{Why doesn't the socksify program work with glibc-2?}
+  If glibc is not correctly installed (old header files are still
+  installed) socksify won't work if logging is enabled. The server will
+  also crash when it exits. Upgrade the header files (/usr/include) and
+  compile again.
+
+ \subsection{Why doesn't socksify work on cvs?}
+  It does work.  A problem however is that cvs usually ends up calling
+  a setuid program (rsh, ssh, whatever).  See section~\ref{setuid}.
+
+ \subsection{Why doesn't socksify work on setuid programs like ssh, rsh, etc?}
+  \label{setuid}
+  The reason is that these programs are setuid.  Most systems will
+  ignore the work socksify has done before running these programs and
+  the result becomes the the same as not using socksify on them.
+
+  Solution: strip off the suid bit if possible or recompile the binary
+  (rsh, ssh, etc) with explicit socks support (adding "-ldsocks"
+  to the linkoptions is usually enough.)
+
+ \subsection{How do I setup a password file for authenticating users?}
+  The Dante server uses the standard system passwordfile.
+  Put the server in a chroot jail to manage a separate passwordfile.
+
+ \subsection{How can I more easily get the Dante server to work when the
+	          external interface is using dynamic ipaddresses?}
+
+  \subsubsection{Generic}
+   Either specify the external address as a interfacename (available
+   since Dante v1.1.7), in which case the Dante server will
+   automatically use the new address whenever it changes, or if you
+   must use a ipaddress, try the below.
+
+
+   Automatically running a script that changes the "external:" line
+   in your sockd.conf and then sends the server a SIGHUP when you get
+   a new address should be simple enough though.
+
+   A example of such a script is the following, modify to suit.
+
+   \begin{verbatim}
+    #!/bin/sh -
+    #
+    # usage: script.sh <new external ipaddress>
+
+    : {SOCKD_CONF='/etc/sockd.conf'}
+
+    if [ ! -w ${SOCKD_CONF} ]; then
+       echo "${SOCKD_CONF} does not exist or is not writable"
+       exit 1
+    fi
+
+    ex - +'1,$s/^external:.*/external: '$1'/ | wq' ${SOCKD_CONF}
+    kill -HUP `cat /var/run/sockd.pid`
+   \end{verbatim}
+
+    As you see, this is intended to be called as "<scriptname>
+    <external ip>", where <external ip> is your external ip.  We
+    assume you can easily get the external ip from your ppp script.
+
+  \subsubsection{RedHat Linux 6.0}
+   This should work for normal modem dialup or ADSL connection with dynamic
+   address.
+
+   Suppose one is using ppp and the external interface is "ppp0",
+   he/she can call the following script in "/etc/ppp/ip-up.local".
+   Whenever ppp is up, this script will be called automatically.
+
+   \begin{verbatim}
+    #!/bin/bash
+    #
+
+    SOCKD_CONF="/etc/sockd.conf"
+
+    EXPIP=`/sbin/ifconfig ppp0 | grep inet | cut -d : -f 2 | cut -d \  -f 1`
+
+    /bin/ex - +'1,$s/^external:.*/external: '$EXPIP'/ | wq' $SOCKD_CONF
+
+    kill -HUP `cat /var/run/sockd.pid`
+
+    exit 0
+   \end{verbatim}
+   \emph{Thanks to: Tin Yu Mak <makty@usa.net>.}
+
+ \subsection{I have problems rotating Dante's logfiles.  What can I do
+             except log via syslog?}
+
+   Making Dante reopen the logfiles on SIGHUP would be a way to
+   provide support for this.  That however involves adding more
+   code to Dante, code that in practice duplicates code that
+   already exists in syslog.  Since Dante opens the logfiles in
+   appendmode the below may work.
+
+   A quick and dirty solution for dealing with most daemons that
+   don't like having their logs rotated. Copy them instead of moving
+   the files and then redirect an echo into them. Kick it off via
+   cron every day at 11:59.  I get 7 days of rotated logs like this:
+
+   \begin{verbatim}
+    sleep 60
+    DAY=`date +%a`
+    cp /var/log/banned.log /var/log/banned.log.${DAY}
+    echo > /var/log/banned.log
+   \end{verbatim}
+   \emph{Thanks to: James Coe <starascendant@hotmail.com>.}
+
+
+\end{document}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.106 1999/12/22 09:29:21 karls Exp $";
+"$Id: Rconnect.c,v 1.112 2001/05/02 11:37:16 michaels Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -54,20 +54,22 @@ Rconnect(s, name, namelen)
 {
 	const char *function = "Rconnect()";
 	struct sockshost_t src, dst;
-	struct socksfd_t socksfd;
+	struct socksfd_t socksfdmem, *socksfd;
 	struct socks_t packet;
 	socklen_t len;
+	char namestring[MAXSOCKADDRSTRING];
 	int type, p;
 
 	if (name->sa_family != AF_INET)
 		return connect(s, name, namelen);
 
+	slog(LOG_DEBUG, "%s: %s",
+	function, sockaddr2string(name, namestring, sizeof(namestring)));
+
 	if (socks_addrisok((unsigned int)s)) {
-		struct socksfd_t *socksfdp;
+		socksfd = socks_getaddr((unsigned int)s);
 
-		socksfdp = socks_getaddr((unsigned int)s);
-
-		switch (socksfdp->state.command) {
+		switch (socksfd->state.command) {
 			case SOCKS_BIND:
 				/*
 				 * Our guess; the client has succeeded to bind a specific
@@ -83,13 +85,13 @@ Rconnect(s, name, namelen)
 				break;
 
 			case SOCKS_CONNECT:
-				if (socksfdp->state.inprogress)
-					if (socksfdp->state.err != 0) /* connect failed. */
-						errno = socksfdp->state.err;
-					else
-						errno = EALREADY;
+				if (socksfd->state.err != 0)
+					errno = socksfd->state.err;
 				else
-					errno = EISCONN;	/* socket connected. */
+					if (socksfd->state.inprogress)
+						errno = EALREADY;
+					else
+						errno = EISCONN;
 				return -1;
 
 			case SOCKS_UDPASSOCIATE:
@@ -101,7 +103,7 @@ Rconnect(s, name, namelen)
 				break;
 
 			default:
-				SERRX(socksfdp->state.command);
+				SERRX(socksfd->state.command);
 		}
 	}
 	else
@@ -112,20 +114,18 @@ Rconnect(s, name, namelen)
 		return -1;
 
 	switch (type) {
-		case SOCK_DGRAM: {
-			struct socksfd_t *socksfdp;
-
+		case SOCK_DGRAM:
 			if (udpsetup(s, name, SOCKS_SEND) == 0) {
-				socksfdp = socks_getaddr((unsigned int)s);
-				SASSERTX(socksfdp != NULL);
+				socksfd = socks_getaddr((unsigned int)s);
+				SASSERTX(socksfd != NULL);
 
-				if (connect(s, &socksfdp->reply, sizeof(socksfdp->reply)) != 0) {
+				if (connect(s, &socksfd->reply, sizeof(socksfd->reply)) != 0) {
 					socks_rmaddr((unsigned int)s);
 					return -1;
 				}
 
-				socksfdp->state.udpconnect		= 1;
-				socksfdp->connected				= *name;
+				socksfd->state.udpconnect	= 1;
+				socksfd->connected			= *name;
 
 				return 0;
 			}
@@ -136,20 +136,19 @@ Rconnect(s, name, namelen)
 				else
 					return -1;
 			}
-		}
 	}
 
-
-	bzero(&socksfd, sizeof(socksfd));
-	len = sizeof(socksfd.local);
-	if (getsockname(s, &socksfd.local, &len) != 0)
+	socksfd = &socksfdmem;
+	bzero(socksfd, sizeof(*socksfd));
+	len = sizeof(socksfd->local);
+	if (getsockname(s, &socksfd->local, &len) != 0)
 		return -1;
 
 	src.atype		= SOCKS_ADDR_IPV4;
 	/* LINTED pointer casts may be troublesome */
-	src.addr.ipv4	= ((const struct sockaddr_in *)&socksfd.local)->sin_addr;
+	src.addr.ipv4	= TOIN(&socksfd->local)->sin_addr;
 	/* LINTED pointer casts may be troublesome */
-	src.port			= ((const struct sockaddr_in *)&socksfd.local)->sin_port;
+	src.port			= TOIN(&socksfd->local)->sin_port;
 
 	fakesockaddr2sockshost(name, &dst);
 
@@ -161,16 +160,22 @@ Rconnect(s, name, namelen)
 	if (socks_requestpolish(&packet.req, &src, &dst) == NULL)
 		return connect(s, name, namelen);
 
+	packet.version = packet.req.version;
+
 	switch (packet.req.version) {
 		case SOCKS_V4:
 		case SOCKS_V5:
-			socksfd.control = s;
+			socksfd->control = s;
 			break;
 
 		case MSPROXY_V2:
 			/* always needs a separate controlchannel. */
-			if ((socksfd.control = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+			if ((socksfd->control = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
 				return -1;
+			break;
+
+		case HTTP_V1_0:
+			socksfd->control = s;
 			break;
 
 		default:
@@ -181,14 +186,18 @@ Rconnect(s, name, namelen)
 		return -1;
 
 	if (p & NONBLOCKING)
-		socksfd.route
-		= socks_nbconnectroute(s, socksfd.control, &packet, &src, &dst);
+		socksfd->route
+		= socks_nbconnectroute(s, socksfd->control, &packet, &src, &dst);
 	else
-		socksfd.route = socks_connectroute(socksfd.control, &packet, &src, &dst);
+		socksfd->route
+		= socks_connectroute(socksfd->control, &packet, &src, &dst);
 
-	if (socksfd.route == NULL) {
-		if (s != socksfd.control)
-			close(socksfd.control);
+	slog(LOG_DEBUG, "%s: route = %s, errno = %d", 
+	function, socksfd->route == NULL ? "null" : "found", errno);
+
+	if (socksfd->route == NULL) {
+		if (s != socksfd->control)
+			close(socksfd->control);
 
 		switch (errno) {
 			case EADDRINUSE: {
@@ -223,13 +232,12 @@ Rconnect(s, name, namelen)
 				 * s too to a privileged port.
 				 */
 				/* LINTED pointer casts may be troublesome */
-				if (PORTISRESERVED(((struct sockaddr_in *)
-				&socksfd.local)->sin_port)) {
+				if (PORTISRESERVED(TOIN(&socksfd->local)->sin_port)) {
 					/* LINTED pointer casts may be troublesome */
-					((struct sockaddr_in *)&socksfd.local)->sin_port = htons(0);
+					TOIN(&socksfd->local)->sin_port = htons(0);
 
 					/* LINTED pointer casts may be troublesome */
-					bindresvport(s, (struct sockaddr_in *)&socksfd.local);
+					bindresvport(s, TOIN(&socksfd->local));
 				}
 				return Rconnect(s, name, namelen);
 			}
@@ -241,21 +249,20 @@ Rconnect(s, name, namelen)
 	if (p & NONBLOCKING)
 		return -1; /* got route, nonblocking connect in progress. */
 
-	if (socks_negotiate(s, socksfd.control, &packet, socksfd.route) != 0)
+	if (socks_negotiate(s, socksfd->control, &packet, socksfd->route) != 0)
 		return -1;
 
-	socksfd.state.auth				= packet.auth;
-	socksfd.state.command			= packet.req.command;
-	socksfd.state.version			= packet.req.version;
-	socksfd.state.protocol.tcp		= 1;
-	socksfd.state.msproxy			= packet.state.msproxy;
-	sockshost2sockaddr(&packet.res.host, &socksfd.remote);
-	socksfd.connected					= *name;
+	socksfd->state.auth				= packet.auth;
+	socksfd->state.command			= packet.req.command;
+	socksfd->state.version			= packet.req.version;
+	socksfd->state.protocol.tcp	= 1;
+	socksfd->state.msproxy			= packet.state.msproxy;
+	sockshost2sockaddr(&packet.res.host, &socksfd->remote);
+	socksfd->connected					= *name;
 
 	/* LINTED pointer casts may be troublesome */
-	if (((struct sockaddr_in *)&socksfd.local)->sin_port != htons(0)
-	&&  ((struct sockaddr_in *)&socksfd.local)->sin_port !=
-		 ((struct sockaddr_in *)&socksfd.remote)->sin_port) {
+	if (TOIN(&socksfd->local)->sin_port != htons(0)
+	&&  TOIN(&socksfd->local)->sin_port != TOIN(&socksfd->remote)->sin_port) {
 		/*
 		 * unfortunate; the client is trying to connect from a specific
 		 * port, a port it has successfully bound, but the port is currently
@@ -264,24 +271,24 @@ Rconnect(s, name, namelen)
 
 		/* LINTED pointer casts may be troublesome */
 		slog(LOG_DEBUG, "failed to get wanted port: %d",
-		ntohs(((struct sockaddr_in *)&socksfd.local)->sin_port));
+		ntohs(TOIN(&socksfd->local)->sin_port));
 	}
 
-	len = sizeof(socksfd.server);
-	if (getpeername(s, &socksfd.server, &len) != 0) {
-		if (s != socksfd.control)
-			close(socksfd.control);
+	len = sizeof(socksfd->server);
+	if (getpeername(s, &socksfd->server, &len) != 0) {
+		if (s != socksfd->control)
+			close(socksfd->control);
 		return -1;
 	}
 
-	len = sizeof(socksfd.local);
-	if (getsockname(s, &socksfd.local, &len) != 0) {
-		if (s != socksfd.control)
-			close(socksfd.control);
+	len = sizeof(socksfd->local);
+	if (getsockname(s, &socksfd->local, &len) != 0) {
+		if (s != socksfd->control)
+			close(socksfd->control);
 		return -1;
 	}
 
-	socks_addaddr((unsigned int)s, &socksfd);
+	socks_addaddr((unsigned int)s, socksfd);
 
 	config.state.lastconnect = *name;	/* needed for standard socks bind. */
 

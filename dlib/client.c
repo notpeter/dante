@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.43 1999/12/22 09:29:22 karls Exp $";
+"$Id: client.c,v 1.49 2001/02/06 15:58:51 michaels Exp $";
 
 #if !HAVE_PROGNAME
 	char *__progname = "danteclient";
@@ -67,7 +67,7 @@ clientinit(void)
 	if (config.state.init)
 		return;
 
-	config.state.pid = getpid();
+	newprocinit();
 
 	if (issetugid())
 		config.option.configfile = SOCKS_CONFIGFILE;
@@ -76,7 +76,7 @@ clientinit(void)
 			config.option.configfile = SOCKS_CONFIGFILE;
 
 	/*
-	 * initialize misc options to sensible default.
+	 * initialize misc. options to sensible default.
 	 */
 	config.resolveprotocol		= RESOLVEPROTOCOL_UDP;
 	config.option.lbuf			= 1;
@@ -198,6 +198,17 @@ serverreplyisok(version, reply, route)
 					return 0;
 			}
 
+		case HTTP_V1_0:
+			switch (reply) {
+				case HTTP_SUCCESS:
+					return 1;
+
+				default:
+					errno = ECONNREFUSED;
+					return 0;
+			}
+			break;
+			
 		default:
 			SERRX(version);
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.79 1999/12/12 18:13:56 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.90 2001/05/08 08:47:31 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -117,7 +117,7 @@ recv_request(s, request, state)
 		rc = state->rcurrent(s, request, state);
 	else {
 		INIT(sizeof(request->version));
-		CHECK(&request->version, NULL);
+		CHECK(&request->version, request->auth, NULL);
 
 		switch (request->version) {
 			case SOCKS_V4:
@@ -211,7 +211,8 @@ recv_v5req (s, request, state)
 
 	/* NMETHODS */
 	INIT(sizeof(char));
-	CHECK(&state->mem[start], NULL);
+	CHECK(&state->mem[start], request->auth, NULL);
+	/* LINTED conversion from 'int' may lose accuracy */
 	OCTETIFY(state->mem[start]);
 
 	state->rcurrent = recv_methods;
@@ -228,14 +229,15 @@ recv_methods(s, request, state)
 {
 	const char *function = "recv_methods()";
 	const unsigned char methodc = state->mem[state->reqread - 1];	/* NMETHODS */
-	char reply[ 1 /* VERSION	*/
-				 + 1 /* METHOD		*/
-				 ];
+	unsigned char reply[ 1 /* VERSION	*/
+							 + 1 /* METHOD		*/
+							];
 
 	INIT(methodc);
-	CHECK(&state->mem[start], NULL);
+	CHECK(&state->mem[start], request->auth, NULL);
 
-	request->auth->method = selectmethod(&state->mem[start], (size_t)methodc);
+	request->auth->method = selectmethod(config.methodv, config.methodc,
+	&state->mem[start], (size_t)methodc);
 
 	/* send reply:
 	 *
@@ -250,13 +252,16 @@ recv_methods(s, request, state)
 	function, request->version, request->auth->method);
 
 	reply[AUTH_VERSION]	= request->version;
-	reply[AUTH_METHOD]	= (char)request->auth->method;
+	reply[AUTH_METHOD]	= (unsigned char)request->auth->method;
 
-	if (writen(s, reply, sizeof(reply)) != sizeof(reply))
+	if (writen(s, reply, sizeof(reply), request->auth) != sizeof(reply))
 		return -1;
 
-	if (request->auth->method == AUTHMETHOD_NOACCEPT)
+	if (request->auth->method == AUTHMETHOD_NOACCEPT) {
+		snprintf(state->emsg, sizeof(state->emsg),
+		"client offered no acceptable authenticationmethod");
 		return -1;
+	}
 
 	state->rcurrent = methodnegotiate;
 	return state->rcurrent(s, request, state);
@@ -296,7 +301,7 @@ recv_ver(s, request, state)
 	/* VER */
 	{
 		INIT(sizeof(request->version));
-		CHECK(&request->version, NULL);
+		CHECK(&request->version, request->auth, NULL);
 
 		switch (request->version) {
 			case SOCKS_V4:
@@ -321,7 +326,7 @@ recv_cmd(s, request, state)
 {
 
 	INIT(sizeof(request->command));
-	CHECK(&request->command, NULL);
+	CHECK(&request->command, request->auth, NULL);
 
 	switch (request->version) {
 		case SOCKS_V4:
@@ -347,7 +352,7 @@ recv_flag(s, request, state)
 {
 
 	INIT(sizeof(request->flag));
-	CHECK(&request->flag, recv_sockshost);
+	CHECK(&request->flag, request->auth, recv_sockshost);
 
 	SERRX(0); /* NOTREACHED */
 }
@@ -382,7 +387,7 @@ recv_atyp(s, request, state)
 {
 
 	INIT(sizeof(request->host.atype));
-	CHECK(&request->host.atype, recv_address);
+	CHECK(&request->host.atype, request->auth, recv_address);
 
 	SERRX(0); /* NOTREACHED */
 }
@@ -400,7 +405,7 @@ recv_address(s, request, state)
 
 			request->host.atype = SOCKS_ADDR_IPV4; /* only one supported in v4. */
 
-			CHECK(&request->host.addr.ipv4, recv_username);
+			CHECK(&request->host.addr.ipv4, request->auth, recv_username);
 			SERRX(0); /* NOTREACHED */
 		}
 
@@ -408,20 +413,21 @@ recv_address(s, request, state)
 			switch(request->host.atype) {
 				case SOCKS_ADDR_IPV4: {
 					INIT(sizeof(request->host.addr.ipv4));
-					CHECK(&request->host.addr.ipv4, recv_port);
+					CHECK(&request->host.addr.ipv4, request->auth, recv_port);
 					SERRX(0); /* NOTREACHED */
 				}
 
 				case SOCKS_ADDR_IPV6: {
 					INIT(sizeof(request->host.addr.ipv6));
-					CHECK(&request->host.addr.ipv6, recv_port);
+					CHECK(&request->host.addr.ipv6, request->auth, recv_port);
 					SERRX(0); /* NOTREACHED */
 				}
 
 				case SOCKS_ADDR_DOMAIN: {
 					INIT(sizeof(*request->host.addr.domain));
-					CHECK(request->host.addr.domain, NULL);
+					CHECK(request->host.addr.domain, request->auth, NULL);
 
+					/* LINTED conversion from 'int' may lose accuracy */
 					OCTETIFY(*request->host.addr.domain);
 
 					state->rcurrent = recv_domain;
@@ -447,15 +453,16 @@ recv_domain(s, request, state)
 	struct request_t *request;
 	struct negotiate_state_t *state;
 {
-	size_t alen;
+	unsigned char alen;
+	/* first byte gives length. */
+	INIT((unsigned char)*request->host.addr.domain);
+	CHECK(request->host.addr.domain + 1, request->auth, NULL);
 
-	INIT(*request->host.addr.domain);	/* first byte gives length. */
-	CHECK(request->host.addr.domain + 1, NULL);
-
-	alen = (size_t)*request->host.addr.domain;
+	alen = *request->host.addr.domain;
 
 	/* convert to C string. */
-	memmove(request->host.addr.domain, request->host.addr.domain + 1, alen);
+	memmove(request->host.addr.domain, request->host.addr.domain + 1,
+	(size_t)alen);
 	request->host.addr.domain[alen] = NUL;
 
 	state->rcurrent = recv_port;
@@ -471,7 +478,7 @@ recv_port(s, request, state)
 {
 
 	INIT(sizeof(request->host.port));
-	CHECK(&request->host.port, NULL);
+	CHECK(&request->host.port, request->auth, NULL);
 
 	switch (request->version) {
 		case SOCKS_V4:
@@ -495,10 +502,10 @@ recv_username(s, request, state)
 	struct negotiate_state_t *state;
 {
 	const char *function = "recv_username()";
-	char *username = &state->mem[sizeof(request->version)
-										+ sizeof(request->command)
-										+ sizeof(request->host.port)
-										+ sizeof(request->host.addr.ipv4)];
+	char *username = (char *)&state->mem[sizeof(request->version)
+													+ sizeof(request->command)
+													+ sizeof(request->host.port)
+													+ sizeof(request->host.addr.ipv4)];
 	/* read until 0. */
 	do {
 		INIT(MIN(1, MEMLEFT()));
@@ -521,7 +528,7 @@ recv_username(s, request, state)
 			return -1;
 		}
 
-		CHECK(&state->mem[start], NULL);
+		CHECK(&state->mem[start], request->auth, NULL);
 	} while (state->mem[state->reqread - 1] != 0);
 	state->mem[state->reqread - 1] = NUL;	/* style. */
 
@@ -553,8 +560,8 @@ send_response(s, response)
 {
 	const char *function = "send_response()";
 	size_t length;
-	char responsemem[sizeof(*response)];
-	char *p = responsemem;
+	unsigned char responsemem[sizeof(*response)];
+	unsigned char *p = responsemem;
 
 	switch (response->version) {
 		case SOCKS_V4REPLY_VERSION:
@@ -617,7 +624,7 @@ send_response(s, response)
 	slog(LOG_DEBUG, "%s: sending response: %s",
 	function, socks_packet2string(response, SOCKS_RESPONSE));
 
-	if (writen(s, responsemem, length) != (ssize_t)length) {
+	if (writen(s, responsemem, length, response->auth) != (ssize_t)length) {
 		swarn("%s: writen()", function);
 		return -1;
 	}

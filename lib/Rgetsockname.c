@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.31 1999/09/02 10:41:20 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.36 2001/05/02 11:37:17 michaels Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -70,18 +70,20 @@ Rgetsockname(s, name, namelen)
 				if (socksfd->state.err != 0) /* connect failed. */
 					errno = socksfd->state.err;
 				else
-					errno = EINPROGRESS;
+				 	/* 
+					 * XXX
+					 * this is bad but we don't know what address the socksserver
+					 * will use on our behalf yet.  Lets hope the client
+					 * will retry on this error.
+					 * Another option might be to wait here until the 
+					 * socksnegotiation has completed, but applications probably
+					 * don't expect getsockname(2) to block.
+					*/
+					errno = ENOBUFS;
 				return -1;
 			}
 
 			addr = &socksfd->remote;
-
-			/* LINTED pointer casts may be troublesome */
-			if (!ADDRISBOUND(addr)) {
-				SWARNX(0);
-				errno = EADDRNOTAVAIL;
-				return -1;
-			}
 			break;
 
 		case SOCKS_BIND:
@@ -100,11 +102,11 @@ Rgetsockname(s, name, namelen)
 
 			addr = &socksfd->remote;
 			/* LINTED pointer casts may be troublesome */
-			((struct sockaddr_in *)addr)->sin_family			= AF_INET;
+			TOIN(addr)->sin_family			= AF_INET;
 			/* LINTED pointer casts may be troublesome */
-			((struct sockaddr_in *)addr)->sin_addr.s_addr	= htonl(INADDR_ANY);
+			TOIN(addr)->sin_addr.s_addr	= htonl(INADDR_ANY);
 			/* LINTED pointer casts may be troublesome */
-			((struct sockaddr_in *)addr)->sin_port				= htons(0);
+			TOIN(addr)->sin_port				= htons(0);
 			break;
 
 		default:

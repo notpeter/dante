@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.91 1999/10/04 12:43:37 michaels Exp $";
+"$Id: connectchild.c,v 1.102 2001/05/11 09:28:27 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -154,23 +154,21 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 			case 0: {
 				struct itimerval timerval;
-				size_t i, max;
-
-				config.state.pid = getpid();
+				int i, max;
 
 				slog(LOG_DEBUG, "%s: connectchild forked", function);
 
-				setsid();
-
 				/* close unknown descriptors. */
 				for (i = 0, max = getdtablesize(); i < max; ++i)
-					if (socks_logmatch(i, &config.log)
-					|| i == (unsigned int)pipev[CHILD])
+					if (socks_logmatch((unsigned int)i, &config.log)
+					|| i == pipev[CHILD])
+						continue;
+					else if (isatty(i))
 						continue;
 					else
-						close((int)i);
+						close(i);
 
-				initlog();
+				newprocinit();
 
 				/*
 				 * in case of using msproxy stuff, don't want mothers mess,
@@ -199,7 +197,8 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 	switch (packet->req.version) {
 		case SOCKS_V4:
-		case SOCKS_V5: {
+		case SOCKS_V5: 
+		case HTTP_V1_0: {
 			/*
 			 * Controlsocket is what later becomes datasocket.
 			 * We don't want to allow the client to read/write/select etc.
@@ -266,7 +265,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	if (!ADDRISBOUND(local)) {
 		bzero(&local, sizeof(local));
 
-		/* bind same ip as control, any fixed address would do though. */
+		/* bind same IP as control, any fixed address would do though. */
 
 		len = sizeof(local);
 		/* LINTED pointer casts may be troublesome */
@@ -281,6 +280,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			switch (packet->req.version) {
 				case SOCKS_V4:
 				case SOCKS_V5:
+				case HTTP_V1_0:
 					close(control); /* created in this function. */
 					control = s;
 					break;
@@ -312,9 +312,12 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	len = sizeof(socksfd.local);
 	if (getsockname(s, &socksfd.local, &len) != 0)
 		SERR(s);
+
+	/* this has to be done here or there would be a race against the signal. */
 	socksfd.control				= control;
-	socksfd.state.command		= SOCKS_CONNECT;
+	socksfd.state.command		= packet->req.command;
 	socksfd.state.version		= packet->req.version;
+	socksfd.state.protocol.tcp	= 1;
 	socksfd.state.inprogress	= 1;
 	sockshost2sockaddr(&packet->req.host, &socksfd.connected);
 
@@ -332,6 +335,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	switch (packet->req.version) {
 		case SOCKS_V4:
 		case SOCKS_V5:
+		case HTTP_V1_0:
 			break;
 
 		case MSPROXY_V2:
@@ -377,6 +381,7 @@ run_connectchild(mother)
 	int mother;
 {
 	const char *function = "run_connectchild()";
+	char string[MAXSOCKADDRSTRING];
 	int p, rbits;
 	fd_set rset;
 	struct sigaction sig;
@@ -461,6 +466,7 @@ run_connectchild(mother)
 
 				case SOCKS_V4:
 				case SOCKS_V5:
+				case HTTP_V1_0:
 					len = 1; /* only controlsocket (which is also datasocket). */
 					break;
 
@@ -483,6 +489,7 @@ run_connectchild(mother)
 
 				case SOCKS_V4:
 				case SOCKS_V5:
+				case HTTP_V1_0:
 					s = control;	/* datachannel is controlchannel. */
 					break;
 
@@ -495,19 +502,19 @@ run_connectchild(mother)
 			if (getsockname(s, &local, &len) != 0)
 				SERR(-1);
 			slog(LOG_DEBUG, "%s: s local: %s",
-			function, sockaddr2string(&local, NULL, 0));
+			function, sockaddr2string(&local, string, sizeof(string)));
 
 			len = sizeof(local);
 			if (getsockname(control, &local, &len) == 0)
 				slog(LOG_DEBUG, "%s: control local: %s",
-				function, sockaddr2string(&local, NULL, 0));
+				function, sockaddr2string(&local, string, sizeof(string)));
 			else
 				swarn("%s: getsockname(%d)", function, control);
 
 			len = sizeof(local);
 			if (getpeername(control, &local, &len) == 0)
 				slog(LOG_DEBUG, "%s: control remote: %s",
-				function, sockaddr2string(&local, NULL, 0));
+				function, sockaddr2string(&local, string, sizeof(string)));
 #endif /* DIAGNOSTIC */
 
 			/* XXX set socket to blocking while we use it. */
@@ -570,10 +577,9 @@ run_connectchild(mother)
 				bzero(&local, sizeof(local));
 				local.sa_family = AF_INET;
 				/* LINTED pointer casts may be troublesome */
-				((struct sockaddr_in *)&local)->sin_addr.s_addr
-				= htonl(INADDR_ANY);
+				TOIN(&local)->sin_addr.s_addr = htonl(INADDR_ANY);
 				/* LINTED pointer casts may be troublesome */
-				((struct sockaddr_in *)&local)->sin_port = htons(0);
+				TOIN(&local)->sin_port = htons(0);
 			}
 
 			len = sizeof(remote);
@@ -584,10 +590,9 @@ run_connectchild(mother)
 				bzero(&remote, sizeof(remote));
 				remote.sa_family = AF_INET;
 				/* LINTED pointer casts may be troublesome */
-				((struct sockaddr_in *)&remote)->sin_addr.s_addr
-				= htonl(INADDR_ANY);
+				TOIN(&remote)->sin_addr.s_addr = htonl(INADDR_ANY);
 				/* LINTED pointer casts may be troublesome */
-				((struct sockaddr_in *)&remote)->sin_port = htons(0);
+				TOIN(&remote)->sin_port = htons(0);
 			}
 
 			sockaddr2sockshost(&local, &req.src);
@@ -612,6 +617,7 @@ sigchld(sig)
 {
 	const char *function = "sigchld()";
 	const int errno_s = errno;
+	char string[MAX(sizeof(MAXSOCKADDRSTRING), sizeof(MAXSOCKSHOSTSTRING))];
 	int status;
 
 	slog(LOG_DEBUG, "%s: connectchild: %d", function, config.connectchild);
@@ -668,10 +674,10 @@ sigchld(sig)
 			sockshost2sockaddr(&childres.dst, remote);
 
 			slog(LOG_DEBUG, "%s: local = %s",
-			function, sockaddr2string(local, NULL, 0));
+			function, sockaddr2string(local, string, sizeof(string)));
 
 			slog(LOG_DEBUG, "%s: remote = %s",
-			function, sockaddr2string(remote, NULL, 0));
+			function, sockaddr2string(remote, string, sizeof(string)));
 
 			if ((s = socks_addrcontrol(local, remote)) == -1) {
 				char lstring[MAXSOCKADDRSTRING];
@@ -693,6 +699,7 @@ sigchld(sig)
 
 				case SOCKS_V4:
 				case SOCKS_V5:
+				case HTTP_V1_0:
 					slog(LOG_DEBUG, "%s: duping %d over %d",
 					function, socksfd->control, s);
 
@@ -719,7 +726,7 @@ sigchld(sig)
 				swarn("%s: getsockname(s)", function);
 			else
 				slog(LOG_DEBUG, "%s: socksfd->local: %s",
-				function, sockaddr2string(&socksfd->local, NULL, 0));
+				function, sockaddr2string(&socksfd->local, string, sizeof(string)));
 
 			len = sizeof(socksfd->server);
 			if (getpeername(s, &socksfd->server, &len) != 0)
@@ -737,8 +744,9 @@ sigchld(sig)
 			}
 
 			slog(LOG_DEBUG, "serverreplyisok, server will use as src: %s",
-			sockshost2string(&childres.packet.res.host, NULL, 0));
+			sockshost2string(&childres.packet.res.host, string, sizeof(string)));
 
+			socksfd->state.auth			= childres.packet.auth;
 			socksfd->state.msproxy		= childres.packet.state.msproxy;
 			socksfd->state.inprogress	= 0;
 			sockshost2sockaddr(&childres.packet.res.host, &socksfd->remote);

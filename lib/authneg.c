@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadallllléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.45 1999/07/10 13:52:28 karls Exp $";
+"$Id: authneg.c,v 1.51 2001/04/25 11:31:53 michaels Exp $";
 
 int
 negotiate_method(s, packet)
@@ -53,10 +53,10 @@ negotiate_method(s, packet)
 {
 	const char *function = "negotiate_method()";
 	int rc;
-	char request[ 1						/* version					*/
-					+ 1						/* number of methods.	*/
-					+ AUTHMETHOD_MAX		/* the methods.			*/
-					];
+	unsigned char request[ 1						/* version					*/
+								+ 1						/* number of methods.	*/
+								+ AUTHMETHOD_MAX		/* the methods.			*/
+								];
 
 	const size_t requestlen = 1									/* version.		*/
 									+ 1									/* nmethods.	*/
@@ -70,16 +70,16 @@ negotiate_method(s, packet)
 
 	/* create request packet. */
 	request[AUTH_VERSION]	= packet->req.version;
-	request[AUTH_NMETHODS]	= packet->gw.state.methodc;
-	for (rc = 0; rc < packet->gw.state.methodc; ++rc)
-		request[AUTH_METHODS + rc] = (char)packet->gw.state.methodv[rc];
+	request[AUTH_NMETHODS]	= (unsigned char)packet->gw.state.methodc;
+	for (rc = 0; rc < (int)packet->gw.state.methodc; ++rc)
+		request[AUTH_METHODS + rc] = (unsigned char)packet->gw.state.methodv[rc];
 
 	/* send list over methods we support */
-	if (writen(s, request, requestlen) != (ssize_t)requestlen)
+	if (writen(s, request, requestlen, &packet->auth) != (ssize_t)requestlen)
 		return -1;
 
 	/* read servers response for method it wants to use */
-	if (readn(s, response, sizeof(response)) != sizeof(response))
+	if (readn(s, response, sizeof(response), &packet->auth) != sizeof(response))
 		return -1;
 
 	if (request[AUTH_VERSION] != response[AUTH_VERSION]) {

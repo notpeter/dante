@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: yacconfig.h,v 1.6 1999/05/13 13:27:34 karls Exp $ */
+/* $Id: yacconfig.h,v 1.10 2001/02/06 15:58:42 michaels Exp $ */
 
 #if 1
 #define yyact socks_yyact
@@ -51,6 +51,7 @@
 #define yydef socks_yydef
 #define yyerrflag socks_yyerrflag
 #define yyerror socks_yyerror
+#define yywarn socks_yywarn
 #define yyexca socks_yyexca
 #define yylex socks_yylex
 #define yylval socks_yylval

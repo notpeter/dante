@@ -1,4 +1,4 @@
-# $Id: INSTALL,v 1.18 1999/12/22 09:29:10 karls Exp $
+# $Id: INSTALL,v 1.20 2000/01/14 15:01:56 karls Exp $
 
 This file describes how to install Dante.  Dante is a Socks client
 and server firewall implementation.  It can be installed on a machine
@@ -206,11 +206,14 @@ Program Specific configure options
 These `configure' options are also supported (run `configure' with
 `--help' to list all options.
 
-`--enable-diagnostics'
-     Compiles with diagnostics enabled.
+`--enable-debug'
+     Compile with extra debugging information.
 
 `--enable-warnings'
      Compiles the package with '-Wall'; shows more compiler warnings.
+
+`--enable-diagnostics'
+     Compiles with diagnostics enabled.
 
 `--enable-profiling'
      Build the libraries and the server with profiling.
@@ -218,17 +221,22 @@ These `configure' options are also supported (run `configure' with
 `--enable-linting'
      Run (BSD) lint when compiling the source-code.
 
-`--enable-debug'
-     Compile with extra debugging information.
-
-`-disable-libwrap'
+`--disable-libwrap'
      Disable test for libwrap.  Makes no difference if libwrap doesn't
      exist on the local system.
 
 `--disable-preload'
      Do not build libdsocks.  The dynamic sockslibrary might not work
      properly on all architectures.  This option disables building of
-     the library.
+     the library. Also disables it's use in the server.
+
+`--disable-clientdl'
+     Disable building of libdsocks. 
+
+`--disable-serverdl'
+     Enable the use of the libdsocks functionality in the server. Will
+     allow the use of the hostcache code with libwrap. On by default
+     when libwrap is found and not disabled, off by default otherwise.
 
 `--with-socks-conf=FILE'
      Read the library configuration file from FILE instead of
@@ -241,6 +249,10 @@ These `configure' options are also supported (run `configure' with
 `--with-pidfile=FILE'
      Write the server process id into FILE instead of
      /var/run/sockd.pid.
+
+`--with-libc=NAME'
+     Manually set the name of libc. Should never be needed, but can be
+     use if configure isn't able to correctly find the name.
 
 
 FURTHER CONFIGURATION

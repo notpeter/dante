@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,8 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadaléen 21
- *  N-0349 Oslo
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.118 2000/01/05 10:38:58 michaels Exp $";
+"$Id: sockd_child.c,v 1.125 2001/02/06 15:59:08 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -89,9 +89,9 @@ addchild(type)
 {
 	const char *function = "addchild()";
 	/*
-    * It is better to reserve some descriptors for temporary use
-    * than to get errors when passing them and thus lose clients.
-    */
+	 * It is better to reserve some descriptors for temporary use
+	 * than to get errors when passing them and thus lose clients.
+	 */
 	const int reserved = FDPASS_MAX	/* max descriptors we pass.			*/
 							 + 1				/* need a descriptor for accept().	*/
 							 + 2;				/* for each new child.					*/
@@ -269,10 +269,8 @@ addchild(type)
 			struct sigaction sigact;
 
 			config.state.type	= type;
-			config.state.pid	= getpid();
 
-			initlog();
-
+			config.state.pid	= getpid(); /* for logmessage. */
 			slog(LOG_DEBUG, "created new %schild", childtype2string(type));
 #if 0
 			slog(LOG_DEBUG, "sleeping...");
@@ -355,7 +353,7 @@ addchild(type)
 
 				close((int)i);
 			}
-			initlog(); /* for syslog. */
+			newprocinit();
 
 			childfunction(&mother);
 			/* NOTREACHED */
@@ -820,8 +818,8 @@ send_io(s, io)
 	length				  += iovec[0].iov_len;
 
 	fdsent = 0;
-	CMSG_ADDOBJECT(io->in.s, sizeof(io->in.s) * fdsent++);
-	CMSG_ADDOBJECT(io->out.s, sizeof(io->out.s) * fdsent++);
+	CMSG_ADDOBJECT(io->src.s, sizeof(io->src.s) * fdsent++);
+	CMSG_ADDOBJECT(io->dst.s, sizeof(io->dst.s) * fdsent++);
 
 	switch (io->state.command) {
 		case SOCKS_BIND:
@@ -987,20 +985,19 @@ printfd(io, prefix)
 	bzero(&name, sizeof(name));
 	namelen = sizeof(name);
 	/* LINTED pointer casts may be troublesome */
-	if (getsockname(io->in.s, &name, &namelen) != 0)
-		swarn("%s: getsockname(io->in)", function);
+	if (getsockname(io->src.s, &name, &namelen) != 0)
+		swarn("%s: getsockname(io->src)", function);
 	else
-		slog(LOG_DEBUG, "%s: io->in (%d), name: %s",
-		prefix, io->in.s, sockaddr2string(&name, namestring, sizeof(namestring)));
+		slog(LOG_DEBUG, "%s: io->src (%d), name: %s", prefix,
+		io->src.s, sockaddr2string(&name, namestring, sizeof(namestring)));
 
 	bzero(&name, sizeof(name));
 	namelen = sizeof(name);
 	/* LINTED pointer casts may be troublesome */
-	if (getsockname(io->out.s, &name, &namelen) != 0)
-		swarn("%s: getsockname(io->out)", function);
+	if (getsockname(io->dst.s, &name, &namelen) != 0)
+		swarn("%s: getsockname(io->dst)", function);
 	else
-		slog(LOG_DEBUG, "%s: io->out (%d), name: %s",
-		prefix, io->out.s,
+		slog(LOG_DEBUG, "%s: io->dst (%d), name: %s", prefix, io->dst.s,
 		sockaddr2string(&name, namestring, sizeof(namestring)));
 
 	switch (io->state.command) {
