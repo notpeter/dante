@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.107 1999/09/02 10:41:45 michaels Exp $";
+"$Id: udp.c,v 1.109 1999/12/20 09:07:40 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -80,15 +80,16 @@ Rsendto(s, msg, len, flags, to, tolen)
 
 	/* prefix a udp header to the msg */
 	nlen = len;
-	if ((nmsg = udpheader_add(fakesockaddr2sockshost(to, &host), msg, &nlen))
-	== NULL) {
+	/* LINTED warning: cast discards 'const' from pointer target type */
+	if ((nmsg = udpheader_add(fakesockaddr2sockshost(to, &host), (char *)msg,
+	&nlen, 0)) == NULL) {
 		errno = ENOBUFS;
 		return -1;
 	}
 
 	n = sendto(s, nmsg, nlen, flags, 
 	socksfd->state.udpconnect ? NULL : &socksfd->reply, 
-	socksfd->state.udpconnect ? 0 : sizeof(socksfd->reply));
+	socksfd->state.udpconnect ? 0 	: sizeof(socksfd->reply));
 	n -= nlen - len;
 
 	free(nmsg);
@@ -368,6 +369,9 @@ udpsetup(s, to, type)
 
 		sockaddr2sockshost(&socksfd.local, &packet.req.host);
 	}
+
+/*	packet.req.host.addr.ipv4.s_addr = htonl(INADDR_ANY); */
+/*	packet.req.host.port = htons(0); */
 
 	if (socks_negotiate(s, socksfd.control, &packet, socksfd.route) != 0)
 		return -1;

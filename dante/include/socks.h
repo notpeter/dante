@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.147 1999/09/02 10:45:14 michaels Exp $ */
+/* $Id: socks.h,v 1.149 1999/12/11 16:59:40 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -250,9 +250,9 @@ ssize_t Rsendto __P((int s, const void *msg, size_t len, int flags, const struct
 ssize_t Rrecvfrom __P((int s, void *buf, size_t len, int flags, struct sockaddr * from, socklen_t *fromlen));
 ssize_t Rsendmsg __P((int s, const struct msghdr *msg, int flags));
 ssize_t Rrecvmsg __P((int s, struct msghdr *msg, int flags));
+int Rbind __P((int, const struct sockaddr *, socklen_t));
 #endif  /* !HAVE_OSF_OLDSTYLE */
 
-int Rbind __P((int, const struct sockaddr *, socklen_t));
 int Rbindresvport __P((int, struct sockaddr_in *));
 int Rrresvport __P((int *));
 struct hostent *Rgethostbyname __P((const char *));
@@ -701,6 +701,14 @@ int sys_Erecvfrom __P((int, void *, size_t, int, struct sockaddr *, size_t *));
 ssize_t sys_Erecvmsg __P((int, struct msghdr *, int));
 ssize_t sys_Esendmsg __P((int, const struct msghdr *, int));
 ssize_t sys_Ewritev __P((int, const struct iovec *, int));
+
+int sys_naccept __P((int, struct sockaddr *, socklen_t *));
+int sys_ngetpeername __P((int, struct sockaddr *, socklen_t *));
+int sys_ngetsockname __P((int, struct sockaddr *, socklen_t *));
+int sys_nrecvfrom __P((int, void *, size_t, int, struct sockaddr *, size_t *));
+ssize_t sys_nrecvmsg __P((int, struct msghdr *, int));
+ssize_t sys_nsendmsg __P((int, const struct msghdr *, int));
+
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #endif /* SOCKSLIBRARY_DYNAMIC */

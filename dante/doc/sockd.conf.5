@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.25 1999/09/01 14:07:33 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.27 1999/12/08 12:03:01 karls Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -53,8 +53,8 @@ The server settings control the generic behaviour of the server.  Each
 keyword is separated from it's value by a \fB':'\fP character.
 .IP \fBlogouput\fP
 This value controls where the server sends logoutput.  It can
-be either \fBsyslog\fP, \fBstdout\fP, \fBstderr\fP, a filename, or
-a combination.
+be either \fBsyslog\fP[/\fBfacility\fP], \fBstdout\fP, \fBstderr\fP,
+a filename, or a combination.
 .IP \fBinternal\fP
 The internal address.  Connections will only be accepted on this address.
 Multiple \fBinternal\fP lines may be given.
@@ -140,6 +140,11 @@ The contents of the client-rule is be:
 The rule applies to requests coming from the address given as value.
 .IP \fBto\fP
 The rule applies to requests going to the address given as value.
+.IP \fBport\fP
+Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
+\fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
+A portrange can also be given as "port <start #> - <end #>", which
+will match all port numbers within the range <start #> and <end #>.
 .IP \fBlibwrap\fP
 The server will pass the line to libwrap for execution.
 .IP \fBlog\fP
@@ -164,6 +169,11 @@ The rule applies to requests coming from the address given as value.
 .IP \fBto\fP
 The rule applies to requests going to or using the address given as value.
 Note that the meaning of this address is affected by \fBcommand\fP.
+.IP \fBport\fP
+Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
+\fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
+A portrange can also be given as "port <start #> - <end #>", which
+will match all port numbers within the range <start #> and <end #>.
 .IP \fBcommand\fP
 The rule applies to the given commands.  Valid commands
 are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP

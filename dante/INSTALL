@@ -1,4 +1,4 @@
-# $Id: INSTALL,v 1.15 1999/08/12 12:50:03 michaels Exp $ 
+# $Id: INSTALL,v 1.17 1999/12/20 09:07:29 michaels Exp $ 
 
 This file describes how to install Dante.  Dante is a Socks client
 and server firewall implementation.  It can be installed on a machine
@@ -229,6 +229,18 @@ These `configure' options are also supported (run `configure' with
      Do not build libdsocks.  The dynamic sockslibrary might not work
      properly on all architectures.  This option disables building of
      the library.
+
+`--with-socks-conf=FILE'
+     Read the library configuration file from FILE instead of
+     /etc/socks.conf.
+
+`--with-sockd-conf=FILE'
+     Read the server configuration file from FILE instead of
+     /etc/sockd.conf.
+
+`--with-pidfile=FILE'
+     Write the server process id into FILE instead of
+     /var/run/sockd.pid.
 
 
 FURTHER CONFIGURATION

@@ -44,9 +44,6 @@
 #undef NEED_AF_LOCAL
 #undef NEED_EXIT_FAILURE
 
-/*XXX function missing from lib, but not headers */
-#undef HAVE_INET_ATON
-
 /* defined on systems which doesn't support more than one process
    doing accept on the same descriptor.  BSD systems and solaris 2.6 is
    supposed to support this (Stevens) */
@@ -140,9 +137,6 @@
 /* diagnostic */
 #undef DIAGNOSTIC
 
-/* solaris/sysv include fun */
-#undef NEED_UCBINCLUDE_SYS_IOCTL
-
 /* convenience struct for getsockopt(IP_OPTIONS) */
 #undef HAVE_STRUCT_IPOPTS
 
@@ -166,9 +160,6 @@
 /* not all platforms allow free(NULL) */
 #undef HAVE_NONULL_FREE
 
-/* define SYSCALL_IS_SYSCALL on bsd based systems */
-#undef SYSCALL_IS_SYSCALL
-
 /* allow default file locations to be overridden */
 #undef HAVE_ALT_SOCKS_CONFIGFILE
 #undef HAVE_ALT_SOCKD_CONFIGFILE
@@ -179,6 +170,15 @@
 
 /* some netdb.h files doesn't appear to declare h_errno */
 #undef HAVE_H_ERRNO
+
+/* probably all elf based systems (no underscore for library symbols) */
+#undef HAVE_NO_SYMBOL_UNDERSCORE
+
+#undef HAVE_PROFILING
+
+/* Solaris 2.5.1 needs it. Otherwise FIOASYNC will not be defined 
+   -(Pavel Roskin <pavel_roskin@geocities.com>) */
+#undef BSD_COMP
 
 /* interposition.c prototypes */
 #undef HAVE_PROT_CONNECT_0

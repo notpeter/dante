@@ -65,23 +65,22 @@ AWK = @AWK@
 CC = @CC@
 LD = @LD@
 LEX = @LEX@
-LIBRARY_DLOPEN = @LIBRARY_DLOPEN@
-LIBRARY_LIBNSL = @LIBRARY_LIBNSL@
-LIBRARY_LIBRESOLV = @LIBRARY_LIBRESOLV@
-LIBRARY_LIBSOCKET = @LIBRARY_LIBSOCKET@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
 MAKEINFO = @MAKEINFO@
 NM = @NM@
 PACKAGE = @PACKAGE@
+PRELOAD_POSTFIX = @PRELOAD_POSTFIX@
+PRELOAD_SEPERATOR = @PRELOAD_SEPERATOR@
+PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 RANLIB = @RANLIB@
-RLD_LIST = @RLD_LIST@
+SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 VERSION = @VERSION@
 YACC = @YACC@
 
 noinst_LTLIBRARIES = libscompat.la
-libscompat_la_SOURCES = difftime.c daemon.c getdtablesize.c hstrerror.c 	inet_aton.c inet_ntoa.c inet_pton.c issetugid.c memmove.c       	setproctitle.c snprintf.c sockatmark.c strerror.c strvis.c      	vsyslog.c
+libscompat_la_SOURCES = difftime.c daemon.c getdtablesize.c hstrerror.c 	inet_aton.c inet_ntoa.c inet_pton.c issetugid.c memmove.c       	setproctitle.c snprintf.c sockatmark.c strerror.c strvis.c      	vsyslog.c seteuid.c
 
 
 noinst_HEADERS = compat.h
@@ -100,7 +99,7 @@ libscompat_la_LIBADD =
 libscompat_la_OBJECTS =  difftime.lo daemon.lo getdtablesize.lo \
 hstrerror.lo inet_aton.lo inet_ntoa.lo inet_pton.lo issetugid.lo \
 memmove.lo setproctitle.lo snprintf.lo sockatmark.lo strerror.lo \
-strvis.lo vsyslog.lo
+strvis.lo vsyslog.lo seteuid.lo
 CFLAGS = @CFLAGS@
 COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -249,6 +248,9 @@ issetugid.lo issetugid.o : issetugid.c ../include/autoconf.h \
 memmove.lo memmove.o : memmove.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
 	../include/config.h
+seteuid.lo seteuid.o : seteuid.c ../include/autoconf.h \
+	../include/redefac.h ../include/common.h ../include/yacconfig.h \
+	../include/config.h
 setproctitle.lo setproctitle.o : setproctitle.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
 	../include/config.h
@@ -266,8 +268,6 @@ strvis.lo strvis.o : strvis.c ../include/autoconf.h ../include/redefac.h \
 vsyslog.lo vsyslog.o : vsyslog.c ../include/autoconf.h \
 	../include/redefac.h ../include/common.h ../include/yacconfig.h \
 	../include/config.h
-vwarnx.lo vwarnx.o : vwarnx.c ../include/autoconf.h ../include/redefac.h \
-	../include/common.h ../include/yacconfig.h ../include/config.h
 
 info-am:
 info: info-am

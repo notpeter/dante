@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.23 1999/07/03 16:36:24 karls Exp $";
+"$Id: sockd_socket.c,v 1.27 1999/12/15 14:27:44 michaels Exp $";
 
 int
 sockd_bind(s, addr, retries)
@@ -52,28 +52,22 @@ sockd_bind(s, addr, retries)
 	const struct sockaddr *addr;
 	size_t retries;
 {
-	const char *function = "sockd_bind()";
+/*	const char *function = "sockd_bind()"; */
 	size_t tries;
 	int p;
 
-	if (config.compat.reuseaddr) {
-		p = 1;
-		if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &p, sizeof(p)) != 0)
-			swarn("%s: setsockopt(SO_REUSEADDR)", function);
-	}
-
 	errno = 0;
 	tries = 0;
-
 	do {
+		if (tries++ > 0)
+			sleep(tries - 1);
+
 		if ((p = bind(s, addr, sizeof(*addr))) == 0)
 			break;
 		else {
 			/* non-fatal error? */
 			switch (errno) {
 				case EADDRINUSE:
-					sleep(++tries);
-					errno = EADDRINUSE;	/* some systems change errno in sleep(). */
 					continue;
 
 				case EINTR:

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.77 1999/09/02 10:42:09 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.79 1999/12/12 18:13:56 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -235,8 +235,7 @@ recv_methods(s, request, state)
 	INIT(methodc);
 	CHECK(&state->mem[start], NULL);
 
-	request->auth->method
-	= (char)selectmethod(&state->mem[start], (size_t)methodc);
+	request->auth->method = selectmethod(&state->mem[start], (size_t)methodc);
 
 	/* send reply:
 	 *
@@ -256,11 +255,8 @@ recv_methods(s, request, state)
 	if (writen(s, reply, sizeof(reply)) != sizeof(reply))
 		return -1;
 
-	if (request->auth->method == AUTHMETHOD_NOACCEPT) {
-		slog(LOG_DEBUG, "%s: no acceptable authentication method from client",
-		function);
+	if (request->auth->method == AUTHMETHOD_NOACCEPT)
 		return -1;
-	}
 
 	state->rcurrent = methodnegotiate;
 	return state->rcurrent(s, request, state);
@@ -510,8 +506,8 @@ recv_username(s, request, state)
 		if (MEMLEFT() == 0) {
 			/*
 			 * Normally this would indicate an internal error and thus
-			 * be caught in CHECK(), but for this special case it could
-			 * be someone sending a really long username, which is strange
+			 * be caught in CHECK(), but for the v4 case it could be
+			 * someone sending a really long username, which is strange
 			 * enough to log a warning about but not an internal error.
 			 */
 
@@ -618,11 +614,11 @@ send_response(s, response)
 	p = sockshost2mem(&response->host, p, response->version);
 	length = p - responsemem;
 
-	slog(LOG_DEBUG, "sending response: %s",
-	socks_packet2string(response, SOCKS_RESPONSE));
+	slog(LOG_DEBUG, "%s: sending response: %s",
+	function, socks_packet2string(response, SOCKS_RESPONSE));
 
 	if (writen(s, responsemem, length) != (ssize_t)length) {
-		swarn("%s: send_response(): writen()", function);
+		swarn("%s: writen()", function);
 		return -1;
 	}
 

@@ -1,7 +1,9 @@
 #!/bin/sh
-# $Id: redefgen.sh,v 1.1 1999/04/19 14:41:29 karls Exp $
+# $Id: redefgen.sh,v 1.2 1999/12/08 11:37:00 karls Exp $
 #
 # generate redefac.h from autoheader.h.in
+#
+# XXX should check for real changes
 #
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
 

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.38 1999/06/16 08:26:22 michaels Exp $";
+"$Id: udp_util.c,v 1.40 1999/12/14 11:45:39 michaels Exp $";
 
 struct udpheader_t *
 sockaddr2udpheader(to, header)
@@ -62,20 +62,29 @@ sockaddr2udpheader(to, header)
 }
 
 char *
-udpheader_add(host, msg, len)
+udpheader_add(host, msg, len, msgsize)
 	const struct sockshost_t *host;
-	const char *msg;
+	char *msg;
 	size_t *len;
+	size_t msgsize;
 {
+/*	const char *function = "udpheader_add()"; */
 	struct udpheader_t header;
 	char *newmsg, *offset;
 
 	bzero(&header, sizeof(header));
 	header.host = *host;
 
-	if ((newmsg = (char *)malloc(sizeof(char) * *len * PACKETSIZE_UDP(&header)))
-	== NULL)
-		return NULL;
+	if (msgsize >= sizeof(*newmsg) * (*len + PACKETSIZE_UDP(&header)))
+		newmsg = msg;
+	else
+		if ((newmsg = (char *)malloc(sizeof(*newmsg)
+		* (*len + PACKETSIZE_UDP(&header)))) == NULL)
+			return NULL;
+
+	/* offset old contents by size of header we are about to prefix. */
+	memmove(newmsg + PACKETSIZE_UDP(&header), msg, *len);
+
 	offset = newmsg;
 
 	memcpy(offset, &header.flag, sizeof(header.flag));
@@ -86,8 +95,7 @@ udpheader_add(host, msg, len)
 
 	offset = sockshost2mem(&header.host, offset, SOCKS_V5);
 
-	memcpy(offset, msg, *len);
-	offset += *len;
+	offset += *len; /* len bytes copied above. */
 
 	*len = offset - newmsg;
 

@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.94 1999/08/23 12:41:43 michaels Exp $";
+"$Id: util.c,v 1.97 1999/12/12 18:08:40 michaels Exp $";
 
 /* fake "ip address", for clients without dns access. */
 static char **ipv;
@@ -851,8 +851,8 @@ socks_packet2string(packet, type)
 	static char buf[1024];
 	char hstring[MAXSOCKSHOSTSTRING];
 	unsigned char version;
-	const struct request_t *request;
-	const struct response_t *response;
+	const struct request_t *request = NULL;
+	const struct response_t *response = NULL;
 
 	switch (type) {
 		case SOCKS_REQUEST:
@@ -862,7 +862,7 @@ socks_packet2string(packet, type)
 
 		case SOCKS_RESPONSE:
 			response = (const struct response_t *)packet;
-			version = response->version;
+			version 	= response->version;
 			break;
 
 	  default:
@@ -1298,7 +1298,7 @@ socks_lock(descriptor, type, timeout)
 	int type;
 	int timeout;
 {
-	const char *function = "socks_lock()";
+/*	const char *function = "socks_lock()"; */
 	struct flock lock;
 	int rc;
 
@@ -1348,8 +1348,8 @@ socks_lock(descriptor, type, timeout)
 				break;
 
 			case ENOLCK:
-				swarn("%s: fcntl()", function);
-				break;
+				sleep(1);
+				return socks_lock(descriptor, type, timeout);
 
 			default:
 				SERR(descriptor);

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.104 1999/09/02 10:42:12 michaels Exp $";
+"$Id: sockd_request.c,v 1.109 1999/12/20 09:09:22 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -422,6 +422,12 @@ dorequest(mother, request)
 	 * bind socket.
 	 */
 
+	if (config.compat.reuseaddr) {
+		p = 1;
+		if (setsockopt(out, SOL_SOCKET, SO_REUSEADDR, &p, sizeof(p)) != 0)
+			swarn("%s: setsockopt(SO_REUSEADDR)", function);
+	}
+
 	if (PORTISRESERVED(bound.sin_port) && config.compat.sameport) {
 		uid_t euid;
 
@@ -459,6 +465,7 @@ dorequest(mother, request)
 			/* LINTED pointer casts may be troublesome */
 			if (getsockname(out, (struct sockaddr *)&bound, &boundlen) != 0) {
 				swarn("%s: getsockname(out)", function);
+				close(request->s);
 				close(out);
 				return;
 			}
@@ -482,6 +489,7 @@ dorequest(mother, request)
 
 		case SOCKS_UDPASSOCIATE: {
 			struct sockshost_t *src;
+			struct connectionstate_t replystate;
 
 			/*
 			 * Client is allowed to send a "incomplete" address.
@@ -489,10 +497,19 @@ dorequest(mother, request)
 			if (io.src.atype == SOCKS_ADDR_IPV4 
 			&& (io.src.addr.ipv4.s_addr == htonl(0) || io.src.port == htons(0)))
 				src = NULL;
+			else
+				src = &io.src;
 
-			permit = rulespermit(request->s, &io.rule, &io.state, src, NULL);
-			iolog(&io.rule, &io.state, OPERATION_CONNECT, &io.src, &io.dst,
-			NULL, 0);
+			/* only set temporary here for one replypacket at a time. */
+			replystate 				= io.state;
+			replystate.command	= SOCKS_UDPREPLY;
+
+			/* one direction is atleast in theory good enough. */
+			permit = rulespermit(request->s, &io.rule, &io.state, src, NULL)
+					|| rulespermit(request->s, &io.rule, &replystate, NULL, src);
+
+			iolog(&io.rule, &io.state, OPERATION_CONNECT, &io.src, &io.dst, NULL,
+			0);
 			break;
 		}
 
@@ -528,14 +545,16 @@ dorequest(mother, request)
 			if (listen(out, 5) != 0) {
 				swarn("%s: listen(out)", function);
 				send_failure(sv[client], &response, SOCKS_FAILURE);
+				closev(sv, ELEMENTS(sv));
 				break;
 			}
 
 			/* for accept(). */
 			if ((flags = fcntl(out, F_GETFL, 0)) == -1
-			|| fcntl(out, F_SETFL, flags | NONBLOCKING) == -1) {
+			|| fcntl(out, F_SETFL, flags | O_NONBLOCK) == -1) {
 				swarn("%s: fcntl()", function);
 				send_failure(sv[client], &response, SOCKS_FAILURE);
+				closev(sv, ELEMENTS(sv));
 				break;
 			}
 
@@ -543,6 +562,7 @@ dorequest(mother, request)
 			if (getsockname(out, &boundaddr, &len) != 0) {
 				swarn("%s: getsockname()", function);
 				send_failure(sv[client], &response, SOCKS_FAILURE);
+				closev(sv, ELEMENTS(sv));
 				break;
 			}
 
@@ -570,6 +590,7 @@ dorequest(mother, request)
 				if (socketpair(AF_LOCAL, SOCK_STREAM, 0, pipev) != 0) {
 					swarn("%s: socketpair()", function);
 					send_failure(sv[client], &response, SOCKS_FAILURE);
+					closev(sv, ELEMENTS(sv));
 					break;
 				}
 
@@ -584,6 +605,7 @@ dorequest(mother, request)
 			if (send_response(sv[client], &response) != 0) {
 				iolog(&io.rule, &io.state, OPERATION_ABORT, &io.src, &response.host,
 				NULL, 0);
+				closev(sv, ELEMENTS(sv));
 				break;
 			}
 
@@ -860,8 +882,7 @@ dorequest(mother, request)
 				bindio.control.state	= bindio.state;
 
 				/* back to blocking. */
-				if ((flags = fcntl(sv[remote], F_GETFL, 0)) == -1
-				||  fcntl(sv[remote], F_SETFL, flags & ~NONBLOCKING) == -1) {
+				if (fcntl(sv[remote], F_SETFL, flags) == -1) {
 					swarn("%s: fcntl()", function);
 					break;
 				}

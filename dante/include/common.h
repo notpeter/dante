@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.213 1999/09/24 09:41:21 karls Exp $ */
+/* $Id: common.h,v 1.217 1999/12/20 09:07:33 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -58,12 +58,7 @@
 #include <sys/file.h>
 #endif  /* HAVE_SYS_FILE_H */
 #include <sys/resource.h>
-/* XXX */
-#if NEED_UCBINCLUDE_SYS_IOCTL
-#include "/usr/ucbinclude/sys/ioctl.h"
-#else
 #include <sys/ioctl.h>
-#endif  /* NEED_UCBINCLUDE_SYS_IOCTL */
 #include <sys/ipc.h>
 #include <sys/sem.h>
 /* XXX This is a hack. Avoid transparent sockaddr union used in linux
@@ -105,11 +100,6 @@
 #ifdef SOCKSLIBRARY_DYNAMIC
 #include <dlfcn.h>
 #endif  /* SOCKSLIBRARY_DYNAMIC */
-#if 0 /* XXX */
-#if HAVE_VWARNX
-#include <err.h>
-#endif  /* HAVE_VWARNX */
-#endif
 #include <errno.h>
 #include <fcntl.h>
 #if HAVE_LIMITS_H
@@ -851,6 +841,7 @@ struct logtype_t {
 	FILE				**fpv;		/* if logging is to file, this is the open file.*/
 	int				fpc;
 	int				*fplockv;	/* locking of logfiles.									*/
+	int				facility;	/* if logging to syslog, this is the facility.						*/
 };
 
 
@@ -1191,8 +1182,8 @@ struct rfc931_t {
 
 /* this must be big enough to hold a complete method request. */
 struct authmethod_t {
-	unsigned					checked:1;	/* authentication has been checked?	*/
-	int						method;		/* method in use.							*/
+	int						matched;	/* authentication matched?	*/
+	int						method;	/* method in use.				*/
 	union {
 		struct uname_t		uname;
 		struct rfc931_t	rfc931;
@@ -1420,15 +1411,20 @@ sockaddr2udpheader __P((const struct sockaddr *to, struct udpheader_t *header));
  */
 
 char *
-udpheader_add __P((const struct sockshost_t *host, const char *msg,
-						 size_t *len));
+udpheader_add __P((const struct sockshost_t *host, char *msg, size_t *len,
+						 size_t msgsize));
 /*
  * Prefixes the udpheader_t version of "host" to a copy of "msg",
- * which is of length "len".
+ * which is of length "len". 
+ * "msgsize" gives the size of the memory pointed to by "msg".
+ * If "msgsize" is large enough the function will prepend the udpheader
+ * to "msg" directly (moving the old contents to the right) rather than
+ * allocating new memory.
  * Upon return "len" gives the length of the new "msg".
+ *
  *	Returns:
- *		On success: the new "msg".
- *		On failure: NULL.
+ *		On success: "msg" with the udpheader prepended.
+ *		On failure: NULL (out of memory).
  */
 
 struct udpheader_t *
@@ -1991,12 +1987,6 @@ fd_isset __P((int fd, fd_set *fdset));
 #endif /* DEBUG */
 
 /* replacements */
-
-#if 0 /* XXX */
-#if !HAVE_VWARNX
-void vwarnx __P((const char *, va_list ap));
-#endif  /* !HAVE_VWARNX */
-#endif
 
 #if !HAVE_DAEMON
 int daemon __P((int, int));

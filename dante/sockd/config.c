@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.117 1999/09/02 10:41:29 michaels Exp $";
+"$Id: config.c,v 1.119 1999/12/20 13:07:41 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -245,7 +245,7 @@ addressmatch(rule, address, protocol, alias)
 		 * match(rule.ipaddress, address.hostname)
 		 * resolve address to ipaddress(es) and try to match each
 		 *	resolved ipaddress against rule.
-		 *		rule isin address->ipaddress(es)
+		 *		rule is in address->ipaddress(es)
 		 */
 
 		if (!doresolve)
@@ -276,7 +276,7 @@ addressmatch(rule, address, protocol, alias)
 			 * Didn't match.  If alias is set, try to resolve address
 			 * to hostname(s), the hostname back to ipaddress(es) and
 			 * then match those ipaddress(es) against rule.
-			 *		rule isin address->hostname(s)->ipaddress(es)
+			 *		rule is in address->hostname(s)->ipaddress(es)
 			 */
 
 			if (!doresolve)
@@ -311,7 +311,7 @@ addressmatch(rule, address, protocol, alias)
 						continue;
 					}
 
-					/* rule isin address->hostname(s)->ipaddress(es) */
+					/* rule is in address->hostname(s)->ipaddress(es) */
 					if (addrisinlist(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
 					(const struct in_addr **)iphostent->h_addr_list)) {
 						matched = 1;
@@ -337,7 +337,7 @@ addressmatch(rule, address, protocol, alias)
 		 * resolve both rule and address to ipaddress(es) and compare
 		 * each ipaddress of resolved rule against each ipaddress of
 		 * resolved address.
-		 *		rule->ipaddress(es) isin address->ipaddress(es)
+		 *		rule->ipaddress(es) is in address->ipaddress(es)
 		 *
 		 */
 		if (hostareeq(rule->addr.domain, address->addr.domain))
@@ -366,7 +366,7 @@ addressmatch(rule, address, protocol, alias)
 			}
 
 			/*
-			 *	rule->ipaddress(es) isin address->ipaddress(es)
+			 *	rule->ipaddress(es) is in address->ipaddress(es)
 			 */
 
 			for (i = 0, mask.s_addr = htonl(0xffffffff);
@@ -392,23 +392,23 @@ addressmatch(rule, address, protocol, alias)
 		 * match(rule.hostname, address.ipaddress)
 		 * If rule is not a domain, try resolving rule to ipaddress(es)
 		 * and match against address.
-		 *		address isin rule->ipaddress
+		 *		address is in rule->ipaddress
 		 *
 		 * If no match, resolve address to hostname(s) and match each
 		 * against rule.
-		 *		rule isin address->hostname
+		 *		rule is in address->hostname
 		 *
 		 * If still no match and alias is set, resolve all ipaddresses
 		 * of all hostname(s) resolved from address back to hostname(s)
 		 * and match them against rule.
-		 *		rule isin address->hostname->ipaddress->hostname
+		 *		rule is in address->hostname->ipaddress->hostname
 		 */
 
 		if (!doresolve)
 			return 0;
 
 		if (*rule->addr.domain != '.') {
-			/* address isin rule->ipaddress */
+			/* address is in rule->ipaddress */
 			struct in_addr mask;
 
 			if ((hostent = gethostbyname(rule->addr.domain)) == NULL) {
@@ -424,7 +424,7 @@ addressmatch(rule, address, protocol, alias)
 		}
 
 		if (!matched) {
-			/* rule isin address->hostname */
+			/* rule is in address->hostname */
 
 			/* LINTED pointer casts may be troublesome */
 			if ((hostent = gethostbyaddr((const char *)&address->addr.ipv4,
@@ -441,7 +441,7 @@ addressmatch(rule, address, protocol, alias)
 
 		if (!matched && alias) {
 			/*
-			 * rule isin address->hostname->ipaddress->hostname.
+			 * rule is in address->hostname->ipaddress->hostname.
 			 * hostent is already address->hostname due to above.
 			 */
 			char *nexthost;
@@ -616,8 +616,8 @@ addroute(newroute)
 		int *methodv = route->gw.state.methodv;
 		int *methodc = &route->gw.state.methodc;
 
-		methodv[*methodc++] = AUTHMETHOD_NONE;
-		methodv[*methodc++] = AUTHMETHOD_UNAME;
+		methodv[(*methodc)++] = AUTHMETHOD_NONE;
+		methodv[(*methodc)++] = AUTHMETHOD_UNAME;
 	}
 
 	if (config.route == NULL) {
@@ -805,7 +805,7 @@ socks_connectroute(s, packet, src, dst)
 	 * copy/dup the original socket as much as possible.  Later,
 	 * if it turned out a connection failed and we had to use a
 	 * different socket than the orignal 's', we try to dup the
-	 * differentnumbered socket to 's' and hope the best.
+	 * differently numbered socket to 's' and hope the best.
 	 *
 	 * sdup:			copy of the original socket.  Need to create this
 	 *					before the first connectattempt since the connectattempt

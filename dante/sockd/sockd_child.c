@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.115 1999/09/02 10:42:01 michaels Exp $";
+"$Id: sockd_child.c,v 1.117 1999/12/20 13:07:42 karls Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -142,7 +142,7 @@ addchild(type)
 
 			/* negotiator shouldn't block on sending to mother. */
 			if ((flags = fcntl(pipev[CHILD], F_GETFL, 0)) == -1
-			||  fcntl(pipev[CHILD], F_SETFL, flags | NONBLOCKING) == -1)
+			||  fcntl(pipev[CHILD], F_SETFL, flags | O_NONBLOCK) == -1)
 				swarn("%s: fcntl()", function);
 
 #if HAVE_SENDMSG_DEADLOCK
@@ -283,7 +283,7 @@ addchild(type)
 
 			/*
 			 * It would be nice to be able to lose all privileges here
-			 * but unfourtenatly we can't, yet.
+			 * but unfortunately we can't, yet.
 			 *
 			 * negotiation children:
 			 *		could need privileges to check password.

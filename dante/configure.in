@@ -1,18 +1,21 @@
 AC_INIT(include/socks.h)
 
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="2"
+prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 else
 	prename=""
 fi
 
-AM_INIT_AUTOMAKE(dante, 1.1.0$prename)
+AM_INIT_AUTOMAKE(dante, 1.1.1$prename)
 AM_CONFIG_HEADER(include/autoconf.h)
-#XXX save CFLAGS; wish to compile without -O2 when debugging
+#NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
+unset CFLAGS
 AM_PROG_LIBTOOL
+autoconf_compflags=$CFLAGS
+CFLAGS=$oCFLAGS
 
 AC_CANONICAL_HOST
 
@@ -38,25 +41,21 @@ case $host in
 esac
 
 #disable acceptlock
+#XXX add proper test for this?
 case $host in
-
 	*-*-*bsd*)
-		#XXX add proper test for this?
 		no_acceptlock=t
 	;;
 
 	alpha-dec-osf*)
-		#XXX add proper test for this?
 		no_acceptlock=t
 	;;
 
 	*-*-solaris2.6)
-		#XXX add proper test for this?
 		no_acceptlock=t
 	;;
 
 	*-*-solaris2.7)
-		#XXX add proper test for this?
 		no_acceptlock=t
 	;;
 esac
@@ -66,8 +65,14 @@ case $host in
 	alpha-dec-osf*)
 		AC_DEFINE(HAVE_DEC_PROTO)
 		AC_DEFINE(HAVE_EXTRA_OSF_SYMBOLS)
-		RLD_LIST="DEFAULT" #_RLD_LIST, not LD_PRELOAD
+		PRELOAD="RLD"
 		CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE_EXTENDED -DBYTE_ORDER=LITTLE_ENDIAN -D_POSIX_SOURCE -D_POSIX_C_SOURCE=199309L -D_OSF_SOURCE"
+	;;
+
+	*-*-hpux*)
+		#hpux needs _PROTOTYPES to include prototypes
+		#for configure (at least when cc is used)
+		CPPFLAGS="${CPPFLAGS} -D_PROTOTYPES"
 	;;
 
 	*-*-sunos4*)
@@ -88,6 +93,7 @@ case $host in
 	*-*-solaris*)
 		AC_DEFINE(HAVE_SENDMSG_DEADLOCK)
 		AC_DEFINE(HAVE_SOLARIS_BUGS)
+		AC_DEFINE(BSD_COMP)
 	;;
 
 	*-*-linux-*) # XXX This might only concern 2.0.x kernels (add test?)
@@ -100,13 +106,30 @@ case $host in
 		no_dynamic_profiled_sockd=t
 	;;
 
-	*-*-irix*) #_RLD_LIST, not LD_PRELOAD
-		RLD_LIST="DEFAULT"
+	*-*-irix*)
+		PRELOAD="RLD"
 	;;
 esac
-AC_SUBST(RLD_LIST)
 
-#define with hosttype
+case $PRELOAD in
+	RLD)
+		PRELOAD_SEPERATOR=":"
+		PRELOAD_VARIABLE="_RLD_LIST"
+		PRELOAD_POSTFIX="DEFAULT"
+	;;
+
+	*)
+		PRELOAD_SEPERATOR=" "
+		PRELOAD_VARIABLE="LD_PRELOAD"
+		PRELOAD_POSTFIX=""
+	;;
+esac
+
+AC_SUBST(PRELOAD_SEPERATOR)
+AC_SUBST(PRELOAD_VARIABLE)
+AC_SUBST(PRELOAD_POSTFIX)
+
+#define hosttype
 AC_DEFINE_UNQUOTED(HAVE_HOST_TYPE, "$host")
 
 #XXX add proper test for this?
@@ -114,36 +137,34 @@ if test x$no_acceptlock != xt; then
 	AC_DEFINE(NEED_ACCEPTLOCK)
 fi
 
-#define SYSCALL_IS_SYSCALL on bsd based systems
-#case $host in
-#	*-*-osf*)
-#		AC_DEFINE(SYSCALL_IS_SYSCALL, 1)
-#	;;
-#	*-*-sunos4*)
-#		AC_DEFINE(SYSCALL_IS_SYSCALL, 1)
-#	;;
-#	*-*-*bsd*)
-#		AC_DEFINE(SYSCALL_IS_SYSCALL, 1)
-#	;;
-#	*)
-#		AC_DEFINE(SYSCALL_IS_SYSCALL, 0)
-#	;;
-#esac
-AC_DEFINE(SYSCALL_IS_SYSCALL)
-
 AC_MSG_CHECKING(for compiler flags)
 case $host in
 
-    #XXX check for compiler type, not architecture (kill the basename)
+    #XXX check for compiler type, not architecture
     *-*-solaris*)
-	if test x`basename $ac_cv_prog_CC` = xcc; then
-	    comp_flags="-Xt" #XXX needed to compile?
+	if test "x$GCC" = x; then
+	    #-xs provides allows easier debugging with gdb
+	    comp_flags="-Xt -xs" #XXX -Xt needed to compile?
+	    #XXX due to some problems with sockaddr alignment
+	    #XXX sun cc needs -misalign
+	    comp_flags="$comp_flags -misalign -xO0"
+	    AC_MSG_RESULT($comp_flags)
+	    AC_MSG_WARN(there might currenly be some performance problems with suncc - it needs -misalign)
+	    $CC 2>&1 | grep ucbcc > /dev/null
+	    if test $? -eq 0; then
+		#XXX ucbcc uses includes from /usr/ucbinclude, but these are
+		#not complete. add /usr/include to include path to get
+		#all prototypes (read/write are missing)
+		#XXX
+		host_cc="solaris-ucbcc"
+		CPPFLAGS="-I/usr/include $CPPFLAGS${CPPFLAGS:+ } "
+	    fi
 	fi
-	AC_MSG_RESULT($comp_flags)
+#	AC_MSG_RESULT($comp_flags)
     ;;
 
-    alpha-dec-osf*)
-	if test x"`basename $ac_cv_prog_CC`" = xcc; then
+    alpha-dec-osf*) #XXX is it possible to get it to work with -newc?
+	if test "x$GCC" = x; then
 	    comp_flags="-std1 -oldc"
 	fi
 	AC_MSG_RESULT($comp_flags)
@@ -152,16 +173,19 @@ case $host in
     *)
 	AC_MSG_RESULT(none)
     ;;
+    #XXX make sure compiling with compiler options works
 esac
 
 AC_MSG_CHECKING(for support for -pipe compiler flag)
-CFLAGS="$oCFLAGS -pipe"
+oCFLAGS=$CFLAGS
+CFLAGS="$CFLAGS -pipe"
 AC_TRY_RUN([
 int main()
 {
 	return 0;
-}], [comp_flags="${comp_flags} -pipe"
-     AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
+}], [AC_MSG_RESULT(yes)
+     comp_flags="${comp_flags} -pipe"],
+    AC_MSG_RESULT(no))
 CFLAGS="$oCFLAGS"
 
 
@@ -176,14 +200,14 @@ AC_ARG_ENABLE(debug,
 if test x$debug_enabled = xt; then
     #no optimalization wanted
     if test $ac_cv_prog_cc_g = yes; then
-	CFLAGS="$oCFLAGS -g"
-    else
-	CFLAGS=$oCFLAGS
+	CFLAGS="$CFLAGS -g"
     fi
     CPPFLAGS="-DDEBUG $CPPFLAGS"
     AC_MSG_RESULT(yes)
 else
     AC_MSG_RESULT(no)
+    #autoconf_compflags is set to "-g -O2" with GCC
+    CFLAGS="$CFLAGS $autoconf_compflags"
 fi
 
 #-Wall ?
@@ -195,12 +219,10 @@ AC_ARG_ENABLE(warnings,
 	    enable_warnings=t
 	 fi])
 
+#construct warning flags in $warn
 if test x$enable_warnings != x; then
-
-    oCFLAGS=$CFLAGS
-
     #try to enable compiler specific warning flags
-    if test x"`basename $ac_cv_prog_CC`" = xcc; then
+    if test "x$GCC" = x; then
 	case $host in
 
 	    *sunos4*) #sunos cc
@@ -213,8 +235,8 @@ if test x$enable_warnings != x; then
 		true
 	    ;;
 
-	    *-*-solaris*) #sun cc (-Xt?)
-#		warn="-vc" #XXX sun cc won't link with -vc defined
+	    *-*-solaris*)
+		warn="-v" #XXX sun cc won't link with -vc defined
 		true
 	    ;;
 
@@ -227,19 +249,25 @@ if test x$enable_warnings != x; then
 	    ;;
 	esac
     else
+        #gcc warnings
 	warn="-Wall -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
+	#warn="$warn -Wold-style-cast -Winline -Waggregate-return -Wconversion -Wwrite-strings -Wtraditional -Wshadow"
     fi
+
+    oCFLAGS=$CFLAGS
     CFLAGS="$CFLAGS $warn"
     #make sure compilation is still possible
-    AC_TRY_COMPILE([],[],
-   [AC_MSG_RESULT($warn)],
-   [AC_MSG_RESULT(none)
-    CFLAGS=$oCFLAGS])
+    AC_TRY_COMPILE([], [],
+		   [AC_MSG_RESULT($warn)],
+		   [AC_MSG_RESULT(none)
+		    unset warn])
+    CFLAGS=$oCFLAGS
 else
     AC_MSG_RESULT(none)
 fi
-#XXX set warnings at the bottom; might interfere with tests
-CFLAGS="$oCFLAGS $comp_flags"
+
+#NOTE: set warnings at the bottom; might interfere with tests
+CFLAGS="$CFLAGS $comp_flags"
 
 #-DDIAGNOSTICS?
 AC_MSG_CHECKING(for compliation with DIAGNOSTIC)
@@ -256,7 +284,9 @@ AC_ARG_ENABLE(diagnostic,
 
 AC_ARG_ENABLE(profiling,
 [  --enable-profiling      compile with profiling support in server],
-	s_profiling=t)
+[   AC_DEFINE(HAVE_PROFILING)
+    s_profiling=t])
+
 AM_CONDITIONAL(SPROFIL, test x$s_profiling = xt)
 #static or dynamic sockd?
 AM_CONDITIONAL(STATIC_SOCKD, test x$no_dynamic_profiled_sockd = xt)
@@ -363,41 +393,38 @@ AC_ARG_WITH(pidfile,
 [AC_MSG_RESULT($withval)
  AC_DEFINE(HAVE_SOCKD_PIDFILE)
  AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_PIDFILE, "$withval")
-], [AC_MSG_RESULT(default)
-])
-
+], [AC_MSG_RESULT(default)])
 
 # SOCKSLIBRARY_DYNAMIC is set in the lib directory when preloading
 # is supported (and requested).
 # HAVE_DLFCN_H only determines if the include file exists
 AC_CHECK_HEADER(dlfcn.h,
-[have_dlfcn_h=t
- AC_DEFINE(HAVE_DLFCN_H)])
+[AC_DEFINE(HAVE_DLFCN_H)
+ have_dlfcn_h=t])
 
-if test x$have_dlfcn_h = xt; then
-	build_preload_lib=t #create symbolic links in dlib
-fi
 #XXX only set conditional if building of shared libraries are enabled
 AM_CONDITIONAL(BUILD_PRELOAD_LIB, test x$have_dlfcn_h = xt)
 
 AC_CHECK_HEADER(sys/sockio.h,
-[have_sys_sockio_h=t
- AC_DEFINE(HAVE_SYS_SOCKIO_H)])
+[AC_DEFINE(HAVE_SYS_SOCKIO_H)
+ have_sys_sockio_h=t])
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_MSG_CHECKING(whether <sys/types.h> defines const)
-AC_EGREP_CPP(yes,[
+AC_EGREP_CPP(yes, [
 #include <sys/types.h>
 #ifdef const
 yes
 #endif
-], AC_MSG_RESULT(yes), [check_const="yes" AC_MSG_RESULT(no)])
+], [AC_MSG_RESULT(yes)],
+   [AC_MSG_RESULT(no)
+    check_const="yes"])
 if test x$check_const = xyes; then
-AC_C_CONST
+    AC_C_CONST
 fi
 
 AC_MSG_CHECKING(whether <netdb.h> declares h_errno)
-AC_EGREP_CPP(h_errno,[
+AC_EGREP_CPP(h_errno, [
 #include <netdb.h>
 ], [AC_DEFINE(HAVE_H_ERRNO)
     AC_MSG_RESULT(yes)],
@@ -405,47 +432,23 @@ AC_EGREP_CPP(h_errno,[
 
 #XXXsys/socket.h?
 AC_MSG_CHECKING(for struct ip_opts in <netinet/in.h>)
-AC_EGREP_CPP([struct.*ipoption],[
+AC_EGREP_CPP([struct.*ipoption], [
 #include <netinet/ip_var.h>
 ], [AC_DEFINE(HAVE_STRUCT_IPOPTS)
     AC_MSG_RESULT(yes)],
-    AC_MSG_RESULT(no))
+   AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(whether <sys/types.h> defines inline)
-AC_EGREP_CPP(yes,[
+AC_EGREP_CPP(yes, [
 #include <sys/types.h>
 #ifdef inline
 yes
 #endif
-], AC_MSG_RESULT(yes), [check_inline="yes" AC_MSG_RESULT(no)])
+], [AC_MSG_RESULT(yes)],
+   [AC_MSG_RESULT(no)
+    check_inline="yes"])
 if test x$check_inline="yes";then
-AC_C_INLINE
-fi
-
-#XXX it would perhaps be better to be consistent and use
-#/usr/ucbinclude always?
-#XXX not sure if the test is that good either, the problem
-#surfaced when FIOASYNC was missing
-AC_MSG_CHECKING(if /usr/ucbinclude/sys/ioctl.h should be used)
-AC_EGREP_CPP(yes,[
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#ifdef FIOASYNC
-yes
-#endif
-], [AC_MSG_RESULT(no)],
-   [check_ucbinclude="yes"])
-
-if test x$check_ucbinclude = xyes; then
-AC_EGREP_CPP(yes,[
-#include <sys/types.h>
-#include "/usr/ucbinclude/sys/ioctl.h"
-#ifdef FIOASYNC
-yes
-#endif
-], [AC_MSG_RESULT(yes)
-    AC_DEFINE(NEED_UCBINCLUDE_SYS_IOCTL)],
-   [AC_MSG_WARN(FIOASYNC not found in <sys/ioctl.h>, program might not compile)])
+    AC_C_INLINE
 fi
 
 AC_TYPE_UID_T
@@ -463,7 +466,9 @@ AC_EGREP_CPP(yes, [
 #ifdef LOG_PERROR
 yes
 #endif
-], [AC_DEFINE(HAVE_OPENLOG_LOG_PERROR) AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
+], [AC_DEFINE(HAVE_OPENLOG_LOG_PERROR)
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(to see if stdlib.h defines EXIT_FAILURE)
 AC_EGREP_CPP(yes, [
@@ -471,7 +476,9 @@ AC_EGREP_CPP(yes, [
 #ifdef EXIT_FAILURE
 yes
 #endif
-], AC_MSG_RESULT(yes), [AC_DEFINE(NEED_EXIT_FAILURE) AC_MSG_RESULT(no)])
+], [AC_MSG_RESULT(yes)],
+   [AC_DEFINE(NEED_EXIT_FAILURE)
+    AC_MSG_RESULT(no)])
 
 #XXX actually checks if AF_UNIX should be used instead of AF_LOCAL
 AC_MSG_CHECKING(whether <sys/socket.h> uses AF_UNIX)
@@ -484,7 +491,9 @@ AC_EGREP_CPP(yes, [
 yes
 #endif
 #endif
-], [AC_DEFINE(NEED_AF_LOCAL) AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
+], [AC_DEFINE(NEED_AF_LOCAL)
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(for SIGINFO)
 AC_EGREP_CPP(yes, [
@@ -492,22 +501,25 @@ AC_EGREP_CPP(yes, [
 #ifdef SIGINFO
 yes
 #endif
-], AC_DEFINE(HAVE_SIGNAL_SIGINFO) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
-
+], [AC_DEFINE(HAVE_SIGNAL_SIGINFO)
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(to see if MSG_WAITALL exists)
-AC_EGREP_CPP(yes,[
+AC_EGREP_CPP(yes, [
 #include <sys/socket.h>
 #ifdef MSG_WAITALL
 yes
 #endif
-], [AC_DEFINE(HAVE_MSG_WAITALL) AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
+], [AC_DEFINE(HAVE_MSG_WAITALL)
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
 
 #SO_SNDLOWAT
 #irix 6.2 only seems to look at lowest 8 bit of value
-#solaris also seems to be borken (up to 2.6 atleast)
+#solaris also seems to be broken (up to 2.6 atleast)
 AC_MSG_CHECKING(whether a working SO_SNDLOWAT exists)
-AC_EGREP_CPP(yes,[
+AC_EGREP_CPP(yes, [
 #include <sys/socket.h>
 #ifdef SO_SNDLOWAT
 yes
@@ -522,13 +534,13 @@ case $host in
 	;;
 esac
 if test "x${so_sndlowat}" = xt; then
-	AC_DEFINE(HAVE_SO_SNDLOWAT) AC_MSG_RESULT(yes)
+	AC_DEFINE(HAVE_SO_SNDLOWAT)
+        AC_MSG_RESULT(yes)
 else
 	AC_MSG_RESULT(disabled)
 	AC_MSG_WARN(performance in the server might be degraded without support for the SO_SNDLOWAT socket option)
-fi],
-[AC_MSG_RESULT(no)
- AC_MSG_WARN(performance in the server might be degraded without support for the SO_SNDLOWAT socket option)])
+fi], [AC_MSG_RESULT(no)
+      AC_MSG_WARN(performance in the server might be degraded without support for the SO_SNDLOWAT socket option)])
 
 AC_MSG_CHECKING(whether realloc with a NULL pointer calls malloc)
 AC_TRY_RUN([
@@ -544,7 +556,9 @@ int main()
 		return 1;
 	else
 		return 0;
-}], AC_MSG_RESULT(yes), [AC_DEFINE(HAVE_NOMALLOC_REALLOC) AC_MSG_RESULT(no)])
+}], [AC_MSG_RESULT(yes)],
+    [AC_DEFINE(HAVE_NOMALLOC_REALLOC)
+     AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING(whether free with can be called with NULL)
 AC_TRY_RUN([
@@ -558,7 +572,12 @@ int main()
 	/* will assume core dump/seg fault if it doesn\'t work */
 	free(NULL);
 	return 0;
-}], AC_MSG_RESULT(yes), [AC_DEFINE(HAVE_NONULL_FREE) AC_MSG_RESULT(no)])
+}], [AC_MSG_RESULT(yes)],
+    [AC_DEFINE(HAVE_NONULL_FREE)
+     AC_MSG_RESULT(no)])
+
+#A good time to save the cache (L_SOCKPROTO might fail)
+AC_CACHE_SAVE
 
 #find prototypes for interposition.c
 if test x$no_preload != xt; then
@@ -568,7 +587,7 @@ unset failproto
 if test "x${ac_cv_header_stdc}" = xyes; then
 
 #does $CPP define __STDC__?
-AC_EGREP_CPP(yes,[
+AC_EGREP_CPP(yes, [
 #ifdef __STDC__
 yes
 #endif
@@ -648,10 +667,10 @@ L_SOCKPROTO(recv, [failproto=t],
 ["int" "unsigned int"])
 
 L_SOCKPROTO(readv, [failproto=t],
-["ssize_t"],
+["ssize_t" "int"],
 ["int"],
 ["const struct iovec *" "__const struct iovec *" "struct iovec *"],
-["int"])
+["int" "size_t"])
 
 L_SOCKPROTO(recvmsg, [failproto=t],
 ["ssize_t" "int"],
@@ -660,10 +679,10 @@ L_SOCKPROTO(recvmsg, [failproto=t],
 ["int" "unsigned int"])
 
 L_SOCKPROTO(writev, [failproto=t],
-["ssize_t"],
+["ssize_t" "int"],
 ["int"],
 ["const struct iovec *" "__const struct iovec *"],
-["int"])
+["int" "size_t"])
 
 L_SOCKPROTO(sendmsg, [failproto=t],
 ["ssize_t" "int"],
@@ -798,13 +817,15 @@ AC_TRY_COMPILE([
 #include <sys/types.h>
 #include <sys/socket.h>
 int getsockopt(int, int, int, char *, int *);
-], [ 1 ], [AC_DEFINE(NEED_GETSOCKOPT_CAST) AC_MSG_RESULT(yes)],
+], [ 1 ],
+ [AC_DEFINE(NEED_GETSOCKOPT_CAST)
+  AC_MSG_RESULT(yes)],
  AC_MSG_RESULT(no))
 
 #include both <sys/ioctl.h> and <sys/sockio.h>?
 if test x$have_sys_sockio_h = xt; then
 	AC_MSG_CHECKING(to see if <sys/sockio.h> should be included)
-	AC_EGREP_CPP(yes,[
+	AC_EGREP_CPP(yes, [
 #include <sys/ioctl.h>
 #ifdef SIOCATMARK
 #else
@@ -813,12 +834,14 @@ if test x$have_sys_sockio_h = xt; then
 yes
 #endif
 #endif
-], AC_DEFINE(NEED_SYS_SOCKIO_H) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+], [AC_DEFINE(NEED_SYS_SOCKIO_H)
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
 fi
 
 #XXX should be more generic, check if nonexistent
 AC_MSG_CHECKING(to see if dlopen param has DL_ and not RTLD_ prefix)
-AC_EGREP_CPP(yes,[
+AC_EGREP_CPP(yes, [
 #include <dlfcn.h>
 #ifdef DL_LAZY
 #else
@@ -826,12 +849,14 @@ AC_EGREP_CPP(yes,[
 yes
 # endif
 #endif
-], [AC_DEFINE(NEED_DYNA_RTLD) AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
+], [AC_DEFINE(NEED_DYNA_RTLD)
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
 
 #XXX should be more generic, check if nonexistent
 #SV_INTERRUPT, but not SA_RESTART defined?
 AC_MSG_CHECKING(to see if SV_INTERRUPT should be used)
-AC_EGREP_CPP(yes,[
+AC_EGREP_CPP(yes, [
 #include <signal.h>
 #ifdef SA_RESTART
 #else
@@ -839,328 +864,177 @@ AC_EGREP_CPP(yes,[
 yes
 # endif
 #endif
-], AC_DEFINE(NEED_SA_RESTART) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+], [AC_DEFINE(NEED_SA_RESTART)
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
 
-#XXseems to be supported on solaris2.6, but there might be some
-#defines that need to be set
+#XXXseems to be supported on solaris2.6, but there might be some
+#defines that need to be set (should _XOPEN_SOURCE be defined on all
+#platforms?)
 AC_MSG_CHECKING(if cmsghdr exists in <sys/socket.h>)
-AC_TRY_COMPILE([
+case $host in
+    *-*-hpux*)
+	AC_MSG_RESULT(no) #disable test
+	;;
+    *)
+	AC_TRY_COMPILE([
 #include <sys/types.h>
 #include <sys/socket.h>
 ], [struct cmsghdr foo = {1,1,1};
  struct msghdr bar;
  foo.cmsg_len = 0;
+ foo.cmsg_type = SCM_RIGHTS;
+ foo.cmsg_level = SOL_SOCKET;
  bar.msg_controllen = 1;
 ], [AC_DEFINE(HAVE_CMSGHDR)
-AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
+	;;
+esac
 
 AC_MSG_CHECKING(to see if malloc_options exists)
 AC_TRY_LINK([extern char *malloc_options;],
 [ malloc_options = 0; ],
-AC_DEFINE(HAVE_MALLOC_OPTIONS) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
+[AC_DEFINE(HAVE_MALLOC_OPTIONS)
+ AC_MSG_RESULT(yes)],
+AC_MSG_RESULT(no))
 
 AC_MSG_CHECKING(to see if __progname exists)
 AC_TRY_LINK([extern char *__progname;],
 [ __progname = 0; ],
-AC_DEFINE(HAVE_PROGNAME) AC_MSG_RESULT(yes), AC_MSG_RESULT(no))
-
-dnl Looking for inet_aton() in -lresolv
-#XXX
-AC_CHECK_FUNC(inet_aton)
-if test $ac_cv_func_inet_aton = no; then
-	AC_CHECK_LIB(resolv, inet_aton,
-		[have_inet_aton_in_lresolv=t
-		have_lresolv=t
-		need_lib_libresolv=t
-		LIBS="$LIBS -lresolv"
-		AC_DEFINE(HAVE_INET_ATON)])
-fi
-
-if test x$have_inet_aton_in_lresolv != xt; then
-	#inet_aton detected by above, but absent during linking? (sunos)
-	AC_MSG_CHECKING(to see if linking with inet_aton works)
-	AC_TRY_LINK([
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-], [ inet_aton(0,0); ],
-    [AC_DEFINE(HAVE_INET_ATON) AC_MSG_RESULT(yes)],  AC_MSG_RESULT(no))
-fi
-
-dnl Checks for libraries.
-#-lcrypt, based on example in mail by Kaveh R. Ghazi (ghazi@caip.rutgers.edu)
-#(automake mailinglist)
-AC_CHECK_FUNC(crypt)
-if test $ac_cv_func_crypt = no; then
-      AC_CHECK_LIB(crypt, crypt)
-fi
-
-dnl #XXX include header in compilation test?
-if test "x${ac_cv_header_tcpd_h}" = "xyes"; then
-AC_MSG_CHECKING(for libwrap)
-if test x$no_libwrap = xt; then
-	echo "disabled"
-else
-	oLIBS=$LIBS
-	LIBS="$LIBS -lwrap"
-	AC_TRY_LINK([
-int allow_severity;
-int deny_severity;
-], [hosts_access(0);],
- [ AC_MSG_RESULT(yes)
-   AC_DEFINE(HAVE_LIBWRAP)],
- [ AC_MSG_RESULT(no)
-   LIBS="$oLIBS"])
-fi
-fi
-
-dnl Looking for connect() in -lsocket
-oLIBS=$LIBS
-LIBS=""
-AC_CHECK_FUNC(connect)
-if test $ac_cv_func_connect = no; then
-	AC_CHECK_LIB(socket, connect,
-		[LIBS="-lsocket $LIBS"
-		need_lib_libsocket=t
-		have_lsocket=t])
-fi
-LIBS="$LIBS $oLIBS"
-
-dnl Looking for inet_addr() in -lnsl
-oLIBS=$LIBS
-LIBS=""
-AC_CHECK_FUNC(inet_addr)
-if test $ac_cv_func_inet_addr = no; then
-	AC_CHECK_LIB(nsl, inet_addr,
-		[LIBS="-lnsl $LIBS"
-		need_lib_libnsl=t
-		have_lnsl=t])
-fi
-LIBS="$LIBS $oLIBS"
-
-#AC_CHECK_FUNC(gethostbyname2,
-#	[AC_DEFINE(HAVE_GETHOSTBYNAME2)
-#	 have_gethostbyname2=t])
-
-AC_MSG_CHECKING(for gethostbyname2)
-AC_TRY_LINK([
-#include <netdb.h>
-], [ gethostbyname2(0, 0); ],
- [AC_DEFINE(HAVE_GETHOSTBYNAME2)
-  AC_MSG_RESULT(yes)
-  have_gethostbyname2=t],
+[AC_DEFINE(HAVE_PROGNAME)
+ AC_MSG_RESULT(yes)],
 AC_MSG_RESULT(no))
 
-oLIBS=$LIBS
-LIBS=""
-#XXX
-#AC_MSG_CHECKING(for dlopen)
-#AC_TRY_LINK([
-##include <dlfcn.h>
-#], [dlopen("/foo", 0);],
-#   [have_dlopen_in_libc=t
-#    AC_MSG_RESULT(yes)], [AC_MSG_RESULT(no)])
-#AC_CHECK_LIB(c, dlopen)
-#if test $ac_cv_lib_c_dlopen = no; then
-#if test x$have_dlopen_in_libc = x; then
-	AC_CHECK_LIB(dl, dlopen)
-	if test $ac_cv_lib_dl_dlopen = yes; then
-		case $host in
-		    *-*-sunos4*) #XXX attemtpt to get libdl name
-			libdl=`ls ${base_library_path}libdl.so* | sed -e 's/.*\///' | sort -nr | head -1`
-			if test x$libdl = x; then
-			    AC_MSG_WARN(unable to locate libdl)
-			else
-			    LIBRARY_DLOPEN=${base_library_path}${libdl}
-			    AC_MSG_WARN(hardcoding libdl to $LIBRARY_DLOPEN)
-			fi
-		    ;;
-		    *)
-			LIBRARY_DLOPEN="${base_library_path}libdl.so"
-		    ;;
-		esac
-	else
-		LIBRARY_DLOPEN=""
-	fi
-#else
-#	LIBRARY_DLOPEN=""
-#fi
-AC_SUBST(LIBRARY_DLOPEN)
-LIBS=$oLIBS
+dnl Checks for libraries.
+AC_SEARCH_LIBS(crypt, crypt)
 
-#determine library names and function placement for lib/interposition.c
-#XXX
+#FreeBSD has setproctitle in -lutil (Per Hedeland <per@erix.ericsson.se>)
+AC_SEARCH_LIBS(setproctitle, util)
+
+#Look for functions needed for socksify located in other places than libc
+SOCKSIFY_PRELOAD_LIBS=""
+
 oLIBS=$LIBS
 LIBS=""
-if test x$have_lnsl = xt; then
-	AC_DEFINE_UNQUOTED(LIBRARY_LIBNSL, "${base_library_path}libnsl.so")
-	LIBRARY_LIBNSL="${base_library_path}libnsl.so"
-	fi
-if test x$have_lresolv = xt; then
-	AC_DEFINE_UNQUOTED(LIBRARY_LIBRESOLV, "${base_library_path}libresolv.so")
-	LIBRARY_LIBRESOLV="${base_library_path}libresolv.so"
-fi
-if test x$have_lsocket = xt; then
+
+AC_SEARCH_LIBS(connect, socket)
+
+NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
+LIBS=""
+
+#XXX can be ignored when preloading is disabled (only the AC_SEARCH_LIBS test
+#is needed)
+if test "x${ac_cv_search_connect}" = "x-lsocket"; then
 	AC_DEFINE_UNQUOTED(LIBRARY_LIBSOCKET, "${base_library_path}libsocket.so")
-	LIBRARY_LIBSOCKET="${base_library_path}libsocket.so"
+	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libsocket.so"
+
+	AC_DEFINE(LIBRARY_CONNECT, LIBRARY_LIBSOCKET)
+
+	AC_CHECK_LIB(socket, accept,
+		AC_DEFINE(LIBRARY_ACCEPT, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, bind,
+		AC_DEFINE(LIBRARY_BIND, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, bindresvport,
+		AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, getpeername,
+		AC_DEFINE(LIBRARY_GETPEERNAME, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, getsockname,
+		AC_DEFINE(LIBRARY_GETSOCKNAME, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, recvfrom,
+		AC_DEFINE(LIBRARY_RECVFROM, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, rresvport,
+		AC_DEFINE(LIBRARY_RRESVPORT, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, recvmsg,
+		AC_DEFINE(LIBRARY_RECVMSG, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, sendmsg,
+		AC_DEFINE(LIBRARY_SENDMSG, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, send,
+		AC_DEFINE(LIBRARY_SEND, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, recv,
+		AC_DEFINE(LIBRARY_RECV, LIBRARY_LIBSOCKET))
+
+	AC_CHECK_LIB(socket, sendto,
+		AC_DEFINE(LIBRARY_SENDTO, LIBRARY_LIBSOCKET))
 fi
 
-#accept
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c,  accept,
-	[AC_DEFINE(LIBRARY_ACCEPT, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, accept,
-			AC_DEFINE(LIBRARY_ACCEPT, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate accept)))
+#doesn't work if test links with -lsocket (solaris)
+AC_SEARCH_LIBS(inet_addr, nsl)
+
+NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
+LIBS=""
+
+if test "x${ac_cv_search_inet_addr}" = "x-lnsl"; then
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBNSL, "${base_library_path}libnsl.so")
+
+	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libnsl.so"
+
+	AC_CHECK_LIB(nsl, gethostbyname,
+		AC_DEFINE(LIBRARY_GETHOSTBYNAME, LIBRARY_LIBNSL))
 fi
 
-#bind
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, bind,
-	[AC_DEFINE(LIBRARY_BIND, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, bind,
-			AC_DEFINE(LIBRARY_BIND, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate bind)))
+#XXX used for anything but gethostbyname2? consider testing for it
+# on solaris (atleast 2.6, gcc)
+#linking with -lresolv results in error unless -shared is included
+#since gcc insists on linking statically with libresolv for which
+#no static version exists
+AC_SEARCH_LIBS(inet_aton, resolv)
+
+NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
+LIBS=""
+
+if test "x${ac_cv_search_inet_aton}" = "x-lresolv"; then
+	AC_DEFINE_UNQUOTED(LIBRARY_LIBRESOLV, "${base_library_path}libresolv.so")
+
+	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libresolv.so"
+
+	AC_CHECK_LIB(resolv, gethostbyname2,
+		[AC_DEFINE(LIBRARY_GETHOSTBYNAME2, LIBRARY_LIBRESOLV)
+		 AC_DEFINE(HAVE_GETHOSTBYNAME2)])
 fi
 
-#connect
-#XXX already tested for
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, connect,
-	[AC_DEFINE(LIBRARY_CONNECT, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, connect,
-			AC_DEFINE(LIBRARY_CONNECT, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate connect)))
+#XXX gcc on solaris (using gnu ld) doesn't seems to implicitly link
+#with libdl in this test, which means that libdl will not be included
+#in socksify.
+
+AC_SEARCH_LIBS(dlopen, dl)
+
+NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
+LIBS=""
+if test "x${ac_cv_search_dlopen}" = "x-ldl"; then
+	case $host in
+	    *-*-sunos4*) #XXX attemtpt to get libdl name
+		libdl=`ls ${base_library_path}libdl.so* | sed -e 's/.*\///' | sort -nr | head -1`
+		if test x$libdl = x; then
+		    AC_MSG_WARN(unable to locate libdl)
+		else
+		    LIBRARY_DLOPEN=${base_library_path}${libdl}
+		    AC_MSG_WARN(hardcoding libdl to $LIBRARY_DLOPEN)
+		fi
+	    ;;
+	    *)
+		LIBRARY_DLOPEN="${base_library_path}libdl.so"
+	    ;;
+	esac
+	SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${LIBRARY_DLOPEN:+${PRELOAD_SEPERATOR}}${LIBRARY_DLOPEN}"
 fi
 
-#bindresvport
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, bindresvport,
-	[AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, bindresvport,
-			AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate bindresvport)))
-fi
+LIBS="$oLIBS $NLIBS"
 
-#gethostbyname
-if test x$have_lnsl = xt; then
-	AC_CHECK_LIB(c,  gethostbyname,
-	[AC_DEFINE(LIBRARY_GETHOSTBYNAME, LIBRARY_LIBC)],
-		AC_CHECK_LIB(nsl, gethostbyname,
-			AC_DEFINE(LIBRARY_GETHOSTBYNAME, LIBRARY_LIBNSL),
-			AC_MSG_WARN(unable to locate gethostbyname)))
-fi
-
-if test x$have_gethostbyname2 = xt; then
-	if test x$have_lresolv = xt; then
-		AC_CHECK_LIB(c, gethostbyname2,
-		[AC_DEFINE(LIBRARY_GETHOSTBYNAME2, LIBRARY_LIBC)],
-			AC_CHECK_LIB(resolv, gethostbyname2,
-				AC_DEFINE(LIBRARY_GETHOSTBYNAME2, LIBRARY_LIBRESOLV),
-				AC_MSG_WARN(unable to locate gethostbyname2)))
-	fi
-fi
-
-#getpeername
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, getpeername,
-	[AC_DEFINE(LIBRARY_GETPEERNAME, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, getpeername,
-			AC_DEFINE(LIBRARY_GETPEERNAME, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate getpeername)))
-fi
-
-#getsockname
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, getsockname,
-	[AC_DEFINE(LIBRARY_GETSOCKNAME, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, getsockname,
-			AC_DEFINE(LIBRARY_GETSOCKNAME, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate getsockname)))
-fi
-
-#recvfrom
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, recvfrom,
-	[AC_DEFINE(LIBRARY_RECVFROM, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, recvfrom,
-			AC_DEFINE(LIBRARY_RECVFROM, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate recvfrom)))
-fi
-
-#rresvport
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, rresvport,
-	[AC_DEFINE(LIBRARY_RRESVPORT, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, rresvport,
-			AC_DEFINE(LIBRARY_RRESVPORT, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate rresvport)))
-fi
-
-#recvmsg
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, recvmsg,
-	[AC_DEFINE(LIBRARY_RECVMSG, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, recvmsg,
-			AC_DEFINE(LIBRARY_RECVMSG, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate recvmsg)))
-fi
-
-#sendmsg
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, sendmsg,
-	[AC_DEFINE(LIBRARY_SENDMSG, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, sendmsg,
-			AC_DEFINE(LIBRARY_SENDMSG, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate sendmsg)))
-fi
-
-#send
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, send,
-	[AC_DEFINE(LIBRARY_SEND, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, send,
-			AC_DEFINE(LIBRARY_SEND, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate send)))
-fi
-
-#recv
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, recv,
-	[AC_DEFINE(LIBRARY_RECV, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, recv,
-			AC_DEFINE(LIBRARY_RECV, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate recv)))
-fi
-
-#sendto
-if test x$have_lsocket = xt; then
-	AC_CHECK_LIB(c, sendto,
-	[AC_DEFINE(LIBRARY_SENDTO, LIBRARY_LIBC)],
-		AC_CHECK_LIB(socket, sendto,
-			AC_DEFINE(LIBRARY_SENDTO, LIBRARY_LIBSOCKET),
-			AC_MSG_WARN(unable to locate sendto)))
-fi
-
-LIBS=$oLIBS
-
-if test x$need_lib_libnsl = x; then
-	LIBRARY_LIBNSL=""
-fi
-if test x$need_lib_libresolv = x; then
-	LIBRARY_LIBRESOLV=""
-fi
-if test x$need_lib_libsocket = x; then
-	LIBRARY_LIBSOCKET=""
-fi
-
-AC_SUBST(LIBRARY_LIBNSL)
-AC_SUBST(LIBRARY_LIBRESOLV)
-AC_SUBST(LIBRARY_LIBSOCKET)
+AC_SUBST(SOCKSIFY_PRELOAD_LIBS)
 
 #specify location of the socks library in socksify too
-#XXX exec_prefix and prefix have the value NONE here if they are unset
+#NOTE: exec_prefix and prefix have the value NONE here if they are unset
 o_exec_prefix=${exec_prefix}
 o_prefix=${prefix}
 if test x${prefix} = xNONE; then
@@ -1178,8 +1052,8 @@ AC_SUBST(LIBRARY_PREFIX)
 #allow user to specify libc name, use default value otherwise
 AC_MSG_CHECKING(for libc name)
 AC_ARG_WITH(libc,
-[  --with-libc=NAME        manually set name of c library if necessary],
-[LIBC_NAME=$withval])
+ [  --with-libc=NAME        manually set name of c library if necessary],
+ [LIBC_NAME=$withval])
 
 #set default?
 if test "x${LIBC_NAME}" = x; then
@@ -1202,101 +1076,35 @@ fi
 AC_MSG_RESULT(${LIBC_NAME})
 AC_DEFINE_UNQUOTED(LIBRARY_LIBC, "${LIBC_NAME}")
 
+dnl #XXX include header in compilation test?
+dnl normal library testing doesn't work for libwrap (doesn't link
+dnl without allow/deny_severity)
+if test "x${ac_cv_header_tcpd_h}" = "xyes"; then
+    AC_MSG_CHECKING(for libwrap)
+    if test x$no_libwrap = xt; then
+	echo "disabled"
+    else
+	oLIBS=$LIBS
+	LIBS="$LIBS -lwrap"
+	AC_TRY_LINK([
+int allow_severity;
+int deny_severity;
+], [hosts_access(0);],
+ [AC_MSG_RESULT(yes)
+  AC_DEFINE(HAVE_LIBWRAP)],
+ [AC_MSG_RESULT(no)
+  LIBS="$oLIBS"])
+    fi
+fi
 
-#XXX should be more generic, values shouldn't be hardcoded
+#XXX should be more generic
 case $host in
-
-	*-*-solaris*)
-		AC_DEFINE(SYMBOL_ACCEPT, "accept")
-		AC_DEFINE(SYMBOL_BIND, "bind")
-		AC_DEFINE(SYMBOL_BINDRESVPORT, "bindresvport")
-		AC_DEFINE(SYMBOL_CONNECT, "connect")
-		AC_DEFINE(SYMBOL_GETHOSTBYNAME, "gethostbyname")
-		AC_DEFINE(SYMBOL_GETHOSTBYNAME2, "gethostbyname2")
-		AC_DEFINE(SYMBOL_GETPEERNAME, "getpeername")
-		AC_DEFINE(SYMBOL_GETSOCKNAME, "getsockname")
-		AC_DEFINE(SYMBOL_RRESVPORT, "rresvport")
-		AC_DEFINE(SYMBOL_RECVFROM, "recvfrom")
-		AC_DEFINE(SYMBOL_SENDTO, "sendto")
-		AC_DEFINE(SYMBOL_READV, "readv")
-		AC_DEFINE(SYMBOL_WRITEV, "writev")
-		AC_DEFINE(SYMBOL_SEND, "send")
-		AC_DEFINE(SYMBOL_RECV, "recv")
-		AC_DEFINE(SYMBOL_RECVMSG, "recvmsg")
-		AC_DEFINE(SYMBOL_SENDMSG, "sendmsg")
-		AC_DEFINE(SYMBOL_WRITE, "write")
-		AC_DEFINE(SYMBOL_READ, "read")
-
-	;;
-
-	*-*-linux-*)
-		AC_DEFINE(SYMBOL_ACCEPT, "accept")
-		AC_DEFINE(SYMBOL_BIND, "bind")
-		AC_DEFINE(SYMBOL_BINDRESVPORT, "bindresvport")
-		AC_DEFINE(SYMBOL_CONNECT, "connect")
-		AC_DEFINE(SYMBOL_GETHOSTBYNAME, "gethostbyname")
-		AC_DEFINE(SYMBOL_GETHOSTBYNAME2, "gethostbyname2")
-		AC_DEFINE(SYMBOL_GETPEERNAME, "getpeername")
-		AC_DEFINE(SYMBOL_GETSOCKNAME, "getsockname")
-		AC_DEFINE(SYMBOL_RRESVPORT, "rresvport")
-		AC_DEFINE(SYMBOL_RECVFROM, "recvfrom")
-		AC_DEFINE(SYMBOL_SENDTO, "sendto")
-		AC_DEFINE(SYMBOL_READV, "readv")
-		AC_DEFINE(SYMBOL_WRITEV, "writev")
-		AC_DEFINE(SYMBOL_SEND, "send")
-		AC_DEFINE(SYMBOL_RECV, "recv")
-		AC_DEFINE(SYMBOL_RECVMSG, "recvmsg")
-		AC_DEFINE(SYMBOL_SENDMSG, "sendmsg")
-		AC_DEFINE(SYMBOL_WRITE, "write")
-		AC_DEFINE(SYMBOL_READ, "read")
-	;;
-
-	*-*-irix*)
-		AC_DEFINE(SYMBOL_ACCEPT, "accept")
-		AC_DEFINE(SYMBOL_BIND, "bind")
-		AC_DEFINE(SYMBOL_BINDRESVPORT, "bindresvport")
-		AC_DEFINE(SYMBOL_CONNECT, "connect")
-		AC_DEFINE(SYMBOL_GETHOSTBYNAME, "gethostbyname")
-		AC_DEFINE(SYMBOL_GETHOSTBYNAME2, "gethostbyname2")
-		AC_DEFINE(SYMBOL_GETPEERNAME, "getpeername")
-		AC_DEFINE(SYMBOL_GETSOCKNAME, "getsockname")
-		AC_DEFINE(SYMBOL_RRESVPORT, "rresvport")
-		AC_DEFINE(SYMBOL_RECVFROM, "recvfrom")
-		AC_DEFINE(SYMBOL_SENDTO, "sendto")
-		AC_DEFINE(SYMBOL_READV, "readv")
-		AC_DEFINE(SYMBOL_WRITEV, "writev")
-		AC_DEFINE(SYMBOL_SEND, "send")
-		AC_DEFINE(SYMBOL_RECV, "recv")
-		AC_DEFINE(SYMBOL_RECVMSG, "recvmsg")
-		AC_DEFINE(SYMBOL_SENDMSG, "sendmsg")
-		AC_DEFINE(SYMBOL_WRITE, "write")
-		AC_DEFINE(SYMBOL_READ, "read")
-	;;
-
+	*-*-freebsdelf* | *-*-solaris* | *-*-linux-* | *-*-irix* | \
 	alpha-dec-osf*)
-		AC_DEFINE(SYMBOL_ACCEPT, "accept")
-		AC_DEFINE(SYMBOL_BIND, "bind")
-		AC_DEFINE(SYMBOL_BINDRESVPORT, "bindresvport")
-		AC_DEFINE(SYMBOL_CONNECT, "connect")
-		AC_DEFINE(SYMBOL_GETHOSTBYNAME, "gethostbyname")
-		AC_DEFINE(SYMBOL_GETHOSTBYNAME2, "gethostbyname2")
-		AC_DEFINE(SYMBOL_GETPEERNAME, "getpeername")
-		AC_DEFINE(SYMBOL_GETSOCKNAME, "getsockname")
-		AC_DEFINE(SYMBOL_RRESVPORT, "rresvport")
-		AC_DEFINE(SYMBOL_RECVFROM, "recvfrom")
-		AC_DEFINE(SYMBOL_SENDTO, "sendto")
-		AC_DEFINE(SYMBOL_READV, "readv")
-		AC_DEFINE(SYMBOL_WRITEV, "writev")
-		AC_DEFINE(SYMBOL_SEND, "send")
-		AC_DEFINE(SYMBOL_RECV, "recv")
-		AC_DEFINE(SYMBOL_RECVMSG, "recvmsg")
-		AC_DEFINE(SYMBOL_SENDMSG, "sendmsg")
-		AC_DEFINE(SYMBOL_WRITE, "write")
-		AC_DEFINE(SYMBOL_READ, "read")
-	;;
+		AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)
 esac
 
-#XXX try to detect gcc bug (irix 64 problem, affects among others inet_ntoa)
+#try to detect gcc bug (irix 64 problem, affects among others inet_ntoa)
 AC_MSG_CHECKING(for incorrect inet_ntoa behaviour)
 AC_TRY_RUN([
 #include <sys/types.h>
@@ -1315,14 +1123,16 @@ int main(void)
     return 0;
 
 }
-], [AC_DEFINE(HAVE_BROKEN_INET_NTOA) AC_MSG_RESULT(yes)], AC_MSG_RESULT(no))
+], [AC_DEFINE(HAVE_BROKEN_INET_NTOA)
+    AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(no))
 
 dnl Check for in_port_t type
 #solaris2.6
 AC_MSG_CHECKING(whether an in_port_t typedef exists in <netinet/in.h>)
-AC_EGREP_CPP(in_port_t,[
+AC_EGREP_CPP(in_port_t, [
 #include <netinet/in.h>
-], [AC_MSG_RESULT(yes)],[
+], [AC_MSG_RESULT(yes)], [
 AC_MSG_RESULT(no)
 AC_CHECK_TYPE(in_port_t, ubits_16)
 dnl Check for in_addr_t type
@@ -1355,9 +1165,11 @@ fi
 
 #sig_atomic_t
 AC_MSG_CHECKING(for sig_atomic_t in <signal.h>)
-AC_EGREP_CPP(sig_atomic_t,[
+AC_EGREP_CPP(sig_atomic_t, [
 #include <signal.h>
-], [AC_DEFINE(HAVE_SIG_ATOMIC_T) AC_MSG_RESULT(yes)], [AC_MSG_RESULT(no)])
+], [AC_DEFINE(HAVE_SIG_ATOMIC_T)
+    AC_MSG_RESULT(yes)],
+   [AC_MSG_RESULT(no)])
 
 AC_CHECK_TYPE(int32_t, sbits_32)
 AC_CHECK_TYPE(int16_t, sbits_16)
@@ -1370,12 +1182,12 @@ AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_UTIME_NULL
 AC_FUNC_VPRINTF
-AC_CHECK_FUNCS(select socket strcspn strdup strspn hstrerror)
-AC_CHECK_FUNCS(issetugid strvis snprintf getdtablesize sysconf inet_pton)
-AC_CHECK_FUNCS(daemon setproctitle bzero sockatmark difftime memmove)
-AC_CHECK_FUNCS(vsyslog)
+AC_CHECK_FUNCS(select socket strcspn strdup strspn hstrerror issetugid)
+AC_CHECK_FUNCS(strvis snprintf getdtablesize sysconf inet_pton vsyslog)
+AC_CHECK_FUNCS(daemon bzero sockatmark difftime memmove seteuid setproctitle)
+AC_CHECK_FUNCS(inet_aton)
 
-#XXX sun4 seems to have a profiled libc missing strerror
+#sun4 seems to have a profiled libc missing strerror
 if test x$s_profiling = x; then
 	AC_CHECK_FUNCS(strerror)
 else
@@ -1393,10 +1205,6 @@ fi
 
 #add any warning flags (value set above)
 CFLAGS="$CFLAGS $warn"
-
-#XXX
-export CFLAGS
-export CPPFLAGS
 
 #XXXslow
 dnl Creating symbolic links
