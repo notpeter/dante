@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.10 2001/11/11 13:38:32 michaels Exp $";
+"$Id: accesscheck.c,v 1.12 2001/12/11 14:31:31 karls Exp $";
 
 
 /* ARGSUSED */
@@ -57,12 +57,12 @@ accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
 	char *emsg;
 	size_t emsgsize;
 {
-	const char *function = "accessmatch()"; 
+	const char *function = "accessmatch()";
 	char srcstr[MAXSOCKADDRSTRING], dststr[sizeof(srcstr)];
 	int match;
 
 	slog(LOG_DEBUG, "%s: method: %s, %s -> %s ",
-	function, method2string(auth->method), 
+	function, method2string(auth->method),
 	src == NULL ? "<unknown>" : sockaddr2string(src, srcstr, sizeof(srcstr)),
 	dst == NULL ? "<unknown>" : sockaddr2string(dst, dststr, sizeof(dststr)));
 
@@ -144,7 +144,7 @@ accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
 				match = 1;
 			break;
 #endif /* HAVE_PAM */
-			
+
 		default:
 			SERRX(auth->method);
 	}
@@ -161,7 +161,7 @@ accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
 		 */
 		switch (auth->method) {
 			case AUTHMETHOD_PAM:
-				if (socksconfig.state.unfixedpamdata)
+				if (sockscf.state.unfixedpamdata)
 					break;
 				/* else; */ /* FALLTHROUGH */
 

@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,14 +44,14 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.37 2001/11/12 14:10:01 michaels Exp $";
+"$Id: Rgethostbyname.c,v 1.40 2001/12/12 14:42:07 karls Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
 	const char *name;
 	int af;
 {
-	const char *function = "Rgethostbyname2()"; 
+	const char *function = "Rgethostbyname2()";
 	static struct hostent hostentmem;
 	static char *aliases[] = { NULL };
 	struct in_addr ipindex;
@@ -61,7 +61,7 @@ Rgethostbyname2(name, af)
 
 	slog(LOG_DEBUG, "%s: %s", function, name);
 
-	switch (socksconfig.resolveprotocol) {
+	switch (sockscf.resolveprotocol) {
 		case RESOLVEPROTOCOL_TCP:
 		case RESOLVEPROTOCOL_UDP:
 			if ((hostent = gethostbyname(name)) != NULL)
@@ -73,13 +73,13 @@ Rgethostbyname2(name, af)
 			break;
 
 		default:
-			SERRX(socksconfig.resolveprotocol);
+			SERRX(sockscf.resolveprotocol);
 	}
 
 	if (hostent != NULL)
 		return hostent;
 
-	if (socksconfig.resolveprotocol != RESOLVEPROTOCOL_FAKE) 
+	if (sockscf.resolveprotocol != RESOLVEPROTOCOL_FAKE)
 		slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
 		function, name, hstrerror(h_errno));
 
@@ -109,8 +109,8 @@ Rgethostbyname2(name, af)
 		case AF_INET: {
 			static char ipv4[sizeof(in_addr_t)];
 
-			hostent->h_length 		= sizeof(ipv4);
-			*hostent->h_addr_list 	= ipv4;
+			hostent->h_length			= sizeof(ipv4);
+			*hostent->h_addr_list	= ipv4;
 			break;
 		}
 
@@ -118,8 +118,8 @@ Rgethostbyname2(name, af)
 		case AF_INET6: {
 			static char ipv6[16]; /* XXX */
 
-			hostent->h_length 		= sizeof(ipv6);
-			*hostent->h_addr_list 	= ipv6;
+			hostent->h_length			= sizeof(ipv6);
+			*hostent->h_addr_list	= ipv6;
 			break;
 		}
 #endif  /* SOCKS_IPV6 */

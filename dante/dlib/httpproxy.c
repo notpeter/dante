@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.9 2001/08/27 13:38:19 michaels Exp $";
+"$Id: httpproxy.c,v 1.11 2001/12/12 14:42:11 karls Exp $";
 
 int
 httpproxy_negotiate(s, packet)
@@ -68,7 +68,7 @@ httpproxy_negotiate(s, packet)
 	 * with http's ':'.
 	*/
 	*strrchr(host, '.') = ':';
-	
+
 	len = snprintfn(buf, sizeof(buf),
 	"CONNECT %s HTTP/1.0\r\n"
 	"User-agent: %s/client v%s\r\n"
@@ -116,7 +116,7 @@ httpproxy_negotiate(s, packet)
 
 						if (strncmp(buf, offset, strlen(offset)) != 0) {
 							error = 1;
-							break; 
+							break;
 						}
 
 						if (!isdigit(buf[strlen(offset)])) {

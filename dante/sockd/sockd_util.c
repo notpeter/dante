@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.77 2001/11/22 14:23:07 michaels Exp $";
+"$Id: sockd_util.c,v 1.79 2001/12/11 14:31:36 karls Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -82,7 +82,7 @@ selectmethod(methodv, methodc, offerdv, offeredc)
 
 			/* find the correct array to use for trying to find a ok method. */
 			switch (methodv[i]) {
-				case AUTHMETHOD_RFC931: 
+				case AUTHMETHOD_RFC931:
 					methodokc = ELEMENTS(rfc931methodv);
 					methodokv = rfc931methodv;
 					break;
@@ -99,7 +99,7 @@ selectmethod(methodv, methodc, offerdv, offeredc)
 			for (ii = 0; ii < methodokc; ++ii)
 				if (methodisset(methodokv[ii], intmethodv, offeredc))
 					return methodokv[ii];
-			
+
 			continue;
 		}
 
@@ -138,7 +138,7 @@ setsockoptions(s)
 			if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val)) != 0)
 				swarn("%s: setsockopt(SO_OOBINLINE)", function);
 
-			if (socksconfig.option.keepalive) {
+			if (sockscf.option.keepalive) {
 				val = 1;
 				if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) != 0)
 					swarn("%s: setsockopt(SO_KEEPALIVE)", function);
@@ -179,9 +179,9 @@ sockdexit(sig)
 	size_t i;
 	int mainmother;
 
-	mainmother = socksconfig.state.motherpidv == NULL
-	|| (pidismother(socksconfig.state.pid)
-	  && *socksconfig.state.motherpidv == socksconfig.state.pid);
+	mainmother = sockscf.state.motherpidv == NULL
+	|| (pidismother(sockscf.state.pid)
+	  && *sockscf.state.motherpidv == sockscf.state.pid);
 
 	if (mainmother) {
 		if (sig > 0)
@@ -201,7 +201,7 @@ sockdexit(sig)
 		char dir[80];
 
 		snprintfn(dir, sizeof(dir), "%s.%d",
-		childtype2string(socksconfig.state.type), getpid());
+		childtype2string(sockscf.state.type), getpid());
 
 		if (mkdir(dir, S_IRWXU) != 0)
 			swarn("%s: mkdir(%s)", function, dir);
@@ -211,9 +211,9 @@ sockdexit(sig)
 	}
 #endif /* HAVE_PROFILING */
 
-	for (i = 0;  i < socksconfig.log.fpc; ++i) {
-		fclose(socksconfig.log.fpv[i]);
-		close(socksconfig.log.fplockv[i]);
+	for (i = 0;  i < sockscf.log.fpc; ++i) {
+		fclose(sockscf.log.fpv[i]);
+		close(sockscf.log.fplockv[i]);
 	}
 
 	if (sig > 0)
@@ -257,11 +257,11 @@ socks_seteuid(old, new)
 	if (*old == new)
 		return;
 
-	if (*old != socksconfig.state.euid)
+	if (*old != sockscf.state.euid)
 		/* need to revert back to original (presumably 0) euid before changing. */
-		if (seteuid(socksconfig.state.euid) != 0) {
+		if (seteuid(sockscf.state.euid) != 0) {
 			slog(LOG_ERR, "running Linux are we?");
-			SERR(socksconfig.state.euid);
+			SERR(sockscf.state.euid);
 		}
 
 	if (seteuid(new) != 0)
@@ -296,10 +296,10 @@ socks_reseteuid(current, new)
 	if (current == new)
 		return;
 
-	if (new != socksconfig.state.euid)
+	if (new != sockscf.state.euid)
 		/* need to revert back to original (presumably 0) euid before changing. */
-		if (seteuid(socksconfig.state.euid) != 0)
-			SERR(socksconfig.state.euid);
+		if (seteuid(sockscf.state.euid) != 0)
+			SERR(sockscf.state.euid);
 
 	if (seteuid(new) != 0)
 		SERR(new);
@@ -323,8 +323,8 @@ pidismother(pid)
 {
 	int i;
 
-	for (i = 0; i < socksconfig.option.serverc; ++i)
-		if (socksconfig.state.motherpidv[i] == pid)
+	for (i = 0; i < sockscf.option.serverc; ++i)
+		if (sockscf.state.motherpidv[i] == pid)
 			return i + 1;
 	return 0;
 }
@@ -334,12 +334,12 @@ descriptorisreserved(d)
 	int d;
 {
 
-	if (d == socksconfig.bwlock)
+	if (d == sockscf.bwlock)
 		return 1;
 
-	/* don't close socksconfig/log files. */
-	if (socks_logmatch((size_t)d, &socksconfig.log))
+	/* don't close sockscf/log files. */
+	if (socks_logmatch((size_t)d, &sockscf.log))
 		return 1;
-	
+
 	return 0;
 }

@@ -41,18 +41,23 @@
  *
  */
 
+/*
+ * Based on code originaly from
+ * Patrick Bihan-Faou, MindStep Corporation, patrick@mindstep.com.
+ */
+
 #include "common.h"
 
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.12 2001/11/11 13:38:33 michaels Exp $";
+"$Id: auth_pam.c,v 1.17 2002/01/29 11:17:32 michaels Exp $";
 
 __BEGIN_DECLS
 
 static int
 _pam_conversation(int num_msg, const struct pam_message **msgs,
-struct pam_response **rsps, void * priv_data);
+struct pam_response **rsps, void *priv_data);
 
 typedef struct
 {
@@ -75,9 +80,8 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 	char *emsg;
 	size_t emsgsize;
 {
-	const char *function = "pam_passwordcheck()"; 
+	const char *function = "pam_passwordcheck()";
 	static pam_handle_t *pamh;
-	static char lastservicename[sizeof(auth->servicename)];
 	_pam_data_t pw;
 	int rc;
 	uid_t	euid;
@@ -92,15 +96,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 
 	slog(LOG_DEBUG, function);
 
-	/* if we get a different servicename we have to restart pam. */
-	if (strcmp(auth->servicename, lastservicename) != 0)
-		if (pamh != NULL) {
-			pam_end(pamh, 0);
-			pamh = NULL;
-		}
-
-
-	socks_seteuid(&euid, socksconfig.uid.privileged); 
+	socks_seteuid(&euid, sockscf.uid.privileged);
 
 	if (pamh == NULL) {
 		if ((rc = pam_start(*auth->servicename == NUL ?
@@ -109,23 +105,28 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 			snprintf(emsg, emsgsize, "unable to obtain PAM authenticator: %s",
 			pam_strerror(pamh, rc));
 			pam_end(pamh, rc);
-			socks_reseteuid(socksconfig.uid.privileged, euid);
+			socks_reseteuid(sockscf.uid.privileged, euid);
 			pamh = NULL;
 			return -1;
 		}
-
-		SASSERTX(strlen(auth->servicename) < sizeof(lastservicename));
-		strcpy(lastservicename, auth->servicename);
 	}
+	else /* already set up, just make sure servicename is set correctly too. */
+		if ((rc = pam_set_item(pamh, PAM_SERVICE, *auth->servicename == NUL ?
+		DEFAULT_PAMSERVICENAME : auth->servicename)) != PAM_SUCCESS) {
+			socks_reseteuid(sockscf.uid.privileged, euid);
+			snprintf(emsg, emsgsize, "failed to set PAM_SERVICE: %s",
+			pam_strerror(pamh, rc));
+			return -1;
+		}
 
 	if ((rc = pam_set_item(pamh, PAM_USER, auth->name)) != PAM_SUCCESS) {
-		socks_reseteuid(socksconfig.uid.privileged, euid);
+		socks_reseteuid(sockscf.uid.privileged, euid);
 		snprintf(emsg, emsgsize, "failed to set PAM_USER: %s",
 		pam_strerror(pamh, rc));
 		return -1;
 	}
 
-	pw.user 		= auth->name;
+	pw.user		= auth->name;
 	pw.password = auth->password;
 	_pam_conv.appdata_ptr = (char *)&pw;
 #ifdef HAVE_SOLARIS_PAM_BUG
@@ -133,7 +134,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 #endif /* HAVE_SOLARIS_PAM_BUG */
 
 	if ((rc = pam_set_item(pamh, PAM_CONV, &_pam_conv)) != PAM_SUCCESS) {
-		socks_reseteuid(socksconfig.uid.privileged, euid);
+		socks_reseteuid(sockscf.uid.privileged, euid);
 		snprintf(emsg, emsgsize, "failed to set PAM_CONV: %s",
 		pam_strerror(pamh, rc));
 		return -1;
@@ -142,28 +143,28 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 	if ((rc = pam_set_item(pamh, PAM_RHOST, inet_ntoa(TOCIN(src)->sin_addr)))
 	!= PAM_SUCCESS)
 		swarnx("failed to set PAM_RHOST: %s", pam_strerror(pamh, rc));
-		
+
 	switch (rc = pam_authenticate(pamh, 0)) {
 		case PAM_SUCCESS:
 			break;
 
 		default:
-			socks_reseteuid(socksconfig.uid.privileged, euid);
+			socks_reseteuid(sockscf.uid.privileged, euid);
 			snprintf(emsg, emsgsize, "pam %s", pam_strerror(pamh, rc));
 			return -1;
 	}
-	
+
 	switch (rc = pam_acct_mgmt(pamh, 0)) {
 		case PAM_SUCCESS:
 			break;
 
 		default:
-			socks_reseteuid(socksconfig.uid.privileged, euid);
+			socks_reseteuid(sockscf.uid.privileged, euid);
 			snprintf(emsg, emsgsize, "pam %s", pam_strerror(pamh, rc));
 			return -1;
 	}
 
-	socks_reseteuid(socksconfig.uid.privileged, euid);
+	socks_reseteuid(sockscf.uid.privileged, euid);
 	return 0;
 }
 

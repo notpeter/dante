@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -48,7 +48,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.28 2001/06/26 12:58:34 michaels Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.29 2001/12/12 14:42:12 karls Exp $";
 
 static char executable[] = "TELNET.EXE";
 static struct sigaction oldsigio;

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.47 2001/11/22 14:00:40 michaels Exp $ */
+/* $Id: config.h,v 1.48 2001/12/11 14:53:11 karls Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -88,7 +88,7 @@
 
 /*
  * if we mark a route/socksserver as bad, how many seconds to wait
- * until we expire the badmarking so it will be tried again for new 
+ * until we expire the badmarking so it will be tried again for new
  * connections.
  * A value of zero means never.
  */
@@ -142,7 +142,7 @@
 #endif /* !HAVE_SOCKD_CONFIGFILE */
 
 /* max number of clients pending to server (argument to listen()).
- * The Apache people say: 
+ * The Apache people say:
  *   It defaults to 511 instead of 512 because some systems store it
  *   as an 8-bit datatype; 512 truncated to 8-bits is 0, while 511 is
  *   255 when truncated.

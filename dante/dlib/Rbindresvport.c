@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbindresvport.c,v 1.19 2001/10/15 18:00:37 karls Exp $";
+"$Id: Rbindresvport.c,v 1.21 2001/12/12 14:42:06 karls Exp $";
 
 /*
  * Note that for this function to work correctly the remote socksserver
@@ -57,13 +57,13 @@ Rbindresvport(sd, sin)
 	struct sockaddr_in *sin;
 
 {
-	const char *function = "Rbindresvport()"; 
+	const char *function = "Rbindresvport()";
 	struct sockaddr name;
 	socklen_t namelen;
 
 	clientinit();
 
-	slog(LOG_DEBUG, "%s", function);  
+	slog(LOG_DEBUG, "%s", function);
 
 	if (bindresvport(sd, sin) != 0)
 		return -1;

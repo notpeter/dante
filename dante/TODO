@@ -1,4 +1,6 @@
-# $Id: TODO,v 1.153 2001/11/09 10:20:29 karls Exp $
+# $Id: TODO,v 1.155 2002/01/29 11:16:29 michaels Exp $
+
+* make "unexpected source" in relation to bindreply go through iolog().
 
 * change _t struct's to typedef.
 
@@ -14,7 +16,7 @@
 
 * shrink io_t, too big.
 
-* solaris cc needs -misalign due to alignment problems with sockaddr/
+* Solaris cc needs -misalign due to alignment problems with sockaddr/
   sockaddr_in casts. causes coredump with ftp (passive ls) in client,
   in sockshost2sockaddr (util.c, line 271, version 1.94).
 

@@ -1,10 +1,10 @@
-# $Id: SUPPORT,v 1.9 2001/04/19 07:10:05 karls Exp $
+# $Id: SUPPORT,v 1.10 2001/12/12 12:54:32 karls Exp $
 
 Dante is developed by Inferno Nettverk A/S, Norway.
 
-Dante is available under such a license that you can use it for
-free.  Inferno Nettverk does however provide various commercial
-services related to Dante.  This sponsors further development.
+Dante is available under such a license that you can use it for free.
+Inferno Nettverk A/S does however provide various commercial services
+related to Dante.  This sponsors further development.
 
 The services include both custom installs of Dante, performed over
 the network if need be, as well as commercial support.

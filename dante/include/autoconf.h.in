@@ -183,6 +183,8 @@
 #undef HAVE_SOCKD_CONFIGFILE
 #undef HAVE_SOCKS_CONFIGFILE
 
+#undef HAVE_DISABLED_PIDFILE
+
 /* some netdb.h files doesn't appear to declare h_errno */
 #undef HAVE_H_ERRNO
 
@@ -211,7 +213,7 @@
 /* more Solaris bugs */
 #undef HAVE_SOLARIS_PAM_BUG
 
-/* support for reqtrieval of route data? */
+/* support for retrieval of route data? */
 #undef HAVE_ROUTE_SOURCE
 
 /* architecture dependent code */
@@ -311,6 +313,9 @@
 #undef HAVE_PROT_GETHOSTBYADDR_2
 #undef HAVE_PROT_GETHOSTBYADDR_3
 
+/* Define if you have the <arpa/nameser.h> header file. */
+#undef HAVE_ARPA_NAMESER_H
+
 /* Define if you have the `bzero' function. */
 #undef HAVE_BZERO
 
@@ -404,6 +409,9 @@
 /* Define if you have the <paths.h> header file. */
 #undef HAVE_PATHS_H
 
+/* Define if you have the <resolv.h> header file. */
+#undef HAVE_RESOLV_H
+
 /* Define if you have the <security/pam_appl.h> header file. */
 #undef HAVE_SECURITY_PAM_APPL_H
 
@@ -424,6 +432,9 @@
 
 /* Define if you have the `socket' function. */
 #undef HAVE_SOCKET
+
+/* Define if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
 
 /* Define if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
@@ -464,11 +475,20 @@
 /* Define if you have the <sys/ioctl.h> header file. */
 #undef HAVE_SYS_IOCTL_H
 
+/* Define if you have the <sys/ipc.h> header file. */
+#undef HAVE_SYS_IPC_H
+
 /* Define if you have the <sys/sem.h> header file. */
 #undef HAVE_SYS_SEM_H
 
+/* Define if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
 /* Define if you have the <sys/time.h> header file. */
 #undef HAVE_SYS_TIME_H
+
+/* Define if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
 
 /* Define if you have <sys/wait.h> that is POSIX.1 compatible. */
 #undef HAVE_SYS_WAIT_H

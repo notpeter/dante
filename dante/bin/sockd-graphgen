@@ -1,0 +1,647 @@
+#!/usr/bin/perl -w
+#
+# generate Dante usage statistics (with gnuplot)
+#
+# usage: sockd-graphgen logfile
+#
+#XXX interpolation (when > snapinterval between logmessages)?
+
+use strict;
+use Getopt::Std;
+
+my ($progname,$usage,$url);
+
+$progname= __FILE__;
+$progname=~s/.*\/([^\/]*)$/$1/; #basename URL
+$usage = <<EOT;
+$progname
+
+    Generates graphs of Dante usage from logfiles.
+    Use with 'log: connect disconnect error iooperation' in sockd.conf.
+
+ usage:
+        $progname [-h] logfile
+
+
+    -h           : this help text
+EOT
+
+#set up default values
+$::opt_h = undef;
+
+#parse agruments
+getopts('h');
+
+#help?
+if($::opt_h) {
+    print $usage;
+    exit(0);
+}
+
+my $NOW = scalar localtime;
+my $hist = {};
+$hist->{'port'} = {};
+
+my $gstate = {};
+$gstate->{'conn'} = {};
+$gstate->{'srcports'} = {};
+$gstate->{'children'} = {};
+$gstate->{'conntypes'} = {};
+$gstate->{'connproto'} = {};
+$gstate->{'simconn'} = 0;
+$gstate->{'simconn-max'} = 0;
+$gstate->{'accbw'} = 0;
+$gstate->{'accbw-udp'} = 0;
+$gstate->{'accbw-tcp'} = 0;
+$gstate->{'accbw-http'} = 0;
+$gstate->{'errs'} = 0;
+$gstate->{'block-server'} = 0;
+$gstate->{'block-cmd'} = 0;
+
+my $files = {}; #files written to
+my $parserr = 0;
+my $lasttime = "";
+
+while(<>) {
+  my $line = $_;
+
+  my $log = parselogline($line);
+  next unless defined $log;
+
+  if ($log->{'state'} eq "open") {
+    state_open($gstate, $log);
+  } elsif ($log->{'state'} eq "active") {
+    state_active($gstate, $log);
+  } elsif ($log->{'state'} eq "close") {
+    state_close($gstate, $log);
+  } elsif ($log->{'state'} eq "fork") {
+    state_fork($gstate, $log);
+  } elsif ($log->{'state'} eq "block") {
+    state_block($gstate, $log);
+  } elsif ($log->{'state'} eq "reset") {
+    state_reset($gstate, 1);
+  } else {
+    die "internal error";
+  }
+
+  die "internal error" if $gstate->{'simconn'} < 0;
+  if (!$lasttime) {
+    $lasttime = $log->{'date'};
+  } else {
+    my @d = datediff($log->{'date'}, $lasttime);
+
+    if ($d[0] >=  15 * 60) {
+      plotgraphs($gstate, $log->{'date'}, $d[0]);
+
+      $lasttime = $log->{'date'};
+      state_reset($gstate);
+    } else {
+      if (exists $log->{'bytes'}) {
+	$gstate->{'accbw'} += $log->{'bytes'};
+	$gstate->{'accbw-tcp'} += $log->{'bytes'} if $log->{'proto'} eq 'tcp';
+	$gstate->{'accbw-udp'} += $log->{'bytes'} if $log->{'proto'} eq 'udp';
+	if (($log->{'srcport'} eq '80') or ($log->{'dstport'} eq '80')) {
+	  $gstate->{'accbw-http'} += $log->{'bytes'};
+	}
+      }
+    }
+  }
+}
+
+for my $file (keys %$files) {
+    system("gnuplot ${file}.gp");
+    warn "gnuplot failed ($?)" unless $? == 0;
+    warn "unlink failure" unless (unlink "$file", "${file}.gp") == 2;
+}
+
+exit 0;
+######################################################################
+sub state_fork {
+  my $state = shift;
+  my $log = shift;
+
+  my $key = $log->{'proctype'};
+
+  if (!exists $state->{'children'}{$key}) {
+    $state->{'children'}{$key} = 0;
+  }
+
+  $state->{'children'}{$key} ++;
+}
+
+sub state_block {
+  my $state = shift;
+  my $log = shift;
+
+  #XXXsimple
+  if ($log->{'blocktype'} eq "server") {
+    $state->{'block-server'}++;
+  } else {
+    $state->{'block-cmd'}++;
+  }
+}
+
+sub state_open {
+  my $state = shift;
+  my $log = shift;
+
+  my $key = $log->{'key'};
+  my ($srcport, $dstport) = ($log->{'srcport'}, $log->{'dstport'});
+  my $conn = $state->{'conn'};
+  my $srcports = $state->{'srcports'};
+
+  $conn->{$key} = {};
+  $conn->{$key}{'trans'} = 0;
+  #XXX
+  if ($log->{'operation'} ne "accept" and $log->{'operation'} ne "bind") {
+    $state->{'simconn'} ++;
+  }
+
+  if (!exists $srcports->{$srcport}) {
+    $srcports->{$srcport} = {};
+    $srcports->{$srcport}{'conn'} = 0;
+    $srcports->{$srcport}{'bytes'} = 0;
+  }
+
+  my ($proto, $op) = ($log->{'proto'}, $log->{'operation'});
+
+  if (!exists $state->{'conntypes'}{$op}) {
+    $state->{'conntypes'}{$op} = 0 ;
+  }
+  $state->{'conntypes'}{$op} ++;
+
+  if (!exists $state->{'connproto'}{$proto}) {
+    $state->{'connproto'}{$proto} = 0 ;
+  }
+  $state->{'connproto'}{$proto} ++;
+
+  $srcports->{$srcport}{'conn'} ++;
+}
+
+sub state_active {
+  my $state = shift;
+  my $log = shift;
+
+  my $key = $log->{'key'};
+  my $conn = $state->{'conn'};
+  my $srcports = $state->{'srcports'};
+  my $srcport = $log->{'srcport'};
+
+  $conn->{$key}{'trans'} += $log->{'bytes'};
+  $srcports->{$srcport}{'bytes'} += $log->{'bytes'};
+}
+
+sub state_close {
+  my $state = shift;
+  my $log = shift;
+
+  my $key = $log->{'key'};
+
+  if (!exists $state->{'conn'}{$key}
+      and $log->{'proto'} ne 'udp') { #XXX
+      warn "no match for key: $key, ignoring";
+    return;
+  }
+
+  if ($log->{'reason'} !~ /^(remote|client) closed$/) {
+    $state->{'errs'} ++;
+#    warn $log->{'reason'};
+  }
+
+  if ($state->{'simconn'} > $state->{'simconn-max'}) {
+    $state->{'simconn-max'} = $state->{'simconn'};
+  }
+  $state->{'simconn'} --;
+}
+
+sub parselogline {
+  my $line = shift;
+  my $oline = $line;
+
+  my $log = {};
+
+  if ($line !~ s/^(\w+)\s+(\d+)\s+(\d+):(\d+):(\d+)\s+sockd\[\d+\]:\s+//o) {
+    $parserr++;
+#    warn;
+    return undef;
+  } else {
+    my ($month, $day, $hour, $min, $sec) = ($1, $2, $3, $4, $5);
+    $log->{'date'} = "$month $day $hour:$min:$sec"; #XXX
+  }
+
+  if ($line =~ s/^(isonexternal\(\)|getifa\(\)|open\([^\)]+\)|serverinit\(\)):\s+//o) {
+    return undef; #ignore
+  }
+
+  if ($line =~ s/^dante\/server\s+v\S+\s+running$//o or
+      $line =~ s/^sockdexit\(\):\s+(.*)$//o) {
+    my $reson = $1;
+    $log->{'state'} = "reset";
+    $log->{'reason'} = (defined $1 ? "$1" : "startup");
+    return $log;
+  }
+
+  if ($line =~ s/^created\s+new\s+(\w+)$//o) {
+    $log->{'proctype'} = $1;
+    $log->{'state'} = "fork";
+    return $log;
+  }
+
+  if ($line =~ s/^block\(\d+\):\s+//o) {
+    $log->{'state'} = "block";
+    #XXX simple; to server or command,
+    if ($line =~ s/tcp\/accept\s+//o) {
+      $log->{'blocktype'} = "server";
+    } else {
+      $log->{'blocktype'} = "command";
+    }
+    return $log;
+  }
+
+  #XXX last?
+  if ($line !~ s/^pass\(\d\):\s+//o) {
+    $parserr++;
+#    warn "$oline";
+#    warn;
+    return undef;
+  } else {
+    if ($line =~ s/^(tcp)\/(accept|bind)\s+//o) {
+      my ($proto, $op) = ($1, $2);
+      $log->{'proto'} = $proto;
+      $log->{'operation'} = $op;
+
+      #XXX other states?
+      if ($line =~ s/^\[:\s+//o) {
+	#open
+	$log->{'state'} = "open";
+      } elsif ($line =~ s/^\]:\s+//o) {
+	  #XXX close in all cases? ignore?
+	  return undef;
+      } else {
+	$parserr++;
+	warn;
+	return undef;
+      }
+
+      #XXX dup
+      my ($indata, $src, $dst, $key);
+      if ($log->{'state'} eq "open" or $log->{'state'} eq "active") {
+	if ($line !~ s/^((?:\w+\%\w+\@)?([\w\d\.]+)\s+->\s+(?:\w+\%\w+\@)?([\w\d\.]+))\s+//o) {
+	  $parserr++;
+	  warn;
+	  return undef;
+	} else {
+	  ($key, $src, $dst) = ($1, $2, $3);
+	  $key = "$2 -> $3"; #XXX
+#	  warn $key;
+	}
+      } else {
+	die "unexpected";
+      }
+
+      my ($key_a, $key_b) = sort split /\s+->\s+/o, $key;
+      $key = "$key_a <-> $key_b";
+#      warn $key;
+
+      $log->{'key'} = $key;
+      $log->{'src'} = $src;
+      $log->{'dst'} = $dst;
+
+      if ($src !~ s/\.(\d+)$//o) {
+	$parserr++;
+	return undef;
+      } else {
+	$log->{'srcport'} = $1;
+      }
+
+      if ($dst !~ s/\.(\d+)$//o) {
+	$parserr++;
+	warn;
+	return undef;
+      } else {
+	$log->{'dstport'} = $1;
+      }
+      $log->{'bytes'} = 0;
+      #XXX dup end
+
+      return $log;
+    }
+
+
+    if ($line !~ s/^(tcp|udp)\/(connect|bindreply|udpassociate|udpreply)\s+//o) {
+      $parserr++;
+      warn;
+#      warn "$oline";
+      return undef;
+    } else {
+      my ($proto, $op) = ($1, $2);
+
+      if ($op eq "udpreply") {
+	$op = "udpassociate"; #XXX
+      }
+
+      $log->{'proto'} = $proto;
+      $log->{'operation'} = $op;
+
+      if ($line =~ s/^\[:\s+//o) {
+	#open
+	$log->{'state'} = "open";
+      } elsif ($line =~ s/^-:\s+//o) {
+	#active
+	$log->{'state'} = "active";
+      } elsif ($line =~ s/^\]:\s+//o) {
+	#close
+	$log->{'state'} = "close";
+      } else {
+	$parserr++;
+	warn;
+	return undef;
+      }
+
+      my ($indata, $src, $outdata, $outdata2, $dst, $indata2, $reason, $key);
+      if ($log->{'state'} eq "open" or $log->{'state'} eq "active") {
+	if ($line !~ s/^((?:\w+\%\w+\@)?([\w\d\.]+)\s+->\s+(?:\w+\%\w+\@)?([\w\d\.]+))\s+//o) {
+	  $parserr++;
+	  warn;
+	  return undef;
+	} else {
+	  ($key, $src, $dst) = ($1, $2, $3);
+	  #XXX
+	  $key = "$2 -> $3";
+	}
+      } elsif ($log->{'state'} eq "close") {
+	if ($line !~ s/^(\d+)\s+->\s+(?:\w+\%\w+\@)?([\w\d\.]+)\s+->\s+(\d+),\s+(\d+)\s+->\s+([\w\d\.\`\']+)\s+->\s+(\d+):\s+(.*)//o) {
+	  $parserr++;
+	  warn $oline;
+	  warn;
+	  return undef;
+	} else {
+	  ($indata, $src, $outdata, $outdata2, $dst, $indata2, $reason) = ($1, $2, $3, $4, $5, $6, $7);
+	  $key = "$src -> $dst";
+#	  warn "in/out data doesn't match ($indata != $indata2/$outdata != $outdata2)" unless $indata == $indata2 and $outdata == $outdata2;
+	  $log->{'reason'} = $reason;
+	}
+      } else {
+	die "internal error";
+      }
+
+      #XXX key hack (don't care about direction)
+      my ($key_a, $key_b) = sort split /\s+->\s+/o, $key;
+      $key = "$key_a <-> $key_b";
+#      warn $key;
+
+      $log->{'key'} = $key;
+      $log->{'src'} = $src;
+      $log->{'dst'} = $dst;
+
+      if ($dst eq "`world'") {
+	return $log;
+      }
+
+      if ($src !~ s/\.(\d+)$//o) {
+	$parserr++;
+	return undef;
+      } else {
+	$log->{'srcport'} = $1;
+      }
+
+      if ($dst !~ s/\.(\d+)$//o) {
+	$parserr++;
+	warn;
+	return undef;
+      } else {
+	$log->{'dstport'} = $1;
+      }
+
+      if ($log->{'state'} eq "active") {
+	if ($line !~ s/^\((\d+)\)//o) {
+	  $parserr++;
+	  warn;
+	  return undef;
+	} else {
+	  my $bytes = $1;
+	  $log->{'bytes'} = $bytes;
+	}
+      }
+    }
+  }
+
+  return $log;
+}
+
+#XXX Date::Manip?
+sub dateparse {
+  my $date = shift;
+
+  my $months = {
+		'Jan' => 1,
+		'Feb' => 2,
+		'Mar' => 3,
+		'Apr' => 4,
+		'May' => 5,
+		'Jun' => 6,
+		'Jul' => 7,
+		'Aug' => 8,
+		'Sep' => 9,
+		'Okt' => 10,
+		'Nov' => 11,
+		'Dec' => 12,
+	       };
+
+  #XXX probably not correct for other platforms
+  die "invalid date format: $date" unless $date =~ /^(\w+)\s+(\d+)\s+(\d+):(\d+):(\d+)/o;
+  my ($month, $mday, $hour, $min, $sec) = ($1, $2, $3, $4, $5);
+
+  die "unknown month $month" unless exists $months->{$month};
+  $month = $months->{$month};
+
+  return ([$month, $mday, $hour, $min, $sec]);
+}
+
+sub datediff {
+  my @date1 = @{ dateparse(shift) };
+  my @date2 = @{ dateparse(shift) };
+
+  die "date error" unless $#date1 == $#date2;
+
+  my @diff;
+  for my $i (0 .. $#date1 ) {
+    push @diff, $date1[$i] - $date2[$i];
+  }
+
+  #return as (seconds, months)
+  my $inc = 1;
+  my $sec = $diff[4] * $inc; #sec
+  $inc *= 60;
+  $sec += $diff[3] * $inc; #min
+  $inc *= 60;
+  $sec += $diff[2] * $inc; #hour
+  $inc *= 24;
+  $sec += $diff[1] * $inc; #day
+
+  return ($sec, $diff[0])
+}
+
+sub plotgraphs {
+  my $state = shift;
+  my $time = shift;
+  my $duration = shift;
+
+  my @date = @{ dateparse($time) };
+
+  #children + simultaneous connections
+  my $fdate = sprintf "%02d-%02d", $date[0], $date[1];
+  my $filename = sprintf "procs-$fdate.dat", $date[0], $date[1];
+  if (!exists $files->{$filename}) {
+    $files->{$filename} = 1;
+    open(GPROC, ">$filename") or die "error: unable to open $filename: $!\n";
+    print GPROC "#Dante statistics, generated by '$0' at $NOW.\n";
+    print GPROC "# server state overview\n";
+
+    my $imgname = sprintf "procs-$fdate.img";
+    open(GP, ">${filename}.gp") or die "error: unable to open ${filename}.gp: $!\n";
+    print GP '
+set title "Dante process state"
+set xdata time
+set timefmt "%H:%M"
+set format x "%H:%M"
+set xlabel "time"
+set data style lines
+set yrange [0:]
+set xrange ["00:00":"23:59"]
+#set terminal postscript color
+set terminal pbm color
+set output "', $imgname, '"
+
+plot \'', $filename,'\' using 1:2 title "active sessions", \
+ \'', $filename, '\' using 1:3 title "max active sessions", \
+ \'', $filename, '\' using 1:4 title "requestchildren", \
+ \'', $filename, '\' using 1:5 title "negotiatorchildren", \
+ \'', $filename, '\' using 1:6 title "io children"';
+    close GP;
+  } else {
+    open(GPROC, ">>$filename") or die "error: unable to open $filename: $!\n";
+  }
+
+  print GPROC "$date[2]:$date[3] ";
+  print GPROC "$state->{'simconn'} $state->{'simconn-max'} ";
+  for my $key (qw(requestchild negotiatorchild iochild)) {
+    if (exists $state->{'children'}{$key}) {
+      print GPROC "$state->{'children'}{$key} ";
+    } else {
+      print GPROC "0 ";
+    }
+  }
+  print GPROC "\n";
+  close GPROC;
+
+  #bw
+  $filename = sprintf "bw-$fdate.dat", $date[0], $date[1];
+  my $bps = ($state->{'accbw'} / $duration) * 8;
+  my $tbps = ($state->{'accbw-tcp'} / $duration) * 8;
+  my $ubps = ($state->{'accbw-udp'} / $duration) * 8;
+  my $hbps = ($state->{'accbw-http'} / $duration) * 8;
+  if (!exists $files->{$filename}) {
+    $files->{$filename} = 1;
+    open(GBW, ">$filename") or die "error: unable to open $filename: $!\n";
+    print GBW "#Dante statistics, generated by '$0' at $NOW.\n";
+    print GBW "# bandwidth usage\n";
+
+    my $imgname = "bw-$fdate.img";
+    open(GP, ">${filename}.gp") or die "error: unable to open ${filename}.gp: $!\n";
+    print GP '
+set title "Bandwidth usage"
+set xdata time
+set timefmt "%H:%M"
+set format x "%H:%M"
+set xlabel "time"
+set data style lines
+set ylabel "Mbps"
+set xrange ["00:00":"23:59"]
+#set terminal postscript color
+set terminal pbm color
+set output "', $imgname, '"
+
+plot \'', $filename,'\' using 1:($2/(1024*1024))  title "total", \
+ \'', $filename, '\' using 1:($3/(1024*1024))  title "TCP", \
+ \'', $filename, '\' using 1:($4/(1024*1024))  title "UDP", \
+ \'', $filename, '\' using 1:($5/(1024*1024))  title "\'HTTP\'"';
+    close GP;
+  } else {
+    open(GBW, ">>$filename") or die "error: unable to open $filename: $!\n";
+  }
+  print GBW "$date[2]:$date[3] ";
+  print GBW "$bps $tbps $ubps $hbps";
+  print GBW "\n";
+  close GBW;
+
+  #commands
+  $filename = "cmds-$fdate.dat";
+  if (!exists $files->{$filename}) {
+    $files->{$filename} = 1;
+    open(GCMD, ">$filename") or die "error: unable to open $filename: $!\n";
+    print GCMD "#Dante statistics, generated by '$0' at $NOW.\n";
+    print GCMD "# server command usage overview\n";
+
+    my $imgname = "cmds-$fdate.img";
+    open(GP, ">${filename}.gp") or die "error: unable to open ${filename}.gp: $!\n";
+    print GP '
+set title "Dante command usage"
+set xdata time
+set timefmt "%H:%M"
+set format x "%H:%M"
+set xlabel "time"
+set data style lines
+set yrange [0:]
+set xrange ["00:00":"23:59"]
+#set terminal postscript color
+set terminal pbm color
+set output "', $imgname, '"
+
+plot \
+ \'', $filename, '\' using 1:2 title "bind", \
+ \'', $filename, '\' using 1:3 title "bindreply", \
+ \'', $filename, '\' using 1:4 title "udpassociate", \
+ \'', $filename, '\' using 1:5 title "connect", \
+ \'', $filename, '\' using 1:6 title "total client connections to Dante server", \
+ \'', $filename, '\' using 1:7 title "blocked client connections to Dante server", \
+ \'', $filename, '\' using 1:8 title "blocked client commands", \
+ \'', $filename, '\' using 1:9 title "failed connections"';
+    close GP;
+  } else {
+    open(GCMD, ">>$filename") or die "error: unable to open $filename: $!\n";
+  }
+  print GCMD "$date[2]:$date[3] ";
+  for my $key (qw(bind bindreply udpassociate connect accept)) {
+    if (exists $state->{'conntypes'}{$key}) {
+      print GCMD "$state->{'conntypes'}{$key} ";
+    } else {
+      print GCMD "0 ";
+    }
+  }
+  print GCMD "$state->{'block-server'} $state->{'block-cmd'} ";
+  print GCMD "$state->{'errs'} ";
+  print GCMD "\n";
+  close GCMD;
+}
+
+sub state_reset {
+  my $state = shift;
+  my $restart_only = shift || 0;
+
+  #server restarted/died
+  if ($restart_only) {
+    $gstate->{'simconn'} = 0;
+    $gstate->{'children'} = {};
+  } else {
+    $gstate->{'accbw'} = 0;
+    $gstate->{'accbw-tcp'} = 0;
+    $gstate->{'accbw-udp'} = 0;
+    $gstate->{'accbw-http'} = 0;
+    $gstate->{'conntypes'} = {};
+    $gstate->{'simconn-max'} = 0;
+    $gstate->{'errs'} = 0;
+    $gstate->{'block-server'} = 0;
+    $gstate->{'block-cmd'} = 0;
+  }
+}

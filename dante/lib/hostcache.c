@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.22 2001/02/06 15:58:55 michaels Exp $";
+"$Id: hostcache.c,v 1.23 2001/12/12 14:42:11 karls Exp $";
 
 __BEGIN_DECLS
 

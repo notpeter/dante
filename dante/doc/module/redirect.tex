@@ -1,4 +1,4 @@
-%@(#)$Id: redirect.tex,v 1.10 2001/11/13 09:16:12 michaels Exp $
+%@(#)$Id: redirect.tex,v 1.11 2001/12/12 13:17:28 karls Exp $
 %/*
 % * Copyright (c) 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -50,12 +50,12 @@
 
 \title{\emph{Dante}, Module \emph{Redirect}}
 \author{
-        Inferno Nettverk A/S \\
-        Oslo Research Park   \\
-        Gaustadalléen 21   	\\
-        NO-0349 Oslo          \\
-        Norway}
-\date{$$$$Date: 2001/11/13 09:16:12 $$$$}
+	Inferno Nettverk A/S \\
+	Oslo Research Park   \\
+	Gaustadalléen 21	\\
+	NO-0349 Oslo          \\
+	Norway}
+\date{$$$$Date: 2001/12/12 13:17:28 $$$$}
 
 \makeindex
 
@@ -68,7 +68,7 @@
 
 \section{Description}
  The \emph{Redirect} module gives you control over both
- where clients requests and replies will end up, and 
+ where clients requests and replies will end up, and
  what addresses and portranges the Dante server will use on behalf
  of the clients for outgoing connections.
 
@@ -76,7 +76,7 @@
  another, useful for cases where you for instance want clients
  to go via a local web-proxy instead of directly to the webserver.
 
- It can be used to restrict the portranges used by the Dante server, 
+ It can be used to restrict the portranges used by the Dante server,
  useful for cases where a firewall needs to know what portranges
  the Dante server will use.
 
@@ -105,7 +105,7 @@
 
  \subsection{\texttt{bind} (\texttt{protocol: tcp})}
   \texttt{from} is the address to bind on behalf of the client. \\
-  \texttt{to} is ignored. 
+  \texttt{to} is ignored.
 
  \subsection{\texttt{bindreply} (\texttt{protocol: tcp})}
   \texttt{from} is the address to tell the client the bindreply (connection)
@@ -158,7 +158,7 @@ pass {
 
  \subsection{Limiting concurrent user sessions}
   A more novel use of the \texttt{redirect} statement allows one,
-  in a rather ad-hoc way, to limit the number of concurrent 
+  in a rather ad-hoc way, to limit the number of concurrent
   user sessions.
 
   The next rule says the server should limit itself to using
@@ -185,7 +185,7 @@ pass {
 	preferred.
 
 	As can probably be guessed, this is a new usage of the \texttt{redirect}
-	statement that was not intended in the design, but was discovered 
+	statement that was not intended in the design, but was discovered
 	by accident and is mentioned here since it could be useful.
 
 \end{document}

@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.124 2001/10/16 07:22:23 michaels Exp $";
+"$Id: udp.c,v 1.126 2001/12/12 14:42:14 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -85,7 +85,7 @@ Rsendto(s, msg, len, flags, to, tolen)
 		else { /* tcp. */
 			n =  sendto(s, msg, len, flags, NULL, 0);
 
-			slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)", 
+			slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)",
 			function, protocol2string(SOCKS_TCP),
 			sockaddr2string(&socksfd->local, dststring, sizeof(dststring)),
 			sockaddr2string(&socksfd->server, srcstring, sizeof(srcstring)), n);
@@ -109,7 +109,7 @@ Rsendto(s, msg, len, flags, to, tolen)
 
 	free(nmsg);
 
-	slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)", 
+	slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)",
 	function, protocol2string(SOCKS_TCP),
 	sockaddr2string(&socksfd->local, dststring, sizeof(dststring)),
 	sockaddr2string(&socksfd->reply, srcstring, sizeof(srcstring)), n);
@@ -166,20 +166,20 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 			case SOCKS_CONNECT:
 				forus = &socksfd->forus.connected;
 				break;
-			
+
 			case SOCKS_BIND:
 				forus = &socksfd->forus.accepted;
 				break;
-			
+
 			default:
 				SERRX(socksfd->state.command);
 		}
 
-		slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)", 
+		slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)",
 		function, protocol2string(SOCKS_TCP),
 		sockaddr2string(forus, srcstring, sizeof(srcstring)),
 		sockaddr2string(&socksfd->local, dststring, sizeof(dststring)), n);
-		
+
 		return n;
 	}
 
@@ -277,8 +277,8 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 
 	free(newbuf);
 
-	slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)", 
-	function, protocol2string(SOCKS_UDP), 
+	slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)",
+	function, protocol2string(SOCKS_UDP),
 	sockaddr2string(&newfrom, srcstring, sizeof(srcstring)),
 	sockaddr2string(&socksfd->local, dststring, sizeof(dststring)), n);
 

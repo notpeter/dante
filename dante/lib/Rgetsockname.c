@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.39 2001/10/15 18:00:38 karls Exp $";
+"$Id: Rgetsockname.c,v 1.41 2001/12/12 14:42:08 karls Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -58,7 +58,7 @@ Rgetsockname(s, name, namelen)
 
 	clientinit();
 
-	slog(LOG_DEBUG, "%s", function);  
+	slog(LOG_DEBUG, "%s", function);
 
 	if (!socks_addrisok((unsigned int)s)) {
 		socks_rmaddr((unsigned int)s);
@@ -81,10 +81,10 @@ Rgetsockname(s, name, namelen)
 			}
 
 			if (socksfd->state.inprogress) { /* non-blocking connect. */
-				/* 
+				/*
 				 * this is bad.  We don't know what address the socksserver
 				 * will use on our behalf yet.  Lets wait for a SIGCHLD
-				 * and then retry, unless client is blocking that signal, 
+				 * and then retry, unless client is blocking that signal,
 				 * then we can only hope the client will retry on ENOBUFS,
 				 * but we are probably screwed anyway.
 				*/

@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.41 2001/02/06 15:58:51 michaels Exp $";
+"$Id: clientprotocol.c,v 1.42 2001/12/12 14:42:09 karls Exp $";
 
 int
 socks_sendrequest(s, request)
@@ -79,7 +79,7 @@ socks_sendrequest(s, request)
 		 case SOCKS_V5:
 			/*
 			 * rfc1928 request:
-		    *
+			 *
 			 *	+----+-----+-------+------+----------+----------+
 			 *	|VER | CMD |  FLAG | ATYP | DST.ADDR | DST.PORT |
 			 *	+----+-----+-------+------+----------+----------+

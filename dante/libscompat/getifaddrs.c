@@ -1,4 +1,4 @@
-/* $Id: getifaddrs.c,v 1.1 2001/01/29 18:29:48 karls Exp $ */
+/* $Id: getifaddrs.c,v 1.2 2001/12/12 12:31:57 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -238,7 +238,7 @@ getifaddrs(struct ifaddrs **pif)
 		++icnt;
 		dcnt += SA_RLEN(sa);
 		ncnt += sizeof(ifr->ifr_name) + 1;
-		
+
 		ifr = (struct ifreq *)(((char *)sa) + SA_LEN(sa));
 	}
 #endif	/* NET_RT_IFLIST */
@@ -289,7 +289,7 @@ getifaddrs(struct ifaddrs **pif)
 				/* ifm_data needs to be aligned */
 				ift->ifa_data = data = (void *)ALIGN(data);
 				memcpy(data, &ifm->ifm_data, sizeof(ifm->ifm_data));
- 				data += sizeof(ifm->ifm_data);
+				data += sizeof(ifm->ifm_data);
 #else	/* HAVE_IFM_DATA */
 				ift->ifa_data = NULL;
 #endif	/* HAVE_IFM_DATA */
@@ -389,7 +389,7 @@ getifaddrs(struct ifaddrs **pif)
 		sa = &ifr->ifr_addr;
 		memcpy(data, sa, SA_LEN(sa));
 		data += SA_RLEN(sa);
-		
+
 		ifr = (struct ifreq *)(((char *)sa) + SA_LEN(sa));
 		ift = (ift->ifa_next = ift + 1);
 	}

@@ -1,5 +1,5 @@
 /*
- * $Id: getifa.c,v 1.24 2001/11/22 11:16:01 michaels Exp $
+ * $Id: getifa.c,v 1.27 2001/12/12 14:42:18 karls Exp $
  *
  * Copyright (c) 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -43,14 +43,14 @@
  *
  */
 
-/* 
+/*
  * This code originated from From Tom Chan <tchan@austin.rr.com>.
  */
 
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getifa.c,v 1.24 2001/11/22 11:16:01 michaels Exp $";
+"$Id: getifa.c,v 1.27 2001/12/12 14:42:18 karls Exp $";
 
 
 /*===========================================================================
@@ -69,7 +69,7 @@ __BEGIN_DECLS
 static struct in_addr
 getdefaultexternal __P((void));
 /*
- * Returns the default ipaddress to use for external connections.
+ * Returns the default IP address to use for external connections.
  */
 
 static int
@@ -106,8 +106,8 @@ getifa(destaddr)
 	struct in_addr inaddr_none;
 
 #if !DEBUG
-	if (socksconfig.external.addrc <= 1
-	||  socksconfig.external.rotation == ROTATION_NONE)
+	if (sockscf.external.addrc <= 1
+	||  sockscf.external.rotation == ROTATION_NONE)
 		return getdefaultexternal();
 #endif
 
@@ -116,16 +116,16 @@ getifa(destaddr)
 	/*===================================================================
 	 * Get a NETLINK_ROUTE socket.
 	 *==================================================================*/
-	socks_seteuid(&euid, socksconfig.uid.privileged);
+	socks_seteuid(&euid, sockscf.uid.privileged);
 	rtnetlink_sk = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
-	socks_reseteuid(socksconfig.uid.privileged, euid);
+	socks_reseteuid(sockscf.uid.privileged, euid);
 
 	if (rtnetlink_sk == -1) {
 		swarn("%s: socket(NETLINK_ROUTE)", function);
 		close(rtnetlink_sk);
 		return inaddr_none;
 	}
- 
+
 	/*===================================================================
 	 * Build the necessary data structures to get routing info.
 	 * The structures are:
@@ -242,17 +242,17 @@ getifa(destaddr)
 	inaddr_none.s_addr = htonl(INADDR_NONE);
 
 #if !DEBUG
-	if (socksconfig.external.addrc <= 1
-	||  socksconfig.external.rotation == ROTATION_NONE)
+	if (sockscf.external.addrc <= 1
+	||  sockscf.external.rotation == ROTATION_NONE)
 		return getdefaultexternal();
 #endif
 
 	/*===================================================================
 	 * Get a socket.
 	 *==================================================================*/
-	socks_seteuid(&euid, socksconfig.uid.privileged);
+	socks_seteuid(&euid, sockscf.uid.privileged);
 	sockfd = socket(AF_ROUTE, SOCK_RAW, 0);	/* need superuser privileges */
-	socks_reseteuid(socksconfig.uid.privileged, euid);
+	socks_reseteuid(sockscf.uid.privileged, euid);
 
 	if (sockfd == -1) {
 		swarn("%s: socket(AF_ROUTE)", function);
@@ -270,17 +270,17 @@ getifa(destaddr)
 		 * The structures are:
 		 *   rt_msghdr - Specifies RTM_GET for getting routing table
 		 *		info
-		 *   sockaddr - contains the destination address 
+		 *   sockaddr - contains the destination address
 		 *==========================================================*/
 
 		bzero(buf, sizeof(buf));
-		rtm 					= (struct rt_msghdr *) buf;
-		rtm->rtm_msglen 	= sizeof(struct rt_msghdr) + sizeof(struct sockaddr_in);
-		rtm->rtm_version 	= RTM_VERSION;
-		rtm->rtm_type 		= RTM_GET;
-		rtm->rtm_addrs 	= RTA_DST;
-		rtm->rtm_pid 		= pid = getpid();
-		rtm->rtm_seq 		= SEQ;
+		rtm					= (struct rt_msghdr *) buf;
+		rtm->rtm_msglen	= sizeof(struct rt_msghdr) + sizeof(struct sockaddr_in);
+		rtm->rtm_version	= RTM_VERSION;
+		rtm->rtm_type		= RTM_GET;
+		rtm->rtm_addrs		= RTA_DST;
+		rtm->rtm_pid		= pid = getpid();
+		rtm->rtm_seq		= SEQ;
 
 		sa							= (struct sockaddr *) (rtm + 1);
 		/* LINTED pointer casts may be troublesome */
@@ -297,7 +297,7 @@ getifa(destaddr)
 			swarn("%s: write() to AF_ROUTE failed", function);
 			close(sockfd);
 			return inaddr_none;
-    	}
+		}
 
 		do {
 			if (read(sockfd, rtm, sizeof(buf)) == -1) {
@@ -358,28 +358,28 @@ getdefaultexternal(void)
 	struct sockaddr bound;
 
 	/* find address to bind on clients behalf. */
-	switch ((*socksconfig.external.addrv).atype) {
+	switch ((*sockscf.external.addrv).atype) {
 		case SOCKS_ADDR_IFNAME:
-			if (ifname2sockaddr((*socksconfig.external.addrv).addr.ifname, 0,
+			if (ifname2sockaddr((*sockscf.external.addrv).addr.ifname, 0,
 			&bound) == NULL) {
 				swarnx("%s: can't find external interface/address: %s",
-				function, (*socksconfig.external.addrv).addr.ifname);
+				function, (*sockscf.external.addrv).addr.ifname);
 
 				/* LINTED pointer casts may be troublesome */
 				TOIN(&bound)->sin_addr.s_addr = htonl(INADDR_NONE);
 			}
 			break;
-	
+
 		case SOCKS_ADDR_IPV4: {
 			struct sockshost_t host;
 
-			sockshost2sockaddr(ruleaddress2sockshost(&*socksconfig.external.addrv,
+			sockshost2sockaddr(ruleaddress2sockshost(&*sockscf.external.addrv,
 			&host, SOCKS_TCP), &bound);
 			break;
 		}
 
 		default:
-			SERRX((*socksconfig.external.addrv).atype);
+			SERRX((*sockscf.external.addrv).atype);
 	}
 
 	/* LINTED pointer casts may be troublesome */
@@ -393,42 +393,42 @@ isonexternal(addr)
 	const char *function = "isonexternal()";
 	int i;
 
-	for (i = 0; i < socksconfig.external.addrc; ++i) {
+	for (i = 0; i < sockscf.external.addrc; ++i) {
 		struct sockaddr check;
 		int match = 0;
 
-		switch ((*socksconfig.external.addrv).atype) {
+		switch ((*sockscf.external.addrv).atype) {
 			case SOCKS_ADDR_IFNAME: {
 				int ifi;
 
 				ifi = 0;
-				while (ifname2sockaddr(socksconfig.external.addrv[i].addr.ifname,
+				while (ifname2sockaddr(sockscf.external.addrv[i].addr.ifname,
 				ifi++, &check) != NULL)
 					/* LINTED pointer casts may be troublesome */
-					if (TOIN(&check)->sin_addr.s_addr 
+					if (TOIN(&check)->sin_addr.s_addr
 					== TOCIN(addr)->sin_addr.s_addr) {
 						match = 1;
 						break;
 					}
 				}
 				break;
-		
+
 			case SOCKS_ADDR_IPV4:
 				/* LINTED pointer casts may be troublesome */
-				if (socksconfig.external.addrv[i].addr.ipv4.ip.s_addr
+				if (sockscf.external.addrv[i].addr.ipv4.ip.s_addr
 				== TOCIN(addr)->sin_addr.s_addr)
 					match = 1;
 				break;
 
 			default:
-				SERRX((*socksconfig.external.addrv).atype);
+				SERRX((*sockscf.external.addrv).atype);
 		}
 
 		if (match)
 			break;
 	}
 
-	if (i == socksconfig.external.addrc) {
+	if (i == sockscf.external.addrc) {
 		char a[MAXSOCKADDRSTRING];
 
 		swarnx("%s: %s selected for connection but not on external list",
@@ -438,4 +438,3 @@ isonexternal(addr)
 
 	return 1;
 }
-

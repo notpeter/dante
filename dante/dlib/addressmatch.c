@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.4 2001/11/11 13:38:22 michaels Exp $";
+"$Id: addressmatch.c,v 1.7 2001/12/12 14:42:08 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -110,7 +110,7 @@ addressmatch(rule, address, protocol, alias)
 	int matched, doresolve;
 	char rstring[MAXRULEADDRSTRING], astring[MAXSOCKSHOSTSTRING];
 
-	slog(LOG_DEBUG, "%s: %s, %s, %s, %d", 
+	slog(LOG_DEBUG, "%s: %s, %s, %s, %d",
 	function,
 	ruleaddress2string(rule, rstring, sizeof(rstring)),
 	sockshost2string(address, astring, sizeof(astring)),
@@ -176,7 +176,7 @@ addressmatch(rule, address, protocol, alias)
 	}
 
 	/* only needed for client really... */
-	switch (socksconfig.resolveprotocol) {
+	switch (sockscf.resolveprotocol) {
 		case RESOLVEPROTOCOL_TCP:
 		case RESOLVEPROTOCOL_UDP:
 			doresolve = 1;
@@ -187,7 +187,7 @@ addressmatch(rule, address, protocol, alias)
 			break;
 
 		default:
-			SERRX(socksconfig.resolveprotocol);
+			SERRX(sockscf.resolveprotocol);
 	}
 
 	/*
@@ -199,7 +199,7 @@ addressmatch(rule, address, protocol, alias)
 		/*
 		 * match(rule.ipaddress, address.hostname)
 		 * resolve address to ipaddress(es) and try to match each
-		 *	resolved ipaddress against rule.
+		 *	resolved IP address against rule.
 		 *		rule isin address->ipaddress(es)
 		 *		.
 		 */
@@ -231,8 +231,8 @@ addressmatch(rule, address, protocol, alias)
 		&address->addr.ipv4))) {
 			/*
 			 * Didn't match.  If alias is set, try to resolve address
-			 * to hostname(s), the hostname back to ipaddress(es) and
-			 * then match those ipaddress(es) against rule.
+			 * to hostname(s), the hostname back to IP address(es) and
+			 * then match those IP address(es) against rule.
 			 *		rule isin address->hostname(s)->ipaddress(es)
 			 *		.
 			 */
@@ -292,8 +292,8 @@ addressmatch(rule, address, protocol, alias)
 		 * Try simple match first.
 		 *
 		 * If no go and rule is a hostname rather than a domain,
-		 * resolve both rule and address to ipaddress(es) and compare
-		 * each ipaddress of resolved rule against each ipaddress of
+		 * resolve both rule and address to IP address(es) and compare
+		 * each IP address of resolved rule against each IP address of
 		 * resolved address.
 		 *		rule->ipaddress(es) isin address->ipaddress(es)
 		 *		.
@@ -333,7 +333,7 @@ addressmatch(rule, address, protocol, alias)
 				return 0;
 			}
 
-			mask.s_addr = htonl(0xffffffff); 
+			mask.s_addr = htonl(0xffffffff);
 			for (i = 0; !matched && hostent->h_addr_list[i] != NULL; ++i)
 				/* LINTED pointer casts may be troublesome */
 				matched
@@ -350,7 +350,7 @@ addressmatch(rule, address, protocol, alias)
 	&& address->atype == SOCKS_ADDR_IPV4) {
 		/*
 		 * match(rule.hostname, address.ipaddress)
-		 * If rule is not a domain, try resolving rule to ipaddress(es)
+		 * If rule is not a domain, try resolving rule to IP address(es)
 		 * and match against address.
 		 *		address isin rule->ipaddress
 		 *		.
@@ -360,7 +360,7 @@ addressmatch(rule, address, protocol, alias)
 		 *		rule isin address->hostname
 		 *		.
 		 *
-		 * If still no match and alias is set, resolve all ipaddresses
+		 * If still no match and alias is set, resolve all IP addresses
 		 * of all hostname(s) resolved from address back to hostname(s)
 		 * and match them against rule.
 		 *		rule isin address->hostname->ipaddress->hostname
@@ -467,7 +467,7 @@ addressmatch(rule, address, protocol, alias)
 	}
 	else if (rule->atype == SOCKS_ADDR_IFNAME) {
 		/*
-		 * Like ipaddress, just call it for each ipaddress of interface.
+		 * Like ipaddress, just call it for each IP address of interface.
 		 *
 		 * match(rule.ifname2ipaddress, address)
 		 */
@@ -480,10 +480,10 @@ addressmatch(rule, address, protocol, alias)
 			struct ruleaddress_t ruleaddr;
 
 			ruleaddr = *rule;	/* identical except addr field. */
-			ruleaddr.atype 						= SOCKS_ADDR_IPV4;
+			ruleaddr.atype							= SOCKS_ADDR_IPV4;
 			/* LINTED pointer casts may be troublesome */
-			ruleaddr.addr.ipv4.ip 				= TOIN(&sa)->sin_addr;
-			ruleaddr.addr.ipv4.mask.s_addr 	= htonl(0xffffffff);
+			ruleaddr.addr.ipv4.ip				= TOIN(&sa)->sin_addr;
+			ruleaddr.addr.ipv4.mask.s_addr	= htonl(0xffffffff);
 
 			matched = addressmatch(&ruleaddr, address, protocol, alias);
 		}
@@ -558,5 +558,3 @@ hostareeq(domain, remotedomain)
 	else /* need exact match. */
 		return strcasecmp(domain, remotedomain) == 0;
 }
-
-

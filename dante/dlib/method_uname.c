@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.34 2001/05/08 11:59:54 michaels Exp $";
+"$Id: method_uname.c,v 1.35 2001/12/12 14:42:12 karls Exp $";
 
 int
 clientmethod_uname(s, host, version)

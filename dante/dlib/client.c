@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.51 2001/11/11 13:38:23 michaels Exp $";
+"$Id: client.c,v 1.54 2001/12/12 14:42:09 karls Exp $";
 
 #if !HAVE_PROGNAME
 	char *__progname = "danteclient";
@@ -65,7 +65,7 @@ clientinit(void)
 /*	const char *function = "clientinit()"; */
 	static int initing;
 
-	if (socksconfig.state.init)
+	if (sockscf.state.init)
 		return;
 
 	if (initing)
@@ -73,16 +73,16 @@ clientinit(void)
 	initing = 1;
 
 	if (issetugid())
-		socksconfig.option.configfile = SOCKS_CONFIGFILE;
+		sockscf.option.configfile = SOCKS_CONFIGFILE;
 	else
-		if ((socksconfig.option.configfile = getenv("SOCKS_CONF")) == NULL)
-			socksconfig.option.configfile = SOCKS_CONFIGFILE;
+		if ((sockscf.option.configfile = getenv("SOCKS_CONF")) == NULL)
+			sockscf.option.configfile = SOCKS_CONFIGFILE;
 
 	/*
 	 * initialize misc. options to sensible default.
 	 */
-	socksconfig.resolveprotocol	= RESOLVEPROTOCOL_UDP;
-	socksconfig.option.lbuf			= 1;
+	sockscf.resolveprotocol	= RESOLVEPROTOCOL_UDP;
+	sockscf.option.lbuf			= 1;
 
 	genericinit();
 
@@ -212,7 +212,7 @@ serverreplyisok(version, reply, route)
 					return 0;
 			}
 			break;
-			
+
 		default:
 			SERRX(version);
 	}

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.299 2001/11/28 10:36:24 michaels Exp $ */
+/* $Id: common.h,v 1.303 2001/12/12 13:56:43 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -87,7 +87,9 @@
 #endif  /* HAVE_SYS_FILE_H */
 #include <sys/resource.h>
 #include <sys/ioctl.h>
+#if HAVE_SYS_IPC_H
 #include <sys/ipc.h>
+#endif /* HAVE_SYS_IPC_H */
 #if HAVE_SYS_SEM_H
 #include <sys/sem.h>
 #endif /* HAVE_SYS_SEM_H */
@@ -115,7 +117,9 @@
 #include <netinet/ip_var.h>
 #endif  /* HAVE_NETINET_IP_VAR_H */
 #include <arpa/inet.h>
+#if HAVE_ARPA_NAMESER_H
 #include <arpa/nameser.h>
+#endif /* HAVE_ARPA_NAMESER_H */
 #include <sys/mman.h>
 
 #include <assert.h>
@@ -164,12 +168,14 @@
 #define _XOPEN_SOURCE_EXTENDED
 #endif /* HAVE_DEC_PROTO */
 #endif  /* HAVE_UNISTD_H */
+#if HAVE_RESOLV_H
 #include <resolv.h>
+#endif /* HAVE_RESOLV_H */
 #if HAVE_IFADDRS_H
 #include <ifaddrs.h>
 #endif /* HAVE_IFADDRS_H */
 #if HAVE_PAM
-#include <security/pam_appl.h> 
+#include <security/pam_appl.h>
 #endif /* HAVE_PAM */
 
 #include "yacconfig.h"
@@ -441,7 +447,7 @@ struct ifaddrs {
 #define TOCIN(addr) ((const struct sockaddr_in *)(addr))
 
 /* global variables needed by everyone. */
-extern struct config_t socksconfig;
+extern struct config_t sockscf;
 extern char *__progname;
 
 #if !HAVE_H_ERRNO
@@ -557,7 +563,7 @@ extern int h_errno;
 #define OCTETIFY(a) ((a) = ((a) & 0xff))
 /*
  * Note that it's the argument that will be truncated, not just the
- * returnvalue.
+ * return value.
  */
 
 
@@ -568,7 +574,7 @@ extern int h_errno;
 /*
  * allocate memory for a controlmessage of size "size".  "name" is the
  * name of the allocated memory.
- */ 
+ */
 #if HAVE_CMSGHDR
 #define CMSG_AALLOC(name, size) \
 	union { \
@@ -595,7 +601,7 @@ extern int h_errno;
  * Returns the controldata member of "msg".
  */
 #if HAVE_CMSGHDR
-/* cast is neccessary on AIX, due to buggy headers there?. */
+/* cast is necessary on AIX, due to buggy headers there?. */
 #define CMSG_CONTROLDATA(msg)	((struct cmsghdr *)((msg).msg_control))
 #else /* !HAVE_CMSGHDR */
 #define CMSG_CONTROLDATA(msg)	((msg).msg_accrights)
@@ -603,7 +609,7 @@ extern int h_errno;
 
 /*
  * add "object" to "data".  "object" is the object to add to "data" at
- * offset "offset".  
+ * offset "offset".
  */
 #if HAVE_CMSGHDR
 #define CMSG_ADDOBJECT(object, data, offset) \
@@ -619,7 +625,7 @@ extern int h_errno;
 
 
 /*
- * get a object from controldata "data". 
+ * get a object from controldata "data".
  * "object" is the object to fill with data gotten from "data" at offset
  * "offset".
  */
@@ -661,7 +667,7 @@ extern int h_errno;
 
 /*
  * Sets up "object" for receiving a controlmessage of size "size".
- * "controlmem" is the memory set asside for the controlmessage.
+ * "controlmem" is the memory set aside for the controlmessage.
  */
 #if HAVE_CMSGHDR
 #define CMSG_SETHDR_RECV(object, controlmem, size) \
@@ -844,7 +850,7 @@ do {														\
 										sizeof(AUTHMETHOD_PAMs)))))
 
 /* number of supported methods. */
-#define MAXMETHOD					1 /* NONE 		*/	\
+#define MAXMETHOD					1 /* NONE		*/	\
 									 + 1 /* UNAME		*/	\
 									 + 1 /* RFC931		*/	\
 									 + 1 /* RFC931		*/
@@ -879,7 +885,7 @@ do {														\
 
 /* address types */
 #define SOCKS_ADDR_IPV4			0x01
-/* not a socks constant but put here for convinience. */
+/* not a socks constant but put here for convenience. */
 #define SOCKS_ADDR_IFNAME		0x02
 #define SOCKS_ADDR_DOMAIN		0x03
 #define SOCKS_ADDR_IPV6       0x04
@@ -923,7 +929,7 @@ do {														\
 #define MSPROXY_CONNREFUSED			0x4		/* low 12 bits seem to vary.	*/
 
 /*
- * Server seems to ignore loworder bits of a 0x47?? command, so take them
+ * Server seems to ignore low-order bits of a 0x47?? command, so take them
  * for our own use.
  */
 #define MSPROXY_HELLO				0x0500	/* packet 1 from client.				*/
@@ -1027,7 +1033,7 @@ struct extension_t {
 union socksaddr_t {
 	struct in_addr ipv4;
 	char				ipv6[SOCKS_IPV6_ALEN];
-	char				domain[MAXHOSTNAMELEN]; /* _always_ stored as C string. 		*/
+	char				domain[MAXHOSTNAMELEN]; /* _always_ stored as C string.		*/
 };
 
 /* the hostspecific part of misc. things */
@@ -1350,9 +1356,9 @@ struct authmethod_pam_t {
 /* this must be big enough to hold a complete method request. */
 struct authmethod_t {
 	int						method;					/* method in use.						*/
-	int						methodv[MAXMETHOD];	/* methods somewhere matched. 	*/
+	int						methodv[MAXMETHOD];	/* methods somewhere matched.		*/
 	size_t					methodc;					/* number of methods matched.		*/
-	int						badmethodv[MAXMETHOD];/* methods not matched. 			*/
+	int						badmethodv[MAXMETHOD];/* methods not matched.			*/
 	size_t					badmethodc;				/* number of methods not matched.*/
 
 	union {
@@ -1627,7 +1633,7 @@ struct sockaddr *
 sockshost2sockaddr __P((const struct sockshost_t *shost,
 								struct sockaddr *addr));
 /*
- * Converts the sockhost_t "shost" to a sockaddr struct and stores it
+ * Converts the sockshost_t "shost" to a sockaddr struct and stores it
  * in "addr".
  * Returns: "addr".
  */
@@ -1770,7 +1776,7 @@ snprintfn();
 /*
  * Wrapper around snprintf() for consistent behaviour, same as system
  * snprintf() but the following are also enforced:
- * 	returns 0 instead of -1 (rawterminates *str).
+ *		returns 0 instead of -1 (rawterminates *str).
  *		never returns a value greater than size - 1.
  */
 

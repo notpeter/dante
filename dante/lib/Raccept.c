@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.74 2001/10/15 18:00:37 karls Exp $";
+"$Id: Raccept.c,v 1.76 2001/12/12 14:42:05 karls Exp $";
 
 int
 Raccept(s, addr, addrlen)
@@ -62,7 +62,7 @@ Raccept(s, addr, addrlen)
 
 	clientinit();
 
-	slog(LOG_DEBUG, "%s", function);  
+	slog(LOG_DEBUG, "%s", function);
 
 	/* can't call Raccept() on unknown descriptors. */
 	if (!socks_addrisok((unsigned int)s)) {

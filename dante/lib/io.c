@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.54 2001/11/19 13:16:25 karls Exp $";
+"$Id: io.c,v 1.56 2001/12/12 14:42:12 karls Exp $";
 
 /* this file defines the functions. */
 #undef select
@@ -83,7 +83,7 @@ readn(d, buf, nbytes, auth)
 
 			if (errno == EAGAIN) {
 				fd_set rset;
-				
+
 				FD_ZERO(&rset);
 				FD_SET(d, &rset);
 				if (select(d + 1, &rset, NULL, NULL, NULL) == -1)
@@ -125,7 +125,7 @@ writen(d, buf, nbytes, auth)
 #endif
 			if (errno == EAGAIN) {
 				fd_set wset;
-				
+
 				FD_ZERO(&wset);
 				FD_SET(d, &wset);
 				if (select(d + 1, NULL, &wset , NULL, NULL) == -1)

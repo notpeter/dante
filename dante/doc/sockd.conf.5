@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.56 2001/10/15 17:15:56 karls Exp $
+.\" $Id: sockd.conf.5,v 1.58 2001/12/12 13:18:07 karls Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -64,17 +64,17 @@ The number of seconds a client has to send the request after a connect.
 Set it to 0 for forever.
 .IP \fBexternal\fP
 The address to be used for outgoing connections.
-The address given may be either a ipaddress or a interfacename.
+The address given may be either a IP address or a interfacename.
 Can be given multiple times for different addresses.
 .IP \fBexternal.rotation\fP
 If more than one external address is given, this governs which
 address is selected.  Valid values are \fBnone\fP (the default) and
-\fBroute\fP.  Note that \fBroute\fP might create problems for 
+\fBroute\fP.  Note that \fBroute\fP might create problems for
 ftp-clients using active ftp if the \fBDante\fP bind extension
 is enabled for the ftp-client.
 .IP \fBinternal\fP
 The internal addresses.  Connections will only be accepted on these addresses.
-The address given may be either a ipaddress or a interfacename.
+The address given may be either a IP address or a interfacename.
 .IP \fBiotimeout\fP
 The number of seconds an established connection can be idle.  Set it
 to 0 for forever.
@@ -97,7 +97,7 @@ See the section on methods for a explanation of the different methods.
 .IP \fBclientmethod\fP
 A list of acceptable authentication methods for client-rules,
 in order of preference.  These are the authenticationmethods
-that can provide authentications based on just the client's 
+that can provide authentications based on just the client's
 TCP connection.
 Supported values are \fBnone\fP, \fBrfc931\fP and \fBpam\fP.
 This list is used as the default for all coming rules until
@@ -158,8 +158,8 @@ pam database.
 
 
 .SH ADDRESSES
-Each address field can consist of a ipaddress (and where meaningful,
-a netmask, separated from the ipaddress by a '\fB/\fP' sign.), a hostname,
+Each address field can consist of a IP address (and where meaningful,
+a netmask, separated from the IP address by a '\fB/\fP' sign.), a hostname,
 or a domainname (designated so by the leading '\fB.\fP').
 Each address can be followed by a optional \fBport\fP specifier.
 .SH RULES
@@ -232,7 +232,7 @@ will be matched.
 The rule must also allow usernamebased methods.
 .IP \fBmethod\fP
 Require that the connection be "authenticated" using one of the
-given methods. 
+given methods.
 .IP \fBpam.servicename\fP
 Which servicename to use when involving pam.  Default is "sockd".
 
@@ -278,16 +278,16 @@ The rule applies to requests using the given proxyprotocol.
 Valid proxyprotocols are \fBsocks_v4\fP and \fBsocks_v5\fP.
 .IP \fBredirect\fP
 The source and/or destination can be redirected using the
-\fBredirect\fP statement.  The syntax of the statement is 
+\fBredirect\fP statement.  The syntax of the statement is
 as follows:
 
 .D1
-\fBredirect\fP from: \fBADDRESS\fP 
+\fBredirect\fP from: \fBADDRESS\fP
 
 .D1
-\fBredirect\fP to: \fBADDRESS\fP 
+\fBredirect\fP to: \fBADDRESS\fP
 
-The semantics of \fBfrom\fP and \fBto\fP vary according to 
+The semantics of \fBfrom\fP and \fBto\fP vary according to
 \fBcommand\fP and should be intuitive enough.
 
 .IP \fBuser\fP
@@ -312,6 +312,6 @@ For Inferno Nettverk A/S, Norway:
 sockd(8), hosts_access(5)
 .Pp
 Information about new releases and other related issues can be found
-on the 
+on the
 .Nm \fBDante\fP
 WWW home page at http://www.inet.no/dante.
