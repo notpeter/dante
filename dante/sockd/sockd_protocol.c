@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.93 2001/12/11 12:26:46 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.94 2002/03/25 10:34:48 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -231,7 +231,7 @@ recv_methods(s, request, state)
 	const unsigned char methodc = state->mem[state->reqread - 1];	/* NMETHODS */
 	unsigned char reply[ 1 /* VERSION	*/
 							 + 1 /* METHOD		*/
-							];
+							 ];
 
 	INIT(methodc);
 	CHECK(&state->mem[start], request->auth, NULL);

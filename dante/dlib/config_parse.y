@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.180 2001/12/12 14:42:10 karls Exp $";
+"$Id: config_parse.y,v 1.183 2002/05/01 12:35:14 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -202,6 +202,7 @@ static const struct {
 %type	<string> serverinit serverconfig
 %type	<string> userids user_privileged user_unprivileged user_libwrap
 %type	<uid>		userid
+%type	<string> childstate
 
 %token	<string> CLIENTRULE
 %token	<string> INTERNAL EXTERNAL EXTERNAL_ROTATION
@@ -214,6 +215,7 @@ static const struct {
 %token	<string> USERNAME
 %token	<string> USER_PRIVILEGED USER_UNPRIVILEGED USER_LIBWRAP
 %token	<string> LOGOUTPUT LOGFILE
+%token	<string> CHILD_MAXIDLENUMBER
 
 	/* route */
 %type	<string> route
@@ -307,6 +309,7 @@ serverconfig:	global_authmethod
 	|	logoutput
 	|	serveroption
 	|	userids
+	|	childstate
 	;
 
 serveroption:	compatibility
@@ -568,6 +571,19 @@ logoutputdevices:	logoutputdevice
 	|	logoutputdevice logoutputdevices
 	;
 
+childstate:
+	CHILD_MAXIDLENUMBER ':' NUMBER {
+#if SOCKS_SERVER
+		if (atoi($3) < SOCKD_FREESLOTS)
+			yyerror("child.maxidlenumber can't be less than SOCKD_FREESLOTS (%d)",
+			SOCKD_FREESLOTS);
+
+		sockscf.child.maxidlenumber = atoi($3);
+#endif
+	}
+	;
+
+
 userids:	user_privileged
 	|	user_unprivileged
 	|	user_libwrap
@@ -771,11 +787,19 @@ rule:	verdict '{' ruleoptions fromto ruleoptions '}' {
 
 
 ruleoption:	option
-	|	bandwidth { checkmodule("bandwidth"); }
+	|	bandwidth {
+#if SOCKS_SERVER
+			checkmodule("bandwidth");
+#endif
+	}
 	|	command
 	|	protocol
 	|	proxyprotocol
-	|	redirect	{ checkmodule("redirect"); }
+	|	redirect	{
+#if SOCKS_SERVER
+			checkmodule("redirect");
+#endif
+	}
 	;
 
 ruleoptions:	{ $$ = NULL; }
@@ -864,7 +888,9 @@ bandwidth:	BANDWIDTH ':' NUMBER {
 		if ((rule.bw = (bw_t *)malloc(sizeof(*rule.bw))) == NULL)
 			serr(EXIT_FAILURE, NOMEM);
 		*rule.bw = bwmeminit;
-		rule.bw->maxbps = atoi($3);
+		if ((rule.bw->maxbps = atoi($3)) <= 0)
+			yyerror("bandwidth value must be greater than 0");
+			
 #endif /* SOCKS_SERVER */
 	}
 	;

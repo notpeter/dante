@@ -42,9 +42,10 @@
  */
 
 #include "common.h"
+#include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.145 2001/12/12 14:42:20 karls Exp $";
+"$Id: sockd_request.c,v 1.148 2002/04/18 13:34:43 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -146,8 +147,7 @@ run_request(mother)
 			serr(EXIT_FAILURE, "%s: sending ack to mother failed", function);
 
 #if DIAGNOSTIC
-		SASSERTX(freec == freedescriptors(sockscf.option.debug ?
-		"end" : NULL));
+		SASSERTX(freec == freedescriptors(sockscf.option.debug ?  "end" : NULL));
 #endif /* DIAGNOSTIC */
 	}
 }
@@ -324,17 +324,25 @@ dorequest(mother, request)
 
 
 	/*
-	 * packet looks ok, fill in remaining bits needed to check rules.
+	 * packet looks ok, fill in remaining bits and check rules.
 	 */
 
 	/* LINTED pointer casts may be troublesome */
-	sockaddr2sockshost(&request->from,
-	&io.control.host);
+	sockaddr2sockshost(&request->from, &io.control.host);
+
+	io.control.s		= request->s;
+	io.control.laddr	= request->to;
+	io.control.raddr	= request->from;
 
 	switch (request->req.command) {
 		case SOCKS_BIND:
-			io.src.host = io.control.host;
+			/*
+			 * bind is a bit funky.  We first check if the bind request
+			 * is allowed, and then we transform io.dst to something
+			 * completly different to check if the bindreply is alloswed.
+			 */
 
+			io.src.host = io.control.host;
 			io.dst.host = request->req.host;
 
 			if (io.dst.host.atype					!= SOCKS_ADDR_IPV4
@@ -646,15 +654,16 @@ dorequest(mother, request)
 				break;
 			}
 
-			setproctitle("bindrelayer: %s -> %s",
-			sockaddr2string(&boundaddr, a, sizeof(a)),
-			sockshost2string(&io.src.host, b, sizeof(b)));
-
 			/*
-			 * regardless of what kind of bind semantics are in use,
-			 * portnumber is something we ignore when checking remote peer.
+			 * convert io.dst to the dst for bindreply, src will be 
+			 * the remote address we accept(2) the bindreply from.
 			 */
-			io.dst.host.port = htons(0);
+			if (io.state.extension.bind) {
+				io.dst.host.addr.ipv4 	= TOCIN(&request->from)->sin_addr;
+				io.dst.auth					= io.src.auth;
+			}
+			else
+				io.dst = io.src;
 
 			emfile = 0;
 			iolist = NULL;
@@ -663,7 +672,6 @@ dorequest(mother, request)
 			while (1) {
 				struct ruleaddress_t ruleaddr;
 				struct sockaddr remoteaddr;		/* remote address we accepted.	*/
-				struct sockshost_t remotehost;	/* remote address, sockhost form.*/
 				struct sockshost_t dsthost;		/* host to send reply to.			*/
 				struct sockaddr replyaddr;			/* address of bindreply socket.	*/
 				int replyredirect;
@@ -704,16 +712,17 @@ dorequest(mother, request)
 					query.auth = request->req.auth;
 					switch (p = recv_sockspacket(sv[client], &query, &state)) {
 						case -1:
-							iolog(&io.rule, &io.state, OPERATION_ABORT, &io.src.host,
-							&io.src.auth, &response.host, &io.dst.auth, NULL, 0);
+							iolog(&io.rule, &io.state, OPERATION_ABORT,
+							&io.control.host, &io.control.auth,
+							&response.host, &io.dst.auth, NULL, 0);
 							break;
 
 						case 0: {
 							char *emsg = "eof from client before bindreply received";
 
-							iolog(&io.rule, &io.state, OPERATION_ABORT, &io.src.host,
-							&io.src.auth, &response.host, &io.dst.auth, emsg,
-							strlen(emsg));
+							iolog(&io.rule, &io.state, OPERATION_ABORT,
+							&io.control.host, &io.control.auth,
+							&response.host, &io.dst.auth, emsg, strlen(emsg));
 							p = -1; /* session ended. */
 							break;
 						}
@@ -762,8 +771,8 @@ dorequest(mother, request)
 								if ((p = send_response(sv[client], &queryresponse))
 								!= 0)
 									iolog(&io.rule, &io.state, OPERATION_ABORT,
-									&io.src.host, &io.src.auth, &response.host,
-									&io.dst.auth, NULL, 0);
+									&io.control.host, &io.control.auth,
+									&response.host, &io.dst.auth, NULL, 0);
 						}
 					}
 
@@ -807,20 +816,17 @@ dorequest(mother, request)
 					}
 					break; /* errno is not ok. */
 				}
-				sockaddr2sockshost(&remoteaddr, &remotehost);
+				sockaddr2sockshost(&remoteaddr, &bindio.src.host);
+
+				bindio							= io; /* quick init of most stuff. */
+				bindio.state.command			= SOCKS_BINDREPLY;
+				/* no auth at the moment. */
+				bindio.state.auth.method	= AUTHMETHOD_NONE;
 
 				/* accepted connection.  Does remote address match requested? */
 				if (io.state.extension.bind
-				|| addressmatch(sockshost2ruleaddress(&io.dst.host, &ruleaddr),
-				&remotehost, SOCKS_TCP, 1)) {
-					bindio						= io; /* quick init of most stuff. */
-					bindio.src.host			= remotehost;
-					bindio.dst.host			= io.src.host;
-					bindio.state.command		= SOCKS_BINDREPLY;
-					bindio.dst.auth			= io.src.auth;
-
-					bindio.state.auth.method = AUTHMETHOD_NONE;
-
+				|| addressmatch(sockshost2ruleaddress(&io.src.host, &ruleaddr),
+				&bindio.src.host, SOCKS_TCP, 1)) {
 					permit = rulespermit(sv[remote], &request->from, &request->to,
 					&bindio.rule, &bindio.state, &bindio.src.host, &bindio.dst.host,
 					msg, sizeof(msg));
@@ -828,22 +834,19 @@ dorequest(mother, request)
 					bwuse(bindio.rule.bw);
 
 					bindio.src.auth = bindio.state.auth;
-
-					iolog(&bindio.rule, &bindio.state, OPERATION_CONNECT,
-					&bindio.src.host, &bindio.src.auth, &bindio.dst.host,
-					&bindio.dst.auth, msg, strlen(msg));
-
 				}
 				else {
-					char expected[MAXSOCKSHOSTSTRING];
+					bindio.rule.number 	= 0;
+					bindio.rule.verdict = VERDICT_BLOCK;
 
-					slog(LOG_INFO,
-					"%s(0): unexpected bindreply: %s (expected: %s) -> %s",
-					VERDICT_BLOCKs, sockaddr2string(&remoteaddr, a, sizeof(a)),
-					sockshost2string(&io.dst.host, expected, sizeof(expected)),
-					sockshost2string(&io.src.host, b, sizeof(b)));
+					snprintfn(msg, sizeof(msg), "expected reply from %s",
+					sockshost2string(&io.src.host, a, sizeof(a)));
 					permit = 0;
 				}
+
+				iolog(&bindio.rule, &bindio.state, OPERATION_CONNECT,
+				&bindio.src.host, &bindio.src.auth, &bindio.dst.host,
+				&bindio.dst.auth, msg, strlen(msg));
 
 				if (!permit) {
 					close(sv[remote]);
@@ -918,8 +921,6 @@ dorequest(mother, request)
 						iolog(&bindio.rule, &bindio.state, OPERATION_ABORT,
 						&bindio.src.host, &bindio.src.auth,
 						&dsthost, &bindio.dst.auth, NULL, 0);
-
-						close(sv[remote]);
 						break;
 					}
 
@@ -952,9 +953,6 @@ dorequest(mother, request)
 				}
 				else
 					bindio.control.s = sv[client];
-
-				bindio.control.laddr	= request->to;
-				bindio.control.raddr	= request->from;
 
 				/* back to blocking. */
 				if (fcntl(sv[remote], F_SETFL, flags) == -1) {
@@ -1022,10 +1020,6 @@ dorequest(mother, request)
 				break;
 			}
 
-			io.control.s		= request->s;
-			io.control.laddr	= request->to;
-			io.control.raddr	= request->from;
-
 			io.src	= io.control;
 
 			io.dst.s	= out;
@@ -1067,10 +1061,6 @@ dorequest(mother, request)
 			setsockoptions(clientfd);
 
 			sockshost2sockaddr(&request->req.host, &client);
-
-			io.control.s			= request->s;
-			io.control.laddr		= request->to;
-			io.control.raddr		= request->from;
 
 			io.src.s									= clientfd;
 			io.src.raddr							= client;
@@ -1248,9 +1238,7 @@ proctitleupdate(from)
 {
 	char fromstring[MAXSOCKADDRSTRING];
 
-	setproctitle("requestcompleter: %s",
-	from == NULL ?
-	"<idle>" : sockaddr2string(from, fromstring, sizeof(fromstring)));
+	setproctitle("requestcompleter: %s", from == NULL ?  "0/1" : "1/1");
 }
 
 static struct sockd_io_t *

@@ -509,8 +509,7 @@ set xlabel "time"
 set data style lines
 set yrange [0:]
 set xrange ["00:00":"23:59"]
-#set terminal postscript color
-set terminal pbm color
+set terminal png color
 set output "', $imgname, '"
 
 plot \'', $filename,'\' using 1:2 title "active sessions", \
@@ -558,8 +557,7 @@ set xlabel "time"
 set data style lines
 set ylabel "Mbps"
 set xrange ["00:00":"23:59"]
-#set terminal postscript color
-set terminal pbm color
+set terminal png color
 set output "', $imgname, '"
 
 plot \'', $filename,'\' using 1:($2/(1024*1024))  title "total", \
@@ -594,8 +592,7 @@ set xlabel "time"
 set data style lines
 set yrange [0:]
 set xrange ["00:00":"23:59"]
-#set terminal postscript color
-set terminal pbm color
+set terminal png color
 set output "', $imgname, '"
 
 plot \

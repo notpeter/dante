@@ -223,6 +223,9 @@
 #undef HAVE_MODULE_REDIRECT
 #undef HAVE_MODULE_BANDWIDTH
 
+/* more AIX bandaid */
+#undef HAVE_SYSTEM_XMSG_MAGIC
+
 /* interposition.c prototypes */
 #undef HAVE_PROT_CONNECT_0
 #undef HAVE_PROT_CONNECT_1

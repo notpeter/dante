@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.150 2001/12/12 14:42:10 karls Exp $";
+"$Id: config.c,v 1.152 2002/06/05 10:02:53 michaels Exp $";
 
 void
 genericinit(void)
@@ -86,11 +86,9 @@ genericinit(void)
 			SERRX(sockscf.resolveprotocol);
 	}
 
-	if (!sockscf.state.init)
-		if (sockscf.option.lbuf)
-			for (i = 0; i < sockscf.log.fpc; ++i)
-				if (setvbuf(sockscf.log.fpv[i], NULL, _IOLBF, 0) != 0)
-					swarn("%s: setvbuf(_IOLBF)", function);
+	for (i = 0; i < sockscf.log.fpc; ++i)
+		if (setvbuf(sockscf.log.fpv[i], NULL, _IOLBF, 0) != 0)
+			swarn("%s: setvbuf(_IOLBF)", function);
 
 	sockscf.state.init = 1;
 

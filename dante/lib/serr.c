@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serr.c,v 1.5 2001/12/12 14:42:13 karls Exp $";
+"$Id: serr.c,v 1.6 2002/04/18 09:23:49 michaels Exp $";
 
 void
 #ifdef STDC_HEADERS
@@ -74,7 +74,7 @@ serr(eval, fmt, va_alist)
 		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
 		": %s (errno = %d)", strerror(errno), errno);
 
-		slog(LOG_ERR, buf);
+		slog(LOG_ERR, "%s", buf);
 
 		/* LINTED expression has null effect */
 		va_end(ap);
@@ -147,7 +147,7 @@ swarn(fmt, va_alist)
 		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
 		": %s (errno = %d)", strerror(errno), errno);
 
-		slog(LOG_ERR, buf);
+		slog(LOG_ERR, "%s", buf);
 
 		/* LINTED expression has null effect */
 		va_end(ap);

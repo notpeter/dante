@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.16 2002/04/12 09:21:30 michaels Exp $";
+"$Id: accesscheck.c,v 1.17 2002/05/18 08:19:25 michaels Exp $";
 
 
 /* ARGSUSED */
@@ -153,7 +153,7 @@ accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
 				serrx(EXIT_FAILURE,
 				"the PAM library/module code on your system seems to be messing "
 				"with our descriptors, can't cope with that.  Get the PAM code "
-				"on your system fixed")
+				"on your system fixed");
 #endif /* DIAGNOSTIC */
 			break;
 		}

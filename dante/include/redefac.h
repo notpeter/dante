@@ -280,6 +280,11 @@
 #endif
 
 
+#ifndef HAVE_SYSTEM_XMSG_MAGIC
+#define HAVE_SYSTEM_XMSG_MAGIC 0
+#endif
+
+
 #ifndef HAVE_PROT_CONNECT_0
 #define HAVE_PROT_CONNECT_0 0
 #endif
@@ -642,6 +647,11 @@
 
 #ifndef HAVE_ARPA_NAMESER_H
 #define HAVE_ARPA_NAMESER_H 0
+#endif
+
+
+#ifndef HAVE_BINDRESVPORT
+#define HAVE_BINDRESVPORT 0
 #endif
 
 

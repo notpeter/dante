@@ -41,7 +41,11 @@
  *
  */
 
-/* $Id: socks.h,v 1.5 2001/10/07 12:38:35 karls Exp $ */
+/* $Id: socks.h,v 1.6 2002/02/21 13:08:25 karls Exp $ */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+
 
 #define accept Raccept
 #define bind Rbind

@@ -1,0 +1,32 @@
+@(#)$Id: PRERELEASE,v 1.170 2002/06/18 09:20:08 michaels Exp $
+
+*
+* This is a prerelease.  Do not use this to upgrade from a previous
+* release of Dante unless you want to help testing. 
+*
+
+Tuesday, June 18, 2002
+ o AIX needs n{recv,send}msg when calling system functions.
+   Reported by Tom Chan <tchan@austin.rr.com>.
+
+ o Fix some bugs in bandwidth module.  Users using a version older
+   than "bandwidth.c,v 1.18" can contact sales for a upgrade.
+
+ o Fix a bug in logprinting, reported by
+   Borsenkow Andrej <Andrej.Borsenkow@mow.siemens.ru>.
+
+ o Reset buffering after sighup.  Also, always linebuffer logoutput.
+   Fixes some problems with loglineoverlap, problem found by
+   Borsenkow Andrej <Andrej.Borsenkow@mow.siemens.ru>.
+   This deprecates the "-l" option to sockd.
+
+ o Move daemon() call to later so more errors can be reported, suggested
+   by Borsenkow Andrej <Andrej.Borsenkow@mow.siemens.ru>.
+
+ o fix problem when linking with libsocks;     
+   NISHIMURA Daisuke <nishi@graco.c.u-tokyo.ac.jp>.
+
+ o fix some problems when socksifying, making certain programs
+   hang forever (e.g. certain versions/installations of "ssh -X").
+   Thanks to NISHIMURA Daisuke <nishi@graco.c.u-tokyo.ac.jp> for
+   diagnosis, help and testing.

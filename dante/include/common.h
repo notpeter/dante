@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.303 2001/12/12 13:56:43 karls Exp $ */
+/* $Id: common.h,v 1.306 2002/06/17 17:37:33 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -534,6 +534,7 @@ extern int h_errno;
 	 */
 
 
+#ifndef _NO_FUNCTION_REDIFINE
 #define close(n)	closen(n)
 
 /* XXX needed on AIX apparently */
@@ -542,6 +543,11 @@ extern int h_errno;
 #undef recvmsg
 #endif /* recvmsg */
 
+#if HAVE_SYSTEM_XMSG_MAGIC
+#undef recvmsg_system
+#define recvmsg_system nrecvmsg
+#endif /* HAVE_SYSTEM_XMSG_MAGIC */
+
 #define recvmsg(s, msg, flags)	recvmsgn(s, msg, flags)
 
 #ifdef sendmsg
@@ -549,7 +555,15 @@ extern int h_errno;
 #undef sendmsg
 #endif /* sendmsg */
 
+#if HAVE_SYSTEM_XMSG_MAGIC
+#undef sendmsg_system
+#define sendmsg_system nsendmsg
+#endif /* HAVE_SYSTEM_XMSG_MAGIC */
+
 #define sendmsg(s, msg, flags)	sendmsgn(s, msg, flags)
+
+#endif /* _NO_FUNCTION_REDIFINE */
+
 
 #define PORTISRESERVED(port)	\
 	(ntohs((port)) != 0 && ntohs((port)) < IPPORT_RESERVED)

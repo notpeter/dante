@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.164 2001/10/06 12:37:11 karls Exp $ */
+/* $Id: socks.h,v 1.166 2002/06/05 09:59:45 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -150,15 +150,6 @@ extern const int lintnoloop_socks_h;
 
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
-#ifdef recvmsg
-#undef recvmsg
-#endif  /* recvmsg */
-#if HAVE_EXTRA_OSF_SYMBOLS
-#define recvmsg(s, msg, flags)			sys_Erecvmsg(s, msg, flags)
-#else
-#define recvmsg(s, msg, flags)			sys_recvmsg(s, msg, flags)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
-
 #ifdef rresvport
 #undef rresvport
 #endif  /* rresvport */
@@ -189,15 +180,6 @@ extern const int lintnoloop_socks_h;
 #endif  /* send */
 #define send(s, msg, len, flags)			sys_send(s, msg, len, flags)
 
-#ifdef sendmsg
-#undef sendmsg
-#endif  /* sendmsg */
-#if HAVE_EXTRA_OSF_SYMBOLS
-#define sendmsg(s, msg, flags)			sys_Esendmsg(s, msg, flags)
-#else
-#define sendmsg(s, msg, flags)			sys_sendmsg(s, msg, flags)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
-
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
 struct configstate_t {
@@ -211,7 +193,6 @@ struct configstate_t {
 struct option_t {
 	int					debug;
 	char					*configfile;	/* name of current configfile.				*/
-	unsigned				lbuf:1;			/* linebuffered output?							*/
 	unsigned				:0;
 };
 

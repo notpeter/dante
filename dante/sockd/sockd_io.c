@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.206 2001/12/12 14:42:20 karls Exp $";
+"$Id: sockd_io.c,v 1.213 2002/05/02 10:06:59 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -198,6 +198,16 @@ siginfo __P((int sig));
 		} \
 	} while (lintnoloop_sockd_h)
 
+#define BWUPDATE(io, timenow, bwused) \
+do { \
+	if (bwused) { \
+		io->time = timenow; \
+\
+		if (io->rule.bw != NULL) { \
+			bwupdate(io->rule.bw, bwused, &io->time); \
+		} \
+	} \
+} while (lintnoloop_sockd_h)
 
 /* timersub macro from OpenBSD */
 #define timersub_hack(tvp, uvp, vvp)                                    \
@@ -279,7 +289,7 @@ run_io(mother)
 		 */
 		++rbits;
 		switch (selectn(rbits, &rset, NULL, &xset,
-		io_gettimeout(&timenow, &timeout))) {
+		io_gettimeout(&timeout, &timenow))) {
 			case -1:
 				SERR(-1);
 				/* NOTREACHED */
@@ -464,7 +474,11 @@ delete_io(mother, io, fd, status)
 		/* request handled. */
 		bwfree(io->rule.bw);
 
-	/* if client or socks-rules specifies logging disconnect, log, but once. */
+	/*
+	 * if client or socks-rules specifies logging disconnect, log, but once.
+	 * XXX this is actually wrong.  We should log twice and the logmessages
+	 * should be different for client-rule and socks-rule.
+	 */
 	if (io->rule.log.disconnect)
 		rule = &io->rule;
 	else if (io->acceptrule.log.disconnect)
@@ -802,7 +816,6 @@ doio(mother, io, rset, wset, flags)
 	char buf[MAX(SOCKD_BUFSIZETCP, SOCKD_BUFSIZEUDP)
 	+ sizeof(struct udpheader_t)];
 	ssize_t r, w;
-	size_t bwused;
 	struct timeval timenow;
 
 
@@ -820,11 +833,10 @@ doio(mother, io, rset, wset, flags)
 	 */
 	gettimeofday(&timenow, NULL);
 
-	bwused = 0;
 	switch (io->state.protocol) {
 		case SOCKS_TCP: {
 			int bad;
-			size_t bufsize;
+			size_t bufsize, bwused;
 
 			if (io->rule.bw != NULL) {
 				ssize_t left;
@@ -847,8 +859,11 @@ doio(mother, io, rset, wset, flags)
 				bufsize = sizeof(buf);
 
 
+			bwused = 0;
+
 			/* from in to out ... */
 			if (FD_ISSET(io->src.s, rset) && FD_ISSET(io->dst.s, wset)) {
+
 				bad = -1;
 				r = io_rw(&io->src, &io->dst, &bad, buf, bufsize, flags);
 				if (bad != -1) {
@@ -874,11 +889,13 @@ doio(mother, io, rset, wset, flags)
 			 * do i/o on first each time, but we instead do the simple
 			 * thing and just don't subtract bufsize.
 			 */
-			bufsize = ...
+			bufsize -= bwused;
 #endif
 
-			if (bufsize == 0)
+			if (bufsize == 0) {
+				BWUPDATE(io, timenow, bwused);
 				break;
+			}
 
 			if (FD_ISSET(io->dst.s, rset) && FD_ISSET(io->src.s, wset)) {
 				bad = -1;
@@ -894,6 +911,7 @@ doio(mother, io, rset, wset, flags)
 				bwused += r;
 			}
 
+			BWUPDATE(io, timenow, bwused);
 			break;
 		}
 
@@ -909,7 +927,7 @@ doio(mother, io, rset, wset, flags)
 			 */
 
 			/*
-			 * We are less strict about it in the udp case since we don't
+			 * We are less strict about bandwidth in the udp case since we don't
 			 * want to truncate packets.
 			 */
 
@@ -917,6 +935,7 @@ doio(mother, io, rset, wset, flags)
 			if (FD_ISSET(io->src.s, rset) && FD_ISSET(io->dst.s, wset)) {
 				const int lflags = flags & ~MSG_OOB;
 				struct sockaddr from;
+				size_t bwused;
 
 				fromlen = sizeof(from);
 				if ((r = socks_recvfrom(io->src.s, buf, io->dst.sndlowat, lflags,
@@ -952,7 +971,7 @@ doio(mother, io, rset, wset, flags)
 				/*
 				 * When we receive the first packet we also have a fixed source
 				 * so connect the socket, both for better performance and so
-				 * that getpeername() will work on it (libwrap/rulespermit()).
+				 * that getpeername() will work on it (libwrap in rulespermit()).
 				 */
 				if (io->src.read == 0) { /* could happen more than once, but ok. */
 					struct connectionstate_t rstate;
@@ -961,7 +980,7 @@ doio(mother, io, rset, wset, flags)
 						char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING];
 
 						/* perhaps this should be LOG_DEBUG. */
-						slog(LOG_NOTICE,
+						slog(LOG_INFO,
 						"%s(0): %s: expected from %s, got it from %s",
 						VERDICT_BLOCKs, protocol2string(io->state.protocol),
 						sockaddr2string(&io->src.raddr, src, sizeof(src)),
@@ -1027,12 +1046,15 @@ doio(mother, io, rset, wset, flags)
 				&io->src.auth, &io->dst.host, &io->dst.auth,
 				&buf[PACKETSIZE_UDP(&header)], (size_t)r);
 
-				if (!permit)
+				if (!permit) {
+					bwfree(io->rule.bw);
 					break;
+				}
 
 				if (redirect(io->dst.s, &io->dst.laddr, &io->dst.host,
 				io->state.command, &io->rule.rdr_from, &io->rule.rdr_to) != 0) {
 					swarn("%s: redirect()", function);
+					bwfree(io->rule.bw);
 					break;
 				}
 
@@ -1047,7 +1069,10 @@ doio(mother, io, rset, wset, flags)
 					&io->src.auth, &io->dst.host, &io->dst.auth, NULL, 0);
 
 				io->dst.written += MAX(0, w);
-				bwused += MAX(0, w);
+				bwused = MAX(0, w);
+				BWUPDATE(io, timenow, bwused);
+				/* for the lack of anything better, see bwupdate(). */
+				bwfree(io->rule.bw);
 			}
 
 
@@ -1073,6 +1098,7 @@ doio(mother, io, rset, wset, flags)
 				struct sockaddr rfrom;
 				struct sockshost_t rfromhost, replyto;
 				char *newbuf;
+				size_t bwused;
 				int s = io->src.s;
 
 				/* MSG_PEEK because of libwrap, see above. */
@@ -1121,22 +1147,26 @@ doio(mother, io, rset, wset, flags)
 				fromlen = sizeof(rfrom);
 				if ((r = socks_recvfrom(io->dst.s, buf, io->src.sndlowat, lflags,
 				&rfrom, &fromlen, &io->dst.auth)) == -1) {
+					bwfree(io->rule.bw);
 					delete_io(mother, io, io->dst.s, r);
 					return;
 				}
 				io->dst.read += r;
-				bwused += r;
+				bwused = r;
 
 				iolog(&io->rule, &state, OPERATION_IO, &rfromhost,
 				&io->dst.auth, &io->src.host, &io->src.auth, buf, (size_t)r);
 
-				if (!permit)
+				if (!permit) {
+					bwfree(io->rule.bw);
 					break;
+				}
 
 				replyto = io->src.host;
 				if (redirect(io->src.s, &rfrom, &replyto,
 				state.command, &io->rule.rdr_from, &io->rule.rdr_to) != 0) {
 					swarn("%s: redirect()", function);
+					bwfree(io->rule.bw);
 					break;
 				}
 
@@ -1144,11 +1174,13 @@ doio(mother, io, rset, wset, flags)
 					/* need to redirect reply. */
 					if ((s = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
 						swarn("%s: socket()", function);
+						bwfree(io->rule.bw);
 						break;
 					}
 
 					if (socks_connect(s, &replyto) != 0) {
 						swarn("%s: socks_connect()", function);
+						bwfree(io->rule.bw);
 						break;
 					}
 				}
@@ -1173,6 +1205,10 @@ doio(mother, io, rset, wset, flags)
 
 				if (s != io->src.s) /* socket temporarily created for redirect. */
 					close(s);
+
+				BWUPDATE(io, timenow, bwused);
+				/* for the lack of anything better, see bwupdate(). */
+				bwfree(io->rule.bw);
 			}
 			break;
 		}
@@ -1202,18 +1238,6 @@ doio(mother, io, rset, wset, flags)
 		}
 	}
 
-
-	if (bwused) {
-		io->time = timenow;
-
-		if (io->rule.bw != NULL) {
-			bwupdate(io->rule.bw, bwused, &io->time);
-		}
-	}
-
-	/* not saving rules used for udp, free after each usage. */
-	if (io->state.protocol == SOCKS_UDP)
-		bwfree(io->rule.bw);
 }
 
 static int
@@ -1225,6 +1249,7 @@ io_rw(in, out, bad, buf, bufsize, flag)
 	size_t bufsize;
 	int flag;
 {
+	const char *function = "io_rw()";
 	ssize_t r, w;
 	size_t len;
 
@@ -1240,6 +1265,9 @@ io_rw(in, out, bad, buf, bufsize, flag)
 		return r;
 	}
 	in->read += r;
+
+	slog(LOG_DEBUG, "%s: bufsize = %ld, r = %ld",
+	function, (long)bufsize, (long)r);
 
 	if (flag & MSG_OOB)
 		in->flags |= MSG_OOB;	/* read oob data.				*/
@@ -1416,7 +1444,7 @@ io_gettimeout(timeout, timenow)
 	timeout->tv_sec	= sockscf.timeout.io;
 	timeout->tv_usec	= 0;
 
-	if (timerisset(timeout))
+	if (timerisset(timeout)) /* iotimeout set. */ 
 		for (i = 0; i < ioc; ++i)
 			if (!iov[i].allocated)
 				continue;
@@ -1425,24 +1453,17 @@ io_gettimeout(timeout, timenow)
 				difftime(sockscf.timeout.io,
 				(time_t)difftime((time_t)timenow->tv_sec,
 				(time_t)iov[i].time.tv_sec))));
-	else {
-		if (timerisset(&bwoverflow))
-			*timeout = bwoverflow;
-		else
-			timeout = NULL;
-		return timeout;
-	}
 
 	if (timerisset(&bwoverflow)) {
 		struct timeval timetobw;
 
-		if (timercmp(timenow, &bwoverflow, >))
-			/* CONSTCOND */ /* macro operation. */
-			timersub_hack(timenow, &bwoverflow, &timetobw);
-		else
+		if (timercmp(timenow, &bwoverflow, >)) /* waited long enough. */
 			timerclear(&timetobw);
+		else
+			/* CONSTCOND */ /* macro operation. */ /* still have some to wait. */
+			timersub_hack(&bwoverflow, timenow, &timetobw);
 
-		if (timercmp(&timetobw, timeout, <)) {
+		if (!timerisset(timeout) || timercmp(&timetobw, timeout, <)) {
 			*timeout = timetobw;
 		}
 	}

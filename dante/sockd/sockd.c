@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.289 2002/01/01 15:54:48 michaels Exp $";
+"$Id: sockd.c,v 1.294 2002/06/05 09:59:50 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -208,7 +208,6 @@ main(argc, argv, envp)
 
 		close(p);
 	}
-	newprocinit();
 
 	/*
 	 * Check system limits against what we need.
@@ -293,6 +292,20 @@ main(argc, argv, envp)
 		return EXIT_FAILURE;
 	}
 
+	if ((sockscf.state.motherpidv = (pid_t *)malloc(
+	sizeof(*sockscf.state.motherpidv) * sockscf.option.serverc)) == NULL)
+		serrx(EXIT_FAILURE, "%s", NOMEM);
+
+	/*
+	 * Would have liked to move the daemon() call to after the "running"
+	 * message below, but we want to know who our children are.
+	 */
+	if (sockscf.option.daemon)
+		if (daemon(1, 0) != 0)
+			serr(EXIT_FAILURE, "daemon()");
+
+	newprocinit();
+
 #if !HAVE_DISABLED_PIDFILE
 	socks_seteuid(NULL, sockscf.uid.privileged);
 	if ((fp = fopen(SOCKD_PIDFILE, "w")) == NULL) {
@@ -309,6 +322,9 @@ main(argc, argv, envp)
 #endif /* !HAVE_DISABLED_PIDFILE */
 
 	time(&sockscf.stat.boot);
+
+
+	*sockscf.state.motherpidv = sockscf.state.pid;	/* main server. */
 
 	/* fork of requested number of servers.  Start at one 'cause we are "it".  */
 	for (p = 1; p < sockscf.option.serverc; ++p) {
@@ -368,8 +384,13 @@ main(argc, argv, envp)
 
 			if ((p = readn(child->ack, &command, sizeof(command), NULL))
 			!= sizeof(command)) {
-				swarn("readn(child->ack) from %schild %lu failed",
-				childtype2string(child->type), (unsigned long)child->pid);
+				if (p == 0)
+					swarnx("eof from %schild %lu",
+					childtype2string(child->type), (unsigned long)child->pid);
+				else
+					swarn("readn(child->ack) from %schild %lu failed",
+					childtype2string(child->type), (unsigned long)child->pid);
+
 				childisbad = 1;
 			}
 			else {
@@ -633,7 +654,7 @@ usage(code)
 {
 
 	fprintf(code == 0 ? stdout : stderr,
-	"%s: usage: %s [-DLNVdfhlnv]\n"
+	"%s: usage: %s [-DLNVdfhnv]\n"
 	"   -D             : run in daemon mode\n"
 	"   -L             : shows the license for this program\n"
    "   -N <number>    : fork of <number> servers [1]\n"
@@ -641,7 +662,6 @@ usage(code)
 	"   -d             : enable debugging\n"
 	"   -f <filename>  : use <filename> as configuration file [%s]\n"
 	"   -h             : print this information\n"
-	"   -l             : linebuffer logoutput\n"
    "   -n             : disable TCP keep-alive\n"
 	"   -v             : print version info\n",
 	__progname, __progname, SOCKD_CONFIGFILE);
@@ -735,7 +755,7 @@ serverinit(argc, argv, envp)
 		serr(EXIT_FAILURE, "%s: malloc", function);
 #endif  /* !HAVE_SETPROCTITLE*/
 
-	sockscf.state.addchild	= 1;
+	sockscf.child.addchild	= 1;
 	sockscf.state.euid		= geteuid();
 	sockscf.state.type		= CHILD_MOTHER;
 	sockscf.option.serverc	= 1;	/* ourselves. ;-) */
@@ -783,7 +803,7 @@ serverinit(argc, argv, envp)
 				/* NOTREACHED */
 
 			case 'l':
-				sockscf.option.lbuf = 1;
+				swarnx("option -%c is deprecated", ch); 
 				break;
 
 			case 'n':
@@ -809,22 +829,13 @@ serverinit(argc, argv, envp)
 	if (argc > 0)
 		serrx(EXIT_FAILURE, "%s: unknown argument %s", function, *argv);
 
-	if (sockscf.option.daemon)
-		if (daemon(1, 0) != 0)
-			serr(EXIT_FAILURE, "%s: daemon()", function);
-
 	if (sockscf.option.configfile == NULL)
 		sockscf.option.configfile = SOCKD_CONFIGFILE;
 
 	optioninit();
 
 	genericinit();
-
-	if ((sockscf.state.motherpidv = (pid_t *)malloc(
-	sizeof(*sockscf.state.motherpidv) * sockscf.option.serverc)) == NULL)
-		serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
-	*sockscf.state.motherpidv = sockscf.state.pid;	/* main server. */
-
+	
 	fixsettings();
 
 	if (verifyonly) {
@@ -1080,13 +1091,13 @@ sigchld(sig)
 		if (deaths == 10) { /* log once. */
 			slog(LOG_ERR, "%s: %d childdeaths in %.0fs; locking count for a while",
 			function, deaths, difftime(time(NULL), deathtime));
-			sockscf.state.addchild = 0;
+			sockscf.child.addchild = 0;
 		}
 		time(&deathtime); /* once the ball starts rolling... */
 		alarm(60);
 	}
 	else
-		sockscf.state.addchild = 1; /* can try to add a new one. */
+		sockscf.child.addchild = 1; /* can try to add a new one. */
 }
 
 /* ARGSUSED */
@@ -1095,7 +1106,7 @@ sigalrm(sig)
 	int sig;
 {
 
-	sockscf.state.addchild = 1;
+	sockscf.child.addchild = 1;
 }
 
 static void

@@ -52,7 +52,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.69 2002/01/01 15:59:55 michaels Exp $";
+"$Id: config_scan.l,v 1.70 2002/03/25 10:33:15 michaels Exp $";
 
 %}
 
@@ -405,9 +405,15 @@ external {
 	return EXTERNAL;
 }
 
+child\.maxidlenumber {
+	yylval.string = yytext;
+	return CHILD_MAXIDLENUMBER;
+}
 
 user {
 	BEGIN(start_username);
+
+	yylval.string = yytext;
 	return USER;
 }
 

@@ -1,5 +1,5 @@
 /*
- * $Id: getifa.c,v 1.27 2001/12/12 14:42:18 karls Exp $
+ * $Id: getifa.c,v 1.29 2002/04/23 11:43:09 michaels Exp $
  *
  * Copyright (c) 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getifa.c,v 1.27 2001/12/12 14:42:18 karls Exp $";
+"$Id: getifa.c,v 1.29 2002/04/23 11:43:09 michaels Exp $";
 
 
 /*===========================================================================
@@ -105,11 +105,9 @@ getifa(destaddr)
 	uid_t euid;
 	struct in_addr inaddr_none;
 
-#if !DEBUG
 	if (sockscf.external.addrc <= 1
 	||  sockscf.external.rotation == ROTATION_NONE)
 		return getdefaultexternal();
-#endif
 
 	inaddr_none.s_addr = htonl(INADDR_NONE);
 
@@ -241,11 +239,9 @@ getifa(destaddr)
 
 	inaddr_none.s_addr = htonl(INADDR_NONE);
 
-#if !DEBUG
 	if (sockscf.external.addrc <= 1
 	||  sockscf.external.rotation == ROTATION_NONE)
 		return getdefaultexternal();
-#endif
 
 	/*===================================================================
 	 * Get a socket.
@@ -428,13 +424,8 @@ isonexternal(addr)
 			break;
 	}
 
-	if (i == sockscf.external.addrc) {
-		char a[MAXSOCKADDRSTRING];
-
-		swarnx("%s: %s selected for connection but not on external list",
-		function, sockaddr2string(addr, a, sizeof(a)));
+	if (i == sockscf.external.addrc)
 		return 0;
-	}
 
 	return 1;
 }

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.38 2001/04/20 13:11:27 michaels Exp $";
+"$Id: method_uname.c,v 1.39 2002/03/25 10:34:23 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -189,7 +189,7 @@ recv_passwd(s, request, state)
 	/*
 	 * Very sadly we can't do any checking of the username/password here since
 	 * we don't know what database to use, it depends on what the socks
-	 request is.
+	 * request is.
 	*/
 	response[UNAME_VERSION] = request->auth->mdata.uname.version;
 	response[UNAME_STATUS]	= (unsigned char)0;
