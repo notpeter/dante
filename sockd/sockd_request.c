@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.53 1998/11/13 21:18:59 michaels Exp $";
+"$Id: sockd_request.c,v 1.66 1998/12/10 16:07:24 michaels Exp $";
 
 #include "common.h"
 
@@ -78,7 +78,7 @@ flushio __P((int mother, int clientcontrol, const struct response_t *response,
 */
 
 static void
-proctitleupdate __P((const struct sockaddr_in *from));
+proctitleupdate __P((const struct sockaddr *from));
 /*
  * Updates the title of this process.  
 */
@@ -134,9 +134,9 @@ run_request(mother)
 		proctitleupdate(NULL);
 
 		if (recv_req(mother->s, &req) == -1)
-			_exit(EXIT_FAILURE);
+			sockdexit(-EXIT_FAILURE);
 
-		proctitleupdate(&req.from);
+		proctitleupdate((struct sockaddr *)&req.from);
 
 		dorequest(mother->s, &req);
 
@@ -214,7 +214,8 @@ recv_req(s, req)
 
 	/* LINTED pointer casts may be troublesome */
 	req->s = *(int *)(CMSG_DATA(cmsg));
-#else
+
+#else /* !HAVE_CMSGHDR */
 	SASSERTX(msg.msg_accrightslen == sizeof(int));
 	req->s = desc;
 #endif  /* HAVE_CMSGHDR */
@@ -235,7 +236,7 @@ dorequest(mother, request)
 	struct sockd_io_t io = ioinit;
 	struct extension_t extension = config.extension; /* may modify extension. 	*/
 	struct response_t response;
-	char *a, *b;
+	char a[MAXSOCKADDRSTRING], b[MAXSOCKADDRSTRING];
 	int p, permit, out;
 
 
@@ -265,7 +266,8 @@ dorequest(mother, request)
 				default:
 					slog(LOG_INFO, "%s: unrecognized v%d command: %d",
 					/* LINTED pointer casts may be troublesome */
-					sockaddr2string((const struct sockaddr *)&request->from),
+					sockaddr2string((const struct sockaddr *)&request->from,
+					a, sizeof(a)),
 					request->req.version, request->req.command);
 
 					send_failure(request->s, &response, SOCKS_FAILURE);
@@ -277,10 +279,11 @@ dorequest(mother, request)
 				case SOCKS_ADDR_IPV4:
 					break;
 
-				default:
+				default: 
 					slog(LOG_INFO, "%s: unrecognized v%d address type: %d",
 					/* LINTED pointer casts may be troublesome */
-					sockaddr2string((const struct sockaddr *)&request->from),
+					sockaddr2string((const struct sockaddr *)&request->from,
+					a, sizeof(a)),
 					request->req.version, request->req.host.atype);
 
 					send_failure(request->s, &response, SOCKS_ADDR_UNSUPP);
@@ -303,7 +306,8 @@ dorequest(mother, request)
 				default:
 					slog(LOG_INFO, "%s: unrecognized v%d command: %d",
 					/* LINTED pointer casts may be troublesome */
-					sockaddr2string((const struct sockaddr *)&request->from),
+					sockaddr2string((const struct sockaddr *)&request->from,
+					a, sizeof(a)),
 					request->req.version, request->req.command);
 
 					send_failure(request->s, &response, SOCKS_CMD_UNSUPP);
@@ -320,7 +324,8 @@ dorequest(mother, request)
 				default:
 					slog(LOG_INFO, "%s: unrecognized v%d address type: %d",
 					/* LINTED pointer casts may be troublesome */
-					sockaddr2string((const struct sockaddr *)&request->from),
+					sockaddr2string((const struct sockaddr *)&request->from, 
+					a, sizeof(a)),
 					request->req.version, request->req.host.atype);
 
 					send_failure(request->s, &response, SOCKS_ADDR_UNSUPP);
@@ -331,7 +336,7 @@ dorequest(mother, request)
 		default:
 			slog(LOG_INFO, "%s: unrecognized version %d", 
 			/* LINTED pointer casts may be troublesome */
-			sockaddr2string((struct sockaddr *)&request->from),
+			sockaddr2string((struct sockaddr *)&request->from, a, sizeof(a)),
 			request->req.version);
 
 			/*
@@ -351,7 +356,7 @@ dorequest(mother, request)
 	switch (request->req.command) {
 		case SOCKS_BIND:
 			/* LINTED pointer casts may be troublesome */
-			io.src = *sockaddr2sockshost((struct sockaddr *)&request->from);
+			sockaddr2sockshost((struct sockaddr *)&request->from, &io.src);
 			io.dst = request->req.host;
 
 			if (io.dst.atype != SOCKS_ADDR_IPV4
@@ -362,7 +367,7 @@ dorequest(mother, request)
 
 		case SOCKS_CONNECT:
 			/* LINTED pointer casts may be troublesome */
-			io.src = *sockaddr2sockshost((struct sockaddr *)&request->from);
+			sockaddr2sockshost((struct sockaddr *)&request->from, &io.src);
 			io.dst = request->req.host;
 			break;
 
@@ -388,7 +393,7 @@ dorequest(mother, request)
 	}
 
 	permit = rulespermit(request->s, &io.rule, &io.state, &io.src, &io.dst);
-	iolog(&io.rule, &io.state, OPERATION_CONNECT, &io.src, &io.dst,  NULL, 0);
+	iolog(&io.rule, &io.state, OPERATION_CONNECT, &io.src, &io.dst, NULL, 0);
 
 	if (!permit) {
 		send_failure(request->s, &response, SOCKS_NOTALLOWED);
@@ -416,6 +421,8 @@ dorequest(mother, request)
 		return;
 	}
 
+	setsockoptions(out);
+
 	/* try to perform (part of) the request. */
 	switch (request->req.command) {
 		case SOCKS_BIND: {
@@ -442,8 +449,9 @@ dorequest(mother, request)
 				/* LINTED pointer casts may be troublesome */
 				if ((p = sockd_bind(out, (struct sockaddr *)&bound, 0)) != 0)
 					swarn("%s: bind(%s)",
+					function,
 					/* LINTED pointer casts may be troublesome */
-					function, sockaddr2string((struct sockaddr *)&bound));
+					sockaddr2string((struct sockaddr *)&bound, a, sizeof(a)));
 			}
 
 			break;
@@ -473,13 +481,17 @@ dorequest(mother, request)
 			if (p != 0) {
 				swarn("%s: bind(%s)",
 				/* LINTED pointer casts may be troublesome */
-				function, sockaddr2string((struct sockaddr *)&bound));
+				function, sockaddr2string((struct sockaddr *)&bound, a, sizeof(a)));
 				break;
 			}
 
 			if ((p = socks_connect(out, &io.dst)) != 0)
-				swarn("%s: socks_connect(%s)",
-				function, sockshost2string(&io.dst));
+				if (io.rule.log.error) {
+					char hstring[MAXSOCKSHOSTSTRING];
+
+					swarn("%s: socks_connect(%s)",
+					function, sockshost2string(&io.dst, hstring, sizeof(hstring)));
+				}
 
 			break;
 		}
@@ -505,7 +517,8 @@ dorequest(mother, request)
 				if ((p = sockd_bind(out, (struct sockaddr *)&bound, 0)) != 0)
 					/* LINTED pointer casts may be troublesome */
 					swarn("%s: bind(%s)",
-					function, sockaddr2string((struct sockaddr *)&bound));
+					function,
+					sockaddr2string((struct sockaddr *)&bound, a, sizeof(a)));
 			}
 
 			break;
@@ -526,11 +539,12 @@ dorequest(mother, request)
 	*/
 	switch (io.state.command) {
 		case SOCKS_BIND: {
-			struct sockd_io_t *iolist;
+			struct sockd_io_t *iolist = NULL;
 			struct sockd_io_t bindio;			/* send this to proxyrelayer. 		*/
 			struct sockaddr boundaddr;			/* address we listen on.				*/
 			struct sockaddr clientaddr;		/* clientaddress we forward to.		*/
-			int flags, len, childpipe, ourpipe, emfile;
+			int flags, len, emfile, childpipe, ourpipe;
+
 
 			if (listen(out, 5) != 0) {
 				swarn("%s: listen()", function);
@@ -540,7 +554,7 @@ dorequest(mother, request)
 
 			/* need to set descriptor nonblocking in case of accept() errors. */
 			if ((flags = fcntl(out, F_GETFL, 0)) == -1
-			||  fcntl(out, F_SETFL, flags | O_NONBLOCK) == -1) {
+			||  fcntl(out, F_SETFL, flags | NONBLOCKING) == -1) {
 				swarn("%s: fcntl()", function);
 				send_failure(request->s, &response, SOCKS_FAILURE);
 				break;
@@ -553,7 +567,7 @@ dorequest(mother, request)
 				break;
 			}
 
-			response.host 	= *sockaddr2sockshost(&boundaddr);
+			sockaddr2sockshost(&boundaddr, &response.host);
 			/* LINTED conversion from 'int' may lose accuracy */
 			response.reply	= sockscode(response.version, SOCKS_SUCCESS);
 
@@ -586,36 +600,42 @@ dorequest(mother, request)
 					
 				/* LINTED pointer casts may be troublesome */
 				((struct sockaddr_in *)&clientaddr)->sin_port = io.dst.port;
-
-				iolist = NULL;
 			}
+			else
+				childpipe = ourpipe = -1; /* please compiler. */
 
 			/* let client know what address we bound to on it's behalf. */
 			if (send_response(request->s, &response) != 0) {
-				swarn("%s: send_response()", function);
-				close(childpipe);
-				close(ourpipe);
+				if (io.rule.log.error)
+					swarn("%s: send_response()", function);
+
+				if (extension.bind) {
+					close(childpipe);
+					close(ourpipe);
+				}
+
 				terminate_connection(request->s, &request->auth);
 				break;
 			}
 
 
 			setproctitle("bindrelayer: %s -> %s",
-			strcheck(a = strdup(sockaddr2string(&boundaddr))),
-			strcheck(b = strdup(sockaddr2string(&clientaddr))));
-			free(a);
-			free(b);
-
-			emfile = 0;
+			sockaddr2string(&boundaddr, a, sizeof(a)),
+			sockaddr2string(&clientaddr, b, sizeof(b)));
 
 			/* CONSTCOND */
+			emfile = 0;
 			while (1) {
+				struct ruleaddress_t ruleaddr;
 				struct sockaddr remoteaddr;		/* remote address we accepted.	*/
 				int remote;								/* connection to remote.			*/
+				struct sockshost_t remotehost;	/* remote address, sockhost form.*/
 				struct sockaddr_in replyaddr;		/* address of bindreply socket.	*/
 				int reply;								/* socket we forward reply from.	*/
 				int fdbits = -1;
 				fd_set rset;
+
+				reply = -1; /* please compiler. */
 
 				FD_ZERO(&rset);
 
@@ -628,7 +648,7 @@ dorequest(mother, request)
 				}
 
 				++fdbits;
-				if (select(fdbits, &rset,  NULL, NULL, NULL) == -1)
+				if (select(fdbits, &rset, NULL, NULL, NULL) == -1)
 					SERR(-1);
 
 				if (FD_ISSET(request->s, &rset)) {
@@ -646,16 +666,14 @@ dorequest(mother, request)
 
 					switch (p = recv_sockspacket(request->s, &query, &state)) {
 						case -1:
-							swarn("%s: client error", function);
+							if (io.rule.log.error || io.rule.log.disconnect)
+								swarn("%s: client error", function);
 							break;
 
 						case 0:
 							p = -1;
-							if (io.rule.log.disconnect)
-								/* LINTED pointer casts may be troublesome */
-								slog(LOG_INFO, "%s: client closed",
-								sockaddr2string(
-								(const struct sockaddr *)&request->from));
+							iolog(&io.rule, &io.state, OPERATION_DISCONNECT,
+							&io.src, &io.dst, NULL, 0);
 							break;
 
 						default: {
@@ -668,7 +686,7 @@ dorequest(mother, request)
 							queryresponse.reply		= 0;
 							queryresponse.flag		= 0;
 
-							queryaddr = *sockshost2sockaddr(&query.host);
+							sockshost2sockaddr(&query.host, &queryaddr);
 
 							if ((fio = io_find(iolist, &queryaddr)) == NULL) {
 								queryresponse.host.atype 				= SOCKS_ADDR_IPV4;
@@ -683,8 +701,8 @@ dorequest(mother, request)
 								&queryaddr) == 0);
 
 								/* LINTED pointer casts may be troublesome */
-								queryresponse.host =
-								*sockaddr2sockshost((struct sockaddr *)&fio->out.raddr);
+								sockaddr2sockshost((struct sockaddr *)&fio->out.raddr,
+								&queryresponse.host);
 							}
 
 							if (fio != NULL) {
@@ -697,13 +715,17 @@ dorequest(mother, request)
 							else
 								if ((p = send_response(request->s, &queryresponse))
 								!= 0)
-									swarn("%s: client error", function);
+									if (io.rule.log.error)
+										swarn("%s: client error", function);
 						}
 					}
 
 					if (p != 0) {
-						close(childpipe);
-						close(ourpipe);
+						if (extension.bind) {
+							close(childpipe);
+							close(ourpipe);
+						}
+
 						terminate_connection(request->s, &request->auth);
 						break;
 					}
@@ -714,7 +736,8 @@ dorequest(mother, request)
 
 				len = sizeof(remoteaddr);
 				if ((remote = acceptn(out, &remoteaddr, &len)) == -1) {
-					swarn("%s: accept(out)", function);
+					if (io.rule.log.error)
+						swarn("%s: accept(out)", function);
 
 					switch (errno) {
 #ifdef EPROTO
@@ -744,20 +767,23 @@ dorequest(mother, request)
 							continue;
 					}
 
-					close(childpipe);
-					close(ourpipe);
+					if (extension.bind) {
+						close(childpipe);
+						close(ourpipe);
+					}
+
 					terminate_connection(request->s, &request->auth);
 					break;	/* errno is not ok. */
 				}
 
 				/* accepted connection; does remote address match requested? */
 				if (extension.bind
-				|| addressmatch(sockshost2ruleaddress(&io.dst),
-				   sockaddr2sockshost(&remoteaddr), SOCKS_TCP, 1)) {
+				|| addressmatch(sockshost2ruleaddress(&io.dst, &ruleaddr),
+				   sockaddr2sockshost(&remoteaddr, &remotehost), SOCKS_TCP, 1)) {
 
 					bindio 						= io; /* quick init of most stuff. */
-					bindio.src					= *sockaddr2sockshost(&clientaddr);
-					bindio.dst					= *sockaddr2sockshost(&remoteaddr);
+					sockaddr2sockshost(&clientaddr, &bindio.src);
+					sockaddr2sockshost(&remoteaddr, &bindio.dst);
 					bindio.state.command		= SOCKS_BINDREPLY;
 					bindio.state.protocol	= SOCKS_TCP;
 
@@ -769,9 +795,12 @@ dorequest(mother, request)
 
 				}
 				else {
+					char hstring[MAXSOCKSHOSTSTRING];
+
 					/* LINTED pointer casts may be troublesome */
 					slog(LOG_INFO, "blocked: unexpected bindreply: %s -> %s",
-					sockaddr2string(&remoteaddr), sockshost2string(&io.src));
+					sockaddr2string(&remoteaddr, a, sizeof(a)),
+					sockshost2string(&io.src, hstring, sizeof(hstring)));
 					permit = 0;
 				}
 				
@@ -794,6 +823,8 @@ dorequest(mother, request)
 						break;
 					}
 
+					setsockoptions(reply);
+
 					/* LINTED pointer casts may be troublesome */
 					replyaddr				= *(struct sockaddr_in *)&boundaddr;
 					replyaddr.sin_port	= htons(0);
@@ -802,7 +833,8 @@ dorequest(mother, request)
 					if (sockd_bind(reply, (struct sockaddr *)&replyaddr, 0) != 0) {
 						/* LINTED pointer casts may be troublesome */
 						swarn("%s: bind(%s)",
-						function, sockaddr2string((struct sockaddr *)&replyaddr));
+						function,
+						sockaddr2string((struct sockaddr *)&replyaddr, a, sizeof(a)));
 						close(reply);
 						close(childpipe);
 						close(ourpipe);
@@ -823,11 +855,16 @@ dorequest(mother, request)
 					}
 
 					slog(LOG_DEBUG, "connecting to %s",
-					sockaddr2string(&clientaddr));
+					sockaddr2string(&clientaddr, a, sizeof(a)));
 
 					if (connect(reply, &clientaddr, sizeof(clientaddr)) != 0) {
-						swarn("%s: connect(%s)",
-						function, sockaddr2string(&clientaddr));
+						if (io.rule.log.error)
+							swarn("%s: connect(%s)",
+							function, sockaddr2string(&clientaddr, a, sizeof(a)));
+
+						iolog(&io.rule, &io.state, OPERATION_DISCONNECT,
+						&io.src, &io.dst, NULL, 0);
+
 						close(reply);
 						close(childpipe);
 						close(ourpipe);
@@ -863,11 +900,15 @@ dorequest(mother, request)
 
 				/* back to blocking. */
 				if ((flags = fcntl(remote, F_GETFL, 0)) == -1
-				||  fcntl(remote, F_SETFL, flags & ~O_NONBLOCK) == -1) {
+				||  fcntl(remote, F_SETFL, flags & ~NONBLOCKING) == -1) {
 					swarn("%s: fcntl()", function);
-					close(reply);
-					close(childpipe);
-					close(ourpipe);
+
+					if (extension.bind) {
+						close(reply);
+						close(childpipe);
+						close(ourpipe);
+					}
+
 					terminate_connection(request->s, &request->auth);
 					break;
 				}
@@ -945,7 +986,7 @@ dorequest(mother, request)
 			}
 
 			/* LINTED pointer casts may be troublesome */
-			response.host	= *sockaddr2sockshost((struct sockaddr *)&io.out.laddr);
+			sockaddr2sockshost((struct sockaddr *)&io.out.laddr, &response.host);
 			/* LINTED conversion from 'int' may lose accuracy */
 			response.reply	= sockscode(response.version, SOCKS_SUCCESS);
 
@@ -961,7 +1002,7 @@ dorequest(mother, request)
 			int boundlen, clientfd;
 
 			/* LINTED pointer casts may be troublesome */
-			client = *(struct sockaddr_in *)sockshost2sockaddr(&request->req.host);
+			sockshost2sockaddr(&request->req.host, (struct sockaddr *)&client);
 
 			/* socket we receive datagram's from client on */
 			if ((clientfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
@@ -969,6 +1010,8 @@ dorequest(mother, request)
 				send_failure(request->s, &response, SOCKS_FAILURE);
 				break;
 			}
+
+			setsockoptions(clientfd);
 
 			io.in.s 					= clientfd;
 			io.in.state 			= io.state;
@@ -985,7 +1028,8 @@ dorequest(mother, request)
 			if (sockd_bind(clientfd, (struct sockaddr *)&io.in.laddr, 0) != 0) {
 				/* LINTED pointer casts may be troublesome */
 				swarn("%s: bind(%s)",
-				function, sockaddr2string((struct sockaddr *)&io.in.laddr));
+				function,
+				sockaddr2string((struct sockaddr *)&io.in.laddr, a, sizeof(a)));
 				send_failure(request->s, &response, SOCKS_FAILURE);
 				close(clientfd);
 				break;
@@ -1031,7 +1075,7 @@ dorequest(mother, request)
 					response.flag |= SOCKS_USECLIENTPORT;
 
 			/* LINTED pointer casts may be troublesome */
-			response.host	= *sockaddr2sockshost((struct sockaddr *)&io.in.laddr);
+			sockaddr2sockshost((struct sockaddr *)&io.in.laddr, &response.host);
 			/* LINTED conversion from 'int' may lose accuracy */
 			response.reply	= sockscode(response.version, SOCKS_SUCCESS);
 
@@ -1058,19 +1102,26 @@ flushio(mother, clientcontrol, response, io)
 	struct sockd_io_t *io;
 {
 	const char *function = "flushio()";
-	int len;
-	int sndlowat = SOCKD_BUFSIZE;
+	int len, sndlowat;
+
+	switch (io->state.command) {
+		case SOCKS_UDPASSOCIATE:
+			sndlowat = SOCKD_BUFSIZEUDP;
+			break;
+		
+		default:
+			sndlowat = SOCKD_BUFSIZETCP;
+	}
 
 	/* set socket options for relay process. */
-
 #if SOCKD_IOMAX <= 1
-	/* only one client per process, doesn't matter much whether if we block. */
+	/* only one client per process, doesn't matter much whether we block. */
 
 	io->in.sndlowat 	= sndlowat;
 	io->out.sndlowat 	= sndlowat;
 
 #elif	HAVE_SO_SNDLOWAT
-	
+
 	if (setsockopt(io->in.s, SOL_SOCKET, SO_SNDLOWAT, &sndlowat,
 	sizeof(sndlowat)) != 0)
 		swarn("%s: setsockopt(SO_SNDLOWAT)", function);
@@ -1089,11 +1140,37 @@ flushio(mother, clientcontrol, response, io)
 	!= 0)
 		swarn("%s: getsockopt(SO_SNDLOWAT", function);
 
-#else	/* more than one client and dont have watermarks.  Use a minimum. */
+#else	/* more than one client and dont have watermarks. */
+	switch (io->state.command) {
+		case SOCKS_UDPASSOCIATE: 
+			len = sizeof(sndlowat);
+			if (getsockopt(io->in.s, SOL_SOCKET, SO_SNDBUF, &sndlowat, &len) != 0){
+				swarn("%s: getsockopt(SO_SNDBUF", function);
+				io->in.sndlowat = SOCKD_BUFSIZEUDP;
+			}
+			else if (sndlowat == 0)
+				io->in.sndlowat = SOCKD_BUFSIZEUDP;
+			else
+				io->in.sndlowat = sndlowat;
 
-	io->in.sndlowat 	= SO_SNDLOWAT_SIZE;
-	io->out.sndlowat 	= SO_SNDLOWAT_SIZE;
+			len = sizeof(sndlowat);
+			if (getsockopt(io->out.s, SOL_SOCKET, SO_SNDBUF, &sndlowat, &len)
+			!= 0) {
+				swarn("%s: getsockopt(SO_SNDBUF", function);
+				io->out.sndlowat = SOCKD_BUFSIZEUDP;
+			}
+			else if (sndlowat == 0)
+				io->out.sndlowat = SOCKD_BUFSIZEUDP;
+			else
+				io->out.sndlowat = sndlowat;
 
+			break;
+		
+		default:
+			/* TCP; use minimum guess. */
+			io->in.sndlowat 	= SO_SNDLOWAT_SIZE;
+			io->out.sndlowat 	= SO_SNDLOWAT_SIZE;
+	}
 #endif  /* !HAVE_SO_SNDLOWAT */
 
 	if (send_response(clientcontrol, response) == 0)
@@ -1106,12 +1183,13 @@ flushio(mother, clientcontrol, response, io)
 
 static void
 proctitleupdate(from)
-	const struct sockaddr_in *from;
+	const struct sockaddr *from;
 {
+	char fromstring[MAXSOCKADDRSTRING];
 
 	setproctitle("requestcompleter: %s",
-	/* LINTED pointer casts may be troublesome */
-	from == NULL ? "<idle>" : sockaddr2string((struct sockaddr *)from));
+	from == NULL ?
+	"<idle>" : sockaddr2string(from, fromstring, sizeof(fromstring)));
 }
 
 static struct sockd_io_t *

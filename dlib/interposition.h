@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.7 1998/11/13 21:17:09 michaels Exp $ */
+/* $Id: interposition.h,v 1.9 1998/12/09 17:14:53 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -112,6 +112,34 @@
 #define LIBRARY_GETSOCKNAME					LIBRARY_LIBC
 #endif
 
+#ifndef SYMBOL_READ
+#define SYMBOL_READ								"_read"
+#endif
+#ifndef LIBRARY_READ
+#define LIBRARY_READ								LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_READV
+#define SYMBOL_READV								"_readv"
+#endif
+#ifndef LIBRARY_READV
+#define LIBRARY_READV							LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_RECV
+#define SYMBOL_RECV								"_recv"
+#endif
+#ifndef LIBRARY_RECV
+#define LIBRARY_RECV								LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_RECVMSG
+#define SYMBOL_RECVMSG							"_recvmsg"
+#endif
+#ifndef LIBRARY_RECVMSG
+#define LIBRARY_RECVMSG							LIBRARY_LIBC
+#endif
+
 #ifndef SYMBOL_RECVFROM
 #define SYMBOL_RECVFROM							"_recvfrom"
 #endif
@@ -126,6 +154,20 @@
 #define LIBRARY_RRESVPORT						LIBRARY_LIBC
 #endif
 
+#ifndef SYMBOL_SEND
+#define SYMBOL_SEND								"_send"
+#endif
+#ifndef LIBRARY_SEND
+#define LIBRARY_SEND								LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_SENDMSG
+#define SYMBOL_SENDMSG							"_sendmsg"
+#endif
+#ifndef LIBRARY_SENDMSG
+#define LIBRARY_SENDMSG							LIBRARY_LIBC
+#endif
+
 #ifndef SYMBOL_SENDTO
 #define SYMBOL_SENDTO							"_sendto"
 #endif
@@ -133,9 +175,61 @@
 #define LIBRARY_SENDTO							LIBRARY_LIBC
 #endif
 
+#ifndef SYMBOL_WRITE
+#define SYMBOL_WRITE								"_write"
+#endif
+#ifndef LIBRARY_WRITE
+#define LIBRARY_WRITE							LIBRARY_LIBC
+#endif
+
+#ifndef SYMBOL_WRITEV
+#define SYMBOL_WRITEV							"_writev"
+#endif
+#ifndef LIBRARY_WRITEV
+#define LIBRARY_WRITEV							LIBRARY_LIBC
+#endif
+
+
 struct libsymbol_t {
 	char *symbol;			/* the symbol.						*/
 	char *library;			/* library symbol is in.		*/
 	void *handle;			/* our handle to the library.	*/
 	void *function;		/* the bound symbol.				*/
 };
+
+
+#define SYSCALL_START(s) \
+int socksfd_added = 0;	 														\
+do {																					\
+	struct socksfd_t *socksfd = socks_getaddr((unsigned int)s);		\
+	struct socksfd_t socksfdmem;												\
+																						\
+	if (socksfd == NULL) {														\
+		bzero(&socksfdmem, sizeof(socksfdmem));							\
+		socksfdmem.state.command  = -1;										\
+		socksfd = socks_addaddr((unsigned int)s, &socksfdmem);		\
+		socksfd_added = 1;														\
+	}																					\
+																						\
+	SASSERTX(socksfd->state.system >= 0);									\
+	++socksfd->state.system;													\
+} while (lintnoloop_socks_h)
+
+
+#define SYSCALL_END(s) \
+do {																					\
+	struct socksfd_t *socksfd = socks_getaddr((unsigned int)s);		\
+																						\
+	SASSERTX(socksfd != NULL);													\
+																						\
+	if (socksfd_added)															\
+		socks_rmaddr((unsigned int)s);										\
+	else																				\
+		--socksfd->state.system;												\
+	SASSERTX(socksfd->state.system >= 0);									\
+} while (lintnoloop_socks_h)
+
+#define ISSYSCALL(s)	\
+	(socks_getaddr((unsigned int)(s)) != NULL 					\
+	&& socks_getaddr((unsigned int)(s))->state.system > 0)
+

@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.78 1998/11/13 21:17:51 michaels Exp $";
+"$Id: Rconnect.c,v 1.82 1998/12/07 18:43:07 michaels Exp $";
 
 #include "common.h"
 
@@ -83,7 +83,13 @@ Rconnect(s, name, namelen)
 
 			case SOCKS_CONNECT:
 				if (socksfd.state.inprogress)
-					errno = EALREADY;
+					if (socksfd.state.err != 0) { /* connect failed. */
+						errno = socksfd.state.err;
+						close(socksfd.s);
+						socks_rmaddr((unsigned int)s);
+					}
+					else
+						errno = EALREADY;
 				else
 					errno = EISCONN;	/* can't connect tcpsocket twice */
 
@@ -175,12 +181,11 @@ Rconnect(s, name, namelen)
 	packet.req.host 		= dst;
 	packet.req.version 	= SOCKS_V5;
 	packet.req.command 	= SOCKS_CONNECT;
-	packet.auth				= &socksfd.state.auth;
 
 	if ((p = fcntl(s, F_GETFL, 0)) == -1)
 		return -1;
 	
-	if (p & (O_NONBLOCK | FNDELAY)) {
+	if (p & NONBLOCKING) {
 		if ((socksfd.route = socks_nbconnectroute(s, &packet, &src, &dst)) == NULL
 		&& errno == 0)
 			if (packet.req.version != SOCKS_V4) {
@@ -209,11 +214,12 @@ Rconnect(s, name, namelen)
 	if (socks_negotiate(s, &packet) != 0)
 		return -1;
 
+	socksfd.state.auth 				= packet.auth;
 	socksfd.state.command 			= SOCKS_CONNECT;
 	socksfd.state.version 			= packet.req.version;
 	socksfd.state.protocol.tcp		= 1;
 	socksfd.s							= s;
-	socksfd.remote 					= *sockshost2sockaddr(&packet.res.host);
+	sockshost2sockaddr(&packet.res.host, &socksfd.remote);
 	socksfd.connected 				= *name;
 
 	/* LINTED pointer casts may be troublesome */

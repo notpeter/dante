@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.23 1998/11/13 21:17:07 michaels Exp $";
+"$Id: interposition.c,v 1.31 1998/12/12 16:26:39 karls Exp $";
 
 #define WE_DONT_WANT_NO_SOCKADDR_ARG_UNION
 
@@ -60,9 +60,17 @@ static const char rcsid[] =
 #undef gethostbyname2
 #undef getpeername
 #undef getsockname
+#undef read
+#undef readv
+#undef recv
 #undef recvfrom
+#undef recvmsg
 #undef rresvport
+#undef send
+#undef sendmsg
 #undef sendto
+#undef write
+#undef writev
 
 #ifdef NEED_DYNA_RTLD
 #define DL_LAZY RTLD_LAZY
@@ -77,9 +85,17 @@ static struct libsymbol_t libsymbolv[] = {
 	{	SYMBOL_GETHOSTBYNAME2,	 		LIBRARY_GETHOSTBYNAME2 },
 	{	SYMBOL_GETPEERNAME,	 			LIBRARY_GETPEERNAME },
 	{	SYMBOL_GETSOCKNAME,	 			LIBRARY_GETSOCKNAME },
+	{	SYMBOL_READ,	 					LIBRARY_READ },
+	{	SYMBOL_READV,	 					LIBRARY_READV },
+	{	SYMBOL_RECV,	 					LIBRARY_RECV },
+	{	SYMBOL_RECVMSG, 					LIBRARY_RECVMSG },
 	{	SYMBOL_RECVFROM,	 				LIBRARY_RECVFROM },
 	{	SYMBOL_RRESVPORT,	 				LIBRARY_RRESVPORT },
+	{	SYMBOL_SEND,	 					LIBRARY_SEND },
+	{	SYMBOL_SENDMSG, 					LIBRARY_SENDMSG },
 	{	SYMBOL_SENDTO,	 					LIBRARY_SENDTO },
+	{	SYMBOL_WRITE,	 					LIBRARY_WRITE },
+	{	SYMBOL_WRITEV,	 					LIBRARY_WRITEV },
 };
 
 __BEGIN_DECLS
@@ -92,11 +108,11 @@ libsymbol(const char *symbol);
 
 
 static void *
-symbolfunction(const char *symbol);
+symbolfunction(char *symbol);
 /*
  * Returns the address binding of the symbol "symbol" and updates
  * libsymbol_t structure "symbol" is defined in if necessary.
- * Returns NULL on failure.
+ * Exits on failure.
 */
 
 __END_DECLS
@@ -112,17 +128,14 @@ libsymbol(symbol)
 		if (strcmp(libsymbolv[i].symbol, symbol) == 0)
 			return &libsymbolv[i];
 
-	serrx(1, "%s: can't find symbol %s", function, symbol);
-
-	return NULL;
-
-	/* NOTREACHED */
+	serrx(1, "%s: configuration error, can't find symbol %s", function, symbol);
+	return NULL; /* please compiler. */
 }
 
 
 static void *
 symbolfunction(symbol)
-	const char *symbol;
+	char *symbol;
 {
 	const char *function = "symbolfunction()";
 	struct libsymbol_t *lib;
@@ -134,18 +147,12 @@ symbolfunction(symbol)
 	SASSERTX(strcmp(lib->symbol, symbol) == 0);
 
 	if (lib->handle == NULL)
-		/* LINTED argument has incompatible pointer type, arg #2 */
-		if ((lib->handle = dlopen(lib->library, DL_LAZY)) == NULL) {
-			swarnx("%s: %s: %s", function, lib->library, dlerror());
-			return NULL;
-		}
+		if ((lib->handle = dlopen(lib->library, DL_LAZY)) == NULL)
+			serrx(EXIT_FAILURE, "%s: %s: %s", function, lib->library, dlerror());
 
 	if (lib->function == NULL)
-		/* LINTED argument has incompatible pointer type, arg #2 */
-		if ((lib->function = dlsym(lib->handle, symbol)) == NULL) {
-			swarnx("%s: %s: %s", function, symbol, dlerror());
-			return NULL;
-		}
+		if ((lib->function = dlsym(lib->handle, symbol)) == NULL)
+			serrx(EXIT_FAILURE, "%s: %s: %s", function, symbol, dlerror());
 
 #if 0
 	slog(LOG_DEBUG, "found symbol %s in library %s",
@@ -157,7 +164,7 @@ symbolfunction(symbol)
 
 
 
-	/* the real system calls/functions. */
+	/* the real system calls. */
 
 int 
 sys_accept(s, addr, addrlen)
@@ -165,12 +172,14 @@ sys_accept(s, addr, addrlen)
 	__SOCKADDR_ARG addr;
 	socklen_t *addrlen;
 {
+	int rc;
 	int (*function)(int s, __SOCKADDR_ARG addr, socklen_t *addrlen);
-
-	if ((function = symbolfunction(SYMBOL_ACCEPT)) == NULL)
-		return -1;
-
-	return function(s, addr, addrlen);
+	
+	SYSCALL_START(s);
+	function = symbolfunction(SYMBOL_ACCEPT);
+	rc = function(s, addr, addrlen);
+	SYSCALL_END(s);
+	return rc;
 }
 
 int
@@ -183,12 +192,14 @@ sys_bind(s, name, namelen)
 #endif  /* HAVE_FAULTY_BINDPROTO */
 	socklen_t namelen;
 {
+	int rc;
 	int (*function)(int s, __CONST_SOCKADDR_ARG name, socklen_t namelen);
 
-	if ((function = symbolfunction(SYMBOL_BIND)) == NULL)
-		return -1;
-
-	return function(s, name, namelen);
+	SYSCALL_START(s);
+	function = symbolfunction(SYMBOL_BIND);
+	rc = function(s, name, namelen);
+	SYSCALL_END(s);
+	return rc;
 }
 
 int
@@ -196,14 +207,15 @@ sys_bindresvport(sd, sin)
 	int sd;
 	struct sockaddr_in *sin;
 {
+	int rc;
 	int (*function)(int sd, struct sockaddr_in *sin);
 
-	if ((function = symbolfunction(SYMBOL_BINDRESVPORT)) == NULL)
-		return -1;
-
-	return function(sd, sin);
+	SYSCALL_START(sd);
+	function = symbolfunction(SYMBOL_BINDRESVPORT);
+	rc = function(sd, sin);
+	SYSCALL_END(sd);
+	return rc;
 }
-
 
 int
 sys_connect(s, name, namelen)
@@ -215,12 +227,14 @@ sys_connect(s, name, namelen)
 #endif  /* HAVE_FAULTY_CONNECTPROTO */
 	socklen_t namelen;
 {
+	int rc;
 	int (*function)(int s, __CONST_SOCKADDR_ARG name, socklen_t namelen);
 
-	if ((function = symbolfunction(SYMBOL_CONNECT)) == NULL)
-		return -1;
-
-	return function(s, name, namelen);
+	SYSCALL_START(s);
+	function = symbolfunction(SYMBOL_CONNECT);
+	rc = function(s, name, namelen);
+	SYSCALL_END(s);
+	return rc;
 }
 
 struct hostent *
@@ -229,9 +243,7 @@ sys_gethostbyname(name)
 {
 	struct hostent *(*function)(const char *name);
 
-	if ((function = symbolfunction(SYMBOL_GETHOSTBYNAME)) == NULL)
-		return NULL;
-
+	function = symbolfunction(SYMBOL_GETHOSTBYNAME);
 	return function(name);
 }
 
@@ -242,9 +254,7 @@ sys_gethostbyname2(name, af)
 {
 	struct hostent *(*function)(const char *name, int af);
 
-	if ((function = symbolfunction(SYMBOL_GETHOSTBYNAME2)) == NULL)
-		return NULL;
-
+	function = symbolfunction(SYMBOL_GETHOSTBYNAME2);
 	return function(name, af);
 }
 
@@ -254,13 +264,14 @@ sys_getpeername(s, name, namelen)
 	__SOCKADDR_ARG name;
 	socklen_t *namelen;
 {
+	int rc;
 	int (*function)(int s, const __SOCKADDR_ARG name, socklen_t *namelen);
 
-	if ((function = symbolfunction(SYMBOL_GETPEERNAME)) == NULL)
-		return -1;
-
-	return function(s, name, namelen);
-
+	SYSCALL_START(s);
+	function = symbolfunction(SYMBOL_GETPEERNAME);
+	rc = function(s, name, namelen);
+	SYSCALL_END(s);
+	return rc;
 }
 
 int
@@ -269,12 +280,73 @@ sys_getsockname(s, name, namelen)
 	__SOCKADDR_ARG name;
 	socklen_t *namelen;
 {
+	int rc;
 	int (*function)(int s, const __SOCKADDR_ARG name, socklen_t *namelen);
 
-	if ((function = symbolfunction(SYMBOL_GETSOCKNAME)) == NULL)
-		return -1;
+	SYSCALL_START(s);
+	function = symbolfunction(SYMBOL_GETSOCKNAME);
+	rc = function(s, name, namelen);
+	SYSCALL_END(s);
+	return rc;
+}
 
-	return function(s, name, namelen);
+ssize_t
+sys_read(d, buf, nbytes)
+	int d;
+	void *buf;
+	size_t nbytes;
+{
+	ssize_t rc;
+	int (*function)(int d, void *buf, size_t nbutes);
+
+	SYSCALL_START(d);
+   function = symbolfunction(SYMBOL_READ);
+	rc = function(d, buf, nbytes);
+	SYSCALL_END(d);
+	return rc;
+}
+
+ssize_t
+sys_readv(d, iov, iovcnt)
+	int d;
+#ifdef HAVE_FAULTY_READVPROTO
+	struct iovec *iov;
+#else
+	const struct iovec *iov;
+#endif
+	int iovcnt;
+{
+	ssize_t rc;
+	int (*function)(int d, const struct iovec *iov, int iovcnt);
+
+	SYSCALL_START(d);
+   function = symbolfunction(SYMBOL_READV);
+	rc = function(d, iov, iovcnt);
+	SYSCALL_END(d);
+	return rc;
+}
+
+ssize_t
+sys_recv(s, buf, len, flags)
+	int s;
+/* XXX rename */
+#ifdef HAVE_RECVFROM_CHAR
+	char *buf;
+	int len;
+#else
+	void *buf;
+	size_t len;
+#endif
+	int flags;
+{
+	ssize_t rc;
+	int (*function)(int s, void *buf, size_t len, int flags);
+
+	SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_RECV);
+	rc = function(s, buf, len, flags);
+	SYSCALL_END(s);
+	return rc;
 }
 
 int
@@ -291,13 +363,31 @@ sys_recvfrom(s, buf, len, flags, from, fromlen)
 	__SOCKADDR_ARG from;
 	socklen_t *fromlen;
 {
+	int rc;
 	int (*function)(int s, void *buf, size_t len, int flags,
 					    __SOCKADDR_ARG from, socklen_t *fromlen);
 
-	if ((function = symbolfunction(SYMBOL_RECVFROM)) == NULL)
-		return -1;
+	SYSCALL_START(s);
+	function = symbolfunction(SYMBOL_RECVFROM);
+	rc = function(s, buf, len, flags, from, fromlen);
+	SYSCALL_END(s);
+	return rc;
+}
 
-	return function(s, buf, len, flags, from, fromlen);
+ssize_t
+sys_recvmsg(s, msg, flags)
+	int s;
+	struct msghdr *msg;
+	int flags;
+{
+	ssize_t rc;
+	int (*function)(int s, struct msghdr *msg, int flags);
+
+	SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_RECVMSG);
+	rc = function(s, msg, flags);
+	SYSCALL_END(s);
+	return rc;
 }
 
 int 
@@ -306,13 +396,49 @@ sys_rresvport(port)
 {
 	int (*function)(int *port);
 
-	if ((function = symbolfunction(SYMBOL_RRESVPORT)) == NULL)
-		return -1;
-
+	function = symbolfunction(SYMBOL_RRESVPORT);
 	return function(port);
 }
 
-int
+ssize_t
+sys_send(s, msg, len, flags)
+	int s;
+#ifdef HAVE_RECVFROM_CHAR
+	const char *msg;
+	int len;
+#else
+	const void *msg;
+	size_t len;
+#endif
+	int flags;
+{
+	ssize_t rc;
+	int (*function)(int s, const void *msg, size_t len, int flags);
+
+	SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_SEND);
+	rc = function(s, msg, len, flags);
+	SYSCALL_END(s);
+	return rc;
+}
+
+ssize_t
+sys_sendmsg(s, msg, flags)
+	int s;
+	const struct msghdr *msg;
+	int flags;
+{
+	ssize_t rc;
+	int (*function)(int s, const struct msghdr *msg, int flags);
+
+	SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_SENDMSG);
+	rc = function(s, msg, flags);
+	SYSCALL_END(s);
+	return rc;
+}
+
+ssize_t
 sys_sendto(s, msg, len, flags, to, tolen)
 	int s;
 #ifdef HAVE_SENDTO_ALT
@@ -326,17 +452,53 @@ sys_sendto(s, msg, len, flags, to, tolen)
 	__CONST_SOCKADDR_ARG to;
 	socklen_t tolen;
 {
+	ssize_t rc;
 	int (*function)(int s, const void *msg, size_t len, int flags,
 					    __CONST_SOCKADDR_ARG to, socklen_t tolen);
 
-	if ((function = symbolfunction(SYMBOL_SENDTO)) == NULL)
-		return -1;
-
-	return function(s, msg, len, flags, to, tolen);
+	SYSCALL_START(s);
+	function = symbolfunction(SYMBOL_SENDTO);
+	rc = function(s, msg, len, flags, to, tolen);
+	SYSCALL_END(s);
+	return rc;
 }
 
+ssize_t
+sys_write(d, buf, nbytes)
+	int d;
+	const void *buf;
+	size_t nbytes;
+{
+	ssize_t rc;
+	int (*function)(int d, const void *buf, size_t nbutes);
 
-	/* the interpositioned functions. */
+	SYSCALL_START(d);
+   function = symbolfunction(SYMBOL_WRITE);
+	rc = function(d, buf, nbytes);
+	SYSCALL_END(d);
+	return rc;
+}
+
+ssize_t
+sys_writev(d, iov, iovcnt)
+	int d;
+	const struct iovec *iov;
+	int iovcnt;
+{
+	ssize_t rc;
+	int (*function)(int d, const struct iovec *buf, int iovcnt);
+
+	SYSCALL_START(d);
+   function = symbolfunction(SYMBOL_WRITEV);
+	rc = function(d, iov, iovcnt);
+	SYSCALL_END(d);
+	return rc;
+}
+
+	/*
+	 * the interpositioned functions.
+	*/
+
 
 int 
 accept(s, addr, addrlen)
@@ -344,6 +506,8 @@ accept(s, addr, addrlen)
 	__SOCKADDR_ARG addr;
 	socklen_t *addrlen;
 {
+	if (ISSYSCALL(s))
+		return sys_accept(s, addr, addrlen);
 	return Raccept(s, addr, addrlen);
 }
 
@@ -357,6 +521,8 @@ bind(s, name, namelen)
 #endif  /* HAVE_FAULTY_BINDPROTO */
 	socklen_t namelen;
 {
+	if (ISSYSCALL(s))
+		return sys_bind(s, name, namelen);
 	return Rbind(s, name, namelen);
 }
 
@@ -365,6 +531,8 @@ bindresvport(sd, sin)
 	int sd;
 	struct sockaddr_in *sin;
 {
+	if (ISSYSCALL(sd))
+		return sys_bindresvport(sd, sin);
 	return Rbindresvport(sd, sin);
 }
 
@@ -378,6 +546,8 @@ connect(s, name, namelen)
 #endif  /* HAVE_FAULTY_CONNECTPROTO */
 	socklen_t namelen;
 {
+	if (ISSYSCALL(s))
+		return sys_connect(s, name, namelen);
 	return Rconnect(s, name, namelen);
 }
 
@@ -402,6 +572,8 @@ getpeername(s, name, namelen)
 	__SOCKADDR_ARG name;
 	socklen_t *namelen;
 {
+	if (ISSYSCALL(s))
+		return sys_getpeername(s, name, namelen);
 	return Rgetpeername(s, name, namelen);
 }
 
@@ -411,7 +583,52 @@ getsockname(s, name, namelen)
 	__SOCKADDR_ARG name;
 	socklen_t *namelen;
 {
+	if (ISSYSCALL(s))
+		return sys_getpeername(s, name, namelen);
 	return Rgetsockname(s, name, namelen);
+}
+
+ssize_t 
+read(d, buf, nbytes)
+	int d;
+	void *buf;
+	size_t nbytes;
+{
+	if (ISSYSCALL(d))
+		return sys_read(d, buf, nbytes);
+	return Rread(d, buf, nbytes);
+}
+
+ssize_t 
+readv(d, iov, iovcnt)
+	int d;
+#ifdef HAVE_FAULTY_READVPROTO
+	struct iovec *iov;
+#else
+	const struct iovec *iov;
+#endif  /* HAVE_FAULTY_READVPROTO */
+	int iovcnt;
+{
+	if (ISSYSCALL(d))
+		return sys_readv(d, iov, iovcnt);
+	return Rreadv(d, iov, iovcnt);
+}
+
+ssize_t 
+recv(s, msg, len, flags)
+	int s;
+#ifdef HAVE_RECVFROM_CHAR
+	char *msg;
+	int len; /* XXX include in HAVE_RECVFROM_CHAR */
+#else
+	void *msg;
+	size_t len;
+#endif
+	int flags;
+{
+	if (ISSYSCALL(s))
+		return sys_recv(s, msg, len, flags);
+	return Rrecv(s, msg, len, flags);
 }
 
 int
@@ -428,14 +645,78 @@ recvfrom(s, buf, len, flags, from, fromlen)
 	__SOCKADDR_ARG from;
 	socklen_t *fromlen;
 {
+	if (ISSYSCALL(s))
+		return sys_recvfrom(s, buf, len, flags, from, fromlen);
 	return Rrecvfrom(s, buf, len, flags, from, fromlen);
 }
+
+ssize_t
+recvmsg(s, msg, flags)
+	int s;
+	struct msghdr *msg;
+	int flags;
+{
+	if (ISSYSCALL(s))
+		return sys_recvmsg(s, msg, flags);
+	return Rrecvmsg(s, msg, flags);
+}
+
 	
 int
 rresvport(port)
 	int *port;
 {
 	return Rrresvport(port);
+}
+
+ssize_t 
+write(d, buf, nbytes)
+	int d;
+	const void *buf;
+	size_t nbytes;
+{
+	if (ISSYSCALL(d))
+		return sys_write(d, buf, nbytes);
+	return Rwrite(d, buf, nbytes);
+}
+
+ssize_t 
+writev(d, iov, iovcnt)
+	int d;
+	const struct iovec *iov;
+	int iovcnt;
+{
+	if (ISSYSCALL(d))
+		return sys_writev(d, iov, iovcnt);
+	return Rwritev(d, iov, iovcnt);
+}
+
+ssize_t 
+send(s, msg, len, flags)
+	int s;
+#ifdef HAVE_RECVFROM_CHAR
+	const char *msg;
+	int len;
+#else
+	const void *msg;
+	size_t len;
+#endif  /* HAVE_RECVFROM_CHAR */
+	int flags;
+{
+	if (ISSYSCALL(s))
+		return sys_send(s, msg, len, flags);
+	return Rsend(s, msg, len, flags);
+}
+
+ssize_t
+sendmsg(s, msg, flags)
+	int s;
+	const struct msghdr *msg;
+	int flags;
+{
+	if (ISSYSCALL(s))
+		return sys_sendmsg(s, msg, flags);
+	return Rsendmsg(s, msg, flags);
 }
 
 int 
@@ -452,7 +733,10 @@ sendto(s, msg, len, flags, to, tolen)
 	__CONST_SOCKADDR_ARG to;
 	socklen_t tolen;
 {
+	if (ISSYSCALL(s))
+		return sys_sendto(s, msg, len, flags, to, tolen);
 	return Rsendto(s, msg, len, flags, to, tolen);
 }
+
 
 #endif /* SOCKSLIBRARY_DYNAMIC */

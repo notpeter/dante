@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.44 1998/11/13 21:18:32 michaels Exp $";
+"$Id: util.c,v 1.52 1998/12/13 14:32:10 michaels Exp $";
 
 #include "common.h"
 
@@ -65,24 +65,32 @@ strcheck(string)
 }
 
 char *
-sockshost2string(host)
+sockshost2string(host, string, len)
 	const struct sockshost_t *host;
+	char *string;
+	size_t len;
 {
-	static char address[MAXHOSTNAMELEN + sizeof(",") - 1 + sizeof("65535")];
+
+	if (string == NULL) {
+		static char hstring[MAXSOCKSHOSTSTRING];
+
+		string = hstring;
+		len = sizeof(hstring);
+	}
 
 	switch (host->atype) {
 		case SOCKS_ADDR_IPV4:
-			snprintf(address, sizeof(address), "%s,%d", 
+			snprintf(string, len, "%s,%d", 
 			inet_ntoa(host->addr.ipv4), ntohs(host->port));
 			break;
 
 		case SOCKS_ADDR_IPV6:
-				snprintf(address, sizeof(address), "%s,%d", 
+				snprintf(string, len, "%s,%d", 
 				"<IPV6 address not supported>", ntohs(host->port));
 				break;
 
 		case SOCKS_ADDR_DOMAIN:
-			snprintf(address, sizeof(address), "%s,%d",
+			snprintf(string, len, "%s,%d",
 			host->addr.domain, ntohs(host->port));
 			break;
 
@@ -90,7 +98,7 @@ sockshost2string(host)
 			SERRX(host->atype);
 	}
 
-	return address;
+	return string;
 }
 
 const char *
@@ -206,59 +214,71 @@ errno2reply(errnum, version)
 
 
 struct sockaddr *
-sockshost2sockaddr(host)
+sockshost2sockaddr(host, addr)
 	const struct sockshost_t *host;
+	struct sockaddr *addr;
 {
-	static struct sockaddr_in address;
+	const char *function = "sockshost2sockaddr()";
 
-	bzero(&address, sizeof(address));
-	address.sin_family = AF_INET;
+	bzero(addr, sizeof(*addr));
+	/* LINTED pointer casts may be troublesome */
+	((struct sockaddr_in *)addr)->sin_family = AF_INET;
 
 	switch (host->atype) {
 		case SOCKS_ADDR_IPV4:
-			address.sin_addr = host->addr.ipv4;
+			/* LINTED pointer casts may be troublesome */
+			((struct sockaddr_in *)addr)->sin_addr = host->addr.ipv4;
 			break;
 		
 		case SOCKS_ADDR_DOMAIN: {
 			struct hostent *hostent;
 
-			if ((hostent = gethostbyname(host->addr.domain)) == NULL)
-				address.sin_addr.s_addr = htonl(INADDR_ANY);	/* XXX */
+			if ((hostent = gethostbyname(host->addr.domain)) == NULL) {
+				/* LINTED pointer casts may be troublesome */
+				swarnx("%s: gethostbyname(%s): %s",
+				function, host->addr.domain, hstrerror(h_errno));
 
+				/* LINTED pointer casts may be troublesome */
+				((struct sockaddr_in *)addr)->sin_addr.s_addr = htonl(INADDR_ANY);
+			}
+
+			if (!inet_aton(hostent->h_addr_list[0],
 			/* LINTED pointer casts may be troublesome */
-			address.sin_addr = *(struct in_addr *)hostent->h_addr_list[0];
+			&((struct sockaddr_in *)addr)->sin_addr))
+				swarnx("%s: inet_aton(%s)", function, hostent->h_addr_list[0]);
 			break;
 		}
 
 		default:
 			SERRX(host->atype);
 	}
-	address.sin_port = host->port;
+	/* LINTED pointer casts may be troublesome */ 
+	((struct sockaddr_in *)addr)->sin_port = host->port;
 
 	/* LINTED pointer casts may be troublesome */
-	return (struct sockaddr *)&address;
+	return addr;
 }
 
 struct sockshost_t *
-sockaddr2sockshost(addr)
+sockaddr2sockshost(addr, host)
 	const struct sockaddr *addr;
+	struct sockshost_t *host;
 {
-	static struct sockshost_t host;
 
 	switch (addr->sa_family) {
 		case AF_INET:
-			host.atype 		= SOCKS_ADDR_IPV4;
+			host->atype 		= SOCKS_ADDR_IPV4;
 			/* LINTED pointer casts may be troublesome */
-			host.addr.ipv4	= ((struct sockaddr_in *)addr)->sin_addr;
+			host->addr.ipv4	= ((struct sockaddr_in *)addr)->sin_addr;
 			/* LINTED pointer casts may be troublesome */
-			host.port 		= ((struct sockaddr_in *)addr)->sin_port;
+			host->port 			= ((struct sockaddr_in *)addr)->sin_port;
 			break;
 			
 		default:
 			SERRX(addr->sa_family);
 	}
 
-	return &host;
+	return host;
 }
 
 const char *
@@ -329,16 +349,17 @@ string2operator(string)
 
 
 const char *
-ruleaddress2string(address)
+ruleaddress2string(address, string, len)
 	const struct ruleaddress_t *address;
+	char *string;
+	size_t len;
 {
-	static char buf[MAXHOSTNAMELEN + 512];
 
 	switch (address->atype) {
 		case SOCKS_ADDR_IPV4: {
 			char *a, *b;
 
-			snprintf(buf, sizeof(buf), "%s/%s, tcp: %d, udp: %d  %s %d",
+			snprintf(string, len, "%s/%s, tcp: %d, udp: %d  %s %d",
 			strcheck(a = strdup(inet_ntoa(address->addr.ipv4.ip))),
 			strcheck(b = strdup(inet_ntoa(address->addr.ipv4.mask))),
 			ntohs(address->port.tcp), ntohs(address->port.udp),
@@ -350,7 +371,7 @@ ruleaddress2string(address)
 		}
 
 		case SOCKS_ADDR_DOMAIN:	
-			snprintf(buf, sizeof(buf), "%s, tcp: %d, udp: %d  %s %d",
+			snprintf(string, len, "%s, tcp: %d, udp: %d  %s %d",
 			address->addr.domain,
 			ntohs(address->port.tcp), ntohs(address->port.udp),
 			operator2string(address->operator),
@@ -361,25 +382,24 @@ ruleaddress2string(address)
 			SERRX(address->atype);
 	}
 
-	return buf;
+	return string;
 }
 
 struct sockshost_t *
-ruleaddress2sockshost(address, protocol)
+ruleaddress2sockshost(address, host, protocol)
 	const struct ruleaddress_t *address;
+	struct sockshost_t *host;
 	int protocol;
 {
-	static struct sockshost_t host;
 
-	host.atype = address->atype;
-	switch (address->atype) {
+	switch (host->atype = address->atype) {
 		case SOCKS_ADDR_IPV4:
-			host.addr.ipv4	= address->addr.ipv4.ip;
+			host->addr.ipv4	= address->addr.ipv4.ip;
 			break;
 
 		case SOCKS_ADDR_DOMAIN:
-			SASSERTX(strlen(address->addr.domain) < sizeof(host.addr.domain));
-			strcpy(host.addr.domain, address->addr.domain);
+			SASSERTX(strlen(address->addr.domain) < sizeof(host->addr.domain));
+			strcpy(host->addr.domain, address->addr.domain);
 			break;
 
 		default:
@@ -388,61 +408,60 @@ ruleaddress2sockshost(address, protocol)
 
 	switch (protocol) {
 		case SOCKS_TCP:
-			host.port = address->port.tcp;
+			host->port = address->port.tcp;
 			break;
 
 		case SOCKS_UDP:
-			host.port = address->port.udp;
+			host->port = address->port.udp;
 			break;
 	
 		default:
 			SERRX(protocol);
 	}
 
-	return &host;
+	return host;
 }
 
 struct ruleaddress_t *
-sockshost2ruleaddress(host)
+sockshost2ruleaddress(host, addr)
 	const struct sockshost_t *host;
+	struct ruleaddress_t *addr;
 {
-	static struct ruleaddress_t address;
 
-	address.atype = host->atype;
-	switch (host->atype) {
+	switch (addr->atype = host->atype) {
 		case SOCKS_ADDR_IPV4:
-			address.addr.ipv4.ip				= host->addr.ipv4;
-			address.addr.ipv4.mask.s_addr	= 0xffffffff;
+			addr->addr.ipv4.ip				= host->addr.ipv4;
+			addr->addr.ipv4.mask.s_addr	= 0xffffffff;
 			break;
 
 		case SOCKS_ADDR_DOMAIN:
-			SASSERTX(strlen(host->addr.domain) < sizeof(address.addr.domain));
-			strcpy(address.addr.domain, host->addr.domain);
+			SASSERTX(strlen(host->addr.domain) < sizeof(addr->addr.domain));
+			strcpy(addr->addr.domain, host->addr.domain);
 			break;
 
 		default:
 			SERRX(host->atype);
 	}
 
-	address.port.tcp 	= host->port;
-	address.port.udp 	= host->port;
-	address.portend	= host->port;
-	address.operator	= none;
+	addr->port.tcp 	= host->port;
+	addr->port.udp 	= host->port;
+	addr->portend		= host->port;
+	addr->operator		= none;
 
-	return &address;
+	return addr;
 }
 
 struct ruleaddress_t *
-sockaddr2ruleaddress(addr)
+sockaddr2ruleaddress(addr, ruleaddr)
 	const struct sockaddr *addr;
+	struct ruleaddress_t *ruleaddr;
 {
-	static struct ruleaddress_t ruleaddress;
 	struct sockshost_t host;
 
-	host 			= *sockaddr2sockshost(addr);
-	ruleaddress = *sockshost2ruleaddress(&host);
+	sockaddr2sockshost(addr, &host);
+	sockshost2ruleaddress(&host, ruleaddr);
 
-	return &ruleaddress;
+	return ruleaddr;
 }
 
 const char *
@@ -466,18 +485,48 @@ protocol2string(protocol)
 
 
 char *
-sockaddr2string(address)
+sockaddr2string(address, string, len)
 	const struct sockaddr *address;
+	char *string;
+	size_t len;
 {
-	static char buf[sizeof("255.255.255.255,65536")];
 
-	snprintf(buf, sizeof(buf), "%s,%d",
-	/* LINTED pointer casts may be troublesome */
-	inet_ntoa(((const struct sockaddr_in *)address)->sin_addr),
-	/* LINTED pointer casts may be troublesome */
-	ntohs(((const struct sockaddr_in *)address)->sin_port));
+	if (string == NULL) {
+		static char addrstring[MAXSOCKADDRSTRING];
 
-	return buf;
+		string = addrstring;
+		len = sizeof(addrstring);
+	}
+
+	switch (address->sa_family) {
+		case AF_UNIX: {
+			/* LINTED pointer casts may be troublesome */
+			const struct sockaddr_un *addr = (const struct sockaddr_un *)address;	
+
+			strncpy(string, addr->sun_path, len - 1);
+			string[len - 1] = NUL;
+			break;
+		}
+
+		case AF_INET: {
+			ssize_t rc;
+			/* LINTED pointer casts may be troublesome */
+			const struct sockaddr_in *addr = (const struct sockaddr_in *)address;
+
+			rc = snprintf(string, len, "%s,%d",
+			inet_ntoa(addr->sin_addr), ntohs(addr->sin_port)); 
+
+			if (rc >= len || rc == EOF)
+				SERR(rc);
+
+			break;
+		}
+
+		default:
+			SERRX(address->sa_family);
+	}
+
+	return string;
 }
 
 
@@ -513,9 +562,13 @@ serr(eval, fmt, va_alist)
 	/* LINTED expression has null effect */
 	va_end(ap);
 
+#ifdef SOCKS_SERVER
+	sockdexit(-eval);
+#else
 	if (config.state.pid == 0 || config.state.pid == getpid())
 		exit(eval);
 	_exit(eval);
+#endif
 }
 
 void
@@ -541,9 +594,13 @@ serrx(eval, fmt, va_alist)
 	/* LINTED expression has null effect */
 	va_end(ap);
 
+#ifdef SOCKS_SERVER
+	sockdexit(-eval);
+#else
 	if (config.state.pid == 0 || config.state.pid == getpid())
 		exit(eval);
 	_exit(eval);
+#endif
 }
 
 void
@@ -645,6 +702,7 @@ socks_packet2string(packet, type)
 	  int type;
 {
 	static char buf[1024];
+	char hstring[MAXSOCKSHOSTSTRING];
 	unsigned char version; 
 	const struct request_t *request = NULL;
 	const struct response_t *response = NULL;
@@ -671,13 +729,13 @@ socks_packet2string(packet, type)
 					snprintf(buf, sizeof(buf),
 					"(V4) VN: %d CD: %d address: %s",
 					request->version, request->command,
-					sockshost2string(&request->host));
+					sockshost2string(&request->host, hstring, sizeof(hstring)));
 					break;
 
 				case SOCKS_RESPONSE:
 					snprintf(buf, sizeof(buf), "(V4) VN: %d CD: %d address: %s",
 					response->version, response->reply,
-					sockshost2string(&response->host));
+					sockshost2string(&response->host, hstring, sizeof(hstring)));
 					break;
 			} 
 			break;
@@ -688,14 +746,16 @@ socks_packet2string(packet, type)
 					snprintf(buf, sizeof(buf), 
 					"VER: %d CMD: %d FLAG: %d ATYP: %d address: %s",
 					request->version, request->command, request->flag,
-					request->host.atype, sockshost2string(&request->host));
+					request->host.atype,
+					sockshost2string(&request->host, hstring, sizeof(hstring)));
 					break;
 
 				case SOCKS_RESPONSE:
 					snprintf(buf, sizeof(buf), 
 					"VER: %d REP: %d FLAG: %d ATYP: %d address: %s",
 					response->version, response->reply, response->flag,
-					response->host.atype, sockshost2string(&response->host));
+					response->host.atype,
+					sockshost2string(&response->host, hstring, sizeof(hstring)));
 					break;
 			}	
 			break;
@@ -1005,6 +1065,7 @@ socks_mklock(template)
 	template);
 
 	if ((s = mkstemp(newtemplate)) == -1) {
+		swarn(newtemplate);
 		free(newtemplate);
 		return -1;
 	}
@@ -1068,11 +1129,7 @@ socks_lock(descriptor, type, timeout)
 		switch (errno) {
 			case EINTR:
 			case EAGAIN:
-#if 0
-				/* FALLTHROUGH */
-#else
 				break;
-#endif
 
 			case ENOLCK:
 				swarn("%s: fcntl()", function);
@@ -1096,3 +1153,34 @@ socks_unlock(descriptor, timeout)
 	
 	return socks_lock(descriptor, F_UNLCK, timeout);
 }
+
+
+int
+freedescriptors(message)
+	const char *message;
+{
+	const int errno_s = errno;
+	int i, freed, max;
+
+	/* LINTED expression has null effect */
+	for (freed = 0, i = 0, max = getdtablesize(); i < max; ++i)
+		if (!fdisopen(i))
+			++freed;
+
+	if (message != NULL)
+		slog(LOG_DEBUG, "freedescriptors(%s): %d/%d", message, freed, max);
+
+	errno = errno_s;
+
+	return freed;
+}
+
+int
+fdisopen(fd)
+	int fd;
+{
+	if (fcntl(fd, F_GETFD, 0) == 0)
+		return 1;
+	return 0;
+}
+

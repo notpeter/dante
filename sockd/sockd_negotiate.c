@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.41 1998/11/13 21:18:54 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.45 1998/12/13 16:01:06 michaels Exp $";
 
 #include "common.h"
 
@@ -198,7 +198,7 @@ run_negotiate(mother)
 
 		if (FD_ISSET(mother->s, &rset)) {
 			if (recv_negotiate(mother) == -1)
-				_exit(EXIT_FAILURE);
+				sockdexit(-EXIT_FAILURE);
 			FD_CLR(mother->s, &rset);
 		}
 
@@ -241,7 +241,7 @@ run_negotiate(mother)
 				/* read a complete request, try and send to mother. */
 				switch (send_negotiate(mother, neg)) {
 					case -1:
-						_exit(EXIT_FAILURE);
+						sockdexit(-EXIT_FAILURE);
 						/* NOTREACHED */
 
 					case 0:
@@ -284,9 +284,9 @@ send_negotiate(mother, neg)
 	req.auth	= neg->auth;
 	req.rule = neg->rule;
 	/* LINTED pointer casts may be troublesome */
-	req.from	= *((struct sockaddr_in *)sockshost2sockaddr(&neg->src));
+	sockshost2sockaddr(&neg->src, (struct sockaddr *)&req.from);
 	/* LINTED pointer casts may be troublesome */
-	req.to	= *((struct sockaddr_in *)sockshost2sockaddr(&neg->dst));
+	sockshost2sockaddr(&neg->dst, (struct sockaddr *)&req.to);
 
 #ifdef HAVE_CMSGHDR
 	/* LINTED pointer casts may be troublesome */
@@ -386,7 +386,6 @@ recv_negotiate(mother)
 			default:
 				swarnx("%s: recvmsg(): unexpected %d/%d bytes from mother",
 				function, r, sizeof(command));
-				break;
 		}
 
 		return -1;
@@ -436,18 +435,21 @@ recv_negotiate(mother)
 		swarn("%s: getpeername(): client dropped", function);
 		return 1;
 	}
-	neg->src = *sockaddr2sockshost(&addr);
+	sockaddr2sockshost(&addr, &neg->src);
 
 	len = sizeof(addr);
 	if (getsockname(neg->s, &addr, &len) != 0) {
 		swarn("%s: getsockname(): client dropped", function);
 		return 1;
 	}
-	neg->dst = *sockaddr2sockshost(&addr);
+	sockaddr2sockshost(&addr, &neg->dst);
 
 	neg->state.command 		= SOCKS_ACCEPT;
 	neg->state.protocol 		= SOCKS_TCP;
 	neg->state.auth.method	= AUTHMETHOD_NONE;
+	/* pointer fixup */
+	neg->req.auth = &neg->auth;
+	neg->allocated = 1;
 
 	permit = clientaddressisok(neg->s, &neg->src, &neg->dst, neg->state.protocol,
 	&neg->rule);
@@ -460,13 +462,8 @@ recv_negotiate(mother)
 		return 0;
 	}
 
-	/* pointer fixup */
-	neg->req.auth = &neg->auth;
-
 	if (time(&neg->start) == (time_t)-1)
 		SERR((time_t)-1);
-
-	neg->allocated = 1;
 
 	proctitleupdate();
 

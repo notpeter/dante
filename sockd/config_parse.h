@@ -48,17 +48,18 @@ typedef union {
 #define	OPERATOR	301
 #define	LOG	302
 #define	LOG_CONNECT	303
-#define	LOG_DISCONNECT	304
-#define	LOG_IOOPERATION	305
-#define	LOG_DATA	306
-#define	IPADDRESS	307
-#define	DOMAIN	308
-#define	DIRECT	309
-#define	PORT	310
-#define	SERVICENAME	311
-#define	NUMBER	312
-#define	FROM	313
-#define	TO	314
+#define	LOG_DATA	304
+#define	LOG_DISCONNECT	305
+#define	LOG_ERROR	306
+#define	LOG_IOOPERATION	307
+#define	IPADDRESS	308
+#define	DOMAIN	309
+#define	DIRECT	310
+#define	PORT	311
+#define	SERVICENAME	312
+#define	NUMBER	313
+#define	FROM	314
+#define	TO	315
 
 
 extern YYSTYPE socks_yylval;

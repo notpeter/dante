@@ -41,11 +41,18 @@
  *
  */
 
-/* $Id: socks.h,v 1.105 1998/11/13 21:17:21 michaels Exp $ */
+/* $Id: socks.h,v 1.113 1998/12/12 16:26:44 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
 #endif  /* ! _SOCKS_H_ */
+
+#ifdef lint
+extern const int lintnoloop_socks_h;
+#else
+#define lintnoloop_socks_h 0
+#endif
+
 
 
 #ifdef SOCKSLIBRARY_DYNAMIC
@@ -58,13 +65,21 @@
 #define gethostbyname2(name, af)			sys_gethostbyname2(name, af)
 #define getpeername(s, name, namelen)	sys_getpeername(s, name, namelen)
 #define getsockname(s, name, namelen)	sys_getsockname(s, name, namelen)
+#define read(d, buf, nbytes)				sys_read(d, buf, nbytes)
+#define readv(d, iov, iovcnt)				sys_readv(d, iov, iovcnt)
+#define recv(s, msg, len, flags)			sys_recv(s, msg, len, flags)
 #define recvfrom(s, buf, len, flags, from, fromlen)	\
 		  sys_recvfrom(s, buf, len, flags, from, fromlen)
+#define recvmsg(s, msg, flags)			sys_recvmsg(s, msg, flags)
 #define rresvport(port)						sys_rresvport(port)
 #define sendto(s, msg, len, flags, to, tolen) 	\
 		  sys_sendto(s, msg, len, flags, to, tolen)
+#define write(d, buf, nbytes)				sys_write(d, buf, nbytes)
+#define writev(d, iov, iovcnt)			sys_writev(d, iov, iovcnt)
+#define send(s, msg, len, flags)			sys_send(s, msg, len, flags)
+#define sendmsg(s, msg, flags)			sys_sendmsg(s, msg, flags)
 
-#endif
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
 struct configstate_t {
 	unsigned int		init:1;
@@ -82,7 +97,9 @@ struct config_t {
 	struct configstate_t state;
 	char						domain[MAXHOSTNAMELEN];	/* local domainname.				*/
 	struct logtype_t		log;							/* where to log.					*/
-	struct option_t 		option;
+	struct option_t 		option;						/* misc options.					*/
+	pid_t						connectchild;				/* connect process.				*/
+	int						connect_s;					/* socket to connect process. */
 	struct route_t			*route;						/* linked list of routes.		*/
 };
 
@@ -126,6 +143,15 @@ ssize_t Rrecvfrom __P((int s, char *buf, int len, int flags,
 ssize_t Rrecvfrom __P((int s, void *buf, size_t len, int flags, 
 					   struct sockaddr * from, socklen_t *fromlen);)
 #endif  /* HAVE_RECVFROM_CHAR */
+ssize_t Rwrite __P((int d, const void *buf, size_t nbytes));
+ssize_t Rwritev __P((int d, const struct iovec *iov, int iovcnt));
+ssize_t Rsend __P((int s, const void *msg, size_t len, int flags));
+ssize_t Rsendmsg __P((int s, const struct msghdr *msg, int flags));
+ssize_t Rread __P((int d, void *buf, size_t nbytes));
+ssize_t Rreadv __P((int d, const struct iovec *iov, int iovcnt));
+ssize_t Rrecv __P((int s, void *msg, size_t len, int flags));
+ssize_t Rrecvmsg __P((int s, struct msghdr *msg, int flags));
+
 
 
 int SOCKSinit __P((char *));
@@ -222,28 +248,13 @@ socks_negotiate __P((int s, struct socks_t *dst));
 
 
 
-int
-socks_ckcf __P((struct sockshost_t *src, struct sockshost_t *dst));
-/*
- * Checks source ("src") and destination ("dst") and returns a value
- * indicating what kind of connection should be made.
- * Returns:
- *    SOCKS_DENY 		: the connection request should be denied.
- *    SOCKS_SOCKD 	: sockd should be used,
- *    SOCKS_DIRECT	: direct connection should be made,
-*/
-
-
 struct route_t *
 socks_nbconnectroute __P((int s, struct socks_t *packet,
 						 const struct sockshost_t *src,
 						 const struct sockshost_t *dst));
 /*
  * The non-blocking version of socks_connectroute(), only used by client.
- * 
 */
-
-
 
 
 int 
@@ -304,6 +315,16 @@ socksfddup __P((const struct socksfd_t *old, struct socksfd_t *new));
 */
 
 
+int
+socks_addrcontrol(const struct sockaddr *local, const struct sockaddr *remote);
+/*
+ * Goes through all addresses registered and tries to find one where
+ * the control socket has a local address of "local" and peer address
+ * of "remote".
+ *	Returns:
+ *		On success: the descriptor the socksfd struct was registered with.
+ *		On failure: -1
+*/
 
 int 
 socks_addrmatch __P((const struct sockaddr *local,
@@ -360,7 +381,6 @@ socks_rmfd __P((unsigned int fd));
 */
 
 
-
 int
 fdisopen __P((int fd));
 /*
@@ -370,10 +390,12 @@ fdisopen __P((int fd));
 
 
 int
-clientmethod_uname __P((int s, int version));
+clientmethod_uname __P((int s, const struct sockshost_t *host, int version));
 /* 
  * Enters username/password negotiation with the socksserver connected to
- * the socket "s".  Version to be used is "version".
+ * the socket "s". 
+ * "host" gives the name of the server.
+ * "version" gives the version to be used in negotiation.
  * Returns:
  *		On success: 0
  *		On failure: whatever the remote socksserver returned as status.
@@ -381,22 +403,26 @@ clientmethod_uname __P((int s, int version));
 
 
 char *
-socks_getusername __P((char *buf, size_t buflen));
+socks_getusername __P((const struct sockshost_t *host, char *buf,
+							  size_t buflen));
 /* 
  * Tries to determine the username of the current user, to be used
- * when negotiating with server.  The NUL-terminated username is
- * written to "buf", which is of length "buflen".
+ * when negotiating with the server "host".
+ * The NUL-terminated username is written to "buf", which is of length
+ * "buflen".
  * Returns:
  *		On success: pointer to "buf" with the username.
  *		On failure: NULL.
 */
 
 char *
-socks_getpassword __P((const char *user, char *buf, size_t buflen));
+socks_getpassword __P((const struct sockshost_t *host, const char *user,
+							  char *buf, size_t buflen));
 /* 
  * Tries to determine the password of user "user", to be used
- * when negotiating with server.  The NUL-terminated password is
- * written to "buf", which is of length "buflen"
+ * when negotiating with the server "host".
+ * The NUL-terminated password is written to "buf", which is of length
+ * "buflen"
  * Returns:
  *		On success: pointer to "buf" with the password.
  *		On failure: NULL.
@@ -439,16 +465,38 @@ struct hostent *sys_gethostbyname __P((const char *));
 struct hostent *sys_gethostbyname2 __P((const char *, int));
 int sys_getpeername __P((int, __SOCKADDR_ARG, socklen_t *));
 int sys_getsockname __P((int, __SOCKADDR_ARG, socklen_t *));
+ssize_t sys_read __P((int, void *, size_t));
+#ifdef HAVE_FAULTY_READVPROTO
+ssize_t sys_readv __P((int, struct iovec *, int));
+#else
+ssize_t sys_readv __P((int, const struct iovec *, int));
+#endif  /* HAVE_FAULTY_CONNECTPROTO */
+#ifdef HAVE_RECVFROM_CHAR
+ssize_t sys_recv __P((int, char *, int, int));
+#else
+ssize_t sys_recv __P((int, void *, size_t, int));
+#endif
+ssize_t sys_recvmsg __P((int, struct msghdr *, int));
 #ifdef HAVE_RECVFROM_CHAR
 int sys_recvfrom __P((int, char *, int, int, struct sockaddr *, int *));
 #else
 int sys_recvfrom __P((int, void *, size_t, int, __SOCKADDR_ARG, socklen_t *));
 #endif  /* HAVE_RECVFROM_CHAR */
 int sys_rresvport __P((int *));
-#ifdef HAVE_SENDTO_ALT
-int sys_sendto __P((int, const char *, int, int, __CONST_SOCKADDR_ARG, socklen_t));
+ssize_t sys_write __P((int, const void *, size_t));
+ssize_t sys_writev __P((int, const struct iovec *, int));
+#ifdef HAVE_RECVFROM_CHAR
+ssize_t sys_send __P((int, const char *, int, int));
 #else
-int sys_sendto __P((int, const void *, size_t, int, __CONST_SOCKADDR_ARG, socklen_t));
+ssize_t sys_send __P((int, const void *, size_t, int));
+#endif  /* HAVE_RECVFROM_CHAR */
+ssize_t sys_sendmsg __P((int, const struct msghdr *, int));
+#ifdef HAVE_SENDTO_ALT
+int sys_sendto __P((int, const char *, int, int, __CONST_SOCKADDR_ARG,
+						  socklen_t));
+#else
+int sys_sendto __P((int, const void *, size_t, int, __CONST_SOCKADDR_ARG,
+						  socklen_t));
 #endif  /* HAVE_SENDTO_ALT */
 
 #endif

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.126 1998/11/13 21:17:14 michaels Exp $ */
+/* $Id: common.h,v 1.141 1998/12/14 12:00:26 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -71,6 +71,7 @@
 #undef __GNUC__
 #endif  /* __GNUC__ */
 #endif  /* WE_DONT_WANT_NO_SOCKADDR_ARG_UNION */
+/* XXXAnother hack, get cmsghdr type struct on solaris 2.6 */
 #include <sys/socket.h>
 #ifdef __HAD_GNUC
 #define __GNUC__ __HAD_GNUC
@@ -78,6 +79,7 @@
 #ifdef NEED_SYS_SOCKIO_H
 #include <sys/sockio.h>
 #endif /* NEED_SYS_SOCKIO_H */
+#include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
@@ -130,6 +132,8 @@ extern const int lintnoloop_common_h;
 #include "config.h"
 #endif
 
+#define SOCKS_TRYHARDER 	/* XXX should be configure option. */
+
 #ifndef RLIMIT_OFILE
 #define RLIMIT_OFILE RLIMIT_NOFILE
 #endif /* !RLIMIT_OFILE */
@@ -145,6 +149,10 @@ extern const int lintnoloop_common_h;
 #endif  /* !HAVE_BZERO */
 
 #ifdef DEBUG
+
+#ifndef DIAGNOSTIC
+#define DIAGNOSTIC
+#endif  /* !DIAGNOSTIC */
 
 /*
  * solaris 2.5.1 and it's stream stuff is broken and puts the processes
@@ -254,8 +262,6 @@ extern const int lintnoloop_common_h;
 #define AF_LOCAL AF_UNIX
 #endif  /* NEED_AF_LOCAL */
 
-#define SOCKS_TRYHARDER
-
 #ifndef HAVE_LINUX_SOCKADDR_TYPE
 #define __SOCKADDR_ARG struct sockaddr *
 #define __CONST_SOCKADDR_ARG const struct sockaddr *
@@ -290,9 +296,6 @@ extern struct config_t config;
  * _must_ be atleast as big as protocol allows.
 */
 
-/* used only if no usable system call is found (getdtablesize/sysconf)*/
-#define SOCKS_FD_MAX 250
-
 #ifdef 	MAXHOSTNAMELEN
 #undef 	MAXHOSTNAMELEN
 #endif
@@ -309,8 +312,27 @@ extern struct config_t config;
 #define 	MAXPWLEN				(255 + 1)		/* socks5: 255, +1 for len. */
 
 
+/*									"255." "255." "255." "255" "," "65535" + NUL */
+#define 	MAXSOCKADDRSTRING	 (4   +   4   + 4   +  3  + 1 +    5   + 1)
+
+/*       											   "," + "65535" + NUL */
+#define	MAXSOCKSHOSTSTRING (MAXHOSTNAMELEN + 1  +    5)
+
+#define MAXRULEADDRSTRING	 (MAXSOCKSHOSTSTRING * 2)
+
 #ifndef NUL
 #define NUL '\0'
+#endif
+
+/*
+ * We don't care whether it's called O_NONBLOCK, FNDELAY or whatever.
+ * We just want to know whether the flags set give blocking or nonblocking
+ * semantics.
+*/
+#ifndef FNDELAY
+#define NONBLOCKING	(O_NONBLOCK | O_NDELAY)
+#else
+#define NONBLOCKING	(O_NONBLOCK | FNDELAY | O_NDELAY)
 #endif
 
 #define CONFIGTYPE_SERVER	1
@@ -320,13 +342,10 @@ extern struct config_t config;
 #define PROTOCOL_UDPs		"udp"
 #define PROTOCOL_UNKNOWNs	"unknown"
 
+#define LOGTYPE_SYSLOG		0x1
+#define LOGTYPE_FILE			0x2
 
-/*#define DEFAULT_SOCKSVERSION		SOCKS_V5 */
-
-#define LOGTYPE_SYSLOG				0x1
-#define LOGTYPE_FILE					0x2
-
-#define NOMEM "<memory exhausted>"
+#define NOMEM 					"<memory exhausted>"
 
 
 	/*
@@ -792,9 +811,8 @@ struct socks_t {
 
   	struct request_t 				req;
   	struct response_t 			res;
-	struct authmethod_t			*auth;
-	char 								*methodv;	/* pointer into gateway structure.	*/
-	unsigned	char					*methodc;	/* pointer into gateway structure.	*/
+	struct authmethod_t			auth;
+	struct gateway_t				*gw;
 };
 
 
@@ -812,21 +830,20 @@ typedef enum portcmp Portcmp;
 #define SOCKS_RESPONSE	0x2
 
 
-
 /* values in parentheses designate "don't care" values.	*/
 struct socksstate_t {
-	unsigned int			udpconnect:1;	/* connected udp socket?					*/
-	unsigned int			system:1;		/* don't check, use system call.			*/
+	int						acceptpending;	/* a accept pending?		(-1)			*/
+	struct authmethod_t	auth;				/* authentication in use.					*/
+	int						command;			/* command connection created with (-1)*/
+	int						err;				/* if request failed, errno. 				*/
+	int 						inprogress;		/* connection in progress? (-1)		  	*/
 #ifdef SOCKS_TRYHARDER
 	int						lock;				/* some calls require a lock.				*/
 #endif
-	int 						version;			/* version connection made under	(-1)	*/
-	int						command;			/* command connection created with (-1)*/
 	struct protocol_t		protocol;
-	struct authmethod_t	auth;				/* authentication in use.					*/
-	int 						inprogress;		/* connection in progress? (-1)		  	*/
-	int						acceptpending;	/* a accept pending?		(-1)			*/
-	pid_t						childpid;		/* pid of child if created	(0)		   */
+	unsigned int			udpconnect:1;	/* connected udp socket?					*/
+	int						system;			/* don't check, use system call.			*/
+	int 						version;			/* version connection made under	(-1)	*/
 };
 
 struct socksfd_t {
@@ -877,10 +894,10 @@ void swarnx();
 
 
 struct udpheader_t *
-sockaddr2udpheader __P((const struct sockaddr *to));
+sockaddr2udpheader __P((const struct sockaddr *to, struct udpheader_t *header));
 /*
- * Returns a udpheader representation of the "to" address.
- * Returns NULL on failure.
+ * Writes a udpheader representation of "to" to "header".
+ * Returns a pointer to "header".
 */
 
 char *
@@ -895,7 +912,8 @@ udpheader_add __P((const struct sockaddr *to, const char *msg, size_t *len));
 */
 
 struct udpheader_t *
-string2udpheader __P((const char *data, size_t len));
+string2udpheader __P((const char *data, size_t len,
+							 struct udpheader_t *header));
 /*
  * Converts "data" to udpheader_t representation. 
  * "len" is length of "data". 
@@ -917,8 +935,6 @@ socks_packet2string __P((const void *packet, int type));
  */
 
 
-
-
 int
 fdisopen __P((int fd));
 /*
@@ -934,49 +950,58 @@ socks_logmatch(int d, const struct logtype_t *log);
 */
 
 char *
-sockaddr2string __P((const struct sockaddr *address));
+sockaddr2string __P((const struct sockaddr *address, char *string, size_t len));
 /*
  * Returns the ip address and port in "address" on string form.
  * "address" is assumed to be on network form and it will be
- * converted to host form before converted to string form.
- * The string is allocated statically and a subsequent call to the same
- * function will overwrite the old contents.
+ * converted to host form before written to "string".
+ * "len" gives length of the NUL terminated string.
+ * Returns: "string".
 */
 
 
 struct sockaddr *
-sockshost2sockaddr __P((const struct sockshost_t *shost));
+sockshost2sockaddr __P((const struct sockshost_t *shost,
+								struct sockaddr *addr));
 /*
- * Returns a pointer to a statically allocated sockaddr structure containing
- * the address in "shost".
+ * Converts the sockhost_t "shost" to a sockaddr struct and stores it 
+ * in "addr".
+ * Returns: "addr".
 */
 
 struct sockshost_t *
-sockaddr2sockshost __P((const struct sockaddr *addr));
+sockaddr2sockshost __P((const struct sockaddr *addr, struct sockshost_t *host));
 /*
- * Returns pointer to statically allocated sockshost structure containing
- * the address "addr".
+ * Converts the sockaddr struct "shost" to a sockshost_t struct and stores it 
+ * in "host".
+ * Returns: "host".
 */
 
 struct sockshost_t *
-ruleaddress2sockshost __P((const struct ruleaddress_t *address, int protocol));
+ruleaddress2sockshost __P((const struct ruleaddress_t *address,
+									struct sockshost_t *host, int protocol));
 /*
- * Returns a sockshost representation of "address", using protocol
- * "protocol".
- * Static memory.
+ * Converts the ruleaddress_t "address" to a sockshost_t struct and stores it 
+ * in "host".
+ * Returns: "host".
 */
 
 struct ruleaddress_t *
-sockshost2ruleaddress __P((const struct sockshost_t *host));
+sockshost2ruleaddress __P((const struct sockshost_t *host,
+									struct ruleaddress_t *addr));
 /*
- * Returns a ruleaddress_t representation of "host".
- * Static memory.
+ * Converts the sockshost_t "host" to a ruleaddress_t struct and stores it 
+ * in "addr".
+ * Returns: "addr".
 */
 
 struct ruleaddress_t *
-sockaddr2ruleaddress(const struct sockaddr *addr);
+sockaddr2ruleaddress(const struct sockaddr *addr,
+							struct ruleaddress_t *ruleaddr);
 /*
- * Returns a ruleaddress_t representation of "addr" stored in static memory.
+ * Converts the struct sockaddr "addr" to a ruleaddress_t struct and stores it 
+ * in "ruleaddr".
+ * Returns: "addr".
 */
 
 int 
@@ -1026,20 +1051,12 @@ acceptn __P((int, struct sockaddr *, int *));
 
 
 char *
-sockshost2string __P((const struct sockshost_t *host));
+sockshost2string __P((const struct sockshost_t *host, char *string,
+							 size_t len));
 /*
- * Converts the address in "host" to a string.
- * Returns a pointer to statically allocated memory containing the
- * address.  The memory will be overwritten on the next call to this
- * function.
-*/
-
-struct sockaddr *
-sockspacket2sockaddr __P((const struct sockshost_t *packet));
-/*
- * converts the sockspacket "packet" to a sockaddr structure.
- * Returns a pointer to static memory holding the converted sockaddr
- * structure, valid until the next time this function is called.
+ * Writes "host" out as a string.  The string is writtin to "string",
+ * which is of length "len", including NUL termination.
+ * Returns: "string".
 */
 
 const char *
@@ -1053,12 +1070,14 @@ const char *
 command2string __P((int command));
 /*
  * Returns a printable representation of the socks command "command". 
+ * Can't fail.
 */
 
 const char *
 method2string __P((int method));
 /*
  * Returns a printable representation of the authmethod "method".
+ * Can't fail.
 */
 
 
@@ -1112,8 +1131,8 @@ readconfig __P((FILE *fp));
 
 int
 addressmatch __P((const struct ruleaddress_t *rule, 
-			 			const struct sockshost_t *address, int protocol, int
-			 			ipalias));
+			 			const struct sockshost_t *address, int protocol,
+			 			int ipalias));
 /*
  * Tries to match "address" against "rule".  "address" is resolved
  * if necessary.  "address" supports the wildcard INADDR_ANY and port of 0.
@@ -1184,7 +1203,7 @@ showroute __P((const struct route_t *route));
 
 struct route_t *
 socks_getroute __P((const struct request_t *req, const struct sockshost_t *src,
-					const struct sockshost_t *dst));
+						  const struct sockshost_t *dst));
 /*
  * Tries to find a  route to be used for a connection going from
  * "src" to "dst".
@@ -1195,14 +1214,17 @@ socks_getroute __P((const struct request_t *req, const struct sockshost_t *src,
  * recommended that it's contents be as conservative as possible.
  *
  * Returns:
- *		On success: pointer to a serverentry
- *		On failure: NULL
+ *		On success: pointer to route that should be used.
+ *		On failure: NULL (no socks route found).
 */
 
 const char *
-ruleaddress2string __P((const struct ruleaddress_t *rule));
+ruleaddress2string __P((const struct ruleaddress_t *rule, char *string,
+								size_t len));
 /*
- * Returns "rule" as a printable static string.
+ * Writes "rule" out as a string.  The string is writtin to "string",
+ * which is of length "len", including NUL termination.
+ * Returns: "string".
 */
 
 
@@ -1223,12 +1245,14 @@ enum operator_t
 string2operator __P((const char *operator));
 /*
  * Returns the enum for the string representation of a operator.
+ * Can't fail.
 */
 
 const char *
 operator2string __P((enum operator_t operator));
 /*
  * Returns the string representation of the operator.
+ * Can't fail.
 */
 
 char *
@@ -1391,11 +1415,6 @@ int inet_aton __P((register const char *cp, struct in_addr *addr));
 int getdtablesize __P((void));
 #endif  /* ! HAVE_GETDTABLESIZE */
 
-#ifdef HAVE_FEEBLE_DESCRIPTOR_PASSING
-int sockd_write_fd __P((int fd,	int sendfd));
-int sockd_read_fd __P((int fd));
-#endif  /* HAVE_FEEBLE_DESCRIPTOR_PASSING */
-
 #ifndef HAVE_STRERROR
 char *__strerror __P((int, char *));
 char *strerror __P((int));
@@ -1409,6 +1428,11 @@ void * memmove __P((void *, const void *, register size_t));
 #ifndef HAVE_INET_PTON
 int inet_pton __P((int af, const char *src, void *dst));
 #endif
+
+#ifndef HAVE_ISSETUGID
+int issetugid __P((void));
+#endif  /* !HAVE_ISSETUGID */
+
 
 __END_DECLS
 

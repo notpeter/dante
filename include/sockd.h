@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.89 1998/11/13 21:17:18 michaels Exp $ */
+/* $Id: sockd.h,v 1.98 1998/12/13 15:49:48 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -118,25 +118,20 @@ do {																			\
 #define SOCKD_REQUESTMAX	1
 
 
-/* version */
-#define DANTEVERSION "dante/sockd v0.90.0 alpha"
-
-/* debug levels */
-
-#define DEBUG_MINIMAL 	1
-#define DEBUG_NOFORK		(DEBUG_MINIMAL + 1)
-
 /* IO stuff. */
-#define IO_ERRORUNKNOWN -3
-#define IO_TIMEOUT		-2
-#define IO_ERROR			-1
-#define IO_CLOSE  		0
+#define IO_ERRORUNKNOWN 	-3
+#define IO_TIMEOUT			-2
+#define IO_ERROR				-1
+#define IO_CLOSE  			0
 
 /* types of children. */
 #define CHILD_UNKNOWN		0
 #define CHILD_IO				1
 #define CHILD_NEGOTIATE		2
 #define CHILD_REQUEST		4
+
+#define FDPASS_MAX			3	/* max number of escriptors we send/receive. */
+
 
 	/*
 	 * config stuff
@@ -151,7 +146,6 @@ do {																			\
 #define LOG_IOOPERATIONs	"iooperation"
 #define LOG_DATAs				"data"	
 
-#define AUTH_ANYs				"none"
 
 #define OPERATION_ACCEPT		1
 #define OPERATION_CONNECT		(OPERATION_ACCEPT + 1)
@@ -164,8 +158,9 @@ do {																			\
 struct log_t {
 	unsigned int	connect:1;
 	unsigned int	disconnect:1;
-	unsigned int	iooperation:1;
 	unsigned int	data:1;
+	unsigned int	error:1;
+	unsigned int	iooperation:1;
 	unsigned int	:0;
 };
 
@@ -205,12 +200,13 @@ struct srchost_t {
 };
 
 struct option_t {
-	unsigned int		daemon:1;		/* run as a daemon?								*/
-	unsigned int		lbuf:1;			/* line buffered output?						*/
 	char					*configfile;	/* name of configfile.							*/
 	FILE					*configfp;		/* pointer to configfile.						*/
+	unsigned int		daemon:1;		/* run as a daemon?								*/
 	int 					debug;			/* debug level.									*/
-	int					sleep;			/* sleep at misc places. (debugging)			*/
+	unsigned int		keepalive:1;	/* set SO_KEEPALIVE?								*/
+	unsigned int		lbuf:1;			/* line buffered output?						*/
+	int					sleep;			/* sleep at misc places. (debugging)		*/
 	int					serverc;			/* number of servers.							*/
 };
 
@@ -221,9 +217,13 @@ struct userid_t {
 };
 
 struct configstate_t {
-	unsigned int 	init:1;
-	pid_t	 			pid;
-	pid_t				*pidv;								/* all main servers.				*/
+#if 0
+	volatile sig_atomic_t	addchild;				/* okay to do a addchild()?	*/
+#endif
+	int 							addchild;				/* okay to do a addchild()?	*/
+	unsigned int 			 	init:1;
+	pid_t	 					 	pid;
+	pid_t							*pidv;					/* all main servers.				*/
 };
 
 struct listenaddress_t {
@@ -282,8 +282,6 @@ struct config_t {
 	struct statistic_t		stat;						/* some statistics.				*/
 };
 
-
-#define FDPASS_MAX		3	/* max number of filedescriptors we pass to child 	*/
 
 struct connectionstate_t {
 	struct authmethod_t	auth;
@@ -544,19 +542,6 @@ clearconfig __P((void));
 void
 terminate_connection __P((int, const struct authmethod_t *auth));
 
-ssize_t
-readuntil __P((int d, void *buf, size_t *maxread, int until));
-/*
- * Reads one byte at a time from "d" and stores the read byte in "buf".
- * Reading stops when either "maxread" bytes have been read or
- * a byte matching "until" is read.
- * On function return, "maxread" will contain the number of bytes read.
- * Returns:
- * 	If a byte matching "until" was read: 0
- *	   Otherwise: -1
-*/
-
-
 void
 send_failure __P((int s, const struct response_t *response, int failure));
 /*
@@ -614,7 +599,8 @@ selectmethod __P((const unsigned char *methodv, int methodc));
 */
 
 int
-method_uname __P((int s, struct request_t *request, struct negotiate_state_t *state));
+method_uname __P((int s, struct request_t *request,
+						struct negotiate_state_t *state));
 /*
  * Enters username/password subnegotiation.  If successful,
  * "uname" is filled in with values read from client, if unsuccessful,
@@ -652,7 +638,7 @@ const char *
 protocol2string __P((int protocol));
 /*
  * Returns a printable representation of "protocol". 
- * Uses static memory.
+ * Can't fail.
 */
 
 
@@ -802,7 +788,7 @@ addchild __P((int type));
  * Adds a new child that can accept objects of type "type" from mother.
  * Returns:
  *    On success: a pointer to the added child.
- *    On failure: NULL.
+ *    On failure: NULL.  (resource shortage.)
 */
 
 struct sockd_child_t *
@@ -851,6 +837,21 @@ nextchild __P((int type));
  * Returns:
  *		On success: pointer to a child of correct type with atleast one free slot.
  *		On failure: NULL.
+*/
+
+void
+setsockoptions(int s);
+/*
+ * Sets options _all_ serversockets should have set.
+*/
+
+void
+sockdexit __P((int sig));
+/*
+ * Called both by signal and manualy.
+ * If "sig" is less than 0, assume it's manually and exit with absolute
+ * value of "sig".
+ * Otherwise report exit due to signal "sig".
 */
 
 

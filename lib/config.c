@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: config.c,v 1.67 1998/11/13 21:18:08 michaels Exp $";
+"$Id: config.c,v 1.71 1998/12/08 14:40:19 michaels Exp $";
 
 #include "common.h"
 
@@ -311,11 +311,21 @@ void
 showroute(route)
 	const struct route_t *route;
 {
+	char hstring[MAXSOCKSHOSTSTRING];
+	char addr[MAXRULEADDRSTRING];
 
 	slog(LOG_INFO, "route #%d", route->number);
-	slog(LOG_INFO, "\tsrc: %s", ruleaddress2string(&route->src));
-	slog(LOG_INFO, "\tdst: %s", ruleaddress2string(&route->dst));
-	slog(LOG_INFO, "\tgw : %s", sockshost2string(&route->gw.host));
+
+	slog(LOG_INFO, "\tsrc: %s",
+	ruleaddress2string(&route->src, addr, sizeof(addr)));
+
+	slog(LOG_INFO, "\tdst: %s",
+	ruleaddress2string(&route->dst, addr, sizeof(addr)));
+
+	slog(LOG_INFO, "\tgw : %s",
+	sockshost2string(&route->gw.host, hstring,
+	sizeof(hstring)));
+
 	showstate(&route->gw.state);
 }
 
@@ -464,20 +474,20 @@ socks_connectroute(s, packet, src, dst)
 		if (socks_connect(current_s, &route->gw.host) == 0)
 			break;
 		else {
-			switch (errno) {
-				case EINPROGRESS:
-					SASSERTX(current_s == s);
-					return route;
+			char hstring[MAXSOCKSHOSTSTRING];
 
-				default:
-					socks_badroute(route);
-					current_s = -1;
-
+			if (errno == EINPROGRESS) {
+				SASSERTX(current_s == s);
+				break;
 			}
+
+			swarn("socks_connect(%s)", 
+			sockshost2string(&route->gw.host, hstring, sizeof(hstring)));
+			socks_badroute(route);
+			current_s = -1;
 		}
 	}
 
-	
 	if (current_s != s && current_s != -1)	{
 		/* created a new socket for connect, need to make it same descriptor #. */
 		if (dup2(current_s, s) == -1) {
@@ -487,11 +497,8 @@ socks_connectroute(s, packet, src, dst)
 		close(current_s);
 	}
 
-	if (route != NULL) {
-		/* valid methods for this route/gateway. */
-		packet->methodv = route->gw.state.methodv;
-		packet->methodc = &route->gw.state.methodc;
-	}
+	if (route != NULL)
+		packet->gw = &route->gw;
 
 	return route;
 }
