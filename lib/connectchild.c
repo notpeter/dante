@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.107 2001/11/11 13:38:26 michaels Exp $";
+"$Id: connectchild.c,v 1.110 2001/12/12 14:42:11 karls Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -136,7 +136,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 		}
 	}
 
-	if (socksconfig.connectchild == 0) {
+	if (sockscf.connectchild == 0) {
 		/*
 		 * Create child process that will do our connections.
 		 */
@@ -147,7 +147,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			return NULL;
 		}
 
-		switch (socksconfig.connectchild = fork()) {
+		switch (sockscf.connectchild = fork()) {
 			case -1:
 				swarn("%s: fork()", function);
 				return NULL;
@@ -160,7 +160,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
 				/* close unknown descriptors. */
 				for (i = 0, max = getdtablesize(); i < max; ++i)
-					if (socks_logmatch((unsigned int)i, &socksconfig.log)
+					if (socks_logmatch((unsigned int)i, &sockscf.log)
 					|| i == pipev[CHILD])
 						continue;
 					else if (isatty(i))
@@ -190,14 +190,14 @@ socks_nbconnectroute(s, control, packet, src, dst)
 			}
 
 			default:
-				socksconfig.connect_s = pipev[MOTHER];
+				sockscf.connect_s = pipev[MOTHER];
 				close(pipev[CHILD]);
 		}
 	}
 
 	switch (packet->req.version) {
 		case SOCKS_V4:
-		case SOCKS_V5: 
+		case SOCKS_V5:
 		case HTTP_V1_0: {
 			/*
 			 * Controlsocket is what later becomes datasocket.
@@ -365,7 +365,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
 #if 0
 	sleep(20);
 #endif
-	if ((p = sendmsg(socksconfig.connect_s, &msg, 0)) != (ssize_t)len) {
+	if ((p = sendmsg(sockscf.connect_s, &msg, 0)) != (ssize_t)len) {
 		swarn("%s: sendmsg(): %d of %d", function, p, len);
 		return NULL;
 	}
@@ -501,7 +501,7 @@ run_connectchild(mother)
 			}
 
 #if DIAGNOSTIC
-			/* 
+			/*
 			 * XXX
 			 * This fails (on OpenBSD at least) if the connect(2) failed.
 			 * This means mother does not know what address we are returning
@@ -615,7 +615,7 @@ run_connectchild(mother)
 			close(s);
 
 			slog(LOG_DEBUG, "raising SIGSTOP");
-			if (kill(socksconfig.state.pid, SIGSTOP) != 0)
+			if (kill(sockscf.state.pid, SIGSTOP) != 0)
 				serr(EXIT_FAILURE, "raise(SIGSTOP)");
 		}
 	}
@@ -631,9 +631,9 @@ sigchld(sig)
 	char string[MAX(sizeof(MAXSOCKADDRSTRING), sizeof(MAXSOCKSHOSTSTRING))];
 	int status;
 
-	slog(LOG_DEBUG, "%s: connectchild: %d", function, socksconfig.connectchild);
+	slog(LOG_DEBUG, "%s: connectchild: %d", function, sockscf.connectchild);
 
-	switch (waitpid(socksconfig.connectchild, &status, WNOHANG | WUNTRACED)) {
+	switch (waitpid(sockscf.connectchild, &status, WNOHANG | WUNTRACED)) {
 		case -1:
 			break;
 
@@ -658,24 +658,24 @@ sigchld(sig)
 			if (WIFSIGNALED(status)) {
 				swarnx("%s: connectchild terminated on signal %d",
 				function, WTERMSIG(status));
-				socksconfig.connectchild = 0;
-				close(socksconfig.connect_s);
+				sockscf.connectchild = 0;
+				close(sockscf.connect_s);
 				break;
 			}
 
 			if (WIFEXITED(status)) {
 				swarnx("%s: cconnectchild exited with status %d",
 				function, WEXITSTATUS(status));
-				socksconfig.connectchild = 0;
-				close(socksconfig.connect_s);
+				sockscf.connectchild = 0;
+				close(sockscf.connect_s);
 				break;
 			}
 
 			SASSERTX(WIFSTOPPED(status));
 
-			kill(socksconfig.connectchild, SIGCONT);
+			kill(sockscf.connectchild, SIGCONT);
 
-			if ((p = read(socksconfig.connect_s, &childres, sizeof(childres)))
+			if ((p = read(sockscf.connect_s, &childres, sizeof(childres)))
 			!= sizeof(childres)) {
 				swarn("%s: read(): got %d of %d", function, p, sizeof(childres));
 				return;
@@ -763,7 +763,7 @@ sigchld(sig)
 			sockshost2sockaddr(&childres.packet.res.host, &socksfd->remote);
 
 			/* needed for standard socks bind. */
-			socksconfig.state.lastconnect = socksfd->forus.connected;
+			sockscf.state.lastconnect = socksfd->forus.connected;
 		}
 	}
 

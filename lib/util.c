@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.128 2001/11/12 14:10:04 michaels Exp $";
+"$Id: util.c,v 1.132 2002/01/02 14:30:23 michaels Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -101,7 +101,7 @@ sockscode(version, code)
 					SERRX(code);
 			}
 			/* NOTREACHED */
-		
+
 		case HTTP_V1_0:
 			switch (code) {
 				case SOCKS_SUCCESS:
@@ -376,10 +376,10 @@ hostname2sockaddr(name, index, addr)
 			TOIN(addr)->sin_addr = *(struct in_addr *)hostent->h_addr_list[i];
 			/* LINTED pointer casts may be troublesome */
 			TOIN(addr)->sin_port = htons(0);
-			
+
 			return addr;
 		}
-	
+
 	return NULL;
 }
 
@@ -390,24 +390,24 @@ ifname2sockaddr(ifname, index, addr)
 	struct sockaddr *addr;
 {
 	int i;
-	struct ifaddrs ifa, *ifap = &ifa, *iface; 
+	struct ifaddrs ifa, *ifap = &ifa, *iface;
 
 	if (getifaddrs(&ifap) != 0)
 		return NULL;
-	 
+
 	for (iface = ifap, i = 0; i <= index && iface != NULL;
-	iface = iface->ifa_next) 
-		if (strcmp(iface->ifa_name, ifname) == 0 
-		&& iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET) { 
+	iface = iface->ifa_next)
+		if (strcmp(iface->ifa_name, ifname) == 0
+		&& iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET) {
 			if (i++ != index)
 				continue;
 
 			*addr = *iface->ifa_addr;
-			freeifaddrs(ifap); 
+			freeifaddrs(ifap);
 			return addr;
 		}
 
-	freeifaddrs(ifap); 
+	freeifaddrs(ifap);
 	return NULL;
 }
 
@@ -897,7 +897,7 @@ socks_lock(descriptor, type, timeout)
 	int type;
 	int timeout;
 {
-	const char *function = "socks_lock()"; 
+	const char *function = "socks_lock()";
 	struct flock lock;
 	int rc;
 
@@ -1015,9 +1015,8 @@ int
 fdisopen(fd)
 	int fd;
 {
-	if (fcntl(fd, F_GETFD, 0) == 0)
-		return 1;
-	return 0;
+
+	return fcntl(fd, F_GETFD, 0) != -1;
 }
 
 void
@@ -1052,7 +1051,7 @@ snprintfn(str, size, format, va_alist
 #else
 	va_start(ap);
 #endif  /* STDC_HEADERS */
-	
+
 	rc = vsnprintf(str, size, format, ap);
 
 	/* LINTED expression has null effect */
@@ -1067,7 +1066,7 @@ snprintfn(str, size, format, va_alist
 }
 
 /*
- * Posted by Kien Ha (Kien_Ha@Mitel.COM) in comp.lang.c once upon a 
+ * Posted by Kien Ha (Kien_Ha@Mitel.COM) in comp.lang.c once upon a
  * time.
 */
 int

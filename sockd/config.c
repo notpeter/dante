@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.147 2001/11/11 13:38:24 michaels Exp $";
+"$Id: config.c,v 1.150 2001/12/12 14:42:10 karls Exp $";
 
 void
 genericinit(void)
@@ -52,8 +52,7 @@ genericinit(void)
 	const char *function = "genericinit()";
 	size_t i;
 
-
-	if (!socksconfig.state.init) {
+	if (!sockscf.state.init) {
 #if !HAVE_SETPROCTITLE
 		/* create a backup to avoid setproctitle replacement overwriting it. */
 		if ((__progname = strdup(__progname)) == NULL)
@@ -61,7 +60,7 @@ genericinit(void)
 #endif /* !HAVE_SETPROCTITLE */
 	}
 
-	if (readconfig(socksconfig.option.configfile) != 0)
+	if (readconfig(sockscf.option.configfile) != 0)
 #if SOCKS_SERVER
 		exit(EXIT_FAILURE);
 #else
@@ -70,12 +69,12 @@ genericinit(void)
 
 	newprocinit();
 
-	switch (socksconfig.resolveprotocol) {
+	switch (sockscf.resolveprotocol) {
 		case RESOLVEPROTOCOL_TCP:
 #if !HAVE_NO_RESOLVESTUFF
 			_res.options |= RES_USEVC;
 #else /* HAVE_NO_RESOLVESTUFF */
-			SERRX(socksconfig.resolveprotocol);
+			SERRX(sockscf.resolveprotocol);
 #endif  /* HAVE_NO_RESOLVESTUFF */
 			break;
 
@@ -84,16 +83,16 @@ genericinit(void)
 			break;
 
 		default:
-			SERRX(socksconfig.resolveprotocol);
+			SERRX(sockscf.resolveprotocol);
 	}
 
-	if (!socksconfig.state.init)
-		if (socksconfig.option.lbuf)
-			for (i = 0; i < socksconfig.log.fpc; ++i)
-				if (setvbuf(socksconfig.log.fpv[i], NULL, _IOLBF, 0) != 0)
+	if (!sockscf.state.init)
+		if (sockscf.option.lbuf)
+			for (i = 0; i < sockscf.log.fpc; ++i)
+				if (setvbuf(sockscf.log.fpv[i], NULL, _IOLBF, 0) != 0)
 					swarn("%s: setvbuf(_IOLBF)", function);
 
-	socksconfig.state.init = 1;
+	sockscf.state.init = 1;
 
 #if !HAVE_NO_RESOLVESTUFF
 	res_init();
@@ -138,8 +137,8 @@ addroute(newroute)
 
 	/* switch off commands/protocols set but not supported by proxyprotocol. */
 	if (!route->gw.state.proxyprotocol.socks_v5) {
-		route->gw.state.command.udpassociate 	= 0;
-		route->gw.state.protocol.udp 				= 0;
+		route->gw.state.command.udpassociate	= 0;
+		route->gw.state.protocol.udp				= 0;
 	}
 
 	if (!route->gw.state.proxyprotocol.socks_v4
@@ -161,15 +160,15 @@ addroute(newroute)
 	if (route->dst.atype == SOCKS_ADDR_IFNAME)
 		yyerror("interfacenames not supported for src address");
 
-	if (socksconfig.route == NULL) {
-		socksconfig.route = route;
-		socksconfig.route->number = 1;
+	if (sockscf.route == NULL) {
+		sockscf.route = route;
+		sockscf.route->number = 1;
 	}
 	else {
 		/* append rule to the end of list. */
 		struct route_t *lastroute;
 
-		lastroute = socksconfig.route;
+		lastroute = sockscf.route;
 		while (lastroute->next != NULL)
 			lastroute = lastroute->next;
 
@@ -218,13 +217,13 @@ socks_getroute(req, src, dst)
 	clientinit();
 #endif
 
-	for (route = socksconfig.route; route != NULL; route = route->next) {
+	for (route = sockscf.route; route != NULL; route = route->next) {
 		if (route->state.bad)
 			/* CONSTCOND */
-			if (BADROUTE_EXPIRE == 0 
+			if (BADROUTE_EXPIRE == 0
 			||  difftime(time(NULL), route->state.badtime) <= BADROUTE_EXPIRE)
 				continue;
-			else 
+			else
 				route->state.bad = 0;
 
 		switch (req->version) {
@@ -478,10 +477,10 @@ socks_requestpolish(req, src, dst)
 	switch (req->command) {
 		case SOCKS_BIND:
 			/*
-			 * bind semenatics differ between v4 and everything else.
-			 * Assuming we always start with v5 semenatics makes the
+			 * bind semantics differ between v4 and everything else.
+			 * Assuming we always start with v5 semantics makes the
 			 * following code much simpler.
-			*/
+			 */
 			SASSERTX(req->version == SOCKS_V5);
 			break;
 
@@ -504,7 +503,7 @@ socks_requestpolish(req, src, dst)
 	if (socks_getroute(req, src, dst) != NULL) {
 		if (req->command == SOCKS_BIND) /* v4/v5 difference in portsemantics. */
 			/* LINTED pointer casts may be troublesome */
-			req->host.port = TOIN(&socksconfig.state.lastconnect)->sin_port;
+			req->host.port = TOIN(&sockscf.state.lastconnect)->sin_port;
 		return req;
 	}
 
@@ -526,14 +525,14 @@ socks_requestpolish(req, src, dst)
 
 				/* attempting to use bind extension, can we retry without it? */
 				/* LINTED pointer casts may be troublesome */
-				if (!ADDRISBOUND(socksconfig.state.lastconnect)) {
+				if (!ADDRISBOUND(sockscf.state.lastconnect)) {
 					slog(LOG_DEBUG, "%s: couldn't find route for bind(2), "
 					"try enabling \"extension: bind\"?", function);
 					return NULL;
 				}
 
 				originalport = req->host.port;
-				fakesockaddr2sockshost(&socksconfig.state.lastconnect, &req->host);
+				fakesockaddr2sockshost(&sockscf.state.lastconnect, &req->host);
 				/* keep portnumber req. for bind(2), not a previous connect(2). */
 				req->host.port = originalport;
 
@@ -542,8 +541,8 @@ socks_requestpolish(req, src, dst)
 
 				/*
 				 * else, it may be that socks_requestpolish() was
-				 * forced to change req.version to succeed.  We may 
-				 * the need to change req->host.port due to difference 
+				 * forced to change req.version to succeed.  We may
+				 * the need to change req->host.port due to difference
 				 * in v4 and v5 semantics.
 				*/
 				if (req->version != originalversion) { /* version changed. */
@@ -553,7 +552,7 @@ socks_requestpolish(req, src, dst)
 						case SOCKS_V4: /* the only one with this strangeness. */
 							/* LINTED pointer casts may be troublesome */
 							req->host.port
-							= TOIN(&socksconfig.state.lastconnect)->sin_port;
+							= TOIN(&sockscf.state.lastconnect)->sin_port;
 							break;
 					}
 				}
@@ -622,4 +621,3 @@ showmethod(methodc, methodv)
 	slog(LOG_INFO, "method(s): %s",
 	methods2string(methodc, methodv, buf, sizeof(buf)));
 }
-

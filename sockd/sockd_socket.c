@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.32 2001/11/11 13:38:45 michaels Exp $";
+"$Id: sockd_socket.c,v 1.33 2001/12/11 12:26:50 michaels Exp $";
 
 int
 sockd_bind(s, addr, retries)
@@ -63,13 +63,13 @@ sockd_bind(s, addr, retries)
 			sleep(tries - 1);
 
 		/* LINTED pointer casts may be troublesome */
-		if (PORTISRESERVED(TOIN(addr)->sin_port) && socksconfig.compat.sameport) {
+		if (PORTISRESERVED(TOIN(addr)->sin_port) && sockscf.compat.sameport) {
 			uid_t euid;
 
-			socks_seteuid(&euid, socksconfig.uid.privileged);
+			socks_seteuid(&euid, sockscf.uid.privileged);
 			/* LINTED pointer casts may be troublesome */
 			p = bindresvport(s, TOIN(addr));
-			socks_reseteuid(socksconfig.uid.privileged, euid);
+			socks_reseteuid(sockscf.uid.privileged, euid);
 		}
 		else if ((p = bind(s, addr, sizeof(*addr))) == 0) {
 			socklen_t addrlen;

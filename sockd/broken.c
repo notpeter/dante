@@ -1,5 +1,5 @@
 /*
- * $Id: broken.c,v 1.12 2001/02/06 15:58:50 michaels Exp $
+ * $Id: broken.c,v 1.13 2001/12/12 14:42:09 karls Exp $
  *
  * Copyright (c) 1997, 1998, 1999, 2000, 2001
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -34,7 +34,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: broken.c,v 1.12 2001/02/06 15:58:50 michaels Exp $";
+"$Id: broken.c,v 1.13 2001/12/12 14:42:09 karls Exp $";
 
 #if HAVE_SHADOW_H && HAVE_GETSPNAM
 #include <shadow.h>

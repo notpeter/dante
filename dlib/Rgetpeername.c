@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetpeername.c,v 1.29 2001/10/15 18:00:38 karls Exp $";
+"$Id: Rgetpeername.c,v 1.31 2001/12/12 14:42:07 karls Exp $";
 
 int
 Rgetpeername(s, name, namelen)
@@ -52,13 +52,13 @@ Rgetpeername(s, name, namelen)
 	struct sockaddr *name;
 	socklen_t *namelen;
 {
-	const char *function = "Rgetpeername()"; 
+	const char *function = "Rgetpeername()";
 	struct socksfd_t *socksfd;
 	struct sockaddr *addr;
 
 	clientinit();
 
-	slog(LOG_DEBUG, "%s", function);  
+	slog(LOG_DEBUG, "%s", function);
 
 	if (!socks_addrisok((unsigned int)s)) {
 		socks_rmaddr((unsigned int)s);

@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.21 2001/02/06 15:58:59 michaels Exp $";
+"$Id: userio.c,v 1.22 2001/12/12 14:42:14 karls Exp $";
 
 /* ARGSUSED */
 char *

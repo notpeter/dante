@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.50)
-AC_REVISION($Id: configure.ac,v 1.285 2001/12/07 12:13:11 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.298 2002/01/28 14:12:14 karls Exp $)
 
-version=1.1.11
+version=1.1.12
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="3"
+prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -19,7 +19,7 @@ AM_CONFIG_HEADER(include/autoconf.h)
 #NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
 unset CFLAGS
-AC_AIX #evidently also needed here
+AC_AIX #evidently also modifies CFLAGS
 AM_PROG_LIBTOOL
 autoconf_compflags=$CFLAGS
 CFLAGS=$oCFLAGS
@@ -30,7 +30,7 @@ AM_CONDITIONAL(PRERELEASE, test x$prerelease != x)
 
 #known keywords for --enable/disable-foo(=yes/no)?
 LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll"
-KNOWN_KEYWORDS="shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|$LTINTERNAL"
+KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|pidfile"
 for keyword in `set | egrep '^enable_' | sed -e 's/^enable_\(.*\)=.*/\1/'`;
 do
 	echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
@@ -130,6 +130,12 @@ case $host in
 	;;
 	*-*-aix4*)
 		OSPIDFILE="/etc/sockd.pid"
+	;;
+	*-*-cygwin)
+		AC_MSG_WARN(disabling preloading)
+		no_preload_client=t
+		no_preload_server=t
+		no_preload=t
 	;;
 
 esac
@@ -258,7 +264,7 @@ AC_ARG_ENABLE(debug,
 	 fi])
 
 if test x$debug_enabled = xt; then
-    #no optimalization wanted
+    #no optimization wanted
     if test $ac_cv_prog_cc_g = yes; then
 	CFLAGS="$CFLAGS -g"
     fi
@@ -391,6 +397,7 @@ AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS(fcntl.h limits.h malloc.h paths.h strings.h syslog.h)
 AC_CHECK_HEADERS(unistd.h crypt.h sys/file.h sys/ioctl.h sys/time.h)
 AC_CHECK_HEADERS(netinet/ip_var.h tcpd.h shadow.h ifaddrs.h sys/sem.h)
+AC_CHECK_HEADERS(sys/ipc.h arpa/nameser.h resolv.h)
 
 case $host in
 	alpha*-dec-osf*)
@@ -480,6 +487,11 @@ AC_ARG_WITH(sockd-conf,
  AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_CONFIGFILE, "$withval")
 ], [AC_MSG_RESULT(default)])
 
+#pidfile
+AC_ARG_ENABLE(pidfile,
+[  --disable-pidfile       disable server pidfile creation],
+   [AC_DEFINE(HAVE_DISABLED_PIDFILE)])
+
 AC_MSG_CHECKING(for pid file location)
 AC_ARG_WITH(pidfile,
 [  --with-pidfile=FILE     change location of server pidfile],
@@ -543,6 +555,7 @@ fi
 
 #looks for linux + systems with RTAX_GATEWAY defined in net/route.h
 AC_MSG_CHECKING(for supported routing socket communication)
+unset no_routeinfo
 AC_EGREP_CPP(yes, [
 #include <net/route.h>
 #ifdef linux
@@ -559,7 +572,8 @@ yes
 ],  [AC_DEFINE(HAVE_ROUTE_SOURCE)
      AC_DEFINE(HAVE_ROUTEINFO_BSD)
      AC_MSG_RESULT(yes)],
-     [AC_MSG_RESULT(no, might result in reduced functionality)])])
+     [AC_MSG_RESULT(no, might result in reduced functionality)
+      no_routeinfo=t])])
 
 AC_MSG_CHECKING(whether <netdb.h> declares h_errno)
 AC_EGREP_CPP(h_errno, [
@@ -688,6 +702,16 @@ else
 	AC_MSG_WARN(performance in the server might be degraded without support for the SO_SNDLOWAT socket option)
 fi], [AC_MSG_RESULT(no)
       AC_MSG_WARN(performance in the server might be degraded without support for the SO_SNDLOWAT socket option)])
+
+#correct select behaviour?
+unset nb_select_err
+L_UNCON_SELECT([],
+ [nb_select_err=t])
+
+if test x"${nb_select_err}" = xt; then
+   AC_MSG_WARN(operations on nonblocking sockets might fail on this platform)
+fi
+
 
 AC_MSG_CHECKING(whether realloc with a NULL pointer calls malloc)
 AC_TRY_RUN([
@@ -906,11 +930,15 @@ esac
 	    echo "       3. Fix the problem yourself. If you have autoconf installed,"
 	    echo "          using the output above to modify configure.in should"
 	    echo "          enable you to compile without problems."
+	    #platform specific problems
 	    case $host in
 		 *-*-solaris*)
 			echo "       4. Remove '/usr/ucb' if it is in the PATH."
 			;;
-		 
+			*-*-darwin*)
+			echo "       4. The preprocessed header for unistd.h might be corrupt."
+			echo "          Try to regenerate it or rename unistd.p while you build this package."
+			;;
 	    esac
 	    echo ""
 	    exit 1
@@ -1306,7 +1334,7 @@ if test "x${ac_cv_header_tcpd_h}" = "xyes"; then
     case $host in
 	*-*-linux-*)
 	    #XXX needed on atleast redhat
-	    AC_SEARCH_LIBS(yp_get_default_domain, nsl) 
+	    AC_SEARCH_LIBS(yp_get_default_domain, nsl)
 	;;
     esac
     oLIBS=$LIBS
@@ -1570,3 +1598,52 @@ AC_CONFIG_FILES(libscompat/Makefile contrib/Makefile unlicensed/Makefile)
 AC_CONFIG_FILES(doc/module/Makefile VERSION)
 
 AC_OUTPUT
+
+echo ""
+echo "                     Configure status:"
+echo ""
+if test x"${no_acceptlock}" = xt; then
+	echo "Acceptlock:        OK (not required)"
+else
+	echo "Acceptlock:        workaround enabled on this platform"
+fi
+if test x"${no_preload}" = xt; then
+	echo "Preloading:        disabled"
+else
+	echo "Preloading:        OK"
+fi
+if test x"${so_sndlowat}" = xt; then
+	echo "SO_SNDLOWAT:       OK"
+else
+	echo "SO_SNDLOWAT:       not enabled for this platform"
+fi
+if test x"${nb_select_err}" = xt; then
+	echo "select:            incorrect select behaviour on unconnected sockets,"
+        echo "                   operations on nonblocking sockets might fail on this platform"
+else
+	echo "select:            OK"
+fi
+
+
+if test x"${no_routeinfo}" = xt; then
+	echo "Routeinfo:         no supported on this platform"
+else
+	echo "Routeinfo:         OK"
+fi
+echo ""
+echo "This software should perform optimally when all the lines above report 'OK'."
+echo ""
+
+echo "                     Modules:"
+echo ""
+if test x"$MOD_REDIRECT" = x; then
+	echo "redirect:          OK"
+else
+	echo "redirect:          not found"
+fi
+if test x"$MOD_BANDWIDTH" = x; then
+	echo "bandwidth:         OK"
+else
+	echo "bandwidth:         not found"
+fi
+echo ""

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: tostring.h,v 1.4 2001/10/13 09:30:27 karls Exp $ */
+/* $Id: tostring.h,v 1.5 2001/12/11 14:53:11 karls Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
@@ -99,7 +99,7 @@ char *
 methods2string __P((size_t methodc, const int *methodv, char *str,
 							size_t strsize));
 /*
- * Returns a printable representation of the methods "methodv", of 
+ * Returns a printable representation of the methods "methodv", of
  * length "methodc".
  * "str" is the memory to write the printable representation into,
  * "strsize" is the size of the memory.
@@ -226,7 +226,7 @@ logtypes2string __P((const struct logtype_t *logtypes, char *str,
 
 
 char *
-timeouts2string __P((const struct timeout_t *timeouts, const char *prefix, 
+timeouts2string __P((const struct timeout_t *timeouts, const char *prefix,
 							char *str, size_t strsize));
 /*
  * Returns a printable representation of "timeouts".
@@ -248,7 +248,7 @@ logs2string __P((const struct log_t *logs, char *str, size_t strsize));
  */
 
 char *
-userids2string __P((const struct userid_t *userids, const char *prefix, 
+userids2string __P((const struct userid_t *userids, const char *prefix,
 						  char *str, size_t strsize));
 /*
  * Returns a printable representation of "userids".
@@ -261,7 +261,7 @@ userids2string __P((const struct userid_t *userids, const char *prefix,
 
 
 char *
-options2string __P((const struct option_t *options, const char *prefix, 
+options2string __P((const struct option_t *options, const char *prefix,
 						  char *str, size_t strsize));
 /*
  * Returns a printable representation of "options".
@@ -307,7 +307,7 @@ verdict2string __P((int verdict));
  */
 
 char *
-srchosts2string __P((const struct srchost_t *srchosts, const char *prefix, 
+srchosts2string __P((const struct srchost_t *srchosts, const char *prefix,
 						   char *str, size_t strsize));
 /*
  * Returns a printable representation of "srchosts".

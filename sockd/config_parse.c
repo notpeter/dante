@@ -49,7 +49,7 @@ static char yyrcsid[]
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.177 2001/11/22 14:19:37 michaels Exp $";
+"$Id: config_parse.y,v 1.180 2001/12/12 14:42:10 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -798,7 +798,7 @@ short *yyss;
 short *yysslim;
 YYSTYPE *yyvs;
 int yystacksize;
-#line 1154 "config_parse.y"
+#line 1150 "config_parse.y"
 
 #define INTERACTIVE		0
 
@@ -853,7 +853,7 @@ yyerror(fmt, va_alist)
 
 	bufused = snprintfn(buf, sizeof(buf),
 	"%s: error on line %d, near '%.10s': ",
-	socksconfig.option.configfile, yylineno,
+	sockscf.option.configfile, yylineno,
 	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
 
 	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
@@ -888,7 +888,7 @@ yywarn(fmt, va_alist)
 
 	bufused = snprintfn(buf, sizeof(buf),
 	"%s: warning on line %d, near '%.10s': ",
-	socksconfig.option.configfile, yylineno,
+	sockscf.option.configfile, yylineno,
 	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
 
 	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
@@ -933,7 +933,7 @@ ruleinit(rule)
 
 	bzero(&src, sizeof(src));
 	bzero(&dst, sizeof(dst));
-	*rule = ruleinitmem; 
+	*rule = ruleinitmem;
 
 	src.atype = SOCKS_ADDR_IPV4;
 	src.addr.ipv4.ip.s_addr = htonl(INADDR_ANY);
@@ -1140,7 +1140,7 @@ case 3:
 {
 #if SOCKS_SERVER
 		protocol			= &protocolmem;
-		extension		= &socksconfig.extension;
+		extension		= &sockscf.extension;
 #endif
 	}
 break;
@@ -1200,25 +1200,25 @@ break;
 case 35:
 #line 361 "config_parse.y"
 {
-			proxyprotocol->socks_v4 	= 1;
+			proxyprotocol->socks_v4		= 1;
 	}
 break;
 case 36:
 #line 364 "config_parse.y"
 {
-			proxyprotocol->socks_v5 	= 1;
+			proxyprotocol->socks_v5		= 1;
 	}
 break;
 case 37:
 #line 367 "config_parse.y"
 {
-			proxyprotocol->msproxy_v2 	= 1;
+			proxyprotocol->msproxy_v2	= 1;
 	}
 break;
 case 38:
 #line 370 "config_parse.y"
 {
-			proxyprotocol->http_v1_0 	= 1;
+			proxyprotocol->http_v1_0	= 1;
 	}
 break;
 case 42:
@@ -1287,7 +1287,7 @@ case 53:
 #line 450 "config_parse.y"
 {
 #if SOCKS_SERVER
-		socksconfig.external.rotation = ROTATION_NONE;
+		sockscf.external.rotation = ROTATION_NONE;
 	}
 break;
 case 54:
@@ -1296,7 +1296,7 @@ case 54:
 #if !HAVE_ROUTE_SOURCE
 		yyerror("don't have code to discover route/address source on platform");
 #else /* !HAVE_ROUTE_SOURCE */
-		socksconfig.external.rotation = ROTATION_ROUTE;
+		sockscf.external.rotation = ROTATION_ROUTE;
 #endif /* HAVE_ROUTE_SOURCE */
 #endif /* SOCKS_SERVER */
 	}
@@ -1310,7 +1310,7 @@ case 59:
 		&& (yyvsp[0].string[strlen(syslogname)] == NUL || yyvsp[0].string[strlen(syslogname)] == '/')) {
 			char *sl;
 
-			socksconfig.log.type |= LOGTYPE_SYSLOG;
+			sockscf.log.type |= LOGTYPE_SYSLOG;
 
 			if (*(sl = &(yyvsp[0].string[strlen(syslogname)])) == '/') { /* facility. */
 				size_t i;
@@ -1322,116 +1322,112 @@ case 59:
 				if (i == ELEMENTS(syslogfacilityv))
 					yyerror("unknown syslog facility \"%s\"", sl);
 
-				socksconfig.log.facility 		= syslogfacilityv[i].value;
-				socksconfig.log.facilityname = syslogfacilityv[i].name;
+				sockscf.log.facility = syslogfacilityv[i].value;
+				sockscf.log.facilityname = syslogfacilityv[i].name;
 			}
 			else {
-				socksconfig.log.facility = LOG_DAEMON; /* default. */
-				socksconfig.log.facilityname = "daemon";
+				sockscf.log.facility = LOG_DAEMON; /* default. */
+				sockscf.log.facilityname = "daemon";
 			}
 		}
 		else /* adding/changing filename. */
-			if (!socksconfig.state.init) {
+			if (!sockscf.state.init) {
 				/*
-				 * Can't change filenames we log to after startup (well, 
+				 * Can't change filenames we log to after startup (well,
 				 * to be exact, we can't add new filenames, but we complain
 				 * about changing too for now since it's easier.
 				 */
 				int flag;
 
-				socksconfig.log.type |= LOGTYPE_FILE;
+				sockscf.log.type |= LOGTYPE_FILE;
 
-				if ((socksconfig.log.fpv = (FILE **)realloc(socksconfig.log.fpv,
-				sizeof(*socksconfig.log.fpv) * (socksconfig.log.fpc + 1))) == NULL
-				|| (socksconfig.log.fplockv
-				= (int *)realloc(socksconfig.log.fplockv,
-				sizeof(*socksconfig.log.fplockv) * (socksconfig.log.fpc + 1)))
-				== NULL
-				|| (socksconfig.log.fnamev
-				= (char **)realloc(socksconfig.log.fnamev,
-				sizeof(*socksconfig.log.fnamev) * (socksconfig.log.fpc + 1)))
+				if ((sockscf.log.fpv = (FILE **)realloc(sockscf.log.fpv,
+				sizeof(*sockscf.log.fpv) * (sockscf.log.fpc + 1))) == NULL
+				|| (sockscf.log.fplockv = (int *)realloc(sockscf.log.fplockv,
+				sizeof(*sockscf.log.fplockv) * (sockscf.log.fpc + 1))) == NULL
+				|| (sockscf.log.fnamev = (char **)realloc(sockscf.log.fnamev,
+				sizeof(*sockscf.log.fnamev) * (sockscf.log.fpc + 1)))
 				== NULL)
 					serrx(EXIT_FAILURE, NOMEM);
 
-				if ((socksconfig.log.fplockv[socksconfig.log.fpc]
+				if ((sockscf.log.fplockv[sockscf.log.fpc]
 				= socks_mklock(SOCKS_LOCKFILE)) == -1)
 					serr(EXIT_FAILURE, "socks_mklock()");
 
 				if (strcmp(yyvsp[0].string, "stdout") == 0)
-					socksconfig.log.fpv[socksconfig.log.fpc] = stdout;
+					sockscf.log.fpv[sockscf.log.fpc] = stdout;
 				else if (strcmp(yyvsp[0].string, "stderr") == 0)
-					socksconfig.log.fpv[socksconfig.log.fpc] = stderr;
+					sockscf.log.fpv[sockscf.log.fpc] = stderr;
 				else
-					if ((socksconfig.log.fpv[socksconfig.log.fpc] = fopen(yyvsp[0].string, "a"))
+					if ((sockscf.log.fpv[sockscf.log.fpc] = fopen(yyvsp[0].string, "a"))
 					== NULL)
 						yyerror("fopen(%s)", yyvsp[0].string);
 
-				if ((flag = fcntl(fileno(socksconfig.log.fpv[socksconfig.log.fpc]),
+				if ((flag = fcntl(fileno(sockscf.log.fpv[sockscf.log.fpc]),
 				F_GETFD, 0)) == -1
-				||  fcntl(fileno(socksconfig.log.fpv[socksconfig.log.fpc]), F_SETFD,
+				||  fcntl(fileno(sockscf.log.fpv[sockscf.log.fpc]), F_SETFD,
 				flag | FD_CLOEXEC) == -1)
 					serr(EXIT_FAILURE, "fcntl(F_GETFD/F_SETFD)");
 
-				if ((socksconfig.log.fnamev[socksconfig.log.fpc] = strdup(yyvsp[0].string))
-				== NULL)
+				if ((sockscf.log.fnamev[sockscf.log.fpc] = strdup(yyvsp[0].string)) == NULL)
 					serr(EXIT_FAILURE, NOMEM);
 
-				++socksconfig.log.fpc;
+				++sockscf.log.fpc;
 			}
 			else {
 				size_t i;
 
-				for (i = 0; i < socksconfig.log.fpc; ++i)
-					if (strcmp(socksconfig.log.fnamev[i], yyvsp[0].string) == 0) {
+				for (i = 0; i < sockscf.log.fpc; ++i)
+					if (strcmp(sockscf.log.fnamev[i], yyvsp[0].string) == 0) {
 
-						if (fileno(socksconfig.log.fpv[i]) == fileno(stdout)
-						||	 fileno(socksconfig.log.fpv[i]) == fileno(stderr))
+						if (fileno(sockscf.log.fpv[i]) == fileno(stdout)
+						||	 fileno(sockscf.log.fpv[i]) == fileno(stderr))
 							break;
 
 						/* reopen logfiles. */
-						fclose(socksconfig.log.fpv[i]);
-						if ((socksconfig.log.fpv[i]
-						= fopen(socksconfig.log.fnamev[i], "a")) == NULL)
+						fclose(sockscf.log.fpv[i]);
+						if ((sockscf.log.fpv[i]
+						= fopen(sockscf.log.fnamev[i], "a")) == NULL)
 							yyerror("fopen(%s)", yyvsp[0].string);
 						break;
-					}	
+					}
 
-				if (i == socksconfig.log.fpc) /* no match found. */
+				if (i == sockscf.log.fpc) /* no match found. */
 					yywarn("can't change logoutput after startup");
 			}
 	}
 break;
 case 65:
-#line 580 "config_parse.y"
+#line 576 "config_parse.y"
 {
 #if SOCKS_SERVER
-		socksconfig.uid.privileged			= yyvsp[0].uid;
-		socksconfig.uid.privileged_isset	= 1;
+		sockscf.uid.privileged			= yyvsp[0].uid;
+		sockscf.uid.privileged_isset	= 1;
 #endif
 	}
 break;
 case 66:
-#line 588 "config_parse.y"
+#line 584 "config_parse.y"
 {
 #if SOCKS_SERVER
-		socksconfig.uid.unprivileged			= yyvsp[0].uid;
-		socksconfig.uid.unprivileged_isset	= 1;
+		sockscf.uid.unprivileged			= yyvsp[0].uid;
+		sockscf.uid.unprivileged_isset	= 1;
 #endif
 	}
 break;
 case 67:
-#line 596 "config_parse.y"
+#line 592 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
-		socksconfig.uid.libwrap			= yyvsp[0].uid;
-		socksconfig.uid.libwrap_isset	= 1;
+		sockscf.uid.libwrap			= yyvsp[0].uid;
+		sockscf.uid.libwrap_isset	= 1;
 #else  /* HAVE_LIBWRAP */
 		yyerror("libwrapsupport not compiled in");
 #endif /* !HAVE_LIBWRAP */
 	}
 break;
 case 68:
-#line 607 "config_parse.y"
+#line 603 "config_parse.y"
 {
 		struct passwd *pw;
 
@@ -1442,119 +1438,119 @@ case 68:
 	}
 break;
 case 69:
-#line 617 "config_parse.y"
+#line 613 "config_parse.y"
 {
 #if SOCKS_SERVER
-		socksconfig.timeout.io = (time_t)atol(yyvsp[0].string);
+		sockscf.timeout.io = (time_t)atol(yyvsp[0].string);
 #endif
 	}
 break;
 case 70:
-#line 624 "config_parse.y"
+#line 620 "config_parse.y"
 {
 #if SOCKS_SERVER
-		socksconfig.timeout.negotiate = (time_t)atol(yyvsp[0].string);
+		sockscf.timeout.negotiate = (time_t)atol(yyvsp[0].string);
 #endif
 	}
 break;
 case 71:
-#line 631 "config_parse.y"
+#line 627 "config_parse.y"
 {
-		socksconfig.option.debug = atoi(yyvsp[0].string);
+		sockscf.option.debug = atoi(yyvsp[0].string);
 	}
 break;
 case 73:
-#line 639 "config_parse.y"
+#line 635 "config_parse.y"
 {
 #if SOCKS_SERVER
-		socksconfig.compat.reuseaddr = 1;
+		sockscf.compat.reuseaddr = 1;
 	}
 break;
 case 74:
-#line 643 "config_parse.y"
+#line 639 "config_parse.y"
 {
-		socksconfig.compat.sameport = 1;
+		sockscf.compat.sameport = 1;
 #endif
 	}
 break;
 case 78:
-#line 656 "config_parse.y"
+#line 652 "config_parse.y"
 {
-			socksconfig.resolveprotocol = RESOLVEPROTOCOL_FAKE;
+			sockscf.resolveprotocol = RESOLVEPROTOCOL_FAKE;
 	}
 break;
 case 79:
-#line 659 "config_parse.y"
+#line 655 "config_parse.y"
 {
 #if HAVE_NO_RESOLVESTUFF
 			yyerror("resolveprotocol keyword not supported on this installation");
 #else /* HAVE_NO_RESOLVESTUFF */
-			socksconfig.resolveprotocol = RESOLVEPROTOCOL_TCP;
+			sockscf.resolveprotocol = RESOLVEPROTOCOL_TCP;
 #endif /* !HAVE_NO_RESOLVESTUFF */
 	}
 break;
 case 80:
-#line 666 "config_parse.y"
+#line 662 "config_parse.y"
 {
-			socksconfig.resolveprotocol = RESOLVEPROTOCOL_UDP;
+			sockscf.resolveprotocol = RESOLVEPROTOCOL_UDP;
 	}
 break;
 case 82:
-#line 674 "config_parse.y"
+#line 670 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
-			socksconfig.srchost.nomismatch = 1;
+			sockscf.srchost.nomismatch = 1;
 	}
 break;
 case 83:
-#line 678 "config_parse.y"
+#line 674 "config_parse.y"
 {
-			socksconfig.srchost.nounknown = 1;
+			sockscf.srchost.nounknown = 1;
 #else
 		yyerror("srchostoption requires libwrap");
 #endif
 	}
 break;
 case 87:
-#line 694 "config_parse.y"
-{ 
+#line 690 "config_parse.y"
+{
 #if SOCKS_SERVER
-	methodv = socksconfig.methodv; 
-	methodc = &socksconfig.methodc; 
+	methodv = sockscf.methodv;
+	methodc = &sockscf.methodc;
 	*methodc = 0; /* reset. */
 #endif
 	}
 break;
 case 89:
-#line 703 "config_parse.y"
-{ 
+#line 699 "config_parse.y"
+{
 #if SOCKS_SERVER
-	methodv = socksconfig.clientmethodv; 
-	methodc = &socksconfig.clientmethodc; 
+	methodv = sockscf.clientmethodv;
+	methodc = &sockscf.clientmethodc;
 	*methodc = 0; /* reset. */
 #endif
 	}
 break;
 case 91:
-#line 712 "config_parse.y"
+#line 708 "config_parse.y"
 {
 		ADDMETHOD(AUTHMETHOD_NONE);
 	}
 break;
 case 92:
-#line 715 "config_parse.y"
+#line 711 "config_parse.y"
 {
 		yyerror("%s not supported", AUTHMETHOD_GSSAPIs);
 	}
 break;
 case 93:
-#line 718 "config_parse.y"
+#line 714 "config_parse.y"
 {
 		ADDMETHOD(AUTHMETHOD_UNAME);
 	}
 break;
 case 94:
-#line 721 "config_parse.y"
+#line 717 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 		ADDMETHOD(AUTHMETHOD_RFC931);
@@ -1564,7 +1560,7 @@ case 94:
 	}
 break;
 case 95:
-#line 728 "config_parse.y"
+#line 724 "config_parse.y"
 {
 #if !HAVE_PAM
 		yyerror("method %s requires pamlibrary", AUTHMETHOD_PAMs);
@@ -1574,11 +1570,11 @@ case 95:
 	}
 break;
 case 98:
-#line 744 "config_parse.y"
+#line 740 "config_parse.y"
 {
 #if SOCKS_SERVER
-		rule.src 		= src;
-		rule.dst 		= dst;
+		rule.src			= src;
+		rule.dst			= dst;
 		rule.rdr_from	= rdr_from;
 		rule.rdr_to		= rdr_to;
 
@@ -1588,15 +1584,15 @@ case 98:
 	}
 break;
 case 100:
-#line 760 "config_parse.y"
+#line 756 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 102:
-#line 764 "config_parse.y"
+#line 760 "config_parse.y"
 {
 #if SOCKS_SERVER
-		rule.src 		= src;
-		rule.dst 		= dst;
+		rule.src			= src;
+		rule.dst			= dst;
 		rule.rdr_from	= rdr_from;
 		rule.rdr_to		= rdr_to;
 
@@ -1605,19 +1601,19 @@ case 102:
 	}
 break;
 case 104:
-#line 778 "config_parse.y"
+#line 774 "config_parse.y"
 { checkmodule("bandwidth"); }
 break;
 case 108:
-#line 782 "config_parse.y"
+#line 778 "config_parse.y"
 { checkmodule("redirect"); }
 break;
 case 109:
-#line 785 "config_parse.y"
+#line 781 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 116:
-#line 796 "config_parse.y"
+#line 792 "config_parse.y"
 {
 #if SOCKS_SERVER
 		ruleinit(&rule);
@@ -1625,7 +1621,7 @@ case 116:
 	}
 break;
 case 117:
-#line 801 "config_parse.y"
+#line 797 "config_parse.y"
 {
 		ruleinit(&rule);
 		rule.verdict	= VERDICT_PASS;
@@ -1633,56 +1629,56 @@ case 117:
 	}
 break;
 case 119:
-#line 812 "config_parse.y"
+#line 808 "config_parse.y"
 {
 			command->bind = 1;
 	}
 break;
 case 120:
-#line 815 "config_parse.y"
+#line 811 "config_parse.y"
 {
 			command->connect = 1;
 	}
 break;
 case 121:
-#line 818 "config_parse.y"
+#line 814 "config_parse.y"
 {
 			command->udpassociate = 1;
 	}
 break;
 case 122:
-#line 824 "config_parse.y"
+#line 820 "config_parse.y"
 {
 			command->bindreply = 1;
 	}
 break;
 case 123:
-#line 828 "config_parse.y"
+#line 824 "config_parse.y"
 {
 			command->udpreply = 1;
 	}
 break;
 case 127:
-#line 840 "config_parse.y"
+#line 836 "config_parse.y"
 {
 		protocol->tcp = 1;
 	}
 break;
 case 128:
-#line 843 "config_parse.y"
+#line 839 "config_parse.y"
 {
 		protocol->udp = 1;
 	}
 break;
 case 134:
-#line 860 "config_parse.y"
+#line 856 "config_parse.y"
 {
 #if SOCKS_SERVER
 		static bw_t bwmeminit;
 
-     /* 
-	 	* temporarly allocate ordinary memory, later on point it to
-		* the correct index in socksconfig.bwv.
+     /*
+		* temporarily allocate ordinary memory, later on point it to
+		* the correct index in sockscf.bwv.
 		*/
 		if ((rule.bw = (bw_t *)malloc(sizeof(*rule.bw))) == NULL)
 			serr(EXIT_FAILURE, NOMEM);
@@ -1692,39 +1688,39 @@ case 134:
 	}
 break;
 case 136:
-#line 880 "config_parse.y"
+#line 876 "config_parse.y"
 {
 #if SOCKS_SERVER
 	rule.log.connect = 1;
 	}
 break;
 case 137:
-#line 884 "config_parse.y"
+#line 880 "config_parse.y"
 {
 			rule.log.data = 1;
 	}
 break;
 case 138:
-#line 887 "config_parse.y"
+#line 883 "config_parse.y"
 {
 			rule.log.disconnect = 1;
 	}
 break;
 case 139:
-#line 890 "config_parse.y"
+#line 886 "config_parse.y"
 {
 			rule.log.error = 1;
 	}
 break;
 case 140:
-#line 893 "config_parse.y"
+#line 889 "config_parse.y"
 {
 			rule.log.iooperation = 1;
 #endif
 	}
 break;
 case 143:
-#line 904 "config_parse.y"
+#line 900 "config_parse.y"
 {
 #if HAVE_PAM && SOCKS_SERVER
 		if (strlen(yyvsp[0].string) >= sizeof(rule.pamservicename))
@@ -1736,7 +1732,7 @@ case 143:
 	}
 break;
 case 144:
-#line 915 "config_parse.y"
+#line 911 "config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
 		struct request_info request;
@@ -1763,35 +1759,35 @@ case 144:
 	}
 break;
 case 155:
-#line 965 "config_parse.y"
+#line 961 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 157:
-#line 969 "config_parse.y"
+#line 965 "config_parse.y"
 {
 		addressinit(&src);
 	}
 break;
 case 158:
-#line 974 "config_parse.y"
+#line 970 "config_parse.y"
 {
 		addressinit(&dst);
 	}
 break;
 case 159:
-#line 979 "config_parse.y"
+#line 975 "config_parse.y"
 {
 		addressinit(&rdr_from);
 	}
 break;
 case 160:
-#line 984 "config_parse.y"
+#line 980 "config_parse.y"
 {
 		addressinit(&rdr_to);
 	}
 break;
 case 161:
-#line 991 "config_parse.y"
+#line 987 "config_parse.y"
 {
 #if SOCKS_CLIENT
 		addressinit(&gw);
@@ -1799,7 +1795,7 @@ case 161:
 	}
 break;
 case 174:
-#line 1021 "config_parse.y"
+#line 1017 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_IPV4;
 
@@ -1808,7 +1804,7 @@ case 174:
 	}
 break;
 case 175:
-#line 1030 "config_parse.y"
+#line 1026 "config_parse.y"
 {
 		if (atoi(yyvsp[0].string) < 0 || atoi(yyvsp[0].string) > 32)
 			yyerror("bad netmask: %d", yyvsp[0].string);
@@ -1818,14 +1814,14 @@ case 175:
 	}
 break;
 case 176:
-#line 1037 "config_parse.y"
+#line 1033 "config_parse.y"
 {
 			if (!inet_aton(yyvsp[0].string, netmask))
 				yyerror("bad netmask: %s", yyvsp[0].string);
 	}
 break;
 case 177:
-#line 1043 "config_parse.y"
+#line 1039 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_DOMAIN;
 
@@ -1835,7 +1831,7 @@ case 177:
 	}
 break;
 case 178:
-#line 1052 "config_parse.y"
+#line 1048 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_IFNAME;
 
@@ -1845,7 +1841,7 @@ case 178:
 	}
 break;
 case 179:
-#line 1062 "config_parse.y"
+#line 1058 "config_parse.y"
 {
 		*atype = SOCKS_ADDR_DOMAIN;
 
@@ -1859,25 +1855,25 @@ case 179:
 	}
 break;
 case 180:
-#line 1075 "config_parse.y"
+#line 1071 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 186:
-#line 1088 "config_parse.y"
+#line 1084 "config_parse.y"
 {
 		*port_tcp	= htons((in_port_t)atoi(yyvsp[0].string));
 		*port_udp	= htons((in_port_t)atoi(yyvsp[0].string));
 	}
 break;
 case 187:
-#line 1094 "config_parse.y"
+#line 1090 "config_parse.y"
 {
 		ruleaddress->portend		= htons((in_port_t)atoi(yyvsp[0].string));
 		ruleaddress->operator	= range;
 	}
 break;
 case 188:
-#line 1100 "config_parse.y"
+#line 1096 "config_parse.y"
 {
 		struct servent	*service;
 		struct protocol_t	protocolunset;
@@ -1925,12 +1921,12 @@ case 188:
 	}
 break;
 case 189:
-#line 1148 "config_parse.y"
+#line 1144 "config_parse.y"
 {
 		*operator = string2operator(yyvsp[0].string);
 	}
 break;
-#line 1925 "y.tab.c"
+#line 1921 "y.tab.c"
     }
     yyssp -= yym;
     yystate = *yyssp;

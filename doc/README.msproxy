@@ -1,4 +1,4 @@
-# $Id: README.msproxy,v 1.11 2000/06/09 10:08:41 michaels Exp $
+# $Id: README.msproxy,v 1.12 2001/12/12 13:18:07 karls Exp $
 
 Dante v0.92.0-pre1 is the first version that attempts to support
 the msproxy protocol.  This is a protocol not described in any
@@ -44,14 +44,14 @@ Dante client does however basically work, it is only after being
 used for a while (and even in independent sessions) the msproxy
 server crashes.
 
-So if microsoft fixed their server not to crash (and what good is
+So if Microsoft fixed their server not to crash (and what good is
 a proxyserver that anyone can crash at will/accident anyway?) one
 would think there wouldn't be any problems using Dante with the
 msproxy server.
 
 An alternative might be that I spend more hours looking at network
-packettraces trying to find the differences between the reverseenginered
-msproxy protocol and the actual protocol.
+packettraces trying to find the differences between the
+reverse-engineered msproxy protocol and the actual protocol.
 
 Since we didn't receive very much interest in the msproxy
 protocolsupport, the latter alternative is probably not much more

@@ -56,7 +56,7 @@ BEGIN {
 	SHOW_CLIENTS=0;
 	SHOW_DESTINATIONS=50;
 	LOOKUP_IPS=1;
-	
+
 	#
 	# no need to change anything below
 	#
@@ -68,10 +68,10 @@ BEGIN {
 	passed=0;
 	denied=0;
 
-        total_to_client_bytes=0;
-        total_from_client_bytes=0;
-        total_to_target_bytes=0;
-        total_from_target_bytes=0;
+	total_to_client_bytes=0;
+	total_from_client_bytes=0;
+	total_to_target_bytes=0;
+	total_from_target_bytes=0;
 }
 
 #
@@ -269,12 +269,12 @@ END {
 	CONVFMT="%d"
 	r=rand()*999999999;
 	tmpfile="/tmp/tmp.sockd-stat."r;
-	
+
 	printf "SOCKD statistics version 1.1\n";
 	printf "Copyleft 2001 Stephan Eisvogel <eisvogel@hawo.stw.uni-erlangen.de>\n";
 
-        total_clients=0;
-        total_targets=0;
+	total_clients=0;
+	total_targets=0;
 	for (c in client) total_clients++;
 	for (t in target) total_targets++;
 

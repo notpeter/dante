@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.6 2001/10/15 17:38:34 karls Exp $";
+"$Id: tostring.c,v 1.8 2001/12/12 14:42:14 karls Exp $";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -63,7 +63,7 @@ proxyprotocols2string(proxyprotocols, str, strsize)
 	strused = 0;
 
 	if (proxyprotocols->socks_v4)
-		strused += snprintfn(&str[strused], strsize - strused, "%s, ", 
+		strused += snprintfn(&str[strused], strsize - strused, "%s, ",
 		QUOTE(SOCKS_V4s));
 
 	if (proxyprotocols->socks_v5)
@@ -257,7 +257,7 @@ ruleaddress2string(address, string, len)
 	size_t len;
 {
 
-	/* for debuging. */
+	/* for debugging. */
 	if (string == NULL) {
 		static char addrstring[MAXRULEADDRSTRING];
 
@@ -271,16 +271,16 @@ ruleaddress2string(address, string, len)
 
 			snprintfn(string, len,
 			"%s: %s/%d, %s: %d, %s : %d, %s: %s, %s: %d",
-			QUOTE("address"), 
+			QUOTE("address"),
 			QUOTE(strcheck(a = strdup(inet_ntoa(address->addr.ipv4.ip)))),
 			QUOTE(bitcount((unsigned long)address->addr.ipv4.mask.s_addr)),
-			QUOTE("tcp"), 
+			QUOTE("tcp"),
 			QUOTE(ntohs(address->port.tcp)),
-			QUOTE("udp"), 
+			QUOTE("udp"),
 			QUOTE(ntohs(address->port.udp)),
-			QUOTE("op"), 
+			QUOTE("op"),
 			QUOTE(operator2string(address->operator)),
-			QUOTE("end"), 
+			QUOTE("end"),
 			QUOTE(ntohs(address->portend)));
 			free(a);
 			break;
@@ -289,30 +289,30 @@ ruleaddress2string(address, string, len)
 		case SOCKS_ADDR_DOMAIN:
 			snprintfn(string, len,
 			"%s: %s, %s: %d, %s : %d, %s: %s, %s: %d",
-			QUOTE("address"), 
+			QUOTE("address"),
 			QUOTE(address->addr.domain),
-			QUOTE("tcp"), 
+			QUOTE("tcp"),
 			QUOTE(ntohs(address->port.tcp)),
-			QUOTE("udp"), 
+			QUOTE("udp"),
 			QUOTE(ntohs(address->port.udp)),
-			QUOTE("op"), 
+			QUOTE("op"),
 			QUOTE(operator2string(address->operator)),
-			QUOTE("end"), 
+			QUOTE("end"),
 			QUOTE(ntohs(address->portend)));
 			break;
 
 		case SOCKS_ADDR_IFNAME:
 			snprintfn(string, len,
 			"%s: %s, %s: %d, %s : %d, %s: %s, %s: %d",
-			QUOTE("address"), 
+			QUOTE("address"),
 			QUOTE(address->addr.ifname),
-			QUOTE("tcp"), 
+			QUOTE("tcp"),
 			QUOTE(ntohs(address->port.tcp)),
-			QUOTE("udp"), 
+			QUOTE("udp"),
 			QUOTE(ntohs(address->port.udp)),
-			QUOTE("op"), 
+			QUOTE("op"),
 			QUOTE(operator2string(address->operator)),
-			QUOTE("end"), 
+			QUOTE("end"),
 			QUOTE(ntohs(address->portend)));
 			break;
 
@@ -360,7 +360,7 @@ resolveprotocol2string(resolveprotocol)
 		default:
 			SERRX(resolveprotocol);
 	}
-	
+
 	/* NOTREACHED */
 }
 
@@ -416,23 +416,23 @@ commands2string(command, str, strsize)
 	strused = 0;
 
 	if (command->bind)
-		strused += snprintfn(&str[strused], strsize - strused, "%s, ", 
+		strused += snprintfn(&str[strused], strsize - strused, "%s, ",
 		command2string(SOCKS_BIND));
 
 	if (command->bindreply)
-		strused += snprintfn(&str[strused], strsize - strused, "%s, ", 
+		strused += snprintfn(&str[strused], strsize - strused, "%s, ",
 		command2string(SOCKS_BINDREPLY));
 
 	if (command->connect)
-		strused += snprintfn(&str[strused], strsize - strused, "%s, ", 
+		strused += snprintfn(&str[strused], strsize - strused, "%s, ",
 		command2string(SOCKS_CONNECT));
 
 	if (command->udpassociate)
-		strused += snprintfn(&str[strused], strsize - strused, "%s, ", 
+		strused += snprintfn(&str[strused], strsize - strused, "%s, ",
 		command2string(SOCKS_UDPASSOCIATE));
 
 	if (command->udpreply)
-		strused += snprintfn(&str[strused], strsize - strused, "%s, ", 
+		strused += snprintfn(&str[strused], strsize - strused, "%s, ",
 		command2string(SOCKS_UDPREPLY));
 
 	return str;
@@ -835,7 +835,7 @@ compats2string(compats, str, strsize)
 	if (compats->sameport)
 		strused += snprintfn(&str[strused], strsize - strused, "%s, ",
 		QUOTE("sameport"));
-	
+
 	return str;
 }
 
@@ -933,20 +933,19 @@ const char *
 rotation2string(rotation)
 	int rotation;
 {
-	
+
 	switch (rotation) {
 		case ROTATION_NONE:
 			return "none";
 
 		case ROTATION_ROUTE:
 			return "route";
-	
+
 		default:
 			SERRX(rotation);
 	}
 
 	/* NOTREACHED */
 }
-
 
 #endif /* SOCKS_SERVER */

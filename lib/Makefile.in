@@ -1,6 +1,7 @@
-# Makefile.in generated automatically by automake 1.4-p4 from Makefile.am
+# Makefile.in generated automatically by automake 1.5 from Makefile.am.
 
-# Copyright (C) 1994, 1995-8, 1999 Free Software Foundation, Inc.
+# Copyright 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001
+# Free Software Foundation, Inc.
 # This Makefile.in is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
 # with or without modifications, as long as this notice is preserved.
@@ -10,6 +11,7 @@
 # even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 # PARTICULAR PURPOSE.
 
+@SET_MAKE@
 
 SHELL = @SHELL@
 
@@ -31,13 +33,9 @@ infodir = @infodir@
 mandir = @mandir@
 includedir = @includedir@
 oldincludedir = /usr/include
-
-DESTDIR =
-
 pkgdatadir = $(datadir)/@PACKAGE@
 pkglibdir = $(libdir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
-
 top_builddir = ..
 
 ACLOCAL = @ACLOCAL@
@@ -46,11 +44,11 @@ AUTOMAKE = @AUTOMAKE@
 AUTOHEADER = @AUTOHEADER@
 
 INSTALL = @INSTALL@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@ $(AM_INSTALL_PROGRAM_FLAGS)
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
+INSTALL_HEADER = $(INSTALL_DATA)
 transform = @program_transform_name@
-
 NORMAL_INSTALL = :
 PRE_INSTALL = :
 POST_INSTALL = :
@@ -59,18 +57,20 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_alias = @host_alias@
 host_triplet = @host@
+AMTAR = @AMTAR@
 AS = @AS@
 AWK = @AWK@
 CC = @CC@
 CPP = @CPP@
+DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 EXEEXT = @EXEEXT@
+INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LEX = @LEX@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
-MAKEINFO = @MAKEINFO@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -85,9 +85,19 @@ TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
+am__include = @am__include@
+am__quote = @am__quote@
+install_sh = @install_sh@
 
 lib_LTLIBRARIES = libsocks.la
-libsocks_la_SOURCES = config_parse.y config_scan.l Raccept.c Rbind.c 	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    	address.c authneg.c client.c clientconfig.c clientprotocol.c 	udp.c userio.c method_uname.c connectchild.c config.c  	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  	Rconnect.c Rgethostbyname.c debug.c Rcompat.c 	msproxy_clientprotocol.c hostcache.c broken.c serr.c httpproxy.c 	tostring.c addressmatch.c
+libsocks_la_SOURCES = config_parse.y config_scan.l Raccept.c Rbind.c \
+	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    \
+	address.c authneg.c client.c clientconfig.c clientprotocol.c \
+	udp.c userio.c method_uname.c connectchild.c config.c  \
+	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  \
+	Rconnect.c Rgethostbyname.c debug.c Rcompat.c \
+	msproxy_clientprotocol.c hostcache.c broken.c serr.c httpproxy.c \
+	tostring.c addressmatch.c
 
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
@@ -106,112 +116,73 @@ AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0
 PREFIX = socks_yy
 YFLAGS = -d -p${PREFIX}
 LFLAGS = -P${PREFIX} -olex.yy.c
+subdir = lib
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
-CONFIG_HEADER = ../include/autoconf.h
-CONFIG_CLEAN_FILES = 
-LTLIBRARIES =  $(lib_LTLIBRARIES)
+CONFIG_HEADER = $(top_builddir)/include/autoconf.h
+CONFIG_CLEAN_FILES =
+LTLIBRARIES = $(lib_LTLIBRARIES)
 
+libsocks_la_DEPENDENCIES = ../libscompat/libscompat.la
+am_libsocks_la_OBJECTS = config_parse.lo config_scan.lo Raccept.lo \
+	Rbind.lo Rgetpeername.lo Rgetsockname.lo Rrresvport.lo io.lo \
+	address.lo authneg.lo client.lo clientconfig.lo \
+	clientprotocol.lo udp.lo userio.lo method_uname.lo \
+	connectchild.lo config.lo log.lo protocol.lo socket.lo \
+	udp_util.lo util.lo Rbindresvport.lo Rconnect.lo \
+	Rgethostbyname.lo debug.lo Rcompat.lo msproxy_clientprotocol.lo \
+	hostcache.lo broken.lo serr.lo httpproxy.lo tostring.lo \
+	addressmatch.lo
+libsocks_la_OBJECTS = $(am_libsocks_la_OBJECTS)
 
-DEFS = @DEFS@ -I. -I$(srcdir) -I../include
+DEFS = @DEFS@
+DEFAULT_INCLUDES =  -I. -I$(srcdir) -I$(top_builddir)/include
 CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-libsocks_la_DEPENDENCIES =  ../libscompat/libscompat.la
-libsocks_la_OBJECTS =  config_parse.lo config_scan.lo Raccept.lo \
-Rbind.lo Rgetpeername.lo Rgetsockname.lo Rrresvport.lo io.lo address.lo \
-authneg.lo client.lo clientconfig.lo clientprotocol.lo udp.lo userio.lo \
-method_uname.lo connectchild.lo config.lo log.lo protocol.lo socket.lo \
-udp_util.lo util.lo Rbindresvport.lo Rconnect.lo Rgethostbyname.lo \
-debug.lo Rcompat.lo msproxy_clientprotocol.lo hostcache.lo broken.lo \
-serr.lo httpproxy.lo tostring.lo addressmatch.lo
-LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
-LEXLIB = @LEXLIB@
-CFLAGS = @CFLAGS@
-COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+depcomp = $(SHELL) $(top_srcdir)/depcomp
+@AMDEP_TRUE@DEP_FILES = $(DEPDIR)/Raccept.Plo $(DEPDIR)/Rbind.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/Rbindresvport.Plo $(DEPDIR)/Rcompat.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/Rconnect.Plo $(DEPDIR)/Rgethostbyname.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/Rgetpeername.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/Rgetsockname.Plo $(DEPDIR)/Rrresvport.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/address.Plo $(DEPDIR)/addressmatch.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/authneg.Plo $(DEPDIR)/broken.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/client.Plo $(DEPDIR)/clientconfig.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/clientprotocol.Plo $(DEPDIR)/config.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/config_parse.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/config_scan.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/connectchild.Plo $(DEPDIR)/debug.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/hostcache.Plo $(DEPDIR)/httpproxy.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/io.Plo $(DEPDIR)/log.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/method_uname.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/msproxy_clientprotocol.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/protocol.Plo $(DEPDIR)/serr.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/socket.Plo $(DEPDIR)/tostring.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/udp.Plo $(DEPDIR)/udp_util.Plo \
+@AMDEP_TRUE@	$(DEPDIR)/userio.Plo $(DEPDIR)/util.Plo
+COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
+	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) \
+	$(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
-LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@
-HEADERS =  $(noinst_HEADERS)
+LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(AM_LDFLAGS) $(LDFLAGS) -o $@
+CFLAGS = @CFLAGS@
+LEXCOMPILE = $(LEX) $(LFLAGS) $(AM_LFLAGS)
+LTLEXCOMPILE = $(LIBTOOL) --mode=compile $(LEX) $(LFLAGS) $(AM_LFLAGS)
+YACCCOMPILE = $(YACC) $(YFLAGS) $(AM_YFLAGS)
+LTYACCCOMPILE = $(LIBTOOL) --mode=compile $(YACC) $(YFLAGS) $(AM_YFLAGS)
+DIST_SOURCES = $(libsocks_la_SOURCES)
+HEADERS = $(noinst_HEADERS)
 
-DIST_COMMON =  Makefile.am Makefile.in config_parse.c config_scan.c
-
-
-DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
-
-TAR = tar
-GZIP_ENV = --best
+DIST_COMMON = $(noinst_HEADERS) Makefile.am Makefile.in config_parse.c \
+	config_parse.h config_scan.c
 SOURCES = $(libsocks_la_SOURCES)
-OBJECTS = $(libsocks_la_OBJECTS)
 
-all: all-redirect
+all: all-am
+
 .SUFFIXES:
-.SUFFIXES: .S .c .l .lo .o .obj .s .y
-$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.ac $(ACLOCAL_M4) 
-	cd $(top_srcdir) && $(AUTOMAKE) --gnu --include-deps lib/Makefile
-
-Makefile: $(srcdir)/Makefile.in  $(top_builddir)/config.status
-	cd $(top_builddir) \
-	  && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= $(SHELL) ./config.status
-
-
-mostlyclean-libLTLIBRARIES:
-
-clean-libLTLIBRARIES:
-	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
-
-distclean-libLTLIBRARIES:
-
-maintainer-clean-libLTLIBRARIES:
-
-install-libLTLIBRARIES: $(lib_LTLIBRARIES)
-	@$(NORMAL_INSTALL)
-	$(mkinstalldirs) $(DESTDIR)$(libdir)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    echo "$(LIBTOOL)  --mode=install $(INSTALL) $$p $(DESTDIR)$(libdir)/$$p"; \
-	    $(LIBTOOL)  --mode=install $(INSTALL) $$p $(DESTDIR)$(libdir)/$$p; \
-	  else :; fi; \
-	done
-
-uninstall-libLTLIBRARIES:
-	@$(NORMAL_UNINSTALL)
-	list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  $(LIBTOOL)  --mode=uninstall rm -f $(DESTDIR)$(libdir)/$$p; \
-	done
-
-.c.o:
-	$(COMPILE) -c $<
-
-# FIXME: We should only use cygpath when building on Windows,
-# and only if it is available.
-.c.obj:
-	$(COMPILE) -c `cygpath -w $<`
-
-.s.o:
-	$(COMPILE) -c $<
-
-.S.o:
-	$(COMPILE) -c $<
-
-mostlyclean-compile:
-	-rm -f *.o core *.core
-	-rm -f *.$(OBJEXT)
-
-clean-compile:
-
-distclean-compile:
-	-rm -f *.tab.c
-
-maintainer-clean-compile:
-
-.c.lo:
-	$(LIBTOOL) --mode=compile $(COMPILE) -c $<
-
-.s.lo:
-	$(LIBTOOL) --mode=compile $(COMPILE) -c $<
-
-.S.lo:
-	$(LIBTOOL) --mode=compile $(COMPILE) -c $<
+.SUFFIXES: .c .l .lo .o .obj .y
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -220,272 +191,252 @@ clean-libtool:
 	-rm -rf .libs _libs
 
 distclean-libtool:
+	-rm -f libtool
+$(srcdir)/Makefile.in:  Makefile.am  $(top_srcdir)/configure.ac $(ACLOCAL_M4)
+	cd $(top_srcdir) && \
+	  $(AUTOMAKE) --gnu  lib/Makefile
+Makefile:  $(srcdir)/Makefile.in  $(top_builddir)/config.status
+	cd $(top_builddir) && \
+	  CONFIG_HEADERS= CONFIG_LINKS= \
+	  CONFIG_FILES=$(subdir)/$@ $(SHELL) ./config.status
+install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+	@$(NORMAL_INSTALL)
+	$(mkinstalldirs) $(DESTDIR)$(libdir)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    echo " $(LIBTOOL) --mode=install $(INSTALL) $(INSTALL_STRIP_FLAG) $$p $(DESTDIR)$(libdir)/$$p"; \
+	    $(LIBTOOL) --mode=install $(INSTALL) $(INSTALL_STRIP_FLAG) $$p $(DESTDIR)$(libdir)/$$p; \
+	  else :; fi; \
+	done
 
-maintainer-clean-libtool:
+uninstall-libLTLIBRARIES:
+	@$(NORMAL_UNINSTALL)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  echo " $(LIBTOOL) --mode=uninstall rm -f $(DESTDIR)$(libdir)/$$p"; \
+	  $(LIBTOOL) --mode=uninstall rm -f $(DESTDIR)$(libdir)/$$p; \
+	done
 
-libsocks.la: $(libsocks_la_OBJECTS) $(libsocks_la_DEPENDENCIES)
-	$(LINK) -rpath $(libdir) $(libsocks_la_LDFLAGS) $(libsocks_la_OBJECTS) $(libsocks_la_LIBADD) $(LIBS)
-.l.c:
-	$(LEX) $(AM_LFLAGS) $(LFLAGS) $< && mv $(LEX_OUTPUT_ROOT).c $@
-.y.c:
-	$(YACC) $(AM_YFLAGS) $(YFLAGS) $< && mv y.tab.c $*.c
-	if test -f y.tab.h; then \
-	if cmp -s y.tab.h $*.h; then rm -f y.tab.h; else mv y.tab.h $*.h; fi; \
-	else :; fi
+clean-libLTLIBRARIES:
+	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
 config_parse.h: config_parse.c
+libsocks.la: $(libsocks_la_OBJECTS) $(libsocks_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libsocks_la_LDFLAGS) $(libsocks_la_OBJECTS) $(libsocks_la_LIBADD) $(LIBS)
 
+mostlyclean-compile:
+	-rm -f *.$(OBJEXT) core *.core
+
+distclean-compile:
+	-rm -f *.tab.c
+
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Raccept.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Rbind.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Rbindresvport.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Rcompat.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Rconnect.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Rgethostbyname.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Rgetpeername.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Rgetsockname.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Rrresvport.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/address.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/addressmatch.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/authneg.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/broken.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/client.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/clientconfig.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/clientprotocol.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/config.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/config_parse.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/config_scan.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/connectchild.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/debug.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/hostcache.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/httpproxy.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/io.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/log.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/method_uname.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/msproxy_clientprotocol.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/protocol.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/serr.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/socket.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/tostring.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/udp.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/udp_util.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/userio.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/util.Plo@am__quote@
+
+distclean-depend:
+	-rm -rf $(DEPDIR)
+
+.c.o:
+@AMDEP_TRUE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@	depfile='$(DEPDIR)/$*.Po' tmpdepfile='$(DEPDIR)/$*.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+	$(COMPILE) -c `test -f $< || echo '$(srcdir)/'`$<
+
+.c.obj:
+@AMDEP_TRUE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@	depfile='$(DEPDIR)/$*.Po' tmpdepfile='$(DEPDIR)/$*.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+	$(COMPILE) -c `cygpath -w $<`
+
+.c.lo:
+@AMDEP_TRUE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@	depfile='$(DEPDIR)/$*.Plo' tmpdepfile='$(DEPDIR)/$*.TPlo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+	$(LTCOMPILE) -c -o $@ `test -f $< || echo '$(srcdir)/'`$<
+CCDEPMODE = @CCDEPMODE@
+
+LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
+LEXLIB = @LEXLIB@
+
+.l.c:
+	$(LEXCOMPILE) $< && mv $(LEX_OUTPUT_ROOT).c $@
+
+.y.c:
+	$(YACCCOMPILE) $< && mv y.tab.c $@
+	if test -f y.tab.h; then \
+	  if cmp -s y.tab.h $*.h; then \
+	    rm -f y.tab.h; \
+	  else \
+	    mv y.tab.h $*.h; \
+	  fi; \
+	fi
+uninstall-info-am:
 
 tags: TAGS
 
-ID: $(HEADERS) $(SOURCES) $(LISP)
-	list='$(SOURCES) $(HEADERS)'; \
-	unique=`for i in $$list; do echo $$i; done | \
-	  awk '    { files[$$0] = 1; } \
+ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
+	list='$(SOURCES) $(HEADERS) $(TAGS_FILES)'; \
+	unique=`for i in $$list; do \
+	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
+	  done | \
+	  $(AWK) '    { files[$$0] = 1; } \
 	       END { for (i in files) print i; }'`; \
-	here=`pwd` && cd $(srcdir) \
-	  && mkid -f$$here/ID $$unique $(LISP)
+	mkid -fID $$unique $(LISP)
 
-TAGS:  $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES) $(LISP)
+TAGS:  $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES) \
+		$(TAGS_FILES) $(LISP)
 	tags=; \
 	here=`pwd`; \
-	list='$(SOURCES) $(HEADERS)'; \
-	unique=`for i in $$list; do echo $$i; done | \
-	  awk '    { files[$$0] = 1; } \
+	list='$(SOURCES) $(HEADERS) $(TAGS_FILES)'; \
+	unique=`for i in $$list; do \
+	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
+	  done | \
+	  $(AWK) '    { files[$$0] = 1; } \
 	       END { for (i in files) print i; }'`; \
 	test -z "$(ETAGS_ARGS)$$unique$(LISP)$$tags" \
-	  || (cd $(srcdir) && etags $(ETAGS_ARGS) $$tags  $$unique $(LISP) -o $$here/TAGS)
+	  || etags $(ETAGS_ARGS) $$tags  $$unique $(LISP)
 
-mostlyclean-tags:
-
-clean-tags:
+GTAGS:
+	here=`CDPATH=: && cd $(top_builddir) && pwd` \
+	  && cd $(top_srcdir) \
+	  && gtags -i $(GTAGS_ARGS) $$here
 
 distclean-tags:
-	-rm -f TAGS ID
+	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH
 
-maintainer-clean-tags:
+DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 
-distdir = $(top_builddir)/$(PACKAGE)-$(VERSION)/$(subdir)
-
-subdir = lib
+top_distdir = ..
+distdir = $(top_distdir)/$(PACKAGE)-$(VERSION)
 
 distdir: $(DISTFILES)
 	@for file in $(DISTFILES); do \
-	  d=$(srcdir); \
+	  if test -f $$file; then d=.; else d=$(srcdir); fi; \
+	  dir=`echo "$$file" | sed -e 's,/[^/]*$$,,'`; \
+	  if test "$$dir" != "$$file" && test "$$dir" != "."; then \
+	    $(mkinstalldirs) "$(distdir)/$$dir"; \
+	  fi; \
 	  if test -d $$d/$$file; then \
-	    cp -pr $$d/$$file $(distdir)/$$file; \
+	    cp -pR $$d/$$file $(distdir) \
+	    || exit 1; \
 	  else \
 	    test -f $(distdir)/$$file \
-	    || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
-	    || cp -p $$d/$$file $(distdir)/$$file || :; \
+	    || cp -p $$d/$$file $(distdir)/$$file \
+	    || exit 1; \
 	  fi; \
 	done
-Raccept.lo Raccept.o : Raccept.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-Rbind.lo Rbind.o : Rbind.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-Rbindresvport.lo Rbindresvport.o : Rbindresvport.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-Rcompat.lo Rcompat.o : Rcompat.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-Rconnect.lo Rconnect.o : Rconnect.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-Rgethostbyname.lo Rgethostbyname.o : Rgethostbyname.c \
-	../include/common.h ../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-Rgetpeername.lo Rgetpeername.o : Rgetpeername.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-Rgetsockname.lo Rgetsockname.o : Rgetsockname.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-Rrresvport.lo Rrresvport.o : Rrresvport.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-address.lo address.o : address.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-addressmatch.lo addressmatch.o : addressmatch.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-authneg.lo authneg.o : authneg.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-broken.lo broken.o : broken.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-client.lo client.o : client.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-clientconfig.lo clientconfig.o : clientconfig.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-clientprotocol.lo clientprotocol.o : clientprotocol.c \
-	../include/common.h ../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-config.lo config.o : config.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-config_parse.lo config_parse.o : config_parse.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-config_scan.lo config_scan.o : config_scan.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h config_parse.h
-connectchild.lo connectchild.o : connectchild.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-debug.lo debug.o : debug.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-hostcache.lo hostcache.o : hostcache.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-httpproxy.lo httpproxy.o : httpproxy.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-io.lo io.o : io.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-log.lo log.o : log.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-method_uname.lo method_uname.o : method_uname.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-msproxy_clientprotocol.lo msproxy_clientprotocol.o : \
-	msproxy_clientprotocol.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-protocol.lo protocol.o : protocol.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-serr.lo serr.o : serr.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-socket.lo socket.o : socket.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-tostring.lo tostring.o : tostring.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h config_parse.h
-udp.lo udp.o : udp.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-udp_util.lo udp_util.o : udp_util.c ../include/common.h \
-	../include/autoconf.h ../include/redefac.h \
-	../include/yacconfig.h ../include/config.h ../include/socks.h \
-	../include/tostring.h
-userio.lo userio.o : userio.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-util.lo util.o : util.c ../include/common.h ../include/autoconf.h \
-	../include/redefac.h ../include/yacconfig.h ../include/config.h \
-	../include/socks.h ../include/tostring.h
-
-info-am:
-info: info-am
-dvi-am:
-dvi: dvi-am
 check-am: all-am
 check: check-am
-installcheck-am:
-installcheck: installcheck-am
-install-exec-am: install-libLTLIBRARIES
-install-exec: install-exec-am
+all-am: Makefile $(LTLIBRARIES) $(HEADERS)
 
-install-data-am:
+installdirs:
+	$(mkinstalldirs) $(DESTDIR)$(libdir)
+
+install: install-am
+install-exec: install-exec-am
 install-data: install-data-am
+uninstall: uninstall-am
 
 install-am: all-am
 	@$(MAKE) $(AM_MAKEFLAGS) install-exec-am install-data-am
-install: install-am
-uninstall-am: uninstall-libLTLIBRARIES
-uninstall: uninstall-am
-all-am: Makefile $(LTLIBRARIES) $(HEADERS)
-all-redirect: all-am
+
+installcheck: installcheck-am
 install-strip:
-	$(MAKE) $(AM_MAKEFLAGS) AM_INSTALL_PROGRAM_FLAGS=-s install
-installdirs:
-	$(mkinstalldirs)  $(DESTDIR)$(libdir)
-
-
+	$(MAKE) $(AM_MAKEFLAGS) INSTALL_PROGRAM="$(INSTALL_STRIP_PROGRAM)" \
+	  `test -z '$(STRIP)' || \
+	    echo "INSTALL_PROGRAM_ENV=STRIPPROG='$(STRIP)'"` install
 mostlyclean-generic:
 
 clean-generic:
 
 distclean-generic:
-	-rm -f Makefile $(CONFIG_CLEAN_FILES)
-	-rm -f config.cache config.log stamp-h stamp-h[0-9]*
+	-rm -f Makefile $(CONFIG_CLEAN_FILES) stamp-h stamp-h[0-9]*
 
 maintainer-clean-generic:
-	-test -z "config_scanlconfig_parsehconfig_parsec$(MAINTAINERCLEANFILES)" || rm -f config_scanl config_parseh config_parsec $(MAINTAINERCLEANFILES)
-mostlyclean-am:  mostlyclean-libLTLIBRARIES mostlyclean-compile \
-		mostlyclean-libtool mostlyclean-tags \
-		mostlyclean-generic
-
-mostlyclean: mostlyclean-am
-
-clean-am:  clean-libLTLIBRARIES clean-compile clean-libtool clean-tags \
-		clean-generic mostlyclean-am
-
+	@echo "This command is intended for maintainers to use"
+	@echo "it deletes files that may require special tools to rebuild."
+	-test -z "config_parse.h$(MAINTAINERCLEANFILES)" || rm -f config_parse.h $(MAINTAINERCLEANFILES)
 clean: clean-am
 
-distclean-am:  distclean-libLTLIBRARIES distclean-compile \
-		distclean-libtool distclean-tags distclean-generic \
-		clean-am
-	-rm -f libtool
+clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
+	mostlyclean-am
 
 distclean: distclean-am
 
-maintainer-clean-am:  maintainer-clean-libLTLIBRARIES \
-		maintainer-clean-compile maintainer-clean-libtool \
-		maintainer-clean-tags maintainer-clean-generic \
-		distclean-am
-	@echo "This command is intended for maintainers to use;"
-	@echo "it deletes files that may require special tools to rebuild."
+distclean-am: clean-am distclean-compile distclean-depend \
+	distclean-generic distclean-libtool distclean-tags
+
+dvi: dvi-am
+
+dvi-am:
+
+info: info-am
+
+info-am:
+
+install-data-am:
+
+install-exec-am: install-libLTLIBRARIES
+
+install-info: install-info-am
+
+install-man:
+
+installcheck-am:
 
 maintainer-clean: maintainer-clean-am
 
-.PHONY: mostlyclean-libLTLIBRARIES distclean-libLTLIBRARIES \
-clean-libLTLIBRARIES maintainer-clean-libLTLIBRARIES \
-uninstall-libLTLIBRARIES install-libLTLIBRARIES mostlyclean-compile \
-distclean-compile clean-compile maintainer-clean-compile \
-mostlyclean-libtool distclean-libtool clean-libtool \
-maintainer-clean-libtool tags mostlyclean-tags distclean-tags \
-clean-tags maintainer-clean-tags distdir info-am info dvi-am dvi check \
-check-am installcheck-am installcheck install-exec-am install-exec \
-install-data-am install-data install-am install uninstall-am uninstall \
-all-redirect all-am all installdirs mostlyclean-generic \
-distclean-generic clean-generic maintainer-clean-generic clean \
-mostlyclean distclean maintainer-clean
+maintainer-clean-am: distclean-am maintainer-clean-generic
 
+mostlyclean: mostlyclean-am
+
+mostlyclean-am: mostlyclean-compile mostlyclean-generic \
+	mostlyclean-libtool
+
+uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
+
+.PHONY: GTAGS all all-am check check-am clean clean-generic \
+	clean-libLTLIBRARIES clean-libtool distclean distclean-compile \
+	distclean-depend distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am info info-am install \
+	install-am install-data install-data-am install-exec \
+	install-exec-am install-info install-info-am \
+	install-libLTLIBRARIES install-man install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool tags uninstall \
+	uninstall-am uninstall-info-am uninstall-libLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

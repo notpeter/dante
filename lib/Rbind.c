@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.113 2001/10/16 07:22:21 michaels Exp $";
+"$Id: Rbind.c,v 1.115 2001/12/12 14:42:06 karls Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -60,7 +60,7 @@ Rbind(s, name, namelen)
 
 	clientinit();
 
-	slog(LOG_DEBUG, "%s", function);  
+	slog(LOG_DEBUG, "%s", function);
 
 	/*
 	 * Nothing can be called before Rbind(), delete any old cruft.
@@ -110,7 +110,7 @@ Rbind(s, name, namelen)
 					errno = errno_s;
 					return -1;
 				}
-					
+
 				/*
 				 * Somehow the socket has been bound locally already.
 				 * Best guess is probably to keep that and attempt a

@@ -14,7 +14,7 @@ libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c int_osf3.c   \
 libdsocks_la_LDFLAGS = -version-info 1:0:1 -all-dynamic
 libdsocks_la_LIBADD = ../libscompat/libscompat.la
 
-noinst_HEADERS = config_parse.h 
+noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
 
 INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat

@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.80 2001/06/26 13:00:28 michaels Exp $";
+"$Id: address.c,v 1.82 2001/12/12 14:42:08 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -170,7 +170,7 @@ socks_rmaddr(d)
 						/*
 						 * If we are using the bind extension it's possible
 						 * that this controlconnection is shared with other
-						 * (accept()'ed) addresses, if so we must leave it 
+						 * (accept()'ed) addresses, if so we must leave it
 						 * open for the other connections.
 						*/
 						if (socks_addrcontrol(&socksfdv[d].local, &socksfdv[d].remote)

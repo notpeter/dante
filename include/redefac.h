@@ -205,6 +205,11 @@
 #endif
 
 
+#ifndef HAVE_DISABLED_PIDFILE
+#define HAVE_DISABLED_PIDFILE 0
+#endif
+
+
 #ifndef HAVE_H_ERRNO
 #define HAVE_H_ERRNO 0
 #endif
@@ -635,6 +640,11 @@
 #endif
 
 
+#ifndef HAVE_ARPA_NAMESER_H
+#define HAVE_ARPA_NAMESER_H 0
+#endif
+
+
 #ifndef HAVE_BZERO
 #define HAVE_BZERO 0
 #endif
@@ -790,6 +800,11 @@
 #endif
 
 
+#ifndef HAVE_RESOLV_H
+#define HAVE_RESOLV_H 0
+#endif
+
+
 #ifndef HAVE_SECURITY_PAM_APPL_H
 #define HAVE_SECURITY_PAM_APPL_H 0
 #endif
@@ -822,6 +837,11 @@
 
 #ifndef HAVE_SOCKET
 #define HAVE_SOCKET 0
+#endif
+
+
+#ifndef HAVE_STDINT_H
+#define HAVE_STDINT_H 0
 #endif
 
 
@@ -890,13 +910,28 @@
 #endif
 
 
+#ifndef HAVE_SYS_IPC_H
+#define HAVE_SYS_IPC_H 0
+#endif
+
+
 #ifndef HAVE_SYS_SEM_H
 #define HAVE_SYS_SEM_H 0
 #endif
 
 
+#ifndef HAVE_SYS_STAT_H
+#define HAVE_SYS_STAT_H 0
+#endif
+
+
 #ifndef HAVE_SYS_TIME_H
 #define HAVE_SYS_TIME_H 0
+#endif
+
+
+#ifndef HAVE_SYS_TYPES_H
+#define HAVE_SYS_TYPES_H 0
 #endif
 
 

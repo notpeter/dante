@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.131 2001/11/11 13:38:39 michaels Exp $";
+"$Id: sockd_child.c,v 1.134 2001/12/18 12:38:51 karls Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -268,10 +268,10 @@ addchild(type)
 			size_t i, maxfd;
 			struct sigaction sigact;
 
-			socksconfig.state.type	= type;
+			sockscf.state.type	= type;
 
-			socksconfig.state.pid	= getpid(); /* for logmessage. */
-			slog(LOG_DEBUG, "created new %schild", childtype2string(type));
+			sockscf.state.pid	= getpid(); /* for logmessage. */
+			slog(LOG_INFO, "created new %schild", childtype2string(type));
 #if 0
 			slog(LOG_DEBUG, "sleeping...");
 			sleep(20);
@@ -292,7 +292,7 @@ addchild(type)
 			 *
 			 * io children:
 			 *		could need privileges to bind port if using redirect()
-			 * 	module, also SIGHUP performs misc. seteuid() tests that
+			 *		module, also SIGHUP performs misc. seteuid() tests that
 			 *    could fail if we lose privileges.
 			 */
 
@@ -454,11 +454,11 @@ childcheck(type)
 	}
 
 	if (type >= 0)
-		if (proxyc < min && socksconfig.state.addchild)
+		if (proxyc < min && sockscf.state.addchild)
 			if (addchild(type) != NULL)
 				return childcheck(type);
 			else
-				socksconfig.state.addchild = 0;	/* don't retry until a child dies. */
+				sockscf.state.addchild = 0;	/* don't retry until a child dies. */
 
 	return proxyc;
 }
@@ -486,10 +486,10 @@ fillset(set)
 
 	/* new clients we accept. */
 	if (negc > 0)
-		for (i = 0; i < socksconfig.internalc; ++i) {
-			SASSERTX(socksconfig.internalv[i].s >= 0);
-			FD_SET(socksconfig.internalv[i].s, set);
-			dbits = MAX(dbits, socksconfig.internalv[i].s);
+		for (i = 0; i < sockscf.internalc; ++i) {
+			SASSERTX(sockscf.internalv[i].s >= 0);
+			FD_SET(sockscf.internalv[i].s, set);
+			dbits = MAX(dbits, sockscf.internalv[i].s);
 		}
 
 	/* negotiator children. */

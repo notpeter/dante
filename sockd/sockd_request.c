@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.141 2001/11/11 13:38:44 michaels Exp $";
+"$Id: sockd_request.c,v 1.145 2001/12/12 14:42:20 karls Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -120,7 +120,7 @@ run_request(mother)
 	const char *function = "run_request()";
 	struct sockd_request_t req;
 #if DIAGNOSTIC
-	const int freec = freedescriptors(socksconfig.option.debug ? "start" : NULL);
+	const int freec = freedescriptors(sockscf.option.debug ? "start" : NULL);
 #endif /* DIAGNOSTIC */
 
 	proctitleupdate(NULL);
@@ -146,7 +146,7 @@ run_request(mother)
 			serr(EXIT_FAILURE, "%s: sending ack to mother failed", function);
 
 #if DIAGNOSTIC
-		SASSERTX(freec == freedescriptors(socksconfig.option.debug ?
+		SASSERTX(freec == freedescriptors(sockscf.option.debug ?
 		"end" : NULL));
 #endif /* DIAGNOSTIC */
 	}
@@ -234,7 +234,7 @@ dorequest(mother, request)
 	io							= ioinit;
 	io.acceptrule			= request->rule;
 	io.state					= request->state;
-	io.state.extension	= socksconfig.extension;
+	io.state.extension	= sockscf.extension;
 
 	/*
 	 * examine client request.
@@ -371,7 +371,7 @@ dorequest(mother, request)
 
 	/*
 	 * Find address to bind on clients behalf.
-	 * First get the ipaddress.
+	 * First get the IP address.
 	*/
 	switch (request->req.command) {
 		case SOCKS_BIND: /* either 0.0.0.0 or previous connectionaddress, ok. */
@@ -456,7 +456,7 @@ dorequest(mother, request)
 
 	/* bind it. */
 	TOIN(&bound)->sin_family = AF_INET;
-	if (socksconfig.compat.reuseaddr) {/* XXX and not rebinding in redirect(). */
+	if (sockscf.compat.reuseaddr) {/* XXX and not rebinding in redirect(). */
 		p = 1;
 		if (setsockopt(out, SOL_SOCKET, SO_REUSEADDR, &p, sizeof(p)) != 0)
 			swarn("%s: setsockopt(SO_REUSEADDR)", function);
@@ -486,7 +486,7 @@ dorequest(mother, request)
 
 			sockaddr2sockshost(&bound, &boundhost);
 
-			permit = rulespermit(request->s, &request->from, &request->to, 
+			permit = rulespermit(request->s, &request->from, &request->to,
 			&io.rule, &io.state, &io.src.host, &boundhost, msg, sizeof(msg));
 
 			io.src.auth = io.control.auth = io.state.auth;
@@ -497,7 +497,7 @@ dorequest(mother, request)
 		}
 
 		case SOCKS_CONNECT:
-			permit = rulespermit(request->s, &request->from, &request->to, 
+			permit = rulespermit(request->s, &request->from, &request->to,
 			&io.rule, &io.state, &io.src.host, &io.dst.host, msg, sizeof(msg));
 
 			io.src.auth = io.control.auth = io.state.auth;
@@ -527,7 +527,7 @@ dorequest(mother, request)
 			/* one direction is atleast in theory good enough. */
 			permit = rulespermit(request->s, &request->from, &request->to,
 			&io.rule, &io.state, src, NULL, msg, sizeof(msg))
-			|| rulespermit(request->s, &request->from, &request->to, 
+			|| rulespermit(request->s, &request->from, &request->to,
 			&io.rule, &replystate, NULL, src, msg, sizeof(msg));
 
 			io.src.auth = io.control.auth = io.state.auth;
@@ -551,19 +551,20 @@ dorequest(mother, request)
 	switch (request->req.command) {
 		case SOCKS_UDPASSOCIATE:
 			break; /* does a rulecheck for each packet. */
-		
+
 		default:
 			bwuse(io.rule.bw);
 	}
 
-	if (redirect(out, &bound, &io.dst.host, request->req.command, 
+	if (redirect(out, &bound, &io.dst.host, request->req.command,
 	&io.rule.rdr_from, &io.rule.rdr_to) != 0) {
+		swarn("%s: redirect()", function);
 		send_failure(request->s, &response, errno2reply(errno, response.version));
 		close(request->s);
 		close(out);
 		return;
 	}
-	
+
 	/*
 	 * Set up missing bits of io and send it to mother.
 	 */
@@ -663,7 +664,7 @@ dorequest(mother, request)
 				struct ruleaddress_t ruleaddr;
 				struct sockaddr remoteaddr;		/* remote address we accepted.	*/
 				struct sockshost_t remotehost;	/* remote address, sockhost form.*/
-				struct sockshost_t dsthost;		/* host to send reply to. 			*/
+				struct sockshost_t dsthost;		/* host to send reply to.			*/
 				struct sockaddr replyaddr;			/* address of bindreply socket.	*/
 				int replyredirect;
 				int fdbits = -1;
@@ -1075,7 +1076,7 @@ dorequest(mother, request)
 			io.src.raddr							= client;
 			io.src.laddr							= request->to;
 			/* LINTED pointer casts may be troublesome */
-			TOIN(&io.src.laddr)->sin_port 	= htons(0);
+			TOIN(&io.src.laddr)->sin_port		= htons(0);
 
 			/*
 			 * bind address for receiving UDP packets so we can tell client

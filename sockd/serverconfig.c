@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.173 2001/11/13 08:24:50 michaels Exp $";
+"$Id: serverconfig.c,v 1.178 2002/01/01 15:47:11 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -104,7 +104,7 @@ checkrule __P((const struct rule_t *rule));
 
 __END_DECLS
 
-struct config_t socksconfig;
+struct config_t sockscf;
 const int socks_configtype = CONFIGTYPE_SERVER;
 
 #if HAVE_LIBWRAP
@@ -125,15 +125,15 @@ addinternal(addr)
 	const struct ruleaddress_t *addr;
 {
 
-	if (socksconfig.state.init) {
+	if (sockscf.state.init) {
 #if 0 /* don't know how to do this now, seems like too much work. */
 		int i;
 
-		for (i = 0; i < socksconfig.internalc; ++i)
-			if (memcmp(&socksconfig.internalv[i], addr, sizeof(addr)) == 0)
+		for (i = 0; i < sockscf.internalc; ++i)
+			if (memcmp(&sockscf.internalv[i], addr, sizeof(addr)) == 0)
 				break;
 
-		if (i == socksconfig.internalc)
+		if (i == sockscf.internalc)
 			swarnx("can't change internal addresses once running");
 #endif
 	}
@@ -142,10 +142,10 @@ addinternal(addr)
 			case SOCKS_ADDR_IPV4: {
 				struct sockshost_t host;
 
-				NEWINTERNAL_EXTERNAL(socksconfig.internalc, socksconfig.internalv);
+				NEWINTERNAL_EXTERNAL(sockscf.internalc, sockscf.internalv);
 
 				sockshost2sockaddr(ruleaddress2sockshost(addr, &host, SOCKS_TCP),
-				&socksconfig.internalv[socksconfig.internalc - 1].addr);
+				&sockscf.internalv[sockscf.internalc - 1].addr);
 				break;
 			}
 
@@ -155,45 +155,45 @@ addinternal(addr)
 
 				i = 0;
 				while (hostname2sockaddr(addr->addr.domain, i, &sa) != NULL) {
-					NEWINTERNAL_EXTERNAL(socksconfig.internalc,
-					socksconfig.internalv);
+					NEWINTERNAL_EXTERNAL(sockscf.internalc,
+					sockscf.internalv);
 
 					/* LINTED pointer casts may be troublesome */
 					TOIN(&sa)->sin_port = addr->port.tcp;
-					socksconfig.internalv[socksconfig.internalc - 1].addr = sa;
+					sockscf.internalv[sockscf.internalc - 1].addr = sa;
 					++i;
 				}
-				
+
 				if (i == 0)
 					yyerror("could not resolve name %s: %s",
 					addr->addr.domain, hstrerror(h_errno));
 				break;
 			}
-				
+
 			case SOCKS_ADDR_IFNAME: {
-				struct ifaddrs ifa, *ifap = &ifa, *iface; 
-				int m; 
-			
-				if (getifaddrs(&ifap) != 0) 
-					serr(EXIT_FAILURE, "getifaddrs()"); 
-				 
-				for (m = 0, iface = ifap; iface != NULL; iface = iface->ifa_next) 
-					if (strcmp(iface->ifa_name, addr->addr.ifname) == 0 
-					&& iface->ifa_addr != NULL 
-					&& iface->ifa_addr->sa_family == AF_INET) { 
-						NEWINTERNAL_EXTERNAL(socksconfig.internalc,
-						socksconfig.internalv);
+				struct ifaddrs ifa, *ifap = &ifa, *iface;
+				int m;
+
+				if (getifaddrs(&ifap) != 0)
+					serr(EXIT_FAILURE, "getifaddrs()");
+
+				for (m = 0, iface = ifap; iface != NULL; iface = iface->ifa_next)
+					if (strcmp(iface->ifa_name, addr->addr.ifname) == 0
+					&& iface->ifa_addr != NULL
+					&& iface->ifa_addr->sa_family == AF_INET) {
+						NEWINTERNAL_EXTERNAL(sockscf.internalc,
+						sockscf.internalv);
 
 						/* LINTED pointer casts may be troublesome */
 						TOIN(iface->ifa_addr)->sin_port = addr->port.tcp;
 
-						socksconfig.internalv[socksconfig.internalc - 1].addr
+						sockscf.internalv[sockscf.internalc - 1].addr
 						= *iface->ifa_addr;
 
-						m = 1; 
-					} 
-				freeifaddrs(ifap); 
-			
+						m = 1;
+					}
+				freeifaddrs(ifap);
+
 				if (!m)
 					yyerror("can't find interface/address: %s", addr->addr.ifname);
 				break;
@@ -216,16 +216,16 @@ addexternal(addr)
 
 				i = 0;
 				while (hostname2sockaddr(addr->addr.domain, i, &sa) != NULL) {
-					NEWINTERNAL_EXTERNAL(socksconfig.external.addrc,
-					socksconfig.external.addrv);
+					NEWINTERNAL_EXTERNAL(sockscf.external.addrc,
+					sockscf.external.addrv);
 
 					/* LINTED pointer casts may be troublesome */
 					TOIN(&sa)->sin_port = addr->port.tcp;
 					sockaddr2ruleaddress(&sa,
-					&socksconfig.external.addrv[socksconfig.external.addrc - 1]);
+					&sockscf.external.addrv[sockscf.external.addrc - 1]);
 					++i;
 				}
-				
+
 				if (i == 0)
 					yyerror("could not resolve name %s: %s",
 					addr->addr.domain, hstrerror(h_errno));
@@ -235,12 +235,16 @@ addexternal(addr)
 		case SOCKS_ADDR_IPV4: {
 			if (addr->addr.ipv4.ip.s_addr == htonl(INADDR_ANY))
 				yyerror("external address can't be a wildcard address");
-			/* FALLTHROUGH */
+			NEWINTERNAL_EXTERNAL(sockscf.external.addrc,
+			sockscf.external.addrv);
+			sockscf.external.addrv[sockscf.external.addrc - 1] = *addr;
+			sockscf.external.addrv[sockscf.external.addrc - 1].addr.ipv4.mask.s_addr = htonl(0xffffffff);
+			break;
 
 		case SOCKS_ADDR_IFNAME:
-			NEWINTERNAL_EXTERNAL(socksconfig.external.addrc,
-			socksconfig.external.addrv);
-			socksconfig.external.addrv[socksconfig.external.addrc - 1] = *addr;
+			NEWINTERNAL_EXTERNAL(sockscf.external.addrc,
+			sockscf.external.addrv);
+			sockscf.external.addrv[sockscf.external.addrc - 1] = *addr;
 			break;
 		}
 
@@ -259,12 +263,12 @@ addclientrule(newrule)
 
 	ruletoadd = *newrule; /* for const. */
 
-	rule = addrule(&ruletoadd, &socksconfig.crule, 1);
+	rule = addrule(&ruletoadd, &sockscf.crule, 1);
 
 	if (rule->state.methodc == 0)
 		if (rule->user == NULL)
 			rule->state.methodv[rule->state.methodc++] = AUTHMETHOD_NONE;
-		
+
 	for (i = 0; i < rule->state.methodc; ++i)
 		switch (rule->state.methodv[i]) {
 			case AUTHMETHOD_NONE:
@@ -290,7 +294,7 @@ addsocksrule(newrule)
 
 	struct rule_t *rule;
 
-	rule = addrule(newrule, &socksconfig.srule, 0);
+	rule = addrule(newrule, &sockscf.srule, 0);
 
 	checkrule(rule);
 
@@ -405,85 +409,85 @@ showclient(rule)
 }
 
 void
-showconfig(socksconfig)
-	const struct config_t *socksconfig;
+showconfig(sockscf)
+	const struct config_t *sockscf;
 {
 	int i;
 	char address[MAXRULEADDRSTRING], buf[1024];
 	size_t bufused;
 
-	slog(LOG_DEBUG, "internal addresses (%d):", socksconfig->internalc);
-	for (i = 0; i < socksconfig->internalc; ++i)
+	slog(LOG_DEBUG, "internal addresses (%d):", sockscf->internalc);
+	for (i = 0; i < sockscf->internalc; ++i)
 		slog(LOG_DEBUG, "\t%s",
-		sockaddr2string(&socksconfig->internalv[i].addr, address,
+		sockaddr2string(&sockscf->internalv[i].addr, address,
 		sizeof(address)));
 
-	slog(LOG_DEBUG, "external addresses (%d):", socksconfig->external.addrc);
-	for (i = 0; i < socksconfig->external.addrc; ++i) {
-		ruleaddress2string(&socksconfig->external.addrv[i], address,
+	slog(LOG_DEBUG, "external addresses (%d):", sockscf->external.addrc);
+	for (i = 0; i < sockscf->external.addrc; ++i) {
+		ruleaddress2string(&sockscf->external.addrv[i], address,
 		sizeof(address));
 
 		slog(LOG_DEBUG, "\t%s", address);
 	}
-	slog(LOG_DEBUG, "external address rotation: %s", 
-	rotation2string(socksconfig->external.rotation));
+	slog(LOG_DEBUG, "external address rotation: %s",
+	rotation2string(sockscf->external.rotation));
 
 	slog(LOG_DEBUG, "compatibility options: %s",
-	compats2string(&socksconfig->compat, buf, sizeof(buf)));
+	compats2string(&sockscf->compat, buf, sizeof(buf)));
 
 	slog(LOG_DEBUG, "extensions enabled: %s",
-	extensions2string(&socksconfig->extension, buf, sizeof(buf)));
+	extensions2string(&sockscf->extension, buf, sizeof(buf)));
 
 	slog(LOG_DEBUG, "logoutput goes to: %s",
-	logtypes2string(&socksconfig->log, buf, sizeof(buf)));
+	logtypes2string(&sockscf->log, buf, sizeof(buf)));
 
 	slog(LOG_DEBUG, "cmdline options:\n%s",
-	options2string(&socksconfig->option, "", buf, sizeof(buf)));
+	options2string(&sockscf->option, "", buf, sizeof(buf)));
 
 	slog(LOG_DEBUG, "resolveprotocol: %s",
-	resolveprotocol2string(socksconfig->resolveprotocol));
+	resolveprotocol2string(sockscf->resolveprotocol));
 
 	slog(LOG_DEBUG, "srchost:\n%s",
-	srchosts2string(&socksconfig->srchost, "", buf, sizeof(buf)));
+	srchosts2string(&sockscf->srchost, "", buf, sizeof(buf)));
 
 	slog(LOG_DEBUG, "negotiate timeout: %lds",
-	(long)socksconfig->timeout.negotiate);
+	(long)sockscf->timeout.negotiate);
 	slog(LOG_DEBUG, "i/o timeout: %lds",
-	(long)socksconfig->timeout.io);
+	(long)sockscf->timeout.io);
 
-	slog(LOG_DEBUG, "euid: %d", socksconfig->state.euid);
+	slog(LOG_DEBUG, "euid: %d", sockscf->state.euid);
 
 	slog(LOG_DEBUG, "userid:\n%s",
-	userids2string(&socksconfig->uid, "", buf, sizeof(buf)));
+	userids2string(&sockscf->uid, "", buf, sizeof(buf)));
 
 	bufused = snprintfn(buf, sizeof(buf), "method(s): ");
-	for (i = 0; (size_t)i < socksconfig->methodc; ++i)
+	for (i = 0; (size_t)i < sockscf->methodc; ++i)
 		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s%s",
-		i > 0 ? ", " : "", method2string(socksconfig->methodv[i]));
+		i > 0 ? ", " : "", method2string(sockscf->methodv[i]));
 	slog(LOG_DEBUG, buf);
 
 	bufused = snprintfn(buf, sizeof(buf), "clientmethod(s): ");
-	for (i = 0; (size_t)i < socksconfig->clientmethodc; ++i)
+	for (i = 0; (size_t)i < sockscf->clientmethodc; ++i)
 		bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused, "%s%s",
-		i > 0 ? ", " : "", method2string(socksconfig->clientmethodv[i]));
+		i > 0 ? ", " : "", method2string(sockscf->clientmethodv[i]));
 	slog(LOG_DEBUG, buf);
 
-	if (socksconfig->option.debug) {
+	if (sockscf->option.debug) {
 		struct rule_t *rule;
 		int count;
 
-		for (count = 0, rule = socksconfig->crule; rule != NULL;
+		for (count = 0, rule = sockscf->crule; rule != NULL;
 		rule = rule->next)
 			++count;
 		slog(LOG_DEBUG, "client-rules (%d): ", count);
-		for (rule = socksconfig->crule; rule != NULL; rule = rule->next)
+		for (rule = sockscf->crule; rule != NULL; rule = rule->next)
 			showclient(rule);
 
-		for (count = 0, rule = socksconfig->srule; rule != NULL;
+		for (count = 0, rule = sockscf->srule; rule != NULL;
 		rule = rule->next)
 			++count;
 		slog(LOG_DEBUG, "socks-rules (%d): ", count);
-		for (rule = socksconfig->srule; rule != NULL; rule = rule->next)
+		for (rule = sockscf->srule; rule != NULL; rule = rule->next)
 			showrule(rule);
 	}
 }
@@ -499,13 +503,12 @@ resetconfig(void)
 	 */
 
 	/* external addresses can be changed. */
-	free(socksconfig.external.addrv);
-	socksconfig.external.addrv 			= NULL;
-	socksconfig.external.addrc 			= 0;
-	socksconfig.external.rotation 		= ROTATION_NONE;
+	free(sockscf.external.addrv);
+	sockscf.external.addrv			= NULL;
+	sockscf.external.addrc			= 0;
 
 	/* delete all old socks rules */
-	rule = socksconfig.srule;
+	rule = sockscf.srule;
 	while (rule != NULL) {
 		struct rule_t *next = rule->next;
 		struct linkedname_t *user, *nextuser;
@@ -520,10 +523,10 @@ resetconfig(void)
 		free(rule);
 		rule = next;
 	}
-	socksconfig.srule = NULL;
+	sockscf.srule = NULL;
 
 	/* clientrules too. */
-	rule = socksconfig.crule;
+	rule = sockscf.crule;
 	while (rule != NULL) {
 		struct rule_t *next = rule->next;
 		struct linkedname_t *user, *nextuser;
@@ -538,43 +541,43 @@ resetconfig(void)
 		free(rule);
 		rule = next;
 	}
-	socksconfig.crule = NULL;
+	sockscf.crule = NULL;
 
 	/* route; currently not supported in server. */
 
 	/* compat, read from configfile. */
-	bzero(&socksconfig.compat, sizeof(socksconfig.compat));
+	bzero(&sockscf.compat, sizeof(sockscf.compat));
 
 	/* extensions, read from configfile. */
-	bzero(&socksconfig.extension, sizeof(socksconfig.extension));
+	bzero(&sockscf.extension, sizeof(sockscf.extension));
 
 	/* log; only settable at start. */
 
 	/* option; only settable at commandline. */
 
 	/* resolveprotocol, read from configfile. */
-	bzero(&socksconfig.resolveprotocol, sizeof(socksconfig.resolveprotocol));
+	bzero(&sockscf.resolveprotocol, sizeof(sockscf.resolveprotocol));
 
 	/* srchost, read from configfile. */
-	bzero(&socksconfig.srchost, sizeof(socksconfig.srchost));
+	bzero(&sockscf.srchost, sizeof(sockscf.srchost));
 
 	/* stat: keep it. */
 
 	/* state; keep it. */
 
 	/* methods, read from configfile. */
-	bzero(socksconfig.methodv, sizeof(socksconfig.methodv));
-	socksconfig.methodc = 0;
+	bzero(sockscf.methodv, sizeof(sockscf.methodv));
+	sockscf.methodc = 0;
 
-	bzero(socksconfig.clientmethodv, sizeof(socksconfig.clientmethodv));
-	socksconfig.clientmethodc = 0;
+	bzero(sockscf.clientmethodv, sizeof(sockscf.clientmethodv));
+	sockscf.clientmethodc = 0;
 
 
 	/* timeout, read from configfile. */
-	bzero(&socksconfig.timeout, sizeof(socksconfig.timeout));
+	bzero(&sockscf.timeout, sizeof(sockscf.timeout));
 
 	/* uid, read from configfile. */
-	bzero(&socksconfig.uid, sizeof(socksconfig.uid));
+	bzero(&sockscf.uid, sizeof(sockscf.uid));
 }
 
 void
@@ -603,7 +606,7 @@ iolog(rule, state, operation, src, srcauth, dst, dstauth, data, count)
 	p = strlen(dststring);
 	sockshost2string(dst, &dststring[p], sizeof(dststring) - p);
 
-	snprintfn(rulecommand, sizeof(rulecommand), "%s(%d): %s/%s", 
+	snprintfn(rulecommand, sizeof(rulecommand), "%s(%d): %s/%s",
 	verdict2string(rule->verdict),
 	rule->number, protocol2string(state->protocol),
 	command2string(state->command));
@@ -701,7 +704,7 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 		defrule.log.connect		= 1;
 		defrule.log.iooperation	= 1; /* blocked iooperations. */
 
-		if (socksconfig.option.debug) {
+		if (sockscf.option.debug) {
 			defrule.log.disconnect	= 1;
 			defrule.log.error			= 1;
 		}
@@ -730,16 +733,16 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 	switch (state->command) {
 		case SOCKS_ACCEPT:
 			/* only set by negotiate children so must be clientrule. */
-			rule 		= socksconfig.crule;
-			methodv	= socksconfig.clientmethodv;
-			methodc	= socksconfig.clientmethodc;
+			rule		= sockscf.crule;
+			methodv	= sockscf.clientmethodv;
+			methodc	= sockscf.clientmethodc;
 			break;
 
 		default:
 			/* everyone else, socksrules. */
-			rule = socksconfig.srule;
-			methodv	= socksconfig.methodv;
-			methodc	= socksconfig.methodc;
+			rule = sockscf.srule;
+			methodv	= sockscf.methodv;
+			methodc	= sockscf.methodc;
 			break;
 	}
 
@@ -830,8 +833,8 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 			 * There are some "extra" (non-standard) methods that are independent
 			 * of socks protocol negotiation and it's thus possible
 			 * to get a match on them even if above check failed, i.e.
-			 * it's possible to "upgrade" the method. 
-			 * 
+			 * it's possible to "upgrade" the method.
+			 *
 			 * We therefor look at what methods this rule wants and see
 			 * if can match it with what we have, or get it.
 			 *
@@ -881,9 +884,9 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 
 									/* similar enough, just copy name/password. */
 
-									strcpy((char *)state->auth.mdata.pam.name, 
+									strcpy((char *)state->auth.mdata.pam.name,
 									(const char *)uname.name);
-									strcpy((char *)state->auth.mdata.pam.password, 
+									strcpy((char *)state->auth.mdata.pam.password,
 									(const char *)uname.password);
 
 									methodisok = 1;
@@ -895,7 +898,7 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 									const struct authmethod_rfc931_t rfc931
 									= state->auth.mdata.rfc931;
 
-									strcpy((char *)state->auth.mdata.pam.name, 
+									strcpy((char *)state->auth.mdata.pam.name,
 									(const char *)rfc931.name);
 									*state->auth.mdata.pam.password = NUL;
 									methodisok = 1;
@@ -903,7 +906,7 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 								}
 
 								case AUTHMETHOD_NONE:
-									*state->auth.mdata.pam.name 		= NUL;
+									*state->auth.mdata.pam.name		= NUL;
 									*state->auth.mdata.pam.password	= NUL;
 									methodisok = 1;
 									break;
@@ -943,12 +946,12 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 		if (!i)
 			/*
 			 * The reason for the continue is the fact that we can
-			 * "upgrade" the method if we have a rule specifing a 
-			 * non-socks method.  That means "name" and "password" 
+			 * "upgrade" the method if we have a rule specifying a
+			 * non-socks method.  That means "name" and "password"
 			 * gotten for this method/rule need not be the same as gotten
 			 * for other methods.
 			 */
-			continue; 
+			continue;
 
 		/*
 		 * This is a little tricky.  For some commands we may not
@@ -1000,7 +1003,7 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 	switch (state->command) {
 		case SOCKS_BIND:
 			if (dst->atype == SOCKS_ADDR_IPV4 && dst->addr.ipv4.s_addr == htonl(0))
-				if (!socksconfig.extension.bind) {
+				if (!sockscf.extension.bind) {
 					slog(LOG_DEBUG, "%s: client requested disabled extension: bind",
 					function);
 					match->verdict = VERDICT_BLOCK;
@@ -1083,7 +1086,7 @@ addressisbindable(addr)
 				return 0;
 			}
 			break;
-		}	
+		}
 
 		case SOCKS_ADDR_IFNAME:
 			if (ifname2sockaddr(addr->addr.ifname, 0, &saddr) == NULL) {
@@ -1124,12 +1127,12 @@ addrule(newrule, rulebase, client)
 	size_t methodc;
 
 	if (client) {
-		methodv = socksconfig.clientmethodv;
-		methodc = socksconfig.clientmethodc;
+		methodv = sockscf.clientmethodv;
+		methodc = sockscf.clientmethodc;
 	}
 	else {
-		methodv = socksconfig.methodv;
-		methodc = socksconfig.methodc;
+		methodv = sockscf.methodv;
+		methodc = sockscf.methodc;
 	}
 
 	if ((rule = malloc(sizeof(*rule))) == NULL)
@@ -1138,7 +1141,7 @@ addrule(newrule, rulebase, client)
 
 	/* try to set values not set to a sensible default. */
 
-	if (socksconfig.option.debug) {
+	if (sockscf.option.debug) {
 		rule->log.connect			= 1;
 		rule->log.disconnect		= 1;
 		rule->log.error			= 1;
@@ -1247,17 +1250,17 @@ checkrule(rule)
 
 	if (rule->rdr_to.atype == SOCKS_ADDR_IFNAME)
 		yyerror("redirect to an interface (%s) is not supported "
-		"(or meaningfull?)",
+		"(or meaningful?)",
 		rule->rdr_to.addr.ifname);
 
-#if HAVE_PAM 
+#if HAVE_PAM
 	if (*rule->pamservicename != NUL)
 		if (!methodisset(AUTHMETHOD_PAM, rule->state.methodv,
 		rule->state.methodc))
 			yyerror("pamservicename set for rule but not method pam");
-		else 
+		else
 			if (strcmp(rule->pamservicename, DEFAULT_PAMSERVICENAME) != 0)
-				socksconfig.state.unfixedpamdata = 1; /* pamservicename varies. */
+				sockscf.state.unfixedpamdata = 1; /* pamservicename varies. */
 #endif /* HAVE_PAM */
 }
 
@@ -1308,13 +1311,13 @@ connectisok(request, rule)
 
 	/* do we need to involve libwrap for this rule? */
 	if (*rule->libwrap != NUL
-	||  socksconfig.srchost.nomismatch
-	||  socksconfig.srchost.nounknown) {
+	||  sockscf.srchost.nomismatch
+	||  sockscf.srchost.nounknown) {
 		const char *function = "connectisok()";
 		char libwrap[LIBWRAPBUF];
 		uid_t euid;
 
-		socks_seteuid(&euid, socksconfig.uid.libwrap);
+		socks_seteuid(&euid, sockscf.uid.libwrap);
 
 		/* libwrap modifies the passed buffer. */
 		SASSERTX(strlen(rule->libwrap) < sizeof(libwrap));
@@ -1322,29 +1325,29 @@ connectisok(request, rule)
 
 		/* Wietse Venema says something along the lines of: */
 		if (setjmp(tcpd_buf) != 0) {
-			socks_reseteuid(socksconfig.uid.libwrap, euid);
+			socks_reseteuid(sockscf.uid.libwrap, euid);
 			swarnx("%s: failed libwrap line: %s", function, libwrap);
 			return 0;	/* something got screwed up. */
 		}
 		process_options(libwrap, request);
 
-		if (socksconfig.srchost.nounknown)
+		if (sockscf.srchost.nounknown)
 			if (strcmp(eval_hostname(request->client), STRING_UNKNOWN) == 0) {
 				slog(LOG_INFO, "%s: srchost unknown",
 				eval_hostaddr(request->client));
-				socks_reseteuid(socksconfig.uid.libwrap, euid);
+				socks_reseteuid(sockscf.uid.libwrap, euid);
 				return 0;
 		}
 
-		if (socksconfig.srchost.nomismatch)
+		if (sockscf.srchost.nomismatch)
 			if (strcmp(eval_hostname(request->client), STRING_PARANOID) == 0) {
 				slog(LOG_INFO, "%s: srchost ip/host mismatch",
 				eval_hostaddr(request->client));
-				socks_reseteuid(socksconfig.uid.libwrap, euid);
+				socks_reseteuid(sockscf.uid.libwrap, euid);
 				return 0;
 		}
 
-		socks_reseteuid(socksconfig.uid.libwrap, euid);
+		socks_reseteuid(sockscf.uid.libwrap, euid);
 	}
 
 #else	/* !HAVE_LIBWRAP */
@@ -1353,4 +1356,3 @@ connectisok(request, rule)
 
 	return 1;
 }
-

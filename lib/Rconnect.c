@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.116 2001/11/11 13:38:21 michaels Exp $";
+"$Id: Rconnect.c,v 1.119 2001/12/12 14:42:07 karls Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -204,7 +204,7 @@ Rconnect(s, name, namelen)
 		socksfd->route
 		= socks_connectroute(socksfd->control, &packet, &src, &dst);
 
-	slog(LOG_DEBUG, "%s: route = %s, errno = %d", 
+	slog(LOG_DEBUG, "%s: route = %s, errno = %d",
 	function, socksfd->route == NULL ? "null" : "found", errno);
 
 	if (socksfd->route == NULL) {
@@ -302,7 +302,7 @@ Rconnect(s, name, namelen)
 
 	socks_addaddr((unsigned int)s, socksfd);
 
-	socksconfig.state.lastconnect = *name;	/* needed for standard socks bind. */
+	sockscf.state.lastconnect = *name;	/* needed for standard socks bind. */
 
 	return 0;
 }

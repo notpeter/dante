@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.53 2001/02/06 15:58:57 michaels Exp $";
+"$Id: protocol.c,v 1.54 2001/12/12 14:42:13 karls Exp $";
 
 unsigned char *
 sockshost2mem(host, mem, version)

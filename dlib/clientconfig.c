@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientconfig.c,v 1.14 2001/11/11 13:38:23 michaels Exp $";
+"$Id: clientconfig.c,v 1.16 2001/12/12 14:42:09 karls Exp $";
 
-struct config_t socksconfig;
+struct config_t sockscf;
 const int socks_configtype = CONFIGTYPE_CLIENT;

@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.15 2001/10/15 18:00:38 karls Exp $";
+"$Id: Rcompat.c,v 1.17 2001/12/12 14:42:07 karls Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -73,7 +73,7 @@ Rwrite(d, buf, nbytes)
 	const void *buf;
 	size_t nbytes;
 {
-	const char *function = "Rwrite()"; 
+	const char *function = "Rwrite()";
 
 	clientinit();
 
@@ -90,7 +90,7 @@ Rwritev(d, iov, iovcnt)
 {
 	static const struct msghdr msginit;
 	struct msghdr msg;
-	const char *function = "Rwritev()"; 
+	const char *function = "Rwritev()";
 
 	clientinit();
 
@@ -114,7 +114,7 @@ Rsend(s, msg, len, flags)
 	static const struct msghdr msghdrinit;
 	struct msghdr msghdr;
 	struct iovec iov;
-	const char *function = "Rsend()"; 
+	const char *function = "Rsend()";
 
 	clientinit();
 
@@ -141,7 +141,7 @@ Rsendmsg(s, msg, flags)
 	ssize_t rc;
 	struct sockaddr name;
 	socklen_t namelen;
-	const char *function = "Rsendmsg()"; 
+	const char *function = "Rsendmsg()";
 
 	clientinit();
 
@@ -190,7 +190,7 @@ Rread(d, buf, nbytes)
 	void *buf;
 	size_t nbytes;
 {
-	const char *function = "Rread()"; 
+	const char *function = "Rread()";
 
 	clientinit();
 
@@ -207,7 +207,7 @@ Rreadv(d, iov, iovcnt)
 {
 	static const struct msghdr msghdrinit;
 	struct msghdr msg;
-	const char *function = "Rreadv()"; 
+	const char *function = "Rreadv()";
 
 	clientinit();
 
@@ -231,7 +231,7 @@ Rrecv(s, msg, len, flags)
 	static const struct msghdr msghdrinit;
 	struct msghdr msghdr;
 	struct iovec iov;
-	const char *function = "Rrecv()"; 
+	const char *function = "Rrecv()";
 
 	clientinit();
 
@@ -258,7 +258,7 @@ Rrecvmsg(s, msg, flags)
 	ssize_t rc;
 	struct sockaddr name;
 	socklen_t namelen;
-	const char *function = "Rrecvmsg()"; 
+	const char *function = "Rrecvmsg()";
 
 	clientinit();
 

@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.203 2001/11/23 12:44:30 karls Exp $";
+"$Id: sockd_io.c,v 1.206 2001/12/12 14:42:20 karls Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -159,7 +159,7 @@ io_gettimeout __P((struct timeval *timeout, const struct timeval *timenow));
 static struct sockd_io_t *
 io_gettimedout __P((const struct timeval *timenow));
 /*
- * Scans all clients for one that has timed out according to socksconfig
+ * Scans all clients for one that has timed out according to sockscf
  * settings. "timenow" is the time now.
  * Returns:
  *		If timed out client found: pointer to it.
@@ -201,14 +201,14 @@ siginfo __P((int sig));
 
 /* timersub macro from OpenBSD */
 #define timersub_hack(tvp, uvp, vvp)                                    \
-        do {                                                            \
-                (vvp)->tv_sec = (tvp)->tv_sec - (uvp)->tv_sec;          \
-                (vvp)->tv_usec = (tvp)->tv_usec - (uvp)->tv_usec;       \
-                if ((vvp)->tv_usec < 0) {                               \
-                        (vvp)->tv_sec--;                                \
-                        (vvp)->tv_usec += 1000000;                      \
-                }                                                       \
-        } while (0)
+	do {                                                            \
+					(vvp)->tv_sec = (tvp)->tv_sec - (uvp)->tv_sec;          \
+					(vvp)->tv_usec = (tvp)->tv_usec - (uvp)->tv_usec;       \
+					if ((vvp)->tv_usec < 0) {                               \
+								(vvp)->tv_sec--;                                \
+								(vvp)->tv_usec += 1000000;                      \
+					}                                                       \
+			} while (0)
 
 
 
@@ -830,11 +830,11 @@ doio(mother, io, rset, wset, flags)
 				ssize_t left;
 
 				if ((left = bwleft(io->rule.bw)) <= 0) {
-					/* 
+					/*
 					 * update data (new time) so next bwleft() presumably
 					 * has some left.
 					 * No harm in calling bwupdate() without le 0 check, but
-					 * maybe this is smarter (avaids extra lock in gt 0 case).
+					 * maybe this is smarter (avoids extra lock in gt 0 case).
 					 */
 					bwupdate(io->rule.bw, 0, &timenow);
 					left = bwleft(io->rule.bw);
@@ -858,7 +858,7 @@ doio(mother, io, rset, wset, flags)
 
 				iolog(&io->rule, &io->state, OPERATION_IO, &io->src.host,
 				&io->src.auth, &io->dst.host, &io->dst.auth, buf, (size_t)r);
-				
+
 				bwused += r;
 			}
 
@@ -869,9 +869,9 @@ doio(mother, io, rset, wset, flags)
 			 * only in -> out for a long time.  Also since we assume one
 			 * side is on the lan (where b/w isn't that critical)
 			 * and the other side is the net, assume some slack on
-			 * one side is ok.  Same applices to udp case.
+			 * one side is ok.  Same applies to udp case.
 			 * Another option would be to alternate which direction we
-			 * do i/o on first each time, but we instead do the simple 
+			 * do i/o on first each time, but we instead do the simple
 			 * thing and just don't subtract bufsize.
 			 */
 			bufsize = ...
@@ -908,8 +908,8 @@ doio(mother, io, rset, wset, flags)
 			 * was received from expected in.host, etc.
 			 */
 
-			/* 
-			 * We are less strict about it in the udp case since we don't 
+			/*
+			 * We are less strict about it in the udp case since we don't
 			 * want to truncate packets.
 			 */
 
@@ -1088,7 +1088,7 @@ doio(mother, io, rset, wset, flags)
 				 * We can get some problems here in the case that
 				 * the client sends a hostname for destination.
 				 * If it does it probably means it can't resolve and if
-				 * we then send it a ipaddress as source, the client
+				 * we then send it a IP address as source, the client
 				 * wont be able to match our source as it's destination,
 				 * even if they are the same.
 				 * We check for this case specifically, though we only catch
@@ -1134,19 +1134,19 @@ doio(mother, io, rset, wset, flags)
 					break;
 
 				replyto = io->src.host;
-				if (redirect(io->src.s, &rfrom, &replyto, 
+				if (redirect(io->src.s, &rfrom, &replyto,
 				state.command, &io->rule.rdr_from, &io->rule.rdr_to) != 0) {
 					swarn("%s: redirect()", function);
 					break;
 				}
-				
+
 				if (!sockshostareeq(&replyto, &io->src.host)) {
 					/* need to redirect reply. */
 					if ((s = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
 						swarn("%s: socket()", function);
 						break;
 					}
-						
+
 					if (socks_connect(s, &replyto) != 0) {
 						swarn("%s: socks_connect()", function);
 						break;
@@ -1171,7 +1171,7 @@ doio(mother, io, rset, wset, flags)
 					&io->dst.auth, &io->src.host, &io->src.auth, NULL, 0);
 				io->src.written += MAX(0, w);
 
-				if (s != io->src.s) /* socket temporarly created for redirect. */
+				if (s != io->src.s) /* socket temporarily created for redirect. */
 					close(s);
 			}
 			break;
@@ -1410,10 +1410,10 @@ io_gettimeout(timeout, timenow)
 	if (allocated() == 0)
 		return NULL;
 
-	if (socksconfig.timeout.io == 0 && !timerisset(&bwoverflow))
+	if (sockscf.timeout.io == 0 && !timerisset(&bwoverflow))
 		return NULL;
 
-	timeout->tv_sec	= socksconfig.timeout.io;
+	timeout->tv_sec	= sockscf.timeout.io;
 	timeout->tv_usec	= 0;
 
 	if (timerisset(timeout))
@@ -1422,7 +1422,7 @@ io_gettimeout(timeout, timenow)
 				continue;
 			else
 				timeout->tv_sec = MAX(0, MIN(timeout->tv_sec,
-				difftime(socksconfig.timeout.io,
+				difftime(sockscf.timeout.io,
 				(time_t)difftime((time_t)timenow->tv_sec,
 				(time_t)iov[i].time.tv_sec))));
 	else {
@@ -1435,7 +1435,7 @@ io_gettimeout(timeout, timenow)
 
 	if (timerisset(&bwoverflow)) {
 		struct timeval timetobw;
-		
+
 		if (timercmp(timenow, &bwoverflow, >))
 			/* CONSTCOND */ /* macro operation. */
 			timersub_hack(timenow, &bwoverflow, &timetobw);
@@ -1461,7 +1461,7 @@ io_gettimedout(timenow)
 {
 	int i;
 
-	if (socksconfig.timeout.io == 0)
+	if (sockscf.timeout.io == 0)
 		return NULL;
 
 	for (i = 0; i < ioc; ++i)
@@ -1469,7 +1469,7 @@ io_gettimedout(timenow)
 			continue;
 		else
 			if (difftime((time_t)timenow->tv_sec, (time_t)iov[i].time.tv_sec)
-			>= socksconfig.timeout.io)
+			>= sockscf.timeout.io)
 				return &iov[i];
 
 	return NULL;

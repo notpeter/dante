@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.45 2001/06/18 13:28:33 michaels Exp $";
+"$Id: udp_util.c,v 1.47 2001/12/12 14:42:14 karls Exp $";
 
 struct udpheader_t *
 sockaddr2udpheader(to, header)
@@ -101,4 +101,3 @@ udpheader_add(host, msg, len, msgsize)
 
 	return (char *)newmsg;
 }
-

@@ -1,15 +1,15 @@
-# $Id: BUGS,v 1.23 2001/11/30 10:12:16 karls Exp $
+# $Id: BUGS,v 1.24 2001/12/12 12:54:31 karls Exp $
 
 To report a new bug, mail dante-bugs@inet.no.  Make sure you read
-the faq first.
+the FAQ first.
 
 	Things known not to work:
 
-- there appear to be some problems with "socksify" and nis on at least
+- there appear to be some problems with "socksify" and NIS on at least
   some systems.  Somebody needs to look into what the problem is.
 
 - msproxycode seems to crash at least some msproxy servers.  See
-  README.msproxy for more information.  Also see the http proxy
+  README.msproxy for more information.  Also see the HTTP proxy
   support added to the client.
 
 - 'libtool' is broken on OS X.

@@ -182,6 +182,8 @@
 #undef HAVE_SOCKD_CONFIGFILE
 #undef HAVE_SOCKS_CONFIGFILE
 
+#undef HAVE_DISABLED_PIDFILE
+
 /* some netdb.h files doesn't appear to declare h_errno */
 #undef HAVE_H_ERRNO
 
@@ -210,7 +212,7 @@
 /* more Solaris bugs */
 #undef HAVE_SOLARIS_PAM_BUG
 
-/* support for reqtrieval of route data? */
+/* support for retrieval of route data? */
 #undef HAVE_ROUTE_SOURCE
 
 /* architecture dependent code */

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.79 2001/11/11 13:38:42 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.80 2001/12/11 12:26:46 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -142,7 +142,7 @@ neg_gettimeout __P((struct timeval *timeout));
 static struct sockd_negotiate_t *
 neg_gettimedout __P((void));
 /*
- * Scans all clients for one that has timed out according to socksconfig
+ * Scans all clients for one that has timed out according to sockscf
  * settings.
  * Returns:
  *		If timed out client found: pointer to it.
@@ -567,10 +567,10 @@ neg_gettimeout(timeout)
 	time_t timenow;
 	int i;
 
-	if (socksconfig.timeout.negotiate == 0 || (allocated() == completed()))
+	if (sockscf.timeout.negotiate == 0 || (allocated() == completed()))
 		return NULL;
 
-	timeout->tv_sec	= socksconfig.timeout.negotiate;
+	timeout->tv_sec	= sockscf.timeout.negotiate;
 	timeout->tv_usec	= 0;
 	time(&timenow);
 
@@ -579,7 +579,7 @@ neg_gettimeout(timeout)
 			continue;
 		else
 			timeout->tv_sec = MAX(0, MIN(timeout->tv_sec,
-			difftime(socksconfig.timeout.negotiate,
+			difftime(sockscf.timeout.negotiate,
 			(time_t)difftime(timenow, negv[i].state.time.negotiate_start))));
 
 	return timeout;
@@ -591,7 +591,7 @@ neg_gettimedout(void)
 	int i;
 	time_t timenow;
 
-	if (socksconfig.timeout.negotiate == 0)
+	if (sockscf.timeout.negotiate == 0)
 		return NULL;
 
 	time(&timenow);
@@ -602,7 +602,7 @@ neg_gettimedout(void)
 			continue;
 		else
 			if (difftime(timenow, negv[i].state.time.negotiate_start)
-			>= socksconfig.timeout.negotiate)
+			>= sockscf.timeout.negotiate)
 				return &negv[i];
 	}
 

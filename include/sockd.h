@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.187 2001/11/22 11:00:14 michaels Exp $ */
+/* $Id: sockd.h,v 1.190 2001/12/12 13:56:44 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -202,7 +202,7 @@ typedef struct {
 	unsigned int			expired:1;			/* the rule has expired.				*/
 	int						clients;				/* clients using this bw_t.			*/
 	struct timeval			time;					/* time of last i/o operation.		*/
-	long						bytes;				/* amount of bytes done at time. 	*/
+	long						bytes;				/* amount of bytes done at time.		*/
 	long						maxbps;				/* maximal b/s allowed.					*/
 } bw_t;
 
@@ -475,8 +475,8 @@ sockd_bind __P((int s, struct sockaddr *addr, size_t retries));
  * Binds the address "addr" to the socket "s".  The bind call will
  * be tried "retries" + 1 times if the error is EADDRINUSE, or until
  * successful, whatever comes first.
- * 
- * If successfull, "addr" is filled in with the bound address.
+ *
+ * If successful, "addr" is filled in with the bound address.
  * Returns:
  *		On success: 0.
  *		On failure:	-1
@@ -519,7 +519,7 @@ pidismother __P((pid_t pid));
 int
 descriptorisreserved __P((int d));
 /*
- * If "d" is a descriptor reserved for use globaly, the function
+ * If "d" is a descriptor reserved for use globally, the function
  * returns true.
  * Otherwise, false.
 */
@@ -981,25 +981,25 @@ accessmatch __P((int s, struct authmethod_t *auth,
 					  const struct linkedname_t *userlist, char *emsg,
 					  size_t emsgsize));
 /*
- * Checks whether access matches according to supplied arguements.
- * "auth" is the authentication to be matched against, 
+ * Checks whether access matches according to supplied arguments.
+ * "auth" is the authentication to be matched against,
  * "s" is the socket the client is connected to,
  * "src" is address client connected from, "dst" is address client
  * connected to.
  * "userlist", if not NULL, is a list of names that restricts access
- * further, the authentication must in this case also result in a 
+ * further, the authentication must in this case also result in a
  * username present in "userlist".
  * "emsg" is a buffer that information can be written into, "emsgsize"
  * is the size of that buffer.
  *
  * Returns:
  *		If access is ok: true.
- * 	Otherwise: false.  Writes the reason into "emsg".
+ *		Otherwise: false.  Writes the reason into "emsg".
  */
 
 
 int
-passwordcheck __P((const char *name, const char *cleartextpassword, 
+passwordcheck __P((const char *name, const char *cleartextpassword,
 						 char *emsg, size_t emsglen));
 /*
  * Checks whether "name" is in the passwordfile.
@@ -1026,6 +1026,13 @@ pam_passwordcheck __P((int s,
  *		Otherwise: -1.  "emsg" is filled in with the errormessage.
  */
 
+void
+redirectsetup __P((void));
+/*
+ * sets up things for using the redirect module.
+ * Must be called at start and after sighup by main mother.
+ */
+
 int
 redirect __P((int s, struct sockaddr *addr, struct sockshost_t *host,
 				  int command, const struct ruleaddress_t *from,
@@ -1036,22 +1043,22 @@ redirect __P((int s, struct sockaddr *addr, struct sockshost_t *host,
  *		SOCKS_BIND:
  *			"addr" is local address of "s", to accept connection on.
  *			"host" is ignored.
- *		
+ *
  *		SOCKS_BINDREPLY:
  *			"addr" is the address to say connection is from.
  *			"host" is the address to send reply to.
  *
- * 	SOCKS_CONNECT:
+ *		SOCKS_CONNECT:
  *			"addr" is local address of "s".
  *			"host" is host to connect to.
- *		
+ *
  *		case SOCKS_UDPASSOCIATE:
  *			"addr" is local address of "s", to send udp packet from.
  *			"host" is address to send packet to.
  *
  *		case SOCKS_UDPREPLY:
  *			"addr" is the address to say reply is from.
- *			"host" is the adress to send reply to.
+ *			"host" is the address to send reply to.
  *
  * "host", "addr", and the address of "s" will be changed if needed.
  * Returns:
@@ -1094,18 +1101,18 @@ bwupdate __P((bw_t *bw, size_t bwused, const struct timeval *bwusedtime));
 
 struct timeval *
 isbwoverflow __P((bw_t *bw, const struct timeval *timenow,
-					 	struct timeval *overflow));
+						struct timeval *overflow));
 /*
  * Checks whether "bw" would overflow if we transfered more data through it.
- * "timenow" is the time now.  
+ * "timenow" is the time now.
  * Returns:
- * 	If "bw" would overflow: til what time we have to wait until we can 
+ *		If "bw" would overflow: til what time we have to wait until we can
  *		again transfer data through it.  The memory used for those values is
  *		"overflow".
- *		
+ *
  *		If "bw" would not overflow: NULL.  "overflow" is not touched.
  */
-	
+
 
 #ifdef DEBUG
 void
@@ -1120,7 +1127,7 @@ struct in_addr
 getifa __P((struct in_addr addr));
 /*
  * Returns the address the system would chose to use for connecting
- * to the ipaddress "addr".
- * Returns INADDR_NONE on error. 
+ * to the IP address "addr".
+ * Returns INADDR_NONE on error.
  */
 __END_DECLS

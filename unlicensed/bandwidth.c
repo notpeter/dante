@@ -46,10 +46,10 @@
 #include <math.h> /* XXX */
 
 static const char rcsid[] =
-"$Id: bandwidth.c,v 1.2 2001/11/22 13:40:03 michaels Exp $";
+"$Id: bandwidth.c,v 1.3 2001/12/12 12:31:59 karls Exp $";
 
 const char module_bandwidth_version[] =
-"$Id: bandwidth.c,v 1.2 2001/11/22 13:40:03 michaels Exp $";
+"$Id: bandwidth.c,v 1.3 2001/12/12 12:31:59 karls Exp $";
 
 
 void
@@ -76,7 +76,7 @@ ssize_t
 bwleft(bw)
 	const bw_t *bw;
 {
-	
+
 	return MAX(SOCKD_BUFSIZETCP, SOCKD_BUFSIZEUDP);
 }
 

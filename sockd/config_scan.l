@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -52,7 +52,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.67 2001/11/11 13:38:25 michaels Exp $";
+"$Id: config_scan.l,v 1.69 2002/01/01 15:59:55 michaels Exp $";
 
 %}
 
@@ -232,7 +232,7 @@ PORTNUMBER [0-9]{1,5}
 	return DOMAINNAME;
 }
 
-<start_address>[a-zA-Z]+[0-9]+ {
+<start_address>[a-zA-Z]+[0-9:]+ {
 	BEGIN(start_port);
 
 	yylval.string = yytext;

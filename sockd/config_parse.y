@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.177 2001/11/22 14:19:37 michaels Exp $";
+"$Id: config_parse.y,v 1.180 2001/12/12 14:42:10 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -230,7 +230,7 @@ static const struct {
 %type	<string> log logs logname
 %type	<string> libwrap
 %type	<string> srcaddress dstaddress
-%type	<string> internaladdress externaladdress 
+%type	<string> internaladdress externaladdress
 %type	<string> address ipaddress gwaddress domain ifname direct
 %type	<string> from to
 %type	<string> netmask
@@ -270,7 +270,7 @@ configtype:	serverinit serverline
 serverinit:	SERVERCONFIG {
 #if SOCKS_SERVER
 		protocol			= &protocolmem;
-		extension		= &socksconfig.extension;
+		extension		= &sockscf.extension;
 #endif
 	}
 	;
@@ -299,7 +299,7 @@ clientconfig:	clientoption
 	;
 
 serverconfig:	global_authmethod
-	| 	global_clientauthmethod
+	|	global_clientauthmethod
 	|  deprecated
 	|	internal
 	|	external
@@ -359,16 +359,16 @@ proxyprotocol:	PROXYPROTOCOL ':' proxyprotocols
 	;
 
 proxyprotocolname:	PROXYPROTOCOL_SOCKS_V4 {
-			proxyprotocol->socks_v4 	= 1;
+			proxyprotocol->socks_v4		= 1;
 	}
 	|	PROXYPROTOCOL_SOCKS_V5 {
-			proxyprotocol->socks_v5 	= 1;
+			proxyprotocol->socks_v5		= 1;
 	}
 	|  PROXYPROTOCOL_MSPROXY_V2 {
-			proxyprotocol->msproxy_v2 	= 1;
+			proxyprotocol->msproxy_v2	= 1;
 	}
 	|  PROXYPROTOCOL_HTTP_V1_0 {
-			proxyprotocol->http_v1_0 	= 1;
+			proxyprotocol->http_v1_0	= 1;
 	}
 	;
 
@@ -449,13 +449,13 @@ externalinit: {
 
 external_rotation:	EXTERNAL_ROTATION ':' NONE {
 #if SOCKS_SERVER
-		socksconfig.external.rotation = ROTATION_NONE;
+		sockscf.external.rotation = ROTATION_NONE;
 	}
 	|	EXTERNAL_ROTATION ':' ROUTE {
 #if !HAVE_ROUTE_SOURCE
 		yyerror("don't have code to discover route/address source on platform");
 #else /* !HAVE_ROUTE_SOURCE */
-		socksconfig.external.rotation = ROTATION_ROUTE;
+		sockscf.external.rotation = ROTATION_ROUTE;
 #endif /* HAVE_ROUTE_SOURCE */
 #endif /* SOCKS_SERVER */
 	}
@@ -476,7 +476,7 @@ logoutputdevice:	LOGFILE {
 		&& ($1[strlen(syslogname)] == NUL || $1[strlen(syslogname)] == '/')) {
 			char *sl;
 
-			socksconfig.log.type |= LOGTYPE_SYSLOG;
+			sockscf.log.type |= LOGTYPE_SYSLOG;
 
 			if (*(sl = &($1[strlen(syslogname)])) == '/') { /* facility. */
 				size_t i;
@@ -488,81 +488,77 @@ logoutputdevice:	LOGFILE {
 				if (i == ELEMENTS(syslogfacilityv))
 					yyerror("unknown syslog facility \"%s\"", sl);
 
-				socksconfig.log.facility 		= syslogfacilityv[i].value;
-				socksconfig.log.facilityname = syslogfacilityv[i].name;
+				sockscf.log.facility = syslogfacilityv[i].value;
+				sockscf.log.facilityname = syslogfacilityv[i].name;
 			}
 			else {
-				socksconfig.log.facility = LOG_DAEMON; /* default. */
-				socksconfig.log.facilityname = "daemon";
+				sockscf.log.facility = LOG_DAEMON; /* default. */
+				sockscf.log.facilityname = "daemon";
 			}
 		}
 		else /* adding/changing filename. */
-			if (!socksconfig.state.init) {
+			if (!sockscf.state.init) {
 				/*
-				 * Can't change filenames we log to after startup (well, 
+				 * Can't change filenames we log to after startup (well,
 				 * to be exact, we can't add new filenames, but we complain
 				 * about changing too for now since it's easier.
 				 */
 				int flag;
 
-				socksconfig.log.type |= LOGTYPE_FILE;
+				sockscf.log.type |= LOGTYPE_FILE;
 
-				if ((socksconfig.log.fpv = (FILE **)realloc(socksconfig.log.fpv,
-				sizeof(*socksconfig.log.fpv) * (socksconfig.log.fpc + 1))) == NULL
-				|| (socksconfig.log.fplockv
-				= (int *)realloc(socksconfig.log.fplockv,
-				sizeof(*socksconfig.log.fplockv) * (socksconfig.log.fpc + 1)))
-				== NULL
-				|| (socksconfig.log.fnamev
-				= (char **)realloc(socksconfig.log.fnamev,
-				sizeof(*socksconfig.log.fnamev) * (socksconfig.log.fpc + 1)))
+				if ((sockscf.log.fpv = (FILE **)realloc(sockscf.log.fpv,
+				sizeof(*sockscf.log.fpv) * (sockscf.log.fpc + 1))) == NULL
+				|| (sockscf.log.fplockv = (int *)realloc(sockscf.log.fplockv,
+				sizeof(*sockscf.log.fplockv) * (sockscf.log.fpc + 1))) == NULL
+				|| (sockscf.log.fnamev = (char **)realloc(sockscf.log.fnamev,
+				sizeof(*sockscf.log.fnamev) * (sockscf.log.fpc + 1)))
 				== NULL)
 					serrx(EXIT_FAILURE, NOMEM);
 
-				if ((socksconfig.log.fplockv[socksconfig.log.fpc]
+				if ((sockscf.log.fplockv[sockscf.log.fpc]
 				= socks_mklock(SOCKS_LOCKFILE)) == -1)
 					serr(EXIT_FAILURE, "socks_mklock()");
 
 				if (strcmp($1, "stdout") == 0)
-					socksconfig.log.fpv[socksconfig.log.fpc] = stdout;
+					sockscf.log.fpv[sockscf.log.fpc] = stdout;
 				else if (strcmp($1, "stderr") == 0)
-					socksconfig.log.fpv[socksconfig.log.fpc] = stderr;
+					sockscf.log.fpv[sockscf.log.fpc] = stderr;
 				else
-					if ((socksconfig.log.fpv[socksconfig.log.fpc] = fopen($1, "a"))
+					if ((sockscf.log.fpv[sockscf.log.fpc] = fopen($1, "a"))
 					== NULL)
 						yyerror("fopen(%s)", $1);
 
-				if ((flag = fcntl(fileno(socksconfig.log.fpv[socksconfig.log.fpc]),
+				if ((flag = fcntl(fileno(sockscf.log.fpv[sockscf.log.fpc]),
 				F_GETFD, 0)) == -1
-				||  fcntl(fileno(socksconfig.log.fpv[socksconfig.log.fpc]), F_SETFD,
+				||  fcntl(fileno(sockscf.log.fpv[sockscf.log.fpc]), F_SETFD,
 				flag | FD_CLOEXEC) == -1)
 					serr(EXIT_FAILURE, "fcntl(F_GETFD/F_SETFD)");
 
-				if ((socksconfig.log.fnamev[socksconfig.log.fpc] = strdup($1))
-				== NULL)
+				if ((sockscf.log.fnamev[sockscf.log.fpc] = strdup($1)) == NULL)
 					serr(EXIT_FAILURE, NOMEM);
 
-				++socksconfig.log.fpc;
+				++sockscf.log.fpc;
 			}
 			else {
 				size_t i;
 
-				for (i = 0; i < socksconfig.log.fpc; ++i)
-					if (strcmp(socksconfig.log.fnamev[i], $1) == 0) {
+				for (i = 0; i < sockscf.log.fpc; ++i)
+					if (strcmp(sockscf.log.fnamev[i], $1) == 0) {
 
-						if (fileno(socksconfig.log.fpv[i]) == fileno(stdout)
-						||	 fileno(socksconfig.log.fpv[i]) == fileno(stderr))
+						if (fileno(sockscf.log.fpv[i]) == fileno(stdout)
+						||	 fileno(sockscf.log.fpv[i]) == fileno(stderr))
 							break;
 
 						/* reopen logfiles. */
-						fclose(socksconfig.log.fpv[i]);
-						if ((socksconfig.log.fpv[i]
-						= fopen(socksconfig.log.fnamev[i], "a")) == NULL)
+						fclose(sockscf.log.fpv[i]);
+						if ((sockscf.log.fpv[i]
+						= fopen(sockscf.log.fnamev[i], "a")) == NULL)
 							yyerror("fopen(%s)", $1);
 						break;
-					}	
+					}
 
-				if (i == socksconfig.log.fpc) /* no match found. */
+				if (i == sockscf.log.fpc) /* no match found. */
 					yywarn("can't change logoutput after startup");
 			}
 	}
@@ -579,24 +575,24 @@ userids:	user_privileged
 
 user_privileged:	USER_PRIVILEGED ':' userid {
 #if SOCKS_SERVER
-		socksconfig.uid.privileged			= $3;
-		socksconfig.uid.privileged_isset	= 1;
+		sockscf.uid.privileged			= $3;
+		sockscf.uid.privileged_isset	= 1;
 #endif
 	}
 	;
 
 user_unprivileged:	USER_UNPRIVILEGED ':' userid {
 #if SOCKS_SERVER
-		socksconfig.uid.unprivileged			= $3;
-		socksconfig.uid.unprivileged_isset	= 1;
+		sockscf.uid.unprivileged			= $3;
+		sockscf.uid.unprivileged_isset	= 1;
 #endif
 	}
 	;
 
 user_libwrap:	USER_LIBWRAP ':' userid {
 #if HAVE_LIBWRAP && SOCKS_SERVER
-		socksconfig.uid.libwrap			= $3;
-		socksconfig.uid.libwrap_isset	= 1;
+		sockscf.uid.libwrap			= $3;
+		sockscf.uid.libwrap_isset	= 1;
 #else  /* HAVE_LIBWRAP */
 		yyerror("libwrapsupport not compiled in");
 #endif /* !HAVE_LIBWRAP */
@@ -616,20 +612,20 @@ userid:	USERNAME {
 
 iotimeout:	IOTIMEOUT ':' NUMBER {
 #if SOCKS_SERVER
-		socksconfig.timeout.io = (time_t)atol($3);
+		sockscf.timeout.io = (time_t)atol($3);
 #endif
 	}
 	;
 
 connecttimeout:	CONNECTTIMEOUT ':' NUMBER {
 #if SOCKS_SERVER
-		socksconfig.timeout.negotiate = (time_t)atol($3);
+		sockscf.timeout.negotiate = (time_t)atol($3);
 #endif
 	}
 	;
 
 debuging: DEBUGING ':' NUMBER {
-		socksconfig.option.debug = atoi($3);
+		sockscf.option.debug = atoi($3);
 	}
 	;
 
@@ -638,10 +634,10 @@ compatibility:	COMPATIBILITY ':' compatibilitys
 
 compatibilityname:	REUSEADDR {
 #if SOCKS_SERVER
-		socksconfig.compat.reuseaddr = 1;
+		sockscf.compat.reuseaddr = 1;
 	}
 	|	SAMEPORT {
-		socksconfig.compat.sameport = 1;
+		sockscf.compat.sameport = 1;
 #endif
 	}
 	;
@@ -654,17 +650,17 @@ resolveprotocol:	RESOLVEPROTOCOL ':' resolveprotocolname
 	;
 
 resolveprotocolname:	PROTOCOL_FAKE {
-			socksconfig.resolveprotocol = RESOLVEPROTOCOL_FAKE;
+			sockscf.resolveprotocol = RESOLVEPROTOCOL_FAKE;
 	}
 	|  PROTOCOL_TCP {
 #if HAVE_NO_RESOLVESTUFF
 			yyerror("resolveprotocol keyword not supported on this installation");
 #else /* HAVE_NO_RESOLVESTUFF */
-			socksconfig.resolveprotocol = RESOLVEPROTOCOL_TCP;
+			sockscf.resolveprotocol = RESOLVEPROTOCOL_TCP;
 #endif /* !HAVE_NO_RESOLVESTUFF */
 	}
 	|	PROTOCOL_UDP {
-			socksconfig.resolveprotocol = RESOLVEPROTOCOL_UDP;
+			sockscf.resolveprotocol = RESOLVEPROTOCOL_UDP;
 	}
 	;
 
@@ -673,10 +669,10 @@ srchost:	SRCHOST ':' srchostoptions
 
 srchostoption:	NOMISMATCH {
 #if HAVE_LIBWRAP && SOCKS_SERVER
-			socksconfig.srchost.nomismatch = 1;
+			sockscf.srchost.nomismatch = 1;
 	}
 	|  NOUNKNOWN {
-			socksconfig.srchost.nounknown = 1;
+			sockscf.srchost.nounknown = 1;
 #else
 		yyerror("srchostoption requires libwrap");
 #endif
@@ -691,19 +687,19 @@ srchostoptions:	srchostoption
 authmethod:	METHOD ':' authmethods
 	;
 
-global_authmethod:	METHOD ':' { 
+global_authmethod:	METHOD ':' {
 #if SOCKS_SERVER
-	methodv = socksconfig.methodv; 
-	methodc = &socksconfig.methodc; 
+	methodv = sockscf.methodv;
+	methodc = &sockscf.methodc;
 	*methodc = 0; /* reset. */
 #endif
 	} authmethods
 	;
 
-global_clientauthmethod:	CLIENTMETHOD ':' { 
+global_clientauthmethod:	CLIENTMETHOD ':' {
 #if SOCKS_SERVER
-	methodv = socksconfig.clientmethodv; 
-	methodc = &socksconfig.clientmethodc; 
+	methodv = sockscf.clientmethodv;
+	methodc = &sockscf.clientmethodc;
 	*methodc = 0; /* reset. */
 #endif
 	} authmethods
@@ -743,8 +739,8 @@ authmethods:	authmethodname
 
 clientrule: CLIENTRULE verdict '{' clientruleoptions fromto clientruleoptions '}' {
 #if SOCKS_SERVER
-		rule.src 		= src;
-		rule.dst 		= dst;
+		rule.src			= src;
+		rule.dst			= dst;
 		rule.rdr_from	= rdr_from;
 		rule.rdr_to		= rdr_to;
 
@@ -763,8 +759,8 @@ clientruleoptions:	{ $$ = NULL; }
 
 rule:	verdict '{' ruleoptions fromto ruleoptions '}' {
 #if SOCKS_SERVER
-		rule.src 		= src;
-		rule.dst 		= dst;
+		rule.src			= src;
+		rule.dst			= dst;
 		rule.rdr_from	= rdr_from;
 		rule.rdr_to		= rdr_to;
 
@@ -853,7 +849,7 @@ protocols:	protocolname
 fromto:	srcaddress dstaddress
 	;
 
-redirect:	REDIRECT rdr_fromaddress 
+redirect:	REDIRECT rdr_fromaddress
 	|	REDIRECT rdr_toaddress
 	;
 
@@ -861,16 +857,16 @@ bandwidth:	BANDWIDTH ':' NUMBER {
 #if SOCKS_SERVER
 		static bw_t bwmeminit;
 
-     /* 
-	 	* temporarly allocate ordinary memory, later on point it to
-		* the correct index in socksconfig.bwv.
+     /*
+		* temporarily allocate ordinary memory, later on point it to
+		* the correct index in sockscf.bwv.
 		*/
 		if ((rule.bw = (bw_t *)malloc(sizeof(*rule.bw))) == NULL)
 			serr(EXIT_FAILURE, NOMEM);
 		*rule.bw = bwmeminit;
 		rule.bw->maxbps = atoi($3);
 #endif /* SOCKS_SERVER */
-	}	
+	}
 	;
 
 
@@ -1000,8 +996,8 @@ internaladdress: ipaddress port
 	|	ifname port
 	;
 
-externaladdress: ipaddress 
-	|	domain 
+externaladdress: ipaddress
+	|	domain
 	|	ifname
 	;
 
@@ -1205,7 +1201,7 @@ yyerror(fmt, va_alist)
 
 	bufused = snprintfn(buf, sizeof(buf),
 	"%s: error on line %d, near '%.10s': ",
-	socksconfig.option.configfile, yylineno,
+	sockscf.option.configfile, yylineno,
 	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
 
 	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
@@ -1240,7 +1236,7 @@ yywarn(fmt, va_alist)
 
 	bufused = snprintfn(buf, sizeof(buf),
 	"%s: warning on line %d, near '%.10s': ",
-	socksconfig.option.configfile, yylineno,
+	sockscf.option.configfile, yylineno,
 	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
 
 	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
@@ -1285,7 +1281,7 @@ ruleinit(rule)
 
 	bzero(&src, sizeof(src));
 	bzero(&dst, sizeof(dst));
-	*rule = ruleinitmem; 
+	*rule = ruleinitmem;
 
 	src.atype = SOCKS_ADDR_IPV4;
 	src.addr.ipv4.ip.s_addr = htonl(INADDR_ANY);

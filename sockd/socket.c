@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.28 2001/09/04 12:28:17 michaels Exp $";
+"$Id: socket.c,v 1.30 2001/12/12 14:42:13 karls Exp $";
 
 int
 socks_connect(s, host)
@@ -83,7 +83,7 @@ socks_connect(s, host)
 
 	failed = 0;
 	do {
-		if (failed) {	/* previosly failed, need to create a new socket. */
+		if (failed) {	/* previously failed, need to create a new socket. */
 			struct sockaddr name;
 			socklen_t namelen;
 			int new_s;
@@ -130,13 +130,13 @@ socks_connect(s, host)
 				SERR(0);
 
 			if (read(s, NULL, 0) == 0)
-				break; 
+				break;
 			/*
 			 * else; errno gets set and we can handle it as there was no
 			 * interrupt.
 			 */
 		}
-#endif /* SOCKS_SERVER */				
+#endif /* SOCKS_SERVER */
 
 		/*
 		 * Only retry/try next address if errno indicates server/network error.

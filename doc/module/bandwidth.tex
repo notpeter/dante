@@ -1,4 +1,4 @@
-%@(#)$Id: bandwidth.tex,v 1.9 2001/11/13 09:17:36 michaels Exp $
+%@(#)$Id: bandwidth.tex,v 1.10 2001/12/12 13:17:27 karls Exp $
 %/*
 % * Copyright (c) 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -50,12 +50,12 @@
 
 \title{\emph{Dante}, Module \emph{Bandwidth}}
 \author{
-        Inferno Nettverk A/S \\
-        Oslo Research Park   \\
-        Gaustadalléen 21   	\\
-        NO-0349 Oslo          \\
-        Norway}
-\date{$$$$Date: 2001/11/13 09:17:36 $$$$}
+	Inferno Nettverk A/S \\
+	Oslo Research Park   \\
+	Gaustadalléen 21	\\
+	NO-0349 Oslo          \\
+	Norway}
+\date{$$$$Date: 2001/12/12 13:17:27 $$$$}
 
 \makeindex
 
@@ -68,13 +68,13 @@
 
 \section{Description}
  The \emph{Bandwidth} module gives you control over how much
- bandwidth the \emph{Dante} server uses on behalf of the 
+ bandwidth the \emph{Dante} server uses on behalf of the
  clients.
 
  It can be used to limit bandwidth to non-work related web/ftp
  sites, or to prevent ftp-related traffic from impacting too much
  on interactive telnet/ssh traffic.
- 
+
  It can also be used to give more bandwidth to certain clients
  or for traffic to certain cites.
 
@@ -148,10 +148,10 @@ pass {
 }
   \end{verbatim}
 
- \subsection{Limiting bandwidth provided by internal servers to the outside} 
+ \subsection{Limiting bandwidth provided by internal servers to the outside}
   The next rule shows how one could use the \emph{Dante bind extension}
   together with the \emph{Bandwidth} module to limit the amount of
-  data provided by a internal server, in this case, a webserver called 
+  data provided by a internal server, in this case, a webserver called
   \emph{our-webserver.example.com}, to a total of 10240 bytes, or 10 kB/s.
 
   This requires the webserver to be socksified and the \emph{bind extension}

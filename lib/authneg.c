@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.51 2001/04/25 11:31:53 michaels Exp $";
+"$Id: authneg.c,v 1.52 2001/12/12 14:42:09 karls Exp $";
 
 int
 negotiate_method(s, packet)
