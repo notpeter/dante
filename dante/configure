@@ -1517,7 +1517,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 version=1.1.15
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="2"
+prerelease="3"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -24784,7 +24784,7 @@ fi
 rm -f conftest*
 
 
-#correct select behaviour?
+#expected select behaviour?
 unset nb_select_err
 echo "$as_me:$LINENO: checking for correct select behaviour on unconnected sockets" >&5
 echo $ECHO_N "checking for correct select behaviour on unconnected sockets... $ECHO_C" >&6
@@ -25050,7 +25050,9 @@ fi
 rm -f core *.core gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
 fi
 
-#A good time to save the cache (L_SOCKPROTO might fail)
+
+
+#A good time to save the cache (L_NSOCKPROTO might fail)
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
 # tests run on this system so they can be shared between configure
@@ -25106,3815 +25108,1712 @@ if diff $cache_file confcache >/dev/null 2>&1; then :; else
 fi
 rm -f confcache
 
-#find prototypes for interposition.c
+
+#find prototypes from dlib/interposition.c
 if test "x$preload_enabled" = "xt"; then
 
-    unset failproto
+	unset failproto
 
-    if test "x${ac_cv_header_stdc}" = xyes; then
+	#prototypes; return value first, then parameters
+	#
+	# Example (accept from OpenBSD manual page):
+	#
+        # int accept(int s, struct sockaddr *addr, socklen_t *addrlen);
+	#
+	# Remove variable names and the result is:
+	# int, int, struct sockaddr *, socklen_t *
+	# This is quoted and added to the L_NSOCKPROTO call below.
 
-	#does $CPP define __STDC__?
-	cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
+
+echo "$as_me:$LINENO: checking prototypes for accept" >&5
+echo $ECHO_N "checking prototypes for accept... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
-#ifdef __STDC__
-yes
-#endif
-
-_ACEOF
-if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
-  $EGREP "yes" >/dev/null 2>&1; then
-  CPPFLAG_STDC=""
-else
-  CPPFLAG_STDC="-D__STDC__"
-fi
-rm -f conftest*
-
-
-	#L_SOCKPROTO is used to determine the argument types of the functions
-	#which are used in dlib/interposition.c. It compares the prototypes in
-	#(mainly) <sys/socket.h> and compares them to a list of known
-	#values. The arguments to L_SOCKPROTO are:
-	#1: the name of the function
-	#2: shell code which is executed if no known prototype is found
-	#3...: a list of known types, the first is a list of known return values,
-	#      the second a list of known values for the first argument etc.
-	#To add new values to the list simply add the new values at the end of
-	#the list. (to add a new function a set of #undef statements in
-	#acconfig.h is also needed).
-	case $host in
-		*-*-aix4* | *-*-aix5*)
-			PROTO_ACCEPT=naccept
-			PROTO_GETPEERNAME=ngetpeername
-			PROTO_GETSOCKNAME=ngetsockname
-			PROTO_RECVFROM=nrecvfrom
-			PROTO_RECVMSG=nrecvmsg
-			PROTO_SENDMSG=nsendmsg
-		;;
-		*)
-			PROTO_ACCEPT=accept
-			PROTO_GETPEERNAME=getpeername
-			PROTO_GETSOCKNAME=getsockname
-			PROTO_RECVFROM=recvfrom
-			PROTO_RECVMSG=recvmsg
-			PROTO_SENDMSG=sendmsg
-		;;
-	esac
-
-
-
-nargs=6
-
-paramcnt=4
-
-
-func=connect
-ucfunc=CONNECT
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <netdb.h>
 #include <unistd.h>
-EOF
 
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
+int
+accept( int, struct sockaddr *, socklen_t *
+);
+int
+main ()
+{
 
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_ACCEPT_0 int
 _ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_ACCEPT_1 int
 _ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *" "__const struct sockaddr *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_ACCEPT_2 struct sockaddr *
 _ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "socklen_t" "int" "size_t" "__socklen_t"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_ACCEPT_3 socklen_t *
 _ACEOF
 
-fi
-
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
+  echo "$as_me:$LINENO: result: ok" >&5
 echo "${ECHO_T}ok" >&6
-fi
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-rm -f conftest.*
+cat >conftest.$ac_ext <<_ACEOF
 
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
 
-
-
-nargs=6
-
-paramcnt=4
-
-
-func=${PROTO_ACCEPT}
-ucfunc=ACCEPT
-
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <netdb.h>
 #include <unistd.h>
-EOF
 
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
+int
+accept( int, struct sockaddr *, Psocklen_t
+);
+int
+main ()
+{
 
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_ACCEPT_0 int
 _ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_ACCEPT_1 int
 _ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "struct sockaddr *" "__SOCKADDR_ARG" "__const struct sockaddr *" "void *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_ACCEPT_2 struct sockaddr *
 _ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "socklen_t *" "int *" "Psocklen_t" "size_t *" "__socklen_t *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_ACCEPT_3 Psocklen_t
 _ACEOF
 
-fi
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-
-
-
-
-#failure
-if test "x$failure" != x; then
 echo "$as_me:$LINENO: result: failure" >&5
 echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
+  failproto=t
 fi
-
-rm -f conftest.*
-
-
-
-
-nargs=6
-
-paramcnt=4
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
 
 
-func=bind
-ucfunc=BIND
+echo "$as_me:$LINENO: checking prototypes for bind" >&5
+echo $ECHO_N "checking prototypes for bind... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
 
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
 
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <netdb.h>
 #include <unistd.h>
-EOF
 
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
+int
+bind( int, const struct sockaddr *, socklen_t
+);
+int
+main ()
+{
 
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_BIND_0 int
 _ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_BIND_1 int
 _ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const struct sockaddr *" "__CONST_SOCKADDR_ARG" "struct sockaddr *" "const void *" "__const struct sockaddr *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_BIND_2 const struct sockaddr *
 _ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "socklen_t" "int" "size_t" "__socklen_t"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_BIND_3 socklen_t
 _ACEOF
 
-fi
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-
-
-
-
-#failure
-if test "x$failure" != x; then
 echo "$as_me:$LINENO: result: failure" >&5
 echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
+  failproto=t
 fi
-
-rm -f conftest.*
-
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
 
 
+echo "$as_me:$LINENO: checking prototypes for connect" >&5
+echo $ECHO_N "checking prototypes for connect... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
 
-nargs=6
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
 
-paramcnt=4
-
-
-func=${PROTO_GETPEERNAME}
-ucfunc=GETPEERNAME
-
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <netdb.h>
 #include <unistd.h>
-EOF
 
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
+int
+connect( int, const struct sockaddr *, socklen_t
+);
+int
+main ()
+{
 
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_CONNECT_0 int
 _ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_CONNECT_1 int
 _ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "struct sockaddr *" "__SOCKADDR_ARG" "void *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_CONNECT_2 const struct sockaddr *
 _ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "socklen_t *" "int *" "Psocklen_t" "size_t *" "__socklen_t *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_CONNECT_3 socklen_t
 _ACEOF
 
-fi
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-
-
-
-
-#failure
-if test "x$failure" != x; then
 echo "$as_me:$LINENO: result: failure" >&5
 echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
+  failproto=t
 fi
-
-rm -f conftest.*
-
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
 
 
+echo "$as_me:$LINENO: checking prototypes for gethostbyaddr" >&5
+echo $ECHO_N "checking prototypes for gethostbyaddr... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
 
-nargs=6
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
 
-paramcnt=4
-
-
-func=${PROTO_GETSOCKNAME}
-ucfunc=GETSOCKNAME
-
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <netdb.h>
 #include <unistd.h>
-EOF
 
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
+struct hostent *
+gethostbyaddr( const char *, int, int
+);
+int
+main ()
+{
 
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "struct sockaddr *" "__SOCKADDR_ARG" "void *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int *" "socklen_t *" "Psocklen_t" "size_t *" "__socklen_t *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=9
-
-paramcnt=7
-
-
-func=${PROTO_RECVFROM}
-ucfunc=RECVFROM
-
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "void *" "char *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "size_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#fourth argument
-
-_arg=4
-_param=conftest.out_param_4
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int" "unsigned int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#fifth argument
-
-_arg=5
-_param=conftest.out_param_5
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "struct sockaddr *" "__SOCKADDR_ARG" "void *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#sixth argument
-
-_arg=6
-_param=conftest.out_param_6
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "socklen_t *" "int *" "Psocklen_t" "size_t *" "__socklen_t *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=7
-
-paramcnt=5
-
-
-func=send
-ucfunc=SEND
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const void *" "__const void *" "const char *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "size_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#fourth argument
-
-_arg=4
-_param=conftest.out_param_4
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int" "unsigned int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=9
-
-paramcnt=7
-
-
-func=sendto
-ucfunc=SENDTO
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const void *" "__const void *" "const char *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "size_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#fourth argument
-
-_arg=4
-_param=conftest.out_param_4
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int" "unsigned int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#fifth argument
-
-_arg=5
-_param=conftest.out_param_5
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const struct sockaddr *" "__CONST_SOCKADDR_ARG" "const void *" "__const struct sockaddr *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#sixth argument
-
-_arg=6
-_param=conftest.out_param_6
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "socklen_t" "int" "size_t" "__socklen_t"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=7
-
-paramcnt=5
-
-
-func=recv
-ucfunc=RECV
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "void *" "char *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "size_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#fourth argument
-
-_arg=4
-_param=conftest.out_param_4
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int" "unsigned int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=6
-
-paramcnt=4
-
-
-func=readv
-ucfunc=READV
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const struct iovec *" "__const struct iovec *" "struct iovec *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int" "size_t"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=6
-
-paramcnt=4
-
-
-func=${PROTO_RECVMSG}
-ucfunc=RECVMSG
-
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "struct msghdr *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int" "unsigned int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=6
-
-paramcnt=4
-
-
-func=writev
-ucfunc=WRITEV
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const struct iovec *" "__const struct iovec *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int" "size_t"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=6
-
-paramcnt=4
-
-
-func=${PROTO_SENDMSG}
-ucfunc=SENDMSG
-
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t" "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const struct msghdr *" "__const struct msghdr *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int" "unsigned int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=6
-
-paramcnt=4
-
-
-func=write
-ucfunc=WRITE
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const void *" "__const void *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "size_t" "unsigned"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-
-nargs=6
-
-paramcnt=4
-
-
-func=read
-ucfunc=READ
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netdb.h>
-#include <unistd.h>
-EOF
-
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
-
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "ssize_t"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "void *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "size_t" "unsigned"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
-_ACEOF
-
-fi
-
-
-
-
-
-#failure
-if test "x$failure" != x; then
-echo "$as_me:$LINENO: result: failure" >&5
-echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
-fi
-
-rm -f conftest.*
-
-
-
-#XXX
-case $host in
-	mips-sgi-irix*)
-
-cat >>confdefs.h <<\_ACEOF
 #define HAVE_PROT_GETHOSTBYADDR_0 struct hostent *
 _ACEOF
 
-
-cat >>confdefs.h <<\_ACEOF
+cat >>confdefs.h <<_ACEOF
 #define HAVE_PROT_GETHOSTBYADDR_1 const char *
 _ACEOF
 
-
-cat >>confdefs.h <<\_ACEOF
+cat >>confdefs.h <<_ACEOF
 #define HAVE_PROT_GETHOSTBYADDR_2 int
 _ACEOF
 
-
-cat >>confdefs.h <<\_ACEOF
+cat >>confdefs.h <<_ACEOF
 #define HAVE_PROT_GETHOSTBYADDR_3 int
 _ACEOF
 
-	;;
-	*)
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
+cat >conftest.$ac_ext <<_ACEOF
 
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
 
-nargs=6
-
-paramcnt=4
-
-
-func=gethostbyaddr
-ucfunc=GETHOSTBYADDR
-
-
-echo "$as_me:$LINENO: checking prototypes for $func" >&5
-echo $ECHO_N "checking prototypes for $func... $ECHO_C" >&6
-
-unset failure
-
-cat > conftest.$ac_ext <<EOF
-#include "confdefs.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <netdb.h>
 #include <unistd.h>
-EOF
 
-${CPP} ${CPPFLAGS} ${CPPFLAG_STDC} conftest.$ac_ext | $AWK "{ if (/[^a-z0-9_]${func}[^a-z0-9_]/) { s=10 }; if ( s > 0 ) { s -= 1; print; } }" | egrep -v '^#' | tr '\n' ' ' | tr -s '/' |  tr ';' '\n'  | grep -v "__${func}" | egrep "[^a-z0-9_]${func}[^a-z0-9_]" | tr -s '[:blank:]' | sed -e 's/extern//' > conftest.out_proto
+struct hostent *
+gethostbyaddr( const void *, socklen_t, int
+);
+int
+main ()
+{
 
-cnt=0
-while test $cnt -lt $paramcnt; do
-	if test $cnt -eq 0; then
-		cat conftest.out_proto | sed -e "s/${func}.*//" | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	else
-		cat conftest.out_proto | sed -e "s/.*${func}//" | sed -e "s/[\(\)]//g" | cut -d, -f $cnt | sed -e 's/^[ 	]*//' | sed -e 's/[ 	]*$//g' > conftest.out_param
-	fi
-
-	cat conftest.out_param | tr -s '[:blank:]' > conftest.out_nospace
-	if test -s conftest.out_nospace; then
-		cp -f conftest.out_param conftest.out_param_${cnt}
-	else
-		echo "not found" > conftest.out_param_${cnt}
-		echo "warning: found no argument"
-	fi
-
-	#XXX avoid subshell
-	case $cnt in
-		0) cnt=1;;
-		1) cnt=2;;
-		2) cnt=3;;
-		3) cnt=4;;
-		4) cnt=5;;
-		5) cnt=6;;
-		6) cnt=7;;
-		7) cnt=8;;
-		8) cnt=9;;
-		9) cnt=10;;
-		10) cnt=11;;
-	esac
-
-done
-
-
-	#return value
-
-_arg=0
-_param=conftest.out_param_0
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "struct hostent *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_GETHOSTBYADDR_0 struct hostent *
 _ACEOF
-
-fi
-
-	#first argument
-
-_arg=1
-_param=conftest.out_param_1
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "const char *" "const void *" "__const char *" "__const void *"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_GETHOSTBYADDR_1 const void *
 _ACEOF
-
-fi
-
-	#second argument
-
-_arg=2
-_param=conftest.out_param_2
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int" "size_t" "__socklen_t"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_GETHOSTBYADDR_2 socklen_t
 _ACEOF
-
-fi
-
-	#third argument
-
-_arg=3
-_param=conftest.out_param_3
-_func=$func
-_ucfunc=$ucfunc
-
-unset _nofunc
-
-for val in "int"
-do
-	cat ${_param} | egrep "^${val}" > /dev/null
-	test $? -eq 0 && _nofunc="" && break
-	_nofunc=t
-done
-if test "x${_nofunc}" = xt; then
-	if test "x$failure" != x; then
-		failure="$failure|"
-	fi
-	failure="$failure ${_func} (${_arg}): (`cat ${_param}`)"
-else
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PROT_${_ucfunc}_${_arg} ${val}
+#define HAVE_PROT_GETHOSTBYADDR_3 int
 _ACEOF
 
-fi
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-
-
-
-
-#failure
-if test "x$failure" != x; then
 echo "$as_me:$LINENO: result: failure" >&5
 echo "${ECHO_T}failure" >&6
-
-echo "$failure" | tr '|' '\n'
-
- failproto=t
-else
-	echo "$as_me:$LINENO: result: ok" >&5
-echo "${ECHO_T}ok" >&6
+  failproto=t
 fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
 
-rm -f conftest.*
 
-	;;
-esac
+echo "$as_me:$LINENO: checking prototypes for getpeername" >&5
+echo $ECHO_N "checking prototypes for getpeername... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+int
+getpeername( int, struct sockaddr *, socklen_t *
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETPEERNAME_0 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETPEERNAME_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETPEERNAME_2 struct sockaddr *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETPEERNAME_3 socklen_t *
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+int
+getpeername( int, struct sockaddr *, Psocklen_t
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETPEERNAME_0 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETPEERNAME_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETPEERNAME_2 struct sockaddr *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETPEERNAME_3 Psocklen_t
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for getsockname" >&5
+echo $ECHO_N "checking prototypes for getsockname... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+int
+getsockname( int, struct sockaddr *, socklen_t *
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKNAME_0 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKNAME_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKNAME_2 struct sockaddr *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKNAME_3 socklen_t *
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+int
+getsockname( int, struct sockaddr *, Psocklen_t
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKNAME_0 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKNAME_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKNAME_2 struct sockaddr *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKNAME_3 Psocklen_t
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for read" >&5
+echo $ECHO_N "checking prototypes for read... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+read( int, void *, size_t
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_READ_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_READ_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_READ_2 void *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_READ_3 size_t
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for readv" >&5
+echo $ECHO_N "checking prototypes for readv... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+readv( int, const struct iovec *, int
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_READV_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_READV_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_READV_2 const struct iovec *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_READV_3 int
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for recv" >&5
+echo $ECHO_N "checking prototypes for recv... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+recv( int, void *, size_t, int
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECV_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECV_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECV_2 void *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECV_3 size_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECV_4 int
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for recvfrom" >&5
+echo $ECHO_N "checking prototypes for recvfrom... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+recvfrom( int, void *, size_t, int, struct sockaddr *, socklen_t *
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_2 void *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_3 size_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_4 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_5 struct sockaddr *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_6 socklen_t *
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+recvfrom( int, void *, size_t, int, struct sockaddr *, Psocklen_t
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_2 void *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_3 size_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_4 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_5 struct sockaddr *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVFROM_6 Psocklen_t
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for recvmsg" >&5
+echo $ECHO_N "checking prototypes for recvmsg... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+recvmsg( int, struct msghdr *, int
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVMSG_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVMSG_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVMSG_2 struct msghdr *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_RECVMSG_3 int
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for send" >&5
+echo $ECHO_N "checking prototypes for send... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+send( int, const void *, size_t, int
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SEND_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SEND_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SEND_2 const void *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SEND_3 size_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SEND_4 int
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for sendmsg" >&5
+echo $ECHO_N "checking prototypes for sendmsg... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+sendmsg( int, const struct msghdr *, int
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDMSG_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDMSG_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDMSG_2 const struct msghdr *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDMSG_3 int
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for sendto" >&5
+echo $ECHO_N "checking prototypes for sendto... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+sendto( int, const void *, size_t, int, const struct sockaddr *, socklen_t
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDTO_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDTO_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDTO_2 const void *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDTO_3 size_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDTO_4 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDTO_5 const struct sockaddr *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_SENDTO_6 socklen_t
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for write" >&5
+echo $ECHO_N "checking prototypes for write... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+write( int, const void *, size_t
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_WRITE_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_WRITE_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_WRITE_2 const void *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_WRITE_3 size_t
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
+echo "$as_me:$LINENO: checking prototypes for writev" >&5
+echo $ECHO_N "checking prototypes for writev... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+ssize_t
+writev( int, const struct iovec *, int
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_WRITEV_0 ssize_t
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_WRITEV_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_WRITEV_2 const struct iovec *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_WRITEV_3 int
+_ACEOF
+
+  echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6
+  failproto=t
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
 
 	if test x$failproto != x; then
 	    echo ""
-	    echo "error: some unfamiliar function prototypes were found,"
+	    echo "error: attempt to determine function prototypes failed,"
 	    echo "       and will probably mean that building of libdsocks,"
 	    echo "       which allows on-the-fly socksification of dynamic"
-	    echo "       binaries will not work."
+	    echo "       binaries, will not work."
 	    echo ""
 	    echo "       You have several options:"
 	    echo ""
 	    echo "       1. If you do not need libdsocks, run configure with the"
 	    echo "          option --disable-preload."
-	    echo "       2. Send the output from configure to dante-bugs@inet.no"
-	    echo "          and if possible you'll get a patch fixing the problem."
-	    echo "          If you think this might be a generic problem, sending"
-	    echo "          the output might allow the problem to be solved for all"
-	    echo "          users of your platform in the next release."
-	    echo "       3. Fix the problem yourself. If you have autoconf installed,"
-	    echo "          using the output above to modify configure.in should"
-	    echo "          enable you to compile without problems."
-	    #platform specific problems
-	    case $host in
-		 *-*-solaris*)
-			echo "       4. Remove '/usr/ucb' if it is in the PATH."
-			;;
-			*-*-darwin*)
-			echo "       4. The preprocessed header for unistd.h might be corrupt."
-			echo "          Try to regenerate it or rename unistd.p while you build this package."
-			;;
-	    esac
-	    echo ""
+	    echo "       2. Submit a bugreport."
+	    echo "       3. Find the prototypes used on your platform for the"
+	    echo "          failed functions, and add them to the configure.ac"
+	    echo "          file. Then use autoconf (which must be installed)"
+	    echo "          to regenerate the configure script."
+	    echo "          Function prototype definitions can usually be found"
+	    echo "          in the manual page for the function or in a system"
+	    echo "          include file (usually located under /usr/include)."
 	    exit 1
 	fi
-    else #non ansi
-	#defaults
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_CONNECT_0 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_CONNECT_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_CONNECT_2 const struct sockaddr *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_CONNECT_3 socklen_t
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_ACCEPT_0 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_ACCEPT_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_ACCEPT_2 struct sockaddr *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_ACCEPT_3 socklen_t *
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_BIND_0 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_BIND_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_BIND_2 const struct sockaddr *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_BIND_3 socklen_t
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETPEERNAME_0 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETPEERNAME_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETPEERNAME_2 struct sockaddr *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETPEERNAME_3 socklen_t *
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETSOCKNAME_0 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETSOCKNAME_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETSOCKNAME_2 struct sockaddr *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETSOCKNAME_3 socklen_t *
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVFROM_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVFROM_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVFROM_2 void *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVFROM_3 size_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVFROM_4 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVFROM_5 struct sockaddr *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVFROM_6 socklen_t *
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SEND_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SEND_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SEND_2 const void *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SEND_3 size_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SEND_4 int
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECV_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECV_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECV_2 void *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECV_3 size_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECV_4 int
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDTO_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDTO_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDTO_2 const void *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDTO_3 size_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDTO_4 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDTO_5 const struct sockaddr *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDTO_6 socklen_t
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_READV_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_READV_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_READV_2 const struct iovec *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_READV_3 int
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_WRITEV_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_WRITEV_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_WRITEV_2 const struct iovec *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_WRITEV_3 int
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVMSG_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVMSG_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVMSG_2 struct msghdr *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_RECVMSG_3 int
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDMSG_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDMSG_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDMSG_2 const struct msghdr *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_SENDMSG_3 int
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_WRITE_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_WRITE_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_WRITE_2 const void *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_WRITE_3 size_t
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_READ_0 ssize_t
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_READ_1 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_READ_2 void *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_READ_3 size_t
-_ACEOF
-
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETHOSTBYADDR_0 struct hostent *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETHOSTBYADDR_1 const char *
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETHOSTBYADDR_2 int
-_ACEOF
-
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PROT_GETHOSTBYADDR_3 int
-_ACEOF
-
-    fi #stdc_headers
-fi #no preload
+fi
 
 echo "$as_me:$LINENO: checking if getsockopt needs cast" >&5
 echo $ECHO_N "checking if getsockopt needs cast... $ECHO_C" >&6
@@ -35131,153 +33030,6 @@ fi
 
 
 
-#XXXslow
-ac_sources="lib/config.c"
-ac_dests="sockd/config.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_1="$ac_config_links_1 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_1"
-
-ac_sources="lib/config_parse.y"
-ac_dests="sockd/config_parse.y"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_2="$ac_config_links_2 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_2"
-
-ac_sources="lib/config_scan.l"
-ac_dests="sockd/config_scan.l"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_3="$ac_config_links_3 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_3"
-
-ac_sources="lib/io.c"
-ac_dests="sockd/io.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_4="$ac_config_links_4 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_4"
-
-ac_sources="lib/log.c"
-ac_dests="sockd/log.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_5="$ac_config_links_5 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_5"
-
-ac_sources="lib/protocol.c"
-ac_dests="sockd/lib_protocol.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_6="$ac_config_links_6 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_6"
-
-ac_sources="lib/socket.c"
-ac_dests="sockd/socket.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_7="$ac_config_links_7 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_7"
-
-ac_sources="lib/util.c"
-ac_dests="sockd/util.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_8="$ac_config_links_8 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_8"
-
-ac_sources="lib/udp_util.c"
-ac_dests="sockd/udp_util.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_9="$ac_config_links_9 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_9"
-
-ac_sources="lib/debug.c"
-ac_dests="sockd/debug.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_10="$ac_config_links_10 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_10"
-
-ac_sources="lib/hostcache.c"
-ac_dests="sockd/hostcache.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_11="$ac_config_links_11 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_11"
-
-ac_sources="lib/serr.c"
-ac_dests="sockd/serr.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_12="$ac_config_links_12 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_12"
-
-ac_sources="lib/broken.c"
-ac_dests="sockd/broken.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_13="$ac_config_links_13 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_13"
-
-ac_sources="lib/tostring.c"
-ac_dests="sockd/tostring.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_14="$ac_config_links_14 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_14"
-
-ac_sources="lib/addressmatch.c"
-ac_dests="sockd/addressmatch.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_15="$ac_config_links_15 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_15"
-
-ac_sources="dlib/interposition.c"
-ac_dests="sockd/interposition.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_16="$ac_config_links_16 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_16"
-
-
-
 if test -f "licensed/checkmodule.c"; then
 	unset MOD_CHECKMODULE
 else
@@ -35288,9 +33040,9 @@ ac_dests="sockd/checkmodule.c"
 while test -n "$ac_sources"; do
   set $ac_dests; ac_dest=$1; shift; ac_dests=$*
   set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_17="$ac_config_links_17 $ac_dest:$ac_source"
+  ac_config_links_1="$ac_config_links_1 $ac_dest:$ac_source"
 done
-          ac_config_links="$ac_config_links $ac_config_links_17"
+          ac_config_links="$ac_config_links $ac_config_links_1"
 
 
 #redirect module
@@ -35310,18 +33062,18 @@ ac_dests="sockd/redirect.c"
 while test -n "$ac_sources"; do
   set $ac_dests; ac_dest=$1; shift; ac_dests=$*
   set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_18="$ac_config_links_18 $ac_dest:$ac_source"
+  ac_config_links_2="$ac_config_links_2 $ac_dest:$ac_source"
 done
-          ac_config_links="$ac_config_links $ac_config_links_18"
+          ac_config_links="$ac_config_links $ac_config_links_2"
 
 ac_sources="${MOD_REDIRECT}licensed/redirect_key.c"
 ac_dests="sockd/redirect_key.c"
 while test -n "$ac_sources"; do
   set $ac_dests; ac_dest=$1; shift; ac_dests=$*
   set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_19="$ac_config_links_19 $ac_dest:$ac_source"
+  ac_config_links_3="$ac_config_links_3 $ac_dest:$ac_source"
 done
-          ac_config_links="$ac_config_links $ac_config_links_19"
+          ac_config_links="$ac_config_links $ac_config_links_3"
 
 
 #bandwidth
@@ -35341,338 +33093,18 @@ ac_dests="sockd/bandwidth.c"
 while test -n "$ac_sources"; do
   set $ac_dests; ac_dest=$1; shift; ac_dests=$*
   set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_20="$ac_config_links_20 $ac_dest:$ac_source"
+  ac_config_links_4="$ac_config_links_4 $ac_dest:$ac_source"
 done
-          ac_config_links="$ac_config_links $ac_config_links_20"
+          ac_config_links="$ac_config_links $ac_config_links_4"
 
 ac_sources="${MOD_BANDWIDTH}licensed/bandwidth_key.c"
 ac_dests="sockd/bandwidth_key.c"
 while test -n "$ac_sources"; do
   set $ac_dests; ac_dest=$1; shift; ac_dests=$*
   set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_21="$ac_config_links_21 $ac_dest:$ac_source"
+  ac_config_links_5="$ac_config_links_5 $ac_dest:$ac_source"
 done
-          ac_config_links="$ac_config_links $ac_config_links_21"
-
-
-#The dlib directory is for building a shared library with preloading
-#support (SOCKSLIBRARY_DYNAMIC is defined), when dlopen support is
-#available and requested.
-
-ac_sources="lib/Raccept.c"
-ac_dests="dlib/Raccept.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_22="$ac_config_links_22 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_22"
-
-ac_sources="lib/Rbind.c"
-ac_dests="dlib/Rbind.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_23="$ac_config_links_23 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_23"
-
-ac_sources="lib/Rbindresvport.c"
-ac_dests="dlib/Rbindresvport.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_24="$ac_config_links_24 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_24"
-
-ac_sources="lib/Rconnect.c"
-ac_dests="dlib/Rconnect.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_25="$ac_config_links_25 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_25"
-
-ac_sources="lib/Rgethostbyname.c"
-ac_dests="dlib/Rgethostbyname.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_26="$ac_config_links_26 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_26"
-
-ac_sources="lib/Rgetpeername.c"
-ac_dests="dlib/Rgetpeername.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_27="$ac_config_links_27 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_27"
-
-ac_sources="lib/Rgetsockname.c"
-ac_dests="dlib/Rgetsockname.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_28="$ac_config_links_28 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_28"
-
-ac_sources="lib/Rrresvport.c"
-ac_dests="dlib/Rrresvport.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_29="$ac_config_links_29 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_29"
-
-ac_sources="lib/Rcompat.c"
-ac_dests="dlib/Rcompat.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_30="$ac_config_links_30 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_30"
-
-ac_sources="lib/address.c"
-ac_dests="dlib/address.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_31="$ac_config_links_31 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_31"
-
-ac_sources="lib/authneg.c"
-ac_dests="dlib/authneg.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_32="$ac_config_links_32 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_32"
-
-ac_sources="lib/client.c"
-ac_dests="dlib/client.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_33="$ac_config_links_33 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_33"
-
-ac_sources="lib/clientconfig.c"
-ac_dests="dlib/clientconfig.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_34="$ac_config_links_34 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_34"
-
-ac_sources="lib/clientprotocol.c"
-ac_dests="dlib/clientprotocol.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_35="$ac_config_links_35 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_35"
-
-ac_sources="lib/msproxy_clientprotocol.c"
-ac_dests="dlib/msproxy_clientprotocol.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_36="$ac_config_links_36 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_36"
-
-ac_sources="lib/config.c"
-ac_dests="dlib/config.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_37="$ac_config_links_37 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_37"
-
-ac_sources="lib/config_parse.y"
-ac_dests="dlib/config_parse.y"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_38="$ac_config_links_38 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_38"
-
-ac_sources="lib/config_scan.l"
-ac_dests="dlib/config_scan.l"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_39="$ac_config_links_39 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_39"
-
-ac_sources="lib/debug.c"
-ac_dests="dlib/debug.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_40="$ac_config_links_40 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_40"
-
-ac_sources="lib/io.c"
-ac_dests="dlib/io.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_41="$ac_config_links_41 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_41"
-
-ac_sources="lib/log.c"
-ac_dests="dlib/log.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_42="$ac_config_links_42 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_42"
-
-ac_sources="lib/method_uname.c"
-ac_dests="dlib/method_uname.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_43="$ac_config_links_43 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_43"
-
-ac_sources="lib/protocol.c"
-ac_dests="dlib/protocol.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_44="$ac_config_links_44 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_44"
-
-ac_sources="lib/socket.c"
-ac_dests="dlib/socket.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_45="$ac_config_links_45 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_45"
-
-ac_sources="lib/connectchild.c"
-ac_dests="dlib/connectchild.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_46="$ac_config_links_46 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_46"
-
-ac_sources="lib/udp.c"
-ac_dests="dlib/udp.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_47="$ac_config_links_47 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_47"
-
-ac_sources="lib/udp_util.c"
-ac_dests="dlib/udp_util.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_48="$ac_config_links_48 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_48"
-
-ac_sources="lib/userio.c"
-ac_dests="dlib/userio.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_49="$ac_config_links_49 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_49"
-
-ac_sources="lib/util.c"
-ac_dests="dlib/util.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_50="$ac_config_links_50 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_50"
-
-ac_sources="lib/broken.c"
-ac_dests="dlib/broken.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_51="$ac_config_links_51 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_51"
-
-ac_sources="lib/hostcache.c"
-ac_dests="dlib/hostcache.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_52="$ac_config_links_52 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_52"
-
-ac_sources="lib/serr.c"
-ac_dests="dlib/serr.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_53="$ac_config_links_53 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_53"
-
-ac_sources="lib/httpproxy.c"
-ac_dests="dlib/httpproxy.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_54="$ac_config_links_54 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_54"
-
-ac_sources="lib/tostring.c"
-ac_dests="dlib/tostring.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_55="$ac_config_links_55 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_55"
-
-ac_sources="lib/addressmatch.c"
-ac_dests="dlib/addressmatch.c"
-while test -n "$ac_sources"; do
-  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
-  set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_56="$ac_config_links_56 $ac_dest:$ac_source"
-done
-          ac_config_links="$ac_config_links $ac_config_links_56"
+          ac_config_links="$ac_config_links $ac_config_links_5"
 
 
                                         ac_config_files="$ac_config_files sockd/Makefile include/Makefile lib/Makefile dlib/Makefile"
@@ -36316,57 +33748,6 @@ do
   "$ac_config_links_3" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_3" ;;
   "$ac_config_links_4" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_4" ;;
   "$ac_config_links_5" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_5" ;;
-  "$ac_config_links_6" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_6" ;;
-  "$ac_config_links_7" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_7" ;;
-  "$ac_config_links_8" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_8" ;;
-  "$ac_config_links_9" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_9" ;;
-  "$ac_config_links_10" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_10" ;;
-  "$ac_config_links_11" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_11" ;;
-  "$ac_config_links_12" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_12" ;;
-  "$ac_config_links_13" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_13" ;;
-  "$ac_config_links_14" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_14" ;;
-  "$ac_config_links_15" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_15" ;;
-  "$ac_config_links_16" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_16" ;;
-  "$ac_config_links_17" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_17" ;;
-  "$ac_config_links_18" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_18" ;;
-  "$ac_config_links_19" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_19" ;;
-  "$ac_config_links_20" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_20" ;;
-  "$ac_config_links_21" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_21" ;;
-  "$ac_config_links_22" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_22" ;;
-  "$ac_config_links_23" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_23" ;;
-  "$ac_config_links_24" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_24" ;;
-  "$ac_config_links_25" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_25" ;;
-  "$ac_config_links_26" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_26" ;;
-  "$ac_config_links_27" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_27" ;;
-  "$ac_config_links_28" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_28" ;;
-  "$ac_config_links_29" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_29" ;;
-  "$ac_config_links_30" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_30" ;;
-  "$ac_config_links_31" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_31" ;;
-  "$ac_config_links_32" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_32" ;;
-  "$ac_config_links_33" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_33" ;;
-  "$ac_config_links_34" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_34" ;;
-  "$ac_config_links_35" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_35" ;;
-  "$ac_config_links_36" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_36" ;;
-  "$ac_config_links_37" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_37" ;;
-  "$ac_config_links_38" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_38" ;;
-  "$ac_config_links_39" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_39" ;;
-  "$ac_config_links_40" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_40" ;;
-  "$ac_config_links_41" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_41" ;;
-  "$ac_config_links_42" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_42" ;;
-  "$ac_config_links_43" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_43" ;;
-  "$ac_config_links_44" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_44" ;;
-  "$ac_config_links_45" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_45" ;;
-  "$ac_config_links_46" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_46" ;;
-  "$ac_config_links_47" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_47" ;;
-  "$ac_config_links_48" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_48" ;;
-  "$ac_config_links_49" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_49" ;;
-  "$ac_config_links_50" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_50" ;;
-  "$ac_config_links_51" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_51" ;;
-  "$ac_config_links_52" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_52" ;;
-  "$ac_config_links_53" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_53" ;;
-  "$ac_config_links_54" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_54" ;;
-  "$ac_config_links_55" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_55" ;;
-  "$ac_config_links_56" ) CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_56" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "include/autoconf.h" ) CONFIG_HEADERS="$CONFIG_HEADERS include/autoconf.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
@@ -37599,7 +34980,7 @@ else
 	echo "SO_SNDLOWAT:       not enabled for this platform"
 fi
 if test x"${nb_select_err}" = xt; then
-	echo "select:            incorrect select behaviour on unconnected sockets,"
+	echo "select:            unexpected select behaviour on unconnected sockets,"
         echo "                   operations on nonblocking sockets might fail on this platform"
 else
 	echo "select:            OK"
