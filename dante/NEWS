@@ -1,6 +1,68 @@
-@(#)$Id: NEWS,v 1.35 2001/05/29 07:52:56 michaels Exp $
+@(#)$Id: NEWS,v 1.36 2001/12/07 12:48:10 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Friday, Dec 7, 2001 -- Dante v1.1.11
+
+ o Fixes for libdsocks on HP-UX 11.00. Thanks to
+   'albert chin (china@thewrittenword.com)' for testing.
+
+ o Some minor optimisations in server i/o code, at the cost of some
+   timer accuracy concerning bandwidth limiting/client expiration.
+
+ o prefix "socks" to some global variables to avoid collisions during
+   socksify.  Reported by Don Reid <donr@cvs.agilent.com>.
+
+ o capi/socks.h needs Rxxx prototypes to work with a c++
+   compiler. Noted by Alex Morozov <alex@idisys.iae.nsk.su>.
+
+ o Fix compilation problems on Compaq Tru64 UNIX V5.0A (and V5.1 and V5.1A).
+   Mainly based on patch from "Peter Derr" <pderr@islet.zk3.dec.com>,
+   who also provided access to a machine for testing.
+
+ o Fix bug that logged to stdout on startup sometimes, confusing
+   some programs.  First reported by
+   Vitor Choi Feitosa <vchoi@interlegis.gov.br>
+
+ o If Rgetsockname() is called on a socket that a previous uncompleted
+   Rconnect() has been done on, try to sleep until Rconnect() has 
+   finished instead of returning ENOBUFS.  Hoped to help compatibility
+   with some applications.
+
+ o Modified httpproxy code a little, based on patch from
+   dh_tsc_10@ugcs.net.
+
+ o Code for selecting which of multiple external ipaddresses to use
+   on a global basis based on routing. 
+   Code contributed by Tom Chan <tchan@austin.rr.com>.
+
+ o Re-open logfiles on SIGHUP.
+
+ o Rename "pamservicename" to "pam.servicename".
+
+ o Fix memory overrun problem in Rgethostbyname*().  Found and
+   diagnosed by dme@dme.org, thanks.
+
+ o Warn if "logoutput:" changes to something we don't handle after
+   SIGHUP.
+
+ o Try to log presumably harmless client-related errors with LOG_DEBUG
+   instead of LOG_ERR, by popular request.
+
+ o New module available: redirect, gives control over both
+   where clients requests and replies will end up, aswell as what
+   addresses and portranges the Dante server will use.
+   Can also be used to limit the number of concurrent sessions
+   from each client.
+   See the module page "http://www.inet.no/dante/module.html" 
+   and doc/module for more information.
+
+ o New module available: bandwidth, gives control over how much
+   bandwidth the Dante server uses on behalf of the different clients.
+   See the module page "http://www.inet.no/dante/module.html" 
+   and doc/module for more information.
+
+ o upgraded to autoconf-2.50, libtool-1.4 and automake-1.4-p4
 
 ***  Tuesday, May 29, 2001 -- Dante v1.1.10
 
