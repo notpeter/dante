@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.8 2003/07/01 13:21:25 michaels Exp $";
+"$Id: addressmatch.c,v 1.10 2005/05/28 17:12:37 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -195,7 +195,15 @@ addressmatch(rule, address, protocol, alias)
 	 */
 
 	matched = 0;
-	if (rule->atype == SOCKS_ADDR_IPV4 && address->atype == SOCKS_ADDR_DOMAIN) {
+
+	/*
+	 * if mask of rule is 0, it should match anything.  Try that first
+	 * so we can save lots of potentioally heavy work.
+	 */
+	if (rule->atype == SOCKS_ADDR_IPV4 && (rule->addr.ipv4.mask.s_addr == 0))
+		matched = 1;
+	else if (rule->atype == SOCKS_ADDR_IPV4
+	&& address->atype == SOCKS_ADDR_DOMAIN) {
 		/*
 		 * match(rule.ipaddress, address.hostname)
 		 * resolve address to ipaddress(es) and try to match each
@@ -209,12 +217,8 @@ addressmatch(rule, address, protocol, alias)
 
 		/* LINTED pointer casts may be troublesome */
 		if ((hostent = gethostbyname(address->addr.domain)) == NULL) {
-			char *name;
-
 			slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-			function, strcheck(name = str2vis(address->addr.domain,
-			strlen(address->addr.domain))), hstrerror(h_errno));
-			free(name);
+			function, address->addr.domain, hstrerror(h_errno));
 			return 0;
 		}
 

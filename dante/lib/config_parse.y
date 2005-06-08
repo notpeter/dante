@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.188 2005/01/24 10:24:21 karls Exp $";
+"$Id: config_parse.y,v 1.189 2005/03/28 18:19:16 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -1059,7 +1059,7 @@ ipaddress:	IPADDRESS {
 
 netmask:	NUMBER {
 		if (atoi($1) < 0 || atoi($1) > 32)
-			yyerror("bad netmask: %d", $1);
+			yyerror("bad netmask: %s", $1);
 
 		netmask->s_addr
 		= atoi($1) == 0 ? 0 : htonl(0xffffffff << (32 - atoi($1)));

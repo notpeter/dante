@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.20 2005/01/24 10:24:23 karls Exp $";
+"$Id: auth_pam.c,v 1.21 2005/06/06 11:26:59 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -151,7 +151,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 
 		default:
 			socks_reseteuid(sockscf.uid.privileged, euid);
-			snprintf(emsg, emsgsize, "pam %s", pam_strerror(pamh, rc));
+			snprintf(emsg, emsgsize, "%s %s", function, pam_strerror(pamh, rc));
 			return -1;
 	}
 

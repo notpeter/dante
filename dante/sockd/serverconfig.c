@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.186 2004/12/24 18:43:08 michaels Exp $";
+"$Id: serverconfig.c,v 1.198 2005/06/06 11:27:15 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -126,7 +126,7 @@ addinternal(addr)
 {
 
 	if (sockscf.state.init) {
-#if 0 /* don't know how to do this now, seems like too much work. */
+#if 0 /* XXX don't know how to do this now, seems like too much work. */
 		int i;
 
 		for (i = 0; i < sockscf.internalc; ++i)
@@ -568,7 +568,10 @@ resetconfig(void)
 
 	/* stat: keep it. */
 
-	/* state; keep it. */
+	/* state; keep most of it. */
+#if HAVE_PAM
+	sockscf.state.pamservicename = DEFAULT_PAMSERVICENAME;
+#endif
 
 	/* methods, read from configfile. */
 	bzero(sockscf.methodv, sizeof(sockscf.methodv));
@@ -743,7 +746,7 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 	if (msgsize > 0)
 		*msg = NUL;
 
-	/* what rulebase to use.  XXX nicer way to do this. */
+	/* what rulebase to use. */
 	switch (state->command) {
 		case SOCKS_ACCEPT:
 			/* only set by negotiate children so must be clientrule. */
@@ -771,6 +774,11 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 
 		/* current rule covers desired command? */
 		switch (state->command) {
+			/* client-rule commands. */
+			case SOCKS_ACCEPT:
+				break;
+
+			/* socks-rule commands. */
 			case SOCKS_BIND:
 				if (!rule->state.command.bind)
 					continue;
@@ -796,10 +804,6 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 			case SOCKS_UDPREPLY:
 				if (!rule->state.command.udpreply)
 					continue;
-				break;
-
-			/* client-rule commands. */
-			case SOCKS_ACCEPT:
 				break;
 
 			default:
@@ -838,24 +842,64 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 				SERRX(state->version);
 		}
 
-		/* current rule allows for selected authentication? */
+		/*
+		 * This is a little tricky.  For some commands we may not
+		 * have all info at time of (preliminary) rulechecks.
+		 * What we want to do if there is no (complete) address given is
+		 * to see if there's any chance at all the rules will permit this
+		 * request when the address (later) becomes available.
+		 * We therefore continue to scan the rules until we either get
+		 * a pass (ignoring peer with missing info), or the default block
+		 * is triggered. 
+		 *
+		 * This is the case for e.g. bindreply and udp, where we will
+		 * have to call this function again when we get the addresses
+		 * in question.
+		 */
+
+		if (src != NULL) {
+			if (!addressmatch(&rule->src, src, state->protocol, 0))
+				continue;
+		}
+		else
+			if (rule->verdict == VERDICT_BLOCK)
+				continue; /* continue scan.  It's possible we will get a pass. */
+
+		if (dst != NULL) {
+			 if (!addressmatch(&rule->dst, dst, state->protocol, 0))
+				continue;
+		}
+		else
+			if (rule->verdict == VERDICT_BLOCK)
+				continue; /* continue scan.  It's possible we will get a pass. */
+
+		/* current rule authentication matches selected authentication? */
 		if (!methodisset(state->auth.method, rule->state.methodv,
 		rule->state.methodc)) {
-			size_t methodisok;
-
 			/*
-			 * There are some "extra" (non-standard) methods that are independent
-			 * of socks protocol negotiation and it's thus possible
-			 * to get a match on them even if above check failed, i.e.
-			 * it's possible to "upgrade" the method.
+			 * There are some "extra" (non-standard) methods that are 
+			 * independent of socks protocol negotiation, and it's possible
+			 * to get a match on them, even if above check failed.  I.e.
+			 * it's possible to change the method.  E.g. PAM is based 
+			 * on UNAME; if we have UNAME, we can also get PAM.
 			 *
 			 * We therefor look at what methods this rule wants and see
-			 * if can match it with what we have, or get it.
-			 *
+			 * if can match it with what the client _can_ provide, if we
+			 * do some extra work to get the information.
 			 * Currently these methods are: rfc931 and pam.
 			 */
 
-			for (i = methodisok = 0; i < methodc; ++i) {
+			/* 
+			 * This variable only says if current client has provided the
+			 * neccessary information to to check it's access with
+			 * one of the methods required by the current rule.
+			 *
+			 * XXX would be nice to cache this, so we don't have to
+			 * copy memory around each time.
+			 */
+			size_t methodischeckable = 0;
+
+			for (i = 0; i < methodc; ++i) {
 				if (methodisset(methodv[i], rule->state.methodv,
 				rule->state.methodc)) {
 					switch (methodv[i]) {
@@ -869,60 +913,76 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 							if (strcmp((char *)state->auth.mdata.rfc931.name,
 							STRING_UNKNOWN) == 0)
 								*state->auth.mdata.rfc931.name = NUL;
-
-							if (state->auth.mdata.rfc931.name[
+							else if (state->auth.mdata.rfc931.name[
 							sizeof(state->auth.mdata.rfc931.name) - 1] != NUL) {
-								slog(LOG_NOTICE, "%s: rfc931 name truncated", function);
 								state->auth.mdata.rfc931.name[
 								sizeof(state->auth.mdata.rfc931.name) - 1] = NUL;
+								swarnx("%s: rfc931 name \"%s\" truncated", function,
+								state->auth.mdata.rfc931.name);
 
-								/* better safe than sorry. */
 								*state->auth.mdata.rfc931.name = NUL;
 							}
 
 							if (*state->auth.mdata.rfc931.name != NUL)
-								methodisok = 1;
+								methodischeckable = 1;
 							break;
 #endif /* HAVE_LIBWRAP */
 
 #if HAVE_PAM
 						case AUTHMETHOD_PAM:
+							/*
+							 * PAM can support username/password, just username,
+							 * or neither username nor password.
+							 */
+
 							slog(LOG_DEBUG, "%s: trying to find match for pam ...",
 							function);
 
 							switch (state->auth.method) {
 								case AUTHMETHOD_UNAME: {
-									/* it's a union, make a copy first. */
-									const struct authmethod_uname_t uname
-									= state->auth.mdata.uname;
+									/*
+									 * Got uname/passowrd, which is similar enough.
+									 * Just need to copy name/password from the
+									 * uname object into the pam object.
+									 */
 
-									/* similar enough, just copy name/password. */
+									memmove(state->auth.mdata.pam.name,
+									state->auth.mdata.uname.name,
+									strlen(state->auth.mdata.uname.name) + 1);
 
-									strcpy((char *)state->auth.mdata.pam.name,
-									(const char *)uname.name);
-									strcpy((char *)state->auth.mdata.pam.password,
-									(const char *)uname.password);
+									memmove(state->auth.mdata.pam.password,
+									state->auth.mdata.uname.password,
+									strlen(state->auth.mdata.uname.password) + 1);
 
-									methodisok = 1;
+									methodischeckable = 1;
 									break;
 								}
 
 								case AUTHMETHOD_RFC931: {
-									/* it's a union, make a copy first. */
-									const struct authmethod_rfc931_t rfc931
-									= state->auth.mdata.rfc931;
+									/*
+									 * no password, but we can check for the username 
+									 * we got from ident, with an empty password.
+									 */
 
-									strcpy((char *)state->auth.mdata.pam.name,
-									(const char *)rfc931.name);
+									memmove(state->auth.mdata.pam.name,
+									state->auth.mdata.rfc931.name,
+									strlen(state->auth.mdata.rfc931.name) + 1);
+
 									*state->auth.mdata.pam.password = NUL;
-									methodisok = 1;
+
+									methodischeckable = 1;
 									break;
 								}
 
 								case AUTHMETHOD_NONE:
+									/*
+									 * PAM can also support no username/password.
+									 */
+
 									*state->auth.mdata.pam.name		= NUL;
 									*state->auth.mdata.pam.password	= NUL;
-									methodisok = 1;
+
+									methodischeckable = 1;
 									break;
 
 							}
@@ -932,24 +992,37 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 #endif /* HAVE_PAM */
 					}
 
-					if (methodisok) {
-						state->auth.method = methodv[i];
+					if (methodischeckable) {
+						state->auth.method = methodv[i]; /* chainging method. */
 						break;
 					}
 				}
 			}
 
 			if (i == methodc)
-				continue;	/* no usable method found. */
+				/* 
+				 * current rules methods differs from what client can
+				 * provide us with.  Go to next rule.
+				 */
+				continue;
+			/* else; XXX should try other methods if acccess fails on this. */
 		}
-
 
 		SASSERTX(methodisset(state->auth.method, rule->state.methodv,
 		rule->state.methodc));
 
-		i = accessmatch(s, &state->auth, peer, local, rule->user, msg, msgsize);
+		/* rule requires a user, and covers current user? */
+		if (rule->user != NULL)
+			if (!usermatch(&state->auth, rule->user))
+				continue; /* no match. */
 
-		/* two fields we want to copy. */
+		/* last step.  Does the authentication match? */
+		i = accesscheck(s, &state->auth, peer, local, msg, msgsize);
+
+		/*
+		 * two fields we want to copy.  This is to speed things up so
+		 * we don't re-check the same method.
+		*/
 		memcpy(ostate.auth.methodv, state->auth.methodv,
 		state->auth.methodc * sizeof(*state->auth.methodv));
 		ostate.auth.methodc = state->auth.methodc;
@@ -957,42 +1030,10 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 		state->auth.badmethodc * sizeof(*state->auth.badmethodv));
 		ostate.auth.badmethodc = state->auth.badmethodc;
 
-		if (!i)
-			/*
-			 * The reason for the continue is the fact that we can
-			 * "upgrade" the method if we have a rule specifying a
-			 * non-socks method.  That means "name" and "password"
-			 * gotten for this method/rule need not be the same as gotten
-			 * for other methods.
-			 */
-			continue;
-
-		/*
-		 * This is a little tricky.  For some commands we may not
-		 * have all info at time of (preliminary) rulechecks.
-		 * What we want to do if there is no (complete) address given is
-		 * to see if there's any chance at all the rules will permit this
-		 * request when the address (later) becomes available.
-		 * We therefore continue to scan the rules until we either get
-		 * a pass (ignoring peer with missing info), or the default block
-		 * is triggered.
-		 */
-
-		if (src != NULL) {
-			if (!addressmatch(&rule->src, src, state->protocol, 0))
-				continue;
-		}
-		else
-			if (rule->verdict == VERDICT_BLOCK)
-				continue; /* continue scan. */
-
-		if (dst != NULL) {
-			 if (!addressmatch(&rule->dst, dst, state->protocol, 0))
-				continue;
-		}
-		else
-			if (rule->verdict == VERDICT_BLOCK)
-				continue; /* continue scan. */
+		if (!i) {
+			match->verdict = VERDICT_BLOCK;
+			return 0;
+		}	
 
 		break;
 	}
@@ -1053,9 +1094,11 @@ authinfo(auth, info, infolen)
 				authname = (const char *)auth->mdata.rfc931.name;
 				break;
 
+#if HAVE_PAM
 			case AUTHMETHOD_PAM:
 				authname = (const char *)auth->mdata.pam.name;
 				break;
+#endif
 
 			default:
 				SERRX(auth->method);
@@ -1078,6 +1121,7 @@ addressisbindable(addr)
 {
 	const char *function = "addressisbindable()";
 	struct sockaddr saddr;
+	/* CONSTCOND */
 	char saddrs[MAX(MAXSOCKSHOSTSTRING, MAXSOCKADDRSTRING)];
 	int s;
 
@@ -1266,8 +1310,7 @@ checkrule(rule)
 	}
 
 	if (rule->rdr_to.atype == SOCKS_ADDR_IFNAME)
-		yyerror("redirect to an interface (%s) is not supported "
-		"(or meaningful?)",
+		yyerror("redirect to an interface (%s) is not supported (or meaningful?)",
 		rule->rdr_to.addr.ifname);
 
 #if HAVE_PAM
@@ -1276,8 +1319,8 @@ checkrule(rule)
 		rule->state.methodc))
 			yyerror("pamservicename set for rule but not method pam");
 		else
-			if (strcmp(rule->pamservicename, DEFAULT_PAMSERVICENAME) != 0)
-				sockscf.state.unfixedpamdata = 1; /* pamservicename varies. */
+			if (strcmp(rule->pamservicename, sockscf.state.pamservicename) != 0)
+				sockscf.state.pamservicename = NULL; /* pamservicename varies. */
 #endif /* HAVE_PAM */
 }
 
@@ -1308,9 +1351,12 @@ libwrapinit(s, request)
 	int s;
 	struct request_info *request;
 {
+	const int errno_s = errno;
 
 	request_init(request, RQ_FILE, s, RQ_DAEMON, __progname, 0);
 	fromhost(request);
+
+	errno = errno_s;
 }
 #endif /* HAVE_LIBWRAP */
 

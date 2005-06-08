@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.54 2005/01/24 10:24:19 karls Exp $
+%@(#)$Id: faq.tex,v 1.57 2005/06/06 10:20:17 michaels Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -56,7 +56,7 @@
 	Gaustadalléen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2005/01/24 10:24:19 $$$$}
+\date{$$$$Date: 2005/06/06 10:20:17 $$$$}
 
 \makeindex
 
@@ -548,10 +548,6 @@ command).
   This is likely due to a bug in one of the system header files. A
   workaround has been added in version 1.1.14.
 
- \subsection{How do I setup a password file for authenticating users?}
-  The Dante server uses the standard system passwordfile.
-  Put the server in a chroot jail to manage a separate passwordfile.
-
  \subsection{How can I more easily get the Dante server to work when the
 		  external interface is using dynamic IP addresses?}
 
@@ -637,6 +633,13 @@ exec setuidgid logging multilog t /var/log/dante
 
 
 \section{Authentication}
+ \subsection{How do I setup a password file for authenticating users?}
+  The Dante server uses the standard system passwordfile.  On many
+  systems, the Dante "user.privileged" id must be set to root
+  or somebody with special access to read the encrypted passwordfile.
+
+  Put the server in a chroot jail to manage a separate passwordfile.
+
  \subsection{How do I use LDAP authentication with Dante?}
 
   First, make sure that you compile Dante with support for PAM.  The
@@ -737,5 +740,25 @@ exec setuidgid logging multilog t /var/log/dante
 	in theory use one type of authentication for connections
 	to one address, and another authentication type for 
 	connections to another address.
+   
+   As of version 1.1.16, this has been changed a little.  If you
+   are using only one type of username/password-based authentication
+   scheme, the username/password will be checked at an point early
+   enough to tell the client the username/password was wrong.
+
+\section{For programmers}
+ \subsection{What does a socksified application need to care about?}
+  A socksified application will normaly work without any
+  extra steps needing to be done, within the limits of the socks
+  standard.  The exception to this is the following:
+
+  \begin{description}
+	\item[select(2)/poll(2)] applications combining non-blocking sockets
+	 with select(2)/poll(2) need to make sure they can handle
+	 the select(2)/poll(2) call being interrupted.  This is due
+	 to how the Dante clientlibrary implements support for non-blocking
+	 connect(2).
+  \end{description}
+
 
 \end{document}

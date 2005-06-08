@@ -49,7 +49,7 @@ static char yyrcsid[]
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.188 2005/01/24 10:24:21 karls Exp $";
+"$Id: config_parse.y,v 1.189 2005/03/28 18:19:16 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -1962,7 +1962,7 @@ case 177:
 #line 1060 "config_parse.y"
 {
 		if (atoi(yyvsp[0].string) < 0 || atoi(yyvsp[0].string) > 32)
-			yyerror("bad netmask: %d", yyvsp[0].string);
+			yyerror("bad netmask: %s", yyvsp[0].string);
 
 		netmask->s_addr
 		= atoi(yyvsp[0].string) == 0 ? 0 : htonl(0xffffffff << (32 - atoi(yyvsp[0].string)));

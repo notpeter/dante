@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.196 2004/11/09 09:54:07 michaels Exp $ */
+/* $Id: sockd.h,v 1.202 2005/05/30 10:04:47 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -199,7 +199,7 @@ struct linkedname_t {
 };
 
 typedef struct {
-	unsigned int			expired:1;			/* the rule has expired.				*/
+	unsigned 				expired:1;			/* the rule has expired.				*/
 	int						clients;				/* clients using this bw_t.			*/
 	struct timeval			time;					/* time of last i/o operation.		*/
 	long						bytes;				/* amount of bytes done at time.		*/
@@ -261,8 +261,10 @@ struct userid_t {
 struct configstate_t {
 	unsigned						init:1;
 
+#if HAVE_PAM
 	/* allows us to optimize a few things a little based on configuration. */
-	unsigned						unfixedpamdata:1;		/* have rules with pamdata.	*/
+	const char 					*pamservicename;		/* have rules with pamdata.	*/
+#endif 
 
 	uid_t							euid;						/* original euid.					*/
 	pid_t							*motherpidv;			/* pid of mothers.				*/
@@ -390,6 +392,10 @@ struct sockd_io_direction_t {
 	size_t							written;		/* bytes written.							*/
 
 	int								flags;		/* misc. flags								*/
+	struct {
+		unsigned 					fin:1;			/* received FIN on this socket.	*/
+		unsigned 					shutdown_wr:1;	/* shutdown for writing. 			*/
+	} state;
 };
 
 
@@ -987,19 +993,26 @@ socks_reseteuid __P((uid_t current, uid_t new));
  */
 
 int
-accessmatch __P((int s, struct authmethod_t *auth,
+usermatch __P((const struct authmethod_t *auth, 
+               const struct linkedname_t *userlist));
+/*
+ * Checks whether the username in "auth" matches a name in the
+ * list "userlist".
+ * Returns:
+ * 	If match: true.
+ *		Else: false.
+ */
+
+int
+accesscheck __P((int s, struct authmethod_t *auth,
 					  const struct sockaddr *src, const struct sockaddr *dst,
-					  const struct linkedname_t *userlist, char *emsg,
-					  size_t emsgsize));
+					  char *emsg, size_t emsgsize));
 /*
  * Checks whether access matches according to supplied arguments.
  * "auth" is the authentication to be matched against,
  * "s" is the socket the client is connected to,
  * "src" is address client connected from, "dst" is address client
  * connected to.
- * "userlist", if not NULL, is a list of names that restricts access
- * further, the authentication must in this case also result in a
- * username present in "userlist".
  * "emsg" is a buffer that information can be written into, "emsgsize"
  * is the size of that buffer.
  *

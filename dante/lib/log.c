@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.62 2005/01/05 12:21:07 michaels Exp $";
+"$Id: log.c,v 1.63 2005/05/17 11:49:17 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -53,7 +53,8 @@ logformat __P((int priority, char *buf, size_t buflen, const char *message,
 				   va_list ap));
 /*
  * formats "message" as appropriate.  The formated message is stored
- * in the buffer "buf", which is of size "buflen".
+ * in the buffer "buf", which is of size "buflen".  
+ * If no newline is present at the end of the string, one is added.
  * Returns:
  *		On success: pointer to "buf".
  *		On failure: NULL.
@@ -118,27 +119,14 @@ vslog(priority, message, ap)
 {
 	const int errno_s = errno;
 	char buf[2048];
+	int logged = 0;
 
-#if SOCKS_SERVER /* no idea where stdout points to in client case. */
-	if (!sockscf.state.init) {
-
-#if 0
-		if (priority == LOG_DEBUG)
-			return;
-#endif
-
-		if (logformat(priority, buf, sizeof(buf), message, ap) != NULL)
-			fprintf(stdout, "%s\n", buf);
-		return;
-	}
-#endif
 
 	if (sockscf.log.type & LOGTYPE_SYSLOG)
-		if (priority == LOG_DEBUG && sockscf.state.init
-		&& !sockscf.option.debug)
-			; /* don't waste resources on this. */
-		else
+		if (priority == LOG_DEBUG && sockscf.option.debug) {
 			vsyslog(priority, message, ap);
+			logged = 1;
+		}
 
 	if (sockscf.log.type & LOGTYPE_FILE) {
 		size_t i;
@@ -152,15 +140,23 @@ vslog(priority, message, ap)
 #endif
 
 			socks_lock(sockscf.log.fplockv[i], F_WRLCK, -1);
-			fprintf(sockscf.log.fpv[i], "%s%s",
-			buf, buf[strlen(buf) - 1] == '\n' ? "" : "\n");
-/*			fflush(sockscf.log.fpv[i]); */ /* should not be needed. */
+			fprintf(sockscf.log.fpv[i], "%s", buf);
+			logged = 1;
 			socks_unlock(sockscf.log.fplockv[i]);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
 			SYSCALL_END(fileno(sockscf.log.fpv[i]));
 #endif
 		}
+	}
+
+	if (!logged && !sockscf.state.init) { /* may not have set-up logfiles yet. */
+#if SOCKS_SERVER /* log to stdout for now. */
+		if (logformat(priority, buf, sizeof(buf), message, ap) != NULL)
+			fprintf(stdout, "%s", buf);
+		return;
+#else /* SOCKS_CLIENT */ /* no idea where stdout points to in client case. */
+#endif /* SOCKS_SERVER */
 	}
 
 	errno = errno_s;
@@ -198,6 +194,15 @@ logformat(priority, buf, buflen, message, ap)
 	);
 
 	vsnprintf(&buf[bufused], buflen - bufused, message, ap);
+	bufused = strlen(buf);
+
+	if (buf[bufused - 1] != '\n') { /* add ending newline. */
+		if (bufused + 1 >= buflen)
+			bufused = buflen - 1; /* silently truncated. */
+
+		buf[bufused++] = '\n';
+		buf[bufused++] = NUL;
+	}
 
 	return buf;
 }

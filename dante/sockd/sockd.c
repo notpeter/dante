@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.301 2005/01/28 10:26:53 michaels Exp $";
+"$Id: sockd.c,v 1.303 2005/05/05 12:47:16 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -225,7 +225,8 @@ main(argc, argv, envp)
 
 		if (setrlimit(RLIMIT_OFILE, &rlimit) != 0) {
 			if (errno != EPERM)
-				serr(EXIT_FAILURE, "setrlimit(RLIMIT_OFILE, %d)", rlimit.rlim_max);
+				serr(EXIT_FAILURE, "setrlimit(RLIMIT_OFILE, %d)",
+				(int)rlimit.rlim_max);
 			else if (getdtablesize() < SOCKD_NEGOTIATEMAX + 2)
 				serr(EXIT_FAILURE,
 				"%d descriptors configured for negotiation, %d available",
@@ -437,7 +438,7 @@ main(argc, argv, envp)
 					/* set descriptor to blocking for request... */
 					if ((flags = fcntl(req.s, F_GETFL, 0)) == -1
 					||  fcntl(req.s, F_SETFL, flags & ~O_NONBLOCK) == -1)
-						swarn("%s: fcntl()");
+						swarn("fcntl()");
 
 					/* and send it to a request child. */
 					if ((p = send_req(reqchild->s, &req)) == 0) {
@@ -571,6 +572,7 @@ main(argc, argv, envp)
 							socks_unlock(negchild->lock);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
+							slog(LOG_DEBUG, "accept(): %s", strerror(errno));
 							continue; /* connection aborted/failed. */
 
 						case ENFILE:
@@ -888,9 +890,10 @@ serverinit(argc, argv, envp)
 		rlimit.rlim_cur = rlimit.rlim_max = FD_SETSIZE;
 
 		if (setrlimit(RLIMIT_OFILE, &rlimit) != 0)
-			serr(EXIT_FAILURE, "setrlimit(RLIMIT_OFILE, %d)", rlimit.rlim_cur);
+			serr(EXIT_FAILURE, "setrlimit(RLIMIT_OFILE, %d)",
+			(int)rlimit.rlim_cur);
 		slog(LOG_DEBUG, "%s: reduced max descriptors to %d",
-		function, rlimit.rlim_cur);
+		function, (int)rlimit.rlim_cur);
 	}
 }
 

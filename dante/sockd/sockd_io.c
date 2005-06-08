@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.219 2005/01/24 10:24:23 karls Exp $";
+"$Id: sockd_io.c,v 1.223 2005/06/03 12:13:23 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -80,11 +80,12 @@ io_finddescriptor __P((int d));
 static int
 io_fillset __P((fd_set *set, int antiflags, const struct timeval *timenow));
 /*
- * Sets all descriptors in our list in the set "set".  If "antiflags"
+ * Sets all descriptors from our list, in "set".  If "antiflags"
  * is set, io's with any of the flags in "antiflags" set will be excluded.
+ * IO's with state.fin set will also be excluded.
  * "timenow" is the time now.
  * Returns the highest descriptor in our list, or -1 if we don't
- * have any descriptors open currently.
+ * have any descriptors we want to select() on currently.
  */
 
 
@@ -301,7 +302,7 @@ run_io(mother)
 		checkmother(mother, &rset);
 
 		/*
-		 * This is tricky but we need to check for write separately to
+		 * This is tricky, but we need to check for write separately to
 		 * avoid busylooping.
 		 * The problem is that if the descriptor is ready for reading but
 		 * the corresponding descriptor to write out on is not ready we will
@@ -552,10 +553,20 @@ delete_io(mother, io, fd, status)
 					slog(LOG_INFO, "%s: delayed sourceblock", logmsg);
 					break;
 
-				case IO_ERROR:
-					swarn("%s: client error", logmsg);
-					break;
+				case IO_ERROR: {
+					struct linger linger;
 
+					swarn("%s: client error", logmsg);
+
+					/* send rst to other end. */
+					linger.l_onoff 	= 1;
+					linger.l_linger 	= 0;
+					if (setsockopt(io->dst.s, SOL_SOCKET, SO_LINGER, &linger,
+					sizeof(linger)) != 0)
+						swarn("%s: setsockopt(io->dst, SO_LINGER)", function);
+
+					break;
+				}
 				case IO_CLOSE:
 					slog(LOG_INFO, "%s: client closed", logmsg);
 					break;
@@ -574,9 +585,19 @@ delete_io(mother, io, fd, status)
 					slog(LOG_INFO, "%s: delayed sourceblock", logmsg);
 					break;
 
-				case IO_ERROR:
+				case IO_ERROR: {
+					struct linger linger;
+
 					swarn("%s: remote error", logmsg);
+
+					/* send rst to other end. */
+					linger.l_onoff 	= 1;
+					linger.l_linger 	= 0;
+					if (setsockopt(io->src.s, SOL_SOCKET, SO_LINGER, &linger,
+					sizeof(linger)) != 0)
+						swarn("%s: setsockopt(io->dst, SO_LINGER)", function);
 					break;
+				}
 
 				case IO_CLOSE:
 					slog(LOG_INFO, "%s: remote closed", logmsg);
@@ -1261,10 +1282,35 @@ io_rw(in, out, bad, buf, bufsize, flag)
 	len = MIN(bufsize, flag & MSG_OOB ? 1 : out->sndlowat);
 	if ((r = socks_recvfrom(in->s, buf, len, flag & ~MSG_OOB, NULL, NULL,
 	&in->auth)) <= 0) {
-		*bad = in->s;
+		if (r == 0) {
+			/*
+			 * FIN from "in", it won't send us any more data, so
+			 * we shutdown "out" for writting to let it know.
+			 * When "out" has nothing more to send, it will
+			 * send an FIN too, and we will shutdown "in" for writting.
+			 * At that point, both "in" and "out" has sent an FIN,
+			 * meaning, none of them will send us any more data.
+			 * Only then can we close the socket.
+			 */
+
+			in->state.fin = 1;
+
+			if (out->state.fin) /* have FIN from "out" already, now "in" too. */
+				*bad = out->s; /* done with this socket, and "out" closed first. */
+			else 
+				if (!out->state.shutdown_wr)
+					if (shutdown(out->s, SHUT_WR) != 0) /* but continue read. */
+						swarn("%s: shutdown()", function);
+					else
+						out->state.shutdown_wr = 1;
+		}
+		else
+			*bad = in->s;
+
 		return r;
 	}
 	in->read += r;
+
 
 	slog(LOG_DEBUG, "%s: bufsize = %ld, r = %ld",
 	function, (long)bufsize, (long)r);
@@ -1277,9 +1323,19 @@ io_rw(in, out, bad, buf, bufsize, flag)
 	if ((w = socks_sendto(out->s, buf, (size_t)r, flag, NULL, 0, &out->auth))
 	!= r) {
 		*bad = out->s;
+
+		if (out->state.fin)
+			/*
+			 * write failed because client has sent eof, expected and normal. 
+			 * Returning 0 makes it clear that was the reson so the
+			 * logmessage is correct.
+			 */
+			w = 0;
 		return w;
 	}
 	out->written += w;
+	/* we want to select for read again, to make sure we get write errors. */
+	out->state.fin = 0;
 
 	return w;
 }
@@ -1394,12 +1450,12 @@ io_fillset(set, antiflags, timenow)
 				}
 			}
 
-			if (! (antiflags & io->src.flags)) {
+			if (!io->src.state.fin && !(antiflags & io->src.flags)) {
 				FD_SET(io->src.s, set);
 				max = MAX(max, io->src.s);
 			}
 
-			if (! (antiflags & io->dst.flags)) {
+			if (!io->dst.state.fin && !(antiflags & io->dst.flags)) {
 				FD_SET(io->dst.s, set);
 				max = MAX(max, io->dst.s);
 			}
@@ -1432,7 +1488,7 @@ io_gettimeout(timeout, timenow)
 	struct timeval *timeout;
 	const struct timeval *timenow;
 {
-	const char *function = "io_gettimeout()";
+/*	const char *function = "io_gettimeout()"; */
 	int i;
 
 	if (allocated() == 0)

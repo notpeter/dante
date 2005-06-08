@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.84 2005/01/24 10:24:25 karls Exp $";
+"$Id: sockd_util.c,v 1.86 2005/06/06 11:25:39 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -182,7 +182,7 @@ sockdexit(sig)
 		if (sig > 0)
 			slog(LOG_ALERT, "%s: terminating on signal %d", function, sig);
 		else
-			slog(LOG_ALERT, "%s: terminating", function, sig);
+			slog(LOG_ALERT, "%s: terminating", function);
 
 		/* don't want this while cleaning up, which is all that's left. */
 		if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
@@ -247,7 +247,8 @@ socks_seteuid(old, new)
 		old = &oldmem;
 	*old = geteuid();
 
-	slog(LOG_DEBUG, "%s: old: %lu, new: %lu", function, *old, new);
+	slog(LOG_DEBUG, "%s: old: %lu, new: %lu",
+	function, (unsigned long)*old, (unsigned long)new);
 
 	if (*old == new)
 		return;
@@ -279,7 +280,8 @@ socks_reseteuid(current, new)
 	const char *function = "socks_reseteuid()";
 	struct passwd *pw;
 
-	slog(LOG_DEBUG, "%s: current: %lu, new: %lu", function, current, new);
+	slog(LOG_DEBUG, "%s: current: %lu, new: %lu",
+	function, (unsigned long)current, (unsigned long)new);
 
 #if DIAGNOSTIC
 	SASSERTX(current == geteuid());
@@ -293,21 +295,16 @@ socks_reseteuid(current, new)
 		if (seteuid(sockscf.state.euid) != 0)
 			SERR(sockscf.state.euid);
 
-	if (seteuid(new) != 0)
-		SERR(new);
-
-#if 0 /* he who requested this says it doesn't work but not why. */
-	/* XXX check this again, just wrong order */
-	/*
-	 * and now groupid.
-	 */
-
+	/* groupid ...  */
 	if ((pw = getpwuid(new)) == NULL)
 		serr(EXIT_FAILURE, "%s: getpwuid(%d)", function, new);
 
 	if (setegid(pw->pw_gid) != 0)
 		serr(EXIT_FAILURE, "%s: setegid(%d)", function, pw->pw_gid);
-#endif
+
+	/* ... and then userid. */
+	if (seteuid(new) != 0)
+		SERR(new);
 }
 
 int
