@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.95 2003/07/01 13:21:47 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.97 2005/05/11 11:45:21 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -520,10 +520,8 @@ recv_username(s, request, state)
 
 			state->mem[state->reqread - 1] = NUL;
 
-			slog(LOG_WARNING, "%s: too long username (> %d): \"%s\"",
-			function, strlen(username),
-			strcheck(username = str2vis(username, strlen(username))));
-			free(username);
+			swarnx("%s: username too long (> %d): \"%s\"",
+			function, strlen(username), username);
 
 			return -1;
 		}
@@ -532,9 +530,7 @@ recv_username(s, request, state)
 	} while (state->mem[state->reqread - 1] != 0);
 	state->mem[state->reqread - 1] = NUL;	/* style. */
 
-	slog(LOG_DEBUG, "%s: got socks v4 username: %s",
-	function, strcheck(username = str2vis(username, strlen(username))));
-	free(username);
+	slog(LOG_DEBUG, "%s: got socks v4 username: %s", function, username);
 
 	return 1;	/* end of request. */
 }

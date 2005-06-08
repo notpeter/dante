@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.155 2005/01/24 10:24:24 karls Exp $";
+"$Id: sockd_request.c,v 1.156 2005/05/13 13:48:44 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -1236,8 +1236,6 @@ static void
 proctitleupdate(from)
 	const struct sockaddr *from;
 {
-	char fromstring[MAXSOCKADDRSTRING];
-
 	setproctitle("requestcompleter: %s", from == NULL ?  "0/1" : "1/1");
 }
 

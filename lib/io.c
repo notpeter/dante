@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.65 2005/01/24 10:24:22 karls Exp $";
+"$Id: io.c,v 1.66 2005/04/28 07:35:30 michaels Exp $";
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
 
@@ -94,8 +94,7 @@ readn(d, buf, nbytes, auth)
 #if SOCKS_SERVER
 			if (errno == EINTR)
 				continue;
-#endif
-
+#else /* SOCKS_CLIENT; retry. */
 			if (errno == EAGAIN) {
 				fd_set rset;
 
@@ -106,7 +105,7 @@ readn(d, buf, nbytes, auth)
 
 				continue;
 			}
-
+#endif
 			break;
 		}
 		else if (p == 0)

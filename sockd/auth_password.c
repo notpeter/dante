@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: auth_password.c,v 1.8 2003/07/01 13:21:40 michaels Exp $";
+"$Id: auth_password.c,v 1.9 2005/06/06 11:26:59 michaels Exp $";
 
 int
 passwordcheck(name, clearpassword, emsg, emsglen)
@@ -63,8 +63,8 @@ passwordcheck(name, clearpassword, emsg, emsglen)
 	socks_reseteuid(sockscf.uid.privileged, euid);
 
 	if (pw == NULL) {
-		snprintfn(emsg, emsglen, "system password userlookup failed");
-		return -1; /* XXX waste cycles correctly? */
+		snprintfn(emsg, emsglen, "system username/password failed");
+		return -1;
 	}
 
 	if (clearpassword != NULL) {

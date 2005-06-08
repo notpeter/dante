@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.84 2003/07/01 13:21:46 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.87 2005/05/05 11:18:47 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -395,6 +395,7 @@ recv_negotiate(mother)
 	/* find a free slot. */
 	for (i = 0, neg = NULL; i < negc; ++i)
 		if (!negv[i].allocated) {
+			/* don't allocate it yet, so siginfo() doesn't print before ready. */
 			neg = &negv[i];
 			break;
 		}
@@ -415,6 +416,7 @@ recv_negotiate(mother)
 	len = sizeof(from);
 	if (getpeername(neg->s, &from, &len) != 0) {
 		slog(LOG_DEBUG, "%s: getpeername(): %s", function, strerror(errno));
+		delete_negotiate(mother, neg);
 		return 1;
 	}
 	sockaddr2sockshost(&from, &neg->src);
@@ -422,6 +424,7 @@ recv_negotiate(mother)
 	len = sizeof(to);
 	if (getsockname(neg->s, &to, &len) != 0) {
 		slog(LOG_DEBUG, "%s: getsockname(): %s", function, strerror(errno));
+		delete_negotiate(mother, neg);
 		return 1;
 	}
 	sockaddr2sockshost(&to, &neg->dst);
@@ -440,15 +443,13 @@ recv_negotiate(mother)
 	iolog(&neg->rule, &neg->state, OPERATION_ACCEPT, &neg->src, &neg->state.auth,
 	&neg->dst, NULL, ruleinfo, 0);
 
-	neg->allocated = 1;
-
 	if (!permit) {
 		delete_negotiate(mother, neg);
 		return 0;
 	}
 
 	time(&neg->state.time.negotiate_start);
-
+	neg->allocated = 1;
 	proctitleupdate();
 
 	return 0;
@@ -462,8 +463,6 @@ delete_negotiate(mother, neg)
 	const char *function = "delete_negotiate()";
 	static const struct sockd_negotiate_t neginit;
 	const char command = SOCKD_FREESLOT;
-
-	SASSERTX(neg->allocated);
 
 	close(neg->s);
 

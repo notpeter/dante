@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.142 2004/12/24 18:43:09 michaels Exp $";
+"$Id: sockd_child.c,v 1.143 2005/05/05 12:47:46 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -506,6 +506,8 @@ fillset(set)
 			FD_SET(sockscf.internalv[i].s, set);
 			dbits = MAX(dbits, sockscf.internalv[i].s);
 		}
+	else
+		swarn("can't accept new clients, no free negotiate slots");
 
 	/* negotiator children. */
 	for (i = 0; i < negchildc; ++i) {
@@ -515,7 +517,7 @@ fillset(set)
 			dbits = MAX(dbits, negchildv[i].s);
 		}
 
-		/* we can always accept a ack ofcourse. */
+		/* we can always accept an ack ofcourse. */
 		SASSERTX(negchildv[i].ack >= 0);
 		FD_SET(negchildv[i].ack, set);
 		dbits = MAX(dbits, negchildv[i].ack);
@@ -529,7 +531,7 @@ fillset(set)
 			dbits = MAX(dbits, reqchildv[i].s);
 		}
 
-		/* we can always accept a ack ofcourse. */
+		/* we can always accept an ack ofcourse. */
 		SASSERTX(reqchildv[i].ack >= 0);
 		FD_SET(reqchildv[i].ack, set);
 		dbits = MAX(dbits, reqchildv[i].ack);

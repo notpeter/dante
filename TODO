@@ -1,9 +1,4 @@
-# $Id: TODO,v 1.165 2004/12/24 18:45:40 michaels Exp $
-
-* checkmodule matches external against licesensed ipaddress, if external
-  is an interface name however, it looks like it can contain multiple
-  unlicensed ipaddresses, as long as the interface contains at least
-  one licensed.
+# $Id: TODO,v 1.166 2005/05/11 09:12:26 michaels Exp $
 
 * there is a race condition in bw stuff between rulespermit() and
   bwuse().

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.40 2003/07/01 13:21:41 michaels Exp $";
+"$Id: method_uname.c,v 1.49 2005/06/08 08:59:22 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -67,8 +67,38 @@ recv_plen __P((int s, struct request_t *request,
 static int
 recv_passwd __P((int s, struct request_t *request,
 					  struct negotiate_state_t *state));
+static int
+passworddbisunique __P((void));
+/*
+ * If it's possible for us to fail username/password authentication
+ * on one rule, and succeed at another, returns false.
+ * Otherwise returns the unique authmethod that would be used.
+ */
+ 
 
 __END_DECLS
+
+static int
+passworddbisunique(void)
+{
+	if (methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc))
+	  if (!methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc))
+			return AUTHMETHOD_UNAME;
+		else
+			return 0;
+
+#if HAVE_PAM
+	if (methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc))
+		if (!methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)
+	  	&& sockscf.state.pamservicename != NULL)
+			return AUTHMETHOD_PAM;
+		else
+			return 0;
+#endif
+
+	/* no passworddb-based methods set.  Return true. */
+	return -1;
+}
 
 int
 method_uname(s, request, state)
@@ -177,6 +207,7 @@ recv_passwd(s, request, state)
 	unsigned char response[1				/* version. */
 								+ 1				/* status.	*/
 	];
+	const int method_original = request->auth->method;
 
 	INIT(plen);
 	CHECK(request->auth->mdata.uname.password + 1, request->auth, NULL);
@@ -187,17 +218,63 @@ recv_passwd(s, request, state)
 	request->auth->mdata.uname.password[plen] = NUL;
 
 	/*
-	 * Very sadly we can't do any checking of the username/password here since
-	 * we don't know what database to use, it depends on what the socks
-	 * request is.
+	 * Very sadly we can't do checking of the username/password here 
+	 * since we don't know what authentication to use yet.  It could
+	 * be username, but it could also be PAM, or some future method. 
+	 * It depends on what the socks request is.  We therfor would have
+	 * liked to give the * client success status back no matter what 
+	 * the username/password is, and later deny the connection if need be.
+	 *
+	 * This however creates problems with clients that, naturally, cache
+	 * the wrong username/password if they get success. 
+	 * We therfor check if we have a unique passworddb to use, and if so,
+	 * check it here so we can return an immediate error to client.
+	 * If the database is not unique, we go with returning an 
+	 * unconditional success at this point, and deny it later if need be.
 	*/
 	response[UNAME_VERSION] = request->auth->mdata.uname.version;
-	response[UNAME_STATUS]	= (unsigned char)0;
+	switch (passworddbisunique()) {
+		case 0:
+			response[UNAME_STATUS] = (unsigned char)0; /* Return ok. */
+			break;
 
-	if (writen(s, response, sizeof(response), request->auth)
-	!= sizeof(response))
+#if HAVE_PAM
+		case AUTHMETHOD_PAM:
+			request->auth->method = AUTHMETHOD_PAM;
+
+			SASSERTX(strlen(sockscf.state.pamservicename)
+			< sizeof(request->auth->mdata.pam.servicename));
+			strcpy(request->auth->mdata.pam.servicename,
+			sockscf.state.pamservicename);
+			/* FALLTHROUGH */
+#endif
+
+		case AUTHMETHOD_UNAME:
+			if (accesscheck(s, request->auth, NULL, NULL, state->emsg,
+			sizeof(state->emsg)))
+				response[UNAME_STATUS] = (unsigned char)0; /* OK. */
+			else
+				response[UNAME_STATUS] = (unsigned char)1; /* Not OK. */
+
+			break;
+
+		default:
+			SERRX(passworddbisunique);
+	}
+
+	request->auth->method = method_original;
+
+
+	if (writen(s, response, sizeof(response), request->auth) != sizeof(response))
 		return -1;
 
-	state->rcurrent = recv_sockspacket;
-	return state->rcurrent(s, request, state);
+	if (response[UNAME_STATUS] == 0) { /* 0 is success */
+		state->rcurrent = recv_sockspacket;
+		return state->rcurrent(s, request, state);
+	}
+
+	/* else; failed authentication. */
+	errno = 0;
+	return -1;
+
 }

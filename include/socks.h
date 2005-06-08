@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.168 2004/06/20 12:20:45 karls Exp $ */
+/* $Id: socks.h,v 1.169 2005/05/28 17:07:59 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -227,9 +227,10 @@ struct config_t {
 };
 
 struct childpacket_t {
-   struct sockshost_t   src;
-   struct sockshost_t   dst;
-   struct socks_t       packet;
+	int						s;				/* filedescriptor number.						*/
+   struct sockshost_t   src;			/* local address of control-connection. 	*/
+   struct sockshost_t   dst;			/* remote address of control-connection. 	*/
+   struct socks_t       packet;		/* socks packet exchanged with server.		*/
 };
 
 

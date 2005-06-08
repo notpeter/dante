@@ -41,10 +41,19 @@
  *
  */
 
-/* $Id: socks.h,v 1.9 2005/01/24 10:24:19 karls Exp $ */
+/* $Id: socks.h,v 1.12 2005/06/01 13:46:35 karls Exp $ */
 
 #include <sys/types.h>
 #include <sys/socket.h>
+
+/*
+ * The definition of bindresvport below might conflict with
+ * <netinet/in.h> ... best workaround seems to be to make sure the
+ * file is included prior to the #define
+ */
+#include <netinet/in.h>
+
+#include <netdb.h>
 
 
 #define accept Raccept
@@ -104,7 +113,7 @@ struct hostent *Rgethostbyname __P((const char *));
 struct hostent *Rgethostbyname2 __P((const char *, int af));
 int Rgetaddrinfo __P((const char *nodename, const char *servname,
 					      const struct addrinfo *hints, struct addrinfo **res));
-struct hostent *Rgetipnodebyname __P((const char *name, int af, int flags,
+struct hostent *Rgetipnodebyname __P((const char *name, int af, int flags, int *error_num));
 ssize_t Rwrite __P((int d, const void *buf, size_t nbytes));
 ssize_t Rwritev __P((int d, const struct iovec *iov, int iovcnt));
 ssize_t Rsend __P((int s, const void *msg, size_t len, int flags));

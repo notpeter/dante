@@ -49,7 +49,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.45 2004/09/05 16:09:10 karls Exp $";
+"$Id: Rgethostbyname.c,v 1.46 2005/05/10 11:44:57 michaels Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -355,16 +355,16 @@ Rgetipnodebyname2(name, af, flags, error_num)
 
 	switch (af) {
 		case AF_INET: {
-                 	memcpy(*addrlist, &ipindex.s_addr, sizeof(in_addr_t));
+         memcpy(*addrlist, &ipindex.s_addr, sizeof(in_addr_t));
 			break;
 		}
 
 		case AF_INET6: {
-		        char ff[] = {0xff,0xff};
+		   unsigned char ff[] = {0xff,0xff};
 			memset(*addrlist, 0, 10);
 			memcpy(*addrlist+10, ff, 2);
-                	memcpy(*addrlist+12, &ipindex.s_addr, 
-			       sizeof(in_addr_t));
+        	memcpy(*addrlist+12, &ipindex.s_addr, 
+	      sizeof(in_addr_t));
 			break;
 		}
 

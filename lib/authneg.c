@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.53 2003/07/01 13:21:25 michaels Exp $";
+"$Id: authneg.c,v 1.54 2005/05/28 17:13:24 michaels Exp $";
 
 int
 negotiate_method(s, packet)
@@ -79,8 +79,11 @@ negotiate_method(s, packet)
 		return -1;
 
 	/* read servers response for method it wants to use */
-	if (readn(s, response, sizeof(response), &packet->auth) != sizeof(response))
+	if ((rc = readn(s, response, sizeof(response), &packet->auth))
+	!= sizeof(response)){
+		swarn("%s: readn(), %d out of %d", function,rc, sizeof(response));
 		return -1;
+	}
 
 	if (request[AUTH_VERSION] != response[AUTH_VERSION]) {
 		swarnx("%s: got replyversion %d, expected %d",

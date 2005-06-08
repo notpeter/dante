@@ -44,20 +44,59 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.19 2003/07/01 13:21:39 michaels Exp $";
+"$Id: accesscheck.c,v 1.22 2005/05/13 13:37:32 michaels Exp $";
+
+
+int
+usermatch(auth, userlist)
+	const struct authmethod_t *auth;
+	const struct linkedname_t *userlist;
+{
+/*	const char *function = "usermatch()"; */
+	const char *name;
+
+	switch (auth->method) {
+		case AUTHMETHOD_UNAME:
+			name		= (const char *)auth->mdata.uname.name;
+			break;
+
+		case AUTHMETHOD_RFC931:
+			name		= (const char *)auth->mdata.rfc931.name;
+			break;
+
+		case AUTHMETHOD_PAM:
+			name		= (const char *)auth->mdata.pam.name;
+			break;
+
+		default:
+			/*
+			 * adding non-username based methods to rules requiring usernames
+			 * should not be possible.
+			*/
+			SERRX(auth->method);
+	}
+
+	do
+		if (strcmp(name, userlist->name) == 0)
+			break;
+	while ((userlist = userlist->next) != NULL);
+
+	if (userlist == NULL)
+		return 0; /* no match. */
+	return 1;
+}
 
 
 /* ARGSUSED */
 int
-accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
+accesscheck(s, auth, src, dst, emsg, emsgsize)
 	int s;
 	struct authmethod_t *auth;
 	const struct sockaddr *src, *dst;
-	const struct linkedname_t *userlist;
 	char *emsg;
 	size_t emsgsize;
 {
-	const char *function = "accessmatch()";
+	const char *function = "accesscheck()";
 	char srcstr[MAXSOCKADDRSTRING], dststr[sizeof(srcstr)];
 	int match;
 
@@ -65,46 +104,6 @@ accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
 	function, method2string(auth->method),
 	src == NULL ? "<unknown>" : sockaddr2string(src, srcstr, sizeof(srcstr)),
 	dst == NULL ? "<unknown>" : sockaddr2string(dst, dststr, sizeof(dststr)));
-
-	if (userlist != NULL) {
-		const struct linkedname_t *ruleuser;
-		const char *name;
-
-		/*
-		 * The userlist names restricts access further, only names
-		 * appearing there are checked.
-		 */
-
-		ruleuser = userlist;
-		switch (auth->method) {
-			case AUTHMETHOD_UNAME:
-				name		= (const char *)auth->mdata.uname.name;
-				break;
-
-			case AUTHMETHOD_RFC931:
-				name		= (const char *)auth->mdata.rfc931.name;
-				break;
-
-			case AUTHMETHOD_PAM:
-				name		= (const char *)auth->mdata.pam.name;
-				break;
-
-			default:
-				/*
-				 * adding non-username based methods to rules requiring usernames
-				 * should not be possible.
-				*/
-				SERRX(auth->method);
-		}
-
-		do
-			if (strcmp(name, ruleuser->name) == 0)
-				break;
-		while ((ruleuser = ruleuser->next) != NULL);
-
-		if (ruleuser == NULL)
-			return 0; /* no match. */
-	}
 
 	/*
 	 * We don't want to re-check the same method.  This could
@@ -169,10 +168,12 @@ accessmatch(s, auth, src, dst, userlist, emsg, emsgsize)
 		 * same client, others can not.  Mark those who can't as
 		 * "tried" so we don't waste time on re-trying them.
 		 */
+#if HAVE_PAM
 		case AUTHMETHOD_PAM:
-			if (sockscf.state.unfixedpamdata)
+			if (sockscf.state.pamservicename == NULL)
 				break;
 			/* else; */ /* FALLTHROUGH */
+#endif
 
 		case AUTHMETHOD_NONE:
 		case AUTHMETHOD_UNAME:

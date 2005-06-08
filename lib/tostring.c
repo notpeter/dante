@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.12 2003/11/10 14:36:48 michaels Exp $";
+"$Id: tostring.c,v 1.13 2005/05/11 15:12:54 michaels Exp $";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -557,12 +557,8 @@ sockshost2string(host, string, len)
 				break;
 
 		case SOCKS_ADDR_DOMAIN: {
-			char *name;
-
 			snprintfn(string, len, "%s.%d",
-			strcheck(name = str2vis(host->addr.domain, strlen(host->addr.domain))),
-			ntohs(host->port));
-			free(name);
+			host->addr.domain, ntohs(host->port));
 			break;
 		}
 

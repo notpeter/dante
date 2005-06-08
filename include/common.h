@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.320 2004/11/11 11:38:32 karls Exp $ */
+/* $Id: common.h,v 1.322 2005/05/10 11:16:32 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -63,6 +63,10 @@
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif  /* HAVE_CONFIG_H */
+
+#ifndef __GNUC__
+#define __attribute__(a)
+#endif
 
 #if HAVE_LINUX_ECCENTRICITIES
 /*
@@ -1604,28 +1608,32 @@ __BEGIN_DECLS
  */
 
 #ifdef STDC_HEADERS
-void serr(int eval, const char *fmt, ...);
+void serr(int eval, const char *fmt, ...)
 #else
-void serr();
+void serr()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 2, 3)));
 
 #ifdef STDC_HEADERS
-void serrx(int eval, const char *fmt, ...);
+void serrx(int eval, const char *fmt, ...)
 #else
-void serrx();
+void serrx()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 2, 3)));
 
 #ifdef STDC_HEADERS
-void swarn(const char *fmt, ...);
+void swarn(const char *fmt, ...)
 #else
-void swarn();
+void swarn()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 1, 2)));
 
 #ifdef STDC_HEADERS
-void swarnx(const char *fmt, ...);
+void swarnx(const char *fmt, ...)
 #else
-void swarnx();
+void swarnx()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 1, 2)));
 
 void
 genericinit __P((void));
@@ -1879,17 +1887,22 @@ mem2sockshost __P((struct sockshost_t *host, const unsigned char *mem,
  */
 
 #ifdef STDC_HEADERS
-void slog(int priority, const char *message, ...);
+void slog(int priority, const char *fmt, ...)
 #else
-void slog();
+void slog()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 2, 3)));
 /*
- * Logs message "message" at priority "priority" to previously configured
+ * Logs message "fmt" at priority "priority" to previously configured
  * outputdevice.
  * Checks settings and ignores message if it's of to low a priority.
  */
 
-void vslog __P((int priority, const char *message, va_list ap));
+#ifdef STDC_HEADERS
+void vslog(int priority, const char *fmt, va_list ap);
+#else
+void vslog();
+#endif  /* STDC_HEADERS */
 /*
  * Same as slog() but assumes varargs/stdargs have already processed
  * the arguments.
@@ -1906,22 +1919,24 @@ readconfig __P((const char *filename));
 
 #ifdef STDC_HEADERS
 void
-yywarn (const char *fmt, ...);
+yywarn (const char *fmt, ...)
 #else
 void
-yywarn();
+yywarn()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 1, 2)));
 /*
  * Report a error related to (configfile) parsing.
  */
 
 #ifdef STDC_HEADERS
 void
-yyerror (const char *fmt, ...);
+yyerror (const char *fmt, ...)
 #else
 void
-yyerror();
+yyerror()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 1, 2)));
 /*
  * Report a error related to (configfile) parsing and exit.
  */
@@ -2245,10 +2260,12 @@ int vsnprintf __P((char *, size_t, const char *, va_list));
 
 #if !HAVE_SETPROCTITLE
 #ifdef STDC_HEADERS
-void setproctitle __P((const char *fmt, ...));
+void setproctitle __P((const char *fmt, ...))
+__attribute__ ((format (__printf__, 1, 2)));
 int initsetproctitle __P((int, char **, char **));
 #else
-void setproctitle();
+void setproctitle()
+__attribute__ ((format (__printf__, 1, 2)));
 int initsetproctitle __P((int, char **, char **));
 #endif  /* STDC_HEADERS */
 #endif  /* !HAVE_SETPROCTITLE */

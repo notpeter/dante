@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.59)
-AC_REVISION($Id: configure.ac,v 1.340 2005/01/20 08:35:19 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.343 2005/05/10 08:10:06 karls Exp $)
 
-version=1.1.15
+version=1.1.16
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="3"
+prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -1138,6 +1138,8 @@ fi
 #no static version exists
 AC_SEARCH_LIBS(inet_aton, resolv)
 
+AC_SEARCH_LIBS(res_9_init, resolv)
+
 NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
 LIBS=""
 
@@ -1255,12 +1257,18 @@ fi
 #(programs which don't use it probably won't enjoy being linked with it)
 AM_CONDITIONAL(WANT_LIBWRAP, test "x${want_libwrap}" != "x")
 
-#look for PAM header and lib
-AC_CHECK_HEADERS(security/pam_appl.h, [have_pam_header=t])
-AC_SEARCH_LIBS(pam_start, pam, [have_libpam=t])
+AC_ARG_WITH(pam,
+ [  --without-pam           disable pam support @<:@default=detect@:>@],
+ [PAM=$withval])
 
-if test x"${have_pam_header}" != x -a x"${have_libpam}" != x; then
-	AC_DEFINE(HAVE_PAM, 1, [PAM support])
+if test "${PAM}" != no; then
+	#look for PAM header and lib
+	AC_CHECK_HEADERS(security/pam_appl.h, [have_pam_header=t])
+	AC_SEARCH_LIBS(pam_start, pam, [have_libpam=t])
+
+	if test x"${have_pam_header}" != x -a x"${have_libpam}" != x; then
+		AC_DEFINE(HAVE_PAM, 1, [PAM support])
+	fi
 fi
 
 

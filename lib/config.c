@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.153 2003/07/01 13:21:26 michaels Exp $";
+"$Id: config.c,v 1.155 2005/05/28 17:13:25 michaels Exp $";
 
 void
 genericinit(void)
@@ -90,11 +90,11 @@ genericinit(void)
 		if (setvbuf(sockscf.log.fpv[i], NULL, _IOLBF, 0) != 0)
 			swarn("%s: setvbuf(_IOLBF)", function);
 
-	sockscf.state.init = 1;
-
 #if !HAVE_NO_RESOLVESTUFF
 	res_init();
 #endif /* !HAVE_NO_RESOLVSTUFF */
+
+	sockscf.state.init = 1;
 }
 
 #if SOCKS_CLIENT
@@ -365,6 +365,8 @@ socks_connectroute(s, packet, src, dst)
 	 *					first attempt this is 's'.
 	 */
 
+	slog(LOG_DEBUG, "%s: s = %d", function, s);
+
 	errno			= 0; /* let caller differentiate between missing route and not.*/
 	current_s	= s;
 	sdup			= -1;
@@ -472,6 +474,7 @@ socks_requestpolish(req, src, dst)
 	if (socks_getroute(req, src, dst) != NULL)
 		return req;
 
+	/* no route found.  Can we "polish" the request and then find a route? */
 	switch (req->command) {
 		case SOCKS_BIND:
 			/*
@@ -560,6 +563,8 @@ socks_requestpolish(req, src, dst)
 			break;
 	}
 
+	slog(LOG_DEBUG, function);
+	sleep(5);
 	return NULL;
 }
 
