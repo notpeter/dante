@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.303 2005/05/05 12:47:16 michaels Exp $";
+"$Id: sockd.c,v 1.304 2005/06/10 11:04:04 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -1070,7 +1070,11 @@ optioninit(void)
 	sockscf.timeout.negotiate	= SOCKD_NEGOTIATETIMEOUT;
 	sockscf.timeout.io			= SOCKD_IOTIMEOUT;
 	sockscf.external.rotation	= ROTATION_NONE;
-
+#if DEBUG
+	sockscf.child.maxidle 		= SOCKD_FREESLOTS;
+#else
+	sockscf.child.maxidle 		= 0;
+#endif
 }
 
 static void
