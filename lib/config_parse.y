@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.189 2005/03/28 18:19:16 michaels Exp $";
+"$Id: config_parse.y,v 1.191 2005/06/10 11:14:48 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -578,15 +578,10 @@ logoutputdevices:	logoutputdevice
 childstate:
 	CHILD_MAXIDLE ':' NUMBER {
 #if SOCKS_SERVER
-		yyerror("'%s' not supported in this version", $1);
-#if 0
 		if (atoi($3) < SOCKD_FREESLOTS)
-			yyerror("child.maxidle can't be less than SOCKD_FREESLOTS (%d)",
-			SOCKD_FREESLOTS);
-
+			yyerror("%s (%s) can't be less than SOCKD_FREESLOTS (%d)",
+			$1, $3, SOCKD_FREESLOTS);
 		sockscf.child.maxidle = atoi($3);
-#endif
-
 #endif
 	}
 	;
@@ -1193,7 +1188,6 @@ readconfig(filename)
 	const char *filename;
 {
 	const char *function = "readconfig()";
-	const int errno_s = errno;
 
 /*	yydebug				= 1;          */
 	yylineno				= 1;
@@ -1204,6 +1198,7 @@ readconfig(filename)
 		return -1;
 	}
 
+	errno = 0;	/* don't report old errors in yyparse(). */
 	yyparse();
 	fclose(yyin);
 
@@ -1211,7 +1206,7 @@ readconfig(filename)
 	fixconfig();
 #endif /* SOCKS_SERVER */
 
-	errno = errno_s; /* some buggy yacc's alter errno sometimes. */
+	errno = 0;
 
 	return 0;
 }

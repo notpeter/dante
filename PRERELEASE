@@ -1,9 +1,14 @@
-@(#)$Id: PRERELEASE,v 1.210 2005/05/30 10:50:36 michaels Exp $
+@(#)$Id: PRERELEASE,v 1.211 2005/06/13 10:20:57 michaels Exp $
 
 *
 * This is a prerelease.  Do not use this to upgrade from a previous
 * release of Dante unless you want to help testing. 
 *
+
+
+o Enabled code for shutting down idle sockd processes.
+
+***  Wednesday, June 8, 2005 -- Dante v1.1.16-pre1
 
 o Some additions to better preserve TCP semantics across connections.
 
