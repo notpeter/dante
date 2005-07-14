@@ -1,8 +1,8 @@
 AC_INIT
 AC_PREREQ(2.59)
-AC_REVISION($Id: configure.ac,v 1.345 2005/07/04 04:32:20 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.347 2005/07/14 03:04:00 karls Exp $)
 
-version=1.1.16
+version=1.1.17
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="2"
 if test x$prerelease != x; then
@@ -267,8 +267,12 @@ CFLAGS="$oCFLAGS"
 
 AC_ARG_ENABLE(internal,
 [  --enable-internal       enable internal extensions],
-   [TOPEXTRADIST="${TOPEXTRADIST} gui"
-    AC_CONFIG_SUBDIRS(gui)
+   [if test -d "gui"; then
+      TOPEXTRADIST="${TOPEXTRADIST} gui"
+      AC_CONFIG_SUBDIRS(gui)
+    else
+      AC_MSG_WARN([--enable-internal option is for internal Dante development, ignoring])
+    fi
     ],
    unset build_internal)
 

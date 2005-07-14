@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.199 2005/06/10 11:04:03 michaels Exp $";
+"$Id: serverconfig.c,v 1.200 2005/07/12 13:06:09 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -1311,7 +1311,8 @@ checkrule(rule)
 		rule->state.methodc))
 			yyerror("pamservicename set for rule but not method pam");
 		else
-			if (strcmp(rule->pamservicename, sockscf.state.pamservicename) != 0)
+			if (sockscf.state.pamservicename != NULL
+			&& strcmp(rule->pamservicename, sockscf.state.pamservicename) != 0)
 				sockscf.state.pamservicename = NULL; /* pamservicename varies. */
 #endif /* HAVE_PAM */
 }
