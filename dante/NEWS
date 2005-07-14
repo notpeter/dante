@@ -1,6 +1,10 @@
-@(#)$Id: NEWS,v 1.44 2005/07/04 09:57:41 michaels Exp $
+@(#)$Id: NEWS,v 1.45 2005/07/14 11:08:13 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Thursdag, July 14, 2005 -- Dante v1.1.17
+
+o Fix bug involving setting "pam.servicename".
 
 ***  Monday, July 4, 2005 -- Dante v1.1.16
 
