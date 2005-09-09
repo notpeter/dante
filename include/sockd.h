@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.202 2005/05/30 10:04:47 michaels Exp $ */
+/* $Id: sockd.h,v 1.203 2005/09/02 14:33:02 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -103,8 +103,10 @@ do {																			\
 			return p;														\
 		state->reqread += p;												\
 																				\
-		if (LEFT())															\
-			return p;														\
+		if (LEFT()) { /* read something, but not all. */		\
+			errno = EWOULDBLOCK;											\
+			return -1;														\
+		}																		\
 																				\
 		state->start = end;												\
 		OBJECTFILL((object));											\

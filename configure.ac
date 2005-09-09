@@ -1,8 +1,8 @@
 AC_INIT
 AC_PREREQ(2.59)
-AC_REVISION($Id: configure.ac,v 1.347 2005/07/14 03:04:00 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.348 2005/09/06 14:52:08 karls Exp $)
 
-version=1.1.17
+version=1.1.18
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="2"
 if test x$prerelease != x; then

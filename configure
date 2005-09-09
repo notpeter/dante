@@ -1516,7 +1516,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
-version=1.1.17
+version=1.1.18
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="2"
 if test x$prerelease != x; then

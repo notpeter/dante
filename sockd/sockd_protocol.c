@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.97 2005/05/11 11:45:21 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.98 2005/09/02 14:33:55 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -515,7 +515,7 @@ recv_username(s, request, state)
 			 * Normally this would indicate an internal error and thus
 			 * be caught in CHECK(), but for the v4 case it could be
 			 * someone sending a really long username, which is strange
-			 * enough to log a warning about but not an internal error.
+			 * enough to log a warning about, but not an internal error.
 			 */
 
 			state->mem[state->reqread - 1] = NUL;
@@ -527,11 +527,21 @@ recv_username(s, request, state)
 		}
 
 		CHECK(&state->mem[start], request->auth, NULL);
+
+		/*
+		 * Since we don't know how long the username is, we can only read one
+		 * byte at a time.  We don't want CHECK() to set state->rcurrent to
+		 * NULL after each successfull read of that one byte, since
+		 * recv_request() will then think we are starting from the begining
+		 * next time we call it.
+		 */
+		state->rcurrent = recv_username;
 	} while (state->mem[state->reqread - 1] != 0);
 	state->mem[state->reqread - 1] = NUL;	/* style. */
 
 	slog(LOG_DEBUG, "%s: got socks v4 username: %s", function, username);
 
+	state->rcurrent = NULL;
 	return 1;	/* end of request. */
 }
 

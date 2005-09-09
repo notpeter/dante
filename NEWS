@@ -1,6 +1,14 @@
-@(#)$Id: NEWS,v 1.45 2005/07/14 11:08:13 michaels Exp $
+@(#)$Id: NEWS,v 1.47 2005/09/09 11:31:33 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Friday, September 9, 2005 -- Dante v1.1.18
+
+o Fix bug involving sysloging.
+  Problem report from Nicola <nicola.canepa@sys-net.it>
+
+o Fix bug related to socks header split across multiple segments.
+  Thanks to Patrick LeBoutillier <patrick.leboutillier@gmail.com>.
 
 ***  Thursdag, July 14, 2005 -- Dante v1.1.17
 
