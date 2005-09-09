@@ -52,7 +52,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.73 2005/01/24 10:24:22 karls Exp $";
+"$Id: config_scan.l,v 1.74 2005/08/30 13:46:14 michaels Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -237,7 +237,7 @@ PORTNUMBER [0-9]{1,5}
 	return DOMAINNAME;
 }
 
-<start_address>[a-zA-Z]+[0-9:]+ {
+<start_address>[a-zA-Z]+[0-9:]* {
 	BEGIN(start_port);
 
 	yylval.string = yytext;

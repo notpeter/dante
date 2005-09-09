@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.63 2005/05/17 11:49:17 michaels Exp $";
+"$Id: log.c,v 1.64 2005/08/20 16:14:01 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -123,7 +123,8 @@ vslog(priority, message, ap)
 
 
 	if (sockscf.log.type & LOGTYPE_SYSLOG)
-		if (priority == LOG_DEBUG && sockscf.option.debug) {
+		if (sockscf.state.init && priority != LOG_DEBUG
+		|| (priority == LOG_DEBUG && sockscf.option.debug)) {
 			vsyslog(priority, message, ap);
 			logged = 1;
 		}
@@ -141,8 +142,8 @@ vslog(priority, message, ap)
 
 			socks_lock(sockscf.log.fplockv[i], F_WRLCK, -1);
 			fprintf(sockscf.log.fpv[i], "%s", buf);
-			logged = 1;
 			socks_unlock(sockscf.log.fplockv[i]);
+			logged = 1;
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
 			SYSCALL_END(fileno(sockscf.log.fpv[i]));

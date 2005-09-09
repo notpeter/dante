@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.155 2005/05/28 17:13:25 michaels Exp $";
+"$Id: config.c,v 1.156 2005/08/22 10:52:56 michaels Exp $";
 
 void
 genericinit(void)
@@ -140,6 +140,7 @@ addroute(newroute)
 	}
 
 	if (!route->gw.state.proxyprotocol.socks_v4
+	&& !route->gw.state.proxyprotocol.socks_v5
 	&& !route->gw.state.proxyprotocol.msproxy_v2)
 		route->gw.state.command.bind = 0;
 
@@ -564,7 +565,6 @@ socks_requestpolish(req, src, dst)
 	}
 
 	slog(LOG_DEBUG, function);
-	sleep(5);
 	return NULL;
 }
 
