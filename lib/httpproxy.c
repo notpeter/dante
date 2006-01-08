@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.12 2003/07/01 13:21:29 michaels Exp $";
+"$Id: httpproxy.c,v 1.16 2005/12/31 13:59:47 michaels Exp $";
 
 int
 httpproxy_negotiate(s, packet)
@@ -75,21 +75,43 @@ httpproxy_negotiate(s, packet)
 	"\r\n",
 	host, PACKAGE, VERSION);
 
+	slog(LOG_DEBUG, "%s: sending: %s", function, buf);
 	if ((rc = writen(s, buf, (size_t)len, NULL)) != len) {
 		swarn("%s: wrote %d/%d bytes", function, rc, len);
 		return -1;
 	}
 
-	slog(LOG_DEBUG, "%s: sending: %s", function, buf);
 
-	eof = checked = len = 0;
-	/* CONSTCOND */
+	eof = checked = 0;
+	/*
+	 * read til eof so there's no junk left in buffer for client, then return
+	 * reply.
+	 */
 	do {
-		char *eol, *terminator = "\r\n";
+		char *eol;
+		const char *terminator = "\r\n";
 
-		/* -1 so we can always NUL-terminate. */
-		if (!eof) {
-			switch(rc = read(s, &buf[len], sizeof(buf) - len - 1)) {
+		/*
+		 * -1 so we can NUL-terminate, and - length of terminator so we can
+		 * read the missing bits if neccessary.
+		 */
+		switch(len = read(s, buf, sizeof(buf) - 1 - (strlen(terminator) + 1))) {
+			case -1:
+				swarn("%s: read()", function);
+				return -1;
+
+			case 0:
+				eof = 1;
+				break;
+		}
+
+		/*
+		 * if last char we read is start of terminator,
+		 * read some more to make sure the terminator does not get split
+		 * accross buffers.
+		 */
+		if (buf[len - 1] == *terminator)
+			switch(rc = read(s, &buf[len], strlen(terminator) - 1)) {
 				case -1:
 					swarn("%s: read()", function);
 					return -1;
@@ -97,11 +119,12 @@ httpproxy_negotiate(s, packet)
 				case 0:
 					eof = 1;
 					break;
+
+				default:
+					len += rc;
 			}
-			len += rc;
-			SASSERTX((size_t)len < sizeof(buf));
-			buf[len] = NUL;
-		}
+
+		buf[len] = NUL;
 
 		while ((eol = strstr(buf, terminator)) != NULL) { /* new line. */
 			*eol = NUL;
@@ -131,10 +154,15 @@ httpproxy_negotiate(s, packet)
 						 * reply, http replies can however be bigger. :-/
 						*/
 
-						/* CONSTCOND */
-						packet->res.reply = (unsigned char)(atoi(&buf[strlen(offset)])
-						== HTTP_SUCCESS ? HTTP_SUCCESS : !HTTP_SUCCESS);
-
+						/*
+						 * http replycode is > 8 bits, socks is 8 bits.
+						 * Just make sure we don't end up truncating to
+						 * HTTP_SUCCESS.
+						 */
+						rc = atoi(&buf[strlen(offset)]);
+						if (rc != HTTP_SUCCESS && (unsigned char)rc == HTTP_SUCCESS)
+							rc = 0;
+						packet->res.reply = (unsigned char)rc;
 
 						/*
 						 * we don't know what address the server will use on
@@ -155,30 +183,29 @@ httpproxy_negotiate(s, packet)
 
 				if (error) {
 					swarnx("%s: unknown response: \"%s\"", function, buf);
+					errno = ECONNREFUSED;
 					return -1;
 				}
 			}
 
+			/* shift out the line we just parsed. */
 			len -= (eol + strlen(terminator)) - buf;
 			SASSERTX(len >= 0);
 			SASSERTX((size_t)len < sizeof(buf));
 			memmove(buf, eol + strlen(terminator), (size_t)len);
 			buf[len] = NUL;
 
-			if (strncmp(buf, terminator, strlen(terminator)) == 0)
-				eof = 1;	/* empty line, all done. */
+			if (strcmp(buf, terminator) == 0)
+				eof = 1;	/* empty line, end of response. */
 		}
 
-		if (eof && !checked) { /* won't get any new line, dump what we have. */
+		if (*buf != NUL)
 			slog(LOG_DEBUG, "%s: read: %s", function, buf);
-			len = 0;
-			buf[len] = 0;
-		}
-	} while (len > 0 || !eof);
+	} while (!eof);
 
 	if (checked)
-		return 0;
+		return packet->res.reply == HTTP_SUCCESS ? 0 : -1;
 
-	slog(LOG_DEBUG, "%s: not checked?", function);
+	slog(LOG_DEBUG, "%s: didn't get statuscode from proxy", function);
 	return -1;	/* proxyserver doing something strange/unknown. */
 }

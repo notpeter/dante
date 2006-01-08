@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.57 2005/06/06 10:20:17 michaels Exp $
+%@(#)$Id: faq.tex,v 1.59 2006/01/08 18:33:48 karls Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -56,7 +56,7 @@
 	Gaustadalléen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2005/06/06 10:20:17 $$$$}
+\date{$$$$Date: 2006/01/08 18:33:48 $$$$}
 
 \makeindex
 
@@ -746,6 +746,23 @@ exec setuidgid logging multilog t /var/log/dante
    scheme, the username/password will be checked at an point early
    enough to tell the client the username/password was wrong.
 
+\section{For system administrators}
+ \subsection{What happens if I need to restart the Dante server?}
+  If you kill one sockd process (any one), the rest of the processes
+  will cope as best as they can. 
+
+  This means that if you kill the main sockd process, clients that
+  have already established their socks-session will continue to
+  run.  These sockd processes will be orphaned (their parent pid
+  will be init), and will not be able to accept new clients.
+
+  You can at this point however start the Dante server again. 
+  The newly started Dante server will then accept clients as
+  usual, but will have no relation to the processes created
+  by the previous Dante server.  Those processes will continue
+  to run by themselves until all their clients have finished,
+  at which point they will die my themselves.
+ 
 \section{For programmers}
  \subsection{What does a socksified application need to care about?}
   A socksified application will normaly work without any

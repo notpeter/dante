@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.31 2003/07/01 13:21:31 michaels Exp $";
+"$Id: socket.c,v 1.32 2005/11/08 15:58:03 michaels Exp $";
 
 int
 socks_connect(s, host)
@@ -118,6 +118,15 @@ socks_connect(s, host)
 		/* LINTED pointer casts may be troublesome */
 		if (connect(s, (struct sockaddr *)&address, sizeof(address)) == 0)
 			break;
+	 	else {
+			char buf[MAXSOCKADDRSTRING];
+
+			/* LINTED pointer casts may be troublesome */
+			slog(LOG_DEBUG, "%s, failed: %s: %s", function,
+			sockaddr2string((struct sockaddr *)&address, buf, sizeof(buf)),
+			strerror(errno));
+		}
+
 
 #if SOCKS_SERVER /* clients may have set up alarms to interrupt. */
 		if (errno == EINTR) {
@@ -146,6 +155,7 @@ socks_connect(s, host)
 			case EINVAL:
 			case ECONNREFUSED:
 			case ENETUNREACH:
+			case EHOSTUNREACH:
 				failed = 1;
 				break;
 

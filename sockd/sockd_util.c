@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.86 2005/06/06 11:25:39 michaels Exp $";
+"$Id: sockd_util.c,v 1.92 2005/12/28 18:27:14 michaels Exp $";
 
 #define CM2IM(charmethodv, methodc, intmethodv) \
 	do { \
@@ -173,12 +173,18 @@ sockdexit(sig)
 	const char *function = "sockdexit()";
 	size_t i;
 	int mainmother;
+	static int init;
 
-	mainmother = sockscf.state.motherpidv == NULL
-	|| (pidismother(sockscf.state.pid)
-	  && *sockscf.state.motherpidv == sockscf.state.pid);
+	slog(LOG_DEBUG, function);
 
-	if (mainmother) {
+	/*
+	 * we are terminating, don't want to receive SIGTERM while terminating,
+	 * otherwise we might end up doing the same operation twice.
+	 */
+	if (signal(SIGTERM, SIG_IGN) == SIG_ERR)
+		swarn("%s: signal(SIGCHLD, SIG_IGN)", function);
+
+	if ((mainmother = pidismother(sockscf.state.pid)) == 1) {
 		if (sig > 0)
 			slog(LOG_ALERT, "%s: terminating on signal %d", function, sig);
 		else
@@ -207,7 +213,8 @@ sockdexit(sig)
 #endif /* HAVE_PROFILING */
 
 	for (i = 0;  i < sockscf.log.fpc; ++i) {
-		fclose(sockscf.log.fpv[i]);
+		fflush(sockscf.log.fpv[i]); 
+		close(fileno(sockscf.log.fpv[i]));  
 		close(sockscf.log.fplockv[i]);
 	}
 
@@ -313,6 +320,9 @@ pidismother(pid)
 {
 	int i;
 
+	if (sockscf.state.motherpidv == NULL)
+		return 1; /* so early we haven't even forked yet. */
+
 	for (i = 0; i < sockscf.option.serverc; ++i)
 		if (sockscf.state.motherpidv[i] == pid)
 			return i + 1;
@@ -324,7 +334,8 @@ descriptorisreserved(d)
 	int d;
 {
 
-	if (d == sockscf.bwlock)
+	if (d == sockscf.bwlock 
+	||  d == sockscf.sessionlock)
 		return 1;
 
 	/* don't close sockscf/log files. */

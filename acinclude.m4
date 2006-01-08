@@ -1,4 +1,36 @@
 # -- acinclude start --
+define([concat],
+[$1$2]) dnl XXX likely a simpler way to do this
+AC_DEFUN([L_MODVER],
+[AC_MSG_CHECKING(for module $1)
+ if test -f "licensed/$1.c"; then
+	dnl XXX two single quotes in first argument to split,
+	dnl     prevents removal by m4
+	MODVERSION=`awk '/Id:/{ split($''4,a,".");print a[[2]]; exit }' licensed/$1.c`
+	if test "$MODVERSION" -lt "$2"; then
+	        echo ""
+		echo "You have a outdated version of the $1 module."
+		echo "Please contact Inferno Nettverk A/S for an updated"
+		echo "version before you attempt to compile."
+		echo "Inferno Nettverk A/S can be reached at info@inet.no."
+		echo ""
+		echo "There is no additional cost for upgrading."
+		exit 1
+	fi
+
+	unset concat(MOD_, m4_toupper($1))
+	AC_DEFINE(concat(HAVE_MODULE_, m4_toupper($1)), 1, [module $1 installed])dnl
+	AC_MSG_RESULT(yes)
+else
+	concat(MOD_, m4_toupper($1))=un
+	AC_MSG_RESULT(no)
+fi
+AC_LINK_FILES(${concat(MOD_, m4_toupper($1))}licensed/$1.c, sockd/$1.c)
+if test x"$3" != xnokey; then
+    AC_LINK_FILES(${concat(MOD_, m4_toupper($1))}licensed/$1_key.c, sockd/$1_key.c)
+fi
+])
+
 
 AC_DEFUN([L_UNCON_SELECT],
 [AC_MSG_CHECKING(for expected select behaviour)

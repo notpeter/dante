@@ -42,9 +42,10 @@
  */
 
 #include "common.h"
+#include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.87 2005/05/05 11:18:47 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.90 2005/11/08 16:00:21 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -193,8 +194,8 @@ run_negotiate(mother)
 		while ((neg = neg_gettimedout()) != NULL) {
 			const char *reason = "negotiation timed out";
 
-			iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->src,
-			&neg->state.auth, &neg->dst, NULL, reason, 0);
+			iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->negstate.src,
+			&neg->state.auth, &neg->negstate.dst, NULL, reason, 0);
 			delete_negotiate(mother, neg);
 		}
 
@@ -257,8 +258,8 @@ run_negotiate(mother)
 						}
 				}
 
-				iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->src,
-				&neg->state.auth, &neg->dst, NULL, reason, 0);
+				iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->negstate.src,
+				&neg->state.auth, &neg->negstate.dst, NULL, reason, 0);
 
 				delete_negotiate(mother, neg);
 			}
@@ -298,7 +299,7 @@ send_negotiate(mother, neg)
 
 	/* copy needed fields from negotiate */
 	/* LINTED pointer casts may be troublesome */
-	sockshost2sockaddr(&neg->src, (struct sockaddr *)&req.from);
+	sockshost2sockaddr(&neg->negstate.src, (struct sockaddr *)&req.from);
 	req.req				= neg->req;
 	req.rule				= neg->rule;
 	req.state			= neg->state;
@@ -306,7 +307,7 @@ send_negotiate(mother, neg)
 	req.state.version	= req.req.version;
 
 	/* LINTED pointer casts may be troublesome */
-	sockshost2sockaddr(&neg->dst, (struct sockaddr *)&req.to);
+	sockshost2sockaddr(&neg->negstate.dst, (struct sockaddr *)&req.to);
 
 	iovec[0].iov_base		= &req;
 	iovec[0].iov_len		= sizeof(req);
@@ -350,14 +351,13 @@ recv_negotiate(mother)
 	const char *function = "recv_negotiate()";
 	struct sockd_negotiate_t *neg;
 	struct iovec iovec[1];
-	struct sockaddr from, to;
 	socklen_t len;
 	unsigned char command;
 	int permit, i, r, fdexpect, fdreceived;
 	struct msghdr msg;
 	char ruleinfo[256];
 	CMSG_AALLOC(cmsg, sizeof(int));
-
+	struct sockaddr src, dst;
 
 	iovec[0].iov_base		= &command;
 	iovec[0].iov_len		= sizeof(command);
@@ -413,21 +413,21 @@ recv_negotiate(mother)
 
 	/* get local and remote address. */
 
-	len = sizeof(from);
-	if (getpeername(neg->s, &from, &len) != 0) {
+	len = sizeof(src);
+	if (getpeername(neg->s, &src, &len) != 0) {
 		slog(LOG_DEBUG, "%s: getpeername(): %s", function, strerror(errno));
 		delete_negotiate(mother, neg);
 		return 1;
 	}
-	sockaddr2sockshost(&from, &neg->src);
+	sockaddr2sockshost(&src, &neg->negstate.src);
 
-	len = sizeof(to);
-	if (getsockname(neg->s, &to, &len) != 0) {
+	len = sizeof(dst);
+	if (getsockname(neg->s, &dst, &len) != 0) {
 		slog(LOG_DEBUG, "%s: getsockname(): %s", function, strerror(errno));
 		delete_negotiate(mother, neg);
 		return 1;
 	}
-	sockaddr2sockshost(&to, &neg->dst);
+	sockaddr2sockshost(&dst, &neg->negstate.dst);
 
 	/* init state correctly for checking a connection to us. */
 	neg->state.command		= SOCKS_ACCEPT;
@@ -437,11 +437,25 @@ recv_negotiate(mother)
 	/* pointer fixup */
 	neg->req.auth = &neg->state.auth;
 
-	permit = rulespermit(neg->s, &from, &to, &neg->rule, &neg->state,
-	&neg->src, &neg->dst, ruleinfo, sizeof(ruleinfo));
+	if (sockscf.sessionlock != -1)
+		socks_lock(sockscf.sessionlock, F_WRLCK, -1);
 
-	iolog(&neg->rule, &neg->state, OPERATION_ACCEPT, &neg->src, &neg->state.auth,
-	&neg->dst, NULL, ruleinfo, 0);
+	permit = rulespermit(neg->s, &src, &dst, &neg->rule, &neg->state,
+	&neg->negstate.src, &neg->negstate.dst, ruleinfo, sizeof(ruleinfo));
+
+	if (permit && neg->rule.ss != NULL) /* don't bother if rules deny anyway. */
+		if (!session_use(neg->rule.ss)) {
+			permit = 0;
+			neg->rule.verdict = VERDICT_BLOCK;
+			snprintf(ruleinfo, sizeof(ruleinfo), DENY_SESSIONLIMITs);
+			neg->rule.ss = NULL; /* don't want delete_io to unuse() it. */
+		}
+
+	if (sockscf.sessionlock != -1)
+		socks_unlock(sockscf.sessionlock);
+
+	iolog(&neg->rule, &neg->state, OPERATION_ACCEPT, &neg->negstate.src,
+	&neg->state.auth, &neg->negstate.dst, NULL, ruleinfo, 0);
 
 	if (!permit) {
 		delete_negotiate(mother, neg);
@@ -463,6 +477,9 @@ delete_negotiate(mother, neg)
 	const char *function = "delete_negotiate()";
 	static const struct sockd_negotiate_t neginit;
 	const char command = SOCKD_FREESLOT;
+
+	if (neg->rule.ss != NULL)
+		session_unuse(neg->rule.ss);
 
 	close(neg->s);
 
@@ -625,7 +642,7 @@ siginfo(sig)
 			char srcstring[MAXSOCKSHOSTSTRING];
 
 			slog(LOG_INFO, "%s: negotiating for %.0fs",
-			sockshost2string(&negv[i].src, srcstring, sizeof(srcstring)),
+			sockshost2string(&negv[i].negstate.src, srcstring, sizeof(srcstring)),
 			difftime(timenow, negv[i].state.time.negotiate_start));
 		}
 }

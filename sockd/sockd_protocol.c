@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.98 2005/09/02 14:33:55 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.101 2005/12/31 17:42:45 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -511,6 +511,8 @@ recv_username(s, request, state)
 		INIT(MIN(1, MEMLEFT()));
 
 		if (MEMLEFT() == 0) {
+			char *t;
+
 			/*
 			 * Normally this would indicate an internal error and thus
 			 * be caught in CHECK(), but for the v4 case it could be
@@ -520,9 +522,10 @@ recv_username(s, request, state)
 
 			state->mem[state->reqread - 1] = NUL;
 
-			swarnx("%s: username too long (> %d): \"%s\"",
-			function, strlen(username), username);
-
+			swarnx("%s: username too long (> %d): \"%s\"", function,
+			strlen(username), strcheck(t = str2vis(username, strlen(username))));
+			free(t);
+			
 			return -1;
 		}
 
@@ -543,19 +546,6 @@ recv_username(s, request, state)
 
 	state->rcurrent = NULL;
 	return 1;	/* end of request. */
-}
-
-void
-send_failure(s, response, failure)
-	int s;
-	const struct response_t *response;
-	int failure;
-{
-	struct response_t newresponse;	/* keep const. */
-
-	newresponse = *response;
-	newresponse.reply = (char)sockscode(newresponse.version, failure);
-	send_response(s, &newresponse);
 }
 
 

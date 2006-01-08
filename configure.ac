@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.59)
-AC_REVISION($Id: configure.ac,v 1.348 2005/09/06 14:52:08 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.358 2005/12/30 21:23:19 karls Exp $)
 
-version=1.1.18
+version=1.1.19
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="2"
+prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -53,7 +53,6 @@ esac
 #disable acceptlock
 #XXX add proper test for this?
 case $host in
-
 	*-*-*bsd* | alpha*-dec-osf* | *-*-hpux* | *-*-aix4* | *-*-aix5*)
 		no_acceptlock=t
 	;;
@@ -79,7 +78,6 @@ esac
 SOLIB_POSTFIX=so
 
 case $host in
-
 	alpha*-dec-osf*)
 		AC_DEFINE(HAVE_DEC_PROTO, 1, [DEC workarounds])
 		AC_DEFINE(HAVE_EXTRA_OSF_SYMBOLS, 1, [DEC workarounds])
@@ -130,10 +128,12 @@ case $host in
 	*-*-irix*)
 		PRELOAD="RLD"
 	;;
+
 	*-*-aix4* | *-*-aix5*)
 		OSPIDFILE="/etc/sockd.pid"
 		AC_DEFINE(HAVE_SYSTEM_XMSG_MAGIC, 1, [platform workaround])
 	;;
+
 	*-*-cygwin)
 		AC_MSG_WARN([disabling preloading])
 		no_preload_client=t
@@ -175,7 +175,6 @@ fi
 
 AC_MSG_CHECKING([for compiler flags])
 case $host in
-
     #XXX check for compiler type, not architecture
     *-*-solaris*)
 	if test "x$GCC" = x; then
@@ -312,7 +311,6 @@ if test x$enable_warnings != x; then
     #try to enable compiler specific warning flags
     if test "x$GCC" = x; then
 	case $host in
-
 	    *sunos4*) #sunos cc
 #		warn=""
 		true
@@ -407,8 +405,8 @@ dnl Checks for programs.
 AC_PROG_YACC
 AC_PROG_AWK
 AM_PROG_LEX
-dnl Checking variable sizes
 
+dnl Checking variable sizes
 AC_CHECK_SIZEOF(char)
 AC_CHECK_SIZEOF(short)
 AC_CHECK_SIZEOF(int)
@@ -447,6 +445,7 @@ case $host in
 	alpha*-dec-osf*)
 		AC_CHECK_HEADERS(netinet/ip.h)
 	;;
+
 	*) ;;
 esac
 
@@ -506,7 +505,6 @@ if test x"${have_pidfile}" != xt; then
 	AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_PIDFILE, "$OSPIDFILE")
     fi
 fi
-
 
 ## preload related tests
 #build without support for preloading?
@@ -655,6 +653,8 @@ AC_TYPE_PID_T
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
 
+AC_SYS_LARGEFILE
+
 #XXX
 AC_DEFINE(HAVE_IPV6_SUPPORT, 0, [ipv6 not supported currently])
 
@@ -750,6 +750,7 @@ case $host in
 	*bsd*)
 		so_sndlowat=t
 	;;
+
 	*-osf*)
 		so_sndlowat=t
 	;;
@@ -798,11 +799,8 @@ int main()
     [AC_DEFINE(HAVE_NONULL_FREE, 1, [free does not accept NULL parameter])
      AC_MSG_RESULT(no)])
 
-
-
 #A good time to save the cache (L_NSOCKPROTO might fail)
 AC_CACHE_SAVE
-
 
 #find prototypes from dlib/interposition.c
 if test "x$preload_enabled" = "xt"; then
@@ -1054,7 +1052,6 @@ if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_bindresvport}" = "x-lrpcs
 	AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBRPCSOC, [function loc])
 fi
 
-
 LIBS=""
 AC_SEARCH_LIBS(connect, socket)
 
@@ -1168,7 +1165,7 @@ if test "x$preload_enabled" = "xt"; then
     if test "x${ac_cv_search_dlopen}" = "x-ldl"; then
 	    case $host in
 		*-*-sunos4*) #XXX attempt to get libdl name
-		    libdl=`ls ${base_library_path}libdl.${SOLIB_POSTFIX}* | sed -e 's/.*\///' | sort -nr | head -1`
+		    libdl=`ls ${base_library_path}libdl.${SOLIB_POSTFIX}* | sed -e 's/.*\///' | sort -nr | head -n 1`
 		    if test x$libdl = x; then
 			AC_MSG_WARN([unable to locate libdl])
 		    else
@@ -1176,6 +1173,7 @@ if test "x$preload_enabled" = "xt"; then
 			AC_MSG_WARN([hardcoding libdl to $LIBRARY_DLOPEN])
 		    fi
 		;;
+
 		*)
 		    LIBRARY_DLOPEN="${base_library_path}libdl.${SOLIB_POSTFIX}"
 		;;
@@ -1215,12 +1213,13 @@ if test "x${LIBC_NAME}" = x; then
 		*-*-linux-*)
 		#XXX attempt to find latest c library
 		#can't set it to libc.so directly, might be ld script
-		LIBC_NAME=`ls /usr/lib/libc.so* /lib/libc.so* | sed -e 's/.*\///' | sort -nr | head -1`
+		LIBC_NAME=`ls /usr/lib/libc.so* /lib/libc.so* | sed -e 's/.*\///' | sort -nr | head -n 1`
 		if test "x${LIBC_NAME}" = x; then
 			#nothing found, set libc.so anyway
 			LIBC_NAME="${base_library_path}libc.so"
 		fi
 	;;
+
 	*)
 		LIBC_NAME="${base_library_path}libc.${SOLIB_POSTFIX}"
 	;;
@@ -1275,7 +1274,6 @@ if test "${PAM}" != no; then
 	fi
 fi
 
-
 #expected select behaviour?
 unset nb_select_err
 L_UNCON_SELECT([],
@@ -1284,7 +1282,6 @@ L_UNCON_SELECT([],
 if test x"${nb_select_err}" = xt; then
    AC_MSG_WARN([operations on nonblocking sockets might fail on this platform])
 fi
-
 
 L_SYMBOL_UNDERSCORE()
 
@@ -1311,6 +1308,20 @@ int main(void)
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
+AC_MSG_CHECKING([for __libc_enable_secure])
+AC_TRY_RUN([
+extern int __libc_enable_secure;
+
+int main()
+{
+	if (__libc_enable_secure == 0)
+	   return 0;
+
+	return 1;
+}], [AC_MSG_RESULT([yes])
+     AC_DEFINE(HAVE_LIBC_ENABLE_SECURE, 1, [linux version of issetugid()])],
+     AC_MSG_RESULT([no]))
+
 #Linux (redhat 5.2) defines socklen_t in <socketbits.h>, which is
 #included by <sys/socket.h>.  check for this first.
 AC_MSG_CHECKING([for socklen_t])
@@ -1329,6 +1340,7 @@ if test x"$socklen_found" = x; then
 	alpha*-dec-osf* | *-*-aix*)
 		AC_DEFINE(socklen_t, size_t)
 		;;
+
 	*)
 		AC_DEFINE(socklen_t, int)
 		;;
@@ -1395,7 +1407,6 @@ if test x$s_profiling = x; then
 	AC_CHECK_FUNCS(strerror)
 else
 	case $host in
-
 		*-*-sunos4*)
 			AC_MSG_WARN([omitting strerror test on sunos4 with profiling enabled])
 		;;
@@ -1410,11 +1421,19 @@ if false; then
    AC_DEFINE(HAVE_DUMPCONF, 1, [GUI tool])
 fi
 
+#look for modules, and check version
+L_MODVER(bandwidth, 31) #module name, version
+L_MODVER(redirect, 18)
+L_MODVER(session, 3)
+
+#helper files
+L_MODVER(checkmodule, 1, nokey)
+L_MODVER(shmem, 1, nokey)
+
 #change all #undef's to #define foo 0
 AH_BOTTOM([
 #include "redefac.h"
 ])
-
 
 #add any warning flags (value set above)
 CFLAGS="$CFLAGS $warn"
@@ -1427,35 +1446,6 @@ if test "x${prerelease}" != "x"; then
 fi
 
 AC_SUBST(TOPEXTRADIST)
-
-if test -f "licensed/checkmodule.c"; then
-	unset MOD_CHECKMODULE
-else
-	MOD_CHECKMODULE=un
-fi
-AC_LINK_FILES(${MOD_CHECKMODULE}licensed/checkmodule.c, sockd/checkmodule.c)
-
-#redirect module
-if test -f "licensed/redirect.c"; then
-	unset MOD_REDIRECT
-	AC_DEFINE(HAVE_MODULE_REDIRECT, 1, [module installed])
-	echo "module found: redirect"
-else
-	MOD_REDIRECT=un
-fi
-AC_LINK_FILES(${MOD_REDIRECT}licensed/redirect.c, sockd/redirect.c)
-AC_LINK_FILES(${MOD_REDIRECT}licensed/redirect_key.c, sockd/redirect_key.c)
-
-#bandwidth
-if test -f "licensed/bandwidth.c"; then
-	unset MOD_BANDWIDTH
-	AC_DEFINE(HAVE_MODULE_BANDWIDTH, 1, [module installed])
-	echo "module found: bandwidth"
-else
-	MOD_BANDWIDTH=un
-fi
-AC_LINK_FILES(${MOD_BANDWIDTH}licensed/bandwidth.c, sockd/bandwidth.c)
-AC_LINK_FILES(${MOD_BANDWIDTH}licensed/bandwidth_key.c, sockd/bandwidth_key.c)
 
 AC_CONFIG_FILES(sockd/Makefile include/Makefile lib/Makefile dlib/Makefile)
 AC_CONFIG_FILES(Makefile example/Makefile doc/Makefile bin/Makefile)
@@ -1512,6 +1502,11 @@ if test x"$MOD_BANDWIDTH" = x; then
 	echo "bandwidth:         OK"
 else
 	echo "bandwidth:         not found"
+fi
+if test x"$MOD_SESSION" = x; then
+	echo "session:           OK"
+else
+	echo "session:           not found"
 fi
 echo ""
 

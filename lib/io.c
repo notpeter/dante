@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.66 2005/04/28 07:35:30 michaels Exp $";
+"$Id: io.c,v 1.67 2005/10/11 13:17:12 michaels Exp $";
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
 
@@ -171,6 +171,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
 
 	if (auth != NULL)
 		switch (auth->method) {
+			case AUTHMETHOD_NOTSET:
 			case AUTHMETHOD_NONE:
 			case AUTHMETHOD_UNAME:
 			case AUTHMETHOD_NOACCEPT:
@@ -201,6 +202,7 @@ socks_sendto(s, msg, len, flags, to, tolen, auth)
 
 	if (auth != NULL)
 		switch (auth->method) {
+			case AUTHMETHOD_NOTSET:
 			case AUTHMETHOD_NONE:
 			case AUTHMETHOD_UNAME:
 			case AUTHMETHOD_NOACCEPT:

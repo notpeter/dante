@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.64 2005/08/20 16:14:01 michaels Exp $";
+"$Id: log.c,v 1.68 2005/12/31 17:56:55 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -67,6 +67,8 @@ newprocinit(void)
 {
 
 #if SOCKS_SERVER	/* don't want to override original clients stuff. */
+	sockscf.state.pid = getpid();
+
 	if (sockscf.log.type & LOGTYPE_SYSLOG) {
 		closelog();
 
@@ -81,9 +83,6 @@ newprocinit(void)
 #if SOCKSLIBRARY_DYNAMIC
 	symbolcheck();
 #endif
-
-	sockscf.state.pid = getpid();
-
 }
 
 void
@@ -123,7 +122,7 @@ vslog(priority, message, ap)
 
 
 	if (sockscf.log.type & LOGTYPE_SYSLOG)
-		if (sockscf.state.init && priority != LOG_DEBUG
+		if ((sockscf.state.init && priority != LOG_DEBUG)
 		|| (priority == LOG_DEBUG && sockscf.option.debug)) {
 			vsyslog(priority, message, ap);
 			logged = 1;
@@ -140,9 +139,17 @@ vslog(priority, message, ap)
 			SYSCALL_START(fileno(sockscf.log.fpv[i]));
 #endif
 
-			socks_lock(sockscf.log.fplockv[i], F_WRLCK, -1);
+#if DEBUG
+			if (getenv("NO_SLOG_LOCK") == NULL)
+#endif
+				socks_lock(sockscf.log.fplockv[i], F_WRLCK, -1);
+
 			fprintf(sockscf.log.fpv[i], "%s", buf);
-			socks_unlock(sockscf.log.fplockv[i]);
+
+#if DEBUG
+			if (getenv("NO_SLOG_LOCK") == NULL)
+#endif
+				socks_unlock(sockscf.log.fplockv[i]);
 			logged = 1;
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
@@ -173,6 +180,12 @@ logformat(priority, buf, buflen, message, ap)
 {
 	size_t bufused;
 	time_t timenow;
+	pid_t pid;
+
+	if (sockscf.state.pid == 0)
+		pid = getpid();
+	else
+		pid = sockscf.state.pid;
 
 	switch (priority) {
 		case LOG_DEBUG:
@@ -186,21 +199,14 @@ logformat(priority, buf, buflen, message, ap)
 	bufused = strftime(buf, buflen, "%h %e %T ", localtime(&timenow));
 
 	bufused += snprintfn(&buf[bufused], buflen - bufused, "(%ld) %s[%lu]: ",
-	(long)timenow, __progname,
-#if SOCKS_SERVER
-	(unsigned long)sockscf.state.pid
-#else /* !SOCKS_SERVER, can't trust saved state. */
-	(unsigned long)getpid()
-#endif /* !SOCKS_SERVER */
-	);
+	(long)timenow, __progname, (unsigned long)pid);
+
 
 	vsnprintf(&buf[bufused], buflen - bufused, message, ap);
 	bufused = strlen(buf);
 
 	if (buf[bufused - 1] != '\n') { /* add ending newline. */
-		if (bufused + 1 >= buflen)
-			bufused = buflen - 1; /* silently truncated. */
-
+		bufused = MIN(bufused, buflen - 2); /* silently truncate. */
 		buf[bufused++] = '\n';
 		buf[bufused++] = NUL;
 	}

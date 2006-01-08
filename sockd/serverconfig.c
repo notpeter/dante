@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.200 2005/07/12 13:06:09 michaels Exp $";
+"$Id: serverconfig.c,v 1.205 2005/11/01 16:40:10 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -354,6 +354,9 @@ showrule(rule)
 	if (rule->bw != NULL)
 		slog(LOG_INFO, "max bandwidth to use: %ld B/s", rule->bw->maxbps);
 
+	if (rule->ss != NULL)
+		slog(LOG_INFO, "max sessions: %d", rule->ss->maxsessions);
+
 	showuser(rule->user);
 
 #if HAVE_PAM
@@ -399,6 +402,9 @@ showclient(rule)
 
 	if (rule->bw != NULL)
 		slog(LOG_INFO, "max bandwidth to use: %ld B/s", rule->bw->maxbps);
+
+	if (rule->ss != NULL)
+		slog(LOG_INFO, "max sessions: %d", rule->ss->maxsessions);
 
 	showlog(&rule->log);
 
@@ -477,21 +483,27 @@ showconfig(sockscf)
 
 	if (sockscf->option.debug) {
 		struct rule_t *rule;
+		struct route_t *route;
 		int count;
 
-		for (count = 0, rule = sockscf->crule; rule != NULL;
-		rule = rule->next)
+		for (count = 0, rule = sockscf->crule; rule != NULL; rule = rule->next)
 			++count;
 		slog(LOG_DEBUG, "client-rules (%d): ", count);
 		for (rule = sockscf->crule; rule != NULL; rule = rule->next)
 			showclient(rule);
 
-		for (count = 0, rule = sockscf->srule; rule != NULL;
-		rule = rule->next)
+		for (count = 0, rule = sockscf->srule; rule != NULL; rule = rule->next)
 			++count;
 		slog(LOG_DEBUG, "socks-rules (%d): ", count);
 		for (rule = sockscf->srule; rule != NULL; rule = rule->next)
 			showrule(rule);
+
+		for (count = 0, route = sockscf->route; route != NULL;
+		route = route->next)
+			++count;
+		slog(LOG_DEBUG, "routes (%d): ", count);
+		for (route = sockscf->route; route != NULL; route = route->next)
+			showroute(route);
 	}
 }
 
@@ -500,6 +512,7 @@ void
 resetconfig(void)
 {
 	struct rule_t *rule;
+	struct route_t *route;
 
 	/*
 	 * internal; don't touch, only settable at start.
@@ -546,7 +559,15 @@ resetconfig(void)
 	}
 	sockscf.crule = NULL;
 
-	/* route; currently not supported in server. */
+	/* and routes. */
+	route = sockscf.route;
+	while (route != NULL) {
+		struct route_t *next = route->next;
+
+		free(route);
+		route = next;
+	}
+	sockscf.route = NULL;
 
 	/* compat, read from configfile. */
 	bzero(&sockscf.compat, sizeof(sockscf.compat));
@@ -932,33 +953,32 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
 
 							switch (state->auth.method) {
 								case AUTHMETHOD_UNAME: {
-									/*
-									 * Got uname/passowrd, which is similar enough.
-									 * Just need to copy name/password from the
-									 * uname object into the pam object.
-									 */
+                          	/* it's a union, make a copy first. */
+                          	const struct authmethod_uname_t uname
+                          	= state->auth.mdata.uname;
 
-									memmove(state->auth.mdata.pam.name,
-									state->auth.mdata.uname.name,
-									strlen(state->auth.mdata.uname.name) + 1);
-
-									memmove(state->auth.mdata.pam.password,
-									state->auth.mdata.uname.password,
-									strlen(state->auth.mdata.uname.password) + 1);
+                          	/* similar enough, just copy name/password. */
+                          	strcpy((char *)state->auth.mdata.pam.name,
+                          	(const char *)uname.name);
+                          	strcpy((char *)state->auth.mdata.pam.password,
+                          	(const char *)uname.password);
 
 									methodischeckable = 1;
 									break;
 								}
 
 								case AUTHMETHOD_RFC931: {
+                          	/* it's a union, make a copy first. */
+                          	const struct authmethod_rfc931_t rfc931
+                          	= state->auth.mdata.rfc931;
+
 									/*
 									 * no password, but we can check for the username 
 									 * we got from ident, with an empty password.
 									 */
 
-									memmove(state->auth.mdata.pam.name,
-									state->auth.mdata.rfc931.name,
-									strlen(state->auth.mdata.rfc931.name) + 1);
+                          	strcpy((char *)state->auth.mdata.pam.name,
+                          	(const char *)rfc931.name);
 
 									*state->auth.mdata.pam.password = NUL;
 
@@ -1268,6 +1288,7 @@ checkrule(rule)
 {
 	size_t i;
 	struct ruleaddress_t ruleaddr;
+	const char *function = "checkrule()";
 
 	if (rule->state.methodc == 0)
 		yywarn("rule allows no methods");
@@ -1312,8 +1333,12 @@ checkrule(rule)
 			yyerror("pamservicename set for rule but not method pam");
 		else
 			if (sockscf.state.pamservicename != NULL
-			&& strcmp(rule->pamservicename, sockscf.state.pamservicename) != 0)
+			&& strcmp(rule->pamservicename, sockscf.state.pamservicename) != 0) {
+				slog(LOG_DEBUG, "%s: %s ne %s",
+				function, rule->pamservicename, sockscf.state.pamservicename);
+
 				sockscf.state.pamservicename = NULL; /* pamservicename varies. */
+			}
 #endif /* HAVE_PAM */
 }
 

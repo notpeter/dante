@@ -1,11 +1,6 @@
-# $Id: TODO,v 1.166 2005/05/11 09:12:26 michaels Exp $
-
-* there is a race condition in bw stuff between rulespermit() and
-  bwuse().
+# $Id: TODO,v 1.168 2005/11/08 16:04:05 michaels Exp $
 
 * change _t struct's to typedef.
-
-* allocate fd_set's with malloc() for overflow protection.
 
 * share host/addr cache across processes.
 

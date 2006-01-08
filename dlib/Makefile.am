@@ -5,7 +5,7 @@ libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c int_osf3.c \
 	../lib/Rrresvport.c ../lib/Rbind.c ../lib/config_scan.l \
 	../lib/address.c ../lib/authneg.c ../lib/client.c   \
 	../lib/clientconfig.c ../lib/clientprotocol.c ../lib/Raccept.c \
-	../lib/userio.c ../lib/method_uname.c ../lib/connectchild.c \
+	../lib/userio.c ../lib/connectchild.c \
 	../lib/config.c ../lib/log.c ../lib/protocol.c ../lib/socket.c \
 	../lib/udp_util.c ../lib/Rbindresvport.c ../lib/Rconnect.c \
 	../lib/util.c ../lib/Rgethostbyname.c ../lib/Rcompat.c \

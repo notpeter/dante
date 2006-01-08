@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.120 2003/07/01 13:21:22 michaels Exp $";
+"$Id: Rconnect.c,v 1.122 2005/10/13 12:38:06 michaels Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -165,9 +165,10 @@ Rconnect(s, name, namelen)
 	fakesockaddr2sockshost(name, &dst);
 
 	bzero(&packet, sizeof(packet));
-	packet.req.host		= dst;
 	packet.req.version	= SOCKS_V5;
+	packet.auth.method	= AUTHMETHOD_NOTSET;
 	packet.req.command	= SOCKS_CONNECT;
+	packet.req.host		= dst;
 
 	if (socks_requestpolish(&packet.req, &src, &dst) == NULL)
 		return connect(s, name, namelen);
@@ -197,6 +198,7 @@ Rconnect(s, name, namelen)
 	if ((p = fcntl(s, F_GETFL, 0)) == -1)
 		return -1;
 
+	errno = 0;
 	if (p & NONBLOCKING)
 		socksfd->route
 		= socks_nbconnectroute(s, socksfd->control, &packet, &src, &dst);

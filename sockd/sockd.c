@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.304 2005/06/10 11:04:04 michaels Exp $";
+"$Id: sockd.c,v 1.310 2005/12/25 17:22:16 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -208,6 +208,7 @@ main(argc, argv, envp)
 
 		close(p);
 	}
+	errno = 0;
 
 	/*
 	 * Check system limits against what we need.
@@ -292,10 +293,6 @@ main(argc, argv, envp)
 		return EXIT_FAILURE;
 	}
 
-	if ((sockscf.state.motherpidv = (pid_t *)malloc(
-	sizeof(*sockscf.state.motherpidv) * sockscf.option.serverc)) == NULL)
-		serrx(EXIT_FAILURE, "%s", NOMEM);
-
 	/*
 	 * Would have liked to move the daemon() call to after the "running"
 	 * message below, but we want to know who our children are.
@@ -323,7 +320,9 @@ main(argc, argv, envp)
 
 	time(&sockscf.stat.boot);
 
-
+	if ((sockscf.state.motherpidv = (pid_t *)malloc(
+	sizeof(*sockscf.state.motherpidv) * sockscf.option.serverc)) == NULL)
+		serrx(EXIT_FAILURE, "%s", NOMEM);
 	*sockscf.state.motherpidv = sockscf.state.pid;	/* main server. */
 
 	/* fork of requested number of servers.  Start at one 'cause we are "it".  */
@@ -641,8 +640,6 @@ sigserverbroadcast(sig)
 {
 	int i;
 
-	SASSERTX(*sockscf.state.motherpidv == sockscf.state.pid);
-
 	for (i = 1; i < sockscf.option.serverc; ++i)
 		if (sockscf.state.motherpidv[i] != 0)
 			kill(sockscf.state.motherpidv[i], sig);
@@ -761,6 +758,8 @@ serverinit(argc, argv, envp)
 	sockscf.state.euid		= geteuid();
 	sockscf.state.type		= CHILD_MOTHER;
 	sockscf.option.serverc	= 1;	/* ourselves. ;-) */
+	sockscf.bwlock				= -1;
+	sockscf.sessionlock		= -1;
 
 	while ((ch = getopt(argc, argv, "DLN:Vdf:hlnvw:")) != -1) {
 		switch (ch) {
@@ -959,7 +958,7 @@ siginfo(sig)
 	(unsigned long)sockscf.stat.io.sendt,
 	(unsigned long)childcheck(-CHILD_IO) - childcheck(CHILD_IO));
 
-	if (*sockscf.state.motherpidv == sockscf.state.pid)	/* main mother */
+	if (pidismother(sockscf.state.pid) == 1)	/* main mother */
 		sigserverbroadcast(sig);
 
 	sigchildbroadcast(sig, CHILD_NEGOTIATE | CHILD_REQUEST | CHILD_IO);
@@ -1065,11 +1064,15 @@ optioninit(void)
 	 * initialize misc. options to sensible default.
 	 */
 
-	sockscf.resolveprotocol		= RESOLVEPROTOCOL_UDP;
-	sockscf.option.keepalive	= 1;
-	sockscf.timeout.negotiate	= SOCKD_NEGOTIATETIMEOUT;
-	sockscf.timeout.io			= SOCKD_IOTIMEOUT;
-	sockscf.external.rotation	= ROTATION_NONE;
+	sockscf.resolveprotocol			= RESOLVEPROTOCOL_UDP;
+	sockscf.option.keepalive		= 1;
+	sockscf.timeout.negotiate		= SOCKD_NEGOTIATETIMEOUT;
+	sockscf.timeout.io				= SOCKD_IOTIMEOUT;
+	sockscf.external.rotation		= ROTATION_NONE;
+#if HAVE_PAM
+	sockscf.state.pamservicename 	= DEFAULT_PAMSERVICENAME;
+#endif
+	
 #if DEBUG
 	sockscf.child.maxidle 		= SOCKD_FREESLOTS;
 #else
@@ -1080,6 +1083,10 @@ optioninit(void)
 static void
 modulesetup(void)
 {
-	bwsetup();
+	shmem_lockall();
+
+	shmem_setup();
 	redirectsetup();
+
+	shmem_unlockall();
 }

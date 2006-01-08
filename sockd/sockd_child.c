@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.144 2005/06/10 11:04:07 michaels Exp $";
+"$Id: sockd_child.c,v 1.146 2005/12/25 17:22:17 michaels Exp $";
 
 #define MOTHER	0	/* descriptor mother reads/writes on.	*/
 #define CHILD	1	/* descriptor child reads/writes on.	*/
@@ -100,6 +100,7 @@ addchild(type)
 	int *childc;
 	void (*childfunction)(struct sockd_mother_t *mother);
 	pid_t pid;
+	const pid_t ourpid = sockscf.state.pid;
 	int optval, flags;
 	int pipev[] = { -1, -1 };
 	int ackpipev[] = { -1, -1 };
@@ -251,8 +252,13 @@ addchild(type)
 			SERRX(type);
 	}
 
+	/* so slog() doesn't log wrong pid if we termintate here. */
+	sockscf.state.pid = 0;
+
 	switch ((pid = fork())) {
 		case -1:
+			sockscf.state.pid = ourpid;
+
 			swarn("%s: fork()", function);
 			closev(pipev, ELEMENTS(pipev));
 			closev(ackpipev, ELEMENTS(ackpipev));
@@ -268,9 +274,9 @@ addchild(type)
 			size_t i, maxfd;
 			struct sigaction sigact;
 
-			sockscf.state.type	= type;
+			newprocinit();
 
-			sockscf.state.pid	= getpid(); /* for logmessage. */
+			sockscf.state.type	= type;
 			slog(LOG_INFO, "created new %schild", childtype2string(type));
 #if 0
 			slog(LOG_DEBUG, "sleeping...");
@@ -354,7 +360,8 @@ addchild(type)
 
 				close((int)i);
 			}
-			newprocinit();
+			errno = 0;
+			newprocinit(); /* called after closing, since it may open it's own. */
 
 			childfunction(&mother);
 			/* NOTREACHED */
@@ -362,6 +369,8 @@ addchild(type)
 
 		default: {
 			struct sockd_child_t *newchildv;
+
+			sockscf.state.pid = ourpid;
 
 			if ((newchildv = (struct sockd_child_t *)realloc(*childv,
 			sizeof(**childv) * (*childc + 1))) == NULL) {

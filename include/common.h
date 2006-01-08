@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.322 2005/05/10 11:16:32 karls Exp $ */
+/* $Id: common.h,v 1.328 2006/01/01 16:44:54 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -892,6 +892,8 @@ do {														\
 #define SOCKS_UNAMEVERSION		1
 
 /* authentication METHOD values. */
+#define AUTHMETHOD_NOTSET		-1
+#define AUTHMETHOD_NOTSETs		"notset"
 #define AUTHMETHOD_NONE			0
 #define AUTHMETHOD_NONEs		"none"
 #define AUTHMETHOD_GSSAPI		1
@@ -953,6 +955,9 @@ do {														\
 
 #define SOCKS_DISCONNECT			(SOCKS_ACCEPT + 1)
 #define SOCKS_DISCONNECTs			"disconnect"
+
+#define SOCKS_UNKNOWN				(SOCKS_DISCONNECT + 1)
+#define SOCKS_UNKNOWNs				"unknown"
 
 
 /* address types */
@@ -1469,15 +1474,6 @@ struct proxyprotocol_t {
 };
 
 
-struct serverstate_t {
-	struct command_t			command;
-	struct extension_t		extension;
-	struct protocol_t			protocol;
-	int							methodv[MAXMETHOD];		/* methods to offer.			*/
-	size_t						methodc;						/* number of methods set.	*/
-	struct proxyprotocol_t	proxyprotocol;
-};
-
 
 struct msproxy_state_t {
 	struct sockaddr_in		controladdr;	/* UDP address of proxyserver.		*/
@@ -1489,11 +1485,6 @@ struct msproxy_state_t {
 	unsigned char				seq_sent;		/* seq number of last packet sent.	*/
 };
 
-
-struct gateway_t {
-	struct sockshost_t			host;
-	struct serverstate_t			state;
-};
 
 /* values in parentheses designate "don't care" values.	*/
 struct socksstate_t {
@@ -1533,22 +1524,19 @@ struct ruleaddress_t {
 	enum operator_t		operator;	/* operator to compare ports via.			*/
 };
 
-struct route_t {
-	int							number;		/* routenumber.								*/
+struct serverstate_t {
+	struct command_t			command;
+	struct extension_t		extension;
+	struct protocol_t			protocol;
+	int							methodv[MAXMETHOD];		/* methods to offer.			*/
+	size_t						methodc;						/* number of methods set.	*/
+	struct proxyprotocol_t	proxyprotocol;
+};
 
-	struct {
-		unsigned bad:1;		/* route is bad?												*/
-		time_t	badtime;		/* if route is bad, time it was marked as such.		*/
-		unsigned direct:1;	/* direct connection, no proxy.							*/
-		unsigned :0;
-	} state;
 
-
-	struct ruleaddress_t		src;
-	struct ruleaddress_t		dst;
-	struct gateway_t			gw;
-
-	struct route_t				*next;		/* next route in list.						*/
+struct gateway_t {
+	struct sockshost_t			host;
+	struct serverstate_t			state;
 };
 
 
@@ -1600,6 +1588,28 @@ struct socksfd_t {
 
 	struct route_t		*route;
 };
+
+
+
+struct route_t {
+	int							number;		/* routenumber.								*/
+
+	struct {
+		unsigned bad:1;		/* route is bad?												*/
+		time_t	badtime;		/* if route is bad, time it was marked as such.		*/
+		unsigned direct:1;	/* direct connection, no proxy.							*/
+		unsigned :0;
+	} state;
+
+
+	struct ruleaddress_t		src;
+	struct ruleaddress_t		dst;
+	struct gateway_t			gw;
+
+	struct route_t				*next;		/* next route in list.						*/
+};
+
+
 
 __BEGIN_DECLS
 
@@ -2002,8 +2012,7 @@ socks_connectroute __P((int s, struct socks_t *packet,
  *
  * Returns:
  *		On success: the route that was used.
- *		On failure: NULL.  If errno is 0, the reason for failure was
- *						that no route was found.
+ *		On failure: NULL.  See errno for reason.  0 means no route exists.
  */
 
 
@@ -2315,6 +2324,140 @@ socks_getpwnam __P((const char *login));
  * Like getpwnam() but works around sysv bug, tries to get the shadow
  * password too.
  */
+
+int
+msproxy_negotiate __P((int s, int control, struct socks_t *packet));
+/*
+ * Negotiates with the msproxy server connected to "control".
+ * "s" gives the socket to be used for dataflow.
+ * "packet" contains the request and on return from the function
+ * contains the response.
+ * Returns:
+ *		On success: 0 (server replied to our request).
+ *		On failure: -1
+ */
+
+
+int
+send_msprequest __P((int s, struct msproxy_state_t *state,
+						  struct msproxy_request_t *packet));
+/*
+ * Sends a msproxy request to "s".
+ * "state" is the current state of the connection to "s",
+ * "packet" is the request to send.
+ */
+
+int
+recv_mspresponse __P((int s, struct msproxy_state_t *state,
+						  struct msproxy_response_t *packet));
+/*
+ * Receives a msproxy response from "s".
+ * "state" is the current state of the connection to "s",
+ * "packet" is the memory the response is read into.
+ */
+
+int
+msproxy_sigio __P((int s));
+/*
+ * Must be called on sockets where we expect the connection to be forwarded
+ * by the msproxy server.
+ * "s" is the socket and must have been added with socks_addaddr() beforehand.
+ * Returns:
+ *		On success: 0
+ *		On failure: -1
+ */
+
+int
+msproxy_init __P((void));
+/*
+ * inits things for using a msproxyserver.
+ *		On success: 0
+ *		On failure: -1
+ */
+
+int
+httpproxy_negotiate __P((int control, struct socks_t *packet));
+/*
+ * Negotiates a method to be used when talking with the server connected
+ * to "s".  "packet" is the packet that will later be sent to server.
+ * packet->res.reply will be set depending on the result of negotiation.
+ * Returns:
+ *		On success: 0 (server accepted our request).
+ *		On failure: -1.
+ */
+
+
+int
+socks_negotiate __P((int s, int control, struct socks_t *packet,
+							struct route_t *route));
+/*
+ * "s" is the socket data will flow over.
+ * "control" is the control connection to the socks server.
+ * "packet" is a socks packet containing the request.
+ *	"route" is the connected route.
+ * Negotiates method and fills the response to the request into packet->res.
+ * Returns:
+ *		On success: 0 (server replied to our request).
+ *		On failure: -1.
+ */
+
+int
+serverreplyisok __P((int version, int reply, struct route_t *route));
+/*
+ * "replycode" is the reply code returned by a socksserver of version
+ * "version".
+ * "route" is the route that was used for the socksserver.  If
+ * the errorcode indicates a serverfailure, it might be "badrouted".
+ * Returns true if the reply indicates request succeeded, false otherwise
+ * and sets errno accordingly.
+ */
+
+
+struct route_t *
+socks_nbconnectroute __P((int s, int control, struct socks_t *packet,
+								  const struct sockshost_t *src,
+								  const struct sockshost_t *dst));
+/*
+ * The non-blocking version of socks_connectroute(), only used by client.
+ * Takes one additional argument, "s", which is the socket to connect
+ * and not necessarily the same as "control" (msproxy case).
+ */
+
+void
+socks_badroute __P((struct route_t *route));
+/*
+ * Marks route "route" as bad.
+ */
+
+int
+negotiate_method __P((int s, struct socks_t *packet));
+/*
+ * Negotiates a method to be used when talking with the server connected
+ * to "s".  "packet" is the packet that will later be sent to server,
+ * only the "auth" element in it will be set but other elements are needed
+ * too.
+ * Returns:
+ *		On success: 0
+ *		On failure: -1
+ */
+
+
+int
+clientmethod_uname __P((int s, const struct sockshost_t *host, int version,
+								unsigned char *name, unsigned char *password));
+/*
+ * Enters username/password negotiation with the socksserver connected to
+ * the socket "s".
+ * "host" gives the name of the server.
+ * "version" gives the socksversion established to use.
+ * "name", if not NULL, gives the name to use for authenticating.
+ * "password", if not NULL, gives the name to use for authenticating.
+ * Returns:
+ *		On success: 0
+ *		On failure: whatever the remote socksserver returned as status.
+ */
+
+
 
 void
 checkmodule __P((const char *name));
