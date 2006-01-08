@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.137 2005/01/24 10:24:22 karls Exp $";
+"$Id: util.c,v 1.138 2005/11/01 14:26:20 michaels Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -909,6 +909,8 @@ socks_lock(descriptor, type, timeout)
 	struct flock lock;
 	int rc;
 
+/*	slog(LOG_DEBUG, "%s: %d", function, descriptor);  */
+
 	SASSERTX(timeout <= 0);
 
 	lock.l_type		= (short)type;
@@ -979,6 +981,9 @@ void
 socks_unlock(d)
 	int d;
 {
+	const char *function = "socks_unlock()"; 
+
+/*	slog(LOG_DEBUG, "%s: %d", function, d);  */
 
 	socks_lock(d, F_UNLCK, -1);
 }

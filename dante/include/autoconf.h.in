@@ -141,6 +141,9 @@
 /* Define to 1 if you have the `issetugid' function. */
 #undef HAVE_ISSETUGID
 
+/* linux version of issetugid() */
+#undef HAVE_LIBC_ENABLE_SECURE
+
 /* use tcpwrappers */
 #undef HAVE_LIBWRAP
 
@@ -165,11 +168,20 @@
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
 
-/* module installed */
+/* module bandwidth installed */
 #undef HAVE_MODULE_BANDWIDTH
 
-/* module installed */
+/* module checkmodule installed */
+#undef HAVE_MODULE_CHECKMODULE
+
+/* module redirect installed */
 #undef HAVE_MODULE_REDIRECT
+
+/* module session installed */
+#undef HAVE_MODULE_SESSION
+
+/* module shmem installed */
+#undef HAVE_MODULE_SHMEM
 
 /* sys/socket.h defines MSG_WAITALL */
 #undef HAVE_MSG_WAITALL
@@ -762,6 +774,12 @@
 #ifndef _ALL_SOURCE
 # undef _ALL_SOURCE
 #endif
+
+/* Number of bits in a file offset, on hosts where this is settable. */
+#undef _FILE_OFFSET_BITS
+
+/* Define for large files, on AIX-style hosts. */
+#undef _LARGE_FILES
 
 /* Define like PROTOTYPES; this can be used by system headers. */
 #undef __PROTOTYPES

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.131 2005/05/28 17:13:25 michaels Exp $";
+"$Id: udp.c,v 1.132 2005/10/11 13:17:13 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -365,6 +365,7 @@ udpsetup(s, to, type)
 
 	bzero(&packet, sizeof(packet));
 	packet.version				= SOCKS_V5;
+	packet.auth.method		= AUTHMETHOD_NOTSET;
 	packet.req.version		= packet.version;
 	packet.req.command		= SOCKS_UDPASSOCIATE;
 	packet.req.flag			|= SOCKS_USECLIENTPORT;

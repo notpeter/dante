@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.54 2005/05/28 17:13:24 michaels Exp $";
+"$Id: authneg.c,v 1.59 2005/10/13 12:17:17 michaels Exp $";
 
 int
 negotiate_method(s, packet)
@@ -52,15 +52,13 @@ negotiate_method(s, packet)
 	struct socks_t *packet;
 {
 	const char *function = "negotiate_method()";
+	unsigned char *name = NULL, *password = NULL;
 	int rc;
 	unsigned char request[ 1						/* version					*/
 								+ 1						/* number of methods.	*/
 								+ AUTHMETHOD_MAX		/* the methods.			*/
 								];
-
-	const size_t requestlen = 1									/* version.		*/
-									+ 1									/* nmethods.	*/
-									+ packet->gw.state.methodc;	/* methods.		*/
+	size_t requestlen = 0;	
 
 	unsigned char response[ 1	/* version.				*/
 								 + 1	/* selected method.	*/
@@ -69,10 +67,27 @@ negotiate_method(s, packet)
 	SASSERTX(packet->gw.state.methodc > 0);
 
 	/* create request packet. */
-	request[AUTH_VERSION]	= packet->req.version;
-	request[AUTH_NMETHODS]	= (unsigned char)packet->gw.state.methodc;
-	for (rc = 0; rc < (int)packet->gw.state.methodc; ++rc)
-		request[AUTH_METHODS + rc] = (unsigned char)packet->gw.state.methodv[rc];
+
+	request[requestlen++] = packet->req.version;
+
+	if (packet->auth.method != AUTHMETHOD_NOTSET) {
+		/* authmethod already fixed. */
+		request[requestlen++] = (unsigned char)1;
+		request[requestlen++] = (unsigned char)packet->auth.method;
+
+		switch (packet->auth.method) {
+			case AUTHMETHOD_UNAME:
+				name 		= packet->auth.mdata.uname.name;
+				password = packet->auth.mdata.uname.password;
+				break;
+		}
+	}
+	else {
+		request[requestlen++]	= (unsigned char)packet->gw.state.methodc;
+		for (rc = 0; rc < (int)packet->gw.state.methodc; ++rc)
+			request[requestlen++] 
+			= (unsigned char)packet->gw.state.methodv[rc];
+	}
 
 	/* send list over methods we support */
 	if (writen(s, request, requestlen, &packet->auth) != (ssize_t)requestlen)
@@ -101,8 +116,8 @@ negotiate_method(s, packet)
 			break;
 
 		case AUTHMETHOD_UNAME:
-			if (clientmethod_uname(s, &packet->gw.host, packet->req.version)
-			== 0)
+			if (clientmethod_uname(s, &packet->gw.host, packet->req.version, name,
+			password) == 0)
 				rc = 0;
 			else
 				rc = -1;

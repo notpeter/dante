@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.13 2005/05/11 15:12:54 michaels Exp $";
+"$Id: tostring.c,v 1.15 2006/01/01 16:45:02 michaels Exp $";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -409,6 +409,9 @@ command2string(command)
 		case SOCKS_DISCONNECT:
 			return QUOTE(SOCKS_DISCONNECTs);
 
+		case SOCKS_UNKNOWN:
+			return QUOTE(SOCKS_UNKNOWNs);
+
 		default:
 			SERRX(command);
 	}
@@ -460,6 +463,9 @@ method2string(method)
 {
 
 	switch (method) {
+		case AUTHMETHOD_NOTSET:
+			return QUOTE(AUTHMETHOD_NOTSETs);
+
 		case AUTHMETHOD_NONE:
 			return QUOTE(AUTHMETHOD_NONEs);
 

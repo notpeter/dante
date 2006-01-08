@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.116 2005/05/28 17:10:12 michaels Exp $";
+"$Id: connectchild.c,v 1.119 2005/12/24 16:44:57 michaels Exp $";
 
 #define MOTHER 0	/* descriptor mother reads/writes on.  */
 #define CHILD	1	/* descriptor child reads/writes on.   */
@@ -274,8 +274,8 @@ socks_nbconnectroute(s, control, packet, src, dst)
 	}
 
 	bzero(&socksfd, sizeof(socksfd));
-	socksfd.route = socks_connectroute(control, packet, src, dst);
-	SASSERTX(socksfd.route != NULL);
+	if ((socksfd.route = socks_connectroute(control, packet, src, dst)) == NULL)
+		return NULL;
 
 	/*
 	 * datasocket probably unbound.  If so we need to bind it so
@@ -643,7 +643,7 @@ run_connectchild(mother)
 			close(s);
 
 			slog(LOG_DEBUG, "raising SIGSTOP");
-			if (kill(sockscf.state.pid, SIGSTOP) != 0)
+			if (raise(SIGSTOP) != 0)
 				serr(EXIT_FAILURE, "raise(SIGSTOP)");
 		}
 	}
@@ -657,7 +657,7 @@ sigchld(sig)
 	const char *function = "sigchld()";
 	const int errno_s = errno;
 	/* CONSTCOND */
-	char string[MAX(sizeof(MAXSOCKADDRSTRING), sizeof(MAXSOCKSHOSTSTRING))];
+	char string[MAX(MAXSOCKADDRSTRING, MAXSOCKSHOSTSTRING)];
 	int status;
 
 	slog(LOG_DEBUG, "%s: connectchild: %d", function, sockscf.connectchild);

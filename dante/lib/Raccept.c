@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.79 2005/01/24 10:24:20 karls Exp $";
+"$Id: Raccept.c,v 1.80 2005/10/11 13:17:10 michaels Exp $";
 
 int
 Raccept(s, addr, addrlen)
@@ -74,7 +74,8 @@ Raccept(s, addr, addrlen)
 	SASSERTX(socksfd != NULL);
 
 	bzero(&packet, sizeof(packet));
-	packet.version = (unsigned char)socksfd->state.version;
+	packet.version 		= (unsigned char)socksfd->state.version;
+	packet.auth.method	= AUTHMETHOD_NOTSET;
 
 	if ((iotype = fcntl(s, F_GETFL, 0)) == -1)
 		return -1;

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.169 2005/05/28 17:07:59 michaels Exp $ */
+/* $Id: socks.h,v 1.171 2005/10/11 10:53:19 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -301,18 +301,6 @@ udpsetup __P((int s, const struct sockaddr *to, int type));
  */
 
 
-int
-negotiate_method __P((int s, struct socks_t *packet));
-/*
- * Negotiates a method to be used when talking with the server connected
- * to "s".  "packet" is the packet that will later be sent to server,
- * only the "auth" element in it will be set but other elements are needed
- * too.
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
 
 int
 socks_sendrequest __P((int s, const struct request_t *request));
@@ -329,51 +317,6 @@ socks_recvresponse __P((int s, struct response_t *response, int version));
  * Receives a socks response from the "s".  "response" is filled in with
  * the data received.
  * "version" is the protocolversion negotiated.
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
-
-int
-socks_negotiate __P((int s, int control, struct socks_t *packet,
-							struct route_t *route));
-/*
- * "s" is the socket data will flow over.
- * "control" is the control connection to the socks server.
- * "packet" is a socks packet containing the request.
- *	"route" is the connected route.
- * Negotiates method and fills the response to the request into packet->res.
- * Returns:
- *		On success: 0 (server replied to our request).
- *		On failure: -1.
- */
-
-
-
-struct route_t *
-socks_nbconnectroute __P((int s, int control, struct socks_t *packet,
-								  const struct sockshost_t *src,
-								  const struct sockshost_t *dst));
-/*
- * The non-blocking version of socks_connectroute(), only used by client.
- * Takes one additional argument, "s", which is the socket to connect
- * and not necessarily the same as "control" (msproxy case).
- */
-
-void
-socks_badroute __P((struct route_t *route));
-/*
- * Marks route "route" as bad.
- */
-
-int
-recv_sockshost __P((int s, struct sockshost_t *host, int version,
-						  struct authmethod_t *auth));
-/*
- * Fills "host" based on data read from "s".  "version" is the version
- * the remote peer is expected to send data in.
- *
  * Returns:
  *		On success: 0
  *		On failure: -1
@@ -503,19 +446,6 @@ fdisopen __P((int fd));
  */
 
 
-int
-clientmethod_uname __P((int s, const struct sockshost_t *host, int version));
-/*
- * Enters username/password negotiation with the socksserver connected to
- * the socket "s".
- * "host" gives the name of the server.
- * "version" gives the socksversion established to use.
- * Returns:
- *		On success: 0
- *		On failure: whatever the remote socksserver returned as status.
- */
-
-
 char *
 socks_getusername __P((const struct sockshost_t *host, char *buf,
 							  size_t buflen));
@@ -540,79 +470,6 @@ socks_getpassword __P((const struct sockshost_t *host, const char *user,
  * Returns:
  *		On success: pointer to "buf" with the password.
  *		On failure: NULL.
- */
-
-
-int
-serverreplyisok __P((int version, int reply, struct route_t *route));
-/*
- * "replycode" is the reply code returned by a socksserver of version
- * "version".
- * "route" is the route that was used for the socksserver.  If
- * the errorcode indicates a serverfailure, it might be "badrouted".
- * Returns true if the reply indicates request succeeded, false otherwise
- * and sets errno accordingly.
- */
-
-int
-msproxy_negotiate __P((int s, int control, struct socks_t *packet));
-/*
- * Negotiates with the msproxy server connected to "control".
- * "s" gives the socket to be used for dataflow.
- * "packet" contains the request and on return from the function
- * contains the response.
- * Returns:
- *		On success: 0 (server replied to our request).
- *		On failure: -1
- */
-
-
-int
-send_msprequest __P((int s, struct msproxy_state_t *state,
-						  struct msproxy_request_t *packet));
-/*
- * Sends a msproxy request to "s".
- * "state" is the current state of the connection to "s",
- * "packet" is the request to send.
- */
-
-int
-recv_mspresponse __P((int s, struct msproxy_state_t *state,
-						  struct msproxy_response_t *packet));
-/*
- * Receives a msproxy response from "s".
- * "state" is the current state of the connection to "s",
- * "packet" is the memory the response is read into.
- */
-
-int
-msproxy_sigio __P((int s));
-/*
- * Must be called on sockets where we expect the connection to be forwarded
- * by the msproxy server.
- * "s" is the socket and must have been added with socks_addaddr() beforehand.
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
-int
-msproxy_init __P((void));
-/*
- * inits things for using a msproxyserver.
- *		On success: 0
- *		On failure: -1
- */
-
-int
-httpproxy_negotiate __P((int control, struct socks_t *packet));
-/*
- * Negotiates a method to be used when talking with the server connected
- * to "s".  "packet" is the packet that will later be sent to server.
- * packet->res.reply will be set depending on the result of negotiation.
- * Returns:
- *		On success: 0 (server replied to our request).
- *		On failure: -1.
  */
 
 #if DIAGNOSTIC

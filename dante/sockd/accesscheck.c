@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.22 2005/05/13 13:37:32 michaels Exp $";
+"$Id: accesscheck.c,v 1.23 2005/10/28 13:33:04 michaels Exp $";
 
 
 int
@@ -170,7 +170,7 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 		 */
 #if HAVE_PAM
 		case AUTHMETHOD_PAM:
-			if (sockscf.state.pamservicename == NULL)
+			if (sockscf.state.pamservicename == NULL) /* varies. */
 				break;
 			/* else; */ /* FALLTHROUGH */
 #endif

@@ -52,7 +52,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.74 2005/08/30 13:46:14 michaels Exp $";
+"$Id: config_scan.l,v 1.76 2005/12/19 14:22:13 michaels Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -129,7 +129,7 @@ PORTNUMBER [0-9]{1,5}
 
 <start_proxyprotocol>msproxy_v2 {
 	yylval.string = yytext;
-	return PROXYPROTOCOL_MSPROXY_V2;
+	return DEPRECATED;
 }
 
 <start_proxyprotocol>http_v1.0 {
@@ -356,6 +356,11 @@ redirect {
 bandwidth {
 	yylval.string = yytext;
 	return BANDWIDTH;
+}
+
+maxsessions {
+	yylval.string = yytext;
+	return MAXSESSIONS;
 }
 
 from {

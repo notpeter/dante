@@ -7,8 +7,10 @@ sockd_SOURCES = ../lib/config_parse.y ../lib/config_scan.l \
 	../lib/hostcache.c ../dlib/interposition.c ../lib/broken.c \
         ../lib/serr.c sockd_io.c accesscheck.c auth_password.c \
 	auth_pam.c ../lib/tostring.c redirect.c redirect_key.c \
-	../lib/addressmatch.c checkmodule.c bandwidth.c bandwidth_key.c \
-	getifa.c
+	../lib/addressmatch.c checkmodule.c shmem.c bandwidth.c bandwidth_key.c \
+	getifa.c ../lib/clientprotocol.c ../lib/httpproxy.c ../lib/authneg.c \
+	session.c session_key.c
+	
 
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c

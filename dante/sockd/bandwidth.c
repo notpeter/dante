@@ -46,34 +46,36 @@
 #include <math.h> /* XXX */
 
 static const char rcsid[] =
-"$Id: bandwidth.c,v 1.6 2003/07/02 12:10:50 karls Exp $";
+"$Id: bandwidth.c,v 1.12 2005/11/02 12:11:28 michaels Exp $";
 
 const char module_bandwidth_version[] =
-"$Id: bandwidth.c,v 1.6 2003/07/02 12:10:50 karls Exp $";
+"$Id: bandwidth.c,v 1.12 2005/11/02 12:11:28 michaels Exp $";
 
 
-void
-bwsetup(void)
-{
-
-}
-
-void
-bwuse(bw)
+int
+bw_use(bw)
 	bw_t *bw;
 {
+	return 1;
+}
 
+bw_t *
+bw_alloc(client, number)
+	int client;
+	int number;
+{
+	return NULL;
 }
 
 void
-bwfree(bw)
+bw_unuse(bw)
 	bw_t *bw;
 {
 
 }
 
 ssize_t
-bwleft(bw)
+bw_left(bw)
 	const bw_t *bw;
 {
 
@@ -81,7 +83,7 @@ bwleft(bw)
 }
 
 void
-bwupdate(bw, bwused, bwusedtime)
+bw_update(bw, bwused, bwusedtime)
 	bw_t *bw;
 	size_t bwused;
 	const struct timeval *bwusedtime;
@@ -90,7 +92,7 @@ bwupdate(bw, bwused, bwusedtime)
 }
 
 struct timeval *
-isbwoverflow(bw, timenow, overflow)
+bw_isoverflow(bw, timenow, overflow)
 	bw_t *bw;
 	const struct timeval *timenow;
 	struct timeval *overflow;

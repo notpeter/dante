@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.203 2005/09/02 14:33:02 michaels Exp $ */
+/* $Id: sockd.h,v 1.215 2005/11/08 15:57:48 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -171,6 +171,8 @@ do {																			\
 #define OPERATION_ABORT			(OPERATION_IO + 1)
 #define OPERATION_ERROR			(OPERATION_ABORT + 1)
 
+#define DENY_SESSIONLIMITs		"session-limit reached"
+
 
 struct compat_t {
 	unsigned reuseaddr:1;				/* set SO_REUSEADDR?								*/
@@ -201,19 +203,39 @@ struct linkedname_t {
 };
 
 typedef struct {
-	unsigned 				expired:1;			/* the rule has expired.				*/
-	int						clients;				/* clients using this bw_t.			*/
+	int					clients;				/* clients using this object.			*/
+	unsigned 			expired:1;			/* the rule has expired.				*/
+	unsigned 			isclientrule:1;	/* is used by clientrule.				*/
+	int					number;				/* rule number using this.				*/
+} shmem_header_t;
+
+typedef struct {
 	struct timeval			time;					/* time of last i/o operation.		*/
 	long						bytes;				/* amount of bytes done at time.		*/
 	long						maxbps;				/* maximal b/s allowed.					*/
 } bw_t;
+
+typedef struct {
+	int						maxsessions;		/* max number of sessions allowed.	*/
+} session_t;
+	
+typedef struct {
+	shmem_header_t			mstate;
+	union {
+		bw_t					bw;
+		session_t			session;
+	} object;
+} shmem_object_t;
+
+
+	
 
 /* linked list over current rules. */
 struct rule_t {
 	struct ruleaddress_t		src;				/* src.										*/
 	struct ruleaddress_t		dst;				/* dst.										*/
 	struct log_t				log;				/* type of logging to do.				*/
-	unsigned int				number;			/* rulenumber.								*/
+	int							number;			/* rulenumber.								*/
 	unsigned long				linenumber;		/* linenumber; info/debugging only.	*/
 	struct serverstate_t		state;
 	struct linkedname_t		*user;			/* name of users allowed.				*/
@@ -230,7 +252,8 @@ struct rule_t {
 	struct ruleaddress_t		rdr_from;
 	struct ruleaddress_t		rdr_to;
 
-	bw_t							*bw;				/* pointer since shared.				*/
+	bw_t							*bw;				/* pointer since will be shared.		*/
+	session_t					*ss;				/* pointer since will be shared.		*/
 
 	struct rule_t				*next;			/* next rule in list.					*/
 };
@@ -264,7 +287,13 @@ struct configstate_t {
 	unsigned						init:1;
 
 #if HAVE_PAM
-	/* allows us to optimize a few things a little based on configuration. */
+	/*
+	 * allows us to optimize a few things a little based on configuration.
+	 * If it is not NULL, it means we are using a fixed pam servicename,
+	 * otherwise, the servicename varies, and we have to set it on a
+	 * rule-by-rule basis
+	 */
+
 	const char 					*pamservicename;		/* have rules with pamdata.	*/
 #endif 
 
@@ -318,7 +347,8 @@ struct childstate_t {
 	int							maxidle;					/* how many can be idle.		*/
 };
 
-/* Make sure to keep in sync with clearconfig(). */
+
+/* Make sure to keep in sync with resetconfig(). */
 struct config_t {
 	struct listenaddress_t		*internalv;				/* internal address'.		*/
 	int								internalc;
@@ -329,15 +359,18 @@ struct config_t {
 	struct rule_t					*srule;					/* socksrules, list.			*/
 	struct route_t					*route;					/* not in use yet.			*/
 
-	bw_t								*bwv;						/* bw for rules.				*/
-	int								bwc;
-
+	shmem_object_t					*bwv;						/* bwmem for rules.			*/
+	size_t							bwc;
 	/*
 	 * should have one for each rule instead, but sadly some systems seem to
 	 * have trouble with sysv-style shared memory/semaphores so we use
 	 * the older/better supported filelock, and a global to at that.
 	 */
 	int								bwlock;					/* lock for modifying bw.	*/
+
+	shmem_object_t					*sessionv;				/* sessionmem for rules.	*/
+	size_t							sessionc;
+	int								sessionlock;			/* lock for sessionv.		*/
 
 	struct compat_t				compat;					/* compatibility options.  */
 	struct extension_t			extension;				/* extensions set.			*/
@@ -410,9 +443,9 @@ struct sockd_io_t {
 	struct sockd_io_direction_t	src;			/* client we receive data from.	*/
 	struct sockd_io_direction_t	dst;			/* remote peer.						*/
 
-	struct rule_t						acceptrule;	/* rule matched for accept().		*/
+	struct rule_t						crule;		/* client rule matched.				*/
 	struct rule_t						rule;			/* matched rule for i/o.			*/
-
+	struct route_t						route;		/* route to next proxy, if used. */
 	struct timeval						time;			/* time of last i/o operation.	*/
 	struct sockd_io_t					*next;		/* for some special cases.			*/
 };
@@ -431,6 +464,9 @@ struct negotiate_state_t {
 	int						(*rcurrent)(int s,
 											   struct request_t *request,
 												struct negotiate_state_t *state);
+	struct sockshost_t	src;									/* client's address. 	*/
+	struct sockshost_t	dst;									/* our address. 			*/
+
 };
 
 struct sockd_negotiate_t {
@@ -440,8 +476,6 @@ struct sockd_negotiate_t {
 	struct negotiate_state_t	negstate;
 	struct rule_t					rule;				/* rule matched for accept().		*/
 	int								s;					/* client connection.				*/
-	struct sockshost_t			src;				/* client address.					*/
-	struct sockshost_t			dst;				/* our address.						*/
 	struct connectionstate_t	state;			/* state of connection.				*/
 };
 
@@ -681,14 +715,6 @@ resetconfig __P((void));
  * resets the current config back to default, freeing memory aswell.
  */
 
-
-void
-send_failure __P((int s, const struct response_t *response, int failure));
-/*
- * Sends a failure message to the client at "s".  "response" is the packet
- * we send, "failure" is the reason for failure and "auth" is the agreed on
- * authentication.
- */
 
 int
 send_response __P((int s, const struct response_t *response));
@@ -1093,50 +1119,142 @@ redirect __P((int s, struct sockaddr *addr, struct sockshost_t *host,
  */
 
 void
-bwsetup __P((void));
+shmem_setup __P((void));
 /*
- * sets up bw structures, must be called at start and after sighup by
+ * sets up shmem structures, must be called at start and after sighup by
  * main mother, but only main mother.
  */
 
+shmem_object_t *
+shmem_alloc __P((int isclientrule, int number, shmem_object_t *poolv,
+							  size_t poolc, int lock));
+/*
+ * Returns a pointer to an object allocated to rule number "number", 
+ * from the pool "poolv".  If a object has already been allocated,
+ * return the previosuly allocated object.
+ * "lock" is used for locking, if it is -1, no locking is enforced.
+ */
+
 void
-bwuse __P((bw_t *bw));
+shmem_unuse __P((shmem_object_t *object, int lock));
+/* 
+ * Says we are no longer using "object".
+ * "lock" is used for locking, if it is -1, no locking is enforced.
+ */
+
+void
+shmem_use __P((shmem_object_t *object, int lock));
+/* 
+ * Marks "object" as in use.
+ * "lock" is used for locking, if it is -1, no locking is enforced.
+ */
+
+void *
+shmem_resize __P((size_t size, void *oldmem, size_t oldsize, int fd));
+/*
+ * Allocates shared memory of size "size", using "fd" for storage.
+ * If "oldmem" is not NULL, it is a pointer to previously allocated
+ * memory of size "oldsize".  The new memory will start at the same
+ * address as "oldmem" if so.
+ *
+ * Returns a pointer to the memory allocated.
+ */
+
+void
+shmem_lockall __P((void));
+/*
+ * Locks all locks related to shared mem use.  Should be used
+ * before calling functions that would get into trouble if 
+ * e.g. a SIGHUP changed rule memory.  E.g. calling rulespermit(),
+ * then before using a shmem object (e.g. bw_use(()), a SIGHUP
+ * is received, which changes the shmem object.
+ */
+
+void
+shmem_unlockall __P((void));
+/*
+ * Unlocks all locks related to shared mem use. 
+ */
+
+int
+bw_use __P((bw_t *bw));
 /*
  * Marks "bw" as in use.
  */
 
 void
-bwfree __P((bw_t *bw));
+bw_unuse __P((bw_t *bw));
 /*
  * Says we are no longer using "bw".
+ * If "bw" is NULL, nothing is done.
  */
 
+bw_t *
+bw_alloc __P((int isclientrule, int number));
+/*
+ * Allocates a bw object to rule number "number". 
+ * "ruleclient" says whether it's a client-rule or not.
+ * Returns a pointer to the allocated bw object.
+*/
+
 ssize_t
-bwleft __P((const bw_t *bw));
+bw_left __P((const bw_t *bw));
 /*
  * Returns how many bytes we should read if the client is restricted
  * by "bw".
  */
 
 void
-bwupdate __P((bw_t *bw, size_t bwused, const struct timeval *bwusedtime));
+bw_update __P((bw_t *bw, size_t bwused, const struct timeval *bwusedtime));
 /*
  * Updates "bw".  "bwused" is the bandwidth used (in bytes) at time
  * "bwusedtime".
  */
 
 struct timeval *
-isbwoverflow __P((bw_t *bw, const struct timeval *timenow,
+bw_isoverflow __P((bw_t *bw, const struct timeval *timenow,
 						struct timeval *overflow));
 /*
  * Checks whether "bw" would overflow if we transfered more data through it.
- * "timenow" is the time now.
+ * "timenow" is the time now,
  * Returns:
  *		If "bw" would overflow: til what time we have to wait until we can
  *		again transfer data through it.  The memory used for those values is
  *		"overflow".
  *
  *		If "bw" would not overflow: NULL.  "overflow" is not touched.
+ */
+
+int
+session_use __P((session_t *ss));
+/*
+ * If limits allow "ss" to be marked as in use, return true, else false.
+ */
+
+void
+session_unuse __P((session_t *ss));
+/*
+ * Says we are no longer using "ss".
+ */
+
+session_t *
+session_alloc __P((int isclientrule, int number));
+/*
+ * Allocates a session object to rule number "number". 
+ * "ruleclient" says whether it's a client-rule or not.
+ * Returns a pointer to the allocated session object.
+*/
+
+ssize_t
+session_left __P((session_t *ss));
+/*
+ * Returns how many sessions are left if the client is restricted
+ * by "ss".   
+ *
+ * Returns the number of sessions left for use.  If "use" is set,
+ * this is the number left after "ss" has been set to use, which
+ * will be negative if the session-limit was reached, and "ss"
+ * was thus not set to use.
  */
 
 

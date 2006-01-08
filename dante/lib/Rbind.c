@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.118 2005/01/24 10:24:21 karls Exp $";
+"$Id: Rbind.c,v 1.120 2006/01/03 16:54:03 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -103,7 +103,7 @@ Rbind(s, name, namelen)
 				 * Do a little testing on what caused the error.
 				*/
 
-				namelen = sizeof(addr);
+				addrlen = sizeof(addr);
 				/* LINTED pointer casts may be troublesome */
 				if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0
 				||  addr.sin_port == htons(0)) {
@@ -168,6 +168,7 @@ Rbind(s, name, namelen)
 
 	bzero(&packet, sizeof(packet));
 	packet.req.version					= SOCKS_V5;
+	packet.auth.method					= AUTHMETHOD_NOTSET;
 	packet.req.command					= SOCKS_BIND;
 	packet.req.host.atype				= SOCKS_ADDR_IPV4;
 	/* try to get a server that supports our bindextension. */
@@ -176,7 +177,7 @@ Rbind(s, name, namelen)
 	packet.req.host.port					= TOIN(&socksfd.local)->sin_port;
 
 	if (socks_requestpolish(&packet.req, NULL, NULL) == NULL)
-		return 0;	/* socket bound, assume ok. */
+		return 0; /* no route, socket bound, hope local bind is enough. */
 
 	packet.version = packet.req.version;
 

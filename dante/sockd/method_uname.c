@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.49 2005/06/08 08:59:22 michaels Exp $";
+"$Id: method_uname.c,v 1.51 2005/10/28 13:33:42 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -207,7 +207,6 @@ recv_passwd(s, request, state)
 	unsigned char response[1				/* version. */
 								+ 1				/* status.	*/
 	];
-	const int method_original = request->auth->method;
 
 	INIT(plen);
 	CHECK(request->auth->mdata.uname.password + 1, request->auth, NULL);
@@ -222,7 +221,7 @@ recv_passwd(s, request, state)
 	 * since we don't know what authentication to use yet.  It could
 	 * be username, but it could also be PAM, or some future method. 
 	 * It depends on what the socks request is.  We therfor would have
-	 * liked to give the * client success status back no matter what 
+	 * liked to give the client success status back no matter what 
 	 * the username/password is, and later deny the connection if need be.
 	 *
 	 * This however creates problems with clients that, naturally, cache
@@ -235,35 +234,52 @@ recv_passwd(s, request, state)
 	response[UNAME_VERSION] = request->auth->mdata.uname.version;
 	switch (passworddbisunique()) {
 		case 0:
-			response[UNAME_STATUS] = (unsigned char)0; /* Return ok. */
+			/* Return ok, check correct db later. . */
+			response[UNAME_STATUS] = (unsigned char)0;
 			break;
 
 #if HAVE_PAM
-		case AUTHMETHOD_PAM:
+		case AUTHMETHOD_PAM: {
+			/* it's a union, make a copy first. */
+			const struct authmethod_uname_t uname
+			= request->auth->mdata.uname;
+
 			request->auth->method = AUTHMETHOD_PAM;
 
-			SASSERTX(strlen(sockscf.state.pamservicename)
-			< sizeof(request->auth->mdata.pam.servicename));
+			/* move from uname object into pam object. */
+			strcpy((char *)request->auth->mdata.pam.name,
+			(const char *)uname.name);
+			strcpy((char *)request->auth->mdata.pam.password,
+			(const char *)uname.password);
+
+        	SASSERTX(strlen(sockscf.state.pamservicename)
+        	< sizeof(request->auth->mdata.pam.servicename));
+
 			strcpy(request->auth->mdata.pam.servicename,
 			sockscf.state.pamservicename);
 			/* FALLTHROUGH */
+		}
 #endif
 
-		case AUTHMETHOD_UNAME:
-			if (accesscheck(s, request->auth, NULL, NULL, state->emsg,
+		case AUTHMETHOD_UNAME: {
+			struct sockaddr src, dst;
+
+			
+			sockshost2sockaddr(&state->src, &src);
+			sockshost2sockaddr(&state->src, &dst);
+
+			if (accesscheck(s, request->auth, &src, &dst, state->emsg,
 			sizeof(state->emsg)))
 				response[UNAME_STATUS] = (unsigned char)0; /* OK. */
 			else
 				response[UNAME_STATUS] = (unsigned char)1; /* Not OK. */
 
 			break;
+		}
 
 		default:
 			SERRX(passworddbisunique);
 	}
-
-	request->auth->method = method_original;
-
 
 	if (writen(s, response, sizeof(response), request->auth) != sizeof(response))
 		return -1;

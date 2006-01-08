@@ -44,7 +44,20 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.45 2005/01/24 10:24:21 karls Exp $";
+"$Id: clientprotocol.c,v 1.51 2005/12/28 18:22:41 michaels Exp $";
+
+static int
+recv_sockshost __P((int s, struct sockshost_t *host, int version,
+						  struct authmethod_t *auth));
+/*
+ * Fills "host" based on data read from "s".  "version" is the version
+ * the remote peer is expected to send data in.
+ *
+ * Returns:
+ *		On success: 0
+ *		On failure: -1
+ */
+
 
 int
 socks_sendrequest(s, request)
@@ -162,7 +175,6 @@ socks_recvresponse(s, response, version)
 				function, response->version, SOCKS_V4REPLY_VERSION);
 				return -1;
 			}
-			response->version = SOCKS_V4; /* silly v4 semantics, ignore it. */
 
 			/* CD */
 			memcpy(&response->reply, p, sizeof(response->reply));
@@ -229,6 +241,7 @@ socks_recvresponse(s, response, version)
 }
 
 
+/* ARGSUSED */
 int
 socks_negotiate(s, control, packet, route)
 	int s;
@@ -244,6 +257,9 @@ socks_negotiate(s, control, packet, route)
 			/* FALLTHROUGH */ /* rest is like v4, which doesn't have method. */
 
 		case SOCKS_V4:
+			packet->req.auth = &packet->auth;
+			packet->res.auth = &packet->auth;
+
 			if (socks_sendrequest(control, &packet->req) != 0)
 				return -1;
 
@@ -252,10 +268,12 @@ socks_negotiate(s, control, packet, route)
 				return -1;
 			break;
 
+#if SOCKS_CLIENT
 		case MSPROXY_V2:
 			if (msproxy_negotiate(s, control, packet) != 0)
 				return -1;
 			break;
+#endif
 
 		case HTTP_V1_0:
 			if (httpproxy_negotiate(control, packet) != 0)
@@ -272,7 +290,7 @@ socks_negotiate(s, control, packet, route)
 }
 
 
-int
+static int
 recv_sockshost(s, host, version, auth)
 	int s;
 	struct sockshost_t *host;
@@ -282,7 +300,8 @@ recv_sockshost(s, host, version, auth)
 	const char *function = "recv_sockshost()";
 
 	switch (version) {
-		case SOCKS_V4: {
+		case SOCKS_V4: 
+		case SOCKS_V4REPLY_VERSION: {
 			/*
 			 * DSTPORT  DSTIP
 			 *   2    +   4
@@ -379,4 +398,254 @@ recv_sockshost(s, host, version, auth)
 	}
 
 	return 0;
+}
+
+
+int
+serverreplyisok(version, reply, route)
+	int version;
+	int reply;
+	struct route_t *route;
+{
+	const char *function = "serverreplyisok()";
+
+	slog(LOG_DEBUG, "%s: version %d, reply %d", function, version, reply);
+
+	switch (version) {
+		case SOCKS_V4REPLY_VERSION:
+			switch (reply) {
+				case SOCKSV4_SUCCESS:
+					return 1;
+
+				case SOCKSV4_FAIL:
+					errno = ECONNREFUSED;
+					break;
+
+				case SOCKSV4_NO_IDENTD:
+					swarnx("%s: proxyserver failed to get your identd response",
+					function);
+					errno = ECONNREFUSED;
+					return 0;
+
+				case SOCKSV4_BAD_ID:
+					swarnx("%s: proxyserver claims username/ident mismatch",
+					function);
+					errno = ECONNREFUSED;
+					return 0;
+
+				default:
+					swarnx("%s: unknown v%d reply from proxyserver: %d",
+					function, version, reply);
+					errno = ECONNREFUSED;
+					break;
+			}
+			break;
+
+		case SOCKS_V5:
+			switch (reply) {
+				case SOCKS_SUCCESS:
+					return 1;
+
+				case SOCKS_FAILURE:
+					swarnx("%s: unknown proxyserver failure", function);
+					errno = ECONNREFUSED;
+					break;
+
+				case SOCKS_NOTALLOWED:
+					swarnx("%s: connection denied by proxyserver", function);
+					errno = ECONNREFUSED;
+					return 0;
+
+				case SOCKS_NETUNREACH:
+					errno = ENETUNREACH;
+					return 0;
+
+				case SOCKS_HOSTUNREACH:
+					errno = EHOSTUNREACH;
+					return 0;
+
+				case SOCKS_CONNREFUSED:
+					errno = ECONNREFUSED;
+					return 0;
+
+				case SOCKS_TTLEXPIRED:
+					errno = ETIMEDOUT;
+					return 0;
+
+				case SOCKS_CMD_UNSUPP:
+					swarnx("%s: command not supported by proxyserver", function);
+					errno = ECONNREFUSED;
+					break;
+
+				case SOCKS_ADDR_UNSUPP:
+					swarnx("%s: address type not supported by proxyserver",
+					function);
+					errno = ECONNREFUSED;
+					break;
+
+				default:
+					swarnx("%s: unknown v%d reply from proxyserver: %d",
+					function, version, reply);
+					errno = ECONNREFUSED;
+					break;
+			}
+			break;
+
+		case MSPROXY_V2:
+			switch (reply) {
+				case MSPROXY_SUCCESS:
+					return 1;
+
+				case MSPROXY_FAILURE:
+				case MSPROXY_CONNREFUSED:
+					errno = ECONNREFUSED;
+					return 0;
+
+				case MSPROXY_NOTALLOWED:
+					swarnx("%s: connection denied by proxyserver: authenticated?",
+					function);
+					errno = ECONNREFUSED;
+					return 0;
+
+				default:
+					swarnx("%s: unknown v%d reply from proxyserver: %d",
+					function, version, reply);
+					errno = ECONNREFUSED;
+					return 0;
+			}
+
+		case HTTP_V1_0:
+			switch (reply) {
+				case HTTP_SUCCESS:
+					return 1;
+
+				default:
+					errno = ECONNREFUSED;
+					return 0;
+			}
+			/* NOTREACHED */
+			break;
+
+		default:
+			SERRX(version);
+	}
+
+	if (route != NULL)
+		socks_badroute(route);
+
+	return 0;
+}
+
+/* ARGSUSED */
+int
+clientmethod_uname(s, host, version, name, password)
+	int s;
+	const struct sockshost_t *host;
+	int version;
+	unsigned char *name, *password;
+{
+	const char *function = "clientmethod_uname()";
+	static struct authmethod_uname_t uname;	/* cached userinfo.					*/
+#if SOCKS_CLIENT
+	static struct sockshost_t unamehost;		/* host cache was gotten for.		*/
+#endif
+	static int unameisok;							/* cached data is ok?				*/
+	unsigned char *offset;
+	unsigned char request[ 1					/* version.				*/
+								+ 1					/* username length.	*/
+								+ MAXNAMELEN		/* username.			*/
+								+ 1					/* password length.	*/
+								+ MAXPWLEN			/* password.			*/
+	];
+	unsigned char response[ 1 /* version.	*/
+								 +	1 /* status.	*/
+	];
+
+
+	switch (version) {
+		case SOCKS_V5:
+			break;
+
+		default:
+			SERRX(version);
+	}
+
+#if SOCKS_CLIENT
+	if (memcmp(&unamehost, host, sizeof(unamehost)) != 0)
+		unameisok = 0;	/* not same host as cache was gotten for. */
+#endif
+
+
+	/* fill in request. */
+
+	offset = request;
+	*offset++ = (unsigned char)SOCKS_UNAMEVERSION;
+
+	if (!unameisok) {
+#if SOCKS_CLIENT
+		if (name == NULL
+		&& (name = (unsigned char *)socks_getusername(host, (char *)offset + 1,
+		MAXNAMELEN)) == NULL) {
+			swarn("%s: could not determine username of client", function);
+			return -1;
+		}
+#endif
+		SASSERTX(strlen((char *)name) < sizeof(uname.name));
+		strcpy((char *)uname.name, (char *)name);
+	}
+	else
+		name = uname.name;
+
+	/* first byte gives length. */
+	*offset = (unsigned char)strlen((char *)name);
+	OCTETIFY(*offset);
+	strcpy((char *)offset + 1, (char *)name);
+	offset += *offset + 1;
+
+	if (!unameisok) {
+#if SOCKS_CLIENT
+		if (password == NULL
+		&& (password = (unsigned char *)socks_getpassword(host, (char *)name,
+		(char *)offset + 1, MAXPWLEN)) == NULL) {
+			swarn("%s: could not determine password of client", function);
+			return -1;
+		}
+#endif
+		SASSERTX(strlen((char *)password) < sizeof(uname.password));
+		strcpy((char *)uname.password, (char *)password);
+	}
+	else
+		password = uname.password;
+
+	/* first byte gives length. */
+	*offset = (unsigned char)strlen((char *)password);
+	OCTETIFY(*offset);
+	strcpy((char *)offset + 1, (char *)password);
+	offset += *offset + 1;
+
+	if (writen(s, request, (size_t)(offset - request), NULL)
+	!= offset - request) {
+		swarn("%s: writen()", function);
+		return -1;
+	}
+
+	if (readn(s, response, sizeof(response), NULL) != sizeof(response)) {
+		swarn("%s: readn()", function);
+		return -1;
+	}
+
+	if (request[UNAME_VERSION] != response[UNAME_VERSION]) {
+		swarnx("%s: sent v%d, got v%d",
+		function, request[UNAME_VERSION], response[UNAME_VERSION]);
+		return -1;
+	}
+
+	if (response[UNAME_STATUS] == 0) { /* server accepted. */
+#if SOCKS_CLIENT
+		unamehost = *host;
+		unameisok = 1;
+#endif
+	}
+
+	return response[UNAME_STATUS];
 }

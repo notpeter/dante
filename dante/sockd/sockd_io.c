@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.223 2005/06/03 12:13:23 michaels Exp $";
+"$Id: sockd_io.c,v 1.231 2005/12/25 17:18:08 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -205,7 +205,7 @@ do { \
 		io->time = timenow; \
 \
 		if (io->rule.bw != NULL) { \
-			bwupdate(io->rule.bw, bwused, &io->time); \
+			bw_update(io->rule.bw, bwused, &io->time); \
 		} \
 	} \
 } while (lintnoloop_sockd_h)
@@ -220,7 +220,6 @@ do { \
 								(vvp)->tv_usec += 1000000;                      \
 					}                                                       \
 			} while (0)
-
 
 
 __END_DECLS
@@ -467,55 +466,72 @@ delete_io(mother, io, fd, status)
 {
 	const char *function = "delete_io()";
 	const int errno_s = errno;
-	struct rule_t *rule;
+	struct rule_t *rulev[2];
+	size_t i;
 
 	SASSERTX(io->allocated);
 
-	if (io->state.protocol == SOCKS_TCP) /* udp rules are temporary. */
+	if (io->state.protocol == SOCKS_TCP) { /* udp rules are temporary. */
 		/* request handled. */
-		bwfree(io->rule.bw);
+		bw_unuse(io->rule.bw);
+		session_unuse(io->rule.ss);
+	}
 
-	/*
-	 * if client or socks-rules specifies logging disconnect, log, but once.
-	 * XXX this is actually wrong.  We should log twice and the logmessages
-	 * should be different for client-rule and socks-rule.
-	 */
-	if (io->rule.log.disconnect)
-		rule = &io->rule;
-	else if (io->acceptrule.log.disconnect)
-		rule = &io->acceptrule;
-	else
-		rule = NULL;
-
-	if (rule != NULL && rule->log.disconnect) {
+	/* log the disconnect if client-rule or socks-rule says so. */
+	rulev[0] = &io->crule;
+	rulev[1] = &io->rule;
+	for (i = 0; i < ELEMENTS(rulev); ++i) {
 		/* LINTED constant in conditional context */
 		char in[MAXSOCKADDRSTRING + MAXAUTHINFOLEN];
 		char out[sizeof(in)];
 		char logmsg[sizeof(in) + sizeof(out) + 1024];
 		int p;
+		const struct rule_t *rule = rulev[i];
 
-		authinfo(&io->src.auth, in, sizeof(in)); p = strlen(in);
-		/* LINTED pointer casts may be troublesome */
-		sockaddr2string(&io->src.raddr, &in[p], sizeof(in) - p);
+		if (!rule->log.disconnect)
+			continue;
 
-		authinfo(&io->dst.auth, out, sizeof(out));
-		p = strlen(out);
+		if (rule == &io->crule) { /* client-rule */
+			authinfo(&io->control.auth, in, sizeof(in)); p = strlen(in);
+			/* LINTED pointer casts may be troublesome */
+			sockaddr2string(&io->control.raddr, &in[p], sizeof(in) - p);
 
-		switch (io->state.command) {
-			case SOCKS_BIND:
-			case SOCKS_BINDREPLY:
-			case SOCKS_CONNECT:
-				/* LINTED pointer casts may be troublesome */
-				sockaddr2string(&io->dst.raddr, &out[p], sizeof(out) - p);
-				break;
+			authinfo(&io->control.auth, out, sizeof(out));
+			p = strlen(out);
 
-			case SOCKS_UDPASSOCIATE:
-				snprintfn(&out[p], sizeof(out) - p, "`world'");
-				break;
-
-			default:
-				SERRX(io->state.command);
+			sockaddr2string(&io->control.laddr, &out[p], sizeof(out) - p);
 		}
+		else if (rule == &io->rule) { /* socks rule. */
+			authinfo(&io->src.auth, in, sizeof(in)); p = strlen(in);
+			/* LINTED pointer casts may be troublesome */
+			sockaddr2string(&io->src.raddr, &in[p], sizeof(in) - p);
+
+			authinfo(&io->dst.auth, out, sizeof(out));
+			p = strlen(out);
+
+			switch (io->state.command) {
+				case SOCKS_BIND:
+				case SOCKS_BINDREPLY:
+					/* LINTED pointer casts may be troublesome */
+					sockaddr2string(&io->dst.raddr, &out[p], sizeof(out) - p);
+					break;
+
+				case SOCKS_CONNECT:
+					/* LINTED pointer casts may be troublesome */
+					sockshost2string(&io->dst.host, &out[p], sizeof(out) - p);
+					break;
+
+				case SOCKS_UDPASSOCIATE:
+					snprintfn(&out[p], sizeof(out) - p, "`world'");
+					break;
+
+				default:
+					SERRX(io->state.command);
+			}
+		}
+		else
+			SERRX(0);
+
 
 		snprintfn(logmsg, sizeof(logmsg),
 		"%s(%d): %s/%s ]: %lu -> %s -> %lu,  %lu -> %s -> %lu",
@@ -703,8 +719,11 @@ recv_io(s, io)
 	/* LINTED pointer casts may be troublesome */
 	CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
 
-	if (recvmsg(s, &msg, 0) != (ssize_t)length) {
-		swarn("%s: recvmsg()", function);
+	if ((i = recvmsg(s, &msg, 0)) != (ssize_t)length) {
+		if (i == 0)
+			slog(LOG_DEBUG, "%s: recvmsg(): mother closed connection", function);
+		else
+			swarn("%s: recvmsg()", function);
 		return -1;
 	}
 
@@ -862,15 +881,15 @@ doio(mother, io, rset, wset, flags)
 			if (io->rule.bw != NULL) {
 				ssize_t left;
 
-				if ((left = bwleft(io->rule.bw)) <= 0) {
+				if ((left = bw_left(io->rule.bw)) <= 0) {
 					/*
-					 * update data (new time) so next bwleft() presumably
+					 * update data (new time) so next bw_left() presumably
 					 * has some left.
-					 * No harm in calling bwupdate() without le 0 check, but
+					 * No harm in calling bw_update() without le 0 check, but
 					 * maybe this is smarter (avoids extra lock in gt 0 case).
 					 */
-					bwupdate(io->rule.bw, 0, &timenow);
-					left = bwleft(io->rule.bw);
+					bw_update(io->rule.bw, 0, &timenow);
+					left = bw_left(io->rule.bw);
 				}
 
 				if ((bufsize = MIN(sizeof(buf), (size_t)left)) == 0)
@@ -884,7 +903,6 @@ doio(mother, io, rset, wset, flags)
 
 			/* from in to out ... */
 			if (FD_ISSET(io->src.s, rset) && FD_ISSET(io->dst.s, wset)) {
-
 				bad = -1;
 				r = io_rw(&io->src, &io->dst, &bad, buf, bufsize, flags);
 				if (bad != -1) {
@@ -1053,12 +1071,19 @@ doio(mother, io, rset, wset, flags)
 
 				io->dst.host = header.host;
 
+				if (sockscf.bwlock != -1)
+					socks_lock(sockscf.bwlock, F_WRLCK, -1);
+
 				/* is the packet to be permitted out? */
 				permit = rulespermit(io->src.s, &io->control.raddr,
 				&io->control.laddr, &io->rule, &io->state, &io->src.host,
 				&io->dst.host, NULL, 0);
 
-				bwuse(io->rule.bw);
+				if (io->rule.bw != NULL)
+					bw_use(io->rule.bw);
+
+				if (sockscf.bwlock != -1)
+					socks_unlock(sockscf.bwlock);
 
 				/* set r to bytes sent by client sans socks UDP header. */
 				r -= PACKETSIZE_UDP(&header);
@@ -1068,14 +1093,14 @@ doio(mother, io, rset, wset, flags)
 				&buf[PACKETSIZE_UDP(&header)], (size_t)r);
 
 				if (!permit) {
-					bwfree(io->rule.bw);
+					bw_unuse(io->rule.bw);
 					break;
 				}
 
 				if (redirect(io->dst.s, &io->dst.laddr, &io->dst.host,
 				io->state.command, &io->rule.rdr_from, &io->rule.rdr_to) != 0) {
 					swarn("%s: redirect()", function);
-					bwfree(io->rule.bw);
+					bw_unuse(io->rule.bw);
 					break;
 				}
 
@@ -1092,8 +1117,8 @@ doio(mother, io, rset, wset, flags)
 				io->dst.written += MAX(0, w);
 				bwused = MAX(0, w);
 				BWUPDATE(io, timenow, bwused);
-				/* for the lack of anything better, see bwupdate(). */
-				bwfree(io->rule.bw);
+				/* for the lack of anything better, see bw_update(). */
+				bw_unuse(io->rule.bw);
 			}
 
 
@@ -1160,7 +1185,8 @@ doio(mother, io, rset, wset, flags)
 				&io->control.laddr, &io->rule, &state, &rfromhost,
 				&io->src.host, NULL, 0);
 
-				bwuse(io->rule.bw);
+				if (io->rule.bw != NULL)
+					bw_use(io->rule.bw);
 
 				io->dst.auth = io->state.auth;
 
@@ -1168,7 +1194,7 @@ doio(mother, io, rset, wset, flags)
 				fromlen = sizeof(rfrom);
 				if ((r = socks_recvfrom(io->dst.s, buf, io->src.sndlowat, lflags,
 				&rfrom, &fromlen, &io->dst.auth)) == -1) {
-					bwfree(io->rule.bw);
+					bw_unuse(io->rule.bw);
 					delete_io(mother, io, io->dst.s, r);
 					return;
 				}
@@ -1179,7 +1205,7 @@ doio(mother, io, rset, wset, flags)
 				&io->dst.auth, &io->src.host, &io->src.auth, buf, (size_t)r);
 
 				if (!permit) {
-					bwfree(io->rule.bw);
+					bw_unuse(io->rule.bw);
 					break;
 				}
 
@@ -1187,7 +1213,7 @@ doio(mother, io, rset, wset, flags)
 				if (redirect(io->src.s, &rfrom, &replyto,
 				state.command, &io->rule.rdr_from, &io->rule.rdr_to) != 0) {
 					swarn("%s: redirect()", function);
-					bwfree(io->rule.bw);
+					bw_unuse(io->rule.bw);
 					break;
 				}
 
@@ -1195,13 +1221,13 @@ doio(mother, io, rset, wset, flags)
 					/* need to redirect reply. */
 					if ((s = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
 						swarn("%s: socket()", function);
-						bwfree(io->rule.bw);
+						bw_unuse(io->rule.bw);
 						break;
 					}
 
 					if (socks_connect(s, &replyto) != 0) {
 						swarn("%s: socks_connect()", function);
-						bwfree(io->rule.bw);
+						bw_unuse(io->rule.bw);
 						break;
 					}
 				}
@@ -1228,8 +1254,8 @@ doio(mother, io, rset, wset, flags)
 					close(s);
 
 				BWUPDATE(io, timenow, bwused);
-				/* for the lack of anything better, see bwupdate(). */
-				bwfree(io->rule.bw);
+				/* for the lack of anything better, see bw_update(). */
+				bw_unuse(io->rule.bw);
 			}
 			break;
 		}
@@ -1280,29 +1306,32 @@ io_rw(in, out, bad, buf, bufsize, flag)
 
 	/* we receive oob inline. */
 	len = MIN(bufsize, flag & MSG_OOB ? 1 : out->sndlowat);
+
+	/* read data from in ... */
 	if ((r = socks_recvfrom(in->s, buf, len, flag & ~MSG_OOB, NULL, NULL,
 	&in->auth)) <= 0) {
 		if (r == 0) {
 			/*
-			 * FIN from "in", it won't send us any more data, so
+			 * FIN from "in".  It won't send us any more data, so
 			 * we shutdown "out" for writting to let it know.
 			 * When "out" has nothing more to send, it will
 			 * send an FIN too, and we will shutdown "in" for writting.
 			 * At that point, both "in" and "out" has sent an FIN,
 			 * meaning, none of them will send us any more data.
-			 * Only then can we close the socket.
+			 * Only then can we close the socket.  Since we may
+			 * clear state.fin however, state.shutdown should be used
+			 * for testing here.
 			 */
-
 			in->state.fin = 1;
 
-			if (out->state.fin) /* have FIN from "out" already, now "in" too. */
-				*bad = out->s; /* done with this socket, and "out" closed first. */
-			else 
-				if (!out->state.shutdown_wr)
-					if (shutdown(out->s, SHUT_WR) != 0) /* but continue read. */
-						swarn("%s: shutdown()", function);
-					else
-						out->state.shutdown_wr = 1;
+			if (in->state.shutdown_wr) /* means we have received FIN from out. */
+				*bad = out->s; /* done with this socket, "out" closed first. */
+
+			if (!out->state.shutdown_wr) /* use shutdown() to forward FIN. */
+				if (shutdown(out->s, SHUT_WR) != 0) /* but continue reading. */
+					swarn("%s: shutdown()", function);
+				else
+					out->state.shutdown_wr = 1;
 		}
 		else
 			*bad = in->s;
@@ -1320,21 +1349,29 @@ io_rw(in, out, bad, buf, bufsize, flag)
 	else
 		in->flags &= ~MSG_OOB;	/* did not read oob data.	*/
 
+	/* ... and send the data read to out. */
 	if ((w = socks_sendto(out->s, buf, (size_t)r, flag, NULL, 0, &out->auth))
 	!= r) {
 		*bad = out->s;
-
-		if (out->state.fin)
-			/*
-			 * write failed because client has sent eof, expected and normal. 
-			 * Returning 0 makes it clear that was the reson so the
-			 * logmessage is correct.
-			 */
-			w = 0;
 		return w;
 	}
 	out->written += w;
-	/* we want to select for read again, to make sure we get write errors. */
+	/*
+	 * we want to select for read again on socket we sent data out on,
+	 * regardless of whether we have received a FIN from it, to get
+	 * write errors.  
+	 * XXX
+	 * Unfortunatly, there's no way to make select() not keep
+	 * returning ready-for-read once the client has sent the FIN, 
+	 * and we do not want to busy-loop around this.  What we would want
+	 * to, is to only select for error on the socket after we receive
+	 * a FIN.
+	 * Best we can do is to let io_fillset() skip sockets that
+	 * have state.fin set, and reset state.fin if we send data on on the
+	 * socket, hoping to catch any pending errors on second go round.
+	 * This means some sessions can occupy space for a long time, until
+	 * tcp keep-alive check kicks in.
+	 */
 	out->state.fin = 0;
 
 	return w;
@@ -1437,7 +1474,7 @@ io_fillset(set, antiflags, timenow)
 			if (io->rule.bw != NULL) {
 				struct timeval new_bwoverflow;
 
-				if (isbwoverflow(io->rule.bw, timenow, &new_bwoverflow) != NULL) {
+				if (bw_isoverflow(io->rule.bw, timenow, &new_bwoverflow) != NULL) {
 					if (!timerisset(&bwoverflow)
 					|| timercmp(&new_bwoverflow, &bwoverflow, <))
 						bwoverflow = new_bwoverflow;

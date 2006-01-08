@@ -1,6 +1,6 @@
-%@(#)$Id: bandwidth.tex,v 1.11 2005/11/03 13:24:17 michaels Exp $
+%@(#)$Id: session.tex,v 1.2 2005/11/03 13:24:17 michaels Exp $
 %/*
-% * Copyright (c) 2001
+% * Copyright (c) 2005
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
 % *
 % * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 \usepackage{babel}
 \usepackage{html}
 
-\title{\emph{Dante}, Module \emph{Bandwidth}}
+\title{\emph{Dante}, Module \emph{Session}}
 \author{
 	Inferno Nettverk A/S \\
 	Oslo Research Park   \\
@@ -67,37 +67,36 @@
 \setcounter{page}{1}
 
 \section{Description}
- The \emph{Bandwidth} module gives you control over how much
- bandwidth the \emph{Dante} server uses on behalf of the
- clients.
+ The \emph{Session} module gives you control over how many con-current
+ sessions the \emph{Dante} server will allow different user to
+ create.
 
- It can be used to limit bandwidth to non-work related web/ftp
- sites, or to prevent ftp-related traffic from impacting too much
- on interactive telnet/ssh traffic.
-
- It can also be used to give more bandwidth to certain clients
- or for traffic to certain cites.
-
- In addition, when using the \emph{Dante} \emph{bind extension}, it
- can be used to provide bandwidth control to networkservers
- (like e.g. webservers) that do not support bandwidth control internally.
+ It can be used to limit the number of active sessions going to
+ certain non-related web/ftp-sites for instance, or impose different
+ limits on different users.
 
 \section{Syntax}
  The syntax of the \texttt{bandwidth} statement is as follows:
 
- \verb"bandwidth: <bytes>"
+ \verb"maxsessions: <sessions>"
 
- \texttt{bytes} is the maximum bandwidth, measured in bytes, to use per second.
+ \texttt{sessions} is the maximum number of sessions that can be active.
 
 \section{Semantics}
- The \texttt{bandwidth} statement integrates as a part of
- socks-rules.
+ The \texttt{maxsessions} statement integrates as a part of
+ \emph{client-rules} or \emph{socks-rules}.  See \emph{sockd.conf(5)}
+ for more information about these.
 
- The maximal \texttt{bandwidth} set for a rule will be shared
- by all clients matching that rule.  The \emph{Dante} server
- will distribute the bandwidth to the matching clients in a
- least-recently used fashion, trying to let all clients get a
- fair share.
+ The maximal number of sessions set for a rule will be shared by
+ all clients matching that rule.  The \emph{Dante} server will
+ distribute the sessions on a first come, first served basis.
+
+ When the maximal number of sessions has been reached, future
+ clients will not be allowed to create new socks sessions and
+ will instead receive the socks error code indicating a general
+ socks server failure.  These clients may re-try again later,
+ and if one of the old clients has finished in the mean-time,
+ and no new ones have become active, be granted access.
 
 \section{Special notes}
  Sending the \emph{Dante} server a \texttt{SIGHUP} signal forces a reload
@@ -110,84 +109,56 @@
  created before the reload affect sessions created after the reload.
 
  This means that after a reload of the configuration file, the
- bandwidth counter for new sessions will be reset, and the possibly
+ session counter for new sessions will be reset, and the possibly
  confusing situation might arise where more than the configured
- number of bandwidth is used, as old sessions will use the
- bandwidth allocated to them before the reload, independently
- of new sessions.
- 
+ number of sessions exists con-currently.
  Eventually the old sessions will finish however, and the maximal
  number of sessions will be the the number currently configured,
  until a new reload of the configuration-file occurs.
  
-
 \section{Examples}
- This section shows several examples of how one could use the
- \emph{bandwidth} module.
+ This section shows some examples of how one could use this module.
 
- \subsection{Limiting web/http bandwidth}
-  The below rule shows how one can limit the bandwidth used
-  for webtraffic from the clients on the 10.0.0.0/24 net
-  to a total of 10240 bytes, or 100 KiloBytes.
+ \subsection{Limiting the number of clients negotiating}
+  The below rule shows how one can limit the number of clients
+  on the 10.0.0.0/24 net con-currently negotiating with the
+  \emph{Dante} server to a total 10.  
 
   \begin{verbatim}
-pass {
-   from: 10.0.0.0/24 to: 0.0.0.0/0 port = http
-   command: connect
-   bandwidth: 102400
+client-pass {
+   from: 10.0.0.0/24 to: 0.0.0.0/0 
+   maxsessions: 10
 }
   \end{verbatim}
 
- \subsection{Increasing web/http bandwidth}
-  The next rule, if placed before other bandwith-limiting rules,
-  shows how one can increase the bandwidth used for webtraffic from
-  the clients on the 10.0.0.0/24 net to certain sites.
+	Note that since this is a client-rule, it only limits the clients
+	while they are negotiating.  It enforces no limitations on the
+	number of clients once they have finished negotiating, and
+	as thus, is of limited use.
 
-  In this case, the clients will be able to use 1024000 bytes,
-  or one MegaByte, per second when going to the address work.example.com.
-
-  \begin{verbatim}
-pass {
-   from: 10.0.0.0/24 to: work.example.com port = http
-   command: connect
-   bandwidth: 1024000
-}
-  \end{verbatim}
-
- \subsection{Limiting ftp bandwidth}
-  The next rule shows how one can limit the bandwidth used
-  for ftp-data for the clients on the 10.0.0.0/24 net
-  to a total of 10240 bytes, or 10 kB/s
-
-  This only works for \emph{active} ftp, since for \emph{passive} ftp
-  we don't have fixed portnumbers.
+ \subsection{Limiting the number of clients using the web}
+  The next rule shows how one can limit the number of
+  clients con-currently "surfing" the web to 10.
 
   \begin{verbatim}
 pass {
-   from: 0.0.0.0/0 port = ftp-data to: 10.0.0.0/24
-   command: bindreply
-   bandwidth: 10240
+   from: 0.0.0.0/0 to: 0.0.0.0/0 port http
+   maxsessions: 10
 }
   \end{verbatim}
+   
+	Since this is a socks-rule, it takes action when the clients
+	have finished negotiating with the \emph{Dante} server.
 
- \subsection{Limiting bandwidth provided by internal servers to the outside}
-  The next rule shows how one could use the \emph{Dante bind extension}
-  together with the \emph{Bandwidth} module to limit the amount of
-  data provided by a internal server, in this case, a webserver called
-  \emph{our-webserver.example.com}, to a total of 10240 bytes, or 10 kB/s.
-
-  This requires the webserver to be socksified and the \emph{bind extension}
-  to be enabled on both the socksified client and on the \emph{Dante}
-  server.
+   A last examples shows how one could limit a particular user,
+   in this example, the user "monica", to one ftp-session at a time.
 
   \begin{verbatim}
 pass {
-   from: 0.0.0.0/0 to: our-webserver.example.com port = http
-   command: bindreply
-   bandwidth: 10240
+   from: 0.0.0.0/0 to: 0.0.0.0/0 port ftp
+   maxsessions: 1
+   user: monica
 }
   \end{verbatim}
-
-
 
 \end{document}

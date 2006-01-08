@@ -45,7 +45,6 @@
 #   + code cleanups, renamed some variables for clarity
 #   + beautified output IMO
 #   + added request types to general statistics
-#
 
 BEGIN {
 	#
@@ -340,7 +339,7 @@ END {
 	# Client stats
 	#
 	print "\nClient IP              To         From        Total     FQDN";
-	draw_line(96);
+	draw_line(77);
 	for (c in client) {
 		printf "%-16s %8.1f MB  %8.1f MB  %8.1f MB  \n",
 			c,
@@ -351,13 +350,13 @@ END {
 	close(tmpfile);
 	sorted_output(tmpfile,5,SHOW_CLIENTS,LOOKUP_IPS);
 	rmfile(tmpfile);
-	draw_line(96);
+	draw_line(77);
 
 	#
 	# Destination stats
 	#
 	print "\nDestination IP         To         From        Total     FQDN";
-	draw_line(96);
+	draw_line(77);
 	for (t in target) {
 		printf "%-16s %8.1f MB  %8.1f MB  %8.1f MB  \n",
 			t,
@@ -368,6 +367,6 @@ END {
 	close(tmpfile);
 	sorted_output(tmpfile,5,SHOW_DESTINATIONS,LOOKUP_IPS);
 	rmfile(tmpfile);
-	draw_line(96);
+	draw_line(77);
 	printf "\n";
 }

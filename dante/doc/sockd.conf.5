@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.67 2005/06/10 11:03:56 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.70 2005/12/26 15:54:46 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -45,8 +45,8 @@
 sockd.conf \- \fBDante\fP server configuration file syntax
 .SH DESCRIPTION
 The configuration file for the \fBDante\fP server controls both access
-controls and logging.  It is divided into two parts, server settings
-and rules.  A line can be commented using the standard comment
+controls and logging.  It is divided into three parts; server settings,
+rules, and routes.  A line can be commented using the standard comment
 character \fB#\fP.
 .SH SERVER SETTINGS
 The server settings control the generic behaviour of the server.  Each
@@ -132,18 +132,20 @@ The following modules are supported by \fBDante\fP.  Modules are purchased
 separately from Inferno Nettverk A/S.  See the \fBDante\fP homepage
 for more information.
 
+.IP \fBbandwidth\fP
+The \fBbandwidth\fP module gives you control over how much
+bandwidth the Dante server uses on behalf of different clients.
+
 .IP \fBredirect\fP
 The \fBredirect\fP module gives you control over what addresses the
 server will use on behalf of the client and allows you to both
 redirect client requests to a different addresses aswell as control
 the range of addresses and ports to be used on behalf of the client.
 
-It can also be used to restrict the number of concurrent sessions
-from each client.
+.IP \fBsession\fP
+The \fBsession\fP module gives you control over the number of
+sessions that can be created by different socks users.
 
-.IP \fBbandwidth\fP
-The \fBbandwidth\fP module gives you control over how much
-bandwidth the Dante server uses on behalf of different clients.
 
 .SH METHODS
 The \fBDante\fP server supports the following methods.  Some
@@ -302,7 +304,13 @@ The server will accept connections from users matching one
 of the names given as value.
 If no \fBuser\fP value is given, everyone in the passwordfile
 will be matched.
-The rule must also allow usernamebased methods.
+The rule must in this case also allow usernamebased methods.
+.SH ROUTES
+The routes are specified with a \fBroute\fP keyword.
+Inside a pair of parens ({}) a set of keywords control the behavior of
+the route.  See socks.conf(5) for a description.  This is used to
+perform so-called "server-chaining", where one socks-server connects
+to another socks-server futher upstream.  
 .SH EXAMPLES
 See the example directory in the distribution.
 .SH FILES
@@ -316,7 +324,7 @@ For Inferno Nettverk A/S, Norway:
  Michael Shuldman <michaels@inet.no>: Design and implementation.
  Karl-Andre' Skevik <karls@inet.no>: Autoconf and porting.
 .SH SEE ALSO
-sockd(8), hosts_access(5)
+sockd(8), socks.conf(5), hosts_access(5)
 .Pp
 Information about new releases and other related issues can be found
 on the

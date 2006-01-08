@@ -1,7 +1,7 @@
 /*
- * $Id: LICENSE,v 1.18 2006/01/08 18:23:27 karls Exp $
+ * $Id: shmem.c,v 1.4 2006/01/08 18:26:32 karls Exp $
  *
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+ * Copyright (c) 2005, 2006
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,3 +42,25 @@
  * the rights to redistribute these changes.
  *
  */
+
+#include "common.h"
+
+static const char rcsid[] =
+"$Id: shmem.c,v 1.4 2006/01/08 18:26:32 karls Exp $";
+
+void
+shmem_setup(void)
+{
+
+}
+
+void
+shmem_lockall(void)
+{
+}
+
+void
+shmem_unlockall(void)
+{
+}
+

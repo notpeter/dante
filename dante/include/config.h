@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.51 2003/07/01 13:21:16 michaels Exp $ */
+/* $Id: config.h,v 1.52 2005/12/25 13:58:10 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -92,7 +92,12 @@
  * connections.
  * A value of zero means never.
  */
+#if SOCKS_CLIENT
 #define BADROUTE_EXPIRE				(60 * 0)
+#else /* SOCKS_SERVER */
+#define BADROUTE_EXPIRE				(60 * 5)
+#endif
+
 
 	/*
 	 * server stuff.

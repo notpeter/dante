@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.191 2005/06/10 11:14:48 michaels Exp $";
+"$Id: config_parse.y,v 1.197 2005/12/29 14:55:24 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -79,12 +79,9 @@ static struct rule_t				rule;				/* new rule.							*/
 static struct protocol_t		protocolmem;	/* new protocolmem.					*/
 #endif
 
-#if SOCKS_CLIENT
 static struct serverstate_t	state;
 static struct route_t			route;			/* new route.							*/
 static struct ruleaddress_t	gw;				/* new gateway.						*/
-#endif
-
 
 static struct ruleaddress_t	src;				/* new src.								*/
 static struct ruleaddress_t	dst;				/* new dst.								*/
@@ -185,7 +182,9 @@ static const struct {
 %type	<string> command commands commandname
 %type	<string> redirect
 %type	<string> bandwidth
+%type	<string> session maxsessions
 %type	<string> routeinit
+
 
 	/* clientconfig exclusive. */
 %type	<string> clientinit clientconfig
@@ -287,6 +286,7 @@ serverline:	{ $$ = NULL; }
 	|	serverline serverconfig
 	|	serverline clientrule
 	|	serverline rule
+	|	serverline route
 	;
 
 clientline:	{ $$ = NULL; }
@@ -330,19 +330,16 @@ deprecated:	DEPRECATED {
 	}
 
 route:	ROUTE routeinit '{' routeoptions fromto gateway routeoptions '}' {
-#if SOCKS_CLIENT
 		route.src		= src;
 		route.dst		= dst;
 		ruleaddress2sockshost(&gw, &route.gw.host, SOCKS_TCP);
 		route.gw.state	= state;
 
 		addroute(&route);
-#endif
 	}
 	;
 
 routeinit: {
-#if SOCKS_CLIENT
 		command			= &state.command;
 		extension		= &state.extension;
 		methodv			= state.methodv;
@@ -357,7 +354,6 @@ routeinit: {
 		bzero(&dst, sizeof(dst));
 		src.atype = SOCKS_ADDR_IPV4;
 		dst.atype = SOCKS_ADDR_IPV4;
-#endif
 	}
 	;
 
@@ -377,6 +373,7 @@ proxyprotocolname:	PROXYPROTOCOL_SOCKS_V4 {
 	|  PROXYPROTOCOL_HTTP_V1_0 {
 			proxyprotocol->http_v1_0	= 1;
 	}
+	| deprecated
 	;
 
 proxyprotocols: proxyprotocolname
@@ -505,11 +502,6 @@ logoutputdevice:	LOGFILE {
 		}
 		else /* adding/changing filename. */
 			if (!sockscf.state.init) {
-				/*
-				 * Can't change filenames we log to after startup (well,
-				 * to be exact, we can't add new filenames, but we complain
-				 * about changing too for now since it's easier.
-				 */
 				int flag;
 
 				sockscf.log.type |= LOGTYPE_FILE;
@@ -548,20 +540,27 @@ logoutputdevice:	LOGFILE {
 				++sockscf.log.fpc;
 			}
 			else {
+				/*
+				 * Can't change filenames we log to after startup (well,
+				 * to be exact, we can't add new filenames, but we complain
+				 * about changing too for now since it's easier.
+				 */
 				size_t i;
 
 				for (i = 0; i < sockscf.log.fpc; ++i)
-					if (strcmp(sockscf.log.fnamev[i], $1) == 0) {
+					if (strcmp(sockscf.log.fnamev[i], $1) == 0) { /* same name. */
+						FILE *fp;
 
-						if (fileno(sockscf.log.fpv[i]) == fileno(stdout)
-						||	 fileno(sockscf.log.fpv[i]) == fileno(stderr))
-							break;
+						if (strcmp(sockscf.log.fnamev[i], "stdout") == 0
+						||  strcmp(sockscf.log.fnamev[i], "stderr") == 0)
+							continue; /* don't need to close these, hard to reopen. */
 
 						/* reopen logfiles. */
-						fclose(sockscf.log.fpv[i]);
-						if ((sockscf.log.fpv[i]
-						= fopen(sockscf.log.fnamev[i], "a")) == NULL)
+						if ((fp = fopen(sockscf.log.fnamev[i], "a")) == NULL)
 							yyerror("fopen(%s)", $1);
+
+						fclose(sockscf.log.fpv[i]);
+						sockscf.log.fpv[i] = fp;
 						break;
 					}
 
@@ -814,6 +813,11 @@ option: authmethod
 	|	log
 	|	pamservicename
 	|	user
+	|	session	{
+#if SOCKS_SERVER
+			checkmodule("session");
+#endif
+	}
 	;
 
 verdict:	VERDICT_BLOCK {
@@ -880,6 +884,26 @@ redirect:	REDIRECT rdr_fromaddress
 	|	REDIRECT rdr_toaddress
 	;
 
+session: maxsessions
+	;
+
+maxsessions: MAXSESSIONS ':' NUMBER {
+#if SOCKS_SERVER
+	static session_t ssinit;
+
+  /*
+	* temporarily allocate ordinary memory, later on point it to
+	* the correct shared mem.
+	*/
+	if ((rule.ss = malloc(sizeof(*rule.ss))) == NULL)
+		serr(EXIT_FAILURE, NOMEM);
+	*rule.ss = ssinit;
+	if ((rule.ss->maxsessions = atoi($3)) < 0)
+		yyerror("session value can not be less than 0");
+#endif /* SOCKS_SERVER */
+}
+;
+
 bandwidth:	BANDWIDTH ':' NUMBER {
 #if SOCKS_SERVER
 		static bw_t bwmeminit;
@@ -893,7 +917,6 @@ bandwidth:	BANDWIDTH ':' NUMBER {
 		*rule.bw = bwmeminit;
 		if ((rule.bw->maxbps = atoi($3)) <= 0)
 			yyerror("bandwidth value must be greater than 0");
-			
 #endif /* SOCKS_SERVER */
 	}
 	;
@@ -1014,9 +1037,7 @@ rdr_to:	TO {
 
 
 via:	VIA {
-#if SOCKS_CLIENT
 		addressinit(&gw);
-#endif
 	}
 	;
 
@@ -1091,9 +1112,7 @@ direct:	DIRECT {
 			yyerror("domainname too long");
 		strcpy(domain, $1);
 
-#if SOCKS_CLIENT
 		route.state.direct = 1;
-#endif
 	}
 	;
 
@@ -1124,44 +1143,27 @@ portend:	PORTNUMBER {
 
 portservice:	SERVICENAME {
 		struct servent	*service;
-		struct protocol_t	protocolunset;
-		int set;
 
-		bzero(&protocolunset, sizeof(protocolunset));
-
-		/* set all protocols if none set, default. */
-		if (memcmp(protocol, &protocolunset, sizeof(*protocol)) == 0) {
-			memset(protocol, UCHAR_MAX, sizeof(*protocol));
-			set = 0;
+		if ((service = getservbyname($1, "tcp")) == NULL) {
+			if (protocol->tcp)
+				yyerror("unknown tcp protocol: %s", $1);
+			*port_tcp = htons(0);
 		}
 		else
-			set = 1;
+			*port_tcp = (in_port_t)service->s_port;
 
-		if (protocol->tcp) {
-			if ((service = getservbyname($1, "tcp")) == NULL) {
-				if (set)
-					yyerror("bad servicename for tcp: %s", $1);
-				else
-					*port_tcp = htons(0);
-			}
-			else
-				*port_tcp = (in_port_t)service->s_port;
+		if ((service = getservbyname($1, "udp")) == NULL) {
+			if (protocol->udp)
+					yyerror("unknown udp protocol: %s", $1);
+				*port_udp = htons(0);
 		}
+		else
+			*port_udp = (in_port_t)service->s_port;
 
-		if (protocol->udp) {
-			if ((service = getservbyname($1, "udp")) == NULL) {
-				if (set)
-					yyerror("bad servicename for udp: %s", $1);
-				else
-					*port_udp = htons(0);
-			}
-			else
-				*port_udp = (in_port_t)service->s_port;
-		}
-
-		/* check we got both protocol ports set right. */
 		if (*port_tcp == htons(0) && *port_udp == htons(0))
-			yyerror("bad service name for tcp/udp");
+			yyerror("unknown tcp/udp protocol");
+
+		/* if one protocol is unset, set to same as the other. */
 		if (*port_tcp == htons(0))
 			*port_tcp = *port_udp;
 		else if (*port_udp == htons(0))

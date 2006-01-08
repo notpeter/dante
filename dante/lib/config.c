@@ -44,13 +44,16 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.156 2005/08/22 10:52:56 michaels Exp $";
+"$Id: config.c,v 1.162 2005/12/28 18:25:04 michaels Exp $";
 
 void
 genericinit(void)
 {
 	const char *function = "genericinit()";
 	size_t i;
+#if SOCKS_SERVER
+	sigset_t set, oset;
+#endif
 
 	if (!sockscf.state.init) {
 #if !HAVE_SETPROCTITLE
@@ -60,11 +63,25 @@ genericinit(void)
 #endif /* !HAVE_SETPROCTITLE */
 	}
 
+	
+#if SOCKS_SERVER
+	sigemptyset(&set);
+	sigaddset(&set, SIGHUP);
+	sigaddset(&set, SIGTERM);
+	if (sigprocmask(SIG_BLOCK, &set, &oset) != 0)
+		swarn("%s: sigprocmask(SIG_BLOCK)", function);
+#endif
+
 	if (readconfig(sockscf.option.configfile) != 0)
 #if SOCKS_SERVER
 		exit(EXIT_FAILURE);
 #else
 		return;
+#endif
+
+#if SOCKS_SERVER
+	if (sigprocmask(SIG_SETMASK, &oset, NULL) != 0)
+		swarn("%s: sigprocmask(SIG_SETMASK)", function);
 #endif
 
 	newprocinit();
@@ -97,8 +114,6 @@ genericinit(void)
 	sockscf.state.init = 1;
 }
 
-#if SOCKS_CLIENT
-
 struct route_t *
 addroute(newroute)
 	const struct route_t *newroute;
@@ -115,15 +130,40 @@ addroute(newroute)
 
 	/* if no command set, set all. */
 	if (memcmp(&state.command, &route->gw.state.command, sizeof(state.command))
-	== 0)
+	== 0) {
+#if SOCKS_CLIENT 
 		memset(&route->gw.state.command, UCHAR_MAX,
 		sizeof(route->gw.state.command));
+#else /* SOCKS_SERVER, only connect is supported. */
+		route->gw.state.command.connect = 1;
+#endif
+	}
+#if SOCKS_SERVER
+	else
+		if (route->gw.state.command.bind
+		||  route->gw.state.command.bindreply
+		||  route->gw.state.command.udpassociate
+		||  route->gw.state.command.udpreply)
+			swarnx("%s: serverchaining is only supported for the connect command",
+			function);
+#endif
 
 	/* if no protocol set, set all. */
 	if (memcmp(&state.protocol, &route->gw.state.protocol,
-	sizeof(state.protocol)) == 0)
+	sizeof(state.protocol)) == 0) {
+#if SOCKS_CLIENT
 		memset(&route->gw.state.protocol, UCHAR_MAX,
 		sizeof(route->gw.state.protocol));
+#else /* SOCKS_SERVER, only connect is supported. */
+		route->gw.state.protocol.tcp = 1;
+#endif
+	}
+#if SOCKS_SERVER
+	else
+		if (route->gw.state.protocol.udp)
+			swarnx("%s: serverchaining is only supported for the tcp protocol",
+			function);
+#endif
 
 	/* if no proxyprotocol set, set all except msproxy. */
 	if (memcmp(&state.proxyprotocol, &route->gw.state.proxyprotocol,
@@ -318,6 +358,17 @@ socks_getroute(req, src, dst)
 				SERRX(req->command);
 		}
 
+		if (req->auth != NULL) /* find server that supports method in use. */
+			switch (req->auth->method) {
+				case AUTHMETHOD_NOTSET:
+					break;
+
+				default:
+					if (!methodisset(req->auth->method, route->gw.state.methodv,
+					route->gw.state.methodc))
+						continue; /* does not support the method in use. */
+			}
+
 		if (src != NULL)
 			if (!addressmatch(&route->src, src, protocol, 0))
 				continue;
@@ -368,7 +419,6 @@ socks_connectroute(s, packet, src, dst)
 
 	slog(LOG_DEBUG, "%s: s = %d", function, s);
 
-	errno			= 0; /* let caller differentiate between missing route and not.*/
 	current_s	= s;
 	sdup			= -1;
 
@@ -405,9 +455,11 @@ socks_connectroute(s, packet, src, dst)
 				break;
 			}
 			else {
+#if SOCKS_CLIENT
 				swarn("%s: socks_connect(%s)",
 				function, sockshost2string(&route->gw.host, hstring,
 				sizeof(hstring)));
+#endif
 				socks_badroute(route);
 				close(current_s);
 				current_s = -1;
@@ -435,16 +487,20 @@ socks_connectroute(s, packet, src, dst)
 	}
 
 	if (route != NULL) {
+#if SOCKS_CLIENT
 		static int init;
+#endif
 
 		packet->gw = route->gw;
 
+#if SOCKS_CLIENT
 		/* need to set up misc. crap for msproxy stuff. */
 		if (!init && route->gw.state.proxyprotocol.msproxy_v2) {
 			if (msproxy_init() != 0)
 				;	/* yes, then what? */
 			init = 1;
 		}
+#endif /* SOCKS_CLIENT */
 	}
 
 	errno = errno_s;
@@ -463,6 +519,7 @@ socks_badroute(route)
 }
 
 
+#if SOCKS_CLIENT
 struct request_t *
 socks_requestpolish(req, src, dst)
 	struct request_t *req;
@@ -567,7 +624,6 @@ socks_requestpolish(req, src, dst)
 	slog(LOG_DEBUG, function);
 	return NULL;
 }
-
 #endif /* SOCKS_CLIENT */
 
 void

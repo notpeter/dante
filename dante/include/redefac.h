@@ -225,6 +225,11 @@
 #endif
 
 
+#ifndef HAVE_LIBC_ENABLE_SECURE
+#define HAVE_LIBC_ENABLE_SECURE 0
+#endif
+
+
 #ifndef HAVE_LIBWRAP
 #define HAVE_LIBWRAP 0
 #endif
@@ -270,8 +275,23 @@
 #endif
 
 
+#ifndef HAVE_MODULE_CHECKMODULE
+#define HAVE_MODULE_CHECKMODULE 0
+#endif
+
+
 #ifndef HAVE_MODULE_REDIRECT
 #define HAVE_MODULE_REDIRECT 0
+#endif
+
+
+#ifndef HAVE_MODULE_SESSION
+#define HAVE_MODULE_SESSION 0
+#endif
+
+
+#ifndef HAVE_MODULE_SHMEM
+#define HAVE_MODULE_SHMEM 0
 #endif
 
 
