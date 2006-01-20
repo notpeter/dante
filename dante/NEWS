@@ -1,9 +1,52 @@
-@(#)$Id: NEWS,v 1.50 2005/12/19 20:09:03 karls Exp $
+@(#)$Id: NEWS,v 1.53 2006/01/20 13:05:17 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
 
-***  Friday, September 9, 2005 -- Dante v1.1.18
+***  Monday, January 16, 2006 -- Dante v1.1.19
 
+o Disabled code for shutting down idle sockd processes, appears to need
+  more testing.  Thanks to Rene Burkhardt <rene.burkhardt@ch.ibm.com>.
+
+o Upgrade to Automake 1.9.6.
+
+o Use __libc_enable_secure if it exists and issetugid() doesn't.
+  Should allow the SOCKS_CONF environment variable to be used on Linux.
+
+o Check if large files need special support; logfiles can grow
+  large.  Problem reported by Tom Vandenbelt <tvandenb@au1.ibm.com>.
+
+o Drop trying to optimize away unnecessary PAM calls, creates 
+  obscure problems on some PAM-Linux implementations.
+  Based on good work by Mr E_T <troll@arach.net.au>, many thanks.
+
+o Fixed bug introduced as part of additions to better preserve TCP
+  semantics across connections.
+  Thanks to Rene Burkhardt <rene.burkhardt@ch.ibm.com>
+
+o New module available: session.  This gives control over how
+  many sessions different clients can create.
+  See the module page "http://www.inet.no/dante/module.html" 
+  and doc/module for more information.
+
+o In order to share some code, there were some api changes
+  made to the bandwidth module, requiring users to upgrade.
+  Users of the bandwidth module can contact sales for a free upgrade.
+
+o Fix bug preventing immediate-error on wrong password to take effect
+  for servers configured to use PAM.
+  Thanks for help to Rene Burkhardt <rene.burkhardt@ch.ibm.com>.
+
+o Update usage of 'head'. Problem first reported by
+  "William Adams" <wlarip@gmail.com>.
+
+o Support server-chaining.  Currently only the tcp connect command
+  is supported.  It might be possible to add support for udp and
+  tcp bind if requested.
+
+o Fix PAM-related bug introduced in version 1.1.16.
+  Reported by Jacob Toxværd <tox@microknights.dk>.
+
+***  Friday, September 9, 2005 -- Dante v1.1.18
 o Fix bug involving syslog.
   Problem report from Nicola <nicola.canepa@sys-net.it>
 
@@ -11,11 +54,9 @@ o Fix bug related to socks header split across multiple segments.
   Thanks to Patrick LeBoutillier <patrick.leboutillier@gmail.com>.
 
 ***  Thursdag, July 14, 2005 -- Dante v1.1.17
-
 o Fix bug involving setting "pam.servicename".
 
 ***  Monday, July 4, 2005 -- Dante v1.1.16
-
 o Enabled code for shutting down idle sockd processes.
 
 o Some additions to better preserve TCP semantics across connections.

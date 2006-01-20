@@ -960,6 +960,11 @@
 #endif
 
 
+#ifndef HAVE_TIMER_MACROS
+#define HAVE_TIMER_MACROS 0
+#endif
+
+
 #ifndef HAVE_UINT16_T
 #define HAVE_UINT16_T 0
 #endif

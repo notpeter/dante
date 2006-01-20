@@ -1519,7 +1519,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 version=1.1.19
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+#prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -24660,6 +24660,72 @@ echo "${ECHO_T}no" >&6
 fi
 rm -f core *.core gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
 fi
+
+echo "$as_me:$LINENO: checking for timer macros" >&5
+echo $ECHO_N "checking for timer macros... $ECHO_C" >&6
+if test "$cross_compiling" = yes; then
+  { { echo "$as_me:$LINENO: error: cannot run test program while cross compiling
+See \`config.log' for more details." >&5
+echo "$as_me: error: cannot run test program while cross compiling
+See \`config.log' for more details." >&2;}
+   { (exit 1); exit 1; }; }
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/time.h>
+
+int main()
+{
+	struct timeval tv, tv2, tv3;
+
+	tv.tv_sec = 0;
+	tv.tv_usec = 0;
+	tv2.tv_sec = 0;
+	tv2.tv_usec = 0;
+	tv3.tv_sec = 0;
+	tv3.tv_usec = 0;
+
+	timeradd(&tv, &tv2, &tv3);
+	timersub(&tv3, &tv2, &tv);
+
+	return 0;
+}
+_ACEOF
+rm -f conftest$ac_exeext
+if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+  (eval $ac_link) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_TIMER_MACROS 1
+_ACEOF
+
+else
+  echo "$as_me: program exited with status $ac_status" >&5
+echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+( exit $ac_status )
+echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+fi
+rm -f core *.core gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
+fi
+
 
 #A good time to save the cache (L_NSOCKPROTO might fail)
 cat >confcache <<\_ACEOF

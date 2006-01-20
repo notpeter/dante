@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.59)
-AC_REVISION($Id: configure.ac,v 1.358 2005/12/30 21:23:19 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.359 2006/01/15 15:33:37 karls Exp $)
 
 version=1.1.19
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+#prerelease="1"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -798,6 +798,30 @@ int main()
 }], [AC_MSG_RESULT(yes)],
     [AC_DEFINE(HAVE_NONULL_FREE, 1, [free does not accept NULL parameter])
      AC_MSG_RESULT(no)])
+
+AC_MSG_CHECKING([for timer macros])
+AC_TRY_RUN([
+#include <sys/time.h>
+
+int main()
+{
+	struct timeval tv, tv2, tv3;
+
+	tv.tv_sec = 0;
+	tv.tv_usec = 0;
+	tv2.tv_sec = 0;
+	tv2.tv_usec = 0;
+	tv3.tv_sec = 0;
+	tv3.tv_usec = 0;
+
+	timeradd(&tv, &tv2, &tv3);
+	timersub(&tv3, &tv2, &tv);
+
+	return 0;
+}], [AC_MSG_RESULT(yes)
+AC_DEFINE(HAVE_TIMER_MACROS, 1, [timeradd(), timersub etc. exist in sys/time.h])],
+    [AC_MSG_RESULT(no)])
+
 
 #A good time to save the cache (L_NSOCKPROTO might fail)
 AC_CACHE_SAVE

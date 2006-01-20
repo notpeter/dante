@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.310 2005/12/25 17:22:16 michaels Exp $";
+"$Id: sockd.c,v 1.311 2006/01/20 13:06:39 michaels Exp $";
 
 	/*
 	 * signal handlers
@@ -1074,7 +1074,7 @@ optioninit(void)
 #endif
 	
 #if DEBUG
-	sockscf.child.maxidle 		= SOCKD_FREESLOTS;
+	sockscf.child.maxidle 		= 0; /* XXX SOCKD_FREESLOTS;*/
 #else
 	sockscf.child.maxidle 		= 0;
 #endif
