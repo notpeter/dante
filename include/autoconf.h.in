@@ -582,6 +582,9 @@
 /* Define to 1 if you have the <tcpd.h> header file. */
 #undef HAVE_TCPD_H
 
+/* timeradd(), timersub etc. exist in sys/time.h */
+#undef HAVE_TIMER_MACROS
+
 /* Define to 1 if the system has the type `uint16_t'. */
 #undef HAVE_UINT16_T
 

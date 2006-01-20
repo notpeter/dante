@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.328 2006/01/01 16:44:54 michaels Exp $ */
+/* $Id: common.h,v 1.329 2006/01/15 15:33:38 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -418,6 +418,29 @@ struct in6_addr {
 };
 #define s6_addr   __u6_addr.__u6_addr8
 #endif /* !HAVE_IN6_ADDR */
+
+#if !HAVE_TIMER_MACROS
+/* timeval macros, taken from OpenBSD sys/time.h */
+#define timeradd(tvp, uvp, vvp)                                         \
+        do {                                                            \
+                (vvp)->tv_sec = (tvp)->tv_sec + (uvp)->tv_sec;          \
+                (vvp)->tv_usec = (tvp)->tv_usec + (uvp)->tv_usec;       \
+                if ((vvp)->tv_usec >= 1000000) {                        \
+                        (vvp)->tv_sec++;                                \
+                        (vvp)->tv_usec -= 1000000;                      \
+                }                                                       \
+        } while (0)
+
+#define timersub(tvp, uvp, vvp)                                         \
+        do {                                                            \
+                (vvp)->tv_sec = (tvp)->tv_sec - (uvp)->tv_sec;          \
+                (vvp)->tv_usec = (tvp)->tv_usec - (uvp)->tv_usec;       \
+                if ((vvp)->tv_usec < 0) {                               \
+                        (vvp)->tv_sec--;                                \
+                        (vvp)->tv_usec += 1000000;                      \
+                }                                                       \
+        } while (0)
+#endif /* !HAVE_TIMER_MACROS */
 
 #if 0
 #if !HAVE_SOCKADDR_STORAGE

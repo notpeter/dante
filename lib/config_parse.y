@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.197 2005/12/29 14:55:24 michaels Exp $";
+"$Id: config_parse.y,v 1.199 2006/01/20 12:59:06 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -577,7 +577,8 @@ logoutputdevices:	logoutputdevice
 childstate:
 	CHILD_MAXIDLE ':' NUMBER {
 #if SOCKS_SERVER
-		if (atoi($3) < SOCKD_FREESLOTS)
+		yyerror("Sorry, child.maxidle is disabled due to a suspected bug");
+		if (atoi($3) != 0 && atoi($3) < SOCKD_FREESLOTS)
 			yyerror("%s (%s) can't be less than SOCKD_FREESLOTS (%d)",
 			$1, $3, SOCKD_FREESLOTS);
 		sockscf.child.maxidle = atoi($3);
