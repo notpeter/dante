@@ -1,6 +1,301 @@
-@(#)$Id: NEWS,v 1.33 2001/03/13 21:47:16 michaels Exp $
+@(#)$Id: NEWS,v 1.53 2006/01/20 13:05:17 michaels Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
+
+***  Monday, January 16, 2006 -- Dante v1.1.19
+
+o Disabled code for shutting down idle sockd processes, appears to need
+  more testing.  Thanks to Rene Burkhardt <rene.burkhardt@ch.ibm.com>.
+
+o Upgrade to Automake 1.9.6.
+
+o Use __libc_enable_secure if it exists and issetugid() doesn't.
+  Should allow the SOCKS_CONF environment variable to be used on Linux.
+
+o Check if large files need special support; logfiles can grow
+  large.  Problem reported by Tom Vandenbelt <tvandenb@au1.ibm.com>.
+
+o Drop trying to optimize away unnecessary PAM calls, creates 
+  obscure problems on some PAM-Linux implementations.
+  Based on good work by Mr E_T <troll@arach.net.au>, many thanks.
+
+o Fixed bug introduced as part of additions to better preserve TCP
+  semantics across connections.
+  Thanks to Rene Burkhardt <rene.burkhardt@ch.ibm.com>
+
+o New module available: session.  This gives control over how
+  many sessions different clients can create.
+  See the module page "http://www.inet.no/dante/module.html" 
+  and doc/module for more information.
+
+o In order to share some code, there were some api changes
+  made to the bandwidth module, requiring users to upgrade.
+  Users of the bandwidth module can contact sales for a free upgrade.
+
+o Fix bug preventing immediate-error on wrong password to take effect
+  for servers configured to use PAM.
+  Thanks for help to Rene Burkhardt <rene.burkhardt@ch.ibm.com>.
+
+o Update usage of 'head'. Problem first reported by
+  "William Adams" <wlarip@gmail.com>.
+
+o Support server-chaining.  Currently only the tcp connect command
+  is supported.  It might be possible to add support for udp and
+  tcp bind if requested.
+
+o Fix PAM-related bug introduced in version 1.1.16.
+  Reported by Jacob Toxværd <tox@microknights.dk>.
+
+***  Friday, September 9, 2005 -- Dante v1.1.18
+o Fix bug involving syslog.
+  Problem report from Nicola <nicola.canepa@sys-net.it>
+
+o Fix bug related to socks header split across multiple segments.
+  Thanks to Patrick LeBoutillier <patrick.leboutillier@gmail.com>.
+
+***  Thursdag, July 14, 2005 -- Dante v1.1.17
+o Fix bug involving setting "pam.servicename".
+
+***  Monday, July 4, 2005 -- Dante v1.1.16
+o Enabled code for shutting down idle sockd processes.
+
+o Some additions to better preserve TCP semantics across connections.
+
+o Allow PAM tests to be disabled.
+  Thanks to Daniel <dragonheart@gentoo.org> for patch.
+
+o Conflict between socks.h and netinet/in.h fixed.
+  Thanks to Daniel <dragonheart@gentoo.org> for patch.
+
+o Error in capi/socks.h fixed.
+  Thanks to Alin Nastac <mrness@gentoo.org> for patch solving problem.
+
+o Fix res_9_init related compilation problems on OS X.
+  Problem reported by Changshin Lee <iasandcb@gmail.com>.
+
+o Return immediate error if username/password is wrong in the common
+  case, rather than delaying it for later.  Helps avoid the case where
+  socks-clients cache the wrong username/password.  Reworked
+  rule-checking code a little too.
+
+o In one rare case, such as triggered in some LVS health-checker
+  installations, a bug could make us leak descriptors. 
+  Thanks to Antonio Paulo Salgado Forster <aforster@br.ibm.com> and
+  Pete Harvey <Peter.Harvey@newcastle.ac.uk> for help with debugging.
+
+o Fix a bug where server could hang while waiting for input from client
+  during negotiation.  Thanks to Robert Marcano <robert@marcanoonline.com>.
+
+o Fix formating of some warning messages.
+  Thanks to James Carlson <james.d.carlson@sun.com>.
+
+***  Monday, January 31, 2005 -- Dante v1.1.15
+ o Limit the maximum number of available descriptors if necessary, 
+   avoiding a possible overflow of fd_sets.
+
+ o Added absolute timestamp to logformat, in preparation for new
+   module.
+
+ o Fixed problem involving non-blocking connects in socks clients
+   on Linux.
+
+ o Prototype related tests during configure are rewritten.
+   Might require prototypes for some platforms to be readded.
+
+ o Compilation fixes for AIX 5.1-ML03 with IBM Visual Age C/C++ V5.
+   Based on patch from Kieron Curtis2 <KCURTIS2@uk.ibm.com>.
+
+ o A 'an macro' version of the sockd.8 manual page.
+   Submitted by Tony Leneis <tony@cvrreg.com>.
+
+ o Upgrade to autoconf 2.59, libtool 1.5.10 and automake 1.9.3.
+
+ o Patch to code for shutting down idle sockd processes, from 
+   William Adams <wlarip@earthlink.net>.  NOT ENABLED.
+
+ o Add test for setegid(), use replacement if not found.
+   Replacement code based on patch by <rainer.doerntge@dlh.de>.
+
+ o Do not warn at runtime about SO_{SND,RCV}LOWAT socket options if not
+   supported by OS.  Based on patch from William Adams <wlarip@earthlink.net>.
+
+ o enable setegid() call after moving it to correct place;
+   William Adams <wlarip@earthlink.net>.
+
+ o Support for socksification of getipnodebyname(), contributed by
+   Lennart Dahlström <lennart@appgate.com>.
+
+ o Support for socksification of getaddrinfo(), contributed by
+   Motoyuki Kasahara <m-kasahr@sra.co.jp>.
+
+ o Fix some problems with descriptor passing on platforms without
+   cmsghdr.
+
+ o AIX 5.1 ML-03 compilation fixes for IBM Visual Age C/C++ compiler
+   version 5 by Kieron Curtis2 <KCURTIS2@uk.ibm.com>.
+
+ o Remove usage of SO_BSDCOMPAT, obsolete and causes warnings with
+   version 2.6 Linux kernels.  Noted by Adrian Bridgett <adrian@smop.co.uk>.
+
+***  Monday, July 28, 2002 -- Dante v1.1.14
+ o Fix some problems involving use of bindresvport() when running
+   the server on a privileged port.  Problem brought up by Anton A
+   Golubev <anton@engec.ru> and Silvio Macedo <smacedo@imperial.ac.uk>.
+
+ o Avoid nameclash with sa_len define on IRIX, patch from
+   Herb Lewis <herb@sgi.com>
+
+ o Startup item for Dante on Mac OS X.  From Gerben Wierda <Sherlock@rna.nl>.
+
+ o Fix bug that prevented rfc931 auth (ident) from working, patch from
+  "Meno Abels" <Meno.Abels@7d.net>.
+
+ o Fixes for 'configure' under AIX 5.
+   Problem reported by "Scott Rickard" <rickard43@insightbb.com>.
+
+ o Workaround for 'bswap_32' header bug on linux.
+
+ o CMSG alignment fix. Problem reported by
+   Ibrahim Khalifa <ibo@toontown.org>.
+
+***  Monday, June 24, 2002 -- Dante v1.1.13
+ o AIX needs n{recv,send}msg when calling system functions.
+   Reported by Tom Chan <tchan@austin.rr.com>.
+
+ o Fix some bugs in bandwidth module.  Users using a version older
+   than "bandwidth.c,v 1.18" can contact sales for a upgrade.
+
+ o Fix a bug in logprinting, reported by
+   Borsenkow Andrej <Andrej.Borsenkow@mow.siemens.ru>.
+
+ o Reset buffering after sighup.  Also, always linebuffer logoutput.
+   Fixes some problems with loglineoverlap, problem found by
+   Borsenkow Andrej <Andrej.Borsenkow@mow.siemens.ru>.
+   This deprecates the "-l" option to sockd.
+
+ o Move daemon() call to later so more errors can be reported, suggested
+   by Borsenkow Andrej <Andrej.Borsenkow@mow.siemens.ru>.
+
+ o fix problem when linking with libsocks;     
+   NISHIMURA Daisuke <nishi@graco.c.u-tokyo.ac.jp>.
+
+ o fix some problems when socksifying, making certain programs
+   hang forever (e.g. certain versions/installations of "ssh -X").
+   Thanks to NISHIMURA Daisuke <nishi@graco.c.u-tokyo.ac.jp> for
+   diagnosis, help and testing.
+
+***  Thursday, April 11, 2002 -- Dante v1.1.12
+
+ o Don't mark the rule as good either if sockscf.state.unfixedpamdata, 
+   fixes bug reported by Jerry Murdock" <jmurdock@itraktech.com>.
+
+ o fix a bug preventing the list given in a 'user:' keyword from
+   being checked correctly. Reported by Oleg Bulavsky <bulch@ftc.ru>.
+
+ o support interfacenames containing ':', e.g eth0:1, supposedly on
+   linux 2.4.x.  From Rob Fowler <rfo@keta.mine.nu>.
+
+ o new --disable-pidfile option to configure; disables pidfile creation.
+
+ o upgrade to libtool-1.4.2, automake-1.5 and autoconf-2.52.
+
+ o "-h" prints out configfile used, based on suggestion from
+   dh_tsc_10@ugcs.net.
+
+ o fix bugs that reset some defaults at the wrong time, reported by
+   dh_tsc_10@ugcs.net.
+
+ o prototype script for generation of graphs with usage information included
+   (bin/sockd-graphgen). Contact us if you run a socks server with significant
+   usage, and you are willing to help with testing.
+
+ o status info printed at the end of configure.
+
+***  Friday, Dec 7, 2001 -- Dante v1.1.11
+
+ o Fixes for libdsocks on HP-UX 11.00. Thanks to
+   'albert chin (china@thewrittenword.com)' for testing.
+
+ o Some minor optimisations in server i/o code, at the cost of some
+   timer accuracy concerning bandwidth limiting/client expiration.
+
+ o prefix "socks" to some global variables to avoid collisions during
+   socksify.  Reported by Don Reid <donr@cvs.agilent.com>.
+
+ o capi/socks.h needs Rxxx prototypes to work with a c++
+   compiler. Noted by Alex Morozov <alex@idisys.iae.nsk.su>.
+
+ o Fix compilation problems on Compaq Tru64 UNIX V5.0A (and V5.1 and V5.1A).
+   Mainly based on patch from "Peter Derr" <pderr@islet.zk3.dec.com>,
+   who also provided access to a machine for testing.
+
+ o Fix bug that logged to stdout on startup sometimes, confusing
+   some programs.  First reported by
+   Vitor Choi Feitosa <vchoi@interlegis.gov.br>
+
+ o If Rgetsockname() is called on a socket that a previous uncompleted
+   Rconnect() has been done on, try to sleep until Rconnect() has 
+   finished instead of returning ENOBUFS.  Hoped to help compatibility
+   with some applications.
+
+ o Modified httpproxy code a little, based on patch from
+   dh_tsc_10@ugcs.net.
+
+ o Code for selecting which of multiple external ipaddresses to use
+   on a global basis based on routing. 
+   Code contributed by Tom Chan <tchan@austin.rr.com>.
+
+ o Re-open logfiles on SIGHUP.
+
+ o Rename "pamservicename" to "pam.servicename".
+
+ o Fix memory overrun problem in Rgethostbyname*().  Found and
+   diagnosed by dme@dme.org, thanks.
+
+ o Warn if "logoutput:" changes to something we don't handle after
+   SIGHUP.
+
+ o Try to log presumably harmless client-related errors with LOG_DEBUG
+   instead of LOG_ERR, by popular request.
+
+ o New module available: redirect, gives control over both
+   where clients requests and replies will end up, aswell as what
+   addresses and portranges the Dante server will use.
+   Can also be used to limit the number of concurrent sessions
+   from each client.
+   See the module page "http://www.inet.no/dante/module.html" 
+   and doc/module for more information.
+
+ o New module available: bandwidth, gives control over how much
+   bandwidth the Dante server uses on behalf of the different clients.
+   See the module page "http://www.inet.no/dante/module.html" 
+   and doc/module for more information.
+
+ o upgraded to autoconf-2.50, libtool-1.4 and automake-1.4-p4
+
+***  Tuesday, May 29, 2001 -- Dante v1.1.10
+
+ o new method added: "pam".  Code contributed by
+   Patrick Bihan-Faou, MindStep Corporation, patrick@mindstep.com.
+
+ o let client-rules have their own global methodline, "clientmethod",
+   default value set to "none".
+   The global "method" is only used for socks-rules now.
+
+ o delay checking of password/etc til we have received the socks
+   request (rather than during negotiation, as was the case).
+   Required for supporting passwordbased authentication via non-socks
+   methods, e.g. pam.
+
+ o socklen_t definition updated for NetBSD 1.5U.
+   Problem report and patch submitted by Janne Snabb <snabb@ssh.com>.
+
+ o Output from 'config.guess' is not sufficient to determine use
+   of elf on NetBSD.
+   Problem report and patch submitted by Janne Snabb <snabb@ssh.com>
+
+ o BSDI 4.1 doesn't have freeifaddrs(), but uses free()
+   Problem reported by "Zand, Nooshin" <nooshin.zand@intel.com>
 
 ***  Tuesday, March 13, 2001 -- Dante v1.1.9
 
@@ -14,7 +309,7 @@
 ***  Tuesday, February 20, 2001 -- Dante v1.1.7
 
  o contrib/sockd-stat.awk, provides statistics based on sockd logfiles.
-	Contributed by Stephan Eisvogel <eisvogel@hawo.stw.uni-erlangen.de>.
+   Contributed by Stephan Eisvogel <eisvogel@hawo.stw.uni-erlangen.de>.
 
  o If gethostbyname() fails, treat it as if resolveprotocol was set to
    fake, meaning we hope the socksserver will be able to resolve it.

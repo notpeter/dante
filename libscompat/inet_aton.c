@@ -1,4 +1,4 @@
-/* $Id: inet_aton.c,v 1.3 1999/05/13 16:35:56 karls Exp $ */
+/* $Id: inet_aton.c,v 1.4 2008/07/25 08:49:05 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -8,7 +8,7 @@
 
 #if !HAVE_INET_ATON
 
-/*	$OpenBSD: inet_addr.c,v 1.5 1997/04/05 21:13:10 millert Exp $	*/
+/*   $OpenBSD: inet_addr.c,v 1.5 1997/04/05 21:13:10 millert Exp $   */
 
 /*
  * ++Copyright++ 1983, 1990, 1993
@@ -26,8 +26,8 @@
  *    documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
  *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
+ *   This product includes software developed by the University of
+ *   California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -67,7 +67,7 @@
 
 #if defined(LIBC_SCCS) && !defined(lint)
 #if 0
-static char sccsid[] = "@(#)inet_addr.c	8.1 (Berkeley) 6/17/93";
+static char sccsid[] = "@(#)inet_addr.c   8.1 (Berkeley) 6/17/93";
 static char rcsid[] = "$From: inet_addr.c,v 8.5 1996/08/05 08:31:35 vixie Exp $";
 #else
 static char rcsid[] = "$OpenBSD: inet_addr.c,v 1.5 1997/04/05 21:13:10 millert Exp $";
@@ -89,13 +89,13 @@ static char rcsid[] = "$OpenBSD: inet_addr.c,v 1.5 1997/04/05 21:13:10 millert E
 #if 0
 in_addr_t
 inet_addr(cp)
-	register const char *cp;
+   register const char *cp;
 {
-	struct in_addr val;
+   struct in_addr val;
 
-	if (inet_aton(cp, &val))
-		return (val.s_addr);
-	return (INADDR_NONE);
+   if (inet_aton(cp, &val))
+      return (val.s_addr);
+   return (INADDR_NONE);
 }
 #endif  /* 0 */
 /*
@@ -107,101 +107,101 @@ inet_addr(cp)
  */
 int
 inet_aton(cp, addr)
-	register const char *cp;
-	struct in_addr *addr;
+   register const char *cp;
+   struct in_addr *addr;
 {
-	register in_addr_t val;
-	register int base, n;
-	register char c;
-	u_int parts[4];
-	register u_int *pp = parts;
+   register in_addr_t val;
+   register int base, n;
+   register char c;
+   u_int parts[4];
+   register u_int *pp = parts;
 
-	c = *cp;
-	for (;;) {
-		/*
-		 * Collect number up to ``.''.
-		 * Values are specified as for C:
-		 * 0x=hex, 0=octal, isdigit=decimal.
-		 */
-		if (!isdigit((int)c))
-			return (0);
-		val = 0; base = 10;
-		if (c == '0') {
-			c = *++cp;
-			if (c == 'x' || c == 'X')
-				base = 16, c = *++cp;
-			else
-				base = 8;
-		}
-		for (;;) {
-			if (isascii((int)c) && isdigit((int)c)) {
-				val = (val * base) + (c - '0');
-				c = *++cp;
-			} else if (base == 16 && isascii((int)c) && isxdigit((int)c)) {
-				val = (val << 4) |
-					(c + 10 - (islower((int)c) ? 'a' : 'A'));
-				c = *++cp;
-			} else
-				break;
-		}
-		if (c == '.') {
-			/*
-			 * Internet format:
-			 *	a.b.c.d
-			 *	a.b.c	(with c treated as 16 bits)
-			 *	a.b	(with b treated as 24 bits)
-			 */
-			if (pp >= parts + 3)
-				return (0);
-			*pp++ = val;
-			c = *++cp;
-		} else
-			break;
-	}
-	/*
-	 * Check for trailing characters.
-	 */
-	if (c != '\0' && (!isascii((int)c) || !isspace((int)c)))
-		return (0);
-	/*
-	 * Concoct the address according to
-	 * the number of parts specified.
-	 */
-	n = pp - parts + 1;
-	switch (n) {
+   c = *cp;
+   for (;;) {
+      /*
+       * Collect number up to ``.''.
+       * Values are specified as for C:
+       * 0x=hex, 0=octal, isdigit=decimal.
+       */
+      if (!isdigit((int)c))
+         return (0);
+      val = 0; base = 10;
+      if (c == '0') {
+         c = *++cp;
+         if (c == 'x' || c == 'X')
+            base = 16, c = *++cp;
+         else
+            base = 8;
+      }
+      for (;;) {
+         if (isascii((int)c) && isdigit((int)c)) {
+            val = (val * base) + (c - '0');
+            c = *++cp;
+         } else if (base == 16 && isascii((int)c) && isxdigit((int)c)) {
+            val = (val << 4) |
+               (c + 10 - (islower((int)c) ? 'a' : 'A'));
+            c = *++cp;
+         } else
+            break;
+      }
+      if (c == '.') {
+         /*
+          * Internet format:
+          *   a.b.c.d
+          *   a.b.c   (with c treated as 16 bits)
+          *   a.b   (with b treated as 24 bits)
+          */
+         if (pp >= parts + 3)
+            return (0);
+         *pp++ = val;
+         c = *++cp;
+      } else
+         break;
+   }
+   /*
+    * Check for trailing characters.
+    */
+   if (c != '\0' && (!isascii((int)c) || !isspace((int)c)))
+      return (0);
+   /*
+    * Concoct the address according to
+    * the number of parts specified.
+    */
+   n = pp - parts + 1;
+   switch (n) {
 
-	case 0:
-		return (0);		/* initial nondigit */
+   case 0:
+      return (0);      /* initial nondigit */
 
-	case 1:				/* a -- 32 bits */
-		break;
+   case 1:            /* a -- 32 bits */
+      break;
 
-	case 2:				/* a.b -- 8.24 bits */
-		if (val > 0xffffff)
-			return (0);
-		val |= parts[0] << 24;
-		break;
+   case 2:            /* a.b -- 8.24 bits */
+      if (val > 0xffffff)
+         return (0);
+      val |= parts[0] << 24;
+      break;
 
-	case 3:				/* a.b.c -- 8.8.16 bits */
-		if (val > 0xffff)
-			return (0);
-		val |= (parts[0] << 24) | (parts[1] << 16);
-		break;
+   case 3:            /* a.b.c -- 8.8.16 bits */
+      if (val > 0xffff)
+         return (0);
+      val |= (parts[0] << 24) | (parts[1] << 16);
+      break;
 
-	case 4:				/* a.b.c.d -- 8.8.8.8 bits */
-		if (val > 0xff)
-			return (0);
-		val |= (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8);
-		break;
-	}
-	if (addr)
-		addr->s_addr = htonl(val);
-	return (1);
+   case 4:            /* a.b.c.d -- 8.8.8.8 bits */
+      if (val > 0xff)
+         return (0);
+      val |= (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8);
+      break;
+   }
+   if (addr)
+      addr->s_addr = htonl(val);
+   return (1);
 }
 #else
 static void avoid_error __P((void));
 static void avoid_error()
 {
-	avoid_error();
+   avoid_error();
 }
 #endif  /* !HAVE_INET_ATON */

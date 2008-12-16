@@ -1,42 +1,50 @@
-Summary: A free Socks v4/v5 client implementation
+Summary: A free SOCKS v4/v5 client implementation
 Name: dante
-%define version 1.1.9
+%define version 1.2.0-pre1
 %define prefix /usr
 Version: %{version}
 Release: 1
 Copyright: BSD-type
 Group: Networking/Utilities
 URL: http://www.inet.no/dante/
+Vendor: Inferno Nettverk A/S
 Source: ftp://ftp.inet.no/pub/socks/dante-%{version}.tar.gz
 Buildroot: %{_tmppath}/dante-root
 
+%if %{?rh62:1}%{!?rh62:0}
+BuildRequires: pam
+%else
+BuildRequires: pam-devel
+%endif
 
 %description
-Dante is a free implementation of the proxy protocols socks version 4,
-socks version 5 (rfc1928) and msproxy. It can be used as a firewall
-between networks. It is being developed by Inferno Nettverk A/S, a
-Norwegian consulting company. Commercial support is available.
+Dante is a free implementation of the SOCKS proxy protocol, version 4,
+and version 5 (rfc1928). It can be used as a firewall between
+networks. It is being developed by Inferno Nettverk A/S, a Norwegian
+consulting company. Commercial support is available.
 
 This package contains the dynamic libraries required to "socksify"
-existing applications to become socks clients.
+existing applications, allowing them to automatically use the SOCKS
+protocol.
 
 %package server
-Summary: A free Socks v4/v5 server implementation
+Summary: A free SOCKS v4/v5 server implementation
 Group: Networking/Daemons
 Requires: dante
 
 %description server
-This package contains the socks proxy daemon and its documentation.
-The sockd is the server part of the Dante socks proxy package and
-allows socks clients to connect through it to the network.
+This package contains "sockd", the SOCKS proxy daemon and its
+documentation.  This is the server part of the Dante SOCKS proxy
+package and allows SOCKS clients to connect through it to the external
+network.
 
 %package devel
-Summary: development libraries for socks
+Summary: development libraries for SOCKS
 Group: Development/Libraries
 Requires: dante
 
 %description devel
-Additional libraries required to compile programs that use socks.
+Additional libraries required to compile programs that use SOCKS.
 
 %prep
 %setup
@@ -50,13 +58,13 @@ cat >sockd.init <<EOF
 #               the Dante server.
 #
 # chkconfig: 2345 65 35
-# description: sockd implements a socks v4/v5 proxy server
+# description: sockd implements a SOCKS v4/v5 proxy server
 
 # Source function library.
-. /etc/rc.d/init.d/functions
+. %{_initrddir}/functions
 
 # Source networking configuration.
-. /etc/sysconfig/network
+. %{_sysconfdir}/sysconfig/network
 
 # Check that networking is up.
 [ \${NETWORKING} = "no" ] && exit 0
@@ -96,22 +104,19 @@ exit 0
 EOF
 
 %build
-CFLAGS="${RPM_OPT_FLAGS}" ./configure --prefix=%{prefix} --mandir=%{_mandir}
+#%serverbuild
+%configure
 %{__make}
 
 %install
-%{__rm} -rf ${RPM_BUILD_ROOT}
-%{__make} install DESTDIR=${RPM_BUILD_ROOT}
+%makeinstall
 
 #set library as executable - prevent ldd from complaining
-%{__chmod} +x ${RPM_BUILD_ROOT}%{prefix}/lib/*.so.*.*
-
-%{__install}  -d ${RPM_BUILD_ROOT}/etc/rc.d/init.d ${RPM_BUILD_ROOT}%{prefix}/bin
-
-%{__install} -m 644 example/socks-simple.conf ${RPM_BUILD_ROOT}/etc/socks.conf
-%{__install} -m 644 example/sockd.conf ${RPM_BUILD_ROOT}/etc
-
-%{__install} -m 755 sockd.init ${RPM_BUILD_ROOT}/etc/rc.d/init.d/sockd
+%{__chmod} +x ${RPM_BUILD_ROOT}%{_libdir}/*.so.*.*
+%{__install} -d ${RPM_BUILD_ROOT}/%{_initrddir} ${RPM_BUILD_ROOT}/%{_bindir}
+%{__install} -m 0644 example/socks-simple.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/socks.conf
+%{__install} -m 0644 example/sockd.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}
+%{__install} -m 0755 sockd.init ${RPM_BUILD_ROOT}/%{_initrddir}/sockd
 
 %clean
 %{__rm} -rf $RPM_BUILD_ROOT
@@ -131,8 +136,9 @@ if [ $1 = 0 ]; then
 fi
 
 %files
-%defattr(-,root,root)
-%doc BUGS CREDITS INSTALL LICENSE NEWS README SUPPORT TODO doc/README* doc/rfc* doc/SOCKS4.protocol doc/faq.tex example/socks.conf example/socks-simple-withoutnameserver.conf example/sockd.conf example/socks-simple.conf
+%defattr(-, root, root, 0755)
+%doc BUGS CREDITS NEWS README SUPPORT TODO doc/README* doc/faq.tex example/socks.conf example/socks-simple-withoutnameserver.conf example/sockd.conf example/socks-simple.conf
+%config %{_sysconfdir}/socks.conf
 %{_libdir}/libsocks.so.0.1.0
 %{_libdir}/libsocks.so.0
 %{_libdir}/libsocks.so
@@ -141,23 +147,28 @@ fi
 %{_libdir}/libdsocks.so
 %{_bindir}/socksify
 %{_mandir}/man5/socks.conf.5*
-%config %{_sysconfdir}/socks.conf
 
 %files server
-%defattr(-,root,root)
-%{_mandir}/man8/sockd.8*
+%defattr(-, root, root, 0755)
+%config %{_sysconfdir}/sockd.conf
+%config %{_initrddir}/sockd
 %{_sbindir}/sockd
 %{_mandir}/man5/sockd.conf.5*
-%config %{_sysconfdir}/sockd.conf
-%config %{_sysconfdir}/rc.d/init.d/sockd
+%{_mandir}/man8/sockd.8*
 
 %files devel
+%defattr(-, root, root, 0755)
+%doc INSTALL doc/rfc* doc/SOCKS4.protocol
 %{_libdir}/libsocks.la
 %{_libdir}/libsocks.a
 %{_libdir}/libdsocks.la
 %{_includedir}/socks.h
 
 %changelog
+* Wed Mar 26 2003 Karl-Andre' Skevik <karls@inet.no>
+-Integrated changes from spec file by <dag@wieers.com>, located
+ at <URL:ftp://dag.wieers.com/home-made/dante/dante.spec>.
+
 * Thu Oct 12 2000 Karl-Andre' Skevik <karls@inet.no>
 -use of macros for directory locations/paths
 -explicitly name documentation files

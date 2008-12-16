@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #if SOCKSLIBRARY_DYNAMIC
 
 static const char rcsid[] =
-"$Id: int_osf2.c,v 1.10 2001/02/06 15:58:21 michaels Exp $";
+"$Id: int_osf2.c,v 1.12 2008/07/25 08:48:32 michaels Exp $";
 
 #undef accept
 #undef getpeername
@@ -57,180 +57,180 @@ static const char rcsid[] =
 #undef recvmsg
 #undef sendmsg
 
-	/* nfoo versions (with sockaddr len) of the system calls. */
+   /* nfoo versions (with sockaddr len) of the system calls. */
 
 int
 sys_naccept(s, addr, addrlen)
-	int s;
-	struct sockaddr *addr;
-	socklen_t *addrlen;
+   int s;
+   struct sockaddr *addr;
+   socklen_t *addrlen;
 {
-	int rc;
-	int (*function)(int s, struct sockaddr *addr, socklen_t *addrlen);
+   int rc;
+   int (*function)(int s, struct sockaddr *addr, socklen_t *addrlen);
 
-	SYSCALL_START(s);
-	function = symbolfunction(SYMBOL_NACCEPT);
-	rc = function(s, addr, addrlen);
-	SYSCALL_END(s);
-	return rc;
+   SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_NACCEPT);
+   rc = function(s, addr, addrlen);
+   SYSCALL_END(s);
+   return rc;
 }
 
 int
 sys_ngetpeername(s, name, namelen)
-	int s;
-	struct sockaddr *name;
-	socklen_t *namelen;
+   int s;
+   struct sockaddr *name;
+   socklen_t *namelen;
 {
-	int rc;
-	int (*function)(int s, const struct sockaddr *name, socklen_t *namelen);
+   int rc;
+   int (*function)(int s, const struct sockaddr *name, socklen_t *namelen);
 
-	SYSCALL_START(s);
-	function = symbolfunction(SYMBOL_NGETPEERNAME);
-	rc = function(s, name, namelen);
-	SYSCALL_END(s);
-	return rc;
+   SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_NGETPEERNAME);
+   rc = function(s, name, namelen);
+   SYSCALL_END(s);
+   return rc;
 }
 
 int
 sys_ngetsockname(s, name, namelen)
-	int s;
-	struct sockaddr *name;
-	socklen_t *namelen;
+   int s;
+   struct sockaddr *name;
+   socklen_t *namelen;
 {
-	int rc;
-	int (*function)(int s, const struct sockaddr *name, socklen_t *namelen);
+   int rc;
+   int (*function)(int s, const struct sockaddr *name, socklen_t *namelen);
 
-	SYSCALL_START(s);
-	function = symbolfunction(SYMBOL_NGETSOCKNAME);
-	rc = function(s, name, namelen);
-	SYSCALL_END(s);
-	return rc;
+   SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_NGETSOCKNAME);
+   rc = function(s, name, namelen);
+   SYSCALL_END(s);
+   return rc;
 }
 
 int
 sys_nrecvfrom(s, buf, len, flags, from, fromlen)
-	int s;
-	void *buf;
-	size_t len;
-	int flags;
-	struct sockaddr *from;
-	size_t *fromlen;
+   int s;
+   void *buf;
+   size_t len;
+   int flags;
+   struct sockaddr *from;
+   size_t *fromlen;
 {
-	int rc;
-	int (*function)(int s, void *buf, size_t len, int flags,
-					    struct sockaddr *from, socklen_t *fromlen);
+   int rc;
+   int (*function)(int s, void *buf, size_t len, int flags,
+                   struct sockaddr *from, socklen_t *fromlen);
 
-	SYSCALL_START(s);
-	function = symbolfunction(SYMBOL_NRECVFROM);
-	rc = function(s, buf, len, flags, from, fromlen);
-	SYSCALL_END(s);
-	return rc;
+   SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_NRECVFROM);
+   rc = function(s, buf, len, flags, from, fromlen);
+   SYSCALL_END(s);
+   return rc;
 }
 
 ssize_t
 sys_nrecvmsg(s, msg, flags)
-	int s;
-	struct msghdr *msg;
-	int flags;
+   int s;
+   struct msghdr *msg;
+   int flags;
 {
-	ssize_t rc;
-	int (*function)(int s, struct msghdr *msg, int flags);
+   ssize_t rc;
+   int (*function)(int s, struct msghdr *msg, int flags);
 
-	SYSCALL_START(s);
-	function = symbolfunction(SYMBOL_NRECVMSG);
-	rc = function(s, msg, flags);
-	SYSCALL_END(s);
-	return rc;
+   SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_NRECVMSG);
+   rc = function(s, msg, flags);
+   SYSCALL_END(s);
+   return rc;
 }
 
 ssize_t
 sys_nsendmsg(s, msg, flags)
-	int s;
-	const struct msghdr *msg;
-	int flags;
+   int s;
+   const struct msghdr *msg;
+   int flags;
 {
-	ssize_t rc;
-	int (*function)(int s, const struct msghdr *msg, int flags);
+   ssize_t rc;
+   int (*function)(int s, const struct msghdr *msg, int flags);
 
-	SYSCALL_START(s);
-	function = symbolfunction(SYMBOL_NSENDMSG);
-	rc = function(s, msg, flags);
-	SYSCALL_END(s);
-	return rc;
+   SYSCALL_START(s);
+   function = symbolfunction(SYMBOL_NSENDMSG);
+   rc = function(s, msg, flags);
+   SYSCALL_END(s);
+   return rc;
 }
 
 
-	/*
-	 * the interpositioned functions.
-	 */
+   /*
+    * the interpositioned functions.
+    */
 
 
 int
 naccept(s, addr, addrlen)
-	int s;
-	struct sockaddr *addr;
-	socklen_t *addrlen;
+   int s;
+   struct sockaddr *addr;
+   socklen_t *addrlen;
 {
-	if (ISSYSCALL(s))
-		return sys_naccept(s, addr, addrlen);
-	return Raccept(s, addr, addrlen);
+   if (ISSYSCALL(s))
+      return sys_naccept(s, addr, addrlen);
+   return Raccept(s, addr, addrlen);
 }
 int
 ngetpeername(s, name, namelen)
-	int s;
-	struct sockaddr *name;
-	socklen_t *namelen;
+   int s;
+   struct sockaddr *name;
+   socklen_t *namelen;
 {
-	if (ISSYSCALL(s))
-		return sys_ngetpeername(s, name, namelen);
-	return Rgetpeername(s, name, namelen);
+   if (ISSYSCALL(s))
+      return sys_ngetpeername(s, name, namelen);
+   return Rgetpeername(s, name, namelen);
 }
 
 int
 ngetsockname(s, name, namelen)
-	int s;
-	struct sockaddr *name;
-	socklen_t *namelen;
+   int s;
+   struct sockaddr *name;
+   socklen_t *namelen;
 {
-	if (ISSYSCALL(s))
-		return sys_ngetpeername(s, name, namelen);
-	return Rgetsockname(s, name, namelen);
+   if (ISSYSCALL(s))
+      return sys_ngetpeername(s, name, namelen);
+   return Rgetsockname(s, name, namelen);
 }
 
 ssize_t
 nrecvfrom(s, buf, len, flags, from, fromlen)
-	int s;
-	void *buf;
-	size_t len;
-	int flags;
-	struct sockaddr *from;
-	size_t *fromlen;
+   int s;
+   void *buf;
+   size_t len;
+   int flags;
+   struct sockaddr *from;
+   size_t *fromlen;
 {
-	if (ISSYSCALL(s))
-		return sys_nrecvfrom(s, buf, len, flags, from, fromlen);
-	return Rrecvfrom(s, buf, len, flags, from, fromlen);
+   if (ISSYSCALL(s))
+      return sys_nrecvfrom(s, buf, len, flags, from, fromlen);
+   return Rrecvfrom(s, buf, len, flags, from, fromlen);
 }
 
 ssize_t
 nrecvmsg(s, msg, flags)
-	int s;
-	struct msghdr *msg;
-	int flags;
+   int s;
+   struct msghdr *msg;
+   int flags;
 {
-	if (ISSYSCALL(s))
-		return sys_nrecvmsg(s, msg, flags);
-	return Rrecvmsg(s, msg, flags);
+   if (ISSYSCALL(s))
+      return sys_nrecvmsg(s, msg, flags);
+   return Rrecvmsg(s, msg, flags);
 }
 
 ssize_t
 nsendmsg(s, msg, flags)
-	int s;
-	const struct msghdr *msg;
-	int flags;
+   int s;
+   const struct msghdr *msg;
+   int flags;
 {
-	if (ISSYSCALL(s))
-		return sys_nsendmsg(s, msg, flags);
-	return Rsendmsg(s, msg, flags);
+   if (ISSYSCALL(s))
+      return sys_nsendmsg(s, msg, flags);
+   return Rsendmsg(s, msg, flags);
 }
 
 #endif /* SOCKSLIBRARY_DYNAMIC */

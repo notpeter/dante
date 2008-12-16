@@ -1,0 +1,1 @@
+#define UPNPCOMMAND_SUCCESS 0

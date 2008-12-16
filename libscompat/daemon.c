@@ -1,4 +1,4 @@
-/* $Id: daemon.c,v 1.3 1999/05/13 16:35:55 karls Exp $ */
+/* $Id: daemon.c,v 1.4 2008/07/25 08:49:04 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -9,7 +9,7 @@
 #if !HAVE_DAEMON
 /*-
  * Copyright (c) 1990, 1993
- *	The Regents of the University of California.  All rights reserved.
+ *   The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -21,8 +21,8 @@
  *    documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
  *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
+ *   This product includes software developed by the University of
+ *   California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -52,39 +52,39 @@ static char rcsid[] = "$OpenBSD: daemon.c,v 1.2 1996/08/19 08:22:13 tholo Exp $"
 
 int
 daemon(nochdir, noclose)
-	int nochdir, noclose;
+   int nochdir, noclose;
 {
-	int fd;
+   int fd;
 
-	switch (fork()) {
-	case -1:
-		return (-1);
-	case 0:
-		break;
-	default:
-		_exit(0);
-	}
+   switch (fork()) {
+   case -1:
+      return (-1);
+   case 0:
+      break;
+   default:
+      _exit(0);
+   }
 
-	if (setsid() == -1)
-		return (-1);
+   if (setsid() == -1)
+      return (-1);
 
-	if (!nochdir)
-		(void)chdir("/");
+   if (!nochdir)
+      (void)chdir("/");
 
-	/*XXX /dev/null */
-	if (!noclose && (fd = open("/dev/null", O_RDWR, 0)) != -1) {
-		(void)dup2(fd, STDIN_FILENO);
-		(void)dup2(fd, STDOUT_FILENO);
-		(void)dup2(fd, STDERR_FILENO);
-		if (fd > 2)
-			(void)close (fd);
-	}
-	return (0);
+   /*XXX /dev/null */
+   if (!noclose && (fd = open("/dev/null", O_RDWR, 0)) != -1) {
+      (void)dup2(fd, STDIN_FILENO);
+      (void)dup2(fd, STDOUT_FILENO);
+      (void)dup2(fd, STDERR_FILENO);
+      if (fd > 2)
+         (void)close (fd);
+   }
+   return (0);
 }
 #else
 static void avoid_error __P((void));
 static void avoid_error()
 {
-	avoid_error();
+   avoid_error();
 }
 #endif  /* !HAVE_DAEMON */

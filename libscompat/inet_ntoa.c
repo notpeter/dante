@@ -1,4 +1,4 @@
-/* $Id: inet_ntoa.c,v 1.3 1999/05/13 16:35:56 karls Exp $ */
+/* $Id: inet_ntoa.c,v 1.4 2008/07/25 08:49:05 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -10,7 +10,7 @@
 
 /*
  * Copyright (c) 1983, 1993
- *	The Regents of the University of California.  All rights reserved.
+ *   The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -22,8 +22,8 @@
  *    documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
  *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
+ *   This product includes software developed by the University of
+ *   California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -58,21 +58,21 @@ static char rcsid[] = "$OpenBSD: inet_ntoa.c,v 1.2 1996/08/19 08:29:16 tholo Exp
 
 char *
 inet_ntoa(in)
-	struct in_addr in;
+   struct in_addr in;
 {
-	static char b[18];
-	register char *p;
+   static char b[18];
+   register char *p;
 
-	p = (char *)&in;
-#define	UC(b)	(((int)b)&0xff)
-	(void)snprintf(b, sizeof(b),
-	    "%d.%d.%d.%d", UC(p[0]), UC(p[1]), UC(p[2]), UC(p[3]));
-	return (b);
+   p = (char *)&in;
+#define   UC(b)   (((int)b)&0xff)
+   (void)snprintf(b, sizeof(b),
+       "%d.%d.%d.%d", UC(p[0]), UC(p[1]), UC(p[2]), UC(p[3]));
+   return (b);
 }
 #else
 static void avoid_error __P((void));
 static void avoid_error()
 {
-	avoid_error();
+   avoid_error();
 }
 #endif  /* HAVE_BROKEN_INET_NTOA */

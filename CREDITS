@@ -1,4 +1,4 @@
-# $Id: CREDITS,v 1.25 2000/12/26 09:51:11 michaels Exp $
+# $Id: CREDITS,v 1.28 2004/06/20 12:20:34 karls Exp $
 
    Dante was developed for Inferno Nettverk A/S, Norway by:
       - Michael Shuldman <michaels@inet.no>: Design and implementation.
@@ -54,5 +54,18 @@
 - Thanks to Per Hedeland (per@erix.ericsson.se) for much appreciated
   help with some tricky stuff in addressmatching code aswell as
   several useful codepatches over the years.
+
+- Patrick Bihan-Faou, MindStep Corporation, patrick@mindstep.com
+  contributed support for PAM.
+
+- Tom Chan <tchan@austin.rr.com> contributed code to find out what
+  local address the system would select to use for connecting to a
+  particular ipaddress.
+
+- Lennart Dahlström <lennart@appgate.com> contributed an implementation
+  of getipnodebyname().
+
+- Motoyuki Kasahara <m-kasahr@sra.co.jp> contributed the getaddrinfo()
+  implementation used in the code.
 
 - Also thanks to everyone who reported bugs and other problems.

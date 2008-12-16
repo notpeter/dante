@@ -1,13 +1,14 @@
-# $Id: BUGS,v 1.19 2001/02/17 20:40:05 michaels Exp $
+# $Id: BUGS,v 1.32 2004/12/24 15:47:27 michaels Exp $
 
-To report a new bug, mail dante-bugs@inet.no.  Make sure you read
-the faq first.
+To report a new bug, mail dante-bugs@inet.no.
+Make sure you read the FAQ (http://www.inet.no/dante/FAQ/) first.
 
-	Things known not to work:
+Generic:
+ - 'libtool' is broken on OS X.
 
-- documentation could be much better.  You can help with that by
-  actually contributing something yourself.
+Client part:
+ - The clientlibrary is not threadsafe.  This can cause problems
+   when trying to socksify programs that use threads.
 
-- msproxycode seems to crash at least some msproxy servers.  See
-  README.msproxy for more information.  Also see the http proxy
-  support added to the client.
+Server part:
+    None known.

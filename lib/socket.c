@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,107 +44,176 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.27 2001/02/06 15:58:58 michaels Exp $";
+"$Id: socket.c,v 1.36 2008/12/11 17:33:13 michaels Exp $";
 
 int
 socks_connect(s, host)
-	int s;
-	const struct sockshost_t *host;
+   int s;
+   const struct sockshost_t *host;
 {
-	const char *function = "socks_connect()";
-	int new_s;
-	struct hostent *hostent;
-	struct sockaddr_in address;
-	char **ip;
+   const char *function = "socks_connect()";
+   int failed;
+   struct hostent *hostent;
+   struct sockaddr_in address;
+   char **ip;
 
-	bzero(&address, sizeof(address));
-	address.sin_family	= AF_INET;
-	address.sin_port		= host->port;
+   bzero(&address, sizeof(address));
+   address.sin_family   = AF_INET;
+   address.sin_port     = host->port;
 
-	switch (host->atype) {
-		case SOCKS_ADDR_IPV4:
-			address.sin_addr = host->addr.ipv4;
+   slog(LOG_DEBUG, "%s: %s\n", function, sockshost2string(host, NULL, 0));
 
-			/* LINTED pointer casts may be troublesome */
-			return connect(s, (struct sockaddr *)&address, sizeof(address));
+   switch (host->atype) {
+      case SOCKS_ADDR_IPV4: {
+         int rc;
 
-		case SOCKS_ADDR_DOMAIN:
-			if ((hostent = gethostbyname(host->addr.domain)) == NULL)
-				slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-				function, host->addr.domain, hstrerror(h_errno));
-			break;
+         address.sin_addr = host->addr.ipv4;
 
-		default:
-			SERRX(host->atype);
-	}
+         /* LINTED pointer casts may be troublesome */
+         rc = connect(s, (struct sockaddr *)&address, sizeof(address));
 
-	if (hostent == NULL)
-		return -1;
+         if (rc == 0 || errno == EINPROGRESS)
+            slog(LOG_DEBUG, "%s, connected to %s", function,
+            sockaddr2string((struct sockaddr *)&address, NULL, 0));
+         else
+            slog(LOG_DEBUG, "%s, failed connecting to %s: %s", function,
+            sockaddr2string((struct sockaddr *)&address, NULL, 0),
+            strerror(errno));
 
-	new_s = -1;
-	ip = hostent->h_addr_list;
-	do {
-		if (new_s == -1)
-			new_s = s;	/* try to use given descriptor before creating our own. */
-		else
-			if ((new_s = socketoptdup(s)) == -1)
-				return -1;
+         return rc;
+      }
 
-		/* LINTED pointer casts may be troublesome */
-		address.sin_addr = *((struct in_addr *)*ip);
+      case SOCKS_ADDR_DOMAIN:
+         if ((hostent = gethostbyname(host->addr.domain)) == NULL)
+            slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
+            function, host->addr.domain, hstrerror(h_errno));
+         break;
 
-		/* LINTED pointer casts may be troublesome */
-		if (connect(new_s, (struct sockaddr *)&address, sizeof(address)) == 0)
-			break;
+      default:
+         SERRX(host->atype);
+   }
 
-		if (new_s != s)
-			close(new_s);
+   if (hostent == NULL || (ip = hostent->h_addr_list) == NULL)
+      return -1;
 
-		/*
-		 * Only try next address if errno indicates server/network error.
-		 */
-		switch (errno) {
-			case ETIMEDOUT:
-			case EINVAL:
-			case ECONNREFUSED:
-			case ENETUNREACH:
-				break;
+   failed = 0;
+   do {
+      if (failed) {   /* previously failed, need to create a new socket. */
+         struct sockaddr name;
+         socklen_t namelen;
+         int new_s;
 
-			default:
-				return -1;
-		}
-	} while (ip != NULL && *++ip != NULL);
+         /* will also try to get the same portbinding. */
+         namelen = sizeof(name);
+         if (getsockname(s, &name, &namelen) != 0)
+            return -1;
 
-	if (ip == NULL || *ip == NULL)
-		return -1; /* list exhausted, no successful connect. */
+         if ((new_s = socketoptdup(s)) == -1)
+            return -1;
 
-	if (new_s != s) {	/* had to create a new socket of our own. */
-		if (dup2(new_s, s) == -1) {
-			close(new_s);
-			return -1;
-		}
-		close(new_s);
+         if (dup2(new_s, s) == -1) {
+            close(new_s);
+            return -1;
+         }
+         close(new_s); /* s is now a new socket but keeps the same index. */
 
-#if SOCKS_SERVER && HAVE_LIBWRAP
-		if ((new_s = fcntl(s, F_GETFD, 0)) == -1
-		|| fcntl(s, F_SETFD, new_s | FD_CLOEXEC) == -1)
-			swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
-#endif
-	}
+#if SOCKS_SERVER
+         if (sockd_bind(s, &name, 1) != 0)
+            return -1;
+#else /* SOCKS_SERVER */
+         if (bind(s, &name, namelen) != 0)
+            return -1;
+#endif /* !SOCKS_SERVER */
+      }
 
-	return 0;
+      /* LINTED pointer casts may be troublesome */
+      address.sin_addr = *((struct in_addr *)*ip);
+
+      /* LINTED pointer casts may be troublesome */
+      if (connect(s, (struct sockaddr *)&address, sizeof(address)) == 0
+      ||  errno == EINPROGRESS) {
+         slog(LOG_DEBUG, "%s, connected to %s", function,
+         sockaddr2string((struct sockaddr *)&address, NULL, 0));
+         break;
+       }
+       else 
+         /* LINTED pointer casts may be troublesome */
+         slog(LOG_DEBUG, "%s, failed connecting to %s: %s", function,
+         sockaddr2string((struct sockaddr *)&address, NULL, 0),
+         strerror(errno));
+
+#if SOCKS_SERVER /* clients may have set up alarms to interrupt. */
+      if (errno == EINTR) {
+         fd_set rset;
+
+         FD_ZERO(&rset);
+         FD_SET(s, &rset);
+
+         if (selectn(s + 1, &rset, NULL, NULL, NULL) != 1)
+            SERR(0);
+
+         if (read(s, NULL, 0) == 0)
+            break;
+         /*
+          * else; errno gets set and we can handle it as there was no
+          * interrupt.
+          */
+      }
+#endif /* SOCKS_SERVER */
+
+      /*
+       * Only retry/try next address if errno indicates server/network error.
+       */
+      switch (errno) {
+         case ETIMEDOUT:
+         case EINVAL:
+         case ECONNREFUSED:
+         case ENETUNREACH:
+         case EHOSTUNREACH:
+            failed = 1;
+            break;
+
+         default:
+            return -1;
+      }
+   } while (*++ip != NULL);
+
+   if (*ip == NULL)
+      return -1; /* list exhausted, no successful connect. */
+
+   return 0;
 }
 
 int
 acceptn(s, addr, addrlen)
-	int s;
-	struct sockaddr *addr;
-	socklen_t *addrlen;
+   int s;
+   struct sockaddr *addr;
+   socklen_t *addrlen;
 {
-	int rc;
+   int rc;
 
-	while ((rc = accept(s, addr, addrlen)) == -1 && errno == EINTR)
-		;
+   while ((rc = accept(s, addr, addrlen)) == -1 && errno == EINTR)
+      ;
 
-	return rc;
+   return rc;
+}
+
+int
+socks_socketisforlan(s)
+   const int s;
+{
+   const char *function = "socks_socketisforlan()";
+   struct in_addr addr;
+   socklen_t len;
+
+   /* if the socket is bound to an interface, assume it's for lan-only use. */
+   len = sizeof(addr);
+   if (getsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &addr, &len) == 0) {
+      if (addr.s_addr != htonl(0))
+         return 1;
+      return 0;
+   }
+
+   swarn("%s: getsockopt(IP_MULTICAST_IF)", function);
+   return 0;
 }

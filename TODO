@@ -1,10 +1,14 @@
-# $Id: TODO,v 1.142 2001/02/05 14:43:25 michaels Exp $
+# $Id: TODO,v 1.175 2008/11/04 09:40:53 michaels Exp $
+
+* add an option for the client to clean up all old dante upnp sessions
+  at startup, if that is possible.  Currently each client should clean
+  up for itself on normal exit, but if something special happens,
+  it might not be done.
+
+* add define for how many times to try a rule before blacklisting. 
+  One could be default, zero disables blacklisting?
 
 * change _t struct's to typedef.
-
-* allocate fd_set's with malloc() for overflow protection.
-
-* select() if we get EINTR in socks_connect() and SOCKS_SERVER?
 
 * share host/addr cache across processes.
 
@@ -16,11 +20,12 @@
 
 * shrink io_t, too big.
 
-* possible to specify what address/portrange server should use for
-  outgoing connection in each rule?
-
-* solaris cc needs -misalign due to alignment problems with sockaddr/
+* Solaris cc needs -misalign due to alignment problems with sockaddr/
   sockaddr_in casts. causes coredump with ftp (passive ls) in client,
   in sockshost2sockaddr (util.c, line 271, version 1.94).
 
 * match configure/manual config/pid location
+
+* port code for interface/route info retrieval to OSF
+
+* IPV6 support

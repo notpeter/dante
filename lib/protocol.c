@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,137 +44,137 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.53 2001/02/06 15:58:57 michaels Exp $";
+"$Id: protocol.c,v 1.57 2008/07/25 08:48:59 michaels Exp $";
 
 unsigned char *
 sockshost2mem(host, mem, version)
-	const struct sockshost_t *host;
-	unsigned char *mem;
-	int version;
+   const struct sockshost_t *host;
+   unsigned char *mem;
+   int version;
 {
 
-	switch (version) {
-		case SOCKS_V4:
-		case SOCKS_V4REPLY_VERSION:
-			SASSERTX(host->atype == SOCKS_ADDR_IPV4);
+   switch (version) {
+      case PROXY_SOCKS_V4:
+      case PROXY_SOCKS_V4REPLY_VERSION:
+         SASSERTX(host->atype == SOCKS_ADDR_IPV4);
 
-			/* DSTPORT */
-			memcpy(mem, &host->port, sizeof(host->port));
-			mem += sizeof(host->port);
+         /* DSTPORT */
+         memcpy(mem, &host->port, sizeof(host->port));
+         mem += sizeof(host->port);
 
-			/* DSTIP */
-			memcpy(mem, &host->addr.ipv4, sizeof(host->addr.ipv4));
-			mem += sizeof(host->addr.ipv4);
+         /* DSTIP */
+         memcpy(mem, &host->addr.ipv4, sizeof(host->addr.ipv4));
+         mem += sizeof(host->addr.ipv4);
 
-			break;
+         break;
 
-		case SOCKS_V5:
-			/* ATYP */
-			memcpy(mem, &host->atype, sizeof(host->atype));
-			mem += sizeof(host->atype);
+      case PROXY_SOCKS_V5:
+         /* ATYP */
+         memcpy(mem, &host->atype, sizeof(host->atype));
+         mem += sizeof(host->atype);
 
-			switch (host->atype) {
-				case SOCKS_ADDR_IPV4:
-					memcpy(mem, &host->addr.ipv4.s_addr,
-					sizeof(host->addr.ipv4.s_addr));
-					mem += sizeof(host->addr.ipv4.s_addr);
-					break;
+         switch (host->atype) {
+            case SOCKS_ADDR_IPV4:
+               memcpy(mem, &host->addr.ipv4.s_addr,
+               sizeof(host->addr.ipv4.s_addr));
+               mem += sizeof(host->addr.ipv4.s_addr);
+               break;
 
-				case SOCKS_ADDR_IPV6:
-					memcpy(mem, &host->addr.ipv6, sizeof(host->addr.ipv6));
-					mem += sizeof(host->addr.ipv6);
-					break;
+            case SOCKS_ADDR_IPV6:
+               memcpy(mem, &host->addr.ipv6, sizeof(host->addr.ipv6));
+               mem += sizeof(host->addr.ipv6);
+               break;
 
-				case SOCKS_ADDR_DOMAIN:
-					/* first byte gives length of rest. */
-					*mem = (unsigned char)strlen(host->addr.domain);
-					memcpy(mem + 1, host->addr.domain, (size_t)*mem);
-					mem += *mem + 1;
-					break;
+            case SOCKS_ADDR_DOMAIN:
+               /* first byte gives length of rest. */
+               *mem = (unsigned char)strlen(host->addr.domain);
+               memcpy(mem + 1, host->addr.domain, (size_t)*mem);
+               mem += *mem + 1;
+               break;
 
-				default:
-					SERRX(host->atype);
-			}
+            default:
+               SERRX(host->atype);
+         }
 
-			/* DST.PORT */
-			memcpy(mem, &host->port, sizeof(host->port));
-			mem += sizeof(host->port);
+         /* DST.PORT */
+         memcpy(mem, &host->port, sizeof(host->port));
+         mem += sizeof(host->port);
 
-			break;
+         break;
 
-		default:
-			SERRX(version);
-	}
+      default:
+         SERRX(version);
+   }
 
-	return mem;
+   return mem;
 }
 
 const unsigned char *
 mem2sockshost(host, mem, len, version)
-	struct sockshost_t *host;
-	const unsigned char *mem;
-	size_t len;
-	int version;
+   struct sockshost_t *host;
+   const unsigned char *mem;
+   size_t len;
+   int version;
 {
-	const char *function = "mem2sockshost()";
+   const char *function = "mem2sockshost()";
 
-	switch (version) {
-		case SOCKS_V5:
-			if (len < sizeof(host->atype))
-				return NULL;
-			memcpy(&host->atype, mem, sizeof(host->atype));
-			mem += sizeof(host->atype);
-			len -= sizeof(host->atype);
+   switch (version) {
+      case PROXY_SOCKS_V5:
+         if (len < sizeof(host->atype))
+            return NULL;
+         memcpy(&host->atype, mem, sizeof(host->atype));
+         mem += sizeof(host->atype);
+         len -= sizeof(host->atype);
 
-			switch (host->atype) {
-				case SOCKS_ADDR_IPV4:
-					if (len < sizeof(host->addr.ipv4))
-						return NULL;
-					memcpy(&host->addr.ipv4, mem, sizeof(host->addr.ipv4));
-					mem += sizeof(host->addr.ipv4);
-					len -= sizeof(host->addr.ipv4);
-					break;
+         switch (host->atype) {
+            case SOCKS_ADDR_IPV4:
+               if (len < sizeof(host->addr.ipv4))
+                  return NULL;
+               memcpy(&host->addr.ipv4, mem, sizeof(host->addr.ipv4));
+               mem += sizeof(host->addr.ipv4);
+               len -= sizeof(host->addr.ipv4);
+               break;
 
-				case SOCKS_ADDR_DOMAIN: {
-					size_t domainlen = (size_t)*mem;
+            case SOCKS_ADDR_DOMAIN: {
+               size_t domainlen = (size_t)*mem;
 
-					mem += sizeof(*mem);
+               mem += sizeof(*mem);
 
-					OCTETIFY(domainlen);
+               OCTETIFY(domainlen);
 
-					if (len < domainlen + 1) /* +1 for NUL to be added. */
-						return NULL;
+               if (len < domainlen + 1) /* +1 for NUL to be added. */
+                  return NULL;
 
-					SASSERTX(domainlen < sizeof(host->addr.domain));
+               SASSERTX(domainlen < sizeof(host->addr.domain));
 
-					memcpy(host->addr.domain, mem, domainlen);
-					host->addr.domain[domainlen] = NUL;
-					mem += domainlen;
-					len -= domainlen + 1; /* +1 for added NUL. */
-					break;
-				}
+               memcpy(host->addr.domain, mem, domainlen);
+               host->addr.domain[domainlen] = NUL;
+               mem += domainlen;
+               len -= domainlen + 1; /* +1 for added NUL. */
+               break;
+            }
 
-				case SOCKS_ADDR_IPV6:
-					slog(LOG_INFO, "%s: IPv6 not supported", function);
-					return NULL;
+            case SOCKS_ADDR_IPV6:
+               slog(LOG_INFO, "%s: IPv6 not supported", function);
+               return NULL;
 
-				default:
-					slog(LOG_INFO, "%s: unknown atype field: %d",
-					function, host->atype);
-					return NULL;
-			}
+            default:
+               slog(LOG_INFO, "%s: unknown atype field: %d",
+               function, host->atype);
+               return NULL;
+         }
 
-			if (len < sizeof(host->port))
-				return NULL;
-			memcpy(&host->port, mem, sizeof(host->port));
-			mem += sizeof(host->port);
-			len -= sizeof(host->port);
+         if (len < sizeof(host->port))
+            return NULL;
+         memcpy(&host->port, mem, sizeof(host->port));
+         mem += sizeof(host->port);
+         len -= sizeof(host->port);
 
-			break;
+         break;
 
-		default:
-			SERRX(version);
-	}
+      default:
+         SERRX(version);
+   }
 
-	return mem;
+   return mem;
 }

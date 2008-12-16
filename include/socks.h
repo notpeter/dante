@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.163 2001/02/06 15:58:41 michaels Exp $ */
+/* $Id: socks.h,v 1.179 2008/07/25 08:48:35 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -63,25 +63,25 @@ extern const int lintnoloop_socks_h;
 #undef accept
 #endif  /* accept */
 #if HAVE_EXTRA_OSF_SYMBOLS
-#define accept(s, addr, addrlen)			sys_Eaccept(s, addr, addrlen)
+#define accept(s, addr, addrlen)         sys_Eaccept(s, addr, addrlen)
 #else
-#define accept(s, addr, addrlen)			sys_accept(s, addr, addrlen)
+#define accept(s, addr, addrlen)         sys_accept(s, addr, addrlen)
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef bind
 #undef bind
 #endif  /* bind */
-#define bind(s, name, namelen)			sys_bind(s, name, namelen)
+#define bind(s, name, namelen)         sys_bind(s, name, namelen)
 
 #ifdef bindresvport
 #undef bindresvport
 #endif  /* bindresvport */
-#define bindresvport(sd, sin)				sys_bindresvport(sd, sin)
+#define bindresvport(sd, sin)            sys_bindresvport(sd, sin)
 
 #ifdef connect
 #undef connect
 #endif  /* connect */
-#define connect(s, name, namelen)		sys_connect(s, name, namelen)
+#define connect(s, name, namelen)      sys_connect(s, name, namelen)
 
 #ifdef gethostbyname
 #undef gethostbyname
@@ -91,147 +91,144 @@ extern const int lintnoloop_socks_h;
  * a little tricky ... we need it to be at the bottom of the stack,
  * like a syscall.
 */
-#define gethostbyname(name)				sys_gethostbyname2(name, AF_INET)
+#define gethostbyname(name)            sys_gethostbyname2(name, AF_INET)
 #else
-#define gethostbyname(name)				sys_gethostbyname(name)
+#define gethostbyname(name)            sys_gethostbyname(name)
 #endif
 
 #ifdef gethostbyname2
 #undef gethostbyname2
 #endif  /* gethostbyname2 */
-#define gethostbyname2(name, af)			sys_gethostbyname2(name, af)
+#define gethostbyname2(name, af)         sys_gethostbyname2(name, af)
+
+#ifdef getaddrinfo
+#undef getaddrinfo
+#endif /* getaddrinfo */
+#define getaddrinfo(nodename, servname, hints, res)   \
+         sys_getaddrinfo(nodename, servname, hints, res)
+
+#ifdef getipnodebyname
+#undef getipnodebyname
+#endif /* getipnodebyname */
+#define getipnodebyname(name, af, flags, error_num)   \
+         sys_getipnodebyname(name, af, flags, error_num)
+
+#ifdef freehostent
+#undef freehostent
+#endif  /* freehostent */
+#define freehostent(ptr)            sys_freehostent(ptr)
 
 #ifdef getpeername
 #undef getpeername
 #endif  /* getpeername */
 #if HAVE_EXTRA_OSF_SYMBOLS
-#define getpeername(s, name, namelen)	sys_Egetpeername(s, name, namelen)
+#define getpeername(s, name, namelen)   sys_Egetpeername(s, name, namelen)
 #else
-#define getpeername(s, name, namelen)	sys_getpeername(s, name, namelen)
+#define getpeername(s, name, namelen)   sys_getpeername(s, name, namelen)
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef getsockname
 #undef getsockname
 #endif  /* getsockname */
 #if HAVE_EXTRA_OSF_SYMBOLS
-#define getsockname(s, name, namelen)	sys_Egetsockname(s, name, namelen)
+#define getsockname(s, name, namelen)   sys_Egetsockname(s, name, namelen)
 #else
-#define getsockname(s, name, namelen)	sys_getsockname(s, name, namelen)
+#define getsockname(s, name, namelen)   sys_getsockname(s, name, namelen)
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef read
 #undef read
 #endif  /* read */
-#define read(d, buf, nbytes)				sys_read(d, buf, nbytes)
+#define read(d, buf, nbytes)            sys_read(d, buf, nbytes)
 
 #ifdef readv
 #undef readv
 #endif  /* readv */
 #if HAVE_EXTRA_OSF_SYMBOLS
-#define readv(d, iov, iovcnt)				sys_Ereadv(d, iov, iovcnt)
+#define readv(d, iov, iovcnt)            sys_Ereadv(d, iov, iovcnt)
 #else
-#define readv(d, iov, iovcnt)				sys_readv(d, iov, iovcnt)
+#define readv(d, iov, iovcnt)            sys_readv(d, iov, iovcnt)
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef recv
 #undef recv
 #endif  /* recv */
-#define recv(s, msg, len, flags)			sys_recv(s, msg, len, flags)
+#define recv(s, msg, len, flags)         sys_recv(s, msg, len, flags)
 
 #ifdef recvfrom
 #undef recvfrom
 #endif  /* recvfrom */
 #if HAVE_EXTRA_OSF_SYMBOLS
-#define recvfrom(s, buf, len, flags, from, fromlen)	\
-		  sys_Erecvfrom(s, buf, len, flags, from, fromlen)
+#define recvfrom(s, buf, len, flags, from, fromlen)   \
+        sys_Erecvfrom(s, buf, len, flags, from, fromlen)
 #else
-#define recvfrom(s, buf, len, flags, from, fromlen)	\
-		  sys_recvfrom(s, buf, len, flags, from, fromlen)
+#define recvfrom(s, buf, len, flags, from, fromlen)   \
+        sys_recvfrom(s, buf, len, flags, from, fromlen)
 
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
-
-#ifdef recvmsg
-#undef recvmsg
-#endif  /* recvmsg */
-#if HAVE_EXTRA_OSF_SYMBOLS
-#define recvmsg(s, msg, flags)			sys_Erecvmsg(s, msg, flags)
-#else
-#define recvmsg(s, msg, flags)			sys_recvmsg(s, msg, flags)
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef rresvport
 #undef rresvport
 #endif  /* rresvport */
-#define rresvport(port)						sys_rresvport(port)
+#define rresvport(port)                  sys_rresvport(port)
 
 #ifdef sendto
 #undef sendto
 #endif  /* sendto */
-#define sendto(s, msg, len, flags, to, tolen)	\
-		  sys_sendto(s, msg, len, flags, to, tolen)
+#define sendto(s, msg, len, flags, to, tolen)   \
+        sys_sendto(s, msg, len, flags, to, tolen)
 
 #ifdef write
 #undef write
 #endif  /* write */
-#define write(d, buf, nbytes)				sys_write(d, buf, nbytes)
+#define write(d, buf, nbytes)            sys_write(d, buf, nbytes)
 
 #ifdef writev
 #undef writev
 #endif  /* writev */
 #if HAVE_EXTRA_OSF_SYMBOLS
-#define writev(d, iov, iovcnt)			sys_Ewritev(d, iov, iovcnt)
+#define writev(d, iov, iovcnt)         sys_Ewritev(d, iov, iovcnt)
 #else
-#define writev(d, iov, iovcnt)			sys_writev(d, iov, iovcnt)
+#define writev(d, iov, iovcnt)         sys_writev(d, iov, iovcnt)
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef send
 #undef send
 #endif  /* send */
-#define send(s, msg, len, flags)			sys_send(s, msg, len, flags)
-
-#ifdef sendmsg
-#undef sendmsg
-#endif  /* sendmsg */
-#if HAVE_EXTRA_OSF_SYMBOLS
-#define sendmsg(s, msg, flags)			sys_Esendmsg(s, msg, flags)
-#else
-#define sendmsg(s, msg, flags)			sys_sendmsg(s, msg, flags)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+#define send(s, msg, len, flags)         sys_send(s, msg, len, flags)
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
 struct configstate_t {
-	unsigned				init:1;
-	unsigned				:0;
-	struct sockaddr	lastconnect;		/* address we last connected to.		*/
-	pid_t					pid;
-	unsigned				:0;
+   unsigned            init;               /* inited?                               */
+   struct sockaddr   lastconnect;      /* address we last connected to.         */
+   pid_t               pid;               /* our pid.                              */
 };
 
 struct option_t {
-	int					debug;
-	char					*configfile;	/* name of current configfile.				*/
-	unsigned				lbuf:1;			/* linebuffered output?							*/
-	unsigned				:0;
+   int               debug;
+   char               *configfile;   /* name of current configfile.            */
+   unsigned            :0;
 };
 
 
 
 struct config_t {
-	pid_t								connectchild;				/* connect process.		*/
-	int								connect_s;					/* socket to child.		*/
-	char								domain[MAXHOSTNAMELEN]; /* localdomain.			*/
-	struct logtype_t				log;							/* where to log.			*/
-	struct option_t				option;						/* misc. options.			*/
-	struct configstate_t			state;
-	int								resolveprotocol;			/* resolveprotocol.		*/
-	struct route_t					*route;						/* linked list of routes*/
+   pid_t                        connectchild;            /* connect process.      */
+   int                        connect_s;               /* socket to child.      */
+   char                        domain[MAXHOSTNAMELEN]; /* localdomain.         */
+   struct logtype_t            log;                     /* where to log.         */
+   struct option_t            option;                  /* misc. options.         */
+   struct configstate_t         state;
+   int                        resolveprotocol;         /* resolveprotocol.      */
+   struct route_t               *route;                  /* linked list of routes*/
 };
 
 struct childpacket_t {
-   struct sockshost_t   src;
-   struct sockshost_t   dst;
-   struct socks_t       packet;
+   int                  s;            /* filedescriptor number.                  */
+   struct sockshost_t   src;         /* local address of control-connection.    */
+   struct sockshost_t   dst;         /* remote address of control-connection.    */
+   struct socks_t       packet;      /* socks packet exchanged with server.      */
 };
 
 
@@ -246,6 +243,9 @@ clientinit __P((void));
 /*
  * initialises clientstate, reads configfile, etc.
  */
+
+void upnpcleanup(void);
+/* cleanup upnp-stuff before exiting.  Mostly removing portmappings. */
 
 
 #if !HAVE_OSF_OLDSTYLE
@@ -264,6 +264,14 @@ int Rbindresvport __P((int, struct sockaddr_in *));
 int Rrresvport __P((int *));
 struct hostent *Rgethostbyname __P((const char *));
 struct hostent *Rgethostbyname2 __P((const char *, int af));
+#if HAVE_GETADDRINFO
+int Rgetaddrinfo __P((const char *nodename, const char *servname,
+                  const struct addrinfo *hints, struct addrinfo **res));
+#endif /* HAVE_GETADDRINFO */
+#if HAVE_GETIPNODEBYNAME
+struct hostent *Rgetipnodebyname __P((const char *, int, int, int *));
+void Rfreehostent __P((struct hostent *));
+#endif /* HAVE_GETIPNODEBYNAME */
 ssize_t Rwrite __P((int d, const void *buf, size_t nbytes));
 ssize_t Rwritev __P((int d, const struct iovec *iov, int iovcnt));
 ssize_t Rsend __P((int s, const void *msg, size_t len, int flags));
@@ -284,103 +292,41 @@ int
 udpsetup __P((int s, const struct sockaddr *to, int type));
 /*
  * sets up udp relaying between address of "s" and "to" by connecting
- * to socksserver.
+ * to a proxyserver.
  * If relaying is already set up the function returns with success.
- * Type is the type of connection setup, SOCKS_SEND or SOCKS_RECV.
- * At the moment only SOCKS_SEND is supported.
+ * Type is the type of connection to set up, SOCKS_SEND or SOCKS_RECV.
  * Returns:
- *		On success: 0
- *		On failure: -1
+ *      On success: 0
+ *      On failure: -1.   No proxy found, or proxy failed. 
+ *             If no proxy found, errno will not be set,
+ *                          otherwise it will be set to indicate the
+ *                          reason for failure.
  */
 
 
-int
-negotiate_method __P((int s, struct socks_t *packet));
+
+   /*
+    *  Misc. functions to help keep track of our connection(s) to the server.
+    */
+
+
+void socks_addrlock(const int locktype);
+void socks_addrunlock(void);
 /*
- * Negotiates a method to be used when talking with the server connected
- * to "s".  "packet" is the packet that will later be sent to server,
- * only the "auth" element in it will be set but other elements are needed
- * too.
- * Returns:
- *		On success: 0
- *		On failure: -1
+ * Lock/unlock global address object.  All the other socks_addr*()
+ * functions do this themselves, so do not call it before calling
+ * any of them.
+ * "type" is one of F_WRLCK or F_RDLCK, for write or read-lock. 
  */
 
-
-int
-socks_sendrequest __P((int s, const struct request_t *request));
-/*
- * Sends the request "request" to the socksserver connected to "s".
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
-int
-socks_recvresponse __P((int s, struct response_t *response, int version));
-/*
- * Receives a socks response from the "s".  "response" is filled in with
- * the data received.
- * "version" is the protocolversion negotiated.
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
-
-int
-socks_negotiate __P((int s, int control, struct socks_t *packet,
-							struct route_t *route));
-/*
- * "s" is the socket data will flow over.
- * "control" is the control connection to the socks server.
- * "packet" is a socks packet containing the request.
- *	"route" is the connected route.
- * Negotiates method and fills the response to the request into packet->res.
- * Returns:
- *		On success: 0 (server replied to our request).
- *		On failure: -1.
- */
-
-
-
-struct route_t *
-socks_nbconnectroute __P((int s, int control, struct socks_t *packet,
-								  const struct sockshost_t *src,
-								  const struct sockshost_t *dst));
-/*
- * The non-blocking version of socks_connectroute(), only used by client.
- * Takes one additional argument, "s", which is the socket to connect
- * and not necessarily the same as "control" (msproxy case).
- */
-
-void
-socks_badroute __P((struct route_t *route));
-/*
- * Marks route "route" as bad.
- */
-
-int
-recv_sockshost __P((int s, struct sockshost_t *host, int version,
-						  struct authmethod_t *auth));
-/*
- * Fills "host" based on data read from "s".  "version" is the version
- * the remote peer is expected to send data in.
- *
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
-
-	/*
-	 *  Misc. functions to help keep track of our connection(s) to the server.
-	 */
-
-struct socksfd_t *
-socks_addaddr __P((unsigned int clientfd, struct socksfd_t *socksaddress));
+const struct socksfd_t *
+socks_addaddr __P((const unsigned int clientfd,
+                   const struct socksfd_t *socksaddress, const int havelock));
 /*
  * "clientfd" is associated with the structure "socksfd".
+ * If "havelock" is true, it means the function has already taken
+ * care of locking the addr object.
+ *
  * The function duplicates all arguments in it's own form and does
  * not access the memory referenced by them afterwards.
  *
@@ -388,105 +334,90 @@ socks_addaddr __P((unsigned int clientfd, struct socksfd_t *socksaddress));
  * removes those that are no longer open.
  *
  * Returns:
- *		On success: pointer to the added socksfd_t structure.
- *		On failure: exits.  (memory exhausted and process grew descriptor size.)
+ *      On success: pointer to the added socksfd_t structure.
+ *      On failure: exits.  (memory exhausted and process grew descriptor size.)
  *
  */
 
-struct socksfd_t *
-socks_getaddr __P((unsigned int fd));
+const struct socksfd_t *
+socks_getaddr __P((const unsigned int fd, const int havelock));
 /*
+ * If "havelock" is true, it means the function has already taken
+ * care of locking the addr object.
+ *
  * Returns:
- *		On success:  the socketaddress associated with filedescriptor "fd".
- *		On failure:	 NULL.  (no socketaddress associated with "fd").
+ *      On success:  the socketaddress associated with filedescriptor "fd".
+ *      On failure:    NULL.  (no socketaddress associated with "fd").
  */
 
 
 void
-socks_rmaddr __P((unsigned int s));
+socks_rmaddr __P((const unsigned int s, const int havelock));
 /*
+ * If "havelock" is true, it means the function has already taken
+ * care of locking the addr object.
+ *
  * removes the association for the socket "s", also closes the server
  * connection.  If "s" is not registered the request is ignored.
  */
 
-struct socksfd_t *
-socksfddup __P((const struct socksfd_t *old, struct socksfd_t *new));
-/*
- * Duplicates "old", in "new".
- * Returns:
- *		On success: "new".
- *		On failure: NULL (resource shortage).
- */
-
-
 int
 socks_addrcontrol __P((const struct sockaddr *local,
-							  const struct sockaddr *remote));
+                       const struct sockaddr *remote, const int havelock));
 /*
+ * If "havelock" is true, it means the function has already taken
+ * care of locking the addr object.
+ *
  * Goes through all addresses registered and tries to find one where
  * the control socket has a local address of "local" and peer address
  * of "remote".  If either of "local" or "remote" is NULL, that
  * endpoint is not checked against.
- *	Returns:
- *		On success: the descriptor the socksfd struct was registered with.
- *		On failure: -1
+ *   Returns:
+ *      On success: the descriptor the socksfd struct was registered with.
+ *      On failure: -1
  */
 
 int
 socks_addrmatch __P((const struct sockaddr *local,
-							const struct sockaddr *remote,
-							const struct socksstate_t *state));
+                     const struct sockaddr *remote,
+                     const struct socksstate_t *state, const int havelock));
 /*
+ * If "havelock" is true, it means the function has already taken
+ * care of locking the addr object.
+ *
  * Goes through all addresses registered and tries to find one where
  * all arguments match.
  * Arguments that are NULL or have "illegal" values are ignored.
  * Returns:
- *		On success: the descriptor the socksfd with matching arguments was
+ *      On success: the descriptor the socksfd with matching arguments was
  *                registered with (>= 0).
- *		On failure: -1.
+ *      On failure: -1.
  */
 
 
 int
-socks_isaddr __P((unsigned int fd));
+socks_isaddr __P((const unsigned int fd, const int havelock));
 /*
+ * If "havelock" is true, it means the function has already taken
+ * care of locking the addr object.
+ *
  * Returns true if there is a address registered for the socket "fd", false
  * otherwise.
  */
 
 
 int
-socks_addrisok __P((unsigned int s));
+socks_addrisok __P((const unsigned int s, const int havelock));
 /*
+ * If "havelock" is true, it means the function has already taken
+ * care of locking the addr object.
+ *
  * Compares the current address of "s" to the registered address.
  * If there is a mismatch, the function will try to correct it if possible.
  * Returns:
- *		If current address found to match registered: true.
- *		Else: false.
+ *      If current address found to match registered: true.
+ *      Else: false.
  */
-
-int
-socks_addfd __P((unsigned int fd));
-/*
- * adds the filedescriptor "fd" to an internal table.
- * If it is already in the table the  request is ignored.
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
-int
-socks_isfd __P((unsigned int fd));
-/*
- * returns 1 if "fd" is a filedescriptor in our internal table, 0 if not.
- */
-
-void
-socks_rmfd __P((unsigned int fd));
-/*
- * removes the filedescriptor "fd" from our internal table.
- */
-
 
 int
 fdisopen __P((int fd));
@@ -496,116 +427,30 @@ fdisopen __P((int fd));
  */
 
 
-int
-clientmethod_uname __P((int s, const struct sockshost_t *host, int version));
-/*
- * Enters username/password negotiation with the socksserver connected to
- * the socket "s".
- * "host" gives the name of the server.
- * "version" gives the socksversion established to use.
- * Returns:
- *		On success: 0
- *		On failure: whatever the remote socksserver returned as status.
- */
-
-
 char *
 socks_getusername __P((const struct sockshost_t *host, char *buf,
-							  size_t buflen));
+                       size_t buflen));
 /*
  * Tries to determine the username of the current user, to be used
  * when negotiating with the server "host".
  * The NUL-terminated username is written to "buf", which is of size
  * "buflen".
  * Returns:
- *		On success: pointer to "buf" with the username.
- *		On failure: NULL.
+ *      On success: pointer to "buf" with the username.
+ *      On failure: NULL.
  */
 
 char *
 socks_getpassword __P((const struct sockshost_t *host, const char *user,
-							  char *buf, size_t buflen));
+                       char *buf, size_t buflen));
 /*
  * Tries to determine the password of user "user", to be used
  * when negotiating with the server "host".
  * The NUL-terminated password is written to "buf", which is of length
  * "buflen"
  * Returns:
- *		On success: pointer to "buf" with the password.
- *		On failure: NULL.
- */
-
-
-int
-serverreplyisok __P((int version, int reply, struct route_t *route));
-/*
- * "replycode" is the reply code returned by a socksserver of version
- * "version".
- * "route" is the route that was used for the socksserver.  If
- * the errorcode indicates a serverfailure, it might be "badrouted".
- * Returns true if the reply indicates request succeeded, false otherwise
- * and sets errno accordingly.
- */
-
-int
-msproxy_negotiate __P((int s, int control, struct socks_t *packet));
-/*
- * Negotiates with the msproxy server connected to "control".
- * "s" gives the socket to be used for dataflow.
- * "packet" contains the request and on return from the function
- * contains the response.
- * Returns:
- *		On success: 0 (server replied to our request).
- *		On failure: -1
- */
-
-
-int
-send_msprequest __P((int s, struct msproxy_state_t *state,
-						  struct msproxy_request_t *packet));
-/*
- * Sends a msproxy request to "s".
- * "state" is the current state of the connection to "s",
- * "packet" is the request to send.
- */
-
-int
-recv_mspresponse __P((int s, struct msproxy_state_t *state,
-						  struct msproxy_response_t *packet));
-/*
- * Receives a msproxy response from "s".
- * "state" is the current state of the connection to "s",
- * "packet" is the memory the response is read into.
- */
-
-int
-msproxy_sigio __P((int s));
-/*
- * Must be called on sockets where we expect the connection to be forwarded
- * by the msproxy server.
- * "s" is the socket and must have been added with socks_addaddr() beforehand.
- * Returns:
- *		On success: 0
- *		On failure: -1
- */
-
-int
-msproxy_init __P((void));
-/*
- * inits things for using a msproxyserver.
- *		On success: 0
- *		On failure: -1
- */
-
-int
-httpproxy_negotiate __P((int control, struct socks_t *packet));
-/*
- * Negotiates a method to be used when talking with the server connected
- * to "s".  "packet" is the packet that will later be sent to server.
- * packet->res.reply will be set depending on the result of negotiation.
- * Returns:
- *		On success: 0 (server replied to our request).
- *		On failure: -1.
+ *      On success: pointer to "buf" with the password.
+ *      On failure: NULL.
  */
 
 #if DIAGNOSTIC
@@ -621,6 +466,7 @@ cc_socksfdv(int sig);
 
 int sys_rresvport __P((int *));
 int sys_bindresvport __P((int, struct sockaddr_in *));
+void sys_freehostent __P((struct hostent *));
 
 HAVE_PROT_READ_0 sys_read
 __P((HAVE_PROT_READ_1, HAVE_PROT_READ_2, HAVE_PROT_READ_3));
@@ -678,7 +524,7 @@ __P((HAVE_PROT_RECVFROM_1, HAVE_PROT_RECVFROM_2, HAVE_PROT_RECVFROM_3, HAVE_PROT
 #endif
 
 #if HAVE_OSF_OLDSTYLE
-ssize_t sys_writev __P((int, struct iovec *, int));
+ssize_t sys_writev __P((int, const struct iovec *, int));
 #else
 HAVE_PROT_WRITEV_0 sys_writev
 __P((HAVE_PROT_WRITEV_1, HAVE_PROT_WRITEV_2, HAVE_PROT_WRITEV_3));

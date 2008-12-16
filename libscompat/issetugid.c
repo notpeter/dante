@@ -1,4 +1,4 @@
-/* $Id: issetugid.c,v 1.6 1999/05/13 16:35:57 karls Exp $ */
+/* $Id: issetugid.c,v 1.8 2008/07/25 08:49:05 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -8,15 +8,25 @@
 
 #if !HAVE_ISSETUGID
 
+#if HAVE_LIBC_ENABLE_SECURE
+extern int __libc_enable_secure;
+#endif /* HAVE_LIBC_ENABLE_SECURE */
+
 int
 issetugid()
 {
-	return 1;	/* don't know, better safe than sorry. */
+#if HAVE_LIBC_ENABLE_SECURE
+   if (__libc_enable_secure)
+      return 1;
+   else
+      return 0;
+#endif /* HAVE_LIBC_ENABLE_SECURE */
+   return 1;   /* don't know, better safe than sorry. */
 }
 #else
 static void avoid_error __P((void));
 static void avoid_error()
 {
-	avoid_error();
+   avoid_error();
 }
 #endif /* !HAVE_ISSETUGID */
