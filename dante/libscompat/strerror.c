@@ -1,4 +1,4 @@
-/* $Id: strerror.c,v 1.3 1999/05/13 16:35:58 karls Exp $ */
+/* $Id: strerror.c,v 1.4 2008/07/25 08:49:06 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -22,8 +22,8 @@
  *    documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
  *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
+ *   This product includes software developed by the University of
+ *   California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -61,18 +61,18 @@ int errno;
 #endif
 
 static char *itoa(num)
-	int num;
+   int num;
 {
-	static char buffer[11];
-	char *p;
+   static char buffer[11];
+   char *p;
 
-	p = buffer + 4;
-	while (num >= 10) {
-		*--p = (num % 10) + '0';
-		num /= 10;
-	}
-	*p = (num % 10) + '0';
-	return p;
+   p = buffer + 4;
+   while (num >= 10) {
+      *--p = (num % 10) + '0';
+      num /= 10;
+   }
+   *p = (num % 10) + '0';
+   return p;
 }
 
 /*
@@ -83,22 +83,22 @@ static char *itoa(num)
 
 char *
 __strerror(num, buf)
-	int num;
-	char *buf;
+   int num;
+   char *buf;
 {
-#define	UPREFIX	"Unknown error: "
-	register unsigned int errnum;
+#define   UPREFIX   "Unknown error: "
+   register unsigned int errnum;
 
 
-	errnum = num;				/* convert to unsigned */
-	if (errnum < sys_nerr) {
-		return(sys_errlist[errnum]);
-	} else {
-		strcpy(buf, UPREFIX);
-		strncat(buf, itoa(errnum), NL_TEXTMAX-strlen(buf)-1);
-	}
+   errnum = num;            /* convert to unsigned */
+   if (errnum < sys_nerr) {
+      return(sys_errlist[errnum]);
+   } else {
+      strcpy(buf, UPREFIX);
+      strncat(buf, itoa(errnum), NL_TEXTMAX-strlen(buf)-1);
+   }
 
-	return buf;
+   return buf;
 }
 
 /*
@@ -115,8 +115,8 @@ __strerror(num, buf)
  *    documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
  *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
+ *   This product includes software developed by the University of
+ *   California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -151,15 +151,15 @@ static char *rcsid = "$OpenBSD: strerror.c,v 1.2 1996/08/19 08:34:17 tholo Exp $
 
 char *
 strerror(num)
-	int num;
+   int num;
 {
-	static char buf[NL_TEXTMAX];
-	return __strerror(num, buf);
+   static char buf[NL_TEXTMAX];
+   return __strerror(num, buf);
 }
 #else
 static void avoid_error __P((void));
 static void avoid_error()
 {
-	avoid_error();
+   avoid_error();
 }
 #endif /* HAVE_STRERROR */

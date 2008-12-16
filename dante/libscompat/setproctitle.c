@@ -1,4 +1,4 @@
-/* $Id: setproctitle.c,v 1.4 1999/05/13 16:35:57 karls Exp $ */
+/* $Id: setproctitle.c,v 1.5 2008/07/25 08:49:06 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -14,7 +14,7 @@
 /*
  * Copyright (c) 1983, 1995-1997 Eric P. Allman
  * Copyright (c) 1988, 1993
- *	The Regents of the University of California.  All rights reserved.
+ *   The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,8 +26,8 @@
  *    documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
  *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
+ *   This product includes software developed by the University of
+ *   California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -47,7 +47,7 @@
 
 #if 0
 #ifndef lint
-static char sccsid[] = "@(#)conf.c	8.379 (Berkeley) 10/20/97";
+static char sccsid[] = "@(#)conf.c   8.379 (Berkeley) 10/20/97";
 #endif /* not lint */
 #endif
 
@@ -64,9 +64,9 @@ static char sccsid[] = "@(#)conf.c	8.379 (Berkeley) 10/20/97";
 # include <stdarg.h>
 #endif
 
-# define VA_LOCAL_DECL	va_list ap;
-# define VA_START(f)	va_start(ap, f)
-# define VA_END		va_end(ap)
+# define VA_LOCAL_DECL   va_list ap;
+# define VA_START(f)   va_start(ap, f)
+# define VA_END      va_end(ap)
 
 # else
 
@@ -74,43 +74,43 @@ static char sccsid[] = "@(#)conf.c	8.379 (Berkeley) 10/20/97";
 # include <varargs.h>
 #endif
 
-# define VA_LOCAL_DECL	va_list ap;
-# define VA_START(f)	va_start(ap)
-# define VA_END		va_end(ap)
+# define VA_LOCAL_DECL   va_list ap;
+# define VA_START(f)   va_start(ap)
+# define VA_END      va_end(ap)
 
 # endif
 
 /* return number of bytes left in a buffer */
-#define SPACELEFT(buf, ptr)	(sizeof buf - ((ptr) - buf))
+#define SPACELEFT(buf, ptr)   (sizeof buf - ((ptr) - buf))
 
 /*
 **  SETPROCTITLE -- set process title for ps
 **
-**	Parameters:
-**		fmt -- a printf style format string.
-**		a, b, c -- possible parameters to fmt.
+**   Parameters:
+**      fmt -- a printf style format string.
+**      a, b, c -- possible parameters to fmt.
 **
-**	Returns:
-**		none.
+**   Returns:
+**      none.
 **
-**	Side Effects:
-**		Clobbers argv of our main procedure so ps(1) will
-**		display the title.
+**   Side Effects:
+**      Clobbers argv of our main procedure so ps(1) will
+**      display the title.
 */
 
-#define SPT_NONE	0	/* don't use it at all */
-#define SPT_REUSEARGV	1	/* cover argv with title information */
-#define SPT_BUILTIN	2	/* use libc builtin */
-#define SPT_PSTAT	3	/* use pstat(PSTAT_SETCMD, ...) */
-#define SPT_PSSTRINGS	4	/* use PS_STRINGS->... */
-#define SPT_SYSMIPS	5	/* use sysmips() supported by NEWS-OS 6 */
-#define SPT_SCO		6	/* write kernel u. area */
-#define SPT_CHANGEARGV	7	/* write our own strings into argv[] */
+#define SPT_NONE   0   /* don't use it at all */
+#define SPT_REUSEARGV   1   /* cover argv with title information */
+#define SPT_BUILTIN   2   /* use libc builtin */
+#define SPT_PSTAT   3   /* use pstat(PSTAT_SETCMD, ...) */
+#define SPT_PSSTRINGS   4   /* use PS_STRINGS->... */
+#define SPT_SYSMIPS   5   /* use sysmips() supported by NEWS-OS 6 */
+#define SPT_SCO      6   /* write kernel u. area */
+#define SPT_CHANGEARGV   7   /* write our own strings into argv[] */
 
-# define MAXLINE	2048		/* max line length */
+# define MAXLINE   2048      /* max line length */
 
 #ifndef SPT_TYPE
-# define SPT_TYPE	SPT_REUSEARGV
+# define SPT_TYPE   SPT_REUSEARGV
 #endif
 
 #if SPT_TYPE != SPT_NONE && SPT_TYPE != SPT_BUILTIN
@@ -121,19 +121,19 @@ static char sccsid[] = "@(#)conf.c	8.379 (Berkeley) 10/20/97";
 # if SPT_TYPE == SPT_PSSTRINGS
 #  include <machine/vmparam.h>
 #  include <sys/exec.h>
-#  ifndef PS_STRINGS	/* hmmmm....  apparently not available after all */
+#  ifndef PS_STRINGS   /* hmmmm....  apparently not available after all */
 #   undef SPT_TYPE
-#   define SPT_TYPE	SPT_REUSEARGV
+#   define SPT_TYPE   SPT_REUSEARGV
 #  else
-#   ifndef NKPDE			/* FreeBSD 2.0 */
+#   ifndef NKPDE         /* FreeBSD 2.0 */
 #    define NKPDE 63
-typedef unsigned int	*pt_entry_t;
+typedef unsigned int   *pt_entry_t;
 #   endif
 #  endif
 # endif
 
 # if SPT_TYPE == SPT_PSSTRINGS || SPT_TYPE == SPT_CHANGEARGV
-#  define SETPROC_STATIC	static
+#  define SETPROC_STATIC   static
 # else
 #  define SETPROC_STATIC
 # endif
@@ -149,79 +149,79 @@ typedef unsigned int	*pt_entry_t;
 #  include <sys/user.h>
 #  include <sys/fs/s5param.h>
 #  if PSARGSZ > MAXLINE
-#   define SPT_BUFSIZE	PSARGSZ
+#   define SPT_BUFSIZE   PSARGSZ
 #  endif
 # endif
 
 # ifndef SPT_PADCHAR
-#  define SPT_PADCHAR	' '
+#  define SPT_PADCHAR   ' '
 # endif
 
 # ifndef SPT_BUFSIZE
-#  define SPT_BUFSIZE	MAXLINE
+#  define SPT_BUFSIZE   MAXLINE
 # endif
 
 #endif /* SPT_TYPE != SPT_NONE && SPT_TYPE != SPT_BUILTIN */
 
 /*
 **  Pointers for setproctitle.
-**	This allows "ps" listings to give more useful information.
+**   This allows "ps" listings to give more useful information.
 */
 
-char		**Argv = NULL;		/* pointer to argument vector */
-char		*LastArgv = NULL;	/* end of argv */
+char      **Argv = NULL;      /* pointer to argument vector */
+char      *LastArgv = NULL;   /* end of argv */
 
 int
 initsetproctitle(argc, argv, envp)
-	int argc;
-	char **argv;
-	char **envp;
+   int argc;
+   char **argv;
+   char **envp;
 {
-	register int i, envpsize = 0;
-	extern char **environ;
+   register int i, envpsize = 0;
+   extern char **environ;
 
-	/*
-	**  Move the environment so setproctitle can use the space at
-	**  the top of memory.
-	*/
+   /*
+   **  Move the environment so setproctitle can use the space at
+   **  the top of memory.
+   */
 
-	for (i = 0; envp[i] != NULL; i++)
-		envpsize += strlen(envp[i]) + 1;
-	environ = (char **) malloc(sizeof (char *) * (i + 1));
-	if (environ == NULL)
-		return -1;
-	/* ---> removed some macro calls */
-	for (i = 0; envp[i] != NULL; i++) {
-		size_t len = strlen(envp[i]) + 1;
-		char *p = malloc(len);
-		if (p == NULL)
-			return -1;
-		environ[i] = strncpy(p, envp[i], len);
-		p[len - 1] = NUL;
-	}
-	environ[i] = NULL;
+   for (i = 0; envp[i] != NULL; i++)
+      envpsize += strlen(envp[i]) + 1;
+   environ = (char **) malloc(sizeof (char *) * (i + 1));
+   if (environ == NULL)
+      return -1;
+   /* ---> removed some macro calls */
+   for (i = 0; envp[i] != NULL; i++) {
+      size_t len = strlen(envp[i]) + 1;
+      char *p = malloc(len);
+      if (p == NULL)
+         return -1;
+      environ[i] = strncpy(p, envp[i], len);
+      p[len - 1] = NUL;
+   }
+   environ[i] = NULL;
 
-	/*
-	**  Save start and extent of argv for setproctitle.
-	*/
+   /*
+   **  Save start and extent of argv for setproctitle.
+   */
 
-	Argv = argv;
+   Argv = argv;
 
-	/*
-	**  Find the last environment variable within sendmail's
-	**  process memory area.
-	*/
-	while (i > 0 && (envp[i - 1] < argv[0] ||
-			 envp[i - 1] > (argv[argc - 1] +
-					strlen(argv[argc - 1]) + 1 + envpsize)))
-		i--;
+   /*
+   **  Find the last environment variable within sendmail's
+   **  process memory area.
+   */
+   while (i > 0 && (envp[i - 1] < argv[0] ||
+          envp[i - 1] > (argv[argc - 1] +
+               strlen(argv[argc - 1]) + 1 + envpsize)))
+      i--;
 
-	if (i > 0)
-		LastArgv = envp[i - 1] + strlen(envp[i - 1]);
-	else
-		LastArgv = argv[argc - 1] + strlen(argv[argc - 1]);
+   if (i > 0)
+      LastArgv = envp[i - 1] + strlen(envp[i - 1]);
+   else
+      LastArgv = argv[argc - 1] + strlen(argv[argc - 1]);
 
-	return 0;
+   return 0;
 }
 
 #if SPT_TYPE != SPT_BUILTIN
@@ -233,83 +233,83 @@ void
 setproctitle(const char *fmt, ...)
 # else
 setproctitle(fmt, va_alist)
-	const char *fmt;
-	va_dcl
+   const char *fmt;
+   va_dcl
 # endif /* STDC_HEADERS */
 {
 # if SPT_TYPE != SPT_NONE
-	register char *p;
-	register int i;
-	SETPROC_STATIC char buf[SPT_BUFSIZE];
-	VA_LOCAL_DECL
+   register char *p;
+   register int i;
+   SETPROC_STATIC char buf[SPT_BUFSIZE];
+   VA_LOCAL_DECL
 #  if SPT_TYPE == SPT_PSTAT
-	union pstun pst;
+   union pstun pst;
 #  endif
 #  if SPT_TYPE == SPT_SCO
-	off_t seek_off;
-	static int kmem = -1;
-	static int kmempid = -1;
-	struct user u;
+   off_t seek_off;
+   static int kmem = -1;
+   static int kmempid = -1;
+   struct user u;
 #  endif
 
-	p = buf;
+   p = buf;
 
 #if 0
 #ifdef SOCKS_SERVER /* XXX only complied once now */
-	snprintf(p, SPACELEFT(buf, p), "%s: ", __progname);
-	p += strlen(p);
+   snprintf(p, SPACELEFT(buf, p), "%s: ", __progname);
+   p += strlen(p);
 #endif  /* SOCKS_SERVER */
 #endif
 
-	/* print the argument string */
-	VA_START(fmt);
-	vsnprintf(p, SPACELEFT(buf, p), fmt, ap);
-	VA_END;
+   /* print the argument string */
+   VA_START(fmt);
+   vsnprintf(p, SPACELEFT(buf, p), fmt, ap);
+   VA_END;
 
-	i = strlen(buf);
+   i = strlen(buf);
 
 #  if SPT_TYPE == SPT_PSTAT
-	pst.pst_command = buf;
-	pstat(PSTAT_SETCMD, pst, i, 0, 0);
+   pst.pst_command = buf;
+   pstat(PSTAT_SETCMD, pst, i, 0, 0);
 #  endif
 #  if SPT_TYPE == SPT_PSSTRINGS
-	PS_STRINGS->ps_nargvstr = 1;
-	PS_STRINGS->ps_argvstr = buf;
+   PS_STRINGS->ps_nargvstr = 1;
+   PS_STRINGS->ps_argvstr = buf;
 #  endif
 #  if SPT_TYPE == SPT_SYSMIPS
-	sysmips(SONY_SYSNEWS, NEWS_SETPSARGS, buf);
+   sysmips(SONY_SYSNEWS, NEWS_SETPSARGS, buf);
 #  endif
 #  if SPT_TYPE == SPT_SCO
-	if (kmem < 0 || kmempid != getpid())
-	{
-		if (kmem >= 0)
-			close(kmem);
-		kmem = open(_PATH_KMEM, O_RDWR, 0);
-		if (kmem < 0)
-			return;
-		(void) fcntl(kmem, F_SETFD, 1);
-		kmempid = getpid();
-	}
-	buf[PSARGSZ - 1] = '\0';
-	seek_off = UVUBLK + (off_t) u.u_psargs - (off_t) &u;
-	if (lseek(kmem, (off_t) seek_off, SEEK_SET) == seek_off)
-		(void) write(kmem, buf, PSARGSZ);
+   if (kmem < 0 || kmempid != getpid())
+   {
+      if (kmem >= 0)
+         close(kmem);
+      kmem = open(_PATH_KMEM, O_RDWR, 0);
+      if (kmem < 0)
+         return;
+      (void) fcntl(kmem, F_SETFD, 1);
+      kmempid = getpid();
+   }
+   buf[PSARGSZ - 1] = '\0';
+   seek_off = UVUBLK + (off_t) u.u_psargs - (off_t) &u;
+   if (lseek(kmem, (off_t) seek_off, SEEK_SET) == seek_off)
+      (void) write(kmem, buf, PSARGSZ);
 #  endif
 #  if SPT_TYPE == SPT_REUSEARGV
-	if (i > LastArgv - Argv[0] - 2)
-	{
-		i = LastArgv - Argv[0] - 2;
-		buf[i] = '\0';
-	}
-	(void) strcpy(Argv[0], buf);
-	p = &Argv[0][i];
-	while (p < LastArgv)
-		*p++ = SPT_PADCHAR;
-	Argv[1] = NULL;
+   if (i > LastArgv - Argv[0] - 2)
+   {
+      i = LastArgv - Argv[0] - 2;
+      buf[i] = '\0';
+   }
+   (void) strcpy(Argv[0], buf);
+   p = &Argv[0][i];
+   while (p < LastArgv)
+      *p++ = SPT_PADCHAR;
+   Argv[1] = NULL;
 #  endif
 #  if SPT_TYPE == SPT_CHANGEARGV
-	Argv[0] = buf;
-	Argv[1] = 0;
+   Argv[0] = buf;
+   Argv[1] = 0;
 #  endif
 # endif /* SPT_TYPE != SPT_NONE */
 }
@@ -318,27 +318,27 @@ setproctitle(fmt, va_alist)
 #else /* !0 */
 int
 initsetproctitle(argc, argv, envp)
-	int argc;
-	char **argv;
-	char **envp;
+   int argc;
+   char **argv;
+   char **envp;
 {
-	return 0;
+   return 0;
 }
 void
 #ifdef STDC_HEADERS
 setproctitle(const char *fmt, ...)
 #else
 setproctitle(va_alist)
-	va_dcl
+   va_dcl
 #endif  /* STDC_HEADERS */
 {
-	return;
+   return;
 }
 #endif /* 0 */
 #else
 static void avoid_error __P((void));
 static void avoid_error()
 {
-	avoid_error();
+   avoid_error();
 }
 #endif  /* !HAVE_SETPROCTITLE */

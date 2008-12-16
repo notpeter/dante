@@ -1,12 +1,13 @@
 #ifndef lint
 /*static char yysccsid[] = "from: @(#)yaccpar	1.9 (Berkeley) 02/21/93";*/
 static char yyrcsid[]
-#if __GNUC__ == 2
+#if __GNUC__ >= 2
   __attribute__ ((unused))
-#endif /* __GNUC__ == 2 */
-  = "$OpenBSD: skeleton.c,v 1.15 2000/01/27 21:34:23 deraadt Exp $";
+#endif /* __GNUC__ >= 2 */
+  = "$OpenBSD: skeleton.c,v 1.29 2008/07/08 15:06:50 otto Exp $";
 #endif
 #include <stdlib.h>
+#include <string.h>
 #define YYBYACC 1
 #define YYMAJOR 1
 #define YYMINOR 9
@@ -42,27 +43,34 @@ static char yyrcsid[]
 #define yyname socks_yyname
 #define yyrule socks_yyrule
 #define YYPREFIX "socks_yy"
-#line 45 "config_parse.y"
+#line 45 "../lib/config_parse.y"
 
 #include "common.h"
 
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.140 2001/02/06 15:58:52 michaels Exp $";
+"$Id: config_parse.y,v 1.214 2008/12/14 13:21:14 michaels Exp $";
 
 __BEGIN_DECLS
 
 #if HAVE_LIBWRAP && SOCKS_SERVER
-	extern jmp_buf tcpd_buf;
+   extern jmp_buf tcpd_buf;
 #endif /* HAVE_LIBWRAP && SOCKS_SERVER */
 
 static void
-addressinit __P((struct ruleaddress_t *address));
+addrinit __P((struct ruleaddr_t *addr));
+
+static void
+gwaddrinit __P((gwaddr_t *addr));
 
 #if SOCKS_SERVER
 static void
-ruleinit __P((const struct rule_t *rule));
+ruleinit __P((struct rule_t *rule));
+
+static void
+fixconfig __P((void));
+
 #endif
 
 __END_DECLS
@@ -71,425 +79,579 @@ extern int yylineno;
 extern char *yytext;
 
 #if SOCKS_SERVER
-static struct rule_t				ruleinitmem;
-static struct rule_t				rule;				/* new rule.							*/
-static struct protocol_t		protocolmem;	/* new protocolmem.					*/
-struct linkedname_t				**userbase;		/* users rule applies to.			*/
+static struct rule_t            ruleinitmem;
+static struct rule_t            rule;            /* new rule.                     */
+static struct protocol_t      protocolmem;   /* new protocolmem.               */
 #endif
 
-#if SOCKS_CLIENT
-static struct serverstate_t	state;
-static struct route_t			route;			/* new route.							*/
-static struct ruleaddress_t	gw;				/* new gateway.						*/
-#endif
+static struct serverstate_t   state;
+static struct route_t         route;         /* new route.                     */
+static gwaddr_t               gw;            /* new gateway.                  */
 
+static struct ruleaddr_t      src;            /* new src.                        */
+static struct ruleaddr_t      dst;            /* new dst.                        */
+static struct ruleaddr_t      rdr_from;
+static struct ruleaddr_t      rdr_to;
 
-static struct ruleaddress_t	src;				/* new src.								*/
-static struct ruleaddress_t	dst;				/* new dst.								*/
-static struct ruleaddress_t	*ruleaddress;	/* current ruleaddress				*/
-static struct extension_t		*extension;		/* new extensions						*/
-static struct proxyprotocol_t	*proxyprotocol;/* proxy protocol.					*/
+static struct ruleaddr_t      *ruleaddr;      /* current ruleaddr               */
+static struct extension_t      *extension;      /* new extensions                  */
+static struct proxyprotocol_t   *proxyprotocol;/* proxy protocol.               */
 
-static char							*atype;			/* atype of new address.			*/
-static struct in_addr			*ipaddr;			/* new ipaddress						*/
-static struct in_addr			*netmask;		/* new netmask							*/
-static char							*domain;			/* new domain.							*/
-static char							*ifname;			/* new ifname.							*/
+static char                     *atype;         /* atype of new address.         */
+static struct in_addr         *ipaddr;         /* new ipaddress                  */
+static struct in_addr         *netmask;      /* new netmask                     */
+static char                     *domain;         /* new domain.                     */
+static char                     *ifname;         /* new ifname.                     */
+static char                     *url;            /* new url.                        */
 
-static in_port_t					*port_tcp;		/* new TCP portnumber.				*/
-static in_port_t					*port_udp;		/* new UDP portnumber.				*/
-static int							*methodv;		/* new authmethods.					*/
-static int							*methodc;		/* number of them.					*/
-static struct protocol_t		*protocol;		/* new protocol.						*/
-static struct command_t			*command;		/* new command.						*/
-static enum operator_t			*operator;		/* new operator.						*/
+static in_port_t               *port_tcp;      /* new TCP portnumber.            */
+static in_port_t               *port_udp;      /* new UDP portnumber.            */
+static int                     *methodv;      /* new authmethods.               */
+static size_t                  *methodc;      /* number of them.               */
+static struct protocol_t      *protocol;      /* new protocol.                  */
+static struct command_t         *command;      /* new command.                  */
+static enum operator_t         *operator;      /* new operator.                  */
 
 static const struct {
-	const char *name;
-	const int value;
-} syslogfacility[] = {
+   const char *name;
+   const int value;
+} syslogfacilityv[] = {
 #ifdef LOG_AUTH
-	{ "auth",	LOG_AUTH		},
+   { "auth",   LOG_AUTH      },
 #endif /* LOG_AUTH */
 #ifdef LOG_AUTHPRIV
-	{ "authpriv",	LOG_AUTHPRIV		},
+   { "authpriv",   LOG_AUTHPRIV      },
 #endif /* LOG_AUTHPRIV */
 #ifdef LOG_DAEMON
-	{ "daemon",	LOG_DAEMON	},
+   { "daemon",   LOG_DAEMON   },
 #endif /* LOG_DAEMON */
 #ifdef LOG_USER
-	{ "user",	LOG_USER		},
+   { "user",   LOG_USER      },
 #endif /* LOG_USER */
 #ifdef LOG_LOCAL0
-	{ "local0",	LOG_LOCAL0	},
+   { "local0",   LOG_LOCAL0   },
 #endif /* LOG_LOCAL0 */
 #ifdef LOG_LOCAL1
-	{ "local1",	LOG_LOCAL1	},
+   { "local1",   LOG_LOCAL1   },
 #endif /* LOG_LOCAL1 */
 #ifdef LOG_LOCAL2
-	{ "local2",	LOG_LOCAL2	},
+   { "local2",   LOG_LOCAL2   },
 #endif /* LOG_LOCAL2 */
 #ifdef LOG_LOCAL3
-	{ "local3",	LOG_LOCAL3	},
+   { "local3",   LOG_LOCAL3   },
 #endif /* LOG_LOCAL3 */
 #ifdef LOG_LOCAL4
-	{ "local4",	LOG_LOCAL4	},
+   { "local4",   LOG_LOCAL4   },
 #endif /* LOG_LOCAL4 */
 #ifdef LOG_LOCAL5
-	{ "local5",	LOG_LOCAL5	},
+   { "local5",   LOG_LOCAL5   },
 #endif /* LOG_LOCAL5 */
 #ifdef LOG_LOCAL6
-	{ "local6",	LOG_LOCAL6	},
+   { "local6",   LOG_LOCAL6   },
 #endif /* LOG_LOCAL6 */
 #ifdef LOG_LOCAL7
-	{ "local7",	LOG_LOCAL7	}
+   { "local7",   LOG_LOCAL7   }
 #endif /* LOG_LOCAL7 */
 };
 
 
 #define YYDEBUG 1
 
-#define ADDMETHOD(method) \
-	do { \
-		if (*methodc >= AUTHMETHOD_MAX)	\
-			yyerror("internal error or duplicate methods given");	\
-		methodv[(*methodc)++] = method; \
-	} while (0)
+#define ADDMETHOD(method)                                        \
+do {                                                             \
+   if (methodisset(method, methodv, *methodc))                   \
+      yywarn("duplicate method: %s", method2string(method));    \
+   else {                                                       \
+      if (*methodc >= MAXMETHOD)                                 \
+         yyerror("internal error, (%ld >= %ld)",               \
+         (long)*methodc, (long)MAXMETHOD);                     \
+      methodv[(*methodc)++] = method;                            \
+   }                                                             \
+} while (0)
 
-#line 160 "config_parse.y"
+#line 172 "../lib/config_parse.y"
+#ifndef YYSTYPE_DEFINED
+#define YYSTYPE_DEFINED
 typedef union {
-	char	*string;
-	uid_t	uid;
+   char   *string;
+   uid_t   uid;
 } YYSTYPE;
-#line 165 "y.tab.c"
+#endif /* YYSTYPE_DEFINED */
+#line 181 "config_parse.c"
 #define SERVERCONFIG 257
 #define CLIENTCONFIG 258
 #define DEPRECATED 259
 #define CLIENTRULE 260
 #define INTERNAL 261
 #define EXTERNAL 262
-#define DEBUGING 263
-#define RESOLVEPROTOCOL 264
-#define SRCHOST 265
-#define NOMISMATCH 266
-#define NOUNKNOWN 267
-#define EXTENSION 268
-#define BIND 269
-#define PRIVILEGED 270
-#define IOTIMEOUT 271
-#define CONNECTTIMEOUT 272
-#define METHOD 273
-#define NONE 274
-#define GSSAPI 275
-#define UNAME 276
-#define RFC931 277
-#define COMPATIBILITY 278
-#define REUSEADDR 279
-#define SAMEPORT 280
-#define USERNAME 281
-#define USER_PRIVILEGED 282
-#define USER_UNPRIVILEGED 283
-#define USER_LIBWRAP 284
-#define LOGOUTPUT 285
-#define LOGFILE 286
-#define ROUTE 287
-#define VIA 288
-#define VERDICT_BLOCK 289
-#define VERDICT_PASS 290
-#define PROTOCOL 291
-#define PROTOCOL_TCP 292
-#define PROTOCOL_UDP 293
-#define PROTOCOL_FAKE 294
-#define PROXYPROTOCOL 295
-#define PROXYPROTOCOL_SOCKS_V4 296
-#define PROXYPROTOCOL_SOCKS_V5 297
-#define PROXYPROTOCOL_MSPROXY_V2 298
-#define PROXYPROTOCOL_HTTP_V1_0 299
-#define USER 300
-#define COMMAND 301
-#define COMMAND_BIND 302
-#define COMMAND_CONNECT 303
-#define COMMAND_UDPASSOCIATE 304
-#define COMMAND_BINDREPLY 305
-#define COMMAND_UDPREPLY 306
-#define ACTION 307
-#define LINE 308
-#define LIBWRAPSTART 309
-#define OPERATOR 310
-#define LOG 311
-#define LOG_CONNECT 312
-#define LOG_DATA 313
-#define LOG_DISCONNECT 314
-#define LOG_ERROR 315
-#define LOG_IOOPERATION 316
-#define IPADDRESS 317
-#define DOMAIN 318
-#define DIRECT 319
-#define IFNAME 320
-#define PORT 321
-#define PORTNUMBER 322
-#define SERVICENAME 323
-#define NUMBER 324
-#define FROM 325
-#define TO 326
+#define EXTERNAL_ROTATION 263
+#define DEBUGING 264
+#define RESOLVEPROTOCOL 265
+#define SRCHOST 266
+#define NOMISMATCH 267
+#define NOUNKNOWN 268
+#define EXTENSION 269
+#define BIND 270
+#define PRIVILEGED 271
+#define IOTIMEOUT 272
+#define CONNECTTIMEOUT 273
+#define METHOD 274
+#define CLIENTMETHOD 275
+#define NONE 276
+#define GSSAPI 277
+#define UNAME 278
+#define RFC931 279
+#define PAM 280
+#define COMPATIBILITY 281
+#define REUSEADDR 282
+#define SAMEPORT 283
+#define USERNAME 284
+#define GROUPNAME 285
+#define USER_PRIVILEGED 286
+#define USER_UNPRIVILEGED 287
+#define USER_LIBWRAP 288
+#define LOGOUTPUT 289
+#define LOGFILE 290
+#define CHILD_MAXIDLE 291
+#define ROUTE 292
+#define VIA 293
+#define VERDICT_BLOCK 294
+#define VERDICT_PASS 295
+#define PAMSERVICENAME 296
+#define PROTOCOL 297
+#define PROTOCOL_TCP 298
+#define PROTOCOL_UDP 299
+#define PROTOCOL_FAKE 300
+#define PROXYPROTOCOL 301
+#define PROXYPROTOCOL_SOCKS_V4 302
+#define PROXYPROTOCOL_SOCKS_V5 303
+#define PROXYPROTOCOL_MSPROXY_V2 304
+#define PROXYPROTOCOL_HTTP_V1_0 305
+#define PROXYPROTOCOL_UPNP 306
+#define USER 307
+#define GROUP 308
+#define COMMAND 309
+#define COMMAND_BIND 310
+#define COMMAND_CONNECT 311
+#define COMMAND_UDPASSOCIATE 312
+#define COMMAND_BINDREPLY 313
+#define COMMAND_UDPREPLY 314
+#define ACTION 315
+#define LINE 316
+#define LIBWRAPSTART 317
+#define OPERATOR 318
+#define LOG 319
+#define LOG_CONNECT 320
+#define LOG_DATA 321
+#define LOG_DISCONNECT 322
+#define LOG_ERROR 323
+#define LOG_IOOPERATION 324
+#define IPADDRESS 325
+#define DOMAINNAME 326
+#define DIRECT 327
+#define IFNAME 328
+#define URL 329
+#define PORT 330
+#define PORTNUMBER 331
+#define SERVICENAME 332
+#define NUMBER 333
+#define FROM 334
+#define TO 335
+#define REDIRECT 336
+#define BANDWIDTH 337
+#define MAXSESSIONS 338
 #define YYERRCODE 256
-short socks_yylhs[] = {                                        -1,
-    0,    0,   45,    1,    1,    1,    1,    1,    2,    2,
-    2,    2,   22,   23,   23,   46,   46,   46,   46,   46,
-   46,   46,   44,   44,   44,   44,   44,   44,    3,   52,
-   21,    7,    8,    8,    8,    8,    9,    9,   10,   11,
-   12,   12,   28,   29,   30,   30,   31,   32,   78,   78,
-   33,   34,   77,   77,   24,   24,   24,   35,   36,   37,
-   37,   47,   47,   47,   48,   49,   50,   51,   26,   27,
-   25,   38,   39,   39,   40,   40,   13,   14,   14,   14,
-   15,   16,   16,   17,   17,   88,   41,   43,   43,   43,
-   43,   42,   42,   60,   61,   61,   61,   61,   62,   62,
-   57,   58,   58,   58,   58,   58,   58,   58,   59,   59,
-   63,   63,   18,   20,   20,   20,   20,   20,   19,   19,
-    4,    6,    6,    5,    5,   64,   65,   67,   67,   67,
-   67,   67,   66,   66,   68,   69,   70,   54,   55,   55,
-   55,   55,   55,   56,   56,   79,   80,   53,   71,   71,
-   73,   73,   73,   72,   81,   81,   74,   75,   76,   82,
-   82,   82,   86,   86,   83,   84,   89,   87,   85,
+#if defined(__cplusplus) || defined(__STDC__)
+const short socks_yylhs[] =
+#else
+short socks_yylhs[] =
+#endif
+	{                                        -1,
+    0,    0,   56,    1,    1,    1,    1,    1,    1,    2,
+    2,    2,    2,   30,   31,   31,   57,   57,   57,   57,
+   57,   57,   57,   57,   57,   57,   55,   55,   55,   55,
+   55,   55,    3,   64,   29,    7,    8,    8,    8,    8,
+    8,    8,    9,    9,   10,   11,   12,   12,   13,   14,
+   15,   15,   36,   37,   38,   38,   39,   40,   41,   42,
+   43,   43,   32,   32,   32,   44,   45,   46,   46,   63,
+   58,   58,   58,   59,   60,   61,   62,   34,   35,   33,
+   47,   48,   48,   49,   49,   17,   18,   18,   18,   19,
+   20,   20,   21,   21,   52,  103,   50,  104,   51,   54,
+   54,   54,   54,   54,   53,   53,   72,   73,   74,   74,
+   69,   70,   70,   70,   70,   70,   70,   71,   71,   75,
+   75,   75,   75,   75,   75,   75,   76,   76,   22,   24,
+   24,   24,   24,   24,   23,   23,    4,    6,    6,    5,
+    5,   77,   25,   25,   27,   28,   26,   78,   80,   80,
+   80,   80,   80,   79,   79,   16,   81,   82,   83,  105,
+  106,   66,   67,   67,   67,   67,   67,   68,   68,   93,
+   94,  107,  108,   65,   84,   84,   84,   85,   85,   85,
+   86,   86,   86,   88,   88,   88,   88,   88,   87,   95,
+   95,   89,   90,   91,   92,   96,   96,   96,   97,   97,
+  101,  101,   98,   99,  109,  102,  100,
 };
-short socks_yylen[] = {                                         2,
-    2,    2,    1,    0,    2,    2,    2,    2,    0,    2,
-    2,    2,    1,    1,    1,    1,    1,    1,    1,    1,
-    1,    1,    1,    1,    1,    1,    1,    1,    1,    8,
-    0,    3,    1,    1,    1,    1,    1,    2,    3,    1,
-    1,    2,    3,    1,    1,    2,    4,    0,    2,    2,
-    4,    0,    1,    1,    1,    1,    1,    3,    1,    1,
-    2,    1,    1,    1,    3,    3,    3,    1,    3,    3,
-    3,    3,    1,    1,    1,    2,    3,    1,    1,    1,
-    3,    1,    1,    1,    2,    0,    4,    1,    1,    1,
-    1,    1,    2,    7,    1,    1,    1,    1,    0,    2,
-    6,    1,    1,    1,    1,    1,    1,    1,    0,    2,
-    1,    1,    3,    1,    1,    1,    1,    1,    1,    2,
-    3,    1,    1,    1,    2,    2,    3,    1,    1,    1,
-    1,    1,    1,    2,    3,    3,    3,    3,    1,    1,
-    1,    1,    1,    0,    2,    1,    1,    1,    4,    2,
-    2,    2,    1,    1,    1,    1,    1,    1,    1,    0,
-    3,    2,    1,    1,    3,    1,    1,    1,    1,
+#if defined(__cplusplus) || defined(__STDC__)
+const short socks_yylen[] =
+#else
+short socks_yylen[] =
+#endif
+	{                                         2,
+    2,    2,    1,    0,    2,    2,    2,    2,    2,    0,
+    2,    2,    2,    1,    1,    1,    1,    1,    1,    1,
+    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
+    1,    1,    1,    8,    0,    3,    1,    1,    1,    1,
+    1,    1,    1,    2,    3,    1,    1,    2,    3,    1,
+    1,    2,    3,    1,    1,    2,    4,    0,    4,    0,
+    3,    3,    1,    1,    1,    3,    1,    1,    2,    3,
+    1,    1,    1,    3,    3,    3,    1,    3,    3,    3,
+    3,    1,    1,    1,    2,    3,    1,    1,    1,    3,
+    1,    1,    1,    2,    3,    0,    4,    0,    4,    1,
+    1,    1,    1,    1,    1,    2,    7,    1,    0,    2,
+    6,    1,    1,    1,    1,    1,    1,    0,    2,    1,
+    1,    1,    1,    1,    1,    1,    1,    1,    3,    1,
+    1,    1,    1,    1,    1,    2,    3,    1,    1,    1,
+    2,    2,    2,    2,    1,    3,    3,    3,    1,    1,
+    1,    1,    1,    1,    2,    3,    3,    3,    3,    3,
+    3,    3,    1,    1,    1,    1,    1,    0,    2,    1,
+    1,    1,    1,    1,    2,    2,    2,    1,    1,    1,
+    4,    2,    2,    2,    2,    2,    1,    1,    1,    1,
+    1,    1,    1,    1,    1,    0,    3,    2,    0,    3,
+    1,    1,    3,    1,    1,    1,    1,
 };
-short socks_yydefred[] = {                                      0,
-    3,   13,    0,    9,    4,    0,    0,   29,    0,    0,
-    0,   31,   10,   15,   57,   11,   14,   56,   55,   12,
-    0,   48,   52,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,  111,  112,    5,   17,   27,   28,   26,   24,
-   25,   18,   19,   20,   23,   16,   21,    6,   22,   62,
-   63,   64,    8,    7,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,   86,    0,    0,    0,
-    0,    0,   71,   79,   80,   78,   77,   59,    0,   58,
-    0,    0,    0,    0,   82,   83,    0,   81,   44,    0,
-   43,   69,   70,    0,   73,   74,    0,   72,   68,   65,
-   66,   67,    0,    0,    0,    0,    0,    0,  106,  107,
-  108,  103,  102,    0,    0,  105,  104,   61,  141,  142,
-  139,  140,  143,    0,    0,   98,   95,    0,    0,   97,
-   96,  154,  158,    0,    0,   47,   53,   54,   51,   85,
-   46,   88,   89,   90,   91,   87,    0,   76,    0,    0,
-    0,    0,    0,    0,  110,  146,    0,    0,    0,  145,
-    0,  100,    0,    0,   49,   50,   93,  122,  123,  121,
-    0,   33,   34,   35,   36,    0,   32,   40,    0,   39,
-  114,  115,  116,  117,  118,  113,    0,  135,  128,  129,
-  130,  131,  132,  127,    0,    0,  147,  126,    0,    0,
-  148,    0,    0,    0,  169,  166,  162,    0,    0,  125,
-   38,   42,  120,  134,  101,    0,  157,  136,    0,    0,
-    0,    0,   94,    0,  168,  164,  161,  163,  137,    0,
-  150,  159,    0,  138,    0,  153,   30,  167,  165,  156,
-  155,    0,  151,  152,  149,
+#if defined(__cplusplus) || defined(__STDC__)
+const short socks_yydefred[] =
+#else
+short socks_yydefred[] =
+#endif
+	{                                      0,
+    3,   14,    0,   10,    4,    0,    0,   33,    0,    0,
+    0,   35,   11,   16,   65,   12,   15,   64,   63,   13,
+    0,   58,   60,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,  127,  128,    5,   19,   31,
+   32,   30,   28,   29,   20,   21,   22,   23,   27,   17,
+   18,   24,    6,   25,   71,   72,   73,   26,    9,    8,
+    7,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,   96,   98,    0,    0,    0,    0,
+    0,    0,   80,   88,   89,   87,   86,   67,    0,   66,
+    0,    0,    0,    0,   61,   62,   91,   92,    0,   90,
+   54,    0,   53,   78,   79,    0,    0,   82,   83,    0,
+   81,   77,   74,   75,   76,   70,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,  115,  116,
+  124,  125,  123,  114,  117,  113,  126,  145,  120,    0,
+    0,  112,  122,  121,   69,  165,  166,  163,  164,  167,
+    0,    0,    0,    0,  108,  189,  192,  193,   57,    0,
+    0,    0,   59,  178,  179,  180,   94,   56,  100,  101,
+  102,  103,  104,   97,    0,   99,   85,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,  172,  173,  143,  144,
+    0,    0,    0,    0,  119,  170,    0,    0,    0,  169,
+    0,  110,    0,    0,  175,  176,  177,  106,   95,  156,
+  138,  139,  137,    0,   37,   38,   39,   40,   41,   42,
+    0,   36,   46,    0,   45,   50,    0,   49,  130,  131,
+  132,  133,  134,  129,    0,  157,  149,  150,  151,  152,
+  153,  148,    0,    0,    0,  147,  146,    0,  171,  142,
+    0,    0,  174,    0,    0,    0,  207,  204,  198,    0,
+    0,  141,   44,   48,   52,  136,  155,  160,    0,    0,
+    0,  161,  111,    0,  158,    0,    0,  107,    0,  206,
+  202,  197,  201,    0,  182,  183,  159,  194,  195,    0,
+  162,    0,    0,  187,  188,   34,  205,  203,  191,  190,
+    0,    0,  184,  185,  186,  181,    0,  200,
 };
-short socks_yydgoto[] = {                                       3,
-    7,    6,   14,  109,  170,  171,  110,  176,  177,  111,
-  179,  180,   15,   77,   38,   87,   88,  112,  186,  187,
-   59,    4,   16,   17,   18,   39,   40,  122,   90,   91,
-   42,   61,   43,   62,   19,   79,   80,   45,   97,   98,
-  113,  146,  147,   47,    5,   48,   49,   50,   51,   52,
-  100,   20,  202,  203,  124,  125,   53,  114,  115,   54,
-  128,  129,   55,  157,  116,  194,  195,  117,  158,  198,
-  218,  219,  234,  220,  135,  236,  139,  136,  159,  199,
-  242,  165,  207,  208,  209,  227,  228,   94,  239,
+#if defined(__cplusplus) || defined(__STDC__)
+const short socks_yydgoto[] =
+#else
+short socks_yydgoto[] =
+#endif
+	{                                       3,
+    7,    6,  220,  129,  213,  214,  130,  221,  222,  131,
+  224,  225,  132,  227,  228,  133,   15,   87,   41,   99,
+  100,  134,  234,  235,  135,  136,  137,  138,   66,    4,
+   16,   17,   18,   42,   43,  149,  102,  103,   45,   68,
+   46,   69,   47,   19,   89,   90,   49,  110,  111,   50,
+   51,  139,  174,  175,   52,    5,   53,   54,   55,   56,
+   57,  113,   58,   20,  254,  255,  151,  152,   60,  140,
+  141,   61,  153,  154,  142,   62,  197,  143,  242,  243,
+  144,  198,  250,  159,  163,  268,  269,  291,  270,  271,
+  294,  295,  199,  251,  301,  205,  303,  259,  281,  261,
+  282,  283,  106,  107,  189,  190,  191,  192,  298,
 };
-short socks_yysindex[] = {                                   -227,
-    0,    0,    0,    0,    0,  -10,  228,    0,  -34,  -32,
-   -4,    0,    0,    0,    0,    0,    0,    0,    0,    0,
- -241,    0,    0,    7,   12,   32,   40,   43,   49,   51,
-   62,   63,    0,    0,    0,    0,    0,    0,    0,    0,
+#if defined(__cplusplus) || defined(__STDC__)
+const short socks_yysindex[] =
+#else
+short socks_yysindex[] =
+#endif
+	{                                   -170,
+    0,    0,    0,    0,    0,   -8,  281,    0,  -26,  -21,
+  -18,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+ -199,    0,    0,   -7,    8,   12,   14,   20,   22,   24,
+   32,   39,   55,   57,   60,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,   -1, -200, -197, -159,    5,    6,
-   72,   73, -182, -136, -189, -185,    0, -192, -141, -141,
- -141, -248,    0,    0,    0,    0,    0,    0, -159,    0,
- -223, -240, -234, -234,    0,    0, -182,    0,    0, -136,
-    0,    0,    0, -235,    0,    0, -192,    0,    0,    0,
-    0,    0,   83,   85,   87,   88,   89,   90,    0,    0,
-    0,    0,    0, -248, -176,    0,    0,    0,    0,    0,
-    0,    0,    0, -223, -176,    0,    0, -240, -176,    0,
-    0,    0,    0, -170, -170,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0, -235,    0, -181, -217,
- -128, -268, -154, -239,    0,    0, -248, -171,   98,    0,
- -130,    0, -240, -294,    0,    0,    0,    0,    0,    0,
- -181,    0,    0,    0,    0, -217,    0,    0, -128,    0,
-    0,    0,    0,    0,    0,    0, -268,    0,    0,    0,
-    0,    0,    0,    0, -239,   34,    0,    0,  102, -204,
-    0,  103, -223,   37,    0,    0,    0,  118, -206,    0,
-    0,    0,    0,    0,    0, -204,    0,    0,  119, -170,
- -214,   42,    0, -153,    0,    0,    0,    0,    0, -295,
-    0,    0, -170,    0, -170,    0,    0,    0,    0,    0,
-    0, -170,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    2, -206, -239, -143,   25,   27,   93,   94, -248,
+ -168, -115, -179, -177,    0,    0, -171, -127, -127, -127,
+ -173, -244,    0,    0,    0,    0,    0,    0, -143,    0,
+ -247, -240, -290, -290,    0,    0,    0,    0, -168,    0,
+    0, -115,    0,    0,    0, -231, -231,    0,    0, -171,
+    0,    0,    0,    0,    0,    0,  103,  104,  105,  106,
+  107,  108,  109,  112,  115, -218,  116,  117,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0, -244,
+ -157,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+ -247, -157, -240, -157,    0,    0,    0,    0,    0, -152,
+ -152, -152,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0, -231,    0,    0, -231, -136, -160,
+ -201,  -94,  -87, -204, -117, -200,    0,    0,    0,    0,
+  133,  142, -131, -130,    0,    0, -244, -134,  146,    0,
+  -88,    0, -240, -289,    0,    0,    0,    0,    0,    0,
+    0,    0,    0, -160,    0,    0,    0,    0,    0,    0,
+ -201,    0,    0,  -94,    0,    0,  -87,    0,    0,    0,
+    0,    0,    0,    0, -204,    0,    0,    0,    0,    0,
+    0,    0, -200, -290, -290,    0,    0,   83,    0,    0,
+  160, -290,    0,  161, -247,   95,    0,    0,    0,  176,
+ -191,    0,    0,    0,    0,    0,    0,    0,  175, -152,
+ -152,    0,    0, -290,    0, -192,   98,    0, -107,    0,
+    0,    0,    0, -294,    0,    0,    0,    0,    0, -105,
+    0, -105, -105,    0,    0,    0,    0,    0,    0,    0,
+ -152,  -92,    0,    0,    0,    0, -191,    0,};
+#if defined(__cplusplus) || defined(__STDC__)
+const short socks_yyrindex[] =
+#else
+short socks_yyrindex[] =
+#endif
+	{                                      0,
+    0,    0,    0,    0,    0,  227,  228,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0, -104,    0,    0,    0,    0,    0,    0,  132,    0,
+ -103, -102,    0,    0,    0,    0,    0,    0,  169,    0,
+    0,   81,    0,    0,    0,    0,    0,    0,    0,  207,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0, -120,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+ -119,    0, -118,    0,    0,    0,    0,    0,    0,  244,
+  244,  244,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    1,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,  110,    0,    0,    0,
+    0,    0,  111,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,  283,    0,    0,    0,    0,    0,    0,
+  297,    0,    0,  395,    0,    0,  439,    0,    0,    0,
+    0,    0,    0,    0,  349,    0,    0,    0,    0,    0,
+    0,    0,  453,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,  113,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0, -125,
+ -125,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0, -116,
+    0, -116, -116,    0,    0,    0,    0,    0,    0,    0,
+ -125,    0,    0,    0,    0,    0,    0,    0,};
+#if defined(__cplusplus) || defined(__STDC__)
+const short socks_yygindex[] =
+#else
+short socks_yygindex[] =
+#endif
+	{                                      0,
+    0,    0,  124,  -75,   15,    0,  -68,    0,   13,    0,
+    0,    9,    0,    0,   10,    0,  232,    0,    0,    0,
+  141,  -67,    6,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,  235,    0,  143,    0,    0,
+    0,    0,    0,  236,    0,  157,    0,    0,  137,    0,
+    0,  -66,  -89,    0,    0,    0,    0,    0,    0,    0,
+    0,   64,    0,  241,    0,    0,    0, -141,    0,    0,
+ -123,    0,    0, -132,  -84,  229, -111,    0,   16,    0,
+    0,    0,    0,    0,    0, -219,  -90,    0,  -81,  -79,
+    0,    0,    0,    0,    0, -142, -147,    0,   45,  -50,
+  -54,    0,    0,    0,    0,    0,    0,    0,    0,
 };
-short socks_yyrindex[] = {                                      0,
-    0,    0,    0,    0,    0,  170,  171,    0,    0,    0,
+#define YYTABLESIZE 791
+#if defined(__cplusplus) || defined(__STDC__)
+const short socks_yytable[] =
+#else
+short socks_yytable[] =
+#endif
+	{                                     196,
+  105,   13,  160,  164,  118,  168,  109,  155,  199,  200,
+  105,  161,  165,  162,  166,  146,  195,  176,  206,  207,
+  202,   26,  147,  148,  150,  272,  117,   95,  257,  117,
+  299,   63,  275,  117,  156,  157,   64,  158,  300,   65,
+  201,  258,  203,   96,  169,  170,  171,  172,  173,  119,
+   70,  118,  119,  120,  287,  118,  120,    8,   84,   85,
+   86,  123,  121,  122,  123,   71,  121,  122,  155,   72,
+  256,   73,  124,  248,  125,  146,  124,   74,  125,   75,
+   55,   76,  147,  148,  150,  208,    1,    2,  209,   77,
+   55,  126,  127,  128,   36,   37,   78,  128,   97,   98,
+  215,  216,  217,  218,  219,  229,  230,  231,  232,  233,
+  108,  109,   79,  277,   80,  187,  188,   81,  155,  237,
+  238,  239,  240,  241,   82,  105,   83,  285,  286,   14,
+   39,   68,  156,  157,  288,  158,  289,  211,  212,  258,
+  280,   68,  114,  115,  304,  305,   88,   91,  196,   92,
+   93,   94,  199,  104,  101,  105,  112,  199,  306,  116,
+  178,  179,  180,  181,  182,  183,  184,  196,   93,  185,
+  196,  196,  186,  193,  194,  196,  196,  204,   93,  146,
+  199,  196,  196,  196,  199,  290,  147,  148,  150,  223,
+  244,  196,  199,  196,  292,  210,  293,  226,  236,  245,
+  249,  246,  247,  252,  253,   55,   84,  273,  196,  196,
+  196,  196,  196,  118,  168,  109,   84,  274,  276,  278,
+  279,  284,  296,  297,  302,  257,    2,    1,  262,  118,
+  168,  109,  264,  263,  118,  109,  265,  168,   40,  167,
+  266,   44,   48,  196,  168,  145,  177,   59,  260,   67,
+    8,  307,  308,  196,    0,    9,   10,    0,  267,  105,
+  105,  105,  105,  105,    0,  105,  105,    0,    0,  105,
+    0,    0,  105,  105,  105,  105,    0,    0,    0,    0,
+   11,  105,    0,   12,    0,    0,  105,  105,  105,  105,
+   38,  105,  105,    0,  105,  105,  105,  105,    0,    0,
+    0,  105,    0,    0,    0,    0,    0,  105,  105,  105,
+    0,    0,    0,    0,    0,    0,    0,  105,    0,  105,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,  105,    0,  105,  105,  105,   55,
+   55,   55,   55,   55,    0,   55,   55,    0,    0,   55,
+    0,    0,   55,   55,   55,   55,    0,    0,    0,    0,
+    0,   55,    0,    0,    0,    0,   55,   55,   55,   55,
+    0,   55,   55,    0,   55,   55,    0,   55,    0,    0,
+    0,   55,    0,    0,    0,    0,    0,    0,    0,   55,
+   68,   68,   68,   68,   68,   68,   68,   68,    0,    0,
+   68,    0,    0,   68,   68,   68,   68,  140,    0,    0,
+    0,    0,   68,    0,   55,    0,    0,   68,   68,   68,
+   68,   43,   68,   68,    0,   68,   68,   93,   93,   93,
+   93,   93,    0,   93,   93,    0,    0,   93,    0,    0,
+   93,   93,   93,   93,    0,    0,    0,    0,    0,   93,
+    0,    0,    0,    0,   93,   93,   93,   93,    0,   93,
+   93,    0,   93,   93,    0,   84,   84,   84,   84,   84,
+    0,   84,   84,  135,    0,   84,    0,    0,   84,   84,
+   84,   84,    0,    0,    0,    0,    0,   84,    0,    0,
+    0,    0,   84,   84,   84,   84,    0,   84,   84,    0,
+   84,   84,  196,  196,  196,  196,  196,    0,  196,  196,
+    0,    0,  196,    0,    0,  196,  196,  196,  196,   47,
+    0,    0,    0,    0,  196,    0,    0,    0,    0,  196,
+  196,  196,  196,    0,  196,  196,    0,  196,  196,    8,
+   21,   22,   23,   24,    0,   10,   25,    0,    0,   26,
+    0,  140,   27,   28,   29,   30,  140,    0,    0,    0,
+    0,   31,    0,   51,    0,   43,   32,   33,   34,   11,
+   43,   35,   12,    0,   36,   37,    0,  154,  140,  140,
+    0,    0,    0,  140,    0,    0,    0,    0,    0,  140,
+  140,  140,   43,   43,    0,    0,    0,   43,    0,  140,
+    0,  140,    0,   43,   43,   43,    0,    0,    0,    0,
+    0,    0,    0,   43,    0,   43,  140,  135,  140,  140,
+  140,    0,  135,    0,    0,    0,    0,    0,    0,    0,
+   43,    0,   43,   43,   43,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,  135,  135,    0,    0,    0,  135,
+    0,    0,    0,    0,    0,  135,  135,  135,    0,    0,
+    0,    0,    0,    0,    0,  135,    0,  135,   47,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0, -149,    0,    0,    0,    0,    0,    0,  100,    0,
- -142, -135,    0,    0,    0,    0,  132,    0,    0,   56,
-    0,    0,    0,    0,    0,    0,  164,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0, -121,    0,    0,    0,    0,    0,    0,
-    0,    0,    0, -120,    0,    0,    0, -113,    0,    0,
-    0,    0,    0,  196,  196,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    1,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,   64,    0,    0,    0,
-    0,    0,   66,    0,    0,    0,    0,    0,    0,    0,
- -116,    0,    0,    0,    0,  -81,    0,    0,  -93,    0,
-    0,    0,    0,    0,    0,    0,  -74,    0,    0,    0,
-    0,    0,    0,    0,   -2,    0,    0,    0,    0,    0,
-    0,    0,   75,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0, -123,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,   57,    0,   57,    0,    0,    0,    0,    0,
-    0, -123,    0,    0,    0,
+    0,    0,  135,    0,  135,  135,  135,    0,    0,    0,
+   47,   47,    0,    0,    0,   47,    0,    0,    0,    0,
+    0,   47,   47,   47,    0,    0,    0,    0,    0,    0,
+    0,   47,   51,   47,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,  154,    0,   47,    0,
+   47,   47,   47,    0,   51,   51,    0,    0,    0,   51,
+    0,    0,    0,    0,    0,   51,   51,   51,  154,  154,
+    0,    0,    0,  154,    0,   51,    0,   51,    0,  154,
+  154,  154,    0,    0,    0,    0,    0,    0,    0,  154,
+    0,  154,   51,    0,   51,   51,   51,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,  154,    0,  154,  154,
+  154,
 };
-short socks_yygindex[] = {                                      0,
-    0,    0,  190,  -78,   30,    0,  -67,    0,   35,  -69,
-    0,   36,  215,    0,    0,    0,  136,  -66,   38,    0,
-    0,    0,    0,    0,    0,    0,    0,  217,    0,  139,
-    0,    0,    0,    0,  224,    0,  154,    0,    0,  137,
-   10,   92,    0,    0,    0,    0,    0,    0,    0,    0,
-   48,    0,    0,    0,    0, -114,    0,    0,  -95,    0,
-    0, -108,  219, -102,  -64,   41,    0,  -61,    0,    0,
-   25,  -77,    0,   21,  159,    0,    0,    0,    0,    0,
-    0, -127,    0,   39,    0,    0,    0,    0,    0,
-};
-#define YYTABLESIZE 518
-short socks_yytable[] = {                                      13,
-   92,  160,  119,  109,  144,  134,  137,  166,  124,  160,
-   92,   99,  126,  120,  121,  205,   46,  130,  155,  162,
-  131,  240,  161,   56,   28,   57,  163,  206,  241,    1,
-    2,   41,   28,  181,  182,  183,  184,  185,  142,  143,
-  144,  145,  103,   37,   25,  119,  104,   33,   34,   28,
-  119,  105,  106,   58,  204,   45,  120,  121,  126,  105,
-  107,  196,  108,  130,   63,   45,  131,  103,  107,   64,
-  108,  104,  189,  190,  191,  192,  193,  106,  172,  173,
-  174,  175,  132,   85,   86,  133,   95,   96,  222,   65,
-  123,  127,  231,  126,   74,   75,   76,   66,  130,   60,
-   67,  131,  132,  217,  232,  243,   68,  244,   69,   60,
-  168,  169,  132,  217,  245,  206,  225,  101,  102,   70,
-   71,   72,  133,   73,  119,   92,   78,   81,   82,   83,
-   84,   84,   89,  123,   92,  120,  121,  127,   93,   99,
-  149,   84,  150,  233,  151,  152,  153,  154,  156,  160,
-  164,  124,  178,  188,  197,  200,  124,  201,  215,  216,
-  221,  223,  224,   75,  160,  230,  237,  160,  238,    2,
-    1,  160,  127,   75,  124,  109,  160,  160,  124,   41,
-   45,  160,  144,  124,  124,  160,   37,  160,  109,   99,
-   99,   37,  124,  119,  124,  160,   36,   41,  119,  144,
-  210,   41,  160,  109,  144,  160,   41,   41,  124,   37,
-  211,   99,  123,   37,  212,   41,  119,   41,   37,   37,
-  119,   37,  140,   41,  213,  119,  119,   37,  141,   37,
-   44,   41,  118,  148,  119,  214,  119,   35,  167,   60,
-  229,  235,  138,   37,    0,    0,    0,  226,    8,    0,
-  119,    0,    9,   10,    0,    0,    0,    0,    0,   92,
-   92,   92,   92,    0,   92,   92,    0,    0,   92,    0,
-  133,   92,   92,   92,   11,    0,   12,    0,   92,    0,
-    0,    0,   92,   92,   92,   92,    0,    0,  133,   92,
-   92,   92,  133,    0,    0,   92,    0,  133,  133,    0,
-   92,   92,    0,    0,    0,    0,  133,    0,  133,   92,
-    0,   92,    0,    0,   45,   45,   45,   45,    0,   45,
-   45,    0,  133,   45,  160,   92,   45,   45,   45,  160,
-    0,    0,    0,   45,    0,    0,    0,   45,   45,   45,
-   45,    0,    0,    0,   45,   45,   45,  160,    0,    0,
-   45,  160,    0,    0,    0,    0,   45,  160,   60,   60,
-   60,   60,   60,   60,   60,    0,    0,   60,    0,    0,
-   60,   60,   60,    0,    0,    0,    0,   60,    0,    0,
-   45,   60,   60,   60,   60,    0,   60,    0,   60,   60,
-   84,   84,   84,   84,    0,   84,   84,    0,    0,   84,
-    0,    0,   84,   84,   84,    0,    0,    0,    0,   84,
-    0,    0,    0,   84,   84,   84,   84,    0,    0,    0,
-   84,   84,   75,   75,   75,   75,    0,   75,   75,    0,
-    0,   75,    0,    0,   75,   75,   75,    0,    0,    0,
-    0,   75,    0,    0,    0,   75,   75,   75,   75,    0,
-    0,    0,   75,   75,  160,  160,  160,  160,    0,  160,
-  160,    0,    0,  160,    0,    0,  160,  160,  160,    0,
-    0,    0,    0,  160,    0,    0,    0,  160,  160,  160,
-  160,    0,    0,    0,  160,  160,    8,   21,   22,   23,
-    0,   10,   24,    0,    0,   25,    0,    0,   26,   27,
-   28,    0,    0,    0,    0,   29,    0,    0,    0,   30,
-   31,   32,   11,    0,    0,    0,   33,   34,
-};
-short socks_yycheck[] = {                                      10,
-    0,  125,   81,  125,  125,   83,   84,  135,  125,  124,
-   10,  125,   82,   81,   81,  310,    7,   82,  114,  128,
-   82,  317,  125,   58,  273,   58,  129,  322,  324,  257,
-  258,  125,  273,  302,  303,  304,  305,  306,  274,  275,
-  276,  277,  291,  125,  268,  124,  295,  289,  290,  273,
-  125,  300,  301,   58,  163,    0,  124,  124,  128,  300,
-  309,  157,  311,  128,   58,   10,  128,  291,  309,   58,
-  311,  295,  312,  313,  314,  315,  316,  301,  296,  297,
-  298,  299,  317,  266,  267,  320,  279,  280,  203,   58,
-   81,   82,  220,  163,  292,  293,  294,   58,  163,    0,
-   58,  163,  317,  318,  319,  233,   58,  235,   58,   10,
-  292,  293,  317,  318,  242,  322,  323,   70,   71,   58,
-   58,  123,  125,  324,  203,  125,  286,  123,  123,   58,
-   58,    0,  269,  124,  324,  203,  203,  128,  324,  281,
-   58,   10,   58,  221,   58,   58,   58,   58,  325,  273,
-  321,  268,  281,  308,  326,   58,  273,  288,  125,   58,
-   58,  125,   45,    0,  288,   47,  125,  291,  322,    0,
-    0,  295,  163,   10,  291,  325,  300,  301,  295,  273,
-  125,  125,  325,  300,  301,  309,  268,  311,  125,  325,
-  125,  273,  309,  268,  311,    0,    7,  291,  273,  125,
-  171,  295,  326,  325,  325,   10,  300,  301,  325,  291,
-  176,  325,  203,  295,  179,  309,  291,  311,  300,  301,
-  295,    7,   87,    7,  187,  300,  301,  309,   90,  311,
-    7,  325,   79,   97,  309,  195,  311,   10,  147,   21,
-  216,  221,   84,  325,   -1,   -1,   -1,  209,  259,   -1,
-  325,   -1,  263,  264,   -1,   -1,   -1,   -1,   -1,  259,
-  260,  261,  262,   -1,  264,  265,   -1,   -1,  268,   -1,
-  273,  271,  272,  273,  285,   -1,  287,   -1,  278,   -1,
-   -1,   -1,  282,  283,  284,  285,   -1,   -1,  291,  289,
-  290,  291,  295,   -1,   -1,  295,   -1,  300,  301,   -1,
-  300,  301,   -1,   -1,   -1,   -1,  309,   -1,  311,  309,
-   -1,  311,   -1,   -1,  259,  260,  261,  262,   -1,  264,
-  265,   -1,  325,  268,  268,  325,  271,  272,  273,  273,
-   -1,   -1,   -1,  278,   -1,   -1,   -1,  282,  283,  284,
-  285,   -1,   -1,   -1,  289,  290,  291,  291,   -1,   -1,
-  295,  295,   -1,   -1,   -1,   -1,  301,  301,  259,  260,
-  261,  262,  263,  264,  265,   -1,   -1,  268,   -1,   -1,
-  271,  272,  273,   -1,   -1,   -1,   -1,  278,   -1,   -1,
-  325,  282,  283,  284,  285,   -1,  287,   -1,  289,  290,
-  259,  260,  261,  262,   -1,  264,  265,   -1,   -1,  268,
-   -1,   -1,  271,  272,  273,   -1,   -1,   -1,   -1,  278,
-   -1,   -1,   -1,  282,  283,  284,  285,   -1,   -1,   -1,
-  289,  290,  259,  260,  261,  262,   -1,  264,  265,   -1,
-   -1,  268,   -1,   -1,  271,  272,  273,   -1,   -1,   -1,
-   -1,  278,   -1,   -1,   -1,  282,  283,  284,  285,   -1,
-   -1,   -1,  289,  290,  259,  260,  261,  262,   -1,  264,
-  265,   -1,   -1,  268,   -1,   -1,  271,  272,  273,   -1,
-   -1,   -1,   -1,  278,   -1,   -1,   -1,  282,  283,  284,
-  285,   -1,   -1,   -1,  289,  290,  259,  260,  261,  262,
-   -1,  264,  265,   -1,   -1,  268,   -1,   -1,  271,  272,
-  273,   -1,   -1,   -1,   -1,  278,   -1,   -1,   -1,  282,
-  283,  284,  285,   -1,   -1,   -1,  289,  290,
+#if defined(__cplusplus) || defined(__STDC__)
+const short socks_yycheck[] =
+#else
+short socks_yycheck[] =
+#endif
+	{                                     125,
+    0,   10,   93,   94,  125,  125,  125,   92,  125,  151,
+   10,   93,   94,   93,   94,   91,  140,  107,  161,  162,
+  153,  269,   91,   91,   91,  245,  274,  276,  318,  274,
+  325,   58,  252,  274,  325,  326,   58,  328,  333,   58,
+  152,  331,  154,  292,  276,  277,  278,  279,  280,  297,
+   58,  296,  297,  301,  274,  296,  301,  259,  298,  299,
+  300,  309,  307,  308,  309,   58,  307,  308,  153,   58,
+  203,   58,  317,  197,  319,  151,  317,   58,  319,   58,
+    0,   58,  151,  151,  151,  175,  257,  258,  178,   58,
+   10,  336,  337,  338,  294,  295,   58,  338,  267,  268,
+  302,  303,  304,  305,  306,  310,  311,  312,  313,  314,
+  282,  283,   58,  255,   58,  334,  335,   58,  203,  320,
+  321,  322,  323,  324,  123,  125,  333,  270,  271,    6,
+    7,    0,  325,  326,  327,  328,  329,  298,  299,  331,
+  332,   10,   79,   80,  292,  293,  290,  123,  274,  123,
+   58,   58,  269,  333,  270,  333,  284,  274,  301,  333,
+   58,   58,   58,   58,   58,   58,   58,  293,    0,   58,
+  296,  297,   58,   58,   58,  301,  334,  330,   10,  255,
+  297,  307,  308,  309,  301,  276,  255,  255,  255,  284,
+   58,  317,  309,  319,  276,  332,  276,  285,  316,   58,
+  335,  333,  333,   58,  293,  125,    0,  125,  334,  335,
+  336,  337,  338,  334,  334,  334,   10,   58,   58,  125,
+   45,   47,  125,  331,  330,  318,    0,    0,  214,  334,
+  334,  334,  224,  221,  125,  125,  227,  125,    7,   99,
+  235,    7,    7,    0,  102,   89,  110,    7,  204,   21,
+  259,  302,  307,   10,   -1,  264,  265,   -1,  243,  259,
+  260,  261,  262,  263,   -1,  265,  266,   -1,   -1,  269,
+   -1,   -1,  272,  273,  274,  275,   -1,   -1,   -1,   -1,
+  289,  281,   -1,  292,   -1,   -1,  286,  287,  288,  289,
+   10,  291,  292,   -1,  294,  295,  296,  297,   -1,   -1,
+   -1,  301,   -1,   -1,   -1,   -1,   -1,  307,  308,  309,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  317,   -1,  319,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,  334,   -1,  336,  337,  338,  259,
+  260,  261,  262,  263,   -1,  265,  266,   -1,   -1,  269,
+   -1,   -1,  272,  273,  274,  275,   -1,   -1,   -1,   -1,
+   -1,  281,   -1,   -1,   -1,   -1,  286,  287,  288,  289,
+   -1,  291,  292,   -1,  294,  295,   -1,  297,   -1,   -1,
+   -1,  301,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  309,
+  259,  260,  261,  262,  263,  264,  265,  266,   -1,   -1,
+  269,   -1,   -1,  272,  273,  274,  275,  125,   -1,   -1,
+   -1,   -1,  281,   -1,  334,   -1,   -1,  286,  287,  288,
+  289,  125,  291,  292,   -1,  294,  295,  259,  260,  261,
+  262,  263,   -1,  265,  266,   -1,   -1,  269,   -1,   -1,
+  272,  273,  274,  275,   -1,   -1,   -1,   -1,   -1,  281,
+   -1,   -1,   -1,   -1,  286,  287,  288,  289,   -1,  291,
+  292,   -1,  294,  295,   -1,  259,  260,  261,  262,  263,
+   -1,  265,  266,  125,   -1,  269,   -1,   -1,  272,  273,
+  274,  275,   -1,   -1,   -1,   -1,   -1,  281,   -1,   -1,
+   -1,   -1,  286,  287,  288,  289,   -1,  291,  292,   -1,
+  294,  295,  259,  260,  261,  262,  263,   -1,  265,  266,
+   -1,   -1,  269,   -1,   -1,  272,  273,  274,  275,  125,
+   -1,   -1,   -1,   -1,  281,   -1,   -1,   -1,   -1,  286,
+  287,  288,  289,   -1,  291,  292,   -1,  294,  295,  259,
+  260,  261,  262,  263,   -1,  265,  266,   -1,   -1,  269,
+   -1,  269,  272,  273,  274,  275,  274,   -1,   -1,   -1,
+   -1,  281,   -1,  125,   -1,  269,  286,  287,  288,  289,
+  274,  291,  292,   -1,  294,  295,   -1,  125,  296,  297,
+   -1,   -1,   -1,  301,   -1,   -1,   -1,   -1,   -1,  307,
+  308,  309,  296,  297,   -1,   -1,   -1,  301,   -1,  317,
+   -1,  319,   -1,  307,  308,  309,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  317,   -1,  319,  334,  269,  336,  337,
+  338,   -1,  274,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+  334,   -1,  336,  337,  338,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,  296,  297,   -1,   -1,   -1,  301,
+   -1,   -1,   -1,   -1,   -1,  307,  308,  309,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,  317,   -1,  319,  274,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,  334,   -1,  336,  337,  338,   -1,   -1,   -1,
+  296,  297,   -1,   -1,   -1,  301,   -1,   -1,   -1,   -1,
+   -1,  307,  308,  309,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,  317,  274,  319,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,  274,   -1,  334,   -1,
+  336,  337,  338,   -1,  296,  297,   -1,   -1,   -1,  301,
+   -1,   -1,   -1,   -1,   -1,  307,  308,  309,  296,  297,
+   -1,   -1,   -1,  301,   -1,  317,   -1,  319,   -1,  307,
+  308,  309,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  317,
+   -1,  319,  334,   -1,  336,  337,  338,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,  334,   -1,  336,  337,
+  338,
 };
 #define YYFINAL 3
 #ifndef YYDEBUG
 #define YYDEBUG 0
 #endif
-#define YYMAXTOKEN 326
+#define YYMAXTOKEN 338
 #if YYDEBUG
-char *socks_yyname[] = {
+#if defined(__cplusplus) || defined(__STDC__)
+const char * const socks_yyname[] =
+#else
+char *socks_yyname[] =
+#endif
+	{
 "end-of-file",0,0,0,0,0,0,0,0,0,"'\\n'",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,"'-'",0,"'/'",0,0,0,0,0,0,0,0,0,0,"':'",0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -498,21 +660,27 @@ char *socks_yyname[] = {
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 "SERVERCONFIG","CLIENTCONFIG","DEPRECATED","CLIENTRULE","INTERNAL","EXTERNAL",
-"DEBUGING","RESOLVEPROTOCOL","SRCHOST","NOMISMATCH","NOUNKNOWN","EXTENSION",
-"BIND","PRIVILEGED","IOTIMEOUT","CONNECTTIMEOUT","METHOD","NONE","GSSAPI",
-"UNAME","RFC931","COMPATIBILITY","REUSEADDR","SAMEPORT","USERNAME",
-"USER_PRIVILEGED","USER_UNPRIVILEGED","USER_LIBWRAP","LOGOUTPUT","LOGFILE",
-"ROUTE","VIA","VERDICT_BLOCK","VERDICT_PASS","PROTOCOL","PROTOCOL_TCP",
-"PROTOCOL_UDP","PROTOCOL_FAKE","PROXYPROTOCOL","PROXYPROTOCOL_SOCKS_V4",
-"PROXYPROTOCOL_SOCKS_V5","PROXYPROTOCOL_MSPROXY_V2","PROXYPROTOCOL_HTTP_V1_0",
-"USER","COMMAND","COMMAND_BIND","COMMAND_CONNECT","COMMAND_UDPASSOCIATE",
-"COMMAND_BINDREPLY","COMMAND_UDPREPLY","ACTION","LINE","LIBWRAPSTART",
-"OPERATOR","LOG","LOG_CONNECT","LOG_DATA","LOG_DISCONNECT","LOG_ERROR",
-"LOG_IOOPERATION","IPADDRESS","DOMAIN","DIRECT","IFNAME","PORT","PORTNUMBER",
-"SERVICENAME","NUMBER","FROM","TO",
+"EXTERNAL_ROTATION","DEBUGING","RESOLVEPROTOCOL","SRCHOST","NOMISMATCH",
+"NOUNKNOWN","EXTENSION","BIND","PRIVILEGED","IOTIMEOUT","CONNECTTIMEOUT",
+"METHOD","CLIENTMETHOD","NONE","GSSAPI","UNAME","RFC931","PAM","COMPATIBILITY",
+"REUSEADDR","SAMEPORT","USERNAME","GROUPNAME","USER_PRIVILEGED",
+"USER_UNPRIVILEGED","USER_LIBWRAP","LOGOUTPUT","LOGFILE","CHILD_MAXIDLE",
+"ROUTE","VIA","VERDICT_BLOCK","VERDICT_PASS","PAMSERVICENAME","PROTOCOL",
+"PROTOCOL_TCP","PROTOCOL_UDP","PROTOCOL_FAKE","PROXYPROTOCOL",
+"PROXYPROTOCOL_SOCKS_V4","PROXYPROTOCOL_SOCKS_V5","PROXYPROTOCOL_MSPROXY_V2",
+"PROXYPROTOCOL_HTTP_V1_0","PROXYPROTOCOL_UPNP","USER","GROUP","COMMAND",
+"COMMAND_BIND","COMMAND_CONNECT","COMMAND_UDPASSOCIATE","COMMAND_BINDREPLY",
+"COMMAND_UDPREPLY","ACTION","LINE","LIBWRAPSTART","OPERATOR","LOG",
+"LOG_CONNECT","LOG_DATA","LOG_DISCONNECT","LOG_ERROR","LOG_IOOPERATION",
+"IPADDRESS","DOMAINNAME","DIRECT","IFNAME","URL","PORT","PORTNUMBER",
+"SERVICENAME","NUMBER","FROM","TO","REDIRECT","BANDWIDTH","MAXSESSIONS",
 };
-char *socks_yyrule[] = {
-"$accept : configtype",
+#if defined(__cplusplus) || defined(__STDC__)
+const char * const socks_yyrule[] =
+#else
+char *socks_yyrule[] =
+#endif
+	{"$accept : configtype",
 "configtype : serverinit serverline",
 "configtype : clientinit clientline",
 "serverinit : SERVERCONFIG",
@@ -521,6 +689,7 @@ char *socks_yyrule[] = {
 "serverline : serverline serverconfig",
 "serverline : serverline clientrule",
 "serverline : serverline rule",
+"serverline : serverline route",
 "clientline :",
 "clientline : clientline '\\n'",
 "clientline : clientline clientconfig",
@@ -528,13 +697,16 @@ char *socks_yyrule[] = {
 "clientinit : CLIENTCONFIG",
 "clientconfig : clientoption",
 "clientconfig : deprecated",
-"serverconfig : authmethod",
+"serverconfig : global_authmethod",
+"serverconfig : global_clientauthmethod",
 "serverconfig : deprecated",
 "serverconfig : internal",
 "serverconfig : external",
+"serverconfig : external_rotation",
 "serverconfig : logoutput",
 "serverconfig : serveroption",
 "serverconfig : userids",
+"serverconfig : childstate",
 "serveroption : compatibility",
 "serveroption : connecttimeout",
 "serveroption : extension",
@@ -549,24 +721,28 @@ char *socks_yyrule[] = {
 "proxyprotocolname : PROXYPROTOCOL_SOCKS_V5",
 "proxyprotocolname : PROXYPROTOCOL_MSPROXY_V2",
 "proxyprotocolname : PROXYPROTOCOL_HTTP_V1_0",
+"proxyprotocolname : PROXYPROTOCOL_UPNP",
+"proxyprotocolname : deprecated",
 "proxyprotocols : proxyprotocolname",
 "proxyprotocols : proxyprotocolname proxyprotocols",
 "user : USER ':' usernames",
 "username : USERNAME",
 "usernames : username",
 "usernames : username usernames",
+"group : GROUP ':' groupnames",
+"groupname : GROUPNAME",
+"groupnames : groupname",
+"groupnames : groupname groupnames",
 "extension : EXTENSION ':' extensions",
 "extensionname : BIND",
 "extensions : extensionname",
 "extensions : extensionname extensions",
 "internal : INTERNAL internalinit ':' internaladdress",
 "internalinit :",
-"internaladdress : ipaddress port",
-"internaladdress : ifname port",
 "external : EXTERNAL externalinit ':' externaladdress",
 "externalinit :",
-"externaladdress : ipaddress",
-"externaladdress : ifname",
+"external_rotation : EXTERNAL_ROTATION ':' NONE",
+"external_rotation : EXTERNAL_ROTATION ':' ROUTE",
 "clientoption : logoutput",
 "clientoption : debuging",
 "clientoption : resolveprotocol",
@@ -574,6 +750,7 @@ char *socks_yyrule[] = {
 "logoutputdevice : LOGFILE",
 "logoutputdevices : logoutputdevice",
 "logoutputdevices : logoutputdevice logoutputdevices",
+"childstate : CHILD_MAXIDLE ':' NUMBER",
 "userids : user_privileged",
 "userids : user_unprivileged",
 "userids : user_libwrap",
@@ -598,31 +775,38 @@ char *socks_yyrule[] = {
 "srchostoption : NOUNKNOWN",
 "srchostoptions : srchostoption",
 "srchostoptions : srchostoption srchostoptions",
+"authmethod : METHOD ':' authmethods",
 "$$1 :",
-"authmethod : METHOD ':' $$1 authmethods",
+"global_authmethod : METHOD ':' $$1 authmethods",
+"$$2 :",
+"global_clientauthmethod : CLIENTMETHOD ':' $$2 authmethods",
 "authmethodname : NONE",
 "authmethodname : GSSAPI",
 "authmethodname : UNAME",
 "authmethodname : RFC931",
+"authmethodname : PAM",
 "authmethods : authmethodname",
 "authmethods : authmethodname authmethods",
 "clientrule : CLIENTRULE verdict '{' clientruleoptions fromto clientruleoptions '}'",
-"clientruleoption : authmethod",
-"clientruleoption : libwrap",
-"clientruleoption : log",
-"clientruleoption : user",
+"clientruleoption : option",
 "clientruleoptions :",
 "clientruleoptions : clientruleoption clientruleoptions",
 "rule : verdict '{' ruleoptions fromto ruleoptions '}'",
-"ruleoption : authmethod",
+"ruleoption : option",
+"ruleoption : bandwidth",
 "ruleoption : command",
-"ruleoption : libwrap",
-"ruleoption : log",
 "ruleoption : protocol",
 "ruleoption : proxyprotocol",
-"ruleoption : user",
+"ruleoption : redirect",
 "ruleoptions :",
 "ruleoptions : ruleoption ruleoptions",
+"option : authmethod",
+"option : libwrap",
+"option : log",
+"option : pamservicename",
+"option : user",
+"option : group",
+"option : session",
 "verdict : VERDICT_BLOCK",
 "verdict : VERDICT_PASS",
 "command : COMMAND ':' commands",
@@ -639,6 +823,11 @@ char *socks_yyrule[] = {
 "protocols : protocolname",
 "protocols : protocolname protocols",
 "fromto : srcaddress dstaddress",
+"redirect : REDIRECT rdr_fromaddress",
+"redirect : REDIRECT rdr_toaddress",
+"session : maxsessions",
+"maxsessions : MAXSESSIONS ':' NUMBER",
+"bandwidth : BANDWIDTH ':' NUMBER",
 "log : LOG ':' logs",
 "logname : LOG_CONNECT",
 "logname : LOG_DATA",
@@ -647,9 +836,12 @@ char *socks_yyrule[] = {
 "logname : LOG_IOOPERATION",
 "logs : logname",
 "logs : logname logs",
+"pamservicename : PAMSERVICENAME ':' SERVICENAME",
 "libwrap : LIBWRAPSTART ':' LINE",
 "srcaddress : from ':' address",
 "dstaddress : to ':' address",
+"rdr_fromaddress : rdr_from ':' address",
+"rdr_toaddress : rdr_to ':' address",
 "gateway : via ':' gwaddress",
 "routeoption : command",
 "routeoption : extension",
@@ -660,21 +852,35 @@ char *socks_yyrule[] = {
 "routeoptions : routeoption routeoptions",
 "from : FROM",
 "to : TO",
+"rdr_from : FROM",
+"rdr_to : TO",
 "via : VIA",
+"internaladdress : ipaddress port",
+"internaladdress : domain port",
+"internaladdress : ifname port",
+"externaladdress : ipaddress",
+"externaladdress : domain",
+"externaladdress : ifname",
 "address : ipaddress '/' netmask port",
 "address : domain port",
-"gwaddress : ipaddress port",
-"gwaddress : domain port",
+"address : ifname port",
+"gwaddress : ipaddress gwport",
+"gwaddress : domain gwport",
+"gwaddress : ifname gwport",
 "gwaddress : direct",
+"gwaddress : url",
 "ipaddress : IPADDRESS",
 "netmask : NUMBER",
 "netmask : IPADDRESS",
-"domain : DOMAIN",
+"domain : DOMAINNAME",
 "ifname : IFNAME",
 "direct : DIRECT",
+"url : URL",
 "port :",
 "port : PORT portoperator portnumber",
 "port : PORT portrange",
+"gwport :",
+"gwport : PORT portoperator portnumber",
 "portnumber : portservice",
 "portnumber : portstart",
 "portrange : portstart '-' portend",
@@ -696,6 +902,7 @@ char *socks_yyrule[] = {
 #endif
 #endif
 #define YYINITSTACKSIZE 200
+/* LINTUSED */
 int yydebug;
 int yynerrs;
 int yyerrflag;
@@ -708,57 +915,40 @@ short *yyss;
 short *yysslim;
 YYSTYPE *yyvs;
 int yystacksize;
-#line 1020 "config_parse.y"
+#line 1230 "../lib/config_parse.y"
 
-#define INTERACTIVE		0
-
-#if SOCKS_SERVER
-#define ELECTRICFENCE	0
-#else
-#define ELECTRICFENCE	0
-#endif
-
-
-#if ELECTRICFENCE
-	extern int EF_PROTECT_FREE;
-	extern int EF_ALLOW_MALLOC_0;
-	extern int EF_ALIGNMENT;
-	extern int EF_PROTECT_BELOW;
-#endif /* ELECTRICFENCE */
+#define INTERACTIVE      0
 
 extern FILE *yyin;
 
-int parseinit;
+int socks_parseinit;
 
 int
 readconfig(filename)
-	const char *filename;
+   const char *filename;
 {
-	const char *function = "readconfig()";
-	const int errno_s = errno;
+   const char *function = "readconfig()";
 
-#if ELECTRICFENCE
-	EF_PROTECT_FREE         = 1;
-	EF_ALLOW_MALLOC_0       = 1;
-	EF_ALIGNMENT            = 0;
-	EF_PROTECT_BELOW			= 0;
-#endif /* ELECTRICFENCE */
+/*   yydebug            = 1;            */
+   yylineno            = 1;
+   socks_parseinit   = 0;
 
-/*	yydebug		= 1;        */
-	yylineno		= 1;
-	parseinit	= 0;
+   if ((yyin = fopen(filename, "r")) == NULL) {
+      swarn("%s: %s", function, filename);
+      return -1;
+   }
 
-	if ((yyin = fopen(filename, "r")) == NULL) {
-		swarn("%s: %s", function, filename);
-		return -1;
-	}
+   errno = 0;   /* don't report old errors in yyparse(). */
+   yyparse();
+   fclose(yyin);
 
-	yyparse();
-	fclose(yyin);
+#if SOCKS_SERVER
+   fixconfig();
+#endif /* SOCKS_SERVER */
 
-	errno = errno_s; /* yacc for some reason alters errno sometimes. */
+   errno = 0;
 
-	return 0;
+   return 0;
 }
 
 
@@ -767,34 +957,34 @@ void
 yyerror(const char *fmt, ...)
 #else
 yyerror(fmt, va_alist)
-	const char *fmt;
-	va_dcl
+   const char *fmt;
+   va_dcl
 #endif  /* STDC_HEADERS */
 {
-	va_list ap;
-	char buf[2048];
-	size_t bufused;
+   va_list ap;
+   char buf[2048];
+   size_t bufused;
 
 #ifdef STDC_HEADERS
-		/* LINTED pointer casts may be troublesome */
-		va_start(ap, fmt);
+      /* LINTED pointer casts may be troublesome */
+      va_start(ap, fmt);
 #else
-		va_start(ap);
+      va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	bufused = snprintfn(buf, sizeof(buf),
-	"%s: error on line %d, near '%.10s': ",
-	config.option.configfile, yylineno,
-	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
+   bufused = snprintfn(buf, sizeof(buf),
+   "%s: error on line %d, near '%.10s': ",
+   sockscf.option.configfile, yylineno,
+   (yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
 
-	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
+   vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
 
-	/* LINTED expression has null effect */
-	va_end(ap);
+   /* LINTED expression has null effect */
+   va_end(ap);
 
-	if (errno)
-		serr(EXIT_FAILURE, buf);
-	serrx(EXIT_FAILURE, buf);
+   if (errno)
+      serr(EXIT_FAILURE, buf);
+   serrx(EXIT_FAILURE, buf);
 }
 
 void
@@ -802,70 +992,165 @@ void
 yywarn(const char *fmt, ...)
 #else
 yywarn(fmt, va_alist)
-	const char *fmt;
-	va_dcl
+   const char *fmt;
+   va_dcl
 #endif  /* STDC_HEADERS */
 {
-	va_list ap;
-	char buf[2048];
-	size_t bufused;
+   va_list ap;
+   char buf[2048];
+   size_t bufused;
 
 #ifdef STDC_HEADERS
-		/* LINTED pointer casts may be troublesome */
-		va_start(ap, fmt);
+      /* LINTED pointer casts may be troublesome */
+      va_start(ap, fmt);
 #else
-		va_start(ap);
+      va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	bufused = snprintfn(buf, sizeof(buf),
-	"%s: warning on line %d, near '%.10s': ",
-	config.option.configfile, yylineno,
-	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
+   bufused = snprintfn(buf, sizeof(buf),
+   "%s: warning on line %d, near '%.10s': ",
+   sockscf.option.configfile, yylineno,
+   (yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
 
-	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
+   vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
 
-	/* LINTED expression has null effect */
-	va_end(ap);
+   /* LINTED expression has null effect */
+   va_end(ap);
 
-	if (errno)
-		swarn(buf);
-	swarnx(buf);
+   if (errno)
+      swarn(buf);
+   swarnx(buf);
 }
 
 static void
-addressinit(address)
-	struct ruleaddress_t *address;
+addrinit(addr)
+   struct ruleaddr_t *addr;
 {
-		ruleaddress	= address;
+   ruleaddr   = addr;
 
-		atype			= &ruleaddress->atype;
-		ipaddr		= &ruleaddress->addr.ipv4.ip;
-		netmask		= &ruleaddress->addr.ipv4.mask;
-		domain		= ruleaddress->addr.domain;
-		ifname		= ruleaddress->addr.ifname;
-		port_tcp		= &ruleaddress->port.tcp;
-		port_udp		= &ruleaddress->port.udp;
-		operator		= &ruleaddress->operator;
+   atype         = &ruleaddr->atype;
+   ipaddr      = &ruleaddr->addr.ipv4.ip;
+   netmask      = &ruleaddr->addr.ipv4.mask;
+   domain      = ruleaddr->addr.domain;
+   ifname      = ruleaddr->addr.ifname;
+   port_tcp      = &ruleaddr->port.tcp;
+   port_udp      = &ruleaddr->port.udp;
+   operator      = &ruleaddr->operator;
 }
+
+static void
+gwaddrinit(addr)
+   gwaddr_t *addr;
+{
+   static enum operator_t operatormem;
+
+   atype         = &addr->atype;
+   ipaddr      = &addr->addr.ipv4;
+   domain      = addr->addr.domain;
+   ifname      = addr->addr.ifname;
+   url         = addr->addr.urlname;
+   port_tcp      = &addr->port;
+   port_udp      = &addr->port;
+   operator      = &operatormem; /* no operator in gwaddr. */
+}
+
+
 
 #if SOCKS_SERVER
 static void
 ruleinit(rule)
-	const struct rule_t *rule;
+   struct rule_t *rule;
 {
-	rule->linenumber = yylineno;
+   rule->linenumber = yylineno;
 
-	command			= &rule->state.command;
-	methodv			= rule->state.methodv;
-	methodc			= &rule->state.methodc;
-	protocol			= &rule->state.protocol;
-	proxyprotocol	= &rule->state.proxyprotocol;
-	userbase			= &rule->user;
+   command         = &rule->state.command;
+   methodv         = rule->state.methodv;
+   methodc         = &rule->state.methodc;
+   protocol         = &rule->state.protocol;
+   proxyprotocol   = &rule->state.proxyprotocol;
+
+   bzero(&src, sizeof(src));
+   bzero(&dst, sizeof(dst));
+   *rule = ruleinitmem;
+
+   src.atype = SOCKS_ADDR_IPV4;
+   src.addr.ipv4.ip.s_addr = htonl(INADDR_ANY);
+   src.port.tcp = src.port.udp = src.portend = htons(0);
+
+   dst = rdr_from = rdr_to = src;
 }
-#endif
-#line 867 "y.tab.c"
+
+static void
+fixconfig(void)
+{
+   const char *function = "fixsettings()";
+   int i;
+   uid_t euid;
+
+   /*
+    * Check arguments and settings, do they make sense?
+    */
+
+   if (sockscf.clientmethodc == 0)
+      sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_NONE;
+
+#if !HAVE_DUMPCONF
+   if (!sockscf.uid.privileged_isset)
+      sockscf.uid.privileged = sockscf.state.euid;
+   else {
+      socks_seteuid(&euid, sockscf.uid.privileged);
+      socks_reseteuid(sockscf.uid.privileged, euid);
+   }
+
+   if (!sockscf.uid.unprivileged_isset)
+      sockscf.uid.unprivileged = sockscf.state.euid;
+   else {
+      socks_seteuid(&euid, sockscf.uid.unprivileged);
+      socks_reseteuid(sockscf.uid.unprivileged, euid);
+   }
+
+#if HAVE_LIBWRAP
+   if (!sockscf.uid.libwrap_isset)
+      sockscf.uid.libwrap = sockscf.state.euid;
+   else {
+      socks_seteuid(&euid, sockscf.uid.libwrap);
+      socks_reseteuid(sockscf.uid.libwrap, euid);
+   }
+#endif /* HAVE_LIBWRAP */
+#endif /* !HAVE_DUMPCONF */
+
+   if (sockscf.internalc == 0)
+      serrx(EXIT_FAILURE, "%s: no internal address given", function);
+   /* values will be used once and checked there. */
+
+   if (sockscf.external.addrc == 0)
+      serrx(EXIT_FAILURE, "%s: no external address given", function);
+#if !HAVE_DUMPCONF
+   for (i = 0; i < sockscf.external.addrc; ++i)
+      if (!addressisbindable(&sockscf.external.addrv[i]))
+         serrx(EXIT_FAILURE, NULL);
+#endif /* !HAVE_DUMPCONF */
+
+#if !HAVE_DUMPCONF 
+   if (sockscf.methodc == 0)
+      swarnx("%s: no methods enabled (total block)", function);
+
+   if (sockscf.uid.unprivileged == 0)
+      swarnx("%s: setting the unprivileged uid to %d is not recommended",
+      function, sockscf.uid.unprivileged);
+
+#if HAVE_LIBWRAP
+   if (sockscf.uid.libwrap == 0)
+      swarnx("%s: setting the libwrap uid to %d is not recommended",
+      function, sockscf.uid.libwrap);
+#endif /* HAVE_LIBWRAP */
+#endif /* !HAVE_DUMPCONF */
+}
+
+#endif /* SOCKS_SERVER */
+#line 1100 "config_parse.c"
 /* allocate initial stack or double stack size, up to YYMAXDEPTH */
-#if defined(__cplusplus) || __STDC__
+#if defined(__cplusplus) || defined(__STDC__)
 static int yygrowstack(void)
 #else
 static int yygrowstack()
@@ -882,14 +1167,23 @@ static int yygrowstack()
     else if ((newsize *= 2) > YYMAXDEPTH)
         newsize = YYMAXDEPTH;
     i = yyssp - yyss;
+#ifdef SIZE_MAX
+#define YY_SIZE_MAX SIZE_MAX
+#else
+#define YY_SIZE_MAX 0xffffffffU
+#endif
+    if (newsize && YY_SIZE_MAX / newsize < sizeof *newss)
+        goto bail;
     newss = yyss ? (short *)realloc(yyss, newsize * sizeof *newss) :
-      (short *)malloc(newsize * sizeof *newss);
+      (short *)malloc(newsize * sizeof *newss); /* overflow check above */
     if (newss == NULL)
         goto bail;
     yyss = newss;
     yyssp = newss + i;
+    if (newsize && YY_SIZE_MAX / newsize < sizeof *newvs)
+        goto bail;
     newvs = yyvs ? (YYSTYPE *)realloc(yyvs, newsize * sizeof *newvs) :
-      (YYSTYPE *)malloc(newsize * sizeof *newvs);
+      (YYSTYPE *)malloc(newsize * sizeof *newvs); /* overflow check above */
     if (newvs == NULL)
         goto bail;
     yyvs = newvs;
@@ -913,15 +1207,19 @@ bail:
 #define YYACCEPT goto yyaccept
 #define YYERROR goto yyerrlab
 int
-#if defined(__cplusplus) || __STDC__
+#if defined(__cplusplus) || defined(__STDC__)
 yyparse(void)
 #else
 yyparse()
 #endif
 {
-    register int yym, yyn, yystate;
+    int yym, yyn, yystate;
 #if YYDEBUG
-    register char *yys;
+#if defined(__cplusplus) || defined(__STDC__)
+    const char *yys;
+#else /* !(defined(__cplusplus) || defined(__STDC__)) */
+    char *yys;
+#endif /* !(defined(__cplusplus) || defined(__STDC__)) */
 
     if ((yys = getenv("YYDEBUG")))
     {
@@ -929,7 +1227,7 @@ yyparse()
         if (yyn >= '0' && yyn <= '9')
             yydebug = yyn - '0';
     }
-#endif
+#endif /* YYDEBUG */
 
     yynerrs = 0;
     yyerrflag = 0;
@@ -1049,686 +1347,861 @@ yyreduce:
                 YYPREFIX, yystate, yyn, yyrule[yyn]);
 #endif
     yym = yylen[yyn];
-    yyval = yyvsp[1-yym];
+    if (yym)
+        yyval = yyvsp[1-yym];
+    else
+        memset(&yyval, 0, sizeof yyval);
     switch (yyn)
     {
 case 3:
-#line 255 "config_parse.y"
+#line 284 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-		protocol			= &protocolmem;
-		extension		= &config.extension;
-		methodv			= config.methodv;
-		methodc			= &config.methodc;
+      protocol         = &protocolmem;
+      extension      = &sockscf.extension;
 #endif
-	}
+   }
 break;
 case 4:
-#line 266 "config_parse.y"
+#line 293 "../lib/config_parse.y"
 { yyval.string = NULL; }
 break;
-case 9:
-#line 273 "config_parse.y"
+case 10:
+#line 301 "../lib/config_parse.y"
 { yyval.string = NULL; }
 break;
-case 13:
-#line 280 "config_parse.y"
+case 14:
+#line 308 "../lib/config_parse.y"
 {
-	}
-break;
-case 29:
-#line 306 "config_parse.y"
-{
-		yywarn("given keyword is deprecated");
-	}
-break;
-case 30:
-#line 310 "config_parse.y"
-{
-#if SOCKS_CLIENT
-		route.src		= src;
-		route.dst		= dst;
-		ruleaddress2sockshost(&gw, &route.gw.host, SOCKS_TCP);
-		route.gw.state	= state;
-
-		addroute(&route);
-#endif
-	}
-break;
-case 31:
-#line 322 "config_parse.y"
-{
-#if SOCKS_CLIENT
-		command			= &state.command;
-		extension		= &state.extension;
-		methodv			= state.methodv;
-		methodc			= &state.methodc;
-		protocol			= &state.protocol;
-		proxyprotocol	= &state.proxyprotocol;
-
-		bzero(&state, sizeof(state));
-		bzero(&route, sizeof(route));
-		bzero(&gw, sizeof(gw));
-		bzero(&src, sizeof(src));
-		bzero(&dst, sizeof(dst));
-		src.atype = SOCKS_ADDR_IPV4;
-		dst.atype = SOCKS_ADDR_IPV4;
-#endif
-	}
+   }
 break;
 case 33:
-#line 346 "config_parse.y"
+#line 337 "../lib/config_parse.y"
 {
-			proxyprotocol->socks_v4 	= 1;
-	}
+      yywarn("given keyword is deprecated");
+   }
 break;
 case 34:
-#line 349 "config_parse.y"
+#line 341 "../lib/config_parse.y"
 {
-			proxyprotocol->socks_v5 	= 1;
-	}
+      route.src      = src;
+      route.dst      = dst;
+      route.gw.addr   = gw;
+      route.gw.state   = state;
+
+      socks_addroute(&route, 1);
+   }
 break;
 case 35:
-#line 352 "config_parse.y"
+#line 351 "../lib/config_parse.y"
 {
-			proxyprotocol->msproxy_v2 	= 1;
-	}
+      command         = &state.command;
+      extension      = &state.extension;
+      methodv         = state.methodv;
+      methodc         = &state.methodc;
+      protocol         = &state.protocol;
+      proxyprotocol   = &state.proxyprotocol;
+
+      bzero(&state, sizeof(state));
+      bzero(&route, sizeof(route));
+      bzero(&gw, sizeof(gw));
+      bzero(&src, sizeof(src));
+      bzero(&dst, sizeof(dst));
+      src.atype = SOCKS_ADDR_IPV4;
+      dst.atype = SOCKS_ADDR_IPV4;
+   }
 break;
-case 36:
-#line 355 "config_parse.y"
+case 37:
+#line 373 "../lib/config_parse.y"
 {
-			proxyprotocol->http_v1_0 	= 1;
-	}
+         proxyprotocol->socks_v4      = 1;
+   }
+break;
+case 38:
+#line 376 "../lib/config_parse.y"
+{
+         proxyprotocol->socks_v5      = 1;
+   }
+break;
+case 39:
+#line 379 "../lib/config_parse.y"
+{
+         proxyprotocol->msproxy_v2   = 1;
+   }
 break;
 case 40:
-#line 367 "config_parse.y"
+#line 382 "../lib/config_parse.y"
+{
+         proxyprotocol->http_v1_0   = 1;
+   }
+break;
+case 41:
+#line 385 "../lib/config_parse.y"
+{
+         proxyprotocol->upnp         = 1;
+   }
+break;
+case 46:
+#line 398 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-#if !HAVE_LIBWRAP
-		if (strcmp(yyvsp[0].string, method2string(AUTHMETHOD_RFC931)) == 0)
-			yyerror("method %s requires libwrap", AUTHMETHOD_RFC931s);
-#endif /* !HAVE_LIBWRAP */
-		if (adduser(userbase, yyvsp[0].string) == NULL)
-			yyerror(NOMEM);
+      if (adduser(&rule.user, yyvsp[0].string) == NULL)
+         yyerror(NOMEM);
 #endif /* SOCKS_SERVER */
-	}
+   }
 break;
-case 44:
-#line 386 "config_parse.y"
-{
-			extension->bind = 1;
-	}
-break;
-case 47:
-#line 396 "config_parse.y"
+case 50:
+#line 413 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-		addinternal(ruleaddress);
+      if (addgroup(&rule.group, yyvsp[0].string) == NULL)
+         yyerror(NOMEM);
+#endif /* SOCKS_SERVER */
+   }
+break;
+case 54:
+#line 428 "../lib/config_parse.y"
+{
+         extension->bind = 1;
+   }
+break;
+case 57:
+#line 438 "../lib/config_parse.y"
+{
+#if SOCKS_SERVER
+      addinternal(ruleaddr);
 #endif
-	}
+   }
 break;
-case 48:
-#line 403 "config_parse.y"
+case 58:
+#line 445 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-	static struct ruleaddress_t mem;
-	struct servent	*service;
+   static struct ruleaddr_t mem;
+   struct servent   *service;
 
-	addressinit(&mem);
+   addrinit(&mem);
 
-	/* set default port. */
-	if ((service = getservbyname("socks", "tcp")) == NULL)
-		*port_tcp = htons(SOCKD_PORT);
-	else
-		*port_tcp = (in_port_t)service->s_port;
+   /* set default port. */
+   if ((service = getservbyname("socks", "tcp")) == NULL)
+      *port_tcp = htons(SOCKD_PORT);
+   else
+      *port_tcp = (in_port_t)service->s_port;
 #endif
-	}
-break;
-case 51:
-#line 423 "config_parse.y"
-{
-#if SOCKS_SERVER
-		addexternal(ruleaddress);
-#endif
-	}
-break;
-case 52:
-#line 430 "config_parse.y"
-{
-#if SOCKS_SERVER
-		static struct ruleaddress_t mem;
-
-		addressinit(&mem);
-#endif
-	}
+   }
 break;
 case 59:
-#line 452 "config_parse.y"
-{
-		if (!config.state.init) {
-			const char *syslogname = "syslog";
-
-			if (strncmp(yyvsp[0].string, syslogname, strlen(syslogname)) == 0
-			&& (yyvsp[0].string[strlen(syslogname)] == NUL || yyvsp[0].string[strlen(syslogname)] == '/')) {
-				char *sl;
-
-				config.log.type |= LOGTYPE_SYSLOG;
-
-				if (*(sl = &(yyvsp[0].string[strlen(syslogname)])) == '/') { /* facility. */
-					size_t i;
-
-					for (i = 0, ++sl; i < ELEMENTS(syslogfacility); ++i)
-						if (strcmp(sl, syslogfacility[i].name) == 0)
-							break;
-
-					if (i == ELEMENTS(syslogfacility))
-						serrx(EXIT_FAILURE, "unknown syslog facility \"%s\"", sl);
-					config.log.facility = syslogfacility[i].value;
-				}
-				else
-					config.log.facility = LOG_DAEMON; /* default. */
-			}
-			else {
-				config.log.type |= LOGTYPE_FILE;
-
-				if ((config.log.fpv = (FILE **)realloc(config.log.fpv,
-				sizeof(*config.log.fpv) * (config.log.fpc + 1))) == NULL
-				|| (config.log.fplockv = (int *)realloc(config.log.fplockv,
-				sizeof(*config.log.fplockv) * (config.log.fpc + 1))) == NULL)
-					serrx(EXIT_FAILURE, NOMEM);
-
-				if ((config.log.fplockv[config.log.fpc]
-				= socks_mklock(SOCKS_LOCKFILE)) == -1)
-					serr(EXIT_FAILURE, "socks_mklock()");
-
-				if (strcmp(yyvsp[0].string, "stdout") == 0)
-					config.log.fpv[config.log.fpc] = stdout;
-				else if (strcmp(yyvsp[0].string, "stderr") == 0)
-					config.log.fpv[config.log.fpc] = stderr;
-				else {
-					int flag;
-
-					if ((config.log.fpv[config.log.fpc] = fopen(yyvsp[0].string, "a"))
-					== NULL)
-						serr(EXIT_FAILURE, "fopen(%s)", yyvsp[0].string);
-
-					if ((flag = fcntl(fileno(config.log.fpv[config.log.fpc]),
-					F_GETFD, 0)) == -1
-					||  fcntl(fileno(config.log.fpv[config.log.fpc]), F_SETFD,
-					flag | FD_CLOEXEC) == -1)
-						serr(EXIT_FAILURE, "fcntl(F_GETFD/F_SETFD)");
-				}
-				++config.log.fpc;
-			}
-		}
-		else
-			;	/* XXX warn/exit if output changed. */
-	}
-break;
-case 65:
-#line 523 "config_parse.y"
+#line 461 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-		config.uid.privileged			= yyvsp[0].uid;
-		config.uid.privileged_isset	= 1;
+      addexternal(ruleaddr);
 #endif
-	}
+   }
 break;
-case 66:
-#line 531 "config_parse.y"
+case 60:
+#line 468 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-		config.uid.unprivileged			= yyvsp[0].uid;
-		config.uid.unprivileged_isset	= 1;
+      static struct ruleaddr_t mem;
+
+      addrinit(&mem);
 #endif
-	}
+   }
+break;
+case 61:
+#line 477 "../lib/config_parse.y"
+{
+#if SOCKS_SERVER
+      sockscf.external.rotation = ROTATION_NONE;
+   }
+break;
+case 62:
+#line 481 "../lib/config_parse.y"
+{
+#if !HAVE_ROUTE_SOURCE
+      yyerror("don't have code to discover route/address source on platform");
+#else /* !HAVE_ROUTE_SOURCE */
+      sockscf.external.rotation = ROTATION_ROUTE;
+#endif /* HAVE_ROUTE_SOURCE */
+#endif /* SOCKS_SERVER */
+   }
 break;
 case 67:
-#line 539 "config_parse.y"
+#line 499 "../lib/config_parse.y"
 {
-#if HAVE_LIBWRAP && SOCKS_SERVER
-		config.uid.libwrap			= yyvsp[0].uid;
-		config.uid.libwrap_isset	= 1;
-#else  /* HAVE_LIBWRAP */
-		yyerror("libwrapsupport not compiled in");
-#endif /* !HAVE_LIBWRAP */
-	}
-break;
-case 68:
-#line 550 "config_parse.y"
-{
-		struct passwd *pw;
+      const char *syslogname = "syslog";
 
-		if ((pw = getpwnam(yyvsp[0].string)) == NULL)
-			serrx(EXIT_FAILURE, "no such user \"%s\"", yyvsp[0].string);
-		else
-			yyval.uid = pw->pw_uid;
-	}
-break;
-case 69:
-#line 560 "config_parse.y"
-{
-#if SOCKS_SERVER
-		config.timeout.io = (time_t)atol(yyvsp[0].string);
-#endif
-	}
+      if (strncmp(yyvsp[0].string, syslogname, strlen(syslogname)) == 0
+      && (yyvsp[0].string[strlen(syslogname)] == NUL || yyvsp[0].string[strlen(syslogname)] == '/')) {
+         char *sl;
+
+         sockscf.log.type |= LOGTYPE_SYSLOG;
+
+         if (*(sl = &(yyvsp[0].string[strlen(syslogname)])) == '/') { /* facility. */
+            size_t i;
+
+            for (i = 0, ++sl; i < ELEMENTS(syslogfacilityv); ++i)
+               if (strcmp(sl, syslogfacilityv[i].name) == 0)
+                  break;
+
+            if (i == ELEMENTS(syslogfacilityv))
+               yyerror("unknown syslog facility \"%s\"", sl);
+
+            sockscf.log.facility = syslogfacilityv[i].value;
+            sockscf.log.facilityname = syslogfacilityv[i].name;
+         }
+         else {
+            sockscf.log.facility = LOG_DAEMON; /* default. */
+            sockscf.log.facilityname = "daemon";
+         }
+      }
+      else /* filename. */
+         if (!sockscf.state.init) {
+            int flag;
+
+            sockscf.log.type |= LOGTYPE_FILE;
+
+            if ((sockscf.log.fpv = realloc(sockscf.log.fpv,
+            sizeof(*sockscf.log.fpv) * (sockscf.log.fpc + 1))) == NULL
+            || (sockscf.log.fplockv = realloc(sockscf.log.fplockv,
+            sizeof(*sockscf.log.fplockv) * (sockscf.log.fpc + 1))) == NULL
+            || (sockscf.log.fnamev = realloc(sockscf.log.fnamev,
+            sizeof(*sockscf.log.fnamev) * (sockscf.log.fpc + 1)))
+            == NULL)
+               serrx(EXIT_FAILURE, NOMEM);
+
+            if ((sockscf.log.fplockv[sockscf.log.fpc]
+            = socks_mklock(SOCKS_LOCKFILE)) == -1)
+               serr(EXIT_FAILURE, "socks_mklock()");
+
+            if (strcmp(yyvsp[0].string, "stdout") == 0)
+               sockscf.log.fpv[sockscf.log.fpc] = stdout;
+            else if (strcmp(yyvsp[0].string, "stderr") == 0)
+               sockscf.log.fpv[sockscf.log.fpc] = stderr;
+            else
+               if ((sockscf.log.fpv[sockscf.log.fpc] = fopen(yyvsp[0].string, "a"))
+               == NULL)
+                  yyerror("fopen(%s)", yyvsp[0].string);
+
+            if ((flag = fcntl(fileno(sockscf.log.fpv[sockscf.log.fpc]),
+            F_GETFD, 0)) == -1
+            ||  fcntl(fileno(sockscf.log.fpv[sockscf.log.fpc]), F_SETFD,
+            flag | FD_CLOEXEC) == -1)
+               serr(EXIT_FAILURE, "fcntl(F_GETFD/F_SETFD)");
+
+            if ((sockscf.log.fnamev[sockscf.log.fpc] = strdup(yyvsp[0].string)) == NULL)
+               serr(EXIT_FAILURE, NOMEM);
+
+            ++sockscf.log.fpc;
+         }
+         else {
+            /*
+             * Can't change filenames we log to after startup, so 
+             * try to check and warn about that.
+             */
+            size_t i;
+
+            for (i = 0; i < sockscf.log.fpc; ++i)
+               if (strcmp(sockscf.log.fnamev[i], yyvsp[0].string) == 0) { /* same name. */
+                  FILE *fp;
+
+                  if (strcmp(sockscf.log.fnamev[i], "stdout") == 0
+                  ||  strcmp(sockscf.log.fnamev[i], "stderr") == 0)
+                     break; /* don't need to reopen these. */
+
+                  /* reopen logfiles. */
+                  if ((fp = fopen(sockscf.log.fnamev[i], "a")) == NULL)
+                     yywarn("can't reopen %s, continuing to use existing", yyvsp[0].string);
+                  else {
+                     fclose(sockscf.log.fpv[i]);
+                     sockscf.log.fpv[i] = fp;
+                  }
+                  break;
+               }
+
+            if (i == sockscf.log.fpc) /* no match found. */
+               yywarn("can't change logoutput after startup");
+         }
+   }
 break;
 case 70:
-#line 567 "config_parse.y"
+#line 601 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-		config.timeout.negotiate = (time_t)atol(yyvsp[0].string);
+      yyerror("Sorry, child.maxidle is disabled due to a suspected bug");
+      if (atoi(yyvsp[0].string) != 0 && atoi(yyvsp[0].string) < SOCKD_FREESLOTS)
+         yyerror("%s (%s) can't be less than SOCKD_FREESLOTS (%d)",
+         yyvsp[-2].string, yyvsp[0].string, SOCKD_FREESLOTS);
+      sockscf.child.maxidle = atoi(yyvsp[0].string);
 #endif
-	}
-break;
-case 71:
-#line 574 "config_parse.y"
-{
-		config.option.debug = atoi(yyvsp[0].string);
-	}
-break;
-case 73:
-#line 582 "config_parse.y"
-{
-#if SOCKS_SERVER
-		config.compat.reuseaddr = 1;
-	}
+   }
 break;
 case 74:
-#line 586 "config_parse.y"
+#line 618 "../lib/config_parse.y"
 {
-		config.compat.sameport = 1;
+#if SOCKS_SERVER
+      sockscf.uid.privileged         = yyvsp[0].uid;
+      sockscf.uid.privileged_isset   = 1;
 #endif
-	}
+   }
+break;
+case 75:
+#line 626 "../lib/config_parse.y"
+{
+#if SOCKS_SERVER
+      sockscf.uid.unprivileged         = yyvsp[0].uid;
+      sockscf.uid.unprivileged_isset   = 1;
+#endif
+   }
+break;
+case 76:
+#line 634 "../lib/config_parse.y"
+{
+#if HAVE_LIBWRAP && SOCKS_SERVER
+      sockscf.uid.libwrap         = yyvsp[0].uid;
+      sockscf.uid.libwrap_isset   = 1;
+#else  /* HAVE_LIBWRAP */
+      yyerror("libwrapsupport not compiled in");
+#endif /* !HAVE_LIBWRAP */
+   }
+break;
+case 77:
+#line 645 "../lib/config_parse.y"
+{
+      struct passwd *pw;
+
+      if ((pw = getpwnam(yyvsp[0].string)) == NULL)
+         serrx(EXIT_FAILURE, "no such user \"%s\"", yyvsp[0].string);
+      else
+         yyval.uid = pw->pw_uid;
+   }
 break;
 case 78:
-#line 599 "config_parse.y"
+#line 655 "../lib/config_parse.y"
 {
-			config.resolveprotocol = RESOLVEPROTOCOL_FAKE;
-	}
+#if SOCKS_SERVER
+      sockscf.timeout.io = (time_t)atol(yyvsp[0].string);
+#endif
+   }
 break;
 case 79:
-#line 602 "config_parse.y"
+#line 662 "../lib/config_parse.y"
 {
-#if HAVE_NO_RESOLVESTUFF
-			yyerror("resolveprotocol keyword not supported on this installation");
-#else /* HAVE_NO_RESOLVESTUFF */
-			config.resolveprotocol = RESOLVEPROTOCOL_TCP;
-#endif /* !HAVE_NO_RESOLVESTUFF */
-	}
+#if SOCKS_SERVER
+      sockscf.timeout.negotiate = (time_t)atol(yyvsp[0].string);
+#endif
+   }
 break;
 case 80:
-#line 609 "config_parse.y"
+#line 669 "../lib/config_parse.y"
 {
-			config.resolveprotocol = RESOLVEPROTOCOL_UDP;
-	}
+      sockscf.option.debug = atoi(yyvsp[0].string);
+   }
 break;
 case 82:
-#line 617 "config_parse.y"
+#line 677 "../lib/config_parse.y"
 {
-#if HAVE_LIBWRAP && SOCKS_SERVER
-			config.srchost.nomismatch = 1;
-	}
+#if SOCKS_SERVER
+      sockscf.compat.reuseaddr = 1;
+   }
 break;
 case 83:
-#line 621 "config_parse.y"
+#line 681 "../lib/config_parse.y"
 {
-			config.srchost.nounknown = 1;
-#else
-		yyerror("srchostoption requires libwrap");
+      sockscf.compat.sameport = 1;
 #endif
-	}
+   }
 break;
-case 86:
-#line 634 "config_parse.y"
-{ *methodc = 0; /* reset. */ }
+case 87:
+#line 694 "../lib/config_parse.y"
+{
+         sockscf.resolveprotocol = RESOLVEPROTOCOL_FAKE;
+   }
 break;
 case 88:
-#line 637 "config_parse.y"
+#line 697 "../lib/config_parse.y"
 {
-		ADDMETHOD(AUTHMETHOD_NONE);
-	}
+#if HAVE_NO_RESOLVESTUFF
+         yyerror("resolveprotocol keyword not supported on this installation");
+#else /* HAVE_NO_RESOLVESTUFF */
+         sockscf.resolveprotocol = RESOLVEPROTOCOL_TCP;
+#endif /* !HAVE_NO_RESOLVESTUFF */
+   }
 break;
 case 89:
-#line 640 "config_parse.y"
+#line 704 "../lib/config_parse.y"
 {
-		yyerror("%s not supported", AUTHMETHOD_GSSAPIs);
-	}
-break;
-case 90:
-#line 643 "config_parse.y"
-{
-		ADDMETHOD(AUTHMETHOD_UNAME);
-	}
+         sockscf.resolveprotocol = RESOLVEPROTOCOL_UDP;
+   }
 break;
 case 91:
-#line 646 "config_parse.y"
+#line 712 "../lib/config_parse.y"
 {
 #if HAVE_LIBWRAP && SOCKS_SERVER
-		ADDMETHOD(AUTHMETHOD_RFC931);
-#else /* !HAVE_LIBWRAP */
-		yyerror("method %s requires libwrap", AUTHMETHOD_RFC931s);
-#endif /* !HAVE_LIBWRAP */
-	}
+         sockscf.srchost.nomismatch = 1;
+   }
 break;
-case 94:
-#line 662 "config_parse.y"
+case 92:
+#line 716 "../lib/config_parse.y"
+{
+         sockscf.srchost.nounknown = 1;
+#else
+      yyerror("srchostoption requires libwrap");
+#endif
+   }
+break;
+case 96:
+#line 732 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-		rule.src = src;
-		rule.dst = dst;
-
-		addclientrule(&rule);
-
-		bzero(&src, sizeof(src));
-		bzero(&dst, sizeof(dst));
-		rule = ruleinitmem;
-
-		src.atype = SOCKS_ADDR_IPV4;
-		dst.atype = SOCKS_ADDR_IPV4;
+   methodv = sockscf.methodv;
+   methodc = &sockscf.methodc;
+   *methodc = 0; /* reset. */
 #endif
-	}
+   }
 break;
-case 99:
-#line 685 "config_parse.y"
-{ yyval.string = NULL; }
+case 98:
+#line 741 "../lib/config_parse.y"
+{
+#if SOCKS_SERVER
+   methodv = sockscf.clientmethodv;
+   methodc = &sockscf.clientmethodc;
+   *methodc = 0; /* reset. */
+#endif
+   }
+break;
+case 100:
+#line 750 "../lib/config_parse.y"
+{
+      ADDMETHOD(AUTHMETHOD_NONE);
+   }
 break;
 case 101:
-#line 689 "config_parse.y"
+#line 753 "../lib/config_parse.y"
+{
+      yyerror("%s not supported", AUTHMETHOD_GSSAPIs);
+   }
+break;
+case 102:
+#line 756 "../lib/config_parse.y"
+{
+      ADDMETHOD(AUTHMETHOD_UNAME);
+   }
+break;
+case 103:
+#line 759 "../lib/config_parse.y"
+{
+#if HAVE_LIBWRAP 
+#if SOCKS_SERVER
+      ADDMETHOD(AUTHMETHOD_RFC931);
+#else /* !SOCKS_SERVER not a real socks method.  For client same as none. */
+      ADDMETHOD(AUTHMETHOD_NONE);
+#endif
+#else /* !HAVE_LIBWRAP */
+      yyerror("method %s requires libwraplibrary", AUTHMETHOD_RFC931s);
+#endif /* !HAVE_LIBWRAP */
+   }
+break;
+case 104:
+#line 770 "../lib/config_parse.y"
+{
+#if HAVE_PAM
+#if SOCKS_SERVER
+      ADDMETHOD(AUTHMETHOD_PAM);
+#else /* !SOCKS_SERVER not a real socks method.  For client same as uname. */
+      ADDMETHOD(AUTHMETHOD_UNAME);
+#endif
+#else /* HAVE_PAM */
+      yyerror("method %s requires pamlibrary", AUTHMETHOD_PAMs);
+#endif /* !HAVE_PAM */
+   }
+break;
+case 107:
+#line 790 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-		rule.src = src;
-		rule.dst = dst;
+      rule.src         = src;
+      rule.dst         = dst;
+      rule.rdr_from   = rdr_from;
+      rule.rdr_to      = rdr_to;
 
-		addsocksrule(&rule);
+      addclientrule(&rule);
 
-		bzero(&src, sizeof(src));
-		bzero(&dst, sizeof(dst));
-		rule = ruleinitmem;
-
-		src.atype	= SOCKS_ADDR_IPV4;
-		dst.atype	= SOCKS_ADDR_IPV4;
 #endif
-	}
+   }
 break;
 case 109:
-#line 716 "config_parse.y"
+#line 806 "../lib/config_parse.y"
 { yyval.string = NULL; }
 break;
 case 111:
-#line 720 "config_parse.y"
+#line 810 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-		rule.verdict	= VERDICT_BLOCK;
-		ruleinit(&rule);
-	}
-break;
-case 112:
-#line 725 "config_parse.y"
-{
-		rule.verdict	= VERDICT_PASS;
-		ruleinit(&rule);
+      rule.src         = src;
+      rule.dst         = dst;
+      rule.rdr_from   = rdr_from;
+      rule.rdr_to      = rdr_to;
+
+      addsocksrule(&rule);
 #endif
-	}
+   }
 break;
-case 114:
-#line 736 "config_parse.y"
+case 113:
+#line 824 "../lib/config_parse.y"
 {
-			command->bind = 1;
-	}
-break;
-case 115:
-#line 739 "config_parse.y"
-{
-			command->connect = 1;
-	}
-break;
-case 116:
-#line 742 "config_parse.y"
-{
-			command->udpassociate = 1;
-	}
+#if SOCKS_SERVER
+         checkmodule("bandwidth");
+#endif
+   }
 break;
 case 117:
-#line 748 "config_parse.y"
-{
-			command->bindreply = 1;
-	}
-break;
-case 118:
-#line 752 "config_parse.y"
-{
-			command->udpreply = 1;
-	}
-break;
-case 122:
-#line 764 "config_parse.y"
-{
-		protocol->tcp = 1;
-	}
-break;
-case 123:
-#line 767 "config_parse.y"
-{
-		protocol->udp = 1;
-	}
-break;
-case 128:
-#line 783 "config_parse.y"
+#line 832 "../lib/config_parse.y"
 {
 #if SOCKS_SERVER
-	rule.log.connect = 1;
-	}
+         checkmodule("redirect");
+#endif
+   }
 break;
-case 129:
-#line 787 "config_parse.y"
+case 118:
+#line 839 "../lib/config_parse.y"
+{ yyval.string = NULL; }
+break;
+case 126:
+#line 849 "../lib/config_parse.y"
 {
-			rule.log.data = 1;
-	}
+#if SOCKS_SERVER
+         checkmodule("session");
+#endif
+   }
+break;
+case 127:
+#line 856 "../lib/config_parse.y"
+{
+#if SOCKS_SERVER
+      ruleinit(&rule);
+      rule.verdict   = VERDICT_BLOCK;
+   }
+break;
+case 128:
+#line 861 "../lib/config_parse.y"
+{
+      ruleinit(&rule);
+      rule.verdict   = VERDICT_PASS;
+#endif
+   }
 break;
 case 130:
-#line 790 "config_parse.y"
+#line 872 "../lib/config_parse.y"
 {
-			rule.log.disconnect = 1;
-	}
+         command->bind = 1;
+   }
 break;
 case 131:
-#line 793 "config_parse.y"
+#line 875 "../lib/config_parse.y"
 {
-			rule.log.error = 1;
-	}
+         command->connect = 1;
+   }
 break;
 case 132:
-#line 796 "config_parse.y"
+#line 878 "../lib/config_parse.y"
 {
-			rule.log.iooperation = 1;
-#endif
-	}
+         command->udpassociate = 1;
+   }
 break;
-case 135:
-#line 807 "config_parse.y"
+case 133:
+#line 884 "../lib/config_parse.y"
 {
-#if HAVE_LIBWRAP && SOCKS_SERVER
-		struct request_info request;
-		char libwrap[LIBWRAPBUF];
-
-		if (strlen(yyvsp[0].string) >= sizeof(rule.libwrap))
-			yyerror("libwrapline too long, make LIBWRAPBUF bigger");
-		strcpy(rule.libwrap, yyvsp[0].string);
-
-		/* libwrap modifies the passed buffer. */
-		SASSERTX(strlen(rule.libwrap) < sizeof(libwrap));
-		strcpy(libwrap, rule.libwrap);
-
-		++dry_run;
-		request_init(&request, RQ_FILE, -1, RQ_DAEMON, __progname, 0);
-		if (setjmp(tcpd_buf) != 0)
-			yyerror("bad libwrap line");
-		process_options(libwrap, &request);
-		--dry_run;
-
-#else /* !HAVE_LIBWRAP */
-		yyerror("libwrap support not compiled in");
-#endif
-	}
+         command->bindreply = 1;
+   }
 break;
-case 144:
-#line 852 "config_parse.y"
-{ yyval.string = NULL; }
+case 134:
+#line 888 "../lib/config_parse.y"
+{
+         command->udpreply = 1;
+   }
+break;
+case 138:
+#line 900 "../lib/config_parse.y"
+{
+      protocol->tcp = 1;
+   }
+break;
+case 139:
+#line 903 "../lib/config_parse.y"
+{
+      protocol->udp = 1;
+   }
 break;
 case 146:
-#line 856 "config_parse.y"
+#line 923 "../lib/config_parse.y"
 {
-		addressinit(&src);
-	}
+#if SOCKS_SERVER
+   static session_t ssinit;
+
+  /*
+   * temporarily allocate ordinary memory, later on point it to
+   * the correct shared mem.
+   */
+   if ((rule.ss = malloc(sizeof(*rule.ss))) == NULL)
+      serr(EXIT_FAILURE, NOMEM);
+   *rule.ss = ssinit;
+   if ((rule.ss->maxsessions = atoi(yyvsp[0].string)) < 0)
+      yyerror("session value can not be less than 0");
+#endif /* SOCKS_SERVER */
+}
 break;
 case 147:
-#line 862 "config_parse.y"
+#line 940 "../lib/config_parse.y"
 {
-		addressinit(&dst);
-	}
+#if SOCKS_SERVER
+      static bw_t bwmeminit;
+
+     /*
+      * temporarily allocate ordinary memory, later on point it to
+      * the correct index in sockscf.bwv.
+      */
+      if ((rule.bw = malloc(sizeof(*rule.bw))) == NULL)
+         serr(EXIT_FAILURE, NOMEM);
+      *rule.bw = bwmeminit;
+      if ((rule.bw->maxbps = atoi(yyvsp[0].string)) <= 0)
+         yyerror("bandwidth value must be greater than 0");
+#endif /* SOCKS_SERVER */
+   }
 break;
-case 148:
-#line 868 "config_parse.y"
+case 149:
+#line 961 "../lib/config_parse.y"
 {
-#if SOCKS_CLIENT
-		addressinit(&gw);
+#if SOCKS_SERVER
+   rule.log.connect = 1;
+   }
+break;
+case 150:
+#line 965 "../lib/config_parse.y"
+{
+         rule.log.data = 1;
+   }
+break;
+case 151:
+#line 968 "../lib/config_parse.y"
+{
+         rule.log.disconnect = 1;
+   }
+break;
+case 152:
+#line 971 "../lib/config_parse.y"
+{
+         rule.log.error = 1;
+   }
+break;
+case 153:
+#line 974 "../lib/config_parse.y"
+{
+         rule.log.iooperation = 1;
 #endif
-	}
-break;
-case 154:
-#line 887 "config_parse.y"
-{
-		*atype = SOCKS_ADDR_IPV4;
-
-		if (inet_aton(yyvsp[0].string, ipaddr) != 1)
-			yyerror("bad address: %s", yyvsp[0].string);
-	}
-break;
-case 155:
-#line 896 "config_parse.y"
-{
-		if (atoi(yyvsp[0].string) < 0 || atoi(yyvsp[0].string) > 32)
-			yyerror("bad netmask: %d", yyvsp[0].string);
-
-		netmask->s_addr
-		= atoi(yyvsp[0].string) == 0 ? 0 : htonl(0xffffffff << (32 - atoi(yyvsp[0].string)));
-	}
+   }
 break;
 case 156:
-#line 903 "config_parse.y"
+#line 985 "../lib/config_parse.y"
 {
-			if (!inet_aton(yyvsp[0].string, netmask))
-				yyerror("bad netmask: %s", yyvsp[0].string);
-	}
+#if HAVE_PAM && SOCKS_SERVER
+      if (strlen(yyvsp[0].string) >= sizeof(rule.pamservicename))
+         yyerror("servicename too long");
+      strcpy(rule.pamservicename, yyvsp[0].string);
+#else /* !HAVE_PAM */
+      yyerror("pamsupport not compiled in");
+#endif /* HAVE_PAM */
+   }
 break;
 case 157:
-#line 909 "config_parse.y"
+#line 996 "../lib/config_parse.y"
 {
-		*atype = SOCKS_ADDR_DOMAIN;
+#if HAVE_LIBWRAP && SOCKS_SERVER
+      struct request_info request;
+      char libwrap[LIBWRAPBUF];
 
-		if (strlen(yyvsp[0].string) >= MAXHOSTNAMELEN)
-			yyerror("domainname too long");
-		strcpy(domain, yyvsp[0].string);
-	}
-break;
-case 158:
-#line 918 "config_parse.y"
-{
-		*atype = SOCKS_ADDR_IFNAME;
+      if (strlen(yyvsp[0].string) >= sizeof(rule.libwrap))
+         yyerror("libwrapline too long, make LIBWRAPBUF bigger");
+      strcpy(rule.libwrap, yyvsp[0].string);
 
-		if (strlen(yyvsp[0].string) >= MAXIFNAMELEN)
-			yyerror("interfacename too long");
-		strcpy(ifname, yyvsp[0].string);
-	}
-break;
-case 159:
-#line 928 "config_parse.y"
-{
-		*atype = SOCKS_ADDR_DOMAIN;
+      /* libwrap modifies the passed buffer. */
+      SASSERTX(strlen(rule.libwrap) < sizeof(libwrap));
+      strcpy(libwrap, rule.libwrap);
 
-		if (strlen(yyvsp[0].string) >= MAXHOSTNAMELEN)
-			yyerror("domainname too long");
-		strcpy(domain, yyvsp[0].string);
+      ++dry_run;
+      request_init(&request, RQ_FILE, -1, RQ_DAEMON, __progname, 0);
+      if (setjmp(tcpd_buf) != 0)
+         yyerror("bad libwrap line");
+      process_options(libwrap, &request);
+      --dry_run;
 
-#if SOCKS_CLIENT
-		route.state.direct = 1;
+#else /* !HAVE_LIBWRAP */
+      yyerror("libwrapsupport not compiled in");
 #endif
-	}
-break;
-case 160:
-#line 941 "config_parse.y"
-{ yyval.string = NULL; }
-break;
-case 166:
-#line 954 "config_parse.y"
-{
-		*port_tcp	= htons((in_port_t)atoi(yyvsp[0].string));
-		*port_udp	= htons((in_port_t)atoi(yyvsp[0].string));
-	}
-break;
-case 167:
-#line 960 "config_parse.y"
-{
-		ruleaddress->portend		= htons((in_port_t)atoi(yyvsp[0].string));
-		ruleaddress->operator	= range;
-	}
+   }
 break;
 case 168:
-#line 966 "config_parse.y"
-{
-		struct servent	*service;
-		struct protocol_t	protocolunset;
-		int set;
-
-		bzero(&protocolunset, sizeof(protocolunset));
-
-		/* set all protocols if none set, default. */
-		if (memcmp(protocol, &protocolunset, sizeof(*protocol)) == 0) {
-			memset(protocol, UCHAR_MAX, sizeof(*protocol));
-			set = 0;
-		}
-		else
-			set = 1;
-
-		if (protocol->tcp) {
-			if ((service = getservbyname(yyvsp[0].string, "tcp")) == NULL) {
-				if (set)
-					yyerror("bad servicename for tcp: %s", yyvsp[0].string);
-				else
-					*port_tcp = htons(0);
-			}
-			else
-				*port_tcp = (in_port_t)service->s_port;
-		}
-
-		if (protocol->udp) {
-			if ((service = getservbyname(yyvsp[0].string, "udp")) == NULL) {
-				if (set)
-					yyerror("bad servicename for udp: %s", yyvsp[0].string);
-				else
-					*port_udp = htons(0);
-			}
-			else
-				*port_udp = (in_port_t)service->s_port;
-		}
-
-		/* check we got both protocol ports set right. */
-		if (*port_tcp == htons(0) && *port_udp == htons(0))
-			yyerror("bad service name for tcp/udp");
-		if (*port_tcp == htons(0))
-			*port_tcp = *port_udp;
-		else if (*port_udp == htons(0))
-			*port_udp = *port_tcp;
-	}
+#line 1046 "../lib/config_parse.y"
+{ yyval.string = NULL; }
 break;
-case 169:
-#line 1014 "config_parse.y"
+case 170:
+#line 1050 "../lib/config_parse.y"
 {
-		*operator = string2operator(yyvsp[0].string);
-	}
+      addrinit(&src);
+   }
 break;
-#line 1732 "y.tab.c"
+case 171:
+#line 1055 "../lib/config_parse.y"
+{
+      addrinit(&dst);
+   }
+break;
+case 172:
+#line 1060 "../lib/config_parse.y"
+{
+      addrinit(&rdr_from);
+   }
+break;
+case 173:
+#line 1065 "../lib/config_parse.y"
+{
+      addrinit(&rdr_to);
+   }
+break;
+case 174:
+#line 1072 "../lib/config_parse.y"
+{
+      gwaddrinit(&gw);
+   }
+break;
+case 189:
+#line 1102 "../lib/config_parse.y"
+{
+      *atype = SOCKS_ADDR_IPV4;
+
+      if (inet_aton(yyvsp[0].string, ipaddr) != 1)
+         yyerror("bad address: %s", yyvsp[0].string);
+   }
+break;
+case 190:
+#line 1111 "../lib/config_parse.y"
+{
+      if (atoi(yyvsp[0].string) < 0 || atoi(yyvsp[0].string) > 32)
+         yyerror("bad netmask: %s", yyvsp[0].string);
+
+      netmask->s_addr
+      = atoi(yyvsp[0].string) == 0 ? 0 : htonl(0xffffffff << (32 - atoi(yyvsp[0].string)));
+   }
+break;
+case 191:
+#line 1118 "../lib/config_parse.y"
+{
+         if (!inet_aton(yyvsp[0].string, netmask))
+            yyerror("bad netmask: %s", yyvsp[0].string);
+   }
+break;
+case 192:
+#line 1124 "../lib/config_parse.y"
+{
+      *atype = SOCKS_ADDR_DOMAIN;
+
+      if (strlen(yyvsp[0].string) >= MAXHOSTNAMELEN)
+         yyerror("domainname too long");
+      strcpy(domain, yyvsp[0].string);
+   }
+break;
+case 193:
+#line 1133 "../lib/config_parse.y"
+{
+      *atype = SOCKS_ADDR_IFNAME;
+
+      if (strlen(yyvsp[0].string) >= MAXIFNAMELEN)
+         yyerror("interfacename too long");
+      strcpy(ifname, yyvsp[0].string);
+   }
+break;
+case 194:
+#line 1143 "../lib/config_parse.y"
+{
+      *atype = SOCKS_ADDR_DOMAIN;
+
+      if (strlen(yyvsp[0].string) >= MAXHOSTNAMELEN)
+         yyerror("domain name \"%s\" too long", yyvsp[0].string);
+      strcpy(domain, yyvsp[0].string);
+
+      proxyprotocol->direct = 1;
+   }
+break;
+case 195:
+#line 1154 "../lib/config_parse.y"
+{
+      *atype = SOCKS_ADDR_URL;
+
+      if (strlen(yyvsp[0].string) >= MAXURLLEN)
+         yyerror("url \"%s\" too long", yyvsp[0].string);
+      strcpy(url, yyvsp[0].string);
+   }
+break;
+case 196:
+#line 1164 "../lib/config_parse.y"
+{ yyval.string = NULL; }
+break;
+case 199:
+#line 1169 "../lib/config_parse.y"
+{ yyval.string = NULL; }
+break;
+case 204:
+#line 1181 "../lib/config_parse.y"
+{
+      *port_tcp   = htons((in_port_t)atoi(yyvsp[0].string));
+      *port_udp   = htons((in_port_t)atoi(yyvsp[0].string));
+   }
+break;
+case 205:
+#line 1187 "../lib/config_parse.y"
+{
+      ruleaddr->portend      = htons((in_port_t)atoi(yyvsp[0].string));
+      ruleaddr->operator   = range;
+   }
+break;
+case 206:
+#line 1193 "../lib/config_parse.y"
+{
+      struct servent   *service;
+
+      if ((service = getservbyname(yyvsp[0].string, "tcp")) == NULL) {
+         if (protocol->tcp)
+            yyerror("unknown tcp protocol: %s", yyvsp[0].string);
+         *port_tcp = htons(0);
+      }
+      else
+         *port_tcp = (in_port_t)service->s_port;
+
+      if ((service = getservbyname(yyvsp[0].string, "udp")) == NULL) {
+         if (protocol->udp)
+               yyerror("unknown udp protocol: %s", yyvsp[0].string);
+            *port_udp = htons(0);
+      }
+      else
+         *port_udp = (in_port_t)service->s_port;
+
+      if (*port_tcp == htons(0) && *port_udp == htons(0))
+         yyerror("unknown tcp/udp protocol");
+
+      /* if one protocol is unset, set to same as the other. */
+      if (*port_tcp == htons(0))
+         *port_tcp = *port_udp;
+      else if (*port_udp == htons(0))
+         *port_udp = *port_tcp;
+   }
+break;
+case 207:
+#line 1224 "../lib/config_parse.y"
+{
+      *operator = string2operator(yyvsp[0].string);
+   }
+break;
+#line 2153 "config_parse.c"
     }
     yyssp -= yym;
     yystate = *yyssp;
@@ -1781,7 +2254,21 @@ to state %d\n", YYPREFIX, *yyssp, yystate);
 yyoverflow:
     yyerror("yacc stack overflow");
 yyabort:
+    if (yyss)
+            free(yyss);
+    if (yyvs)
+            free(yyvs);
+    yyss = yyssp = NULL;
+    yyvs = yyvsp = NULL;
+    yystacksize = 0;
     return (1);
 yyaccept:
+    if (yyss)
+            free(yyss);
+    if (yyvs)
+            free(yyvs);
+    yyss = yyssp = NULL;
+    yyvs = yyvsp = NULL;
+    yystacksize = 0;
     return (0);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,353 +41,20 @@
  *
  */
 
-/* $Id: common.h,v 1.263 2001/03/05 13:55:51 michaels Exp $ */
+/* $Id: common.h,v 1.354 2008/12/10 18:09:16 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
 #endif
 
-#ifndef SOCKS_SERVER
-#define SOCKS_SERVER 0
-#endif /* !defined SOCKS_SERVER */
+#include "osdep.h"
 
-#ifndef SOCKS_CLIENT
-#define SOCKS_CLIENT 0
-#endif /* !defined SOCKS_CLIENT */
-
-#ifndef SOCKSLIBRARY_DYNAMIC
-#define SOCKSLIBRARY_DYNAMIC 0
-#endif /* !defined SOCKSLIBRARY_DYNAMIC */
-
-/* XXX ifdef, not if, defined on command line */
-#ifdef HAVE_CONFIG_H
-#include "autoconf.h"
-#endif  /* HAVE_CONFIG_H */
-
-#include <sys/types.h>
-#if HAVE_SYS_TIME_H
-#include <sys/time.h>
-#endif /* HAVE_SYS_TIME_H */
-#if HAVE_SYS_FILE_H
-#include <sys/file.h>
-#endif  /* HAVE_SYS_FILE_H */
-#include <sys/resource.h>
-#include <sys/ioctl.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
-/* XXX This is a hack. Avoid transparent sockaddr union used in Linux
-   to avoid the use of the union in the code. Mainly used in
-   interposition.c*/
-#ifdef WE_DONT_WANT_NO_SOCKADDR_ARG_UNION
-#ifdef __GNUC__
-#define __HAD_GNUC __GNUC__
-#undef __GNUC__
-#endif  /* __GNUC__ */
-#endif  /* WE_DONT_WANT_NO_SOCKADDR_ARG_UNION */
-#include <sys/socket.h>
-#include <net/if.h>
-#ifdef __HAD_GNUC
-#define __GNUC__ __HAD_GNUC
-#endif  /* __HAD_GNUC */
-#if NEED_SYS_SOCKIO_H
-#include <sys/sockio.h>
-#endif /* NEED_SYS_SOCKIO_H */
-#include <sys/mman.h>
-#include <sys/un.h>
-#include <sys/stat.h>
-#include <sys/uio.h>
-#include <sys/wait.h>
-#include <netinet/in.h>
-#if HAVE_NETINET_IP_H
-#include <netinet/ip.h>
-#endif  /* HAVE_NETINET_IP_H */
-#if HAVE_NETINET_IP_VAR_H
-#include <netinet/ip_var.h>
-#endif  /* HAVE_NETINET_IP_VAR_H */
-#include <arpa/inet.h>
-#include <arpa/nameser.h>
-
-#include <assert.h>
-#if HAVE_CRYPT_H
-#include <crypt.h>
-#endif  /* HAVE_CRYPT_H */
-#include <ctype.h>
-#if SOCKSLIBRARY_DYNAMIC
-#include <dlfcn.h>
-#endif  /* SOCKSLIBRARY_DYNAMIC */
-#include <errno.h>
-#include <fcntl.h>
-#if HAVE_LIMITS_H
-#include <limits.h>
-#endif  /* HAVE_LIMITS_H */
-#include <netdb.h>
-#include <pwd.h>
-#include <setjmp.h>
-#include <signal.h>
-#ifdef STDC_HEADERS
-#include <stdarg.h>
-#else
-#include <varargs.h>
-#endif  /* STDC_HEADERS */
-#include <stdio.h>
-#include <stdlib.h>
-#if HAVE_STRINGS_H
-#include <strings.h>
-#endif  /* HAVE_STRINGS_H */
-#if STDC_HEADERS
-#include <string.h>
-#endif  /* STDC_HEADERS */
-#include <syslog.h>
-#if HAVE_LIBWRAP && HAVE_TCPD_H
-#include <tcpd.h>
-#endif  /* HAVE_LIBWRAP && HAVE_TCPD_H */
-#if TIME_WITH_SYS_TIME || (!TIME_WITH_SYS_TIME && !HAVE_SYS_TIME_H)
-#include <time.h>
-#endif
-#if HAVE_UNISTD_H
-#ifdef HAVE_DEC_PROTO
-#undef  _XOPEN_SOURCE_EXTENDED
-#endif  /* HAVE_DEC_PROTO */
-#include <unistd.h>
-#ifdef HAVE_DEC_PROTO
-#define _XOPEN_SOURCE_EXTENDED
-#endif /* HAVE_DEC_PROTO */
-#endif  /* HAVE_UNISTD_H */
-#include <resolv.h>
-#if HAVE_IFADDRS_H
-#include <ifaddrs.h>
-#endif /* HAVE_IFADDRS_H */
-
-#include "yacconfig.h"
-
-#ifdef lint
-extern const int lintnoloop_common_h;
-#else
-#define lintnoloop_common_h 0
-#endif
-
-#include "config.h"
-
-#define SOCKS_TRYHARDER	0	/* XXX BUGS */ /* XXX should be configure option. */
-
-#ifndef RLIMIT_OFILE
-#define RLIMIT_OFILE RLIMIT_NOFILE
-#endif /* !RLIMIT_OFILE */
+   /*
+    * defines
+    */
 
 
-#if NEED_GETSOCKOPT_CAST
-#define getsockopt(a,b,c,d,e) getsockopt((a),(b),(c),(char *)(d),(e))
-#define setsockopt(a,b,c,d,e) setsockopt((a),(b),(c),(char *)(d),(e))
-#endif  /* NEED_GETSOCKOPT_CAST */
-
-#if !HAVE_BZERO
-#define bzero(b, len) memset(b, 0, len)
-#endif  /* !HAVE_BZERO */
-
-#if !HAVE_SIG_ATOMIC_T
-typedef int sig_atomic_t;
-#endif  /* !HAVE_SIG_ATOMIC_T */
-
-#ifdef DIAGNOSTIC
-#undef DIAGNOSTIC
-#define DIAGNOSTIC 1
-#else
-#define DIAGNOSTIC 0
-#endif
-
-#ifdef DEBUG
-#undef DEBUG
-#define DEBUG 1
-#else
-#define DEBUG 0
-#endif
-
-#if DEBUG
-#if !DIAGNOSTIC
-#undef DIAGNOSTIC
-#define DIAGNOSTIC 1
-#endif  /* !DIAGNOSTIC */
-
-/*
- * Solaris 2.5.1 and it's stream stuff is broken and puts the processes
- * into never-never land forever on half the sendmsg() calls if they
- * involve ancillary data.  (it seems to deadlock the processes.)
- */
-
-#ifndef HAVE_SENDMSG_DEADLOCK
-#define HAVE_SENDMSG_DEADLOCK 1
-#endif
-
-#ifndef HAVE_ACCEPTLOCK
-#define HAVE_ACCEPTLOCK 1
-#endif
-
-#endif  /* DEBUG */
-
-
-/* __P and __BEGIN_DECLS definitions taken from libtool manual */
-#undef __BEGIN_DECLS
-#undef __END_DECLS
-#ifdef __cplusplus
-# define __BEGIN_DECLS extern "C" {
-# define __END_DECLS }
-#else
-# define __BEGIN_DECLS /* empty */
-# define __END_DECLS /* empty */
-#endif
-
-#undef __P
-#if defined (__STDC__) || defined (_AIX) \
-	|| (defined (__mips) && defined (_SYSTYPE_SVR4)) \
-	|| defined(WIN32) || defined(__cplusplus)
-# define __P(protos) protos
-#else
-# define __P(protos) ()
-#endif
-
-#if SIZEOF_CHAR == 1
- typedef unsigned char ubits_8;
- typedef          char sbits_8;
-#else
-error "no known 8 bits wide datatype"
-#endif
-
-#if SIZEOF_SHORT == 2
- typedef unsigned short ubits_16;
- typedef          short sbits_16;
-#else
-# if SIZEOF_INT == 2
-  typedef unsigned int ubits_16;
-  typedef          int sbits_16;
-# else
-error "no known 16 bits wide datatype"
-# endif
-#endif
-
-
-#if SIZEOF_INT == 4
- typedef unsigned int ubits_32;
- typedef          int sbits_32;
-#else
-# if SIZEOF_SHORT == 4
-   typedef unsigned short ubits_32;
-   typedef          short sbits_32;
-# else
-#  if SIZEOF_LONG == 4
-    typedef unsigned long ubits_32;
-    typedef          long sbits_32;
-#  else
-error "no known 32 bits wide datatype"
-#  endif /* SIZEOF_LONG == 4 */
-# endif /* SIZEOF_SHORT == 4 */
-#endif /* SIZEOF_INT == 4 */
-
-#ifndef INADDR_NONE
-# define INADDR_NONE (ubits_32) 0xffffffff
-#endif  /* !INADDR_NONE */
-
-#ifndef MAX
-# define MAX(a,b) ((a) > (b) ? (a) : (b))
-#endif /* !MAX */
-
-#ifndef MIN
-# define MIN(a,b) ((a) < (b) ? (a) : (b))
-#endif /* !MIN */
-
-#if NEED_EXIT_FAILURE
-/* XXX assumes EXIT_SUCCESS is undefined too */
-#define EXIT_SUCCESS 0
-#define EXIT_FAILURE 1
-#endif /* NEED_EXIT_FAILURE */
-
-#if NEED_SA_RESTART
-#define SA_RESTART SV_INTERRUPT
-#endif  /* NEED_SA_RESTART */
-
-#if NEED_AF_LOCAL
-#define AF_LOCAL AF_UNIX
-#endif  /* NEED_AF_LOCAL */
-
-#if HAVE_NOMALLOC_REALLOC
-#define realloc(p,s) (((p) == NULL) ? (malloc(s)) : (realloc((p),(s))))
-#endif  /* HAVE_NOMALLOC_REALLOC */
-
-#if HAVE_NONULL_FREE
-#define free(p)	(((p) == NULL) ? ((void)(p)) : (free(p)))
-#endif
-
-/* __CONCAT macro from anoncvs */
-#ifndef __CONCAT
-#if defined(__STDC__) || defined(__cplusplus)
-#define __CONCAT(x,y)    x ## y
-#else
-#define __CONCAT(x,y)    x/**/y
-#endif
-#endif
-
-#if !HAVE_STRUCT_IPOPTS
-#define	MAX_IPOPTLEN	40
-struct ipoption {
-	struct	in_addr ipopt_dst;
-	sbits_8	ipopt_list[MAX_IPOPTLEN];
-};
-#endif  /* !HAVE_STRUCT_IPOPTS */
-
-#if 0
-#if !HAVE_SOCKADDR_STORAGE
-/*
- * sockaddr_storage (see rfc2553).
- * struct taken from OpenBSD <sys/socket.h>
- */
-struct sockaddr_storage {
-	u_int8_t    ss_len;		/* total length */
-	sa_family_t ss_family;		/* address family */
-	u_char	    __ss_pad1[6];	/* align to quad */
-	u_int64_t   __ss_pad2;		/* force alignment for stupid compilers */
-	u_char      __ss_pad3[240];	/* pad to a total of 256 bytes */
-};
-#endif /* !HAVE_SOCKADDR_STORAGE */
-#endif
-
-
-#if !HAVE_GETIFADDRS
-/* Taken from OpenBSD <ifaddrs.h> */
-struct ifaddrs {
-	struct ifaddrs  *ifa_next;
-	char		*ifa_name;
-	unsigned int	 ifa_flags;
-	struct sockaddr	*ifa_addr;
-	struct sockaddr	*ifa_netmask;
-/*XXX*/
-#undef ifa_dstaddr
-	struct sockaddr	*ifa_dstaddr;
-	void		*ifa_data;
-};
-
-/*
- * This may have been defined in <net/if.h>.  Note that if <net/if.h> is
- * to be included it must be included before this header file.
- */
-#ifndef	ifa_broadaddr
-#define	ifa_broadaddr	ifa_dstaddr	/* broadcast address interface */
-#endif
-
-
-#endif /* !HAVE_GETIFADDRS */
-
-
-/* global variables needed by everyone. */
-extern struct config_t config;
-extern char *__progname;
-
-#if !HAVE_H_ERRNO
-extern int h_errno;
-#endif  /* !HAVE_H_ERRNO */
-
-	/*
-	 * defines
-	 */
-
+#define IP_MAXPORT 65535   /* max value for ip port number. */
 
 /*
  * redefine system limits to match that of socks protocol.
@@ -395,35 +62,40 @@ extern int h_errno;
  * _must_ be atleast as big as protocol allows.
  */
 
-#ifdef	MAXHOSTNAMELEN
-#undef	MAXHOSTNAMELEN
+#ifdef   MAXHOSTNAMELEN
+#undef   MAXHOSTNAMELEN
 #endif
-#define	MAXHOSTNAMELEN		(255 + 1)		/* socks5: 255, +1 for len. */
+#define   MAXHOSTNAMELEN      (255 + 1)      /* socks5: 255, +1 for len. */
 
-#ifdef	MAXNAMELEN
-#undef	MAXNAMELEN
+#ifdef   MAXURLLEN
+#undef   MAXURLLEN
 #endif
-#define	MAXNAMELEN			(255 + 1)		/* socks5: 255, +1 for len. */
+#define   MAXURLLEN         (255 + 1)      /* whatever. */
 
-#ifdef	MAXPWLEN
-#undef	MAXPWLEN
+#ifdef   MAXNAMELEN
+#undef   MAXNAMELEN
 #endif
-#define	MAXPWLEN				(255 + 1)		/* socks5: 255, +1 for len. */
+#define   MAXNAMELEN         (255 + 1)      /* socks5: 255, +1 for len. */
+
+#ifdef   MAXPWLEN
+#undef   MAXPWLEN
+#endif
+#define   MAXPWLEN            (255 + 1)      /* socks5: 255, +1 for len. */
+
+#define   MAXIFNAMELEN      255
+
+/*                           "255." "255." "255." "255" "." "65535" + NUL */
+#define   MAXSOCKADDRSTRING    (4   +   4   + 4   +  3  + 1 +    5   + 1)
+
+/*                                             "." + "65535" + NUL */
+#define   MAXSOCKSHOSTSTRING (MAXHOSTNAMELEN + 1  +    5)
+
+#define   MAXRULEADDRSTRING    (MAXSOCKSHOSTSTRING * 2)
+#define   MAXGWSTRING        (MAXSOCKSHOSTSTRING)
 
 
-#define	MAXIFNAMELEN		255
-
-/*									"255." "255." "255." "255" "." "65535" + NUL */
-#define	MAXSOCKADDRSTRING	 (4   +   4   + 4   +  3  + 1 +    5   + 1)
-
-/*														   "." + "65535" + NUL */
-#define	MAXSOCKSHOSTSTRING (MAXHOSTNAMELEN + 1  +    5)
-
-#define	MAXRULEADDRSTRING	 (MAXSOCKSHOSTSTRING * 2)
-
-
-#define MAXAUTHINFOLEN		((sizeof("(") - 1) + MAXMETHODLEN) \
-									+ (sizeof(")" - 1) + (sizeof("@") - 1) + MAXNAMELEN)
+#define MAXAUTHINFOLEN      (((sizeof("(") - 1) + MAXMETHODSTRING) \
+                           + (sizeof(")") - 1) + (sizeof("@") - 1) + MAXNAMELEN)
 
 #ifndef NUL
 #define NUL '\0'
@@ -435,48 +107,77 @@ extern int h_errno;
  * semantics.
  */
 #ifndef FNDELAY
-#define NONBLOCKING	(O_NONBLOCK | O_NDELAY)
+#define NONBLOCKING   (O_NONBLOCK | O_NDELAY)
 #else
-#define NONBLOCKING	(O_NONBLOCK | FNDELAY | O_NDELAY)
+#define NONBLOCKING   (O_NONBLOCK | FNDELAY | O_NDELAY)
 #endif
 
-#define CONFIGTYPE_SERVER		1
-#define CONFIGTYPE_CLIENT		2
+#define CONFIGTYPE_SERVER      1
+#define CONFIGTYPE_CLIENT      2
 
-#define PROTOCOL_TCPs			"tcp"
-#define PROTOCOL_UDPs			"udp"
-#define PROTOCOL_UNKNOWNs		"unknown"
+#define PROTOCOL_TCPs         "tcp"
+#define PROTOCOL_UDPs         "udp"
+#define PROTOCOL_UNKNOWNs      "unknown"
 
-#define RESOLVEPROTOCOL_UDP	0
-#define RESOLVEPROTOCOL_TCP	1
-#define RESOLVEPROTOCOL_FAKE	2
+#define RESOLVEPROTOCOL_UDP   0
+#define RESOLVEPROTOCOL_TCP   1
+#define RESOLVEPROTOCOL_FAKE   2
 
-#define LOGTYPE_SYSLOG			0x1
-#define LOGTYPE_FILE				0x2
+#define LOGTYPE_SYSLOG         0x1
+#define LOGTYPE_FILE            0x2
 
-#define NOMEM						"<memory exhausted>"
-
-
-	/*
-	 * macros
-	 */
+#define NOMEM                  "<memory exhausted>"
 
 
-#define close(n)	closen(n)
+   /*
+    * macros
+    */
 
-#define PORTISRESERVED(port)	\
-	(ntohs((port)) != 0 && ntohs((port)) < IPPORT_RESERVED)
+
+#ifndef _NO_FUNCTION_REDIFINE
+#define close(n)   closen(n)
+
+/* XXX needed on AIX apparently */
+#ifdef recvmsg
+#define recvmsg_system recvmsg
+#undef recvmsg
+#endif /* recvmsg */
+
+#if HAVE_SYSTEM_XMSG_MAGIC
+#undef recvmsg_system
+#define recvmsg_system nrecvmsg
+#endif /* HAVE_SYSTEM_XMSG_MAGIC */
+
+#define recvmsg(s, msg, flags)   recvmsgn(s, msg, flags)
+
+#ifdef sendmsg
+#define sendmsg_system sendmsg
+#undef sendmsg
+#endif /* sendmsg */
+
+#if HAVE_SYSTEM_XMSG_MAGIC
+#undef sendmsg_system
+#define sendmsg_system nsendmsg
+#endif /* HAVE_SYSTEM_XMSG_MAGIC */
+
+#define sendmsg(s, msg, flags)   sendmsgn(s, msg, flags)
+
+#endif /* _NO_FUNCTION_REDIFINE */
+
+
+#define PORTISRESERVED(port)   \
+   (ntohs((port)) != 0 && ntohs((port)) < IPPORT_RESERVED)
 
 #define ADDRISBOUND(addr) \
-	((((struct sockaddr_in *)(&addr))->sin_addr.s_addr != htonl(INADDR_ANY)) \
-	|| (((struct sockaddr_in *)(&addr))->sin_port != htons(0)))
+   ((((struct sockaddr_in *)(&addr))->sin_addr.s_addr != htonl(INADDR_ANY)) \
+   || (((struct sockaddr_in *)(&addr))->sin_port != htons(0)))
 
 #define ELEMENTS(array) (sizeof(array) / sizeof(array[0]))
 
-#define OCTETIFY(a) ((a) = ((a) & 0xff))
+#define OCTETIFY(a) ((a) &= 0xff)
 /*
  * Note that it's the argument that will be truncated, not just the
- * returnvalue.
+ * return value.
  */
 
 
@@ -484,112 +185,178 @@ extern int h_errno;
  * macros to manipulate ancillary data depending on if we're on sysv or BSD.
  */
 
-/* allocate memory for data.  "size" is the amount of memory to allocate. */
+/*
+ * Modern CMSG alignment macros. Use them if the platform has them,
+ * if not we get the default behaviour.
+ */
+
 #if HAVE_CMSGHDR
-#define CMSG_AALLOC(size) \
-	union { \
-		char cmsgmem[sizeof(struct cmsghdr) + (size)]; \
-		struct cmsghdr align; \
-	} cmsgmem; \
-	struct cmsghdr *cmsg = &cmsgmem.align
+
+#if !HAVE_CMSG_LEN
+#define CMSG_LEN(len) (sizeof(struct cmsghdr) + (len))
+#endif /* !HAVE_CMSG_LEN */
+
+#if !HAVE_CMSG_SPACE
+#define CMSG_SPACE(len) (sizeof(struct cmsghdr) + (len))
+#endif /* !HAVE_CMSG_SPACE */
+
+#else /* HAVE_CMSGHDR */
+
+#if !HAVE_CMSG_LEN
+#define CMSG_LEN(len) (len)
+#endif /* !HAVE_CMSG_LEN */
+
+#if !HAVE_CMSG_SPACE
+#define CMSG_SPACE(len) (len)
+#endif /* !HAVE_CMSG_SPACE */
+
+#endif /* HAVE_CMSGHDR */
+
+/*
+ * allocate memory for a controlmessage of size "size".  "name" is the
+ * name of the allocated memory.
+ */
+#if HAVE_CMSGHDR
+#define CMSG_AALLOC(name, size) \
+   union { \
+      char cmsgmem[CMSG_SPACE(size)]; \
+      struct cmsghdr align; \
+   } __CONCAT3(_, name, mem); \
+   struct cmsghdr *name = &__CONCAT3(_, name, mem).align
 #else /* !HAVE_CMSGHDR */
-#define CMSG_AALLOC(size) \
-	char cmsgmem[(size)]
+#define CMSG_AALLOC(name, size) \
+   char name[(size)]
+#endif /* !HAVE_CMSGHDR */
+
+/*
+ * Returns the size of the previously allocated controlmessage named
+ * "name"
+ */
+#if HAVE_CMSGHDR
+#define CMSG_MEMSIZE(name) (sizeof(__CONCAT3(_, name, mem)))
+#else /* !HAVE_CMSGHDR */
+#define CMSG_MEMSIZE(name) (sizeof((name)))
+#endif
+
+/*
+ * Returns the controldata member of "msg".
+ */
+#if HAVE_CMSGHDR
+/*
+ * cast is necessary on AIX, due to buggy headers there?.
+ * needs additional testing on AIX, disable for now.
+ */
+/* #define CMSG_CONTROLDATA(msg)   ((struct cmsghdr *)((msg).msg_control)) */
+#define CMSG_CONTROLDATA(msg)   ((msg).msg_control)
+#else /* !HAVE_CMSGHDR */
+#define CMSG_CONTROLDATA(msg)   ((msg).msg_accrights)
+#endif
+
+/*
+ * add "object" to "data".  "object" is the object to add to "data" at
+ * offset "offset".
+ */
+#if HAVE_CMSGHDR
+#define CMSG_ADDOBJECT(object, data, offset) \
+   do \
+      memcpy(CMSG_DATA(data) + (offset), &(object), sizeof(object)); \
+   while (lintnoloop_common_h)
+#else /* !HAVE_CMSGHDR */
+#define CMSG_ADDOBJECT(object, data, offset) \
+   do \
+      memcpy(data + (offset), &(object), sizeof((object))); \
+   while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
 
 /*
- * add a object to data.  "object" is the object to add to data at
- * offset "offset".
+ * get a object from controldata "data".
+ * "object" is the object to fill with data gotten from "data" at offset
+ * "offset".
  */
 #if HAVE_CMSGHDR
-#define CMSG_ADDOBJECT(object, offset) \
-	do \
-		memcpy(CMSG_DATA(cmsg) + (offset), &(object), sizeof(object)); \
-	while (lintnoloop_common_h)
+#define CMSG_GETOBJECT(object, data, offset) \
+   do \
+      memcpy(&(object), CMSG_DATA((data)) + (offset), sizeof((object))); \
+   while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_ADDOBJECT(object, offset) \
-	do \
-		memcpy(cmsgmem + (offset), &(object), sizeof((object))); \
-	while (lintnoloop_common_h)
+#define CMSG_GETOBJECT(object, data, offset) \
+   do \
+      memcpy(&(object), ((data) + (offset)), sizeof((object))); \
+   while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
+
 
 
 /*
- * get a object from data.  "object" is the object to get from data at
- * offset "offset".
+ * Sets up "object" for sending a controlmessage of size "size".
+ * "controlmem" is the memory the controlmessage is stored in.
  */
 #if HAVE_CMSGHDR
-#define CMSG_GETOBJECT(object, offset) \
-	do \
-		memcpy(&(object), CMSG_DATA(cmsg) + (offset), sizeof((object))); \
-	while (lintnoloop_common_h)
+#define CMSG_SETHDR_SEND(object, controlmem, size) \
+   do { \
+      controlmem->cmsg_level      = SOL_SOCKET; \
+      controlmem->cmsg_type      = SCM_RIGHTS; \
+      controlmem->cmsg_len         = CMSG_LEN(size); \
+      \
+      object.msg_control      = (caddr_t)controlmem; \
+      object.msg_controllen   = controlmem->cmsg_len; \
+   } while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_GETOBJECT(object, offset) \
-	do \
-		memcpy(&(object), cmsgmem + (offset), sizeof((object))); \
-	while (lintnoloop_common_h)
+#define CMSG_SETHDR_SEND(object, controlmem, size) \
+   do { \
+      object.msg_accrights      = (caddr_t)controlmem; \
+      object.msg_accrightslen   = (size); \
+   } while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
-
-
-/* set cmsg for sending */
+/*
+ * Sets up "object" for receiving a controlmessage of size "size".
+ * "controlmem" is the memory set aside for the controlmessage.
+ */
 #if HAVE_CMSGHDR
-#define CMSG_SETHDR_SEND(size) \
-	do { \
-		cmsg->cmsg_level		= SOL_SOCKET; \
-		cmsg->cmsg_type		= SCM_RIGHTS; \
-		cmsg->cmsg_len			= sizeof(struct cmsghdr) + (size); \
-		\
-		msg.msg_control		= (caddr_t)cmsg; \
-		msg.msg_controllen	= cmsg->cmsg_len; \
-	} while (lintnoloop_common_h)
+#define CMSG_SETHDR_RECV(object, controlmem, size) \
+   do { \
+      object.msg_control      = (caddr_t)controlmem; \
+      object.msg_controllen   = (size); \
+   } while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_SETHDR_SEND(size) \
-	do { \
-		msg.msg_accrights		= (caddr_t)cmsgmem; \
-		msg.msg_accrightslen	= (size); \
-	} while (lintnoloop_common_h)
-#endif /* !HAVE_CMSGHDR */
-
-/* set cmsg for receiving */
-#if HAVE_CMSGHDR
-#define CMSG_SETHDR_RECV(size) \
-	do { \
-		msg.msg_control		= (caddr_t)cmsg; \
-		msg.msg_controllen	= (size); \
-	} while (lintnoloop_common_h)
-#else /* !HAVE_CMSGHDR */
-#define CMSG_SETHDR_RECV(size) \
-	do { \
-		msg.msg_accrights		= (caddr_t)cmsgmem; \
-		msg.msg_accrightslen	= (size); \
-	} while (lintnoloop_common_h)
+#define CMSG_SETHDR_RECV(object, controlmem, size) \
+   do { \
+      object.msg_accrights      = (caddr_t)controlmem; \
+      object.msg_accrightslen   = (size); \
+   } while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
 
 /* returns length of controldata actually sent. */
 #if HAVE_CMSGHDR
-#define CMSG_GETLEN(msg)	(msg.msg_controllen - sizeof(struct cmsghdr))
+#define CMSG_GETLEN(msg)   ((msg).msg_controllen - CMSG_LEN(0))
 #else
-#define CMSG_GETLEN(msg)	(msg.msg_accrightslen)
+#define CMSG_GETLEN(msg)   ((msg).msg_accrightslen)
+#endif
+
+#if HAVE_CMSGHDR
+#define CMSG_TOTLEN(msg)   ((msg).msg_controllen)
+#else
+#define CMSG_TOTLEN(msg)   ((msg).msg_accrightslen)
 #endif
 
 
 #define INTERNAL_ERROR \
 "an internal error was detected at %s:%d\nvalue = %ld, version = %s"
 
-#define SASSERT(expression)	\
-do {									\
-	if (!(expression))			\
-		SERR(expression);			\
+#define SASSERT(expression)   \
+do {                           \
+   if (!(expression))         \
+      SERR(expression);         \
 } while (lintnoloop_common_h)
 
 
-#define SASSERTX(expression)	\
-do {									\
-	if (!(expression))			\
-		SERRX(expression);		\
+#define SASSERTX(expression)   \
+do {                           \
+   if (!(expression))         \
+      SERRX(expression);      \
 } while (lintnoloop_common_h)
 
 
@@ -600,60 +367,60 @@ do {									\
  */
 
 
-#define SERR(failure)				\
-do {										\
-	SWARN(failure);					\
-	abort();								\
+#define SERR(failure)            \
+do {                              \
+   SWARN(failure);               \
+   abort();                        \
 } while (lintnoloop_common_h)
 
-#define SERRX(failure)				\
-do {										\
-	SWARNX(failure);					\
-	abort();								\
+#define SERRX(failure)            \
+do {                              \
+   SWARNX(failure);               \
+   abort();                        \
 } while (lintnoloop_common_h)
 
 
-#define SWARN(failure)		\
-	swarn(INTERNAL_ERROR,	\
-	__FILE__, __LINE__,	(long int)(failure), rcsid)
+#define SWARN(failure)      \
+   swarn(INTERNAL_ERROR,   \
+   __FILE__, __LINE__,   (long int)(failure), rcsid)
 
-#define SWARNX(failure)		\
-	swarnx(INTERNAL_ERROR,	\
-	__FILE__, __LINE__,	(long int)(failure), rcsid)
+#define SWARNX(failure)      \
+   swarnx(INTERNAL_ERROR,   \
+   __FILE__, __LINE__,   (long int)(failure), rcsid)
 
 
 
-#define ERR(failure)									\
-do {														\
-	warn(INTERNAL_ERROR, __FILE__, __LINE__,	\
-	(long int)(failure), rcsid);					\
-	abort();												\
+#define ERR(failure)                           \
+do {                                          \
+   warn(INTERNAL_ERROR, __FILE__, __LINE__,   \
+   (long int)(failure), rcsid);               \
+   abort();                                    \
 } while (p)
 
-#define ERRX(failure)								\
-do {														\
-	warnx(INTERNAL_ERROR, __FILE__, __LINE__, \
-	(long int)(failure), rcsid);					\
-	abort();												\
+#define ERRX(failure)                        \
+do {                                          \
+   warnx(INTERNAL_ERROR, __FILE__, __LINE__, \
+   (long int)(failure), rcsid);               \
+   abort();                                    \
 } while (lintnoloop_common_h)
 
 
 #define WARN(failure) \
-	warn(INTERNAL_ERROR, __FILE__, __LINE__, (long int)(failure), rcsid)
+   warn(INTERNAL_ERROR, __FILE__, __LINE__, (long int)(failure), rcsid)
 
 #define WARNX(failure) \
-	warnx(INTERNAL_ERROR, __FILE__, __LINE__, (long int)(failure), rcsid)
+   warnx(INTERNAL_ERROR, __FILE__, __LINE__, (long int)(failure), rcsid)
 
 #define ERRORMSG(failure) \
-	error_msg(LOG_HIGH, INTERNAL_ERROR, __FILE__, __LINE__, (long int)(failure),\
-	rcsid)
+   error_msg(LOG_HIGH, INTERNAL_ERROR, __FILE__, __LINE__, (long int)(failure),\
+   rcsid)
 
 
 /* the size of a UDP header "packet" (no padding) */
-#define PACKETSIZE_UDP(packet) (												\
-	sizeof((packet)->flag) + sizeof((packet)->frag)						\
-	+ sizeof((packet)->host.atype) + sizeof((packet)->host.port)	\
-	+ (ADDRESSIZE_V5(packet)))
+#define PACKETSIZE_UDP(packet) (                                    \
+   sizeof((packet)->flag) + sizeof((packet)->frag)                  \
+   + sizeof((packet)->host.atype) + sizeof((packet)->host.port)   \
+   + (ADDRESSIZE_V5(packet)))
 
 
 /*
@@ -661,20 +428,20 @@ do {														\
  * "packet" can be one of pointer to response_t, request_t or udpheader_t.
  */
 #define ADDRESSIZE(packet) ( \
-	  ((packet)->version == SOCKS_V4 ? \
-	  (ADDRESSIZE_V4(packet)) : (ADDRESSIZE_V5(packet))))
+     ((packet)->version == SOCKS_V4 ? \
+     (ADDRESSIZE_V4(packet)) : (ADDRESSIZE_V5(packet))))
 
 /*
- *	version specifics
+ *   version specifics
  */
-#define ADDRESSIZE_V5(packet) (																\
-  (packet)->host.atype == SOCKS_ADDR_IPV4 ?												\
-  sizeof((packet)->host.addr.ipv4) :(packet)->host.atype == SOCKS_ADDR_IPV6 ?	\
+#define ADDRESSIZE_V5(packet) (                                                \
+  (packet)->host.atype == SOCKS_ADDR_IPV4 ?                                    \
+  sizeof((packet)->host.addr.ipv4) :(packet)->host.atype == SOCKS_ADDR_IPV6 ?   \
   sizeof((packet)->host.addr.ipv6) : (strlen((packet)->host.addr.domain) + 1))
 
 #define ADDRESSIZE_V4(packet) ( \
-	(packet)->atype == SOCKS_ADDR_IPV4 ? \
-	sizeof((packet)->addr.ipv4) : (strlen((packet)->addr.host) + 1))
+   (packet)->atype == SOCKS_ADDR_IPV4 ? \
+   sizeof((packet)->addr.ipv4) : (strlen((packet)->addr.host) + 1))
 
 
 /*
@@ -688,675 +455,720 @@ do {														\
  * INADDR_NONE and INADDR_ANY may not be part of the range.
  */
 #define FAKEIP_START 0x00000001
-#define FAKEIP_END	0x000000ff
+#define FAKEIP_END   0x000000ff
 
-#define SOCKS_V4					4
-#define SOCKS_V4REPLY_VERSION 0
-#define SOCKS_V5					5
-#define MSPROXY_V2				2
-#define HTTP_V1_0					1
+#define PROXY_HTTP_V1_0               1
+#define PROXY_HTTP_V1_0s            "http_v1.0"
+#define PROXY_MSPROXY_V2            2
+#define PROXY_MSPROXY_V2s            "msproxy_v2"
+#define PROXY_UPNP                  3
+#define PROXY_UPNPs                  "UPNP"
+#define PROXY_SOCKS_V4               4
+#define PROXY_SOCKS_V4s               "socks_v4"
+#define PROXY_SOCKS_V4REPLY_VERSION 0
+#define PROXY_SOCKS_V5               5
+#define PROXY_SOCKS_V5s               "socks_v5"
+#define PROXY_DIRECT                  6
+#define PROXY_DIRECTs               "direct"
 
 /* subnegotiation. */
-#define SOCKS_UNAMEVERSION		1
+#define SOCKS_UNAMEVERSION      1
 
 /* authentication METHOD values. */
-#define AUTHMETHOD_NONE			0
-#define AUTHMETHOD_NONEs		"none"
-#define AUTHMETHOD_GSSAPI		1
-#define AUTHMETHOD_GSSAPIs		"gssapi"
-#define AUTHMETHOD_UNAME		2
-#define AUTHMETHOD_UNAMEs		"username"
+#define AUTHMETHOD_NOTSET      -1
+#define AUTHMETHOD_NOTSETs      "notset"
+#define AUTHMETHOD_NONE         0
+#define AUTHMETHOD_NONEs      "none"
+#define AUTHMETHOD_GSSAPI      1
+#define AUTHMETHOD_GSSAPIs      "gssapi"
+#define AUTHMETHOD_UNAME      2
+#define AUTHMETHOD_UNAMEs      "username"
 
-/* X'03' to X'7F' IANA ASSIGNED						*/
+/* X'03' to X'7F' IANA ASSIGNED                  */
 
-/* X'80' to X'FE' RESERVED FOR PRIVATE METHODS	*/
+/* X'80' to X'FE' RESERVED FOR PRIVATE METHODS   */
 
-#define AUTHMETHOD_NOACCEPT	255
-#define AUTHMETHOD_NOACCEPTs	"no acceptable method"
+#define AUTHMETHOD_NOACCEPT   255
+#define AUTHMETHOD_NOACCEPTs   "no acceptable method"
 
-/* not standard methods, must be > 255. */
-#define AUTHMETHOD_RFC931		256
-#define AUTHMETHOD_RFC931s		"rfc931"
+/* not standard methods, must be > AUTHMETHOD_NOACCEPT. */
+#define AUTHMETHOD_RFC931      (AUTHMETHOD_NOACCEPT + 1)
+#define AUTHMETHOD_RFC931s      "rfc931"
 
-#define AUTHMETHOD_MAX			(AUTHMETHOD_RFC931 + 1)
+#define AUTHMETHOD_PAM         (AUTHMETHOD_RFC931 + 1)
+#define AUTHMETHOD_PAMs         "pam"
 
-#define MAXMETHODLEN				MAX(sizeof(AUTHMETHOD_NONEs),		\
-										MAX(sizeof(AUTHMETHOD_GSSAPIs),	\
-										MAX(sizeof(AUTHMETHOD_UNAMEs),	\
-										sizeof(AUTHMETHOD_RFC931s))))
+#define AUTHMETHOD_MAX         (AUTHMETHOD_PAM + 1)
+
+#define MAXMETHODSTRING         MAX(sizeof(AUTHMETHOD_NONEs),      \
+                              MAX(sizeof(AUTHMETHOD_GSSAPIs),   \
+                              MAX(sizeof(AUTHMETHOD_UNAMEs),   \
+                              MAX(sizeof(AUTHMETHOD_RFC931s),   \
+                              sizeof(AUTHMETHOD_PAMs)))))
+
+/* number of supported methods. */
+#define MAXMETHOD               1 /* NONE      */   \
+                            + 1 /* UNAME      */   \
+                            + 1 /* RFC931      */   \
+                            + 1 /* RFC931      */
 
 /*
  *  Response commands/codes
  */
-#define SOCKS_CONNECT				1
-#define SOCKS_CONNECTs				"connect"
-#define SOCKS_BIND					2
-#define SOCKS_BINDs					"bind"
+#define SOCKS_CONNECT            1
+#define SOCKS_CONNECTs            "connect"
+#define SOCKS_BIND               2
+#define SOCKS_BINDs               "bind"
 #define SOCKS_UDPASSOCIATE       3
-#define SOCKS_UDPASSOCIATEs		"udpassociate"
+#define SOCKS_UDPASSOCIATEs      "udpassociate"
 
 /* pseudo commands */
 
-#define SOCKS_COMMANDEND			0xff
+#define SOCKS_COMMANDEND         0xff
 
-#define SOCKS_BINDREPLY				(SOCKS_COMMANDEND + 1)
-#define SOCKS_BINDREPLYs			"bindreply"
+#define SOCKS_BINDREPLY            (SOCKS_COMMANDEND + 1)
+#define SOCKS_BINDREPLYs         "bindreply"
 
-#define SOCKS_UDPREPLY				(SOCKS_BINDREPLY + 1)
-#define SOCKS_UDPREPLYs				"udpreply"
+#define SOCKS_UDPREPLY            (SOCKS_BINDREPLY + 1)
+#define SOCKS_UDPREPLYs            "udpreply"
 
 /* misc. stuff */
-#define SOCKS_ACCEPT					(SOCKS_UDPREPLY + 1)
-#define SOCKS_ACCEPTs				"accept"
+#define SOCKS_ACCEPT               (SOCKS_UDPREPLY + 1)
+#define SOCKS_ACCEPTs            "accept"
 
-#define SOCKS_DISCONNECT			(SOCKS_ACCEPT + 1)
-#define SOCKS_DISCONNECTs			"disconnect"
+#define SOCKS_DISCONNECT         (SOCKS_ACCEPT + 1)
+#define SOCKS_DISCONNECTs         "disconnect"
+
+#define SOCKS_UNKNOWN            (SOCKS_DISCONNECT + 1)
+#define SOCKS_UNKNOWNs            "unknown"
 
 
 /* address types */
-#define SOCKS_ADDR_IPV4			0x01
-/* not a socks constant but put here for convinience. */
-#define SOCKS_ADDR_IFNAME		0x02
-#define SOCKS_ADDR_DOMAIN		0x03
-#define SOCKS_ADDR_IPV6       0x04
+#define SOCKS_ADDR_IPV4        0x01
+#define SOCKS_ADDR_IFNAME      0x02 /* not a socks constant, for convenience. */
+#define SOCKS_ADDR_DOMAIN      0x03
+#define SOCKS_ADDR_IPV6        0x04
+#define SOCKS_ADDR_URL         0x05 /* not a socks constant, for convenience. */
 
 
 /* reply field values */
-#define SOCKS_SUCCESS			0x00
-#define SOCKS_FAILURE			0x01
-#define SOCKS_NOTALLOWED		0x02
-#define SOCKS_NETUNREACH		0x03
-#define SOCKS_HOSTUNREACH		0x04
-#define SOCKS_CONNREFUSED		0x05
-#define SOCKS_TTLEXPIRED		0x06
-#define SOCKS_CMD_UNSUPP		0x07
-#define SOCKS_ADDR_UNSUPP		0x08
+#define SOCKS_SUCCESS         0x00
+#define SOCKS_FAILURE         0x01
+#define SOCKS_NOTALLOWED      0x02
+#define SOCKS_NETUNREACH      0x03
+#define SOCKS_HOSTUNREACH      0x04
+#define SOCKS_CONNREFUSED      0x05
+#define SOCKS_TTLEXPIRED      0x06
+#define SOCKS_CMD_UNSUPP      0x07
+#define SOCKS_ADDR_UNSUPP      0x08
 #define SOCKS_INVALID_ADDRESS 0x09
 
 /* version 4 codes. */
-#define SOCKSV4_SUCCESS			90
-#define SOCKSV4_FAIL				91
-#define SOCKSV4_NO_IDENTD		92
-#define SOCKSV4_BAD_ID			93
+#define SOCKSV4_SUCCESS         90
+#define SOCKSV4_FAIL            91
+#define SOCKSV4_NO_IDENTD      92
+#define SOCKSV4_BAD_ID         93
 
 /* http stuff. */
-#define HTTP_SUCCESS				200
+#define HTTP_SUCCESS            200
+
+/* upnp stuff. */
+#define UPNP_DISCOVERYTIME_MS          (500)
+#define DEFAULT_SSDP_PORT                (1900)
+#define DEFAULT_SSDP_BROADCAST_ADDR      "239.255.255.250"
+
+/* returncodes from UPNP_GetValidIGD(). */
+#define UPNP_NO_IGD           (0)
+#define UPNP_CONNECTED_IGD    (1)
+#define UPNP_DISCONNECTED_IGD (2)
+#define UPNP_UNKNOWN_DEVICE   (3)
+
+#define UPNP_SUCCESS            (1)
+#define UPNP_FAILURE            (2)
 
 
-#define MSPROXY_PINGINTERVAL	(6 * 60)
+/* msproxy stuff. */
 
-#define MSPROXY_SUCCESS			0
-#define MSPROXY_FAILURE			1
-#define MSPROXY_NOTALLOWED		2
+#define MSPROXY_PINGINTERVAL   (6 * 60)
 
-#define MSPROXY_MINLENGTH		172			/* minimum length of packet.				*/
-#define MSPROXY_VERSION			0x00010200	/* perhaps?									*/
+#define MSPROXY_SUCCESS         0
+#define MSPROXY_FAILURE         1
+#define MSPROXY_NOTALLOWED      2
+
+#define MSPROXY_MINLENGTH      172         /* minimum length of packet.            */
+#define MSPROXY_VERSION         0x00010200   /* perhaps?                           */
 
 /* errors */
-#define MSPROXY_ADDRINUSE				0x0701
-#define MSPROXY_BIND_AUTHFAILED		0x0804	/* auth failed for connect.	*/
-#define MSPROXY_CONNECT_AUTHFAILED	0x081e	/* auth failed for bind.		*/
-#define MSPROXY_CONNREFUSED			0x4		/* low 12 bits seem to vary.	*/
+#define MSPROXY_ADDRINUSE            0x0701
+#define MSPROXY_BIND_AUTHFAILED      0x0804   /* auth failed for connect.   */
+#define MSPROXY_CONNECT_AUTHFAILED   0x081e   /* auth failed for bind.      */
+#define MSPROXY_CONNREFUSED         0x4      /* low 12 bits seem to vary.   */
 
 /*
- * Server seems to ignore loworder bits of a 0x47?? command, so take them
+ * Server seems to ignore low-order bits of a 0x47?? command, so take them
  * for our own use.
  */
-#define MSPROXY_HELLO				0x0500	/* packet 1 from client.				*/
-#define MSPROXY_HELLO_ACK			0x1000	/* packet 1 from server.				*/
+#define MSPROXY_HELLO            0x0500   /* packet 1 from client.            */
+#define MSPROXY_HELLO_ACK         0x1000   /* packet 1 from server.            */
 
-#define MSPROXY_USERINFO			0x1000	/* packet 2 from client.				*/
-#define MSPROXY_USERINFO_ACK		0x0400	/* packet 2 from server.				*/
+#define MSPROXY_USERINFO         0x1000   /* packet 2 from client.            */
+#define MSPROXY_USERINFO_ACK      0x0400   /* packet 2 from server.            */
 
-#define MSPROXY_SOMETHING			0x4700	/* packet 3 from client.				*/
-#define MSPROXY_SOMETHING_1_ACK	0x4714	/* packet 3 from server.				*/
+#define MSPROXY_SOMETHING         0x4700   /* packet 3 from client.            */
+#define MSPROXY_SOMETHING_1_ACK   0x4714   /* packet 3 from server.            */
 
-#define MSPROXY_SOMETHING_2		0x4701	/* packet 4 from client.				*/
-#define MSPROXY_SOMETHING_2_ACK	0x4715	/* packet 4 from server, high 8 bits
-															seem to vary.							*/
-#define MSPROXY_SOMETHING_2_ACK2	0x4716	/* could be this too... dunno.		*/
+#define MSPROXY_SOMETHING_2      0x4701   /* packet 4 from client.            */
+#define MSPROXY_SOMETHING_2_ACK   0x4715   /* packet 4 from server, high 8 bits
+                                             seem to vary.                     */
+#define MSPROXY_SOMETHING_2_ACK2   0x4716   /* could be this too... dunno.      */
 
-#define MSPROXY_RESOLVE				0x070d	/* resolve request from client.		*/
-#define MSPROXY_RESOLVE_ACK		0x070f	/* resolved info from server.			*/
+#define MSPROXY_RESOLVE            0x070d   /* resolve request from client.      */
+#define MSPROXY_RESOLVE_ACK      0x070f   /* resolved info from server.         */
 
-#define MSPROXY_BIND					0x0704	/* bind request.							*/
-#define MSPROXY_BIND_ACK			0x0706	/* bind request accepted.				*/
+#define MSPROXY_BIND               0x0704   /* bind request.                     */
+#define MSPROXY_BIND_ACK         0x0706   /* bind request accepted.            */
 
-#define MSPROXY_BIND2				0x0707	/* dunno.									*/
-#define MSPROXY_BIND2_ACK			0x0708	/* dunno.									*/
+#define MSPROXY_BIND2            0x0707   /* dunno.                           */
+#define MSPROXY_BIND2_ACK         0x0708   /* dunno.                           */
 
-#define MSPROXY_BIND2				0x0707	/* dunno.									*/
-#define MSPROXY_BIND2_ACK			0x0708	/* dunno.									*/
+#define MSPROXY_BIND2            0x0707   /* dunno.                           */
+#define MSPROXY_BIND2_ACK         0x0708   /* dunno.                           */
 
-#define MSPROXY_LISTEN				0x0406	/* listen() performed(?)				*/
+#define MSPROXY_LISTEN            0x0406   /* listen() performed(?)            */
 
-#define MSPROXY_BINDINFO			0x0709	/* info about client server accepted*/
+#define MSPROXY_BINDINFO         0x0709   /* info about client server accepted*/
 
-#define MSPROXY_BINDINFO_ACK		0x070a	/* we got the info(?)					*/
+#define MSPROXY_BINDINFO_ACK      0x070a   /* we got the info(?)               */
 
-#define MSPROXY_CONNECT				0x071e	/* connect request.						*/
-#define MSPROXY_CONNECT_ACK		0x0703	/* connect request accepted.			*/
+#define MSPROXY_CONNECT            0x071e   /* connect request.                  */
+#define MSPROXY_CONNECT_ACK      0x0703   /* connect request accepted.         */
 
-#define MSPROXY_UDPASSOCIATE		0x0705	/* UDP associate request.				*/
-#define MSPROXY_UDPASSOCIATE_ACK	0x0706	/* UDP associate request accepted.	*/
+#define MSPROXY_UDPASSOCIATE      0x0705   /* UDP associate request.            */
+#define MSPROXY_UDPASSOCIATE_ACK   0x0706   /* UDP associate request accepted.   */
 
-#define MSPROXY_CONNECTED			0x042c	/* client connected to server?		*/
+#define MSPROXY_CONNECTED         0x042c   /* client connected to server?      */
 
-#define MSPROXY_SESSIONEND			0x251e	/* maybe...									*/
+#define MSPROXY_SESSIONEND         0x251e   /* maybe...                           */
 
 
 /* flag _bits_ */
-#define SOCKS_INTERFACEREQUEST	0x01
-#define SOCKS_USECLIENTPORT		0x04
+#define SOCKS_INTERFACEREQUEST   0x01
+#define SOCKS_USECLIENTPORT      0x04
 
 /* subcommands */
-#define SOCKS_INTERFACEDATA		0x01
+#define SOCKS_INTERFACEDATA      0x01
 
 
-#define SOCKS_TCP			1
-#define SOCKS_UDP			2
+#define SOCKS_TCP         1
+#define SOCKS_UDP         2
 
-#define SOCKS_RECV		0
-#define SOCKS_SEND		1
+#define SOCKS_RECV      0
+#define SOCKS_SEND      1
 
 /* offsets into authentication packet */
-#define AUTH_VERSION		0	/* version of method packet.								*/
+#define AUTH_VERSION      0   /* version of method packet.                        */
 
 /* request */
-#define AUTH_NMETHODS	1	/* number of methods to offer.							*/
-#define AUTH_METHODS		2	/* start of methods to offer.								*/
+#define AUTH_NMETHODS   1   /* number of methods to offer.                     */
+#define AUTH_METHODS      2   /* offset of first method to offer.                  */
 
 /* reply */
-#define AUTH_VERSION		0	/* offset for version in reply.							*/
-#define AUTH_METHOD		1	/* offset for selected method in reply.				*/
+#define AUTH_METHOD      1   /* offset for selected method in reply.            */
 
 /* offsets into username/password negotiation packet */
-#define UNAME_VERSION	0
-#define UNAME_STATUS		1
+#define UNAME_VERSION   0
+#define UNAME_STATUS      1
+
+#define BINDEXTENSION_IPADDR 0xffffffff
 
 /* XXX no IPv6 support currently. */
 #define SOCKS_IPV6_ALEN 16
 
 enum operator_t { none = 0, eq, neq, ge, le, gt, lt, range };
 
-struct compat_t {
-	unsigned reuseaddr:1;				/* set SO_REUSEADDR?								*/
-	unsigned sameport:1;					/* always try to use same port as client?	*/
-	unsigned :0;
-};
-
 
 struct logtype_t {
-	int				type;			/* type of logging (where to).						*/
-	FILE				**fpv;		/* if logging is to file, this is the open file.*/
-	int				fpc;
-	int				*fplockv;	/* locking of logfiles.									*/
-	int				facility;	/* if logging to syslog, this is the facility.	*/
-};
+   int            type;         /* type of logging (where to).                  */
+   FILE            **fpv;      /* if logging is to file, this is the open file.*/
+   char            **fnamev;   /* if logging is to file, name of file.         */
+   size_t         fpc;         /* number of files.                              */
+   int            *fplockv;   /* locking of logfiles.                           */
+   int            facility;   /* if logging to syslog, this is the facility.   */
+   const char      *facilityname;   /* if logging to syslog, name of facility.   */ };
 
 
 
 /* extensions supported by us. */
 struct extension_t {
-	unsigned bind:1;		/* use bind extension? */
-	unsigned :0;
+   unsigned char bind;      /* use bind extension? */
 };
 
 
 
 /* the address part of a socks packet */
 union socksaddr_t {
-	struct in_addr ipv4;
-	char				ipv6[SOCKS_IPV6_ALEN];
-	char				domain[MAXHOSTNAMELEN]; /* _always_ stored as C string. 		*/
+   struct in_addr ipv4;
+   char            ipv6[SOCKS_IPV6_ALEN];
+   char            domain[MAXHOSTNAMELEN]; /* _always_ stored as C string.      */
 };
 
 /* the hostspecific part of misc. things */
 struct sockshost_t {
-	unsigned char			atype;
-	union socksaddr_t		addr;
-	in_port_t				port;
+   unsigned char         atype;
+   union socksaddr_t      addr;
+   in_port_t            port;
 };
 
 
 
 struct msproxy_request_t {
-	char						username[MAXNAMELEN];
-	char						unknown[MAXNAMELEN];
-	char						executable[MAXNAMELEN];
-	char						clienthost[MAXHOSTNAMELEN];
+   char                  username[MAXNAMELEN];
+   char                  unknown[MAXNAMELEN];
+   char                  executable[MAXNAMELEN];
+   char                  clienthost[MAXHOSTNAMELEN];
 
-	int32_t					clientid;			/* 1-4										*/
-	int32_t					magic25;				/* 5-8										*/
-	int32_t					serverid;			/* 9-12										*/
-	unsigned char			serverack;			/* 13: ack of last server packet		*/
-	char						pad10[3];			/* 14-16										*/
-	unsigned char			sequence;			/* 17: sequence # of this packet.	*/
-	char						pad11[7];			/* 18-24										*/
-	char						RWSP[4];				/* 25-28: 0x52,0x57,0x53,0x50			*/
-	char						pad15[8];			/* 29-36										*/
-	int16_t					command;				/* 37-38										*/
+   int32_t               clientid;         /* 1-4                              */
+   int32_t               magic25;            /* 5-8                              */
+   int32_t               serverid;         /* 9-12                              */
+   unsigned char         serverack;         /* 13: ack of last server packet      */
+   char                  pad10[3];         /* 14-16                              */
+   unsigned char         sequence;         /* 17: sequence # of this packet.   */
+   char                  pad11[7];         /* 18-24                              */
+   char                  RWSP[4];            /* 25-28: 0x52,0x57,0x53,0x50         */
+   char                  pad15[8];         /* 29-36                              */
+   int16_t               command;            /* 37-38                              */
 
-	/* packet specifics start at 39. */
-	union {
-		struct {
-			char				pad1[18];			/* 39-56										*/
-			int16_t			magic3;				/* 57-58										*/
-			char           pad3[114];			/* 59-172									*/
-			int16_t			magic5;				/* 173-174: 0x4b, 0x00					*/
-			char				pad5[2];				/* 175-176									*/
-			int16_t			magic10;				/* 177-178: 0x14, 0x00					*/
-			char				pad6[2];				/* 179-180									*/
-			int16_t			magic15;				/* 181-182: 0x04, 0x00					*/
-			char				pad10[6];			/* 183-188									*/
-			int16_t			magic20;				/* 189-190: 0x57, 0x04					*/
-			int16_t			magic25;				/* 191-192: 0x00, 0x04					*/
-			int16_t			magic30;				/* 193-194: 0x01, 0x00					*/
-			char				pad20[2];			/* 195-196: 0x4a, 0x02					*/
-			int16_t			magic35;				/* 197-198: 0x4a, 0x02					*/
-			char				pad30[10];			/* 199-208									*/
-			int16_t			magic40;				/* 209-210: 0x30, 0x00					*/
-			char				pad40[2];			/* 211-212									*/
-			int16_t			magic45;				/* 213-214: 0x44, 0x00					*/
-			char				pad45[2];			/* 215-216									*/
-			int16_t			magic50;				/* 217-218: 0x39, 0x00					*/
-			char				pad50[2];			/* 219-220									*/
-		} _1;
+   /* packet specifics start at 39. */
+   union {
+      struct {
+         char            pad1[18];         /* 39-56                              */
+         int16_t         magic3;            /* 57-58                              */
+         char           pad3[114];         /* 59-172                           */
+         int16_t         magic5;            /* 173-174: 0x4b, 0x00               */
+         char            pad5[2];            /* 175-176                           */
+         int16_t         magic10;            /* 177-178: 0x14, 0x00               */
+         char            pad6[2];            /* 179-180                           */
+         int16_t         magic15;            /* 181-182: 0x04, 0x00               */
+         char            pad10[6];         /* 183-188                           */
+         int16_t         magic20;            /* 189-190: 0x57, 0x04               */
+         int16_t         magic25;            /* 191-192: 0x00, 0x04               */
+         int16_t         magic30;            /* 193-194: 0x01, 0x00               */
+         char            pad20[2];         /* 195-196: 0x4a, 0x02               */
+         int16_t         magic35;            /* 197-198: 0x4a, 0x02               */
+         char            pad30[10];         /* 199-208                           */
+         int16_t         magic40;            /* 209-210: 0x30, 0x00               */
+         char            pad40[2];         /* 211-212                           */
+         int16_t         magic45;            /* 213-214: 0x44, 0x00               */
+         char            pad45[2];         /* 215-216                           */
+         int16_t         magic50;            /* 217-218: 0x39, 0x00               */
+         char            pad50[2];         /* 219-220                           */
+      } _1;
 
-		struct {
-			char				pad1[18];			/* 39-56										*/
-			int16_t			magic3;				/* 57-58										*/
-			char           pad3[114];			/* 59-172									*/
-			int16_t			magic5;				/* 173-174: 0x00, 0x4b					*/
-			char				pad5[2];				/* 175-176									*/
-			int16_t			magic10;				/* 177-178: 0x14, 0x00					*/
-			char				pad10[2];			/* 179-180									*/
-			int16_t			magic15;				/* 181-182: 0x04, 0x00					*/
-			char				pad15[6];			/* 183-188									*/
-			int16_t			magic20;				/* 189-190: 0x57, 0x04					*/
-			int16_t			magic25;				/* 191-192: 0x00, 0x04					*/
-			int16_t			magic30;				/* 193-194: 0x01, 0x00					*/
-			char				pad20[2];			/* 195-196									*/
-			int16_t			magic35;				/* 197-198: 0x04, 0x00					*/
-			char				pad25[10];			/* 199-208									*/
-			int16_t			magic50;				/* 209-210: 0x30, 0x00					*/
-			char				pad50[2];			/* 211-212									*/
-			int16_t			magic55;				/* 213-214: 0x44, 0x00					*/
-			char				pad55[2];			/* 215-216									*/
-			int16_t			magic60;				/* 217-218: 0x39, 0x00					*/
-		} _2;
+      struct {
+         char            pad1[18];         /* 39-56                              */
+         int16_t         magic3;            /* 57-58                              */
+         char           pad3[114];         /* 59-172                           */
+         int16_t         magic5;            /* 173-174: 0x00, 0x4b               */
+         char            pad5[2];            /* 175-176                           */
+         int16_t         magic10;            /* 177-178: 0x14, 0x00               */
+         char            pad10[2];         /* 179-180                           */
+         int16_t         magic15;            /* 181-182: 0x04, 0x00               */
+         char            pad15[6];         /* 183-188                           */
+         int16_t         magic20;            /* 189-190: 0x57, 0x04               */
+         int16_t         magic25;            /* 191-192: 0x00, 0x04               */
+         int16_t         magic30;            /* 193-194: 0x01, 0x00               */
+         char            pad20[2];         /* 195-196                           */
+         int16_t         magic35;            /* 197-198: 0x04, 0x00               */
+         char            pad25[10];         /* 199-208                           */
+         int16_t         magic50;            /* 209-210: 0x30, 0x00               */
+         char            pad50[2];         /* 211-212                           */
+         int16_t         magic55;            /* 213-214: 0x44, 0x00               */
+         char            pad55[2];         /* 215-216                           */
+         int16_t         magic60;            /* 217-218: 0x39, 0x00               */
+      } _2;
 
-		struct {
-			char				pad1[4];				/* 39-42										*/
-			int16_t			magic2;				/* 43-44										*/
-			char				pad10[12];			/* 45-56										*/
-			in_addr_t		bindaddr;			/* 57-60: address to bind.				*/
-			in_port_t		bindport;			/* 61-62: port to bind.					*/
-			char           pad15[2];			/* 63-64										*/
-			int16_t			magic3;				/* 65-66										*/
-			in_port_t		boundport;			/* 67-68										*/
-			char           pad20[104];			/* 69-172									*/
-			char				NTLMSSP[sizeof("NTLMSSP")];	/* 173-180: "NTLMSSP"	*/
-			int16_t			magic5;				/* 181-182: 0x01, 0x00					*/
-			char				pad25[2];			/* 183-184									*/
-			int16_t			magic10;				/* 185-186: 0x96, 0x82					*/
-			int16_t			magic15;				/* 187-188: 0x08, 0x00					*/
-			int16_t			magic20;				/* 189-190: 0x28, 0x00					*/
-			char				pad30[2];			/* 191-192									*/
-			int16_t			magic25;				/* 193-194: 0x96, 0x82					*/
-			int16_t			magic30;				/* 195-196: 0x01, 0x00					*/
-			char				pad40[12];			/* 197-208									*/
-			int16_t			magic50;				/* 209-210: 0x30, 0x00					*/
-			char				pad50[6];			/* 211-216									*/
-			int16_t			magic55;				/* 217-218: 0x30, 0x00					*/
-			char				pad55[2];			/* 219-220									*/
-		} _3;
+      struct {
+         char            pad1[4];            /* 39-42                              */
+         int16_t         magic2;            /* 43-44                              */
+         char            pad10[12];         /* 45-56                              */
+         in_addr_t      bindaddr;         /* 57-60: address to bind.            */
+         in_port_t      bindport;         /* 61-62: port to bind.               */
+         char           pad15[2];         /* 63-64                              */
+         int16_t         magic3;            /* 65-66                              */
+         in_port_t      boundport;         /* 67-68                              */
+         char           pad20[104];         /* 69-172                           */
+         char            NTLMSSP[sizeof("NTLMSSP")];   /* 173-180: "NTLMSSP"   */
+         int16_t         magic5;            /* 181-182: 0x01, 0x00               */
+         char            pad25[2];         /* 183-184                           */
+         int16_t         magic10;            /* 185-186: 0x96, 0x82               */
+         int16_t         magic15;            /* 187-188: 0x08, 0x00               */
+         int16_t         magic20;            /* 189-190: 0x28, 0x00               */
+         char            pad30[2];         /* 191-192                           */
+         int16_t         magic25;            /* 193-194: 0x96, 0x82               */
+         int16_t         magic30;            /* 195-196: 0x01, 0x00               */
+         char            pad40[12];         /* 197-208                           */
+         int16_t         magic50;            /* 209-210: 0x30, 0x00               */
+         char            pad50[6];         /* 211-216                           */
+         int16_t         magic55;            /* 217-218: 0x30, 0x00               */
+         char            pad55[2];         /* 219-220                           */
+      } _3;
 
-		struct {
-			char				pad1[4];				/* 39-42										*/
-			int16_t			magic1;				/* 43-44										*/
-			int32_t			magic2;				/* 45-48										*/
-			char				pad2[8];				/* 49-56										*/
-			int16_t			magic3;				/* 57-58										*/
-			char				pad3[6];				/* 59-64										*/
-			int16_t			magic4;				/* 65-66										*/
-			in_port_t		boundport;			/* 67-68										*/
-			char           pad4[104];			/* 69-172									*/
-			char				NTLMSSP[sizeof("NTLMSSP")];	/* 173-180: "NTLMSSP"	*/
-			int16_t			magic5;				/* 181-182: 0x03, 0x00					*/
-			char				pad5[2];				/* 183-184									*/
-			int16_t			magic10;				/* 185-186: 0x18, 0x00					*/
-			int16_t			magic15;				/* 187-188: 0x18, 0x00					*/
-			int16_t			magic20;				/* 189-190: 0x49, 0x00					*/
-			char				pad10[6];			/* 191-196									*/
-			int16_t			magic30;				/* 197-198: 0x61, 0x00					*/
-			char				pad15[2];			/* 199-200									*/
-			int16_t			magic35;				/* 201-202: 0x08, 0x00					*/
-			int16_t			magic40;				/* 203-204: 0x08, 0x00					*/
-			int16_t			magic45;				/* 205-206: 0x34, 0x00					*/
-			char				pad20[2];			/* 207-208									*/
-			int16_t			magic50;				/* 209-210: 0x07, 0x00					*/
-			int16_t			magic55;				/* 211-212: 0x07, 0x00					*/
-			int16_t			magic60;				/* 213-214: 0x3c, 0x00					*/
-			char				pad25[2];			/* 215-216									*/
-			int16_t			magic65;				/* 217-218: 0x06, 0x00					*/
-			int16_t			magic70;				/* 219-220: 0x06, 0x00					*/
-			int16_t			magic75;				/* 221-222: 0x43, 0x00					*/
-		} _4;
+      struct {
+         char            pad1[4];            /* 39-42                              */
+         int16_t         magic1;            /* 43-44                              */
+         int32_t         magic2;            /* 45-48                              */
+         char            pad2[8];            /* 49-56                              */
+         int16_t         magic3;            /* 57-58                              */
+         char            pad3[6];            /* 59-64                              */
+         int16_t         magic4;            /* 65-66                              */
+         in_port_t      boundport;         /* 67-68                              */
+         char           pad4[104];         /* 69-172                           */
+         char            NTLMSSP[sizeof("NTLMSSP")];   /* 173-180: "NTLMSSP"   */
+         int16_t         magic5;            /* 181-182: 0x03, 0x00               */
+         char            pad5[2];            /* 183-184                           */
+         int16_t         magic10;            /* 185-186: 0x18, 0x00               */
+         int16_t         magic15;            /* 187-188: 0x18, 0x00               */
+         int16_t         magic20;            /* 189-190: 0x49, 0x00               */
+         char            pad10[6];         /* 191-196                           */
+         int16_t         magic30;            /* 197-198: 0x61, 0x00               */
+         char            pad15[2];         /* 199-200                           */
+         int16_t         magic35;            /* 201-202: 0x08, 0x00               */
+         int16_t         magic40;            /* 203-204: 0x08, 0x00               */
+         int16_t         magic45;            /* 205-206: 0x34, 0x00               */
+         char            pad20[2];         /* 207-208                           */
+         int16_t         magic50;            /* 209-210: 0x07, 0x00               */
+         int16_t         magic55;            /* 211-212: 0x07, 0x00               */
+         int16_t         magic60;            /* 213-214: 0x3c, 0x00               */
+         char            pad25[2];         /* 215-216                           */
+         int16_t         magic65;            /* 217-218: 0x06, 0x00               */
+         int16_t         magic70;            /* 219-220: 0x06, 0x00               */
+         int16_t         magic75;            /* 221-222: 0x43, 0x00               */
+      } _4;
 
-		struct {
-			unsigned char	hostlength;			/* length of host, including NUL.	*/
-			char				pad1[17];			/* 39-56										*/
-			char				*host;				/* 57-...									*/
-		} resolve;
+      struct {
+         unsigned char   hostlength;         /* length of host, including NUL.   */
+         char            pad1[17];         /* 39-56                              */
+         char            *host;            /* 57-...                           */
+      } resolve;
 
-		struct {
-			int16_t			magic1;				/* 39-40										*/
-			char				pad1[4];				/* 41-45										*/
-			int32_t			magic3;				/* 45-48										*/
-			char				pad5[8];				/* 48-56										*/
-			int16_t			magic6;				/* 57-58: 0x0200							*/
-			in_port_t		destport;			/* 59-60										*/
-			in_addr_t		destaddr;			/* 61-64										*/
-			char				pad10[4];			/* 65-68										*/
-			int16_t			magic10;				/* 69-70										*/
-			char				pad15[2];			/* 71-72										*/
-			in_port_t		srcport;				/* 73-74: port client connects from	*/
-			char				pad20[82];			/* 75-156									*/
-		} _5;
+      struct {
+         int16_t         magic1;            /* 39-40                              */
+         char            pad1[4];            /* 41-45                              */
+         int32_t         magic3;            /* 45-48                              */
+         char            pad5[8];            /* 48-56                              */
+         int16_t         magic6;            /* 57-58: 0x0200                     */
+         in_port_t      destport;         /* 59-60                              */
+         in_addr_t      destaddr;         /* 61-64                              */
+         char            pad10[4];         /* 65-68                              */
+         int16_t         magic10;            /* 69-70                              */
+         char            pad15[2];         /* 71-72                              */
+         in_port_t      srcport;            /* 73-74: port client connects from   */
+         char            pad20[82];         /* 75-156                           */
+      } _5;
 
-		struct {
-			int16_t			magic1;				/* 39-40										*/
-			char				pad5[2];				/* 41-42										*/
-			int16_t			magic5;				/* 43-44										*/
-			int32_t			magic10;				/* 45-48										*/
-			char				pad10[2];			/* 49-50										*/
-			int16_t			magic15;				/* 51-52										*/
-			int32_t			magic16;				/* 53-56										*/
-			int16_t			magic20;				/* 57-58										*/
-			in_port_t		clientport;			/* 59-60: forwarded port.				*/
-			in_addr_t		clientaddr;			/* 61-64: forwarded address.			*/
-			int32_t			magic30;				/* 65-68										*/
-			int32_t			magic35;				/* 69-72										*/
-			in_port_t		serverport;			/* 73-74: port server will connect
-														 *	       to us from.
-														*/
-			in_port_t		srcport;				/* 75-76: connect request; port used
-														 *			 on client behalf.
-														*/
-			in_port_t		boundport;			/* 77-78: bind request; port used
-														 *		 on client behalf.
-														*/
-			in_addr_t		boundaddr;			/* 79-82: addr used on client behalf*/
-			char				pad30[90];			/* 83-172									*/
-		} _6;
+      struct {
+         int16_t         magic1;            /* 39-40                              */
+         char            pad5[2];            /* 41-42                              */
+         int16_t         magic5;            /* 43-44                              */
+         int32_t         magic10;            /* 45-48                              */
+         char            pad10[2];         /* 49-50                              */
+         int16_t         magic15;            /* 51-52                              */
+         int32_t         magic16;            /* 53-56                              */
+         int16_t         magic20;            /* 57-58                              */
+         in_port_t      clientport;         /* 59-60: forwarded port.            */
+         in_addr_t      clientaddr;         /* 61-64: forwarded address.         */
+         int32_t         magic30;            /* 65-68                              */
+         int32_t         magic35;            /* 69-72                              */
+         in_port_t      serverport;         /* 73-74: port server will connect
+                                           *          to us from.
+                                          */
+         in_port_t      srcport;            /* 75-76: connect request; port used
+                                           *          on client behalf.
+                                          */
+         in_port_t      boundport;         /* 77-78: bind request; port used
+                                           *       on client behalf.
+                                          */
+         in_addr_t      boundaddr;         /* 79-82: addr used on client behalf*/
+         char            pad30[90];         /* 83-172                           */
+      } _6;
 
-	} packet;
+   } packet;
 };
 
 struct msproxy_response_t {
-	int32_t					packetid;			/* 1-4										*/
-	int32_t					magic5;				/* 5-8										*/
-	int32_t              serverid;			/* 9-12										*/
-	char						clientack;			/* 13: ack of last client packet.	*/
-	char						pad5[3];				/* 14-16										*/
-	unsigned char			sequence;			/* 17: sequence # of this packet.	*/
-	char						pad10[7];			/* 18-24										*/
-	char						RWSP[4];				/* 25-28: 0x52,0x57,0x53,0x50			*/
-	char						pad15[8];			/* 29-36										*/
-	int16_t					command;				/* 37-38										*/
+   int32_t               packetid;         /* 1-4                              */
+   int32_t               magic5;            /* 5-8                              */
+   int32_t              serverid;         /* 9-12                              */
+   char                  clientack;         /* 13: ack of last client packet.   */
+   char                  pad5[3];            /* 14-16                              */
+   unsigned char         sequence;         /* 17: sequence # of this packet.   */
+   char                  pad10[7];         /* 18-24                              */
+   char                  RWSP[4];            /* 25-28: 0x52,0x57,0x53,0x50         */
+   char                  pad15[8];         /* 29-36                              */
+   int16_t               command;            /* 37-38                              */
 
-	union {
-		struct {
-			char				pad5[18];			/* 39-56										*/
-			int16_t			magic20;				/* 57-58: 0x02, 0x00						*/
-			char				pad10[6];			/* 59-64										*/
-			int16_t			magic30;				/* 65-66: 0x74, 0x01						*/
-			char				pad15[2];			/* 67-68										*/
-			int16_t			magic35;				/* 69-70: 0x0c, 0x00						*/
-			char				pad20[6];			/* 71-76										*/
-			int16_t			magic50;				/* 77-78: 0x04, 0x00						*/
-			char				pad30[6];			/* 79-84										*/
-			int16_t			magic60;				/* 85-86: 0x65, 0x05						*/
-			char				pad35[2];			/* 87-88										*/
-			int16_t			magic65;				/* 89-90: 0x02, 0x00						*/
-			char				pad40[8];			/* 91-98										*/
-			in_port_t		udpport;				/* 99-100									*/
-			in_addr_t		udpaddr;				/* 101-104									*/
-		} _1;
+   union {
+      struct {
+         char            pad5[18];         /* 39-56                              */
+         int16_t         magic20;            /* 57-58: 0x02, 0x00                  */
+         char            pad10[6];         /* 59-64                              */
+         int16_t         magic30;            /* 65-66: 0x74, 0x01                  */
+         char            pad15[2];         /* 67-68                              */
+         int16_t         magic35;            /* 69-70: 0x0c, 0x00                  */
+         char            pad20[6];         /* 71-76                              */
+         int16_t         magic50;            /* 77-78: 0x04, 0x00                  */
+         char            pad30[6];         /* 79-84                              */
+         int16_t         magic60;            /* 85-86: 0x65, 0x05                  */
+         char            pad35[2];         /* 87-88                              */
+         int16_t         magic65;            /* 89-90: 0x02, 0x00                  */
+         char            pad40[8];         /* 91-98                              */
+         in_port_t      udpport;            /* 99-100                           */
+         in_addr_t      udpaddr;            /* 101-104                           */
+      } _1;
 
-		struct {
-			char				pad5[18];			/* 39-56										*/
-			int16_t			magic5;				/* 57-58: 0x01, 0x00						*/
-		} _2;
+      struct {
+         char            pad5[18];         /* 39-56                              */
+         int16_t         magic5;            /* 57-58: 0x01, 0x00                  */
+      } _2;
 
-		struct {
-			char				pad1[6];				/* 39-44										*/
-			int32_t			magic10;				/* 45-48										*/
-			char				pad3[10];			/* 49-58										*/
-			in_port_t		boundport;			/* 59-60: port server bound for us.	*/
-			in_addr_t		boundaddr;			/* 61-64: addr server bound for us.	*/
-			char				pad10[4];			/* 65-68										*/
-			int16_t			magic15;				/* 69-70										*/
-			char				pad15[102];			/* 70-172									*/
-			char				NTLMSSP[sizeof("NTLMSSP")];	/* 173-180: "NTLMSSP"	*/
-			int16_t			magic50;				/* 181-182: 0x02, 0x00					*/
-			char				pad50[2];			/* 183-184									*/
-			int16_t			magic55;				/* 185-186: 0x08, 0x00					*/
-			int16_t			magic60;				/* 187-188: 0x08, 0x00					*/
-			int16_t			magic65;				/* 189-190: 0x28, 0x00					*/
-			char				pad60[2];			/* 191-192									*/
-			int16_t			magic70;				/* 193-194: 0x96, 0x82					*/
-			int16_t			magic75;				/* 195-196: 0x01, 0x00					*/
-			char				pad70[16];			/* 197-212									*/
-			char				ntdomain[257];		/* 213-EOP									*/
-		} _3;
+      struct {
+         char            pad1[6];            /* 39-44                              */
+         int32_t         magic10;            /* 45-48                              */
+         char            pad3[10];         /* 49-58                              */
+         in_port_t      boundport;         /* 59-60: port server bound for us.   */
+         in_addr_t      boundaddr;         /* 61-64: addr server bound for us.   */
+         char            pad10[4];         /* 65-68                              */
+         int16_t         magic15;            /* 69-70                              */
+         char            pad15[102];         /* 70-172                           */
+         char            NTLMSSP[sizeof("NTLMSSP")];   /* 173-180: "NTLMSSP"   */
+         int16_t         magic50;            /* 181-182: 0x02, 0x00               */
+         char            pad50[2];         /* 183-184                           */
+         int16_t         magic55;            /* 185-186: 0x08, 0x00               */
+         int16_t         magic60;            /* 187-188: 0x08, 0x00               */
+         int16_t         magic65;            /* 189-190: 0x28, 0x00               */
+         char            pad60[2];         /* 191-192                           */
+         int16_t         magic70;            /* 193-194: 0x96, 0x82               */
+         int16_t         magic75;            /* 195-196: 0x01, 0x00               */
+         char            pad70[16];         /* 197-212                           */
+         char            ntdomain[257];      /* 213-EOP                           */
+      } _3;
 
-		struct {
-			char				pad5[134];			/* 39-172									*/
-		} _4;
+      struct {
+         char            pad5[134];         /* 39-172                           */
+      } _4;
 
-		struct {
-			unsigned char	addroffset;			/* 39: weird, probably wrong.			*/
-			char				pad5[13];			/* 40-52										*/
-			in_addr_t		hostaddr;			/* ?-?+4										*/
-		} resolve;
+      struct {
+         unsigned char   addroffset;         /* 39: weird, probably wrong.         */
+         char            pad5[13];         /* 40-52                              */
+         in_addr_t      hostaddr;         /* ?-?+4                              */
+      } resolve;
 
-		struct {
-			int16_t			magic1;				/* 39-40										*/
-			char				pad5[18];			/* 41-58										*/
-			in_port_t		clientport;			/* 59-60: forwarded port.				*/
-			in_addr_t		clientaddr;			/* 61-64: forwarded address.			*/
-			int32_t			magic10;				/* 65-68										*/
-			int32_t			magic15;				/* 69-72										*/
-			in_port_t		serverport;			/* 73-74: port server will connect
-														 *	       to us from.
-														*/
-			in_port_t		srcport;				/* 75-76: connect request; port used
-														 *			 on client behalf.
-														*/
-			in_port_t		boundport;			/* 77-78: bind request; port used
-														 *			 on client behalf.
-														*/
-			in_addr_t		boundaddr;			/* 79-82: addr used on client behalf*/
-			char				pad10[90];			/* 83-172									*/
-		} _5;
-	} packet;
+      struct {
+         int16_t         magic1;            /* 39-40                              */
+         char            pad5[18];         /* 41-58                              */
+         in_port_t      clientport;         /* 59-60: forwarded port.            */
+         in_addr_t      clientaddr;         /* 61-64: forwarded address.         */
+         int32_t         magic10;            /* 65-68                              */
+         int32_t         magic15;            /* 69-72                              */
+         in_port_t      serverport;         /* 73-74: port server will connect
+                                           *          to us from.
+                                          */
+         in_port_t      srcport;            /* 75-76: connect request; port used
+                                           *          on client behalf.
+                                          */
+         in_port_t      boundport;         /* 77-78: bind request; port used
+                                           *          on client behalf.
+                                          */
+         in_addr_t      boundaddr;         /* 79-82: addr used on client behalf*/
+         char            pad10[90];         /* 83-172                           */
+      } _5;
+   } packet;
 };
-
 struct request_t {
-	unsigned char			version;
-	unsigned char			command;
-	unsigned char			flag;
-	struct sockshost_t	host;
-	struct authmethod_t	*auth;	/* pointer to level above. */
+   unsigned char         version;
+   unsigned char         command;
+   unsigned char         flag;
+   struct sockshost_t    host;
+   struct authmethod_t   *auth;   /* pointer to level above. */
+   int                   protocol;
 };
 
 
 struct response_t {
-	unsigned char			version;
-	unsigned char			reply;
-	unsigned char			flag;
-	struct sockshost_t	host;
-	struct authmethod_t	*auth;	/* pointer to level above. */
+   unsigned char         version;
+   unsigned char         reply;
+   unsigned char         flag;
+   struct sockshost_t   host;
+   struct authmethod_t   *auth;   /* pointer to level above. */
 };
 
 /* encapsulation for UDP packets. */
 struct udpheader_t {
-	unsigned char			flag[2];
-	unsigned char			frag;
-	struct sockshost_t	host;
+   unsigned char         flag[2];
+   unsigned char         frag;
+   struct sockshost_t   host;
 };
 
 
 /* method username */
-struct uname_t {
-	unsigned char	version;
-	unsigned char	name[MAXNAMELEN];
-	unsigned char	password[MAXPWLEN];
+struct authmethod_uname_t {
+   unsigned char   version;
+   unsigned char   name[MAXNAMELEN];
+   unsigned char   password[MAXPWLEN];
 };
 
 /* method rfc931 */
-struct rfc931_t {
-	unsigned char	name[MAXNAMELEN];
+struct authmethod_rfc931_t {
+   unsigned char   name[MAXNAMELEN];
+};
+
+/* method pam. */
+struct authmethod_pam_t {
+   char            servicename[MAXNAMELEN];   /* servicename to use with pam.   */
+   unsigned char   name[MAXNAMELEN];
+   unsigned char   password[MAXPWLEN];
 };
 
 /* this must be big enough to hold a complete method request. */
 struct authmethod_t {
-	int						matched;	/* authentication matched?	*/
-	int						method;	/* method in use.				*/
-	union {
-		struct uname_t		uname;
-		struct rfc931_t	rfc931;
-	} mdata;
+   int                  method;               /* method in use.                  */
+   int                  methodv[MAXMETHOD];   /* methods somewhere matched.      */
+   size_t               methodc;               /* number of methods matched.      */
+   int                  badmethodv[MAXMETHOD];/* methods not matched.         */
+   size_t               badmethodc;            /* number of methods not matched.*/
+
+   union {
+      struct authmethod_uname_t   uname;
+      struct authmethod_rfc931_t   rfc931;
+      struct authmethod_pam_t      pam;
+   } mdata;
 };
 
 
 struct protocol_t {
-	unsigned tcp:1;
-	unsigned udp:1;
-	unsigned :0;
+   unsigned char tcp;
+   unsigned char udp;
 };
 
 
 struct command_t {
-	unsigned bind:1;
-	unsigned connect:1;
-	unsigned udpassociate:1;
+   unsigned char bind;
+   unsigned char connect;
+   unsigned char udpassociate;
 
-	/* not real commands as per standard, but they have their use. */
-	unsigned bindreply:1;		/* reply to bind command.	*/
-	unsigned udpreply:1;			/* reply to UDP packet.		*/
-	unsigned :0;
+   /* not real commands as per standard, but they have their use. */
+   unsigned char bindreply;      /* reply to bind command.   */
+   unsigned char udpreply;         /* reply to UDP packet.      */
 };
 
 
 struct proxyprotocol_t {
-	unsigned socks_v4:1;
-	unsigned socks_v5:1;
-	unsigned msproxy_v2:1;
-	unsigned http_v1_0:1;
-	unsigned :0;
+   unsigned char direct;
+   unsigned char socks_v4;
+   unsigned char socks_v5;
+   unsigned char msproxy_v2;
+   unsigned char http_v1_0;
+   unsigned char upnp;
 };
 
-
-struct serverstate_t {
-	struct command_t			command;
-	struct extension_t		extension;
-	struct protocol_t			protocol;
-	int							methodv[AUTHMETHOD_MAX];/* methods to offer.			*/
-	int							methodc;						/* number of methods set.	*/
-	struct proxyprotocol_t	proxyprotocol;
-};
 
 
 struct msproxy_state_t {
-	struct sockaddr_in		controladdr;	/* UDP address of proxyserver.		*/
-	int32_t						magic25;
-	int32_t						bindid;
-	int32_t						clientid;
-	int32_t						serverid;
-	unsigned char				seq_recv;		/* seq number of last packet recv.	*/
-	unsigned char				seq_sent;		/* seq number of last packet sent.	*/
+   struct sockaddr_in      controladdr;   /* UDP address of proxyserver.      */
+   int32_t                  magic25;
+   int32_t                  bindid;
+   int32_t                  clientid;
+   int32_t                  serverid;
+   unsigned char            seq_recv;      /* seq number of last packet recv.   */
+   unsigned char            seq_sent;      /* seq number of last packet sent.   */
 };
 
+
+/* values in parentheses designate "don't care" values.   */
+struct socksstate_t {
+   int                     acceptpending;   /* a accept pending?      (-1)         */
+   struct authmethod_t      auth;            /* authentication in use.            */
+   int                     command;         /* command (-1)                     */
+   int                     err;            /* if request failed, errno.         */
+   int                     inprogress;      /* operation in progress? (-1)      */
+   struct msproxy_state_t   msproxy;         /* if msproxy, msproxy state.         */
+   struct protocol_t         protocol;      /* protocol in use.                  */
+   unsigned char            udpconnect;      /* connected UDP socket?            */
+   unsigned char           issyscall;     /* started out as a real systemcall.*/
+   int                     syscalldepth;  /* depth of system call.            */
+   int                     version;         /* version (-1)                     */
+};
+
+struct ruleaddr_t {
+   char                  atype;
+   union {
+      char               domain[MAXHOSTNAMELEN];
+      char               ifname[MAXIFNAMELEN];
+      struct {
+         struct in_addr   ip;
+         struct in_addr   mask;
+      } ipv4;
+
+   } addr;
+
+   struct {
+      in_port_t         tcp;         /* TCP portstart or field to operator on.   */
+      in_port_t         udp;         /* UDP portstart or field to operator on.   */
+   } port;
+   in_port_t            portend;      /* only used if operator is range.         */
+   enum operator_t      operator;   /* operator to compare ports via.         */
+};
+
+typedef struct {
+   char                  atype;
+   union {
+      char               domain[MAXHOSTNAMELEN];
+      char               urlname[MAXURLLEN];
+      char               ifname[MAXIFNAMELEN];
+      struct in_addr      ipv4;
+   } addr;
+   in_port_t            port;
+} gwaddr_t;
+
+#define MINIUPNPC_URL_MAXSIZE (128) /* XXX */
+typedef union {
+   struct {
+      char    controlurl[MINIUPNPC_URL_MAXSIZE];
+      char    servicetype[MINIUPNPC_URL_MAXSIZE];
+   } upnp;
+} proxystate_t; 
+
+
+struct serverstate_t {
+   struct command_t        command;
+   struct extension_t      extension;
+   struct protocol_t       protocol;
+   int                     methodv[MAXMETHOD];      /* methods to offer.      */
+   size_t                  methodc;                  /* number of methods set.*/
+   struct proxyprotocol_t  proxyprotocol;
+   proxystate_t            data;
+};
 
 struct gateway_t {
-	struct sockshost_t			host;
-	struct serverstate_t			state;
-};
-
-/* values in parentheses designate "don't care" values.	*/
-struct socksstate_t {
-	int							acceptpending;	/* a accept pending?		(-1)			*/
-	struct authmethod_t		auth;				/* authentication in use.				*/
-	int							command;			/* command (-1)							*/
-	int							err;				/* if request failed, errno.			*/
-	int							inprogress;		/* operation in progress? (-1)		*/
-#ifdef SOCKS_TRYHARDER
-	int							lock;				/* some calls require a lock.			*/
-#endif
-	struct msproxy_state_t	msproxy;			/* if msproxy, msproxy state.			*/
-	struct protocol_t			protocol;		/* protocol in use.						*/
-	unsigned						udpconnect:1;	/* connected UDP socket?				*/
-	int							system;			/* don't check, use system call.		*/
-	int							version;			/* version (-1)							*/
-};
-
-
-struct ruleaddress_t {
-	char						atype;
-	union {
-		char					domain[MAXHOSTNAMELEN];
-		char					ifname[MAXIFNAMELEN];
-		struct {
-			struct in_addr	ip;
-			struct in_addr	mask;
-		} ipv4;
-
-	} addr;
-
-	struct {
-		in_port_t			tcp;			/* TCP portstart or field to operator on.	*/
-		in_port_t			udp;			/* UDP portstart or field to operator on.	*/
-	} port;
-	in_port_t				portend;		/* only used if operator is range.			*/
-	enum operator_t		operator;	/* operator to compare ports via.			*/
-};
-
-struct route_t {
-	int							number;		/* routenumber.								*/
-
-	struct {
-		unsigned bad:1;		/* route is bad?												*/
-		time_t	badtime;		/* if route is bad, time it was marked as such.		*/
-		unsigned direct:1;	/* direct connection, no proxy.							*/
-		unsigned :0;
-	} state;
-
-
-	struct ruleaddress_t		src;
-	struct ruleaddress_t		dst;
-	struct gateway_t			gw;
-
-	struct route_t				*next;		/* next route in list.						*/
+   gwaddr_t               addr;
+   struct serverstate_t   state;
 };
 
 
 struct socks_t {
-	unsigned char				version;
-									/*
-									 *	Negotiated version.  Each request and
-									 *	response will also contain a version number, that
-									 *	is the version number given for that particular
-									 *	packet and should be checked to make sure it is
-									 *  the same as the negotiated version.
-									*/
-	struct request_t				req;
-	struct response_t				res;
-	struct authmethod_t			auth;
-	struct gateway_t				gw;
-	struct socksstate_t			state;
+   unsigned char            version;
+                           /*
+                            *   Negotiated version.  Each request and
+                            *   response will also contain a version number, that
+                            *   is the version number given for that particular
+                            *   packet and should be checked to make sure it is
+                            *  the same as the negotiated version.
+                           */
+   struct request_t            req;
+   struct response_t            res;
+   struct authmethod_t         auth;
+   struct gateway_t            gw;
+   struct socksstate_t         state;
 };
 
 enum portcmp { e_lt, e_gt, e_eq, e_neq, e_le, e_ge, e_nil };
@@ -1367,30 +1179,52 @@ enum portcmp { e_lt, e_gt, e_eq, e_neq, e_le, e_ge, e_nil };
  * for use in generic functions that take either reply or request
  * packets, include a field indicating what it is.
  */
-#define SOCKS_REQUEST	0x1
-#define SOCKS_RESPONSE	0x2
+#define SOCKS_REQUEST   0x1
+#define SOCKS_RESPONSE   0x2
 
 struct socksfd_t {
-	unsigned					allocated:1;/* allocated?										*/
-	int						control;		/* control connection to server.				*/
-	struct socksstate_t	state;		/* state of this connection.					*/
-	unsigned					:0;
-	struct sockaddr		local;		/* local address of data connection.		*/
-	unsigned					:0;
-	struct sockaddr		server;		/* remote address of data connection.		*/
-	unsigned					:0;
-	struct sockaddr		remote;		/* address server is using on our behalf.	*/
-	unsigned					:0;
-	struct sockaddr		reply;		/* address to expect reply from.				*/
+   unsigned char         allocated;    /* allocated?                              */
+   int                  control;      /* control connection to server.            */
+   struct socksstate_t   state;      /* state of this connection.               */
+   unsigned               :0;
+   struct sockaddr      local;      /* local address of data connection.      */
+   unsigned               :0;
+   struct sockaddr      server;      /* remote address of data connection.      */
+   unsigned               :0;
+   struct sockaddr      remote;      /* address server is using on our behalf.   */
+   unsigned               :0;
+   struct sockaddr      reply;      /* address to expect reply from.            */
+   unsigned               :0;
 
-	/* XXX union this. */
-	unsigned					:0;
-	struct sockaddr		accepted;	/* address server accepted for us.			*/
-	unsigned					:0;
-	struct sockaddr		connected;	/* address server connected to for us.		*/
+   union {
+      struct sockaddr      accepted;   /* address server accepted for us.     */
+      struct sockaddr      connected;   /* address server connected to for us.*/
+   } forus;
 
-	struct route_t		*route;
+   struct route_t      *route;
 };
+
+
+
+struct route_t {
+   int                     number;      /* routenumber.                       */
+
+   struct {
+      unsigned char bad;   /* route is bad?                                   */
+      time_t   badtime;      /* if route is bad, time it was marked as such.  */
+      unsigned char autoadded;/* autoadded route.                             */
+      unsigned :0;
+   } state;
+
+
+   struct ruleaddr_t src;
+   struct ruleaddr_t dst;
+   struct gateway_t  gw;
+
+   struct route_t            *next;      /* next route in list.               */
+};
+
+
 
 __BEGIN_DECLS
 
@@ -1399,33 +1233,46 @@ __BEGIN_DECLS
  */
 
 #ifdef STDC_HEADERS
-void serr(int eval, const char *fmt, ...);
+void serr(int eval, const char *fmt, ...)
 #else
-void serr();
+void serr()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 2, 3)));
 
 #ifdef STDC_HEADERS
-void serrx(int eval, const char *fmt, ...);
+void serrx(int eval, const char *fmt, ...)
 #else
-void serrx();
+void serrx()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 2, 3)));
 
 #ifdef STDC_HEADERS
-void swarn(const char *fmt, ...);
+void swarn(const char *fmt, ...)
 #else
-void swarn();
+void swarn()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 1, 2)));
 
 #ifdef STDC_HEADERS
-void swarnx(const char *fmt, ...);
+void swarnx(const char *fmt, ...)
 #else
-void swarnx();
+void swarnx()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 1, 2)));
 
 void
 genericinit __P((void));
 /*
  * Generic init, called after clientinit()/serverinit().
+ */
+
+int
+socks_initupnp(const gwaddr_t *gw, proxystate_t *data);
+/*
+ * Inits upnp for interface corresponding to address "gw".
+ * Returns:
+ *      On success: 0.
+ *    On failure: -1 (no appropriate upnp devices found, or some other error.)
  */
 
 void
@@ -1444,53 +1291,31 @@ sockaddr2udpheader __P((const struct sockaddr *to, struct udpheader_t *header));
  * Returns a pointer to "header".
  */
 
-char *
-udpheader_add __P((const struct sockshost_t *host, char *msg, size_t *len,
-						 size_t msgsize));
+void *
+udpheader_add __P((const struct sockshost_t *host, const void *msg, size_t *len,
+                   const size_t msgsize));
 /*
  * Prefixes the udpheader_t version of "host" to a copy of "msg",
  * which is of length "len".
  * "msgsize" gives the size of the memory pointed to by "msg".
  * If "msgsize" is large enough the function will prepend the udpheader
  * to "msg" directly (moving the old contents to the right) rather than
- * allocating new memory.
+ * allocating new memory.  XXX fix this, can't be both const and not const.
  * Upon return "len" gives the length of the new "msg".
  *
- *	Returns:
- *		On success: "msg" with the udpheader prepended.
- *		On failure: NULL (out of memory).
- */
-
-struct udpheader_t *
-string2udpheader __P((const char *data, size_t len,
-							 struct udpheader_t *header));
-/*
- * Converts "data" to udpheader_t representation.
- * "len" is length of "data".
- * "data" is assumed to be in network order.
- * Returns:
- *		On success: pointer to a udpheader_t in static memory.
- *		On failure: NULL ("data" is not a complete udppacket).
- */
-
-
-const char *
-socks_packet2string __P((const void *packet, int type));
-/*
- * debug function; dumps socks packet content
- * "packet" is a socks packet, "type" indicates it's type.
- * Returns:
- *		On success: 0
- *		On failure: -1
+ *   Returns:
+ *      On success: "msg" with the udpheader prepended, or a new message
+ *                that the caller needs to free.
+ *      On failure: NULL (out of memory).
  */
 
 int
 socks_socketisbound __P((int s));
 /*
  * Returns:
- *		If "s" is bound: 1
- *		If "s" is not bound: 0
- *		If "s" is not socket or error occurred determining if bound: -1
+ *      If "s" is bound: 1
+ *      If "s" is not bound: 0
+ *      If "s" is not socket or error occurred determining if bound: -1
  */
 
 int
@@ -1514,32 +1339,29 @@ socks_logmatch __P((unsigned int d, const struct logtype_t *log));
  * Returns false otherwise.
  */
 
-char *
-sockaddr2string __P((const struct sockaddr *address, char *string, size_t len));
-/*
- * Returns the IP address and port in "address" on string form.
- * "address" is assumed to be on network form and it will be
- * converted to host form before written to "string".
- * "len" gives length of the NUL terminated string.
- * Returns: "string".
- */
-
 
 struct sockaddr *
 sockshost2sockaddr __P((const struct sockshost_t *shost,
-								struct sockaddr *addr));
+                        struct sockaddr *addr));
 /*
- * Converts the sockhost_t "shost" to a sockaddr struct and stores it
+ * Converts the sockshost_t "shost" to a sockaddr struct and stores it
  * in "addr".
  * Returns: "addr".
  */
 
 struct sockaddr *
 fakesockshost2sockaddr __P((const struct sockshost_t *host,
-									 struct sockaddr *addr));
+                            struct sockaddr *addr));
 /*
  * Like sockshost2sockaddr(), but checks whether the address in
  * "host" is fake when converting.
+ */
+
+struct sockaddr *
+urlstring2sockaddr(const char *string, struct sockaddr *saddr);
+/*
+ * Converts the address givein in "string", on URL:// format, to
+ * a sockaddr address.
  */
 
 struct sockshost_t *
@@ -1551,40 +1373,70 @@ sockaddr2sockshost __P((const struct sockaddr *addr, struct sockshost_t *host));
  */
 
 struct sockshost_t *
-ruleaddress2sockshost __P((const struct ruleaddress_t *address,
-									struct sockshost_t *host, int protocol));
+ruleaddr2sockshost __P((const struct ruleaddr_t *address,
+                           struct sockshost_t *host, int protocol));
 /*
- * Converts the ruleaddress_t "address" to a sockshost_t struct and stores it
+ * Converts the ruleaddr_t "address" to a sockshost_t struct and stores it
  * in "host".
  * Returns: "host".
  */
 
-struct ruleaddress_t *
-sockshost2ruleaddress __P((const struct sockshost_t *host,
-									struct ruleaddress_t *addr));
+gwaddr_t *
+ruleaddr2gwaddr __P((const struct ruleaddr_t *address,
+                        gwaddr_t *gw));
 /*
- * Converts the sockshost_t "host" to a ruleaddress_t struct and stores it
+ * Converts the ruleaddr_t "address" to a gwaddr_t and stores it
+ * in "hw".
+ * Returns: gw;
+ */
+
+struct sockshost_t *
+gwaddr2sockshost __P((const gwaddr_t *gw, struct sockshost_t *host));
+/*
+ * Converts the gwaddr_t "address" to a sockshost_t and stores it
+ * in "host".
+ * Returns: host;
+ */
+
+struct ruleaddr_t *
+sockshost2ruleaddr __P((const struct sockshost_t *host,
+                        struct ruleaddr_t *addr));
+/*
+ * Converts the sockshost_t "host" to a ruleaddr_t struct and stores it
  * in "addr".
  * Returns: "addr".
  */
 
-struct ruleaddress_t *
-sockaddr2ruleaddress __P((const struct sockaddr *addr,
-							struct ruleaddress_t *ruleaddr));
+struct ruleaddr_t *
+sockaddr2ruleaddr __P((const struct sockaddr *addr,
+                       struct ruleaddr_t *ruleaddr));
 /*
- * Converts the struct sockaddr "addr" to a ruleaddress_t struct and stores it
- * in "ruleaddr".
+ * Converts the struct sockaddr "addr" to a ruleaddr_t struct and stores
+ * it in "ruleaddr".
  * Returns: "addr".
  */
 
 struct sockaddr *
-ifname2sockaddr __P((const char *ifname, struct sockaddr *addr));
+hostname2sockaddr __P((const char *name, int index, struct sockaddr *addr));
 /*
- * Finds the first address found on the interface named "ifname".
+ * Retrieves the address with index "index" for the hostname named "name".
  * Returns:
- *		On success: "addr", filled in with the address found.
- *		On failure: NULL (no address found).
-*/
+ *      On success: "addr", filled in with the address found.
+ *      On failure: NULL (no address found).
+ */
+
+struct sockaddr *
+ifname2sockaddr __P((const char *ifname, int index, struct sockaddr *addr, 
+                     struct sockaddr *netmask));
+/*
+ * Retrieves the address with index "index" on the interface named "ifname".
+ * If "netmask" is not NULL, the netmask of the interface is also filled
+ * in.
+ * Returns:
+ *      On success: "addr", and possibly "netmask", filled in with the address
+ *                found.
+ *      On failure: NULL (no address found).
+ */
 
 int
 sockatmark __P((int s));
@@ -1594,11 +1446,15 @@ sockatmark __P((int s));
  */
 
 ssize_t
-recvmsgn __P((int s, struct msghdr *msg, int flags, size_t len));
+recvmsgn __P((int s, struct msghdr *msg, int flags));
 /*
- * Like recvmsg(), but tries to read until "len" has been read.
- * BUGS:
- *   Assumes msg->msg_iov[n] are laid out next to each others.
+ * Like recvmsg(), but tries to read until all has been read.
+ */
+
+ssize_t
+sendmsgn __P((int s, const struct msghdr *msg, int flags));
+/*
+ * Like sendmsg(), but tries to send until all has been sent.
  */
 
 ssize_t
@@ -1617,19 +1473,19 @@ writen __P((int, const void *, size_t, struct authmethod_t *auth));
 
 ssize_t
 socks_recvfrom __P((int, void *, size_t, int, struct sockaddr *, socklen_t *,
-						  struct authmethod_t *auth));
+                    struct authmethod_t *auth));
 /*
  * Like recvfrom(), but with an additional auth argument to be used
  * if not NULL.
-*/
+ */
 
 ssize_t
 socks_sendto __P((int, const void *, size_t, int, const struct sockaddr *,
-						socklen_t, struct authmethod_t *auth));
+                  socklen_t, struct authmethod_t *auth));
 /*
  * Like sendto(), but with an additional auth argument to be used
  * if not NULL.
-*/
+ */
 
 int
 closen __P((int));
@@ -1649,6 +1505,13 @@ acceptn __P((int, struct sockaddr *, socklen_t *));
  * Wrapper around accept().  Retries on EINTR.
  */
 
+int
+socks_socketisforlan __P((const int s));
+/*
+ * If we can determine that the socket "s" is for lan use only, i.e. should
+ * not be proxied, returns true.  Otherwise, returns false.
+ */
+
 #ifdef STDC_HEADERS
 int
 snprintfn(char *str, size_t size, const char *format, ...);
@@ -1659,17 +1522,8 @@ snprintfn();
 /*
  * Wrapper around snprintf() for consistent behaviour, same as system
  * snprintf() but the following are also enforced:
- * 	returns 0 instead of -1 (rawterminates *str).
- *		never returns a value greater than size - 1.
-*/
-
-char *
-sockshost2string __P((const struct sockshost_t *host, char *string,
-							 size_t len));
-/*
- * Writes "host" out as a string.  The string is written to "string",
- * which is of length "len", including NUL termination.
- * Returns: "string".
+ *      returns 0 instead of -1 (rawterminates *str).
+ *      never returns a value greater than size - 1.
  */
 
 const char *
@@ -1679,41 +1533,10 @@ strcheck __P((const char *string));
  * exhausted, if not, returns the same string it was passed.
  */
 
-const char *
-command2string __P((int command));
-/*
- * Returns a printable representation of the socks command "command".
- * Can't fail.
- */
-
-const char *
-protocol2string __P((int protocol));
-/*
- * Returns a printable representation of "protocol".
- * Can't fail.
- */
-
-
-
-const char *
-method2string __P((int method));
-/*
- * Returns a printable representation of the authmethod "method".
- * Can't fail.
- */
-
-int
-string2method __P((const char *methodname));
-/*
- * If "methodname" is the name of a supported method, the protocol
- * value of that method is returned.
- * Otherwise, -1 is returned.
- */
-
 
 unsigned char *
 sockshost2mem __P((const struct sockshost_t *host, unsigned char *mem,
-						 int version));
+                   int version));
 /*
  * Writes "host" out to "mem".  The caller must make sure "mem"
  * is big enough to hold the contents of "host".
@@ -1723,28 +1546,33 @@ sockshost2mem __P((const struct sockshost_t *host, unsigned char *mem,
 
 const unsigned char *
 mem2sockshost __P((struct sockshost_t *host, const unsigned char *mem,
-						 size_t len, int version));
+                   size_t len, int version));
 /*
  * Writes "mem", which is assumed to be a sockshost string
  * of version "version" in network order, out to "host".
  * Returns:
- *		On success: pointer to one element past last byte used of mem
- *						and fills in "host" appropriately.
- *		On failure: NULL ("mem" is not a valid sockshost.)
+ *      On success: pointer to one element past last byte used of mem
+ *                  and fills in "host" appropriately.
+ *      On failure: NULL ("mem" is not a valid sockshost.)
  */
 
 #ifdef STDC_HEADERS
-void slog(int priority, const char *message, ...);
+void slog(int priority, const char *fmt, ...)
 #else
-void slog();
+void slog()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 2, 3)));
 /*
- * Logs message "message" at priority "priority" to previously configured
+ * Logs message "fmt" at priority "priority" to previously configured
  * outputdevice.
  * Checks settings and ignores message if it's of to low a priority.
  */
 
-void vslog __P((int priority, const char *message, va_list ap));
+#ifdef STDC_HEADERS
+void vslog(int priority, const char *fmt, va_list ap);
+#else
+void vslog();
+#endif  /* STDC_HEADERS */
 /*
  * Same as slog() but assumes varargs/stdargs have already processed
  * the arguments.
@@ -1755,36 +1583,38 @@ readconfig __P((const char *filename));
 /*
  * Parses the config stored in in the filename "filename".
  * Returns:
- *		On success: 0.
- *		On failure: -1.
+ *      On success: 0.
+ *      On failure: -1.
  */
 
 #ifdef STDC_HEADERS
 void
-yywarn (const char *fmt, ...);
+yywarn (const char *fmt, ...)
 #else
 void
-yywarn();
+yywarn()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 1, 2)));
 /*
  * Report a error related to (configfile) parsing.
  */
 
 #ifdef STDC_HEADERS
 void
-yyerror (const char *fmt, ...);
+yyerror (const char *fmt, ...)
 #else
 void
-yyerror();
+yyerror()
 #endif  /* STDC_HEADERS */
+__attribute__ ((format (__printf__, 1, 2)));
 /*
  * Report a error related to (configfile) parsing and exit.
  */
 
 int
-addressmatch __P((const struct ruleaddress_t *rule,
-						const struct sockshost_t *address, int protocol,
-						int ipalias));
+addressmatch __P((const struct ruleaddr_t *rule,
+                  const struct sockshost_t *address, int protocol,
+                  int ipalias));
 /*
  * Tries to match "address" against "rule".  "address" is resolved
  * if necessary.  "address" supports the wildcard INADDR_ANY and port of 0.
@@ -1800,8 +1630,8 @@ hostentdup __P((const struct hostent *hostent));
 /*
  * Duplicates "hostent".
  * Returns:
- *		On success: a pointer to the duplicated hostent.
- *		On failure: NULL.
+ *      On success: a pointer to the duplicated hostent.
+ *      On failure: NULL.
  */
 
 void
@@ -1820,14 +1650,14 @@ socks_connect __P((int s, const struct sockshost_t *host));
  * the function also tries to connect to any alias for "host"'s
  * name.  The connection is done using the open descriptor "s".
  * Returns:
- *		On success: 0
- *		On failure: -1
+ *      On success: 0
+ *      On failure: -1
  */
 
 struct route_t *
 socks_connectroute __P((int s, struct socks_t *packet,
-								const struct sockshost_t *src,
-								const struct sockshost_t *dst));
+                        const struct sockshost_t *src,
+                        const struct sockshost_t *dst));
 /*
  * Finds a route from "src" to "dst" and connects to it "s".
  * If src or dst is NULL, that argument is ignored.
@@ -1841,21 +1671,21 @@ socks_connectroute __P((int s, struct socks_t *packet,
  * should be offered.
  *
  * Returns:
- *		On success: the route that was used.
- *		On failure: NULL.  If errno is 0, the reason for failure was
- *						that no route was found.
+ *      On success: the route that was used.
+ *      On failure: NULL.  See errno for reason.  Errno is not set 
+ *                if no proxy route should be used/was found.
  */
 
 
 struct request_t *
 socks_requestpolish __P((struct request_t *req, const struct sockshost_t *src,
-							   const struct sockshost_t *dst));
+                        const struct sockshost_t *dst));
 /*
  * Tries to "polish" the request "req" so that a later socks_getroute()
  * will succeed.
  * Returns:
- *		On success: "req".
- *		On failure: NULL.
+ *      On success: "req".
+ *      On failure: NULL.
  */
 
 void
@@ -1865,20 +1695,24 @@ showstate __P((const struct serverstate_t *state));
  */
 
 void
-showmethod __P((int methodc, const int *methodv));
+showmethod __P((size_t methodc, const int *methodv));
 /*
  * Shows "methodv".
-*/
+ */
 
 struct route_t *
-addroute __P((const struct route_t *route));
+socks_addroute __P((const struct route_t *route, const int last));
 /*
- * Appends a copy of "route" to our list of routes.
+ * Appends a copy of "route" to our list of routes.  
+ * If "last" is true, the route is added to the end of our list.
+ * If not, it's added to the start, and existing rulenumbers are updated
+ * correspondingly.
+ * 
  * Returns a pointer to the added route.
  */
 
 void
-showroute __P((const struct route_t *route));
+socks_showroute __P((const struct route_t *route));
 /*
  * prints the route "route".
  */
@@ -1886,7 +1720,7 @@ showroute __P((const struct route_t *route));
 
 struct route_t *
 socks_getroute __P((const struct request_t *req, const struct sockshost_t *src,
-						  const struct sockshost_t *dst));
+                    const struct sockshost_t *dst));
 /*
  * Tries to find a  route to be used for a connection going from
  * "src" to "dst".
@@ -1897,17 +1731,8 @@ socks_getroute __P((const struct request_t *req, const struct sockshost_t *src,
  * recommended that it's contents be as conservative as possible.
  *
  * Returns:
- *		On success: pointer to route that should be used.
- *		On failure: NULL (no socks route found).
- */
-
-const char *
-ruleaddress2string __P((const struct ruleaddress_t *rule, char *string,
-								size_t len));
-/*
- * Writes "rule" out as a string.  The string is written to "string",
- * which is of length "len", including NUL termination.
- * Returns: "string".
+ *      On success: pointer to route that should be used.
+ *      On failure: NULL (no route found).
  */
 
 
@@ -1924,27 +1749,13 @@ errno2reply __P((int errnum, int version));
  * Returns the socks version "version" reply code for a error of type "errno".
  */
 
-enum operator_t
-string2operator __P((const char *operator));
-/*
- * Returns the enum for the string representation of a operator.
- * Can't fail.
- */
-
-const char *
-operator2string __P((enum operator_t operator));
-/*
- * Returns the string representation of the operator.
- * Can't fail.
- */
-
 char *
 str2vis __P((const char *string, size_t len));
 /*
  * Visually encodes exactly "len" chars of "string".
  * Returns:
- *		On success: the visually encoded string, to be free()'ed by caller.
- *		On failure: NULL.  (out of memory).
+ *      On success: the visually encoded string, to be free()'ed by caller.
+ *      On failure: NULL.  (out of memory).
  */
 
 in_addr_t
@@ -1952,8 +1763,8 @@ socks_addfakeip __P((const char *name));
 /*
  * Adds "name" to a internal table indexed by (fake)IP addresses.
  * Returns:
- *		On success: "name"'s index.
- *		On failure:	INADDR_NONE
+ *      On success: "name"'s index.
+ *      On failure:   INADDR_NONE
  */
 
 const char *
@@ -1970,13 +1781,13 @@ socks_getfakeip __P((const char *host, struct in_addr *addr));
  * If "host" has a fake address entry, the address is written into
  * "addr".
  * Returns:
- *		If a fake address exits: 1
- *		Else: 0
+ *      If a fake address exits: 1
+ *      Else: 0
  */
 
 struct sockshost_t *
 fakesockaddr2sockshost __P((const struct sockaddr *addr,
-									 struct sockshost_t *host));
+                            struct sockshost_t *host));
 /*
  * Identical to sockaddr2sockshost, but checks whether
  * the address in "addr" is a "fake" one when converting.
@@ -1987,8 +1798,8 @@ sockaddrareeq __P((const struct sockaddr *a, const struct sockaddr *b));
 /*
  * Compares the address "a" against "b".
  * Returns:
- *		If "a" and "b" are equal: true
- *		else: false
+ *      If "a" and "b" are equal: true
+ *      else: false
  */
 
 int
@@ -1996,13 +1807,13 @@ sockshostareeq __P((const struct sockshost_t *a, const struct sockshost_t *b));
 /*
  * Compares the address "a" against "b".
  * Returns:
- *		If "a" and "b" are equal: true
- *		else: false
+ *      If "a" and "b" are equal: true
+ *      else: false
  */
 
 int
 fdsetop __P((int nfds, int op, const fd_set *a, const fd_set *b,
-				 fd_set *result));
+             fd_set *result));
 /*
  * Performs operation on descriptor sets.
  * "nfds" is the number of descriptors to perform "op" on in the sets
@@ -2013,7 +1824,7 @@ fdsetop __P((int nfds, int op, const fd_set *a, const fd_set *b,
  *
  * Returns the number of the highest descriptor set in "result".
  * NOTES:
- *		Operators supported is: AND ('&') and XOR ('^')
+ *      Operators supported is: AND ('&') and XOR ('^')
  */
 
 int
@@ -2029,8 +1840,8 @@ socketoptdup __P((int s));
  * Duplicates the settings of "s" and returns a new socket with the
  * same settings.
  * Returns:
- *		On success: the descriptor for the new socket
- *		On failure: -1
+ *      On success: the descriptor for the new socket
+ *      On failure: -1
  */
 
 int
@@ -2039,8 +1850,8 @@ socks_mklock __P((const char *template));
  * Creates a filedescriptor that can be used with socks_lock() and
  * socks_unlock().
  * Returns:
- *		On success: filedescriptor
- *		On failure: -1
+ *      On success: filedescriptor
+ *      On failure: -1
  */
 
 int
@@ -2049,11 +1860,11 @@ socks_lock __P((int fd, int type, int timeout));
  * Looks the filedescriptor "fd".
  * "type" is the type of lock; F_RDLCK or F_WRLCK.
  * "timeout" is how long to wait for lock, supported values:
- *		-1: forever.
- *		0 : don't wait.
+ *      -1: forever.
+ *      0 : don't wait.
  * Returns:
- *		On success: 0
- *		On error  : -1
+ *      On success: 0
+ *      On error  : -1
  */
 
 void
@@ -2062,10 +1873,24 @@ socks_unlock __P((int d));
  * Unlocks the filedescriptor "d", previously locked by this process.
  */
 
+int
+bitcount __P((unsigned long number));
+/*
+ * Returns the number of bits set in "number".
+ */
+
 #if SOCKSLIBRARY_DYNAMIC
 struct hostent *sys_gethostbyaddr __P((const char *addr, int len, int af));
 struct hostent *sys_gethostbyname __P((const char *));
 struct hostent *sys_gethostbyname2 __P((const char *, int));
+#if HAVE_GETADDRINFO
+int sys_getaddrinfo __P((const char *nodename, const char *servname,
+                      const struct addrinfo *hints, struct addrinfo **res));
+#endif /* HAVE_GETADDRINFO */
+#if HAVE_GETIPNODEBYNAME
+struct hostent *sys_getipnodebyname __P((const char *name, int af, int flags,
+                int *error_num));
+#endif /* HAVE_GETIPNODEBYNAME */
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
 #if defined(DEBUG) || HAVE_SOLARIS_BUGS
@@ -2109,10 +1934,12 @@ int vsnprintf __P((char *, size_t, const char *, va_list));
 
 #if !HAVE_SETPROCTITLE
 #ifdef STDC_HEADERS
-void setproctitle __P((const char *fmt, ...));
+void setproctitle __P((const char *fmt, ...))
+__attribute__ ((format (__printf__, 1, 2)));
 int initsetproctitle __P((int, char **, char **));
 #else
-void setproctitle();
+void setproctitle()
+__attribute__ ((format (__printf__, 1, 2)));
 int initsetproctitle __P((int, char **, char **));
 #endif  /* STDC_HEADERS */
 #endif  /* !HAVE_SETPROCTITLE */
@@ -2161,7 +1988,196 @@ socks_getpwnam __P((const char *login));
 /*
  * Like getpwnam() but works around sysv bug, tries to get the shadow
  * password too.
-*/
+ */
+
+int
+msproxy_negotiate __P((int s, int control, struct socks_t *packet));
+/*
+ * Negotiates with the msproxy server connected to "control".
+ * "s" gives the socket to be used for dataflow.
+ * "packet" contains the request and on return from the function
+ * contains the response.
+ * Returns:
+ *      On success: 0 (server replied to our request).
+ *      On failure: -1
+ */
+
+
+int
+send_msprequest __P((int s, struct msproxy_state_t *state,
+                    struct msproxy_request_t *packet));
+/*
+ * Sends a msproxy request to "s".
+ * "state" is the current state of the connection to "s",
+ * "packet" is the request to send.
+ */
+
+int
+recv_mspresponse __P((int s, struct msproxy_state_t *state,
+                    struct msproxy_response_t *packet));
+/*
+ * Receives a msproxy response from "s".
+ * "state" is the current state of the connection to "s",
+ * "packet" is the memory the response is read into.
+ */
+
+int
+msproxy_sigio __P((int s));
+/*
+ * Must be called on sockets where we expect the connection to be forwarded
+ * by the msproxy server.
+ * "s" is the socket and must have been added with socks_addaddr() beforehand.
+ * Returns:
+ *      On success: 0
+ *      On failure: -1
+ */
+
+int
+msproxy_init __P((void));
+/*
+ * inits things for using a msproxyserver.
+ *      On success: 0
+ *      On failure: -1
+ */
+
+int
+httpproxy_negotiate __P((int control, struct socks_t *packet));
+/*
+ * Negotiates a session to be used with the server connected to "control".
+ * "packet" is the packet with information about what we want the
+ * server to do for us.
+ * packet->res.reply will be set according to the result of negotiation.
+ * Returns:
+ *      On success: 0 (server accepted our request).
+ *      On failure: -1.
+ */
+
+int
+upnp_negotiate __P((const int s, struct socks_t *packet,
+                    const proxystate_t *state));
+/*
+ * Negotiates a session to be used with the upnp server.
+ * If the request is for a i/o operation, socket is the socket to be used
+ * for performing the i/o.
+ *
+ * "packet" is the packet with information about what we want the
+ * server to do for us.  
+ *
+ * "state" is the previously established upnp state to be used with
+ * the upnp device.
+ *
+ * packet->res.reply will be set according to the result of negotiation.
+ *
+ * Returns:
+ *      On success: 0 (server accepted our request).
+ *      On failure: -1.
+ */
+
+
+
+int
+socks_negotiate __P((int s, int control, struct socks_t *packet,
+                     struct route_t *route));
+/*
+ * "s" is the socket data will flow over.
+ * "control" is the control connection to the socks server.
+ * "packet" is a socks packet containing the request.
+ *   "route" is the connected route.
+ * Negotiates method and fills the response to the request into packet->res.
+ * Returns:
+ *      On success: 0 (server replied to our request).
+ *      On failure: -1.
+ */
+
+int
+serverreplyisok __P((int version, int reply, struct route_t *route));
+/*
+ * "replycode" is the reply code returned by a socksserver of version
+ * "version".
+ * "route" is the route that was used for the socksserver.  
+ * If the errorcode indicates a serverfailure, it might be "badrouted".
+ * Returns true if the reply indicates request succeeded, false otherwise
+ * and sets errno accordingly.
+ */
+
+
+struct route_t *
+socks_nbconnectroute __P((int s, int control, struct socks_t *packet,
+                          const struct sockshost_t *src,
+                          const struct sockshost_t *dst));
+/*
+ * The non-blocking version of socks_connectroute(), only used by client.
+ * Takes one additional argument, "s", which is the socket to connect
+ * and not necessarily the same as "control" (msproxy case).
+ */
+
+void
+socks_badroute __P((struct route_t *route));
+/*
+ * Marks route "route" as bad.
+ */
+
+int
+negotiate_method __P((int s, struct socks_t *packet));
+/*
+ * Negotiates a method to be used when talking with the server connected
+ * to "s".  "packet" is the packet that will later be sent to server,
+ * only the "auth" element in it will be set but other elements are needed
+ * too.
+ * Returns:
+ *      On success: 0
+ *      On failure: -1
+ */
+
+
+int
+clientmethod_uname __P((int s, const struct sockshost_t *host, int version,
+                        unsigned char *name, unsigned char *password));
+/*
+ * Enters username/password negotiation with the socksserver connected to
+ * the socket "s".
+ * "host" gives the name of the server.
+ * "version" gives the socksversion established to use.
+ * "name", if not NULL, gives the name to use for authenticating.
+ * "password", if not NULL, gives the name to use for authenticating.
+ * Returns:
+ *      On success: 0
+ *      On failure: whatever the remote socksserver returned as status.
+ */
+
+
+
+void
+checkmodule __P((const char *name));
+/*
+ * Checks that the system has the module "name" and permission to use it.
+ * Aborts with a errormessage if not.
+ */
+
+int socks_yyparse __P((void));
+int socks_yylex __P((void));
+
+int
+socks_sendrequest __P((int s, const struct request_t *request));
+/*
+ * Sends the request "request" to the socksserver connected to "s".
+ * Returns:
+ *      On success: 0
+ *      On failure: -1
+ */
+
+int
+socks_recvresponse __P((int s, struct response_t *response, int version));
+/*
+ * Receives a socks response from the "s".  "response" is filled in with
+ * the data received.
+ * "version" is the protocolversion negotiated.
+ * Returns:
+ *      On success: 0
+ *      On failure: -1
+ */
+
+
 
 __END_DECLS
 
@@ -2178,3 +2194,5 @@ __END_DECLS
 #include "sockd.h"
 #endif  /* SOCKS_CLIENT */
 #endif  /* SOCKS_CLIENT || SOCKS_SERVER */
+
+#include "tostring.h"

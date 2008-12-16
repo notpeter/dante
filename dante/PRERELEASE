@@ -1,0 +1,66 @@
+@(#)$Id: PRERELEASE,v 1.244 2008/12/14 21:40:04 karls Exp $
+
+*
+* This is a prerelease.  Do not use this to upgrade from a previous
+* release of Dante unless you want to help testing. 
+*
+
+o New version of the BSD version of "external.rotation = route"
+  from Christoph Badura <bad@bsd.de>.
+
+o Support for interfacenames in sockd rules, and in the destination
+  address for socks routes.  
+  Should make it easier to set up direct routes for local lan in
+  the client (specify all local interfacename in route statements),
+  and block connections to e.g. loopback addresses (specify the the
+  loopback interfacename in a block rule) in the server.
+
+o UPnP support in the client, using the miniupnp library by
+  Thomas Bernard (http://miniupnp.free.fr/).
+
+  UPnP is a protocol implemented by many home/small-business routers
+  and adsl-modems.  It allows you to dynamically open up ports on
+  the router for accepting incoming connections, as well as figuring
+  out what the external ipaddress of the router is.
+
+  Dante uses this to make socksify of ftp/bittorent/etc programs
+  work via the UPnP router.
+
+o Client libarary should be threadsafe now, allowing it to socksify
+  threaded applications.
+
+o Be less strict about bind in the client.  The standards says 
+  it is expected that the client first performs a connect via
+  the socks server, but it seems some/many socks servers support
+  the client requesting a bind without a previous connect, so we 
+  assume that is the case in the client from now on.
+
+o Changed the magic bytes that indicate the client is requesing
+  use of the Dante-spesfic bind extension from 0x00000000 to
+  0xffffffff, as part of the process to become less strict about
+  the bind command requiring a previous connection.
+
+o Don't zero password in client if we read it from environment, or 
+  it will not work the next time the same clientprocess tries to
+  authenticate to the server.  Found by Pavel Fedin <fedin@matek.ru>.
+
+  That mailaddress no longer works.  Please contact us if you have
+  another address for Mr. Fedin.
+
+o Fix bug that could prevent password authentication from working
+  on some systems.  Spotted by Nathan Johnson <n.johnson@vanderbilt.edu>.
+
+o Add support for "group:" syntax to rules, similar to "user:" statement.
+  Requested by Don Harvie <donharvi@au1.ibm.com>
+
+o Close connection to PAM server each time we get an error-reply from
+  it, fixing a bug.
+  Patch from Robert Marcano <robert@marcanoonline.com>.
+
+o Incorrect assert fixed. Problem reported by
+  "d binderman" <dcb314@hotmail.com>.
+
+o Log close of client-rule with correct command.
+  Fixes bug reported by Tom Vandenbelt <tvandenb@au1.ibm.com>.
+
+o Update to autoconf 2.61 and libtool 1.5.26.

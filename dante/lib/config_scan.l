@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -48,18 +48,23 @@
 #include "yacconfig.h"
 #include "config_parse.h"
 
-extern int parseinit;
-extern const int configtype;
+extern int socks_parseinit;
+extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.58 2001/02/06 15:58:53 michaels Exp $";
+"$Id: config_scan.l,v 1.79 2008/07/24 12:40:21 michaels Exp $";
+
+#define YY_STACK_USED 0
+#define YY_ALWAYS_INTERACTIVE 0
+#define YY_NEVER_INTERACTIVE 1
+#define YY_MAIN 0
 
 %}
 
 
 %option yylineno
 %option noyywrap
-/*%option debug            */
+/*%option debug             */
 
 PORTNUMBER [0-9]{1,5}
 
@@ -74,13 +79,16 @@ PORTNUMBER [0-9]{1,5}
 %x start_line
 %x start_log
 %x start_logoutput
+%x start_method
 %x start_operator
 %x start_option
 %x start_proxyprotocol
 %x start_username
+%x start_groupname
 %x start_portnumber
 %x start_srchost
 %x start_protocol
+%x start_servicename
 %%
 
 
@@ -91,10 +99,10 @@ PORTNUMBER [0-9]{1,5}
 
 
 %{
-	if (!parseinit) {
-		parseinit = 1;
+	if (!socks_parseinit) {
+		socks_parseinit = 1;
 
-		switch (configtype) {
+		switch (socks_configtype) {
 			case CONFIGTYPE_SERVER:
 				return SERVERCONFIG;
 
@@ -102,7 +110,7 @@ PORTNUMBER [0-9]{1,5}
 				return CLIENTCONFIG;
 
 			default:
-				SERRX(configtype);
+				SERRX(socks_configtype);
 		}
 	}
 %}
@@ -122,13 +130,19 @@ PORTNUMBER [0-9]{1,5}
 
 <start_proxyprotocol>msproxy_v2 {
 	yylval.string = yytext;
-	return PROXYPROTOCOL_MSPROXY_V2;
+	return DEPRECATED;
 }
 
 <start_proxyprotocol>http_v1.0 {
 	yylval.string = yytext;
 	return PROXYPROTOCOL_HTTP_V1_0;
 }
+
+<start_proxyprotocol>upnp {
+	yylval.string = yytext;
+	return PROXYPROTOCOL_UPNP;
+}
+
 
 <start_command>bind {
 	yylval.string = yytext;
@@ -155,11 +169,16 @@ PORTNUMBER [0-9]{1,5}
 	return COMMAND_UDPREPLY;
 }
 
-
 <start_address>direct {
 	yylval.string = yytext;
 	return DIRECT;
 }
+
+<start_address>(http|ftp)\:\/\/.* {
+	yylval.string = yytext;
+	return URL;
+}
+
 
 
 <start_port>port {
@@ -202,7 +221,7 @@ PORTNUMBER [0-9]{1,5}
 	return LOG_IOOPERATION;
 }
 
-<start_portnumber>[a-zA-Z]+[^: /\t\n]* {
+<start_portnumber,start_servicename>[a-zA-Z]+[^: /\t\n]* {
 	BEGIN(INITIAL);
 
 	yylval.string = yytext;
@@ -227,10 +246,10 @@ PORTNUMBER [0-9]{1,5}
 	BEGIN(start_port);
 
 	yylval.string = yytext;
-	return DOMAIN;
+	return DOMAINNAME;
 }
 
-<start_address>[a-zA-Z]+[0-9]+ {
+<start_address>[a-zA-Z]+[0-9:]* {
 	BEGIN(start_port);
 
 	yylval.string = yytext;
@@ -245,6 +264,11 @@ PORTNUMBER [0-9]{1,5}
 <start_username>[^: \t\n]+ {
 	yylval.string = yytext;
 	return USERNAME;
+}
+
+<start_groupname>[^: \t\n]+ {
+	yylval.string = yytext;
+	return GROUPNAME;
 }
 
 <lineprefix>: {
@@ -341,6 +365,20 @@ command {
 	return COMMAND;
 }
 
+redirect {
+	yylval.string = yytext;
+	return REDIRECT;
+}
+
+bandwidth {
+	yylval.string = yytext;
+	return BANDWIDTH;
+}
+
+maxsessions {
+	yylval.string = yytext;
+	return MAXSESSIONS;
+}
 
 from {
 	BEGIN(start_address);
@@ -371,6 +409,22 @@ internal {
 	return INTERNAL;
 }
 
+external.rotation {
+	yylval.string = yytext;
+	return EXTERNAL_ROTATION;
+}
+
+route {
+	yylval.string = yytext;
+	return ROUTE;
+}
+
+none {
+	yylval.string = yytext;
+	return NONE;
+}
+
+
 external {
 	BEGIN(start_address);
 
@@ -378,10 +432,25 @@ external {
 	return EXTERNAL;
 }
 
+child\.maxidle {
+	yylval.string = yytext;
+	return CHILD_MAXIDLE;
+}
+
 user {
 	BEGIN(start_username);
+
+	yylval.string = yytext;
 	return USER;
 }
+
+group {
+	BEGIN(start_groupname);
+
+	yylval.string = yytext;
+	return GROUP;
+}
+
 
 user\.privileged {
 	BEGIN(start_username);
@@ -449,29 +518,44 @@ client {
 
 
 method {
+	BEGIN(start_method);
+
 	yylval.string = yytext;
 	return METHOD;
 }
 
-none {
+clientmethod {
+	BEGIN(start_method);
+
+	yylval.string = yytext;
+	return CLIENTMETHOD;
+}
+
+<start_method>none {
 	yylval.string = yytext;
 	return NONE;
 }
 
-gssapi {
+<start_method>gssapi {
 	yylval.string = yytext;
 	return GSSAPI;
 }
 
-username {
+<start_method>username {
 	yylval.string = yytext;
 	return UNAME;
 }
 
-rfc931 {
+<start_method>rfc931 {
 	yylval.string = yytext;
 	return RFC931;
 }
+
+<start_method>pam {
+	yylval.string = yytext;
+	return PAM;
+}
+
 
 	/* filterrules */
 
@@ -509,6 +593,14 @@ libwrap {
 	yylval.string = yytext;
 	return LIBWRAPSTART;
 }
+
+pam\.servicename|pamservicename {
+	BEGIN(start_servicename);
+
+	yylval.string = yytext;
+	return PAMSERVICENAME;
+}
+
 
  /*
   * Old keywords that are no longer used.

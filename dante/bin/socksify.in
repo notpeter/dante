@@ -1,6 +1,6 @@
 #!/bin/sh -
 #
-# Copyright (c) 1997, 1998
+# Copyright (c) 1997, 1998, 2001
 #      Inferno Nettverk A/S, Norway.  All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,7 @@
 # any improvements or extensions that they make and grant Inferno Nettverk A/S
 # the rights to redistribute these changes.
 #
-# $Id: socksify.in,v 1.21 2001/02/06 15:58:13 michaels Exp $
+# $Id: socksify.in,v 1.25 2008/12/07 12:23:06 karls Exp $
 
 #On systems where a supported preloading mechanism is used, you can
 #do "socksify <program>" and <program> will use socks without having
@@ -51,8 +51,8 @@ SOCKSIFY_PRELOAD_LIBS="@SOCKSIFY_PRELOAD_LIBS@"
 
 LIBDIR="@LIBRARY_PREFIX@"
 
-#XXX shared library name should be generated too (possibly including version)
-LIBRARY="${SOCKS_LIBRARY-${LIBDIR}/libdsocks.so}"
+#dlib/Makefile.am libtool flags should produce a predictable library name
+LIBRARY="${SOCKS_LIBRARY-${LIBDIR}/libdsocks.@SOLIB_POSTFIX@}"
 
 PRELOAD_SEPERATOR="@PRELOAD_SEPERATOR@"
 PRELOAD_POSTFIX="@PRELOAD_POSTFIX@"

@@ -1,4 +1,4 @@
-/* $Id: memmove.c,v 1.3 1999/05/13 16:35:57 karls Exp $ */
+/* $Id: memmove.c,v 1.4 2008/07/25 08:49:05 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -26,8 +26,8 @@
  *    documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
  *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
+ *   This product includes software developed by the University of
+ *   California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -57,10 +57,10 @@ static char *rcsid = "$OpenBSD: bcopy.c,v 1.2 1996/08/19 08:33:58 tholo Exp $";
  * sizeof(word) MUST BE A POWER OF TWO
  * SO THAT wmask BELOW IS ALL ONES
  */
-typedef	long word;		/* "word" used for optimal copy speed */
+typedef   long word;      /* "word" used for optimal copy speed */
 
-#define	wsize	sizeof(word)
-#define	wmask	(wsize - 1)
+#define   wsize   sizeof(word)
+#define   wmask   (wsize - 1)
 
 /*
  * Copy a block of memory, handling overlap.
@@ -79,74 +79,74 @@ void
 bcopy(src0, dst0, length)
 #endif
 #endif
-	void *dst0;
-	const void *src0;
-	register size_t length;
+   void *dst0;
+   const void *src0;
+   register size_t length;
 {
-	register char *dst = dst0;
-	register const char *src = src0;
-	register size_t t;
+   register char *dst = dst0;
+   register const char *src = src0;
+   register size_t t;
 
-	if (length == 0 || dst == src)		/* nothing to do */
-		goto done;
+   if (length == 0 || dst == src)      /* nothing to do */
+      goto done;
 
-	/*
-	 * Macros: loop-t-times; and loop-t-times, t>0
-	 */
-#define	TLOOP(s) if (t) TLOOP1(s)
-#define	TLOOP1(s) do { s; } while (--t)
+   /*
+    * Macros: loop-t-times; and loop-t-times, t>0
+    */
+#define   TLOOP(s) if (t) TLOOP1(s)
+#define   TLOOP1(s) do { s; } while (--t)
 
-	if ((unsigned long)dst < (unsigned long)src) {
-		/*
-		 * Copy forward.
-		 */
-		t = (long)src;	/* only need low bits */
-		if ((t | (long)dst) & wmask) {
-			/*
-			 * Try to align operands.  This cannot be done
-			 * unless the low bits match.
-			 */
-			if ((t ^ (long)dst) & wmask || length < wsize)
-				t = length;
-			else
-				t = wsize - (t & wmask);
-			length -= t;
-			TLOOP1(*dst++ = *src++);
-		}
-		/*
-		 * Copy whole words, then mop up any trailing bytes.
-		 */
-		t = length / wsize;
-		TLOOP(*(word *)dst = *(word *)src; src += wsize; dst += wsize);
-		t = length & wmask;
-		TLOOP(*dst++ = *src++);
-	} else {
-		/*
-		 * Copy backwards.  Otherwise essentially the same.
-		 * Alignment works as before, except that it takes
-		 * (t&wmask) bytes to align, not wsize-(t&wmask).
-		 */
-		src += length;
-		dst += length;
-		t = (long)src;
-		if ((t | (long)dst) & wmask) {
-			if ((t ^ (long)dst) & wmask || length <= wsize)
-				t = length;
-			else
-				t &= wmask;
-			length -= t;
-			TLOOP1(*--dst = *--src);
-		}
-		t = length / wsize;
-		TLOOP(src -= wsize; dst -= wsize; *(word *)dst = *(word *)src);
-		t = length & wmask;
-		TLOOP(*--dst = *--src);
-	}
+   if ((unsigned long)dst < (unsigned long)src) {
+      /*
+       * Copy forward.
+       */
+      t = (long)src;   /* only need low bits */
+      if ((t | (long)dst) & wmask) {
+         /*
+          * Try to align operands.  This cannot be done
+          * unless the low bits match.
+          */
+         if ((t ^ (long)dst) & wmask || length < wsize)
+            t = length;
+         else
+            t = wsize - (t & wmask);
+         length -= t;
+         TLOOP1(*dst++ = *src++);
+      }
+      /*
+       * Copy whole words, then mop up any trailing bytes.
+       */
+      t = length / wsize;
+      TLOOP(*(word *)dst = *(word *)src; src += wsize; dst += wsize);
+      t = length & wmask;
+      TLOOP(*dst++ = *src++);
+   } else {
+      /*
+       * Copy backwards.  Otherwise essentially the same.
+       * Alignment works as before, except that it takes
+       * (t&wmask) bytes to align, not wsize-(t&wmask).
+       */
+      src += length;
+      dst += length;
+      t = (long)src;
+      if ((t | (long)dst) & wmask) {
+         if ((t ^ (long)dst) & wmask || length <= wsize)
+            t = length;
+         else
+            t &= wmask;
+         length -= t;
+         TLOOP1(*--dst = *--src);
+      }
+      t = length / wsize;
+      TLOOP(src -= wsize; dst -= wsize; *(word *)dst = *(word *)src);
+      t = length & wmask;
+      TLOOP(*--dst = *--src);
+   }
 done:
 #if defined(MEMCOPY) || defined(MEMMOVE)
-	return (dst0);
+   return (dst0);
 #else
-	return;
+   return;
 #endif
 }
 #undef MEMMOVE
@@ -154,6 +154,6 @@ done:
 static void avoid_error __P((void));
 static void avoid_error()
 {
-	avoid_error();
+   avoid_error();
 }
 #endif /* !HAVE_MEMMOVE */

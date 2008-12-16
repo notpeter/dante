@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,243 +44,242 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.70 2001/02/06 15:58:45 michaels Exp $";
+"$Id: Raccept.c,v 1.86 2008/07/25 08:48:53 michaels Exp $";
 
 int
 Raccept(s, addr, addrlen)
-	int s;
-	struct sockaddr *addr;
-	socklen_t *addrlen;
+   int s;
+   struct sockaddr *addr;
+   socklen_t *addrlen;
 {
-	const char *function = "Raccept()";
-	char addrstring[MAXSOCKADDRSTRING];
-	struct sockaddr accepted;
-	struct socks_t packet;
-	struct socksfd_t *socksfd;
-	fd_set rset;
-	int fdbits, p, iotype, remote;
+   const char *function = "Raccept()";
+   struct socksfd_t socksfd;
+   char addrstring[MAXSOCKADDRSTRING];
+   struct sockaddr accepted;
+   struct socks_t packet;
+   fd_set rset;
+   int fdbits, p, iotype, remote;
 
-	/* can't call Raccept() on unknown descriptors. */
-	if (!socks_addrisok((unsigned int)s)) {
-		socks_rmaddr((unsigned int)s);
-		return accept(s, addr, addrlen);
-	}
+   clientinit();
 
-	socksfd = socks_getaddr((unsigned int)s);
-	SASSERTX(socksfd != NULL);
+   slog(LOG_DEBUG, "%s, s = %d", function, s);
 
-	bzero(&packet, sizeof(packet));
-	packet.version = (unsigned char)socksfd->state.version;
+   /* can't call Raccept() on unknown descriptors. */
+   if (!socks_addrisok((unsigned int)s, 0)) {
+      socks_rmaddr((unsigned int)s, 0);
+      return accept(s, addr, addrlen);
+   }
 
-	if ((iotype = fcntl(s, F_GETFL, 0)) == -1)
-		return -1;
+   socksfd = *socks_getaddr((unsigned int)s, 0);
 
-#if SOCKS_TRYHARDER
-	/*
-	 * Perhaps overkill, but try to be as compatible as possible.
-	 * BSD supports multiple process' calling accept(2) on
-	 * the same descriptor, try to support that functionality by locking
-	 * the socksfd object ourself in this function, so another process
-	 * calling Raccept() on this object will fail.
-	 */
+   bzero(&packet, sizeof(packet));
+   packet.version       = (unsigned char)socksfd.state.version;
+   packet.auth.method   = AUTHMETHOD_NOTSET;
 
-	if (iotype & NONBLOCKING)
-		p = socks_lock(socksfd->state.lock, F_WRLCK, 0);
-	else
-		p = socks_lock(socksfd->state.lock, F_WRLCK, -1);
+   if ((iotype = fcntl(s, F_GETFL, 0)) == -1)
+      return -1;
 
-	if (p != 0)
-		return -1;
-#endif /* SOCKS_TRYHARDER */
+   FD_ZERO(&rset);
+   fdbits = -1;
 
-	FD_ZERO(&rset);
-	fdbits = -1;
+   /* check socket we listen on because we support ordinary connects. */
+   FD_SET(s, &rset);
+   fdbits = MAX(fdbits, s);
 
-	/* check socket we listen on because we support ordinary connects. */
-	FD_SET(s, &rset);
-	fdbits = MAX(fdbits, s);
+   switch (packet.version) {
+      case PROXY_SOCKS_V4:
+      case PROXY_SOCKS_V5:
+         /* connection to server, for forwarded connections or errors. */
+         FD_SET(socksfd.control, &rset);
+         fdbits = MAX(fdbits, socksfd.control);
+         break;
 
-	switch (packet.version) {
-		case SOCKS_V4:
-		case SOCKS_V5:
-			/* connection to server, for forwarded connections or errors. */
-			FD_SET(socksfd->control, &rset);
-			fdbits = MAX(fdbits, socksfd->control);
-			break;
+      case PROXY_MSPROXY_V2:
+         break;   /* controlconnection checked asynchronously. */
 
-		case MSPROXY_V2:
-			break;	/* controlconnection checked asynchronously. */
+      case PROXY_UPNP:
+         return accept(s, addr, addrlen); /* ordinary accept(2). */
+         
+      default:
+         SERRX(packet.version);
+   }
 
-		default:
-			SERRX(packet.version);
-	}
+   SASSERTX(fdbits >= 0);
 
-	SASSERTX(fdbits >= 0);
+   ++fdbits;
 
-	++fdbits;
+   if (iotype & NONBLOCKING) {
+      struct timeval timeout;
 
-	if (iotype & NONBLOCKING) {
-		struct timeval timeout;
+      timeout.tv_sec      = 0;
+      timeout.tv_usec   = 0;
 
-		timeout.tv_sec		= 0;
-		timeout.tv_usec	= 0;
+      if ((p = selectn(fdbits, &rset, NULL, NULL, &timeout)) == 0) {
+         errno = EWOULDBLOCK;
+         p = -1;
+      }
+   }
+   else
+      p = selectn(fdbits, &rset, NULL, NULL, NULL);
 
-		if ((p = selectn(fdbits, &rset, NULL, NULL, &timeout)) == 0) {
-			errno = EWOULDBLOCK;
-			p = -1;
-		}
-	}
-	else
-		p = selectn(fdbits, &rset, NULL, NULL, NULL);
+   if (p == -1)
+      return -1;
 
-	if (p == -1) {
-#if SOCKS_TRYHARDER
-		socks_unlock(socksfd->state.lock);
-#endif /* SOCKS_TRYHARDER */
-		return -1;
-	}
+   SASSERTX(p > 0);
 
-	SASSERTX(p > 0);
+   if (FD_ISSET(socksfd.control, &rset)) { /* check this first.  */
+      /* pending connection on controlchannel, server wants to forward addr. */
+      SASSERTX(FD_ISSET(socksfd.control, &rset));
 
-	if (FD_ISSET(s, &rset)) { /* pending connection on datasocket. */
-		socklen_t len;
+      switch (packet.version) {
+         case PROXY_SOCKS_V4:
+         case PROXY_SOCKS_V5:
 
-		len = sizeof(accepted);
-		if ((remote = accept(s, &accepted, &len)) == -1) {
-#if SOCKS_TRYHARDER
-			socks_unlock(socksfd->state.lock);
-#endif /* SOCKS_TRYHARDER */
-			return -1;
-		}
+            if (socks_recvresponse(socksfd.control, &packet.res,
+            packet.version) != 0)
+               return -1;
 
-		slog(LOG_DEBUG, "%s: accepted: %s",
-		function, sockaddr2string(&accepted, addrstring, sizeof(addrstring)));
+            fakesockshost2sockaddr(&packet.res.host, &accepted);
 
-		if (socksfd->state.acceptpending) {
-			/*
-			 * connection forwarded by server or a ordinary connect?
-			 */
+            socks_addrlock(F_WRLCK);
 
-			/* LINTED pointer casts may be troublesome */
-			if (((struct sockaddr_in *)&accepted)->sin_addr.s_addr
-			==  ((struct sockaddr_in *)&socksfd->reply)->sin_addr.s_addr) {
-				/* matches servers IP address, could be forwarded. */
-				int forwarded;
+            socksfd = *socks_getaddr((unsigned int)s, 1);
+            socksfd.forus.accepted = accepted;
+            socks_addaddr((unsigned int)s, &socksfd, 1);
 
-				switch (socksfd->state.version) {
-					case SOCKS_V4:
-					case SOCKS_V5:
-						packet.req.version	= (char)socksfd->state.version;
-						packet.req.command	= SOCKS_BIND;
-						packet.req.flag		= 0;
-						sockaddr2sockshost(&accepted, &packet.req.host);
-						packet.req.auth		= &socksfd->state.auth;
+            socks_addrunlock();
 
-						if (socks_sendrequest(socksfd->control, &packet.req) != 0)
-							return -1;
+            remote = dup(socksfd.control);
+            break;
 
-						if (socks_recvresponse(socksfd->control, &packet.res,
-						packet.req.version) != 0) {
-#if SOCKS_TRYHARDER
-							socks_unlock(socksfd->state.lock);
-#endif
-							return -1;
-						}
+         case PROXY_MSPROXY_V2:
+            SERRX(0); /* should not be checked, so not checked either. */
+            break;
 
-						if (packet.res.host.atype != SOCKS_ADDR_IPV4) {
-							swarnx("%s: unexpected atype in bindquery response: %d",
-							function, packet.res.host.atype);
-#if SOCKS_TRYHARDER
-							socks_unlock(socksfd->state.lock);
-#endif
-							return -1;
-						}
+         default:
+            SERRX(packet.version);
+      }
+   }
+   else { /* pending connection on datasocket. */
+      socklen_t len;
 
-						if (packet.res.host.addr.ipv4.s_addr == htonl(0))
-							forwarded = 0;
-						else
-							forwarded = 1;
-						break;
+      len = sizeof(accepted);
+      if ((remote = accept(s, &accepted, &len)) == -1)
+         return -1;
 
-					case MSPROXY_V2:
-						if (sockaddrareeq(&socksfd->reply, &accepted)) {
-							/* socksfd->accepted filled in by sigio(). */
-							accepted = socksfd->accepted;
-							sockaddr2sockshost(&socksfd->accepted, &packet.res.host);
+      slog(LOG_DEBUG, "%s: accepted: %s",
+      function, sockaddr2string(&accepted, addrstring, sizeof(addrstring)));
 
-							/* seems to support only one forward. */
-							socksfd->state.acceptpending = 0;
-							forwarded = 1;
-						}
-						else
-							forwarded = 0;
-						break;
+      if (socksfd.state.acceptpending) {
+         /*
+          * connection forwarded by server or a ordinary connect?
+          */
 
-					default:
-						SERRX(socksfd->state.version);
-				}
+         /* LINTED pointer casts may be troublesome */
+         if (TOIN(&accepted)->sin_addr.s_addr
+         ==  TOIN(&socksfd.reply)->sin_addr.s_addr) {
+            /* matches servers IP address, could be forwarded. */
+            int forwarded;
 
-				if (forwarded) {
-					/* a separate socket with it's own remote address. */
-					socksfd = socks_addaddr((unsigned int)remote, socksfd);
+            switch (socksfd.state.version) {
+               case PROXY_SOCKS_V4:
+               case PROXY_SOCKS_V5: {
+                  struct authmethod_t auth = socksfd.state.auth;
 
-					fakesockshost2sockaddr(&packet.res.host, &accepted);
-					socksfd->accepted = accepted;
+                  packet.req.version   = (char)socksfd.state.version;
+                  packet.req.command   = SOCKS_BIND;
+                  packet.req.flag      = 0;
+                  sockaddr2sockshost(&accepted, &packet.req.host);
+                  packet.req.auth      = &auth;
 
-					/* has a different local address if INADDR_ANY was bound. */
+                  if (socks_sendrequest(socksfd.control, &packet.req) != 0) {
+                     close(remote);
+                     return -1;
+                  }
 
-					/* LINTED pointer casts may be troublesome */
-					if (((struct sockaddr_in *)&socksfd->local)->sin_addr.s_addr
-					== htonl(INADDR_ANY)) {
-						len = sizeof(socksfd->local);
-						if (getsockname(remote, &socksfd->local, &len) != 0)
-							swarn("%s: getsockname(remote)", function);
-					}
+                  if (socks_recvresponse(socksfd.control, &packet.res,
+                  packet.req.version) != 0) {
+                     close(remote);
+                     return -1;
+                  }
 
-				}
-				/* else; ordinary connect. */
-			}
-		}
-		/* else; not bind extension, must be a ordinary connect. */
-	}
-	else { /* pending connection on controlchannel, server wants to forward. */
+                  if (packet.res.host.atype != SOCKS_ADDR_IPV4) {
+                     swarnx("%s: unexpected atype in bindquery response: %d",
+                     function, packet.res.host.atype);
+                     close(remote);
+                     errno = ECONNABORTED;
+                     return -1;
+                  }
 
-		SASSERTX(FD_ISSET(socksfd->control, &rset));
+                  if (packet.res.host.addr.ipv4.s_addr == htonl(0))
+                     forwarded = 0;
+                  else
+                     forwarded = 1;
+                  break;
+               }
 
-		switch (packet.version) {
-			case SOCKS_V4:
-			case SOCKS_V5:
+               case PROXY_MSPROXY_V2:
+                  if (sockaddrareeq(&socksfd.reply, &accepted)) {
+                     /* socksfd.forus.accepted filled in by sigio(). */
+                     accepted = socksfd.forus.accepted;
+                     sockaddr2sockshost(&socksfd.forus.accepted,
+                     &packet.res.host);
 
-				if (socks_recvresponse(socksfd->control, &packet.res,
-				packet.version) != 0) {
-#if SOCKS_TRYHARDER
-					socks_unlock(socksfd->state.lock);
-#endif
-					return -1;
-				}
+                     socks_addrlock(F_WRLCK);
 
-				fakesockshost2sockaddr(&packet.res.host, &accepted);
-				socksfd->accepted = accepted;
-				remote = socksfd->control;
-				break;
+                     socksfd = *socks_getaddr((unsigned int)s, 1);
+                     /* seems to support only one forward. */
+                     socksfd.state.acceptpending = 0;
+                     socks_addaddr((unsigned int)s, &socksfd, 1);
 
-			case MSPROXY_V2:
-				SERRX(0); /* should not be checked, so not checked either. */
-				break;
+                     socks_addrunlock();
 
-			default:
-				SERRX(packet.version);
-		}
-	}
+                     forwarded = 1;
+                  }
+                  else
+                     forwarded = 0;
+                  break;
 
-#if SOCKS_TRYHARDER
-	socks_unlock(socksfd->state.lock);
-#endif
+               default:
+                  SERRX(socksfd.state.version);
+            }
 
-	if (addr != NULL) {
-		*addrlen = MIN(*addrlen, sizeof(accepted));
-		memcpy(addr, &accepted, (size_t)*addrlen);
-	}
+            if (forwarded) {
 
-	return remote;
+               socks_addrlock(F_WRLCK);
+
+               /* a separate socket with it's own remote address. */
+               socks_addaddr((unsigned int)remote, &socksfd, 1);
+
+               fakesockshost2sockaddr(&packet.res.host, &accepted);
+
+               socksfd.forus.accepted = accepted;
+               socks_addaddr((unsigned int)s, &socksfd, 1);
+
+               /* has a different local address if INADDR_ANY was bound. */
+               /* LINTED pointer casts may be troublesome */
+               if (TOIN(&socksfd.local)->sin_addr.s_addr
+               == htonl(INADDR_ANY)) {
+                  len = sizeof(socksfd.local);
+                  if (getsockname(remote, &socksfd.local, &len) != 0)
+                     swarn("%s: getsockname(remote)", function);
+
+                  socks_addaddr((unsigned int)s, &socksfd, 1);
+
+                  socks_addrunlock();
+
+               }
+            }
+            /* else; ordinary connect. */
+         }
+      }
+      /* else; not bind extension, must be a ordinary connect. */
+   }
+
+   if (addr != NULL) {
+      *addrlen = MIN(*addrlen, (socklen_t)sizeof(accepted));
+      memcpy(addr, &accepted, (size_t)*addrlen);
+   }
+
+   return remote;
 }

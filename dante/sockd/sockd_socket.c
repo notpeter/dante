@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,38 +44,71 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.29 2001/02/06 15:59:13 michaels Exp $";
+"$Id: sockd_socket.c,v 1.40 2008/10/19 10:41:59 michaels Exp $";
 
 int
 sockd_bind(s, addr, retries)
-	int s;
-	const struct sockaddr *addr;
-	size_t retries;
+   int s;
+   struct sockaddr *addr;
+   size_t retries;
 {
-/*	const char *function = "sockd_bind()"; */
-	size_t tries;
-	int p;
+   const char *function = "sockd_bind()"; 
+   int p;
 
-	errno = 0;
-	tries = 0;
-	do {
-		if (tries++ > 0)
-			sleep(tries - 1);
+   errno = 0;
+   /* CONSTCOND */
+   while (1) {
+      /* LINTED pointer casts may be troublesome */
+      if (PORTISRESERVED(TOIN(addr)->sin_port) && sockscf.compat.sameport) {
+         uid_t euid;
 
-		if ((p = bind(s, addr, sizeof(*addr))) == 0)
-			break;
-		else {
-			/* non-fatal error? */
-			switch (errno) {
-				case EADDRINUSE:
-					continue;
+         socks_seteuid(&euid, sockscf.uid.privileged);
+         /* LINTED pointer casts may be troublesome */
+         if ((p = bind(s, addr, sizeof(*addr))) == -1 && errno == EADDRINUSE) {
+#if HAVE_BINDRESVPORT
+            /*
+             * There are some differences in whether bindresvport()
+             * retries or not on different systems, and Linux
+             * ignores the portnumber altogether, so we have to
+             * do two calls.
+             */
+            TOIN(addr)->sin_port = htons(0);
+            p = bindresvport(s, TOIN(addr));
+#endif /* HAVE_BINDRESVPORT */
+         }
+         socks_reseteuid(sockscf.uid.privileged, euid);
+      }
+      else if ((p = bind(s, addr, sizeof(*addr))) == 0) {
+         socklen_t addrlen;
 
-				case EINTR:
-					continue;
-			}
-			break; /* fatal error. */
-		}
-	} while (tries <= retries);
+         addrlen = sizeof(*addr);
+         p = getsockname(s, addr, &addrlen);
+      }
 
-	return p;
+      if (p == 0)
+         break;
+      else { /* non-fatal error and retry? */
+         switch (errno) {
+            case EINTR:
+               continue; /* don't count it. */
+
+            case EADDRINUSE:
+               slog(LOG_DEBUG, "%s: failed to bind %s: %s%s",
+               function, sockaddr2string(addr, NULL, 0), strerror(errno),
+               retries ? ", retrying" : "");
+
+               if (retries--) {
+                  sleep(1);
+                  continue;
+               }
+               else
+                  return p;
+
+            default:
+               return p; /* fatal error. */
+         }
+      }
+   }
+
+   return p;
 }

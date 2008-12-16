@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rrresvport.c,v 1.19 2001/02/06 15:58:49 michaels Exp $";
+"$Id: Rrresvport.c,v 1.25 2008/07/25 08:48:55 michaels Exp $";
 
 /*
  * Note that for this function to work the remote socksserver is required
@@ -53,26 +53,31 @@ static const char rcsid[] =
 
 int
 Rrresvport(port)
-	int *port;
+   int *port;
 {
-	int s;
-	struct sockaddr name;
-	socklen_t namelen;
+   const char *function = "Rrresvport()";
+   int s;
+   struct sockaddr name;
+   socklen_t namelen;
 
-	if ((s = rresvport(port)) == -1)
-		return -1;
+   clientinit();
 
-	namelen = sizeof(name);
-	if (getsockname(s, &name, &namelen) != 0) {
-		close(s);
-		return -1;
-	}
+   slog(LOG_DEBUG, "%s, port = %d", function, *port);
 
-	/* Rbind() will accept failure at binding socket that is already bound. */
-	if (Rbind(s, &name, namelen) != 0) {
-		close(s);
-		return -1;
-	}
+   if ((s = rresvport(port)) == -1)
+      return -1;
 
-	return s;
+   namelen = sizeof(name);
+   if (getsockname(s, &name, &namelen) != 0) {
+      close(s);
+      return -1;
+   }
+
+   /* Rbind() will accept failure at binding socket that is already bound. */
+   if (Rbind(s, &name, namelen) != 0) {
+      close(s);
+      return -1;
+   }
+
+   return s;
 }

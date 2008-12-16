@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -48,20 +48,27 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.140 2001/02/06 15:58:52 michaels Exp $";
+"$Id: config_parse.y,v 1.214 2008/12/14 13:21:14 michaels Exp $";
 
 __BEGIN_DECLS
 
 #if HAVE_LIBWRAP && SOCKS_SERVER
-	extern jmp_buf tcpd_buf;
+   extern jmp_buf tcpd_buf;
 #endif /* HAVE_LIBWRAP && SOCKS_SERVER */
 
 static void
-addressinit __P((struct ruleaddress_t *address));
+addrinit __P((struct ruleaddr_t *addr));
+
+static void
+gwaddrinit __P((gwaddr_t *addr));
 
 #if SOCKS_SERVER
 static void
-ruleinit __P((const struct rule_t *rule));
+ruleinit __P((struct rule_t *rule));
+
+static void
+fixconfig __P((void));
+
 #endif
 
 __END_DECLS
@@ -70,1003 +77,1189 @@ extern int yylineno;
 extern char *yytext;
 
 #if SOCKS_SERVER
-static struct rule_t				ruleinitmem;
-static struct rule_t				rule;				/* new rule.							*/
-static struct protocol_t		protocolmem;	/* new protocolmem.					*/
-struct linkedname_t				**userbase;		/* users rule applies to.			*/
+static struct rule_t            ruleinitmem;
+static struct rule_t            rule;            /* new rule.                     */
+static struct protocol_t      protocolmem;   /* new protocolmem.               */
 #endif
 
-#if SOCKS_CLIENT
-static struct serverstate_t	state;
-static struct route_t			route;			/* new route.							*/
-static struct ruleaddress_t	gw;				/* new gateway.						*/
-#endif
+static struct serverstate_t   state;
+static struct route_t         route;         /* new route.                     */
+static gwaddr_t               gw;            /* new gateway.                  */
 
+static struct ruleaddr_t      src;            /* new src.                        */
+static struct ruleaddr_t      dst;            /* new dst.                        */
+static struct ruleaddr_t      rdr_from;
+static struct ruleaddr_t      rdr_to;
 
-static struct ruleaddress_t	src;				/* new src.								*/
-static struct ruleaddress_t	dst;				/* new dst.								*/
-static struct ruleaddress_t	*ruleaddress;	/* current ruleaddress				*/
-static struct extension_t		*extension;		/* new extensions						*/
-static struct proxyprotocol_t	*proxyprotocol;/* proxy protocol.					*/
+static struct ruleaddr_t      *ruleaddr;      /* current ruleaddr               */
+static struct extension_t      *extension;      /* new extensions                  */
+static struct proxyprotocol_t   *proxyprotocol;/* proxy protocol.               */
 
-static char							*atype;			/* atype of new address.			*/
-static struct in_addr			*ipaddr;			/* new ipaddress						*/
-static struct in_addr			*netmask;		/* new netmask							*/
-static char							*domain;			/* new domain.							*/
-static char							*ifname;			/* new ifname.							*/
+static char                     *atype;         /* atype of new address.         */
+static struct in_addr         *ipaddr;         /* new ipaddress                  */
+static struct in_addr         *netmask;      /* new netmask                     */
+static char                     *domain;         /* new domain.                     */
+static char                     *ifname;         /* new ifname.                     */
+static char                     *url;            /* new url.                        */
 
-static in_port_t					*port_tcp;		/* new TCP portnumber.				*/
-static in_port_t					*port_udp;		/* new UDP portnumber.				*/
-static int							*methodv;		/* new authmethods.					*/
-static int							*methodc;		/* number of them.					*/
-static struct protocol_t		*protocol;		/* new protocol.						*/
-static struct command_t			*command;		/* new command.						*/
-static enum operator_t			*operator;		/* new operator.						*/
+static in_port_t               *port_tcp;      /* new TCP portnumber.            */
+static in_port_t               *port_udp;      /* new UDP portnumber.            */
+static int                     *methodv;      /* new authmethods.               */
+static size_t                  *methodc;      /* number of them.               */
+static struct protocol_t      *protocol;      /* new protocol.                  */
+static struct command_t         *command;      /* new command.                  */
+static enum operator_t         *operator;      /* new operator.                  */
 
 static const struct {
-	const char *name;
-	const int value;
-} syslogfacility[] = {
+   const char *name;
+   const int value;
+} syslogfacilityv[] = {
 #ifdef LOG_AUTH
-	{ "auth",	LOG_AUTH		},
+   { "auth",   LOG_AUTH      },
 #endif /* LOG_AUTH */
 #ifdef LOG_AUTHPRIV
-	{ "authpriv",	LOG_AUTHPRIV		},
+   { "authpriv",   LOG_AUTHPRIV      },
 #endif /* LOG_AUTHPRIV */
 #ifdef LOG_DAEMON
-	{ "daemon",	LOG_DAEMON	},
+   { "daemon",   LOG_DAEMON   },
 #endif /* LOG_DAEMON */
 #ifdef LOG_USER
-	{ "user",	LOG_USER		},
+   { "user",   LOG_USER      },
 #endif /* LOG_USER */
 #ifdef LOG_LOCAL0
-	{ "local0",	LOG_LOCAL0	},
+   { "local0",   LOG_LOCAL0   },
 #endif /* LOG_LOCAL0 */
 #ifdef LOG_LOCAL1
-	{ "local1",	LOG_LOCAL1	},
+   { "local1",   LOG_LOCAL1   },
 #endif /* LOG_LOCAL1 */
 #ifdef LOG_LOCAL2
-	{ "local2",	LOG_LOCAL2	},
+   { "local2",   LOG_LOCAL2   },
 #endif /* LOG_LOCAL2 */
 #ifdef LOG_LOCAL3
-	{ "local3",	LOG_LOCAL3	},
+   { "local3",   LOG_LOCAL3   },
 #endif /* LOG_LOCAL3 */
 #ifdef LOG_LOCAL4
-	{ "local4",	LOG_LOCAL4	},
+   { "local4",   LOG_LOCAL4   },
 #endif /* LOG_LOCAL4 */
 #ifdef LOG_LOCAL5
-	{ "local5",	LOG_LOCAL5	},
+   { "local5",   LOG_LOCAL5   },
 #endif /* LOG_LOCAL5 */
 #ifdef LOG_LOCAL6
-	{ "local6",	LOG_LOCAL6	},
+   { "local6",   LOG_LOCAL6   },
 #endif /* LOG_LOCAL6 */
 #ifdef LOG_LOCAL7
-	{ "local7",	LOG_LOCAL7	}
+   { "local7",   LOG_LOCAL7   }
 #endif /* LOG_LOCAL7 */
 };
 
 
 #define YYDEBUG 1
 
-#define ADDMETHOD(method) \
-	do { \
-		if (*methodc >= AUTHMETHOD_MAX)	\
-			yyerror("internal error or duplicate methods given");	\
-		methodv[(*methodc)++] = method; \
-	} while (0)
+#define ADDMETHOD(method)                                        \
+do {                                                             \
+   if (methodisset(method, methodv, *methodc))                   \
+      yywarn("duplicate method: %s", method2string(method));    \
+   else {                                                       \
+      if (*methodc >= MAXMETHOD)                                 \
+         yyerror("internal error, (%ld >= %ld)",               \
+         (long)*methodc, (long)MAXMETHOD);                     \
+      methodv[(*methodc)++] = method;                            \
+   }                                                             \
+} while (0)
 
 %}
 
 %union {
-	char	*string;
-	uid_t	uid;
+   char   *string;
+   uid_t   uid;
 }
 
 
 %type <string> configtype serverline clientline deprecated
 %token <string> SERVERCONFIG CLIENTCONFIG DEPRECATED
 
-%type	<string> protocol protocols protocolname
-%type	<string> proxyprotocol proxyprotocolname proxyprotocols
-%type	<string> user username usernames
-%type	<string> resolveprotocol resolveprotocolname
-%type	<string> srchost srchostoption srchostoptions
-%type	<string> command commands commandname
-%type	<string> routeinit
+%type   <string> protocol protocols protocolname
+%type   <string> proxyprotocol proxyprotocolname proxyprotocols
+%type   <string> user username usernames
+%type   <string> group groupname groupnames
+%type   <string> pamservicename
+%type   <string> resolveprotocol resolveprotocolname
+%type   <string> srchost srchostoption srchostoptions
+%type   <string> command commands commandname
+%type   <string> redirect
+%type   <string> bandwidth
+%type   <string> session maxsessions
+%type   <string> routeinit
 
-	/* clientconfig exclusive. */
-%type	<string> clientinit clientconfig
-%type	<string> clientoption
-%type	<string> debuging
+
+   /* clientconfig exclusive. */
+%type   <string> clientinit clientconfig
+%type   <string> clientoption
+%type   <string> debuging
 
 
-	/* serverconfig exclusive */
-%type	<string> iotimeout connecttimeout
-%type	<string> extension extensionname extensions
-%type	<string> internal internalinit external externalinit
-%type	<string> logoutput logoutputdevice logoutputdevices
-%type	<string> compatibility compatibilityname compatibilitys
-%type	<string> authmethod authmethods authmethodname
-%type	<string> serveroption
-%type	<string> serverinit serverconfig
-%type	<string> userids user_privileged user_unprivileged user_libwrap
-%type	<uid>		userid
+   /* serverconfig exclusive */
+%type   <string> iotimeout connecttimeout
+%type   <string> extension extensionname extensions
+%type   <string> internal internalinit external externalinit
+%type   <string> external_rotation
+%type   <string> logoutput logoutputdevice logoutputdevices
+%type   <string> compatibility compatibilityname compatibilitys
+%type   <string> global_authmethod global_clientauthmethod
+%type   <string> authmethod authmethods authmethodname
+%type   <string> serveroption
+%type   <string> serverinit serverconfig
+%type   <string> userids user_privileged user_unprivileged user_libwrap
+%type   <uid>      userid
+%type   <string> childstate
 
-%token	<string> CLIENTRULE
-%token	<string> INTERNAL EXTERNAL
-%token	<string> DEBUGING RESOLVEPROTOCOL
-%token	<string> SRCHOST NOMISMATCH NOUNKNOWN
-%token	<string> EXTENSION BIND PRIVILEGED
-%token	<string> IOTIMEOUT CONNECTTIMEOUT
-%token	<string> METHOD NONE GSSAPI UNAME RFC931
-%token	<string> COMPATIBILITY REUSEADDR SAMEPORT
-%token	<string> USERNAME
-%token	<string> USER_PRIVILEGED USER_UNPRIVILEGED USER_LIBWRAP
-%token	<string> LOGOUTPUT LOGFILE
+%token   <string> CLIENTRULE
+%token   <string> INTERNAL EXTERNAL EXTERNAL_ROTATION
+%token   <string> DEBUGING RESOLVEPROTOCOL
+%token   <string> SRCHOST NOMISMATCH NOUNKNOWN
+%token   <string> EXTENSION BIND PRIVILEGED
+%token   <string> IOTIMEOUT CONNECTTIMEOUT
+%token   <string> METHOD CLIENTMETHOD NONE GSSAPI UNAME RFC931 PAM
+%token   <string> COMPATIBILITY REUSEADDR SAMEPORT
+%token   <string> USERNAME
+%token   <string> GROUPNAME
+%token   <string> USER_PRIVILEGED USER_UNPRIVILEGED USER_LIBWRAP
+%token   <string> LOGOUTPUT LOGFILE
+%token   <string> CHILD_MAXIDLE
 
-	/* route */
-%type	<string> route
-%type	<string> via gateway routeoption routeoptions
+   /* route */
+%type   <string> route
+%type   <string> via gateway routeoption routeoptions
 
-%token	<string> ROUTE VIA
+%token   <string> ROUTE VIA
 
-	/* rulelines */
-%type	<string> rule ruleoption ruleoptions
-%type	<string> clientrule clientruleoption clientruleoptions
-%type	<string> verdict
-%type	<string> fromto
-%type	<string> log logs logname
-%type	<string> libwrap
-%type	<string> srcaddress dstaddress
-%type	<string> address ipaddress gwaddress domain ifname direct
-%type	<string> externaladdress internaladdress
-%type	<string> from to
-%type	<string> netmask
-%type	<string> port portrange portstart portoperator portnumber portservice
+   /* rulelines */
+%type   <string> rule ruleoption ruleoptions
+%type   <string> clientrule clientruleoption clientruleoptions
+%type   <string> option
+%type   <string> verdict
+%type   <string> fromto
+%type   <string> log logs logname
+%type   <string> libwrap
+%type   <string> srcaddress dstaddress
+%type   <string> internaladdress externaladdress
+%type   <string> address ipaddress gwaddress domain ifname direct url
+%type   <string> from to
+%type   <string> netmask
+%type   <string> port gwport portrange portstart portoperator portnumber 
+               portservice
 
 %token <string> VERDICT_BLOCK VERDICT_PASS
+%token <string> PAMSERVICENAME
 %token <string> PROTOCOL PROTOCOL_TCP PROTOCOL_UDP PROTOCOL_FAKE
 %token <string> PROXYPROTOCOL PROXYPROTOCOL_SOCKS_V4 PROXYPROTOCOL_SOCKS_V5
-					 PROXYPROTOCOL_MSPROXY_V2 PROXYPROTOCOL_HTTP_V1_0
-%token <string> USER
-%token <string> COMMAND COMMAND_BIND COMMAND_CONNECT COMMAND_UDPASSOCIATE								 COMMAND_BINDREPLY COMMAND_UDPREPLY
+                PROXYPROTOCOL_MSPROXY_V2 PROXYPROTOCOL_HTTP_V1_0 
+                PROXYPROTOCOL_UPNP
+%token <string> USER GROUP
+%token <string> COMMAND COMMAND_BIND COMMAND_CONNECT COMMAND_UDPASSOCIATE                         COMMAND_BINDREPLY COMMAND_UDPREPLY
 %token <string> ACTION
 %token <string> LINE
 %token <string> LIBWRAPSTART
 %token <string> OPERATOR
-%token <string> LOG LOG_CONNECT  LOG_DATA LOG_DISCONNECT LOG_ERROR									    LOG_IOOPERATION
-%token <string> IPADDRESS DOMAIN DIRECT IFNAME
+%token <string> LOG LOG_CONNECT  LOG_DATA LOG_DISCONNECT LOG_ERROR                               LOG_IOOPERATION
+%token <string> IPADDRESS DOMAINNAME DIRECT IFNAME URL
 %token <string> PORT PORTNUMBER SERVICENAME
 %token <string> NUMBER
 %token <string> FROM TO
+%token <string> REDIRECT
+%token <string> BANDWIDTH
 
 %%
 
 
-	/*
-	 * first token we get should say whether we are parsing for client
-	 * or server.  Init as appropriate.
-	 */
+   /*
+    * first token we get should say whether we are parsing for client
+    * or server.  Init as appropriate.
+    */
 
-configtype:	serverinit serverline
-	|	clientinit clientline
-	;
+configtype:   serverinit serverline
+   |   clientinit clientline
+   ;
 
-serverinit:	SERVERCONFIG {
+serverinit:   SERVERCONFIG {
 #if SOCKS_SERVER
-		protocol			= &protocolmem;
-		extension		= &config.extension;
-		methodv			= config.methodv;
-		methodc			= &config.methodc;
+      protocol         = &protocolmem;
+      extension      = &sockscf.extension;
 #endif
-	}
-	;
+   }
+   ;
 
 
-serverline:	{ $$ = NULL; }
-	|	serverline '\n'
-	|	serverline serverconfig
-	|	serverline clientrule
-	|	serverline rule
-	;
+serverline:   { $$ = NULL; }
+   |   serverline '\n'
+   |   serverline serverconfig
+   |   serverline clientrule
+   |   serverline rule
+   |   serverline route
+   ;
 
-clientline:	{ $$ = NULL; }
-	|	clientline '\n'
-	|	clientline clientconfig
-	|	clientline route
-	;
-
-
-clientinit:	CLIENTCONFIG {
-	}
-	;
-
-clientconfig:	clientoption
-	|  deprecated
-	;
-
-serverconfig:	authmethod
-	|  deprecated
-	|	internal
-	|	external
-	|	logoutput
-	|	serveroption
-	|	userids
-	;
-
-serveroption:	compatibility
-	|	connecttimeout
-	|	extension
-	|	iotimeout
-	|	resolveprotocol
-	|	srchost
-	;
+clientline:   { $$ = NULL; }
+   |   clientline '\n'
+   |   clientline clientconfig
+   |   clientline route
+   ;
 
 
-deprecated:	DEPRECATED {
-		yywarn("given keyword is deprecated");
-	}
+clientinit:   CLIENTCONFIG {
+   }
+   ;
 
-route:	ROUTE routeinit '{' routeoptions fromto gateway routeoptions '}' {
-#if SOCKS_CLIENT
-		route.src		= src;
-		route.dst		= dst;
-		ruleaddress2sockshost(&gw, &route.gw.host, SOCKS_TCP);
-		route.gw.state	= state;
+clientconfig:   clientoption
+   |  deprecated
+   ;
 
-		addroute(&route);
-#endif
-	}
-	;
+serverconfig:   global_authmethod
+   |   global_clientauthmethod
+   |  deprecated
+   |   internal
+   |   external
+   |   external_rotation
+   |   logoutput
+   |   serveroption
+   |   userids
+   |   childstate
+   ;
+
+serveroption:   compatibility
+   |   connecttimeout
+   |   extension
+   |   iotimeout
+   |   resolveprotocol
+   |   srchost
+   ;
+
+
+deprecated:   DEPRECATED {
+      yywarn("given keyword is deprecated");
+   }
+
+route:   ROUTE routeinit '{' routeoptions fromto gateway routeoptions '}' {
+      route.src      = src;
+      route.dst      = dst;
+      route.gw.addr   = gw;
+      route.gw.state   = state;
+
+      socks_addroute(&route, 1);
+   }
+   ;
 
 routeinit: {
-#if SOCKS_CLIENT
-		command			= &state.command;
-		extension		= &state.extension;
-		methodv			= state.methodv;
-		methodc			= &state.methodc;
-		protocol			= &state.protocol;
-		proxyprotocol	= &state.proxyprotocol;
+      command         = &state.command;
+      extension      = &state.extension;
+      methodv         = state.methodv;
+      methodc         = &state.methodc;
+      protocol         = &state.protocol;
+      proxyprotocol   = &state.proxyprotocol;
 
-		bzero(&state, sizeof(state));
-		bzero(&route, sizeof(route));
-		bzero(&gw, sizeof(gw));
-		bzero(&src, sizeof(src));
-		bzero(&dst, sizeof(dst));
-		src.atype = SOCKS_ADDR_IPV4;
-		dst.atype = SOCKS_ADDR_IPV4;
-#endif
-	}
-	;
+      bzero(&state, sizeof(state));
+      bzero(&route, sizeof(route));
+      bzero(&gw, sizeof(gw));
+      bzero(&src, sizeof(src));
+      bzero(&dst, sizeof(dst));
+      src.atype = SOCKS_ADDR_IPV4;
+      dst.atype = SOCKS_ADDR_IPV4;
+   }
+   ;
 
 
-proxyprotocol:	PROXYPROTOCOL ':' proxyprotocols
-	;
+proxyprotocol:   PROXYPROTOCOL ':' proxyprotocols
+   ;
 
-proxyprotocolname:	PROXYPROTOCOL_SOCKS_V4 {
-			proxyprotocol->socks_v4 	= 1;
-	}
-	|	PROXYPROTOCOL_SOCKS_V5 {
-			proxyprotocol->socks_v5 	= 1;
-	}
-	|  PROXYPROTOCOL_MSPROXY_V2 {
-			proxyprotocol->msproxy_v2 	= 1;
-	}
-	|  PROXYPROTOCOL_HTTP_V1_0 {
-			proxyprotocol->http_v1_0 	= 1;
-	}
-	;
+proxyprotocolname:   PROXYPROTOCOL_SOCKS_V4 {
+         proxyprotocol->socks_v4      = 1;
+   }
+   |   PROXYPROTOCOL_SOCKS_V5 {
+         proxyprotocol->socks_v5      = 1;
+   }
+   |  PROXYPROTOCOL_MSPROXY_V2 {
+         proxyprotocol->msproxy_v2   = 1;
+   }
+   |  PROXYPROTOCOL_HTTP_V1_0 {
+         proxyprotocol->http_v1_0   = 1;
+   }
+   |  PROXYPROTOCOL_UPNP {
+         proxyprotocol->upnp         = 1;
+   }
+   | deprecated
+   ;
 
 proxyprotocols: proxyprotocolname
-	|	proxyprotocolname proxyprotocols
-	;
+   |   proxyprotocolname proxyprotocols
+   ;
 
 user: USER ':' usernames
-	;
+   ;
 
-username:	USERNAME {
+username:   USERNAME {
 #if SOCKS_SERVER
-#if !HAVE_LIBWRAP
-		if (strcmp($1, method2string(AUTHMETHOD_RFC931)) == 0)
-			yyerror("method %s requires libwrap", AUTHMETHOD_RFC931s);
-#endif /* !HAVE_LIBWRAP */
-		if (adduser(userbase, $1) == NULL)
-			yyerror(NOMEM);
+      if (adduser(&rule.user, $1) == NULL)
+         yyerror(NOMEM);
 #endif /* SOCKS_SERVER */
-	}
-	;
+   }
+   ;
 
-usernames:	username
-	|	username usernames
-	;
+usernames:   username
+   |   username usernames
+   ;
 
-extension:	EXTENSION ':' extensions
-	;
+group: GROUP ':' groupnames
+   ;
 
-extensionname:	BIND {
-			extension->bind = 1;
-	}
-	;
-
-extensions:	extensionname
-	|	extensionname extensions
-	;
-
-
-internal:	INTERNAL internalinit ':' internaladdress {
+groupname:   GROUPNAME {
 #if SOCKS_SERVER
-		addinternal(ruleaddress);
+      if (addgroup(&rule.group, $1) == NULL)
+         yyerror(NOMEM);
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+groupnames:   groupname
+   |   groupname groupnames
+   ;
+
+extension:   EXTENSION ':' extensions
+   ;
+
+extensionname:   BIND {
+         extension->bind = 1;
+   }
+   ;
+
+extensions:   extensionname
+   |   extensionname extensions
+   ;
+
+
+internal:   INTERNAL internalinit ':' internaladdress {
+#if SOCKS_SERVER
+      addinternal(ruleaddr);
 #endif
-	}
-	;
+   }
+   ;
 
 internalinit: {
 #if SOCKS_SERVER
-	static struct ruleaddress_t mem;
-	struct servent	*service;
+   static struct ruleaddr_t mem;
+   struct servent   *service;
 
-	addressinit(&mem);
+   addrinit(&mem);
 
-	/* set default port. */
-	if ((service = getservbyname("socks", "tcp")) == NULL)
-		*port_tcp = htons(SOCKD_PORT);
-	else
-		*port_tcp = (in_port_t)service->s_port;
+   /* set default port. */
+   if ((service = getservbyname("socks", "tcp")) == NULL)
+      *port_tcp = htons(SOCKD_PORT);
+   else
+      *port_tcp = (in_port_t)service->s_port;
 #endif
-	}
-	;
+   }
+   ;
 
-internaladdress: ipaddress port 
-	|	ifname port
-	;
-
-external:	EXTERNAL externalinit ':' externaladdress {
+external:   EXTERNAL externalinit ':' externaladdress {
 #if SOCKS_SERVER
-		addexternal(ruleaddress);
+      addexternal(ruleaddr);
 #endif
-	}
-	;
+   }
+   ;
 
 externalinit: {
 #if SOCKS_SERVER
-		static struct ruleaddress_t mem;
+      static struct ruleaddr_t mem;
 
-		addressinit(&mem);
+      addrinit(&mem);
 #endif
-	}
-	;
+   }
+   ;
 
-externaladdress: ipaddress
-	| ifname
-	;
+external_rotation:   EXTERNAL_ROTATION ':' NONE {
+#if SOCKS_SERVER
+      sockscf.external.rotation = ROTATION_NONE;
+   }
+   |   EXTERNAL_ROTATION ':' ROUTE {
+#if !HAVE_ROUTE_SOURCE
+      yyerror("don't have code to discover route/address source on platform");
+#else /* !HAVE_ROUTE_SOURCE */
+      sockscf.external.rotation = ROTATION_ROUTE;
+#endif /* HAVE_ROUTE_SOURCE */
+#endif /* SOCKS_SERVER */
+   }
+   ;
 
-
-clientoption:	logoutput
-	|	debuging
-	|	resolveprotocol
-	;
+clientoption:   logoutput
+   |   debuging
+   |   resolveprotocol
+   ;
 
 logoutput: LOGOUTPUT ':' logoutputdevices
-	;
+   ;
 
-logoutputdevice:	LOGFILE {
-		if (!config.state.init) {
-			const char *syslogname = "syslog";
+logoutputdevice:   LOGFILE {
+      const char *syslogname = "syslog";
 
-			if (strncmp($1, syslogname, strlen(syslogname)) == 0
-			&& ($1[strlen(syslogname)] == NUL || $1[strlen(syslogname)] == '/')) {
-				char *sl;
+      if (strncmp($1, syslogname, strlen(syslogname)) == 0
+      && ($1[strlen(syslogname)] == NUL || $1[strlen(syslogname)] == '/')) {
+         char *sl;
 
-				config.log.type |= LOGTYPE_SYSLOG;
+         sockscf.log.type |= LOGTYPE_SYSLOG;
 
-				if (*(sl = &($1[strlen(syslogname)])) == '/') { /* facility. */
-					size_t i;
+         if (*(sl = &($1[strlen(syslogname)])) == '/') { /* facility. */
+            size_t i;
 
-					for (i = 0, ++sl; i < ELEMENTS(syslogfacility); ++i)
-						if (strcmp(sl, syslogfacility[i].name) == 0)
-							break;
+            for (i = 0, ++sl; i < ELEMENTS(syslogfacilityv); ++i)
+               if (strcmp(sl, syslogfacilityv[i].name) == 0)
+                  break;
 
-					if (i == ELEMENTS(syslogfacility))
-						serrx(EXIT_FAILURE, "unknown syslog facility \"%s\"", sl);
-					config.log.facility = syslogfacility[i].value;
-				}
-				else
-					config.log.facility = LOG_DAEMON; /* default. */
-			}
-			else {
-				config.log.type |= LOGTYPE_FILE;
+            if (i == ELEMENTS(syslogfacilityv))
+               yyerror("unknown syslog facility \"%s\"", sl);
 
-				if ((config.log.fpv = (FILE **)realloc(config.log.fpv,
-				sizeof(*config.log.fpv) * (config.log.fpc + 1))) == NULL
-				|| (config.log.fplockv = (int *)realloc(config.log.fplockv,
-				sizeof(*config.log.fplockv) * (config.log.fpc + 1))) == NULL)
-					serrx(EXIT_FAILURE, NOMEM);
+            sockscf.log.facility = syslogfacilityv[i].value;
+            sockscf.log.facilityname = syslogfacilityv[i].name;
+         }
+         else {
+            sockscf.log.facility = LOG_DAEMON; /* default. */
+            sockscf.log.facilityname = "daemon";
+         }
+      }
+      else /* filename. */
+         if (!sockscf.state.init) {
+            int flag;
 
-				if ((config.log.fplockv[config.log.fpc]
-				= socks_mklock(SOCKS_LOCKFILE)) == -1)
-					serr(EXIT_FAILURE, "socks_mklock()");
+            sockscf.log.type |= LOGTYPE_FILE;
 
-				if (strcmp($1, "stdout") == 0)
-					config.log.fpv[config.log.fpc] = stdout;
-				else if (strcmp($1, "stderr") == 0)
-					config.log.fpv[config.log.fpc] = stderr;
-				else {
-					int flag;
+            if ((sockscf.log.fpv = realloc(sockscf.log.fpv,
+            sizeof(*sockscf.log.fpv) * (sockscf.log.fpc + 1))) == NULL
+            || (sockscf.log.fplockv = realloc(sockscf.log.fplockv,
+            sizeof(*sockscf.log.fplockv) * (sockscf.log.fpc + 1))) == NULL
+            || (sockscf.log.fnamev = realloc(sockscf.log.fnamev,
+            sizeof(*sockscf.log.fnamev) * (sockscf.log.fpc + 1)))
+            == NULL)
+               serrx(EXIT_FAILURE, NOMEM);
 
-					if ((config.log.fpv[config.log.fpc] = fopen($1, "a"))
-					== NULL)
-						serr(EXIT_FAILURE, "fopen(%s)", $1);
+            if ((sockscf.log.fplockv[sockscf.log.fpc]
+            = socks_mklock(SOCKS_LOCKFILE)) == -1)
+               serr(EXIT_FAILURE, "socks_mklock()");
 
-					if ((flag = fcntl(fileno(config.log.fpv[config.log.fpc]),
-					F_GETFD, 0)) == -1
-					||  fcntl(fileno(config.log.fpv[config.log.fpc]), F_SETFD,
-					flag | FD_CLOEXEC) == -1)
-						serr(EXIT_FAILURE, "fcntl(F_GETFD/F_SETFD)");
-				}
-				++config.log.fpc;
-			}
-		}
-		else
-			;	/* XXX warn/exit if output changed. */
-	}
-	;
+            if (strcmp($1, "stdout") == 0)
+               sockscf.log.fpv[sockscf.log.fpc] = stdout;
+            else if (strcmp($1, "stderr") == 0)
+               sockscf.log.fpv[sockscf.log.fpc] = stderr;
+            else
+               if ((sockscf.log.fpv[sockscf.log.fpc] = fopen($1, "a"))
+               == NULL)
+                  yyerror("fopen(%s)", $1);
 
-logoutputdevices:	logoutputdevice
-	|	logoutputdevice logoutputdevices
-	;
+            if ((flag = fcntl(fileno(sockscf.log.fpv[sockscf.log.fpc]),
+            F_GETFD, 0)) == -1
+            ||  fcntl(fileno(sockscf.log.fpv[sockscf.log.fpc]), F_SETFD,
+            flag | FD_CLOEXEC) == -1)
+               serr(EXIT_FAILURE, "fcntl(F_GETFD/F_SETFD)");
 
-userids:	user_privileged
-	|	user_unprivileged
-	|	user_libwrap
-	;
+            if ((sockscf.log.fnamev[sockscf.log.fpc] = strdup($1)) == NULL)
+               serr(EXIT_FAILURE, NOMEM);
 
-user_privileged:	USER_PRIVILEGED ':' userid {
+            ++sockscf.log.fpc;
+         }
+         else {
+            /*
+             * Can't change filenames we log to after startup, so 
+             * try to check and warn about that.
+             */
+            size_t i;
+
+            for (i = 0; i < sockscf.log.fpc; ++i)
+               if (strcmp(sockscf.log.fnamev[i], $1) == 0) { /* same name. */
+                  FILE *fp;
+
+                  if (strcmp(sockscf.log.fnamev[i], "stdout") == 0
+                  ||  strcmp(sockscf.log.fnamev[i], "stderr") == 0)
+                     break; /* don't need to reopen these. */
+
+                  /* reopen logfiles. */
+                  if ((fp = fopen(sockscf.log.fnamev[i], "a")) == NULL)
+                     yywarn("can't reopen %s, continuing to use existing", $1);
+                  else {
+                     fclose(sockscf.log.fpv[i]);
+                     sockscf.log.fpv[i] = fp;
+                  }
+                  break;
+               }
+
+            if (i == sockscf.log.fpc) /* no match found. */
+               yywarn("can't change logoutput after startup");
+         }
+   }
+   ;
+
+logoutputdevices:   logoutputdevice
+   |   logoutputdevice logoutputdevices
+   ;
+
+childstate:
+   CHILD_MAXIDLE ':' NUMBER {
 #if SOCKS_SERVER
-		config.uid.privileged			= $3;
-		config.uid.privileged_isset	= 1;
+      yyerror("Sorry, child.maxidle is disabled due to a suspected bug");
+      if (atoi($3) != 0 && atoi($3) < SOCKD_FREESLOTS)
+         yyerror("%s (%s) can't be less than SOCKD_FREESLOTS (%d)",
+         $1, $3, SOCKD_FREESLOTS);
+      sockscf.child.maxidle = atoi($3);
 #endif
-	}
-	;
+   }
+   ;
 
-user_unprivileged:	USER_UNPRIVILEGED ':' userid {
+
+userids:   user_privileged
+   |   user_unprivileged
+   |   user_libwrap
+   ;
+
+user_privileged:   USER_PRIVILEGED ':' userid {
 #if SOCKS_SERVER
-		config.uid.unprivileged			= $3;
-		config.uid.unprivileged_isset	= 1;
+      sockscf.uid.privileged         = $3;
+      sockscf.uid.privileged_isset   = 1;
 #endif
-	}
-	;
+   }
+   ;
 
-user_libwrap:	USER_LIBWRAP ':' userid {
+user_unprivileged:   USER_UNPRIVILEGED ':' userid {
+#if SOCKS_SERVER
+      sockscf.uid.unprivileged         = $3;
+      sockscf.uid.unprivileged_isset   = 1;
+#endif
+   }
+   ;
+
+user_libwrap:   USER_LIBWRAP ':' userid {
 #if HAVE_LIBWRAP && SOCKS_SERVER
-		config.uid.libwrap			= $3;
-		config.uid.libwrap_isset	= 1;
+      sockscf.uid.libwrap         = $3;
+      sockscf.uid.libwrap_isset   = 1;
 #else  /* HAVE_LIBWRAP */
-		yyerror("libwrapsupport not compiled in");
+      yyerror("libwrapsupport not compiled in");
 #endif /* !HAVE_LIBWRAP */
-	}
-	;
+   }
+   ;
 
 
-userid:	USERNAME {
-		struct passwd *pw;
+userid:   USERNAME {
+      struct passwd *pw;
 
-		if ((pw = getpwnam($1)) == NULL)
-			serrx(EXIT_FAILURE, "no such user \"%s\"", $1);
-		else
-			$$ = pw->pw_uid;
-	}
-	;
+      if ((pw = getpwnam($1)) == NULL)
+         serrx(EXIT_FAILURE, "no such user \"%s\"", $1);
+      else
+         $$ = pw->pw_uid;
+   }
+   ;
 
-iotimeout:	IOTIMEOUT ':' NUMBER {
+iotimeout:   IOTIMEOUT ':' NUMBER {
 #if SOCKS_SERVER
-		config.timeout.io = (time_t)atol($3);
+      sockscf.timeout.io = (time_t)atol($3);
 #endif
-	}
-	;
+   }
+   ;
 
-connecttimeout:	CONNECTTIMEOUT ':' NUMBER {
+connecttimeout:   CONNECTTIMEOUT ':' NUMBER {
 #if SOCKS_SERVER
-		config.timeout.negotiate = (time_t)atol($3);
+      sockscf.timeout.negotiate = (time_t)atol($3);
 #endif
-	}
-	;
+   }
+   ;
 
 debuging: DEBUGING ':' NUMBER {
-		config.option.debug = atoi($3);
-	}
-	;
+      sockscf.option.debug = atoi($3);
+   }
+   ;
 
-compatibility:	COMPATIBILITY ':' compatibilitys
-	;
+compatibility:   COMPATIBILITY ':' compatibilitys
+   ;
 
-compatibilityname:	REUSEADDR {
+compatibilityname:   REUSEADDR {
 #if SOCKS_SERVER
-		config.compat.reuseaddr = 1;
-	}
-	|	SAMEPORT {
-		config.compat.sameport = 1;
+      sockscf.compat.reuseaddr = 1;
+   }
+   |   SAMEPORT {
+      sockscf.compat.sameport = 1;
 #endif
-	}
-	;
+   }
+   ;
 
-compatibilitys:	compatibilityname
-	|	compatibilityname compatibilitys
-	;
+compatibilitys:   compatibilityname
+   |   compatibilityname compatibilitys
+   ;
 
-resolveprotocol:	RESOLVEPROTOCOL ':' resolveprotocolname
-	;
+resolveprotocol:   RESOLVEPROTOCOL ':' resolveprotocolname
+   ;
 
-resolveprotocolname:	PROTOCOL_FAKE {
-			config.resolveprotocol = RESOLVEPROTOCOL_FAKE;
-	}
-	|  PROTOCOL_TCP {
+resolveprotocolname:   PROTOCOL_FAKE {
+         sockscf.resolveprotocol = RESOLVEPROTOCOL_FAKE;
+   }
+   |  PROTOCOL_TCP {
 #if HAVE_NO_RESOLVESTUFF
-			yyerror("resolveprotocol keyword not supported on this installation");
+         yyerror("resolveprotocol keyword not supported on this installation");
 #else /* HAVE_NO_RESOLVESTUFF */
-			config.resolveprotocol = RESOLVEPROTOCOL_TCP;
+         sockscf.resolveprotocol = RESOLVEPROTOCOL_TCP;
 #endif /* !HAVE_NO_RESOLVESTUFF */
-	}
-	|	PROTOCOL_UDP {
-			config.resolveprotocol = RESOLVEPROTOCOL_UDP;
-	}
-	;
+   }
+   |   PROTOCOL_UDP {
+         sockscf.resolveprotocol = RESOLVEPROTOCOL_UDP;
+   }
+   ;
 
-srchost:	SRCHOST ':' srchostoptions
-	;
+srchost:   SRCHOST ':' srchostoptions
+   ;
 
-srchostoption:	NOMISMATCH {
+srchostoption:   NOMISMATCH {
 #if HAVE_LIBWRAP && SOCKS_SERVER
-			config.srchost.nomismatch = 1;
-	}
-	|  NOUNKNOWN {
-			config.srchost.nounknown = 1;
+         sockscf.srchost.nomismatch = 1;
+   }
+   |  NOUNKNOWN {
+         sockscf.srchost.nounknown = 1;
 #else
-		yyerror("srchostoption requires libwrap");
+      yyerror("srchostoption requires libwrap");
 #endif
-	}
-	;
+   }
+   ;
 
-srchostoptions:	srchostoption
-	|	srchostoption srchostoptions
-	;
+srchostoptions:   srchostoption
+   |   srchostoption srchostoptions
+   ;
 
 
-authmethod:	METHOD ':' { *methodc = 0; /* reset. */ } authmethods
-	;
+authmethod:   METHOD ':' authmethods
+   ;
 
-authmethodname:	NONE {
-		ADDMETHOD(AUTHMETHOD_NONE);
-	};
-	|	GSSAPI {
-		yyerror("%s not supported", AUTHMETHOD_GSSAPIs);
-	}
-	|	UNAME {
-		ADDMETHOD(AUTHMETHOD_UNAME);
-	}
-	|	RFC931 {
-#if HAVE_LIBWRAP && SOCKS_SERVER
-		ADDMETHOD(AUTHMETHOD_RFC931);
+global_authmethod:   METHOD ':' {
+#if SOCKS_SERVER
+   methodv = sockscf.methodv;
+   methodc = &sockscf.methodc;
+   *methodc = 0; /* reset. */
+#endif
+   } authmethods
+   ;
+
+global_clientauthmethod:   CLIENTMETHOD ':' {
+#if SOCKS_SERVER
+   methodv = sockscf.clientmethodv;
+   methodc = &sockscf.clientmethodc;
+   *methodc = 0; /* reset. */
+#endif
+   } authmethods
+   ;
+
+authmethodname:   NONE {
+      ADDMETHOD(AUTHMETHOD_NONE);
+   };
+   |   GSSAPI {
+      yyerror("%s not supported", AUTHMETHOD_GSSAPIs);
+   }
+   |   UNAME {
+      ADDMETHOD(AUTHMETHOD_UNAME);
+   }
+   |   RFC931 {
+#if HAVE_LIBWRAP 
+#if SOCKS_SERVER
+      ADDMETHOD(AUTHMETHOD_RFC931);
+#else /* !SOCKS_SERVER not a real socks method.  For client same as none. */
+      ADDMETHOD(AUTHMETHOD_NONE);
+#endif
 #else /* !HAVE_LIBWRAP */
-		yyerror("method %s requires libwrap", AUTHMETHOD_RFC931s);
+      yyerror("method %s requires libwraplibrary", AUTHMETHOD_RFC931s);
 #endif /* !HAVE_LIBWRAP */
-	}
-	;
+   }
+   |   PAM {
+#if HAVE_PAM
+#if SOCKS_SERVER
+      ADDMETHOD(AUTHMETHOD_PAM);
+#else /* !SOCKS_SERVER not a real socks method.  For client same as uname. */
+      ADDMETHOD(AUTHMETHOD_UNAME);
+#endif
+#else /* HAVE_PAM */
+      yyerror("method %s requires pamlibrary", AUTHMETHOD_PAMs);
+#endif /* !HAVE_PAM */
+   }
+   ;
 
-authmethods:	authmethodname
-	|	authmethodname authmethods
-	;
+authmethods:   authmethodname
+   |   authmethodname authmethods
+   ;
 
 
-	/* filterrules */
+   /* filterrules */
 
 clientrule: CLIENTRULE verdict '{' clientruleoptions fromto clientruleoptions '}' {
 #if SOCKS_SERVER
-		rule.src = src;
-		rule.dst = dst;
+      rule.src         = src;
+      rule.dst         = dst;
+      rule.rdr_from   = rdr_from;
+      rule.rdr_to      = rdr_to;
 
-		addclientrule(&rule);
+      addclientrule(&rule);
 
-		bzero(&src, sizeof(src));
-		bzero(&dst, sizeof(dst));
-		rule = ruleinitmem;
-
-		src.atype = SOCKS_ADDR_IPV4;
-		dst.atype = SOCKS_ADDR_IPV4;
 #endif
-	}
-	;
+   }
+   ;
 
-clientruleoption:	authmethod
-	|	libwrap
-	|	log
-	|	user
-	;
+clientruleoption:   option
+   ;
 
-clientruleoptions:	{ $$ = NULL; }
-	|	clientruleoption clientruleoptions
-	;
+clientruleoptions:   { $$ = NULL; }
+   |   clientruleoption clientruleoptions
+   ;
 
-rule:	verdict '{' ruleoptions fromto ruleoptions '}' {
+rule:   verdict '{' ruleoptions fromto ruleoptions '}' {
 #if SOCKS_SERVER
-		rule.src = src;
-		rule.dst = dst;
+      rule.src         = src;
+      rule.dst         = dst;
+      rule.rdr_from   = rdr_from;
+      rule.rdr_to      = rdr_to;
 
-		addsocksrule(&rule);
-
-		bzero(&src, sizeof(src));
-		bzero(&dst, sizeof(dst));
-		rule = ruleinitmem;
-
-		src.atype	= SOCKS_ADDR_IPV4;
-		dst.atype	= SOCKS_ADDR_IPV4;
+      addsocksrule(&rule);
 #endif
-	}
-	;
+   }
+   ;
 
 
-ruleoption:	authmethod
-	|	command
-	|	libwrap
-	|	log
-	|	protocol
-	|	proxyprotocol
-	|	user
-	;
-
-ruleoptions:	{ $$ = NULL; }
-	| ruleoption ruleoptions
-	;
-
-verdict:	VERDICT_BLOCK {
+ruleoption:   option
+   |   bandwidth {
 #if SOCKS_SERVER
-		rule.verdict	= VERDICT_BLOCK;
-		ruleinit(&rule);
-	}
-	|	VERDICT_PASS {
-		rule.verdict	= VERDICT_PASS;
-		ruleinit(&rule);
+         checkmodule("bandwidth");
 #endif
-	}
-	;
+   }
+   |   command
+   |   protocol
+   |   proxyprotocol
+   |   redirect   {
+#if SOCKS_SERVER
+         checkmodule("redirect");
+#endif
+   }
+   ;
+
+ruleoptions:   { $$ = NULL; }
+   | ruleoption ruleoptions
+   ;
+
+option: authmethod
+   |   libwrap
+   |   log
+   |   pamservicename
+   |   user
+   |   group
+   |   session   {
+#if SOCKS_SERVER
+         checkmodule("session");
+#endif
+   }
+   ;
+
+verdict:   VERDICT_BLOCK {
+#if SOCKS_SERVER
+      ruleinit(&rule);
+      rule.verdict   = VERDICT_BLOCK;
+   }
+   |   VERDICT_PASS {
+      ruleinit(&rule);
+      rule.verdict   = VERDICT_PASS;
+#endif
+   }
+   ;
 
 
-command:	COMMAND ':' commands
-	;
+command:   COMMAND ':' commands
+   ;
 
-commandname:	COMMAND_BIND {
-			command->bind = 1;
-	}
-	|	COMMAND_CONNECT {
-			command->connect = 1;
-	}
-	|	COMMAND_UDPASSOCIATE {
-			command->udpassociate = 1;
-	}
+commandname:   COMMAND_BIND {
+         command->bind = 1;
+   }
+   |   COMMAND_CONNECT {
+         command->connect = 1;
+   }
+   |   COMMAND_UDPASSOCIATE {
+         command->udpassociate = 1;
+   }
 
-	/* pseudocommands */
+   /* pseudocommands */
 
-	|	COMMAND_BINDREPLY	{
-			command->bindreply = 1;
-	}
+   |   COMMAND_BINDREPLY   {
+         command->bindreply = 1;
+   }
 
-	|	COMMAND_UDPREPLY {
-			command->udpreply = 1;
-	}
-	;
+   |   COMMAND_UDPREPLY {
+         command->udpreply = 1;
+   }
+   ;
 
-commands:	commandname
-	|	commandname commands
-	;
+commands:   commandname
+   |   commandname commands
+   ;
 
-protocol:	PROTOCOL ':'  protocols
-	;
+protocol:   PROTOCOL ':'  protocols
+   ;
 
-protocolname:	PROTOCOL_TCP {
-		protocol->tcp = 1;
-	}
-	|	PROTOCOL_UDP {
-		protocol->udp = 1;
-	}
-	;
+protocolname:   PROTOCOL_TCP {
+      protocol->tcp = 1;
+   }
+   |   PROTOCOL_UDP {
+      protocol->udp = 1;
+   }
+   ;
 
-protocols:	protocolname
-	|	protocolname protocols
-	;
+protocols:   protocolname
+   |   protocolname protocols
+   ;
 
 
-fromto:	srcaddress dstaddress
-	;
+fromto:   srcaddress dstaddress
+   ;
 
-log:	LOG ':' logs
-	;
+redirect:   REDIRECT rdr_fromaddress
+   |   REDIRECT rdr_toaddress
+   ;
+
+session: maxsessions
+   ;
+
+maxsessions: MAXSESSIONS ':' NUMBER {
+#if SOCKS_SERVER
+   static session_t ssinit;
+
+  /*
+   * temporarily allocate ordinary memory, later on point it to
+   * the correct shared mem.
+   */
+   if ((rule.ss = malloc(sizeof(*rule.ss))) == NULL)
+      serr(EXIT_FAILURE, NOMEM);
+   *rule.ss = ssinit;
+   if ((rule.ss->maxsessions = atoi($3)) < 0)
+      yyerror("session value can not be less than 0");
+#endif /* SOCKS_SERVER */
+}
+;
+
+bandwidth:   BANDWIDTH ':' NUMBER {
+#if SOCKS_SERVER
+      static bw_t bwmeminit;
+
+     /*
+      * temporarily allocate ordinary memory, later on point it to
+      * the correct index in sockscf.bwv.
+      */
+      if ((rule.bw = malloc(sizeof(*rule.bw))) == NULL)
+         serr(EXIT_FAILURE, NOMEM);
+      *rule.bw = bwmeminit;
+      if ((rule.bw->maxbps = atoi($3)) <= 0)
+         yyerror("bandwidth value must be greater than 0");
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+
+log:   LOG ':' logs
+   ;
 
 logname:  LOG_CONNECT {
 #if SOCKS_SERVER
-	rule.log.connect = 1;
-	}
-	|	LOG_DATA {
-			rule.log.data = 1;
-	}
-	|	LOG_DISCONNECT {
-			rule.log.disconnect = 1;
-	}
-	|	LOG_ERROR {
-			rule.log.error = 1;
-	}
-	|	LOG_IOOPERATION {
-			rule.log.iooperation = 1;
+   rule.log.connect = 1;
+   }
+   |   LOG_DATA {
+         rule.log.data = 1;
+   }
+   |   LOG_DISCONNECT {
+         rule.log.disconnect = 1;
+   }
+   |   LOG_ERROR {
+         rule.log.error = 1;
+   }
+   |   LOG_IOOPERATION {
+         rule.log.iooperation = 1;
 #endif
-	}
-	;
+   }
+   ;
 
-logs:	logname
-	|  logname logs
-	;
+logs:   logname
+   |  logname logs
+   ;
 
 
-libwrap:	LIBWRAPSTART ':' LINE {
+pamservicename: PAMSERVICENAME ':' SERVICENAME {
+#if HAVE_PAM && SOCKS_SERVER
+      if (strlen($3) >= sizeof(rule.pamservicename))
+         yyerror("servicename too long");
+      strcpy(rule.pamservicename, $3);
+#else /* !HAVE_PAM */
+      yyerror("pamsupport not compiled in");
+#endif /* HAVE_PAM */
+   }
+   ;
+
+libwrap:   LIBWRAPSTART ':' LINE {
 #if HAVE_LIBWRAP && SOCKS_SERVER
-		struct request_info request;
-		char libwrap[LIBWRAPBUF];
+      struct request_info request;
+      char libwrap[LIBWRAPBUF];
 
-		if (strlen($3) >= sizeof(rule.libwrap))
-			yyerror("libwrapline too long, make LIBWRAPBUF bigger");
-		strcpy(rule.libwrap, $3);
+      if (strlen($3) >= sizeof(rule.libwrap))
+         yyerror("libwrapline too long, make LIBWRAPBUF bigger");
+      strcpy(rule.libwrap, $3);
 
-		/* libwrap modifies the passed buffer. */
-		SASSERTX(strlen(rule.libwrap) < sizeof(libwrap));
-		strcpy(libwrap, rule.libwrap);
+      /* libwrap modifies the passed buffer. */
+      SASSERTX(strlen(rule.libwrap) < sizeof(libwrap));
+      strcpy(libwrap, rule.libwrap);
 
-		++dry_run;
-		request_init(&request, RQ_FILE, -1, RQ_DAEMON, __progname, 0);
-		if (setjmp(tcpd_buf) != 0)
-			yyerror("bad libwrap line");
-		process_options(libwrap, &request);
-		--dry_run;
+      ++dry_run;
+      request_init(&request, RQ_FILE, -1, RQ_DAEMON, __progname, 0);
+      if (setjmp(tcpd_buf) != 0)
+         yyerror("bad libwrap line");
+      process_options(libwrap, &request);
+      --dry_run;
 
 #else /* !HAVE_LIBWRAP */
-		yyerror("libwrap support not compiled in");
+      yyerror("libwrapsupport not compiled in");
 #endif
-	}
-	;
+   }
+   ;
 
 
-srcaddress:	from ':' address
-	;
+srcaddress:   from ':' address
+   ;
 
 
-dstaddress:	to ':' address
-	;
+dstaddress:   to ':' address
+   ;
+
+rdr_fromaddress: rdr_from ':' address
+   ;
+
+rdr_toaddress: rdr_to ':' address
+   ;
+
+gateway:   via ':' gwaddress
+   ;
+
+routeoption:   command
+   |   extension
+   |   protocol
+   |   proxyprotocol
+   |   authmethod
+   ;
+
+routeoptions:   { $$ = NULL; }
+   | routeoption routeoptions
+   ;
+
+from:   FROM {
+      addrinit(&src);
+   }
+   ;
+
+to:   TO {
+      addrinit(&dst);
+   }
+   ;
+
+rdr_from:   FROM {
+      addrinit(&rdr_from);
+   }
+   ;
+
+rdr_to:   TO {
+      addrinit(&rdr_to);
+   }
+   ;
 
 
-gateway:	via ':' gwaddress
-	;
 
-routeoption:	command
-	|	extension
-	|	protocol
-	|	proxyprotocol
-	|	authmethod
-	;
+via:   VIA {
+      gwaddrinit(&gw);
+   }
+   ;
 
-routeoptions:	{ $$ = NULL; }
-	| routeoption routeoptions
-	;
+internaladdress: ipaddress port
+   |   domain port
+   |   ifname port
+   ;
 
-from:	FROM {
-		addressinit(&src);
-	}
-	;
+externaladdress: ipaddress
+   |   domain
+   |   ifname
+   ;
 
 
-to:	TO {
-		addressinit(&dst);
-	}
-	;
+address: ipaddress '/' netmask port
+   |   domain port
+   |   ifname port
+   ;
 
 
-via:	VIA {
-#if SOCKS_CLIENT
-		addressinit(&gw);
-#endif
-	}
-	;
+gwaddress:   ipaddress gwport
+   |   domain gwport
+   |   ifname gwport
+   |   direct
+   |  url
+   ;
 
 
-address:		ipaddress '/' netmask port
-	|	domain port
-	;
+ipaddress:   IPADDRESS {
+      *atype = SOCKS_ADDR_IPV4;
+
+      if (inet_aton($1, ipaddr) != 1)
+         yyerror("bad address: %s", $1);
+   }
+   ;
 
 
-gwaddress:	ipaddress port
-	|	domain port
-	|	direct
-	;
+netmask:   NUMBER {
+      if (atoi($1) < 0 || atoi($1) > 32)
+         yyerror("bad netmask: %s", $1);
+
+      netmask->s_addr
+      = atoi($1) == 0 ? 0 : htonl(0xffffffff << (32 - atoi($1)));
+   }
+   |   IPADDRESS {
+         if (!inet_aton($1, netmask))
+            yyerror("bad netmask: %s", $1);
+   }
+   ;
+
+domain:   DOMAINNAME {
+      *atype = SOCKS_ADDR_DOMAIN;
+
+      if (strlen($1) >= MAXHOSTNAMELEN)
+         yyerror("domainname too long");
+      strcpy(domain, $1);
+   }
+   ;
+
+ifname:   IFNAME {
+      *atype = SOCKS_ADDR_IFNAME;
+
+      if (strlen($1) >= MAXIFNAMELEN)
+         yyerror("interfacename too long");
+      strcpy(ifname, $1);
+   }
+   ;
 
 
-ipaddress:	IPADDRESS {
-		*atype = SOCKS_ADDR_IPV4;
+direct:   DIRECT {
+      *atype = SOCKS_ADDR_DOMAIN;
 
-		if (inet_aton($1, ipaddr) != 1)
-			yyerror("bad address: %s", $1);
-	}
-	;
+      if (strlen($1) >= MAXHOSTNAMELEN)
+         yyerror("domain name \"%s\" too long", $1);
+      strcpy(domain, $1);
 
+      proxyprotocol->direct = 1;
+   }
+   ;
 
-netmask:	NUMBER {
-		if (atoi($1) < 0 || atoi($1) > 32)
-			yyerror("bad netmask: %d", $1);
+url:   URL {
+      *atype = SOCKS_ADDR_URL;
 
-		netmask->s_addr
-		= atoi($1) == 0 ? 0 : htonl(0xffffffff << (32 - atoi($1)));
-	}
-	|	IPADDRESS {
-			if (!inet_aton($1, netmask))
-				yyerror("bad netmask: %s", $1);
-	}
-	;
+      if (strlen($1) >= MAXURLLEN)
+         yyerror("url \"%s\" too long", $1);
+      strcpy(url, $1);
+   }
+   ;
 
-domain:	DOMAIN {
-		*atype = SOCKS_ADDR_DOMAIN;
-
-		if (strlen($1) >= MAXHOSTNAMELEN)
-			yyerror("domainname too long");
-		strcpy(domain, $1);
-	}
-	;
-
-ifname:	IFNAME {
-		*atype = SOCKS_ADDR_IFNAME;
-
-		if (strlen($1) >= MAXIFNAMELEN)
-			yyerror("interfacename too long");
-		strcpy(ifname, $1);
-	}
-	;
-
-
-direct:	DIRECT {
-		*atype = SOCKS_ADDR_DOMAIN;
-
-		if (strlen($1) >= MAXHOSTNAMELEN)
-			yyerror("domainname too long");
-		strcpy(domain, $1);
-
-#if SOCKS_CLIENT
-		route.state.direct = 1;
-#endif
-	}
-	;
 
 port: { $$ = NULL; }
-	|	PORT portoperator portnumber
-	|	PORT portrange
-	;
+   |   PORT portoperator portnumber
+   |   PORT portrange
+   ;
 
-portnumber:	portservice
-	|	portstart
-	;
+gwport: { $$ = NULL; }
+   |      PORT portoperator portnumber
+   ;
 
-portrange:	portstart '-' portend
-	;
+portnumber:   portservice
+   |   portstart
+   ;
 
-
-portstart:	PORTNUMBER {
-		*port_tcp	= htons((in_port_t)atoi($1));
-		*port_udp	= htons((in_port_t)atoi($1));
-	}
-	;
-
-portend:	PORTNUMBER {
-		ruleaddress->portend		= htons((in_port_t)atoi($1));
-		ruleaddress->operator	= range;
-	}
-	;
-
-portservice:	SERVICENAME {
-		struct servent	*service;
-		struct protocol_t	protocolunset;
-		int set;
-
-		bzero(&protocolunset, sizeof(protocolunset));
-
-		/* set all protocols if none set, default. */
-		if (memcmp(protocol, &protocolunset, sizeof(*protocol)) == 0) {
-			memset(protocol, UCHAR_MAX, sizeof(*protocol));
-			set = 0;
-		}
-		else
-			set = 1;
-
-		if (protocol->tcp) {
-			if ((service = getservbyname($1, "tcp")) == NULL) {
-				if (set)
-					yyerror("bad servicename for tcp: %s", $1);
-				else
-					*port_tcp = htons(0);
-			}
-			else
-				*port_tcp = (in_port_t)service->s_port;
-		}
-
-		if (protocol->udp) {
-			if ((service = getservbyname($1, "udp")) == NULL) {
-				if (set)
-					yyerror("bad servicename for udp: %s", $1);
-				else
-					*port_udp = htons(0);
-			}
-			else
-				*port_udp = (in_port_t)service->s_port;
-		}
-
-		/* check we got both protocol ports set right. */
-		if (*port_tcp == htons(0) && *port_udp == htons(0))
-			yyerror("bad service name for tcp/udp");
-		if (*port_tcp == htons(0))
-			*port_tcp = *port_udp;
-		else if (*port_udp == htons(0))
-			*port_udp = *port_tcp;
-	}
-	;
+portrange:   portstart '-' portend
+   ;
 
 
-portoperator:	OPERATOR {
-		*operator = string2operator($1);
-	}
-	;
+portstart:   PORTNUMBER {
+      *port_tcp   = htons((in_port_t)atoi($1));
+      *port_udp   = htons((in_port_t)atoi($1));
+   }
+   ;
+
+portend:   PORTNUMBER {
+      ruleaddr->portend      = htons((in_port_t)atoi($1));
+      ruleaddr->operator   = range;
+   }
+   ;
+
+portservice:   SERVICENAME {
+      struct servent   *service;
+
+      if ((service = getservbyname($1, "tcp")) == NULL) {
+         if (protocol->tcp)
+            yyerror("unknown tcp protocol: %s", $1);
+         *port_tcp = htons(0);
+      }
+      else
+         *port_tcp = (in_port_t)service->s_port;
+
+      if ((service = getservbyname($1, "udp")) == NULL) {
+         if (protocol->udp)
+               yyerror("unknown udp protocol: %s", $1);
+            *port_udp = htons(0);
+      }
+      else
+         *port_udp = (in_port_t)service->s_port;
+
+      if (*port_tcp == htons(0) && *port_udp == htons(0))
+         yyerror("unknown tcp/udp protocol");
+
+      /* if one protocol is unset, set to same as the other. */
+      if (*port_tcp == htons(0))
+         *port_tcp = *port_udp;
+      else if (*port_udp == htons(0))
+         *port_udp = *port_tcp;
+   }
+   ;
+
+
+portoperator:   OPERATOR {
+      *operator = string2operator($1);
+   }
+   ;
 
 %%
 
-#define INTERACTIVE		0
-
-#if SOCKS_SERVER
-#define ELECTRICFENCE	0
-#else
-#define ELECTRICFENCE	0
-#endif
-
-
-#if ELECTRICFENCE
-	extern int EF_PROTECT_FREE;
-	extern int EF_ALLOW_MALLOC_0;
-	extern int EF_ALIGNMENT;
-	extern int EF_PROTECT_BELOW;
-#endif /* ELECTRICFENCE */
+#define INTERACTIVE      0
 
 extern FILE *yyin;
 
-int parseinit;
+int socks_parseinit;
 
 int
 readconfig(filename)
-	const char *filename;
+   const char *filename;
 {
-	const char *function = "readconfig()";
-	const int errno_s = errno;
+   const char *function = "readconfig()";
 
-#if ELECTRICFENCE
-	EF_PROTECT_FREE         = 1;
-	EF_ALLOW_MALLOC_0       = 1;
-	EF_ALIGNMENT            = 0;
-	EF_PROTECT_BELOW			= 0;
-#endif /* ELECTRICFENCE */
+/*   yydebug            = 1;            */
+   yylineno            = 1;
+   socks_parseinit   = 0;
 
-/*	yydebug		= 1;        */
-	yylineno		= 1;
-	parseinit	= 0;
+   if ((yyin = fopen(filename, "r")) == NULL) {
+      swarn("%s: %s", function, filename);
+      return -1;
+   }
 
-	if ((yyin = fopen(filename, "r")) == NULL) {
-		swarn("%s: %s", function, filename);
-		return -1;
-	}
+   errno = 0;   /* don't report old errors in yyparse(). */
+   yyparse();
+   fclose(yyin);
 
-	yyparse();
-	fclose(yyin);
+#if SOCKS_SERVER
+   fixconfig();
+#endif /* SOCKS_SERVER */
 
-	errno = errno_s; /* yacc for some reason alters errno sometimes. */
+   errno = 0;
 
-	return 0;
+   return 0;
 }
 
 
@@ -1075,34 +1268,34 @@ void
 yyerror(const char *fmt, ...)
 #else
 yyerror(fmt, va_alist)
-	const char *fmt;
-	va_dcl
+   const char *fmt;
+   va_dcl
 #endif  /* STDC_HEADERS */
 {
-	va_list ap;
-	char buf[2048];
-	size_t bufused;
+   va_list ap;
+   char buf[2048];
+   size_t bufused;
 
 #ifdef STDC_HEADERS
-		/* LINTED pointer casts may be troublesome */
-		va_start(ap, fmt);
+      /* LINTED pointer casts may be troublesome */
+      va_start(ap, fmt);
 #else
-		va_start(ap);
+      va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	bufused = snprintfn(buf, sizeof(buf),
-	"%s: error on line %d, near '%.10s': ",
-	config.option.configfile, yylineno,
-	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
+   bufused = snprintfn(buf, sizeof(buf),
+   "%s: error on line %d, near '%.10s': ",
+   sockscf.option.configfile, yylineno,
+   (yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
 
-	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
+   vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
 
-	/* LINTED expression has null effect */
-	va_end(ap);
+   /* LINTED expression has null effect */
+   va_end(ap);
 
-	if (errno)
-		serr(EXIT_FAILURE, buf);
-	serrx(EXIT_FAILURE, buf);
+   if (errno)
+      serr(EXIT_FAILURE, buf);
+   serrx(EXIT_FAILURE, buf);
 }
 
 void
@@ -1110,64 +1303,159 @@ void
 yywarn(const char *fmt, ...)
 #else
 yywarn(fmt, va_alist)
-	const char *fmt;
-	va_dcl
+   const char *fmt;
+   va_dcl
 #endif  /* STDC_HEADERS */
 {
-	va_list ap;
-	char buf[2048];
-	size_t bufused;
+   va_list ap;
+   char buf[2048];
+   size_t bufused;
 
 #ifdef STDC_HEADERS
-		/* LINTED pointer casts may be troublesome */
-		va_start(ap, fmt);
+      /* LINTED pointer casts may be troublesome */
+      va_start(ap, fmt);
 #else
-		va_start(ap);
+      va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	bufused = snprintfn(buf, sizeof(buf),
-	"%s: warning on line %d, near '%.10s': ",
-	config.option.configfile, yylineno,
-	(yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
+   bufused = snprintfn(buf, sizeof(buf),
+   "%s: warning on line %d, near '%.10s': ",
+   sockscf.option.configfile, yylineno,
+   (yytext == NULL || *yytext == NUL) ? "'start of line'" : yytext);
 
-	vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
+   vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
 
-	/* LINTED expression has null effect */
-	va_end(ap);
+   /* LINTED expression has null effect */
+   va_end(ap);
 
-	if (errno)
-		swarn(buf);
-	swarnx(buf);
+   if (errno)
+      swarn(buf);
+   swarnx(buf);
 }
 
 static void
-addressinit(address)
-	struct ruleaddress_t *address;
+addrinit(addr)
+   struct ruleaddr_t *addr;
 {
-		ruleaddress	= address;
+   ruleaddr   = addr;
 
-		atype			= &ruleaddress->atype;
-		ipaddr		= &ruleaddress->addr.ipv4.ip;
-		netmask		= &ruleaddress->addr.ipv4.mask;
-		domain		= ruleaddress->addr.domain;
-		ifname		= ruleaddress->addr.ifname;
-		port_tcp		= &ruleaddress->port.tcp;
-		port_udp		= &ruleaddress->port.udp;
-		operator		= &ruleaddress->operator;
+   atype         = &ruleaddr->atype;
+   ipaddr      = &ruleaddr->addr.ipv4.ip;
+   netmask      = &ruleaddr->addr.ipv4.mask;
+   domain      = ruleaddr->addr.domain;
+   ifname      = ruleaddr->addr.ifname;
+   port_tcp      = &ruleaddr->port.tcp;
+   port_udp      = &ruleaddr->port.udp;
+   operator      = &ruleaddr->operator;
 }
+
+static void
+gwaddrinit(addr)
+   gwaddr_t *addr;
+{
+   static enum operator_t operatormem;
+
+   atype         = &addr->atype;
+   ipaddr      = &addr->addr.ipv4;
+   domain      = addr->addr.domain;
+   ifname      = addr->addr.ifname;
+   url         = addr->addr.urlname;
+   port_tcp      = &addr->port;
+   port_udp      = &addr->port;
+   operator      = &operatormem; /* no operator in gwaddr. */
+}
+
+
 
 #if SOCKS_SERVER
 static void
 ruleinit(rule)
-	const struct rule_t *rule;
+   struct rule_t *rule;
 {
-	rule->linenumber = yylineno;
+   rule->linenumber = yylineno;
 
-	command			= &rule->state.command;
-	methodv			= rule->state.methodv;
-	methodc			= &rule->state.methodc;
-	protocol			= &rule->state.protocol;
-	proxyprotocol	= &rule->state.proxyprotocol;
-	userbase			= &rule->user;
+   command         = &rule->state.command;
+   methodv         = rule->state.methodv;
+   methodc         = &rule->state.methodc;
+   protocol         = &rule->state.protocol;
+   proxyprotocol   = &rule->state.proxyprotocol;
+
+   bzero(&src, sizeof(src));
+   bzero(&dst, sizeof(dst));
+   *rule = ruleinitmem;
+
+   src.atype = SOCKS_ADDR_IPV4;
+   src.addr.ipv4.ip.s_addr = htonl(INADDR_ANY);
+   src.port.tcp = src.port.udp = src.portend = htons(0);
+
+   dst = rdr_from = rdr_to = src;
 }
-#endif
+
+static void
+fixconfig(void)
+{
+   const char *function = "fixsettings()";
+   int i;
+   uid_t euid;
+
+   /*
+    * Check arguments and settings, do they make sense?
+    */
+
+   if (sockscf.clientmethodc == 0)
+      sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_NONE;
+
+#if !HAVE_DUMPCONF
+   if (!sockscf.uid.privileged_isset)
+      sockscf.uid.privileged = sockscf.state.euid;
+   else {
+      socks_seteuid(&euid, sockscf.uid.privileged);
+      socks_reseteuid(sockscf.uid.privileged, euid);
+   }
+
+   if (!sockscf.uid.unprivileged_isset)
+      sockscf.uid.unprivileged = sockscf.state.euid;
+   else {
+      socks_seteuid(&euid, sockscf.uid.unprivileged);
+      socks_reseteuid(sockscf.uid.unprivileged, euid);
+   }
+
+#if HAVE_LIBWRAP
+   if (!sockscf.uid.libwrap_isset)
+      sockscf.uid.libwrap = sockscf.state.euid;
+   else {
+      socks_seteuid(&euid, sockscf.uid.libwrap);
+      socks_reseteuid(sockscf.uid.libwrap, euid);
+   }
+#endif /* HAVE_LIBWRAP */
+#endif /* !HAVE_DUMPCONF */
+
+   if (sockscf.internalc == 0)
+      serrx(EXIT_FAILURE, "%s: no internal address given", function);
+   /* values will be used once and checked there. */
+
+   if (sockscf.external.addrc == 0)
+      serrx(EXIT_FAILURE, "%s: no external address given", function);
+#if !HAVE_DUMPCONF
+   for (i = 0; i < sockscf.external.addrc; ++i)
+      if (!addressisbindable(&sockscf.external.addrv[i]))
+         serrx(EXIT_FAILURE, NULL);
+#endif /* !HAVE_DUMPCONF */
+
+#if !HAVE_DUMPCONF 
+   if (sockscf.methodc == 0)
+      swarnx("%s: no methods enabled (total block)", function);
+
+   if (sockscf.uid.unprivileged == 0)
+      swarnx("%s: setting the unprivileged uid to %d is not recommended",
+      function, sockscf.uid.unprivileged);
+
+#if HAVE_LIBWRAP
+   if (sockscf.uid.libwrap == 0)
+      swarnx("%s: setting the libwrap uid to %d is not recommended",
+      function, sockscf.uid.libwrap);
+#endif /* HAVE_LIBWRAP */
+#endif /* !HAVE_DUMPCONF */
+}
+
+#endif /* SOCKS_SERVER */

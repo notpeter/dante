@@ -1,7 +1,7 @@
 /*
- * $Id: broken.c,v 1.12 2001/02/06 15:58:50 michaels Exp $
+ * $Id: broken.c,v 1.16 2008/11/09 22:24:03 karls Exp $
  *
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: broken.c,v 1.12 2001/02/06 15:58:50 michaels Exp $";
+"$Id: broken.c,v 1.16 2008/11/09 22:24:03 karls Exp $";
 
 #if HAVE_SHADOW_H && HAVE_GETSPNAM
 #include <shadow.h>
@@ -54,26 +54,26 @@ static const char rcsid[] =
 
 struct passwd *
 socks_getpwnam(login)
-	const char *login;
+   const char *login;
 {
-	struct passwd *pwd;
+   struct passwd *pwd;
 
-	if ((pwd = getpwnam(login)) == NULL)
-		return NULL;
+   if ((pwd = getpwnam(login)) == NULL)
+      return NULL;
 
 #if HAVE_GETSPNAM /* broken sysv stuff. */
-	{
-	struct spwd *spwd;
+   {
+   struct spwd *spwd;
 
-	if ((spwd = getspnam(login)) != NULL)
-		pwd->pw_passwd = spwd->sp_pwdp;
-	}
+   if ((spwd = getspnam(login)) != NULL)
+      pwd->pw_passwd = spwd->sp_pwdp;
+   }
 #elif HAVE_GETPRPWNAM /* some other broken stuff. */
-	/*
-	 * XXX, don't know how this looks yet.
-	*/
-	/* getprpwnam(login); */
-#endif
+   /*
+    * XXX, don't know how this looks yet.
+   */
+   /* getprpwnam(login); */
+#endif /* HAVE_GETSPNAM */
 
-	return pwd;
+   return pwd;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,20 @@
  *
  */
 
-/* $Id: socks.h,v 1.4 2001/02/17 21:29:25 michaels Exp $ */
+/* $Id: socks.h,v 1.13 2008/07/25 08:48:29 michaels Exp $ */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+
+/*
+ * The definition of bindresvport below might conflict with
+ * <netinet/in.h> ... best workaround seems to be to make sure the
+ * file is included prior to the #define
+ */
+#include <netinet/in.h>
+
+#include <netdb.h>
+
 
 #define accept Raccept
 #define bind Rbind
@@ -49,6 +62,8 @@
 #define connect Rconnect
 #define gethostbyname Rgethostbyname
 #define gethostbyname2 Rgethostbyname2
+#define getaddrinfo Rgetaddrinfo
+#define getipnodebyname Rgetipnodebyname
 #define getpeername Rgetpeername
 #define getsockname Rgetsockname
 #define read Rread
@@ -70,5 +85,41 @@ SOCKSinit(char *progname);
  * If you want to, call this function with "progname" as the name of
  * your program.  For systems that do not have __progname.
  * Returns:
- *		On success: 0.
+ *      On success: 0.
 */
+
+#undef __P
+#if defined (__STDC__) || defined (_AIX) \
+   || (defined (__mips) && defined (_SYSTYPE_SVR4)) \
+   || defined(WIN32) || defined(__cplusplus)
+# define __P(protos) protos
+#else
+# define __P(protos) ()
+#endif
+
+int Raccept __P((int, struct sockaddr *, socklen_t *));
+int Rconnect __P((int, const struct sockaddr *, socklen_t));
+int Rgetsockname __P((int, struct sockaddr *, socklen_t *));
+int Rgetpeername __P((int, struct sockaddr *, socklen_t *));
+ssize_t Rsendto __P((int s, const void *msg, size_t len, int flags, const struct sockaddr *to, socklen_t tolen));
+ssize_t Rrecvfrom __P((int s, void *buf, size_t len, int flags, struct sockaddr * from, socklen_t *fromlen));
+ssize_t Rsendmsg __P((int s, const struct msghdr *msg, int flags));
+ssize_t Rrecvmsg __P((int s, struct msghdr *msg, int flags));
+int Rbind __P((int, const struct sockaddr *, socklen_t));
+
+int Rbindresvport __P((int, struct sockaddr_in *));
+int Rrresvport __P((int *));
+struct hostent *Rgethostbyname __P((const char *));
+struct hostent *Rgethostbyname2 __P((const char *, int af));
+int Rgetaddrinfo __P((const char *nodename, const char *servname,
+                     const struct addrinfo *hints, struct addrinfo **res));
+struct hostent *Rgetipnodebyname __P((const char *name, int af, int flags, int *error_num));
+ssize_t Rwrite __P((int d, const void *buf, size_t nbytes));
+ssize_t Rwritev __P((int d, const struct iovec *iov, int iovcnt));
+ssize_t Rsend __P((int s, const void *msg, size_t len, int flags));
+ssize_t Rread __P((int d, void *buf, size_t nbytes));
+ssize_t Rreadv __P((int d, const struct iovec *iov, int iovcnt));
+ssize_t Rrecv __P((int s, void *msg, size_t len, int flags));
+
+int Rlisten __P((int, int));
+int Rselect __P((int, fd_set *, fd_set *, fd_set *, struct timeval *));

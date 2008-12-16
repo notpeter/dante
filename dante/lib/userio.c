@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,79 +44,83 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.21 2001/02/06 15:58:59 michaels Exp $";
+"$Id: userio.c,v 1.26 2008/07/25 08:49:01 michaels Exp $";
 
 /* ARGSUSED */
 char *
 socks_getusername(host, buf, buflen)
-	const struct sockshost_t *host;
-	char *buf;
-	size_t buflen;
+   const struct sockshost_t *host;
+   char *buf;
+   size_t buflen;
 {
-	const char *function = "socks_getusername()";
-	char *name;
+   const char *function = "socks_getusername()";
+   char *name;
 
-	if ((name = getenv("SOCKS_USERNAME"))	!= NULL
-	||  (name = getenv("SOCKS_USER"))		!= NULL
-	||  (name = getenv("SOCKS5_USER"))		!= NULL)
-		;
-	else if ((name = getlogin()) != NULL)
-		;
-	else {
-		struct passwd *pw;
+   if ((name = getenv("SOCKS_USERNAME"))   != NULL
+   ||  (name = getenv("SOCKS_USER"))      != NULL
+   ||  (name = getenv("SOCKS5_USER"))      != NULL)
+      ;
+   else if ((name = getlogin()) != NULL)
+      ;
+   else {
+      struct passwd *pw;
 
-		if ((pw = getpwuid(getuid())) != NULL)
-			name = pw->pw_name;
-	}
+      if ((pw = getpwuid(getuid())) != NULL)
+         name = pw->pw_name;
+   }
 
-	if (name == NULL)
-		return NULL;
+   if (name == NULL)
+      return NULL;
 
-	if (strlen(name) >= buflen) {
-		swarnx("%s: socks username %d characters too long, truncated",
-		function, (strlen(name) + 1) - buflen);
-		name[buflen - 1] = NUL;
-	}
+   if (strlen(name) >= buflen) {
+      swarnx("%s: socks username %lu characters too long, truncated",
+      function, (unsigned long)((strlen(name) + 1) - buflen));
+      name[buflen - 1] = NUL;
+   }
 
-	strcpy(buf, name);
+   strcpy(buf, name);
 
-	return buf;
+   return buf;
 }
 
 char *
 socks_getpassword(host, user, buf, buflen)
-	const struct sockshost_t *host;
-	const char *user;
-	char *buf;
-	size_t buflen;
+   const struct sockshost_t *host;
+   const char *user;
+   char *buf;
+   size_t buflen;
 {
-	const char *function = "socks_getpassword()";
-	char *password;
+   const char *function = "socks_getpassword()";
+   int  password_is_from_env;
+   char *password;
 
-	if ((password = getenv("SOCKS_PASSWORD"))		!= NULL
-	||  (password = getenv("SOCKS_PASSWD"))		!= NULL
-	||  (password = getenv("SOCKS5_PASSWD"))		!= NULL)
-		;
-	else {
-		char prompt[256 + MAXSOCKSHOSTSTRING];
-		char hstring[MAXSOCKSHOSTSTRING];
+   if ((password = getenv("SOCKS_PASSWORD")) != NULL
+   ||  (password = getenv("SOCKS_PASSWD"))     != NULL
+   ||  (password = getenv("SOCKS5_PASSWD"))  != NULL)
+      password_is_from_env = 1;
+   else {
+      char prompt[256 + MAXSOCKSHOSTSTRING];
+      char hstring[MAXSOCKSHOSTSTRING];
 
-		snprintfn(prompt, sizeof(prompt), "%s@%s sockspassword: ",
-		user, sockshost2string(host, hstring, sizeof(hstring)));
-		password = getpass(prompt);
-	}
+      snprintfn(prompt, sizeof(prompt), "%s@%s sockspassword: ",
+      user, sockshost2string(host, hstring, sizeof(hstring)));
+      password = getpass(prompt);
+      password_is_from_env = 0;
+   }
 
-	if (password == NULL)
-		return NULL;
+   if (password == NULL)
+      return NULL;
 
-	if (strlen(password) >= buflen) {
-		swarnx("%s: socks password %d characters too long, truncated",
-		function, (strlen(password) + 1) - buflen);
-		password[buflen - 1] = NUL;
-	}
+   if (strlen(password) >= buflen) {
+      swarnx("%s: socks password %lu characters too long, truncated",
+      function, (unsigned long)((strlen(password) + 1) - buflen));
+      password[buflen - 1] = NUL;
+   }
 
-	strcpy(buf, password);
-	bzero(password, strlen(password));
+   strcpy(buf, password);
 
-	return buf;
+   if (!password_is_from_env) /* don't zero environment. */
+      bzero(password, strlen(password));
+
+   return buf;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.43 2001/02/06 15:58:39 michaels Exp $ */
+/* $Id: config.h,v 1.53 2008/07/25 08:48:34 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -61,42 +61,47 @@
  */
 
 
-	/*
-	 * client/server stuff.
-	 */
+   /*
+    * client/server stuff.
+    */
 
 /*
- * default client/server lockfile.
+ * default client/server lockfile (put in $TMPDIR, or /tmp).
  * Put this on a fast, low-latency fs, under /tmp is usually good.
  */
-#define SOCKS_LOCKFILE				"./sockslockXXXXXXXXXX"
+#define SOCKS_LOCKFILE            "./sockslockXXXXXXXXXX"
 
 /* if profiling is enabled, directory to store profile files in. */
-#define SOCKS_PROFILEDIR			"./prof"
+#define SOCKS_PROFILEDIR         "./.prof"
 
 
-	/*
-	 * client stuff.
-	 */
+   /*
+    * client stuff.
+    */
 
 /* default client config file. */
 #if !HAVE_SOCKS_CONFIGFILE
-#define SOCKS_CONFIGFILE			"/etc/socks.conf"
+#define SOCKS_CONFIGFILE         "/etc/socks.conf"
 #else
-#define SOCKS_CONFIGFILE			HAVE_ALT_SOCKS_CONFIGFILE
+#define SOCKS_CONFIGFILE         HAVE_ALT_SOCKS_CONFIGFILE
 #endif /* !HAVE_SOCKS_CONFIGFILE */
 
 /*
  * if we mark a route/socksserver as bad, how many seconds to wait
- * until we expire the badmarking so it will be tried again for new 
+ * until we expire the badmarking so it will be tried again for new
  * connections.
  * A value of zero means never.
-*/
-#define BADROUTE_EXPIRE				(60 * 0)
+ */
+#if SOCKS_CLIENT
+#define BADROUTE_EXPIRE            (60 * 0)
+#else /* SOCKS_SERVER */
+#define BADROUTE_EXPIRE            (60 * 5)
+#endif
 
-	/*
-	 * server stuff.
-	 */
+
+   /*
+    * server stuff.
+    */
 
 /*
  * If we are compiling with libwrap support, this sets the maximum
@@ -104,8 +109,14 @@
  * one libwrap uses internally, but we don't have access to that size.
  */
 #if HAVE_LIBWRAP
-#define LIBWRAPBUF			80
+#define LIBWRAPBUF         80
 #endif  /* HAVE_LIBWRAP */
+
+/*
+ * Name to give as servicename when starting pam for rules that don't
+ * set it.
+ */
+#define DEFAULT_PAMSERVICENAME   "sockd"
 
 /*
  * used only if no usable system call is found (getdtablesize()/sysconf()).
@@ -113,35 +124,35 @@
  * be for max open files per process on your system, you should set
  * this define to the correct value.
  */
-#define SOCKS_FD_MAX					64
+#define SOCKS_FD_MAX               64
 
 /*
  * The file the server will write it's process id to.
  * Note that this file should be in a restricted directory.
  */
 #if !HAVE_SOCKD_PIDFILE
-#define SOCKD_PIDFILE				"/var/run/sockd.pid"
+#define SOCKD_PIDFILE            "/var/run/sockd.pid"
 #else
-#define SOCKD_PIDFILE				HAVE_ALT_SOCKD_PIDFILE
+#define SOCKD_PIDFILE            HAVE_ALT_SOCKD_PIDFILE
 #endif /* !HAVE_SOCKD_PIDFILE */
 
 /* default port for server to listen on. */
-#define SOCKD_PORT					1080
+#define SOCKD_PORT               1080
 
 /* default server configfile */
 #if !HAVE_SOCKD_CONFIGFILE
-#define SOCKD_CONFIGFILE			"/etc/sockd.conf"
+#define SOCKD_CONFIGFILE         "/etc/sockd.conf"
 #else
-#define SOCKD_CONFIGFILE			HAVE_ALT_SOCKD_CONFIGFILE
+#define SOCKD_CONFIGFILE         HAVE_ALT_SOCKD_CONFIGFILE
 #endif /* !HAVE_SOCKD_CONFIGFILE */
 
 /* max number of clients pending to server (argument to listen()).
- * The Apache people say: 
+ * The Apache people say:
  *   It defaults to 511 instead of 512 because some systems store it
  *   as an 8-bit datatype; 512 truncated to 8-bits is 0, while 511 is
  *   255 when truncated.
-*/
-#define SOCKD_MAXCLIENTQUE			511
+ */
+#define SOCKD_MAXCLIENTQUE         511
 
 
 /*
@@ -150,34 +161,34 @@
  */
 
 /* cacheentries we should allocate for caching hostnames. */
-#define SOCKD_HOSTCACHE				512
+#define SOCKD_HOSTCACHE            512
 
 /* cacheentries we should allocate for caching addresses. */
-#define SOCKD_ADDRESSCACHE			512
+#define SOCKD_ADDRESSCACHE         512
 
 /* seconds a cacheentry is to be considered valid, don't set below 1. */
-#define SOCKD_CACHETIMEOUT			3600
+#define SOCKD_CACHETIMEOUT         3600
 
 /* print some statistics for every SOCKD_CACHESTAT lookup.  0 to disable. */
-#define SOCKD_CACHESTAT				0
+#define SOCKD_CACHESTAT            0
 
 /*
  * number of seconds a client can negotiate with server.
  * Can be changed in configfile.
  */
-#define SOCKD_NEGOTIATETIMEOUT	120
+#define SOCKD_NEGOTIATETIMEOUT   120
 
 /*
  * number of seconds a client can be connected after negotiation is completed
  * without sending/receiving any data.  Can be changed in configfile.
  */
-#define SOCKD_IOTIMEOUT				86400
+#define SOCKD_IOTIMEOUT            86400
 
 /*
  * Number of slots to try and keep available for new clients at any given time.
  * The server tries to be a little more intelligent about this, but not much.
  */
-#define SOCKD_FREESLOTS				4
+#define SOCKD_FREESLOTS            4
 
 /*
  * Dante supports one process handling N clients, where the max value for
@@ -196,7 +207,11 @@
  * You can probably set this to a big number.
  * Each client will occupy one descriptor.
  */
-#define SOCKD_NEGOTIATEMAX			24
+#if DEBUG
+#define SOCKD_NEGOTIATEMAX         2
+#else
+#define SOCKD_NEGOTIATEMAX         24
+#endif /* DEBUG */
 
 /*
  * max number of clients each i/o process will handle.
@@ -206,13 +221,17 @@
  * from doing any i/o untill a i/o slot has become available.  It is
  * therefore important that enough i/o slots are available at all times.
  */
-#define SOCKD_IOMAX					8
+#if DEBUG
+#define SOCKD_IOMAX               2
+#else
+#define SOCKD_IOMAX               8
+#endif /* DEBUG */
 
 /* server buffersize for network i/o using TCP. */
-#define SOCKD_BUFSIZETCP			(1024 * 16)
+#define SOCKD_BUFSIZETCP         (1024 * 16)
 
 /* server buffersize for network i/o using UDP. */
-#define SOCKD_BUFSIZEUDP			(1024 * 16)
+#define SOCKD_BUFSIZEUDP         (1024 * 16)
 
 /*
  * skew watermarks by this factor compared to "optimal".
@@ -220,15 +239,15 @@
  * possibly big cost in performance.  Never set it to more than one.
  * I'd be interested in hearing peoples result with this.
  */
-#define LOWATSKEW						(0.75)
+#define LOWATSKEW                  (0.75)
 
 /*
  * For systems that do not have the "low watermarks" socket option.
  * It is important not to set it to too high a value as that will
  * probably degrade performance for clients even more, causing starvation.
  * Basicly; low value  -> better interactive performance,
- *				high value -> better throughput.
+ *            high value -> better throughput.
  */
 #if !HAVE_SO_SNDLOWAT
-#define SO_SNDLOWAT_SIZE			(1024 * 4)
+#define SO_SNDLOWAT_SIZE         (1024 * 4)
 #endif

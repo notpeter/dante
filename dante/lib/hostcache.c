@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.22 2001/02/06 15:58:55 michaels Exp $";
+"$Id: hostcache.c,v 1.27 2008/11/28 19:09:53 karls Exp $";
 
 __BEGIN_DECLS
 
@@ -55,8 +55,8 @@ __BEGIN_DECLS
 
 #if SOCKSLIBRARY_DYNAMIC
 
-#define gethostbyaddr(addr, len, type)	sys_gethostbyaddr(addr, len, type)
-#define gethostbyname(name)				sys_gethostbyname(name)
+#define gethostbyaddr(addr, len, type)   sys_gethostbyaddr(addr, len, type)
+#define gethostbyname(name)            sys_gethostbyname(name)
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
@@ -66,8 +66,8 @@ hostentupdate __P((struct hostent *old, const struct hostent *new));
  * Updates "old" with the contents of "new", freeing any
  * resources currently used by "old".
  * Returns:
- *		On success: "old", updated.
- *		On failure: NULL.
+ *      On success: "old", updated.
+ *      On failure: NULL.
 */
 
 static int
@@ -95,314 +95,314 @@ listrealloc __P((char ***old, const char ***new, int length));
  * be NUL terminated, otherwise "length" gives the total length
  * of every string.
  * Returns:
- *		On success: "**old", with the contents of "new".
- *		On failure: NULL.
+ *      On success: "**old", with the contents of "new".
+ *      On failure: NULL.
 */
 
 __END_DECLS
 
 struct hostent *
 hostentdup(hostent)
-	const struct hostent *hostent;
+   const struct hostent *hostent;
 {
-	static struct hostent dupedinit;
-	struct hostent *duped;
+   static struct hostent dupedinit;
+   struct hostent *duped;
 
-	if ((duped = (struct hostent *)malloc(sizeof(*duped))) == NULL)
-		return NULL;
+   if ((duped = malloc(sizeof(*duped))) == NULL)
+      return NULL;
 
-	*duped = dupedinit;
+   *duped = dupedinit;
 
-	if ((duped->h_name = strdup(hostent->h_name)) == NULL) {
-		hostentfree(duped);
-		return NULL;
-	}
+   if ((duped->h_name = strdup(hostent->h_name)) == NULL) {
+      hostentfree(duped);
+      return NULL;
+   }
 
-	if (listrealloc(&duped->h_aliases, (const char ***)&hostent->h_aliases, -1)
-	== NULL) {
-		hostentfree(duped);
-		return NULL;
-	}
+   if (listrealloc(&duped->h_aliases, (const char ***)&hostent->h_aliases, -1)
+   == NULL) {
+      hostentfree(duped);
+      return NULL;
+   }
 
-	duped->h_addrtype = hostent->h_addrtype;
-	duped->h_length	= hostent->h_length;
+   duped->h_addrtype = hostent->h_addrtype;
+   duped->h_length   = hostent->h_length;
 
-	if (listrealloc(&duped->h_addr_list, (const char ***)&hostent->h_addr_list,
-	hostent->h_length) == NULL) {
-		hostentfree(duped);
-		return NULL;
-	}
+   if (listrealloc(&duped->h_addr_list, (const char ***)&hostent->h_addr_list,
+   hostent->h_length) == NULL) {
+      hostentfree(duped);
+      return NULL;
+   }
 
-	return duped;
+   return duped;
 }
 
 void
 hostentfree(hostent)
-	struct hostent *hostent;
+   struct hostent *hostent;
 {
-	char **p;
+   char **p;
 
-	if (hostent == NULL)
-		return;
+   if (hostent == NULL)
+      return;
 
-	free(hostent->h_name);
-	hostent->h_name = NULL;
+   free(hostent->h_name);
+   hostent->h_name = NULL;
 
-	if (hostent->h_aliases != NULL)
-		for (p = hostent->h_aliases; *p != NULL; ++p)
-			free(*p);
-	free(hostent->h_aliases);
-	hostent->h_aliases = NULL;
+   if (hostent->h_aliases != NULL)
+      for (p = hostent->h_aliases; *p != NULL; ++p)
+         free(*p);
+   free(hostent->h_aliases);
+   hostent->h_aliases = NULL;
 
-	if (hostent->h_addr_list != NULL)
-		for (p = hostent->h_addr_list; *p != NULL; ++p)
-			free(*p);
-	free(hostent->h_addr_list);
-	hostent->h_addr_list = NULL;
+   if (hostent->h_addr_list != NULL)
+      for (p = hostent->h_addr_list; *p != NULL; ++p)
+         free(*p);
+   free(hostent->h_addr_list);
+   hostent->h_addr_list = NULL;
 
-	free(hostent);
+   free(hostent);
 }
 
 static char **
 listrealloc(old, new, length)
-	char ***old;
-	const char ***new;
-	int length;
+   char ***old;
+   const char ***new;
+   int length;
 {
-	int i, oldi, newi;
+   int i, oldi, newi;
 
-	/* entries we can reallocate, starting at 0. */
-	oldi = 0;
-	if (*old != NULL)
-		while ((*old)[oldi] != NULL)
-			++oldi;
+   /* entries we can reallocate, starting at 0. */
+   oldi = 0;
+   if (*old != NULL)
+      while ((*old)[oldi] != NULL)
+         ++oldi;
 
-	newi = 0;
-	while ((*new)[newi] != NULL)
-		++newi;
+   newi = 0;
+   while ((*new)[newi] != NULL)
+      ++newi;
 
-	for (i = newi; i < oldi; ++i)
-		free((*old)[i]);
+   for (i = newi; i < oldi; ++i)
+      free((*old)[i]);
 
-	if ((*old = (char **)realloc(*old, sizeof(**new) * (newi + 1))) == NULL)
-		return NULL;
+   if ((*old = realloc(*old, sizeof(**new) * (newi + 1))) == NULL)
+      return NULL;
 
-	for (newi = 0; (*new)[newi] != NULL; ++newi, --oldi) {
-		if (((*old)[newi] = (char *)realloc(oldi > 0 ? (*old)[newi] : NULL,
-		length < 0 ? (strlen((*new)[newi]) + 1) : length)) == NULL)
-			return NULL;
+   for (newi = 0; (*new)[newi] != NULL; ++newi, --oldi) {
+      if (((*old)[newi] = realloc(oldi > 0 ? (*old)[newi] : NULL,
+      length < 0 ? ((size_t)strlen((*new)[newi]) + 1) : (size_t)length))== NULL)
+         return NULL;
 
-		if (length < 0)
-			strcpy((*old)[newi], (*new)[newi]);
-		else
-			memcpy((*old)[newi], (*new)[newi], (size_t)length);
-	}
-	(*old)[newi] = NULL;
+      if (length < 0)
+         strcpy((*old)[newi], (*new)[newi]);
+      else
+         memcpy((*old)[newi], (*new)[newi], (size_t)length);
+   }
+   (*old)[newi] = NULL;
 
-	return *old;
+   return *old;
 }
 
 #if SOCKS_SERVER
 
 struct hostent *
 cgethostbyname(name)
-	const char *name;
+   const char *name;
 {
-	const char *function = "cgethostbyname()";
-	static struct {
-		unsigned				allocated:1;
-		char					host[MAXHOSTNAMELEN];
-		time_t				written;
-		struct hostent		hostent;
-	} table[SOCKD_HOSTCACHE], *freehost;
-	static unsigned int hit, miss, count;
-	const time_t timenow = time(NULL);
-	const int hashi = hosthash(name, ELEMENTS(table));
-	size_t i;
-	struct hostent *hostent;
+   const char *function = "cgethostbyname()";
+   static struct {
+      unsigned            allocated:1;
+      char               host[MAXHOSTNAMELEN];
+      time_t            written;
+      struct hostent      hostent;
+   } table[SOCKD_HOSTCACHE], *freehost;
+   static unsigned int hit, miss, count;
+   const time_t timenow = time(NULL);
+   const int hashi = hosthash(name, ELEMENTS(table));
+   size_t i;
+   struct hostent *hostent;
 
 #if SOCKD_CACHESTAT
-	if (++count % SOCKD_CACHESTAT == 0)
-		slog(LOG_INFO, "%s: hit: %d, miss: %d", function, hit, miss);
+   if (++count % SOCKD_CACHESTAT == 0)
+      slog(LOG_INFO, "%s: hit: %d, miss: %d", function, hit, miss);
 #endif /* SOCKD_CACHESTAT */
 
-	for (i = hashi, freehost = NULL; i < ELEMENTS(table); ++i) {
-		if (!table[i].allocated) {
-			if (freehost == NULL)
-				freehost = &table[i];
-			continue;
-		}
+   for (i = hashi, freehost = NULL; i < ELEMENTS(table); ++i) {
+      if (!table[i].allocated) {
+         if (freehost == NULL)
+            freehost = &table[i];
+         continue;
+      }
 
-		if (strcasecmp(table[i].host, name) == 0) {
-			if (difftime(timenow, table[i].written) >= SOCKD_CACHETIMEOUT) {
-				freehost = &table[i];
-				break;
-			}
-			++hit;
-			return &table[i].hostent;
-		}
-	}
-	++miss;
+      if (strcasecmp(table[i].host, name) == 0) {
+         if (difftime(timenow, table[i].written) >= SOCKD_CACHETIMEOUT) {
+            freehost = &table[i];
+            break;
+         }
+         ++hit;
+         return &table[i].hostent;
+      }
+   }
+   ++miss;
 
-	if ((hostent = gethostbyname(name)) == NULL)
-		return NULL;
+   if ((hostent = gethostbyname(name)) == NULL)
+      return NULL;
 
-	if (freehost == NULL)
-		for (i = hashi, freehost = &table[i]; i < ELEMENTS(table); ++i) {
-			if (difftime(timenow, table[i].written) >= SOCKD_CACHETIMEOUT) {
-				freehost = &table[i];
-				break;
-			}
+   if (freehost == NULL)
+      for (i = hashi, freehost = &table[i]; i < ELEMENTS(table); ++i) {
+         if (difftime(timenow, table[i].written) >= SOCKD_CACHETIMEOUT) {
+            freehost = &table[i];
+            break;
+         }
 
-			if (freehost->written < table[i].written) {
-				freehost = &table[i]; /* oldest. */
-				break;
-			}
-		}
+         if (freehost->written < table[i].written) {
+            freehost = &table[i]; /* oldest. */
+            break;
+         }
+      }
 
-	if (hostentupdate(&freehost->hostent, hostent) == NULL) {
-		freehost->allocated = 0;
-		slog(LOG_WARNING, "%s: %s", NOMEM, function);
-		return NULL;
-	}
+   if (hostentupdate(&freehost->hostent, hostent) == NULL) {
+      freehost->allocated = 0;
+      slog(LOG_WARNING, "%s: %s", NOMEM, function);
+      return NULL;
+   }
 
-	SASSERTX(strlen(name) < sizeof(freehost->host));
-	strcpy(freehost->host, name);
-	time(&freehost->written);
-	freehost->allocated = 1;
+   SASSERTX(strlen(name) < sizeof(freehost->host));
+   strcpy(freehost->host, name);
+   time(&freehost->written);
+   freehost->allocated = 1;
 
-	return &freehost->hostent;
+   return &freehost->hostent;
 }
 
 struct hostent *
 cgethostbyaddr(addr, len, type)
-	const char *addr;
-	int len;
-	int type;
+   const char *addr;
+   int len;
+   int type;
 {
-	const char *function = "cgethostbyaddr()";
-	static struct {
-		unsigned			allocated:1;
-		in_addr_t			addr;
-		time_t				written;
-		struct hostent		hostent;
-	} table[SOCKD_ADDRESSCACHE], *freehost;
-	static unsigned long int hit, miss, count;
-	const time_t timenow = time(NULL);
-	/* LINTED pointer casts may be troublesome */
-	const int hashi
-	= addrhash(((const struct in_addr *)addr)->s_addr, ELEMENTS(table));
-	size_t i;
-	struct hostent *hostent;
+   const char *function = "cgethostbyaddr()";
+   static struct {
+      unsigned         allocated:1;
+      in_addr_t         addr;
+      time_t            written;
+      struct hostent      hostent;
+   } table[SOCKD_ADDRESSCACHE], *freehost;
+   static unsigned long int hit, miss, count;
+   const time_t timenow = time(NULL);
+   /* LINTED pointer casts may be troublesome */
+   const int hashi
+   = addrhash(((const struct in_addr *)addr)->s_addr, ELEMENTS(table));
+   size_t i;
+   struct hostent *hostent;
 
 #if SOCKD_CACHESTAT
-	if (++count % SOCKD_CACHESTAT == 0)
-		slog(LOG_INFO, "%s: hit: %d, miss: %d", function, hit, miss);
+   if (++count % SOCKD_CACHESTAT == 0)
+      slog(LOG_INFO, "%s: hit: %d, miss: %d", function, hit, miss);
 #endif /* SOCKD_CACHESTAT */
 
-	for (i = hashi, freehost = NULL; i < ELEMENTS(table); ++i) {
-		if (!table[i].allocated) {
-			if (freehost == NULL)
-				freehost = &table[i];
-			continue;
-		}
+   for (i = hashi, freehost = NULL; i < ELEMENTS(table); ++i) {
+      if (!table[i].allocated) {
+         if (freehost == NULL)
+            freehost = &table[i];
+         continue;
+      }
 
-		/* LINTED pointer casts may be troublesome */
-		if (table[i].addr == ((const struct in_addr *)addr)->s_addr) {
-			if (difftime(timenow, table[i].written) >= SOCKD_CACHETIMEOUT) {
-				freehost = &table[i];
-				break;
-			}
-			++hit;
-			return &table[i].hostent;
-		}
-	}
-	++miss;
+      /* LINTED pointer casts may be troublesome */
+      if (table[i].addr == ((const struct in_addr *)addr)->s_addr) {
+         if (difftime(timenow, table[i].written) >= SOCKD_CACHETIMEOUT) {
+            freehost = &table[i];
+            break;
+         }
+         ++hit;
+         return &table[i].hostent;
+      }
+   }
+   ++miss;
 
-	if ((hostent = gethostbyaddr(addr, len, type)) == NULL)
-		return NULL;
+   if ((hostent = gethostbyaddr(addr, len, type)) == NULL)
+      return NULL;
 
-	if (freehost == NULL)
-		for (i = hashi, freehost = &table[i]; i < ELEMENTS(table); ++i) {
-			if (difftime(timenow, table[i].written) >= SOCKD_CACHETIMEOUT) {
-				freehost = &table[i];
-				break;
-			}
+   if (freehost == NULL)
+      for (i = hashi, freehost = &table[i]; i < ELEMENTS(table); ++i) {
+         if (difftime(timenow, table[i].written) >= SOCKD_CACHETIMEOUT) {
+            freehost = &table[i];
+            break;
+         }
 
-			if (freehost->written < table[i].written) {
-				freehost = &table[i]; /* oldest. */
-				break;
-			}
-		}
+         if (freehost->written < table[i].written) {
+            freehost = &table[i]; /* oldest. */
+            break;
+         }
+      }
 
-	if (hostentupdate(&freehost->hostent, hostent) == NULL) {
-		freehost->allocated = 0;
-		slog(LOG_WARNING, "%s: %s", NOMEM, function);
-		return NULL;
-	}
+   if (hostentupdate(&freehost->hostent, hostent) == NULL) {
+      freehost->allocated = 0;
+      slog(LOG_WARNING, "%s: %s", NOMEM, function);
+      return NULL;
+   }
 
-	/* LINTED pointer casts may be troublesome */
-	freehost->addr = ((const struct in_addr *)addr)->s_addr;
-	time(&freehost->written);
-	freehost->allocated = 1;
+   /* LINTED pointer casts may be troublesome */
+   freehost->addr = ((const struct in_addr *)addr)->s_addr;
+   time(&freehost->written);
+   freehost->allocated = 1;
 
-	return &freehost->hostent;
+   return &freehost->hostent;
 }
 
 static int
 hosthash(name, size)
-	const char *name;
-	size_t size;
+   const char *name;
+   size_t size;
 {
-	char *end;
-	unsigned int value;
+   char *end;
+   unsigned int value;
 
-	/* end at second dot. */
-	if ((end = strchr(name, '.')) != NULL)
-		end = strchr(end, '.');
-	if (end == NULL)
-		end = strchr(name, NUL);
+   /* end at second dot. */
+   if ((end = strchr(name, '.')) != NULL)
+      end = strchr(end, '.');
+   if (end == NULL)
+      end = strchr(name, NUL);
 
-	SASSERTX(name <= end);
-	value = 0;
-	while (name != end)
-		value = (value << 5) + *name++;	/* MAW - DS&A: Horner's rule. */
+   SASSERTX(name <= end);
+   value = 0;
+   while (name != end)
+      value = (value << 5) + *name++;   /* MAW - DS&A: Horner's rule. */
 
-	return value % size;
+   return value % size;
 }
 
 static int
 addrhash(addr, size)
-	in_addr_t addr;
-	size_t size;
+   in_addr_t addr;
+   size_t size;
 {
 
-	return addr % size;
+   return addr % size;
 }
 
 static struct hostent *
 hostentupdate(old, new)
-	struct hostent *old;
-	const struct hostent *new;
+   struct hostent *old;
+   const struct hostent *new;
 {
 
-	if ((old->h_name = (char *)realloc(old->h_name, strlen(new->h_name) + 1))
-	== NULL)
-		return NULL;
-	strcpy(old->h_name, new->h_name);
+   if ((old->h_name = realloc(old->h_name, strlen(new->h_name) + 1))
+   == NULL)
+      return NULL;
+   strcpy(old->h_name, new->h_name);
 
-	if (listrealloc(&old->h_aliases, (const char ***)&new->h_aliases, -1)
-	== NULL)
-		return NULL;
+   if (listrealloc(&old->h_aliases, (const char ***)&new->h_aliases, -1)
+   == NULL)
+      return NULL;
 
-	old->h_addrtype	= new->h_addrtype;
-	old->h_length		= new->h_length;
+   old->h_addrtype   = new->h_addrtype;
+   old->h_length      = new->h_length;
 
-	if (listrealloc(&old->h_addr_list, (const char ***)&new->h_addr_list,
-	new->h_length) == NULL)
-		return NULL;
+   if (listrealloc(&old->h_addr_list, (const char ***)&new->h_addr_list,
+   new->h_length) == NULL)
+      return NULL;
 
-	return old;
+   return old;
 }
 
 #endif /* SOCKS_SERVER */

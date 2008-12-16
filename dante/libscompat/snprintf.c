@@ -1,4 +1,4 @@
-/* $Id: snprintf.c,v 1.5 2000/08/31 06:57:00 karls Exp $ */
+/* $Id: snprintf.c,v 1.6 2008/07/25 08:49:06 michaels Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -70,49 +70,49 @@ static void mcleanup __P((char *, size_t, char *));
 
 static char *
 msetup(str, n)
-	char *str;
-	size_t n;
+   char *str;
+   size_t n;
 {
-	char *e;
+   char *e;
 
-	if (n == 0)
-		return NULL;
-	if (pgsize == 0)
-		pgsize = getpagesize();
-	curobj = (char *)malloc(n + EXTRABYTES + pgsize * 2);
-	if (curobj == NULL)
-		return NULL;
-	e = curobj + n + EXTRABYTES;
-	e = (char *)roundup((unsigned long)e, pgsize);
-	if (mprotect(e, pgsize, PROT_NONE) == -1) {
-		free(curobj);
-		curobj = NULL;
-		return NULL;
-	}
-	e = e - n - EXTRABYTES;
-	*e = '\0';
-	return (e);
+   if (n == 0)
+      return NULL;
+   if (pgsize == 0)
+      pgsize = getpagesize();
+   curobj = (char *)malloc(n + EXTRABYTES + pgsize * 2);
+   if (curobj == NULL)
+      return NULL;
+   e = curobj + n + EXTRABYTES;
+   e = (char *)roundup((unsigned long)e, pgsize);
+   if (mprotect(e, pgsize, PROT_NONE) == -1) {
+      free(curobj);
+      curobj = NULL;
+      return NULL;
+   }
+   e = e - n - EXTRABYTES;
+   *e = '\0';
+   return (e);
 }
 
 static void
 mcatch()
 {
-	siglongjmp(bail, 1);
+   siglongjmp(bail, 1);
 }
 
 static void
 mcleanup(str, n, p)
-	char *str;
-	size_t n;
-	char *p;
+   char *str;
+   size_t n;
+   char *p;
 {
-	strncpy(str, p, n-1);
-	str[n-1] = '\0';
-	if (mprotect((caddr_t)(p + n + EXTRABYTES), pgsize,
-		PROT_READ|PROT_WRITE|PROT_EXEC) == -1)
-		mprotect((caddr_t)(p + n + EXTRABYTES), pgsize,
-			PROT_READ|PROT_WRITE);
-	free(curobj);
+   strncpy(str, p, n-1);
+   str[n-1] = '\0';
+   if (mprotect((caddr_t)(p + n + EXTRABYTES), pgsize,
+      PROT_READ|PROT_WRITE|PROT_EXEC) == -1)
+      mprotect((caddr_t)(p + n + EXTRABYTES), pgsize,
+         PROT_READ|PROT_WRITE);
+   free(curobj);
 }
 
 int
@@ -120,61 +120,61 @@ int
 snprintf(char *str, size_t n, char const *fmt, ...)
 #else
 snprintf(str, n, fmt, va_alist)
-	char *str;
-	size_t n;
-	char *fmt;
-	va_dcl
+   char *str;
+   size_t n;
+   char *fmt;
+   va_dcl
 #endif  /* STDC_HEADERS */
 {
-	va_list ap;
+   va_list ap;
 #ifdef STDC_HEADERS
-	va_start(ap, fmt);
+   va_start(ap, fmt);
 #else
-	va_start(ap);
+   va_start(ap);
 #endif  /* STDC_HEADERS */
 
-	return (vsnprintf(str, n, fmt, ap));
-	va_end(ap);
+   return (vsnprintf(str, n, fmt, ap));
+   va_end(ap);
 }
 
 int
 vsnprintf(str, n, fmt, ap)
-	char *str;
-	size_t n;
-	const char *fmt;
-	va_list ap;
+   char *str;
+   size_t n;
+   const char *fmt;
+   va_list ap;
 {
-	struct sigaction osa, nsa;
-	char *p;
-	int ret = n + 1;        /* if we bail, indicated we overflowed */
+   struct sigaction osa, nsa;
+   char *p;
+   int ret = n + 1;        /* if we bail, indicated we overflowed */
 
-	memset(&nsa, 0, sizeof nsa);
-	nsa.sa_handler = mcatch;
-	sigemptyset(&nsa.sa_mask);
+   memset(&nsa, 0, sizeof nsa);
+   nsa.sa_handler = mcatch;
+   sigemptyset(&nsa.sa_mask);
 
-	p = msetup(str, n);
-	if (p == NULL) {
-		*str = '\0';
-		return 0;
-	}
-	if (sigsetjmp(bail, 1) == 0) {
-		if (sigaction(SIGSEGV, &nsa, &osa) == -1) {
-			mcleanup(str, n, p);
-			return (0);
-		}
-		ret = vsprintf(p, fmt, ap);
+   p = msetup(str, n);
+   if (p == NULL) {
+      *str = '\0';
+      return 0;
+   }
+   if (sigsetjmp(bail, 1) == 0) {
+      if (sigaction(SIGSEGV, &nsa, &osa) == -1) {
+         mcleanup(str, n, p);
+         return (0);
+      }
+      ret = vsprintf(p, fmt, ap);
 #if HAVE_BROKEN_VSPRINTF
-		ret = strlen(p);
+      ret = strlen(p);
 #endif  /* HAVE_BROKEN_VSPRINTF */
-	}
-	mcleanup(str, n, p);
-	(void) sigaction(SIGSEGV, &osa, NULL);
-	return (ret);
+   }
+   mcleanup(str, n, p);
+   (void) sigaction(SIGSEGV, &osa, NULL);
+   return (ret);
 }
 #else
 static void avoid_error __P((void));
 static void avoid_error()
 {
-	avoid_error();
+   avoid_error();
 }
 #endif  /* !HAVE_VSNPRINTF */
