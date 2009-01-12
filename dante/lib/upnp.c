@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008
+ * Copyright (c) 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.30 2008/12/11 17:34:59 michaels Exp $";
+"$Id: upnp.c,v 1.35 2009/01/02 14:06:06 michaels Exp $";
 
 #include "common.h"
 
@@ -65,12 +65,6 @@ static const char rcsid[] =
 static struct sigaction oldsig;
 static void sighandler(int sig);
 #endif /* SOCKS_CLIENT */
-
-/* adds a direct route for "saddr". */
-static struct route_t *add_directroute(const struct sockaddr_in *saddr);
-
-/* do we have a direct upnp broadcast route? */
-static int socks_have_direct_upnpbroadcastroute(void);
 
 #endif /* HAVE_LIBMINIUPNP */
 
@@ -95,7 +89,7 @@ socks_initupnp(gw, state)
 #if !HAVE_LIBMINIUPNP
    return -1;
 #else /* HAVE_LIBMINIUPNP */
-   if (*state->upnp.controlurl != NULL)
+   if (*state->upnp.controlurl != NUL)
       return 0;
 
    if (gw->atype == SOCKS_ADDR_URL) {
@@ -111,11 +105,13 @@ socks_initupnp(gw, state)
       rc = 0;
    }
    else {
+      struct UPNPDev *p;
+
       gwaddr2sockshost(gw, &host);
       SASSERTX(host.atype == SOCKS_ADDR_IPV4);
       inet_ntop(AF_INET, &host.addr.ipv4, addrstring, sizeof(addrstring));
 
-      slog(LOG_DEBUG, "%s: doing upnp discover on the interface for %s (%s)",
+      slog(LOG_DEBUG, "%s: doing upnp discover on interface of addr %s (%s)",
       function, addrstring, gwaddr2string(gw, gwstring, sizeof(gwstring)));
 
       if ((dev = upnpDiscover(UPNP_DISCOVERYTIME_MS, addrstring, NULL, 0))
@@ -124,27 +120,22 @@ socks_initupnp(gw, state)
          return -1;
       }
 
-      if (socks_have_direct_upnpbroadcastroute()) {
-         /*
-          * If we have a direct route for upnp broadcast, assume we
-          * should add direct routes for all upnp devices found also.
-          */
-         struct UPNPDev *p;
+      slog(LOG_DEBUG,
+      "%s: upnp devices found, adding direct routes for them", function);
 
-         slog(LOG_DEBUG,
-         "%s: upnp devices found, adding direct routes for them", function);
+      for (p = dev; p != NULL; p = p->pNext) {
+         struct sockaddr saddr;
+         struct sockaddr_in smask;
 
-         for (p = dev; p != NULL; p = p->pNext) {
-            struct sockaddr saddr;
+         if (urlstring2sockaddr(p->descURL, &saddr) == NULL)
+            continue;
 
-            if (urlstring2sockaddr(p->descURL, &saddr) == NULL)
-               continue;
-            add_directroute((struct sockaddr_in *)&saddr);
-         }
+         bzero(&smask, sizeof(smask));
+         smask.sin_family      = AF_INET;
+         smask.sin_port        = htons(0);
+         smask.sin_addr.s_addr = htonl(0xffffffff);
+         socks_autoadd_directroute((struct sockaddr_in *)&saddr, &smask);
       }
-      else
-         slog(LOG_DEBUG, "%s: upnp devices found, but not adding direct "
-         "routes for them since no direct upnp broadcast route", function);
 
       switch (devtype = UPNP_GetValidIGD(dev, &url, &data, myaddr,
       sizeof(myaddr))) {
@@ -287,7 +278,8 @@ upnp_negotiate(s, packet, state)
          static int atexit_registered;
 #endif /* SOCKS_CLIENT */
          char buf[256], protocol[16];
-         int len, val;
+         int val;
+         socklen_t len;
 
          addrlen = sizeof(addr);
          if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0) {
@@ -498,77 +490,6 @@ sighandler(sig)
    raise(SIGINT);
 }
 #endif /* SOCKS_CLIENT */
-
-static struct route_t *
-add_directroute(saddr)
-   const struct sockaddr_in *saddr;
-{
-   struct route_t route;
-
-   memset(&route, 0, sizeof(route));
-
-   route.src.atype                            = SOCKS_ADDR_IPV4;
-   route.src.addr.ipv4.ip.s_addr              = htonl(0);
-   route.src.addr.ipv4.mask.s_addr            = htonl(0);
-   route.src.port.tcp                         = route.src.port.udp = htons(0);
-   route.src.operator                         = none;
-
-   route.dst.atype                            = SOCKS_ADDR_IPV4;
-   route.dst.addr.ipv4.ip                     = saddr->sin_addr;
-   route.dst.addr.ipv4.mask.s_addr            = htonl(32);
-   route.dst.port.tcp = route.dst.port.udp    = saddr->sin_port;
-   route.dst.operator                         = eq;
-   
-   route.gw.addr.atype                        = SOCKS_ADDR_DOMAIN;
-   SASSERTX(sizeof(route.gw.addr.addr.domain) >= sizeof("direct"));
-   strcpy(route.gw.addr.addr.domain, "direct");
-   route.gw.state.command.connect             = 1;
-   route.gw.state.command.udpassociate        = 1;
-   route.gw.state.proxyprotocol.direct        = 1;
-
-   route.state.autoadded                      = 1;
-
-   slog(LOG_DEBUG, "adding direct route for upnp device at %s",
-   sockaddr2string((const struct sockaddr *)saddr, NULL, 0));
-
-   return socks_addroute(&route, 0);
-}
-
-static int
-socks_have_direct_upnpbroadcastroute(void)
-{
-   const char *function = "socks_have_direct_upnpbroadcastroute()";
-   struct route_t *route;
-   struct sockshost_t host;
-
-   host.atype    = SOCKS_ADDR_IPV4;
-   host.port   = htons(DEFAULT_SSDP_PORT);
-   if (inet_pton(AF_INET, DEFAULT_SSDP_BROADCAST_ADDR, &host.addr.ipv4) != 1)
-      serr(1, "%s: inet_pton(%s)", function, DEFAULT_SSDP_BROADCAST_ADDR);
-
-   for (route = sockscf.route; route != NULL; route = route->next) {
-      static in_port_t ssdp_port;
-
-      if (!route->gw.state.proxyprotocol.direct)
-         continue;
-
-      if (ssdp_port == 0) {
-         struct servent *service;
-         
-         if ((service = getservbyname("ssdp", "udp")) == NULL)
-            ssdp_port = htons(DEFAULT_SSDP_PORT);
-         else
-            ssdp_port = service->s_port;
-      }
-
-      if (addressmatch(&route->dst, &host, SOCKS_UDP, 0)) {
-         slog(LOG_DEBUG, "%s: have direct upnp broadcast route", function);
-         return 1;
-      }
-   }
-
-   return 0;
-}
 
 #if SOCKS_CLIENT
 void

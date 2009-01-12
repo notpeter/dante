@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: log.c,v 1.71 2008/11/09 22:24:06 karls Exp $";
+"$Id: log.c,v 1.74 2009/01/02 14:06:05 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -122,6 +122,12 @@ vslog(priority, message, ap)
 
 #if DEBUG
    signal(SIGABRT, SIG_DFL); /* try to get a coredump on abort(3). */
+
+   if (logformat(priority, buf, sizeof(buf), message, ap) == NULL)
+      return;
+
+   if (getenv("SOCKS_LOG_STDOUT") != NULL)
+      write(STDOUT_FILENO, buf, strlen(buf) + 1);
 #endif /* DEBUG */
 
    if (sockscf.log.type & LOGTYPE_SYSLOG)
@@ -187,7 +193,6 @@ logformat(priority, buf, buflen, message, ap)
          if (sockscf.state.init && !sockscf.option.debug)
             return NULL;
          break;
-
    }
 
    time(&timenow);
@@ -195,7 +200,6 @@ logformat(priority, buf, buflen, message, ap)
 
    bufused += snprintfn(&buf[bufused], buflen - bufused, "(%ld) %s[%lu]: ",
    (long)timenow, __progname, (unsigned long)pid);
-
 
    vsnprintf(&buf[bufused], buflen - bufused, message, ap);
    bufused = strlen(buf);

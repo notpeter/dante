@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serr.c,v 1.9 2008/11/09 22:24:06 karls Exp $";
+"$Id: serr.c,v 1.11 2009/01/02 14:06:06 michaels Exp $";
 
 void
 #ifdef STDC_HEADERS
@@ -71,8 +71,9 @@ serr(eval, fmt, va_alist)
 
       bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
 
-      bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
-      ": %s (errno = %d)", strerror(errno), errno);
+		if (errno != 0)
+			bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
+			": %s (errno = %d)", strerror(errno), errno);
 
       slog(LOG_ERR, "%s", buf);
 
@@ -144,8 +145,9 @@ swarn(fmt, va_alist)
 
       bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
 
-      bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
-      ": %s (errno = %d)", strerror(errno), errno);
+		if (errno != 0)
+			bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
+			": %s (errno = %d)", strerror(errno), errno);
 
       slog(LOG_ERR, "%s", buf);
 

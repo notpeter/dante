@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.57 2008/11/09 22:24:04 karls Exp $";
+"$Id: clientprotocol.c,v 1.63 2009/01/09 19:54:02 michaels Exp $";
 
 static int
 recv_sockshost __P((int s, struct sockshost_t *host, int version,
@@ -147,6 +147,7 @@ socks_recvresponse(s, response, version)
    int version;
 {
    const char *function = "socks_recvresponse()";
+   int rc;
 
    /* get the versionspecific data. */
    switch (version) {
@@ -161,9 +162,10 @@ socks_recvresponse(s, response, version)
                          ];
          char *p = responsemem;
 
-         if (readn(s, responsemem, sizeof(responsemem), response->auth)
+         if ((rc = readn(s, responsemem, sizeof(responsemem), response->auth))
          != sizeof(responsemem)) {
-            swarn("%s: readn()", function);
+            swarn("%s: got %d size response from server, expected %lu bytes",
+            function, rc, sizeof(responsemem));
             return -1;
          }
 
@@ -201,9 +203,10 @@ socks_recvresponse(s, response, version)
                         ];
          char *p = responsemem;
 
-         if (readn(s, responsemem, sizeof(responsemem), response->auth)
+         if ((rc = readn(s, responsemem, sizeof(responsemem), response->auth))
          != sizeof(responsemem)) {
-            swarn("%s: readn()", function);
+            swarn("%s: got %d size response from server, expected %lu bytes",
+            function, rc, sizeof(responsemem));
             return -1;
          }
 
@@ -246,13 +249,13 @@ int
 socks_negotiate(s, control, packet, route)
    int s;
    int control;
-   struct socks_t   *packet;
+   struct socks_t *packet;
    struct route_t *route;
 {
 
    switch (packet->req.version) {
       case PROXY_SOCKS_V5:
-         if (negotiate_method(control, packet) != 0)
+         if (negotiate_method(control, packet, route) != 0)
             return -1;
          /* FALLTHROUGH */ /* rest is like v4, which doesn't have method. */
 
@@ -260,8 +263,17 @@ socks_negotiate(s, control, packet, route)
          packet->req.auth = &packet->auth;
          packet->res.auth = &packet->auth;
 
-         if (route != NULL && route->gw.state.extension.bind)
-            packet->req.host.addr.ipv4.s_addr = htonl(BINDEXTENSION_IPADDR);
+         if (packet->req.command == SOCKS_BIND) {
+            if (route != NULL && route->gw.state.extension.bind)
+               packet->req.host.addr.ipv4.s_addr = htonl(BINDEXTENSION_IPADDR);
+#if SOCKS_CLIENT
+            else
+               if (packet->req.version == PROXY_SOCKS_V4)
+                /* v4/v5 difference.  We always set up for v5. */
+               packet->req.host.port
+               = TOIN(&sockscf.state.lastconnect)->sin_port;
+#endif
+         }
 
          if (socks_sendrequest(control, &packet->req) != 0)
             return -1;
@@ -427,17 +439,19 @@ serverreplyisok(version, reply, route)
 
             case SOCKSV4_FAIL:
                errno = ECONNREFUSED;
-               break;
+               return 0;
 
             case SOCKSV4_NO_IDENTD:
                swarnx("%s: proxyserver failed to get your identd response",
                function);
+               socks_badroute(route);
                errno = ECONNREFUSED;
                return 0;
 
             case SOCKSV4_BAD_ID:
                swarnx("%s: proxyserver claims username/ident mismatch",
                function);
+               socks_badroute(route);
                errno = ECONNREFUSED;
                return 0;
 
@@ -445,9 +459,8 @@ serverreplyisok(version, reply, route)
                swarnx("%s: unknown v%d reply from proxyserver: %d",
                function, version, reply);
                errno = ECONNREFUSED;
-               break;
+               return 0;
          }
-         break;
 
       case PROXY_SOCKS_V5:
          switch (reply) {
@@ -457,7 +470,7 @@ serverreplyisok(version, reply, route)
             case SOCKS_FAILURE:
                swarnx("%s: generic proxyserver failure", function);
                errno = ECONNREFUSED;
-               break;
+               return 0;
 
             case SOCKS_NOTALLOWED:
                swarnx("%s: connection denied by proxyserver", function);
@@ -482,22 +495,22 @@ serverreplyisok(version, reply, route)
 
             case SOCKS_CMD_UNSUPP:
                swarnx("%s: command not supported by proxyserver", function);
+               socks_badroute(route);
                errno = ECONNREFUSED;
-               break;
+               return 0;
 
             case SOCKS_ADDR_UNSUPP:
-               swarnx("%s: address type not supported by proxyserver",
-               function);
+               swarnx("%s: address type not supported by proxy", function);
+               socks_badroute(route);
                errno = ECONNREFUSED;
-               break;
+               return 0;
 
             default:
                swarnx("%s: unknown v%d reply from proxyserver: %d",
                function, version, reply);
                errno = ECONNREFUSED;
-               break;
+               return 0;
          }
-         break;
 
       case PROXY_MSPROXY_V2:
          switch (reply) {
@@ -505,6 +518,10 @@ serverreplyisok(version, reply, route)
                return 1;
 
             case MSPROXY_FAILURE:
+               errno = ECONNREFUSED;
+               socks_badroute(route);
+               return 0;
+
             case MSPROXY_CONNREFUSED:
                errno = ECONNREFUSED;
                return 0;
@@ -512,6 +529,7 @@ serverreplyisok(version, reply, route)
             case MSPROXY_NOTALLOWED:
                swarnx("%s: connection denied by proxyserver: authenticated?",
                function);
+               socks_badroute(route);
                errno = ECONNREFUSED;
                return 0;
 
@@ -528,6 +546,7 @@ serverreplyisok(version, reply, route)
                return 1;
 
             default:
+               socks_badroute(route);
                errno = ECONNREFUSED;
                return 0;
          }
@@ -538,6 +557,7 @@ serverreplyisok(version, reply, route)
                return 1;
 
             default:
+               socks_badroute(route);
                errno = ECONNREFUSED;
                return 0;
          }
@@ -546,10 +566,7 @@ serverreplyisok(version, reply, route)
          SERRX(version);
    }
 
-   if (route != NULL)
-      socks_badroute(route);
-
-   return 0;
+   return 0; /* NOTREACHED */
 }
 
 /* ARGSUSED */

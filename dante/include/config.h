@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.53 2008/07/25 08:48:34 michaels Exp $ */
+/* $Id: config.h,v 1.55 2009/01/02 14:06:01 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -86,11 +86,17 @@
 #define SOCKS_CONFIGFILE         HAVE_ALT_SOCKS_CONFIGFILE
 #endif /* !HAVE_SOCKS_CONFIGFILE */
 
+
 /*
- * if we mark a route/socksserver as bad, how many seconds to wait
+ * how many times a route can fail before being marked as bad.
+ * A value of zero means it will never be marked as bad.
+ */
+#define MAX_ROUTE_FAILS            (1)
+
+/*
+ * if we mark a route/proxyserver as bad, how many seconds to wait
  * until we expire the badmarking so it will be tried again for new
- * connections.
- * A value of zero means never.
+ * connections.  A value of zero means never.
  */
 #if SOCKS_CLIENT
 #define BADROUTE_EXPIRE            (60 * 0)

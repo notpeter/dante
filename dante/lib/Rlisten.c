@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008
+ * Copyright (c) 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rlisten.c,v 1.17 2008/07/25 08:48:55 michaels Exp $";
+"$Id: Rlisten.c,v 1.18 2009/01/02 14:06:03 michaels Exp $";
 
 int
 Rlisten(s, backlog)

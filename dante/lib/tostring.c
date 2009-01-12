@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.25 2008/10/19 10:41:56 michaels Exp $";
+"$Id: tostring.c,v 1.30 2009/01/11 22:06:50 michaels Exp $";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -55,15 +55,14 @@ proxyprotocols2string(proxyprotocols, str, strsize)
 {
    size_t strused;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else {
+   if (strsize == 0) {
       static char buf[1024];
       
       str = buf;
       strsize = sizeof(buf);
    }
 
+   *str = NUL;
    strused = 0;
 
    if (proxyprotocols->socks_v4)
@@ -85,6 +84,10 @@ proxyprotocols2string(proxyprotocols, str, strsize)
    if (proxyprotocols->upnp)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
       QUOTE(PROXY_UPNPs));
+
+   if (proxyprotocols->direct)
+      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      QUOTE(PROXY_DIRECTs));
 
    return str;
 }
@@ -498,6 +501,37 @@ method2string(method)
    /* NOTREACHED */
 }
 
+const char *
+version2string(version)
+   int version;
+{
+
+   switch (version) {
+      case PROXY_SOCKS_V4:
+         return QUOTE(PROXY_SOCKS_V4s);
+
+      case PROXY_SOCKS_V5:
+         return QUOTE(PROXY_SOCKS_V5s);
+
+      case PROXY_MSPROXY_V2:
+         return QUOTE(PROXY_MSPROXY_V2s);
+
+      case PROXY_HTTP_V1_0:
+         return QUOTE(PROXY_HTTP_V1_0s);
+
+      case PROXY_UPNP:
+         return QUOTE(PROXY_UPNPs);
+
+      case PROXY_DIRECT:
+         return QUOTE(PROXY_DIRECTs);
+
+      default:
+         SERRX(version);
+   }
+
+   /* NOTREACHED */
+}
+
 char *
 methods2string(methodc, methodv, str, strsize)
    size_t methodc;
@@ -529,8 +563,8 @@ string2method(methodname)
       char   *methodname;
       int   method;
    } method[] = {
-      { AUTHMETHOD_NONEs,      AUTHMETHOD_NONE   },
-      { AUTHMETHOD_UNAMEs,      AUTHMETHOD_UNAME   },
+      { AUTHMETHOD_NONEs,     AUTHMETHOD_NONE   },
+      { AUTHMETHOD_UNAMEs,    AUTHMETHOD_UNAME   },
       { AUTHMETHOD_RFC931s,   AUTHMETHOD_RFC931   },
       { AUTHMETHOD_PAMs,      AUTHMETHOD_PAM      }
    };
@@ -618,9 +652,6 @@ gwaddr2string(gw, string, len)
 
    return string;
 }
-
-
-
 
 char *
 sockaddr2string(address, string, len)
@@ -723,6 +754,61 @@ str2upper(string)
    }
 
    return string;
+}
+
+char *
+socket2string(s, buf, buflen)
+   const int s;
+   char *buf;
+   size_t buflen;
+{
+   struct sockaddr addr;
+   socklen_t len;
+   char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING], *protocol;
+   int val;
+
+   if (buflen == 0) {
+      static char sbuf[256];
+
+      buf    = sbuf;
+      buflen = sizeof(sbuf);
+   }
+
+   *buf = NUL;
+
+   len = sizeof(addr);
+   if (getsockname(s, &addr, &len) == -1)
+      return buf;
+
+   sockaddr2string(&addr, src, sizeof(src));
+
+   len = sizeof(addr);
+   if (getpeername(s, &addr, &len) == -1)
+      return buf;
+
+   sockaddr2string(&addr, dst, sizeof(dst));
+
+   len = sizeof(val);
+   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) != 0)
+      return buf;
+
+   switch (val) {
+      case SOCK_DGRAM:
+         protocol = PROTOCOL_UDPs;
+         break;
+
+      case SOCK_STREAM:
+         protocol = PROTOCOL_TCPs;
+         break;
+
+      default:
+         protocol = "unknown";
+   }
+
+   snprintf(buf, buflen, "laddr: %s, raddr: %s, protocol: %s",
+   src, dst, protocol);
+
+   return buf;
 }
 
 #if SOCKS_SERVER

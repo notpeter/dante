@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.98 2008/12/09 17:15:03 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.101 2009/01/11 22:04:17 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -301,26 +301,28 @@ send_negotiate(mother, neg)
    /* copy needed fields from negotiate */
    /* LINTED pointer casts may be troublesome */
    sockshost2sockaddr(&neg->negstate.src, (struct sockaddr *)&req.from);
-   req.req            = neg->req;
-   req.rule            = neg->rule;
+   req.req           = neg->req;
+   req.rule          = neg->rule;
    req.state         = neg->state;
-   req.state.command   = req.req.command;
-   req.state.version   = req.req.version;
+   req.state.command = req.req.command;
+   req.state.version = req.req.version;
 
    /* LINTED pointer casts may be troublesome */
    sockshost2sockaddr(&neg->negstate.dst, (struct sockaddr *)&req.to);
 
-   iovec[0].iov_base      = &req;
-   iovec[0].iov_len      = sizeof(req);
+   bzero(iovec, sizeof(iovec));
+   iovec[0].iov_base = &req;
+   iovec[0].iov_len  = sizeof(req);
 
    fdsendt = 0;
    /* LINTED pointer casts may be troublesome */
    CMSG_ADDOBJECT(neg->s, cmsg, sizeof(neg->s) * fdsendt++);
 
-   msg.msg_iov            = iovec;
-   msg.msg_iovlen         = ELEMENTS(iovec);
-   msg.msg_name         = NULL;
-   msg.msg_namelen      = 0;
+   bzero(&msg, sizeof(msg));
+   msg.msg_iov     = iovec;
+   msg.msg_iovlen  = ELEMENTS(iovec);
+   msg.msg_name    = NULL;
+   msg.msg_namelen = 0;
 
    /* LINTED pointer casts may be troublesome */
    CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsendt);
@@ -361,9 +363,11 @@ recv_negotiate(mother)
    CMSG_AALLOC(cmsg, sizeof(int));
    struct sockaddr src, dst;
 
+   bzero(iovec, sizeof(iovec));
    iovec[0].iov_base = &command;
    iovec[0].iov_len  = sizeof(command);
 
+   bzero(&msg, sizeof(msg));
    msg.msg_iov     = iovec;
    msg.msg_iovlen  = ELEMENTS(iovec);
    msg.msg_name    = NULL;
@@ -432,11 +436,11 @@ recv_negotiate(mother)
    sockaddr2sockshost(&dst, &neg->negstate.dst);
 
    /* init state correctly for checking a connection to us. */
-   neg->state.command    = neg->state.clientcommand = SOCKS_ACCEPT;
-   neg->state.protocol    = neg->state.clientprotocol = SOCKS_TCP;
+   neg->state.command  = neg->state.clientcommand = SOCKS_ACCEPT;
+   neg->state.protocol = neg->state.clientprotocol = SOCKS_TCP;
 
-   neg->state.version      = PROXY_SOCKS_V5; /* anything valid. */
-   neg->state.auth.method   = AUTHMETHOD_NONE;
+   neg->state.version     = PROXY_SOCKS_V5; /* anything valid. */
+   neg->state.auth.method = AUTHMETHOD_NONE;
    /* pointer fixup */
    neg->req.auth = &neg->state.auth;
 
@@ -589,8 +593,8 @@ neg_gettimeout(timeout)
    if (sockscf.timeout.negotiate == 0 || (allocated() == completed()))
       return NULL;
 
-   timeout->tv_sec   = sockscf.timeout.negotiate;
-   timeout->tv_usec   = 0;
+   timeout->tv_sec  = sockscf.timeout.negotiate;
+   timeout->tv_usec = 0;
    time(&timenow);
 
    /* if we have clients neogitating, check if we need to shrink timeout. */

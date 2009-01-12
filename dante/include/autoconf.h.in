@@ -198,6 +198,9 @@
 /* Define to 1 if you have the <netinet/ip_var.h> header file. */
 #undef HAVE_NETINET_IP_VAR_H
 
+/* Define to 1 if you have the <net/if_dl.h> header file. */
+#undef HAVE_NET_IF_DL_H
+
 /* realloc never calls malloc */
 #undef HAVE_NOMALLOC_REALLOC
 
@@ -680,6 +683,9 @@
 
 /* libloc */
 #undef LIBRARY_LIBSOCKET
+
+/* function loc */
+#undef LIBRARY_LISTEN
 
 /* hardcoded path */
 #undef LIBRARY_PATH

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.38 2008/12/09 17:14:58 michaels Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.40 2009/01/02 14:06:05 michaels Exp $";
 
 static char executable[] = "TELNET.EXE";
 static struct sigaction oldsigio;
@@ -119,14 +119,14 @@ msproxy_init(void)
 
    (void)sigemptyset(&sigact.sa_mask);
    sigact.sa_flags   = SA_RESTART;
-   sigact.sa_handler   = msproxy_keepalive;
+   sigact.sa_handler = msproxy_keepalive;
    if (sigaction(SIGALRM, &sigact, NULL) != 0) {
       swarn("%s: sigaction(SIGALRM)", function);
       return -1;
    }
 
-   timerval.it_value.tv_sec   = MSPROXY_PINGINTERVAL;
-   timerval.it_value.tv_usec   = 0;
+   timerval.it_value.tv_sec  = MSPROXY_PINGINTERVAL;
+   timerval.it_value.tv_usec = 0;
    timerval.it_interval = timerval.it_value;
 
    if (setitimer(ITIMER_REAL, &timerval, NULL) != 0) {
@@ -155,41 +155,41 @@ msproxy_negotiate(s, control, packet)
    slog(LOG_DEBUG, "%s: packet #1", function);
 
    bzero(&req, sizeof(req));
-   req.clientid   = htonl(0x0a000000);
-   req.command      = htons(MSPROXY_HELLO);
+   req.clientid = htonl(0x0a000000);
+   req.command  = htons(MSPROXY_HELLO);
 
    /* in case we don't get something more sensible. */
-   packet->res.version   = packet->req.version;
-   packet->res.reply      = MSPROXY_FAILURE;
+   packet->res.version = packet->req.version;
+   packet->res.reply   = MSPROXY_FAILURE;
 
    switch (packet->req.command) {
       case SOCKS_BIND:
 #if 1
-         req.packet._1.magic5      = htons(0x4800);
-         req.packet._1.magic10   = htons(0x1400);
-         req.packet._1.magic15   = htons(0x0400);
-         req.packet._1.magic20   = htons(0x5704);
-         req.packet._1.magic25   = htons(0x0004);
-         req.packet._1.magic30   = htons(0x0100);
-         req.packet._1.magic35   = htons(0x4a02);
-         req.packet._1.magic40   = htons(0x3000);
-         req.packet._1.magic45   = htons(0x4100);
-         req.packet._1.magic50   = htons(0x3900);
+         req.packet._1.magic5  = htons(0x4800);
+         req.packet._1.magic10 = htons(0x1400);
+         req.packet._1.magic15 = htons(0x0400);
+         req.packet._1.magic20 = htons(0x5704);
+         req.packet._1.magic25 = htons(0x0004);
+         req.packet._1.magic30 = htons(0x0100);
+         req.packet._1.magic35 = htons(0x4a02);
+         req.packet._1.magic40 = htons(0x3000);
+         req.packet._1.magic45 = htons(0x4100);
+         req.packet._1.magic50 = htons(0x3900);
 #endif
          break;
 
       case SOCKS_CONNECT:
 #if 0
-         req.packet._1.magic5      = htons(0x4b00);
-         req.packet._1.magic10   = htons(0x1400);
-         req.packet._1.magic15   = htons(0x0400);
-         req.packet._1.magic20   = htons(0x5704);
-         req.packet._1.magic25   = htons(0x0004);
-         req.packet._1.magic30   = htons(0x0100);
-         req.packet._1.magic35   = htons(0x4a02);
-         req.packet._1.magic40   = htons(0x3000);
-         req.packet._1.magic45   = htons(0x4400);
-         req.packet._1.magic50   = htons(0x3900);
+         req.packet._1.magic5  = htons(0x4b00);
+         req.packet._1.magic10 = htons(0x1400);
+         req.packet._1.magic15 = htons(0x0400);
+         req.packet._1.magic20 = htons(0x5704);
+         req.packet._1.magic25 = htons(0x0004);
+         req.packet._1.magic30 = htons(0x0100);
+         req.packet._1.magic35 = htons(0x4a02);
+         req.packet._1.magic40 = htons(0x3000);
+         req.packet._1.magic45 = htons(0x4400);
+         req.packet._1.magic50 = htons(0x3900);
 #endif
          break;
 
@@ -231,9 +231,9 @@ msproxy_negotiate(s, control, packet)
       serrx(EXIT_FAILURE, "expected res.command = 10??, is %x",
       ntohs(res.command));
 
-   packet->state.msproxy.controladdr.sin_family         = AF_INET;
-   packet->state.msproxy.controladdr.sin_port         = res.packet._1.udpport;
-   packet->state.msproxy.controladdr.sin_addr.s_addr   = res.packet._1.udpaddr;
+   packet->state.msproxy.controladdr.sin_family      = AF_INET;
+   packet->state.msproxy.controladdr.sin_port        = res.packet._1.udpport;
+   packet->state.msproxy.controladdr.sin_addr.s_addr = res.packet._1.udpaddr;
 
    packet->state.msproxy.clientid   = htonl(rand());
    packet->state.msproxy.serverid   = res.serverid;
@@ -309,14 +309,14 @@ msproxy_connect(s, control, packet)
    bzero(&req, sizeof(req));
    req.clientid      = packet->state.msproxy.clientid;
    req.serverid      = packet->state.msproxy.serverid;
-   req.command         = htons(MSPROXY_SOMETHING);
+   req.command       = htons(MSPROXY_SOMETHING);
    memcpy(req.packet._3.NTLMSSP, "NTLMSSP", sizeof("NTLMSSP"));
-   req.packet._3.bindaddr   = htonl(0x02000000);
-   req.packet._3.magic5      = htons(0x0100);
-   req.packet._3.magic10   = htons(0x9682);
+   req.packet._3.bindaddr = htonl(0x02000000);
+   req.packet._3.magic5   = htons(0x0100);
+   req.packet._3.magic10  = htons(0x9682);
 #if 0
-   req.packet._3.magic50   = htons(0x3000);
-   req.packet._3.magic55   = htons(0x3000);
+   req.packet._3.magic50  = htons(0x3000);
+   req.packet._3.magic55  = htons(0x3000);
 #endif
 
    if (send_msprequest(control, &packet->state.msproxy, &req) == -1)
@@ -344,21 +344,21 @@ msproxy_connect(s, control, packet)
    req.command         = htons(MSPROXY_SOMETHING_2);
 #if 0
    memcpy(req.packet._4.NTLMSSP, "NTLMSSP", sizeof("NTLMSSP"));
-   req.packet._4.magic3         = htons(0x0200);
-   req.packet._4.magic5         = htons(0x0300);
-   req.packet._4.magic10      = htons(0x1800);
-   req.packet._4.magic15      = htons(0x1800);
-   req.packet._4.magic20      = htons(0x4900);
-   req.packet._4.magic30      = htons(0x6100);
-   req.packet._4.magic35      = htons(0x0800);
-   req.packet._4.magic40      = htons(0x0800);
-   req.packet._4.magic45      = htons(0x3400);
-   req.packet._4.magic50      = htons(0x0700);
-   req.packet._4.magic55      = htons(0x0700);
-   req.packet._4.magic60      = htons(0x3c00);
-   req.packet._4.magic65      = htons(0x0600);
-   req.packet._4.magic70      = htons(0x0600);
-   req.packet._4.magic75      = htons(0x4300);
+   req.packet._4.magic3   = htons(0x0200);
+   req.packet._4.magic5   = htons(0x0300);
+   req.packet._4.magic10  = htons(0x1800);
+   req.packet._4.magic15  = htons(0x1800);
+   req.packet._4.magic20  = htons(0x4900);
+   req.packet._4.magic30  = htons(0x6100);
+   req.packet._4.magic35  = htons(0x0800);
+   req.packet._4.magic40  = htons(0x0800);
+   req.packet._4.magic45  = htons(0x3400);
+   req.packet._4.magic50  = htons(0x0700);
+   req.packet._4.magic55  = htons(0x0700);
+   req.packet._4.magic60  = htons(0x3c00);
+   req.packet._4.magic65  = htons(0x0600);
+   req.packet._4.magic70  = htons(0x0600);
+   req.packet._4.magic75  = htons(0x4300);
 #endif
 
    if (send_msprequest(control, &packet->state.msproxy, &req) == -1)
@@ -390,10 +390,10 @@ msproxy_connect(s, control, packet)
          slog(LOG_DEBUG, "%s: resolve packet", function);
 
          bzero(&req, sizeof(req));
-         req.clientid   = packet->state.msproxy.clientid;
-         req.serverid   = packet->state.msproxy.serverid;
+         req.clientid = packet->state.msproxy.clientid;
+         req.serverid = packet->state.msproxy.serverid;
 
-         req.command   = htons(MSPROXY_RESOLVE);
+         req.command  = htons(MSPROXY_RESOLVE);
          req.packet.resolve.hostlength
          = (unsigned char)(strlen(packet->req.host.addr.domain) + 1);
          memcpy(&req.packet.resolve.host, packet->req.host.addr.domain,
@@ -423,12 +423,12 @@ msproxy_connect(s, control, packet)
    slog(LOG_DEBUG, "%s: packet #5", function);
 
    bzero(&req, sizeof(req));
-   req.clientid   = packet->state.msproxy.clientid;
-   req.serverid   = packet->state.msproxy.serverid;
-   req.command      = htons(MSPROXY_CONNECT);
-   req.packet._5.magic6      = htons(0x0200);
-   req.packet._5.destport   = packet->req.host.port;
-   req.packet._5.destaddr   = addr.sin_addr.s_addr;
+   req.clientid = packet->state.msproxy.clientid;
+   req.serverid = packet->state.msproxy.serverid;
+   req.command  = htons(MSPROXY_CONNECT);
+   req.packet._5.magic6   = htons(0x0200);
+   req.packet._5.destport = packet->req.host.port;
+   req.packet._5.destaddr = addr.sin_addr.s_addr;
 
    /*
     * need to tell server what port we will connect from, so if socket
@@ -471,9 +471,9 @@ msproxy_connect(s, control, packet)
       return -1;
    }
 
-   packet->res.host.atype               = SOCKS_ADDR_IPV4;
-   packet->res.host.port               = res.packet._5.clientport;
-   packet->res.host.addr.ipv4.s_addr   = res.packet._5.clientaddr;
+   packet->res.host.atype            = SOCKS_ADDR_IPV4;
+   packet->res.host.port             = res.packet._5.clientport;
+   packet->res.host.addr.ipv4.s_addr = res.packet._5.clientaddr;
 
    if (socks_connect(s, &packet->res.host) != 0) {
       swarn("%s: failed to connect to %s",
@@ -484,9 +484,9 @@ msproxy_connect(s, control, packet)
       slog(LOG_DEBUG, "%s: connected to %s",
       function, sockshost2string(&packet->res.host, string, sizeof(string)));
 
-   packet->res.host.atype               = SOCKS_ADDR_IPV4;
-   packet->res.host.port               = res.packet._5.clientport;
-   packet->res.host.addr.ipv4.s_addr   = res.packet._5.clientaddr;
+   packet->res.host.atype            = SOCKS_ADDR_IPV4;
+   packet->res.host.port             = res.packet._5.clientport;
+   packet->res.host.addr.ipv4.s_addr = res.packet._5.clientaddr;
 
    /* LINTED pointer casts may be troublesome */
    slog(LOG_DEBUG, "%s: server will use as source address: %s",
@@ -496,19 +496,19 @@ msproxy_connect(s, control, packet)
    slog(LOG_DEBUG, "%s: packet #6", function);
 
    bzero(&req, sizeof(req));
-   req.clientid   = packet->state.msproxy.clientid;
-   req.serverid   = packet->state.msproxy.serverid;
-   req.command      = htons(MSPROXY_CONNECTED);
+   req.clientid = packet->state.msproxy.clientid;
+   req.serverid = packet->state.msproxy.serverid;
+   req.command  = htons(MSPROXY_CONNECTED);
 
    if (send_msprequest(control, &packet->state.msproxy, &req) == -1)
       return -1;
 
 
    /* make response look sensible. */
-   packet->res.version                  = packet->req.version;
-   packet->res.reply                     = MSPROXY_SUCCESS;
-   packet->res.flag                     = 0;
-   packet->res.auth                     = NULL;
+   packet->res.version = packet->req.version;
+   packet->res.reply   = MSPROXY_SUCCESS;
+   packet->res.flag    = 0;
+   packet->res.auth    = NULL;
 
    return 0;
 }
@@ -529,18 +529,18 @@ msproxy_bind(s, control, packet)
    slog(LOG_DEBUG, function);
 
    bzero(&req, sizeof(req));
-   req.clientid      = packet->state.msproxy.clientid;
-   req.serverid      = packet->state.msproxy.serverid;
-   req.command         = htons(MSPROXY_BIND);
-   req.packet._3.magic2      = htons(0x0100);
-   req.packet._3.bindaddr   = packet->req.host.addr.ipv4.s_addr;
-   req.packet._3.bindport   = packet->req.host.port;
-   req.packet._3.magic3      = htons(0x0200);
+   req.clientid = packet->state.msproxy.clientid;
+   req.serverid = packet->state.msproxy.serverid;
+   req.command  = htons(MSPROXY_BIND);
+   req.packet._3.magic2   = htons(0x0100);
+   req.packet._3.bindaddr = packet->req.host.addr.ipv4.s_addr;
+   req.packet._3.bindport = packet->req.host.port;
+   req.packet._3.magic3   = htons(0x0200);
    len = sizeof(addr);
    /* LINTED pointer casts may be troublesome */
    if (getsockname(s, (struct sockaddr *)&addr, &len) != 0)
       return -1;
-   req.packet._3.boundport   = addr.sin_port;
+   req.packet._3.boundport = addr.sin_port;
 
    if (send_msprequest(control, &packet->state.msproxy, &req) == -1)
       return -1;
@@ -560,9 +560,9 @@ msproxy_bind(s, control, packet)
    }
 
    packet->state.msproxy.bindid = res.packet._3.magic10;
-   packet->res.host.atype               = SOCKS_ADDR_IPV4;
-   packet->res.host.port               = res.packet._3.boundport;
-   packet->res.host.addr.ipv4.s_addr   = res.packet._3.boundaddr;
+   packet->res.host.atype            = SOCKS_ADDR_IPV4;
+   packet->res.host.port             = res.packet._3.boundport;
+   packet->res.host.addr.ipv4.s_addr = res.packet._3.boundaddr;
 
    slog(LOG_DEBUG, "%s: server bound for us: %s",
    function, sockshost2string(&packet->res.host, string, sizeof(string)));
@@ -570,9 +570,9 @@ msproxy_bind(s, control, packet)
    slog(LOG_DEBUG, "%s: packet #4", function);
 
    bzero(&req, sizeof(req));
-   req.clientid   = packet->state.msproxy.clientid;
-   req.serverid   = packet->state.msproxy.serverid;
-   req.command      = htons(MSPROXY_BIND2);
+   req.clientid = packet->state.msproxy.clientid;
+   req.serverid = packet->state.msproxy.serverid;
+   req.command  = htons(MSPROXY_BIND2);
    req.packet._4.magic1      = htons(0x0100);
    req.packet._4.magic2      = packet->state.msproxy.bindid;
    req.packet._4.magic3      = htons(0x0500);
@@ -604,12 +604,12 @@ msproxy_bind(s, control, packet)
    slog(LOG_DEBUG, "%s: packet #5", function);
 
    bzero(&req, sizeof(req));
-   req.clientid   = packet->state.msproxy.clientid;
-   req.serverid   = packet->state.msproxy.serverid;
-   req.command      = htons(MSPROXY_LISTEN);
-   req.packet._5.magic6      = htons(0x0200);
-   req.packet._5.destport   = packet->res.host.port;
-   req.packet._5.destaddr   = packet->res.host.addr.ipv4.s_addr;
+   req.clientid = packet->state.msproxy.clientid;
+   req.serverid = packet->state.msproxy.serverid;
+   req.command  = htons(MSPROXY_LISTEN);
+   req.packet._5.magic6   = htons(0x0200);
+   req.packet._5.destport = packet->res.host.port;
+   req.packet._5.destaddr = packet->res.host.addr.ipv4.s_addr;
 
    if (send_msprequest(control, &packet->state.msproxy, &req) == -1)
       return -1;
@@ -622,10 +622,10 @@ msproxy_bind(s, control, packet)
    slog(LOG_DEBUG, "%s: waiting for forwarded connection...", function);
 
    /* make response look sensible. */
-   packet->res.version                  = packet->req.version;
-   packet->res.reply                     = MSPROXY_SUCCESS;
-   packet->res.flag                     = 0;
-   packet->res.auth                     = NULL;
+   packet->res.version = packet->req.version;
+   packet->res.reply   = MSPROXY_SUCCESS;
+   packet->res.flag    = 0;
+   packet->res.auth    = NULL;
 
    return 0;
 }
@@ -727,8 +727,8 @@ sigio(sig)
    dset = 0;
    do {
       fd_set newrset;
-      timeout.tv_sec      = 0;
-      timeout.tv_usec   = 0;
+      timeout.tv_sec  = 0;
+      timeout.tv_usec = 0;
 
       newrset = rset;
       switch (selectn(dbits + 1, &newrset, NULL, NULL, &timeout)) {
@@ -792,7 +792,7 @@ sigio(sig)
                    */
                   socksfdmem = *socksfd;
 
-                  host.atype               = SOCKS_ADDR_IPV4;
+                  host.atype              = SOCKS_ADDR_IPV4;
                   host.port               = res.packet._5.boundport;
                   host.addr.ipv4.s_addr   = res.packet._5.boundaddr;
                   sockshost2sockaddr(&host, &socksfdmem.remote);
@@ -800,7 +800,7 @@ sigio(sig)
                   slog(LOG_DEBUG, "%s: server bound address %s",
                   function, sockshost2string(&host, string, sizeof(string)));
 
-                  host.atype               = SOCKS_ADDR_IPV4;
+                  host.atype              = SOCKS_ADDR_IPV4;
                   host.port               = res.packet._5.clientport;
                   host.addr.ipv4.s_addr   = res.packet._5.clientaddr;
                   sockshost2sockaddr(&host, &socksfdmem.forus.accepted);
@@ -821,9 +821,9 @@ sigio(sig)
                   bzero(&req, sizeof(req));
                   req.clientid   = socksfd->state.msproxy.clientid;
                   req.serverid   = socksfd->state.msproxy.serverid;
-                  req.command      = htons(MSPROXY_BINDINFO_ACK);
-                  req.packet._6.magic1         = res.packet._5.magic1;
-                  req.packet._6.magic5         = htons(0x0100);
+                  req.command    = htons(MSPROXY_BINDINFO_ACK);
+                  req.packet._6.magic1       = res.packet._5.magic1;
+                  req.packet._6.magic5       = htons(0x0100);
                   req.packet._6.magic10      = socksfd->state.msproxy.bindid;
                   req.packet._6.magic15      = htons(0x0100);
                   req.packet._6.magic16      = socksfd->state.msproxy.bindid;
@@ -834,8 +834,8 @@ sigio(sig)
                   req.packet._6.magic35      = res.packet._5.magic15;
                   req.packet._6.serverport   = res.packet._5.serverport;
                   req.packet._6.srcport      = res.packet._5.srcport;
-                  req.packet._6.boundport      = res.packet._5.boundport;
-                  req.packet._6.boundaddr      = res.packet._5.boundaddr;
+                  req.packet._6.boundport    = res.packet._5.boundport;
+                  req.packet._6.boundaddr    = res.packet._5.boundaddr;
 
                   socksfdmem = *socksfd;
                   if (send_msprequest(socksfd->control,
@@ -1913,13 +1913,13 @@ msproxy_sessionend(s, msproxy)
    slog(LOG_DEBUG, function);
 
    bzero(&req, sizeof(req));
-   *req.username      = NUL;
-   *req.unknown      = NUL;
-   *req.executable   = NUL;
-   *req.clienthost   = NUL;
-   req.clientid   = msproxy->clientid;
-   req.serverid   = msproxy->serverid;
-   req.command      = htons(MSPROXY_SESSIONEND);
+   *req.username   = NUL;
+   *req.unknown    = NUL;
+   *req.executable = NUL;
+   *req.clienthost = NUL;
+   req.clientid    = msproxy->clientid;
+   req.serverid    = msproxy->serverid;
+   req.command     = htons(MSPROXY_SESSIONEND);
 
    send_msprequest(s, msproxy, &req);
 }

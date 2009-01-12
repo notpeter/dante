@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: common.h,v 1.354 2008/12/10 18:09:16 michaels Exp $ */
+/* $Id: common.h,v 1.363 2009/01/09 19:54:01 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -65,24 +65,24 @@
 #ifdef   MAXHOSTNAMELEN
 #undef   MAXHOSTNAMELEN
 #endif
-#define   MAXHOSTNAMELEN      (255 + 1)      /* socks5: 255, +1 for len. */
+#define  MAXHOSTNAMELEN    (255 + 1)      /* socks5: 255, +1 for len. */
 
 #ifdef   MAXURLLEN
 #undef   MAXURLLEN
 #endif
-#define   MAXURLLEN         (255 + 1)      /* whatever. */
+#define  MAXURLLEN         (255 + 1)      /* whatever. */
 
 #ifdef   MAXNAMELEN
 #undef   MAXNAMELEN
 #endif
-#define   MAXNAMELEN         (255 + 1)      /* socks5: 255, +1 for len. */
+#define  MAXNAMELEN        (255 + 1)      /* socks5: 255, +1 for len. */
 
 #ifdef   MAXPWLEN
 #undef   MAXPWLEN
 #endif
-#define   MAXPWLEN            (255 + 1)      /* socks5: 255, +1 for len. */
+#define  MAXPWLEN          (255 + 1)      /* socks5: 255, +1 for len. */
 
-#define   MAXIFNAMELEN      255
+#define  MAXIFNAMELEN      (255)
 
 /*                           "255." "255." "255." "255" "." "65535" + NUL */
 #define   MAXSOCKADDRSTRING    (4   +   4   + 4   +  3  + 1 +    5   + 1)
@@ -121,12 +121,12 @@
 
 #define RESOLVEPROTOCOL_UDP   0
 #define RESOLVEPROTOCOL_TCP   1
-#define RESOLVEPROTOCOL_FAKE   2
+#define RESOLVEPROTOCOL_FAKE  2
 
-#define LOGTYPE_SYSLOG         0x1
-#define LOGTYPE_FILE            0x2
+#define LOGTYPE_SYSLOG        0x1
+#define LOGTYPE_FILE          0x2
 
-#define NOMEM                  "<memory exhausted>"
+#define NOMEM                 "<memory exhausted>"
 
 
    /*
@@ -217,11 +217,11 @@
  * name of the allocated memory.
  */
 #if HAVE_CMSGHDR
-#define CMSG_AALLOC(name, size) \
-   union { \
-      char cmsgmem[CMSG_SPACE(size)]; \
-      struct cmsghdr align; \
-   } __CONCAT3(_, name, mem); \
+#define CMSG_AALLOC(name, size)           \
+   union {                                \
+      char cmsgmem[CMSG_SPACE(size)];     \
+      struct cmsghdr align;               \
+   } __CONCAT3(_, name, mem);             \
    struct cmsghdr *name = &__CONCAT3(_, name, mem).align
 #else /* !HAVE_CMSGHDR */
 #define CMSG_AALLOC(name, size) \
@@ -243,7 +243,7 @@
  */
 #if HAVE_CMSGHDR
 /*
- * cast is necessary on AIX, due to buggy headers there?.
+ * cast is necessary on AIX, due to buggy headers there?
  * needs additional testing on AIX, disable for now.
  */
 /* #define CMSG_CONTROLDATA(msg)   ((struct cmsghdr *)((msg).msg_control)) */
@@ -257,14 +257,14 @@
  * offset "offset".
  */
 #if HAVE_CMSGHDR
-#define CMSG_ADDOBJECT(object, data, offset) \
-   do \
+#define CMSG_ADDOBJECT(object, data, offset)                         \
+   do                                                                \
       memcpy(CMSG_DATA(data) + (offset), &(object), sizeof(object)); \
    while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_ADDOBJECT(object, data, offset) \
-   do \
-      memcpy(data + (offset), &(object), sizeof((object))); \
+#define CMSG_ADDOBJECT(object, data, offset)                         \
+   do                                                                \
+      memcpy(data + (offset), &(object), sizeof((object)));          \
    while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
@@ -275,14 +275,14 @@
  * "offset".
  */
 #if HAVE_CMSGHDR
-#define CMSG_GETOBJECT(object, data, offset) \
-   do \
-      memcpy(&(object), CMSG_DATA((data)) + (offset), sizeof((object))); \
+#define CMSG_GETOBJECT(object, data, offset)                               \
+   do                                                                      \
+      memcpy(&(object), CMSG_DATA((data)) + (offset), sizeof((object)));   \
    while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_GETOBJECT(object, data, offset) \
-   do \
-      memcpy(&(object), ((data) + (offset)), sizeof((object))); \
+#define CMSG_GETOBJECT(object, data, offset)                               \
+   do                                                                      \
+      memcpy(&(object), ((data) + (offset)), sizeof((object)));            \
    while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
@@ -293,20 +293,20 @@
  * "controlmem" is the memory the controlmessage is stored in.
  */
 #if HAVE_CMSGHDR
-#define CMSG_SETHDR_SEND(object, controlmem, size) \
-   do { \
-      controlmem->cmsg_level      = SOL_SOCKET; \
-      controlmem->cmsg_type      = SCM_RIGHTS; \
-      controlmem->cmsg_len         = CMSG_LEN(size); \
-      \
-      object.msg_control      = (caddr_t)controlmem; \
-      object.msg_controllen   = controlmem->cmsg_len; \
+#define CMSG_SETHDR_SEND(object, controlmem, size)             \
+   do {                                                        \
+      controlmem->cmsg_level      = SOL_SOCKET;                \
+      controlmem->cmsg_type      = SCM_RIGHTS;                 \
+      controlmem->cmsg_len         = CMSG_LEN(size);           \
+                                                               \
+      object.msg_control      = (caddr_t)controlmem;           \
+      object.msg_controllen   = controlmem->cmsg_len;          \
    } while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_SETHDR_SEND(object, controlmem, size) \
-   do { \
-      object.msg_accrights      = (caddr_t)controlmem; \
-      object.msg_accrightslen   = (size); \
+#define CMSG_SETHDR_SEND(object, controlmem, size)             \
+   do {                                                        \
+      object.msg_accrights      = (caddr_t)controlmem;         \
+      object.msg_accrightslen   = (size);                      \
    } while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
@@ -315,16 +315,16 @@
  * "controlmem" is the memory set aside for the controlmessage.
  */
 #if HAVE_CMSGHDR
-#define CMSG_SETHDR_RECV(object, controlmem, size) \
-   do { \
-      object.msg_control      = (caddr_t)controlmem; \
-      object.msg_controllen   = (size); \
+#define CMSG_SETHDR_RECV(object, controlmem, size)             \
+   do {                                                        \
+      object.msg_control      = (caddr_t)controlmem;           \
+      object.msg_controllen   = (size);                        \
    } while (lintnoloop_common_h)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_SETHDR_RECV(object, controlmem, size) \
-   do { \
-      object.msg_accrights      = (caddr_t)controlmem; \
-      object.msg_accrightslen   = (size); \
+#define CMSG_SETHDR_RECV(object, controlmem, size)             \
+   do {                                                        \
+      object.msg_accrights      = (caddr_t)controlmem;         \
+      object.msg_accrightslen   = (size);                      \
    } while (lintnoloop_common_h)
 #endif /* !HAVE_CMSGHDR */
 
@@ -346,17 +346,17 @@
 #define INTERNAL_ERROR \
 "an internal error was detected at %s:%d\nvalue = %ld, version = %s"
 
-#define SASSERT(expression)   \
-do {                           \
-   if (!(expression))         \
-      SERR(expression);         \
+#define SASSERT(expression)      \
+do {                             \
+   if (!(expression))            \
+      SERR(expression);          \
 } while (lintnoloop_common_h)
 
 
-#define SASSERTX(expression)   \
-do {                           \
-   if (!(expression))         \
-      SERRX(expression);      \
+#define SASSERTX(expression)     \
+do {                             \
+   if (!(expression))            \
+      SERRX(expression);         \
 } while (lintnoloop_common_h)
 
 
@@ -367,41 +367,41 @@ do {                           \
  */
 
 
-#define SERR(failure)            \
-do {                              \
-   SWARN(failure);               \
-   abort();                        \
+#define SERR(failure)               \
+do {                                \
+   SWARN(failure);                  \
+   abort();                         \
 } while (lintnoloop_common_h)
 
-#define SERRX(failure)            \
-do {                              \
-   SWARNX(failure);               \
-   abort();                        \
+#define SERRX(failure)              \
+do {                                \
+   SWARNX(failure);                 \
+   abort();                         \
 } while (lintnoloop_common_h)
 
 
-#define SWARN(failure)      \
-   swarn(INTERNAL_ERROR,   \
+#define SWARN(failure)                                \
+   swarn(INTERNAL_ERROR,                              \
    __FILE__, __LINE__,   (long int)(failure), rcsid)
 
-#define SWARNX(failure)      \
-   swarnx(INTERNAL_ERROR,   \
+#define SWARNX(failure)                               \
+   swarnx(INTERNAL_ERROR,                             \
    __FILE__, __LINE__,   (long int)(failure), rcsid)
 
 
 
-#define ERR(failure)                           \
+#define ERR(failure)                          \
 do {                                          \
    warn(INTERNAL_ERROR, __FILE__, __LINE__,   \
    (long int)(failure), rcsid);               \
-   abort();                                    \
+   abort();                                   \
 } while (p)
 
-#define ERRX(failure)                        \
+#define ERRX(failure)                         \
 do {                                          \
-   warnx(INTERNAL_ERROR, __FILE__, __LINE__, \
+   warnx(INTERNAL_ERROR, __FILE__, __LINE__,  \
    (long int)(failure), rcsid);               \
-   abort();                                    \
+   abort();                                   \
 } while (lintnoloop_common_h)
 
 
@@ -417,9 +417,9 @@ do {                                          \
 
 
 /* the size of a UDP header "packet" (no padding) */
-#define PACKETSIZE_UDP(packet) (                                    \
-   sizeof((packet)->flag) + sizeof((packet)->frag)                  \
-   + sizeof((packet)->host.atype) + sizeof((packet)->host.port)   \
+#define PACKETSIZE_UDP(packet) (                                     \
+   sizeof((packet)->flag) + sizeof((packet)->frag)                   \
+   + sizeof((packet)->host.atype) + sizeof((packet)->host.port)      \
    + (ADDRESSIZE_V5(packet)))
 
 
@@ -427,8 +427,8 @@ do {                                          \
  * returns the length of the current address field in socks packet "packet".
  * "packet" can be one of pointer to response_t, request_t or udpheader_t.
  */
-#define ADDRESSIZE(packet) ( \
-     ((packet)->version == SOCKS_V4 ? \
+#define ADDRESSIZE(packet) (                                         \
+     ((packet)->version == SOCKS_V4 ?                                \
      (ADDRESSIZE_V4(packet)) : (ADDRESSIZE_V5(packet))))
 
 /*
@@ -436,11 +436,11 @@ do {                                          \
  */
 #define ADDRESSIZE_V5(packet) (                                                \
   (packet)->host.atype == SOCKS_ADDR_IPV4 ?                                    \
-  sizeof((packet)->host.addr.ipv4) :(packet)->host.atype == SOCKS_ADDR_IPV6 ?   \
+  sizeof((packet)->host.addr.ipv4) :(packet)->host.atype == SOCKS_ADDR_IPV6 ?  \
   sizeof((packet)->host.addr.ipv6) : (strlen((packet)->host.addr.domain) + 1))
 
-#define ADDRESSIZE_V4(packet) ( \
-   (packet)->atype == SOCKS_ADDR_IPV4 ? \
+#define ADDRESSIZE_V4(packet) (                                      \
+   (packet)->atype == SOCKS_ADDR_IPV4 ?                              \
    sizeof((packet)->addr.ipv4) : (strlen((packet)->addr.host) + 1))
 
 
@@ -457,18 +457,18 @@ do {                                          \
 #define FAKEIP_START 0x00000001
 #define FAKEIP_END   0x000000ff
 
-#define PROXY_HTTP_V1_0               1
+#define PROXY_HTTP_V1_0             1
 #define PROXY_HTTP_V1_0s            "http_v1.0"
 #define PROXY_MSPROXY_V2            2
-#define PROXY_MSPROXY_V2s            "msproxy_v2"
+#define PROXY_MSPROXY_V2s           "msproxy_v2"
 #define PROXY_UPNP                  3
-#define PROXY_UPNPs                  "UPNP"
+#define PROXY_UPNPs                 "UPNP"
 #define PROXY_SOCKS_V4               4
-#define PROXY_SOCKS_V4s               "socks_v4"
-#define PROXY_SOCKS_V4REPLY_VERSION 0
+#define PROXY_SOCKS_V4s              "socks_v4"
+#define PROXY_SOCKS_V4REPLY_VERSION  0
 #define PROXY_SOCKS_V5               5
-#define PROXY_SOCKS_V5s               "socks_v5"
-#define PROXY_DIRECT                  6
+#define PROXY_SOCKS_V5s              "socks_v5"
+#define PROXY_DIRECT                 6
 #define PROXY_DIRECTs               "direct"
 
 /* subnegotiation. */
@@ -478,10 +478,10 @@ do {                                          \
 #define AUTHMETHOD_NOTSET      -1
 #define AUTHMETHOD_NOTSETs      "notset"
 #define AUTHMETHOD_NONE         0
-#define AUTHMETHOD_NONEs      "none"
-#define AUTHMETHOD_GSSAPI      1
+#define AUTHMETHOD_NONEs        "none"
+#define AUTHMETHOD_GSSAPI       1
 #define AUTHMETHOD_GSSAPIs      "gssapi"
-#define AUTHMETHOD_UNAME      2
+#define AUTHMETHOD_UNAME        2
 #define AUTHMETHOD_UNAMEs      "username"
 
 /* X'03' to X'7F' IANA ASSIGNED                  */
@@ -493,32 +493,32 @@ do {                                          \
 
 /* not standard methods, must be > AUTHMETHOD_NOACCEPT. */
 #define AUTHMETHOD_RFC931      (AUTHMETHOD_NOACCEPT + 1)
-#define AUTHMETHOD_RFC931s      "rfc931"
+#define AUTHMETHOD_RFC931s     "rfc931"
 
 #define AUTHMETHOD_PAM         (AUTHMETHOD_RFC931 + 1)
-#define AUTHMETHOD_PAMs         "pam"
+#define AUTHMETHOD_PAMs        "pam"
 
 #define AUTHMETHOD_MAX         (AUTHMETHOD_PAM + 1)
 
-#define MAXMETHODSTRING         MAX(sizeof(AUTHMETHOD_NONEs),      \
+#define MAXMETHODSTRING       MAX(sizeof(AUTHMETHOD_NONEs),     \
                               MAX(sizeof(AUTHMETHOD_GSSAPIs),   \
-                              MAX(sizeof(AUTHMETHOD_UNAMEs),   \
+                              MAX(sizeof(AUTHMETHOD_UNAMEs),    \
                               MAX(sizeof(AUTHMETHOD_RFC931s),   \
                               sizeof(AUTHMETHOD_PAMs)))))
 
 /* number of supported methods. */
-#define MAXMETHOD               1 /* NONE      */   \
-                            + 1 /* UNAME      */   \
-                            + 1 /* RFC931      */   \
-                            + 1 /* RFC931      */
+#define MAXMETHOD             1 /* NONE      */   \
+                            + 1 /* UNAME     */   \
+                            + 1 /* RFC931    */   \
+                            + 1 /* RFC931    */
 
 /*
  *  Response commands/codes
  */
 #define SOCKS_CONNECT            1
-#define SOCKS_CONNECTs            "connect"
+#define SOCKS_CONNECTs           "connect"
 #define SOCKS_BIND               2
-#define SOCKS_BINDs               "bind"
+#define SOCKS_BINDs              "bind"
 #define SOCKS_UDPASSOCIATE       3
 #define SOCKS_UDPASSOCIATEs      "udpassociate"
 
@@ -526,21 +526,21 @@ do {                                          \
 
 #define SOCKS_COMMANDEND         0xff
 
-#define SOCKS_BINDREPLY            (SOCKS_COMMANDEND + 1)
+#define SOCKS_BINDREPLY          (SOCKS_COMMANDEND + 1)
 #define SOCKS_BINDREPLYs         "bindreply"
 
-#define SOCKS_UDPREPLY            (SOCKS_BINDREPLY + 1)
-#define SOCKS_UDPREPLYs            "udpreply"
+#define SOCKS_UDPREPLY           (SOCKS_BINDREPLY + 1)
+#define SOCKS_UDPREPLYs          "udpreply"
 
 /* misc. stuff */
-#define SOCKS_ACCEPT               (SOCKS_UDPREPLY + 1)
+#define SOCKS_ACCEPT             (SOCKS_UDPREPLY + 1)
 #define SOCKS_ACCEPTs            "accept"
 
 #define SOCKS_DISCONNECT         (SOCKS_ACCEPT + 1)
-#define SOCKS_DISCONNECTs         "disconnect"
+#define SOCKS_DISCONNECTs        "disconnect"
 
 #define SOCKS_UNKNOWN            (SOCKS_DISCONNECT + 1)
-#define SOCKS_UNKNOWNs            "unknown"
+#define SOCKS_UNKNOWNs           "unknown"
 
 
 /* address types */
@@ -556,26 +556,26 @@ do {                                          \
 #define SOCKS_FAILURE         0x01
 #define SOCKS_NOTALLOWED      0x02
 #define SOCKS_NETUNREACH      0x03
-#define SOCKS_HOSTUNREACH      0x04
-#define SOCKS_CONNREFUSED      0x05
+#define SOCKS_HOSTUNREACH     0x04
+#define SOCKS_CONNREFUSED     0x05
 #define SOCKS_TTLEXPIRED      0x06
 #define SOCKS_CMD_UNSUPP      0x07
-#define SOCKS_ADDR_UNSUPP      0x08
+#define SOCKS_ADDR_UNSUPP     0x08
 #define SOCKS_INVALID_ADDRESS 0x09
 
 /* version 4 codes. */
-#define SOCKSV4_SUCCESS         90
-#define SOCKSV4_FAIL            91
+#define SOCKSV4_SUCCESS        90
+#define SOCKSV4_FAIL           91
 #define SOCKSV4_NO_IDENTD      92
 #define SOCKSV4_BAD_ID         93
 
 /* http stuff. */
-#define HTTP_SUCCESS            200
+#define HTTP_SUCCESS           200
 
 /* upnp stuff. */
-#define UPNP_DISCOVERYTIME_MS          (500)
-#define DEFAULT_SSDP_PORT                (1900)
-#define DEFAULT_SSDP_BROADCAST_ADDR      "239.255.255.250"
+#define UPNP_DISCOVERYTIME_MS          (1000)
+#define DEFAULT_SSDP_BROADCAST_ADDR    "239.255.255.250"
+#define DEFAULT_SSDP_PORT              (1900)
 
 /* returncodes from UPNP_GetValidIGD(). */
 #define UPNP_NO_IGD           (0)
@@ -583,8 +583,8 @@ do {                                          \
 #define UPNP_DISCONNECTED_IGD (2)
 #define UPNP_UNKNOWN_DEVICE   (3)
 
-#define UPNP_SUCCESS            (1)
-#define UPNP_FAILURE            (2)
+#define UPNP_SUCCESS          (1)
+#define UPNP_FAILURE          (2)
 
 
 /* msproxy stuff. */
@@ -595,13 +595,13 @@ do {                                          \
 #define MSPROXY_FAILURE         1
 #define MSPROXY_NOTALLOWED      2
 
-#define MSPROXY_MINLENGTH      172         /* minimum length of packet.            */
-#define MSPROXY_VERSION         0x00010200   /* perhaps?                           */
+#define MSPROXY_MINLENGTH       172   /* minimum length of packet.            */
+#define MSPROXY_VERSION         0x00010200   /* perhaps?                      */
 
 /* errors */
-#define MSPROXY_ADDRINUSE            0x0701
-#define MSPROXY_BIND_AUTHFAILED      0x0804   /* auth failed for connect.   */
-#define MSPROXY_CONNECT_AUTHFAILED   0x081e   /* auth failed for bind.      */
+#define MSPROXY_ADDRINUSE           0x0701
+#define MSPROXY_BIND_AUTHFAILED     0x0804   /* auth failed for connect.   */
+#define MSPROXY_CONNECT_AUTHFAILED  0x081e   /* auth failed for bind.      */
 #define MSPROXY_CONNREFUSED         0x4      /* low 12 bits seem to vary.   */
 
 /*
@@ -609,46 +609,47 @@ do {                                          \
  * for our own use.
  */
 #define MSPROXY_HELLO            0x0500   /* packet 1 from client.            */
-#define MSPROXY_HELLO_ACK         0x1000   /* packet 1 from server.            */
+#define MSPROXY_HELLO_ACK        0x1000   /* packet 1 from server.            */
 
 #define MSPROXY_USERINFO         0x1000   /* packet 2 from client.            */
-#define MSPROXY_USERINFO_ACK      0x0400   /* packet 2 from server.            */
+#define MSPROXY_USERINFO_ACK     0x0400   /* packet 2 from server.            */
 
-#define MSPROXY_SOMETHING         0x4700   /* packet 3 from client.            */
-#define MSPROXY_SOMETHING_1_ACK   0x4714   /* packet 3 from server.            */
+#define MSPROXY_SOMETHING        0x4700   /* packet 3 from client.            */
+#define MSPROXY_SOMETHING_1_ACK  0x4714   /* packet 3 from server.            */
 
 #define MSPROXY_SOMETHING_2      0x4701   /* packet 4 from client.            */
-#define MSPROXY_SOMETHING_2_ACK   0x4715   /* packet 4 from server, high 8 bits
-                                             seem to vary.                     */
-#define MSPROXY_SOMETHING_2_ACK2   0x4716   /* could be this too... dunno.      */
+#define MSPROXY_SOMETHING_2_ACK  0x4715   /*
+                                           * packet 4 from server, high 8 
+                                           * bits seem to vary.               */
+#define MSPROXY_SOMETHING_2_ACK2 0x4716   /* could be this too... dunno.      */
 
-#define MSPROXY_RESOLVE            0x070d   /* resolve request from client.      */
+#define MSPROXY_RESOLVE          0x070d   /* resolve request from client.     */
 #define MSPROXY_RESOLVE_ACK      0x070f   /* resolved info from server.         */
 
-#define MSPROXY_BIND               0x0704   /* bind request.                     */
-#define MSPROXY_BIND_ACK         0x0706   /* bind request accepted.            */
+#define MSPROXY_BIND             0x0704   /* bind request.                    */
+#define MSPROXY_BIND_ACK         0x0706   /* bind request accepted.           */
 
 #define MSPROXY_BIND2            0x0707   /* dunno.                           */
-#define MSPROXY_BIND2_ACK         0x0708   /* dunno.                           */
+#define MSPROXY_BIND2_ACK        0x0708   /* dunno.                           */
 
 #define MSPROXY_BIND2            0x0707   /* dunno.                           */
-#define MSPROXY_BIND2_ACK         0x0708   /* dunno.                           */
+#define MSPROXY_BIND2_ACK        0x0708   /* dunno.                           */
 
-#define MSPROXY_LISTEN            0x0406   /* listen() performed(?)            */
+#define MSPROXY_LISTEN           0x0406   /* listen() performed(?)            */
 
 #define MSPROXY_BINDINFO         0x0709   /* info about client server accepted*/
 
-#define MSPROXY_BINDINFO_ACK      0x070a   /* we got the info(?)               */
+#define MSPROXY_BINDINFO_ACK     0x070a   /* we got the info(?)               */
 
-#define MSPROXY_CONNECT            0x071e   /* connect request.                  */
-#define MSPROXY_CONNECT_ACK      0x0703   /* connect request accepted.         */
+#define MSPROXY_CONNECT          0x071e   /* connect request.                 */
+#define MSPROXY_CONNECT_ACK      0x0703   /* connect request accepted.        */
 
-#define MSPROXY_UDPASSOCIATE      0x0705   /* UDP associate request.            */
-#define MSPROXY_UDPASSOCIATE_ACK   0x0706   /* UDP associate request accepted.   */
+#define MSPROXY_UDPASSOCIATE      0x0705   /* UDP associate request.          */
+#define MSPROXY_UDPASSOCIATE_ACK  0x0706   /* UDP associate request accepted. */
 
-#define MSPROXY_CONNECTED         0x042c   /* client connected to server?      */
+#define MSPROXY_CONNECTED         0x042c   /* client connected to server?     */
 
-#define MSPROXY_SESSIONEND         0x251e   /* maybe...                           */
+#define MSPROXY_SESSIONEND        0x251e   /* maybe...                        */
 
 
 /* flag _bits_ */
@@ -666,18 +667,18 @@ do {                                          \
 #define SOCKS_SEND      1
 
 /* offsets into authentication packet */
-#define AUTH_VERSION      0   /* version of method packet.                        */
+#define AUTH_VERSION      0 /* version of method packet.                      */
 
 /* request */
-#define AUTH_NMETHODS   1   /* number of methods to offer.                     */
-#define AUTH_METHODS      2   /* offset of first method to offer.                  */
+#define AUTH_NMETHODS   1   /* number of methods to offer.                    */
+#define AUTH_METHODS    2   /* offset of first method to offer.               */
 
 /* reply */
-#define AUTH_METHOD      1   /* offset for selected method in reply.            */
+#define AUTH_METHOD      1  /* offset for selected method in reply.           */
 
 /* offsets into username/password negotiation packet */
 #define UNAME_VERSION   0
-#define UNAME_STATUS      1
+#define UNAME_STATUS    1
 
 #define BINDEXTENSION_IPADDR 0xffffffff
 
@@ -688,12 +689,12 @@ enum operator_t { none = 0, eq, neq, ge, le, gt, lt, range };
 
 
 struct logtype_t {
-   int            type;         /* type of logging (where to).                  */
-   FILE            **fpv;      /* if logging is to file, this is the open file.*/
-   char            **fnamev;   /* if logging is to file, name of file.         */
-   size_t         fpc;         /* number of files.                              */
-   int            *fplockv;   /* locking of logfiles.                           */
-   int            facility;   /* if logging to syslog, this is the facility.   */
+   int            type;      /* type of logging (where to).                   */
+   FILE            **fpv;    /* if logging is to file, this is the open file. */
+   char            **fnamev; /* if logging is to file, name of file.          */
+   size_t         fpc;       /* number of files.                              */
+   int            *fplockv;  /* locking of logfiles.                          */
+   int            facility;  /* if logging to syslog, this is the facility.   */
    const char      *facilityname;   /* if logging to syslog, name of facility.   */ };
 
 
@@ -714,8 +715,8 @@ union socksaddr_t {
 
 /* the hostspecific part of misc. things */
 struct sockshost_t {
-   unsigned char         atype;
-   union socksaddr_t      addr;
+   unsigned char        atype;
+   union socksaddr_t    addr;
    in_port_t            port;
 };
 
@@ -727,169 +728,169 @@ struct msproxy_request_t {
    char                  executable[MAXNAMELEN];
    char                  clienthost[MAXHOSTNAMELEN];
 
-   int32_t               clientid;         /* 1-4                              */
-   int32_t               magic25;            /* 5-8                              */
-   int32_t               serverid;         /* 9-12                              */
-   unsigned char         serverack;         /* 13: ack of last server packet      */
-   char                  pad10[3];         /* 14-16                              */
-   unsigned char         sequence;         /* 17: sequence # of this packet.   */
-   char                  pad11[7];         /* 18-24                              */
-   char                  RWSP[4];            /* 25-28: 0x52,0x57,0x53,0x50         */
-   char                  pad15[8];         /* 29-36                              */
-   int16_t               command;            /* 37-38                              */
+   int32_t               clientid;        /* 1-4                              */
+   int32_t               magic25;         /* 5-8                              */
+   int32_t               serverid;        /* 9-12                             */
+   unsigned char         serverack;       /* 13: ack of last server packet    */
+   char                  pad10[3];        /* 14-16                            */
+   unsigned char         sequence;        /* 17: sequence # of this packet.   */
+   char                  pad11[7];        /* 18-24                            */
+   char                  RWSP[4];         /* 25-28: 0x52,0x57,0x53,0x50       */
+   char                  pad15[8];        /* 29-36                            */
+   int16_t               command;         /* 37-38                            */
 
    /* packet specifics start at 39. */
    union {
       struct {
-         char            pad1[18];         /* 39-56                              */
-         int16_t         magic3;            /* 57-58                              */
-         char           pad3[114];         /* 59-172                           */
-         int16_t         magic5;            /* 173-174: 0x4b, 0x00               */
-         char            pad5[2];            /* 175-176                           */
-         int16_t         magic10;            /* 177-178: 0x14, 0x00               */
-         char            pad6[2];            /* 179-180                           */
-         int16_t         magic15;            /* 181-182: 0x04, 0x00               */
-         char            pad10[6];         /* 183-188                           */
-         int16_t         magic20;            /* 189-190: 0x57, 0x04               */
-         int16_t         magic25;            /* 191-192: 0x00, 0x04               */
-         int16_t         magic30;            /* 193-194: 0x01, 0x00               */
-         char            pad20[2];         /* 195-196: 0x4a, 0x02               */
-         int16_t         magic35;            /* 197-198: 0x4a, 0x02               */
-         char            pad30[10];         /* 199-208                           */
-         int16_t         magic40;            /* 209-210: 0x30, 0x00               */
-         char            pad40[2];         /* 211-212                           */
-         int16_t         magic45;            /* 213-214: 0x44, 0x00               */
-         char            pad45[2];         /* 215-216                           */
-         int16_t         magic50;            /* 217-218: 0x39, 0x00               */
-         char            pad50[2];         /* 219-220                           */
+         char            pad1[18];      /* 39-56                              */
+         int16_t         magic3;        /* 57-58                              */
+         char           pad3[114];      /* 59-172                             */
+         int16_t         magic5;        /* 173-174: 0x4b, 0x00                */
+         char            pad5[2];       /* 175-176                            */
+         int16_t         magic10;       /* 177-178: 0x14, 0x00                */
+         char            pad6[2];       /* 179-180                            */
+         int16_t         magic15;       /* 181-182: 0x04, 0x00                */
+         char            pad10[6];      /* 183-188                            */
+         int16_t         magic20;       /* 189-190: 0x57, 0x04                */
+         int16_t         magic25;       /* 191-192: 0x00, 0x04                */
+         int16_t         magic30;       /* 193-194: 0x01, 0x00                */
+         char            pad20[2];      /* 195-196: 0x4a, 0x02                */
+         int16_t         magic35;       /* 197-198: 0x4a, 0x02                */
+         char            pad30[10];     /* 199-208                            */
+         int16_t         magic40;       /* 209-210: 0x30, 0x00                */
+         char            pad40[2];      /* 211-212                            */
+         int16_t         magic45;       /* 213-214: 0x44, 0x00                */
+         char            pad45[2];      /* 215-216                            */
+         int16_t         magic50;       /* 217-218: 0x39, 0x00                */
+         char            pad50[2];      /* 219-220                            */
       } _1;
 
       struct {
-         char            pad1[18];         /* 39-56                              */
-         int16_t         magic3;            /* 57-58                              */
-         char           pad3[114];         /* 59-172                           */
-         int16_t         magic5;            /* 173-174: 0x00, 0x4b               */
-         char            pad5[2];            /* 175-176                           */
-         int16_t         magic10;            /* 177-178: 0x14, 0x00               */
-         char            pad10[2];         /* 179-180                           */
-         int16_t         magic15;            /* 181-182: 0x04, 0x00               */
-         char            pad15[6];         /* 183-188                           */
-         int16_t         magic20;            /* 189-190: 0x57, 0x04               */
-         int16_t         magic25;            /* 191-192: 0x00, 0x04               */
-         int16_t         magic30;            /* 193-194: 0x01, 0x00               */
-         char            pad20[2];         /* 195-196                           */
-         int16_t         magic35;            /* 197-198: 0x04, 0x00               */
-         char            pad25[10];         /* 199-208                           */
-         int16_t         magic50;            /* 209-210: 0x30, 0x00               */
-         char            pad50[2];         /* 211-212                           */
-         int16_t         magic55;            /* 213-214: 0x44, 0x00               */
-         char            pad55[2];         /* 215-216                           */
-         int16_t         magic60;            /* 217-218: 0x39, 0x00               */
+         char            pad1[18];      /* 39-56                              */
+         int16_t         magic3;        /* 57-58                              */
+         char           pad3[114];      /* 59-172                             */
+         int16_t         magic5;        /* 173-174: 0x00, 0x4b                */
+         char            pad5[2];       /* 175-176                            */
+         int16_t         magic10;       /* 177-178: 0x14, 0x00                */
+         char            pad10[2];      /* 179-180                            */
+         int16_t         magic15;       /* 181-182: 0x04, 0x00                */
+         char            pad15[6];      /* 183-188                            */
+         int16_t         magic20;       /* 189-190: 0x57, 0x04                */
+         int16_t         magic25;       /* 191-192: 0x00, 0x04                */
+         int16_t         magic30;       /* 193-194: 0x01, 0x00                */
+         char            pad20[2];      /* 195-196                            */
+         int16_t         magic35;       /* 197-198: 0x04, 0x00                */
+         char            pad25[10];     /* 199-208                            */
+         int16_t         magic50;       /* 209-210: 0x30, 0x00                */
+         char            pad50[2];      /* 211-212                            */
+         int16_t         magic55;       /* 213-214: 0x44, 0x00                */
+         char            pad55[2];      /* 215-216                            */
+         int16_t         magic60;       /* 217-218: 0x39, 0x00                */
       } _2;
 
       struct {
-         char            pad1[4];            /* 39-42                              */
-         int16_t         magic2;            /* 43-44                              */
-         char            pad10[12];         /* 45-56                              */
-         in_addr_t      bindaddr;         /* 57-60: address to bind.            */
-         in_port_t      bindport;         /* 61-62: port to bind.               */
-         char           pad15[2];         /* 63-64                              */
-         int16_t         magic3;            /* 65-66                              */
-         in_port_t      boundport;         /* 67-68                              */
-         char           pad20[104];         /* 69-172                           */
-         char            NTLMSSP[sizeof("NTLMSSP")];   /* 173-180: "NTLMSSP"   */
-         int16_t         magic5;            /* 181-182: 0x01, 0x00               */
-         char            pad25[2];         /* 183-184                           */
-         int16_t         magic10;            /* 185-186: 0x96, 0x82               */
-         int16_t         magic15;            /* 187-188: 0x08, 0x00               */
-         int16_t         magic20;            /* 189-190: 0x28, 0x00               */
-         char            pad30[2];         /* 191-192                           */
-         int16_t         magic25;            /* 193-194: 0x96, 0x82               */
-         int16_t         magic30;            /* 195-196: 0x01, 0x00               */
-         char            pad40[12];         /* 197-208                           */
-         int16_t         magic50;            /* 209-210: 0x30, 0x00               */
-         char            pad50[6];         /* 211-216                           */
-         int16_t         magic55;            /* 217-218: 0x30, 0x00               */
-         char            pad55[2];         /* 219-220                           */
+         char         pad1[4];          /* 39-42                              */
+         int16_t      magic2;           /* 43-44                              */
+         char         pad10[12];        /* 45-56                              */
+         in_addr_t    bindaddr;         /* 57-60: address to bind.            */
+         in_port_t    bindport;         /* 61-62: port to bind.               */
+         char         pad15[2];         /* 63-64                              */
+         int16_t      magic3;           /* 65-66                              */
+         in_port_t    boundport;        /* 67-68                              */
+         char         pad20[104];       /* 69-172                             */
+         char         NTLMSSP[sizeof("NTLMSSP")];   /* 173-180: "NTLMSSP"     */
+         int16_t      magic5;           /* 181-182: 0x01, 0x00                */
+         char         pad25[2];         /* 183-184                            */
+         int16_t      magic10;          /* 185-186: 0x96, 0x82                */
+         int16_t      magic15;          /* 187-188: 0x08, 0x00                */
+         int16_t      magic20;          /* 189-190: 0x28, 0x00                */
+         char         pad30[2];         /* 191-192                            */
+         int16_t      magic25;          /* 193-194: 0x96, 0x82                */
+         int16_t      magic30;          /* 195-196: 0x01, 0x00                */
+         char         pad40[12];        /* 197-208                            */
+         int16_t      magic50;          /* 209-210: 0x30, 0x00                */
+         char         pad50[6];         /* 211-216                            */
+         int16_t      magic55;            /* 217-218: 0x30, 0x00              */
+         char         pad55[2];         /* 219-220                            */
       } _3;
 
       struct {
-         char            pad1[4];            /* 39-42                              */
-         int16_t         magic1;            /* 43-44                              */
-         int32_t         magic2;            /* 45-48                              */
-         char            pad2[8];            /* 49-56                              */
-         int16_t         magic3;            /* 57-58                              */
-         char            pad3[6];            /* 59-64                              */
-         int16_t         magic4;            /* 65-66                              */
-         in_port_t      boundport;         /* 67-68                              */
-         char           pad4[104];         /* 69-172                           */
-         char            NTLMSSP[sizeof("NTLMSSP")];   /* 173-180: "NTLMSSP"   */
-         int16_t         magic5;            /* 181-182: 0x03, 0x00               */
-         char            pad5[2];            /* 183-184                           */
-         int16_t         magic10;            /* 185-186: 0x18, 0x00               */
-         int16_t         magic15;            /* 187-188: 0x18, 0x00               */
-         int16_t         magic20;            /* 189-190: 0x49, 0x00               */
-         char            pad10[6];         /* 191-196                           */
-         int16_t         magic30;            /* 197-198: 0x61, 0x00               */
-         char            pad15[2];         /* 199-200                           */
-         int16_t         magic35;            /* 201-202: 0x08, 0x00               */
-         int16_t         magic40;            /* 203-204: 0x08, 0x00               */
-         int16_t         magic45;            /* 205-206: 0x34, 0x00               */
-         char            pad20[2];         /* 207-208                           */
-         int16_t         magic50;            /* 209-210: 0x07, 0x00               */
-         int16_t         magic55;            /* 211-212: 0x07, 0x00               */
-         int16_t         magic60;            /* 213-214: 0x3c, 0x00               */
-         char            pad25[2];         /* 215-216                           */
-         int16_t         magic65;            /* 217-218: 0x06, 0x00               */
-         int16_t         magic70;            /* 219-220: 0x06, 0x00               */
-         int16_t         magic75;            /* 221-222: 0x43, 0x00               */
+         char            pad1[4];       /* 39-42                              */
+         int16_t         magic1;        /* 43-44                              */
+         int32_t         magic2;        /* 45-48                              */
+         char            pad2[8];       /* 49-56                              */
+         int16_t         magic3;        /* 57-58                              */
+         char            pad3[6];       /* 59-64                              */
+         int16_t         magic4;        /* 65-66                              */
+         in_port_t      boundport;      /* 67-68                              */
+         char           pad4[104];      /* 69-172                             */
+         char            NTLMSSP[sizeof("NTLMSSP")];   /* 173-180: "NTLMSSP"  */
+         int16_t         magic5;        /* 181-182: 0x03, 0x00                */
+         char            pad5[2];       /* 183-184                            */
+         int16_t         magic10;       /* 185-186: 0x18, 0x00                */
+         int16_t         magic15;       /* 187-188: 0x18, 0x00                */
+         int16_t         magic20;       /* 189-190: 0x49, 0x00                */
+         char            pad10[6];      /* 191-196                            */
+         int16_t         magic30;       /* 197-198: 0x61, 0x00                */
+         char            pad15[2];      /* 199-200                            */
+         int16_t         magic35;       /* 201-202: 0x08, 0x00                */
+         int16_t         magic40;       /* 203-204: 0x08, 0x00                */
+         int16_t         magic45;       /* 205-206: 0x34, 0x00                */
+         char            pad20[2];      /* 207-208                            */
+         int16_t         magic50;       /* 209-210: 0x07, 0x00                */
+         int16_t         magic55;       /* 211-212: 0x07, 0x00                */
+         int16_t         magic60;       /* 213-214: 0x3c, 0x00                */
+         char            pad25[2];      /* 215-216                            */
+         int16_t         magic65;       /* 217-218: 0x06, 0x00                */
+         int16_t         magic70;       /* 219-220: 0x06, 0x00                */
+         int16_t         magic75;       /* 221-222: 0x43, 0x00                */
       } _4;
 
       struct {
-         unsigned char   hostlength;         /* length of host, including NUL.   */
-         char            pad1[17];         /* 39-56                              */
-         char            *host;            /* 57-...                           */
+         unsigned char   hostlength;    /* length of host, including NUL.     */
+         char            pad1[17];      /* 39-56                              */
+         char            *host;         /* 57-...                             */
       } resolve;
 
       struct {
-         int16_t         magic1;            /* 39-40                              */
-         char            pad1[4];            /* 41-45                              */
-         int32_t         magic3;            /* 45-48                              */
-         char            pad5[8];            /* 48-56                              */
-         int16_t         magic6;            /* 57-58: 0x0200                     */
-         in_port_t      destport;         /* 59-60                              */
-         in_addr_t      destaddr;         /* 61-64                              */
-         char            pad10[4];         /* 65-68                              */
-         int16_t         magic10;            /* 69-70                              */
-         char            pad15[2];         /* 71-72                              */
-         in_port_t      srcport;            /* 73-74: port client connects from   */
-         char            pad20[82];         /* 75-156                           */
+         int16_t         magic1;        /* 39-40                              */
+         char            pad1[4];       /* 41-45                              */
+         int32_t         magic3;        /* 45-48                              */
+         char            pad5[8];       /* 48-56                              */
+         int16_t         magic6;        /* 57-58: 0x0200                      */
+         in_port_t      destport;       /* 59-60                              */
+         in_addr_t      destaddr;       /* 61-64                              */
+         char            pad10[4];      /* 65-68                              */
+         int16_t         magic10;       /* 69-70                              */
+         char            pad15[2];      /* 71-72                              */
+         in_port_t      srcport;        /* 73-74: port client connects from   */
+         char            pad20[82];     /* 75-156                             */
       } _5;
 
       struct {
-         int16_t         magic1;            /* 39-40                              */
-         char            pad5[2];            /* 41-42                              */
-         int16_t         magic5;            /* 43-44                              */
-         int32_t         magic10;            /* 45-48                              */
-         char            pad10[2];         /* 49-50                              */
-         int16_t         magic15;            /* 51-52                              */
-         int32_t         magic16;            /* 53-56                              */
-         int16_t         magic20;            /* 57-58                              */
-         in_port_t      clientport;         /* 59-60: forwarded port.            */
-         in_addr_t      clientaddr;         /* 61-64: forwarded address.         */
-         int32_t         magic30;            /* 65-68                              */
-         int32_t         magic35;            /* 69-72                              */
-         in_port_t      serverport;         /* 73-74: port server will connect
-                                           *          to us from.
+         int16_t         magic1;        /* 39-40                              */
+         char            pad5[2];       /* 41-42                              */
+         int16_t         magic5;        /* 43-44                              */
+         int32_t         magic10;       /* 45-48                              */
+         char            pad10[2];      /* 49-50                              */
+         int16_t         magic15;       /* 51-52                              */
+         int32_t         magic16;       /* 53-56                              */
+         int16_t         magic20;       /* 57-58                              */
+         in_port_t      clientport;     /* 59-60: forwarded port.             */
+         in_addr_t      clientaddr;     /* 61-64: forwarded address.          */
+         int32_t         magic30;       /* 65-68                              */
+         int32_t         magic35;       /* 69-72                              */
+         in_port_t      serverport;     /* 73-74: port server will connect
+                                          *          to us from.
                                           */
-         in_port_t      srcport;            /* 75-76: connect request; port used
-                                           *          on client behalf.
+         in_port_t      srcport;        /* 75-76: connect request; port used
+                                         *          on client behalf.
+                                         */
+         in_port_t      boundport;      /* 77-78: bind request; port used
+                                          *       on client behalf.
                                           */
-         in_port_t      boundport;         /* 77-78: bind request; port used
-                                           *       on client behalf.
-                                          */
-         in_addr_t      boundaddr;         /* 79-82: addr used on client behalf*/
-         char            pad30[90];         /* 83-172                           */
+         in_addr_t      boundaddr;      /* 79-82: addr used on client behalf  */
+         char            pad30[90];     /* 83-172                             */
       } _6;
 
    } packet;
@@ -1031,11 +1032,11 @@ struct authmethod_pam_t {
 
 /* this must be big enough to hold a complete method request. */
 struct authmethod_t {
-   int                  method;               /* method in use.                  */
-   int                  methodv[MAXMETHOD];   /* methods somewhere matched.      */
-   size_t               methodc;               /* number of methods matched.      */
-   int                  badmethodv[MAXMETHOD];/* methods not matched.         */
-   size_t               badmethodc;            /* number of methods not matched.*/
+   int                  method;                /* method in use.              */
+   int                  methodv[MAXMETHOD];    /* methods somewhere matched.  */
+   size_t               methodc;               /* number of methods matched.  */
+   int                  badmethodv[MAXMETHOD]; /* methods not matched.        */
+   size_t               badmethodc;          /* number of methods not matched.*/
 
    union {
       struct authmethod_uname_t   uname;
@@ -1079,24 +1080,24 @@ struct msproxy_state_t {
    int32_t                  bindid;
    int32_t                  clientid;
    int32_t                  serverid;
-   unsigned char            seq_recv;      /* seq number of last packet recv.   */
-   unsigned char            seq_sent;      /* seq number of last packet sent.   */
+   unsigned char            seq_recv;    /* seq number of last packet recv.   */
+   unsigned char            seq_sent;    /* seq number of last packet sent.   */
 };
 
 
 /* values in parentheses designate "don't care" values.   */
 struct socksstate_t {
-   int                     acceptpending;   /* a accept pending?      (-1)         */
-   struct authmethod_t      auth;            /* authentication in use.            */
-   int                     command;         /* command (-1)                     */
-   int                     err;            /* if request failed, errno.         */
-   int                     inprogress;      /* operation in progress? (-1)      */
-   struct msproxy_state_t   msproxy;         /* if msproxy, msproxy state.         */
-   struct protocol_t         protocol;      /* protocol in use.                  */
-   unsigned char            udpconnect;      /* connected UDP socket?            */
+   int                     acceptpending; /* a accept pending?      (-1)      */
+   struct authmethod_t     auth;          /* authentication in use.           */
+   int                     command;       /* command (-1)                     */
+   int                     err;           /* if request failed, errno.        */
+   int                     inprogress;    /* operation in progress? (-1)      */
+   struct msproxy_state_t  msproxy;       /* if msproxy, msproxy state.       */
+   struct protocol_t       protocol;      /* protocol in use.                 */
+   unsigned char           udpconnect;    /* connected UDP socket?            */
    unsigned char           issyscall;     /* started out as a real systemcall.*/
    int                     syscalldepth;  /* depth of system call.            */
-   int                     version;         /* version (-1)                     */
+   int                     version;       /* version (-1)                     */
 };
 
 struct ruleaddr_t {
@@ -1112,11 +1113,11 @@ struct ruleaddr_t {
    } addr;
 
    struct {
-      in_port_t         tcp;         /* TCP portstart or field to operator on.   */
-      in_port_t         udp;         /* UDP portstart or field to operator on.   */
+      in_port_t         tcp;      /* TCP portstart or field to operator on.   */
+      in_port_t         udp;      /* UDP portstart or field to operator on.   */
    } port;
-   in_port_t            portend;      /* only used if operator is range.         */
-   enum operator_t      operator;   /* operator to compare ports via.         */
+   in_port_t            portend;   /* only used if operator is range.         */
+   enum operator_t      operator;  /* operator to compare ports via.          */
 };
 
 typedef struct {
@@ -1125,7 +1126,7 @@ typedef struct {
       char               domain[MAXHOSTNAMELEN];
       char               urlname[MAXURLLEN];
       char               ifname[MAXIFNAMELEN];
-      struct in_addr      ipv4;
+      struct in_addr     ipv4;
    } addr;
    in_port_t            port;
 } gwaddr_t;
@@ -1144,7 +1145,7 @@ struct serverstate_t {
    struct extension_t      extension;
    struct protocol_t       protocol;
    int                     methodv[MAXMETHOD];      /* methods to offer.      */
-   size_t                  methodc;                  /* number of methods set.*/
+   size_t                  methodc;                 /* number of methods set. */
    struct proxyprotocol_t  proxyprotocol;
    proxystate_t            data;
 };
@@ -1158,14 +1159,14 @@ struct gateway_t {
 struct socks_t {
    unsigned char            version;
                            /*
-                            *   Negotiated version.  Each request and
-                            *   response will also contain a version number, that
-                            *   is the version number given for that particular
-                            *   packet and should be checked to make sure it is
-                            *  the same as the negotiated version.
-                           */
+                            * Negotiated version.  Each request and
+                            * response will also contain a version number, that
+                            * is the version number given for that particular
+                            * packet and should be checked to make sure it is
+                            * the same as the negotiated version.
+                            */
    struct request_t            req;
-   struct response_t            res;
+   struct response_t           res;
    struct authmethod_t         auth;
    struct gateway_t            gw;
    struct socksstate_t         state;
@@ -1183,22 +1184,22 @@ enum portcmp { e_lt, e_gt, e_eq, e_neq, e_le, e_ge, e_nil };
 #define SOCKS_RESPONSE   0x2
 
 struct socksfd_t {
-   unsigned char         allocated;    /* allocated?                              */
-   int                  control;      /* control connection to server.            */
-   struct socksstate_t   state;      /* state of this connection.               */
-   unsigned               :0;
+   unsigned char        allocated;  /* allocated?                             */
+   int                  control;    /* control connection to server.          */
+   struct socksstate_t  state;      /* state of this connection.              */
+   unsigned             :0;
    struct sockaddr      local;      /* local address of data connection.      */
    unsigned               :0;
-   struct sockaddr      server;      /* remote address of data connection.      */
+   struct sockaddr      server;     /* remote address of data connection.     */
    unsigned               :0;
-   struct sockaddr      remote;      /* address server is using on our behalf.   */
+   struct sockaddr      remote;     /* address server is using on our behalf. */
    unsigned               :0;
-   struct sockaddr      reply;      /* address to expect reply from.            */
+   struct sockaddr      reply;      /* address to expect reply from.          */
    unsigned               :0;
 
    union {
       struct sockaddr      accepted;   /* address server accepted for us.     */
-      struct sockaddr      connected;   /* address server connected to for us.*/
+      struct sockaddr      connected;  /* address server connected to for us. */
    } forus;
 
    struct route_t      *route;
@@ -1210,9 +1211,9 @@ struct route_t {
    int                     number;      /* routenumber.                       */
 
    struct {
-      unsigned char bad;   /* route is bad?                                   */
-      time_t   badtime;      /* if route is bad, time it was marked as such.  */
-      unsigned char autoadded;/* autoadded route.                             */
+      size_t        failed;   /* route is bad?  How many times it has failed. */
+      time_t        badtime;  /* if route is bad, time it was marked as such. */
+      unsigned char autoadded;/* autoadded route?                             */
       unsigned :0;
    } state;
 
@@ -1305,7 +1306,7 @@ udpheader_add __P((const struct sockshost_t *host, const void *msg, size_t *len,
  *
  *   Returns:
  *      On success: "msg" with the udpheader prepended, or a new message
- *                that the caller needs to free.
+ *                  that the caller needs to free.
  *      On failure: NULL (out of memory).
  */
 
@@ -1711,6 +1712,16 @@ socks_addroute __P((const struct route_t *route, const int last));
  * Returns a pointer to the added route.
  */
 
+struct route_t *
+socks_autoadd_directroute __P((const struct sockaddr_in *saddr,
+                               const struct sockaddr_in *netmask));
+/*
+ * Adds a direct route to "saddr", netmask "netmask". 
+ * Intended to be used for routes that are added automatically,
+ * and not via socks.conf.
+ */
+
+
 void
 socks_showroute __P((const struct route_t *route));
 /*
@@ -1986,7 +1997,7 @@ void freeifaddrs __P((struct ifaddrs *));
 struct passwd *
 socks_getpwnam __P((const char *login));
 /*
- * Like getpwnam() but works around sysv bug, tries to get the shadow
+ * Like getpwnam() but works around sysv bug and tries to get the shadow
  * password too.
  */
 
@@ -2118,12 +2129,15 @@ socks_badroute __P((struct route_t *route));
  */
 
 int
-negotiate_method __P((int s, struct socks_t *packet));
+negotiate_method __P((int s, struct socks_t *packet, struct route_t *route));
 /*
  * Negotiates a method to be used when talking with the server connected
- * to "s".  "packet" is the packet that will later be sent to server,
- * only the "auth" element in it will be set but other elements are needed
- * too.
+ * to "s". 
+ * "packet" is the packet that will later be sent to server, and only
+ * the "auth" element in it will be set but other elements are needed
+ * for reading too.
+ * "route" is the route selected for connecting to the socks-server.
+ *
  * Returns:
  *      On success: 0
  *      On failure: -1

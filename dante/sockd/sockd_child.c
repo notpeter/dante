@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.152 2008/12/13 21:02:53 michaels Exp $";
+"$Id: sockd_child.c,v 1.156 2009/01/11 22:04:16 michaels Exp $";
 
 #define MOTHER   0   /* descriptor mother reads/writes on.   */
 #define CHILD   1   /* descriptor child reads/writes on.   */
@@ -73,13 +73,13 @@ findchild __P((pid_t pid, int childc, const struct sockd_child_t *childv));
 __END_DECLS
 
 
-static struct sockd_child_t *iochildv;            /* all our iochildren         */
+static struct sockd_child_t *iochildv;            /* all our iochildren       */
 static int iochildc;
 
 static struct sockd_child_t *negchildv;         /* all our negotiatorchildren */
 static int negchildc;
 
-static struct sockd_child_t *reqchildv;         /* all our requestchildren      */
+static struct sockd_child_t *reqchildv;         /* all our requestchildren    */
 static int reqchildc;
 
 
@@ -92,9 +92,9 @@ addchild(type)
     * It is better to reserve some descriptors for temporary use
     * than to get errors when passing them and thus lose clients.
     */
-   const int reserved = FDPASS_MAX   /* max descriptors we pass.         */
+   const int reserved = FDPASS_MAX   /* max descriptors we pass.          */
                       + 1            /* need a descriptor for accept().   */
-                      + 2;            /* for each new child.               */
+                      + 2;           /* for each new child.               */
    struct sockd_mother_t mother;
    struct sockd_child_t **childv;
    int *childc;
@@ -251,7 +251,7 @@ addchild(type)
          SERRX(type);
    }
 
-   /* so slog() doesn't log wrong pid if we termintate here. */
+   /* so slog() doesn't log wrong pid if we crash here. */
    sockscf.state.pid = 0;
 
    switch ((pid = fork())) {
@@ -275,7 +275,7 @@ addchild(type)
 
          newprocinit();
 
-         sockscf.state.type   = type;
+         sockscf.state.type = type;
          slog(LOG_INFO, "created new %schild", childtype2string(type));
 #if 0
          slog(LOG_DEBUG, "sleeping...");
@@ -298,7 +298,7 @@ addchild(type)
           * io children:
           *      could need privileges to bind port if using redirect()
           *      module, also SIGHUP performs misc. seteuid() tests that
-          *    could fail if we lose privileges.
+          *      could fail if we lose privileges.
           */
 
          switch (type) {
@@ -381,12 +381,12 @@ addchild(type)
          *childv = newchildv;
 
          (*childv)[*childc].type   = type;
-         (*childv)[*childc].pid   = pid;
+         (*childv)[*childc].pid    = pid;
          (*childv)[*childc].s      = pipev[MOTHER];
 #if HAVE_SENDMSG_DEADLOCK
          (*childv)[*childc].lock   = mother.lock;
 #endif /* HAVE_SENDMSG_DEADLOCK */
-         (*childv)[*childc].ack   = ackpipev[MOTHER];
+         (*childv)[*childc].ack    = ackpipev[MOTHER];
 
          close(pipev[CHILD]);
          close(ackpipev[CHILD]);
@@ -494,14 +494,14 @@ fillset(set)
    int i, dbits;
 
    /*
-    * There is no point in setting data descriptor of child N unless
-    * child N+1 is able to accept the data from child N.  So find
+    * There is no point in setting data descriptor of child type N unless
+    * child type N+1 is able to accept the data from child N.  So find
     * out if we have slots of the various types available .
     */
 
-   ioc   = childcheck(CHILD_IO);
-   reqc   = childcheck(CHILD_REQUEST);
-   negc   = childcheck(CHILD_NEGOTIATE);
+   ioc  = childcheck(CHILD_IO);
+   reqc = childcheck(CHILD_REQUEST);
+   negc = childcheck(CHILD_NEGOTIATE);
 
    FD_ZERO(set);
    dbits = -1;
@@ -694,8 +694,8 @@ nextchild(type)
       return NULL;
    ++maxd;
 
-   timeout.tv_sec      = 0;
-   timeout.tv_usec   = 0;
+   timeout.tv_sec  = 0;
+   timeout.tv_usec = 0;
 
    switch (selectn(maxd, NULL, &wset, NULL, &timeout)) {
       case -1:
@@ -840,6 +840,7 @@ send_io(s, io)
 
 
    length = 0;
+   bzero(iovec, sizeof(iovec));
    /* LINTED operands have incompatible pointer types */
    iovec[0].iov_base  = io;
    iovec[0].iov_len   = sizeof(*io);
@@ -867,10 +868,11 @@ send_io(s, io)
          SERRX(io->state.command);
    }
 
-   msg.msg_iov            = iovec;
-   msg.msg_iovlen         = ELEMENTS(iovec);
-   msg.msg_name         = NULL;
-   msg.msg_namelen      = 0;
+   bzero(&msg, sizeof(msg));
+   msg.msg_iov     = iovec;
+   msg.msg_iovlen  = ELEMENTS(iovec);
+   msg.msg_name    = NULL;
+   msg.msg_namelen = 0;
 
    CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
 
@@ -878,10 +880,6 @@ send_io(s, io)
       swarn("%s: sendmsg(): %d of %d", function, w, length);
       return -1;
    }
-
-#if HARDCORE_DEBUG
-   printfd(io, "sent");
-#endif /* HARDCORE_DEBUG */
 
    return 0;
 }
@@ -899,6 +897,7 @@ send_client(s, client)
    CMSG_AALLOC(cmsg, sizeof(int));
    int fdsent;
 
+   bzero(iovec, sizeof(iovec));
    /* LINTED operands have incompatible pointer types */
    iovec[0].iov_base = &command;
    iovec[0].iov_len  = sizeof(command);
@@ -906,6 +905,7 @@ send_client(s, client)
    fdsent = 0;
    CMSG_ADDOBJECT(client, cmsg, sizeof(client) * fdsent++);
 
+   bzero(&msg, sizeof(msg));
    msg.msg_iov     = iovec;
    msg.msg_iovlen  = ELEMENTS(iovec);
    msg.msg_name    = NULL;
@@ -932,6 +932,7 @@ send_req(s, req)
    int fdsent;
    CMSG_AALLOC(cmsg, sizeof(int));
 
+   bzero(iovec, sizeof(iovec));
    /* LINTED operands have incompatible pointer types */
    iovec[0].iov_base = (void *)req;
    iovec[0].iov_len  = sizeof(*req);
@@ -939,6 +940,7 @@ send_req(s, req)
    fdsent = 0;
    CMSG_ADDOBJECT(req->s, cmsg, sizeof(req->s) * fdsent++);
 
+   bzero(&msg, sizeof(msg));
    msg.msg_iov     = iovec;
    msg.msg_iovlen  = ELEMENTS(iovec);
    msg.msg_name    = NULL;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,13 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.189 2008/12/13 10:53:28 michaels Exp $";
+"$Id: config.c,v 1.204 2009/01/12 14:08:40 michaels Exp $";
 
 void
 genericinit(void)
 {
    const char *function = "genericinit()";
-   size_t i;
 #if SOCKS_SERVER
    sigset_t set, oset;
 #endif /* SOCKS_SERVER */
@@ -72,12 +71,14 @@ genericinit(void)
       swarn("%s: sigprocmask(SIG_BLOCK)", function);
 #endif /* SOCKS_SERVER */
 
-   if (readconfig(sockscf.option.configfile) != 0)
+   if (readconfig(sockscf.option.configfile) != 0) {
 #if SOCKS_SERVER
       exit(EXIT_FAILURE);
-#else
+#else /* SOCKS_CLIENT */
+      sockscf.state.init = 1;
       return;
 #endif /* SOCKS_SERVER */
+   }
 
 #if SOCKS_SERVER
    if (sigprocmask(SIG_SETMASK, &oset, NULL) != 0)
@@ -85,6 +86,13 @@ genericinit(void)
 #endif /* SOCKS_SERVER */
 
    newprocinit();
+
+#if !HAVE_NO_RESOLVESTUFF
+   if (!(_res.options & RES_INIT)) {
+      res_init();  
+      _res.options = RES_DEFAULT;
+   }
+#endif /* !HAVE_NO_RESOLVSTUFF */
 
    switch (sockscf.resolveprotocol) {
       case RESOLVEPROTOCOL_TCP:
@@ -102,14 +110,6 @@ genericinit(void)
       default:
          SERRX(sockscf.resolveprotocol);
    }
-
-   for (i = 0; i < sockscf.log.fpc; ++i)
-      if (setvbuf(sockscf.log.fpv[i], NULL, _IOLBF, 0) != 0)
-         swarn("%s: setvbuf(_IOLBF)", function);
-
-#if !HAVE_NO_RESOLVESTUFF
-   res_init();
-#endif /* !HAVE_NO_RESOLVSTUFF */
 
    sockscf.state.init = 1;
 }
@@ -148,7 +148,7 @@ socks_addroute(newroute, last)
          
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
             serrx(1,
-            "%s: can't combine proxyprotocol direct with other proxyprotocols",
+            "%s: can't combine proxyprotocol direct with other protocols",
             function);   
       }
       else if (route->gw.state.proxyprotocol.socks_v4 
@@ -156,8 +156,7 @@ socks_addroute(newroute, last)
          if (route->gw.state.proxyprotocol.msproxy_v2
          ||  route->gw.state.proxyprotocol.http_v1_0
          ||  route->gw.state.proxyprotocol.upnp)
-         serrx(1,
-         "%s: can't combine proxyprotocol socks with other proxyprotocols",
+         serrx(1, "%s: can't combine proxyprotocol socks with other protocols",
          function);   
       }
       else if (route->gw.state.proxyprotocol.msproxy_v2) {
@@ -165,16 +164,18 @@ socks_addroute(newroute, last)
          proxy.msproxy_v2 = 1;
          
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            serrx(1, "%s: can't combine proxyprotocol msproxy_v2 with other "
-            "proxyprotocols", function);   
+            serrx(1,
+            "%s: can't combine proxyprotocol msproxy with other protocols",
+            function);   
       }
       else if (route->gw.state.proxyprotocol.http_v1_0) {
          memset(&proxy, 0, sizeof(proxy));
          proxy.http_v1_0 = 1;
          
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            serrx(1, "%s: can't combine proxyprotocol http_v1_0 with other "
-            "proxyprotocols", function);   
+            serrx(1,
+            "%s: can't combine proxyprotocol http_v1_0 with other protocols",
+            function);   
       }
       else if (route->gw.state.proxyprotocol.upnp) {
 #if !HAVE_LIBMINIUPNP
@@ -184,8 +185,8 @@ socks_addroute(newroute, last)
          proxy.upnp = 1;
          
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            serrx(1, "%s: can't combine proxyprotocol upnp with other "
-            "proxyprotocols", function);   
+            serrx(1,"%s: can't combine proxyprotocol upnp with other protocols",
+            function);   
       }
    }
 
@@ -210,7 +211,7 @@ socks_addroute(newroute, last)
           * explicitly enables it. 
           * If not, bind(2) will always be local, which in most
           * cases is probably not what the user wanted, even
-          * though he implied it, by not specifying what commands
+          * though he implied it by not specifying what commands
           * the direct route should handle, meaning "all".
           */
          route->gw.state.command.bind            = 0;
@@ -219,38 +220,38 @@ socks_addroute(newroute, last)
 
       if (route->gw.state.proxyprotocol.socks_v5) {
 #if !SOCKS_SERVER
-         route->gw.state.command.udpassociate   = 1;
-         route->gw.state.command.udpreply         = 1;
+         route->gw.state.command.udpassociate  = 1;
+         route->gw.state.command.udpreply      = 1;
 #endif /* !SOCKS_SERVER */
-         route->gw.state.command.bind             = 1;
-         route->gw.state.command.bindreply       = 1;
-         route->gw.state.command.connect          = 1;
+         route->gw.state.command.bind          = 1;
+         route->gw.state.command.bindreply     = 1;
+         route->gw.state.command.connect       = 1;
       }
 
       if (route->gw.state.proxyprotocol.socks_v4) {
-         route->gw.state.command.bind             = 1;
-         route->gw.state.command.bindreply       = 1;
-         route->gw.state.command.connect          = 1;
+         route->gw.state.command.bind       = 1;
+         route->gw.state.command.bindreply  = 1;
+         route->gw.state.command.connect    = 1;
       }
 
       if (route->gw.state.proxyprotocol.http_v1_0) {
-         route->gw.state.command.connect          = 1;
+         route->gw.state.command.connect = 1;
       }
 
       if (route->gw.state.proxyprotocol.upnp) {
 #if !SOCKS_SERVER
-         route->gw.state.command.udpassociate   = 1;
-         route->gw.state.command.udpreply         = 1;
+         route->gw.state.command.udpassociate = 1;
+         route->gw.state.command.udpreply     = 1;
 #endif /* !SOCKS_SERVER */
-         route->gw.state.command.bind             = 1;
-         route->gw.state.command.bindreply       = 1;
-         route->gw.state.command.connect          = 1;
+         route->gw.state.command.bind         = 1;
+         route->gw.state.command.bindreply    = 1;
+         route->gw.state.command.connect      = 1;
       }
 
       if (route->gw.state.proxyprotocol.msproxy_v2) {
-         route->gw.state.command.bind             = 1;
-         route->gw.state.command.bindreply       = 1;
-         route->gw.state.command.connect          = 1;
+         route->gw.state.command.bind      = 1;
+         route->gw.state.command.bindreply = 1;
+         route->gw.state.command.connect   = 1;
       }
    }
 #if SOCKS_SERVER
@@ -272,42 +273,42 @@ socks_addroute(newroute, last)
    sizeof(state.protocol)) == 0) {
       if (route->gw.state.proxyprotocol.direct) {
 #if !SOCKS_SERVER
-         route->gw.state.protocol.udp   = 1;
+         route->gw.state.protocol.udp = 1;
 #endif /* !SOCKS_SERVER */
-         route->gw.state.protocol.tcp   = 1;
+         route->gw.state.protocol.tcp = 1;
       }
 
       if (route->gw.state.proxyprotocol.socks_v5) {
 #if !SOCKS_SERVER
-         route->gw.state.protocol.udp   = 1;
+         route->gw.state.protocol.udp = 1;
 #endif /* !SOCKS_SERVER */
-         route->gw.state.protocol.tcp   = 1;
+         route->gw.state.protocol.tcp = 1;
       }
 
       if (route->gw.state.proxyprotocol.socks_v4) {
-         route->gw.state.protocol.tcp   = 1;
+         route->gw.state.protocol.tcp = 1;
       }
 
       if (route->gw.state.proxyprotocol.http_v1_0) {
-         route->gw.state.protocol.tcp   = 1;
+         route->gw.state.protocol.tcp = 1;
       }
 
       if (route->gw.state.proxyprotocol.upnp) {
 #if !SOCKS_SERVER
-         route->gw.state.protocol.udp   = 1;
+         route->gw.state.protocol.udp = 1;
 #endif /* !SOCKS_SERVER */
-         route->gw.state.protocol.tcp   = 1;
+         route->gw.state.protocol.tcp = 1;
       }
 
 
       if (route->gw.state.proxyprotocol.msproxy_v2) {
-         route->gw.state.protocol.tcp   = 1;
+         route->gw.state.protocol.tcp = 1;
       }
    }
 
    /* if no method set, set all we support. */
    if (route->gw.state.methodc == 0) {
-      int *methodv = route->gw.state.methodv;
+      int *methodv    =  route->gw.state.methodv;
       size_t *methodc = &route->gw.state.methodc;
 
       methodv[(*methodc)++] = AUTHMETHOD_NONE;
@@ -334,8 +335,8 @@ socks_addroute(newroute, last)
 
    if (route->dst.atype == SOCKS_ADDR_IFNAME)
       if (ifname2sockaddr(route->dst.addr.ifname, 0, &addr, &mask) == NULL)
-         yyerror("no such interface %s or no ipaddress found on interface %s",
-         route->dst.addr.ifname, route->dst.addr.ifname);
+         yyerror("can find interface named %s with ip configured",
+         route->dst.addr.ifname);
 
    ifb = 1;
    nextroute = NULL;
@@ -347,6 +348,8 @@ socks_addroute(newroute, last)
        * happen when it is e.g. a ifname with several addresses configured 
        * on it.
        */
+      char srcstr[MAXRULEADDRSTRING], dststr[MAXRULEADDRSTRING],
+           gwstr[MAXRULEADDRSTRING], buf[1024];
 
       if (nextroute == NULL)
          nextroute = route; /* first iteration. */
@@ -402,13 +405,101 @@ socks_addroute(newroute, last)
          nextroute->next = NULL;
       }
 
-      slog(LOG_DEBUG, "%s: adding route #%d for dst %s", 
-      function, nextroute->number, ruleaddr2string(&nextroute->dst, NULL, 0));
+      slog(LOG_DEBUG,
+      "%s: adding route #%d for src %s, dst %s, gw %s, proxyprotocol: %s", 
+      function,
+      nextroute->number,
+      ruleaddr2string(&nextroute->src, srcstr, sizeof(srcstr)),
+      ruleaddr2string(&nextroute->dst, dststr, sizeof(dststr)),
+      gwaddr2string(&nextroute->gw.addr, gwstr, sizeof(gwstr)),
+      proxyprotocols2string(&nextroute->gw.state.proxyprotocol, buf,
+      sizeof(buf)));
 
    } while (ifname2sockaddr(dst.addr.ifname, ifb++, &addr, &mask) != NULL
-   && (nextroute = malloc(sizeof(*nextroute)))  != NULL);
+   &&       (nextroute = malloc(sizeof(*nextroute)))              != NULL);
+
+   if (!route->gw.state.proxyprotocol.direct) {
+      /*
+       * A proxy, so make sure we add a direct route to it also.
+       */
+      struct sockaddr_in saddr, smask;
+
+
+      bzero(&smask, sizeof(smask));
+      smask.sin_family      = AF_INET;
+      smask.sin_port        = htons(0);
+      smask.sin_addr.s_addr = htonl(0xffffffff);
+
+      if (route->gw.state.proxyprotocol.upnp 
+      &&  route->gw.addr.atype == SOCKS_ADDR_IFNAME) {
+         /*
+          * Add direct route for the SSDP broadcast addr, only reachable
+          * by lan, so should always be there.
+          */
+         static int already_done;
+
+         if (!already_done) {
+            struct servent *service;
+
+            bzero(&saddr, sizeof(saddr));
+            saddr.sin_family      = AF_INET;
+            saddr.sin_addr.s_addr = inet_addr(DEFAULT_SSDP_BROADCAST_ADDR);
+
+            if ((service = getservbyname("ssdp", "udp")) == NULL)
+               saddr.sin_port = htons(DEFAULT_SSDP_PORT);
+            else
+               saddr.sin_port = service->s_port;
+
+            socks_autoadd_directroute(&saddr, &smask);
+            already_done = 1;
+         }
+      }
+      else {
+         struct sockshost_t shost; 
+
+         sockshost2sockaddr(gwaddr2sockshost(&route->gw.addr, &shost),
+         (struct sockaddr *)&saddr);
+
+         socks_autoadd_directroute(&saddr, &smask);
+      }
+
+   }
 
    return route;
+}
+
+
+struct route_t *
+socks_autoadd_directroute(saddr, netmask)
+   const struct sockaddr_in *saddr;
+   const struct sockaddr_in *netmask;
+{
+   struct route_t route;
+
+   memset(&route, 0, sizeof(route));
+
+   route.src.atype                            = SOCKS_ADDR_IPV4;
+   route.src.addr.ipv4.ip.s_addr              = htonl(0);
+   route.src.addr.ipv4.mask.s_addr            = htonl(0);
+   route.src.port.tcp                         = route.src.port.udp = htons(0);
+   route.src.operator                         = none;
+
+   route.dst.atype                            = SOCKS_ADDR_IPV4;
+   route.dst.addr.ipv4.ip                     = saddr->sin_addr;
+   route.dst.addr.ipv4.mask.s_addr            = netmask->sin_addr.s_addr;
+   route.dst.port.tcp = route.dst.port.udp    = saddr->sin_port;
+   route.dst.operator                         = eq;
+   
+   route.gw.addr.atype                        = SOCKS_ADDR_DOMAIN;
+   SASSERTX(sizeof(route.gw.addr.addr.domain) >= sizeof("direct"));
+   strcpy(route.gw.addr.addr.domain, "direct");
+   route.gw.state.command.connect             = 1;
+   route.gw.state.command.udpassociate        = 1;
+   route.gw.state.proxyprotocol.direct        = 1;
+
+   route.state.autoadded                      = 1;
+
+   return socks_addroute(&route, 0);
 }
 
 
@@ -450,20 +541,20 @@ socks_getroute(req, src, dst)
 #endif /* SOCKS_CLIENT */
 
    slog(LOG_DEBUG,
-   "%s: searching for v%d route for %s, protocol %s, src %s, dst %s, ...",
-   function, req->version, command2string(req->command),
-   protocol2string(req->protocol),
+   "%s: searching for %s route for %s, protocol %s, src %s, dst %s, ...",
+   function, version2string(req->version),
+   command2string(req->command), protocol2string(req->protocol),
    src == NULL ? "<NONE>" : sockshost2string(src, srcbuf, sizeof(srcbuf)),
    dst == NULL ? "<NONE>" : sockshost2string(dst, dstbuf, sizeof(dstbuf)));
 
    for (route = sockscf.route; route != NULL; route = route->next) {
-      if (route->state.bad) {
-         /* CONSTCOND */
+      /* CONSTCOND */
+      if (MAX_ROUTE_FAILS != 0 && route->state.failed >= MAX_ROUTE_FAILS) {
          if (BADROUTE_EXPIRE == 0 
          ||  difftime(time(NULL), route->state.badtime) <= BADROUTE_EXPIRE)
             continue;
          else
-            route->state.bad = 0;
+            route->state.failed = 0; /* reset. */
       }
 
       switch (req->version) {
@@ -646,7 +737,7 @@ socks_connectroute(s, packet, src, dst)
       if (route->gw.state.proxyprotocol.direct)
          return NULL;
 
-      slog(LOG_DEBUG, "%s: found v%s route #%d to %s via %s",
+      slog(LOG_DEBUG, "%s: found %s route #%d to %s via %s",
       function, proxyprotocols2string(&route->gw.state.proxyprotocol, NULL, 0),
       route->number, dst == NULL ?
       "<UNKNOWN>" : sockshost2string(dst, dststring, sizeof(dststring)),
@@ -659,7 +750,7 @@ socks_connectroute(s, packet, src, dst)
              * (connect(2), bind(2), etc.) we will need to setup the rest.
              */
             break;
-         else {
+         else { 
             socks_badroute(route);
             continue;
          }
@@ -697,6 +788,7 @@ socks_connectroute(s, packet, src, dst)
             function, gwaddr2string(&route->gw.addr, gwstring,
             sizeof(gwstring)));
 #endif /* SOCKS_CLIENT */
+
             socks_badroute(route);
             close(current_s);
             current_s = -1;
@@ -743,11 +835,14 @@ socks_badroute(route)
 {
    const char *function = "socks_badroute()";
 
+   if (route == NULL || MAX_ROUTE_FAILS == 0)
+      return;
+
    slog(LOG_DEBUG, "%s: badrouting %sroute #%d",
-   function, route->state.autoadded ? "autoadded ":"", route->number);
+   function, route->state.autoadded ? "autoadded " : "", route->number);
 
    bzero(&route->gw.state, sizeof(route->gw.state));
-   route->state.bad = 1;
+   ++route->state.failed;
    time(&route->state.badtime);
 }
 
@@ -777,12 +872,8 @@ socks_requestpolish(req, src, dst)
       return req;
 
    req->version = PROXY_SOCKS_V4;
-   if (socks_getroute(req, src, dst) != NULL) {
-      if (req->command == SOCKS_BIND) /* v4/v5 difference in portsemantics. */
-         /* LINTED pointer casts may be troublesome */
-         req->host.port = TOIN(&sockscf.state.lastconnect)->sin_port;
+   if (socks_getroute(req, src, dst) != NULL)
       return req;
-   }
 
    req->version = PROXY_HTTP_V1_0;
    if (socks_getroute(req, src, dst) != NULL)
@@ -798,7 +889,7 @@ socks_requestpolish(req, src, dst)
 
    req->version = originalversion;
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s: no route found to handle request", function);
    return NULL;
 }
 #endif /* SOCKS_CLIENT */

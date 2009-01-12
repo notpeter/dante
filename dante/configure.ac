@@ -1,10 +1,10 @@
 AC_INIT
 AC_PREREQ(2.59)
-AC_REVISION($Id: configure.ac,v 1.365 2008/11/22 20:39:38 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.369 2009/01/12 18:58:13 karls Exp $)
 
 version=1.2.0
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+prerelease="2"
 if test x$prerelease != x; then
 	prename="-pre$prerelease"
 	TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -418,7 +418,7 @@ AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS(fcntl.h limits.h malloc.h paths.h strings.h syslog.h)
 AC_CHECK_HEADERS(unistd.h crypt.h sys/file.h sys/ioctl.h sys/time.h)
 AC_CHECK_HEADERS(tcpd.h shadow.h ifaddrs.h sys/sem.h netinet/in.h)
-AC_CHECK_HEADERS(sys/ipc.h arpa/nameser.h)
+AC_CHECK_HEADERS(sys/ipc.h arpa/nameser.h net/if_dl.h)
 
 AC_CHECK_HEADERS([netinet/ip_var.h], [], [], [
 #if HAVE_SYS_TYPES_H
@@ -1135,6 +1135,9 @@ if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_connect}" = "x-lsocket"; 
 	AC_CHECK_LIB(socket, getsockname,
 		AC_DEFINE(LIBRARY_GETSOCKNAME, LIBRARY_LIBSOCKET, [function loc]))
 
+	AC_CHECK_LIB(socket, listen,
+		AC_DEFINE(LIBRARY_LISTEN, LIBRARY_LIBSOCKET, [function loc]))
+
 	AC_CHECK_LIB(socket, getaddrinfo,
 		AC_DEFINE(LIBRARY_GETADDRINFO, LIBRARY_LIBSOCKET, [function loc]))
 
@@ -1363,8 +1366,14 @@ int main(void)
     AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
-AC_MSG_CHECKING([for __libc_enable_secure])
-AC_TRY_RUN([
+#causes problems with packaging, allow test to be turned off
+AC_ARG_WITH(glibc-secure,
+ [  --without-glibc-secure  disable libc_enable_secure check @<:@default=detect@:>@],
+ [GLIBCSEC=$withval])
+
+if test "${GLIBCSEC}" != no; then
+   	AC_MSG_CHECKING([for __libc_enable_secure])
+	AC_TRY_RUN([
 extern int __libc_enable_secure;
 
 int main()
@@ -1373,9 +1382,12 @@ int main()
 	   return 0;
 
 	return 1;
-}], [AC_MSG_RESULT([yes])
-     AC_DEFINE(HAVE_LIBC_ENABLE_SECURE, 1, [linux version of issetugid()])],
-     AC_MSG_RESULT([no]))
+}],	[AC_MSG_RESULT([yes])
+	AC_DEFINE(HAVE_LIBC_ENABLE_SECURE, 1, [linux version of issetugid()])],
+	AC_MSG_RESULT([no]))
+fi
+
+
 
 #Linux (redhat 5.2) defines socklen_t in <socketbits.h>, which is
 #included by <sys/socket.h>.  check for this first.

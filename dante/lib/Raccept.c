@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.86 2008/07/25 08:48:53 michaels Exp $";
+"$Id: Raccept.c,v 1.90 2009/01/02 18:39:24 michaels Exp $";
 
 int
 Raccept(s, addr, addrlen)
@@ -133,12 +133,12 @@ Raccept(s, addr, addrlen)
 
       switch (packet.version) {
          case PROXY_SOCKS_V4:
-         case PROXY_SOCKS_V5:
+         case PROXY_SOCKS_V5: {
+            struct socksfd_t sfddup;
 
             if (socks_recvresponse(socksfd.control, &packet.res,
             packet.version) != 0)
                return -1;
-
             fakesockshost2sockaddr(&packet.res.host, &accepted);
 
             socks_addrlock(F_WRLCK);
@@ -147,10 +147,26 @@ Raccept(s, addr, addrlen)
             socksfd.forus.accepted = accepted;
             socks_addaddr((unsigned int)s, &socksfd, 1);
 
-            socks_addrunlock();
+            if ((remote = dup(socksfd.control)) == -1) {
+               socks_addrunlock();
+               swarn("%s: dup()", function);
+               return -1;
+            }
 
-            remote = dup(socksfd.control);
+            if (socksfddup(&socksfd, &sfddup) == NULL) {
+               swarn("%s: socksfddup()", function);
+
+               if (errno == EBADF)
+                  socks_rmaddr(s, 1);
+
+               socks_addrunlock();
+               return -1;
+            }
+            socks_addaddr(remote, &sfddup, 1);
+
+            socks_addrunlock();
             break;
+         }
 
          case PROXY_MSPROXY_V2:
             SERRX(0); /* should not be checked, so not checked either. */
@@ -178,7 +194,7 @@ Raccept(s, addr, addrlen)
          /* LINTED pointer casts may be troublesome */
          if (TOIN(&accepted)->sin_addr.s_addr
          ==  TOIN(&socksfd.reply)->sin_addr.s_addr) {
-            /* matches servers IP address, could be forwarded. */
+            /* matches servers IP address, assume forwarded connection. */
             int forwarded;
 
             switch (socksfd.state.version) {
@@ -245,35 +261,48 @@ Raccept(s, addr, addrlen)
             }
 
             if (forwarded) {
+               struct socksfd_t sfddup;
+
+               if (socksfddup(&socksfd, &sfddup) == NULL) {
+                  swarn("%s: socksfddup()", function);
+
+                  if (errno == EBADF)
+                     socks_rmaddr(s, 1);
+
+                  socks_addrunlock();
+                  return -1;
+               }
+
+               /*
+                * a separate socket with it's own remote address,
+                * and possibly different local address too, so
+                * need to add it to the socksfd table.
+                */
 
                socks_addrlock(F_WRLCK);
 
-               /* a separate socket with it's own remote address. */
-               socks_addaddr((unsigned int)remote, &socksfd, 1);
-
+               sfddup.remote         = accepted;
                fakesockshost2sockaddr(&packet.res.host, &accepted);
-
-               socksfd.forus.accepted = accepted;
-               socks_addaddr((unsigned int)s, &socksfd, 1);
+               sfddup.forus.accepted = accepted;
 
                /* has a different local address if INADDR_ANY was bound. */
                /* LINTED pointer casts may be troublesome */
                if (TOIN(&socksfd.local)->sin_addr.s_addr
                == htonl(INADDR_ANY)) {
-                  len = sizeof(socksfd.local);
-                  if (getsockname(remote, &socksfd.local, &len) != 0)
+                  len = sizeof(sfddup.local);
+                  if (getsockname(remote, &sfddup.local, &len) != 0)
                      swarn("%s: getsockname(remote)", function);
-
-                  socks_addaddr((unsigned int)s, &socksfd, 1);
-
-                  socks_addrunlock();
-
                }
+
+               socks_addaddr((unsigned int)remote, &sfddup, 1);
+               socks_addrunlock();
             }
             /* else; ordinary connect. */
          }
       }
-      /* else; not bind extension, must be a ordinary connect. */
+      else
+         swarnx("%s: never expected this to happen: %s:%d",
+         function, __FILE__, __LINE__);
    }
 
    if (addr != NULL) {

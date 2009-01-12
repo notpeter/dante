@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: auth_password.c,v 1.11 2008/07/25 08:49:11 michaels Exp $";
+"$Id: auth_password.c,v 1.15 2009/01/02 14:06:07 michaels Exp $";
 
 int
 passwordcheck(name, clearpassword, emsg, emsglen)
@@ -53,38 +53,40 @@ passwordcheck(name, clearpassword, emsg, emsglen)
    char *emsg;
    size_t emsglen;
 {
-/*   const char *function = "passwordcheck()"; */
-   struct passwd *pw, pwmem;
-   char *salt, *password;
+   const char *function = "passwordcheck()"; 
+   struct passwd *pw;
+   char password[MAXPWLEN];
    uid_t euid;
+   int rc;
 
    socks_seteuid(&euid, sockscf.uid.privileged);
-   if ((pw = socks_getpwnam(name)) != NULL) {
-      /* 
-       * save pwstruct, so it's not overwritten by similar call
-       * in socks_reseteuid().
-       */
-      pwmem = *pw; 
-      pw = &pwmem;
-   }
-   socks_reseteuid(sockscf.uid.privileged, euid);
 
-   if (pw == NULL) {
-      snprintfn(emsg, emsglen, "system username/password failed");
+   if ((pw = socks_getpwnam(name)) == NULL) {
+      socks_reseteuid(sockscf.uid.privileged, euid);
+      snprintfn(emsg, emsglen, "no such system user");
       return -1;
    }
 
-   if (clearpassword != NULL) {
-      salt      = pw->pw_passwd;
-      password = pw->pw_passwd;
+   /* copy it before socks_reseteuid() can overwrite it. */
+   strncpy(password, pw->pw_passwd, sizeof(password) - 1);
+   password[sizeof(password) - 1] = NUL;
+
+   socks_reseteuid(sockscf.uid.privileged, euid);
+
+   slog(LOG_DEBUG, "%s: clearpassword = %s\n", function, clearpassword);
+   if (clearpassword == NULL) /* rfc931. */
+      rc = 0;
+   else {
+      const char *salt = password;
 
       if (strcmp(crypt(clearpassword, salt), password) == 0)
-         return 0;
+         rc = 0;
       else {
-         snprintfn(emsg, emsglen, "system password userauthentication failed");
-         return -1;
+         snprintfn(emsg, emsglen, "system password authentication failed");
+         rc = -1;
       }
    }
-   else
-      return 0;
+
+   bzero(password, sizeof(password));
+   return rc;
 }

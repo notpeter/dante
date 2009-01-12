@@ -1,7 +1,5 @@
 /*
- * $Id: broken.c,v 1.16 2008/11/09 22:24:03 karls Exp $
- *
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,12 +39,13 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
+ * $Id: broken.c,v 1.19 2009/01/02 14:06:03 michaels Exp $
  */
 
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: broken.c,v 1.16 2008/11/09 22:24:03 karls Exp $";
+"$Id: broken.c,v 1.19 2009/01/02 14:06:03 michaels Exp $";
 
 #if HAVE_SHADOW_H && HAVE_GETSPNAM
 #include <shadow.h>
@@ -63,16 +62,17 @@ socks_getpwnam(login)
 
 #if HAVE_GETSPNAM /* broken sysv stuff. */
    {
-   struct spwd *spwd;
+      struct spwd *spwd;
 
-   if ((spwd = getspnam(login)) != NULL)
-      pwd->pw_passwd = spwd->sp_pwdp;
+      if ((spwd = getspnam(login)) != NULL)
+         pwd->pw_passwd = spwd->sp_pwdp;
    }
 #elif HAVE_GETPRPWNAM /* some other broken stuff. */
    /*
     * XXX, don't know how this looks yet.
    */
-   /* getprpwnam(login); */
+#error "getprpwnam() not supported"
+   pwd = NULL;
 #endif /* HAVE_GETSPNAM */
 
    return pwd;

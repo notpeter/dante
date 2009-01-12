@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.42 2008/09/06 18:40:10 karls Exp $ */
+/* $Id: interposition.h,v 1.45 2009/01/02 14:06:01 michaels Exp $ */
 
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""
@@ -369,49 +369,45 @@ struct libsymbol_t {
 
 #if SOCKS_CLIENT
 
-#define SYSCALL_START(s)                                           \
-do {                                                               \
-   const struct socksfd_t *p;                                       \
-   struct socksfd_t socksfd;                                       \
-                                                                  \
-   socks_addrlock(F_WRLCK);                                        \
-                                                                  \
-   if ((p = socks_getaddr((unsigned int)s, 1)) == NULL) {         \
-      bzero(&socksfd, sizeof(socksfd));                           \
-      socksfd.state.command   = -1;                                 \
-      socksfd.state.issyscall = 1;                                 \
-      p = socks_addaddr((unsigned int)s, &socksfd, 1);            \
-   }                                                               \
-                                                                  \
-   socksfd = *p;                                                   \
-   ++socksfd.state.syscalldepth;                                    \
-   socks_addaddr((unsigned int)s, &socksfd, 1);                     \
-                                                                  \
-   socks_addrunlock();                                              \
+#define SYSCALL_START(s)                                             \
+do {                                                                 \
+   const struct socksfd_t *p;                                        \
+   struct socksfd_t socksfd;                                         \
+                                                                     \
+   socks_addrlock(F_WRLCK);                                          \
+                                                                     \
+   if ((p = socks_getaddr((unsigned int)s, 1)) == NULL) {            \
+      bzero(&socksfd, sizeof(socksfd));                              \
+      socksfd.state.command   = -1;                                  \
+      socksfd.state.issyscall = 1;                                   \
+      p = socks_addaddr((unsigned int)s, &socksfd, 1);               \
+   }                                                                 \
+                                                                     \
+   socksfd = *p;                                                     \
+   ++socksfd.state.syscalldepth;                                     \
+   socks_addaddr((unsigned int)s, &socksfd, 1);                      \
+                                                                     \
+   socks_addrunlock();                                               \
 } while (lintnoloop_interposition_h)
 
-#define SYSCALL_END(s) \
-do {                                                                  \
-   const struct socksfd_t *p;                                          \
-   struct socksfd_t socksfd;                                          \
+#define SYSCALL_END(s)                                               \
+do {                                                                 \
+   const struct socksfd_t *p;                                        \
+   struct socksfd_t socksfd;                                         \
                                                                      \
-   socks_addrlock(F_WRLCK);                                           \
+   socks_addrlock(F_WRLCK);                                          \
                                                                      \
-   p = socks_getaddr((unsigned int)s, 1);                              \
-   SASSERTX(p != NULL);                                                \
-   socksfd = *p;                                                      \
-   SASSERTX(socksfd.state.syscalldepth > 0);                           \
+   p = socks_getaddr((unsigned int)s, 1);                            \
+   SASSERTX(p != NULL);                                              \
+   socksfd = *p;                                                     \
+   SASSERTX(socksfd.state.syscalldepth > 0);                         \
                                                                      \
-   if (--socksfd.state.syscalldepth <= 0) { /* everybody finished. */\
+   if (--socksfd.state.syscalldepth <= 0) { /* all finished. */      \
       if (socksfd.state.issyscall) /* started out as a syscall. */   \
          socks_rmaddr((unsigned int)s, 1);                           \
-      else                                                            \
-         socks_addaddr((unsigned int)s, &socksfd, 1);                  \
-   }                                                                  \
-   else                                                               \
-      socks_addaddr((unsigned int)s, &socksfd, 1);                     \
+   }                                                                 \
                                                                      \
-   socks_addrunlock();                                                 \
+   socks_addrunlock();                                               \
 } while (lintnoloop_interposition_h)
 
 #define ISSYSCALL(s)   \

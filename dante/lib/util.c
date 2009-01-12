@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #endif  /* HAVE_STRVIS */
 
 static const char rcsid[] =
-"$Id: util.c,v 1.158 2008/12/10 18:10:15 michaels Exp $";
+"$Id: util.c,v 1.164 2009/01/12 14:08:40 michaels Exp $";
 
 const char *
 strcheck(string)
@@ -74,14 +74,14 @@ sockscode(version, code)
                return SOCKSV4_SUCCESS;
 
             default:
-               return SOCKSV4_FAIL;      /* v4 is not very specific. */
+               return SOCKSV4_FAIL; /* v4 is not very specific. */
          }
       /* NOTREACHED */
 
       case PROXY_SOCKS_V5:
          switch (code) {
             default:
-               return (unsigned char)code;   /* current codes are all V5. */
+               return (unsigned char)code; /* current codes are all V5. */
          }
       /* NOTREACHED */
 
@@ -326,8 +326,8 @@ gwaddr2sockshost(gw, host)
          struct sockaddr saddr;
 
          if (ifname2sockaddr(gw->addr.ifname, 0, &saddr, NULL) == NULL) 
-            serrx(1, "no ipaddresses found on interface %s", gw->addr.ifname);
-            /* NOTREACHED */
+            serrx(1, "can't find interface named %s with ip configured",
+				gw->addr.ifname);
          
          sockaddr2sockshost(&saddr, host);
          host->port = gw->port;
@@ -587,9 +587,9 @@ socketoptdup(s)
    socklen_t len;
    union {
       int               int_val;
-      struct linger      linger_val;
-      struct timeval      timeval_val;
-      struct in_addr      in_addr_val;
+      struct linger     linger_val;
+      struct timeval    timeval_val;
+      struct in_addr    in_addr_val;
       u_char            u_char_val;
       struct sockaddr   sockaddr_val;
       struct ipoption   ipoption;
@@ -603,7 +603,7 @@ socketoptdup(s)
 #endif /* SO_BROADCAST */
 
 #ifdef SO_DEBUG
-      { SOL_SOCKET,   SO_DEBUG            },
+      { SOL_SOCKET,   SO_DEBUG          },
 #endif /* SO_DEBUG */
 
 #ifdef SO_DONTROUTE
@@ -611,7 +611,7 @@ socketoptdup(s)
 #endif /* SO_DONTROUTE */
 
 #ifdef SO_ERROR
-      { SOL_SOCKET,   SO_ERROR            },
+      { SOL_SOCKET,   SO_ERROR          },
 #endif /* SO_ERROR */
 
 #ifdef SO_KEEPALIVE
@@ -636,22 +636,22 @@ socketoptdup(s)
 
 #if HAVE_SO_SNDLOWAT
 #ifdef SO_RCVLOWAT
-      { SOL_SOCKET,   SO_RCVLOWAT         },
+      { SOL_SOCKET,   SO_RCVLOWAT       },
 #endif /* SO_RCVLOWAT */
 #endif /* HAVE_SO_SNDLOWAT */
 
 #if HAVE_SO_SNDLOWAT
 #ifdef SO_SNDLOWAT
-      { SOL_SOCKET,   SO_SNDLOWAT         },
+      { SOL_SOCKET,   SO_SNDLOWAT       },
 #endif /* SO_SNDLOWAT */
 #endif /* HAVE_SO_SNDLOWAT */
 
 #ifdef SO_RCVTIMEO
-      { SOL_SOCKET,   SO_RCVTIMEO         },
+      { SOL_SOCKET,   SO_RCVTIMEO       },
 #endif /* SO_RCVTIMEO */
 
 #ifdef SO_SNDTIMEO
-      { SOL_SOCKET,   SO_SNDTIMEO         },
+      { SOL_SOCKET,   SO_SNDTIMEO       },
 #endif /* SO_SNDTIMEO */
 
 #ifdef SO_REUSEADDR
@@ -663,21 +663,21 @@ socketoptdup(s)
 #endif /* SO_REUSEPORT */
 
 #ifdef SO_USELOOPBACK
-      { SOL_SOCKET,   SO_USELOOPBACK      },
+      { SOL_SOCKET,   SO_USELOOPBACK    },
 #endif /* SO_USELOOPBACK */
 
       /* IP options */
 
 #ifdef IP_HDRINCL
-      { IPPROTO_IP,   IP_HDRINCL         },
+      { IPPROTO_IP,   IP_HDRINCL        },
 #endif /* IP_HDRINCL */
 
 #ifdef IP_OPTIONS
-      { IPPROTO_IP,   IP_OPTIONS         },
+      { IPPROTO_IP,   IP_OPTIONS        },
 #endif /* IP_OPTIONS */
 
 #ifdef IP_RECVDSTADDR
-      { IPPROTO_IP,   IP_RECVDSTADDR      },
+      { IPPROTO_IP,   IP_RECVDSTADDR    },
 #endif/* IP_RECVDSTADDR */
 
 #ifdef IP_RECVIF
@@ -697,33 +697,33 @@ socketoptdup(s)
 #endif /* IP_MULTICAST_IF */
 
 #ifdef IP_MULTICAST_TTL
-      { IPPROTO_IP,   IP_MULTICAST_TTL   },
+      { IPPROTO_IP,   IP_MULTICAST_TTL  },
 #endif /* IP_MULTICAST_TTL */
 
 #ifdef IP_MULTICAST_LOOP
-      { IPPROTO_IP,   IP_MULTICAST_LOOP   },
+      { IPPROTO_IP,   IP_MULTICAST_LOOP },
 #endif /* IP_MULTICAST_LOOP */
 
       /* TCP options */
 
 #ifdef TCP_KEEPALIVE
-      { IPPROTO_TCP,   TCP_KEEPALIVE      },
+      { IPPROTO_TCP,   TCP_KEEPALIVE    },
 #endif /* TCP_KEEPALIVE */
 
 #ifdef TCP_MAXRT
-      { IPPROTO_TCP,   TCP_MAXRT         },
+      { IPPROTO_TCP,   TCP_MAXRT        },
 #endif /* TCP_MAXRT */
 
 #ifdef TCP_MAXSEG
-      { IPPROTO_TCP,   TCP_MAXSEG         },
+      { IPPROTO_TCP,   TCP_MAXSEG       },
 #endif /* TCP_MAXSEG */
 
 #ifdef TCP_NODELAY
-      { IPPROTO_TCP,   TCP_NODELAY         },
+      { IPPROTO_TCP,   TCP_NODELAY      },
 #endif /* TCP_NODELAY */
 
 #ifdef TCP_STDURG
-      { IPPROTO_TCP,   TCP_STDURG         }
+      { IPPROTO_TCP,   TCP_STDURG       }
 #endif /* TCP_STDURG */
 
    };
@@ -758,12 +758,12 @@ socketoptdup(s)
    }
 
    if ((flags = fcntl(s, F_GETFL, 0))          == -1
-   ||           fcntl(new_s, F_SETFL, flags) == -1)
+   ||           fcntl(new_s, F_SETFL, flags)   == -1)
       swarn("%s: fcntl(F_GETFL/F_SETFL)", function);
 
 #if SOCKS_SERVER && HAVE_LIBWRAP
-   if ((s = fcntl(new_s, F_GETFD, 0)) == -1
-   || fcntl(new_s, F_SETFD, s | FD_CLOEXEC) == -1)
+   if ((s = fcntl(new_s, F_GETFD, 0))             == -1
+   ||       fcntl(new_s, F_SETFD, s | FD_CLOEXEC) == -1)
       swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
 #endif /* SOCKS_SERVER */
 
@@ -807,8 +807,12 @@ socks_mklock(template)
       return -1;
 
    snprintfn(newtemplate, len, "%s/%s", prefix, template);
+   if (strstr(newtemplate, "XXXXXX") != NULL)
+      s = mkstemp(newtemplate);
+   else
+      s = open(newtemplate, O_RDWR | O_CREAT | O_EXCL);
 
-   if ((s = mkstemp(newtemplate)) == -1) {
+   if (s == -1) {
       swarn("%s: mkstemp(%s)", function, newtemplate);
       free(newtemplate);
       return -1;
@@ -822,7 +826,7 @@ socks_mklock(template)
 
    free(newtemplate);
 
-   if ((flag = fcntl(s, F_GETFD, 0))   == -1
+   if ((flag = fcntl(s, F_GETFD, 0))       == -1
    || fcntl(s, F_SETFD, flag | FD_CLOEXEC) == -1)
       swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
 
@@ -844,10 +848,10 @@ socks_lock(descriptor, type, timeout)
 
    SASSERTX(timeout <= 0);
 
-   lock.l_type      = (short)type;
-   lock.l_start   = 0;
-   lock.l_whence   = SEEK_SET;
-   lock.l_len      = 0;
+   lock.l_type   = (short)type;
+   lock.l_start  = 0;
+   lock.l_whence = SEEK_SET;
+   lock.l_len    = 0;
 
 #if 0 /* missing some bits here to handle racecondition. */
    if (timeout > 0) {

@@ -320,6 +320,11 @@
 #endif
 
 
+#ifndef HAVE_NET_IF_DL_H
+#define HAVE_NET_IF_DL_H 0
+#endif
+
+
 #ifndef HAVE_NOMALLOC_REALLOC
 #define HAVE_NOMALLOC_REALLOC 0
 #endif

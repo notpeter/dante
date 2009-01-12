@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -76,7 +76,7 @@
 
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.28 2008/12/09 17:14:57 michaels Exp $";
+"$Id: Rcompat.c,v 1.32 2009/01/11 22:04:16 michaels Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -110,7 +110,6 @@ Rwritev(d, iov, iovcnt)
    const struct iovec *iov;
    int iovcnt;
 {
-   static const struct msghdr msginit;
    struct msghdr msg;
    const char *function = "Rwritev()";
 
@@ -118,7 +117,8 @@ Rwritev(d, iov, iovcnt)
 
    slog(LOG_DEBUG, "%s, s = %d", function, d);
 
-   msg = msginit;
+
+   bzero(&msg, sizeof(msg));
    /* LINTED operands have incompatible pointer types */
    msg.msg_iov         = (const struct iovec *)iov;
    msg.msg_iovlen      = iovcnt;
@@ -133,7 +133,6 @@ Rsend(s, msg, len, flags)
    size_t len;
    int flags;
 {
-   static const struct msghdr msghdrinit;
    struct msghdr msghdr;
    struct iovec iov;
    const char *function = "Rsend()";
@@ -142,11 +141,12 @@ Rsend(s, msg, len, flags)
 
    slog(LOG_DEBUG, "%s, s = %d", function, s);
 
+   bzero(&iov, sizeof(iov));
    /* LINTED operands have incompatible pointer types */
    iov.iov_base = msg;
    iov.iov_len  = len;
 
-   msghdr = msghdrinit;
+   bzero(&msghdr, sizeof(msghdr));
    msghdr.msg_iov    = &iov;
    msghdr.msg_iovlen = 1;
 
@@ -167,7 +167,8 @@ Rsendmsg(s, msg, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, s);
+   slog(LOG_DEBUG, "%s, s = %d, msg %s",
+   function, s, msg == NULL ? "= NULL" : "!= NULL");
 
    namelen = sizeof(name);
    if (getsockname(s, &name, &namelen) == -1) {
@@ -227,15 +228,14 @@ Rreadv(d, iov, iovcnt)
    const struct iovec *iov;
    int iovcnt;
 {
-   static const struct msghdr msghdrinit;
-   struct msghdr msg;
    const char *function = "Rreadv()";
+   struct msghdr msg;
 
    clientinit();
 
    slog(LOG_DEBUG, "%s, s = %d", function, d);
 
-   msg = msghdrinit;
+   bzero(&msg, sizeof(msg));
    /* LINTED operands have incompatible pointer types */
    msg.msg_iov      = (struct iovec *)iov;
    msg.msg_iovlen   = iovcnt;
@@ -250,7 +250,6 @@ Rrecv(s, msg, len, flags)
    size_t len;
    int flags;
 {
-   static const struct msghdr msghdrinit;
    struct msghdr msghdr;
    struct iovec iov;
    const char *function = "Rrecv()";
@@ -260,12 +259,13 @@ Rrecv(s, msg, len, flags)
    slog(LOG_DEBUG, "%s, s = %d", function, s);
 
    /* LINTED cast discards 'const' from pointer target type */
-   iov.iov_base      = (void *)msg;
-   iov.iov_len         = len;
+   bzero(&iov, sizeof(iov));
+   iov.iov_base = (void *)msg;
+   iov.iov_len  = len;
 
-   msghdr = msghdrinit;
-   msghdr.msg_iov         = &iov;
-   msghdr.msg_iovlen      = 1;
+   bzero(&msghdr, sizeof(msghdr));
+   msghdr.msg_iov    = &iov;
+   msghdr.msg_iovlen = 1;
 
    return Rrecvmsg(s, &msghdr, flags);
 }
@@ -284,7 +284,8 @@ Rrecvmsg(s, msg, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, s);
+   slog(LOG_DEBUG, "%s, s = %d, msg %s",
+   function, s, msg == NULL ? "= NULL" : "!= NULL");
 
    if (msg == NULL)
       return recvmsg(s, msg, flags);

@@ -1,16 +1,16 @@
-# $Id: CREDITS,v 1.28 2004/06/20 12:20:34 karls Exp $
+# $Id: CREDITS,v 1.32 2009/01/08 18:49:32 michaels Exp $
 
-   Dante was developed for Inferno Nettverk A/S, Norway by:
-      - Michael Shuldman <michaels@inet.no>: Design and implementation.
-      - Karl-André Skevik <karls@inet.no>: Autoconf and porting.
+Dante was developed for Inferno Nettverk A/S, Norway, by
+   - Michael Shuldman 
+   - Karl-André Skevik
 
 
-   In order of contribution, at least the following should be credited:
+At least the following additional people should be credited:
 
-- David Koblas (koblas@netcom.com) authored the original Socks
-  protocol and implementation.
+- David Koblas (koblas@netcom.com.example.com) authored the original
+  Socks protocol and implementation.
 
-- Ying-Da Lee (yingda@esd.sgi.com) maintained the socks4 package.
+- Ying-Da Lee (yingda@esd.sgi.com.example.com) maintained the socks4 package.
   Also thanks to him for letting us include the file describing the
   v4 protocol, "SOCKS4.protocol".
 
@@ -21,51 +21,56 @@
 - Most of the compatibility functions were taken from OpenBSD and
   are copyright The Regents of the University of California.
 
-  - The snprintf function is copyright Theo de Raadt (deraadt@theos.com)
+  - The snprintf function is copyright Theo de Raadt
+    (deraadt@theos.com.example.com)
   - The setproctitle replacement is taken from sendmail-8.8.8 and written
     by Eric P. Allman
 
-- Jörgen Lundman (lundman@argonaut.com) provided invaluable help
+- Jörgen Lundman (lundman@argonaut.com.example.com) provided invaluable help
   during the process of getting msproxy support into Dante.  Thanks
   a lot.  Jörgen Lundman would also like to thank Paul Leask
   for his time and effort in this project.
 
-- Andrew Pimlott's (pimlott@math.harvard.edu) work on analysing
+- Andrew Pimlott's (pimlott@math.harvard.edu.example.com) work on analysing
   the msproxy protocol was helpful and served to complement and
   speed up the process of adding msproxy support to Dante.
   Andrew Pimlott also has his own msproxy implementation, but as he
   is busy requests that people only contact him if they are desperate
   and Dante does not work for them.
 
-- Thanks to Oren Tiorsh (oren@hishome.net) who contributed the rpm spec
-  files.
+- Thanks to Oren Tiorsh (oren@hishome.net.example.com) who contributed the
+  rpm spec files.
 
 - Thanks to Lars Brede Grøndahl from INN (inn.no) for the logo.
 
-- Thanks to Jay Weber (jweb@accessus.net) for help with the
+- Thanks to Jay Weber (jweb@accessus.net.example.com) for help with the
   digital unix port and an account to test it on.
 
-- Malte Cornils <malte@cornils.net> for help with the HP-UX
+- Malte Cornils <malte@cornils.net.example.com> for help with the HP-UX
   port.
 
-- M. Everett Hinckley (everett@lsli.com) and Tommy Chan ported Dante
-  to AIX.
+- M. Everett Hinckley (everett@lsli.com.example.com) and Tommy Chan
+  ported Dante to AIX.
 
-- Thanks to Per Hedeland (per@erix.ericsson.se) for much appreciated
-  help with some tricky stuff in addressmatching code aswell as
-  several useful codepatches over the years.
+- Thanks to Per Hedeland (per@erix.ericsson.se.example.com) for much
+  appreciated help with some tricky stuff in addressmatching code aswell
+  as several useful codepatches over the years.
 
-- Patrick Bihan-Faou, MindStep Corporation, patrick@mindstep.com
+- Patrick Bihan-Faou, MindStep Corporation, patrick@mindstep.com.example.com
   contributed support for PAM.
 
-- Tom Chan <tchan@austin.rr.com> contributed code to find out what
+- Tom Chan <tchan@austin.rr.com.example.com> contributed code to find out what
   local address the system would select to use for connecting to a
   particular ipaddress.
 
-- Lennart Dahlström <lennart@appgate.com> contributed an implementation
-  of getipnodebyname().
+- Lennart Dahlström <lennart@appgate.com.example.com> contributed an
+  implementation of getipnodebyname().
 
-- Motoyuki Kasahara <m-kasahr@sra.co.jp> contributed the getaddrinfo()
-  implementation used in the code.
+- Motoyuki Kasahara <m-kasahr@sra.co.jp.example.com> contributed the
+  getaddrinfo() implementation used in the code.
+
+- Markus Moeller <huaraz@moeller.plus.com.example.com> contributed
+  a patch to limit the range of udp-ports used between the socks-client
+  and the Dante server.
 
 - Also thanks to everyone who reported bugs and other problems.

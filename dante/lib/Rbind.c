@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.130 2008/12/15 00:20:05 karls Exp $";
+"$Id: Rbind.c,v 1.134 2009/01/10 22:59:34 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -152,13 +152,13 @@ Rbind(s, name, namelen)
    }
 
    bzero(&packet, sizeof(packet));
-   packet.req.version               = PROXY_DIRECT;
-   packet.auth.method               = AUTHMETHOD_NOTSET;
-   packet.req.command               = SOCKS_BIND;
-   packet.req.host.atype            = SOCKS_ADDR_IPV4;
-   packet.req.host.addr.ipv4.s_addr = htonl(0);
+   packet.req.version        = PROXY_DIRECT;
+   packet.auth.method        = AUTHMETHOD_NOTSET;
+   packet.req.command        = SOCKS_BIND;
+   packet.req.host.atype     = SOCKS_ADDR_IPV4;
+   packet.req.host.addr.ipv4 = TOIN(&sockscf.state.lastconnect)->sin_addr;
    /* LINTED pointer casts may be troublesome */
-   packet.req.host.port               = TOIN(&socksfd.local)->sin_port;
+   packet.req.host.port      = TOIN(&socksfd.local)->sin_port;
 
    len = sizeof(val);
    if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) != 0) {
@@ -211,9 +211,23 @@ Rbind(s, name, namelen)
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V5: {
          int portisreserved;
+         struct sockaddr saddr;
 
          if ((socksfd.control = socketoptdup(s)) == -1)
             return -1;
+
+         /*
+          * Make sure the control-connection is bound to the same
+          * ipaddress as 's', or the bind extension will not work if
+          * we connect to the socksserver from a different ipaddress
+          * than the one we bound.
+          */
+         saddr = socksfd.local;
+         TOIN(&saddr)->sin_port = htons(0);
+         if (bind(socksfd.control, &saddr, sizeof(saddr)) != 0) {
+            swarn("%s: failed to bind control-socket", function);
+            return -1;
+         }
 
          switch (packet.req.version) {
             case PROXY_SOCKS_V4:
@@ -249,9 +263,9 @@ Rbind(s, name, namelen)
              */
 
             bzero(&controladdr, sizeof(controladdr));
-            controladdr.sin_family         = AF_INET;
-            controladdr.sin_addr.s_addr   = htonl(INADDR_ANY);
-            controladdr.sin_port            = htons(0);
+            controladdr.sin_family      = AF_INET;
+            controladdr.sin_addr.s_addr = htonl(INADDR_ANY);
+            controladdr.sin_port        = htons(0);
 
             if ((p = bindresvport(socksfd.control, &controladdr)) != 0) {
                controladdr.sin_port = htons(0);
@@ -295,15 +309,15 @@ Rbind(s, name, namelen)
       return -1;
    }
 
-   socksfd.state.auth            = packet.auth;
-   socksfd.state.command         = packet.req.command;
+   socksfd.state.auth    = packet.auth;
+   socksfd.state.command = packet.req.command;
 
    if (packet.req.protocol == SOCKS_TCP)
-      socksfd.state.protocol.tcp   = 1;
+      socksfd.state.protocol.tcp = 1;
    else if (packet.req.protocol == SOCKS_UDP)
-      socksfd.state.protocol.udp   = 1;
+      socksfd.state.protocol.udp = 1;
 
-   socksfd.state.version         = packet.req.version;
+   socksfd.state.version = packet.req.version;
    sockshost2sockaddr(&packet.res.host, &socksfd.remote);
 
    switch (packet.req.version) {
@@ -328,18 +342,18 @@ Rbind(s, name, namelen)
          /* FALLTHROUGH */
 
       case PROXY_SOCKS_V5:
-         socksfd.reply                  = socksfd.remote;   /* same IP address. */
-         socksfd.state.acceptpending   = socksfd.route->gw.state.extension.bind;
+         socksfd.reply                = socksfd.remote;   /* same IP address. */
+         socksfd.state.acceptpending  = socksfd.route->gw.state.extension.bind;
          break;
 
       case PROXY_MSPROXY_V2:
-         socksfd.state.acceptpending   = 1; /* separate data connection. */
-         socksfd.state.msproxy         = packet.state.msproxy;
+         socksfd.state.acceptpending  = 1; /* separate data connection. */
+         socksfd.state.msproxy        = packet.state.msproxy;
          /* don't know what address connection will be forwarded from yet. */
          break;
 
       case PROXY_UPNP:
-         socksfd.state.acceptpending   = 1; /* separate data connection. */
+         socksfd.state.acceptpending = 1; /* separate data connection. */
          /* don't know what address connection will be forwarded from. */
          break;
 
@@ -367,6 +381,7 @@ Rbind(s, name, namelen)
 
       if ((new_s = socketoptdup(s)) == -1)
          return -1;
+
       dup2(new_s, s);
       close(new_s);
 
@@ -388,10 +403,9 @@ Rbind(s, name, namelen)
        * will accept(2) connection on 's', don't need to do anything more.
        */
       ;
-   else { /* dup socksfd.control over to 's'. */
+   else { /* dup socksfd.control over to 's', control and data is the same. */
       slog(LOG_DEBUG,
-      "will accept bind data over controlconnection ... dup(2)ing socket %d",
-      s);
+      "will accept bind data over controlsocket ... dup(2)ing to %d", s);
 
       if (dup2(socksfd.control, s) == -1) {
          swarn("dup2(socksfd.control, s) failed");

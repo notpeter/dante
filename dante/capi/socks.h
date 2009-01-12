@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.13 2008/07/25 08:48:29 michaels Exp $ */
+/* $Id: socks.h,v 1.14 2008/12/29 09:58:33 karls Exp $ */
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -66,6 +66,7 @@
 #define getipnodebyname Rgetipnodebyname
 #define getpeername Rgetpeername
 #define getsockname Rgetsockname
+#define listen Rlisten
 #define read Rread
 #define readv Rreadv
 #define recv Rrecv

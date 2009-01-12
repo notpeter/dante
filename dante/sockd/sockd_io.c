@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.239 2008/12/09 17:15:02 michaels Exp $";
+"$Id: sockd_io.c,v 1.246 2009/01/11 22:04:17 michaels Exp $";
 
 /*
  * Accept io objects from mother and does io on them.  We never
@@ -182,44 +182,43 @@ siginfo __P((int sig));
 
 /* Solaris sometimes fails to return srcaddress in recvfrom(). */
 #define UDPFROMLENCHECK(socket, fromlen) \
-   do { \
-      if (fromlen == 0) { \
-         static int failures; \
-\
-         swarnx("%s: system error: did not get address in recvfrom()", \
-         function); \
-\
-         if (++failures > 5) { \
-            swarnx("%s: running Solaris <= 2.5.1 are we?  " \
-            "giving up after %d failures", function, failures); \
-            delete_io(mother, io, (socket), IO_ERROR); \
-            failures = 0; \
-         } \
-         return; \
-      } \
+   do {                                                                       \
+      if (fromlen == 0) {                                                     \
+         static int failures;                                                 \
+                                                                              \
+         swarnx("%s: system error: did not get address in recvfrom()",        \
+         function);                                                           \
+                                                                              \
+         if (++failures > 5) {                                                \
+            swarnx("%s: running Solaris <= 2.5.1, are we?  "                  \
+            "giving up after %d failures", function, failures);               \
+            delete_io(mother, io, (socket), IO_ERROR);                        \
+            failures = 0;                                                     \
+         }                                                                    \
+         return;                                                              \
+      }                                                                       \
    } while (lintnoloop_sockd_h)
 
-#define BWUPDATE(io, timenow, bwused) \
-do { \
-   if (bwused) { \
-      io->time = timenow; \
-\
-      if (io->rule.bw != NULL) { \
-         bw_update(io->rule.bw, bwused, &io->time); \
-      } \
-   } \
+#define BWUPDATE(io, timenow, bwused)                                         \
+do {                                                                          \
+   if (bwused) {                                                              \
+      io->time = timenow;                                                     \
+                                                                              \
+      if (io->rule.bw != NULL)                                                \
+         bw_update(io->rule.bw, bwused, &io->time);                           \
+   }                                                                          \
 } while (lintnoloop_sockd_h)
 
 /* timersub macro from OpenBSD */
-#define timersub_hack(tvp, uvp, vvp)                                    \
-   do {                                                            \
-               (vvp)->tv_sec = (tvp)->tv_sec - (uvp)->tv_sec;          \
-               (vvp)->tv_usec = (tvp)->tv_usec - (uvp)->tv_usec;       \
-               if ((vvp)->tv_usec < 0) {                               \
-                        (vvp)->tv_sec--;                                \
-                        (vvp)->tv_usec += 1000000;                      \
-               }                                                       \
-         } while (0)
+#define timersub_hack(tvp, uvp, vvp)                                          \
+do {                                                                          \
+               (vvp)->tv_sec = (tvp)->tv_sec - (uvp)->tv_sec;                 \
+               (vvp)->tv_usec = (tvp)->tv_usec - (uvp)->tv_usec;              \
+               if ((vvp)->tv_usec < 0) {                                      \
+                        (vvp)->tv_sec--;                                      \
+                        (vvp)->tv_usec += 1000000;                            \
+               }                                                              \
+} while (lintnoloop_sockd_h)
 
 
 __END_DECLS
@@ -397,18 +396,18 @@ run_io(mother)
 
       /*
        * newrset; descriptors readable, all new apart from controldescriptors.
-       *            Don't do anything with them here, loop around and check for
-       *            writability first.
+       *          Don't do anything with them here, loop around and check for
+       *          writability first.
        *
-       *   controlset; subset of newrset containing control descriptors
-       *               that are readable.
+       * controlset; subset of newrset containing control descriptors
+       *             that are readable.
        *
        * rset; descriptors readable, not necessarily with a match in wset.
        *
        * xset; subset of rset with exceptions pending.
        *
-       * wset;   descriptors writable with a matching in rset/xset,
-       *         what we can do i/o over.
+       * wset; descriptors writable with a matching in rset/xset,
+       *       what we can do i/o over.
        */
 
       /*
@@ -503,7 +502,7 @@ delete_io(mother, io, fd, status)
          p = strlen(out);
 
          sockaddr2string(&io->control.laddr, &out[p], sizeof(out) - p);
-         command    = io->state.clientcommand;
+         command  = io->state.clientcommand;
          protocol = io->state.clientprotocol;
       }
       else if (rule == &io->rule) { /* socks rule. */
@@ -534,7 +533,7 @@ delete_io(mother, io, fd, status)
                SERRX(io->state.command);
          }
 
-         command    = io->state.command;
+         command  = io->state.command;
          protocol = io->state.protocol;
       }
       else
@@ -583,8 +582,8 @@ delete_io(mother, io, fd, status)
                swarn("%s: client error", logmsg);
 
                /* send rst to other end. */
-               linger.l_onoff    = 1;
-               linger.l_linger    = 0;
+               linger.l_onoff  = 1;
+               linger.l_linger = 0;
                if (setsockopt(io->dst.s, SOL_SOCKET, SO_LINGER, &linger,
                sizeof(linger)) != 0)
                   swarn("%s: setsockopt(io->dst, SO_LINGER)", function);
@@ -715,14 +714,16 @@ recv_io(s, io)
       }
    }
 
-   iovec[0].iov_base      = io;
-   iovec[0].iov_len      = sizeof(*io);
-   length              += iovec[0].iov_len;
+   bzero(iovec, sizeof(iovec));
+   iovec[0].iov_base = io;
+   iovec[0].iov_len  = sizeof(*io);
+   length           += iovec[0].iov_len;
 
-   msg.msg_iov            = iovec;
-   msg.msg_iovlen         = ELEMENTS(iovec);
-   msg.msg_name         = NULL;
-   msg.msg_namelen      = 0;
+   bzero(&msg, sizeof(msg));
+   msg.msg_iov    = iovec;
+   msg.msg_iovlen = ELEMENTS(iovec);
+   msg.msg_name   = NULL;
+   msg.msg_namelen = 0;
 
    /* LINTED pointer casts may be troublesome */
    CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
@@ -802,10 +803,6 @@ recv_io(s, io)
    gettimeofday(&io->time, NULL);
    io->allocated = 1;
 
-#if HARDCORE_DEBUG
-   printfd(io, "received");
-#endif /* HARDCORE_DEBUG */
-
    return 0;
 }
 
@@ -862,7 +859,7 @@ doio(mother, io, rset, wset, flags)
    const char *function = "doio()";
    /* CONSTCOND */
    char buf[MAX(SOCKD_BUFSIZETCP, SOCKD_BUFSIZEUDP)
-   + sizeof(struct udpheader_t)];
+            + sizeof(struct udpheader_t)];
    ssize_t r, w;
    struct timeval timenow;
 
@@ -1027,8 +1024,7 @@ doio(mother, io, rset, wset, flags)
                   char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING];
 
                   /* perhaps this should be LOG_DEBUG. */
-                  slog(LOG_INFO,
-                  "%s(0): %s: expected from %s, got it from %s",
+                  slog(LOG_INFO, "%s(0): %s: expected from %s, got it from %s",
                   VERDICT_BLOCKs, protocol2string(io->state.protocol),
                   sockaddr2string(&io->src.raddr, src, sizeof(src)),
                   sockaddr2string(&from, dst, sizeof(dst)));
@@ -1041,7 +1037,7 @@ doio(mother, io, rset, wset, flags)
                }
 
                rstate         = io->state;
-               rstate.command   = SOCKS_UDPREPLY;
+               rstate.command = SOCKS_UDPREPLY;
 
                if (!rulespermit(io->src.s, &io->control.raddr,
                &io->control.laddr, &io->rule, &io->state, &io->src.host,
@@ -1071,7 +1067,7 @@ doio(mother, io, rset, wset, flags)
                char badfrom[MAXSOCKADDRSTRING];
 
                /* LINTED pointer casts may be troublesome */
-               swarnx("%s: %s: fragmented packet from %s.  Not supported",
+               swarnx("%s: %s: fragmented udp packet from %s.  Not supported",
                function, protocol2string(io->state.protocol),
                sockaddr2string(&io->src.raddr, badfrom, sizeof(badfrom)));
                break;
@@ -1138,7 +1134,8 @@ doio(mother, io, rset, wset, flags)
           * libwrap would hang since we'd already read the packet and it
           * wants to peek itself.
           * We only peek enough to get the source but this still involves
-          * an extra systemcall.  Can we find a better/faster way to do it?
+          * an extra systemcall and the corresponding copy from kernel
+          * to user-space.  Can we find a better/faster way to do it?
           */
 
 #if 0 /* see comment for tcp case. */
@@ -1186,8 +1183,8 @@ doio(mother, io, rset, wset, flags)
                sockaddr2sockshost(&rfrom, &rfromhost);
 
             /* only set temporary here for one replypacket at a time. */
-            state            = io->state;
-            state.command   = SOCKS_UDPREPLY;
+            state         = io->state;
+            state.command = SOCKS_UDPREPLY;
 
             permit = rulespermit(io->dst.s, &io->control.raddr,
             &io->control.laddr, &io->rule, &state, &rfromhost,
@@ -1356,7 +1353,7 @@ io_rw(in, out, bad, buf, bufsize, flag)
    if (flag & MSG_OOB)
       in->flags |= MSG_OOB;   /* read oob data.            */
    else
-      in->flags &= ~MSG_OOB;   /* did not read oob data.   */
+      in->flags &= ~MSG_OOB;  /* did not read oob data.   */
 
    /* ... and send the data read to out. */
    if ((w = socks_sendto(out->s, buf, (size_t)r, flag, NULL, 0, &out->auth))
@@ -1629,17 +1626,16 @@ siginfo(sig)
    time(&timenow);
 
    for (i = 0; i < ioc; ++i)
-      if (!iov[i].allocated)
-         continue;
-      else {
+      if (iov[i].allocated) {
          char srcstring[MAXSOCKSHOSTSTRING];
          char dststring[MAXSOCKSHOSTSTRING];
 
-         slog(LOG_INFO, "%s: %s <-> %s: idle %.0fs",
+         slog(LOG_INFO, "%s: %s <-> %s: idle %.0fs, bytes transfered: %lu",
          protocol2string(iov[i].state.protocol),
          sockshost2string(&iov[i].src.host, srcstring, sizeof(srcstring)),
          sockshost2string(&iov[i].dst.host, dststring, sizeof(dststring)),
-         difftime(timenow, (time_t)iov[i].time.tv_sec));
+         difftime(timenow, (time_t)iov[i].time.tv_sec),
+         iov[i].src.written + iov[i].dst.written);
       }
 
 }

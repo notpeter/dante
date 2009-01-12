@@ -80,6 +80,7 @@
 #define REDIRECT 336
 #define BANDWIDTH 337
 #define MAXSESSIONS 338
+#define UDPRANGE 339
 #ifndef YYSTYPE_DEFINED
 #define YYSTYPE_DEFINED
 typedef union {
