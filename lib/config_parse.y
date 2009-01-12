@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.214 2008/12/14 13:21:14 michaels Exp $";
+"$Id: config_parse.y,v 1.228 2009/01/12 14:04:54 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -77,78 +77,78 @@ extern int yylineno;
 extern char *yytext;
 
 #if SOCKS_SERVER
-static struct rule_t            ruleinitmem;
-static struct rule_t            rule;            /* new rule.                     */
-static struct protocol_t      protocolmem;   /* new protocolmem.               */
+static struct rule_t          ruleinitmem;
+static struct rule_t          rule;          /* new rule.                     */
+static struct protocol_t      protocolmem;   /* new protocolmem.              */
 #endif
 
 static struct serverstate_t   state;
-static struct route_t         route;         /* new route.                     */
+static struct route_t         route;         /* new route.                    */
 static gwaddr_t               gw;            /* new gateway.                  */
 
-static struct ruleaddr_t      src;            /* new src.                        */
-static struct ruleaddr_t      dst;            /* new dst.                        */
+static struct ruleaddr_t      src;            /* new src.                     */
+static struct ruleaddr_t      dst;            /* new dst.                     */
 static struct ruleaddr_t      rdr_from;
 static struct ruleaddr_t      rdr_to;
 
-static struct ruleaddr_t      *ruleaddr;      /* current ruleaddr               */
-static struct extension_t      *extension;      /* new extensions                  */
-static struct proxyprotocol_t   *proxyprotocol;/* proxy protocol.               */
+static struct ruleaddr_t      *ruleaddr;      /* current ruleaddr             */
+static struct extension_t     *extension;     /* new extensions               */
+static struct proxyprotocol_t *proxyprotocol; /* proxy protocol.              */
 
-static char                     *atype;         /* atype of new address.         */
-static struct in_addr         *ipaddr;         /* new ipaddress                  */
-static struct in_addr         *netmask;      /* new netmask                     */
-static char                     *domain;         /* new domain.                     */
-static char                     *ifname;         /* new ifname.                     */
-static char                     *url;            /* new url.                        */
+static char                   *atype;         /* atype of new address.        */
+static struct in_addr         *ipaddr;        /* new ipaddress                */
+static struct in_addr         *netmask;       /* new netmask                  */
+static char                   *domain;        /* new domain.                  */
+static char                   *ifname;        /* new ifname.                  */
+static char                   *url;           /* new url.                     */
 
-static in_port_t               *port_tcp;      /* new TCP portnumber.            */
-static in_port_t               *port_udp;      /* new UDP portnumber.            */
-static int                     *methodv;      /* new authmethods.               */
-static size_t                  *methodc;      /* number of them.               */
-static struct protocol_t      *protocol;      /* new protocol.                  */
-static struct command_t         *command;      /* new command.                  */
-static enum operator_t         *operator;      /* new operator.                  */
+static in_port_t             *port_tcp;       /* new TCP portnumber.          */
+static in_port_t             *port_udp;       /* new UDP portnumber.          */
+static int                   *methodv;        /* new authmethods.             */
+static size_t                *methodc;        /* number of them.              */
+static struct protocol_t     *protocol;       /* new protocol.                */
+static struct command_t      *command;        /* new command.                 */
+static enum operator_t       *operator;       /* new operator.                */
 
 static const struct {
    const char *name;
    const int value;
 } syslogfacilityv[] = {
 #ifdef LOG_AUTH
-   { "auth",   LOG_AUTH      },
+   { "auth",   LOG_AUTH          },
 #endif /* LOG_AUTH */
 #ifdef LOG_AUTHPRIV
-   { "authpriv",   LOG_AUTHPRIV      },
+   { "authpriv",   LOG_AUTHPRIV  },
 #endif /* LOG_AUTHPRIV */
 #ifdef LOG_DAEMON
-   { "daemon",   LOG_DAEMON   },
+   { "daemon",   LOG_DAEMON      },
 #endif /* LOG_DAEMON */
 #ifdef LOG_USER
-   { "user",   LOG_USER      },
+   { "user",   LOG_USER          },
 #endif /* LOG_USER */
 #ifdef LOG_LOCAL0
-   { "local0",   LOG_LOCAL0   },
+   { "local0",   LOG_LOCAL0      },
 #endif /* LOG_LOCAL0 */
 #ifdef LOG_LOCAL1
-   { "local1",   LOG_LOCAL1   },
+   { "local1",   LOG_LOCAL1      },
 #endif /* LOG_LOCAL1 */
 #ifdef LOG_LOCAL2
-   { "local2",   LOG_LOCAL2   },
+   { "local2",   LOG_LOCAL2      },
 #endif /* LOG_LOCAL2 */
 #ifdef LOG_LOCAL3
-   { "local3",   LOG_LOCAL3   },
+   { "local3",   LOG_LOCAL3      },
 #endif /* LOG_LOCAL3 */
 #ifdef LOG_LOCAL4
-   { "local4",   LOG_LOCAL4   },
+   { "local4",   LOG_LOCAL4      },
 #endif /* LOG_LOCAL4 */
 #ifdef LOG_LOCAL5
-   { "local5",   LOG_LOCAL5   },
+   { "local5",   LOG_LOCAL5      },
 #endif /* LOG_LOCAL5 */
 #ifdef LOG_LOCAL6
-   { "local6",   LOG_LOCAL6   },
+   { "local6",   LOG_LOCAL6      },
 #endif /* LOG_LOCAL6 */
 #ifdef LOG_LOCAL7
-   { "local7",   LOG_LOCAL7   }
+   { "local7",   LOG_LOCAL7      }
 #endif /* LOG_LOCAL7 */
 };
 
@@ -158,11 +158,11 @@ static const struct {
 #define ADDMETHOD(method)                                        \
 do {                                                             \
    if (methodisset(method, methodv, *methodc))                   \
-      yywarn("duplicate method: %s", method2string(method));    \
-   else {                                                       \
+      yywarn("duplicate method: %s", method2string(method));     \
+   else {                                                        \
       if (*methodc >= MAXMETHOD)                                 \
-         yyerror("internal error, (%ld >= %ld)",               \
-         (long)*methodc, (long)MAXMETHOD);                     \
+         yyerror("internal error, (%ld >= %ld)",                 \
+         (long)*methodc, (long)MAXMETHOD);                       \
       methodv[(*methodc)++] = method;                            \
    }                                                             \
 } while (0)
@@ -190,6 +190,7 @@ do {                                                             \
 %type   <string> bandwidth
 %type   <string> session maxsessions
 %type   <string> routeinit
+%type   <string> udprange udprange_start udprange_end 
 
 
    /* clientconfig exclusive. */
@@ -210,7 +211,7 @@ do {                                                             \
 %type   <string> serveroption
 %type   <string> serverinit serverconfig
 %type   <string> userids user_privileged user_unprivileged user_libwrap
-%type   <uid>      userid
+%type   <uid>    userid
 %type   <string> childstate
 
 %token   <string> CLIENTRULE
@@ -268,6 +269,9 @@ do {                                                             \
 %token <string> FROM TO
 %token <string> REDIRECT
 %token <string> BANDWIDTH
+%token <string> MAXSESSIONS
+%token <string> UDPRANGE
+
 
 %%
 
@@ -315,7 +319,7 @@ clientconfig:   clientoption
 
 serverconfig:   global_authmethod
    |   global_clientauthmethod
-   |  deprecated
+   |   deprecated
    |   internal
    |   external
    |   external_rotation
@@ -339,22 +343,22 @@ deprecated:   DEPRECATED {
    }
 
 route:   ROUTE routeinit '{' routeoptions fromto gateway routeoptions '}' {
-      route.src      = src;
-      route.dst      = dst;
+      route.src       = src;
+      route.dst       = dst;
       route.gw.addr   = gw;
-      route.gw.state   = state;
+      route.gw.state  = state;
 
       socks_addroute(&route, 1);
    }
    ;
 
 routeinit: {
-      command         = &state.command;
-      extension      = &state.extension;
-      methodv         = state.methodv;
-      methodc         = &state.methodc;
-      protocol         = &state.protocol;
-      proxyprotocol   = &state.proxyprotocol;
+      command       = &state.command;
+      extension     = &state.extension;
+      methodv       = state.methodv;
+      methodc       = &state.methodc;
+      protocol      = &state.protocol;
+      proxyprotocol = &state.proxyprotocol;
 
       bzero(&state, sizeof(state));
       bzero(&route, sizeof(route));
@@ -371,19 +375,19 @@ proxyprotocol:   PROXYPROTOCOL ':' proxyprotocols
    ;
 
 proxyprotocolname:   PROXYPROTOCOL_SOCKS_V4 {
-         proxyprotocol->socks_v4      = 1;
+         proxyprotocol->socks_v4    = 1;
    }
    |   PROXYPROTOCOL_SOCKS_V5 {
-         proxyprotocol->socks_v5      = 1;
+         proxyprotocol->socks_v5    = 1;
    }
    |  PROXYPROTOCOL_MSPROXY_V2 {
-         proxyprotocol->msproxy_v2   = 1;
+         proxyprotocol->msproxy_v2  = 1;
    }
    |  PROXYPROTOCOL_HTTP_V1_0 {
          proxyprotocol->http_v1_0   = 1;
    }
    |  PROXYPROTOCOL_UPNP {
-         proxyprotocol->upnp         = 1;
+         proxyprotocol->upnp        = 1;
    }
    | deprecated
    ;
@@ -523,7 +527,7 @@ logoutputdevice:   LOGFILE {
             sockscf.log.facilityname = "daemon";
          }
       }
-      else /* filename. */
+      else { /* filename. */
          if (!sockscf.state.init) {
             int flag;
 
@@ -546,10 +550,14 @@ logoutputdevice:   LOGFILE {
                sockscf.log.fpv[sockscf.log.fpc] = stdout;
             else if (strcmp($1, "stderr") == 0)
                sockscf.log.fpv[sockscf.log.fpc] = stderr;
-            else
-               if ((sockscf.log.fpv[sockscf.log.fpc] = fopen($1, "a"))
-               == NULL)
+            else {
+               if ((sockscf.log.fpv[sockscf.log.fpc] = fopen($1, "a")) == NULL)
                   yyerror("fopen(%s)", $1);
+
+               if (setvbuf(sockscf.log.fpv[sockscf.log.fpc], NULL, _IOLBF, 0)
+               != 0)
+                  yyerror("setvbuf(_IOLBF)");
+            }
 
             if ((flag = fcntl(fileno(sockscf.log.fpv[sockscf.log.fpc]),
             F_GETFD, 0)) == -1
@@ -570,19 +578,22 @@ logoutputdevice:   LOGFILE {
             size_t i;
 
             for (i = 0; i < sockscf.log.fpc; ++i)
-               if (strcmp(sockscf.log.fnamev[i], $1) == 0) { /* same name. */
+               if (strcmp(sockscf.log.fnamev[i], $1) == 0) {
+                  /* same name; reopen. */
                   FILE *fp;
 
                   if (strcmp(sockscf.log.fnamev[i], "stdout") == 0
                   ||  strcmp(sockscf.log.fnamev[i], "stderr") == 0)
-                     break; /* don't need to reopen these. */
+                     break; /* don't try to reopen these. */
 
-                  /* reopen logfiles. */
                   if ((fp = fopen(sockscf.log.fnamev[i], "a")) == NULL)
                      yywarn("can't reopen %s, continuing to use existing", $1);
                   else {
                      fclose(sockscf.log.fpv[i]);
                      sockscf.log.fpv[i] = fp;
+
+                     if (setvbuf(sockscf.log.fpv[i], NULL, _IOLBF, 0) != 0)
+                        yyerror("setvbuf(_IOLBF)");
                   }
                   break;
                }
@@ -590,6 +601,8 @@ logoutputdevice:   LOGFILE {
             if (i == sockscf.log.fpc) /* no match found. */
                yywarn("can't change logoutput after startup");
          }
+
+      }
    }
    ;
 
@@ -791,7 +804,7 @@ clientrule: CLIENTRULE verdict '{' clientruleoptions fromto clientruleoptions '}
 #if SOCKS_SERVER
       rule.src         = src;
       rule.dst         = dst;
-      rule.rdr_from   = rdr_from;
+      rule.rdr_from    = rdr_from;
       rule.rdr_to      = rdr_to;
 
       addclientrule(&rule);
@@ -811,7 +824,7 @@ rule:   verdict '{' ruleoptions fromto ruleoptions '}' {
 #if SOCKS_SERVER
       rule.src         = src;
       rule.dst         = dst;
-      rule.rdr_from   = rdr_from;
+      rule.rdr_from    = rdr_from;
       rule.rdr_to      = rdr_to;
 
       addsocksrule(&rule);
@@ -827,6 +840,7 @@ ruleoption:   option
 #endif
    }
    |   command
+   |   udprange
    |   protocol
    |   proxyprotocol
    |   redirect   {
@@ -1095,7 +1109,7 @@ gwaddress:   ipaddress gwport
    |   domain gwport
    |   ifname gwport
    |   direct
-   |  url
+   |   url
    ;
 
 
@@ -1185,7 +1199,7 @@ portstart:   PORTNUMBER {
    ;
 
 portend:   PORTNUMBER {
-      ruleaddr->portend      = htons((in_port_t)atoi($1));
+      ruleaddr->portend    = htons((in_port_t)atoi($1));
       ruleaddr->operator   = range;
    }
    ;
@@ -1226,6 +1240,29 @@ portoperator:   OPERATOR {
    }
    ;
 
+udprange: UDPRANGE ':' udprange_start '-' udprange_end
+   ;
+
+udprange_start: PORTNUMBER {
+#if SOCKS_SERVER
+   rule.udprange.start = htons((in_port_t)atoi($1));
+#endif
+   }
+   ;
+
+udprange_end: PORTNUMBER {
+#if SOCKS_SERVER
+   rule.udprange.end = htons((in_port_t)atoi($1));
+   rule.udprange.op  = range;
+
+   if (ntohs(rule.udprange.start) > ntohs(rule.udprange.end))
+      yyerror("udp end port (%s) can not be less than udp start port (%u)",
+      $1, ntohs(rule.udprange.start));
+#endif
+   }
+   ;
+
+
 %%
 
 #define INTERACTIVE      0
@@ -1239,15 +1276,200 @@ readconfig(filename)
    const char *filename;
 {
    const char *function = "readconfig()";
+   struct stat statbuf;
 
-/*   yydebug            = 1;            */
-   yylineno            = 1;
-   socks_parseinit   = 0;
+#if SOCKS_CLIENT
+   char *proxyserver, *p;
+#endif
 
-   if ((yyin = fopen(filename, "r")) == NULL) {
-      swarn("%s: %s", function, filename);
+/*   yydebug          = 1;             */
+   yylineno        = 1;
+   socks_parseinit = 0;
+
+#if SOCKS_CLIENT
+   if (!issetugid() 
+	&&   ((proxyserver = getenv("SOCKS4_SERVER")) != NULL
+     ||  (proxyserver = getenv("SOCKS5_SERVER")) != NULL
+     ||  (proxyserver = getenv("HTTP_PROXY"))    != NULL)) {
+      char ipstring[INET_ADDRSTRLEN], *portstring;
+      struct sockaddr_in saddr;
+      struct route_t route;
+      struct ruleaddr_t raddr;
+
+      if ((portstring = strchr(proxyserver, ':')) == NULL)
+         serrx(EXIT_FAILURE, "%s: illegal format for port specification "
+         "in SOCKS_SERVER %s: missing ':' delimiter", function, proxyserver); 
+
+      if (atoi(portstring + 1) < 1 || atoi(portstring + 1) > 0xffff)
+         serrx(EXIT_FAILURE, "%s: illegal value for port specification "
+         "in SOCKS_SERVER %s: must be between %d and %d",
+         function, proxyserver, 1, 0xffff); 
+
+      if (portstring - proxyserver == 0
+      || (size_t)(portstring - proxyserver) > sizeof(ipstring) - 1)
+         serrx(EXIT_FAILURE, "%s: illegal format for ipaddress specification "
+         "in SOCKS_SERVER %s: too short/long", function, proxyserver); 
+
+      strncpy(ipstring, proxyserver, portstring - proxyserver);
+      ipstring[portstring - proxyserver] = NUL;
+      ++portstring;
+
+      bzero(&saddr, sizeof(saddr));
+      saddr.sin_family = AF_INET;
+      if (inet_pton(saddr.sin_family, ipstring, &saddr.sin_addr) != 1)
+         serr(EXIT_FAILURE, "%s: illegal format for ipaddress specification "
+         "in SOCKS_SERVER %s", function, ipstring); 
+      saddr.sin_port = htons(atoi(portstring));
+
+      memset(&route, 0, sizeof(route));
+      route.src.atype                           = SOCKS_ADDR_IPV4;
+      route.src.addr.ipv4.ip.s_addr             = htonl(0);
+      route.src.addr.ipv4.mask.s_addr           = htonl(0);
+      route.src.port.tcp                        = route.src.port.udp = htons(0);
+      route.src.operator                        = none;
+
+      route.dst = route.src;
+
+      ruleaddr2gwaddr(sockaddr2ruleaddr((struct sockaddr *)&saddr, &raddr),
+      &route.gw.addr);
+
+      if (getenv("SOCKS4_SERVER") != NULL)
+         route.gw.state.proxyprotocol.socks_v4 = 1;
+      else if (getenv("SOCKS5_SERVER") != NULL)
+         route.gw.state.proxyprotocol.socks_v5 = 1;
+      else if (getenv("HTTP_PROXY") != NULL)
+         route.gw.state.proxyprotocol.http_v1_0 = 1;
+		else
+			SERRX(0);
+
+      socks_addroute(&route, 1);
+   }
+   else if (!issetugid() && (proxyserver = getenv("UPNP_IGD")) != NULL) {
+      /*
+       * Should be either an interface name (the interface to broadcast
+       * for a response from the igd-device), "broadcast", to indicate 
+       * all interfaces, or a full url to the igd.
+       */
+      struct sockaddr_in saddr;
+      struct ruleaddr_t raddr;
+      struct route_t route;
+
+      memset(&route, 0, sizeof(route));
+      route.src.atype                 = SOCKS_ADDR_IPV4;
+      route.src.addr.ipv4.ip.s_addr   = htonl(0);
+      route.src.addr.ipv4.mask.s_addr = htonl(0);
+      route.src.port.tcp              = route.src.port.udp = htons(0);
+      route.src.operator              = none;
+
+      /*
+       * url or interface to broadcast for a response for?
+       */
+      if (strncasecmp(proxyserver, "http://", strlen("http://")) == 0) {
+         if (urlstring2sockaddr(proxyserver, (struct sockaddr *)&saddr)
+         == NULL)
+            serrx(EXIT_FAILURE, "can't convert %s to sockaddr", proxyserver);
+
+         sockaddr2ruleaddr((struct sockaddr *)&saddr, &route.dst);
+
+         ruleaddr2gwaddr(sockaddr2ruleaddr((struct sockaddr *)&saddr, &raddr),
+         &route.gw.addr);
+
+         route.gw.state.proxyprotocol.upnp = 1;
+         socks_addroute(&route, 1);
+      }
+      else if (strcasecmp(proxyserver, "broadcast") == 0) {
+         /*
+          * Don't know what interface the igd is on, so add routes
+          * for it on all interfaces.  Hopefully at least one interface
+          * will get a response.
+          */
+         struct ifaddrs *ifap, *iface;
+
+         route.dst                           = route.src;
+         route.gw.addr.atype                 = SOCKS_ADDR_IFNAME;
+         route.gw.state.proxyprotocol.upnp = 1;
+
+         if (getifaddrs(&ifap) == -1)
+            serr(EXIT_FAILURE, "%s: getifaddrs() failed to get interfacelist", 
+            function);
+
+         for (iface = ifap; iface != NULL; iface = iface->ifa_next) {
+            if (iface->ifa_addr                          == NULL
+            ||  iface->ifa_addr->sa_family               != AF_INET
+            ||  TOIN(iface->ifa_addr)->sin_addr.s_addr   == htonl(0)
+            ||  !(iface->ifa_flags & (IFF_UP | IFF_MULTICAST))
+            ||  iface->ifa_flags & (IFF_LOOPBACK | IFF_POINTOPOINT))
+               continue;
+
+            if (strlen(iface->ifa_name)
+            > sizeof(route.gw.addr.addr.ifname) - 1) {
+               serr(1, "%s: ifname %s is too long, max is %ld",
+               function, iface->ifa_name,
+               sizeof(route.gw.addr.addr.ifname) - 1);
+            }
+
+            strcpy(route.gw.addr.addr.ifname, iface->ifa_name);
+            socks_addroute(&route, 1);
+         }
+
+         freeifaddrs(ifap);
+      }
+      else { /* must be an interface name. */
+         /*
+          * check that the given interface exists and has an address
+          */
+         struct sockaddr addr, mask;
+
+         if (ifname2sockaddr(proxyserver, 0, &addr, &mask) == NULL)
+            serr(1, "%s: can't find interface named %s with ip configured",
+            function, proxyserver);
+
+         route.dst = route.src;
+
+         route.gw.addr.atype = SOCKS_ADDR_IFNAME;
+
+         if (strlen(proxyserver) > sizeof(route.gw.addr.addr.ifname) - 1)
+            serr(1, "%s: ifname %s is too long, max is %ld",
+            function, proxyserver, sizeof(route.gw.addr.addr.ifname) - 1);
+         strcpy(route.gw.addr.addr.ifname, proxyserver);
+         
+         route.gw.state.proxyprotocol.upnp = 1;
+         socks_addroute(&route, 1);
+      }
+   }
+
+   if (issetugid()
+   || (p = getenv("SOCKS_AUTOADD_LANROUTES")) == NULL
+   ||  strcasecmp(p, "no") != 0) {
+      /*
+       * assume it's good to add direct routes for the lan also.
+       */
+      struct ifaddrs *ifap;
+
+      if (getifaddrs(&ifap) == 0) {
+         struct ifaddrs *iface;
+
+         for (iface = ifap; iface != NULL; iface = iface->ifa_next)
+            if (iface->ifa_addr            != NULL
+            &&  iface->ifa_addr->sa_family == AF_INET)
+               socks_autoadd_directroute(
+               (const struct sockaddr_in *)iface->ifa_addr,
+               (const struct sockaddr_in *)iface->ifa_netmask);
+
+         freeifaddrs(ifap);
+      }
+   }
+#endif /* SOCKS_CLIENT */
+
+   if ((yyin = fopen(filename, "r")) == NULL 
+   ||  (stat(filename, &statbuf) == 0 && statbuf.st_size == 0)) {
+      if (yyin == NULL)
+         swarn("%s: could not open %s", function, filename);
+
+      sockscf.option.debug = 1;  
       return -1;
    }
+
 
    errno = 0;   /* don't report old errors in yyparse(). */
    yyparse();
@@ -1339,14 +1561,14 @@ addrinit(addr)
 {
    ruleaddr   = addr;
 
-   atype         = &ruleaddr->atype;
-   ipaddr      = &ruleaddr->addr.ipv4.ip;
-   netmask      = &ruleaddr->addr.ipv4.mask;
-   domain      = ruleaddr->addr.domain;
-   ifname      = ruleaddr->addr.ifname;
-   port_tcp      = &ruleaddr->port.tcp;
-   port_udp      = &ruleaddr->port.udp;
-   operator      = &ruleaddr->operator;
+   atype      = &ruleaddr->atype;
+   ipaddr     = &ruleaddr->addr.ipv4.ip;
+   netmask    = &ruleaddr->addr.ipv4.mask;
+   domain     = ruleaddr->addr.domain;
+   ifname     = ruleaddr->addr.ifname;
+   port_tcp   = &ruleaddr->port.tcp;
+   port_udp   = &ruleaddr->port.udp;
+   operator   = &ruleaddr->operator;
 }
 
 static void
@@ -1355,14 +1577,14 @@ gwaddrinit(addr)
 {
    static enum operator_t operatormem;
 
-   atype         = &addr->atype;
-   ipaddr      = &addr->addr.ipv4;
-   domain      = addr->addr.domain;
-   ifname      = addr->addr.ifname;
-   url         = addr->addr.urlname;
-   port_tcp      = &addr->port;
-   port_udp      = &addr->port;
-   operator      = &operatormem; /* no operator in gwaddr. */
+   atype    = &addr->atype;
+   ipaddr   = &addr->addr.ipv4;
+   domain   = addr->addr.domain;
+   ifname   = addr->addr.ifname;
+   url      = addr->addr.urlname;
+   port_tcp = &addr->port;
+   port_udp = &addr->port;
+   operator = &operatormem; /* no operator in gwaddr. */
 }
 
 
@@ -1374,11 +1596,11 @@ ruleinit(rule)
 {
    rule->linenumber = yylineno;
 
-   command         = &rule->state.command;
-   methodv         = rule->state.methodv;
-   methodc         = &rule->state.methodc;
-   protocol         = &rule->state.protocol;
-   proxyprotocol   = &rule->state.proxyprotocol;
+   command       = &rule->state.command;
+   methodv       = rule->state.methodv;
+   methodc       = &rule->state.methodc;
+   protocol      = &rule->state.protocol;
+   proxyprotocol = &rule->state.proxyprotocol;
 
    bzero(&src, sizeof(src));
    bzero(&dst, sizeof(dst));

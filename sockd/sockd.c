@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.319 2008/12/09 17:15:01 michaels Exp $";
+"$Id: sockd.c,v 1.322 2009/01/10 23:00:07 michaels Exp $";
 
    /*
     * signal handlers
@@ -540,14 +540,13 @@ main(argc, argv, envp)
 
             len = sizeof(from);
             client = acceptn(l->s, &from, &len);
-            ++sockscf.stat.accepted;
 
             if (client == -1)
                switch (errno) {
 #ifdef EPROTO
                   case EPROTO:         /* overloaded SVR4 error */
 #endif /* EPROTO */
-                  case EWOULDBLOCK:      /* BSD */
+                  case EWOULDBLOCK:    /* BSD */
                   case ECONNABORTED:   /* POSIX */
 
                   /* rest appears to be Linux stuff according to apache src. */
@@ -579,7 +578,7 @@ main(argc, argv, envp)
                   /*
                    * this should never happen since childcheck(), if
                    * initially successful, should make sure there is
-                   *   always enough descriptors available before we
+                   * always enough descriptors available before we
                    * try to do accept(2).
                    */
                   case ENFILE:
@@ -590,10 +589,12 @@ main(argc, argv, envp)
                      SERR(client);
                }
 
+            ++sockscf.stat.accepted;
+
 #if HAVE_LINUX_BUGS
             /*
              * yes, Linux manages to lose the descriptor flags, workaround
-             *   might be insufficient.
+             * might be insufficient.
              */
             if (fcntl(client, F_SETFL, fcntl(l->s, F_GETFL, 0)) != 0)
                swarn("tried to work around Linux bug via fcntl()");
@@ -741,12 +742,12 @@ serverinit(argc, argv, envp)
       serr(EXIT_FAILURE, "%s: malloc", function);
 #endif /* !HAVE_SETPROCTITLE*/
 
-   sockscf.child.addchild   = 1;
+   sockscf.child.addchild  = 1;
    sockscf.state.euid      = geteuid();
    sockscf.state.type      = CHILD_MOTHER;
-   sockscf.option.serverc   = 1;   /* ourselves. ;-) */
-   sockscf.bwlock            = -1;
-   sockscf.sessionlock      = -1;
+   sockscf.option.serverc  = 1;   /* ourselves. ;-) */
+   sockscf.bwlock          = -1;
+   sockscf.sessionlock     = -1;
 
    while ((ch = getopt(argc, argv, "DLN:Vdf:hlnvw:")) != -1) {
       switch (ch) {
@@ -903,21 +904,21 @@ siginfo(sig)
    seconds = difftime(time(NULL), sockscf.stat.boot);
 
    if (seconds >= 3600 * 24) {
-      days      = seconds / (3600 * 24);
+      days     = seconds / (3600 * 24);
       seconds -= days * 3600 * 24;
    }
    else
       days = 0;
 
    if (seconds >= 3600) {
-      hours      = seconds / 3600;
+      hours    = seconds / 3600;
       seconds -= hours * 3600;
    }
    else
       hours = 0;
 
    if (seconds >= 60) {
-      minutes   = seconds / 60;
+      minutes  = seconds / 60;
       seconds -= minutes * 60;
    }
    else
@@ -934,7 +935,7 @@ siginfo(sig)
    (unsigned long)sockscf.stat.negotiate.received,
    (unsigned long)childcheck(-CHILD_NEGOTIATE) - childcheck(CHILD_NEGOTIATE));
 
-   slog(LOG_INFO, "requests (%d): a: %lu, h: %lu, c: %lu",
+   slog(LOG_INFO, "requestsers (%d): a: %lu, h: %lu, c: %lu",
    childcheck(-CHILD_REQUEST) / SOCKD_REQUESTMAX,
    (unsigned long)sockscf.stat.request.sendt,
    (unsigned long)sockscf.stat.request.received,
@@ -1017,7 +1018,7 @@ sigchld(sig)
    if (deathtime == 0)
       time(&deathtime);
 
-   if (difftime(time(NULL), deathtime) > 60) { /* enough time passed; reset.   */
+   if (difftime(time(NULL), deathtime) > 60) { /* enough time passed; reset.  */
       deaths = 0;
       time(&deathtime);
    }
@@ -1051,19 +1052,19 @@ optioninit(void)
     * initialize misc. options to sensible default.
     */
 
-   sockscf.resolveprotocol         = RESOLVEPROTOCOL_UDP;
+   sockscf.resolveprotocol       = RESOLVEPROTOCOL_UDP;
    sockscf.option.keepalive      = 1;
-   sockscf.timeout.negotiate      = SOCKD_NEGOTIATETIMEOUT;
+   sockscf.timeout.negotiate     = SOCKD_NEGOTIATETIMEOUT;
    sockscf.timeout.io            = SOCKD_IOTIMEOUT;
-   sockscf.external.rotation      = ROTATION_NONE;
+   sockscf.external.rotation     = ROTATION_NONE;
 #if HAVE_PAM
-   sockscf.state.pamservicename    = DEFAULT_PAMSERVICENAME;
+   sockscf.state.pamservicename  = DEFAULT_PAMSERVICENAME;
 #endif /* HAVE_PAM */
    
 #if DEBUG
-   sockscf.child.maxidle       = 0; /* XXX SOCKD_FREESLOTS;*/
+   sockscf.child.maxidle         = 0; /* XXX SOCKD_FREESLOTS;*/
 #else
-   sockscf.child.maxidle       = 0;
+   sockscf.child.maxidle         = 0;
 #endif /* DEBUG */
 }
 

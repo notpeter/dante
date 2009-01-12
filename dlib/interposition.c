@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.82 2008/11/09 22:24:09 karls Exp $";
+"$Id: interposition.c,v 1.86 2009/01/02 14:06:00 michaels Exp $";
 
 #undef accept
 #undef bind
@@ -80,58 +80,58 @@ static const char rcsid[] =
 
 static struct libsymbol_t libsymbolv[] = {
 #if SOCKS_CLIENT
-   {   SYMBOL_ACCEPT,                  LIBRARY_ACCEPT,         NULL,   NULL },
-   {   SYMBOL_BIND,                  LIBRARY_BIND,            NULL,   NULL },
-   {   SYMBOL_BINDRESVPORT,            LIBRARY_BINDRESVPORT,   NULL,   NULL },
-   {   SYMBOL_CONNECT,               LIBRARY_CONNECT,         NULL,   NULL },
-   {   SYMBOL_GETPEERNAME,            LIBRARY_GETPEERNAME,      NULL,   NULL },
-   {   SYMBOL_GETSOCKNAME,            LIBRARY_GETSOCKNAME,      NULL,   NULL },
-   {   SYMBOL_LISTEN,            	LIBRARY_LISTEN,      NULL,   NULL },
-   {   SYMBOL_READ,                  LIBRARY_READ,            NULL,   NULL },
-   {   SYMBOL_READV,                  LIBRARY_READV,            NULL,   NULL },
-   {   SYMBOL_RECV,                  LIBRARY_RECV,            NULL,   NULL },
-   {   SYMBOL_RECVMSG,               LIBRARY_RECVMSG,         NULL,   NULL },
-   {   SYMBOL_RECVFROM,               LIBRARY_RECVFROM,         NULL,   NULL },
-   {   SYMBOL_RRESVPORT,               LIBRARY_RRESVPORT,      NULL,   NULL },
-   {   SYMBOL_SEND,                  LIBRARY_SEND,            NULL,   NULL },
-   {   SYMBOL_SENDMSG,               LIBRARY_SENDMSG,         NULL,   NULL },
-   {   SYMBOL_SENDTO,                  LIBRARY_SENDTO,         NULL,   NULL },
-   {   SYMBOL_WRITE,                  LIBRARY_WRITE,            NULL,   NULL },
-   {   SYMBOL_WRITEV,                  LIBRARY_WRITEV,         NULL,   NULL },
+   {   SYMBOL_ACCEPT,                LIBRARY_ACCEPT,         NULL,   NULL },
+   {   SYMBOL_BIND,                  LIBRARY_BIND,           NULL,   NULL },
+   {   SYMBOL_BINDRESVPORT,          LIBRARY_BINDRESVPORT,   NULL,   NULL },
+   {   SYMBOL_CONNECT,               LIBRARY_CONNECT,        NULL,   NULL },
+   {   SYMBOL_GETPEERNAME,           LIBRARY_GETPEERNAME,    NULL,   NULL },
+   {   SYMBOL_GETSOCKNAME,           LIBRARY_GETSOCKNAME,    NULL,   NULL },
+   {   SYMBOL_LISTEN,                LIBRARY_LISTEN,         NULL,   NULL },
+   {   SYMBOL_READ,                  LIBRARY_READ,           NULL,   NULL },
+   {   SYMBOL_READV,                 LIBRARY_READV,          NULL,   NULL },
+   {   SYMBOL_RECV,                  LIBRARY_RECV,           NULL,   NULL },
+   {   SYMBOL_RECVMSG,               LIBRARY_RECVMSG,        NULL,   NULL },
+   {   SYMBOL_RECVFROM,              LIBRARY_RECVFROM,       NULL,   NULL },
+   {   SYMBOL_RRESVPORT,             LIBRARY_RRESVPORT,      NULL,   NULL },
+   {   SYMBOL_SEND,                  LIBRARY_SEND,           NULL,   NULL },
+   {   SYMBOL_SENDMSG,               LIBRARY_SENDMSG,        NULL,   NULL },
+   {   SYMBOL_SENDTO,                LIBRARY_SENDTO,         NULL,   NULL },
+   {   SYMBOL_WRITE,                 LIBRARY_WRITE,          NULL,   NULL },
+   {   SYMBOL_WRITEV,                LIBRARY_WRITEV,         NULL,   NULL },
 #if HAVE_GETHOSTBYNAME2
-   {   SYMBOL_GETHOSTBYNAME2,         LIBRARY_GETHOSTBYNAME2,   NULL,   NULL },
+   {   SYMBOL_GETHOSTBYNAME2,        LIBRARY_GETHOSTBYNAME2, NULL,   NULL },
 #endif /* HAVE_GETHOSTBYNAME2 */
 #if HAVE_GETADDRINFO
-   {   SYMBOL_GETADDRINFO,            LIBRARY_GETADDRINFO,   NULL,   NULL },
+   {   SYMBOL_GETADDRINFO,           LIBRARY_GETADDRINFO,    NULL,   NULL },
 #endif /* HAVE_GETADDRINFO */
 #if HAVE_GETIPNODEBYNAME
-   {   SYMBOL_GETIPNODEBYNAME,         LIBRARY_GETIPNODEBYNAME,   NULL,   NULL },
-    {   SYMBOL_FREEHOSTENT,         LIBRARY_FREEHOSTENT,   NULL,   NULL },
+   {   SYMBOL_GETIPNODEBYNAME,       LIBRARY_GETIPNODEBYNAME,NULL,   NULL },
+    {   SYMBOL_FREEHOSTENT,          LIBRARY_FREEHOSTENT,    NULL,   NULL },
 #endif /* HAVE_GETIPNODEBYNAME */
 #endif /* SOCKS_CLIENT */
-   {   SYMBOL_GETHOSTBYNAME,         LIBRARY_GETHOSTBYNAME,   NULL,   NULL },
+   {   SYMBOL_GETHOSTBYNAME,         LIBRARY_GETHOSTBYNAME,  NULL,   NULL },
 
 #if SOCKS_SERVER
-   {   SYMBOL_GETHOSTBYADDR,         LIBRARY_GETHOSTBYADDR,   NULL,   NULL },
+   {   SYMBOL_GETHOSTBYADDR,         LIBRARY_GETHOSTBYADDR,  NULL,   NULL },
 #endif /* SOCKS_SERVER */
 
 #if SOCKS_CLIENT
 #if HAVE_EXTRA_OSF_SYMBOLS
-   {   SYMBOL_EACCEPT,               LIBRARY_EACCEPT,         NULL,   NULL },
-   {   SYMBOL_EGETPEERNAME,            LIBRARY_EGETPEERNAME,   NULL,   NULL },
-   {  SYMBOL_EGETSOCKNAME,            LIBRARY_EGETSOCKNAME,   NULL,   NULL },
-   {   SYMBOL_EREADV,                  LIBRARY_EREADV,         NULL,   NULL },
-   {   SYMBOL_ERECVFROM,               LIBRARY_ERECVFROM,      NULL,   NULL },
-   {   SYMBOL_ERECVMSG,               LIBRARY_ERECVMSG,         NULL,   NULL },
-   {  SYMBOL_ESENDMSG,               LIBRARY_ESENDMSG,         NULL,   NULL },
-   {   SYMBOL_EWRITEV,               LIBRARY_EWRITEV,         NULL,   NULL },
+   {   SYMBOL_EACCEPT,               LIBRARY_EACCEPT,        NULL,   NULL },
+   {   SYMBOL_EGETPEERNAME,          LIBRARY_EGETPEERNAME,   NULL,   NULL },
+   {  SYMBOL_EGETSOCKNAME,           LIBRARY_EGETSOCKNAME,   NULL,   NULL },
+   {   SYMBOL_EREADV,                LIBRARY_EREADV,         NULL,   NULL },
+   {   SYMBOL_ERECVFROM,             LIBRARY_ERECVFROM,      NULL,   NULL },
+   {   SYMBOL_ERECVMSG,              LIBRARY_ERECVMSG,       NULL,   NULL },
+   {  SYMBOL_ESENDMSG,               LIBRARY_ESENDMSG,       NULL,   NULL },
+   {   SYMBOL_EWRITEV,               LIBRARY_EWRITEV,        NULL,   NULL },
 
-   {   SYMBOL_NACCEPT,               LIBRARY_EACCEPT,         NULL,   NULL },
-   {   SYMBOL_NGETPEERNAME,            LIBRARY_NGETPEERNAME,   NULL,   NULL },
-   {   SYMBOL_NGETSOCKNAME,            LIBRARY_NGETSOCKNAME,   NULL,   NULL },
-   {  SYMBOL_NRECVFROM,               LIBRARY_NRECVFROM,      NULL,   NULL },
-   {  SYMBOL_NRECVMSG,               LIBRARY_NRECVMSG,         NULL,   NULL },
-   {   SYMBOL_NSENDMSG,               LIBRARY_NSENDMSG,         NULL,   NULL },
+   {   SYMBOL_NACCEPT,               LIBRARY_EACCEPT,        NULL,   NULL },
+   {   SYMBOL_NGETPEERNAME,          LIBRARY_NGETPEERNAME,   NULL,   NULL },
+   {   SYMBOL_NGETSOCKNAME,          LIBRARY_NGETSOCKNAME,   NULL,   NULL },
+   {  SYMBOL_NRECVFROM,              LIBRARY_NRECVFROM,      NULL,   NULL },
+   {  SYMBOL_NRECVMSG,               LIBRARY_NRECVMSG,       NULL,   NULL },
+   {   SYMBOL_NSENDMSG,              LIBRARY_NSENDMSG,       NULL,   NULL },
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 #endif /* SOCKS_CLIENT */
 };
@@ -339,8 +339,8 @@ sys_getsockname(s, name, namelen)
 
 HAVE_PROT_LISTEN_0
 sys_listen(s, backlog)
-	HAVE_PROT_LISTEN_1 s;
-	HAVE_PROT_LISTEN_2 backlog;
+   HAVE_PROT_LISTEN_1 s;
+   HAVE_PROT_LISTEN_2 backlog;
 {
    ssize_t rc;
    typedef HAVE_PROT_LISTEN_0 (*LISTEN_FUNC_T)(HAVE_PROT_LISTEN_1,
@@ -562,6 +562,25 @@ sys_write(d, buf, nbytes)
    return rc;
 }
 
+
+#if DEBUG
+/* used for debugging, go direct to write(2), no SYSCALL_START() etc. */
+HAVE_PROT_WRITE_0
+syssys_write(d, buf, nbytes)
+   HAVE_PROT_WRITE_1 d;
+   HAVE_PROT_WRITE_2 buf;
+   HAVE_PROT_WRITE_3 nbytes;
+{
+   typedef HAVE_PROT_WRITE_0 (*WRITE_FUNC_T)(HAVE_PROT_WRITE_1,
+                                             HAVE_PROT_WRITE_2,
+                                             HAVE_PROT_WRITE_3);
+   WRITE_FUNC_T function;
+
+   function = (WRITE_FUNC_T)symbolfunction(SYMBOL_WRITE);
+   return function(d, buf, nbytes);
+}
+#endif /* DEBUG */
+
 #if !HAVE_EXTRA_OSF_SYMBOLS
 HAVE_PROT_WRITEV_0
 sys_writev(d, iov, iovcnt)
@@ -663,6 +682,16 @@ getsockname(s, name, namelen)
    return Rgetsockname(s, name, namelen);
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
+
+HAVE_PROT_LISTEN_0
+listen(s, backlog)
+	HAVE_PROT_LISTEN_1 s;
+	HAVE_PROT_LISTEN_2 backlog;
+{
+   if (ISSYSCALL(s))
+      return sys_listen(s, backlog);
+   return Rlisten(s, backlog);
+}
 
 HAVE_PROT_READ_0
 read(d, buf, nbytes)

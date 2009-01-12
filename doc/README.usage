@@ -1,4 +1,4 @@
-$Id: README.usage,v 1.7 2005/06/10 11:22:21 michaels Exp $
+$Id: README.usage,v 1.8 2008/12/29 09:58:32 karls Exp $
 
 The socks package can be used in two ways.
 
@@ -38,6 +38,7 @@ Rgethostbyname2
 Rgetipnodebyname()
 Rgetpeername
 Rgetsockname
+Rlisten
 Rread
 Rreadv
 Rrecv
@@ -53,7 +54,6 @@ Rwritev
 
 These calls currently does nothing and are only provided for
 compatibility with programs which use them:
-Rlisten
 Rselect
 SOCKSinit
 
@@ -61,7 +61,7 @@ The source can either be modified directly, or by using defines to
 change the source during compilation, as following:
 
 Either add this line to the command compilation line (e.g. CFLAGS):
--Dconnect=Rconnect -Dbind=Rbind -Dgetsockname=Rgetsockname -Dgetpeername=Rgetpeername -Daccept=Raccept -Drresvport=Rrresvport -Dbindresvport=Rbindresvport -Dgethostbyname=Rgethostbyname -Dgethostbyname2=Rgethostbyname2 -Dsendto=Rsendto -Drecvfrom=Rrecvfrom -Drecvfrom=Rrecvfrom -Dwrite=Rwrite -Dwritev=Rwritev -Dsend=Rsend -Dsendmsg=Rsendmsg -Dread=Rread -Dreadv=Rreadv -Drecv=Rrecv -Drecvmsg=Rrecvmsg -Dgetaddrinfo=Rgetaddrinfo -Dgetipnodebyname=Rgetipnodebyname
+-Dconnect=Rconnect -Dbind=Rbind -Dgetsockname=Rgetsockname -Dgetpeername=Rgetpeername -Daccept=Raccept -Drresvport=Rrresvport -Dbindresvport=Rbindresvport -Dgethostbyname=Rgethostbyname -Dgethostbyname2=Rgethostbyname2 -Dsendto=Rsendto -Drecvfrom=Rrecvfrom -Drecvfrom=Rrecvfrom -Dwrite=Rwrite -Dwritev=Rwritev -Dlisten=Rlisten -Dsend=Rsend -Dsendmsg=Rsendmsg -Dread=Rread -Dreadv=Rreadv -Drecv=Rrecv -Drecvmsg=Rrecvmsg -Dgetaddrinfo=Rgetaddrinfo -Dgetipnodebyname=Rgetipnodebyname
 
 or add "include <socks.h>" to every C file in the program you are
 compiling.

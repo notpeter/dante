@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.74 2008/07/24 09:33:01 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.78 2009/01/08 18:49:32 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -40,7 +40,7 @@
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.TH SOCKD.CONF 5 "May 11, 2001"
+.TH SOCKD.CONF 5 "January, 2009"
 .SH NAME
 sockd.conf \- \fBDante\fP server configuration file syntax
 .SH DESCRIPTION
@@ -211,7 +211,7 @@ The list of condition keywords is:
 \fBprotocol\fP, \fBproxyprotocol\fP, \fBuser\fP.
 
 The list of actions keywords is: \fBbandwidth\fP, \fBlibwrap\fP,
-\fBlog\fP, \fBmaxsessions\fP, and \fBredirect\fP.
+\fBlog\fP, \fBmaxsessions\fP, \fBredirect\fP, and \fBudprange\fP.
 
 The format and content of the rules is identical, but client-rules
 may contain only a subset of the socks-rules.  More concrete, they
@@ -262,6 +262,12 @@ Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
 A portrange can also be given as "port <start #> - <end #>", which
 will match all port numbers within the range <start #> and <end #>.
 
+.IP \fBudprange\fP
+The argument to this keyword is two portnumbers, seperated by
+a dash ('-').  They specify the udp port-range that will be
+used between the socks-client and the Dante-server for udp
+packets.  Note that this has no relation to the udp port-range
+used between the Dante-server and external, non-socks, clients/servers.
 .IP \fBbandwidth\fP
 The clients matching this rule will all share this amount of bandwidth.
 .IP \fBcommand\fP
@@ -325,9 +331,7 @@ See the example directory in the distribution.
 /etc/passwd	file used when checking username/passwords.
 .fi
 .SH AUTHORS
-For Inferno Nettverk A/S, Norway:
- Michael Shuldman <michaels@inet.no>: Design and implementation.
- Karl-Andre' Skevik <karls@inet.no>: Autoconf and porting.
+Inferno Nettverk A/S, Norway.  http://www.inet.no/
 .SH SEE ALSO
 sockd(8), socks.conf(5), hosts_access(5)
 .Pp

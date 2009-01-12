@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.54 2008/11/09 22:24:10 karls Exp $";
+"$Id: method_uname.c,v 1.56 2009/01/02 14:06:07 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -225,17 +225,21 @@ recv_passwd(s, request, state)
     * liked to give the client success status back no matter what 
     * the username/password is, and later deny the connection if need be.
     *
-    * This however creates problems with clients that, naturally, cache
+    * That however creates problems with clients that, naturally, cache
     * the wrong username/password if they get success. 
     * We therfor check if we have a unique passworddb to use, and if so,
-    * check it here so we can return an immediate error to client.
-    * If the database is not unique, we go with returning an 
-    * unconditional success at this point, and deny it later if need be.
+    * check the password here so we can return an immediate error to client.
+    * This we can do because the passworddb is unique, i.e. there is 
+    * no chance of the result varying according to the clients request.
+    *
+    * If the database is not unique, we go with returning a success at
+    * this point, and deny it later if need be, even though this might
+    * create problems for the clients that cache the result.
    */
    response[UNAME_VERSION] = request->auth->mdata.uname.version;
    switch (passworddbisunique()) {
       case 0:
-         /* Return ok, check correct db later. . */
+         /* Return ok, check correct db later when we know what correct is. . */
          response[UNAME_STATUS] = (unsigned char)0;
          break;
 
@@ -250,11 +254,12 @@ recv_passwd(s, request, state)
          /* move from uname object into pam object. */
          strcpy((char *)request->auth->mdata.pam.name,
          (const char *)uname.name);
+
          strcpy((char *)request->auth->mdata.pam.password,
          (const char *)uname.password);
 
-           SASSERTX(strlen(sockscf.state.pamservicename)
-           < sizeof(request->auth->mdata.pam.servicename));
+         SASSERTX(strlen(sockscf.state.pamservicename)
+         < sizeof(request->auth->mdata.pam.servicename));
 
          strcpy(request->auth->mdata.pam.servicename,
          sockscf.state.pamservicename);

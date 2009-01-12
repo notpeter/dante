@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,11 +44,11 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: address.c,v 1.102 2008/12/11 14:11:01 karls Exp $";
+"$Id: address.c,v 1.109 2009/01/02 18:41:38 michaels Exp $";
 
 __BEGIN_DECLS
 
-#define SOCKS_ADDRLOCKFILE "./socksaddrlockXXXXXXXXXX"
+#define SOCKS_ADDRLOCKFILE "./socksaddrlock" /* + pid */
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;
@@ -103,15 +103,6 @@ mutexinit __P((void));
  * Initializes mutex stuff for *addr() functions.
  */
 
-static struct socksfd_t *
-socksfddup __P((const struct socksfd_t *old, struct socksfd_t *new));
-/*
- * Duplicates "old", in "new".
- * Returns:
- *    On success: "new".
- *    On failure: NULL (resource shortage).
- */
- 
 __END_DECLS
 
 const struct socksfd_t *
@@ -127,10 +118,10 @@ socks_addaddr(clientfd, socksfd, havelock)
       slog(LOG_DEBUG, "%s: %d", function, clientfd);
 #endif
 
-   SASSERTX(socksfd->state.command      == -1
-   ||    socksfd->state.command            == SOCKS_BIND
-   ||    socksfd->state.command            == SOCKS_CONNECT
-   ||    socksfd->state.command            == SOCKS_UDPASSOCIATE);
+   SASSERTX(socksfd->state.command == -1
+   ||       socksfd->state.command == SOCKS_BIND
+   ||       socksfd->state.command == SOCKS_CONNECT
+   ||       socksfd->state.command == SOCKS_UDPASSOCIATE);
 
    if (!havelock)
       socks_addrlock(F_WRLCK);
@@ -139,7 +130,7 @@ socks_addaddr(clientfd, socksfd, havelock)
       serrx(EXIT_FAILURE, "%s: error adding descriptor %d", function, clientfd);
 
    if (socksfdc < dc) { /* init/reallocate */
-      if (socksfdinit.control == 0) {   /* not initialized */
+      if (socksfdinit.control == 0) { /* not initialized */
          socksfdinit.control = -1;
          /* other members have ok default value. */
       }
@@ -157,6 +148,18 @@ socks_addaddr(clientfd, socksfd, havelock)
 
    if (!havelock)
       socks_addrunlock();
+
+#ifdef THREAD_DEBUG
+   if (sockscf.log.fpv != NULL) { 
+      char buf[80];
+
+      snprintf(buf, sizeof(buf),
+      "%s: allocating fd %d for command %d\n",
+      function, clientfd, socksfdv[clientfd].state.command);
+
+      syssys_write(fileno(sockscf.log.fpv[0]), buf, strlen(buf) + 1);
+   }
+#endif
 
    return &socksfdv[clientfd];
 }
@@ -188,7 +191,7 @@ socks_rmaddr(d, havelock)
    const unsigned int d;
    const int havelock;
 {
-/*   const char *function = "socks_rmaddr()";   */
+   const char *function = "socks_rmaddr()";   
 
    if (!havelock)
       socks_addrlock(F_WRLCK);
@@ -244,6 +247,18 @@ socks_rmaddr(d, havelock)
             }
    }
 
+#ifdef THREAD_DEBUG
+   if (sockscf.log.fpv != NULL) {
+      char buf[80];
+
+      snprintf(buf, sizeof(buf),
+      "%s: deallocating fd %d, was allocated for command %d\n",
+      function, d, socksfdv[d].state.command);
+
+      syssys_write(fileno(sockscf.log.fpv[0]), buf, strlen(buf) + 1);
+   }
+#endif 
+
    socksfdv[d] = socksfdinit;
 
    if (!havelock)
@@ -286,27 +301,48 @@ socks_addrisok(s, havelock)
    matched = 0;
    do {
       const struct socksfd_t *socksfd;
-      struct sockaddr local;
-      socklen_t locallen;
+      struct sockaddr local, remote;
+      socklen_t locallen, remotelen;
 
       locallen = sizeof(local);
       if (getsockname((int)s, &local, &locallen) != 0)
          break;
 
-      socksfd = socks_getaddr(s, 1);
-
-      if (socksfd != NULL) {
+      if ((socksfd = socks_getaddr(s, 1)) != NULL) {
          if (TOCIN(&socksfd->local)->sin_addr.s_addr == htonl(0)) {
             /*
              * if address was not bound before, it might have become
              * later, after client did a send(2) or similar.
+             * It's also possible accept(2) was called, so check
+             * for that first.
              */
             struct socksfd_t nsocksfd;
+            int duped;
             
-            nsocksfd = *socksfd;
-            TOIN(&nsocksfd.local)->sin_addr = TOIN(&local)->sin_addr;
-            socksfd = socks_addaddr(s, &nsocksfd, 1);
-         }   
+            remotelen = sizeof(remote);
+            if (getpeername((int)s, &remote, &remotelen) == 0
+            && (duped = socks_addrmatch(&local, &remote, NULL, 1)) != -1) {
+               if ((socksfd = socksfddup(socks_getaddr((unsigned int)duped,
+               1), &nsocksfd)) == NULL) {
+                  swarn("%s: socksfddup()", function);
+
+                  if (errno == EBADF)
+                     socks_rmaddr(duped, 1);
+                  break;
+               }
+
+               socks_addaddr(s, &nsocksfd, 1);
+               matched = 1;
+
+               if (!fdisopen(duped))
+                  socks_rmaddr(duped, 1);
+            }
+            else {
+               nsocksfd = *socksfd;
+               TOIN(&nsocksfd.local)->sin_addr = TOIN(&local)->sin_addr;
+               socksfd = socks_addaddr(s, &nsocksfd, 1);
+            }
+         }
             
          if (!sockaddrareeq(&local, &socksfd->local))
             break;
@@ -326,10 +362,17 @@ socks_addrisok(s, havelock)
 
             if (socksfd == NULL) {
                swarn("%s: socksfddup()", function);
+
+               if (errno == EBADF)
+                  socks_rmaddr(duped, 1);
                break;
             }
 
-            socks_addaddr(s, socksfd, 1);
+            socks_addaddr(s, &nsocksfd, 1);
+
+            if (!fdisopen(duped))
+               socks_rmaddr(duped, 1);
+
             matched = 1;
          }
          break;
@@ -387,6 +430,7 @@ socks_addrcontrol(local, remote, havelock)
 
    if (i < socksfdc)
       return i;
+
    return -1;
 }
 
@@ -448,6 +492,32 @@ socks_addrmatch(local, remote, state, havelock)
    return -1;
 }
 
+struct socksfd_t *
+socksfddup(old, new)
+   const struct socksfd_t *old;
+   struct socksfd_t *new;
+{
+
+   *new = *old;   /* init most stuff. */
+
+   switch (old->state.command) {
+      case SOCKS_BIND:
+      case SOCKS_UDPASSOCIATE:
+         if ((new->control = socketoptdup(old->control)) == -1)
+            return NULL;
+         break;
+
+      case SOCKS_CONNECT:
+         /* only descriptor for connect is the one client has. */
+         break;
+
+      default:
+         break;
+   }
+
+   return new;
+}
+
 
 static int
 socks_addfd(d)
@@ -492,32 +562,6 @@ socks_rmfd(d)
 {
    if (socks_isfd(d))
       dv[d] = -1;
-}
-
-static struct socksfd_t *
-socksfddup(old, new)
-   const struct socksfd_t *old;
-   struct socksfd_t *new;
-{
-
-   *new = *old;   /* init most stuff. */
-
-   switch (old->state.command) {
-      case SOCKS_BIND:
-      case SOCKS_UDPASSOCIATE:
-         if ((new->control = socketoptdup(old->control)) == -1)
-            return NULL;
-         break;
-
-      case SOCKS_CONNECT:
-         /* only descriptor for connect is the one client has. */
-         break;
-
-      default:
-         break;
-   }
-
-   return new;
 }
 
 static void
@@ -743,23 +787,14 @@ fakesockshost2sockaddr(host, addr)
 static void
 mutexinit(void)
 {
-#ifdef HAVE_VOLATILE_SIG_ATOMIC_T
-   static sig_atomic_t initing;
-#else
-   static volatile sig_atomic_t initing;
-#endif
    const char *function = "mutexinit()";
 
-   if (initing)
-      return; /* already initing, avoid recursion. */
-
    if (mutex == -1 || !fdisopen(mutex)) {
-      initing = 1;
+      char buf[80];
 
-      if ((mutex = socks_mklock(SOCKS_ADDRLOCKFILE)) == -1) 
+      snprintf(buf, sizeof(buf), "%s.%d", SOCKS_ADDRLOCKFILE, (int)getpid()); 
+      if ((mutex = socks_mklock(buf)) == -1) 
          swarn("%s: could not create address mutex", function);
-
-      initing = 0; 
    }
 }
 

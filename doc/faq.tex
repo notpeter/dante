@@ -1,4 +1,4 @@
-%@(#)$Id: faq.tex,v 1.61 2008/07/25 09:08:02 michaels Exp $
+%@(#)$Id: faq.tex,v 1.63 2009/01/12 13:33:50 michaels Exp $
 %/*
 % * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -56,7 +56,7 @@
 	Gaustadalleen 21   \\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2008/07/25 09:08:02 $$$$}
+\date{$$$$Date: 2009/01/12 13:33:50 $$$$}
 
 \makeindex
 
@@ -71,7 +71,8 @@
 	http://www.inet.no/dante/FAQ/}{http://www.inet.no/dante/FAQ/} for the
 	latest version of this faq.}
 
-   Send updates/corrections to the public mailinglist dante-misc@inet.no.
+   Send contributions/corrections/updates to the public mailinglist
+   dante-misc@inet.no, or dante-bugs@inet.no.
   \end{center}
 
 \section{Reporting problems or bugs in Dante}
@@ -588,11 +589,11 @@ command).
   except log via syslog?}
 
    Dante now reopens the logfiles on SIGHUP, so you should not have
-	any problems, just rename the file and send the Dante server
-	a SIGHUP signal.
+   any problems, just rename the file and send the Dante server
+   a SIGHUP signal.
 
    A quick and dirty solution for dealing with most daemons that
-   don't like having their logs rotated. Copy them instead of moving
+   don't like having their logs rotated;  copy them instead of moving
    the files and then redirect an echo into them. Kick it off via
    cron every day at 11:59.  I get 7 days of rotated logs like this:
 
@@ -735,11 +736,11 @@ exec setuidgid logging multilog t /var/log/dante
 
    The reason for this is that due to the generality of the
    Dante socks-rules, we do not know what authentication we will
-	be using for this particular clients request, until we have
-	read the request.  That means, the same client address could
-	in theory use one type of authentication for connections
-	to one address, and another authentication type for 
-	connections to another address.
+   be using for this particular clients request, until we have
+   read the request.  That means, the same client address could
+   in theory use one type of authentication for connections
+   to one address, and another authentication type for 
+   connections to another address.
    
    As of version 1.1.16, this has been changed a little.  If you
    are using only one type of username/password-based authentication
@@ -772,12 +773,11 @@ exec setuidgid logging multilog t /var/log/dante
   standard.  The exception to this is the following:
 
   \begin{description}
-	\item[select(2)/poll(2)] applications combining non-blocking sockets
-	 with select(2)/poll(2) need to make sure they can handle
-	 the select(2)/poll(2) call being interrupted.  This is due
-	 to how the Dante clientlibrary implements support for non-blocking
-	 connect(2).
+    \item[select(2)/poll(2)] applications combining non-blocking sockets
+     with select(2)/poll(2) need to make sure they can handle
+     the select(2)/poll(2) call being interrupted.  This is due
+     to how the Dante clientlibrary implements support for non-blocking
+     connect(2).
   \end{description}
-
 
 \end{document}

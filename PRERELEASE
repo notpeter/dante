@@ -1,12 +1,63 @@
-@(#)$Id: PRERELEASE,v 1.244 2008/12/14 21:40:04 karls Exp $
+@(#)$Id: PRERELEASE,v 1.261 2009/01/12 14:04:53 michaels Exp $
 
 *
 * This is a prerelease.  Do not use this to upgrade from a previous
 * release of Dante unless you want to help testing. 
 *
 
-o New version of the BSD version of "external.rotation = route"
-  from Christoph Badura <bad@bsd.de>.
+o Patch from Markus Moeller <huaraz@moeller.plus.com.example.com> 
+  to limit the range of udp-ports used between the socks-client
+  and the Dante server.
+
+o By default, try to auto-add direct routes for all addresses on the LAN.
+  To disable it, set SOCKS_AUTOADD_LANROUTES to "no".
+
+o Fix bug that caused problems with certain combinations of
+  bind(2)/accept(2)/close(2).
+  Reported by Markus Moeller <huaraz@moeller.plus.com.example.com>
+
+o Fix bug that erroneously blocked the bind request from some clients.
+  Reported by Markus Moeller <huaraz@moeller.plus.com.example.com>
+
+o Add support for environment variables SOCKS4_SERVER, SOCKS5_SERVER,
+  HTTP_PROXY, and UPNP_IGD.
+  If set, they specify the socks v4, socks v5 server, http proxy, 
+  or UPNP-enabled ID to use, without the need for a socks.conf.
+
+  This should make it possible to run socksify with reasonable results
+  even without a socks.conf, as long as one of these new environment
+  variables are set correctly.
+
+o Auto-add direct routes for all gateways.  Should make the client
+  a little more user-friendly by not having to specify "direct" routes
+  for the proxyserver any longer.
+
+o Finer grained marking of when to mark a proxy route as "bad" so that
+  it will not be used again by the same client.
+
+  Also add a new variable to config.h, MAX_ROUTE_FAILS, determining
+  how many times a route can fail before being blacklisted.  Default
+  is one (same semantics as before there was a variable to control this).
+
+o Fix bug that could prevent password authentication from working
+  on some systems. Spotted by
+  Nathan Johnson <n.johnson@vanderbilt.edu.example.com>.  Again.
+
+ o Add configure option --without-glibc-secure, which disables check for
+   the glibc variable __libc_enable_secure. Creates undesired dependencies
+   for packaging.  Reported by Mathieu CHOUQUET-STRINGER
+   <mathieu.chouquet-stringer@sgcib.com.example.com>.
+
+ o New getifaddrs() compatibility function, taken from heimdal-1.2.1.
+
+ o (Open)Solaris sa_len compilation problem fixed.
+   Reported by "Markus Moeller" <huaraz@moeller.plus.com.example.com>
+
+-------------------------------------------------------------------------------
+1.2.0-pre1
+
+o New version of the BSD version of "external.rotation = route",
+  from Christoph Badura <bad@bsd.de.example.com>.
 
 o Support for interfacenames in sockd rules, and in the destination
   address for socks routes.  
@@ -42,25 +93,27 @@ o Changed the magic bytes that indicate the client is requesing
 
 o Don't zero password in client if we read it from environment, or 
   it will not work the next time the same clientprocess tries to
-  authenticate to the server.  Found by Pavel Fedin <fedin@matek.ru>.
+  authenticate to the server. 
+  Found by Pavel Fedin <fedin@matek.ru.example.com>.
 
   That mailaddress no longer works.  Please contact us if you have
   another address for Mr. Fedin.
 
 o Fix bug that could prevent password authentication from working
-  on some systems.  Spotted by Nathan Johnson <n.johnson@vanderbilt.edu>.
+  on some systems.
+  Spotted by Nathan Johnson <n.johnson@vanderbilt.edu.example.com>.
 
 o Add support for "group:" syntax to rules, similar to "user:" statement.
-  Requested by Don Harvie <donharvi@au1.ibm.com>
+  Requested by Don Harvie <donharvi@au1.ibm.com.example.com>
 
 o Close connection to PAM server each time we get an error-reply from
   it, fixing a bug.
-  Patch from Robert Marcano <robert@marcanoonline.com>.
+  Patch from Robert Marcano <robert@marcanoonline.com.example.com>.
 
 o Incorrect assert fixed. Problem reported by
-  "d binderman" <dcb314@hotmail.com>.
+  "d binderman" <dcb314@hotmail.com.example.com>.
 
 o Log close of client-rule with correct command.
-  Fixes bug reported by Tom Vandenbelt <tvandenb@au1.ibm.com>.
+  Fixes bug reported by Tom Vandenbelt <tvandenb@au1.ibm.com.example.com>.
 
 o Update to autoconf 2.61 and libtool 1.5.26.

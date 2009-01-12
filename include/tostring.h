@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: tostring.h,v 1.14 2008/07/25 08:48:35 michaels Exp $ */
+/* $Id: tostring.h,v 1.17 2009/01/11 22:00:30 michaels Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
@@ -225,14 +225,32 @@ resolveprotocol2string __P((int resolveprotocol));
  * Returns a printable representation of "resolveprotocol".
  */
 
-char *
-gwaddr2string(const gwaddr_t *gw, char *string, size_t len);
+char *gwaddr2string __P((const gwaddr_t *gw, char *string, size_t len));
+/*
+ * Writes a printable representation of "gw" to "string" and
+ * returns a pointer to it.
+ */
 
-char *str2upper(char *string);
+char *str2upper __P((char *string));
 /*
  * converts all characters in "string" to uppercase.  
  * returns "string".
  */
+
+char *socket2string __P((const int s, char *buf, size_t buflen));
+/*
+ * Prints out address info for the socket "s".
+ * "buf" gives the buffer to write the address info to, "buflen" the
+ * size of "buf".
+ *
+ * Returns a pointer to buf.
+ */
+
+const char *version2string __P((int version));
+/*
+ * Returns a printable representation of the proxyprotocolversion "version".
+ */
+
 
 
 #if SOCKS_SERVER

@@ -1,4 +1,4 @@
-.\" $Id: socks.conf.5,v 1.30 2008/07/24 12:39:59 michaels Exp $
+.\" $Id: socks.conf.5,v 1.38 2009/01/12 14:04:53 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -40,7 +40,7 @@
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.TH SOCKS.CONF 5 "February 17, 2001"
+.TH SOCKS.CONF 5 "January, 2009"
 .SH NAME
 socks.conf \- socks client configuration file syntax
 .SH DESCRIPTION
@@ -84,9 +84,9 @@ The route is used only by requests coming from the address given as value.
 .IP \fBto\fP
 The route is used only by requests going to the address given as value.
 .IP \fBvia\fP
-Address of server to be used for the connection, or in the case of 
-upnp, either the name of the interface to use for discovering the upnp
-controlpoint, or the full url for the IGD.
+Address of server to be used as gateway for the connection.  In the case of 
+upnp, it can also be the name of the interface to use for discovering the
+upnp controlpoint, if the full url for the IGD is not yet known.
 .IP \fBport\fP
 Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
 \fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
@@ -121,12 +121,26 @@ authentication.
 Use \fBSOCKS_PASSWORD\fP as the password when doing username
 authentication.  Not recommended as other users on the system 
 might be able to see your password.
+.TP
+\fBSOCKS4_SERVER\fP, \fBSOCKS5_SERVER\fP, \fBHTTP_PROXY\fP, or \fBUPNP_IGD\fP
+Tells the client library to make a reasonable guess as to what enviroment
+it is running in, without requiring a socks.conf file to be configured
+correctly.  The value given is the <ipaddress>:<port> of the 
+socks v4, socks v5, or http proxy server to use, or in the case of
+a UPNP enabled IGD, one of three: a full url, an interfacename, or
+the value "broadcast" to search for the IGD on all appropriate interfaces.
+
+This also includes auto-adding direct routes for all ip-addresses on
+the lan, as determined by looking at the intefaces configured on
+the local machine.
+.TP
+\fBSOCKS_AUTOADD_LANROUTES\fP
+If this is set to "no", the client will not try to auto-add direct 
+routes for all addresses on the lan.  The default is to add them.
 .SH FILES
 .I /etc/socks.conf
 .SH AUTHORS
-For Inferno Nettverk A/S, Norway:
- Michael Shuldman <michaels@inet.no>: Design and implementation.
- Karl-Andre' Skevik <karls@inet.no>: Autoconf and porting.
+Inferno Nettverk A/S, Norway.  http://www.inet.no/
 .SH SEE ALSO
 sockd(8) sockd.conf(5)
 .Pp

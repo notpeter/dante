@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.146 2008/12/09 17:14:59 michaels Exp $";
+"$Id: udp.c,v 1.148 2009/01/02 14:06:06 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -333,14 +333,13 @@ udpsetup(s, to, type)
    fakesockaddr2sockshost(to, &dst);
 
    bzero(&packet, sizeof(packet));
-   packet.version            = PROXY_DIRECT;;
-   packet.auth.method      = AUTHMETHOD_NOTSET;
-   packet.req.version      = packet.version;
-   packet.req.command      = SOCKS_UDPASSOCIATE;
-   packet.req.flag         |= SOCKS_USECLIENTPORT;
-/*   packet.req.flag         |= SOCKS_INTERFACEREQUEST; */
-   packet.req.host         = src;
-   packet.req.protocol      = SOCKS_UDP;
+   packet.version       = PROXY_DIRECT;;
+   packet.auth.method   = AUTHMETHOD_NOTSET;
+   packet.req.version   = packet.version;
+   packet.req.command   = SOCKS_UDPASSOCIATE;
+   packet.req.flag     |= SOCKS_USECLIENTPORT;
+   packet.req.host      = src;
+   packet.req.protocol  = SOCKS_UDP;
 
    if (socks_requestpolish(&packet.req, &src, &dst) == NULL
    ||  packet.req.version == PROXY_DIRECT)
@@ -358,7 +357,7 @@ udpsetup(s, to, type)
 
       default:
          SERRX(packet.version);
-	}
+   }
 
    if ((socksfd.route
    = socks_connectroute(socksfd.control, &packet, &src, &dst)) == NULL) {

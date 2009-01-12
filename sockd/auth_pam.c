@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2002, 2003, 2004
+ * Copyright (c) 2001, 2002, 2003, 2004, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.43 2008/12/14 17:14:11 karls Exp $";
+"$Id: auth_pam.c,v 1.45 2009/01/02 14:06:07 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -86,8 +86,8 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 
    /*
     * unforunatly we can not set password here, that needs to be set
-    * "from a module", i.e. in the converationfunction, at least on 
-    * linux.
+    * "from a module", i.e. in the converationfunction, at least with
+    * one linux pam implementation.
     */
    struct {
       int         item;
@@ -102,7 +102,11 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 
    socks_seteuid(&euid, sockscf.uid.privileged);
 
-#if HAVE_LINUX_BUGS
+#if HAVE_LINUX_BUGS /*
+                     * At least one implementation of pam on linux
+                     * starts some sort of busy-loop after a while,
+                     * unless we close the old session.
+                     */
    if (pamh != NULL) { 
       pam_end(pamh, rc);
       pamh = NULL;
@@ -178,7 +182,7 @@ _pam_conversation(msgc, msgv, rspv, authdata)
    int i;
 
    if (rspv == NULL || msgv == NULL || auth == NULL || msgc < 1) {
-      swarnx("%s: called with invalid input", function);
+      swarnx("%s: called with invalid/unexpected input", function);
       return PAM_CONV_ERR;
    }
 

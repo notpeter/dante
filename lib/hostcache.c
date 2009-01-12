@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.27 2008/11/28 19:09:53 karls Exp $";
+"$Id: hostcache.c,v 1.29 2009/01/02 14:06:05 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -210,10 +210,10 @@ cgethostbyname(name)
 {
    const char *function = "cgethostbyname()";
    static struct {
-      unsigned            allocated:1;
-      char               host[MAXHOSTNAMELEN];
-      time_t            written;
-      struct hostent      hostent;
+      unsigned       allocated:1;
+      char           host[MAXHOSTNAMELEN];
+      time_t         written;
+      struct hostent hostent;
    } table[SOCKD_HOSTCACHE], *freehost;
    static unsigned int hit, miss, count;
    const time_t timenow = time(NULL);
@@ -283,9 +283,9 @@ cgethostbyaddr(addr, len, type)
    const char *function = "cgethostbyaddr()";
    static struct {
       unsigned         allocated:1;
-      in_addr_t         addr;
-      time_t            written;
-      struct hostent      hostent;
+      in_addr_t        addr;
+      time_t           written;
+      struct hostent   hostent;
    } table[SOCKD_ADDRESSCACHE], *freehost;
    static unsigned long int hit, miss, count;
    const time_t timenow = time(NULL);
@@ -313,6 +313,7 @@ cgethostbyaddr(addr, len, type)
             freehost = &table[i];
             break;
          }
+
          ++hit;
          return &table[i].hostent;
       }

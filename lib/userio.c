@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.26 2008/07/25 08:49:01 michaels Exp $";
+"$Id: userio.c,v 1.28 2009/01/02 14:06:07 michaels Exp $";
 
 /* ARGSUSED */
 char *
@@ -56,9 +56,9 @@ socks_getusername(host, buf, buflen)
    const char *function = "socks_getusername()";
    char *name;
 
-   if ((name = getenv("SOCKS_USERNAME"))   != NULL
-   ||  (name = getenv("SOCKS_USER"))      != NULL
-   ||  (name = getenv("SOCKS5_USER"))      != NULL)
+   if ((name = getenv("SOCKS_USERNAME")) != NULL
+   ||  (name = getenv("SOCKS_USER"))     != NULL
+   ||  (name = getenv("SOCKS5_USER"))    != NULL)
       ;
    else if ((name = getlogin()) != NULL)
       ;
@@ -95,7 +95,7 @@ socks_getpassword(host, user, buf, buflen)
    char *password;
 
    if ((password = getenv("SOCKS_PASSWORD")) != NULL
-   ||  (password = getenv("SOCKS_PASSWD"))     != NULL
+   ||  (password = getenv("SOCKS_PASSWD"))   != NULL
    ||  (password = getenv("SOCKS5_PASSWD"))  != NULL)
       password_is_from_env = 1;
    else {

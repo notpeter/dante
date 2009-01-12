@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.36 2008/12/11 17:33:13 michaels Exp $";
+"$Id: socket.c,v 1.38 2009/01/11 22:01:57 michaels Exp $";
 
 int
 socks_connect(s, host)
@@ -52,16 +52,35 @@ socks_connect(s, host)
    const struct sockshost_t *host;
 {
    const char *function = "socks_connect()";
-   int failed;
    struct hostent *hostent;
    struct sockaddr_in address;
-   char **ip;
+   char **ip, addrstr[MAXSOCKADDRSTRING], hoststr[MAXSOCKSHOSTSTRING];
+   int failed;
+
+   if (sockscf.option.debug) {
+      socklen_t len;
+
+      len = sizeof(address);
+      if (getsockname(s, (struct sockaddr *)&address, &len) == -1) {
+         slog(LOG_DEBUG, "%s: %s: getsockname(2) failed: %s",
+         function, sockshost2string(host, hoststr, sizeof(hoststr)),
+         strerror(errno));
+
+         return -1;
+      }
+
+      slog(LOG_DEBUG, "%s: from %s to %s\n",
+      function,
+      sockaddr2string((struct sockaddr *)&address, addrstr, sizeof(addrstr)), 
+      sockshost2string(host, hoststr, sizeof(hoststr)));
+   }
+   else
+      slog(LOG_DEBUG, "%s: %s\n",
+      function, sockshost2string(host, hoststr, sizeof(hoststr)));
 
    bzero(&address, sizeof(address));
    address.sin_family   = AF_INET;
    address.sin_port     = host->port;
-
-   slog(LOG_DEBUG, "%s: %s\n", function, sockshost2string(host, NULL, 0));
 
    switch (host->atype) {
       case SOCKS_ADDR_IPV4: {
@@ -73,12 +92,15 @@ socks_connect(s, host)
          rc = connect(s, (struct sockaddr *)&address, sizeof(address));
 
          if (rc == 0 || errno == EINPROGRESS)
-            slog(LOG_DEBUG, "%s, connected to %s", function,
-            sockaddr2string((struct sockaddr *)&address, NULL, 0));
+            slog(LOG_DEBUG, "%s: connect to %s %s",
+            function,
+            sockaddr2string((struct sockaddr *)&address, addrstr,
+            sizeof(addrstr)),
+            rc == 0 ? "ok" : "in progress");
          else
-            slog(LOG_DEBUG, "%s, failed connecting to %s: %s", function,
-            sockaddr2string((struct sockaddr *)&address, NULL, 0),
-            strerror(errno));
+            slog(LOG_DEBUG, "%s: failed connecting to %s: %s",
+            function, sockaddr2string((struct sockaddr *)&address,
+            addrstr, sizeof(addrstr)), strerror(errno));
 
          return rc;
       }
@@ -132,14 +154,15 @@ socks_connect(s, host)
       /* LINTED pointer casts may be troublesome */
       if (connect(s, (struct sockaddr *)&address, sizeof(address)) == 0
       ||  errno == EINPROGRESS) {
-         slog(LOG_DEBUG, "%s, connected to %s", function,
-         sockaddr2string((struct sockaddr *)&address, NULL, 0));
+         slog(LOG_DEBUG, "%s: connected to %s",
+         function, sockaddr2string((struct sockaddr *)&address, addrstr,
+         sizeof(addrstr)));
          break;
        }
        else 
          /* LINTED pointer casts may be troublesome */
-         slog(LOG_DEBUG, "%s, failed connecting to %s: %s", function,
-         sockaddr2string((struct sockaddr *)&address, NULL, 0),
+         slog(LOG_DEBUG, "%s: failed connecting to %s: %s", function,
+         sockaddr2string((struct sockaddr *)&address, addrstr, sizeof(addrstr)),
          strerror(errno));
 
 #if SOCKS_SERVER /* clients may have set up alarms to interrupt. */

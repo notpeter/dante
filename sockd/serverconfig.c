@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.219 2008/12/13 13:35:03 michaels Exp $";
+"$Id: serverconfig.c,v 1.227 2009/01/09 19:54:29 michaels Exp $";
 
 __BEGIN_DECLS
 
@@ -113,11 +113,11 @@ int allow_severity, deny_severity;
 #endif /* HAVE_LIBWRAP */
 
 /* expand array by one, increment argc. */
-#define NEWINTERNAL_EXTERNAL(argc, argv)  \
-do { \
+#define NEWINTERNAL_EXTERNAL(argc, argv)                       \
+do {                                                           \
    if ((argv = realloc(argv, sizeof(*argv) * ++argc)) == NULL) \
-      yyerror(NOMEM); \
-   bzero(&argv[argc - 1], sizeof(*argv)); \
+      yyerror(NOMEM);                                          \
+   bzero(&argv[argc - 1], sizeof(*argv));                      \
 } while (lintnoloop_common_h)
 
 
@@ -172,7 +172,7 @@ addinternal(addr)
          }
 
          case SOCKS_ADDR_IFNAME: {
-            struct ifaddrs ifa, *ifap = &ifa, *iface;
+            struct ifaddrs *ifap, *iface;
             int m;
 
             if (getifaddrs(&ifap) != 0)
@@ -239,7 +239,8 @@ addexternal(addr)
          NEWINTERNAL_EXTERNAL(sockscf.external.addrc,
          sockscf.external.addrv);
          sockscf.external.addrv[sockscf.external.addrc - 1] = *addr;
-         sockscf.external.addrv[sockscf.external.addrc - 1].addr.ipv4.mask.s_addr = htonl(0xffffffff);
+         sockscf.external.addrv[sockscf.external.addrc - 1]
+         .addr.ipv4.mask.s_addr = htonl(0xffffffff);
          break;
 
       case SOCKS_ADDR_IFNAME:
@@ -293,11 +294,9 @@ struct rule_t *
 addsocksrule(newrule)
    const struct rule_t *newrule;
 {
-
    struct rule_t *rule;
 
    rule = addrule(newrule, &sockscf.srule, 0);
-
    checkrule(rule);
 
    /* LINTED cast discards 'const' from pointer target type */
@@ -355,8 +354,6 @@ addgroup(rulegroup, name)
    return *rulegroup;
 }
 
-
-
 void
 showrule(rule)
    const struct rule_t *rule;
@@ -374,17 +371,23 @@ showrule(rule)
    slog(LOG_INFO, "dst: %s",
    ruleaddr2string(&rule->dst, addr, sizeof(addr)));
 
-   slog(LOG_INFO, "redirect from: %s",
-   ruleaddr2string(&rule->rdr_from, addr, sizeof(addr)));
+   if (rule->udprange.op == range)
+      slog(LOG_INFO, "udp portrange: %u - %u",
+      ntohs(rule->udprange.start), ntohs(rule->udprange.end));
 
-   slog(LOG_INFO, "redirect to: %s",
-   ruleaddr2string(&rule->rdr_to, addr, sizeof(addr)));
+   if (rule->rdr_from.addr.ipv4.ip.s_addr != htonl(INADDR_ANY))
+      slog(LOG_INFO, "redirect from: %s",
+      ruleaddr2string(&rule->rdr_from, addr, sizeof(addr)));
+
+   if (rule->rdr_to.addr.ipv4.ip.s_addr != htonl(INADDR_ANY))
+      slog(LOG_INFO, "redirect to: %s",
+      ruleaddr2string(&rule->rdr_to, addr, sizeof(addr)));
 
    if (rule->bw != NULL)
-      slog(LOG_INFO, "max bandwidth to use: %ld B/s", rule->bw->maxbps);
+      slog(LOG_INFO, "max bandwidth allowed: %ld B/s", rule->bw->maxbps);
 
    if (rule->ss != NULL)
-      slog(LOG_INFO, "max sessions: %d", rule->ss->maxsessions);
+      slog(LOG_INFO, "max sessions allowed: %d", rule->ss->maxsessions);
 
    showlist(rule->user, "user: ");
    showlist(rule->group, "group: ");
@@ -432,10 +435,10 @@ showclient(rule)
 #endif /* HAVE_PAM */
 
    if (rule->bw != NULL)
-      slog(LOG_INFO, "max bandwidth to use: %ld B/s", rule->bw->maxbps);
+      slog(LOG_INFO, "max bandwidth allowed: %ld B/s", rule->bw->maxbps);
 
    if (rule->ss != NULL)
-      slog(LOG_INFO, "max sessions: %d", rule->ss->maxsessions);
+      slog(LOG_INFO, "max sessions allowed: %d", rule->ss->maxsessions);
 
    showlog(&rule->log);
 
@@ -532,6 +535,7 @@ showconfig(sockscf)
       for (count = 0, route = sockscf->route; route != NULL;
       route = route->next)
          ++count;
+
       slog(LOG_DEBUG, "routes (%d): ", count);
       for (route = sockscf->route; route != NULL; route = route->next)
          socks_showroute(route);
@@ -551,8 +555,8 @@ resetconfig(void)
 
    /* external addresses can be changed. */
    free(sockscf.external.addrv);
-   sockscf.external.addrv         = NULL;
-   sockscf.external.addrc         = 0;
+   sockscf.external.addrv = NULL;
+   sockscf.external.addrc = 0;
 
    /* delete all old socks rules */
    rule = sockscf.srule;
@@ -762,8 +766,8 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
       defrule.dst                         = defrule.src;
 
       memset(&defrule.log, 0, sizeof(defrule.log));
-      defrule.log.connect      				= 1;
-      defrule.log.iooperation   				= 1; /* blocked iooperations. */
+      defrule.log.connect     = 1;
+      defrule.log.iooperation = 1; /* blocked iooperations. */
 
       if (sockscf.option.debug) {
          defrule.log.disconnect = 1;
@@ -977,6 +981,7 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
                      sizeof(state->auth.mdata.rfc931.name) - 1] != NUL) {
                         state->auth.mdata.rfc931.name[
                         sizeof(state->auth.mdata.rfc931.name) - 1] = NUL;
+
                         swarnx("%s: rfc931 name \"%s\" truncated", function,
                         state->auth.mdata.rfc931.name);
 
@@ -1019,13 +1024,13 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
                              const struct authmethod_rfc931_t rfc931
                              = state->auth.mdata.rfc931;
 
-                           /*
-                            * no password, but we can check for the username 
-                            * we got from ident, with an empty password.
-                            */
+                            /*
+                             * no password, but we can check for the username 
+                             * we got from ident, with an empty password.
+                             */
 
-                             strcpy((char *)state->auth.mdata.pam.name,
-                             (const char *)rfc931.name);
+                            strcpy((char *)state->auth.mdata.pam.name,
+                            (const char *)rfc931.name);
 
                            *state->auth.mdata.pam.password = NUL;
 
@@ -1038,8 +1043,8 @@ rulespermit(s, peer, local, match, state, src, dst, msg, msgsize)
                             * PAM can also support no username/password.
                             */
 
-                           *state->auth.mdata.pam.name      = NUL;
-                           *state->auth.mdata.pam.password   = NUL;
+                           *state->auth.mdata.pam.name     = NUL;
+                           *state->auth.mdata.pam.password = NUL;
 
                            methodischeckable = 1;
                            break;
@@ -1159,8 +1164,8 @@ authinfo(auth, info, infolen)
    const char *name, *method;
 
    if (auth != NULL) {
-      name       = authname(auth);
-      method    = method2string(auth->method);
+      name   = authname(auth);
+      method = method2string(auth->method);
    }
    else
       name = method = NULL;
@@ -1206,8 +1211,10 @@ addressisbindable(addr)
 
       case SOCKS_ADDR_IFNAME:
          if (ifname2sockaddr(addr->addr.ifname, 0, &saddr, NULL) == NULL) {
-            swarn("%s: can't find interface: %s", function, addr->addr.ifname);
+            swarnx("%s: can't find interface named %s with ip configured",
+            function, addr->addr.ifname);
             close(s);
+
             return 0;
          }
 
@@ -1216,6 +1223,7 @@ addressisbindable(addr)
             function, sockaddr2string(&saddr, saddrs, sizeof(saddrs)),
             addr->addr.ifname);
             close(s);
+
             return 0;
          }
          break;
@@ -1286,8 +1294,8 @@ addrule(newrule, rulebase, client)
     */
 
    if (sockscf.option.debug) {
-      rule->log.connect         = 1;
-      rule->log.disconnect      = 1;
+      rule->log.connect       = 1;
+      rule->log.disconnect    = 1;
       rule->log.error         = 1;
       rule->log.iooperation   = 1;
    }
@@ -1316,8 +1324,10 @@ addrule(newrule, rulebase, client)
    /* warn about methods not set in the global method?  May not be an error. */
    for (i = 0; i < rule->state.methodc; ++i)
       if (!methodisset(rule->state.methodv[i], methodv, methodc))
-         yywarn("method \"%s\" set in rule but not in global methodline",
-         method2string(rule->state.methodv[i]));
+         yywarn("method \"%s\" set in local rule, but not in global "
+                "%smethod specification",
+                method2string(rule->state.methodv[i]),
+                methodv == sockscf.clientmethodv ? "client" : "");
 
    /* if no protocol set, set all for socks-rules, tcp for client-rules. */
    if (memcmp(&state.protocol, &rule->state.protocol, sizeof(state.protocol))

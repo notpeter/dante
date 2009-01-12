@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,10 +44,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.130 2008/12/09 17:14:58 michaels Exp $";
+"$Id: connectchild.c,v 1.134 2009/01/12 13:02:10 michaels Exp $";
 
 #define MOTHER 0   /* descriptor mother reads/writes on.  */
-#define CHILD   1   /* descriptor child reads/writes on.   */
+#define CHILD   1  /* descriptor child reads/writes on.   */
 
 __BEGIN_DECLS
 
@@ -180,8 +180,8 @@ socks_nbconnectroute(s, control, packet, src, dst)
             if (signal(SIGALRM, SIG_DFL) == SIG_ERR)
                swarn("%s: signal()", function);
 
-            timerval.it_value.tv_sec   = 0;
-            timerval.it_value.tv_usec   = 0;
+            timerval.it_value.tv_sec  = 0;
+            timerval.it_value.tv_usec = 0;
             timerval.it_interval = timerval.it_value;
 
             if (setitimer(ITIMER_REAL, &timerval, NULL) != 0)
@@ -234,9 +234,9 @@ socks_nbconnectroute(s, control, packet, src, dst)
           */
 
          bzero(&addr, sizeof(addr));
-         addr.sin_family       = AF_INET;
-         addr.sin_addr.s_addr    = htonl(INADDR_ANY);
-         addr.sin_port          = htons(0);
+         addr.sin_family      = AF_INET;
+         addr.sin_addr.s_addr = htonl(INADDR_ANY);
+         addr.sin_port        = htons(0);
 
          /* LINTED pointer casts may be troublesome */
          if (bind(control, (struct sockaddr *)&addr, sizeof(addr)) != 0
@@ -344,11 +344,11 @@ socks_nbconnectroute(s, control, packet, src, dst)
       SERR(s);
 
    /* this has to be done here or there would be a race against the signal. */
-   socksfd.control            = control;
-   socksfd.state.command      = packet->req.command;
-   socksfd.state.version      = packet->req.version;
-   socksfd.state.protocol.tcp   = 1;
-   socksfd.state.inprogress   = 1;
+   socksfd.control             = control;
+   socksfd.state.command       = packet->req.command;
+   socksfd.state.version       = packet->req.version;
+   socksfd.state.protocol.tcp  = 1;
+   socksfd.state.inprogress    = 1;
    sockshost2sockaddr(&packet->req.host, &socksfd.forus.connected);
 
    socks_addaddr((unsigned int)s, &socksfd, 0);
@@ -379,19 +379,21 @@ socks_nbconnectroute(s, control, packet, src, dst)
          SERRX(packet->req.version);
    }
 
-   childreq.s         = s;
-   childreq.src      = *src;
-   childreq.dst      = *dst;
-   childreq.packet   = *packet;
+   childreq.s       = s;
+   childreq.src     = *src;
+   childreq.dst     = *dst;
+   childreq.packet  = *packet;
 
-   iov[0].iov_base   = &childreq;
-   iov[0].iov_len      = sizeof(childreq);
-   len               = sizeof(childreq);
+   bzero(iov, sizeof(iov));
+   iov[0].iov_base  = &childreq;
+   iov[0].iov_len   = sizeof(childreq);
+   len              = sizeof(childreq);
 
-   msg.msg_iov            = iov;
-   msg.msg_iovlen         = ELEMENTS(iov);
-   msg.msg_name         = NULL;
-   msg.msg_namelen      = 0;
+   bzero(&msg, sizeof(msg));
+   msg.msg_iov      = iov;
+   msg.msg_iovlen   = ELEMENTS(iov);
+   msg.msg_name     = NULL;
+   msg.msg_namelen  = 0;
 
    /* LINTED pointer casts may be troublesome */
    CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
@@ -430,7 +432,7 @@ run_connectchild(mother)
 
    (void)sigemptyset(&sig.sa_mask);
    sig.sa_flags   = 0;
-   sig.sa_handler   = SIG_DFL;
+   sig.sa_handler = SIG_DFL;
 
    if (sigaction(SIGCONT, &sig, NULL) != 0)
       serr(EXIT_FAILURE, "%s: sigaction(SIGCONT)", function);
@@ -466,14 +468,16 @@ run_connectchild(mother)
          struct msghdr msg;
          CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
-         iov[0].iov_base   = &req;
-         iov[0].iov_len      = sizeof(req);
-         len               = sizeof(req);
+         bzero(iov, sizeof(iov));
+         iov[0].iov_base  = &req;
+         iov[0].iov_len   = sizeof(req);
+         len              = sizeof(req);
 
-         msg.msg_iov          = iov;
-         msg.msg_iovlen       = ELEMENTS(iov);
-         msg.msg_name         = NULL;
-         msg.msg_namelen      = 0;
+         bzero(&msg, sizeof(msg));
+         msg.msg_iov      = iov;
+         msg.msg_iovlen   = ELEMENTS(iov);
+         msg.msg_name     = NULL;
+         msg.msg_namelen  = 0;
 
          /* LINTED pointer casts may be troublesome */
          CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
@@ -564,19 +568,26 @@ run_connectchild(mother)
          ||           fcntl(s, F_SETFL, flags & ~NONBLOCKING) == -1)
             swarn("%s: fcntl(s)", function);
 
-         /* default, in case we don't even get a response. */
+         /*
+          * default, in case we don't even get a response.
+          */
+
          req.packet.res.reply = (char)sockscode(req.packet.req.version,
          SOCKS_FAILURE);
-         req.packet.res.version = req.packet.req.version;
+
+         if (req.packet.req.version == PROXY_SOCKS_V4)
+            req.packet.res.version = PROXY_SOCKS_V4REPLY_VERSION;
+         else
+            req.packet.res.version = req.packet.req.version;
 
          /* CONSTCOND */
-         if (1) { /* XXX wait for the connection to complete. */
+         if (1) {
             fd_set wset;
 
             FD_ZERO(&wset);
             FD_SET(control, &wset);
 
-            slog(LOG_DEBUG, "%s: waiting for connectresponse ...", function);
+            slog(LOG_DEBUG, "%s: waiting for connect response ...", function);
             switch (selectn(control + 1, NULL, &wset, NULL, NULL)) {
                case -1:
                   SERR(-1);
@@ -619,11 +630,9 @@ run_connectchild(mother)
              * this is pretty bad, but it could happen unfortunately.
              */
             bzero(&local, sizeof(local));
-            local.sa_family = AF_INET;
-            /* LINTED pointer casts may be troublesome */
+            local.sa_family               = AF_INET;
             TOIN(&local)->sin_addr.s_addr = htonl(INADDR_ANY);
-            /* LINTED pointer casts may be troublesome */
-            TOIN(&local)->sin_port = htons(0);
+            TOIN(&local)->sin_port        = htons(0);
          }
 
          len = sizeof(remote);
@@ -632,11 +641,9 @@ run_connectchild(mother)
                swarn("%s: getpeername(control)", function);
 
             bzero(&remote, sizeof(remote));
-            remote.sa_family = AF_INET;
-            /* LINTED pointer casts may be troublesome */
+            remote.sa_family               = AF_INET;
             TOIN(&remote)->sin_addr.s_addr = htonl(INADDR_ANY);
-            /* LINTED pointer casts may be troublesome */
-            TOIN(&remote)->sin_port = htons(0);
+            TOIN(&remote)->sin_port        = htons(0);
          }
 
          sockaddr2sockshost(&local, &req.src);

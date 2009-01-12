@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.51 2008/12/15 00:22:51 karls Exp $";
+"$Id: Rgethostbyname.c,v 1.53 2009/01/02 14:06:02 michaels Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -99,8 +99,8 @@ Rgethostbyname2(name, af)
    if ((hostent->h_name = strdup(name)) == NULL)
       return NULL;
 
-   hostent->h_aliases   = aliases;
-   hostent->h_addrtype   = af;
+   hostent->h_aliases  = aliases;
+   hostent->h_addrtype = af;
 
    if (hostent->h_addr_list == NULL) {
       /* * 2; NULL terminated and always only one valid entry (fake). */
@@ -114,8 +114,8 @@ Rgethostbyname2(name, af)
       case AF_INET: {
          static char ipv4[INET_ADDRSTRLEN];
 
-         hostent->h_length         = sizeof(ipv4);
-         *hostent->h_addr_list   = ipv4;
+         hostent->h_length     = sizeof(ipv4);
+         *hostent->h_addr_list = ipv4;
          break;
       }
 
@@ -123,8 +123,8 @@ Rgethostbyname2(name, af)
       case AF_INET6: {
          static char ipv6[INET6_ADDRSTRLEN];
 
-         hostent->h_length         = sizeof(ipv6);
-         *hostent->h_addr_list   = ipv6;
+         hostent->h_length     = sizeof(ipv6);
+         *hostent->h_addr_list = ipv6;
          break;
       }
 #endif /* HAVE_IPV6_SUPPORT */
@@ -229,20 +229,20 @@ Rgetaddrinfo(nodename, servname, hints, res)
    strcpy(addrstr, inet_ntoa(ipindex));
 
    if (hints == NULL) {
-      fakehints.ai_flags   = AI_NUMERICHOST;
-      fakehints.ai_family   = PF_INET;
-      fakehints.ai_socktype   = 0;
-      fakehints.ai_protocol   = 0;
+      fakehints.ai_flags     = AI_NUMERICHOST;
+      fakehints.ai_family    = PF_INET;
+      fakehints.ai_socktype  = 0;
+      fakehints.ai_protocol  = 0;
    } else {
-      fakehints.ai_flags   = hints->ai_flags | AI_NUMERICHOST;
+      fakehints.ai_flags    = hints->ai_flags | AI_NUMERICHOST;
       fakehints.ai_family   = hints->ai_family;
-      fakehints.ai_socktype   = hints->ai_socktype;
-      fakehints.ai_protocol   = hints->ai_protocol;
+      fakehints.ai_socktype = hints->ai_socktype;
+      fakehints.ai_protocol = hints->ai_protocol;
    }
    fakehints.ai_addrlen   = 0;
-   fakehints.ai_canonname   = NULL;
-   fakehints.ai_addr   = NULL;
-   fakehints.ai_next   = NULL;
+   fakehints.ai_canonname = NULL;
+   fakehints.ai_addr      = NULL;
+   fakehints.ai_next      = NULL;
    
    return getaddrinfo(addrstr, servname, &fakehints, res);
 }
@@ -304,8 +304,8 @@ Rgetipnodebyname2(name, af, flags, error_num)
       return NULL;
    }
 
-   hostent->h_aliases   = NULL;
-   hostent->h_addrtype   = af;
+   hostent->h_aliases  = NULL;
+   hostent->h_addrtype = af;
 
    /* * 2; NULL terminated. */
    if ((addrlist = malloc(sizeof(addrlist) * 2)) == NULL) {

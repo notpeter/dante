@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.179 2008/07/25 08:48:35 michaels Exp $ */
+/* $Id: socks.h,v 1.183 2009/01/02 15:23:09 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -136,6 +136,11 @@ extern const int lintnoloop_socks_h;
 #define getsockname(s, name, namelen)   sys_getsockname(s, name, namelen)
 #endif  /* HAVE_EXTRA_OSF_SYMBOLS */
 
+#ifdef listen
+#undef listen
+#endif /* listen */
+#define listen(s, backlog)   sys_listen(s, backlog)
+
 #ifdef read
 #undef read
 #endif  /* read */
@@ -207,28 +212,28 @@ struct configstate_t {
 
 struct option_t {
    int               debug;
-   char               *configfile;   /* name of current configfile.            */
+   char               *configfile;  /* name of current configfile.            */
    unsigned            :0;
 };
 
 
 
 struct config_t {
-   pid_t                        connectchild;            /* connect process.      */
-   int                        connect_s;               /* socket to child.      */
-   char                        domain[MAXHOSTNAMELEN]; /* localdomain.         */
-   struct logtype_t            log;                     /* where to log.         */
-   struct option_t            option;                  /* misc. options.         */
-   struct configstate_t         state;
-   int                        resolveprotocol;         /* resolveprotocol.      */
-   struct route_t               *route;                  /* linked list of routes*/
+   pid_t                    connectchild;            /* connect process.      */
+   int                      connect_s;               /* socket to child.      */
+   char                     domain[MAXHOSTNAMELEN]; /* localdomain.           */
+   struct logtype_t         log;                     /* where to log.         */
+   struct option_t          option;                  /* misc. options.        */
+   struct configstate_t     state;
+   int                      resolveprotocol;         /* resolveprotocol.      */
+   struct route_t           *route;                  /* linked list of routes */
 };
 
 struct childpacket_t {
-   int                  s;            /* filedescriptor number.                  */
-   struct sockshost_t   src;         /* local address of control-connection.    */
-   struct sockshost_t   dst;         /* remote address of control-connection.    */
-   struct socks_t       packet;      /* socks packet exchanged with server.      */
+   int                  s;         /* filedescriptor number.                  */
+   struct sockshost_t   src;       /* local address of control-connection.    */
+   struct sockshost_t   dst;       /* remote address of control-connection.   */
+   struct socks_t       packet;    /* socks packet exchanged with server.     */
 };
 
 
@@ -317,6 +322,15 @@ void socks_addrunlock(void);
  * functions do this themselves, so do not call it before calling
  * any of them.
  * "type" is one of F_WRLCK or F_RDLCK, for write or read-lock. 
+ */
+
+struct socksfd_t *
+socksfddup __P((const struct socksfd_t *old, struct socksfd_t *new));
+/*
+ * Duplicates "old", in "new".
+ * Returns:
+ *    On success: "new".
+ *    On failure: NULL (resource shortage).
  */
 
 const struct socksfd_t *
@@ -470,6 +484,8 @@ void sys_freehostent __P((struct hostent *));
 
 HAVE_PROT_READ_0 sys_read
 __P((HAVE_PROT_READ_1, HAVE_PROT_READ_2, HAVE_PROT_READ_3));
+HAVE_PROT_LISTEN_0 sys_listen
+__P((HAVE_PROT_LISTEN_1, HAVE_PROT_LISTEN_2));
 HAVE_PROT_READV_0 sys_readv
 __P((HAVE_PROT_READV_1, HAVE_PROT_READV_2, HAVE_PROT_READV_3));
 HAVE_PROT_RECV_0 sys_recv

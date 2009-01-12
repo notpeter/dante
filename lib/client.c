@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.65 2008/11/17 16:09:28 michaels Exp $";
+"$Id: client.c,v 1.67 2009/01/02 14:06:03 michaels Exp $";
 
 #if !HAVE_PROGNAME
    char *__progname = "danteclient";
@@ -97,7 +97,7 @@ clientinit(void)
     * initialize misc. options to sensible default.
     */
 
-   sockscf.resolveprotocol   = RESOLVEPROTOCOL_UDP;
+   sockscf.resolveprotocol = RESOLVEPROTOCOL_UDP;
 
 #if HAVE_SOCKADDR_SA_LEN
    sockscf.state.lastconnect.sa_len    = sizeof(sockscf.state.lastconnect);
