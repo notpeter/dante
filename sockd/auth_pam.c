@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2002, 2003, 2004, 2009
+ * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,9 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.45 2009/01/02 14:06:07 michaels Exp $";
-
-__BEGIN_DECLS
+"$Id: auth_pam.c,v 1.59 2009/10/07 11:46:50 michaels Exp $";
 
 static int
 _pam_conversation(int msgc, const struct pam_message **msgv,
@@ -66,8 +64,6 @@ typedef struct
 } _pam_data_t;
 
 
-__END_DECLS
-
 int
 pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    int s;
@@ -77,12 +73,11 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    size_t emsgsize;
 {
    const char *function = "pam_passwordcheck()";
-   static pam_handle_t *pamh;
-   static int rc;
    struct authmethod_pam_t authdata = *auth;
-   struct pam_conv pamconv = { _pam_conversation, &authdata };
+   struct pam_conv pamconv;
+   pam_handle_t *pamh;
    size_t i;
-   uid_t euid;
+   int rc;
 
    /*
     * unforunatly we can not set password here, that needs to be set
@@ -96,77 +91,71 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    } pamval[] = {
       { PAM_CONV,  "PAM_CONV",  &pamconv },
       { PAM_RHOST, "PAM_RHOST", inet_ntoa(TOCIN(src)->sin_addr) },
+      { PAM_USER,  "PAM_USER",  auth->name },
    };
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s: pam servicename to use for user \"%s\": %s",
+   function, auth->name, auth->servicename);
 
-   socks_seteuid(&euid, sockscf.uid.privileged);
+   pamconv.conv        = _pam_conversation;
+   pamconv.appdata_ptr = &authdata;
 
-#if HAVE_LINUX_BUGS /*
-                     * At least one implementation of pam on linux
-                     * starts some sort of busy-loop after a while,
-                     * unless we close the old session.
-                     */
-   if (pamh != NULL) { 
-      pam_end(pamh, rc);
-      pamh = NULL;
-   }  
-#endif /* HAVE_LINUX_BUGS */
+   sockd_priv(SOCKD_PRIV_PAM, PRIV_ON);
+   rc = pam_start(auth->servicename, NULL, &pamconv, &pamh);
+   sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
 
-   if (pamh == NULL) {
-      if ((rc = pam_start(*auth->servicename == NUL ?
-      DEFAULT_PAMSERVICENAME : auth->servicename, (const char *)auth->name, 
-      &pamconv, &pamh)) != PAM_SUCCESS) {
-         socks_reseteuid(sockscf.uid.privileged, euid);
-         snprintf(emsg, emsgsize, "pam_start(): %s", pam_strerror(pamh, rc));
-         pam_end(pamh, rc);
-         pamh = NULL;
-         return -1;
-      }
-   }
-   else { /*
-           * already set up, just make sure servicename is set correctly too,
-           * since it can vary on a rule-by-rule basis.
-           */
-      if ((rc = pam_set_item(pamh, PAM_SERVICE, *auth->servicename == NUL ?
-      DEFAULT_PAMSERVICENAME : auth->servicename)) != PAM_SUCCESS) {
-         socks_reseteuid(sockscf.uid.privileged, euid);
-         snprintf(emsg, emsgsize, "failed to set PAM_SERVICE: %s",
-         pam_strerror(pamh, rc));
-         pamh = NULL;
-         return -1;
-      }
+   /*
+    * Note: we can not save the state of pam after pam_start(3), as 
+    * e.g. Solaris 5.11 pam does not allow setting PAM_SERVICE
+    * except during pam_start(3). 
+    * Some Linux pam-implementations on the other hand can enter 
+    * some sort of busy-loop if we don't call pam_end(3) ever so 
+    * often, so just disregard all that optimization stuff for
+    * now and call pam_start(3) and pam_end(3) every time.
+    */
+   if (rc != PAM_SUCCESS) {
+      snprintf(emsg, emsgsize, "pam_start() failed: %s",
+      pam_strerror(pamh, rc));
+
+      return -1;
    }
 
    for (i = 0; i < ELEMENTS(pamval); ++i) {
-      slog(LOG_DEBUG, "setting item %s to value %s", 
-      pamval[i].itemname, pamval[i].value);
+      slog(LOG_DEBUG, "%s: setting item \"%s\" to value \"%s\"",
+      function, pamval[i].itemname, (const char *)pamval[i].value);
 
       if ((rc = pam_set_item(pamh, pamval[i].item, pamval[i].value))
       != PAM_SUCCESS) {
-         socks_reseteuid(sockscf.uid.privileged, euid);
-         snprintf(emsg, emsgsize, "pam_set_item(%s): %s",
-         pamval[i].itemname, pam_strerror(pamh, rc));
+         snprintf(emsg, emsgsize, "pam_set_item(%s) to %s failed: %s",
+                                  pamval[i].itemname,
+                                  (const char *)pamval[i].value,
+                                  pam_strerror(pamh, rc));
+
          pam_end(pamh, rc);
-         pamh = NULL;
          return -1;
       }
    }
 
+   sockd_priv(SOCKD_PRIV_PAM, PRIV_ON);
    if ((rc = pam_authenticate(pamh, 0)) != PAM_SUCCESS) {
-      socks_reseteuid(sockscf.uid.privileged, euid);
+      sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
+
       snprintf(emsg, emsgsize, "pam_authenticate(): %s",
       pam_strerror(pamh, rc));
+
+      pam_end(pamh, rc);
       return -1;
    }
 
-   if ((rc = pam_acct_mgmt(pamh, 0)) != PAM_SUCCESS) {
-      socks_reseteuid(sockscf.uid.privileged, euid);
+   rc = pam_acct_mgmt(pamh, PAM_SILENT);
+   sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
+   if (rc != PAM_SUCCESS) {
       snprintf(emsg, emsgsize, "pam_acct_mgmt(): %s", pam_strerror(pamh, rc));
+
+      pam_end(pamh, rc);
       return -1;
    }
 
-   socks_reseteuid(sockscf.uid.privileged, euid);
    return 0;
 }
 
@@ -186,7 +175,7 @@ _pam_conversation(msgc, msgv, rspv, authdata)
       return PAM_CONV_ERR;
    }
 
-   if (((*rspv) = malloc(msgc * sizeof(struct pam_response))) == NULL) { 
+   if (((*rspv) = malloc(msgc * sizeof(struct pam_response))) == NULL) {
       swarn("%s: malloc(%d * %d)", function, msgc, sizeof(struct pam_response));
       return PAM_CONV_ERR;
    }
@@ -196,10 +185,6 @@ _pam_conversation(msgc, msgv, rspv, authdata)
 
       (*rspv)[i].resp_retcode = 0;
       switch(msgv[i]->msg_style) {
-         case PAM_PROMPT_ECHO_ON:
-            (*rspv)[i].resp = strdup((const char *)auth->name);
-            break;
-
          case PAM_PROMPT_ECHO_OFF:
             (*rspv)[i].resp = strdup((const char *)auth->password);
             break;
@@ -209,7 +194,7 @@ _pam_conversation(msgc, msgv, rspv, authdata)
 
             swarnx("%s: unknown msg_style = %d", function, msgv[i]->msg_style);
             for (j = 0; j < i; ++j)
-               free((*rspv)[i].resp);         
+               free((*rspv)[i].resp);
             free(*rspv);
 
             return PAM_CONV_ERR;

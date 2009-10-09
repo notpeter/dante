@@ -1,12 +1,11 @@
-/* $Id: getifaddrs.c,v 1.7 2009/01/12 17:12:02 karls Exp $ */
+/* $Id: getifaddrs.c,v 1.12 2009/07/07 12:54:47 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
-#endif  /* HAVE_CONFIG_H */
+#endif /* HAVE_CONFIG_H */
 
 #include "common.h"
 
-#if !HAVE_GETIFADDRS
 /*
  * Copyright (c) 2000 - 2002, 2005 Kungliga Tekniska Högskolan
  * (Royal Institute of Technology, Stockholm, Sweden).
@@ -43,7 +42,7 @@
 #if 0
 #ifdef HAVE_CONFIG_H
 #include <config.h>
-RCSID("$Id: getifaddrs.c,v 1.7 2009/01/12 17:12:02 karls Exp $");
+RCSID("$Id: getifaddrs.c,v 1.12 2009/07/07 12:54:47 karls Exp $");
 #endif
 #include "roken.h"
 #endif
@@ -67,9 +66,7 @@ struct mbuf;
 #endif /* HAVE_NETINET_IN6_VAR_H */
 #endif
 
-#if 0
-#include <ifaddrs.h>
-#endif
+#include "ifaddrs_compat.h"
 
 #ifdef __hpux
 #define lifconf if_laddrconf
@@ -146,8 +143,9 @@ struct mbuf;
 #include <sys/uio.h>
 #include <net/if.h>
 #include <net/if_arp.h>
-#include <ifaddrs.h>
 #include <netinet/in.h>
+
+#include "ifaddrs.h_compat"
 
 #define __set_errno(e) (errno = (e))
 #define __close(fd) (close(fd))
@@ -519,7 +517,7 @@ nl_open(void)
 
 /* ====================================================================== */
 int ROKEN_LIB_FUNCTION
-rk_getifaddrs(struct ifaddrs **ifap)
+getifaddrs(struct ifaddrs **ifap)
 {
   int sd;
   struct nlmsg_list *nlmsg_list, *nlmsg_end, *nlm;
@@ -1028,7 +1026,7 @@ getifaddrs2(struct ifaddrs **ifap,
     free(buf);
     return 0;
   error_out:
-    rk_freeifaddrs(start);
+    freeifaddrs(start);
     close(fd);
     free(buf);
     errno = ret;
@@ -1191,7 +1189,7 @@ getlifaddrs2(struct ifaddrs **ifap,
     free(buf);
     return 0;
   error_out:
-    rk_freeifaddrs(start);
+    freeifaddrs(start);
     close(fd);
     free(buf);
     errno = ret;
@@ -1203,7 +1201,7 @@ getlifaddrs2(struct ifaddrs **ifap,
 
 
 int ROKEN_LIB_FUNCTION
-rk_getifaddrs(struct ifaddrs **ifap) 
+getifaddrs(struct ifaddrs **ifap) 
 {
     int ret = -1;
     errno = ENXIO;
@@ -1240,7 +1238,7 @@ rk_getifaddrs(struct ifaddrs **ifap)
 #endif /* !AF_NETLINK */
 
 void ROKEN_LIB_FUNCTION
-rk_freeifaddrs(struct ifaddrs *ifp)
+freeifaddrs(struct ifaddrs *ifp)
 {
     struct ifaddrs *p, *q;
     
@@ -1307,9 +1305,3 @@ main()
     return 0;
 }
 #endif
-static void avoid_error __P((void));
-static void avoid_error()
-{
-   avoid_error();
-}
-#endif  /* !HAVE_GETIFADDRS */

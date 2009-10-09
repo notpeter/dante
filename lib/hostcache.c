@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,11 +44,9 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.29 2009/01/02 14:06:05 michaels Exp $";
+"$Id: hostcache.c,v 1.35 2009/09/06 19:31:02 michaels Exp $";
 
-__BEGIN_DECLS
-
-#if SOCKS_SERVER
+#if !SOCKS_CLIENT
 
 #undef gethostbyaddr
 #undef gethostbyname
@@ -56,12 +54,12 @@ __BEGIN_DECLS
 #if SOCKSLIBRARY_DYNAMIC
 
 #define gethostbyaddr(addr, len, type)   sys_gethostbyaddr(addr, len, type)
-#define gethostbyname(name)            sys_gethostbyname(name)
+#define gethostbyname(name)              sys_gethostbyname(name)
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
 static struct hostent *
-hostentupdate __P((struct hostent *old, const struct hostent *new));
+hostentupdate(struct hostent *old, struct hostent *new);
 /*
  * Updates "old" with the contents of "new", freeing any
  * resources currently used by "old".
@@ -71,23 +69,23 @@ hostentupdate __P((struct hostent *old, const struct hostent *new));
 */
 
 static int
-hosthash __P((const char *name, size_t size));
+hosthash(const char *name, size_t size);
 /*
  * Calculates a hashvalue for "name" and returns it's value.
  * Size of hashtable is given by "size".
 */
 
 static int
-addrhash __P((in_addr_t addr, size_t size));
+addrhash(in_addr_t addr, size_t size);
 /*
  * Calculates a hashvalue for "addr" and returns it's value.
  * Size of hashtable is given by "size".
 */
 
-#endif /* SOCKS_SERVER */
+#endif /* !SOCKS_CLIENT */
 
 static char **
-listrealloc __P((char ***old, const char ***new, int length));
+listrealloc(char ***old, char ***new, int length);
 /*
  * Reallocates "old" and copies in the contents of "new".
  * The last element of both "old" and "new" must be NULL.
@@ -99,11 +97,10 @@ listrealloc __P((char ***old, const char ***new, int length));
  *      On failure: NULL.
 */
 
-__END_DECLS
 
 struct hostent *
 hostentdup(hostent)
-   const struct hostent *hostent;
+   struct hostent *hostent;
 {
    static struct hostent dupedinit;
    struct hostent *duped;
@@ -118,8 +115,7 @@ hostentdup(hostent)
       return NULL;
    }
 
-   if (listrealloc(&duped->h_aliases, (const char ***)&hostent->h_aliases, -1)
-   == NULL) {
+   if (listrealloc(&duped->h_aliases, &hostent->h_aliases, -1) == NULL) {
       hostentfree(duped);
       return NULL;
    }
@@ -127,7 +123,7 @@ hostentdup(hostent)
    duped->h_addrtype = hostent->h_addrtype;
    duped->h_length   = hostent->h_length;
 
-   if (listrealloc(&duped->h_addr_list, (const char ***)&hostent->h_addr_list,
+   if (listrealloc(&duped->h_addr_list, &hostent->h_addr_list,
    hostent->h_length) == NULL) {
       hostentfree(duped);
       return NULL;
@@ -166,7 +162,7 @@ hostentfree(hostent)
 static char **
 listrealloc(old, new, length)
    char ***old;
-   const char ***new;
+   char ***new;
    int length;
 {
    int i, oldi, newi;
@@ -197,12 +193,13 @@ listrealloc(old, new, length)
       else
          memcpy((*old)[newi], (*new)[newi], (size_t)length);
    }
+
    (*old)[newi] = NULL;
 
    return *old;
 }
 
-#if SOCKS_SERVER
+#if !SOCKS_CLIENT
 
 struct hostent *
 cgethostbyname(name)
@@ -276,8 +273,8 @@ cgethostbyname(name)
 
 struct hostent *
 cgethostbyaddr(addr, len, type)
-   const char *addr;
-   int len;
+   const void *addr;
+   socklen_t len;
    int type;
 {
    const char *function = "cgethostbyaddr()";
@@ -384,7 +381,7 @@ addrhash(addr, size)
 static struct hostent *
 hostentupdate(old, new)
    struct hostent *old;
-   const struct hostent *new;
+   struct hostent *new;
 {
 
    if ((old->h_name = realloc(old->h_name, strlen(new->h_name) + 1))
@@ -392,18 +389,16 @@ hostentupdate(old, new)
       return NULL;
    strcpy(old->h_name, new->h_name);
 
-   if (listrealloc(&old->h_aliases, (const char ***)&new->h_aliases, -1)
-   == NULL)
+   if (listrealloc(&old->h_aliases, &new->h_aliases, -1) == NULL)
       return NULL;
 
    old->h_addrtype   = new->h_addrtype;
    old->h_length      = new->h_length;
 
-   if (listrealloc(&old->h_addr_list, (const char ***)&new->h_addr_list,
-   new->h_length) == NULL)
+   if (listrealloc(&old->h_addr_list, &new->h_addr_list, new->h_length) == NULL)
       return NULL;
 
    return old;
 }
 
-#endif /* SOCKS_SERVER */
+#endif /* !SOCKS_CLIENT */

@@ -1,4 +1,4 @@
-%@(#)$Id: redirect.tex,v 1.12 2006/03/05 11:53:47 karls Exp $
+%@(#)$Id: redirect.tex,v 1.15 2009/09/10 16:09:16 michaels Exp $
 %/*
 % * Copyright (c) 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -55,7 +55,7 @@
 	Gaustadalleen 21	\\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2006/03/05 11:53:47 $$$$}
+\date{$$$$Date: 2009/09/10 16:09:16 $$$$}
 
 \makeindex
 
@@ -80,9 +80,6 @@
  useful for cases where a firewall needs to know what portranges
  the Dante server will use.
 
- A stranger but also possible use is to limit the number of sessions
- clients can establish.
-
 \section{Syntax}
  The syntax of the \texttt{redirect} statement is as follows:
 
@@ -93,15 +90,25 @@
 
  \texttt{address} are addresses in the usual Dante format.
 
+ As a special short-cut where applicable, if the "to:" address does not
+ contain a port-specifier, the Dante server will use the same port as in
+ the original socks-request where applicable.
+
+ This makes it possible to redirect all connections to one given host,
+ to another given host, without having to specify one redirect statement
+ for each portnumber, and is applicable to the \texttt{connect} and
+ \texttt{udpassociate} commands.
+
 \section{Semantics}
  The \texttt{redirect} statement integrates as a part of socks-rules.
 
  The meaning of \texttt{to} and \texttt{from} varies considerably
  depending on what socks \texttt{command} the \texttt{redirect}
- statement applies to.  The next section will detail the semantics
- of each \emph{redirect} application based on the \texttt{command}
- used (with the corresponding \texttt{protocol} in parenthesis, for
- those preferring that).
+ statement applies to.
+
+ The next section will detail the semantics of each \emph{redirect}
+ application based on the \texttt{command} used (with the corresponding
+ \texttt{protocol} in parenthesis, for those preferring using that).
 
  \subsection{\texttt{bind} (\texttt{protocol: tcp})}
   \texttt{from} is the address to bind on behalf of the client. \\
@@ -152,40 +159,8 @@ pass {
   \begin{verbatim}
 pass {
    from: 10.0.0.0/24
-   redirect from: de1 port > 32768}
+   redirect from: de1 port > 32768
 }
   \end{verbatim}
-
- \subsection{Limiting concurrent user sessions}
-  A more novel use of the \texttt{redirect} statement allows one,
-  in a rather ad-hoc way, to limit the number of concurrent
-  user sessions.
-
-  The next rule says the server should limit itself to using
-  the portrange \texttt{2048 - 2051} on the interface
-  \texttt{de1}, a range of four portnumbers, for the client 10.0.0.1.
-
-  \begin{verbatim}
-pass {
-   from: 10.0.0.1/32
-   redirect from: de1 port 2048 - 2051
-}
-  \end{verbatim}
-
-	When the client 10.1.1.1 reaches four concurrent sessions, it will not
-	be able to create new ones until it closes one of the previously
-	established sessions.
-
-   For this to work correctly it is however required that no other
-   client accidently ends up using the same portrange.  One
-	way to accomplish this is to make the interfacename \texttt{de1}
-	be used uniquely for this sort of thing, or to make sure
-	all other rules use a different portrange by way of having
-	their own \texttt{redirect} statement.  The former is greatly
-	preferred.
-
-	As can probably be guessed, this is a new usage of the \texttt{redirect}
-	statement that was not intended in the design, but was discovered
-	by accident and is mentioned here since it could be useful.
 
 \end{document}

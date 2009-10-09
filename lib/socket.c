@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2001, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,39 +44,22 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.38 2009/01/11 22:01:57 michaels Exp $";
+"$Id: socket.c,v 1.63 2009/10/08 09:19:11 michaels Exp $";
 
 int
-socks_connect(s, host)
+socks_connecthost(s, host)
    int s;
    const struct sockshost_t *host;
 {
-   const char *function = "socks_connect()";
+   const char *function = "socks_connecthost()";
    struct hostent *hostent;
    struct sockaddr_in address;
+   socklen_t len;
    char **ip, addrstr[MAXSOCKADDRSTRING], hoststr[MAXSOCKSHOSTSTRING];
    int failed;
 
-   if (sockscf.option.debug) {
-      socklen_t len;
-
-      len = sizeof(address);
-      if (getsockname(s, (struct sockaddr *)&address, &len) == -1) {
-         slog(LOG_DEBUG, "%s: %s: getsockname(2) failed: %s",
-         function, sockshost2string(host, hoststr, sizeof(hoststr)),
-         strerror(errno));
-
-         return -1;
-      }
-
-      slog(LOG_DEBUG, "%s: from %s to %s\n",
-      function,
-      sockaddr2string((struct sockaddr *)&address, addrstr, sizeof(addrstr)), 
-      sockshost2string(host, hoststr, sizeof(hoststr)));
-   }
-   else
-      slog(LOG_DEBUG, "%s: %s\n",
-      function, sockshost2string(host, hoststr, sizeof(hoststr)));
+   slog(LOG_DEBUG, "%s: to %s on socket %d\n",
+        function, sockshost2string(host, hoststr, sizeof(hoststr)), s);
 
    bzero(&address, sizeof(address));
    address.sin_family   = AF_INET;
@@ -84,6 +67,8 @@ socks_connect(s, host)
 
    switch (host->atype) {
       case SOCKS_ADDR_IPV4: {
+         struct sockaddr_in localaddr;
+         char localaddrstr[MAXSOCKADDRSTRING];
          int rc;
 
          address.sin_addr = host->addr.ipv4;
@@ -91,16 +76,70 @@ socks_connect(s, host)
          /* LINTED pointer casts may be troublesome */
          rc = connect(s, (struct sockaddr *)&address, sizeof(address));
 
-         if (rc == 0 || errno == EINPROGRESS)
-            slog(LOG_DEBUG, "%s: connect to %s %s",
-            function,
-            sockaddr2string((struct sockaddr *)&address, addrstr,
-            sizeof(addrstr)),
-            rc == 0 ? "ok" : "in progress");
-         else
-            slog(LOG_DEBUG, "%s: failed connecting to %s: %s",
-            function, sockaddr2string((struct sockaddr *)&address,
-            addrstr, sizeof(addrstr)), strerror(errno));
+#if !SOCKS_CLIENT /* client may have setup e.g. an alarm for this. */
+         if (rc != 0)
+            slog(LOG_DEBUG, "%s: connect() returned %d (%s)", 
+            function, rc, strerror(errno));
+
+         while (rc == -1 && errno == EINTR) {
+            socklen_t len;
+            fd_set wset;
+
+            FD_ZERO(&wset);
+            FD_SET(s, &wset);
+
+            if ((rc = select(s + 1, NULL, &wset, NULL, NULL)) == -1
+            &&  errno == EINTR)
+               continue;
+
+            len = sizeof(errno);
+            if ((rc = getsockopt(s, SOL_SOCKET, SO_ERROR, &errno, &len)) == -1){
+               swarn("%s: getsockopt()", function);
+               break;
+            }
+
+            if (errno == 0)
+               rc = 0;
+            else
+               rc = -1;
+         }
+#endif /* !SOCKS_CLIENT */
+
+         if (rc == 0)
+            /*
+             * OpenBSD 4.5. sometimes sets errno even though the 
+             * connect was successfull.  Seems to be an artifact
+             * of the threads library, where it does a select(2)/poll(2)
+             * after making the socket non-blocking, but forgets to
+             * reset errno.
+             */
+            errno = 0;
+
+         if (rc == -1 && !ERRNOISINPROGRESS(errno))
+            /* connect failed, don't change errno. */
+            snprintf(localaddrstr, sizeof(localaddrstr), "<N/A>");
+         else {
+            len = sizeof(localaddr);
+            if (getsockname(s, (struct sockaddr *)&localaddr, &len) == -1) {
+               slog(LOG_DEBUG, "%s: getsockname(2) failed: %s",
+               function, strerror(errno));
+      
+               return -1;
+            }
+
+            sockaddr2string((struct sockaddr *)&localaddr, localaddrstr,
+            sizeof(localaddrstr));
+         }
+         
+         slog(LOG_DEBUG, "%s: connect to %s from %s on socket %d %s (%s)",
+                         function,
+                         sockaddr2string((struct sockaddr *)&address, addrstr,
+                                         sizeof(addrstr)),
+                         localaddrstr,
+                         s, 
+                         rc == 0 ? "ok" :
+                         ERRNOISINPROGRESS(errno) ? "in progress" : "failed",
+                         strerror(errno));
 
          return rc;
       }
@@ -120,7 +159,7 @@ socks_connect(s, host)
 
    failed = 0;
    do {
-      if (failed) {   /* previously failed, need to create a new socket. */
+      if (failed) { /* previously failed, need to create a new socket. */
          struct sockaddr name;
          socklen_t namelen;
          int new_s;
@@ -139,50 +178,53 @@ socks_connect(s, host)
          }
          close(new_s); /* s is now a new socket but keeps the same index. */
 
-#if SOCKS_SERVER
-         if (sockd_bind(s, &name, 1) != 0)
-            return -1;
-#else /* SOCKS_SERVER */
+#if SOCKS_CLIENT
          if (bind(s, &name, namelen) != 0)
             return -1;
-#endif /* !SOCKS_SERVER */
+#else /* SOCKS_SERVER */
+         if (sockd_bind(s, &name, 1) != 0)
+            return -1;
+#endif /* SOCKS_SERVER */
       }
 
-      /* LINTED pointer casts may be troublesome */
       address.sin_addr = *((struct in_addr *)*ip);
 
-      /* LINTED pointer casts may be troublesome */
       if (connect(s, (struct sockaddr *)&address, sizeof(address)) == 0
-      ||  errno == EINPROGRESS) {
+      ||  ERRNOISINPROGRESS(errno)) {
          slog(LOG_DEBUG, "%s: connected to %s",
          function, sockaddr2string((struct sockaddr *)&address, addrstr,
          sizeof(addrstr)));
+
          break;
        }
-       else 
-         /* LINTED pointer casts may be troublesome */
+       else
          slog(LOG_DEBUG, "%s: failed connecting to %s: %s", function,
          sockaddr2string((struct sockaddr *)&address, addrstr, sizeof(addrstr)),
          strerror(errno));
 
-#if SOCKS_SERVER /* clients may have set up alarms to interrupt. */
+#if !SOCKS_CLIENT /* clients may have set up alarms to interrupt. */
       if (errno == EINTR) {
-         fd_set rset;
+         static fd_set *rset;
 
-         FD_ZERO(&rset);
-         FD_SET(s, &rset);
+         if (rset == NULL)
+            rset = allocate_maxsize_fdset();
 
-         if (selectn(s + 1, &rset, NULL, NULL, NULL) != 1)
+         FD_ZERO(rset);
+         FD_SET(s, rset);
+
+         if (selectn(s + 1, rset, NULL, NULL, NULL, NULL, NULL) != 1)
             SERR(0);
 
-         if (read(s, NULL, 0) == 0)
+         if (read(s, NULL, 0) == 0) {
+            errno = 0;
             break;
+         }
          /*
-          * else; errno gets set and we can handle it as there was no
+          * else; errno should be set and we can handle it as there was no
           * interrupt.
           */
       }
-#endif /* SOCKS_SERVER */
+#endif /* !SOCKS_CLIENT */
 
       /*
        * Only retry/try next address if errno indicates server/network error.
@@ -228,15 +270,78 @@ socks_socketisforlan(s)
    const char *function = "socks_socketisforlan()";
    struct in_addr addr;
    socklen_t len;
+   unsigned char ttl;
+   const int errno_s = errno;
 
-   /* if the socket is bound to an interface, assume it's for lan-only use. */
+   /*
+    * make an educated guess as to whether the socket is intended for
+    * lan-only use or not. 
+    */
+
    len = sizeof(addr);
-   if (getsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &addr, &len) == 0) {
-      if (addr.s_addr != htonl(0))
-         return 1;
+   if (getsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &addr, &len) != 0) {
+      slog(LOG_DEBUG, "%s: getsockopt(IP_MULTICAST_IF) failed: %s",
+      function, strerror(errno));
+
+      errno = errno_s;
       return 0;
    }
 
-   swarn("%s: getsockopt(IP_MULTICAST_IF)", function);
+   if (addr.s_addr == htonl(INADDR_ANY))
+      return 0;
+
+   len = sizeof(ttl);
+   if (getsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, &len) != 0) {
+      swarn("%s: getsockopt(IP_MULTICAST_TTL)", function);
+
+      errno = errno_s;
+      return 0;
+   }
+
+   return ttl == 1;
+}
+
+int
+socks_unconnect(s)
+   const int s;
+{
+   const char *function = "socks_unconnect()";
+   struct sockaddr local, remote;
+   socklen_t addrlen;
+   char remotestr[MAXSOCKADDRSTRING];
+
+   addrlen = sizeof(local);
+   if (getsockname(s, &local, &addrlen) != 0) {
+      swarn("%s: getsockname()", function);
+      return -1;
+   }
+
+   if (getpeername(s, &remote, &addrlen) != 0) {
+      swarn("%s: getpeername()", function);
+      return -1;
+   }
+
+   slog(LOG_DEBUG, "%s: unconnecting socket currently connected to %s",
+   function, sockaddr2string(&remote, remotestr, sizeof(remotestr)));
+
+   bzero(&remote, sizeof(remote));
+   remote.sa_family = AF_UNSPEC;
+
+   if (connect(s, &remote, sizeof(remote)) != 0)
+      slog(LOG_DEBUG, "%s: unconnect of socket returned %s",
+      function, strerror(errno));
+
+   /*
+    * Linux, and possible others, fail to receive on the
+    * socket until the local address has been "re-bound",
+    * e.g. by sending a packet out.  Since we are not
+    * sure the received packet will be allowed out by
+    * the rules, re-bind the socket here to be sure we
+    * don't miss replies in the meantime.
+    */
+   if (bind(s, &local, sizeof(local)) != 0)
+      slog(LOG_DEBUG, "%s: re-bind after unconnecting: %s",
+      function, strerror(errno));
+
    return 0;
 }

@@ -1,11 +1,85 @@
-@(#)$Id: PRERELEASE,v 1.261 2009/01/12 14:04:53 michaels Exp $
+@(#)$Id: PRERELEASE,v 1.292 2009/10/06 11:29:19 michaels Exp $
 
 *
 * This is a prerelease.  Do not use this to upgrade from a previous
-* release of Dante unless you want to help testing. 
+* release of Dante unless you want to help testing.
 *
 
-o Patch from Markus Moeller <huaraz@moeller.plus.com.example.com> 
+1.2.0-pre3
+
+o Improvements to client thread compatibility.  The client
+  library should now be mostly threadsafe.
+
+o Solaris privilege model support.  Based on patch from
+  Mayuresh Nirhali <Mayuresh.Nirhali@Sun.COM.example.com> & co.
+
+o make support for the socks 5 version described in draft-5.05 be
+  configurable.  Before this was always enabled, but it breaks clients
+  based on NEC socks code in some cases as they use the same bit to
+  mean something completely different.
+  A new option has been added to sockd.conf to enable it:
+  "compatibility: draft-5.05".  If not explicitly enabled, the Dante server
+  won't use the socks 5.05 draft specification.
+
+  Problem found by Markus Moeller (markus_moeller at compuserve.com).
+
+o Don't leak username/passwords provided to us for local authentication
+  to upstream proxy server when server-chaining.  Error reported by
+  Mathieu DELAPLACE <mathieu.delaplace@gmail.com.example.com>.
+
+o Fixed a bug/oversight that imposed an artificial limit on the number
+  of sockd processes that could be created, even when the load required
+  more.
+
+o Slight improvement of configuration parsing in an attempt to avoid
+  confusing non-qualified hostnames with NIC interfacenames.
+
+o The default connect-timeout/negotiate-timeout has been reduced from
+  120 seconds to 30 seconds.  The "connecttimeout" name has also been
+  deprecated in favour of "timeout.negotiate".
+
+o Separate iotimeouts can be set for udp and tcp clients.  The "iotimeout"
+  object has also been deprecated in favour of "timeout.io".
+
+o New configure option: "--disable-drt-fallback".
+  Used to disable the attempted automatic fallback to a direct route
+  if there are no usable proxy routes.  Default is, as before, 
+  automatic fallback.
+
+o "udprange" keyword renamed to "udp.portrange".
+
+o Added a new option: "udp.connectdst".  Controls whether the server
+  should connect udp sockets to the destination.
+  The default for this prelease is yes, which improves performance,
+  but _may_ be incompatible with some udp-based application protocols.
+  Please let us know if you experience problems with some applications
+  no longer working. 
+
+o Markus Moeller (markus_moeller at compuserve.com) contributed support
+  for GSSAPI encryption/authentication (RFC 1961) to both the socks
+  server and socks client.  Many thanks to Markus for this and for a
+  lot of help in testing it.
+
+o Fixed problem with connection close before accept on HPUX.
+  Based on patch from Reine Persson <reine.persson@skatteverket.se>.
+
+o Support for sunos 4 and Solaris 2.5.1 removed.
+
+o Thread locking is disabled if the environment variable
+  SOCKS_DISABLE_THREADLOCK is set.
+
+o Adapt to miniupnpc-1.3 API. Previous versions are not supported.
+
+-------------------------------------------------------------------------------
+1.2.0-pre2
+
+o Added gethostbyaddr prototype for compilation on FreeBSD v6.2.
+  Patch from "Igor Mozolevsky" <igor@hybrid-lab.co.uk>.
+
+o Fix getifa compilation problem on Solaris 8.
+  Reported by "Thomas" <dante@birdhouse.ch.example.com>.
+
+o Patch from Markus Moeller (markus_moeller at compuserve.com),
   to limit the range of udp-ports used between the socks-client
   and the Dante server.
 
@@ -14,14 +88,14 @@ o By default, try to auto-add direct routes for all addresses on the LAN.
 
 o Fix bug that caused problems with certain combinations of
   bind(2)/accept(2)/close(2).
-  Reported by Markus Moeller <huaraz@moeller.plus.com.example.com>
+  Reported by Markus Moeller (markus_moeller at compuserve.com).
 
 o Fix bug that erroneously blocked the bind request from some clients.
-  Reported by Markus Moeller <huaraz@moeller.plus.com.example.com>
+  Reported by Markus Moeller (markus_moeller at compuserve.com).
 
 o Add support for environment variables SOCKS4_SERVER, SOCKS5_SERVER,
   HTTP_PROXY, and UPNP_IGD.
-  If set, they specify the socks v4, socks v5 server, http proxy, 
+  If set, they specify the socks v4, socks v5 server, http proxy,
   or UPNP-enabled ID to use, without the need for a socks.conf.
 
   This should make it possible to run socksify with reasonable results
@@ -32,7 +106,7 @@ o Auto-add direct routes for all gateways.  Should make the client
   a little more user-friendly by not having to specify "direct" routes
   for the proxyserver any longer.
 
-o Finer grained marking of when to mark a proxy route as "bad" so that
+o More finegrained marking of when to mark a proxy route as "bad" so that
   it will not be used again by the same client.
 
   Also add a new variable to config.h, MAX_ROUTE_FAILS, determining
@@ -51,16 +125,16 @@ o Fix bug that could prevent password authentication from working
  o New getifaddrs() compatibility function, taken from heimdal-1.2.1.
 
  o (Open)Solaris sa_len compilation problem fixed.
-   Reported by "Markus Moeller" <huaraz@moeller.plus.com.example.com>
+   Reported by Markus Moeller (markus_moeller at compuserve.com).
 
 -------------------------------------------------------------------------------
 1.2.0-pre1
 
-o New version of the BSD version of "external.rotation = route",
+o New version of the BSD version of "external.rotation: route",
   from Christoph Badura <bad@bsd.de.example.com>.
 
 o Support for interfacenames in sockd rules, and in the destination
-  address for socks routes.  
+  address for socks routes.
   Should make it easier to set up direct routes for local lan in
   the client (specify all local interfacename in route statements),
   and block connections to e.g. loopback addresses (specify the the
@@ -77,23 +151,23 @@ o UPnP support in the client, using the miniupnp library by
   Dante uses this to make socksify of ftp/bittorent/etc programs
   work via the UPnP router.
 
-o Client libarary should be threadsafe now, allowing it to socksify
+o Client library should be threadsafe now, allowing it to socksify
   threaded applications.
 
-o Be less strict about bind in the client.  The standards says 
+o Be less strict about bind in the client.  The standards says
   it is expected that the client first performs a connect via
   the socks server, but it seems some/many socks servers support
-  the client requesting a bind without a previous connect, so we 
+  the client requesting a bind without a previous connect, so we
   assume that is the case in the client from now on.
 
-o Changed the magic bytes that indicate the client is requesing
-  use of the Dante-spesfic bind extension from 0x00000000 to
+o Changed the magic bytes that indicate the client is requesting
+  use of the Dante-specific bind extension from 0x00000000 to
   0xffffffff, as part of the process to become less strict about
   the bind command requiring a previous connection.
 
-o Don't zero password in client if we read it from environment, or 
+o Don't zero password in client if we read it from environment, or
   it will not work the next time the same clientprocess tries to
-  authenticate to the server. 
+  authenticate to the server.
   Found by Pavel Fedin <fedin@matek.ru.example.com>.
 
   That mailaddress no longer works.  Please contact us if you have

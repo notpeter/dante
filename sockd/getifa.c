@@ -1,7 +1,7 @@
 /*
- * $Id: getifa.c,v 1.46 2009/01/12 18:58:17 karls Exp $
+ * $Id: getifa.c,v 1.55 2009/08/23 15:17:31 michaels Exp $
  *
- * Copyright (c) 2001, 2002, 2003, 2006, 2009
+ * Copyright (c) 2001, 2002, 2006, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,8 +53,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getifa.c,v 1.46 2009/01/12 18:58:17 karls Exp $";
-
+"$Id: getifa.c,v 1.55 2009/08/23 15:17:31 michaels Exp $";
 
 /*
  * Given a destination address, getifa() returns the local source address
@@ -70,22 +69,19 @@ static const char rcsid[] =
 #include   <linux/rtnetlink.h>
 #endif /* HAVE_ROUTEINFO_LINUX */
 
-__BEGIN_DECLS
-
 static struct in_addr
-getdefaultexternal __P((void));
+getdefaultexternal(void);
 /*
  * Returns the default IP address to use for external connections.
  */
 
 static int
-isonexternal __P((const struct sockaddr *addr));
+isonexternal(const struct sockaddr *addr);
 /*
  * Returns true if "addr" is configured for the external interface,
  * otherwise false.
  */
 
-__END_DECLS
 
 #if HAVE_ROUTEINFO_LINUX
 typedef unsigned char uchar_t;
@@ -108,16 +104,14 @@ getifa(destaddr)
    struct sockaddr raddr;
    int attrlen;
    int rtnetlink_sk;
-   uid_t euid;
 
    if (sockscf.external.addrc <= 1
    ||  sockscf.external.rotation == ROTATION_NONE)
       return getdefaultexternal();
 
-   /* get a NETLINK_ROUTE socket */
-   socks_seteuid(&euid, sockscf.uid.privileged);
+   sockd_priv(SOCKD_PRIV_NET_ROUTESOCKET, PRIV_ON);
    rtnetlink_sk = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
-   socks_reseteuid(sockscf.uid.privileged, euid);
+   sockd_priv(SOCKD_PRIV_NET_ROUTESOCKET, PRIV_OFF);
 
    if (rtnetlink_sk == -1) {
       swarn("%s: socket(NETLINK_ROUTE)", function);
@@ -221,6 +215,14 @@ getifa(destaddr)
 #define RTAX_GATEWAY 1
 #endif /* !RTAX_GATEWAY */
 
+#ifndef RTAX_IFA
+#define RTAX_IFA RTA_IFA
+#endif /* !RTAX_IFA */
+
+#ifndef RTAX_MAX
+#define RTAX_MAX RTA_NUMBITS
+#endif /* !RTAX_MAX */
+
 struct in_addr
 getifa(destaddr)
    struct in_addr destaddr;
@@ -231,15 +233,14 @@ getifa(destaddr)
    pid_t            pid;
    struct rt_msghdr *rtm;
    struct sockaddr  *sa, *ifa;
-   uid_t euid;
 
    if (sockscf.external.addrc <= 1
    ||  sockscf.external.rotation == ROTATION_NONE)
       return getdefaultexternal();
 
-   socks_seteuid(&euid, sockscf.uid.privileged);
-   sockfd = socket(AF_ROUTE, SOCK_RAW, 0);   /* need superuser privileges */
-   socks_reseteuid(sockscf.uid.privileged, euid);
+   sockd_priv(SOCKD_PRIV_NET_ROUTESOCKET, PRIV_ON);
+   sockfd = socket(AF_ROUTE, SOCK_RAW, 0);
+   sockd_priv(SOCKD_PRIV_NET_ROUTESOCKET, PRIV_OFF);
 
    if (sockfd == -1) {
       swarn("%s: socket(AF_ROUTE)", function);
@@ -366,7 +367,7 @@ getifa(destaddr)
 {
    return getdefaultexternal();
 }
-#endif /* !HAVE_ROUTEINFO_BSD */
+#endif /* HAVE_ROUTEINFO_BSD */
 
 static struct in_addr
 getdefaultexternal(void)
@@ -410,7 +411,7 @@ isonexternal(addr)
    const struct sockaddr *addr;
 {
 /*   const char *function = "isonexternal()"; */
-   int i;
+   size_t i;
 
    for (i = 0; i < sockscf.external.addrc; ++i) {
       struct sockaddr check;

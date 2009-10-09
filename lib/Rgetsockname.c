@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,9 +51,8 @@
 #include "upnp.h"
 #endif /* HAVE_LIBMINIUPNP */
 
-
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.52 2009/01/02 14:06:03 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.65 2009/10/05 15:25:45 michaels Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -67,33 +66,31 @@ Rgetsockname(s, name, namelen)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, s);
+   slog(LOG_DEBUG, "%s, socket %d", function, s);
 
-   if (!socks_addrisok((unsigned int)s, 0)) {
-      socks_rmaddr((unsigned int)s, 0);
+   if (!socks_addrisours(s, 1)) {
+      socks_rmaddr(s, 1);
       return getsockname(s, name, namelen);
    }
 
-   socksfd = *socks_getaddr((unsigned int)s, 0);
+   socksfd = *socks_getaddr(s, 1);
 
    if (socksfd.state.version == PROXY_UPNP) {
 #if HAVE_LIBMINIUPNP
-      if (TOIN(&socksfd.remote)->sin_addr.s_addr != htonl(INADDR_ANY))
+      if (ADDRISBOUND(TOIN(&socksfd.remote)))
          addr = socksfd.remote; /* already have it. */
-      else {   
+      else {
          char straddr[INET_ADDRSTRLEN];
          int rc;
 
-         socks_addrlock(F_WRLCK);
-         socksfd = *socks_getaddr((unsigned int)s, 1);
+         socksfd = *socks_getaddr(s, 1);
 
          if ((rc = UPNP_GetExternalIPAddress(socksfd.route->gw.state.data.upnp
          .controlurl, socksfd.route->gw.state.data.upnp.servicetype, straddr))
          != UPNPCOMMAND_SUCCESS) {
-            swarnx("%s: failed to get external ipaddress of upnp device: %d", 
+            swarnx("%s: failed to get external ipaddress of upnp device: %d",
             function, rc);
-            socks_addrunlock();
-            return -1;  
+            return -1;
          }
 
          slog(LOG_DEBUG, "%s: upnp controlpoint's external ipaddress is %s",
@@ -103,16 +100,14 @@ Rgetsockname(s, name, namelen)
          straddr, &TOIN(&socksfd.remote)->sin_addr) != 1) {
             swarn("%s: could not convert %s, af %d, to network address",
             function, straddr, socksfd.remote.sa_family);
-            socks_addrunlock();
             return -1;
          }
 
          addr = socksfd.remote;
          socks_addaddr(s, &socksfd, 1);
-         socks_addrunlock();
       }
 #else
-     SERRX(socksfd.state.version); 
+     SERRX(socksfd.state.version);
 #endif /* HAVE_LIBMINIUPNP */
    }
    else {
@@ -130,7 +125,7 @@ Rgetsockname(s, name, namelen)
 
             if (socksfd.state.inprogress) { /* non-blocking connect. */
                /*
-                * this is bad.  We don't know what address the socksserver
+                * this is bad.  We don't know what address the socks server
                 * will use on our behalf yet.  Lets wait for a SIGCHLD
                 * and then retry, unless client is blocking that signal,
                 * then we can only hope the client will retry on ENOBUFS,
@@ -148,7 +143,8 @@ Rgetsockname(s, name, namelen)
                   return -1;
                }
 
-               
+
+               slog(LOG_DEBUG, "%s: waiting for signal from child", function);
                sigsuspend(&oset); /* wait for sigchld. */
 
                if (sigprocmask(SIG_BLOCK, &oset, NULL) != 0) {
@@ -181,11 +177,11 @@ Rgetsockname(s, name, namelen)
 
             addr = socksfd.remote;
             /* LINTED pointer casts may be troublesome */
-            TOIN(&addr)->sin_family         = AF_INET;
+            TOIN(&addr)->sin_family      = AF_INET;
             /* LINTED pointer casts may be troublesome */
-            TOIN(&addr)->sin_addr.s_addr   = htonl(INADDR_ANY);
+            TOIN(&addr)->sin_addr.s_addr = htonl(INADDR_ANY);
             /* LINTED pointer casts may be troublesome */
-            TOIN(&addr)->sin_port            = htons(0);
+            TOIN(&addr)->sin_port        = htons(0);
             break;
 
          default:
@@ -198,4 +194,3 @@ Rgetsockname(s, name, namelen)
 
    return 0;
 }
-

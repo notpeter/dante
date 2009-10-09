@@ -4,11 +4,19 @@ define([concat],
 AC_DEFUN([L_MODVER],
 [AC_MSG_CHECKING(for module $1)
  if test -f "licensed/$1.c"; then
+	MODLINE=`head -1 licensed/$1.c | grep MODVER`
+	if test x"$MODLINE" != x; then
+		MODVER=`echo "$MODLINE" | cut -d: -f 2`
+	fi
+
+	dnl try old syntax if nothing returned
 	dnl XXX two single quotes in first argument to split,
 	dnl     prevents removal by m4
-	MODVERSION=`awk '/Id:/{ split($''4,a,".");print a[[2]]; exit }' licensed/$1.c`
-	if test "$MODVERSION" -lt "$2"; then
-	        echo ""
+	if test x"$MODVER" = x; then
+		MODVER=`awk '/Id:/{ split($''4,a,".");print a[[2]]; exit }' licensed/$1.c`
+	fi
+	if test "$MODVER" -lt "$2"; then
+		echo ""
 		echo "You have a outdated version of the $1 module."
 		echo "Please contact Inferno Nettverk A/S for an updated"
 		echo "version before you attempt to compile."
@@ -25,9 +33,9 @@ else
 	concat(MOD_, m4_toupper($1))=un
 	AC_MSG_RESULT(no)
 fi
-AC_LINK_FILES(${concat(MOD_, m4_toupper($1))}licensed/$1.c, sockd/$1.c)
-if test x"$3" != xnokey; then
-    AC_LINK_FILES(${concat(MOD_, m4_toupper($1))}licensed/$1_key.c, sockd/$1_key.c)
+AC_LINK_FILES(${concat(MOD_, m4_toupper($1))}licensed/$1.c, $3/$1.c)
+if test x"$4" != xnokey; then
+    AC_LINK_FILES(${concat(MOD_, m4_toupper($1))}licensed/$1_key.c, $3/$1_key.c)
 fi
 ])
 
@@ -38,7 +46,7 @@ AC_RUN_IFELSE([[
 /*
  * ftp.inet.no:/pub/home/michaels/stuff/socket-select.c
  * $ cc socket-select.c && uname -a && ./a.out
- * 
+ *
  * Thanks to Eric Anderson <anderse@hpl.hp.com>.
  *
 */
@@ -69,7 +77,7 @@ main(void)
 
 	sigemptyset(&sigact.sa_mask);
 	sigact.sa_handler = SIG_IGN;
-	sigact.sa_flags 	= 0;
+	sigact.sa_flags	= 0;
 	if (sigaction(SIGPIPE, &sigact, NULL) != 0) {
 		perror("sigaction()");
 		exit(1);
@@ -103,7 +111,7 @@ dotests(s, blocking)
 
 	fprintf(stderr, "testing with %s, bound, socket:\n", BLOCKING(blocking));
 	bzero(&addr, sizeof(addr));
-	addr.sin_family 		= AF_INET;
+	addr.sin_family		= AF_INET;
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port			= htons(0);
 
@@ -137,7 +145,7 @@ dotests(s, blocking)
 	return rc;
 }
 
-static int 
+static int
 selectcheck(s)
 	int s;
 {
@@ -150,7 +158,7 @@ selectcheck(s)
 	wset = xset = rset;
 
 	timeout.tv_sec 	= 0;
-	timeout.tv_usec 	= 0;
+	timeout.tv_usec	= 0;
 
 	errno = 0;
 	ret = select(s + 1, &rset, &wset, &xset, &timeout);
@@ -160,10 +168,10 @@ selectcheck(s)
 
 	if (FD_ISSET(s, &wset))
 	    fprintf(stderr, "\tsocket is writeable\n");
-	
+
 	if (FD_ISSET(s, &xset))
 	    fprintf(stderr, "\tsocket has an exception pending\n");
-	
+
 	return ret;
 }]], [AC_MSG_RESULT(yes)
      [$1]],
@@ -259,5 +267,31 @@ AC_REQUIRE([AC_COMPILE_IFELSE])dnl
 AC_MSG_CHECKING([prototypes for $1])dnl
 
 tproto($@)])
+
+dnl tstdioproto - generate statements for running AC_COMPILE_IFELSE
+define([tstdioproto],
+[AC_COMPILE_IFELSE([
+ AC_LANG_PROGRAM([
+  #include <stdio.h>
+ #include <stdarg.h>
+ #ifdef $1
+ #undef $1
+ #endif
+
+m4_esyscmd([echo "$3" | cut -d, -f 1])dnl
+$1(m4_esyscmd([echo "$3" | cut -d, -f 2-]));], [])],
+ [addproto(m4_toupper($1), 0, $3)
+  AC_MSG_RESULT(ok)],
+ [ifelse([$4], ,
+  [AC_MSG_RESULT(failure)
+  $2],
+ [tstdioproto([$1], [$2], m4_shiftn(3, $@))])])])
+
+dnl L_NSTDIOPROTO - determine stdio function prototypes by compilation
+AC_DEFUN([L_NSTDIOPROTO],[
+AC_REQUIRE([AC_COMPILE_IFELSE])dnl
+AC_MSG_CHECKING([prototypes for $1])dnl
+
+tstdioproto($@)])
 
 # -- acinclude end --

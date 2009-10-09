@@ -1,4 +1,4 @@
-%@(#)$Id: bandwidth.tex,v 1.12 2006/03/05 11:53:47 karls Exp $
+%@(#)$Id: bandwidth.tex,v 1.14 2009/08/04 17:22:21 karls Exp $
 %/*
 % * Copyright (c) 2001
 % *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -55,7 +55,7 @@
 	Gaustadalleen 21	\\
 	NO-0349 Oslo          \\
 	Norway}
-\date{$$$$Date: 2006/03/05 11:53:47 $$$$}
+\date{$$$$Date: 2009/08/04 17:22:21 $$$$}
 
 \makeindex
 
@@ -91,7 +91,7 @@
 
 \section{Semantics}
  The \texttt{bandwidth} statement integrates as a part of
- socks-rules.
+ both client-rule and socks-rules.
 
  The maximal \texttt{bandwidth} set for a rule will be shared
  by all clients matching that rule.  The \emph{Dante} server
@@ -102,7 +102,7 @@
 \section{Special notes}
  Sending the \emph{Dante} server a \texttt{SIGHUP} signal forces a reload
  of the configuration file.  It should be noted that this
- does not affect current sessions. 
+ does not affect current sessions.
 
  Changing e.g. a \emph{pass} statement to a \emph{block} statement,
  does not terminate the session of any existing client.
@@ -115,11 +115,11 @@
  number of bandwidth is used, as old sessions will use the
  bandwidth allocated to them before the reload, independently
  of new sessions.
- 
+
  Eventually the old sessions will finish however, and the maximal
  number of sessions will be the the number currently configured,
  until a new reload of the configuration-file occurs.
- 
+
 
 \section{Examples}
  This section shows several examples of how one could use the

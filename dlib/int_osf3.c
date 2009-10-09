@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -66,7 +66,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: int_osf3.c,v 1.27 2009/01/02 14:06:00 michaels Exp $";
+"$Id: int_osf3.c,v 1.34 2009/08/08 14:57:07 karls Exp $";
 
 #undef accept
 #undef bind
@@ -101,21 +101,16 @@ struct n_msghdr {
    int      msg_flags;      /* flags on received message */
 };
 
-
-__BEGIN_DECLS
-
-ssize_t Rsendto __P((int, const void *, size_t, int,
-                     const struct n_sockaddr *, socklen_t));
-int Rconnect __P((int, const struct n_sockaddr *, socklen_t));
-ssize_t Rsendmsg __P((int, const struct n_msghdr *, int));
-ssize_t Rrecvfrom __P((int, void *, int, int, struct n_sockaddr *, socklen_t *));
-int Rgetsockname __P((int, struct n_sockaddr *, socklen_t *));
-int Rgetpeername __P((int, struct n_sockaddr *, socklen_t *));
-int Raccept __P((int, struct n_sockaddr *, socklen_t *));
-ssize_t Rrecvmsg __P((int s, struct n_msghdr *msg, int flags));
-int Rbind __P((int, const struct n_sockaddr *, socklen_t));
-
-__END_DECLS
+ssize_t Rsendto(int, const void *, size_t, int,
+      const struct n_sockaddr *, socklen_t);
+int Rconnect(int, const struct n_sockaddr *, socklen_t);
+ssize_t Rsendmsg(int, const struct n_msghdr *, int);
+ssize_t Rrecvfrom(int, void *, int, int, struct n_sockaddr *, socklen_t *);
+int Rgetsockname(int, struct n_sockaddr *, socklen_t *);
+int Rgetpeername(int, struct n_sockaddr *, socklen_t *);
+int Raccept(int, struct n_sockaddr *, socklen_t *);
+ssize_t Rrecvmsg(int s, struct n_msghdr *msg, int flags);
+int Rbind(int, const struct n_sockaddr *, socklen_t);
 
 
    /* 'old' versions (with sockaddr len) of the system calls. */
@@ -268,7 +263,6 @@ sys_connect(s, name, namelen)
    return rc;
 }
 
-
 int
 sys_bind(s, name, namelen)
    int s;
@@ -312,12 +306,6 @@ sys_sendto(s, msg, len, flags, to, tolen)
 /* sockaddr *, new len */
 #define ADDRLEN_SET(a,b) (((a) == NULL) ? 0 : (b))
 
-#ifdef lint
-extern const int lintnoloop_int_osf3_c;
-#else
-#define lintnoloop_int_osf3_c 0
-#endif
-
 /* source sockaddr, len, dest sockaddr, len */
 #define SOCKADDR_COPYRES(a,b,c,d) \
  do { if (((c) != NULL) && (*(d) > 0) && (*(b) > 0)) { \
@@ -331,7 +319,7 @@ extern const int lintnoloop_int_osf3_c;
       memcpy((c)->sa_data, n.sa_data, (size_t)tmplen); \
       *(d) = MIN(*d, sizeof(struct sockaddr)); \
    } \
-  } while (lintnoloop_int_osf3_c)
+  } while (/*CONSTCOND*/0)
 
 /* source sockaddr, len, dest sockaddr, len */
 #define SOCKADDR_COPYPARAM(a,b,c,d) \
@@ -351,7 +339,7 @@ extern const int lintnoloop_int_osf3_c;
    } else { \
       *(d) = *(b); \
    } \
-  } while (lintnoloop_int_osf3_c)
+  } while (/*CONSTCOND*/0)
 
 int
 accept(s, addr, addrlen)
@@ -363,7 +351,7 @@ accept(s, addr, addrlen)
    socklen_t n_addrlen;
    int rc;
 
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_ACCEPT))
       return sys_accept(s, addr, addrlen);
 
    n_addrlen = ADDRLEN_SET(addr, sizeof(n_addr));
@@ -386,7 +374,7 @@ getpeername(s, name, namelen)
    socklen_t n_namelen;
    int rc;
 
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_GETPEERNAME))
       return sys_getpeername(s, name, namelen);
 
    n_namelen = ADDRLEN_SET(name, sizeof(n_name));
@@ -409,7 +397,7 @@ getsockname(s, name, namelen)
    socklen_t n_namelen;
    int rc;
 
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_GETSOCKNAME))
       return sys_getsockname(s, name, namelen);
 
    n_namelen = ADDRLEN_SET(name, sizeof(n_name));
@@ -435,7 +423,7 @@ recvfrom(s, buf, len, flags, from, fromlen)
    socklen_t n_fromlen;
    ssize_t rc;
 
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_RECVFROM))
       return sys_recvfrom(s, buf, len, flags, from, fromlen);
 
    n_fromlen = ADDRLEN_SET(from, sizeof(n_from));
@@ -457,7 +445,7 @@ recvmsg(s, msg, flags)
    struct n_msghdr n_msg;
    ssize_t rc;
 
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_RECVMSG))
       return sys_recvmsg(s, msg, flags);
 
    bzero((char *)&n_msg, sizeof(struct n_msghdr));
@@ -491,7 +479,7 @@ sendmsg(s, msg, flags)
    struct n_msghdr n_msg;
    ssize_t rc;
 
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_SENDMSG))
       return sys_sendmsg(s, msg, flags);
 
    bzero((char *)&n_msg, sizeof(struct n_msghdr));
@@ -526,7 +514,7 @@ connect(s, name, namelen)
    struct n_sockaddr n_name;
    int n_namelen;
 
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_CONNECT))
       return sys_connect(s, name, namelen);
 
    SOCKADDR_COPYPARAM(name, &namelen, &n_name, &n_namelen);
@@ -543,7 +531,7 @@ bind(s, name, namelen)
    struct n_sockaddr n_name;
    int n_namelen;
 
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_BIND))
       return sys_bind(s, name, namelen);
 
    SOCKADDR_COPYPARAM(name, &namelen, &n_name, &n_namelen);
@@ -563,7 +551,7 @@ sendto(s, msg, len, flags, to, tolen)
    struct n_sockaddr n_to;
    int n_tolen;
 
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_SENDTO))
       return sys_sendto(s, msg, len, flags, to, tolen);
 
    SOCKADDR_COPYPARAM(to, &tolen, &n_to, &n_tolen);
@@ -577,7 +565,7 @@ writev(d, iov, iovcnt)
    const struct iovec *iov;
    int iovcnt;
 {
-   if (ISSYSCALL(d))
+   if (ISSYSCALL(d, SYMBOL_WRITEV))
       return sys_writev(d, iov, iovcnt);
 
    return Rwritev(d, iov, iovcnt);
@@ -589,7 +577,7 @@ readv(d, iov, iovcnt)
    const struct iovec *iov;
    int iovcnt;
 {
-   if (ISSYSCALL(d))
+   if (ISSYSCALL(d, SYMBOL_READV))
       return sys_readv(d, iov, iovcnt);
 
    return Rreadv(d, iov, iovcnt);

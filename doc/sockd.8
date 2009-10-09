@@ -1,6 +1,6 @@
-.\" $Id: sockd.8,v 1.34 2008/12/27 15:42:43 michaels Exp $
+.\" $Id: sockd.8,v 1.39 2009/09/09 14:00:24 michaels Exp $
 .\"
-.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004
+.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2009
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -95,6 +95,8 @@ Disables TCP keep-alive messages.  Normally
 .B Dante
 enables TCP keep-alive messages so that connections from machines that
 have crashed or for other reasons no longer can be reached time out.
+Note that this can take several hours.  See also the "timeout"
+option in sockd.conf(5).
 .TP
 .B \-v
 Displays
@@ -103,11 +105,11 @@ version.
 .SH SIGNALS
 .TP
 .B SIGHUP
-Reload the configuration file.  Will also reopen logfiles, but note
-that you can not change logoutput after starting.
+Reload the configuration file.  Will also reopen logfiles, but note that
+you can not change the value of logoutput after starting the server.
 .TP
 .B SIGINFO/SIGUSR1
-Print some information about the current state.
+Print some information about the servers current state and clients.
 .SH ENVIRONMENT
 .TP
 .B TMPDIR
@@ -124,14 +126,16 @@ be set to a (local) filesystem with low latency.
 .B Dante
 server configuration file.
 .SH AUTHORS
-Inferno Nettverk A/S, Norway.  http://www.inet.no/
+For inferno Nettverk A/S:
+   Michael Shuldman
+   Karl-Andre' Skevik
 .SH SEE ALSO
 socks.conf(5) sockd.conf(5)
 .PP
 Information about new releases and other related issues can be found
 on the
 .B Dante
-WWW home page at http://www.inet.no/dante.
+WWW home page: http://www.inet.no/dante/
 .SH BUGS
 See the accompanying BUGS file.  New ones should be reported to
 dante\-bugs@inet.no.

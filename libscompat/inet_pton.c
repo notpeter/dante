@@ -1,12 +1,10 @@
-/* $Id: inet_pton.c,v 1.4 2008/07/25 08:49:05 michaels Exp $ */
+/* $Id: inet_pton.c,v 1.8 2009/07/07 12:54:47 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
-#endif  /* HAVE_CONFIG_H */
+#endif /* HAVE_CONFIG_H */
 
 #include "common.h"
-
-#if !HAVE_INET_PTON
 
 /*   $OpenBSD: inet_pton.c,v 1.2 1997/04/13 05:08:24 deraadt Exp $   */
 
@@ -64,8 +62,8 @@ static char rcsid[] = "$OpenBSD: inet_pton.c,v 1.2 1997/04/13 05:08:24 deraadt E
  * sizeof(int) < 4.  sizeof(int) > 4 is fine; all the world's not a VAX.
  */
 
-static int   inet_pton4 __P((const char *src, u_char *dst));
-static int   inet_pton6 __P((const char *src, u_char *dst));
+static int   inet_pton4(const char *src, u_char *dst);
+static int   inet_pton6(const char *src, u_char *dst);
 
 /* int
  * inet_pton(af, src, dst)
@@ -244,10 +242,3 @@ inet_pton6(src, dst)
    memcpy(dst, tmp, IN6ADDRSZ);
    return (1);
 }
-#else
-static void avoid_error __P((void));
-static void avoid_error()
-{
-   avoid_error();
-}
-#endif /* !HAVE_INET_PTON */

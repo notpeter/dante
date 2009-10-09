@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.28 2009/01/02 14:06:07 michaels Exp $";
+"$Id: userio.c,v 1.43 2009/09/07 11:22:48 michaels Exp $";
 
 /* ARGSUSED */
 char *
@@ -56,10 +56,12 @@ socks_getusername(host, buf, buflen)
    const char *function = "socks_getusername()";
    char *name;
 
-   if ((name = getenv("SOCKS_USERNAME")) != NULL
-   ||  (name = getenv("SOCKS_USER"))     != NULL
-   ||  (name = getenv("SOCKS5_USER"))    != NULL)
-      ;
+   if ((name = socks_getenv("SOCKS_USERNAME", dontcare)) != NULL
+   ||  (name = socks_getenv("SOCKS_USER",     dontcare)) != NULL
+   ||  (name = socks_getenv("SOCKS5_USER",    dontcare)) != NULL)
+      slog(LOG_DEBUG, "%s: using socks username from environment: \"%s\"",
+      function, name);
+#if SOCKS_CLIENT
    else if ((name = getlogin()) != NULL)
       ;
    else {
@@ -68,6 +70,7 @@ socks_getusername(host, buf, buflen)
       if ((pw = getpwuid(getuid())) != NULL)
          name = pw->pw_name;
    }
+#endif /* SOCKS_CLIENT */
 
    if (name == NULL)
       return NULL;
@@ -79,7 +82,6 @@ socks_getusername(host, buf, buflen)
    }
 
    strcpy(buf, name);
-
    return buf;
 }
 
@@ -94,19 +96,21 @@ socks_getpassword(host, user, buf, buflen)
    int  password_is_from_env;
    char *password;
 
-   if ((password = getenv("SOCKS_PASSWORD")) != NULL
-   ||  (password = getenv("SOCKS_PASSWD"))   != NULL
-   ||  (password = getenv("SOCKS5_PASSWD"))  != NULL)
+   if ((password = socks_getenv("SOCKS_PASSWORD", dontcare)) != NULL
+   ||  (password = socks_getenv("SOCKS_PASSWD",   dontcare)) != NULL
+   ||  (password = socks_getenv("SOCKS5_PASSWD",  dontcare)) != NULL)
       password_is_from_env = 1;
+#if SOCKS_CLIENT
    else {
       char prompt[256 + MAXSOCKSHOSTSTRING];
       char hstring[MAXSOCKSHOSTSTRING];
 
-      snprintfn(prompt, sizeof(prompt), "%s@%s sockspassword: ",
+      snprintfn(prompt, sizeof(prompt), "%s@%s socks password: ",
       user, sockshost2string(host, hstring, sizeof(hstring)));
       password = getpass(prompt);
       password_is_from_env = 0;
    }
+#endif /* SOCKS_CLIENT */
 
    if (password == NULL)
       return NULL;
@@ -123,4 +127,84 @@ socks_getpassword(host, user, buf, buflen)
       bzero(password, strlen(password));
 
    return buf;
+}
+
+char *
+socks_getenv(name, value)
+   const char *name;
+   value_t value;
+{
+   char *p = NULL;
+
+#if SOCKS_CLIENT
+#if HAVE_CONFENV_DISABLE
+   const char *safenames[] = { "SOCKS_BINDLOCALONLY",
+                               "SOCKS_DEBUG",
+                               "SOCKS_DISABLE_THREADLOCK",
+                               "SOCKS_DIRECTROUTE_FALLBACK",
+                               "SOCKS_PASSWORD",
+                               "SOCKS_PASSWD",
+                               "SOCKS5_PASSWD",
+                               "SOCKS_USERNAME",
+                               "SOCKS_USER",
+                               "SOCKS5_USER",
+   };
+   size_t i;
+#endif /* HAVE_CONFENV_DISABLE */
+
+   if (strcmp(name, "SOCKS_CONF")      == 0
+   ||  strcmp(name, "SOCKS_LOGOUTPUT") == 0
+   ||  strcmp(name, "TMPDIR")          == 0) {
+      /*
+       * Even if getenv() is not disabled, we don't want to return
+       * anything for this if the program may be running setuid,
+       * as it could allow reading/writing of arbitrary files.
+       */
+      if (issetugid())
+         return NULL;
+      else
+         return getenv(name);
+   }
+
+#if HAVE_CONFENV_DISABLE
+   /*
+    * If the name is safe, get it regardless of confenv being disabled.
+    */
+   for (i = 0; i < ELEMENTS(safenames); ++i)
+      if (strcmp(name, safenames[i]) == 0) {
+         p = getenv(name);
+         break;
+      }
+
+#else /* !HAVE_CONFENV_DISABLE */
+   p = getenv(name);
+#endif /* !HAVE_CONFENV_DISABLE */
+
+#else /* !SOCKS_CLIENT */
+   p = getenv(name);
+#endif /* !SOCKS_CLIENT */
+
+   if (p == NULL || value == dontcare)
+      return p;
+
+   switch (value) {
+      case istrue:
+         if (strcasecmp(p, "yes")  == 0
+         ||  strcasecmp(p, "true") == 0
+         ||  strcasecmp(p, "1")    == 0)
+            return p;
+         return NULL;
+
+      case isfalse:
+         if (strcasecmp(p, "no")    == 0
+         ||  strcasecmp(p, "false") == 0
+         ||  strcasecmp(p, "0")     == 0)
+            return p;
+         return NULL;
+
+      default:
+         SERRX(value);
+   }
+
+   /* NOTREACHED */
 }

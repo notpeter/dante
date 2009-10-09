@@ -1,4 +1,4 @@
-@(#)$Id: NEWS,v 1.54 2008/12/27 13:55:24 michaels Exp $
+@(#)$Id: NEWS,v 1.55 2009/08/04 13:09:08 karls Exp $
 
 (NOTE: The contents of this file is only updated for releases.)
 
@@ -17,7 +17,7 @@ o Check if large files need special support; logfiles can grow
   large.
   Problem reported by Tom Vandenbelt <tvandenb@au1.ibm.com.example.com>.
 
-o Drop trying to optimize away unnecessary PAM calls, creates 
+o Drop trying to optimize away unnecessary PAM calls, creates
   obscure problems on some PAM-Linux implementations.
   Based on good work by Mr E_T <troll@arach.net.au.example.com>, many thanks.
 
@@ -27,7 +27,7 @@ o Fixed bug introduced as part of additions to better preserve TCP
 
 o New module available: session.  This gives control over how
   many sessions different clients can create.
-  See the module page "http://www.inet.no/dante/module.html" 
+  See the module page "http://www.inet.no/dante/module.html"
   and doc/module for more information.
 
 o In order to share some code, there were some api changes
@@ -81,7 +81,7 @@ o Return immediate error if username/password is wrong in the common
   rule-checking code a little too.
 
 o In one rare case, such as triggered in some LVS health-checker
-  installations, a bug could make us leak descriptors. 
+  installations, a bug could make us leak descriptors.
   Thanks to Antonio Paulo Salgado Forster <aforster@br.ibm.com.example.com>
   and Pete Harvey <Peter.Harvey@newcastle.ac.uk.example.com> for help with
   debugging.
@@ -94,7 +94,7 @@ o Fix formating of some warning messages.
   Thanks to James Carlson <james.d.carlson@sun.com.example.com>.
 
 ***  Monday, January 31, 2005 -- Dante v1.1.15
- o Limit the maximum number of available descriptors if necessary, 
+ o Limit the maximum number of available descriptors if necessary,
    avoiding a possible overflow of fd_sets.
 
  o Added absolute timestamp to logformat, in preparation for new
@@ -114,8 +114,8 @@ o Fix formating of some warning messages.
 
  o Upgrade to autoconf 2.59, libtool 1.5.10 and automake 1.9.3.
 
- o Bugfix to code for shutting down idle sockd processes, from 
-   William Adams <wlarip@earthlink.net.example.com>.  
+ o Bugfix to code for shutting down idle sockd processes, from
+   William Adams <wlarip@earthlink.net.example.com>.
 
  o Add test for setegid(), use replacement if not found.
    Replacement code based on patch by <rainer.doerntge@dlh.de.example.com>.
@@ -184,7 +184,7 @@ o Fix formating of some warning messages.
  o Move daemon() call to later so more errors can be reported, suggested
    by Borsenkow Andrej <Andrej.Borsenkow@mow.siemens.ru.example.com>.
 
- o fix problem when linking with libsocks;     
+ o fix problem when linking with libsocks;
    NISHIMURA Daisuke <nishi@graco.c.u-tokyo.ac.jp.example.com>.
 
  o fix some problems when socksifying, making certain programs
@@ -194,7 +194,7 @@ o Fix formating of some warning messages.
 
 ***  Thursday, April 11, 2002 -- Dante v1.1.12
 
- o Don't mark the rule as good either if sockscf.state.unfixedpamdata, 
+ o Don't mark the rule as good either if sockscf.state.unfixedpamdata,
    fixes bug reported by Jerry Murdock" <jmurdock@itraktech.com.example.com>.
 
  o fix a bug preventing the list given in a 'user:' keyword from being checked
@@ -242,7 +242,7 @@ o Fix formating of some warning messages.
    Vitor Choi Feitosa <vchoi@interlegis.gov.br.example.com>
 
  o If Rgetsockname() is called on a socket that a previous uncompleted
-   Rconnect() has been done on, try to sleep until Rconnect() has 
+   Rconnect() has been done on, try to sleep until Rconnect() has
    finished instead of returning ENOBUFS.  Hoped to help compatibility
    with some applications.
 
@@ -250,7 +250,7 @@ o Fix formating of some warning messages.
    dh_tsc_10@ugcs.net.example.com.
 
  o Code for selecting which of multiple external ipaddresses to use
-   on a global basis based on routing. 
+   on a global basis based on routing.
    Code contributed by Tom Chan <tchan@austin.rr.com.example.com>.
 
  o Re-open logfiles on SIGHUP.
@@ -271,12 +271,12 @@ o Fix formating of some warning messages.
    addresses and portranges the Dante server will use.
    Can also be used to limit the number of concurrent sessions
    from each client.
-   See the module page "http://www.inet.no/dante/module.html" 
+   See the module page "http://www.inet.no/dante/module.html"
    and doc/module for more information.
 
  o New module available: bandwidth, gives control over how much
    bandwidth the Dante server uses on behalf of the different clients.
-   See the module page "http://www.inet.no/dante/module.html" 
+   See the module page "http://www.inet.no/dante/module.html"
    and doc/module for more information.
 
  o upgraded to autoconf-2.50, libtool-1.4 and automake-1.4-p4
@@ -369,7 +369,7 @@ o Fix formating of some warning messages.
  o HP-UX 11.00 should now work.
    Thanks to Malte Cornils <malte@cornils.net.example.com> for testing.
 
- o httpproxysupport in client (meaning "socksify" can work 
+ o httpproxysupport in client (meaning "socksify" can work
    when going through webproxies too).
 
  o expire badmarking on bad/non-working routes/proxyservers after
@@ -400,7 +400,7 @@ o Fix formating of some warning messages.
    Also don't setsid() in connectchild.
 
  o work around linux/sysv bug involving getpwnam() preventing
-   password authentication from working in some cases. 
+   password authentication from working in some cases.
    hp-ux may need similar workaround but not yet verified.
 
  o Prefer the result of getlogin() to getpwuid(getuid()).
@@ -455,7 +455,7 @@ previous versions of Dante:
     -  In the previous versions the "method" field in the rules
        specifying bind/udp-replies wasn't used entirely correct;
        it used the socksclient as the source when matching the
-       method field, rather than the source of the reply, a 
+       method field, rather than the source of the reply, a
 		 non-socks connection.
 
        The correct usage should be that the method field is relative
@@ -464,13 +464,13 @@ previous versions of Dante:
        taken to not accidently block the replies since most of them
        can only be using method "none" (the only other alternative
        is "rfc931").
-    
+
     -  The "feature" that a "user" listed with the same name as
        a "method" would be considered special has been removed.
        Instead "client-rules" now take a "method" specification on
        the same form as the "socks-rules".  They also use the global
        method line in the same way as socks-rules.
-    
+
     -  The feature that "libwrap: rfc931" would include the rfc931
        (ident) name in logging has been removed.  This functionality
        should instead be provided by adding a additional rule,
@@ -551,7 +551,7 @@ previous versions of Dante:
 
  o rewrote addressmatch().  This sort of reverses the logic and is
    also no longer recursive.  Much Thanks to Per Hedeland
-   (per@erix.ericsson.se.example.com) for pointing out some problems here 
+   (per@erix.ericsson.se.example.com) for pointing out some problems here
    and helping with making this hopefully more correct.  Any mistakes
    are obviously our own.
 

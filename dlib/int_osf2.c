@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #if SOCKSLIBRARY_DYNAMIC
 
 static const char rcsid[] =
-"$Id: int_osf2.c,v 1.13 2009/01/02 14:06:00 michaels Exp $";
+"$Id: int_osf2.c,v 1.16 2009/08/08 08:31:26 michaels Exp $";
 
 #undef accept
 #undef getpeername
@@ -159,11 +159,9 @@ sys_nsendmsg(s, msg, flags)
    return rc;
 }
 
-
    /*
     * the interpositioned functions.
     */
-
 
 int
 naccept(s, addr, addrlen)
@@ -171,7 +169,7 @@ naccept(s, addr, addrlen)
    struct sockaddr *addr;
    socklen_t *addrlen;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_NACCEPT))
       return sys_naccept(s, addr, addrlen);
    return Raccept(s, addr, addrlen);
 }
@@ -181,7 +179,7 @@ ngetpeername(s, name, namelen)
    struct sockaddr *name;
    socklen_t *namelen;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_NGETPEERNAME))
       return sys_ngetpeername(s, name, namelen);
    return Rgetpeername(s, name, namelen);
 }
@@ -192,7 +190,7 @@ ngetsockname(s, name, namelen)
    struct sockaddr *name;
    socklen_t *namelen;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_NGETSOCKNAME))
       return sys_ngetpeername(s, name, namelen);
    return Rgetsockname(s, name, namelen);
 }
@@ -206,7 +204,7 @@ nrecvfrom(s, buf, len, flags, from, fromlen)
    struct sockaddr *from;
    size_t *fromlen;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_NRECVFROM))
       return sys_nrecvfrom(s, buf, len, flags, from, fromlen);
    return Rrecvfrom(s, buf, len, flags, from, fromlen);
 }
@@ -217,7 +215,7 @@ nrecvmsg(s, msg, flags)
    struct msghdr *msg;
    int flags;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_NRECVMSG))
       return sys_nrecvmsg(s, msg, flags);
    return Rrecvmsg(s, msg, flags);
 }
@@ -228,7 +226,7 @@ nsendmsg(s, msg, flags)
    const struct msghdr *msg;
    int flags;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL_NSENDMSG))
       return sys_nsendmsg(s, msg, flags);
    return Rsendmsg(s, msg, flags);
 }

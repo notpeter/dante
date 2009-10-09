@@ -37,13 +37,14 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@RUNLINT_FALSE@libsocks_la_DEPENDENCIES = ../libscompat/libscompat.la
 subdir = lib
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in config_parse.c config_parse.h \
-	config_scan.c
+	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/preload.m4 $(top_srcdir)/gssapi.m4 \
+	$(top_srcdir)/libscompat.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -58,9 +59,6 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-am__DEPENDENCIES_1 =
-libsocks_la_DEPENDENCIES = ../libscompat/libscompat.la \
-	$(am__DEPENDENCIES_1)
 am_libsocks_la_OBJECTS = config_parse.lo config_scan.lo Raccept.lo \
 	Rbind.lo Rgetpeername.lo Rgetsockname.lo Rrresvport.lo io.lo \
 	address.lo authneg.lo client.lo clientconfig.lo \
@@ -69,7 +67,7 @@ am_libsocks_la_OBJECTS = config_parse.lo config_scan.lo Raccept.lo \
 	Rbindresvport.lo Rconnect.lo Rgethostbyname.lo debug.lo \
 	Rcompat.lo msproxy_clientprotocol.lo hostcache.lo broken.lo \
 	serr.lo httpproxy.lo tostring.lo addressmatch.lo Rlisten.lo \
-	upnp.lo
+	upnp.lo gssapi.lo iobuf.lo
 libsocks_la_OBJECTS = $(am_libsocks_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/include
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -82,11 +80,6 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-LEXCOMPILE = $(LEX) $(LFLAGS) $(AM_LFLAGS)
-LTLEXCOMPILE = $(LIBTOOL) --mode=compile $(LEX) $(LFLAGS) $(AM_LFLAGS)
-YACCCOMPILE = $(YACC) $(YFLAGS) $(AM_YFLAGS)
-LTYACCCOMPILE = $(LIBTOOL) --mode=compile $(YACC) $(YFLAGS) \
-	$(AM_YFLAGS)
 SOURCES = $(libsocks_la_SOURCES)
 DIST_SOURCES = $(libsocks_la_SOURCES)
 HEADERS = $(noinst_HEADERS)
@@ -114,6 +107,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLIBDEPS = @DLIBDEPS@
 DSYMUTIL = @DSYMUTIL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -135,12 +129,16 @@ LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LIBOBJS = @LIBOBJS@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBS = @LIBS@
+LIBSCSRC = @LIBSCSRC@
 LIBTOOL = @LIBTOOL@
-LINT_FALSE = @LINT_FALSE@
-LINT_TRUE = @LINT_TRUE@
+
+#lint files
+LINT = @LINT@
+LINTFLAGS = @LINTFLAGS@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
+MAPOPT = @MAPOPT@
 NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -156,6 +154,8 @@ PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 PRERELEASE_FALSE = @PRERELEASE_FALSE@
 PRERELEASE_TRUE = @PRERELEASE_TRUE@
 RANLIB = @RANLIB@
+RUNLINT_FALSE = @RUNLINT_FALSE@
+RUNLINT_TRUE = @RUNLINT_TRUE@
 SED = @SED@
 SERVER_INTERPOSITION_ALWAYS_FALSE = @SERVER_INTERPOSITION_ALWAYS_FALSE@
 SERVER_INTERPOSITION_ALWAYS_TRUE = @SERVER_INTERPOSITION_ALWAYS_TRUE@
@@ -163,18 +163,13 @@ SERVER_INTERPOSITION_FALSE = @SERVER_INTERPOSITION_FALSE@
 SERVER_INTERPOSITION_TRUE = @SERVER_INTERPOSITION_TRUE@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SOCKDDEPS = @SOCKDDEPS@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 SOLIB_POSTFIX = @SOLIB_POSTFIX@
-SPROFIL_FALSE = @SPROFIL_FALSE@
-SPROFIL_TRUE = @SPROFIL_TRUE@
-STATIC_SOCKD_FALSE = @STATIC_SOCKD_FALSE@
-STATIC_SOCKD_TRUE = @STATIC_SOCKD_TRUE@
 STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
-WANT_LIBMINIUPNP_FALSE = @WANT_LIBMINIUPNP_FALSE@
-WANT_LIBMINIUPNP_TRUE = @WANT_LIBMINIUPNP_TRUE@
 WANT_LIBWRAP_FALSE = @WANT_LIBWRAP_FALSE@
 WANT_LIBWRAP_TRUE = @WANT_LIBWRAP_TRUE@
 YACC = @YACC@
@@ -182,6 +177,7 @@ YFLAGS = @YFLAGS@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
 ac_ct_F77 = @ac_ct_F77@
+ac_krb5_config = @ac_krb5_config@
 am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
 am__fastdepCC_TRUE = @am__fastdepCC_TRUE@
 am__fastdepCXX_FALSE = @am__fastdepCXX_FALSE@
@@ -224,38 +220,41 @@ program_transform_name = @program_transform_name@
 psdir = @psdir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
-subdirs = @subdirs@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 lib_LTLIBRARIES = libsocks.la
-libsocks_la_SOURCES = config_parse.y config_scan.l Raccept.c Rbind.c \
+libsocks_la_SOURCES = config_parse.c config_scan.c Raccept.c Rbind.c \
 	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    \
 	address.c authneg.c client.c clientconfig.c clientprotocol.c \
 	udp.c userio.c connectchild.c config.c  \
 	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  \
 	Rconnect.c Rgethostbyname.c debug.c Rcompat.c \
 	msproxy_clientprotocol.c hostcache.c broken.c serr.c httpproxy.c \
-	tostring.c addressmatch.c Rlisten.c upnp.c
+	tostring.c addressmatch.c Rlisten.c upnp.c gssapi.c iobuf.c
 
-@WANT_LIBMINIUPNP_TRUE@LIBUPNP = -lminiupnpc
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info
 libsocks_la_LDFLAGS = -version-info 1:1:1
-libsocks_la_LIBADD = ../libscompat/libscompat.la ${LIBUPNP}
+libsocks_la_LIBADD = ../libscompat/libscompat.la @DLIBDEPS@
+INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
+AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=0
+EXTRA_DIST = config_parse.y config_scan.l
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
-INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
-
-#XXX
-AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0
 PREFIX = socks_yy
 AM_YFLAGS = -d -p${PREFIX}
 AM_LFLAGS = -P${PREFIX} -olex.yy.c
+@RUNLINT_TRUE@SUFFIXES = .ln
+@RUNLINT_TRUE@LINTFILESa = $(libsocks_la_SOURCES:.c=.ln)
+@RUNLINT_TRUE@LINTFILESb = $(LINTFILESa:.y=.ln)
+@RUNLINT_TRUE@LINTFILES = $(LINTFILESb:.l=.ln)
+@RUNLINT_TRUE@libsocks_la_DEPENDENCIES = $(LINTFILES)
+@RUNLINT_TRUE@CLEANFILES = $(LINTFILES)
 all: all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .l .lo .o .obj .y
+.SUFFIXES: .ln .c .lo .o .obj
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -265,9 +264,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  lib/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  lib/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  lib/Makefile
+	  $(AUTOMAKE) --foreign  lib/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -312,11 +311,6 @@ clean-libLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-config_parse.h: config_parse.c
-	@if test ! -f $@; then \
-	  rm -f config_parse.c; \
-	  $(MAKE) config_parse.c; \
-	else :; fi
 libsocks.la: $(libsocks_la_OBJECTS) $(libsocks_la_DEPENDENCIES) 
 	$(LINK) -rpath $(libdir) $(libsocks_la_LDFLAGS) $(libsocks_la_OBJECTS) $(libsocks_la_LIBADD) $(LIBS)
 
@@ -348,9 +342,11 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/config_scan.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/connectchild.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gssapi.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostcache.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/httpproxy.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/iobuf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/msproxy_clientprotocol.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/protocol.Plo@am__quote@
@@ -383,32 +379,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
-
-.l.c:
-	$(LEXCOMPILE) $<
-	sed '/^#/ s|$(LEX_OUTPUT_ROOT)\.c|$@|' $(LEX_OUTPUT_ROOT).c >$@
-	rm -f $(LEX_OUTPUT_ROOT).c
-
-.y.c:
-	$(YACCCOMPILE) $<
-	if test -f y.tab.h; then \
-	  to=`echo "$*_H" | sed \
-                -e 'y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/' \
-                -e 's/[^ABCDEFGHIJKLMNOPQRSTUVWXYZ]/_/g'`; \
-	  sed -e "/^#/!b" -e "s/Y_TAB_H/$$to/g" -e "s|y\.tab\.h|$*.h|" \
-            y.tab.h >$*.ht; \
-	  rm -f y.tab.h; \
-	  if cmp -s $*.ht $*.h; then \
-	    rm -f $*.ht ;\
-	  else \
-	    mv $*.ht $*.h; \
-	  fi; \
-	fi
-	if test -f y.output; then \
-	  mv y.output $*.output; \
-	fi
-	sed '/^#/ s|y\.tab\.c|$@|' y.tab.c >$@t && mv $@t $@
-	rm -f y.tab.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -519,6 +489,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
@@ -526,9 +497,6 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-	-rm -f config_parse.c
-	-rm -f config_parse.h
-	-rm -f config_scan.c
 	-test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
 clean: clean-am
 
@@ -594,6 +562,41 @@ uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 	tags uninstall uninstall-am uninstall-info-am \
 	uninstall-libLTLIBRARIES
 
+#LFLAGS = @LFLAGS@
+
+#XXX need to include common.h before any other headers for lex/yacc
+#    files so we keep the generation rules here, with a slight modification
+config_parse.c: config_parse.y
+	$(YACC) $(YFLAGS) $(AM_YFLAGS) config_parse.y
+	if test -f y.tab.h; then \
+	  to=`echo "$*_H" | sed \
+                -e 'y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/' \
+                -e 's/[^ABCDEFGHIJKLMNOPQRSTUVWXYZ]/_/g'`; \
+	  sed -e "/^#/!b" -e "s/Y_TAB_H/$$to/g" -e "s|y\.tab\.h|$*.h|" \
+            y.tab.h >$*.ht; \
+	  rm -f y.tab.h; \
+	  if cmp -s $*.ht $*.h; then \
+	    rm -f $*.ht ;\
+	  else \
+	    mv $*.ht $*.h; \
+	  fi; \
+	fi
+	if test -f y.output; then \
+	  mv y.output $*.output; \
+	fi
+	echo '#include "common.h"' > $@
+	sed '/^#/ s|y\.tab\.c|$@|' y.tab.c >$@t && cat $@t >> $@ && \
+	   rm -f $@t
+	rm -f y.tab.c
+
+config_scan.c: config_scan.l
+	$(LEX) $(LFLAGS) $(AM_LFLAGS) config_scan.l
+	echo '#include "common.h"' > $@
+	sed '/^#/ s|$(LEX_OUTPUT_ROOT)\.c|$@|' $(LEX_OUTPUT_ROOT).c >> $@
+	rm -f $(LEX_OUTPUT_ROOT).c
+
+@RUNLINT_TRUE@.c.ln:
+@RUNLINT_TRUE@	$(LINT) $(LINTFLAGS) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(AM_CFLAGS) $<
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

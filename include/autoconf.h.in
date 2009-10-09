@@ -1,10 +1,16 @@
 /* include/autoconf.h.in.  Generated from configure.ac by autoheader.  */
 
+/* we are Dante */
+#undef BAREFOOTD
+
 /* enable BSD compatibility */
 #undef BSD_COMP
 
 /* for debugging */
 #undef DIAGNOSTIC
+
+/* dlopen has RTLD_ prefix */
+#undef DL_LAZY
 
 /* alternate location */
 #undef HAVE_ALT_SOCKD_CONFIGFILE
@@ -24,9 +30,6 @@
 /* platform bug */
 #undef HAVE_BROKEN_INET_NTOA
 
-/* nonstandard */
-#undef HAVE_BROKEN_VSPRINTF
-
 /* Define to 1 if you have the `bzero' function. */
 #undef HAVE_BZERO
 
@@ -38,6 +41,9 @@
 
 /* CMSG_SPACE exists */
 #undef HAVE_CMSG_SPACE
+
+/* Disable environment variables */
+#undef HAVE_CONFENV_DISABLE
 
 /* Define to 1 if you have the <crypt.h> header file. */
 #undef HAVE_CRYPT_H
@@ -66,6 +72,9 @@
 /* GUI tool */
 #undef HAVE_DUMPCONF
 
+/* Define to 1 if you have the <execinfo.h> header file. */
+#undef HAVE_EXECINFO_H
+
 /* DEC workarounds */
 #undef HAVE_EXTRA_OSF_SYMBOLS
 
@@ -77,9 +86,6 @@
 
 /* Define to 1 if you have the `getaddrinfo' function. */
 #undef HAVE_GETADDRINFO
-
-/* Define to 1 if you have the `getdtablesize' function. */
-#undef HAVE_GETDTABLESIZE
 
 /* Define to 1 if you have the `gethostbyname2' function. */
 #undef HAVE_GETHOSTBYNAME2
@@ -96,8 +102,26 @@
 /* Define to 1 if you have the `getspnam' function. */
 #undef HAVE_GETSPNAM
 
-/* system hosttype */
-#undef HAVE_HOST_TYPE
+/* GSSAPI support */
+#undef HAVE_GSSAPI
+
+/* Define to 1 if you have the <gssapi/gssapi_ext.h> header file. */
+#undef HAVE_GSSAPI_GSSAPI_EXT_H
+
+/* Define to 1 if you have the <gssapi/gssapi_generic.h> header file. */
+#undef HAVE_GSSAPI_GSSAPI_GENERIC_H
+
+/* Define to 1 if you have the <gssapi/gssapi.h> header file. */
+#undef HAVE_GSSAPI_GSSAPI_H
+
+/* Define to 1 if you have the <gssapi/gssapi_krb5.h> header file. */
+#undef HAVE_GSSAPI_GSSAPI_KRB5_H
+
+/* Define to 1 if you have the <gssapi.h> header file. */
+#undef HAVE_GSSAPI_H
+
+/* Heimdal kerberos implementation */
+#undef HAVE_HEIMDAL_KERBEROS
 
 /* Define to 1 if you have the `hstrerror' function. */
 #undef HAVE_HSTRERROR
@@ -141,11 +165,53 @@
 /* Define to 1 if you have the `issetugid' function. */
 #undef HAVE_ISSETUGID
 
+/* Define to 1 if you have the `asn1' library (-lasn1). */
+#undef HAVE_LIBASN1
+
+/* Define to 1 if you have the `com_err' library (-lcom_err). */
+#undef HAVE_LIBCOM_ERR
+
+/* Define to 1 if you have the `crypt' library (-lcrypt). */
+#undef HAVE_LIBCRYPT
+
+/* Define to 1 if you have the `crypto' library (-lcrypto). */
+#undef HAVE_LIBCRYPTO
+
 /* linux version of issetugid() */
 #undef HAVE_LIBC_ENABLE_SECURE
 
+/* Define to 1 if you have the `des' library (-ldes). */
+#undef HAVE_LIBDES
+
+/* Define to 1 if you have the `des425' library (-ldes425). */
+#undef HAVE_LIBDES425
+
+/* Define to 1 if you have the `gss' library (-lgss). */
+#undef HAVE_LIBGSS
+
+/* Define to 1 if you have the `gssapi' library (-lgssapi). */
+#undef HAVE_LIBGSSAPI
+
+/* Define to 1 if you have the `gssapi_krb5' library (-lgssapi_krb5). */
+#undef HAVE_LIBGSSAPI_KRB5
+
+/* Define to 1 if you have the `k5crypto' library (-lk5crypto). */
+#undef HAVE_LIBK5CRYPTO
+
+/* Define to 1 if you have the `krb5' library (-lkrb5). */
+#undef HAVE_LIBKRB5
+
+/* Define to 1 if you have the `ksvc' library (-lksvc). */
+#undef HAVE_LIBKSVC
+
 /* UPNP support library */
 #undef HAVE_LIBMINIUPNP
+
+/* Define to 1 if you have the `pthread' library (-lpthread). */
+#undef HAVE_LIBPTHREAD
+
+/* Define to 1 if you have the `roken' library (-lroken). */
+#undef HAVE_LIBROKEN
 
 /* use tcpwrappers */
 #undef HAVE_LIBWRAP
@@ -158,6 +224,9 @@
 
 /* platform workarounds */
 #undef HAVE_LINUX_ECCENTRICITIES
+
+/* stdio function preloading */
+#undef HAVE_LINUX_GLIBC_WORKAROUND
 
 /* Define to 1 if you have the <malloc.h> header file. */
 #undef HAVE_MALLOC_H
@@ -222,6 +291,12 @@
 /* Define to 1 if you have the <paths.h> header file. */
 #undef HAVE_PATHS_H
 
+/* Some privilege type supported */
+#undef HAVE_PRIVILEGES
+
+/* Define to 1 if you have the <priv.h> header file. */
+#undef HAVE_PRIV_H
+
 /* for profiling */
 #undef HAVE_PROFILING
 
@@ -265,6 +340,102 @@
 #undef HAVE_PROT_CONNECT_3
 
 /* proto */
+#undef HAVE_PROT_FCLOSE_0
+
+/* proto */
+#undef HAVE_PROT_FCLOSE_1
+
+/* proto */
+#undef HAVE_PROT_FFLUSH_0
+
+/* proto */
+#undef HAVE_PROT_FFLUSH_1
+
+/* proto */
+#undef HAVE_PROT_FGETC_0
+
+/* proto */
+#undef HAVE_PROT_FGETC_1
+
+/* proto */
+#undef HAVE_PROT_FGETS_0
+
+/* proto */
+#undef HAVE_PROT_FGETS_1
+
+/* proto */
+#undef HAVE_PROT_FGETS_2
+
+/* proto */
+#undef HAVE_PROT_FGETS_3
+
+/* proto */
+#undef HAVE_PROT_FPRINTF_0
+
+/* proto */
+#undef HAVE_PROT_FPRINTF_1
+
+/* proto */
+#undef HAVE_PROT_FPRINTF_2
+
+/* proto */
+#undef HAVE_PROT_FPRINTF_3
+
+/* proto */
+#undef HAVE_PROT_FPUTC_0
+
+/* proto */
+#undef HAVE_PROT_FPUTC_1
+
+/* proto */
+#undef HAVE_PROT_FPUTC_2
+
+/* proto */
+#undef HAVE_PROT_FPUTS_0
+
+/* proto */
+#undef HAVE_PROT_FPUTS_1
+
+/* proto */
+#undef HAVE_PROT_FPUTS_2
+
+/* proto */
+#undef HAVE_PROT_FREAD_0
+
+/* proto */
+#undef HAVE_PROT_FREAD_1
+
+/* proto */
+#undef HAVE_PROT_FREAD_2
+
+/* proto */
+#undef HAVE_PROT_FREAD_3
+
+/* proto */
+#undef HAVE_PROT_FREAD_4
+
+/* proto */
+#undef HAVE_PROT_FWRITE_0
+
+/* proto */
+#undef HAVE_PROT_FWRITE_1
+
+/* proto */
+#undef HAVE_PROT_FWRITE_2
+
+/* proto */
+#undef HAVE_PROT_FWRITE_3
+
+/* proto */
+#undef HAVE_PROT_FWRITE_4
+
+/* proto */
+#undef HAVE_PROT_GETC_0
+
+/* proto */
+#undef HAVE_PROT_GETC_1
+
+/* proto */
 #undef HAVE_PROT_GETHOSTBYADDR_0
 
 /* proto */
@@ -301,6 +472,12 @@
 #undef HAVE_PROT_GETSOCKNAME_3
 
 /* proto */
+#undef HAVE_PROT_GETS_0
+
+/* proto */
+#undef HAVE_PROT_GETS_1
+
+/* proto */
 #undef HAVE_PROT_LISTEN_0
 
 /* proto */
@@ -308,6 +485,30 @@
 
 /* proto */
 #undef HAVE_PROT_LISTEN_2
+
+/* proto */
+#undef HAVE_PROT_PRINTF_0
+
+/* proto */
+#undef HAVE_PROT_PRINTF_1
+
+/* proto */
+#undef HAVE_PROT_PRINTF_2
+
+/* proto */
+#undef HAVE_PROT_PUTC_0
+
+/* proto */
+#undef HAVE_PROT_PUTC_1
+
+/* proto */
+#undef HAVE_PROT_PUTC_2
+
+/* proto */
+#undef HAVE_PROT_PUTS_0
+
+/* proto */
+#undef HAVE_PROT_PUTS_1
 
 /* proto */
 #undef HAVE_PROT_READV_0
@@ -430,6 +631,27 @@
 #undef HAVE_PROT_SEND_4
 
 /* proto */
+#undef HAVE_PROT_VFPRINTF_0
+
+/* proto */
+#undef HAVE_PROT_VFPRINTF_1
+
+/* proto */
+#undef HAVE_PROT_VFPRINTF_2
+
+/* proto */
+#undef HAVE_PROT_VFPRINTF_3
+
+/* proto */
+#undef HAVE_PROT_VPRINTF_0
+
+/* proto */
+#undef HAVE_PROT_VPRINTF_1
+
+/* proto */
+#undef HAVE_PROT_VPRINTF_2
+
+/* proto */
 #undef HAVE_PROT_WRITEV_0
 
 /* proto */
@@ -453,6 +675,24 @@
 /* proto */
 #undef HAVE_PROT_WRITE_3
 
+/* proto */
+#undef HAVE_PROT__IO_GETC_0
+
+/* proto */
+#undef HAVE_PROT__IO_GETC_1
+
+/* proto */
+#undef HAVE_PROT__IO_PUTC_0
+
+/* proto */
+#undef HAVE_PROT__IO_PUTC_1
+
+/* proto */
+#undef HAVE_PROT__IO_PUTC_2
+
+/* no pthread header */
+#undef HAVE_PTHREAD_H
+
 /* Define to 1 if you have the <resolv.h> header file. */
 #undef HAVE_RESOLV_H
 
@@ -465,11 +705,11 @@
 /* routing socket communication supported */
 #undef HAVE_ROUTE_SOURCE
 
+/* no working dlsym RTLD_NEXT */
+#undef HAVE_RTLD_NEXT
+
 /* Define to 1 if you have the <security/pam_appl.h> header file. */
 #undef HAVE_SECURITY_PAM_APPL_H
-
-/* Define to 1 if you have the `select' function. */
-#undef HAVE_SELECT
 
 /* bug workaround */
 #undef HAVE_SENDMSG_DEADLOCK
@@ -495,9 +735,6 @@
 /* sa_len exists in sockaddr */
 #undef HAVE_SOCKADDR_SA_LEN
 
-/* sockaddr_storate defined */
-#undef HAVE_SOCKADDR_STORAGE
-
 /* Define to 1 if you have the `sockatmark' function. */
 #undef HAVE_SOCKATMARK
 
@@ -507,20 +744,17 @@
 /* alternate location */
 #undef HAVE_SOCKD_PIDFILE
 
-/* Define to 1 if you have the `socket' function. */
-#undef HAVE_SOCKET
-
 /* alternate location */
 #undef HAVE_SOCKS_CONFIGFILE
-
-/* broken platform */
-#undef HAVE_SOLARIS_2_5_1
 
 /* bug workaround */
 #undef HAVE_SOLARIS_BUGS
 
 /* bug workaround */
 #undef HAVE_SOLARIS_PAM_BUG
+
+/* Solaris priv.h support */
+#undef HAVE_SOLARIS_PRIVS
 
 /* platform supports SO_SNDLOWAT socket option */
 #undef HAVE_SO_SNDLOWAT
@@ -531,15 +765,6 @@
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
 
-/* Define to 1 if you have the `strcspn' function. */
-#undef HAVE_STRCSPN
-
-/* Define to 1 if you have the `strdup' function. */
-#undef HAVE_STRDUP
-
-/* Define to 1 if you have the `strerror' function. */
-#undef HAVE_STRERROR
-
 /* Define to 1 if you have the `strftime' function. */
 #undef HAVE_STRFTIME
 
@@ -549,17 +774,11 @@
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
 
-/* Define to 1 if you have the `strspn' function. */
-#undef HAVE_STRSPN
-
 /* ip_opts defined in netinet/in.h */
 #undef HAVE_STRUCT_IPOPTS
 
 /* Define to 1 if you have the `strvis' function. */
 #undef HAVE_STRVIS
-
-/* Define to 1 if you have the `sysconf' function. */
-#undef HAVE_SYSCONF
 
 /* Define to 1 if you have the <syslog.h> header file. */
 #undef HAVE_SYSLOG_H
@@ -597,6 +816,9 @@
 /* Define to 1 if you have the <tcpd.h> header file. */
 #undef HAVE_TCPD_H
 
+/* threads unstable platform */
+#undef HAVE_THREADS_EINTR_PROBLEMS
+
 /* timeradd(), timersub etc. exist in sys/time.h */
 #undef HAVE_TIMER_MACROS
 
@@ -624,14 +846,23 @@
 /* Define to 1 if you have the `vprintf' function. */
 #undef HAVE_VPRINTF
 
-/* Define to 1 if you have the `vsnprintf' function. */
-#undef HAVE_VSNPRINTF
-
 /* Define to 1 if you have the `vsyslog' function. */
 #undef HAVE_VSYSLOG
 
 /* system V getpwnam */
 #undef HAVE_WORKING_GETPWNAM
+
+/* Define to 1 if you have the `_IO_getc' function. */
+#undef HAVE__IO_GETC
+
+/* Define to 1 if you have the `_IO_putc' function. */
+#undef HAVE__IO_PUTC
+
+/* Define to 1 if you have the `__fprintf_chk' function. */
+#undef HAVE___FPRINTF_CHK
+
+/* Define to 1 if you have the `__vfprintf_chk' function. */
+#undef HAVE___VFPRINTF_CHK
 
 /* function loc */
 #undef LIBRARY_ACCEPT
@@ -687,8 +918,8 @@
 /* function loc */
 #undef LIBRARY_LISTEN
 
-/* hardcoded path */
-#undef LIBRARY_PATH
+/* libloc */
+#undef LIBRARY_PTHREAD
 
 /* function loc */
 #undef LIBRARY_RECV
@@ -716,9 +947,6 @@
 
 /* use AF_LOCATL, not AF_UNIX */
 #undef NEED_AF_LOCAL
-
-/* dlopen has RTLD_ prefix */
-#undef NEED_DYNA_RTLD
 
 /* EXIT_FAILURE not defined in stdlib.h */
 #undef NEED_EXIT_FAILURE
@@ -750,6 +978,9 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
+/* software prerelease */
+#undef PRERELEASE
+
 /* Define to 1 if the C compiler supports function prototypes. */
 #undef PROTOTYPES
 
@@ -773,8 +1004,8 @@
 /* The size of `short', as computed by sizeof. */
 #undef SIZEOF_SHORT
 
-/* platform workaround */
-#undef SOCKS_DOMAINNAME
+/* do not use fallback */
+#undef SOCKS_DIRECTROUTE_FALLBACK
 
 /* setproctitle */
 #undef SPT_PADCHAR
@@ -808,11 +1039,26 @@
 /* Define like PROTOTYPES; this can be used by system headers. */
 #undef __PROTOTYPES
 
+/* empty __attribute__ macro */
+#undef __attribute__
+
+/* empty __bounded__ macro */
+#undef __bounded__
+
+/* bzero replacement */
+#undef bzero
+
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
 
+/* empty format attribute macro */
+#undef format
+
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef gid_t
+
+/* gss_nt_service_name replacement */
+#undef gss_nt_service_name
 
 /* Define to `__inline__' or `__inline' if that's what the C compiler
    calls it, or to nothing if 'inline' is not supported under any name.  */

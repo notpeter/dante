@@ -1,12 +1,11 @@
+	This directory contains contributed files that are not
+	supported or maintained by Inferno Nettverk A/S.
 
-        This directory contains contributed files that are not
-        supported or maintained by Inferno Nettverk A/S.
+	They are included here in the hope that they may be useful
+	to someone.
 
-        They are included here in the hope that they may be useful
-        to someone.
-
-        Inferno Nettverk takes no responsibility for any of these
-        files, use them at your own risk (as always).
+	Inferno Nettverk takes no responsibility for any of these
+	files, use them at your own risk (as always).
 
 		  If any of these are no longer working, please send
 		  a bug-report so they can be removed.  If you
@@ -14,6 +13,6 @@
 		  the author of the contributed file, not Inferno Nettverk.
 
 
-Filename 				Description
+Filename				Description
 sockd-stat.awk			provides statistics based on sockd logfiles
 Startup*			startupitems for Mac OS X

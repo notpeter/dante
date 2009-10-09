@@ -1,5 +1,5 @@
 /*
- * $Id: shmem.c,v 1.4 2006/01/08 18:26:32 karls Exp $
+ * $Id: shmem.c,v 1.5 2009/08/04 17:22:29 karls Exp $
  *
  * Copyright (c) 2005, 2006
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmem.c,v 1.4 2006/01/08 18:26:32 karls Exp $";
+"$Id: shmem.c,v 1.5 2009/08/04 17:22:29 karls Exp $";
 
 void
 shmem_setup(void)
@@ -63,4 +63,3 @@ void
 shmem_unlockall(void)
 {
 }
-

@@ -1,11 +1,12 @@
-# $Id: CREDITS,v 1.32 2009/01/08 18:49:32 michaels Exp $
+# $Id: CREDITS,v 1.36 2009/10/04 12:47:21 michaels Exp $
 
 Dante was developed for Inferno Nettverk A/S, Norway, by
-   - Michael Shuldman 
+   - Michael Shuldman
    - Karl-André Skevik
 
 
-At least the following additional people should be credited:
+At least the following additional people should be credited
+(remove example.com for the real mail-address):
 
 - David Koblas (koblas@netcom.com.example.com) authored the original
   Socks protocol and implementation.
@@ -69,8 +70,12 @@ At least the following additional people should be credited:
 - Motoyuki Kasahara <m-kasahr@sra.co.jp.example.com> contributed the
   getaddrinfo() implementation used in the code.
 
-- Markus Moeller <huaraz@moeller.plus.com.example.com> contributed
-  a patch to limit the range of udp-ports used between the socks-client
-  and the Dante server.
+- Markus Moeller (markus_moeller at compuserve.com) contributed a patch
+  to limit the range of udp-ports used between the socks-client and the
+  Dante server.
+
+- Markus Moeller (markus_moeller at compuserve.com) contributed
+  support for the GSSAPI (RFC 1961) to both the server and the client.
+  Many thanks to Markus for this.
 
 - Also thanks to everyone who reported bugs and other problems.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,34 +44,32 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.16 2009/01/02 14:06:03 michaels Exp $";
-
-__BEGIN_DECLS
+"$Id: addressmatch.c,v 1.23 2009/08/18 14:00:39 karls Exp $";
 
 static int
-addrisinlist __P((const struct in_addr *addr, const struct in_addr *mask,
-                 const struct in_addr **list));
+addrisinlist(const struct in_addr *addr, const struct in_addr *mask,
+      const struct in_addr **list);
 /*
- * Compares "addr" bitwise anded with "mask" against each element in
- * "list" bitwise anded with "mask".  "list" is NULL terminated.
+ * Compares "addr" bitwise and-ed with "mask" against each element in
+ * "list" bitwise and-ed with "mask".  "list" is NULL terminated.
  * Returns:
  *      If "list" contains a element matching "addr" and "mask": true
  *      else: false
  */
 
 static int
-addrareeq __P((const struct in_addr *addr, const struct in_addr *mask,
-               const struct in_addr *against));
+addrareeq(const struct in_addr *addr, const struct in_addr *mask,
+      const struct in_addr *against);
 /*
- * Compares "addr" bitwise anded with "mask" against "against" bitwise
- * anded with "mask".
+ * Compares "addr" bitwise and-ed with "mask" against "against" bitwise
+ * and-ed with "mask".
  * Returns:
  *      If "against" matches "addr" and "mask": true
  *      else: false
  */
 
 static int
-hostisinlist __P((const char *host, const char **list));
+hostisinlist(const char *host, const char **list);
 /*
  * Compares "host" against each element in "list", which is NULL
  * terminated.
@@ -83,9 +81,9 @@ hostisinlist __P((const char *host, const char **list));
  */
 
 static int
-hostareeq __P((const char *domain, const char *remotedomain));
+hostareeq(const char *domain, const char *remotedomain);
 /*
- * Compares the rulegiven domain "domain" against "remotedomain".
+ * Compares the rule-given domain "domain" against "remotedomain".
  * Note that if "domain" starts with a dot, it will match
  * "remotedomain" if the last part of "remotedomain" matches
  * the part after the dot in "domain".
@@ -95,16 +93,14 @@ hostareeq __P((const char *domain, const char *remotedomain));
  */
 
 
-__END_DECLS
-
 int
-addressmatch(rule, address, protocol, alias)
+addrmatch(rule, address, protocol, alias)
    const struct ruleaddr_t *rule;
    const struct sockshost_t *address;
    int protocol;
    int alias;
 {
-   const char *function = "addressmatch()";
+   const char *function = "addrmatch()";
    struct hostent *hostent;
    in_port_t ruleport;
    int matched, doresolve;
@@ -198,7 +194,7 @@ addressmatch(rule, address, protocol, alias)
 
    /*
     * if mask of rule is 0, it should match anything.  Try that first
-    * so we can save lots of potentioally heavy work.
+    * so we can save lots of potentially heavy work.
     */
    if (rule->atype == SOCKS_ADDR_IPV4 && (rule->addr.ipv4.mask.s_addr == 0))
       matched = 1;
@@ -249,7 +245,7 @@ addressmatch(rule, address, protocol, alias)
             int i;
 
             /* LINTED pointer casts may be troublesome */
-            if ((hostent = gethostbyaddr((const char *)&address->addr.ipv4,
+            if ((hostent = gethostbyaddr(&address->addr.ipv4,
             sizeof(address->addr.ipv4), AF_INET)) == NULL) {
                slog(LOG_DEBUG, "%s: %s: %s",
                function, inet_ntoa(address->addr.ipv4), hstrerror(h_errno));
@@ -489,7 +485,7 @@ addressmatch(rule, address, protocol, alias)
          ruleaddr.addr.ipv4.ip            = TOIN(&sa)->sin_addr;
          ruleaddr.addr.ipv4.mask.s_addr   = htonl(0xffffffff);
 
-         matched = addressmatch(&ruleaddr, address, protocol, alias);
+         matched = addrmatch(&ruleaddr, address, protocol, alias);
       }
    }
    else

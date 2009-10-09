@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.35 2009/01/02 14:06:06 michaels Exp $";
+"$Id: upnp.c,v 1.60 2009/09/28 11:24:08 michaels Exp $";
 
 #include "common.h"
 
@@ -54,16 +54,11 @@ static const char rcsid[] =
 #include "upnp.h"
 #endif /* HAVE_LIBMINIUPNP */
 
-
 #if HAVE_LIBMINIUPNP
 #if SOCKS_CLIENT
-/*
- * if caller already has a signal handler for the signal, save it
- * so we can call it from our own handler if something other than 
- * our own child dies, for compatibility with caller.
- */
 static struct sigaction oldsig;
 static void sighandler(int sig);
+static void atexit_upnpcleanup(void);
 #endif /* SOCKS_CLIENT */
 
 #endif /* HAVE_LIBMINIUPNP */
@@ -88,7 +83,7 @@ socks_initupnp(gw, state)
 
 #if !HAVE_LIBMINIUPNP
    return -1;
-#else /* HAVE_LIBMINIUPNP */
+#else
    if (*state->upnp.controlurl != NUL)
       return 0;
 
@@ -97,8 +92,12 @@ socks_initupnp(gw, state)
 
       if (UPNP_GetIGDFromUrl(gw->addr.urlname, &url, &data, myaddr,
       sizeof(myaddr)) != 1) {
-         swarnx("%s: failed to get IGD from fixed url: %s\n",
+         swarnx("%s: failed to get IGD from fixed url %s\n",
          function, gw->addr.urlname);
+
+         if (errno == 0)
+            errno = ENETUNREACH;
+
          return -1;
       }
 
@@ -111,12 +110,16 @@ socks_initupnp(gw, state)
       SASSERTX(host.atype == SOCKS_ADDR_IPV4);
       inet_ntop(AF_INET, &host.addr.ipv4, addrstring, sizeof(addrstring));
 
-      slog(LOG_DEBUG, "%s: doing upnp discover on interface of addr %s (%s)",
+      slog(LOG_DEBUG, "%s: doing upnp discovery on interface of addr %s (%s)",
       function, addrstring, gwaddr2string(gw, gwstring, sizeof(gwstring)));
 
       if ((dev = upnpDiscover(UPNP_DISCOVERYTIME_MS, addrstring, NULL, 0))
       == NULL) {
          slog(LOG_DEBUG, "no upnp devices found");
+
+         if (errno == 0)
+            errno = ENETUNREACH;
+
          return -1;
       }
 
@@ -141,27 +144,42 @@ socks_initupnp(gw, state)
       sizeof(myaddr))) {
          case UPNP_NO_IGD:
             slog(LOG_DEBUG, "no IGD found");
+
+            if (errno == 0)
+               errno = ENETUNREACH;
+
             rc = -1;
             break;
 
          case UPNP_CONNECTED_IGD:
             slog(LOG_DEBUG, "IGD found at %s", dev->descURL);
             rc = 0;
-            break; 
+            break;
 
          case UPNP_DISCONNECTED_IGD:
             slog(LOG_DEBUG, "IGD found, but it is not connected");
+
+            if (errno == 0)
+               errno = ENETUNREACH;
+
             rc = -1;
             break;
 
          case UPNP_UNKNOWN_DEVICE:
             slog(LOG_DEBUG, "unknown upnp device found at %s", url.controlURL);
+
+            if (errno == 0)
+               errno = ENETUNREACH;
+
             rc = -1;
-         
+
          default:
-            swarnx("%s: unknown returncode from UPNP_GetValidIGD(): %d",
+            swarnx("%s: unknown return code from UPNP_GetValidIGD(): %d",
             function, devtype);
             rc = -1;
+
+            if (errno == 0)
+               errno = ENETUNREACH;
       }
 
       freeUPNPDevlist(dev);
@@ -190,7 +208,7 @@ upnp_negotiate(s, packet, state)
    socklen_t addrlen;
    char straddr[INET_ADDRSTRLEN], strport[sizeof("65535")];
    int rc;
-#endif
+#endif /* HAVE_LIBMINIUPNP */
 
    slog(LOG_DEBUG, function);
 
@@ -205,19 +223,19 @@ upnp_negotiate(s, packet, state)
           * Can only find out what the external ip address of the device is.
           *
           * We could fetch the address here, but if the client never intends
-          * to find out what it's local address is, that's a waste of time. 
+          * to find out what it's local address is, that's a waste of time.
           * Therefor postpone it to the Rgetsockname() call, if it ever
           * comes.
           *
-          * For the socksserver case (server chained) we need to fetch
+          * For the socks server case (server chained) we need to fetch
           * it here though, since it is part of the response returned
           * to the socks client.
           */
 
-         if (socks_connect(s, &packet->req.host) != 0)
-            if (errno != EINPROGRESS) {
-               slog(LOG_DEBUG, "%s: socks_connect(%s): %s", 
-               function, sockshost2string(&packet->req.host, NULL, 0), 
+         if (socks_connecthost(s, &packet->req.host) != 0)
+            if (!ERRNOISINPROGRESS(errno)) {
+               slog(LOG_DEBUG, "%s: socks_connecthost(%s) failed: %s",
+               function, sockshost2string(&packet->req.host, NULL, 0),
                strerror(errno));
 
                packet->res.reply = UPNP_FAILURE;
@@ -226,27 +244,30 @@ upnp_negotiate(s, packet, state)
 
          /* FALLTHROUGH */
 
-      case SOCKS_UDPASSOCIATE:
+      case SOCKS_UDPASSOCIATE: {
          /*
-          * if it was a bind, it would be handled the same as the 
+          * if it was a bind, it would be handled the same as the
           * tcp bind, so this means the client starts by wanting
-          * to send a udp packet
+          * to send a udp packet, or we just did a connect(2).
           *
-          * Similarly to a connect, the only information we can provide 
+          * Similarly to a connect, the only information we can provide
           * here is the external ip address of the controldevice.
           * Postponed for the same reason as for connect.
           */
+         const int errno_s = errno;
 
          packet->res.host.atype              = SOCKS_ADDR_IPV4;
-         /* will be filled in with real values if user does a getsockname(2). */
+
 #if SOCKS_CLIENT
-         packet->res.host.addr.ipv4.s_addr = htonl(INADDR_ANY); 
-#else /* SOCKS_SERVER */
+         /* will be filled with real value if user ever does getsockname(2). */
+         packet->res.host.addr.ipv4.s_addr = htonl(INADDR_ANY);
+#else /* SOCKS_SERVER.  Server needs to know now so it can tell client. */
          if ((rc = UPNP_GetExternalIPAddress(state->upnp.controlurl,
          state->upnp.servicetype, straddr)) != UPNPCOMMAND_SUCCESS) {
             swarnx("failed to get external ip address of upnp device: %d", rc);
-            packet->res.reply   = UPNP_FAILURE;
-            return -1;  
+            packet->res.reply = UPNP_FAILURE;
+
+            return -1;
          }
 
          inet_pton(AF_INET, straddr, &packet->res.host.addr.ipv4);
@@ -256,6 +277,7 @@ upnp_negotiate(s, packet, state)
          if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0) {
             swarn("%s: getsockname()", function);
             rc = -1;
+
             break;
          }
          packet->res.host.port = TOIN(&addr)->sin_port;
@@ -263,9 +285,10 @@ upnp_negotiate(s, packet, state)
                          "will use same port as we (%d)",
                          function, ntohs(packet->res.host.port));
 
-         rc = 0;
+         rc    = 0;
+         errno = errno_s;
          break;
-
+      }
 
       case SOCKS_BIND: {
          /*
@@ -291,8 +314,8 @@ upnp_negotiate(s, packet, state)
          if ((rc = UPNP_GetExternalIPAddress(state->upnp.controlurl,
          state->upnp.servicetype, straddr)) != UPNPCOMMAND_SUCCESS) {
             swarnx("failed to get external ip address of upnp device: %d", rc);
-            packet->res.reply   = UPNP_FAILURE;
-            return -1;  
+            packet->res.reply = UPNP_FAILURE;
+            return -1;
          }
          else {
             struct sockaddr_in extaddr = addr;
@@ -304,11 +327,11 @@ upnp_negotiate(s, packet, state)
          slog(LOG_DEBUG, "%s: upnp controlpoint's external ip address is %s",
          function, straddr);
 
-         if (addr.sin_addr.s_addr == htonl(INADDR_ANY)) {
+         if (!ADDRISBOUND(&addr)) {
             /*
-             * Address not bound.  Not bound is good enough for us if 
-             * it it's good enough for caller, but we do need to tell the 
-             * controlpoint what address it should forward the connection to.
+             * Address not bound.  Not bound is good enough for us if
+             * it it's good enough for caller, but we do need to tell the
+             * igd what address it should forward the connection to.
              */
              struct sockaddr tmpaddr;
 
@@ -317,13 +340,13 @@ upnp_negotiate(s, packet, state)
 
                    if (ifname2sockaddr(packet->gw.addr.addr.ifname, 0, &tmpaddr,
                    NULL) == NULL) {
-                     swarn("ifname2sockaddr(%s)", packet->gw.addr.addr.ifname); 
+                     swarn("ifname2sockaddr(%s)", packet->gw.addr.addr.ifname);
                      packet->res.reply = UPNP_FAILURE;
                      return -1;
                   }
 
                   /* just want the ipaddr.  Portnumber etc. remains the same. */
-                  addr.sin_addr = TOIN(&tmpaddr)->sin_addr;   
+                  addr.sin_addr = TOIN(&tmpaddr)->sin_addr;
                   break;
                }
 
@@ -369,7 +392,7 @@ upnp_negotiate(s, packet, state)
                   }
 
                   close(ss);
-                  addr.sin_addr = TOIN(&tmpaddr)->sin_addr;   
+                  addr.sin_addr = TOIN(&tmpaddr)->sin_addr;
 
                   break;
                }
@@ -400,9 +423,9 @@ upnp_negotiate(s, packet, state)
             case SOCK_STREAM:
                snprintf(protocol, sizeof(protocol), PROTOCOL_TCPs);
                break;
-            
+
             default:
-               swarn("unknown protocoltype %d", val);
+               swarn("unknown protocol type %d", val);
                packet->res.reply = UPNP_FAILURE;
                return -1;
          }
@@ -411,20 +434,23 @@ upnp_negotiate(s, packet, state)
          snprintf(buf, sizeof(buf), "%s (%s/client v%s via libminiupnpc)",
          __progname, PACKAGE, VERSION);
 
-         slog(LOG_DEBUG,
-         "trying to add %s portmapping on upnp device at %s: %s -> %s.%s",
-         protocol, state->upnp.controlurl, strport, straddr, strport);
+         slog(LOG_DEBUG, "%s: trying to add %s portmapping for socket %d on "
+                         "upnp device at %s: %s -> %s.%s",
+                         function, protocol, s,
+                         state->upnp.controlurl, strport, straddr, strport);
 
          str2upper(protocol); /* seems to fail if not. */
          if ((rc = UPNP_AddPortMapping(state->upnp.controlurl,
-         state->upnp.servicetype, strport, strport, straddr, buf, protocol))
-          != UPNPCOMMAND_SUCCESS) {
+         state->upnp.servicetype, strport, strport, straddr, buf, protocol,
+         NULL)) != UPNPCOMMAND_SUCCESS) {
                swarnx("%s: UPNP_AddPortMapping() failed: %s",
                function, strupnperror(rc));
-               packet->res.reply = UPNP_FAILURE;
 
+               packet->res.reply = UPNP_FAILURE;
                return -1;
          }
+         else
+            slog(LOG_DEBUG, "%s: addition of portmapping succeeded", function);
 
 #if SOCKS_CLIENT
          if (!atexit_registered) {
@@ -435,7 +461,7 @@ upnp_negotiate(s, packet, state)
             slog(LOG_DEBUG, "%s: registering cleanup function with atexit(3)",
             function);
 
-            if (atexit(upnpcleanup) != 0) {
+            if (atexit(atexit_upnpcleanup) != 0) {
                swarn("%s: atexit() failed to register upnp cleanup function",
                function);
                break;
@@ -469,6 +495,7 @@ upnp_negotiate(s, packet, state)
 
    return 0;
 #endif /* !HAVE_LIBMINIUPNP */
+   /* NOTREACHED */
 }
 
 #if HAVE_LIBMINIUPNP
@@ -481,7 +508,7 @@ sighandler(sig)
    const char *function = "sighandler()";
 
    slog(LOG_DEBUG, function);
-   upnpcleanup();
+   upnpcleanup(-1);
 
    /* reinstall original signalhandler. */
    if (sigaction(SIGINT, &oldsig, NULL) != 0)
@@ -493,29 +520,52 @@ sighandler(sig)
 
 #if SOCKS_CLIENT
 void
-upnpcleanup(void)
+upnpcleanup(s)
+   const int s;
 {
    const char *function = "upnpcleanup()";
-   const struct socksfd_t *socksfd;
-   int left, rc;
-   
-   slog(LOG_DEBUG, function);
+   struct socksfd_t *socksfd;
+   int rc, current, last;
 
-   for (left = getdtablesize() - 1; left >= 0; --left) {
+   slog(LOG_DEBUG, "%s: socket %d", function, s);
+
+   if (s == -1) {
+      current = 0;
+      last    = getmaxofiles(softlimit) - 1;
+   }
+   else {
+      current  = s;
+      last     = s;
+   }
+
+   for (; current <= last; ++current) {
+      static int deleting;
       char port[sizeof("65535")], protocol[sizeof("TCP")];
 
-      if ((socksfd = socks_getaddr(left, 0)) == NULL)
+      if (deleting == current)
+         continue;
+
+      if ((socksfd = socks_getaddr(current, 0 /* XXX */)) == NULL)
          continue;
 
       if (socksfd->state.version != PROXY_UPNP)
          continue;
 
-      slog(LOG_DEBUG, "%s: have upnp session set up for command %s",
-      function, command2string(socksfd->state.command));
+      slog(LOG_DEBUG, "%s: socket %d has upnp session set up for command "
+                      "%s, accept pending: %d",
+                      function, current, command2string(socksfd->state.command),
+                      socksfd->state.acceptpending);
 
       if (socksfd->state.command != SOCKS_BIND)
          continue;
-      
+
+      /*
+       * Is this the socket we listened on?  Or just a client we accept(2)'ed?
+       * The portmapping is just created for the first case.
+       */
+      if (!socksfd->state.acceptpending)
+         continue; /* just a client we accepted. */
+
       snprintf(port, sizeof(port), "%d",
       ntohs(TOCIN(&socksfd->remote)->sin_port));
 
@@ -523,22 +573,44 @@ upnpcleanup(void)
          snprintf(protocol, sizeof(protocol), PROTOCOL_TCPs);
       else if (socksfd->state.protocol.udp)
          snprintf(protocol, sizeof(protocol), PROTOCOL_UDPs);
-      else
-         swarnx("%s: neither tcp nor udp set in protocol for descriptor %d",
-         function, left);
+      else {
+         SWARNX(0);
+         continue;
+      }
 
       slog(LOG_DEBUG, "%s: deleting portmapping for external %s port %s",
       function, protocol, port);
 
       str2upper(protocol);
 
-      if ((rc =
-      UPNP_DeletePortMapping(socksfd->route->gw.state.data.upnp.controlurl,
-      socksfd->route->gw.state.data.upnp.servicetype, port, protocol))
-      != UPNPCOMMAND_SUCCESS)
+      /* 
+       * needed to avoid recursion, as the below delete-call might
+       * very well end up calling us again, which makes us try
+       * to delete the portmapping twice.
+       */
+      deleting = current;
+      
+      if ((rc
+      = UPNP_DeletePortMapping(socksfd->route->gw.state.data.upnp.controlurl,
+                               socksfd->route->gw.state.data.upnp.servicetype,
+                               port, protocol, NULL)) != UPNPCOMMAND_SUCCESS)
             swarnx("%s: UPNP_DeletePortMapping(%s, %s) failed: %s",
             function, port, protocol, strupnperror(rc));
+      else
+         slog(LOG_DEBUG, "%s: deleted portmapping for external %s port %s",
+         function, protocol, port);
+
+      deleting = -1;
    }
+}
+
+static void
+atexit_upnpcleanup(void)
+{
+   const char *function = "atexit_upnpcleanup()";
+
+   slog(LOG_DEBUG, function);
+   upnpcleanup(-1);
 }
 #endif /* SOCKS_CLIENT */
 #endif /* !HAVE_LIBMINIUPNP */

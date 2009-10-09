@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.20 2009/01/02 14:06:05 michaels Exp $";
+"$Id: httpproxy.c,v 1.32 2009/09/06 19:31:16 michaels Exp $";
 
 int
 httpproxy_negotiate(s, packet)
@@ -52,7 +52,7 @@ httpproxy_negotiate(s, packet)
    struct socks_t *packet;
 {
    const char *function = "httpproxy_negotiate()";
-   char buf[MAXHOSTNAMELEN + 512]; /* +512 for httpbabble. */
+   char buf[MAXHOSTNAMELEN + 512]; /* +512 for http babble. */
    char host[MAXSOCKSHOSTSTRING];
    int checked, eof;
    ssize_t len, rc;
@@ -69,18 +69,20 @@ httpproxy_negotiate(s, packet)
    */
    *strrchr(host, '.') = ':';
 
-   len = snprintfn(buf, sizeof(buf),
-   "CONNECT %s HTTP/1.0\r\n"
-   "User-agent: %s/client v%s\r\n"
-   "\r\n",
-   host, PACKAGE, VERSION);
+   len = (size_t)snprintfn(buf, sizeof(buf),
+                           "CONNECT %s HTTP/1.0\r\n"
+                           "User-agent: %s/client v%s\r\n"
+                           "\r\n",
+                           host, PACKAGE, VERSION);
 
    slog(LOG_DEBUG, "%s: sending: %s", function, buf);
-   if ((rc = writen(s, buf, (size_t)len, NULL)) != len) {
-      swarn("%s: wrote %ld/%ld bytes", function, (long)rc, (long)len);
+   if ((rc = socks_sendton(s, buf, (size_t)len, (size_t)len, 0, NULL, 0, NULL))
+   != len) {
+      swarn("%s: wrote %ld/%ld byte%s",
+      function, (long)rc, (long)len, len == 1 ? "" : "s");
+
       return -1;
    }
-
 
    eof = checked = 0;
    /*
@@ -88,14 +90,14 @@ httpproxy_negotiate(s, packet)
     * reply.
     */
    do {
-      char *eol;
       const char *terminator = "\r\n";
+      char *eol;
 
       /*
-       * -1 so we can NUL-terminate, and - length of terminator so we can
-       * read the missing bits if neccessary.
+       * -1 so we can NUL-terminate, and - <length of terminator> so we can
+       * read the missing bits if necessary.
        */
-      switch(len = read(s, buf, sizeof(buf) - 1 - (strlen(terminator) + 1))) {
+      switch (len = read(s, buf, sizeof(buf) - 1 - (strlen(terminator) + 1))) {
          case -1:
             swarn("%s: read()", function);
             return -1;
@@ -105,13 +107,15 @@ httpproxy_negotiate(s, packet)
             break;
       }
 
+      if (eof)
+         break; /* nothing to log. */
+
       /*
-       * if last char we read is start of terminator,
-       * read some more to make sure the terminator does not get split
-       * accross buffers.
+       * if last char we read is start of terminator, read some more
+       * to make sure the terminator does not get split across buffers.
        */
       if (buf[len - 1] == *terminator)
-         switch(rc = read(s, &buf[len], strlen(terminator) - 1)) {
+         switch (rc = read(s, &buf[len], strlen(terminator) - 1)) {
             case -1:
                swarn("%s: read()", function);
                return -1;
@@ -121,14 +125,14 @@ httpproxy_negotiate(s, packet)
                break;
 
             default:
+               slog(LOG_DEBUG, "%s: read %ld bytes", function, (long)rc);
                len += rc;
          }
 
       buf[len] = NUL;
-
       while ((eol = strstr(buf, terminator)) != NULL) { /* new line. */
          *eol = NUL;
-         slog(LOG_DEBUG, "%s: read: %s", function, buf);
+         slog(LOG_DEBUG, "%s: read: \"%s\"", function, buf);
 
          if (!checked) {
             int error = 0;
@@ -142,6 +146,9 @@ httpproxy_negotiate(s, packet)
                      break;
                   }
 
+                  slog(LOG_DEBUG, "%s: buf matches expected string, is \"%s\"",
+                  function, buf);
+
                   if (!isdigit(buf[strlen(offset)])) {
                      error = 1;
                      break;
@@ -154,14 +161,18 @@ httpproxy_negotiate(s, packet)
                    * reply, http replies can however be bigger. :-/
                   */
 
+                  rc = atoi(&buf[strlen(offset)]);
+
+                  slog(LOG_DEBUG, "%s: replycode from httpserver is %ld",
+                  function, (long)rc);
+
                   /*
                    * http replycode is > 8 bits, socks is 8 bits.
-                   * Just make sure we don't end up truncating to
+                   * Just make sure we don't end up truncating failure to
                    * HTTP_SUCCESS.
                    */
-                  rc = atoi(&buf[strlen(offset)]);
-                  if (rc != HTTP_SUCCESS && (unsigned char)rc == HTTP_SUCCESS)
-                     rc = 0;
+                  if (rc != HTTP_SUCCESS)
+                     rc = HTTP_FAILURE;
                   packet->res.reply = (unsigned char)rc;
 
                   /*
@@ -206,6 +217,6 @@ httpproxy_negotiate(s, packet)
    if (checked)
       return packet->res.reply == HTTP_SUCCESS ? 0 : -1;
 
-   slog(LOG_DEBUG, "%s: didn't get statuscode from proxy", function);
+   slog(LOG_DEBUG, "%s: didn't get status code from proxy", function);
    return -1;   /* proxyserver doing something strange/unknown. */
 }

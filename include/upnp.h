@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009
+ * Copyright (c) 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,6 +41,6 @@
  *
  */
 
-/* $Id: upnp.h,v 1.2 2009/01/02 14:06:01 michaels Exp $ */
+/* $Id: upnp.h,v 1.3 2009/07/09 14:04:18 karls Exp $ */
 
 #define UPNPCOMMAND_SUCCESS 0

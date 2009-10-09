@@ -1,12 +1,14 @@
-/* $Id: sockatmark.c,v 1.4 2008/07/25 08:49:06 michaels Exp $ */
+/* $Id: sockatmark.c,v 1.8 2009/07/07 12:54:47 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
-#endif  /* HAVE_CONFIG_H */
+#endif /* HAVE_CONFIG_H */
 
-#include "common.h"
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
 
-#if !HAVE_SOCKATMARK
+#include "sockatmark.h"
 
 int
 sockatmark(s)
@@ -19,10 +21,3 @@ sockatmark(s)
 
    return argp == 0 ? 0 : 1;
 }
-#else
-static void avoid_error __P((void));
-static void avoid_error()
-{
-   avoid_error();
-}
-#endif  /* HAVE_SOCKATMARK */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.55 2009/01/02 14:06:01 michaels Exp $ */
+/* $Id: config.h,v 1.70 2009/09/16 15:34:55 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -54,9 +54,9 @@
  *
  * Several of the variables can have a big impact on performance,
  * latency and throughput.  Tuning the server to the optimum for
- * your particular environment might be difficult but hopefully
+ * your particular environment might be difficult, but hopefully
  * the defaults as set in this file will provide a adequate
- * compromise.  Should you wish for more optimum tuning, you
+ * compromise.  Should you desire more optimal tuning, you
  * might want to look at the SUPPORT file coming with Dante.
  */
 
@@ -67,17 +67,9 @@
 
 /*
  * default client/server lockfile (put in $TMPDIR, or /tmp).
- * Put this on a fast, low-latency fs, under /tmp is usually good.
+ * Put this on a fast, low-latency fs.  Under /tmp is usually good.
  */
 #define SOCKS_LOCKFILE            "./sockslockXXXXXXXXXX"
-
-/* if profiling is enabled, directory to store profile files in. */
-#define SOCKS_PROFILEDIR         "./.prof"
-
-
-   /*
-    * client stuff.
-    */
 
 /* default client config file. */
 #if !HAVE_SOCKS_CONFIGFILE
@@ -98,15 +90,26 @@
  * until we expire the badmarking so it will be tried again for new
  * connections.  A value of zero means never.
  */
-#if SOCKS_CLIENT
-#define BADROUTE_EXPIRE            (60 * 0)
-#else /* SOCKS_SERVER */
 #define BADROUTE_EXPIRE            (60 * 5)
-#endif
+
+
+/* socket buffersize for network i/o using TCP. */
+#define SOCKS_SOCKET_BUFSIZETCP         (1024 * 64 * 2)
+
+/*
+ * server socket buffersize for network i/o using UDP.
+ * Probably no point in raising this above 64k for send, but for
+ * receive, it can help a busy server keep up, allowing the socket
+ * receive-buffer to contain more than one max-size udp packet.
+ */
+#define SOCKS_SOCKET_BUFSIZEUDP         (1024 * 64 * 2)
+
+/* if profiling is enabled, directory to store profile files in. */
+#define SOCKS_PROFILEDIR         "./.prof"
 
 
    /*
-    * server stuff.
+    * stuff only related to the server.
     */
 
 /*
@@ -125,12 +128,11 @@
 #define DEFAULT_PAMSERVICENAME   "sockd"
 
 /*
- * used only if no usable system call is found (getdtablesize()/sysconf()).
- * If you are missing the system calls, but know what the value should
- * be for max open files per process on your system, you should set
- * this define to the correct value.
+ * Name to give as servicename when starting gssapi for rules that don't
+ * set it.
  */
-#define SOCKS_FD_MAX               64
+#define DEFAULT_GSSAPISERVICENAME      "rcmd"
+#define DEFAULT_GSSAPIKEYTAB           "FILE:/etc/sockd.keytab"
 
 /*
  * The file the server will write it's process id to.
@@ -152,13 +154,50 @@
 #define SOCKD_CONFIGFILE         HAVE_ALT_SOCKD_CONFIGFILE
 #endif /* !HAVE_SOCKD_CONFIGFILE */
 
+
+/*
+ * Internal buffersize for network i/o.  This is the amount of
+ * bufferspace set aside internally by the server for each socket.
+ * It is *not* the socket buffersize.
+ */
+
+#if HAVE_GSSAPI
+/*
+ * Warning: this size needs to be at least big enough to hold two max-size
+ * gssapi encoded tokens, or two max-size gssapi decoded tokens.
+ * Assuming a decoded token will never be bigger than an encoded token.
+ */
+#define SOCKD_BUFSIZE         (2 * (MAXGSSAPITOKENLEN + GSSAPI_HLEN))
+#else
+#define SOCKD_BUFSIZE         (1024 * 64 * 1)
+#endif
+
+/*
+ * skew watermarks by this factor compared to "optimal".
+ * Setting it to one minimizes cputime used by the server at a
+ * possibly big cost in performance.  Never set it to more than one.
+ * I'd be interested in hearing peoples result with this.
+ */
+#define LOWATSKEW                  (0.75)
+
+/*
+ * For systems that do not have the "low watermarks" socket option.
+ * It is important not to set it to too high a value as that will
+ * probably degrade performance for clients even more, causing starvation.
+ * Basically; low value  -> better interactive performance,
+ *          high value -> better throughput.
+ */
+#if !HAVE_SO_SNDLOWAT
+#define SO_SNDLOWAT_SIZE         (1024 * 4)
+#endif
+
 /* max number of clients pending to server (argument to listen()).
  * The Apache people say:
  *   It defaults to 511 instead of 512 because some systems store it
  *   as an 8-bit datatype; 512 truncated to 8-bits is 0, while 511 is
  *   255 when truncated.
  */
-#define SOCKD_MAXCLIENTQUE         511
+#define SOCKD_MAXCLIENTQUE         (511)
 
 
 /*
@@ -173,22 +212,10 @@
 #define SOCKD_ADDRESSCACHE         512
 
 /* seconds a cacheentry is to be considered valid, don't set below 1. */
-#define SOCKD_CACHETIMEOUT         3600
+#define SOCKD_CACHETIMEOUT         60
 
 /* print some statistics for every SOCKD_CACHESTAT lookup.  0 to disable. */
 #define SOCKD_CACHESTAT            0
-
-/*
- * number of seconds a client can negotiate with server.
- * Can be changed in configfile.
- */
-#define SOCKD_NEGOTIATETIMEOUT   120
-
-/*
- * number of seconds a client can be connected after negotiation is completed
- * without sending/receiving any data.  Can be changed in configfile.
- */
-#define SOCKD_IOTIMEOUT            86400
 
 /*
  * Number of slots to try and keep available for new clients at any given time.
@@ -198,20 +225,18 @@
 
 /*
  * Dante supports one process handling N clients, where the max value for
- * 'N' is limited by your system.  There will be a degradation in
- * performance as N increases, the biggest hop being from one to two,
- * but significantly less resources/processes might be used on the machine
- * the Dante server is running on.
+ * 'N' is limited by your system.
  *
  * There are two defines that govern this; SOCKD_NEGOTIATEMAX and SOCKD_IOMAX.
- * Note that these are per process basis, Dante will automatically create as
- * many processes as it thinks it needs as it goes along.
+ * Note that these only govern how many clients a process can handle,
+ * Dante will automatically create as many processes as it needs as
+ * the need arises.
  */
 
 /*
  * max number of clients each negotiate process will handle.
  * You can probably set this to a big number.
- * Each client will occupy one descriptor.
+ * Each client will occupy one filedescriptor.
  */
 #if DEBUG
 #define SOCKD_NEGOTIATEMAX         2
@@ -221,10 +246,10 @@
 
 /*
  * max number of clients each i/o process will handle.
- * Each client will occupy up to three descriptors.
+ * Each client will occupy up to three filedescriptors.
  * While shortage of slots in the other processes will create a
  * delay for the client, shortage of i/o slots will prevent the client
- * from doing any i/o untill a i/o slot has become available.  It is
+ * from doing any i/o until a i/o slot has become available.  It is
  * therefore important that enough i/o slots are available at all times.
  */
 #if DEBUG
@@ -232,28 +257,3 @@
 #else
 #define SOCKD_IOMAX               8
 #endif /* DEBUG */
-
-/* server buffersize for network i/o using TCP. */
-#define SOCKD_BUFSIZETCP         (1024 * 16)
-
-/* server buffersize for network i/o using UDP. */
-#define SOCKD_BUFSIZEUDP         (1024 * 16)
-
-/*
- * skew watermarks by this factor compared to "optimal".
- * Setting it to one minimises cputime used by the server at a
- * possibly big cost in performance.  Never set it to more than one.
- * I'd be interested in hearing peoples result with this.
- */
-#define LOWATSKEW                  (0.75)
-
-/*
- * For systems that do not have the "low watermarks" socket option.
- * It is important not to set it to too high a value as that will
- * probably degrade performance for clients even more, causing starvation.
- * Basicly; low value  -> better interactive performance,
- *            high value -> better throughput.
- */
-#if !HAVE_SO_SNDLOWAT
-#define SO_SNDLOWAT_SIZE         (1024 * 4)
-#endif

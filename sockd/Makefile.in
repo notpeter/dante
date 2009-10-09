@@ -14,7 +14,6 @@
 
 @SET_MAKE@
 
-
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
 VPATH = @srcdir@
@@ -38,21 +37,14 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 sbin_PROGRAMS = sockd$(EXEEXT)
-@LINT_FALSE@@STATIC_SOCKD_FALSE@sockd_DEPENDENCIES =  \
-@LINT_FALSE@@STATIC_SOCKD_FALSE@	../libscompat/libscompat.la \
-@LINT_FALSE@@STATIC_SOCKD_FALSE@	$(am__DEPENDENCIES_1) \
-@LINT_FALSE@@STATIC_SOCKD_FALSE@	$(am__DEPENDENCIES_1)
-@LINT_FALSE@@STATIC_SOCKD_TRUE@sockd_DEPENDENCIES =  \
-@LINT_FALSE@@STATIC_SOCKD_TRUE@	../libscompat/sockatmark.o \
-@LINT_FALSE@@STATIC_SOCKD_TRUE@	$(am__DEPENDENCIES_1) \
-@LINT_FALSE@@STATIC_SOCKD_TRUE@	$(am__DEPENDENCIES_1)
+@RUNLINT_FALSE@sockd_DEPENDENCIES = ../libscompat/libscompat.la \
+@RUNLINT_FALSE@	$(am__DEPENDENCIES_1)
 subdir = sockd
-DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in config_parse.c config_parse.h \
-	config_scan.c
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/preload.m4 $(top_srcdir)/gssapi.m4 \
+	$(top_srcdir)/libscompat.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -76,7 +68,9 @@ am_sockd_OBJECTS = config_parse.$(OBJEXT) config_scan.$(OBJEXT) \
 	checkmodule.$(OBJEXT) shmem.$(OBJEXT) bandwidth.$(OBJEXT) \
 	bandwidth_key.$(OBJEXT) getifa.$(OBJEXT) \
 	clientprotocol.$(OBJEXT) httpproxy.$(OBJEXT) authneg.$(OBJEXT) \
-	session.$(OBJEXT) session_key.$(OBJEXT) upnp.$(OBJEXT)
+	userio.$(OBJEXT) session.$(OBJEXT) session_key.$(OBJEXT) \
+	upnp.$(OBJEXT) method_gssapi.$(OBJEXT) gssapi.$(OBJEXT) \
+	iobuf.$(OBJEXT) privileges.$(OBJEXT)
 sockd_OBJECTS = $(am_sockd_OBJECTS)
 am__DEPENDENCIES_1 =
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/include
@@ -90,14 +84,8 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-LEXCOMPILE = $(LEX) $(LFLAGS) $(AM_LFLAGS)
-LTLEXCOMPILE = $(LIBTOOL) --mode=compile $(LEX) $(LFLAGS) $(AM_LFLAGS)
-YACCCOMPILE = $(YACC) $(YFLAGS) $(AM_YFLAGS)
-LTYACCCOMPILE = $(LIBTOOL) --mode=compile $(YACC) $(YFLAGS) \
-	$(AM_YFLAGS)
 SOURCES = $(sockd_SOURCES)
 DIST_SOURCES = $(sockd_SOURCES)
-HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -122,6 +110,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLIBDEPS = @DLIBDEPS@
 DSYMUTIL = @DSYMUTIL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -143,12 +132,16 @@ LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LIBOBJS = @LIBOBJS@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBS = @LIBS@
+LIBSCSRC = @LIBSCSRC@
 LIBTOOL = @LIBTOOL@
-LINT_FALSE = @LINT_FALSE@
-LINT_TRUE = @LINT_TRUE@
+
+#lint files
+LINT = @LINT@
+LINTFLAGS = @LINTFLAGS@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
+MAPOPT = @MAPOPT@
 NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -164,6 +157,8 @@ PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 PRERELEASE_FALSE = @PRERELEASE_FALSE@
 PRERELEASE_TRUE = @PRERELEASE_TRUE@
 RANLIB = @RANLIB@
+RUNLINT_FALSE = @RUNLINT_FALSE@
+RUNLINT_TRUE = @RUNLINT_TRUE@
 SED = @SED@
 SERVER_INTERPOSITION_ALWAYS_FALSE = @SERVER_INTERPOSITION_ALWAYS_FALSE@
 SERVER_INTERPOSITION_ALWAYS_TRUE = @SERVER_INTERPOSITION_ALWAYS_TRUE@
@@ -171,18 +166,13 @@ SERVER_INTERPOSITION_FALSE = @SERVER_INTERPOSITION_FALSE@
 SERVER_INTERPOSITION_TRUE = @SERVER_INTERPOSITION_TRUE@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SOCKDDEPS = @SOCKDDEPS@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 SOLIB_POSTFIX = @SOLIB_POSTFIX@
-SPROFIL_FALSE = @SPROFIL_FALSE@
-SPROFIL_TRUE = @SPROFIL_TRUE@
-STATIC_SOCKD_FALSE = @STATIC_SOCKD_FALSE@
-STATIC_SOCKD_TRUE = @STATIC_SOCKD_TRUE@
 STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
-WANT_LIBMINIUPNP_FALSE = @WANT_LIBMINIUPNP_FALSE@
-WANT_LIBMINIUPNP_TRUE = @WANT_LIBMINIUPNP_TRUE@
 WANT_LIBWRAP_FALSE = @WANT_LIBWRAP_FALSE@
 WANT_LIBWRAP_TRUE = @WANT_LIBWRAP_TRUE@
 YACC = @YACC@
@@ -190,6 +180,7 @@ YFLAGS = @YFLAGS@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
 ac_ct_F77 = @ac_ct_F77@
+ac_krb5_config = @ac_krb5_config@
 am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
 am__fastdepCC_TRUE = @am__fastdepCC_TRUE@
 am__fastdepCXX_FALSE = @am__fastdepCXX_FALSE@
@@ -232,65 +223,51 @@ program_transform_name = @program_transform_name@
 psdir = @psdir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
-subdirs = @subdirs@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-sockd_SOURCES = ../lib/config_parse.y ../lib/config_scan.l \
+sockd_SOURCES = ../lib/config_parse.c ../lib/config_scan.c                  \
 	sockd.c sockd_child.c ../lib/io.c sockd_negotiate.c sockd_request.c \
-	method_uname.c ../lib/debug.c ../lib/udp_util.c ../lib/util.c \
-	../lib/log.c ../lib/socket.c sockd_socket.c  ../lib/config.c \
-	sockd_util.c sockd_protocol.c serverconfig.c ../lib/protocol.c \
-	../lib/hostcache.c ../dlib/interposition.c ../lib/broken.c \
-        ../lib/serr.c sockd_io.c accesscheck.c auth_password.c \
-	auth_pam.c ../lib/tostring.c redirect.c redirect_key.c \
-	../lib/addressmatch.c checkmodule.c shmem.c bandwidth.c bandwidth_key.c \
-	getifa.c ../lib/clientprotocol.c ../lib/httpproxy.c ../lib/authneg.c \
-	session.c session_key.c ../lib/upnp.c
+	method_uname.c ../lib/debug.c ../lib/udp_util.c ../lib/util.c       \
+	../lib/log.c ../lib/socket.c sockd_socket.c  ../lib/config.c        \
+	sockd_util.c sockd_protocol.c serverconfig.c ../lib/protocol.c      \
+	../lib/hostcache.c ../dlib/interposition.c ../lib/broken.c          \
+        ../lib/serr.c sockd_io.c accesscheck.c auth_password.c              \
+	auth_pam.c ../lib/tostring.c					    \
+	redirect.c redirect_key.c                                           \
+	../lib/addressmatch.c checkmodule.c shmem.c                         \
+	bandwidth.c bandwidth_key.c					    \
+	getifa.c ../lib/clientprotocol.c ../lib/httpproxy.c                 \
+	../lib/authneg.c  ../lib/userio.c                                   \
+	session.c session_key.c                                             \
+	../lib/upnp.c method_gssapi.c ../lib/gssapi.c ../lib/iobuf.c        \
+	privileges.c
 
-noinst_HEADERS = config_parse.h
-MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
 
 #use libwrap if it is available
 @WANT_LIBWRAP_TRUE@LIBWRAP = -lwrap
+@SERVER_INTERPOSITION_ALWAYS_FALSE@@WANT_LIBWRAP_FALSE@SERVDL = 0
 
 #use preloading anyway?
-@SERVER_INTERPOSITION_ALWAYS_TRUE@@WANT_LIBWRAP_FALSE@SERVDL = -DSOCKSLIBRARY_DYNAMIC=1
+@SERVER_INTERPOSITION_ALWAYS_TRUE@@WANT_LIBWRAP_FALSE@SERVDL = 1
+@SERVER_INTERPOSITION_FALSE@@WANT_LIBWRAP_TRUE@SERVDL = 0
 
 #use preloading for libwrap if enabled and possible
-@SERVER_INTERPOSITION_TRUE@@WANT_LIBWRAP_TRUE@SERVDL = -DSOCKSLIBRARY_DYNAMIC=1
-@WANT_LIBMINIUPNP_TRUE@LIBUPNP = -lminiupnpc
-@STATIC_SOCKD_FALSE@sockd_LDADD = ../libscompat/libscompat.la ${LIBWRAP} ${LIBUPNP}
+@SERVER_INTERPOSITION_TRUE@@WANT_LIBWRAP_TRUE@SERVDL = 1
+sockd_LDADD = ../libscompat/libscompat.la ${LIBWRAP} @SOCKDDEPS@
+INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat \
+	   -I$(top_srcdir)/lib
 
-#XXXhack
-@STATIC_SOCKD_TRUE@sockd_LDADD = ../libscompat/sockatmark.o ${LIBWRAP} ${LIBUPNP}
-INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
-PREFIX = socks_yy
-AM_YFLAGS = -d -p${PREFIX}
-AM_LFLAGS = -P${PREFIX} -olex.yy.c
-@STATIC_SOCKD_TRUE@STATIC = -all-static
-@SPROFIL_FALSE@PROFIL = 
-@SPROFIL_TRUE@PROFIL = -pg -DPROFILING
-#XXX some systems do not appear to need this
-@SPROFIL_TRUE@sockd_LDFLAGS = ${STATIC}
-
-#XXX
-AM_CFLAGS = ${PROFIL} -DSOCKS_SERVER=1 -DSOCKS_CLIENT=0 ${SERVDL}
-#lint files
-SUFFIXES = .ln
-@LINT_TRUE@LINTFILES = sockd.ln sockd_child.ln sockd_io.ln io.ln udp_util.ln       \
-@LINT_TRUE@	sockd_request.ln method_uname.ln debug.ln util.ln socket.ln     \
-@LINT_TRUE@	log.ln sockd_socket.ln config_parse.ln config_scan.ln           \
-@LINT_TRUE@	sockd_util.ln sockd_protocol.ln serverconfig.ln protocol.ln \
-@LINT_TRUE@	sockd_negotiate.ln config.ln interposition.ln
-
-@LINT_TRUE@sockd_DEPENDENCIES = $(LINTFILES)
-@LINT_TRUE@CLEANFILES = $(LINTFILES)
-@LINT_TRUE@LINT = lint
-@LINT_TRUE@LINTFLAGS = -abcebiprxz
+AM_CFLAGS = -DSOCKS_SERVER=1 -DSOCKS_CLIENT=0 -DSOCKSLIBRARY_DYNAMIC=${SERVDL}
+@RUNLINT_TRUE@SUFFIXES = .ln
+@RUNLINT_TRUE@LINTFILESa = $(sockd_SOURCES:.c=.ln)
+@RUNLINT_TRUE@LINTFILESb = $(LINTFILESa:.y=.ln)
+@RUNLINT_TRUE@LINTFILES = $(LINTFILESb:.l=.ln)
+@RUNLINT_TRUE@sockd_DEPENDENCIES = $(LINTFILES)
+@RUNLINT_TRUE@CLEANFILES = $(LINTFILES)
 all: all-am
 
 .SUFFIXES:
-.SUFFIXES: .ln .c .l .lo .o .obj .y
+.SUFFIXES: .ln .c .lo .o .obj
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -300,9 +277,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  sockd/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  sockd/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  sockd/Makefile
+	  $(AUTOMAKE) --foreign  sockd/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -348,11 +325,6 @@ clean-sbinPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
-config_parse.h: config_parse.c
-	@if test ! -f $@; then \
-	  rm -f config_parse.c; \
-	  $(MAKE) config_parse.c; \
-	else :; fi
 sockd$(EXEEXT): $(sockd_OBJECTS) $(sockd_DEPENDENCIES) 
 	@rm -f sockd$(EXEEXT)
 	$(LINK) $(sockd_LDFLAGS) $(sockd_OBJECTS) $(sockd_LDADD) $(LIBS)
@@ -378,12 +350,16 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/config_scan.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getifa.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gssapi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostcache.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/httpproxy.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/interposition.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/iobuf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/method_gssapi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/method_uname.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/privileges.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/protocol.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/redirect.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/redirect_key.Po@am__quote@
@@ -404,6 +380,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tostring.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/udp_util.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/upnp.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/userio.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util.Po@am__quote@
 
 .c.o:
@@ -426,6 +403,34 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+config_parse.o: ../lib/config_parse.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT config_parse.o -MD -MP -MF "$(DEPDIR)/config_parse.Tpo" -c -o config_parse.o `test -f '../lib/config_parse.c' || echo '$(srcdir)/'`../lib/config_parse.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/config_parse.Tpo" "$(DEPDIR)/config_parse.Po"; else rm -f "$(DEPDIR)/config_parse.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/config_parse.c' object='config_parse.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o config_parse.o `test -f '../lib/config_parse.c' || echo '$(srcdir)/'`../lib/config_parse.c
+
+config_parse.obj: ../lib/config_parse.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT config_parse.obj -MD -MP -MF "$(DEPDIR)/config_parse.Tpo" -c -o config_parse.obj `if test -f '../lib/config_parse.c'; then $(CYGPATH_W) '../lib/config_parse.c'; else $(CYGPATH_W) '$(srcdir)/../lib/config_parse.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/config_parse.Tpo" "$(DEPDIR)/config_parse.Po"; else rm -f "$(DEPDIR)/config_parse.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/config_parse.c' object='config_parse.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o config_parse.obj `if test -f '../lib/config_parse.c'; then $(CYGPATH_W) '../lib/config_parse.c'; else $(CYGPATH_W) '$(srcdir)/../lib/config_parse.c'; fi`
+
+config_scan.o: ../lib/config_scan.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT config_scan.o -MD -MP -MF "$(DEPDIR)/config_scan.Tpo" -c -o config_scan.o `test -f '../lib/config_scan.c' || echo '$(srcdir)/'`../lib/config_scan.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/config_scan.Tpo" "$(DEPDIR)/config_scan.Po"; else rm -f "$(DEPDIR)/config_scan.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/config_scan.c' object='config_scan.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o config_scan.o `test -f '../lib/config_scan.c' || echo '$(srcdir)/'`../lib/config_scan.c
+
+config_scan.obj: ../lib/config_scan.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT config_scan.obj -MD -MP -MF "$(DEPDIR)/config_scan.Tpo" -c -o config_scan.obj `if test -f '../lib/config_scan.c'; then $(CYGPATH_W) '../lib/config_scan.c'; else $(CYGPATH_W) '$(srcdir)/../lib/config_scan.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/config_scan.Tpo" "$(DEPDIR)/config_scan.Po"; else rm -f "$(DEPDIR)/config_scan.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/config_scan.c' object='config_scan.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o config_scan.obj `if test -f '../lib/config_scan.c'; then $(CYGPATH_W) '../lib/config_scan.c'; else $(CYGPATH_W) '$(srcdir)/../lib/config_scan.c'; fi`
 
 io.o: ../lib/io.c
 @am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT io.o -MD -MP -MF "$(DEPDIR)/io.Tpo" -c -o io.o `test -f '../lib/io.c' || echo '$(srcdir)/'`../lib/io.c; \
@@ -665,6 +670,20 @@ authneg.obj: ../lib/authneg.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o authneg.obj `if test -f '../lib/authneg.c'; then $(CYGPATH_W) '../lib/authneg.c'; else $(CYGPATH_W) '$(srcdir)/../lib/authneg.c'; fi`
 
+userio.o: ../lib/userio.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT userio.o -MD -MP -MF "$(DEPDIR)/userio.Tpo" -c -o userio.o `test -f '../lib/userio.c' || echo '$(srcdir)/'`../lib/userio.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/userio.Tpo" "$(DEPDIR)/userio.Po"; else rm -f "$(DEPDIR)/userio.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/userio.c' object='userio.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o userio.o `test -f '../lib/userio.c' || echo '$(srcdir)/'`../lib/userio.c
+
+userio.obj: ../lib/userio.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT userio.obj -MD -MP -MF "$(DEPDIR)/userio.Tpo" -c -o userio.obj `if test -f '../lib/userio.c'; then $(CYGPATH_W) '../lib/userio.c'; else $(CYGPATH_W) '$(srcdir)/../lib/userio.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/userio.Tpo" "$(DEPDIR)/userio.Po"; else rm -f "$(DEPDIR)/userio.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/userio.c' object='userio.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o userio.obj `if test -f '../lib/userio.c'; then $(CYGPATH_W) '../lib/userio.c'; else $(CYGPATH_W) '$(srcdir)/../lib/userio.c'; fi`
+
 upnp.o: ../lib/upnp.c
 @am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT upnp.o -MD -MP -MF "$(DEPDIR)/upnp.Tpo" -c -o upnp.o `test -f '../lib/upnp.c' || echo '$(srcdir)/'`../lib/upnp.c; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/upnp.Tpo" "$(DEPDIR)/upnp.Po"; else rm -f "$(DEPDIR)/upnp.Tpo"; exit 1; fi
@@ -679,57 +698,33 @@ upnp.obj: ../lib/upnp.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o upnp.obj `if test -f '../lib/upnp.c'; then $(CYGPATH_W) '../lib/upnp.c'; else $(CYGPATH_W) '$(srcdir)/../lib/upnp.c'; fi`
 
-.l.c:
-	$(LEXCOMPILE) $<
-	sed '/^#/ s|$(LEX_OUTPUT_ROOT)\.c|$@|' $(LEX_OUTPUT_ROOT).c >$@
-	rm -f $(LEX_OUTPUT_ROOT).c
+gssapi.o: ../lib/gssapi.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT gssapi.o -MD -MP -MF "$(DEPDIR)/gssapi.Tpo" -c -o gssapi.o `test -f '../lib/gssapi.c' || echo '$(srcdir)/'`../lib/gssapi.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/gssapi.Tpo" "$(DEPDIR)/gssapi.Po"; else rm -f "$(DEPDIR)/gssapi.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/gssapi.c' object='gssapi.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o gssapi.o `test -f '../lib/gssapi.c' || echo '$(srcdir)/'`../lib/gssapi.c
 
-config_scan.c: ../lib/config_scan.l
-	$(LEX) $(LFLAGS) $(AM_LFLAGS) `test -f ../lib/config_scan.l || echo '$(srcdir)/'`../lib/config_scan.l
-	sed '/^#/ s|$(LEX_OUTPUT_ROOT)\.c|config_scan.c|' $(LEX_OUTPUT_ROOT).c >config_scan.c
-	rm -f $(LEX_OUTPUT_ROOT).c
+gssapi.obj: ../lib/gssapi.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT gssapi.obj -MD -MP -MF "$(DEPDIR)/gssapi.Tpo" -c -o gssapi.obj `if test -f '../lib/gssapi.c'; then $(CYGPATH_W) '../lib/gssapi.c'; else $(CYGPATH_W) '$(srcdir)/../lib/gssapi.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/gssapi.Tpo" "$(DEPDIR)/gssapi.Po"; else rm -f "$(DEPDIR)/gssapi.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/gssapi.c' object='gssapi.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o gssapi.obj `if test -f '../lib/gssapi.c'; then $(CYGPATH_W) '../lib/gssapi.c'; else $(CYGPATH_W) '$(srcdir)/../lib/gssapi.c'; fi`
 
-.y.c:
-	$(YACCCOMPILE) $<
-	if test -f y.tab.h; then \
-	  to=`echo "$*_H" | sed \
-                -e 'y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/' \
-                -e 's/[^ABCDEFGHIJKLMNOPQRSTUVWXYZ]/_/g'`; \
-	  sed -e "/^#/!b" -e "s/Y_TAB_H/$$to/g" -e "s|y\.tab\.h|$*.h|" \
-            y.tab.h >$*.ht; \
-	  rm -f y.tab.h; \
-	  if cmp -s $*.ht $*.h; then \
-	    rm -f $*.ht ;\
-	  else \
-	    mv $*.ht $*.h; \
-	  fi; \
-	fi
-	if test -f y.output; then \
-	  mv y.output $*.output; \
-	fi
-	sed '/^#/ s|y\.tab\.c|$@|' y.tab.c >$@t && mv $@t $@
-	rm -f y.tab.c
+iobuf.o: ../lib/iobuf.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT iobuf.o -MD -MP -MF "$(DEPDIR)/iobuf.Tpo" -c -o iobuf.o `test -f '../lib/iobuf.c' || echo '$(srcdir)/'`../lib/iobuf.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/iobuf.Tpo" "$(DEPDIR)/iobuf.Po"; else rm -f "$(DEPDIR)/iobuf.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/iobuf.c' object='iobuf.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o iobuf.o `test -f '../lib/iobuf.c' || echo '$(srcdir)/'`../lib/iobuf.c
 
-config_parse.c: ../lib/config_parse.y
-	$(YACC) $(YFLAGS) $(AM_YFLAGS) `test -f '../lib/config_parse.y' || echo '$(srcdir)/'`../lib/config_parse.y
-	if test -f y.tab.h; then \
-	  to=`echo "config_parse_H" | sed \
-                -e 'y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/' \
-                -e 's/[^ABCDEFGHIJKLMNOPQRSTUVWXYZ]/_/g'`; \
-	  sed -e "/^#/!b" -e "s/Y_TAB_H/$$to/g" -e "s|y\.tab\.h|config_parse.h|" \
-            y.tab.h >config_parse.ht; \
-	  rm -f y.tab.h; \
-	  if cmp -s config_parse.ht config_parse.h; then \
-	    rm -f config_parse.ht ;\
-	  else \
-	    mv config_parse.ht config_parse.h; \
-	  fi; \
-	fi
-	if test -f y.output; then \
-	  mv y.output config_parse.output; \
-	fi
-	sed '/^#/ s|y\.tab\.c|config_parse.c|' y.tab.c >config_parse.ct && mv config_parse.ct config_parse.c
-	rm -f y.tab.c
+iobuf.obj: ../lib/iobuf.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT iobuf.obj -MD -MP -MF "$(DEPDIR)/iobuf.Tpo" -c -o iobuf.obj `if test -f '../lib/iobuf.c'; then $(CYGPATH_W) '../lib/iobuf.c'; else $(CYGPATH_W) '$(srcdir)/../lib/iobuf.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/iobuf.Tpo" "$(DEPDIR)/iobuf.Po"; else rm -f "$(DEPDIR)/iobuf.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/iobuf.c' object='iobuf.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o iobuf.obj `if test -f '../lib/iobuf.c'; then $(CYGPATH_W) '../lib/iobuf.c'; else $(CYGPATH_W) '$(srcdir)/../lib/iobuf.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -818,7 +813,7 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS) $(HEADERS)
+all-am: Makefile $(PROGRAMS)
 installdirs:
 	for dir in "$(DESTDIR)$(sbindir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
@@ -848,10 +843,6 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-	-rm -f config_parse.c
-	-rm -f config_parse.h
-	-rm -f config_scan.c
-	-test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
 clean: clean-am
 
 clean-am: clean-generic clean-libtool clean-sbinPROGRAMS \
@@ -917,8 +908,8 @@ uninstall-am: uninstall-info-am uninstall-sbinPROGRAMS
 	uninstall-sbinPROGRAMS
 
 
-@LINT_TRUE@.c.ln:
-@LINT_TRUE@	$(LINT) $(LINTFLAGS) $(DEFS) $(INCLUDES) $(CPPFLAGS) $<
+@RUNLINT_TRUE@.c.ln:
+@RUNLINT_TRUE@	$(LINT) $(LINTFLAGS) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(AM_CFLAGS) $<
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

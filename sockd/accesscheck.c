@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
+ *               2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,8 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.29 2009/01/02 14:06:07 michaels Exp $";
-
+"$Id: accesscheck.c,v 1.40 2009/10/01 12:15:44 michaels Exp $";
 
 int
 usermatch(auth, userlist)
@@ -56,11 +56,7 @@ usermatch(auth, userlist)
    const char *name;
 
    if ((name = authname(auth)) == NULL)
-      /*
-       * adding non-username based methods to rules requiring usernames
-       * should not be possible.
-      */
-      SERRX(auth->method);
+      return 0; /* no username, no match. */
 
    do
       if (strcmp(name, userlist->name) == 0)
@@ -77,15 +73,11 @@ groupmatch(auth, grouplist)
    const struct authmethod_t *auth;
    const struct linkedname_t *grouplist;
 {
-   const char *function = "groupmatch()"; 
+   const char *function = "groupmatch()";
    const char *username;
 
    if ((username = authname(auth)) == NULL)
-      /*
-       * adding non-username based methods to rules requiring usernames
-       * should not be possible.
-      */
-      SERRX(auth->method);
+      return 0; /* no username, no match. */
 
 
    /* go through grouplist, matching username against members of each group. */
@@ -111,7 +103,6 @@ groupmatch(auth, grouplist)
    return 0;
 }
 
-
 /* ARGSUSED */
 int
 accesscheck(s, auth, src, dst, emsg, emsgsize)
@@ -123,7 +114,7 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 {
    const char *function = "accesscheck()";
    char srcstr[MAXSOCKADDRSTRING], dststr[sizeof(srcstr)];
-   int match;
+   int match, authresultisfixed;
 
    slog(LOG_DEBUG, "%s: method: %s, %s -> %s ",
    function, method2string(auth->method),
@@ -134,7 +125,9 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
     * We don't want to re-check the same method.  This could
     * happen in several cases:
     *  - was checked as client-rule, is now checked as socks-rule.
-    *  - a different rule with the same method.
+    *  - a different rule with the same method.  The client is however
+    *    the same, so if the auth failed on the method before, it will
+    *    fail next time also.
    */
 
    if (methodisset(auth->method, auth->methodv, (size_t)auth->methodc))
@@ -145,7 +138,14 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 
    match = 0;
    switch (auth->method) {
+      /*
+       * Methods where no further checking is done at this point, either
+       * because there's nothing to check, or it has already been checked.
+       */
       case AUTHMETHOD_NONE:
+#if HAVE_GSSAPI
+      case AUTHMETHOD_GSSAPI:
+#endif /* HAVE_GSSAPI */
          match = 1;
          break;
 
@@ -155,11 +155,13 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
             match = 1;
          break;
 
+#if HAVE_LIBWRAP
       case AUTHMETHOD_RFC931:
          if (passwordcheck((const char *)auth->mdata.rfc931.name, NULL, emsg,
          emsgsize) == 0)
             match = 1;
          break;
+#endif /* HAVE_LIBWRAP */
 
 #if HAVE_PAM
       case AUTHMETHOD_PAM: {
@@ -176,7 +178,7 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
          if (freec != freedescriptors(sockscf.option.debug ?  "end" : NULL))
             swarnx("%s: lost %d file descriptor%s in pam_passwordcheck()",
             function, freec - freedescriptors(NULL),
-            freec - freedescriptors(NULL) > 1 ? "s" : "");
+            (freec - freedescriptors(NULL)) == 1 ? "" : "s");
 #endif /* DIAGNOSTIC */
          break;
       }
@@ -186,40 +188,61 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
          SERRX(auth->method);
    }
 
+   /*
+    * Some methods can be called with different values for the
+    * same client, based on values configured in the rules.
+    * Others can not and we want to mark those who can not as
+    * "tried", so we don't waste time on re-trying them.
+    */
    switch (auth->method) {
-      /*
-       * Some methods can be called with different values for the
-       * same client, others can not.  Mark those who can't as
-       * "tried" so we don't waste time on re-trying them.
-       */
 #if HAVE_PAM
       case AUTHMETHOD_PAM:
-         if (sockscf.state.pamservicename == NULL) /* varies. */
-            break;
-         /* else; */ /* FALLTHROUGH */
+         if (sockscf.state.pamservicename == NULL)
+            authresultisfixed = 0;
+         else
+            authresultisfixed = 1;
+         break;
 #endif /* HAVE_PAM */
+
+#if HAVE_GSSAPI
+      case AUTHMETHOD_GSSAPI:
+         if (sockscf.state.gssapiservicename == NULL
+         ||  sockscf.state.gssapikeytab      == NULL)
+            authresultisfixed = 0;
+         else
+            authresultisfixed = 1;
+         break;
+#endif /* HAVE_GSSAPI */
 
       case AUTHMETHOD_NONE:
       case AUTHMETHOD_UNAME:
       case AUTHMETHOD_RFC931:
-         if (match) {
-            SASSERTX(auth->methodc + 1 <= sizeof(auth->methodv));
-            auth->methodv[auth->methodc++] = auth->method;
-         }
-         else {
-            SASSERTX(auth->badmethodc + 1 <= sizeof(auth->badmethodv));
-            auth->badmethodv[auth->badmethodc++] = auth->method;
-         }
-
-         /*
-          * We might have wanted to bzero() the password here, but
-          * then we wouldn't be able to use the password if we
-          * at a later point needed to check for access against
-          * a different method.  (For instance, PAM on setup,
-          * UNAME on UDP packet.  Strange, but in theory possible.)
-          */
+         authresultisfixed = 1;
          break;
+
+      default:
+         SERRX(auth->method);
    }
+
+   if (authresultisfixed) {
+      if (match) {
+         SASSERTX(auth->methodc + 1 <= sizeof(auth->methodv));
+         auth->methodv[auth->methodc++] = auth->method;
+      }
+      else {
+         SASSERTX(auth->badmethodc + 1 <= sizeof(auth->badmethodv));
+         auth->badmethodv[auth->badmethodc++] = auth->method;
+      }
+
+      /*
+       * We might have wanted to bzero() the password here, but
+       * then we wouldn't be able to use the password if we
+       * at a later point needed to check for access against
+       * a different method.  (For instance, PAM on setup,
+       * UNAME on UDP packet.  Strange, but in theory possible.)
+       */
+   }
+
 
    return match;
 }

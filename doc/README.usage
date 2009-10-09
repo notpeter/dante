@@ -1,4 +1,4 @@
-$Id: README.usage,v 1.8 2008/12/29 09:58:32 karls Exp $
+$Id: README.usage,v 1.9 2009/08/04 17:22:20 karls Exp $
 
 The socks package can be used in two ways.
 
@@ -29,7 +29,7 @@ not -ldsocks).
 
 These function calls can be found in the socks library:
 Raccept
-Rbind 
+Rbind
 Rbindresvport
 Rconnect
 Rgetaddrinfo()
