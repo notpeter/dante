@@ -1,23 +1,46 @@
-# $Id: TODO,v 1.177 2008/12/26 14:17:13 michaels Exp $
+# $Id: TODO,v 1.216 2009/10/08 09:04:51 michaels Exp $
+
+netperf
+   TCP REQUEST/RESPONSE TEST is slower with new server by ~7-8% (5100 vs 5800)
+
+* look into if we can reduce the stacksize of clientmethod_gssapi(),
+  as it creates problems with e.g. solaris' host command.
+  Do we really require so big gssapi buffers?
+
+* can we use fstat(2) or similar on the sockets to track them instead?
+
+* we evaluate rfc931 twice if both the client-rule and socks-rule specifies
+  rfc931, that is unnecessary.
+
+* connections blocked due to authenticationerrors or other things should
+  say block(n), not pass(n).
+
+* change gethostby* to getnameinfo(3)/getaddrinfo(3), which should hopefully
+  be threadsafe on most platforms.
+
+* should try to get route for v4 first, since it's faster setup time?
+
+* (bandwidth?) module could support a limit on the total amount transfered
+  per time (day/hour) also.  Usefull?
+
+* connecttimeout should mean "timeout for connect(2) on behalf of socks
+  client".
+
+* make request-children support multiple clients.
 
 * change _t struct's to typedef.
 
 * share host/addr cache across processes.
 
-* get and send all argument to old signalhandler when necessary.
-
-* clean up namespace.
+* clean up namespace (including for dlib, function names can collide with apps)
 
 * make requestchildren support multiple clients too.
 
-* shrink io_t, too big.
-
-* Solaris cc needs -misalign due to alignment problems with sockaddr/
-  sockaddr_in casts. causes coredump with ftp (passive ls) in client,
-  in sockshost2sockaddr (util.c, line 271, version 1.94).
-
-* match configure/manual config/pid location
-
-* port code for interface/route info retrieval to OSF
+* shrink io_t, too big.  Can we find out what the maximum amount of 
+  bytes needed for importing/exporting gssapi auth is?
 
 * IPV6 support
+
+* osdep.h:move defines from osdep.h to configure/autoconf.h
+
+* check for more configure related code that is no longer used

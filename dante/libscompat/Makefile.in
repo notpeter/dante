@@ -37,24 +37,21 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@RUNLINT_TRUE@am__append_1 = $(LINTFILES)
 subdir = libscompat
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/preload.m4 $(top_srcdir)/gssapi.m4 \
+	$(top_srcdir)/libscompat.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/include/autoconf.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
-libscompat_la_LIBADD =
-am_libscompat_la_OBJECTS = difftime.lo daemon.lo getdtablesize.lo \
-	hstrerror.lo inet_aton.lo inet_ntoa.lo inet_pton.lo \
-	issetugid.lo memmove.lo setproctitle.lo snprintf.lo \
-	sockatmark.lo strerror.lo strvis.lo vsyslog.lo seteuid.lo \
-	getifaddrs.lo
+am_libscompat_la_OBJECTS =
 libscompat_la_OBJECTS = $(am_libscompat_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/include
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -67,8 +64,8 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libscompat_la_SOURCES)
-DIST_SOURCES = $(libscompat_la_SOURCES)
+SOURCES = $(libscompat_la_SOURCES) $(EXTRA_libscompat_la_SOURCES)
+DIST_SOURCES = $(libscompat_la_SOURCES) $(EXTRA_libscompat_la_SOURCES)
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
@@ -94,6 +91,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLIBDEPS = @DLIBDEPS@
 DSYMUTIL = @DSYMUTIL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -115,12 +113,16 @@ LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LIBOBJS = @LIBOBJS@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBS = @LIBS@
+LIBSCSRC = @LIBSCSRC@
 LIBTOOL = @LIBTOOL@
-LINT_FALSE = @LINT_FALSE@
-LINT_TRUE = @LINT_TRUE@
+
+#lint files
+LINT = @LINT@
+LINTFLAGS = @LINTFLAGS@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
+MAPOPT = @MAPOPT@
 NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -136,6 +138,8 @@ PRELOAD_VARIABLE = @PRELOAD_VARIABLE@
 PRERELEASE_FALSE = @PRERELEASE_FALSE@
 PRERELEASE_TRUE = @PRERELEASE_TRUE@
 RANLIB = @RANLIB@
+RUNLINT_FALSE = @RUNLINT_FALSE@
+RUNLINT_TRUE = @RUNLINT_TRUE@
 SED = @SED@
 SERVER_INTERPOSITION_ALWAYS_FALSE = @SERVER_INTERPOSITION_ALWAYS_FALSE@
 SERVER_INTERPOSITION_ALWAYS_TRUE = @SERVER_INTERPOSITION_ALWAYS_TRUE@
@@ -143,18 +147,13 @@ SERVER_INTERPOSITION_FALSE = @SERVER_INTERPOSITION_FALSE@
 SERVER_INTERPOSITION_TRUE = @SERVER_INTERPOSITION_TRUE@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SOCKDDEPS = @SOCKDDEPS@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 SOLIB_POSTFIX = @SOLIB_POSTFIX@
-SPROFIL_FALSE = @SPROFIL_FALSE@
-SPROFIL_TRUE = @SPROFIL_TRUE@
-STATIC_SOCKD_FALSE = @STATIC_SOCKD_FALSE@
-STATIC_SOCKD_TRUE = @STATIC_SOCKD_TRUE@
 STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
 VERSION = @VERSION@
-WANT_LIBMINIUPNP_FALSE = @WANT_LIBMINIUPNP_FALSE@
-WANT_LIBMINIUPNP_TRUE = @WANT_LIBMINIUPNP_TRUE@
 WANT_LIBWRAP_FALSE = @WANT_LIBWRAP_FALSE@
 WANT_LIBWRAP_TRUE = @WANT_LIBWRAP_TRUE@
 YACC = @YACC@
@@ -162,6 +161,7 @@ YFLAGS = @YFLAGS@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
 ac_ct_F77 = @ac_ct_F77@
+ac_krb5_config = @ac_krb5_config@
 am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
 am__fastdepCC_TRUE = @am__fastdepCC_TRUE@
 am__fastdepCXX_FALSE = @am__fastdepCXX_FALSE@
@@ -204,23 +204,30 @@ program_transform_name = @program_transform_name@
 psdir = @psdir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
-subdirs = @subdirs@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-
-# should only build static library
 noinst_LTLIBRARIES = libscompat.la
-libscompat_la_SOURCES = difftime.c daemon.c getdtablesize.c hstrerror.c \
-	inet_aton.c inet_ntoa.c inet_pton.c issetugid.c memmove.c       \
-	setproctitle.c snprintf.c sockatmark.c strerror.c strvis.c      \
-	vsyslog.c seteuid.c getifaddrs.c
+libscompat_la_SOURCES = 
+EXTRA_libscompat_la_SOURCES = difftime.c daemon.c hstrerror.c \
+   inet_aton.c inet_ntoa.c inet_pton.c issetugid.c memmove.c  \
+   setproctitle.c sockatmark.c strvis.c vsyslog.c seteuid.c getifaddrs.c
 
-noinst_HEADERS = compat.h
-INCLUDES = -I$(top_srcdir)/include
+libscompat_la_LIBADD = @LIBSCSRC@
+#libscompat_la_DEPENDENCIES = @LIBSCSRC@
+LIBDEPS = @LIBSCSRC@ $(am__append_1)
+noinst_HEADERS = daemon.h difftime.h ifaddrs_compat.h sockatmark.h timers.h \
+      vis_compat.h issetugid.h
+
+INCLUDES = -I$(top_srcdir)/include -I.
+AM_CFLAGS = -DSOCKS_CLIENT=0 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=0
+@RUNLINT_TRUE@SUFFIXES = .ln
+@RUNLINT_TRUE@LINTFILES = $(LIBSCSRC:.lo=.ln)
+@RUNLINT_TRUE@CLEANFILES = $(LINTFILES)
+libscompat_la_DEPENDENCIES = $(LIBDEPS)
 all: all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .lo .o .obj
+.SUFFIXES: .ln .c .lo .o .obj
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -230,9 +237,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  libscompat/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  libscompat/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  libscompat/Makefile
+	  $(AUTOMAKE) --foreign  libscompat/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -270,7 +277,6 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemon.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/difftime.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getdtablesize.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getifaddrs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hstrerror.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/inet_aton.Plo@am__quote@
@@ -280,9 +286,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memmove.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/seteuid.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/setproctitle.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/snprintf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sockatmark.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strerror.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strvis.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vsyslog.Plo@am__quote@
 
@@ -413,6 +417,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
@@ -483,6 +488,9 @@ uninstall-am: uninstall-info-am
 	pdf pdf-am ps ps-am tags uninstall uninstall-am \
 	uninstall-info-am
 
+
+@RUNLINT_TRUE@.c.ln:
+@RUNLINT_TRUE@	$(LINT) $(LINTFLAGS) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(AM_CFLAGS) $<
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

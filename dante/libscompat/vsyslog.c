@@ -1,14 +1,12 @@
-/* $Id: vsyslog.c,v 1.8 2008/07/25 08:49:06 michaels Exp $ */
+/* $Id: vsyslog.c,v 1.11 2009/07/07 12:54:47 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
-#endif  /* HAVE_CONFIG_H */
+#endif /* HAVE_CONFIG_H */
 
 #include "common.h"
 
 /* attempt to be clever; construct string and call syslog */
-
-#if !HAVE_VSYSLOG
 
 /*
  * Copyright (c) 1983, 1988, 1993
@@ -93,10 +91,3 @@ vsyslog(pri, fmt, ap)
 
    return;
 }
-#else
-static void avoid_error __P((void));
-static void avoid_error()
-{
-   avoid_error();
-}
-#endif /* !HAVE_VSYSLOG */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.136 2009/01/02 14:06:02 michaels Exp $";
+"$Id: Rconnect.c,v 1.167 2009/10/04 13:46:08 michaels Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -55,6 +55,7 @@ Rconnect(s, name, namelen)
    const char *function = "Rconnect()";
    struct socksfd_t socksfd;
    struct sockshost_t src, dst;
+   struct authmethod_t auth;
    struct socks_t packet;
    socklen_t len;
    char namestr[MAXSOCKADDRSTRING];
@@ -81,19 +82,23 @@ Rconnect(s, name, namelen)
       return connect(s, name, namelen);
    }
 
-   slog(LOG_DEBUG, "%s: s = %d, %s",
+   slog(LOG_DEBUG, "%s: socket %d, address %s",
    function, s, sockaddr2string(name, namestr, sizeof(namestr)));
 
-   if (socks_addrisok((unsigned int)s, 0)) {
-      socksfd = *socks_getaddr((unsigned int)s, 0);
+   if (socks_addrisours(s, 1)) {
+      socksfd = *socks_getaddr(s, 1);
+
+      slog(LOG_DEBUG, "%s: socket is a %s socket, err = %d, inprogress = %d",
+                      function, version2string(socksfd.state.version),
+                      socksfd.state.err, socksfd.state.inprogress);
 
       switch (socksfd.state.command) {
-         case SOCKS_BIND: 
+         case SOCKS_BIND:
             if (socksfd.state.protocol.tcp) {
                /*
                 * Our guess; the client has succeeded to bind a specific
                 * address and is now trying to connect out from it.
-                * That also indicates the socksserver is listening on a port
+                * That also indicates the socks server is listening on a port
                 * for this client.
                 * Can't accept() on a connected socket so lets close the
                 * connection to the server so it can stop listening on our
@@ -107,17 +112,23 @@ Rconnect(s, name, namelen)
                 */
                int tmp_s;
 
-               slog(LOG_DEBUG, "%s: continuing with Rconnect() after Rbind()",
-               function);
+               slog(LOG_DEBUG, "%s: continuing with Rconnect() after Rbind() "
+                               "on socket %d",
+                               function, s);
 
-               if (socksfd.state.version != PROXY_UPNP) {
-                  /* socket connected before for Rbind().  Need a new one.  */
+               if (socksfd.state.version == PROXY_UPNP)
+                  upnpcleanup(s);
+               else {
+                  /*
+                   * socket must have connected to proxy before for Rbind().
+                   * Need a new one.
+                   */
                   if ((tmp_s = socketoptdup(s)) == -1)
                      break;
                   if (dup2(tmp_s, s) == -1)
                      break;
                   close(tmp_s);
-                  socks_rmaddr((unsigned int)s, 0);
+                  socks_rmaddr(s, 1);
                }
             }
             else if (socksfd.state.protocol.udp) {
@@ -129,19 +140,31 @@ Rconnect(s, name, namelen)
                 * it's thing.
                 */
             }
-            else 
+            else
                SERRX(0);
-            
+
             break;
 
          case SOCKS_CONNECT:
+            if (socksfd.state.version == PROXY_UPNP) {
+               val = connect(s, name, namelen);
+
+               slog(LOG_DEBUG, "%s: connect(2) called again on upnp socket "
+                               "returned %d, errno = %d (%s)", 
+                               function, val, errno, strerror(errno));
+
+               return val;
+            }
+
             if (socksfd.state.err != 0)
                errno = socksfd.state.err;
-            else
+            else {
                if (socksfd.state.inprogress)
                   errno = EALREADY;
                else
                   errno = EISCONN;
+            }
+
             return -1;
 
          case SOCKS_UDPASSOCIATE:
@@ -156,8 +179,12 @@ Rconnect(s, name, namelen)
             SERRX(socksfd.state.command);
       }
    }
-   else
-      socks_rmaddr((unsigned int)s, 0);
+   else {
+      slog(LOG_DEBUG, "%s: doing socks_rmaddr(%d) before continuing ...",
+      function, s);
+
+      socks_rmaddr(s, 1);
+   }
 
    bzero(&packet, sizeof(packet));
 
@@ -166,56 +193,51 @@ Rconnect(s, name, namelen)
       swarn("%s: getsockopt(SO_TYPE)", function);
       return -1;
    }
+
    switch (val) {
-      case SOCK_DGRAM:
-         errno = 0;
-         if (udpsetup(s, name, SOCKS_SEND) == 0) {
-            socks_addrlock(F_WRLCK);
+      case SOCK_DGRAM: {
+         struct route_t *route;
 
-            socksfd = *socks_getaddr((unsigned int)s, 1);
+         if ((route = udpsetup(s, name, SOCKS_SEND)) == NULL)
+            return -1;
 
-            if (socksfd.state.version == PROXY_SOCKS_V5) {
-               if (connect(s, &socksfd.reply, sizeof(socksfd.reply)) != 0) {
-                  swarn("%s: connect(), socksfd.reply = %s", 
-                  function,
-                  sockaddr2string(&socksfd.reply, namestr, sizeof(namestr)));
+         if (route->gw.state.proxyprotocol.direct)
+            return connect(s, name, namelen);
 
-                  socks_rmaddr((unsigned int)s, 1);
-                  socks_addrunlock();
-                  return -1;
-               }
-            }
-            else if (socksfd.state.version == PROXY_UPNP) {
-               int p; 
+         socksfd = *socks_getaddr(s, 1);
 
-               if ((p = connect(s, name, namelen)) != 0) {
-                  swarn("%s: connect(%s)",
-                  function, sockaddr2string(name, namestr, sizeof(namestr)));
-                  
-                  socks_addrunlock();
-                  return p;
-               }
-            }
+         if (socksfd.state.version == PROXY_SOCKS_V5) {
+            if (connect(s, &socksfd.reply, sizeof(socksfd.reply)) != 0) {
+               swarn("%s: connecting socket %d to %s failed",
+               function, s,
+               sockaddr2string(&socksfd.reply, namestr, sizeof(namestr)));
 
-            socksfd.state.udpconnect = 1;
-            socksfd.forus.connected  = *name;
-            socks_addaddr((unsigned int)s, &socksfd, 1);
-
-            socks_addrunlock();
-            return 0;
-         }
-         else {
-            if (errno == 0)
-               /* not a network error, try standard connect. */
-               return connect(s, name, namelen);
-            else
+               socks_rmaddr(s, 1);
                return -1;
+            }
          }
+         else if (socksfd.state.version == PROXY_UPNP) {
+            int p;
+
+            if ((p = connect(s, name, namelen)) != 0) {
+               swarn("%s: connect(%s)",
+               function, sockaddr2string(name, namestr, sizeof(namestr)));
+
+               return p;
+            }
+         }
+
+         socksfd.state.udpconnect = 1;
+         socksfd.forus.connected  = *name;
+         socks_addaddr(s, &socksfd, 1);
+
+         return 0;
+      }
 
       case SOCK_STREAM:
          packet.req.protocol = SOCKS_TCP;
          break;
-      
+
       default:
          swarnx("%s: unknown protocoltype %d, falling back to system connect",
          function, val);
@@ -227,22 +249,40 @@ Rconnect(s, name, namelen)
    if (getsockname(s, &socksfd.local, &len) != 0)
       return -1;
 
+   bzero(&src, sizeof(src)); /* silence valgrind warning */
    src.atype     = SOCKS_ADDR_IPV4;
    /* LINTED pointer casts may be troublesome */
    src.addr.ipv4 = TOIN(&socksfd.local)->sin_addr;
    /* LINTED pointer casts may be troublesome */
    src.port      = TOIN(&socksfd.local)->sin_port;
 
+   bzero(&dst, sizeof(dst)); /* silence valgrind warning */
    fakesockaddr2sockshost(name, &dst);
 
+   bzero(&auth, sizeof(auth));
+   auth.method        = AUTHMETHOD_NOTSET;
+
    packet.req.version = PROXY_DIRECT;
-   packet.auth.method = AUTHMETHOD_NOTSET;
    packet.req.command = SOCKS_CONNECT;
    packet.req.host    = dst;
+   packet.req.auth    = &auth;
 
-   if (socks_requestpolish(&packet.req, &src, &dst) == NULL
-   ||  packet.req.version == PROXY_DIRECT)
-      return connect(s, name, namelen);
+   if (socks_requestpolish(&packet.req, &src, &dst) == NULL)
+      return -1;
+
+   if (packet.req.version == PROXY_DIRECT) {
+      int rc;
+
+      slog(LOG_DEBUG, "%s: using direct systemcalls for socket %d",
+      function, s);
+
+      rc = connect(s, name, namelen);
+
+      slog(LOG_DEBUG, "%s: direct connect on socket %d returned %d: (%s)",
+      function, s, rc, strerror(errno));
+
+      return rc;
+   }
 
    switch (packet.version = packet.req.version) {
       case PROXY_SOCKS_V4:
@@ -263,23 +303,22 @@ Rconnect(s, name, namelen)
    }
 
    if (packet.version == PROXY_UPNP)
+      /*
+       * no negotiation to do before the connect, so we don't need
+       * to care here whether the socket is blocking or not.
+       * We need to care concerning the return value from this function
+       * though, as if non-blocking, after socks_negotiate(),
+       * the socket may still not be connected.
+       */
       nbconnect = 0;
-   else {
+   else
       /*
        * Check if the socket is non-blocking.  If so, fork a child
-       * to negotiate with the proxyserver and establish the connection.
-       * In the case of UPNP, no negotiation is done, so don't waste 
+       * to negotiate with the proxy server and establish the connection.
+       * In the case of UPNP, no negotiation is done, so don't waste
        * time on that.
        */
-      int p;
-
-      if ((p = fcntl(s, F_GETFL, 0)) == -1) {
-         swarn("%s: fcntl(F_GETFL)", function);
-         return -1;
-      }
-
-      nbconnect = (p & NONBLOCKING);
-   }
+      nbconnect = !fdisblocking(s);
 
    errno = 0;
    if (nbconnect)
@@ -288,8 +327,8 @@ Rconnect(s, name, namelen)
    else
       socksfd.route = socks_connectroute(socksfd.control, &packet, &src, &dst);
 
-   slog(LOG_DEBUG, "%s: route = %s, errno = %d",
-   function, socksfd.route == NULL ? "null" : "found", errno);
+   slog(LOG_DEBUG, "%s: route for socket %d %s, errno = %d",
+   function, s, socksfd.route == NULL ? "not found" : "found", errno);
 
    if (socksfd.route == NULL) {
       if (s != socksfd.control)
@@ -299,9 +338,9 @@ Rconnect(s, name, namelen)
          case EADDRINUSE: {
             /*
              * This problem can arise when we are socksifying
-             * a serverapplication that does several outbound
+             * a server application that does several outbound
              * connections from the same address (e.g. ftpd) to the
-             * same socksserver.
+             * same socks server.
              * It has by now successfully bound the address (it thinks)
              * and is not expecting this error.
              * Not sure what is best to do, just failing here prevents
@@ -335,23 +374,30 @@ Rconnect(s, name, namelen)
                /* LINTED pointer casts may be troublesome */
                bindresvport(s, TOIN(&socksfd.local));
             }
+
             return Rconnect(s, name, namelen);
          }
-      }
 
-      return errno == 0 ? connect(s, name, namelen) : -1;
+         default:
+            return -1;
+      }
    }
 
    if (nbconnect) {
       slog(LOG_DEBUG, "got route, nonblocking connect in progress, "
       "errno = %d (%s)", errno, strerror(errno));
-      return -1; 
+
+      return -1;
    }
 
    if (socks_negotiate(s, socksfd.control, &packet, socksfd.route) != 0)
       return -1;
 
-   socksfd.state.auth            = packet.auth;
+   savederrno = errno;
+   slog(LOG_DEBUG, "%s: errno after successfull socks_negotiate() is %d",
+   function, savederrno);
+
+   socksfd.state.auth            = auth;
    socksfd.state.command         = packet.req.command;
    socksfd.state.version         = packet.res.version;
    socksfd.state.protocol.tcp    = 1;
@@ -370,22 +416,29 @@ Rconnect(s, name, namelen)
 
       /* LINTED pointer casts may be troublesome */
       slog(LOG_DEBUG, "failed to get wanted port %d, but got %d and continuing",
-      ntohs(TOIN(&socksfd.local)->sin_port), 
+      ntohs(TOIN(&socksfd.local)->sin_port),
       ntohs(TOIN(&socksfd.remote)->sin_port));
    }
 
-   savederrno = errno;
    len = sizeof(socksfd.server);
    if (getpeername(s, &socksfd.server, &len) != 0)
-      slog(LOG_DEBUG, "%s: getpeername failed", function);
+      if (packet.version != PROXY_UPNP || fdisblocking(s))
+         slog(LOG_DEBUG, "%s: getpeername(s): %s", function, strerror(errno));
 
    len = sizeof(socksfd.local);
    if (getsockname(s, &socksfd.local, &len) != 0)
-      slog(LOG_DEBUG, "%s: getsockname(s) failed", function);
+      slog(LOG_DEBUG, "%s: getsockname(s): %s", function, strerror(errno));
+
+
+   socks_addaddr(s, &socksfd, 1);
+   sockscf.state.lastconnect = *name;   /* needed for standard socks bind. */
+
+   slog(LOG_DEBUG, "%s: returning ... errno is %d", function, savederrno);
+
    errno = savederrno;
 
-   socks_addaddr((unsigned int)s, &socksfd, 0);
-   sockscf.state.lastconnect = *name;   /* needed for standard socks bind. */
+   if (errno != 0) /* something happened, but could just be EINPROGRESS. */
+      return -1;
 
    return 0;
 }

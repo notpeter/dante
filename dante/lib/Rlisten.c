@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009
+ * Copyright (c) 1998, 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rlisten.c,v 1.18 2009/01/02 14:06:03 michaels Exp $";
+"$Id: Rlisten.c,v 1.24 2009/09/28 07:16:33 michaels Exp $";
 
 int
 Rlisten(s, backlog)
@@ -56,16 +56,16 @@ Rlisten(s, backlog)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, s);
+   slog(LOG_DEBUG, "%s, socket %d", function, s);
 
-   if (!socks_addrisok((unsigned int)s, 0))
+   if (!socks_addrisours(s, 1))
       return listen(s, backlog);
 
-   socksfd = socks_getaddr((unsigned int)s, 0);
+   socksfd = socks_getaddr(s, 1);
    if (socksfd->state.command != SOCKS_BIND) {
-      swarnx("%s: doing listen on socket, but commandstate is %d",
+      swarnx("%s: doing listen on socket, but command state is %d",
       function, socksfd->state.command);
-      socks_rmaddr(s, 0);
+      socks_rmaddr(s, 1);
 
       return listen(s, backlog);
    }
@@ -74,7 +74,7 @@ Rlisten(s, backlog)
     * find out if it's bound using the bind extension or not.
     * If it's using the bind extension, we do a standard listen(2), if
     * not, we need to drop the listen(2), as doing listen(2) on a socket
-    * we have previously done connect(2) on (for connect to the socks 
+    * we have previously done connect(2) on (for connect to the socks
     * server) does not necessarily work so well on all (any?) systems.
     */
    if (socksfd->state.acceptpending)

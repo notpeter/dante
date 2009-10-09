@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.67 2009/01/11 22:01:57 michaels Exp $";
+"$Id: authneg.c,v 1.89 2009/09/25 09:47:22 michaels Exp $";
 
 int
 negotiate_method(s, packet, route)
@@ -53,84 +53,123 @@ negotiate_method(s, packet, route)
    struct route_t *route;
 {
    const char *function = "negotiate_method()";
-   unsigned char *name = NULL, *password = NULL;
-   unsigned char request[ 1                  /* version               */
-                        + 1                  /* number of methods.   */
-                        + AUTHMETHOD_MAX      /* the methods.         */
-                        ];
    size_t requestlen;
+   unsigned char *name = NULL, *password = NULL;
+   unsigned char request[ 1                  /* version              */
+                        + 1                  /* number of methods.   */
+                        + AUTHMETHOD_MAX     /* the methods.         */
+                        ];
    unsigned char response[ 1   /* version.            */
                          + 1   /* selected method.   */
                          ];
-   int rc;
+   char buf[256];
+   int rc, intmethodv[MAXMETHOD];
 
-
-   if (sockscf.option.debug) {
-      char buf[256];
-
-      slog(LOG_DEBUG, "%s: %s", function, socket2string(s, buf, sizeof(buf)));
-   }
-
+   if (sockscf.option.debug)
+      slog(LOG_DEBUG, "%s: socket %d, %s",
+      function, s, socket2string(s, buf, sizeof(buf)));
 
    SASSERTX(packet->gw.state.methodc > 0);
 
-   /* create request packet. */
+   /*
+    * create request packet.
+    */
 
-   requestlen = 0;
+   requestlen            = 0;
    request[requestlen++] = packet->req.version;
 
-   if (packet->auth.method != AUTHMETHOD_NOTSET) {
-      /* authmethod already fixed. */
-      request[requestlen++] = (unsigned char)1;
-      request[requestlen++] = (unsigned char)packet->auth.method;
-
-      switch (packet->auth.method) {
-         case AUTHMETHOD_UNAME:
-            name     = packet->auth.mdata.uname.name;
-            password = packet->auth.mdata.uname.password;
-            break;
-      }
-   }
-   else {
+   if (packet->req.auth->method == AUTHMETHOD_NOTSET) {
+      /* send list over all methods we support. */
       request[requestlen++] = (unsigned char)packet->gw.state.methodc;
       for (rc = 0; rc < (int)packet->gw.state.methodc; ++rc)
          request[requestlen++] = (unsigned char)packet->gw.state.methodv[rc];
    }
+   else {
+      /* authmethod already fixed. */
+      request[requestlen++] = (unsigned char)1;
+      request[requestlen++] = (unsigned char)packet->req.auth->method;
+   }
 
-   /* send list over methods we support */
-   if (writen(s, request, requestlen, &packet->auth) != (ssize_t)requestlen)
-      return -1;
+   CM2IM(request[AUTH_NMETHODS], &request[AUTH_METHODS], intmethodv);
+   slog(LOG_DEBUG, "%s: offering proxy server %d method%s: %s",
+   function, request[AUTH_NMETHODS], request[AUTH_NMETHODS] == 1 ? "" : "s",
+   methods2string(request[AUTH_NMETHODS], intmethodv, buf, sizeof(buf)));
 
-   /* read servers response for method it wants to use */
-   if ((rc = readn(s, response, sizeof(response), &packet->auth))
-   != sizeof(response)) {
-      swarn("%s: readn(), %d out of %ld", function, rc, (long)sizeof(response));
-      socks_badroute(route);
+   if (socks_sendton(s, request, requestlen, requestlen, 0, NULL, 0,
+   packet->req.auth) != (ssize_t)requestlen) {
+      swarn("%s: could not send list over methods to socks server", function);
       return -1;
    }
+
+   if ((rc = socks_recvfromn(s, response, sizeof(response), sizeof(response),
+   0, NULL, NULL, packet->req.auth)) != sizeof(response)) {
+      swarn("%s: could not read server response for method to use, read %d/%ld",
+      function, rc, (long)sizeof(response));
+
+      socks_blacklist(route);
+
+      if (errno == 0)
+         errno = ECONNREFUSED; /* if nothing else ... something is wrong. */
+
+      return -1;
+   }
+
+   /*
+    * sanitycheck servers reply.
+    */
 
    if (request[AUTH_VERSION] != response[AUTH_VERSION]) {
       swarnx("%s: got replyversion %d, expected %d",
       function, response[AUTH_VERSION], request[AUTH_VERSION]);
+
       errno = ECONNREFUSED;
-      socks_badroute(route);
+      socks_blacklist(route);
+
+      return -1;
+   }
+   packet->version = request[AUTH_VERSION];
+
+   if (!methodisset(response[AUTH_METHOD], intmethodv, request[AUTH_NMETHODS]))
+   {
+      if (response[AUTH_METHOD] == AUTHMETHOD_NOACCEPT)
+         slog(LOG_DEBUG, "%s: server said we did not offer any acceptable "
+                         "authentication method",
+              function);
+      else
+         swarnx("%s: proxy server selected method 0x%x, but that is not among "
+                "the methods we offered it",
+                function, response[AUTH_METHOD]);
+
+      errno = ECONNREFUSED;
+      socks_blacklist(route);
+
       return -1;
    }
 
-   packet->version     = request[AUTH_VERSION];
-   packet->auth.method = response[AUTH_METHOD];
+   slog(LOG_DEBUG, "%s: proxy server selected method %s",
+   function, method2string(response[AUTH_METHOD]));
 
-   switch (packet->auth.method) {
+   switch (response[AUTH_METHOD]) {
       case AUTHMETHOD_NONE:
          rc = 0;
          break;
+
+#if HAVE_GSSAPI
+      case AUTHMETHOD_GSSAPI:
+         if (clientmethod_gssapi(s, packet->req.protocol, &packet->gw,
+         packet->req.version, packet->req.auth) == 0)
+            rc = 0;
+         else
+            rc = -1;
+         break;
+#endif /* HAVE_GSSAPI */
 
       case AUTHMETHOD_UNAME: {
          struct sockshost_t host;
 
          gwaddr2sockshost(&packet->gw.addr, &host);
-         if (clientmethod_uname(s, &host, packet->req.version, name,
-         password) == 0)
+         if (clientmethod_uname(s, &host, packet->req.version, name, password)
+         == 0)
             rc = 0;
          else
             rc = -1;
@@ -138,23 +177,36 @@ negotiate_method(s, packet, route)
       }
 
       case AUTHMETHOD_NOACCEPT:
+#if SOCKS_SERVER
+         slog(LOG_DEBUG, "%s: server accepted no offered authentication method",
+         function);
+#else
          swarnx("%s: server accepted no authentication method", function);
-         socks_badroute(route);
+         socks_blacklist(route);
+#endif /* SOCKS_SERVER */
+
          rc = -1;
          break;
 
       default:
-         swarnx("%s: server selected method not offered: %d",
-         function, response[AUTH_METHOD]);
-         socks_badroute(route);
-         rc = -1;
+         SERRX(packet->req.auth->method);
    }
 
-   if (rc == 0)
+   packet->req.auth->method = response[AUTH_METHOD];
+
+   if (rc == 0) {
       slog(LOG_DEBUG, "%s: established v%d connection using method %d",
-      function, packet->version, packet->auth.method);
-   else
-      errno = ECONNREFUSED;
+      function, packet->version, packet->req.auth->method);
+
+      errno = 0; /* all is ok. */
+   }
+   else {
+      slog(LOG_DEBUG, "%s: failed to establish v%d connection using method %d",
+      function, packet->version, packet->req.auth->method);
+
+      if (errno == 0) /* set something to indicate an error. */
+         errno = ECONNREFUSED;
+   }
 
    return rc;
 }

@@ -1,12 +1,10 @@
-/* $Id: memmove.c,v 1.4 2008/07/25 08:49:05 michaels Exp $ */
+/* $Id: memmove.c,v 1.7 2009/07/07 12:54:47 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
-#endif  /* HAVE_CONFIG_H */
+#endif /* HAVE_CONFIG_H */
 
 #include "common.h"
-
-#if !HAVE_MEMMOVE
 
 #define MEMMOVE
 /*-
@@ -150,10 +148,3 @@ done:
 #endif
 }
 #undef MEMMOVE
-#else
-static void avoid_error __P((void));
-static void avoid_error()
-{
-   avoid_error();
-}
-#endif /* !HAVE_MEMMOVE */

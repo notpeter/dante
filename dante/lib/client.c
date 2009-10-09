@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.67 2009/01/02 14:06:03 michaels Exp $";
+"$Id: client.c,v 1.85 2009/09/28 07:09:38 michaels Exp $";
 
 #if !HAVE_PROGNAME
    char *__progname = "danteclient";
@@ -66,32 +66,34 @@ clientinit(void)
    static sig_atomic_t initing;
 #else
    static volatile sig_atomic_t initing;
-#endif
+#endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
 /*   const char *function = "clientinit()"; */
 
-   if (sockscf.state.init) 
+   if (sockscf.state.init)
       return;
 
-   socks_addrlock(F_WRLCK);
+/*   sleep(20);  */
 
-   if (initing) { /* in case of same process/thread trying to get the lock. */
-      socks_addrunlock(); 
-      return;
-   }
+   if (initing)
+      return; /* in case of same process/thread trying to get the lock. */
    initing = 1;
 
    if (sockscf.state.init) {
       /* somebody else inited while we were waiting for the lock. */
       initing = 0;
-      socks_addrunlock(); 
       return;
    }
 
-   if (issetugid())
+   /*
+    * need to know max number of open files so we can allocate correctly
+    * sized fd_set.
+    */
+   sockscf.state.maxopenfiles = getmaxofiles(hardlimit);
+
+
+   if ((sockscf.option.configfile = socks_getenv("SOCKS_CONF", dontcare))
+   == NULL)
       sockscf.option.configfile = SOCKS_CONFIGFILE;
-   else
-      if ((sockscf.option.configfile = getenv("SOCKS_CONF")) == NULL)
-         sockscf.option.configfile = SOCKS_CONFIGFILE;
 
    /*
     * initialize misc. options to sensible default.
@@ -107,12 +109,23 @@ clientinit(void)
    sizeof(sockscf.state.lastconnect.sa_data));
 
    genericinit();
+   newprocinit();
+   addrlockinit();
+
+#if SOCKS_DIRECTROUTE_FALLBACK
+   if (socks_getenv("SOCKS_DIRECTROUTE_FALLBACK", isfalse) == NULL)
+      sockscf.option.directfallback = 1;
+   else
+      sockscf.option.directfallback = 0;
+#else /* !SOCKS_DIRECTROUTE_FALLBACK */
+   if (socks_getenv("SOCKS_DIRECTROUTE_FALLBACK", istrue) == NULL)
+      sockscf.option.directfallback = 1;
+   else
+      sockscf.option.directfallback = 0;
+#endif /* SOCKS_DIRECTROUTE_FALLBACK */
 
    slog(LOG_INFO, "%s/client v%s running", PACKAGE, VERSION);
-/*   sleep(60);           */
+/*   sleep(10);                         */
 
    initing = 0;
-   socks_addrunlock(); 
-
 }
-

@@ -1,6 +1,9 @@
-#if !HAVE_STRVIS
-/*   $OpenBSD: vis.h,v 1.2 1997/09/21 10:46:01 niklas Exp $   */
-/*   $NetBSD: vis.h,v 1.4 1994/10/26 00:56:41 cgd Exp $   */
+/* $Id: vis_compat.h,v 1.7 2009/07/21 08:11:04 karls Exp $ */
+#if HAVE_STRVIS
+#include <vis.h>
+#else
+/*	$OpenBSD: vis.h,v 1.11 2005/08/09 19:38:31 millert Exp $	*/
+/*	$NetBSD: vis.h,v 1.4 1994/10/26 00:56:41 cgd Exp $	*/
 
 /*-
  * Copyright (c) 1990 The Regents of the University of California.
@@ -14,11 +17,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *   This product includes software developed by the University of
- *   California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -34,60 +33,70 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *   @(#)vis.h   5.9 (Berkeley) 4/3/91
+ *	@(#)vis.h	5.9 (Berkeley) 4/3/91
  */
 
 #ifndef _VIS_H_
-#define _VIS_H_
+#define	_VIS_H_
 
 /*
  * to select alternate encoding format
  */
-#define   VIS_OCTAL   0x01   /* use octal \ddd format */
-#define   VIS_CSTYLE   0x02   /* use \[nrft0..] where appropriate */
+#define	VIS_OCTAL	0x01	/* use octal \ddd format */
+#define	VIS_CSTYLE	0x02	/* use \[nrft0..] where appropriate */
 
 /*
  * to alter set of characters encoded (default is to encode all
  * non-graphic except space, tab, and newline).
  */
-#define   VIS_SP      0x04   /* also encode space */
-#define   VIS_TAB      0x08   /* also encode tab */
-#define   VIS_NL      0x10   /* also encode newline */
-#define   VIS_WHITE   (VIS_SP | VIS_TAB | VIS_NL)
-#define   VIS_SAFE   0x20   /* only encode "unsafe" characters */
+#define	VIS_SP		0x04	/* also encode space */
+#define	VIS_TAB		0x08	/* also encode tab */
+#define	VIS_NL		0x10	/* also encode newline */
+#define	VIS_WHITE	(VIS_SP | VIS_TAB | VIS_NL)
+#define	VIS_SAFE	0x20	/* only encode "unsafe" characters */
 
 /*
  * other
  */
-#define   VIS_NOSLASH   0x40   /* inhibit printing '\' */
+#define	VIS_NOSLASH	0x40	/* inhibit printing '\' */
+#define	VIS_GLOB	0x100	/* encode glob(3) magics and '#' */
 
 /*
  * unvis return codes
  */
-#define   UNVIS_VALID    1   /* character valid */
-#define   UNVIS_VALIDPUSH    2   /* character valid, push back passed char */
-#define   UNVIS_NOCHAR    3   /* valid sequence, no character produced */
-#define   UNVIS_SYNBAD   -1   /* unrecognized escape sequence */
-#define   UNVIS_ERROR   -2   /* decoder in unknown state (unrecoverable) */
+#define	UNVIS_VALID	 1	/* character valid */
+#define	UNVIS_VALIDPUSH	 2	/* character valid, push back passed char */
+#define	UNVIS_NOCHAR	 3	/* valid sequence, no character produced */
+#define	UNVIS_SYNBAD	-1	/* unrecognized escape sequence */
+#define	UNVIS_ERROR	-2	/* decoder in unknown state (unrecoverable) */
 
 /*
  * unvis flags
  */
-#define   UNVIS_END   1   /* no more characters */
+#define	UNVIS_END	1	/* no more characters */
 
-/*#include <sys/cdefs.h> */
-#ifndef _COMMON_H_
-#include "common.h"
-#endif /* !_COMMON_H_ */
+#if 0
+#include <sys/cdefs.h>
 __BEGIN_DECLS
-char   *vis __P((char *, int, int, int));
-int   strvis __P((char *, const char *, int));
-int   strvisx __P((char *, const char *, size_t, int));
+#endif
+
+char	*vis(char *, int, int, int);
+int	strvis(char *, const char *, int);
+int	strnvis(char *, const char *, size_t, int)
+		__attribute__ ((__bounded__(__string__,1,3)));
+int	strvisx(char *, const char *, size_t, int)
+		__attribute__ ((__bounded__(__string__,1,3)));
+int	strunvis(char *, const char *);
 #if 0 /* only vis and strvis,strvisx included */
-int   strunvis __P((char *, const char *));
-int   unvis __P((char *, char, int *, int));
-#endif  /* 0 */
+int	unvis(char *, char, int *, int);
+ssize_t strnunvis(char *, const char *, size_t)
+		__attribute__ ((__bounded__(__string__,1,3)));
+#endif
+
+#if 0
 __END_DECLS
+#endif
 
 #endif /* !_VIS_H_ */
+
 #endif /* !HAVE_STRVIS */

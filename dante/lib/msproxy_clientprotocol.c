@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,54 +43,52 @@
 
 /*
  * This code is terrible so hopefully it will match the protocol.
- * This code has not been updated to use the threadsafe socks_addr*() 
+ * This code has not been updated to use the threadsafe socks_addr*()
  * functions correctly.
  */
 
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.40 2009/01/02 14:06:05 michaels Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.59 2009/09/28 11:24:07 michaels Exp $";
 
 static char executable[] = "TELNET.EXE";
 static struct sigaction oldsigio;
 
-__BEGIN_DECLS
+static int
+msproxy_connect(int s, int control, struct socks_t *packet);
 
 static int
-msproxy_connect __P((int s, int control, struct socks_t *packet));
-
-static int
-msproxy_bind __P((int s, int control, struct socks_t *packet));
+msproxy_bind(int s, int control, struct socks_t *packet);
 
 static char *
-mem2response __P((struct msproxy_response_t *res, char *mem, size_t len));
+mem2response(struct msproxy_response_t *res, char *mem, size_t len)
+      __attribute__((__bounded__ (__buffer__,2,3)));
 
 static char *
-request2mem __P((const struct msproxy_request_t *req, char *mem));
+request2mem(const struct msproxy_request_t *req, char *mem);
 
 static void
-msproxy_sessionsend __P((void));
+msproxy_sessionsend(void);
 /*
  * Terminates all msproxy sessions.
  */
 
 static void
-msproxy_sessionend __P((int s, struct msproxy_state_t *msproxy));
+msproxy_sessionend(int s, struct msproxy_state_t *msproxy);
 /*
  * ends the session negotiated with "s" and having state "msproxy".
  */
 
 static void
-msproxy_keepalive __P((int signal));
+msproxy_keepalive(int signal);
 /*
  * Sends a keepalive packet on behalf of all established sessions.
  */
 
 static void
-sigio __P((int sig));
+sigio(int sig);
 
-__END_DECLS
 
 int
 msproxy_init(void)
@@ -225,7 +223,7 @@ msproxy_negotiate(s, control, packet)
 
    if (strcmp(res.RWSP, "RWSP") != 0)
       serrx(EXIT_FAILURE, "expected \"RWSP\", got \"%s\"",
-      str2vis(res.RWSP, sizeof(res.RWSP)));
+      str2vis(res.RWSP, sizeof(res.RWSP), NULL, 0));
 
    if (ntohs(res.command) >> 8 != 0x10)
       serrx(EXIT_FAILURE, "expected res.command = 10??, is %x",
@@ -419,7 +417,6 @@ msproxy_connect(s, control, packet)
          SERRX(packet->req.host.atype);
    }
 
-
    slog(LOG_DEBUG, "%s: packet #5", function);
 
    bzero(&req, sizeof(req));
@@ -440,10 +437,10 @@ msproxy_connect(s, control, packet)
    if (getsockname(s, (struct sockaddr *)&addr, &len) != 0)
       return -1;
 
-   if (!ADDRISBOUND(addr)) {
+   if (!ADDRISBOUND(&addr)) {
       /*
        * Don't have any specific preference for what address to bind and
-       * proxyserver only expects to be told port.
+       * proxy server only expects to be told port.
        */
 
       addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -475,7 +472,7 @@ msproxy_connect(s, control, packet)
    packet->res.host.port             = res.packet._5.clientport;
    packet->res.host.addr.ipv4.s_addr = res.packet._5.clientaddr;
 
-   if (socks_connect(s, &packet->res.host) != 0) {
+   if (socks_connecthost(s, &packet->res.host) != 0) {
       swarn("%s: failed to connect to %s",
       function, sockshost2string(&packet->res.host, string, sizeof(string)));
       return -1;
@@ -492,7 +489,6 @@ msproxy_connect(s, control, packet)
    slog(LOG_DEBUG, "%s: server will use as source address: %s",
    function, sockshost2string(&packet->res.host, string, sizeof(string)));
 
-
    slog(LOG_DEBUG, "%s: packet #6", function);
 
    bzero(&req, sizeof(req));
@@ -502,7 +498,6 @@ msproxy_connect(s, control, packet)
 
    if (send_msprequest(control, &packet->state.msproxy, &req) == -1)
       return -1;
-
 
    /* make response look sensible. */
    packet->res.version = packet->req.version;
@@ -600,7 +595,6 @@ msproxy_bind(s, control, packet)
       return -1;
    }
 
-
    slog(LOG_DEBUG, "%s: packet #5", function);
 
    bzero(&req, sizeof(req));
@@ -647,8 +641,8 @@ msproxy_sigio(s)
     *
     */
 
-   SASSERTX(socks_addrisok((unsigned int)s, 0));
-   socksfd = socks_getaddr((unsigned int)s, 0);
+   SASSERTX(socks_addrisours(s, 1));
+   socksfd = socks_getaddr(s, 1);
    SASSERTX(socksfd->state.version == PROXY_MSPROXY_V2);
 
    if (!init) { /* could be smarter about this... */
@@ -682,12 +676,12 @@ sigio(sig)
    int sig;
 {
    const char *function = "sigio()";
+   static fd_set *rset;
    const int errno_s = errno;
    const struct socksfd_t *socksfd;
    struct socksfd_t socksfdmem;
    char string[MAXSOCKSHOSTSTRING];
    int i, max, dset;
-   fd_set rset;
    struct timeval timeout;
    int dbits;
 
@@ -697,11 +691,14 @@ sigio(sig)
     * Find the socket we were signalled for.
     */
 
-   dbits = -1;
-   FD_ZERO(&rset);
+   if (rset == NULL)
+      rset = allocate_maxsize_fdset();
 
-   for (i = 0, max = getdtablesize(); i < max; ++i) {
-      if ((socksfd = socks_getaddr((unsigned int)i, 0)) == NULL)
+   dbits = -1;
+   FD_ZERO(rset);
+
+   for (i = 0, max = getmaxofiles(softlimit); i < max; ++i) {
+      if ((socksfd = socks_getaddr(i, 1)) == NULL)
          continue;
 
       if (socksfd->state.command != SOCKS_BIND
@@ -709,12 +706,12 @@ sigio(sig)
       || !socksfd->state.inprogress)
          continue;
 
-      if (!socks_addrisok((unsigned int)i, 0))
+      if (!socks_addrisours(i, 1))
          continue;
 
       SASSERTX(fdisopen(socksfd->control));
 
-      FD_SET(socksfd->control, &rset);
+      FD_SET(socksfd->control, rset);
       dbits = MAX(dbits, socksfd->control);
    }
 
@@ -726,12 +723,17 @@ sigio(sig)
 
    dset = 0;
    do {
-      fd_set newrset;
+      static fd_set *newrset;
+
+      if (newrset == NULL)
+         newrset = allocate_maxsize_fdset();
+
       timeout.tv_sec  = 0;
       timeout.tv_usec = 0;
 
-      newrset = rset;
-      switch (selectn(dbits + 1, &newrset, NULL, NULL, &timeout)) {
+      FD_COPY(newrset, rset);
+
+      switch (selectn(dbits + 1, newrset, NULL, NULL, NULL, NULL, &timeout)) {
          case -1:
             SERR(-1);
             /* NOTREACHED */
@@ -745,11 +747,11 @@ sigio(sig)
 
          default: {
             dset = 1;
-            for (i = 0, max = getdtablesize(); i < max; ++i) {
-               if ((socksfd = socks_getaddr((unsigned int)i, 0)) == NULL)
+            for (i = 0, max = getmaxofiles(softlimit); i < max; ++i) {
+               if ((socksfd = socks_getaddr(i, 1)) == NULL)
                   continue;
 
-               if (FD_ISSET(socksfd->control, &newrset)) {
+               if (FD_ISSET(socksfd->control, newrset)) {
                   struct sockshost_t host;
                   struct msproxy_request_t req;
                   struct msproxy_response_t res;
@@ -762,12 +764,12 @@ sigio(sig)
                   slog(LOG_DEBUG, "%s: attempting to receive bind info...",
                   function);
 
-                  FD_CLR(socksfd->control, &newrset);
+                  FD_CLR(socksfd->control, newrset);
 
                   socksfdmem = *socksfd;
                   if (recv_mspresponse(socksfd->control,
                   &socksfdmem.state.msproxy, &res) == -1) {
-                     socksfd = socks_addaddr((unsigned int)i, &socksfdmem, 0);
+                     socksfd = socks_addaddr(i, &socksfdmem, 1);
                      continue;
                   }
                   if (ntohs(res.command) != MSPROXY_BINDINFO) {
@@ -805,7 +807,7 @@ sigio(sig)
                   host.addr.ipv4.s_addr   = res.packet._5.clientaddr;
                   sockshost2sockaddr(&host, &socksfdmem.forus.accepted);
 
-                  socksfd = socks_addaddr((unsigned int)i, &socksfdmem, 0);
+                  socksfd = socks_addaddr(i, &socksfdmem, 1);
 
                   slog(LOG_DEBUG, "%s: server accepted: %s",
                   function, sockshost2string(&host, string, sizeof(string)));
@@ -840,19 +842,19 @@ sigio(sig)
                   socksfdmem = *socksfd;
                   if (send_msprequest(socksfd->control,
                   &socksfdmem.state.msproxy, &req) == -1) {
-                     socksfd = socks_addaddr((unsigned int)i, &socksfdmem, 0);
+                     socksfd = socks_addaddr(i, &socksfdmem, 1);
                      continue;
                   }
 
                   if (recv_mspresponse(socksfdmem.control,
                   &socksfdmem.state.msproxy, &res) == -1) {
-                     socksfd = socks_addaddr((unsigned int)i, &socksfdmem, 0);
+                     socksfd = socks_addaddr(i, &socksfdmem, 1);
                      continue;
                   }
 
                   /* all done.  Can accept(). */
                   socksfdmem.state.inprogress = 0;
-                  socksfd = socks_addaddr((unsigned int)i, &socksfdmem, 0);
+                  socksfd = socks_addaddr(i, &socksfdmem, 1);
                }
             }
          }
@@ -861,7 +863,6 @@ sigio(sig)
 
    errno = errno_s;
 }
-
 
 int
 recv_mspresponse(s, state, response)
@@ -1889,8 +1890,8 @@ msproxy_sessionsend(void)
 
    slog(LOG_DEBUG, function);
 
-   for (i = 0, max = getdtablesize(); i < max; ++i) {
-      if ((socksfd = socks_getaddr((unsigned int)i, 0)) == NULL)
+   for (i = 0, max = getmaxofiles(softlimit); i < max; ++i) {
+      if ((socksfd = socks_getaddr(i, 1)) == NULL)
          continue;
 
       if (socksfd->state.version != PROXY_MSPROXY_V2)
@@ -1898,7 +1899,7 @@ msproxy_sessionsend(void)
 
       socksfdmem = *socksfd;
       msproxy_sessionend(socksfdmem.control, &socksfdmem.state.msproxy);
-      socksfd = socks_addaddr((unsigned int)i, &socksfdmem, 0);
+      socksfd = socks_addaddr(i, &socksfdmem, 1);
    }
 }
 
@@ -1938,8 +1939,8 @@ msproxy_keepalive(sig)
 
    slog(LOG_DEBUG, function);
 
-   for (i = 0, max = getdtablesize(); i < max; ++i) {
-      if ((socksfd = socks_getaddr((unsigned int)i, 0)) == NULL)
+   for (i = 0, max = getmaxofiles(softlimit); i < max; ++i) {
+      if ((socksfd = socks_getaddr(i, 1)) == NULL)
          continue;
 
       if (socksfd->state.version != PROXY_MSPROXY_V2
@@ -1957,16 +1958,16 @@ msproxy_keepalive(sig)
 
       if (send_msprequest(socksfdmem.control, &socksfdmem.state.msproxy, &req)
       == -1) {
-         socksfd = socks_addaddr((unsigned int)i, &socksfdmem, 0);
+         socks_addaddr(i, &socksfdmem, 1);
          return;
       }
 
       if (recv_mspresponse(socksfdmem.control, &socksfdmem.state.msproxy, &res)
       == -1) {
-         socksfd = socks_addaddr((unsigned int)i, &socksfdmem, 0);
+         socks_addaddr(i, &socksfdmem, 1);
          return;
       }
 
-      socksfd = socks_addaddr((unsigned int)i, &socksfdmem, 0);
+      socksfd = socks_addaddr(i, &socksfdmem, 1);
    }
 }

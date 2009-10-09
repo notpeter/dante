@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.30 2009/01/11 22:06:50 michaels Exp $";
+"$Id: tostring.c,v 1.54 2009/10/02 11:58:05 michaels Exp $";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -56,13 +56,13 @@ proxyprotocols2string(proxyprotocols, str, strsize)
    size_t strused;
 
    if (strsize == 0) {
-      static char buf[1024];
-      
+      static char buf[256];
+
       str = buf;
       strsize = sizeof(buf);
    }
 
-   *str = NUL;
+   *str    = NUL;
    strused = 0;
 
    if (proxyprotocols->socks_v4)
@@ -89,6 +89,7 @@ proxyprotocols2string(proxyprotocols, str, strsize)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
       QUOTE(PROXY_DIRECTs));
 
+   STRIPTRAILING(str, strused);
    return str;
 }
 
@@ -100,11 +101,14 @@ protocols2string(protocols, str, strsize)
 {
    size_t strused;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[16];
 
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
    strused = 0;
 
    if (protocols->tcp)
@@ -115,9 +119,9 @@ protocols2string(protocols, str, strsize)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
       QUOTE(PROTOCOL_UDPs));
 
+   STRIPTRAILING(str, strused);
    return str;
 }
-
 
 const char *
 socks_packet2string(packet, type)
@@ -191,7 +195,6 @@ socks_packet2string(packet, type)
    return buf;
 }
 
-
 enum operator_t
 string2operator(string)
    const char *string;
@@ -200,7 +203,7 @@ string2operator(string)
    if (strcmp(string, "eq") == 0 || strcmp(string, "=") == 0)
       return eq;
 
-   if (strcmp(string, "neq") == 0 || strcmp(string, "!=") == 0)
+   if (strcmp(string, "ne") == 0 || strcmp(string, "!=") == 0)
       return neq;
 
    if (strcmp(string, "ge") == 0 || strcmp(string, ">=") == 0)
@@ -220,8 +223,6 @@ string2operator(string)
 
    /* NOTREACHED */
 }
-
-
 
 const char *
 operator2string(operator)
@@ -260,7 +261,6 @@ operator2string(operator)
    /* NOTREACHED */
 }
 
-
 const char *
 ruleaddr2string(address, string, len)
    const struct ruleaddr_t *address;
@@ -268,11 +268,11 @@ ruleaddr2string(address, string, len)
    size_t len;
 {
 
-   if (string == NULL && len == 0) {
+   if (string == NULL || len == 0) {
       static char addrstring[MAXRULEADDRSTRING];
 
       string = addrstring;
-      len = sizeof(addrstring);
+      len    = sizeof(addrstring);
    }
 
    switch (address->atype) {
@@ -349,7 +349,6 @@ ruleaddr2string(address, string, len)
    return string;
 }
 
-
 const char *
 protocol2string(protocol)
    int protocol;
@@ -389,7 +388,6 @@ resolveprotocol2string(resolveprotocol)
 
    /* NOTREACHED */
 }
-
 
 const char *
 command2string(command)
@@ -437,11 +435,14 @@ commands2string(command, str, strsize)
 {
    size_t strused;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[128];
 
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
    strused = 0;
 
    if (command->bind)
@@ -464,6 +465,7 @@ commands2string(command, str, strsize)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
       command2string(SOCKS_UDPREPLY));
 
+   STRIPTRAILING(str, strused);
    return str;
 }
 
@@ -535,23 +537,29 @@ version2string(version)
 char *
 methods2string(methodc, methodv, str, strsize)
    size_t methodc;
-   const int *methodv;
+   const int methodv[];
    char *str;
    size_t strsize;
 {
    size_t strused;
    size_t i;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[512];
+
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
+   strused = 0;
 
    strused = 0;
    for (i = 0; i < methodc; ++i)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
       method2string(methodv[i]));
 
+   STRIPTRAILING(str, strused);
    return str;
 }
 
@@ -561,10 +569,11 @@ string2method(methodname)
 {
    struct {
       char   *methodname;
-      int   method;
+      int    method;
    } method[] = {
-      { AUTHMETHOD_NONEs,     AUTHMETHOD_NONE   },
-      { AUTHMETHOD_UNAMEs,    AUTHMETHOD_UNAME   },
+      { AUTHMETHOD_NONEs,     AUTHMETHOD_NONE     },
+      { AUTHMETHOD_UNAMEs,    AUTHMETHOD_UNAME    },
+      { AUTHMETHOD_GSSAPIs,   AUTHMETHOD_GSSAPI   },
       { AUTHMETHOD_RFC931s,   AUTHMETHOD_RFC931   },
       { AUTHMETHOD_PAMs,      AUTHMETHOD_PAM      }
    };
@@ -577,7 +586,6 @@ string2method(methodname)
    return -1;
 }
 
-
 char *
 sockshost2string(host, string, len)
    const struct sockshost_t *host;
@@ -585,11 +593,11 @@ sockshost2string(host, string, len)
    size_t len;
 {
 
-   if (string == NULL && len == 0) {
+   if (string == NULL || len == 0) {
       static char hstring[MAXSOCKSHOSTSTRING];
 
       string = hstring;
-      len = sizeof(hstring);
+      len    = sizeof(hstring);
    }
 
    switch (host->atype) {
@@ -621,11 +629,11 @@ gwaddr2string(gw, string, len)
    size_t len;
 {
 
-   if (string == NULL && len == 0) {
+   if (string == NULL || len == 0) {
       static char hstring[MAXSOCKSHOSTSTRING];
 
       string = hstring;
-      len = sizeof(hstring);
+      len    = sizeof(hstring);
    }
 
    switch (gw->atype) {
@@ -660,11 +668,11 @@ sockaddr2string(address, string, len)
    size_t len;
 {
 
-   if (string == NULL && len == 0) {
+   if (string == NULL || len == 0) {
       static char addrstring[MAXSOCKADDRSTRING];
 
       string = addrstring;
-      len = sizeof(addrstring);
+      len    = sizeof(addrstring);
    }
 
    switch (address->sa_family) {
@@ -687,7 +695,7 @@ sockaddr2string(address, string, len)
       }
 
       default:
-         SERRX(address->sa_family);
+         snprintfn(string, len, "<unknown af %d>", address->sa_family);
    }
 
    return string;
@@ -714,8 +722,8 @@ string2udpheader(data, len, header)
    data += sizeof(header->frag);
    len -= sizeof(header->frag);
 
-   if ((data = (const char *)mem2sockshost(&header->host,
-   (const unsigned char *)data, len, PROXY_SOCKS_V5)) == NULL)
+   if (mem2sockshost(&header->host, (const unsigned char *)data, len,
+   PROXY_SOCKS_V5) == NULL)
       return NULL;
 
    return header;
@@ -729,17 +737,21 @@ extensions2string(extensions, str, strsize)
 {
    size_t strused;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[16];
 
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
    strused = 0;
 
    if (extensions->bind)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
       QUOTE("bind"));
 
+   STRIPTRAILING(str, strused);
    return str;
 }
 
@@ -747,7 +759,7 @@ char *
 str2upper(string)
    char *string;
 {
-   
+
    while (*string != NUL) {
       *string = toupper(*string);
       ++string;
@@ -811,7 +823,58 @@ socket2string(s, buf, buflen)
    return buf;
 }
 
-#if SOCKS_SERVER
+const char *
+atype2string(atype)
+   const int atype;
+{
+
+   switch (atype) {
+      case SOCKS_ADDR_IPV4:
+         return "IPv4 address";
+
+      case SOCKS_ADDR_IFNAME:
+         return "interface name";
+
+      case SOCKS_ADDR_DOMAIN:
+         return "host/domain name";
+
+      case SOCKS_ADDR_IPV6:
+         return "IPv6 address";
+
+      case SOCKS_ADDR_URL:
+         return "url string";
+
+      default:
+         SERRX(atype);
+   }
+
+   /* NOTREACHED */
+}
+
+#if HAVE_GSSAPI
+const char *
+gssapiprotection2string(protection)
+   const int protection;
+{
+   switch (protection) {
+      case SOCKS_GSSAPI_CLEAR:
+         return "clear";
+
+      case SOCKS_GSSAPI_INTEGRITY:
+         return "integrity";
+
+      case SOCKS_GSSAPI_CONFIDENTIALITY:
+         return "confidentiality";
+
+      case SOCKS_GSSAPI_PERMESSAGE:
+         return "per-message";
+   }
+
+   return "unknown gssapi protection";
+}
+#endif /* HAVE_GSSAPI */
+
+#if !SOCKS_CLIENT
 
 char *
 logtypes2string(logtypes, str, strsize)
@@ -822,11 +885,14 @@ logtypes2string(logtypes, str, strsize)
    size_t strused;
    size_t i;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[512];
 
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
    strused = 0;
 
    if (logtypes->type & LOGTYPE_SYSLOG)
@@ -838,6 +904,7 @@ logtypes2string(logtypes, str, strsize)
          strused += snprintfn(&str[strused], strsize - strused, "\"%s\", ",
          logtypes->fnamev[i]);
 
+   STRIPTRAILING(str, strused);
    return str;
 }
 
@@ -850,11 +917,14 @@ options2string(options, prefix, str, strsize)
 {
    size_t strused;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[1024];
 
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
    strused = 0;
 
    strused += snprintfn(&str[strused], strsize - strused,
@@ -874,11 +944,11 @@ options2string(options, prefix, str, strsize)
    "\"%slinebuffer\": \"%d\",\n", prefix, options->debug);
 
    strused += snprintfn(&str[strused], strsize - strused,
-   "\"%sservercount\": \"%d\",\n", prefix, options->serverc);
+   "\"%sservercount\": \"%lu\",\n", prefix, (unsigned long)options->serverc);
 
+   STRIPTRAILING(str, strused);
    return str;
 }
-
 
 char *
 logs2string(logs, str, strsize)
@@ -888,11 +958,14 @@ logs2string(logs, str, strsize)
 {
    size_t strused;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[128];
 
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
    strused = 0;
 
    if (logs->connect)
@@ -915,6 +988,7 @@ logs2string(logs, str, strsize)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
       QUOTE(LOG_IOOPERATIONs));
 
+   STRIPTRAILING(str, strused);
    return str;
 }
 
@@ -982,11 +1056,14 @@ compats2string(compats, str, strsize)
 {
    size_t strused;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[32];
 
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
    strused = 0;
 
    if (compats->reuseaddr)
@@ -997,6 +1074,7 @@ compats2string(compats, str, strsize)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
       QUOTE("sameport"));
 
+   STRIPTRAILING(str, strused);
    return str;
 }
 
@@ -1009,11 +1087,14 @@ srchosts2string(srchost, prefix, str, strsize)
 {
    size_t strused;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[32];
 
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
    strused = 0;
 
    if (srchost->nomismatch)
@@ -1024,6 +1105,7 @@ srchosts2string(srchost, prefix, str, strsize)
       strused += snprintfn(&str[strused], strsize - strused,
       "\"%snounknown\",", prefix);
 
+   STRIPTRAILING(str, strused);
    return str;
 }
 
@@ -1040,34 +1122,6 @@ uid2name(uid)
 }
 
 char *
-userids2string(userids, prefix, str, strsize)
-   const struct userid_t *userids;
-   const char *prefix;
-   char *str;
-   size_t strsize;
-{
-   size_t strused;
-
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
-
-   strused = 0;
-
-   strused += snprintfn(&str[strused], strsize - strused,
-   "\"%sprivileged\": \"%s\",\n", prefix, uid2name(userids->privileged));
-
-   strused += snprintfn(&str[strused], strsize - strused,
-   "\"%snotprivileged\": \"%s\",\n", prefix, uid2name(userids->unprivileged));
-
-   strused += snprintfn(&str[strused], strsize - strused,
-   "\"%slibwrap\": \"%s\",\n", prefix, uid2name(userids->libwrap));
-
-   return str;
-}
-
-char *
 timeouts2string(timeouts, prefix, str, strsize)
    const struct timeout_t *timeouts;
    const char *prefix;
@@ -1076,19 +1130,24 @@ timeouts2string(timeouts, prefix, str, strsize)
 {
    size_t strused;
 
-   if (strsize)
-      *str = NUL; /* make sure we return a NUL terminated string. */
-   else
-      return str;
+   if (strsize == 0) {
+      static char buf[64];
 
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
    strused = 0;
 
    strused += snprintfn(&str[strused], strsize - strused,
    "\"%sconnecttimeout\": \"%ld\",\n", prefix, (long)timeouts->negotiate);
 
    strused += snprintfn(&str[strused], strsize - strused,
-   "\"%siotimeout\": \"%ld\",\n", prefix, (long)timeouts->io);
+   "\"%siotimeout\": tcp: \"%lu\", udp: \"%lu\" \n",
+   prefix, (unsigned long)timeouts->tcpio, (unsigned long)timeouts->udpio);
 
+   STRIPTRAILING(str, strused);
    return str;
 }
 
@@ -1111,4 +1170,55 @@ rotation2string(rotation)
    /* NOTREACHED */
 }
 
-#endif /* SOCKS_SERVER */
+const char *
+privop2string(op)
+   const priv_op_t op;
+{
+   switch (op) {
+      case PRIV_ON:
+         return "on";
+
+      case PRIV_OFF:
+         return "off";
+   }
+
+
+   /* NOTREACHED */
+   SERRX(op);
+}
+
+#if !HAVE_PRIVILEGES
+char *
+userids2string(userids, prefix, str, strsize)
+   const struct userid_t *userids;
+   const char *prefix;
+   char *str;
+   size_t strsize;
+{
+   size_t strused;
+
+   if (strsize == 0) {
+      static char buf[128];
+
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
+   strused = 0;
+
+   strused += snprintfn(&str[strused], strsize - strused,
+   "\"%sprivileged\": \"%s\",\n", prefix, uid2name(userids->privileged));
+
+   strused += snprintfn(&str[strused], strsize - strused,
+   "\"%sunprivileged\": \"%s\",\n", prefix, uid2name(userids->unprivileged));
+
+   strused += snprintfn(&str[strused], strsize - strused,
+   "\"%slibwrap\": \"%s\",\n", prefix, uid2name(userids->libwrap));
+
+   STRIPTRAILING(str, strused);
+   return str;
+}
+#endif /* !HAVE_PRIVILEGES */
+
+#endif /* !SOCKS_CLIENT */

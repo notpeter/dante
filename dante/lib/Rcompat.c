@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
+ * Copyright (c) 1997, 1998, 1999, 2001, 2002, 2004, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,42 +41,10 @@
  *
  */
 
-#define _NO_FUNCTION_REDIFINE
-
 #include "common.h"
 
-#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-
-#undef sendmsg
-#if HAVE_EXTRA_OSF_SYMBOLS
-#define sendmsg(s, msg, flags)         sys_Esendmsg(s, msg, flags)
-#else
-#define sendmsg(s, msg, flags)         sys_sendmsg(s, msg, flags)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
-
-#undef recvmsg
-#if HAVE_EXTRA_OSF_SYMBOLS
-#define recvmsg(s, msg, flags)         sys_Erecvmsg(s, msg, flags)
-#else
-#define recvmsg(s, msg, flags)         sys_recvmsg(s, msg, flags)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
-
-/* XXX needed on AIX apparently */
-#ifdef recvmsg_system
-#undef recvmsg
-#define recvmsg recvmsg_system
-#endif /* recvmsg_system */
-
-#ifdef sendmsg_system
-#undef sendmsg
-#define sendmsg sendmsg_system
-#endif /* sendmsg_system */
-
-#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
-
-
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.32 2009/01/11 22:04:16 michaels Exp $";
+"$Id: Rcompat.c,v 1.56 2009/10/01 16:19:58 michaels Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -99,7 +67,7 @@ Rwrite(d, buf, nbytes)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, d);
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
 
    return Rsend(d, buf, nbytes, 0);
 }
@@ -115,7 +83,7 @@ Rwritev(d, iov, iovcnt)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, d);
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
 
 
    bzero(&msg, sizeof(msg));
@@ -139,7 +107,7 @@ Rsend(s, msg, len, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, s);
+   slog(LOG_DEBUG, "%s, socket %d", function, s);
 
    bzero(&iov, sizeof(iov));
    /* LINTED operands have incompatible pointer types */
@@ -159,6 +127,7 @@ Rsendmsg(s, msg, flags)
    const struct msghdr *msg;
    int flags;
 {
+   const int errno_s = errno;
    size_t sent, ioc;
    ssize_t rc;
    struct sockaddr name;
@@ -167,12 +136,15 @@ Rsendmsg(s, msg, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d, msg %s",
-   function, s, msg == NULL ? "= NULL" : "!= NULL");
+   slog(LOG_DEBUG, "%s, socket %d, msg %s",
+   function, s, msg == NULL ? "is NULL" : "is not NULL");
+
+   if (msg == NULL)
+      return write(s, NULL, 0);
 
    namelen = sizeof(name);
    if (getsockname(s, &name, &namelen) == -1) {
-      errno = 0;
+      errno = errno_s;
       return writev(s, msg->msg_iov, (int)msg->msg_iovlen);
    }
 
@@ -189,7 +161,7 @@ Rsendmsg(s, msg, flags)
          return sendmsg(s, msg, flags);
    }
 
-   for (sent = ioc = rc = 0; ioc < msg->msg_iovlen; ++ioc) {
+   for (sent = ioc = rc = 0; ioc < (size_t)msg->msg_iovlen; ++ioc) {
       /* LINTED pointer casts may be troublesome */
       if ((rc = Rsendto(s, msg->msg_iov[ioc].iov_base,
       msg->msg_iov[ioc].iov_len, flags, (struct sockaddr *)msg->msg_name,
@@ -204,6 +176,7 @@ Rsendmsg(s, msg, flags)
 
    if (sent == 0)
       return rc;
+
    return sent;
 }
 
@@ -217,7 +190,7 @@ Rread(d, buf, nbytes)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, d);
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
 
    return Rrecv(d, buf, nbytes, 0);
 }
@@ -233,7 +206,7 @@ Rreadv(d, iov, iovcnt)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, d);
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
 
    bzero(&msg, sizeof(msg));
    /* LINTED operands have incompatible pointer types */
@@ -256,7 +229,7 @@ Rrecv(s, msg, len, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, s);
+   slog(LOG_DEBUG, "%s, socket %d", function, s);
 
    /* LINTED cast discards 'const' from pointer target type */
    bzero(&iov, sizeof(iov));
@@ -276,6 +249,7 @@ Rrecvmsg(s, msg, flags)
    struct msghdr *msg;
    int flags;
 {
+   const int errno_s = errno;
    size_t received, ioc;
    ssize_t rc;
    struct sockaddr name;
@@ -284,7 +258,7 @@ Rrecvmsg(s, msg, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d, msg %s",
+   slog(LOG_DEBUG, "%s, socket %d, msg %s",
    function, s, msg == NULL ? "= NULL" : "!= NULL");
 
    if (msg == NULL)
@@ -292,7 +266,8 @@ Rrecvmsg(s, msg, flags)
 
    namelen = sizeof(name);
    if (getsockname(s, &name, &namelen) == -1) {
-      errno = 0;
+      errno = errno_s;
+
       /* readv(2).  recvmsg(2) is only for sockets. */
       return readv(s, msg->msg_iov, (int)msg->msg_iovlen);
    }
@@ -331,3 +306,253 @@ Rrecvmsg(s, msg, flags)
       return rc;
    return received;
 }
+
+#if HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND
+/*
+ * This code was contributed by
+ * Markus Moeller (markus_moeller at compuserve.com).
+ */
+
+int
+Rfputc(c, stream)
+   int c;
+   FILE *stream;
+{
+   const char *function = "Rfputc()";
+   const int d = fileno(stream);
+
+   clientinit();
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (!gssapi_isencrypted(d))
+      return fputc(c, stream);
+
+   socks_setbuffer(d, _IOFBF);
+
+   return Rsend(d, &c, 1, 0);
+}
+
+int
+Rfputs(buf, stream)
+   const char *buf;
+   FILE *stream;
+{
+   const char *function = "Rfputs()";
+   const int d = fileno(stream);
+
+   clientinit();
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (!gssapi_isencrypted(d))
+      return fputs(buf,stream);
+
+   socks_setbuffer(d, _IOFBF);
+
+   return Rsend(d, buf, strlen(buf), 0);
+}
+
+size_t
+Rfwrite(ptr, size, nmb, stream)
+   const void *ptr;
+   size_t size; size_t nmb;
+   FILE *stream;
+{
+   const char *function = "Rfwrite()";
+   const unsigned char *buf=ptr;
+   const int d = fileno(stream);
+   size_t i;
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (!gssapi_isencrypted(d))
+      return fwrite(ptr, size, nmb, stream);
+
+   socks_setbuffer(d, _IOFBF);
+
+   for (i = 0; i < nmb; ++i)
+       if (Rwrite(d,buf+i*size,size) <= 0)
+          return i;
+
+   return nmb;
+}
+
+int
+Rfprintf(FILE *stream, const char *format, ...)
+{
+   const int d = fileno(stream);
+   const char *function = "Rfprintf()";
+   va_list ap;
+   int rc;
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   va_start(ap, format);
+
+   socks_setbuffer(d, _IOFBF);
+
+   rc = Rvfprintf(stream, format, ap);
+
+   va_end(ap);
+
+   return rc;
+}
+
+int
+Rvfprintf(stream,  format, ap)
+   FILE *stream;
+   const char *format;
+   va_list ap;
+{
+   const char *function = "Rvfprintf()";
+   const int d = fileno(stream);
+   char buf[8 * BUFSIZ];
+   int rc;
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (!gssapi_isencrypted(d))
+      return vfprintf(stream, format, ap);
+
+   vsnprintf(buf, 8 * BUFSIZ, format, ap);
+
+   socks_setbuffer(d, _IOFBF);
+
+   rc = Rwrite(d, buf, strlen(buf));
+
+   return rc;
+}
+
+int
+Rfflush(s)
+   FILE *s;
+{
+   const char *function = "Rfflush()";
+   int d;
+
+   if (s == NULL) {
+      socks_flushbuffer(-1, -1);
+      return fflush(s);
+   }
+
+   d = fileno(s);
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (!gssapi_isencrypted(d))
+      return fflush(s);
+
+   socks_flushbuffer(d, -1);
+   return 0;
+}
+
+int
+Rfclose(s)
+   FILE *s;
+{
+   const char *function = "Rfclose()";
+   const int d = fileno(s);
+
+   clientinit();
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (gssapi_isencrypted(d))
+      socks_flushbuffer(d, -1);
+
+   return fclose(s);
+}
+
+int Rfgetc(stream)
+   FILE *stream;
+{
+   const char *function = "Rfgetc()";
+   unsigned char c;
+   const int d = fileno(stream);
+
+   clientinit();
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (!gssapi_isencrypted(d))
+      return fgetc(stream);
+
+   if (Rread(d, &c, 1) != 1)
+      return EOF;
+
+   return (int)c;
+}
+
+char *
+Rgets(buf)
+   char *buf;
+{
+   const char *function = "Rgets()";
+   const int d = fileno(stdin);
+   size_t i;
+
+   clientinit();
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (!gssapi_isencrypted(d))
+      return gets(buf);
+
+   i = 0;
+   while (Rread(d, buf + i, 1) == 1 && buf[i] != '\n')
+      ++i;
+
+   if (sizeof(buf) >= 1)
+      buf[i] = NUL;
+
+   return buf;
+}
+
+char *
+Rfgets(buf, size, stream)
+   char *buf;
+   int size;
+   FILE *stream;
+{
+   const char *function = "Rfgets()";
+   const int d = fileno(stream);
+   int i;
+
+   clientinit();
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (!gssapi_isencrypted(d))
+      return fgets(buf, size, stream);
+
+   i = 0;
+   while (Rread(d, buf + i, 1) == 1 && i < size - 1 && buf[i] != '\n')
+      ++i;
+
+   if (size >= 1)
+      buf[i != 0 ? i + 1 : i] = NUL;
+
+   return buf;
+}
+
+size_t
+Rfread(void *ptr, size_t size, size_t nmb, FILE *stream)
+{
+   const char *function = "Rfread()";
+   unsigned char *buf=(unsigned char *)ptr;
+   size_t i;
+   const int d = fileno(stream);
+
+   slog(LOG_DEBUG, "%s, socket %d", function, d);
+
+   if (!gssapi_isencrypted(d))
+      return fread(ptr, size, nmb, stream);
+
+   for (i = 0; i < nmb; ++i)
+       if (Rread(d, buf + (i * size), size) <= 0)
+          return i;
+
+   return nmb;
+}
+#endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,64 +41,91 @@
  *
  */
 
-/* $Id: socks.h,v 1.183 2009/01/02 15:23:09 michaels Exp $ */
+/* $Id: socks.h,v 1.236 2009/10/09 07:27:45 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
-#endif  /* ! _SOCKS_H_ */
-
-#ifdef lint
-extern const int lintnoloop_socks_h;
-#else
-#define lintnoloop_socks_h 0
-#endif
+#endif /* !_SOCKS_H_ */
 
 #ifndef HAVE_OSF_OLDSTYLE
 #define HAVE_OSF_OLDSTYLE 0
-#endif  /* !HAVE_OSF_OLDSTYLE */
+#endif /* !HAVE_OSF_OLDSTYLE */
 
 #if SOCKSLIBRARY_DYNAMIC
 
+
+#if 0 /* XXX disable until testing on AIX/other can be done */
+
+/* XXX needed on AIX apparently */
+#ifdef recvmsg
+#define recvmsg_system recvmsg
+#undef recvmsg
+#endif /* recvmsg */
+
+#if HAVE_SYSTEM_XMSG_MAGIC
+#undef recvmsg_system
+#define recvmsg_system nrecvmsg
+#endif /* HAVE_SYSTEM_XMSG_MAGIC */
+
+#ifdef sendmsg
+#define sendmsg_system sendmsg
+#undef sendmsg
+#endif /* sendmsg */
+
+#if HAVE_SYSTEM_XMSG_MAGIC
+#undef sendmsg_system
+#define sendmsg_system nsendmsg
+#endif /* HAVE_SYSTEM_XMSG_MAGIC */
+#endif
+
 #ifdef accept
 #undef accept
-#endif  /* accept */
+#endif /* accept */
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define accept(s, addr, addrlen)         sys_Eaccept(s, addr, addrlen)
 #else
 #define accept(s, addr, addrlen)         sys_accept(s, addr, addrlen)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef bind
 #undef bind
-#endif  /* bind */
+#endif /* bind */
+#if (defined __sun) && (defined _XPG4_2)
+#define bind(s, name, namelen)         sys_xnet_bind(s, name, namelen)
+#else
 #define bind(s, name, namelen)         sys_bind(s, name, namelen)
+#endif
 
 #ifdef bindresvport
 #undef bindresvport
-#endif  /* bindresvport */
+#endif /* bindresvport */
 #define bindresvport(sd, sin)            sys_bindresvport(sd, sin)
 
 #ifdef connect
 #undef connect
-#endif  /* connect */
+#endif /* connect */
+#if (defined __sun) && (defined _XPG4_2)
+#define connect(s, name, namelen)      sys_xnet_connect(s, name, namelen)
+#else
 #define connect(s, name, namelen)      sys_connect(s, name, namelen)
+#endif
 
 #ifdef gethostbyname
 #undef gethostbyname
-#endif  /* gethostbyname */
+#endif /* gethostbyname */
 #if HAVE_GETHOSTBYNAME2
 /*
  * a little tricky ... we need it to be at the bottom of the stack,
  * like a syscall.
-*/
+ */
 #define gethostbyname(name)            sys_gethostbyname2(name, AF_INET)
 #else
 #define gethostbyname(name)            sys_gethostbyname(name)
-#endif
+#endif /* HAVE_GETHOSTBYNAME2 */
 
 #ifdef gethostbyname2
 #undef gethostbyname2
-#endif  /* gethostbyname2 */
+#endif /* gethostbyname2 */
 #define gethostbyname2(name, af)         sys_gethostbyname2(name, af)
 
 #ifdef getaddrinfo
@@ -115,54 +142,58 @@ extern const int lintnoloop_socks_h;
 
 #ifdef freehostent
 #undef freehostent
-#endif  /* freehostent */
+#endif /* freehostent */
 #define freehostent(ptr)            sys_freehostent(ptr)
 
 #ifdef getpeername
 #undef getpeername
-#endif  /* getpeername */
+#endif /* getpeername */
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define getpeername(s, name, namelen)   sys_Egetpeername(s, name, namelen)
 #else
 #define getpeername(s, name, namelen)   sys_getpeername(s, name, namelen)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef getsockname
 #undef getsockname
-#endif  /* getsockname */
+#endif /* getsockname */
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define getsockname(s, name, namelen)   sys_Egetsockname(s, name, namelen)
 #else
 #define getsockname(s, name, namelen)   sys_getsockname(s, name, namelen)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef listen
 #undef listen
 #endif /* listen */
+#if (defined __sun) && (defined _XPG4_2)
+#define listen(s, backlog)   sys_xnet_listen(s, backlog)
+#else
 #define listen(s, backlog)   sys_listen(s, backlog)
+#endif
 
 #ifdef read
 #undef read
-#endif  /* read */
+#endif /* read */
 #define read(d, buf, nbytes)            sys_read(d, buf, nbytes)
 
 #ifdef readv
 #undef readv
-#endif  /* readv */
+#endif /* readv */
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define readv(d, iov, iovcnt)            sys_Ereadv(d, iov, iovcnt)
 #else
 #define readv(d, iov, iovcnt)            sys_readv(d, iov, iovcnt)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef recv
 #undef recv
-#endif  /* recv */
+#endif /* recv */
 #define recv(s, msg, len, flags)         sys_recv(s, msg, len, flags)
 
 #ifdef recvfrom
 #undef recvfrom
-#endif  /* recvfrom */
+#endif /* recvfrom */
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define recvfrom(s, buf, len, flags, from, fromlen)   \
         sys_Erecvfrom(s, buf, len, flags, from, fromlen)
@@ -170,58 +201,184 @@ extern const int lintnoloop_socks_h;
 #define recvfrom(s, buf, len, flags, from, fromlen)   \
         sys_recvfrom(s, buf, len, flags, from, fromlen)
 
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
+
+#ifdef recvmsg
+#undef recvmsg
+#endif /* recvmsg */
+#if (defined __sun) && (defined _XPG4_2)
+#define recvmsg(s, msg, flags)          sys_xnet_recvmsg(s, msg, flags)
+#else
+#define recvmsg(s, msg, flags)          sys_recvmsg(s, msg, flags)
+#endif
 
 #ifdef rresvport
 #undef rresvport
-#endif  /* rresvport */
+#endif /* rresvport */
 #define rresvport(port)                  sys_rresvport(port)
 
 #ifdef sendto
 #undef sendto
-#endif  /* sendto */
+#endif /* sendto */
+#if (defined __sun) && (defined _XPG4_2)
+#define sendto(s, msg, len, flags, to, tolen)   \
+        sys_xnet_sendto(s, msg, len, flags, to, tolen)
+#else
 #define sendto(s, msg, len, flags, to, tolen)   \
         sys_sendto(s, msg, len, flags, to, tolen)
+#endif
 
 #ifdef write
 #undef write
-#endif  /* write */
+#endif /* write */
 #define write(d, buf, nbytes)            sys_write(d, buf, nbytes)
 
 #ifdef writev
 #undef writev
-#endif  /* writev */
+#endif /* writev */
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define writev(d, iov, iovcnt)         sys_Ewritev(d, iov, iovcnt)
 #else
 #define writev(d, iov, iovcnt)         sys_writev(d, iov, iovcnt)
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef send
 #undef send
-#endif  /* send */
+#endif /* send */
 #define send(s, msg, len, flags)         sys_send(s, msg, len, flags)
+
+#undef sendmsg
+#if HAVE_EXTRA_OSF_SYMBOLS
+#define sendmsg(s, msg, flags)         sys_Esendmsg(s, msg, flags)
+#else
+#if (defined __sun) && (defined _XPG4_2)
+#define sendmsg(s, msg, flags)         sys_xnet_sendmsg(s, msg, flags)
+#else
+#define sendmsg(s, msg, flags)         sys_sendmsg(s, msg, flags)
+#endif
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
+
+#undef recvmsg
+#if HAVE_EXTRA_OSF_SYMBOLS
+#define recvmsg(s, msg, flags)         sys_Erecvmsg(s, msg, flags)
+#else
+#if (defined __sun) && (defined _XPG4_2)
+#define recvmsg(s, msg, flags)         sys_xnet_recvmsg(s, msg, flags)
+#else
+#define recvmsg(s, msg, flags)         sys_recvmsg(s, msg, flags)
+#endif
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
+
+#if HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND
+#ifdef getc
+#undef getc
+#endif /* getc */
+#define getc(s)                           sys_getc(s)
+
+#ifdef fgetc
+#undef fgetc
+#endif /* fgetc */
+#define fgetc(s)                          sys_fgetc(s)
+
+#ifdef gets
+#undef gets
+#endif /* gets */
+#define gets(s)                           sys_gets(s)
+
+#ifdef fgets
+#undef fgets
+#endif /* fgets */
+#define fgets(c, i, s)                    sys_fgets(c, i, s)
+
+#ifdef putc
+#undef putc
+#endif /* putc */
+#define putc(c, s)                        sys_putc(c, s)
+
+#ifdef fputc
+#undef fputc
+#endif /* fputc */
+#define fputc(c, s)                       sys_fputc(c, s)
+
+#ifdef puts
+#undef pus
+#endif /* puts */
+#define puts(b)                           sys_puts(b)
+
+#ifdef fputs
+#undef fputs
+#endif /* fputc */
+#define fputs(b, s)                       sys_fputs(b, s)
+
+#ifdef fflush
+#undef fflush
+#endif /* fflush */
+#define fflush(s)                         sys_fflush(s)
+
+#ifdef fclose
+#undef fclose
+#endif /* fclose */
+#define fclose(s)                         sys_fclose(s)
+
+#ifdef printf
+#undef printf
+#endif /* printf */
+#define printf(f, ...)                    sys_printf(f, __VA_ARGS__ )
+
+#ifdef vprintf
+#undef vprintf
+#endif /* vprintf */
+#define vprintf(f, v)                     sys_vfprintf(f, v)
+
+#ifdef fprintf
+#undef fprintf
+#endif /* fprintf */
+#define fprintf(s, ...)                   sys_fprintf(s, __VA_ARGS__ )
+
+#ifdef vfprintf
+#undef vfprintf
+#endif /* vfprintf */
+#define vfprintf(s, f, v)                 sys_vfprintf(s, f, v)
+
+#ifdef fwrite
+#undef fwrite
+#endif /* fwrite */
+#define fwrite(p, i, n, s)                sys_fwrite(p, i, n, s)
+
+#ifdef fread
+#undef fread
+#endif /* fread */
+#define fread(p, i, n, s)                 sys_fread(p, i, n, s)
+
+#endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
+#define FDPASS_MAX         2   /* max number of descriptors we send/receive. */
+
 struct configstate_t {
-   unsigned            init;               /* inited?                               */
-   struct sockaddr   lastconnect;      /* address we last connected to.         */
-   pid_t               pid;               /* our pid.                              */
+   int               init;             /* inited?                             */
+   sig_atomic_t      insignal;         /* executing in signalhandler?         */
+
+   struct sockaddr   lastconnect;      /* address we last connected to.       */
+   pid_t             pid;              /* our pid.                            */
+   int               havegssapisockets;/* have gssapi-sockets?                */
+   rlim_t            maxopenfiles;
+  
 };
 
 struct option_t {
    int               debug;
-   char               *configfile;  /* name of current configfile.            */
-   unsigned            :0;
+   int               directfallback; /* fallback to direct connections        */
+   char              *configfile;    /* name of current configfile.           */
 };
-
-
 
 struct config_t {
    pid_t                    connectchild;            /* connect process.      */
-   int                      connect_s;               /* socket to child.      */
-   char                     domain[MAXHOSTNAMELEN]; /* localdomain.           */
+   int                      child_data;              /* datasocket to child.  */
+   int                      child_ack;               /* ack to child.         */
+
+   char                     domain[MAXHOSTNAMELEN];  /* localdomain.          */
    struct logtype_t         log;                     /* where to log.         */
    struct option_t          option;                  /* misc. options.        */
    struct configstate_t     state;
@@ -230,102 +387,122 @@ struct config_t {
 };
 
 struct childpacket_t {
-   int                  s;         /* filedescriptor number.                  */
+   int                  s;         /* socket index.                           */
+   dev_t                device;    /* device of socket.                       */
+   ino_t                inode;     /* inode of socket.                        */
    struct sockshost_t   src;       /* local address of control-connection.    */
    struct sockshost_t   dst;       /* remote address of control-connection.   */
    struct socks_t       packet;    /* socks packet exchanged with server.     */
 };
 
-
-__BEGIN_DECLS
+typedef sigset_t addrlockopaque_t;
 
 /*
  * libsocks function declarations
  */
 
 void
-clientinit __P((void));
+clientinit(void);
 /*
  * initialises clientstate, reads configfile, etc.
  */
 
-void upnpcleanup(void);
-/* cleanup upnp-stuff before exiting.  Mostly removing portmappings. */
+void upnpcleanup(const int s);
+/*
+ * cleanup upnp-stuff related to the socket "s", mostly involving removal
+ * of portmappings.
+ * If "s" is -1, clean up for all known sockets.
+ */
 
 
 #if !HAVE_OSF_OLDSTYLE
-int Raccept __P((int, struct sockaddr *, socklen_t *));
-int Rconnect __P((int, const struct sockaddr *, socklen_t));
-int Rgetsockname __P((int, struct sockaddr *, socklen_t *));
-int Rgetpeername __P((int, struct sockaddr *, socklen_t *));
-ssize_t Rsendto __P((int s, const void *msg, size_t len, int flags, const struct sockaddr *to, socklen_t tolen));
-ssize_t Rrecvfrom __P((int s, void *buf, size_t len, int flags, struct sockaddr * from, socklen_t *fromlen));
-ssize_t Rsendmsg __P((int s, const struct msghdr *msg, int flags));
-ssize_t Rrecvmsg __P((int s, struct msghdr *msg, int flags));
-int Rbind __P((int, const struct sockaddr *, socklen_t));
-#endif  /* !HAVE_OSF_OLDSTYLE */
+int Raccept(int, struct sockaddr *, socklen_t *);
+int Rconnect(int, const struct sockaddr *, socklen_t);
+int Rgetsockname(int, struct sockaddr *, socklen_t *);
+int Rgetpeername(int, struct sockaddr *, socklen_t *);
+ssize_t Rsendto(int s, const void *msg, size_t len, int flags,
+      const struct sockaddr *to, socklen_t tolen)
+      __attribute__((__bounded__(__buffer__, 2, 3)));
+ssize_t Rrecvfrom(int s, void *buf, size_t len, int flags,
+      struct sockaddr * from, socklen_t *fromlen)
+      __attribute__((__bounded__(__buffer__, 2, 3)));
+ssize_t Rsendmsg(int s, const struct msghdr *msg, int flags);
+ssize_t Rrecvmsg(int s, struct msghdr *msg, int flags);
+int Rbind(int, const struct sockaddr *, socklen_t);
+#endif /* !HAVE_OSF_OLDSTYLE */
 
-int Rbindresvport __P((int, struct sockaddr_in *));
-int Rrresvport __P((int *));
-struct hostent *Rgethostbyname __P((const char *));
-struct hostent *Rgethostbyname2 __P((const char *, int af));
+int Rbindresvport(int, struct sockaddr_in *);
+int Rrresvport(int *);
+struct hostent *Rgethostbyname(const char *);
+struct hostent *Rgethostbyname2(const char *, int af);
 #if HAVE_GETADDRINFO
-int Rgetaddrinfo __P((const char *nodename, const char *servname,
-                  const struct addrinfo *hints, struct addrinfo **res));
+int Rgetaddrinfo(const char *nodename, const char *servname,
+      const struct addrinfo *hints, struct addrinfo **res);
 #endif /* HAVE_GETADDRINFO */
 #if HAVE_GETIPNODEBYNAME
-struct hostent *Rgetipnodebyname __P((const char *, int, int, int *));
-void Rfreehostent __P((struct hostent *));
+struct hostent *Rgetipnodebyname(const char *, int, int, int *);
+void Rfreehostent(struct hostent *);
 #endif /* HAVE_GETIPNODEBYNAME */
-ssize_t Rwrite __P((int d, const void *buf, size_t nbytes));
-ssize_t Rwritev __P((int d, const struct iovec *iov, int iovcnt));
-ssize_t Rsend __P((int s, const void *msg, size_t len, int flags));
-ssize_t Rread __P((int d, void *buf, size_t nbytes));
-ssize_t Rreadv __P((int d, const struct iovec *iov, int iovcnt));
-ssize_t Rrecv __P((int s, void *msg, size_t len, int flags));
+ssize_t Rwrite(int d, const void *buf, size_t nbytes)
+      __attribute__((__bounded__(__buffer__, 2, 3)));
+ssize_t Rwritev(int d, const struct iovec *iov, int iovcnt);
+ssize_t Rsend(int s, const void *msg, size_t len, int flags)
+      __attribute__((__bounded__(__buffer__, 2, 3)));
+ssize_t Rread(int d, void *buf, size_t nbytes)
+      __attribute__((__bounded__(__buffer__, 2, 3)));
+ssize_t Rreadv(int d, const struct iovec *iov, int iovcnt);
+ssize_t Rrecv(int s, void *msg, size_t len, int flags)
+      __attribute__((__bounded__(__buffer__, 2, 3)));
 
-int SOCKSinit __P((char *));
-int Rlisten __P((int, int));
-int Rselect __P((int, fd_set *, fd_set *, fd_set *, struct timeval *));
+#if HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND
+int Rfgetc(FILE *fp);
+char *Rgets(char *s);
+char *Rfgets(char *s, int size, FILE *fp);
+int Rfputc(int c, FILE *fp);
+int Rfputs(const char *s, FILE *fp);
+int Rfflush(FILE *fp);
+int Rfclose(FILE *fp);
+int Rfprintf(FILE *stream, const char *format, ...);
+int Rvfprintf(FILE *stream, const char *format, va_list ap);
+size_t Rfread(void *ptr, size_t size, size_t nmemb, FILE *s);
+size_t Rfwrite(const void *ptr, size_t size, size_t nmemb, FILE *s);
+#endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
+
+int SOCKSinit(char *);
+int Rlisten(int, int);
+int Rselect(int, fd_set *, fd_set *, fd_set *, struct timeval *);
 /*
  * unused functions needed to compile programs with support for other
  * socks implementations.
  */
 
-
-int
-udpsetup __P((int s, const struct sockaddr *to, int type));
+struct route_t *
+udpsetup(int s, const struct sockaddr *to, int type);
 /*
  * sets up udp relaying between address of "s" and "to" by connecting
  * to a proxyserver.
  * If relaying is already set up the function returns with success.
  * Type is the type of connection to set up, SOCKS_SEND or SOCKS_RECV.
- * Returns:
- *      On success: 0
- *      On failure: -1.   No proxy found, or proxy failed. 
- *             If no proxy found, errno will not be set,
- *                          otherwise it will be set to indicate the
- *                          reason for failure.
+ *
+ * Returns the route that was used, or NULL on error.
  */
-
-
 
    /*
     *  Misc. functions to help keep track of our connection(s) to the server.
     */
 
-
-void socks_addrlock(const int locktype);
-void socks_addrunlock(void);
+void addrlockinit(void);
+void socks_addrlock(const int locktype, addrlockopaque_t *opaque);
+void socks_addrunlock(const addrlockopaque_t *opaque);
 /*
- * Lock/unlock global address object.  All the other socks_addr*()
- * functions do this themselves, so do not call it before calling
- * any of them.
+ * Lock/unlock global address object.  
  * "type" is one of F_WRLCK or F_RDLCK, for write or read-lock. 
+ * "opaque" is a pointer filled in by "socks_addrlock()", and 
+ * the same pointer needs to be passed to socks_addrunlock();
  */
 
 struct socksfd_t *
-socksfddup __P((const struct socksfd_t *old, struct socksfd_t *new));
+socks_addrdup(const struct socksfd_t *old, struct socksfd_t *new);
 /*
  * Duplicates "old", in "new".
  * Returns:
@@ -333,13 +510,13 @@ socksfddup __P((const struct socksfd_t *old, struct socksfd_t *new));
  *    On failure: NULL (resource shortage).
  */
 
-const struct socksfd_t *
-socks_addaddr __P((const unsigned int clientfd,
-                   const struct socksfd_t *socksaddress, const int havelock));
+struct socksfd_t *
+socks_addaddr(const int clientfd, const struct socksfd_t *socksaddress,
+              const int takelock);
 /*
  * "clientfd" is associated with the structure "socksfd".
- * If "havelock" is true, it means the function has already taken
- * care of locking the addr object.
+ * If "takelock" is true, it means the function should take the
+ * socksfdv/addrlock.
  *
  * The function duplicates all arguments in it's own form and does
  * not access the memory referenced by them afterwards.
@@ -353,51 +530,55 @@ socks_addaddr __P((const unsigned int clientfd,
  *
  */
 
-const struct socksfd_t *
-socks_getaddr __P((const unsigned int fd, const int havelock));
+struct socksfd_t *
+socks_getaddr(const int fd, const int takelock);
 /*
- * If "havelock" is true, it means the function has already taken
- * care of locking the addr object.
+ * If "takelock" is true, it means the function should take the
+ * socksfdv/addrlock.
  *
  * Returns:
  *      On success:  the socketaddress associated with filedescriptor "fd".
  *      On failure:    NULL.  (no socketaddress associated with "fd").
  */
 
-
 void
-socks_rmaddr __P((const unsigned int s, const int havelock));
+socks_rmaddr(const int s, const int takelock);
 /*
- * If "havelock" is true, it means the function has already taken
- * care of locking the addr object.
+ * If "takelock" is true, it means the function should take the
+ * socksfdv/addrlock.
  *
  * removes the association for the socket "s", also closes the server
  * connection.  If "s" is not registered the request is ignored.
  */
 
 int
-socks_addrcontrol __P((const struct sockaddr *local,
-                       const struct sockaddr *remote, const int havelock));
+socks_addrcontrol(const struct sockaddr *local, const struct sockaddr *remote,
+                  const int s, const dev_t device, const ino_t inode,
+                  const int takelock);
 /*
- * If "havelock" is true, it means the function has already taken
- * care of locking the addr object.
+ * If "takelock" is true, it means the function should take the
+ * socksfdv/addrlock.
  *
  * Goes through all addresses registered and tries to find one where
  * the control socket has a local address of "local" and peer address
- * of "remote".  If either of "local" or "remote" is NULL, that
- * endpoint is not checked against.
+ * of "remote".
+ * If "local" is NULL, that endpoint needs not match.
+ * If "remote" is NULL, it is assumed the socket we are looking for
+ * is not connected.
+ * "s" gives the expected socketindex, if not -1.
+ * "inode" gives the fixed inode number, if not -1.
+ * "device" gives the fixed device number of the inode, if not -1.
  *   Returns:
  *      On success: the descriptor the socksfd struct was registered with.
  *      On failure: -1
  */
 
 int
-socks_addrmatch __P((const struct sockaddr *local,
-                     const struct sockaddr *remote,
-                     const struct socksstate_t *state, const int havelock));
+socks_addrmatch(const struct sockaddr *local, const struct sockaddr *remote,
+      const struct socksstate_t *state, const int takelock);
 /*
- * If "havelock" is true, it means the function has already taken
- * care of locking the addr object.
+ * If "takelock" is true, it means the function should take the
+ * socksfdv/addrlock.
  *
  * Goes through all addresses registered and tries to find one where
  * all arguments match.
@@ -408,23 +589,21 @@ socks_addrmatch __P((const struct sockaddr *local,
  *      On failure: -1.
  */
 
-
 int
-socks_isaddr __P((const unsigned int fd, const int havelock));
+socks_isaddr(const int fd, const int takelock);
 /*
- * If "havelock" is true, it means the function has already taken
- * care of locking the addr object.
+ * If "takelock" is true, it means the function should take the
+ * socksfdv/addrlock.
  *
  * Returns true if there is a address registered for the socket "fd", false
  * otherwise.
  */
 
-
 int
-socks_addrisok __P((const unsigned int s, const int havelock));
+socks_addrisours(const int s, const int takelock);
 /*
- * If "havelock" is true, it means the function has already taken
- * care of locking the addr object.
+ * If "takelock" is true, it means the function should take the
+ * socksfdv/addrlock.
  *
  * Compares the current address of "s" to the registered address.
  * If there is a mismatch, the function will try to correct it if possible.
@@ -434,38 +613,12 @@ socks_addrisok __P((const unsigned int s, const int havelock));
  */
 
 int
-fdisopen __P((int fd));
+fdisopen(int fd);
 /*
  * returns 1 if the filedescriptor "fd" currently references a open object.
  * returns 0 otherwise.
  */
 
-
-char *
-socks_getusername __P((const struct sockshost_t *host, char *buf,
-                       size_t buflen));
-/*
- * Tries to determine the username of the current user, to be used
- * when negotiating with the server "host".
- * The NUL-terminated username is written to "buf", which is of size
- * "buflen".
- * Returns:
- *      On success: pointer to "buf" with the username.
- *      On failure: NULL.
- */
-
-char *
-socks_getpassword __P((const struct sockshost_t *host, const char *user,
-                       char *buf, size_t buflen));
-/*
- * Tries to determine the password of user "user", to be used
- * when negotiating with the server "host".
- * The NUL-terminated password is written to "buf", which is of length
- * "buflen"
- * Returns:
- *      On success: pointer to "buf" with the password.
- *      On failure: NULL.
- */
 
 #if DIAGNOSTIC
 void
@@ -473,112 +626,210 @@ cc_socksfdv(int sig);
 /*
  * consistencycheck on socksfdv.
  */
-#endif
+#endif /* DIAGNOSTIC */
 
 
 #if SOCKSLIBRARY_DYNAMIC
 
-int sys_rresvport __P((int *));
-int sys_bindresvport __P((int, struct sockaddr_in *));
-void sys_freehostent __P((struct hostent *));
+int sys_rresvport(int *);
+int sys_bindresvport(int, struct sockaddr_in *);
+void sys_freehostent(struct hostent *);
 
-HAVE_PROT_READ_0 sys_read
-__P((HAVE_PROT_READ_1, HAVE_PROT_READ_2, HAVE_PROT_READ_3));
-HAVE_PROT_LISTEN_0 sys_listen
-__P((HAVE_PROT_LISTEN_1, HAVE_PROT_LISTEN_2));
-HAVE_PROT_READV_0 sys_readv
-__P((HAVE_PROT_READV_1, HAVE_PROT_READV_2, HAVE_PROT_READV_3));
-HAVE_PROT_RECV_0 sys_recv
-__P((HAVE_PROT_RECV_1, HAVE_PROT_RECV_2, HAVE_PROT_RECV_3, HAVE_PROT_RECV_4));
-HAVE_PROT_RECVMSG_0 sys_recvmsg
-__P((HAVE_PROT_RECVMSG_1, HAVE_PROT_RECVMSG_2, HAVE_PROT_RECVMSG_3));
-HAVE_PROT_SEND_0 sys_send
-__P((HAVE_PROT_SEND_1 , HAVE_PROT_SEND_2, HAVE_PROT_SEND_3, HAVE_PROT_SEND_4));
-HAVE_PROT_WRITE_0 sys_write
-__P((HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3));
-
-#if HAVE_OSF_OLDSTYLE
-int sys_accept __P((int, struct sockaddr *, int *));
-#else
-HAVE_PROT_ACCEPT_0 sys_accept
-__P((HAVE_PROT_ACCEPT_1, HAVE_PROT_ACCEPT_2, HAVE_PROT_ACCEPT_3));
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+HAVE_PROT_READ_0
+sys_read(HAVE_PROT_READ_1, HAVE_PROT_READ_2, HAVE_PROT_READ_3);
+HAVE_PROT_LISTEN_0
+sys_listen(HAVE_PROT_LISTEN_1, HAVE_PROT_LISTEN_2);
+HAVE_PROT_READV_0
+sys_readv(HAVE_PROT_READV_1, HAVE_PROT_READV_2, HAVE_PROT_READV_3);
+HAVE_PROT_RECV_0
+sys_recv(HAVE_PROT_RECV_1, HAVE_PROT_RECV_2, HAVE_PROT_RECV_3,
+      HAVE_PROT_RECV_4);
+HAVE_PROT_RECVMSG_0
+sys_recvmsg(HAVE_PROT_RECVMSG_1, HAVE_PROT_RECVMSG_2, HAVE_PROT_RECVMSG_3);
+HAVE_PROT_SEND_0
+sys_send(HAVE_PROT_SEND_1, HAVE_PROT_SEND_2, HAVE_PROT_SEND_3,
+      HAVE_PROT_SEND_4);
+HAVE_PROT_WRITE_0
+sys_write(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
 
 #if HAVE_OSF_OLDSTYLE
-int sys_bind __P((int, const struct sockaddr *, int));
+int sys_accept(int, struct sockaddr *, int *);
 #else
-HAVE_PROT_BIND_0 sys_bind
-__P((HAVE_PROT_BIND_1, HAVE_PROT_BIND_2, HAVE_PROT_BIND_3));
+HAVE_PROT_ACCEPT_0
+sys_accept(HAVE_PROT_ACCEPT_1, HAVE_PROT_ACCEPT_2, HAVE_PROT_ACCEPT_3);
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
+
+#if HAVE_OSF_OLDSTYLE
+int sys_bind(int, const struct sockaddr *, int);
+#else
+HAVE_PROT_BIND_0
+sys_bind(HAVE_PROT_BIND_1, HAVE_PROT_BIND_2, HAVE_PROT_BIND_3);
 #endif /* !HAVE_OSF_OLDSTYLE */
 
 #if HAVE_OSF_OLDSTYLE
-int sys_connect __P((int, const struct sockaddr *, int));
+int sys_connect(int, const struct sockaddr *, int);
 #else
-HAVE_PROT_CONNECT_0 sys_connect
-__P((HAVE_PROT_CONNECT_1, HAVE_PROT_CONNECT_2, HAVE_PROT_CONNECT_3));
-#endif  /* HAVE_OSF_OLDSTYLE */
+HAVE_PROT_CONNECT_0
+sys_connect(HAVE_PROT_CONNECT_1, HAVE_PROT_CONNECT_2, HAVE_PROT_CONNECT_3);
+#endif /* HAVE_OSF_OLDSTYLE */
 
 #if HAVE_OSF_OLDSTYLE
-int sys_getpeername __P((int, struct sockaddr *, int *));
+int sys_getpeername(int, struct sockaddr *, int *);
 #else
-HAVE_PROT_GETPEERNAME_0 sys_getpeername
-__P((HAVE_PROT_GETPEERNAME_1, HAVE_PROT_GETPEERNAME_2, HAVE_PROT_GETPEERNAME_3));
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+HAVE_PROT_GETPEERNAME_0
+sys_getpeername(HAVE_PROT_GETPEERNAME_1, HAVE_PROT_GETPEERNAME_2,
+      HAVE_PROT_GETPEERNAME_3);
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #if HAVE_OSF_OLDSTYLE
-int sys_getsockname __P((int, struct sockaddr *, int *));
+int sys_getsockname(int, struct sockaddr *, int *);
 #else
-HAVE_PROT_GETSOCKNAME_0 sys_getsockname
-__P((HAVE_PROT_GETSOCKNAME_1, HAVE_PROT_GETSOCKNAME_2, HAVE_PROT_GETSOCKNAME_3));
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+HAVE_PROT_GETSOCKNAME_0
+sys_getsockname(HAVE_PROT_GETSOCKNAME_1, HAVE_PROT_GETSOCKNAME_2,
+      HAVE_PROT_GETSOCKNAME_3);
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #if HAVE_OSF_OLDSTYLE
-int sys_recvfrom __P((int, void*, int, int, struct sockaddr *, int *));
+int sys_recvfrom(int, void*, int, int, struct sockaddr *, int *);
 #else
-HAVE_PROT_RECVFROM_0 sys_recvfrom
-__P((HAVE_PROT_RECVFROM_1, HAVE_PROT_RECVFROM_2, HAVE_PROT_RECVFROM_3, HAVE_PROT_RECVFROM_4, HAVE_PROT_RECVFROM_5, HAVE_PROT_RECVFROM_6));
-#endif
+HAVE_PROT_RECVFROM_0
+sys_recvfrom(HAVE_PROT_RECVFROM_1, HAVE_PROT_RECVFROM_2, HAVE_PROT_RECVFROM_3,
+      HAVE_PROT_RECVFROM_4, HAVE_PROT_RECVFROM_5, HAVE_PROT_RECVFROM_6);
+#endif /* HAVE_OSF_OLDSTYLE */
 
 #if HAVE_OSF_OLDSTYLE
-ssize_t sys_writev __P((int, const struct iovec *, int));
+ssize_t sys_writev(int, const struct iovec *, int);
 #else
-HAVE_PROT_WRITEV_0 sys_writev
-__P((HAVE_PROT_WRITEV_1, HAVE_PROT_WRITEV_2, HAVE_PROT_WRITEV_3));
-#endif
+HAVE_PROT_WRITEV_0
+sys_writev(HAVE_PROT_WRITEV_1, HAVE_PROT_WRITEV_2, HAVE_PROT_WRITEV_3);
+#endif /* HAVE_OSF_OLDSTYLE */
 
 #if HAVE_OSF_OLDSTYLE
-ssize_t sys_sendmsg __P((int, struct msghdr *, int));
+ssize_t sys_sendmsg(int, struct msghdr *, int);
 #else
-HAVE_PROT_SENDMSG_0 sys_sendmsg
-__P((HAVE_PROT_SENDMSG_1, HAVE_PROT_SENDMSG_2, HAVE_PROT_SENDMSG_3));
-#endif
+HAVE_PROT_SENDMSG_0
+sys_sendmsg(HAVE_PROT_SENDMSG_1, HAVE_PROT_SENDMSG_2, HAVE_PROT_SENDMSG_3);
+#endif /* HAVE_OSF_OLDSTYLE */
 
 #if HAVE_OSF_OLDSTYLE
-int sys_sendto __P((int, const void *, int, int, const struct sockaddr *, socklen_t));
+int sys_sendto(int, const void *, int, int, const struct sockaddr *,
+      socklen_t);
 #else
-HAVE_PROT_SENDTO_0 sys_sendto
-__P((HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3, HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6));
-#endif /* !HAVE_OSF_OLDSTYLE */
+HAVE_PROT_SENDTO_0
+sys_sendto(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
+      HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6);
+#endif /* HAVE_OSF_OLDSTYLE */
 
 #if HAVE_EXTRA_OSF_SYMBOLS
-int sys_Eaccept __P((int, struct sockaddr *, socklen_t *));
-int sys_Egetpeername __P((int, struct sockaddr *, socklen_t *));
-int sys_Egetsockname __P((int, struct sockaddr *, socklen_t *));
-ssize_t sys_Ereadv __P((int, const struct iovec *, int));
-int sys_Erecvfrom __P((int, void *, size_t, int, struct sockaddr *, size_t *));
-ssize_t sys_Erecvmsg __P((int, struct msghdr *, int));
-ssize_t sys_Esendmsg __P((int, const struct msghdr *, int));
-ssize_t sys_Ewritev __P((int, const struct iovec *, int));
+int sys_Eaccept(int, struct sockaddr *, socklen_t *);
+int sys_Egetpeername(int, struct sockaddr *, socklen_t *);
+int sys_Egetsockname(int, struct sockaddr *, socklen_t *);
+ssize_t sys_Ereadv(int, const struct iovec *, int);
+int sys_Erecvfrom(int, void *, size_t, int, struct sockaddr *, size_t *)
+      __attribute__((__bounded__(__buffer__, 2, 3)));
+ssize_t sys_Erecvmsg(int, struct msghdr *, int);
+ssize_t sys_Esendmsg(int, const struct msghdr *, int);
+ssize_t sys_Ewritev(int, const struct iovec *, int);
 
-int sys_naccept __P((int, struct sockaddr *, socklen_t *));
-int sys_ngetpeername __P((int, struct sockaddr *, socklen_t *));
-int sys_ngetsockname __P((int, struct sockaddr *, socklen_t *));
-int sys_nrecvfrom __P((int, void *, size_t, int, struct sockaddr *, size_t *));
-ssize_t sys_nrecvmsg __P((int, struct msghdr *, int));
-ssize_t sys_nsendmsg __P((int, const struct msghdr *, int));
+int sys_naccept(int, struct sockaddr *, socklen_t *);
+int sys_ngetpeername(int, struct sockaddr *, socklen_t *);
+int sys_ngetsockname(int, struct sockaddr *, socklen_t *);
+int sys_nrecvfrom(int, void *, size_t, int, struct sockaddr *, size_t *)
+      __attribute__((__bounded__(__buffer__, 2, 3)));
+ssize_t sys_nrecvmsg(int, struct msghdr *, int);
+ssize_t sys_nsendmsg(int, const struct msghdr *, int);
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
-#endif  /* HAVE_EXTRA_OSF_SYMBOLS */
+#ifdef __sun
+HAVE_PROT_BIND_0
+sys_xnet_bind(HAVE_PROT_BIND_1, HAVE_PROT_BIND_2, HAVE_PROT_BIND_3);
+HAVE_PROT_LISTEN_0
+sys_xnet_listen(HAVE_PROT_LISTEN_1, HAVE_PROT_LISTEN_2);
+HAVE_PROT_RECVMSG_0
+sys_xnet_recvmsg(HAVE_PROT_RECVMSG_1, HAVE_PROT_RECVMSG_2, HAVE_PROT_RECVMSG_3);
+HAVE_PROT_SENDMSG_0
+sys_xnet_sendmsg(HAVE_PROT_SENDMSG_1, HAVE_PROT_SENDMSG_2, HAVE_PROT_SENDMSG_3);
+HAVE_PROT_SENDTO_0
+sys_xnet_sendto(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
+   HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6);
+HAVE_PROT_CONNECT_0
+sys_xnet_connect(HAVE_PROT_CONNECT_1, HAVE_PROT_CONNECT_2, HAVE_PROT_CONNECT_3);
+#endif /* __sun */
+
+#ifdef __FreeBSD__
+HAVE_PROT_ACCEPT_0
+_accept(HAVE_PROT_ACCEPT_1, HAVE_PROT_ACCEPT_2, HAVE_PROT_ACCEPT_3);
+HAVE_PROT_BIND_0
+_bind(HAVE_PROT_BIND_1, HAVE_PROT_BIND_2, HAVE_PROT_BIND_3);
+HAVE_PROT_CONNECT_0
+_connect(HAVE_PROT_CONNECT_1, HAVE_PROT_CONNECT_2, HAVE_PROT_CONNECT_3);
+HAVE_PROT_GETPEERNAME_0
+_getpeername(HAVE_PROT_GETPEERNAME_1, HAVE_PROT_GETPEERNAME_2,
+    HAVE_PROT_GETPEERNAME_3);
+HAVE_PROT_GETSOCKNAME_0
+_getsockname(HAVE_PROT_GETSOCKNAME_1, HAVE_PROT_GETSOCKNAME_2,
+    HAVE_PROT_GETSOCKNAME_3);
+HAVE_PROT_LISTEN_0
+_listen(HAVE_PROT_LISTEN_1, HAVE_PROT_LISTEN_2);
+HAVE_PROT_READ_0
+_read(HAVE_PROT_READ_1, HAVE_PROT_READ_2, HAVE_PROT_READ_3);
+HAVE_PROT_READV_0
+_readv(HAVE_PROT_READV_1, HAVE_PROT_READV_2, HAVE_PROT_READV_3);
+HAVE_PROT_RECV_0
+_recv(HAVE_PROT_RECV_1, HAVE_PROT_RECV_2, HAVE_PROT_RECV_3, HAVE_PROT_RECV_4);
+HAVE_PROT_RECVFROM_0
+_recvfrom(HAVE_PROT_RECVFROM_1, HAVE_PROT_RECVFROM_2, HAVE_PROT_RECVFROM_3,
+    HAVE_PROT_RECVFROM_4, HAVE_PROT_RECVFROM_5, HAVE_PROT_RECVFROM_6);
+HAVE_PROT_RECVMSG_0
+_recvmsg(HAVE_PROT_RECVMSG_1, HAVE_PROT_RECVMSG_2, HAVE_PROT_RECVMSG_3);
+HAVE_PROT_WRITE_0
+_write(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
+HAVE_PROT_WRITEV_0
+_writev(HAVE_PROT_WRITEV_1, HAVE_PROT_WRITEV_2, HAVE_PROT_WRITEV_3);
+HAVE_PROT_SEND_0
+_send(HAVE_PROT_SEND_1, HAVE_PROT_SEND_2, HAVE_PROT_SEND_3, HAVE_PROT_SEND_4);
+HAVE_PROT_SENDMSG_0
+_sendmsg(HAVE_PROT_SENDMSG_1, HAVE_PROT_SENDMSG_2, HAVE_PROT_SENDMSG_3);
+HAVE_PROT_SENDTO_0
+_sendto(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
+    HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6);
+#endif /* __FreeBSD__ */
+
+#if HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND
+HAVE_PROT_GETC_0
+sys_getc(HAVE_PROT_GETC_1);
+HAVE_PROT_FGETC_0
+sys_fgetc(HAVE_PROT_FGETC_1);
+HAVE_PROT_GETS_0
+sys_gets(HAVE_PROT_GETS_1);
+HAVE_PROT_FGETS_0
+sys_fgets(HAVE_PROT_FGETS_1, HAVE_PROT_FGETS_2, HAVE_PROT_FGETS_3);
+HAVE_PROT_PUTC_0
+sys_putc(HAVE_PROT_PUTC_1, HAVE_PROT_PUTC_2);
+HAVE_PROT_FPUTC_0
+sys_fputc(HAVE_PROT_FPUTC_1, HAVE_PROT_FPUTC_2);
+HAVE_PROT_PUTS_0
+sys_puts(HAVE_PROT_PUTS_1);
+HAVE_PROT_FPUTS_0
+sys_fputs(HAVE_PROT_FPUTS_1, HAVE_PROT_FPUTS_2);
+HAVE_PROT_FFLUSH_0
+sys_fflush(HAVE_PROT_FFLUSH_1);
+HAVE_PROT_FCLOSE_0
+sys_fclose(HAVE_PROT_FCLOSE_1);
+HAVE_PROT_PRINTF_0
+sys_printf(HAVE_PROT_PRINTF_1, ...);
+HAVE_PROT_VPRINTF_0
+sys_vprintf(HAVE_PROT_VPRINTF_1, HAVE_PROT_VPRINTF_2);
+HAVE_PROT_FPRINTF_0
+sys_fprintf(HAVE_PROT_FPRINTF_1, HAVE_PROT_FPRINTF_2, ...);
+HAVE_PROT_VFPRINTF_0
+sys_vfprintf(HAVE_PROT_VFPRINTF_1, HAVE_PROT_VFPRINTF_2, HAVE_PROT_VFPRINTF_3);
+HAVE_PROT_FWRITE_0
+sys_fwrite(HAVE_PROT_FWRITE_1, HAVE_PROT_FWRITE_2, HAVE_PROT_FWRITE_3,
+      HAVE_PROT_FWRITE_4);
+HAVE_PROT_FREAD_0
+sys_fread(HAVE_PROT_FREAD_1, HAVE_PROT_FREAD_2, HAVE_PROT_FREAD_3,
+      HAVE_PROT_FREAD_4);
+#endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
-
-__END_DECLS

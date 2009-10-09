@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2001, 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: debug.c,v 1.27 2009/01/02 14:06:05 michaels Exp $";
+"$Id: debug.c,v 1.28 2009/07/09 14:04:21 karls Exp $";
 
 #if DEBUG
 

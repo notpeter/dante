@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2001, 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,10 +44,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbindresvport.c,v 1.26 2009/01/02 14:06:02 michaels Exp $";
+"$Id: Rbindresvport.c,v 1.33 2009/09/25 09:47:21 michaels Exp $";
 
 /*
- * Note that for this function to work correctly the remote socksserver
+ * Note that for this function to work correctly the remote socks server
  * would have to be using the bind extension.
  */
 
@@ -63,15 +63,19 @@ Rbindresvport(s, sin)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, s);
+   slog(LOG_DEBUG, "%s, socket %d", function, s);
 
    /*
     * Nothing can be called before Rbindresvport(), delete any old cruft.
     */
-   socks_rmaddr((unsigned int)s, 0);
+   socks_rmaddr(s, 1);
 
-   if (bindresvport(s, sin) != 0)
+   if (bindresvport(s, sin) != 0) {
+      slog(LOG_DEBUG, "%s: bindresvport(%d) failed: %s",
+      function, s, strerror(errno));
+
       return -1;
+   }
 
    namelen = sizeof(name);
    if (getsockname(s, &name, &namelen) != 0)
@@ -79,7 +83,7 @@ Rbindresvport(s, sin)
 
    /*
     * Rbind() will accept failure at binding socket that is already bound
-    * and will try a remote serverbinding too if appropriate.
+    * and will try a remote server binding too if appropriate.
     */
    return Rbind(s, &name, namelen);
 }

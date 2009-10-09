@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
+ *               2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,8 +44,9 @@
 
 %{
 
+#if 0 /* XXX automatically added at head of generated .c file */
 #include "common.h"
-
+#endif
 #include "yacconfig.h"
 #include "config_parse.h"
 
@@ -52,7 +54,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.82 2009/01/08 18:23:49 michaels Exp $";
+"$Id: config_scan.l,v 1.110 2009/09/10 14:04:13 michaels Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -61,9 +63,14 @@ static const char rcsid[] =
 
 %}
 
-
+/*
+ * yylineno nonoptimal under flex, reason for 'find_rule' 'yy_flex_realloc'
+ * warnings.
+ */
 %option yylineno
 %option noyywrap
+%option nounput
+
 /*%option debug             */
 
 PORTNUMBER [0-9]{1,5}
@@ -89,6 +96,9 @@ PORTNUMBER [0-9]{1,5}
 %x start_srchost
 %x start_protocol
 %x start_servicename
+%x start_gssapiservicename
+%x start_gssapikeytabname
+%x start_encryption
 %%
 
 
@@ -142,7 +152,6 @@ PORTNUMBER [0-9]{1,5}
    return PROXYPROTOCOL_UPNP;
 }
 
-
 <start_command>bind {
    yylval.string = yytext;
    return COMMAND_BIND;
@@ -178,7 +187,23 @@ PORTNUMBER [0-9]{1,5}
    return URL;
 }
 
+<start_address>[\.a-zA-Z]+[:\.a-zA-Z0-9]* {
+   struct sockaddr addr;
 
+   BEGIN(start_port);
+
+   yylval.string = yytext;
+
+   /*
+    * we don't have a reliable regex to differentiate between
+    * domainname and ifname on all systems, so do a rough match and
+     * then a practical test to see which one it is.
+    */
+   if (ifname2sockaddr(yytext, 0, &addr, NULL) != NULL)
+      return IFNAME;
+   else
+      return DOMAINNAME;
+}
 
 <start_port>port {
    BEGIN(start_operator);
@@ -187,13 +212,12 @@ PORTNUMBER [0-9]{1,5}
    return PORT;
 }
 
-<start_operator>eq|=|neq|!=|ge|>=|le|<=|gt|>|lt|< {
+<start_operator>eq|=|ne|!=|ge|>=|le|<=|gt|>|lt|< {
    BEGIN(start_portnumber);
 
    yylval.string = yytext;
    return OPERATOR;
 }
-
 
 <start_log>connect {
    yylval.string = yytext;
@@ -241,19 +265,6 @@ PORTNUMBER [0-9]{1,5}
    return PORTNUMBER;
 }
 
-<start_address>([a-zA-Z0-9-]*\.[a-zA-Z0-9-]+[a-zA-Z\.-]*|\.) {
-   BEGIN(start_port);
-
-   yylval.string = yytext;
-   return DOMAINNAME;
-}
-
-<start_address>[a-zA-Z]+[0-9:]* {
-   BEGIN(start_port);
-
-   yylval.string = yytext;
-   return IFNAME;
-}
 
 <start_logoutput>[^: \t\n]+ {
    yylval.string = yytext;
@@ -268,6 +279,21 @@ PORTNUMBER [0-9]{1,5}
 <start_groupname>[^: \t\n]+ {
    yylval.string = yytext;
    return GROUPNAME;
+}
+
+<start_gssapikeytabname>[^: \t\n]+ {
+        yylval.string = yytext;
+        return GSSAPIKEYTABNAME;
+}
+
+<start_gssapikeytabname>FILE:[^ \t\n]+ {
+        yylval.string = yytext;
+        return GSSAPIKEYTABNAME;
+}
+
+<start_gssapiservicename>[^: \t\n]+ {
+        yylval.string = yytext;
+        return GSSAPISERVICENAME;
 }
 
 <lineprefix>: {
@@ -294,6 +320,11 @@ PORTNUMBER [0-9]{1,5}
    return NOUNKNOWN;
 }
 
+<start_srchost>checkreplyauth {
+   yylval.string = yytext;
+   return CHECKREPLYAUTH;
+}
+
 <start_protocol>tcp {
    yylval.string = yytext;
    return PROTOCOL_TCP;
@@ -309,6 +340,30 @@ PORTNUMBER [0-9]{1,5}
    return PROTOCOL_FAKE;
 }
 
+<start_encryption>any {
+        yylval.string = yytext;
+        return GSSAPIENC_ANY;
+}
+
+<start_encryption>clear {
+        yylval.string = yytext;
+        return GSSAPIENC_CLEAR;
+}
+
+<start_encryption>integrity {
+        yylval.string = yytext;
+        return GSSAPIENC_INTEGRITY;
+}
+
+<start_encryption>confidentiality {
+        yylval.string = yytext;
+        return GSSAPIENC_CONFIDENTIALITY;
+}
+
+<start_encryption>permessage {
+        yylval.string = yytext;
+        return GSSAPIENC_PERMESSAGE;
+}
 
    /* non-startcondition dependents. */
 
@@ -364,11 +419,16 @@ command {
    return COMMAND;
 }
 
-udprange {
+udp\.portrange {
    BEGIN(start_operator);
 
    yylval.string = yytext;
-   return UDPRANGE;
+   return UDPPORTRANGE;
+}
+
+udp\.connectdst {
+   yylval.string = yytext;
+   return UDPCONNECTDST;
 }
 
 redirect {
@@ -407,7 +467,17 @@ via {
    return VIA;
 }
 
-   /* server configstuff */
+yes {
+   yylval.string = yytext;
+   return YES;
+}
+
+no {
+   yylval.string = yytext;
+   return NO;
+}
+
+
 internal {
    BEGIN(start_address);
 
@@ -418,11 +488,6 @@ internal {
 external.rotation {
    yylval.string = yytext;
    return EXTERNAL_ROTATION;
-}
-
-route {
-   yylval.string = yytext;
-   return ROUTE;
 }
 
 none {
@@ -457,7 +522,6 @@ group {
    return GROUP;
 }
 
-
 user\.privileged {
    BEGIN(start_username);
 
@@ -465,7 +529,7 @@ user\.privileged {
    return USER_PRIVILEGED;
 }
 
-user\.notprivileged {
+user\.unprivileged|user\.notprivileged {
    BEGIN(start_username);
 
    yylval.string = yytext;
@@ -479,9 +543,19 @@ user\.libwrap {
    return USER_LIBWRAP;
 }
 
-iotimeout {
+timeout\.io {
    yylval.string = yytext;
    return IOTIMEOUT;
+}
+
+timeout\.io\.tcp {
+   yylval.string = yytext;
+   return IOTIMEOUT_TCP;
+}
+
+timeout\.io\.udp {
+   yylval.string = yytext;
+   return IOTIMEOUT_UDP;
 }
 
 compatibility {
@@ -499,10 +573,24 @@ sameport {
    return SAMEPORT;
 }
 
-
-connecttimeout {
+draft-5.05 {
    yylval.string = yytext;
-   return CONNECTTIMEOUT;
+   return DRAFT_5_05;
+}
+
+clientcompatibility {
+   yylval.string = yytext;
+   return CLIENTCOMPATIBILITY;
+}
+
+necgssapi {
+   yylval.string = yytext;
+   return NECGSSAPI;
+}
+
+timeout\.negotiate {
+   yylval.string = yytext;
+   return NEGOTIATETIMEOUT;
 }
 
 extension {
@@ -515,13 +603,10 @@ bind {
    return BIND;
 }
 
-
-
 client {
    yylval.string = yytext;
    return CLIENTRULE;
 }
-
 
 method {
    BEGIN(start_method);
@@ -592,7 +677,6 @@ log {
    return LOG;
 }
 
-
 libwrap {
    BEGIN(lineprefix);
 
@@ -607,12 +691,38 @@ pam\.servicename|pamservicename {
    return PAMSERVICENAME;
 }
 
+gssapi\.servicename {
+        BEGIN(start_gssapiservicename);
+
+        yylval.string = yytext;
+        return GSSAPISERVICE;
+}
+
+gssapi\.keytab {
+       BEGIN(start_gssapikeytabname);
+
+        yylval.string = yytext;
+        return GSSAPIKEYTAB;
+}
+
+gssapi\.enctype {
+       BEGIN(start_encryption);
+
+        yylval.string = yytext;
+        return GSSAPIENCTYPE;
+}
+
+bounce {
+   yylval.string = yytext;
+   return BOUNCE;
+}
+
 
  /*
-  * Old keywords that are no longer used.
+  * global keywords that are no longer used.
   */
 
-localdomain.*:.* {
+localdomain.*:.*|connecttimeout|iotimeout {
    yylval.string = yytext;
    return DEPRECATED;
 }
@@ -621,7 +731,7 @@ localdomain.*:.* {
 
    /* misc. generic stuff. */
 
-<*>[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3} {
+<start_address>[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3} {
    BEGIN(start_port);
 
    yylval.string = yytext;

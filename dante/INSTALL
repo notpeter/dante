@@ -1,4 +1,4 @@
-# $Id: INSTALL,v 1.20 2000/01/14 15:01:56 karls Exp $
+# $Id: INSTALL,v 1.34 2009/09/07 17:22:25 karls Exp $
 
 This file describes how to install Dante.  Dante is a Socks client
 and server firewall implementation.  It can be installed on a machine
@@ -30,7 +30,7 @@ reconfiguring, and a file `config.log' containing compiler output
 to figure out how `configure' could check whether to do them, and mail
 diffs or instructions to the address given in the `README' so they can
 be considered for the next release.  If at some point `config.cache'
-contains results you don't want to keep, you may remove or edit it.
+contains results you do not want to keep, you may remove or edit it.
 
    The file `configure.in' is used to create `configure' by a program
 called `autoconf'.  You only need `configure.in' if you want to change
@@ -79,6 +79,8 @@ initial values for variables by setting them in the environment.  Using
 a Bourne-compatible shell, you can do that on the command line like
 this:
      CC=c89 CFLAGS=-O2 LIBS=-lposix ./configure
+
+     CPPFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib" ./configure
 
 Or on systems that have the `env' program, you can do it like this:
      env CPPFLAGS=-I/usr/local/include LDFLAGS=-s ./configure
@@ -133,11 +135,6 @@ is something like `gnu-as' or `x' (for the X Window System).  The
 `README' should mention any `--enable-' and `--with-' options that the
 package recognizes.
 
-   For packages that use the X Window System, `configure' can usually
-find the X include and library files automatically, but if it doesn't,
-you can use the `configure' options `--x-includes=DIR' and
-`--x-libraries=DIR' to specify their locations.
-
 Specifying the System Type
 ==========================
 
@@ -150,7 +147,7 @@ type, such as `sun4', or a canonical name with three fields:
      CPU-COMPANY-SYSTEM
 
 See the file `config.sub' for the possible values of each field.  If
-`config.sub' isn't included in this package, then this package doesn't
+`config.sub' is not included in this package, then this package does not
 need to know the host type.
 
    If you are building compiler tools for cross-compiling, you can also
@@ -222,8 +219,15 @@ These `configure' options are also supported (run `configure' with
      Run (BSD) lint when compiling the source-code.
 
 `--disable-libwrap'
-     Disable test for libwrap.  Makes no difference if libwrap doesn't
-     exist on the local system.
+     Disable test for libwrap.  Makes no difference if libwrap does
+     not exist on the local system.
+
+`--disable-pidfile'
+     Disable creation by the server of a file with the process id of
+     the main server process.
+
+`--disable-largefile'
+     Disable support for large files.
 
 `--disable-preload'
      Do not build libdsocks.  The dynamic sockslibrary might not work
@@ -231,12 +235,19 @@ These `configure' options are also supported (run `configure' with
      the library. Also disables it's use in the server.
 
 `--disable-clientdl'
-     Disable building of libdsocks. 
+     Disable building of libdsocks, used by the socksify application.
 
 `--disable-serverdl'
      Enable the use of the libdsocks functionality in the server. Will
      allow the use of the hostcache code with libwrap. On by default
      when libwrap is found and not disabled, off by default otherwise.
+
+`--disable-drt-fallback'
+     The socksify application will generally attempt to connect
+     directly to machines on the same network as the client, rather
+     than going through the socks server, by creating direct routes.
+     This option disables this behavior, but is not recommended for
+     general use.
 
 `--with-socks-conf=FILE'
      Read the library configuration file from FILE instead of
@@ -252,7 +263,78 @@ These `configure' options are also supported (run `configure' with
 
 `--with-libc=NAME'
      Manually set the name of libc. Should never be needed, but can be
-     use if configure isn't able to correctly find the name.
+     use if configure is unable to correctly find the name.
+
+`--without-upnp'
+     Always disable support for the UPnP proxy protocol.
+
+`--without-pam'
+     Always compile without Pluggable Authentication Modules (PAM)
+     support in the server.
+
+`--without-gssapi'
+     Always compile without support for the Generic Security Services
+     Application Program Interface (GSSAPI) for authentication between
+     the server and client.
+
+`--with-gssapi-path=PATH'
+     Used to specify the location of GSSAPI files.
+
+`--with-krb5-config=PATH'
+     Can be used to specify the location of the krb5-config
+     application if it exists outside the standard path. The program
+     is only used if GSSAPI support is enabled.
+
+`--without-glibc-secure'
+     Prevents the system from using the libc_enable_secure glibc
+     variable as a replacement for the issetugid() system call, which
+     might be problematic for package creation.
+
+     This option, if used on a platform that lacks issetugid(), will
+     essentially make unavailable the environment variable SOCKS_CONF,
+     which can be used to specify an alternate configuration file for
+     the client. If will however still be possible to use variables
+     such as SOCKS_SERVER, unless the --without-full-env option is
+     also used.
+
+     This option is only needed on Linux/glibc systems.
+
+`--without-full-env'
+     This parameter limits the environment variables that can be used
+     by the client, essentially forcing the system /etc/socks.conf
+     file to be used. The following variables are ignored when this
+     parameter is used:
+
+      SOCKS_AUTOADD_LANROUTES
+      SOCKS_LOGOUTPUT
+      SOCKS_SERVER
+      SOCKS4_SERVER
+      SOCKS5_SERVER
+      TMPDIR
+      HTTP_PROXY
+      UPNP_IGD
+
+     The following variables are always available, even when
+     --without-full-env is used:
+
+      SOCKS_BINDLOCALONLY
+      SOCKS_DEBUG
+      SOCKS_DIRECTROUTE_FALLBACK
+      SOCKS_DISABLE_THREADLOCK
+      SOCKS_PASSWD
+      SOCKS_PASSWORD
+      SOCKS_USER
+      SOCKS_USERNAME
+      SOCKS5_PASSWD
+      SOCKS5_USER
+
+     The following variable is always disabled for setu/gid programs
+     (on platforms that support issetugid()), and always disabled on
+     platforms that lack the issetugid() system call. On Linux, it
+     will still be available, as long as the --without-glibc-secure
+     parameter is not used.
+
+      SOCKS_CONF
 
 
 FURTHER CONFIGURATION
@@ -276,6 +358,6 @@ REPORTING PROBLEMS
 
 Please report any bugs, problems or enhancements to dante-bugs@inet.no
 
-The WWW home page for Dante is http://www.inet.no/dante.
+The WWW home page for Dante is located at: http://www.inet.no/dante/
 
-Copyright (c) 1998, 1999 Inferno Nettverk A/S, Norway.
+Copyright (c) 1998, 1999, 2000, 2009 Inferno Nettverk A/S, Norway.

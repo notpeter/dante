@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2006, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.134 2009/01/10 22:59:34 michaels Exp $";
+"$Id: Rbind.c,v 1.159 2009/10/06 10:29:54 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -53,36 +53,31 @@ Rbind(s, name, namelen)
    socklen_t namelen;
 {
    const char *function = "Rbind()";
+   struct authmethod_t auth;
    struct socks_t packet;
    struct socksfd_t socksfd;
    socklen_t len;
-   int val, rc;
+   int val, rc, flags;
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, s);
+   slog(LOG_DEBUG, "%s, socket %d, address %s",
+   function, s, sockaddr2string(name, NULL, 0));
 
    /*
     * Nothing can be called before Rbind(), delete any old cruft.
     */
-   socks_rmaddr((unsigned int)s, 0);
+   socks_rmaddr(s, 1);
 
    rc = bind(s, name, namelen);
 
    if (name->sa_family != AF_INET) {
       slog(LOG_DEBUG, "%s: socket %d, unsupported af '%d', system fallback",
       function, s, name->sa_family);
+
       return rc;
    }
 
-   /*
-    * We need a way to know whether the socket is to be used by e.g.
-    * miniupnp for i/o with devices on the lan, but how can we know
-    * that, when all we have to decide on is the address to bind?
-    * At the moment this works, because miniupnp will bind the socket
-    * to an interface (when we use it as we do), but this is not
-    * reliable. XXX
-    */
    if (socks_socketisforlan(s)) {
       slog(LOG_DEBUG, "%s: socket %d is for lan only, system bind fallback",
       function, s);
@@ -91,6 +86,8 @@ Rbind(s, name, namelen)
    }
 
    if (rc != 0) {
+      slog(LOG_DEBUG, "%s: bind(%d) failed: %s", function, s, strerror(errno));
+
       switch (errno) {
          case EADDRNOTAVAIL: {
             /* LINTED pointer casts may be troublesome */
@@ -102,6 +99,8 @@ Rbind(s, name, namelen)
              * bind that IP address (with a different port, presumably)
              * themselves though, in that case, use INADDR_ANY.
              */
+
+            slog(LOG_DEBUG, "%s: retrying bind with INADDR_ANY", function);
 
             newname.sin_addr.s_addr = htonl(INADDR_ANY);
             /* LINTED pointer casts may be troublesome */
@@ -128,7 +127,8 @@ Rbind(s, name, namelen)
             }
 
             /*
-             * Somehow the socket has been bound locally already.
+             * Somehow the socket has been bound locally already,
+             * perhaps due to bindresvport(3).
              * Best guess is probably to keep that and attempt a
              * remote server binding aswell.
              */
@@ -141,7 +141,7 @@ Rbind(s, name, namelen)
    }
 
    /* hack for performance testing. */
-   if (getenv("SOCKS_BINDLOCALONLY") != NULL)
+   if (socks_getenv("SOCKS_BINDLOCALONLY", dontcare) != NULL)
       return rc;
 
    bzero(&socksfd, sizeof(socksfd));
@@ -151,14 +151,17 @@ Rbind(s, name, namelen)
       return -1;
    }
 
+   bzero(&auth, sizeof(auth));
+   auth.method               = AUTHMETHOD_NOTSET;
+
    bzero(&packet, sizeof(packet));
    packet.req.version        = PROXY_DIRECT;
-   packet.auth.method        = AUTHMETHOD_NOTSET;
    packet.req.command        = SOCKS_BIND;
    packet.req.host.atype     = SOCKS_ADDR_IPV4;
    packet.req.host.addr.ipv4 = TOIN(&sockscf.state.lastconnect)->sin_addr;
    /* LINTED pointer casts may be troublesome */
    packet.req.host.port      = TOIN(&socksfd.local)->sin_port;
+   packet.req.auth           = &auth;
 
    len = sizeof(val);
    if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) != 0) {
@@ -173,21 +176,27 @@ Rbind(s, name, namelen)
       case SOCK_STREAM:
          packet.req.protocol = SOCKS_TCP;
          break;
-      
+
       default:
-         swarnx("%s: unknown protocoltype %d, falling back to system bind",
+         swarnx("%s: unknown protocol type %d, falling back to system bind",
          function, val);
          return rc;
    }
 
-   if (socks_requestpolish(&packet.req, NULL, NULL) == NULL
-   ||  packet.req.version == PROXY_DIRECT)
-      return 0; /* no route, socket bound, hope local bind is enough. */
+   if (socks_requestpolish(&packet.req, NULL, NULL) == NULL)
+      return -1;
+
+   if (packet.req.version == PROXY_DIRECT) {
+      slog(LOG_DEBUG, "%s: using direct systemcalls for socket %d",
+      function, s);
+
+      return 0;
+   }
 
    packet.version = packet.req.version;
 
    if (packet.req.protocol == SOCKS_UDP)
-      /* not all proxyprotocols support udp. */
+      /* not all proxy protocols support udp. */
       switch (packet.version) {
          case PROXY_UPNP:
          case PROXY_MSPROXY_V2:
@@ -195,15 +204,15 @@ Rbind(s, name, namelen)
 
          default:
             slog(LOG_DEBUG, "%s: binding udp sockets is not supported by "
-            "proxyprotocol v%d, hoping local bind is good enough\n",
-            function, packet.req.version); 
+            "proxyprotocol %s, hoping local bind is good enough\n",
+            function, version2string(packet.req.version));
 
             return 0;
       }
 
    /*
     * Create a separate socket for the control connection, so that if
-    * e.g the connect(2) to the sockeserver fails, it doesn't mess up
+    * e.g the connect(2) to the socks server fails, it doesn't mess up
     * things for caller.  After everything is ok, dup the control connection
     * over to be the same socket as caller passed us.
     */
@@ -219,7 +228,7 @@ Rbind(s, name, namelen)
          /*
           * Make sure the control-connection is bound to the same
           * ipaddress as 's', or the bind extension will not work if
-          * we connect to the socksserver from a different ipaddress
+          * we connect to the socks server from a different ipaddress
           * than the one we bound.
           */
          saddr = socksfd.local;
@@ -296,8 +305,18 @@ Rbind(s, name, namelen)
          SERRX(packet.req.version);
    }
 
+   /*
+    * we're not interested the extra hassle of negotiating over
+    * a non-blocking socket, so make sure it's blocking while we
+    * use it.
+    */
+   if ((flags = fcntl(socksfd.control, F_GETFL, 0))                  == -1
+   ||           fcntl(socksfd.control, F_SETFL, flags & ~O_NONBLOCK) == -1)
+      swarn("%s: fcntl(s)", function);
+
    if ((socksfd.route
-   = socks_connectroute(socksfd.control, &packet, NULL, NULL)) == NULL) {
+   = socks_connectroute(socksfd.control, &packet, NULL, NULL)) == NULL
+   || socksfd.route->gw.state.proxyprotocol.direct) {
       if (socksfd.control != s)
          close(socksfd.control);
       return 0;   /* have done a normal bind and no route, assume local. */
@@ -309,7 +328,12 @@ Rbind(s, name, namelen)
       return -1;
    }
 
-   socksfd.state.auth    = packet.auth;
+   /* back to original. */
+   if (flags != -1)
+      if (fcntl(socksfd.control, F_SETFL, flags) == -1)
+         swarn("%s: fcntl(s)", function);
+
+   socksfd.state.auth    = auth;
    socksfd.state.command = packet.req.command;
 
    if (packet.req.protocol == SOCKS_TCP)
@@ -324,7 +348,7 @@ Rbind(s, name, namelen)
       case PROXY_SOCKS_V4:
          /* LINTED pointer casts may be troublesome */
          if (TOIN(&socksfd.remote)->sin_addr.s_addr == htonl(0)) {
-            /* 
+            /*
              * v4 specific; server doesn't say, so should set it to address
              * we connected to for the controlconnection.
              */
@@ -367,13 +391,15 @@ Rbind(s, name, namelen)
    &&  TOCIN(name)->sin_port != TOIN(&socksfd.remote)->sin_port) { /* no. */
       int new_s;
 
+      socks_freebuffer(socksfd.control);
+
       if (socksfd.control != s) {
          /*
           * Since the socket is already bound locally, "unbind" it so
           * later error messages on the same socket make sense to the caller.
           */
          slog(LOG_DEBUG,
-         "%s: failed to bind requested port %d on gateway, \"unbinding\"",
+         "%s: failed to bind requested port %u on gateway, \"unbinding\"",
          function, ntohs(TOCIN(name)->sin_port));
 
          close(socksfd.control);
@@ -399,26 +425,32 @@ Rbind(s, name, namelen)
    }
 
    if (socksfd.state.acceptpending)
-      /*
-       * will accept(2) connection on 's', don't need to do anything more.
-       */
-      ;
+      /* will accept(2) connection on 's', don't need to do anything more.  */
+      socks_freebuffer(socksfd.control);
    else { /* dup socksfd.control over to 's', control and data is the same. */
-      slog(LOG_DEBUG,
-      "will accept bind data over controlsocket ... dup(2)ing to %d", s);
+      slog(LOG_DEBUG, "will accept bind data over controlsocket ... "
+                      "dup(2)ing %d to %d",
+                       socksfd.control, s);
 
       if (dup2(socksfd.control, s) == -1) {
          swarn("dup2(socksfd.control, s) failed");
          return -1;
       }
 
+      /*
+       * wont't be using a buffer for the socket we listen on, but 
+       * may have to use it for the one we accepted the bind reply on.
+       */
+      socks_reallocbuffer(socksfd.control, s);
+
       close(socksfd.control);
-      socksfd.control = s; 
+      socksfd.control = s;
 
       len = sizeof(socksfd.local);
       if (getsockname(s, &socksfd.local, &len) != 0) {
          swarn("getsockname(s) failed");
          close(socksfd.control);
+         socks_freebuffer(socksfd.control);
          return -1;
       }
    }
@@ -426,23 +458,20 @@ Rbind(s, name, namelen)
    switch (socksfd.state.version) {
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V5:
-         socks_addaddr((unsigned int)s, &socksfd, 0);
+      case PROXY_UPNP:
+         socks_addaddr(s, &socksfd, 1);
          break;
 
       case PROXY_MSPROXY_V2:
          /* more talk will have to occur before we can perform a accept(). */
          socksfd.state.inprogress = 1;
 
-         socks_addaddr((unsigned int)s, &socksfd, 0);
+         socks_addaddr(s, &socksfd, 1);
          if (msproxy_sigio(s) != 0) {
-            socks_rmaddr((unsigned int)s, 0);
+            socks_rmaddr(s, 1);
             return -1;
          }
 
-         break;
-
-      case PROXY_UPNP:
-         socks_addaddr((unsigned int)s, &socksfd, 0);
          break;
 
       default:

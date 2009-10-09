@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetpeername.c,v 1.37 2009/01/02 14:06:02 michaels Exp $";
+"$Id: Rgetpeername.c,v 1.42 2009/09/28 07:16:33 michaels Exp $";
 
 int
 Rgetpeername(s, name, namelen)
@@ -58,14 +58,14 @@ Rgetpeername(s, name, namelen)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, s = %d", function, s);
+   slog(LOG_DEBUG, "%s, socket %d", function, s);
 
-   if (!socks_addrisok((unsigned int)s, 0)) {
-      socks_rmaddr((unsigned int)s, 0);
+   if (!socks_addrisours(s, 1)) {
+      socks_rmaddr(s, 1);
       return getpeername(s, name, namelen);
    }
 
-   socksfd = socks_getaddr((unsigned int)s, 0);
+   socksfd = socks_getaddr(s, 1);
    SASSERTX(socksfd != NULL);
 
    switch (socksfd->state.command) {

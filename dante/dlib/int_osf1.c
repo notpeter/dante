@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #if SOCKSLIBRARY_DYNAMIC
 
 static const char rcsid[] =
-"$Id: int_osf1.c,v 1.14 2009/01/02 14:06:00 michaels Exp $";
+"$Id: int_osf1.c,v 1.17 2009/08/08 08:31:26 michaels Exp $";
 
 #undef accept
 #undef getpeername
@@ -108,6 +108,7 @@ sys_Egetsockname(s, name, namelen)
    SYSCALL_END(s);
    return rc;
 }
+
 ssize_t
 sys_Ereadv(d, iov, iovcnt)
    int d;
@@ -176,7 +177,6 @@ sys_Esendmsg(s, msg, flags)
    return rc;
 }
 
-
 ssize_t
 sys_Ewritev(d, iov, iovcnt)
    int d;
@@ -197,24 +197,24 @@ sys_Ewritev(d, iov, iovcnt)
     * the interpositioned functions.
     */
 
-
 int
 _Eaccept(s, addr, addrlen)
    int s;
    struct sockaddr * addr;
    socklen_t *addrlen;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL__EACCEPT))
       return sys_Eaccept(s, addr, addrlen);
    return Raccept(s, addr, addrlen);
 }
+
 int
 _Egetpeername(s, name, namelen)
    int s;
    struct sockaddr * name;
    socklen_t *namelen;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL__EGETPEERNAME))
       return sys_Egetpeername(s, name, namelen);
    return Rgetpeername(s, name, namelen);
 }
@@ -225,11 +225,10 @@ _Egetsockname(s, name, namelen)
    struct sockaddr * name;
    socklen_t *namelen;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL__EGETSOCKNAME))
       return sys_Egetsockname(s, name, namelen);
    return Rgetsockname(s, name, namelen);
 }
-
 
 ssize_t
 _Ereadv(d, iov, iovcnt)
@@ -237,11 +236,10 @@ _Ereadv(d, iov, iovcnt)
    const struct iovec *iov;
    int iovcnt;
 {
-   if (ISSYSCALL(d))
+   if (ISSYSCALL(d, SYMBOL__EREADV))
       return sys_Ereadv(d, iov, iovcnt);
    return Rreadv(d, iov, iovcnt);
 }
-
 
 ssize_t
 _Erecvfrom(s, buf, len, flags, from, fromlen)
@@ -252,7 +250,7 @@ _Erecvfrom(s, buf, len, flags, from, fromlen)
    struct sockaddr * from;
    size_t *fromlen;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL__ERECVFROM))
       return sys_Erecvfrom(s, buf, len, flags, from, fromlen);
    return Rrecvfrom(s, buf, len, flags, from, fromlen);
 }
@@ -263,12 +261,10 @@ _Erecvmsg(s, msg, flags)
    struct msghdr *msg;
    int flags;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL__ERECVMSG))
       return sys_Erecvmsg(s, msg, flags);
    return Rrecvmsg(s, msg, flags);
 }
-
-
 
 ssize_t
 _Ewritev(d, iov, iovcnt)
@@ -276,7 +272,7 @@ _Ewritev(d, iov, iovcnt)
    const struct iovec *iov;
    int iovcnt;
 {
-   if (ISSYSCALL(d))
+   if (ISSYSCALL(d, SYMBOL__EWRITEV))
       return sys_Ewritev(d, iov, iovcnt);
    return Rwritev(d, iov, iovcnt);
 }
@@ -287,7 +283,7 @@ _Esendmsg(s, msg, flags)
    const struct msghdr *msg;
    int flags;
 {
-   if (ISSYSCALL(s))
+   if (ISSYSCALL(s, SYMBOL__ESENDMSG))
       return sys_Esendmsg(s, msg, flags);
    return Rsendmsg(s, msg, flags);
 }

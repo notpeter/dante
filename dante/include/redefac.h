@@ -1,5 +1,10 @@
 /* Do not modify, generated from ../include/autoconf.h.in */
 
+#ifndef BAREFOOTD
+#define BAREFOOTD 0
+#endif
+
+
 #ifndef HAVE_ALT_SOCKD_CONFIGFILE
 #define HAVE_ALT_SOCKD_CONFIGFILE 0
 #endif
@@ -30,11 +35,6 @@
 #endif
 
 
-#ifndef HAVE_BROKEN_VSPRINTF
-#define HAVE_BROKEN_VSPRINTF 0
-#endif
-
-
 #ifndef HAVE_BZERO
 #define HAVE_BZERO 0
 #endif
@@ -52,6 +52,11 @@
 
 #ifndef HAVE_CMSG_SPACE
 #define HAVE_CMSG_SPACE 0
+#endif
+
+
+#ifndef HAVE_CONFENV_DISABLE
+#define HAVE_CONFENV_DISABLE 0
 #endif
 
 
@@ -100,6 +105,11 @@
 #endif
 
 
+#ifndef HAVE_EXECINFO_H
+#define HAVE_EXECINFO_H 0
+#endif
+
+
 #ifndef HAVE_EXTRA_OSF_SYMBOLS
 #define HAVE_EXTRA_OSF_SYMBOLS 0
 #endif
@@ -117,11 +127,6 @@
 
 #ifndef HAVE_GETADDRINFO
 #define HAVE_GETADDRINFO 0
-#endif
-
-
-#ifndef HAVE_GETDTABLESIZE
-#define HAVE_GETDTABLESIZE 0
 #endif
 
 
@@ -150,8 +155,38 @@
 #endif
 
 
-#ifndef HAVE_HOST_TYPE
-#define HAVE_HOST_TYPE 0
+#ifndef HAVE_GSSAPI
+#define HAVE_GSSAPI 0
+#endif
+
+
+#ifndef HAVE_GSSAPI_GSSAPI_EXT_H
+#define HAVE_GSSAPI_GSSAPI_EXT_H 0
+#endif
+
+
+#ifndef HAVE_GSSAPI_GSSAPI_GENERIC_H
+#define HAVE_GSSAPI_GSSAPI_GENERIC_H 0
+#endif
+
+
+#ifndef HAVE_GSSAPI_GSSAPI_H
+#define HAVE_GSSAPI_GSSAPI_H 0
+#endif
+
+
+#ifndef HAVE_GSSAPI_GSSAPI_KRB5_H
+#define HAVE_GSSAPI_GSSAPI_KRB5_H 0
+#endif
+
+
+#ifndef HAVE_GSSAPI_H
+#define HAVE_GSSAPI_H 0
+#endif
+
+
+#ifndef HAVE_HEIMDAL_KERBEROS
+#define HAVE_HEIMDAL_KERBEROS 0
 #endif
 
 
@@ -225,13 +260,83 @@
 #endif
 
 
+#ifndef HAVE_LIBASN1
+#define HAVE_LIBASN1 0
+#endif
+
+
+#ifndef HAVE_LIBCOM_ERR
+#define HAVE_LIBCOM_ERR 0
+#endif
+
+
+#ifndef HAVE_LIBCRYPT
+#define HAVE_LIBCRYPT 0
+#endif
+
+
+#ifndef HAVE_LIBCRYPTO
+#define HAVE_LIBCRYPTO 0
+#endif
+
+
 #ifndef HAVE_LIBC_ENABLE_SECURE
 #define HAVE_LIBC_ENABLE_SECURE 0
 #endif
 
 
+#ifndef HAVE_LIBDES
+#define HAVE_LIBDES 0
+#endif
+
+
+#ifndef HAVE_LIBDES425
+#define HAVE_LIBDES425 0
+#endif
+
+
+#ifndef HAVE_LIBGSS
+#define HAVE_LIBGSS 0
+#endif
+
+
+#ifndef HAVE_LIBGSSAPI
+#define HAVE_LIBGSSAPI 0
+#endif
+
+
+#ifndef HAVE_LIBGSSAPI_KRB5
+#define HAVE_LIBGSSAPI_KRB5 0
+#endif
+
+
+#ifndef HAVE_LIBK5CRYPTO
+#define HAVE_LIBK5CRYPTO 0
+#endif
+
+
+#ifndef HAVE_LIBKRB5
+#define HAVE_LIBKRB5 0
+#endif
+
+
+#ifndef HAVE_LIBKSVC
+#define HAVE_LIBKSVC 0
+#endif
+
+
 #ifndef HAVE_LIBMINIUPNP
 #define HAVE_LIBMINIUPNP 0
+#endif
+
+
+#ifndef HAVE_LIBPTHREAD
+#define HAVE_LIBPTHREAD 0
+#endif
+
+
+#ifndef HAVE_LIBROKEN
+#define HAVE_LIBROKEN 0
 #endif
 
 
@@ -252,6 +357,11 @@
 
 #ifndef HAVE_LINUX_ECCENTRICITIES
 #define HAVE_LINUX_ECCENTRICITIES 0
+#endif
+
+
+#ifndef HAVE_LINUX_GLIBC_WORKAROUND
+#define HAVE_LINUX_GLIBC_WORKAROUND 0
 #endif
 
 
@@ -360,6 +470,16 @@
 #endif
 
 
+#ifndef HAVE_PRIVILEGES
+#define HAVE_PRIVILEGES 0
+#endif
+
+
+#ifndef HAVE_PRIV_H
+#define HAVE_PRIV_H 0
+#endif
+
+
 #ifndef HAVE_PROFILING
 #define HAVE_PROFILING 0
 #endif
@@ -430,6 +550,166 @@
 #endif
 
 
+#ifndef HAVE_PROT_FCLOSE_0
+#define HAVE_PROT_FCLOSE_0 0
+#endif
+
+
+#ifndef HAVE_PROT_FCLOSE_1
+#define HAVE_PROT_FCLOSE_1 0
+#endif
+
+
+#ifndef HAVE_PROT_FFLUSH_0
+#define HAVE_PROT_FFLUSH_0 0
+#endif
+
+
+#ifndef HAVE_PROT_FFLUSH_1
+#define HAVE_PROT_FFLUSH_1 0
+#endif
+
+
+#ifndef HAVE_PROT_FGETC_0
+#define HAVE_PROT_FGETC_0 0
+#endif
+
+
+#ifndef HAVE_PROT_FGETC_1
+#define HAVE_PROT_FGETC_1 0
+#endif
+
+
+#ifndef HAVE_PROT_FGETS_0
+#define HAVE_PROT_FGETS_0 0
+#endif
+
+
+#ifndef HAVE_PROT_FGETS_1
+#define HAVE_PROT_FGETS_1 0
+#endif
+
+
+#ifndef HAVE_PROT_FGETS_2
+#define HAVE_PROT_FGETS_2 0
+#endif
+
+
+#ifndef HAVE_PROT_FGETS_3
+#define HAVE_PROT_FGETS_3 0
+#endif
+
+
+#ifndef HAVE_PROT_FPRINTF_0
+#define HAVE_PROT_FPRINTF_0 0
+#endif
+
+
+#ifndef HAVE_PROT_FPRINTF_1
+#define HAVE_PROT_FPRINTF_1 0
+#endif
+
+
+#ifndef HAVE_PROT_FPRINTF_2
+#define HAVE_PROT_FPRINTF_2 0
+#endif
+
+
+#ifndef HAVE_PROT_FPRINTF_3
+#define HAVE_PROT_FPRINTF_3 0
+#endif
+
+
+#ifndef HAVE_PROT_FPUTC_0
+#define HAVE_PROT_FPUTC_0 0
+#endif
+
+
+#ifndef HAVE_PROT_FPUTC_1
+#define HAVE_PROT_FPUTC_1 0
+#endif
+
+
+#ifndef HAVE_PROT_FPUTC_2
+#define HAVE_PROT_FPUTC_2 0
+#endif
+
+
+#ifndef HAVE_PROT_FPUTS_0
+#define HAVE_PROT_FPUTS_0 0
+#endif
+
+
+#ifndef HAVE_PROT_FPUTS_1
+#define HAVE_PROT_FPUTS_1 0
+#endif
+
+
+#ifndef HAVE_PROT_FPUTS_2
+#define HAVE_PROT_FPUTS_2 0
+#endif
+
+
+#ifndef HAVE_PROT_FREAD_0
+#define HAVE_PROT_FREAD_0 0
+#endif
+
+
+#ifndef HAVE_PROT_FREAD_1
+#define HAVE_PROT_FREAD_1 0
+#endif
+
+
+#ifndef HAVE_PROT_FREAD_2
+#define HAVE_PROT_FREAD_2 0
+#endif
+
+
+#ifndef HAVE_PROT_FREAD_3
+#define HAVE_PROT_FREAD_3 0
+#endif
+
+
+#ifndef HAVE_PROT_FREAD_4
+#define HAVE_PROT_FREAD_4 0
+#endif
+
+
+#ifndef HAVE_PROT_FWRITE_0
+#define HAVE_PROT_FWRITE_0 0
+#endif
+
+
+#ifndef HAVE_PROT_FWRITE_1
+#define HAVE_PROT_FWRITE_1 0
+#endif
+
+
+#ifndef HAVE_PROT_FWRITE_2
+#define HAVE_PROT_FWRITE_2 0
+#endif
+
+
+#ifndef HAVE_PROT_FWRITE_3
+#define HAVE_PROT_FWRITE_3 0
+#endif
+
+
+#ifndef HAVE_PROT_FWRITE_4
+#define HAVE_PROT_FWRITE_4 0
+#endif
+
+
+#ifndef HAVE_PROT_GETC_0
+#define HAVE_PROT_GETC_0 0
+#endif
+
+
+#ifndef HAVE_PROT_GETC_1
+#define HAVE_PROT_GETC_1 0
+#endif
+
+
 #ifndef HAVE_PROT_GETHOSTBYADDR_0
 #define HAVE_PROT_GETHOSTBYADDR_0 0
 #endif
@@ -490,6 +770,16 @@
 #endif
 
 
+#ifndef HAVE_PROT_GETS_0
+#define HAVE_PROT_GETS_0 0
+#endif
+
+
+#ifndef HAVE_PROT_GETS_1
+#define HAVE_PROT_GETS_1 0
+#endif
+
+
 #ifndef HAVE_PROT_LISTEN_0
 #define HAVE_PROT_LISTEN_0 0
 #endif
@@ -502,6 +792,46 @@
 
 #ifndef HAVE_PROT_LISTEN_2
 #define HAVE_PROT_LISTEN_2 0
+#endif
+
+
+#ifndef HAVE_PROT_PRINTF_0
+#define HAVE_PROT_PRINTF_0 0
+#endif
+
+
+#ifndef HAVE_PROT_PRINTF_1
+#define HAVE_PROT_PRINTF_1 0
+#endif
+
+
+#ifndef HAVE_PROT_PRINTF_2
+#define HAVE_PROT_PRINTF_2 0
+#endif
+
+
+#ifndef HAVE_PROT_PUTC_0
+#define HAVE_PROT_PUTC_0 0
+#endif
+
+
+#ifndef HAVE_PROT_PUTC_1
+#define HAVE_PROT_PUTC_1 0
+#endif
+
+
+#ifndef HAVE_PROT_PUTC_2
+#define HAVE_PROT_PUTC_2 0
+#endif
+
+
+#ifndef HAVE_PROT_PUTS_0
+#define HAVE_PROT_PUTS_0 0
+#endif
+
+
+#ifndef HAVE_PROT_PUTS_1
+#define HAVE_PROT_PUTS_1 0
 #endif
 
 
@@ -705,6 +1035,41 @@
 #endif
 
 
+#ifndef HAVE_PROT_VFPRINTF_0
+#define HAVE_PROT_VFPRINTF_0 0
+#endif
+
+
+#ifndef HAVE_PROT_VFPRINTF_1
+#define HAVE_PROT_VFPRINTF_1 0
+#endif
+
+
+#ifndef HAVE_PROT_VFPRINTF_2
+#define HAVE_PROT_VFPRINTF_2 0
+#endif
+
+
+#ifndef HAVE_PROT_VFPRINTF_3
+#define HAVE_PROT_VFPRINTF_3 0
+#endif
+
+
+#ifndef HAVE_PROT_VPRINTF_0
+#define HAVE_PROT_VPRINTF_0 0
+#endif
+
+
+#ifndef HAVE_PROT_VPRINTF_1
+#define HAVE_PROT_VPRINTF_1 0
+#endif
+
+
+#ifndef HAVE_PROT_VPRINTF_2
+#define HAVE_PROT_VPRINTF_2 0
+#endif
+
+
 #ifndef HAVE_PROT_WRITEV_0
 #define HAVE_PROT_WRITEV_0 0
 #endif
@@ -745,6 +1110,36 @@
 #endif
 
 
+#ifndef HAVE_PROT__IO_GETC_0
+#define HAVE_PROT__IO_GETC_0 0
+#endif
+
+
+#ifndef HAVE_PROT__IO_GETC_1
+#define HAVE_PROT__IO_GETC_1 0
+#endif
+
+
+#ifndef HAVE_PROT__IO_PUTC_0
+#define HAVE_PROT__IO_PUTC_0 0
+#endif
+
+
+#ifndef HAVE_PROT__IO_PUTC_1
+#define HAVE_PROT__IO_PUTC_1 0
+#endif
+
+
+#ifndef HAVE_PROT__IO_PUTC_2
+#define HAVE_PROT__IO_PUTC_2 0
+#endif
+
+
+#ifndef HAVE_PTHREAD_H
+#define HAVE_PTHREAD_H 0
+#endif
+
+
 #ifndef HAVE_RESOLV_H
 #define HAVE_RESOLV_H 0
 #endif
@@ -765,13 +1160,13 @@
 #endif
 
 
-#ifndef HAVE_SECURITY_PAM_APPL_H
-#define HAVE_SECURITY_PAM_APPL_H 0
+#ifndef HAVE_RTLD_NEXT
+#define HAVE_RTLD_NEXT 0
 #endif
 
 
-#ifndef HAVE_SELECT
-#define HAVE_SELECT 0
+#ifndef HAVE_SECURITY_PAM_APPL_H
+#define HAVE_SECURITY_PAM_APPL_H 0
 #endif
 
 
@@ -815,11 +1210,6 @@
 #endif
 
 
-#ifndef HAVE_SOCKADDR_STORAGE
-#define HAVE_SOCKADDR_STORAGE 0
-#endif
-
-
 #ifndef HAVE_SOCKATMARK
 #define HAVE_SOCKATMARK 0
 #endif
@@ -835,18 +1225,8 @@
 #endif
 
 
-#ifndef HAVE_SOCKET
-#define HAVE_SOCKET 0
-#endif
-
-
 #ifndef HAVE_SOCKS_CONFIGFILE
 #define HAVE_SOCKS_CONFIGFILE 0
-#endif
-
-
-#ifndef HAVE_SOLARIS_2_5_1
-#define HAVE_SOLARIS_2_5_1 0
 #endif
 
 
@@ -857,6 +1237,11 @@
 
 #ifndef HAVE_SOLARIS_PAM_BUG
 #define HAVE_SOLARIS_PAM_BUG 0
+#endif
+
+
+#ifndef HAVE_SOLARIS_PRIVS
+#define HAVE_SOLARIS_PRIVS 0
 #endif
 
 
@@ -875,21 +1260,6 @@
 #endif
 
 
-#ifndef HAVE_STRCSPN
-#define HAVE_STRCSPN 0
-#endif
-
-
-#ifndef HAVE_STRDUP
-#define HAVE_STRDUP 0
-#endif
-
-
-#ifndef HAVE_STRERROR
-#define HAVE_STRERROR 0
-#endif
-
-
 #ifndef HAVE_STRFTIME
 #define HAVE_STRFTIME 0
 #endif
@@ -905,11 +1275,6 @@
 #endif
 
 
-#ifndef HAVE_STRSPN
-#define HAVE_STRSPN 0
-#endif
-
-
 #ifndef HAVE_STRUCT_IPOPTS
 #define HAVE_STRUCT_IPOPTS 0
 #endif
@@ -917,11 +1282,6 @@
 
 #ifndef HAVE_STRVIS
 #define HAVE_STRVIS 0
-#endif
-
-
-#ifndef HAVE_SYSCONF
-#define HAVE_SYSCONF 0
 #endif
 
 
@@ -985,6 +1345,11 @@
 #endif
 
 
+#ifndef HAVE_THREADS_EINTR_PROBLEMS
+#define HAVE_THREADS_EINTR_PROBLEMS 0
+#endif
+
+
 #ifndef HAVE_TIMER_MACROS
 #define HAVE_TIMER_MACROS 0
 #endif
@@ -1030,11 +1395,6 @@
 #endif
 
 
-#ifndef HAVE_VSNPRINTF
-#define HAVE_VSNPRINTF 0
-#endif
-
-
 #ifndef HAVE_VSYSLOG
 #define HAVE_VSYSLOG 0
 #endif
@@ -1045,6 +1405,26 @@
 #endif
 
 
+#ifndef HAVE__IO_GETC
+#define HAVE__IO_GETC 0
+#endif
+
+
+#ifndef HAVE__IO_PUTC
+#define HAVE__IO_PUTC 0
+#endif
+
+
+#ifndef HAVE___FPRINTF_CHK
+#define HAVE___FPRINTF_CHK 0
+#endif
+
+
+#ifndef HAVE___VFPRINTF_CHK
+#define HAVE___VFPRINTF_CHK 0
+#endif
+
+
 #ifndef NEED_ACCEPTLOCK
 #define NEED_ACCEPTLOCK 0
 #endif
@@ -1052,11 +1432,6 @@
 
 #ifndef NEED_AF_LOCAL
 #define NEED_AF_LOCAL 0
-#endif
-
-
-#ifndef NEED_DYNA_RTLD
-#define NEED_DYNA_RTLD 0
 #endif
 
 
@@ -1077,6 +1452,11 @@
 
 #ifndef NEED_SYS_SOCKIO_H
 #define NEED_SYS_SOCKIO_H 0
+#endif
+
+
+#ifndef SOCKS_DIRECTROUTE_FALLBACK
+#define SOCKS_DIRECTROUTE_FALLBACK 0
 #endif
 
 

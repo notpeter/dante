@@ -1,4 +1,4 @@
-$Id: README.socksify,v 1.5 2009/01/12 13:55:52 michaels Exp $
+$Id: README.socksify,v 1.6 2009/08/16 12:58:45 michaels Exp $
 
 The shell script socksify in the bin directory is meant to aid in
 using socks with already compiled dynamic binaries.  This works by
@@ -8,9 +8,5 @@ then wrap all networking-related system calls.
 When used the script can socksify a program by simply giving it as a
 parameter to socksify:
 
-socksify ftp
+socksify ftp ftp.example.org
 
-A more permanent solution would be to add the LD_PRELOAD environment value
-to the shell startup files.  Then all non-set[ug]id applications that
-are linked dynamically would be socksified, but might make applications
-that do not need to be socksified run slower than they coudl.

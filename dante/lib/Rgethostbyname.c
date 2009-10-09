@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.53 2009/01/02 14:06:02 michaels Exp $";
+"$Id: Rgethostbyname.c,v 1.62 2009/10/06 10:21:18 michaels Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -112,7 +112,7 @@ Rgethostbyname2(name, af)
 
    switch (af) {
       case AF_INET: {
-         static char ipv4[INET_ADDRSTRLEN];
+         static char ipv4[sizeof(struct in_addr)];
 
          hostent->h_length     = sizeof(ipv4);
          *hostent->h_addr_list = ipv4;
@@ -121,7 +121,7 @@ Rgethostbyname2(name, af)
 
 #if HAVE_IPV6_SUPPORT
       case AF_INET6: {
-         static char ipv6[INET6_ADDRSTRLEN];
+         static char ipv6[struct in6_addr)];
 
          hostent->h_length     = sizeof(ipv6);
          *hostent->h_addr_list = ipv6;
@@ -160,11 +160,14 @@ Rgetaddrinfo(nodename, servname, hints, res)
    const struct addrinfo *hints;
    struct addrinfo **res;
 {
-   const char *function = "Rgetaddrinfo()"; 
+   const char *function = "Rgetaddrinfo()";
    struct addrinfo fakehints;
    struct in_addr ipindex;
-   char addrstr[INET6_ADDRSTRLEN];
-   char addrbuf[sizeof(struct in6_addr)];
+#if HAVE_IPV6_SUPPORT
+   char addrstr[INET6_ADDRSTRLEN], addrbuf[sizeof(struct in6_addr)];
+#else /* !HAVE_IPV6_SUPPORT */
+   char addrstr[INET_ADDRSTRLEN], addrbuf[sizeof(struct in_addr)];
+#endif /* !HAVE_IPV6_SUPPORT */
    int fakeip_flag;
    int gaierr;
 
@@ -176,26 +179,27 @@ Rgetaddrinfo(nodename, servname, hints, res)
    fakeip_flag = 1;
 
    if (nodename == NULL
-   || (hints != NULL && hints->ai_flags & AI_NUMERICHOST)) {
+   || (hints != NULL && hints->ai_flags & AI_NUMERICHOST))
       fakeip_flag = 0;
-
-   } else if (hints == NULL || hints->ai_protocol == PF_UNSPEC) {
+   else if (hints == NULL || hints->ai_protocol == PF_UNSPEC) {
 #if HAVE_IPV6_SUPPORT
       if (inet_pton(AF_INET6, nodename, addrbuf) == 1
       ||  inet_pton(AF_INET,  nodename, addrbuf) == 1)
          fakeip_flag = 0;
-#else  /* HAVE_IPV6_SUPPORT */
+#else /* !HAVE_IPV6_SUPPORT */
       if (inet_pton(AF_INET,  nodename, addrbuf) == 1)
          fakeip_flag = 0;
-#endif  /* HAVE_IPV6_SUPPORT */
+#endif /* !HAVE_IPV6_SUPPORT */
 
 #if HAVE_IPV6_SUPPORT
-   } else if (hints->ai_protocol == PF_INET6) {
+   }
+   else if (hints->ai_protocol == PF_INET6) {
       if (inet_pton(AF_INET6, nodename, addrbuf) == 1)
          fakeip_flag = 0;
-#endif  /* HAVE_IPV6_SUPPORT */
+#endif /* HAVE_IPV6_SUPPORT */
 
-   } else if (hints->ai_protocol == PF_INET) {
+   }
+   else if (hints->ai_protocol == PF_INET) {
       if (inet_pton(AF_INET,  nodename, addrbuf) == 1)
          fakeip_flag = 0;
    }
@@ -220,13 +224,23 @@ Rgetaddrinfo(nodename, servname, hints, res)
    if (!fakeip_flag || nodename == NULL)
       return EAI_NONAME;
 
-   if (sockscf.resolveprotocol != RESOLVEPROTOCOL_FAKE) 
-      slog(LOG_DEBUG, "%s: getaddrinfo(%s): %s",
-      function, nodename, gai_strerror(gaierr));
+   if (sockscf.resolveprotocol != RESOLVEPROTOCOL_FAKE)
+      slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) failed: %s",
+      function,
+      nodename == NULL ? "null" : nodename,
+      servname == NULL ? "null" : servname, gai_strerror(gaierr));
 
    if ((ipindex.s_addr = socks_addfakeip(nodename)) == htonl(INADDR_NONE))
       return EAI_NONAME;
-   strcpy(addrstr, inet_ntoa(ipindex));
+
+   addrstr[sizeof(addrstr) - 1] = NUL;
+   strncpy(addrstr, inet_ntoa(ipindex), sizeof(addrstr));
+   SASSERTX(addrstr[sizeof(addrstr) - 1] == NUL);
+
+   slog(LOG_DEBUG, "%s: faking ipaddress %s for (%s, %s)", 
+   function, addrstr, 
+   nodename == NULL ? "null" : nodename,
+   servname == NULL ? "null" : servname);
 
    if (hints == NULL) {
       fakehints.ai_flags     = AI_NUMERICHOST;
@@ -239,11 +253,12 @@ Rgetaddrinfo(nodename, servname, hints, res)
       fakehints.ai_socktype = hints->ai_socktype;
       fakehints.ai_protocol = hints->ai_protocol;
    }
+
    fakehints.ai_addrlen   = 0;
    fakehints.ai_canonname = NULL;
    fakehints.ai_addr      = NULL;
    fakehints.ai_next      = NULL;
-   
+
    return getaddrinfo(addrstr, servname, &fakehints, res);
 }
 
@@ -263,7 +278,7 @@ Rgetipnodebyname2(name, af, flags, error_num)
    int flags;
    int *error_num;
 {
-   const char *function = "Rgetipnodebyname2()"; 
+   const char *function = "Rgetipnodebyname2()";
    char **addrlist;
    struct in_addr ipindex;
    struct hostent *hostent;
@@ -271,18 +286,18 @@ Rgetipnodebyname2(name, af, flags, error_num)
    /* needs to be done before getipnodebyname calls. */
    clientinit();
 
-   slog(LOG_DEBUG, "%s: %s", function, name); 
+   slog(LOG_DEBUG, "%s: %s", function, name);
 
    switch (sockscf.resolveprotocol) {
       case RESOLVEPROTOCOL_TCP:
       case RESOLVEPROTOCOL_UDP:
-          slog(LOG_DEBUG, "%s: using udp/tcp", function); 
+          slog(LOG_DEBUG, "%s: using udp/tcp", function);
          if ((hostent = getipnodebyname(name, af, flags, error_num)) != NULL)
             return hostent;
          break;
 
       case RESOLVEPROTOCOL_FAKE:
-           slog(LOG_DEBUG, "%s: using fake", function); 
+           slog(LOG_DEBUG, "%s: using fake", function);
          hostent = NULL;
          h_errno = NO_RECOVERY;
          break;
@@ -317,22 +332,24 @@ Rgetipnodebyname2(name, af, flags, error_num)
 
    switch (af) {
       case AF_INET: {
-         static char ipv4[INET_ADDRSTRLEN];
+         static char ipv4[sizeof(struct in_addr)];
 
-         slog(LOG_DEBUG, "%s: AF_INET", function); 
+         slog(LOG_DEBUG, "%s: AF_INET", function);
          hostent->h_length = sizeof(ipv4);
          *addrlist = ipv4;
          break;
       }
 
+#if HAVE_IPV6_SUPPORT
       case AF_INET6: {
-         static char ipv6[INET6_ADDRSTRLEN];
+         static char ipv6[sizeof(struct in6_addr)];
 
-         slog(LOG_DEBUG, "%s: AF_INET6", function); 
+         slog(LOG_DEBUG, "%s: AF_INET6", function);
          hostent->h_length = sizeof(ipv6);
          *addrlist = ipv6;
          break;
       }
+#endif /* HAVE_IPV6_SUPPORT */
 
       default:
          swarnx("%s: unsupported address family: %d", function, af);
@@ -354,27 +371,27 @@ Rgetipnodebyname2(name, af, flags, error_num)
 
    switch (af) {
       case AF_INET: {
-         memcpy(*addrlist, &ipindex.s_addr, sizeof(in_addr_t));
+         memcpy(*addrlist, &ipindex.s_addr, sizeof(struct in_addr));
          break;
       }
 
+#if HAVE_IPV6_SUPPORT
       case AF_INET6: {
          unsigned char ff[] = {0xff,0xff};
 
          memset(*addrlist, 0, 10);
-         memcpy(*addrlist+10, ff, 2);
-           memcpy(*addrlist+12, &ipindex.s_addr, 
-         sizeof(in_addr_t));
+         memcpy(*addrlist + 10, ff, 2);
+         memcpy(*addrlist + 12, &ipindex.s_addr, sizeof(struct in_addr));
          break;
       }
-
+#endif /* HAVE_IPV6_SUPPORT */
 
       default:
          SERRX(af);
    }
 
    slog(LOG_DEBUG, "%s: after inet_pton (0x%x, %s)",
-   function, (unsigned int)*addrlist, inet_ntoa(ipindex)); 
+   function, (unsigned int)*addrlist, inet_ntoa(ipindex));
 
    hostent->h_addr_list = addrlist++;
    *addrlist = NULL;
@@ -400,13 +417,13 @@ Rgetipnodebyname(name, af, flags, error_num)
    return hent;
 }
 
-void 
+void
 Rfreehostent(ptr)
    struct hostent *ptr;
 {
    struct in_addr addr;
-   
-   if(socks_getfakeip(ptr->h_name, &addr)) {
+
+   if (socks_getfakeip(ptr->h_name, &addr)) {
       free(ptr->h_name);
       free(*(ptr->h_addr_list));
       free(ptr->h_addr_list);
@@ -415,5 +432,4 @@ Rfreehostent(ptr)
    else
       freehostent(ptr);
 }
-
 #endif /* HAVE_GETIPNODEBYNAME */

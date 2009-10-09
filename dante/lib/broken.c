@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,13 +39,13 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: broken.c,v 1.19 2009/01/02 14:06:03 michaels Exp $
+ * $Id: broken.c,v 1.24 2009/09/02 11:39:41 michaels Exp $
  */
 
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: broken.c,v 1.19 2009/01/02 14:06:03 michaels Exp $";
+"$Id: broken.c,v 1.24 2009/09/02 11:39:41 michaels Exp $";
 
 #if HAVE_SHADOW_H && HAVE_GETSPNAM
 #include <shadow.h>
@@ -55,6 +55,7 @@ struct passwd *
 socks_getpwnam(login)
    const char *login;
 {
+   const int errno_s = errno;
    struct passwd *pwd;
 
    if ((pwd = getpwnam(login)) == NULL)
@@ -74,6 +75,14 @@ socks_getpwnam(login)
 #error "getprpwnam() not supported"
    pwd = NULL;
 #endif /* HAVE_GETSPNAM */
+
+   /*
+    * some systems can set errno even on success. :-/
+    * E.g. OpenBSD 4.4. seems to do this.  Looks like it tries
+    * /etc/spwd.db first, and if that fails, /etc/pwd.db, but it
+    * forgets to reset errno.
+    */
+   errno = errno_s;
 
    return pwd;
 }

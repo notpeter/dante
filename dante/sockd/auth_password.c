@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: auth_password.c,v 1.15 2009/01/02 14:06:07 michaels Exp $";
+"$Id: auth_password.c,v 1.22 2009/10/02 07:51:19 michaels Exp $";
 
 int
 passwordcheck(name, clearpassword, emsg, emsglen)
@@ -53,28 +53,31 @@ passwordcheck(name, clearpassword, emsg, emsglen)
    char *emsg;
    size_t emsglen;
 {
-   const char *function = "passwordcheck()"; 
+   const char *function = "passwordcheck()";  
    struct passwd *pw;
    char password[MAXPWLEN];
-   uid_t euid;
    int rc;
 
-   socks_seteuid(&euid, sockscf.uid.privileged);
+   slog(LOG_DEBUG, "%s: name = %s", function, name);
+
+   if (clearpassword != NULL) /* don't need privilieges to lookup name. */
+      sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_ON);
 
    if ((pw = socks_getpwnam(name)) == NULL) {
-      socks_reseteuid(sockscf.uid.privileged, euid);
-      snprintfn(emsg, emsglen, "no such system user");
+      sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_OFF);
+      snprintfn(emsg, emsglen, "no such user on system: %s", name);
+
       return -1;
    }
 
-   /* copy it before socks_reseteuid() can overwrite it. */
+   /* copy it before the PRIV_OFF changes it. */
    strncpy(password, pw->pw_passwd, sizeof(password) - 1);
    password[sizeof(password) - 1] = NUL;
 
-   socks_reseteuid(sockscf.uid.privileged, euid);
+   if (clearpassword != NULL)
+      sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_OFF);
 
-   slog(LOG_DEBUG, "%s: clearpassword = %s\n", function, clearpassword);
-   if (clearpassword == NULL) /* rfc931. */
+   if (clearpassword == NULL) /* no password to check. */
       rc = 0;
    else {
       const char *salt = password;
