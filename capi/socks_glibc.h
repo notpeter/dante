@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks_glibc.h,v 1.6 2009/10/04 12:47:22 michaels Exp $ */
+/* $Id: socks_glibc.h,v 1.7 2009/10/27 12:13:01 karls Exp $ */
 
 /*
  * Workaround for limitations in newer glibc versions, as LD_PRELOAD
@@ -97,4 +97,4 @@ size_t Rfwrite(const void *ptr, size_t size, size_t nmb, FILE *fp);
 size_t Rfread(void *ptr, size_t size, size_t nmb, FILE *fp);
 int Rfflush(FILE *fp);
 int Rfclose(FILE *fp);
-#endif
+#endif /* HAVE_GSSAPI */

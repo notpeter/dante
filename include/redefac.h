@@ -455,6 +455,11 @@
 #endif
 
 
+#ifndef HAVE_OPENBSD_BUGS
+#define HAVE_OPENBSD_BUGS 0
+#endif
+
+
 #ifndef HAVE_OPENLOG_LOG_PERROR
 #define HAVE_OPENLOG_LOG_PERROR 0
 #endif

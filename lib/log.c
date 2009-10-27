@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.110 2009/10/05 16:30:59 michaels Exp $";
+"$Id: log.c,v 1.113 2009/10/23 11:43:36 karls Exp $";
 
 #include "common.h"
 
@@ -53,7 +53,7 @@ static const char rcsid[] =
 #if DEBUG
 #undef SOCKS_IGNORE_SIGNALSAFETY
 #define SOCKS_IGNORE_SIGNALSAFETY 1
-#endif
+#endif /* DEBUG */
 
 static const struct {
    const char *name;
@@ -123,7 +123,7 @@ newprocinit(void)
     * not using this for client, since if e.g. the client forks, we'd
     * end up printing the wrong pid.
     */
-   sockscf.state.pid = getpid(); 
+   sockscf.state.pid = getpid();
 
    /* don't want to override original clients stuff. */
    if (sockscf.log.type & LOGTYPE_SYSLOG) {
@@ -217,7 +217,7 @@ socks_addlogfile(logfile)
           * Now that fileno(3) is no longer just a simple macro (due to
           * 1003.1-2001?), but something that can require locking, which I
           * don't think we need, just do a lookup here instead and save the
-          * value.  Avoids a possible (?) deadlock in vslog, where we do 
+          * value.  Avoids a possible (?) deadlock in vslog, where we do
           * fileno(3) both for SYSCALL_START and SYSCALL_END(), and in
           * between lock the logfile itself.
           */
@@ -296,7 +296,7 @@ vslog(priority, message, ap, apsyslog)
     * This needs to be at least as larg as SOCKD_BUFSIZE, as in
     * the worst (best?) case, that's how much we will read/write
     * from the socket, and user wants to log it all ...
-    */ 
+    */
    char buf[SOCKD_BUFSIZE + 2048 /* 2048: "context" */];
 #endif /* !SOCKS_CLIENT */
    int logged = 0;
@@ -306,7 +306,7 @@ vslog(priority, message, ap, apsyslog)
    if (sockscf.state.insignal && priority > LOG_ERR) /* > pri means < serious */
       /*
        * Note that this can be the case even if insignal is not set.
-       * This can happen in the client if the application has 
+       * This can happen in the client if the application has
        * installed a signalhandler, and that signalhandler ends
        * up making calls that involve us.
        */
@@ -371,10 +371,14 @@ logformat(priority, buf, buflen, message, ap)
    size_t bufused;
    pid_t pid;
 
+#if SOCKS_CLIENT /* can't trust saved state. */
+   pid = getpid();
+#else /* !SOCKS_CLIENT */
    if (sockscf.state.pid == 0)
       pid = getpid();
    else
       pid = sockscf.state.pid;
+#endif /* !SOCKS_CLIENT */
 
    switch (priority) {
       case LOG_DEBUG:

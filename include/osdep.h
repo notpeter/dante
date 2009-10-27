@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: osdep.h,v 1.49 2009/10/05 09:00:44 karls Exp $ */
+/* $Id: osdep.h,v 1.51 2009/10/23 11:08:01 karls Exp $ */
 
 #if HAVE_LINUX_ECCENTRICITIES
 /*
@@ -168,11 +168,10 @@
 
 #if HAVE_GSSAPI
 
-#if HAVE_GSSAPI_H
-#include <gssapi.h>
-#endif /* HAVE_GSSAPI_H */
 #if HAVE_GSSAPI_GSSAPI_H
 #include <gssapi/gssapi.h>
+#elif HAVE_GSSAPI_H
+#include <gssapi.h>
 #endif /* HAVE_GSSAPI_GSSAPI_H */
 #if HAVE_GSSAPI_GSSAPI_EXT_H
 #include <gssapi/gssapi_ext.h>
@@ -270,7 +269,7 @@ typedef int sig_atomic_t;
  typedef unsigned char ubits_8;
  typedef          char sbits_8;
 #else
-error "no known 8 bits wide datatype"
+error "no known 8 bits wide data type"
 #endif
 
 #if SIZEOF_SHORT == 2
@@ -281,7 +280,7 @@ error "no known 8 bits wide datatype"
   typedef unsigned int ubits_16;
   typedef          int sbits_16;
 # else
-error "no known 16 bits wide datatype"
+error "no known 16 bits wide data type"
 # endif
 #endif
 
@@ -297,7 +296,7 @@ error "no known 16 bits wide datatype"
     typedef unsigned long ubits_32;
     typedef          long sbits_32;
 #  else
-error "no known 32 bits wide datatype"
+error "no known 32 bits wide data type"
 #  endif /* SIZEOF_LONG == 4 */
 # endif /* SIZEOF_SHORT == 4 */
 #endif /* SIZEOF_INT == 4 */
@@ -410,7 +409,7 @@ extern int h_errno;
 
 #ifndef _NSIG
 #define _NSIG  (32)  /* number of signals. */
-#endif  /* !_NSIG */
+#endif /* !_NSIG */
 
 /*
  * libscompat functions

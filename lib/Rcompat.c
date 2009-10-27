@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.56 2009/10/01 16:19:58 michaels Exp $";
+"$Id: Rcompat.c,v 1.60 2009/10/23 11:43:34 karls Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -136,8 +136,7 @@ Rsendmsg(s, msg, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d, msg %s",
-   function, s, msg == NULL ? "is NULL" : "is not NULL");
+   slog(LOG_DEBUG, "%s, socket %d, msg %p", function, s, msg);
 
    if (msg == NULL)
       return write(s, NULL, 0);
@@ -174,7 +173,7 @@ Rsendmsg(s, msg, flags)
          break;
    }
 
-   if (sent == 0)
+   if (sent <= 0)
       return rc;
 
    return sent;
@@ -302,8 +301,9 @@ Rrecvmsg(s, msg, flags)
          break;
    }
 
-   if (received == 0)
+   if (received <= 0)
       return rc;
+
    return received;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2002, 2003, 2009
+ * Copyright (c) 2001, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,11 +43,11 @@
 
 #include "common.h"
 
-static const char rcsid[] =
-"$Id: redirect.c,v 1.7 2009/01/02 14:06:10 michaels Exp $";
+static const char rcsid[] = 
+"$Id: redirect.c,v 1.9 2009/10/22 17:36:12 karls Exp $";
 
 const char module_redirect_version[] =
-"$Id: redirect.c,v 1.7 2009/01/02 14:06:10 michaels Exp $";
+"$Id: redirect.c,v 1.9 2009/10/22 17:36:12 karls Exp $";
 
 
 void

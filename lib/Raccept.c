@@ -44,18 +44,18 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.114 2009/10/05 15:25:45 michaels Exp $";
+"$Id: Raccept.c,v 1.116 2009/10/23 11:43:33 karls Exp $";
 
 static int
-addforwarded(const int local, const int remote, 
+addforwarded(const int local, const int remote,
              const struct sockaddr *remoteaddr,
              const struct sockaddr *virtualremoteaddr);
 /*
  * Adds a proxy-forwarded remote client to our list over proxied
- * clients.  
+ * clients.
  * "local" gives the local socket we listen on,
  * "remote" is the socket connected to the remote client,
- * "remoteaddr" is the physical peer of "remote" (the proxyserver), 
+ * "remoteaddr" is the physical peer of "remote" (the proxyserver),
  * and "virtualremoteaddr" is the address the proxy claims to be
  * forwarding.
  *
@@ -321,7 +321,7 @@ addforwarded(local, remote, remoteaddr, virtualremoteaddr)
     * local address too, so need to add it to the socksfd table.
     */
 
-   rfd.state.acceptpending = 0; 
+   rfd.state.acceptpending = 0;
    rfd.remote              = *remoteaddr;
    rfd.forus.accepted      = *virtualremoteaddr;
 

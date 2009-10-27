@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.32 2009/09/06 19:31:16 michaels Exp $";
+"$Id: httpproxy.c,v 1.34 2009/10/23 11:43:36 karls Exp $";
 
 int
 httpproxy_negotiate(s, packet)
@@ -163,11 +163,11 @@ httpproxy_negotiate(s, packet)
 
                   rc = atoi(&buf[strlen(offset)]);
 
-                  slog(LOG_DEBUG, "%s: replycode from httpserver is %ld",
+                  slog(LOG_DEBUG, "%s: reply code from http server is %ld",
                   function, (long)rc);
 
                   /*
-                   * http replycode is > 8 bits, socks is 8 bits.
+                   * http reply code is > 8 bits, socks is 8 bits.
                    * Just make sure we don't end up truncating failure to
                    * HTTP_SUCCESS.
                    */

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.23 2009/08/18 14:00:39 karls Exp $";
+"$Id: addressmatch.c,v 1.27 2009/10/23 11:43:35 karls Exp $";
 
 static int
 addrisinlist(const struct in_addr *addr, const struct in_addr *mask,
@@ -106,12 +106,12 @@ addrmatch(rule, address, protocol, alias)
    int matched, doresolve;
    char rstring[MAXRULEADDRSTRING], astring[MAXSOCKSHOSTSTRING];
 
-   slog(LOG_DEBUG, "%s: %s, %s, %s, %d",
+   slog(LOG_DEBUG, "%s: matching %s against %s, for protocol %s, %s alias",
    function,
    ruleaddr2string(rule, rstring, sizeof(rstring)),
    sockshost2string(address, astring, sizeof(astring)),
    protocol2string(protocol),
-   alias);
+   alias ? "with" : "without");
 
    /* test port first since we always have all info needed for that locally. */
    switch (protocol) {
@@ -221,8 +221,8 @@ addrmatch(rule, address, protocol, alias)
       matched = addrisinlist(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
       (const struct in_addr **)hostent->h_addr_list);
    }
-   else if (rule->atype == SOCKS_ADDR_IPV4
-   && address->atype == SOCKS_ADDR_IPV4) {
+   else if (rule->atype    == SOCKS_ADDR_IPV4
+   &&       address->atype == SOCKS_ADDR_IPV4) {
       /*
        * match(rule.ipaddress, address.ipaddress)
        * try first a simple comparison, address against rule.
@@ -350,8 +350,8 @@ addrmatch(rule, address, protocol, alias)
    &&       address->atype == SOCKS_ADDR_IPV4) {
       /*
        * match(rule.hostname, address.ipaddress)
-       * If rule is not a domain, try resolving rule to IP address(es)
-       * and match against address.
+       * If rule is not a domain but a hostname, try resolving rule to
+       * IP address(es) and match against address.
        *      address isin rule->ipaddress
        *      .
        *
@@ -399,6 +399,18 @@ addrmatch(rule, address, protocol, alias)
          if (hostareeq(rule->addr.domain, hostent->h_name)
          ||  hostisinlist(rule->addr.domain, (const char **)hostent->h_aliases))
             matched = 1;
+#if !HAVE_NO_RESOLVESTUFF
+         else if (strchr(hostent->h_name, '.') == NULL) {
+            /* if hostname we got is non-qualified, try to qualify it. */
+            char fqdn[MAXHOSTNAMELEN];
+
+            snprintf(fqdn, sizeof(fqdn), "%s.%s",
+            hostent->h_name, _res.defdname);
+
+            if (hostareeq(rule->addr.domain, fqdn))
+               matched = 1;
+         }
+#endif /* !HAVE_NO_RESOLVESTUFF */
       }
 
       if (!matched && alias) {
@@ -441,7 +453,6 @@ addrmatch(rule, address, protocol, alias)
                /* ip; address->hostname->ipaddress->hostname */
                if ((ip = gethostbyaddr(host->h_addr_list[ii],
                sizeof(struct in_addr), AF_INET)) == NULL) {
-                  /* LINTED pointer casts may be troublesome */
                   slog(LOG_DEBUG, "%s: gethostbyaddr(%s): %s",
                   function, inet_ntoa(*(struct in_addr *)host->h_addr_list[ii]),
                   hstrerror(h_errno));
@@ -454,6 +465,20 @@ addrmatch(rule, address, protocol, alias)
                   matched = 1;
                   break;
                }
+#if !HAVE_NO_RESOLVESTUFF
+               else if (strchr(ip->h_name, '.') == NULL) {
+                  /* if hostname we got is non-qualified, try to qualify it. */
+                  char fqdn[MAXHOSTNAMELEN];
+
+                  snprintf(fqdn, sizeof(fqdn), "%s.%s",
+                  ip->h_name, _res.defdname);
+
+                  if (hostareeq(rule->addr.domain, fqdn)) {
+                     matched = 1;
+                     break;
+                  }
+               }
+#endif /* !HAVE_NO_RESOLVESTUFF */
             }
 
             hostentfree(host);
@@ -546,8 +571,11 @@ hostareeq(domain, remotedomain)
    const char *domain;
    const char *remotedomain;
 {
+   const char *function = "hostareeq()";
    const int domainlen = strlen(domain);
    const int remotedomainlen = strlen(remotedomain);
+
+   slog(LOG_DEBUG, "%s: %s, %s", function, domain, remotedomain);
 
    if   (*domain == '.')   { /* match everything ending in domain */
       if (domainlen - 1 > remotedomainlen)

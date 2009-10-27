@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: tostring.h,v 1.31 2009/08/21 15:35:36 michaels Exp $ */
+/* $Id: tostring.h,v 1.32 2009/10/23 11:08:02 karls Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
@@ -207,7 +207,7 @@ string2udpheader(const char *data, size_t len, struct udpheader_t *header)
  * "data" is assumed to be in network order.
  * Returns:
  *      On success: pointer to a udpheader_t in static memory.
- *      On failure: NULL ("data" is not a complete udppacket).
+ *      On failure: NULL ("data" is not a complete udp packet).
  */
 
 const char *
@@ -270,7 +270,7 @@ socket2string(const int s, char *buf, size_t buflen)
 const char *
 version2string(int version);
 /*
- * Returns a printable representation of the proxyprotocolversion "version".
+ * Returns a printable representation of the proxy protocol version "version".
  */
 
 const char *

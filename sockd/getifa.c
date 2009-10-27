@@ -1,5 +1,5 @@
 /*
- * $Id: getifa.c,v 1.55 2009/08/23 15:17:31 michaels Exp $
+ * $Id: getifa.c,v 1.57 2009/10/23 10:37:26 karls Exp $
  *
  * Copyright (c) 2001, 2002, 2006, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -53,7 +53,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getifa.c,v 1.55 2009/08/23 15:17:31 michaels Exp $";
+"$Id: getifa.c,v 1.57 2009/10/23 10:37:26 karls Exp $";
 
 /*
  * Given a destination address, getifa() returns the local source address
@@ -197,7 +197,7 @@ getifa(destaddr)
       }
    }
 
-   slog(LOG_DEBUG, "%s: can't find a gateway for %s, using defaultexternal",
+   slog(LOG_DEBUG, "%s: can't find a gateway for %s, using default external",
    function, inet_ntoa(destaddr));
    close(rtnetlink_sk);
    return getdefaultexternal();
@@ -307,7 +307,7 @@ getifa(destaddr)
       switch (i) {
          case RTAX_GATEWAY:
             if (!(rtm->rtm_addrs & RTA_GATEWAY)) {
-               swarnx("%s: can't find gateway for %s, using defaultexternal",
+               swarnx("%s: can't find gateway for %s, using default external",
                function, inet_ntoa(destaddr));
                close(sockfd);
 
@@ -318,7 +318,7 @@ getifa(destaddr)
          case RTAX_IFA:
             if (!(rtm->rtm_addrs & RTA_IFA)
             ||  TOIN(sa)->sin_family != AF_INET) {
-              swarnx("%s: can't find ifa for %s, using defaultexternal",
+              swarnx("%s: can't find ifa for %s, using default external",
               function, inet_ntoa(destaddr));
               close(sockfd);
               return getdefaultexternal();

@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.54 2009/10/02 11:58:05 michaels Exp $";
+"$Id: tostring.c,v 1.57 2009/10/23 11:43:37 karls Exp $";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -267,6 +267,7 @@ ruleaddr2string(address, string, len)
    char *string;
    size_t len;
 {
+   size_t lenused;
 
    if (string == NULL || len == 0) {
       static char addrstring[MAXRULEADDRSTRING];
@@ -275,11 +276,13 @@ ruleaddr2string(address, string, len)
       len    = sizeof(addrstring);
    }
 
+   lenused = snprintf(string, len, "%s ", atype2string(address->atype));
+
    switch (address->atype) {
       case SOCKS_ADDR_IPV4: {
          char *a;
 
-         snprintfn(string, len,
+         snprintfn(&string[lenused], len - lenused,
          "%s/%d%s, %s: %s%d%s, %s: %s%d%s, %s: %s, %s: %s%d",
          strcheck(a = strdup(inet_ntoa(address->addr.ipv4.ip))),
          bitcount((unsigned long)address->addr.ipv4.mask.s_addr),
@@ -303,7 +306,7 @@ ruleaddr2string(address, string, len)
       }
 
       case SOCKS_ADDR_DOMAIN:
-         snprintfn(string, len,
+         snprintfn(&string[lenused], len - lenused,
          "%s%s, %s: %s%d%s, %s: %s%d%s, %s: %s, %s: %s%d",
          address->addr.domain,
          QUOTE0(),
@@ -323,7 +326,7 @@ ruleaddr2string(address, string, len)
          break;
 
       case SOCKS_ADDR_IFNAME:
-         snprintfn(string, len,
+         snprintfn(&string[lenused], len - lenused,
          "%s%s, %s: %s%d%s, %s : %s%d%s, %s: %s, %s: %s%d",
          address->addr.ifname,
          QUOTE0(),

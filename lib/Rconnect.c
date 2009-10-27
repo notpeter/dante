@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.167 2009/10/04 13:46:08 michaels Exp $";
+"$Id: Rconnect.c,v 1.170 2009/10/23 11:43:34 karls Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -150,7 +150,7 @@ Rconnect(s, name, namelen)
                val = connect(s, name, namelen);
 
                slog(LOG_DEBUG, "%s: connect(2) called again on upnp socket "
-                               "returned %d, errno = %d (%s)", 
+                               "returned %d, errno = %d (%s)",
                                function, val, errno, strerror(errno));
 
                return val;
@@ -198,6 +198,13 @@ Rconnect(s, name, namelen)
       case SOCK_DGRAM: {
          struct route_t *route;
 
+         /*
+          * connect to the original destination first, and later
+          * to the socks-server if successful.
+          */
+         if (connect(s, name, namelen) != 0)
+            return -1;
+
          if ((route = udpsetup(s, name, SOCKS_SEND)) == NULL)
             return -1;
 
@@ -216,16 +223,6 @@ Rconnect(s, name, namelen)
                return -1;
             }
          }
-         else if (socksfd.state.version == PROXY_UPNP) {
-            int p;
-
-            if ((p = connect(s, name, namelen)) != 0) {
-               swarn("%s: connect(%s)",
-               function, sockaddr2string(name, namestr, sizeof(namestr)));
-
-               return p;
-            }
-         }
 
          socksfd.state.udpconnect = 1;
          socksfd.forus.connected  = *name;
@@ -239,7 +236,7 @@ Rconnect(s, name, namelen)
          break;
 
       default:
-         swarnx("%s: unknown protocoltype %d, falling back to system connect",
+         swarnx("%s: unknown protocol type %d, falling back to system connect",
          function, val);
          return connect(s, name, namelen);
    }
@@ -273,7 +270,7 @@ Rconnect(s, name, namelen)
    if (packet.req.version == PROXY_DIRECT) {
       int rc;
 
-      slog(LOG_DEBUG, "%s: using direct systemcalls for socket %d",
+      slog(LOG_DEBUG, "%s: using direct system calls for socket %d",
       function, s);
 
       rc = connect(s, name, namelen);
@@ -348,7 +345,7 @@ Rconnect(s, name, namelen)
              *
              * For now, lets retry with a new socket.
              * This means the server no longer has bound the address
-             * it (may) think it has ofcourse, so not sure how smart this
+             * it (may) think it has of course, so not sure how smart this
              * really is.
              */
             int tmp_s;
@@ -394,7 +391,7 @@ Rconnect(s, name, namelen)
       return -1;
 
    savederrno = errno;
-   slog(LOG_DEBUG, "%s: errno after successfull socks_negotiate() is %d",
+   slog(LOG_DEBUG, "%s: errno after successful socks_negotiate() is %d",
    function, savederrno);
 
    socksfd.state.auth            = auth;
@@ -411,7 +408,7 @@ Rconnect(s, name, namelen)
       /*
        * unfortunate; the client is trying to connect from a specific
        * port, a port it has successfully bound, but the port is currently
-       * in use on the serverside or the server doesn't care.
+       * in use on the server side or the server doesn't care.
        */
 
       /* LINTED pointer casts may be troublesome */

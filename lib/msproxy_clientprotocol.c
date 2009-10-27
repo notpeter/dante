@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: msproxy_clientprotocol.c,v 1.59 2009/09/28 11:24:07 michaels Exp $";
+"$Id: msproxy_clientprotocol.c,v 1.61 2009/10/23 11:43:36 karls Exp $";
 
 static char executable[] = "TELNET.EXE";
 static struct sigaction oldsigio;

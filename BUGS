@@ -1,67 +1,96 @@
-# $Id: BUGS,v 1.54 2009/10/09 07:37:31 michaels Exp $
+# $Id: BUGS,v 1.63 2009/10/27 11:43:46 karls Exp $
 
 To report a new bug, mail dante-bugs@inet.no.
 Make sure you read the FAQ (http://www.inet.no/dante/FAQ/) first.
 
-Bugs in the server: none known.
- - When server-chaining is used, if sockd1 can not resolve hostname
+Bugs in the server: 
+ - When server-chaining is used, if sockd1 cannot resolve hostname
    H sent by the client, it will not ask sockd2 to connect to 
    hostname H, even though sockd2 may be able to resolve H and connect.
 
    Reported by Mathieu DELAPLACE <mathieu.delaplace@gmail.com.example.com>
 
-Bugs in the client: none known.
+Bugs in the client: 
+ - If debugging is enabled, there are a some cases where a deadlock
+   can occur.  Not analyzed yet.
 
-There are various known problems due to limitations on certain
-platforms.
+ - Clients that use getsockopt(2) to figure whether a socket
+   experienced an error may fail to discover there is an error before
+   they do i/o.
 
-Client part:
- - If getnameinfo(3) is not reentrant/thread safe, as e.g. on FreeBSD,
-   sometimes problems will occur that are hard to diagnose. but often
-   involves an error message similar to this found in socks.log:
-   "Rconnect(): connecting socket 4 to a.b.c.d.e failed: Bad file descriptor
-   (errno = X)".
-   This occurs because the Dante library needed to call getnameinfo(3)
-   during establishment of a socks-session, but the reason it needed
-   to establish a socks-session is because getnameinfo(3) was called
-   by the client.  That means there are two instances of getnameinfo(3)
-   on the stack, and that does not work unless the function is reentrant.
+There are various known problems due to limitations on certain platforms
+that can cause problems for Dante, but which we currently do not consider
+bugs in Dante, but rather in the host system.  We have tried to work
+around most of these.  The below lists the one for which there currently
+is no workaround implemented.
 
-   Usually this will only occur if there is no direct route for dns.
-
- - On Solaris 5.11, it seems possible for a socket, after it has
-   experienced a communication-error with the peer, to lose both the
-   local and remote address information.  If this happens during
-   a non-blocking connect, it can cause the client to hang as the
-   socks library will be unable to figure out what socks-session
-   the socket belongs to.
-   A workaround was attempted by adding the inode information of the
-   socket, and track the socket by that, but on Solaris 5.11, the
-   device/inode combination for a socket is unfortunately not unique.
-
- - GSSAPI related:
-     - tcp oob data does not work in the client in buffered mode as
-       we have no code to handle the oob flag in the io-buffer.
-       Only affects Linux/glibc platforms, and it seems, Solaris 5.11,
-       when socksifying applications that use stdio for network i/o.
-
-     - Applications with symbols that collide with kerberos/gssapi
-       library functions can result in segmentation fault if these
-       applications are the first applications run after getting a
-       kerberos ticket. One example is dig, host, and nslookup, which
-       share common code with a variable that has the same name as the
-       MIT kerberos error_message() function. Debugging code in MIT
-       kerberos can result in this function being called even if the
-       application would work.
-
-       A workaround is to run a different application before using any
-       program which has this problem.
-
-     - The host command fails on OpenBSD when gssapi is enabled.
-       The exact cause of this has not yet been fully debugged, but
-       seems to be related to the host command doing something that
-       conflicts with the heimdal gssapi-related libraries.
 
 Generic:
-  - The --enable-profiling option does not work properly on opensolaris.
-    (possible problem when gssapi is used, with pthreads/_mcount)
+  - The --enable-profiling option does not work properly on OpenSolaris.
+    (possibly a problem when gssapi is used, with pthreads/_mcount.)
+
+Server part: none known.
+
+Client part:
+  - On OpenBSD, 4.5 at least, there seems to be a bug involving file status
+    flags on descriptor passed back and fourth between processes.  This can
+    make a client that performs non-blocking connects hang forever waiting
+    for the connect-result to be reported.
+ 
+  - GSSAPI related:
+    - The threadlibrary on OpenBSD 4.5 has numerous problems.  Some
+      of these can lead to the client crashing.  An unfortunate
+      side-effect of enabling gssapi in the client is that it might
+      lead applications that are not threaded to "become threaded"
+      due to linking with the gssapi-libraries, if the gssapi-libraries
+      are threaded.
+
+    - TCP oob data does not work in the client in buffered mode as
+      we have no code to handle the oob flag in the io-buffer.
+      Only affects Linux/glibc platforms, and it seems, Solaris 5.11,
+      when socksifying applications that use stdio for network i/o
+      instead of the standard system calls.
+ 
+    - Applications with symbols that collide with kerberos/gssapi
+      library functions can result in segmentation fault if these
+      applications are the first applications run after getting a
+      kerberos ticket.  Some examples are dig, host, and nslookup,
+      which share common code with a variable that has the same name
+      as the MIT kerberos error_message() function.
+
+      Debugging code in MIT kerberos can result in this function being
+      called even if the application would normally work.
+ 
+      A workaround is to run a different application before using any
+      program which has this problem.
+ 
+    - The host command fails on OpenBSD when gssapi is enabled.
+      The exact cause of this has not yet been fully debugged, but
+      seems to be related to the host command doing something that
+      conflicts with the heimdal gssapi-related libraries.
+ 
+    - On FreeBSD 7.2 there is at least one bug that prevents socksify
+      from working with gssapi-authentication unless there is a direct
+      dns route.  The problem is not so easy to diagnose. but involves
+      an error message similar to this found in socks.log:
+      "Rconnect(): connecting socket 4 to a.b.c.d.e failed: Bad file
+      descriptor (errno = X)".
+   
+      This occurs because the Dante library needs to call getnameinfo(3)
+      during establishment of a gssapi-based socks-session, but
+      sometimes the reason it needs to establish a socks-session is
+      because getnameinfo(3) was called by the client.  That means
+      there are two instances of getnameinfo(3) on the stack, and
+      Dante's getnameinfo(3) call ends up closing the socket the
+      clients getnameinfo(3) call created.
+   
+      See http://www.freebsd.org/cgi/query-pr.cgi?pr=139734 for more
+      information.
+   
+      A workaround for this problem is to always have a direct dns
+      route in socks.conf if using gssapi.
+      
+      Note that a direct dns route is recommended regardless of
+      whether you are using gssapi or not, for performance reasons if
+      nothing else.
+ 

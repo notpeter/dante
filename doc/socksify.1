@@ -1,4 +1,4 @@
-.\" $Id: socksify.1,v 1.2 2009/08/21 13:51:42 michaels Exp $
+.\" $Id: socksify.1,v 1.4 2009/10/23 11:13:29 karls Exp $
 .\"
 .\" Copyright (c) 2009
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -50,7 +50,7 @@ LD_PRELOAD environment variable to libdsocks.  It will then attempt
 to wrap all networking-related system calls.
 
 When used the script can socksify a program by simply prefixing
-the given program and it's arguments with the the socksify script, 
+the given program and it's arguments with the the socksify script,
 like in the example below.
 
 $ socksify ftp ftp.example.org
@@ -89,11 +89,11 @@ might be able to see your password.
 \fBSOCKS_SERVER\fP, \fBSOCKS4_SERVER\fP, \fBSOCKS5_SERVER\fP,
 These variables allow the address of the server to be specified
 without having a socks.conf file. The accepted format is
-<ipaddress>:<port>. 
+<ipaddress>:<port>.
 If the \fBSOCKS_SERVER\fP value is set, it indicates the specified server
 supports all socks versions supported by Dante.  If if either of the other
 two variables are used, they indicate the given socks server supports only
-the corresponding socks version, 
+the corresponding socks version,
 v4 or v5.
 .TP
 \fBHTTP_PROXY\fP

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.236 2009/10/09 07:27:45 michaels Exp $ */
+/* $Id: socks.h,v 1.239 2009/10/23 11:08:01 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -354,7 +354,7 @@
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
-#define FDPASS_MAX         2   /* max number of descriptors we send/receive. */
+#define FDPASS_MAX         2   /* max number of descriptors we send/receive.  */
 
 struct configstate_t {
    int               init;             /* inited?                             */
@@ -364,7 +364,7 @@ struct configstate_t {
    pid_t             pid;              /* our pid.                            */
    int               havegssapisockets;/* have gssapi-sockets?                */
    rlim_t            maxopenfiles;
-  
+
 };
 
 struct option_t {
@@ -387,11 +387,7 @@ struct config_t {
 };
 
 struct childpacket_t {
-   int                  s;         /* socket index.                           */
-   dev_t                device;    /* device of socket.                       */
-   ino_t                inode;     /* inode of socket.                        */
-   struct sockshost_t   src;       /* local address of control-connection.    */
-   struct sockshost_t   dst;       /* remote address of control-connection.   */
+   int                  s;         /* socket used for control-connection.     */
    struct socks_t       packet;    /* socks packet exchanged with server.     */
 };
 
@@ -404,13 +400,13 @@ typedef sigset_t addrlockopaque_t;
 void
 clientinit(void);
 /*
- * initialises clientstate, reads configfile, etc.
+ * initializes client state, reads configfile, etc.
  */
 
 void upnpcleanup(const int s);
 /*
  * cleanup upnp-stuff related to the socket "s", mostly involving removal
- * of portmappings.
+ * of port mappings.
  * If "s" is -1, clean up for all known sockets.
  */
 
@@ -495,9 +491,9 @@ void addrlockinit(void);
 void socks_addrlock(const int locktype, addrlockopaque_t *opaque);
 void socks_addrunlock(const addrlockopaque_t *opaque);
 /*
- * Lock/unlock global address object.  
- * "type" is one of F_WRLCK or F_RDLCK, for write or read-lock. 
- * "opaque" is a pointer filled in by "socks_addrlock()", and 
+ * Lock/unlock global address object.
+ * "type" is one of F_WRLCK or F_RDLCK, for write or read-lock.
+ * "opaque" is a pointer filled in by "socks_addrlock()", and
  * the same pointer needs to be passed to socks_addrunlock();
  */
 
@@ -521,7 +517,7 @@ socks_addaddr(const int clientfd, const struct socksfd_t *socksaddress,
  * The function duplicates all arguments in it's own form and does
  * not access the memory referenced by them afterwards.
  *
- * The function checks the state of all filedescriptors on each call and
+ * The function checks the state of all file descriptors on each call and
  * removes those that are no longer open.
  *
  * Returns:
@@ -537,8 +533,8 @@ socks_getaddr(const int fd, const int takelock);
  * socksfdv/addrlock.
  *
  * Returns:
- *      On success:  the socketaddress associated with filedescriptor "fd".
- *      On failure:    NULL.  (no socketaddress associated with "fd").
+ *      On success:  the socket address associated with file descriptor "fd".
+ *      On failure:    NULL.  (no socket address associated with "fd").
  */
 
 void
@@ -553,8 +549,7 @@ socks_rmaddr(const int s, const int takelock);
 
 int
 socks_addrcontrol(const struct sockaddr *local, const struct sockaddr *remote,
-                  const int s, const dev_t device, const ino_t inode,
-                  const int takelock);
+                  const int s, const int child_s, const int takelock);
 /*
  * If "takelock" is true, it means the function should take the
  * socksfdv/addrlock.
@@ -565,7 +560,7 @@ socks_addrcontrol(const struct sockaddr *local, const struct sockaddr *remote,
  * If "local" is NULL, that endpoint needs not match.
  * If "remote" is NULL, it is assumed the socket we are looking for
  * is not connected.
- * "s" gives the expected socketindex, if not -1.
+ * "s" gives the expected socket index, if not -1.
  * "inode" gives the fixed inode number, if not -1.
  * "device" gives the fixed device number of the inode, if not -1.
  *   Returns:
@@ -615,7 +610,7 @@ socks_addrisours(const int s, const int takelock);
 int
 fdisopen(int fd);
 /*
- * returns 1 if the filedescriptor "fd" currently references a open object.
+ * returns 1 if the file descriptor "fd" currently references a open object.
  * returns 0 otherwise.
  */
 
@@ -624,7 +619,7 @@ fdisopen(int fd);
 void
 cc_socksfdv(int sig);
 /*
- * consistencycheck on socksfdv.
+ * consistency check on socksfdv.
  */
 #endif /* DIAGNOSTIC */
 

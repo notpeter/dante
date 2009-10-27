@@ -1,14 +1,14 @@
 /*
- * $Id: redirect_key.c,v 1.5 2009/10/07 15:52:20 michaels Exp $
+ * $Id: redirect_key.c,v 1.7 2009/10/22 17:36:13 karls Exp $
  *
- * Copyright (c) 2001, 2002, 2003
+ * Copyright (c) 2001, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  */
 
 #include "common.h"
 
-static const char rcsid[] =
-"$Id: redirect_key.c,v 1.5 2009/10/07 15:52:20 michaels Exp $";
+static const char rcsid[] = 
+"$Id: redirect_key.c,v 1.7 2009/10/22 17:36:13 karls Exp $";
 
 const licensekey_t module_redirect_keyv[1] = {
    {

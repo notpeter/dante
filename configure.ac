@@ -1,10 +1,10 @@
 AC_INIT
-AC_PREREQ(2.59)
-AC_REVISION($Id: configure.ac,v 1.449 2009/10/05 19:05:58 karls Exp $)
+AC_PREREQ(2.61)
+AC_REVISION($Id: configure.ac,v 1.453 2009/10/21 10:41:23 karls Exp $)
 
 version=1.2.0
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="3"
+#prerelease="3"
 if test x$prerelease != x; then
     prename="-pre$prerelease"
     TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -75,6 +75,10 @@ case $host in
 	#HPUX needs _PROTOTYPES to include prototypes
 	#for configure (for gcc and cc)
 	CPPFLAGS="${CPPFLAGS} -D_PROTOTYPES"
+	;;
+
+    *-*-openbsd*)
+	AC_DEFINE(HAVE_OPENBSD_BUGS, 1, [bug workaround])
 	;;
 
     *-*-solaris*)
@@ -908,6 +912,45 @@ if test x"$stdio_preload" = xt; then
     #append contents for stdio preloading
     cat capi/socks_glibc.h >> capi/socks.h
 fi
+
+dnl generate mapfile (XXX suncc)
+unset MAPOPT
+if test x"$GCC" != x -a x"${no_preload}" != xt; then
+   MAPFILE=dlib/socks.map
+
+   cp /dev/null $MAPFILE
+   echo "{
+global:
+" >> $MAPFILE
+   cat include/symbols_common.txt >> $MAPFILE
+   case $host in
+       *-*-linux-*)
+	   if test x"$stdio_preload" = xt; then
+	       cat include/symbols_glibc.txt >> $MAPFILE
+	   fi
+	   ;;
+       *-*-solaris*)
+	   cat include/symbols_osol.txt >> $MAPFILE
+	   if test x"$stdio_preload" = xt; then
+	       cat include/symbols_osol_stdio.txt >> $MAPFILE
+	   fi
+	   ;;
+       *-*-freebsd*)
+	   cat include/symbols_freebsd.txt >> $MAPFILE
+	   ;;
+   esac
+   echo "local:
+*;
+};" >> $MAPFILE
+   #if gcc+sun ld, option in -Wl,-Msocks.map, otherwise --version-script
+   gcc -Wl,-v 2>&1 | grep '/usr/ccs/bin/ld' > /dev/null
+   if test $? -eq 0; then
+       MAPOPT="-Wl,-Msocks.map"
+   else
+       MAPOPT="-Wl,--version-script=socks.map"
+   fi
+fi
+AC_SUBST(MAPOPT)
 
 #expected select behaviour?
 unset nb_select_err

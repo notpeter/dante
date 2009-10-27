@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.40 2009/10/01 12:15:44 michaels Exp $";
+"$Id: accesscheck.c,v 1.43 2009/10/23 10:37:26 karls Exp $";
 
 int
 usermatch(auth, userlist)
@@ -78,7 +78,6 @@ groupmatch(auth, grouplist)
 
    if ((username = authname(auth)) == NULL)
       return 0; /* no username, no match. */
-
 
    /* go through grouplist, matching username against members of each group. */
    do {

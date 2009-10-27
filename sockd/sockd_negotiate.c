@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.148 2009/10/02 13:22:27 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.155 2009/10/23 10:11:46 karls Exp $";
 
 static void siginfo(int sig);
 
@@ -54,9 +54,7 @@ static int
 send_negotiate(const struct sockd_mother_t *mother,
       const struct sockd_negotiate_t *neg);
 /*
- * Sends "neg" to "mother".  Also notifies "mother" that we have freed
- * a slot.
- *
+ * Sends "neg" to "mother".
  * Returns:
  *      On success: 0
  *      On failure: -1
@@ -69,7 +67,7 @@ recv_negotiate(const struct sockd_mother_t *mother);
  * Tries to receive a client from mother "mother".
  * Returns:
  *      On success: 0
- *      If an error occured on the connection with "mother": -1
+ *      If an error occurred on the connection with "mother": -1
  *      If some other, non-fatal, problem prevented success: > 0
  */
 
@@ -93,13 +91,13 @@ neg_fillset(fd_set *set);
 static void
 neg_clearset(struct sockd_negotiate_t *neg, fd_set *set);
 /*
- * Clears all filedescriptors in "neg" from "set".
+ * Clears all file descriptors in "neg" from "set".
  */
 
 static struct sockd_negotiate_t *
 neg_getset(fd_set *set);
 /*
- * Goes through our list until it finds a negotiate object where atleast
+ * Goes through our list until it finds a negotiate object where at least
  * one of the descriptors is set.
  * Returns:
  *      On success: pointer to the found object.
@@ -188,7 +186,7 @@ run_negotiate(mother)
          const char *reason = "negotiation timed out";
 
          iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->negstate.src,
-         &neg->auth, &neg->negstate.dst, NULL, reason, 0);
+         &neg->socksauth, &neg->negstate.dst, NULL, reason, 0);
          delete_negotiate(mother, neg);
       }
 
@@ -245,7 +243,7 @@ run_negotiate(mother)
 #if HAVE_GSSAPI
             gss_buffer_desc output_token;
             OM_uint32 minor_status;
-#endif /* HAVE_GSSAP */
+#endif /* HAVE_GSSAPI */
             const char *reason = NULL;   /* init or gcc complains. */
 
             switch (p) {
@@ -274,15 +272,15 @@ run_negotiate(mother)
             }
 
             iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->negstate.src,
-            &neg->auth, &neg->negstate.dst, NULL, reason, 0);
+            &neg->socksauth, &neg->negstate.dst, NULL, reason, 0);
 
             delete_negotiate(mother, neg);
 
 #if HAVE_GSSAPI
-            neg->auth.mdata.gssapi.state.id = GSS_C_NO_CONTEXT;
-            if (neg->auth.method == AUTHMETHOD_GSSAPI)
+            neg->socksauth.mdata.gssapi.state.id = GSS_C_NO_CONTEXT;
+            if (neg->socksauth.method == AUTHMETHOD_GSSAPI)
                if (gss_delete_sec_context(&minor_status,
-                  &neg->auth.mdata.gssapi.state.id, &output_token)
+                  &neg->socksauth.mdata.gssapi.state.id, &output_token)
                   != GSS_S_COMPLETE)
                      swarn("%s: gss_delete_sec_context failed", function);
 #endif /* HAVE_GSSAPI */
@@ -312,7 +310,7 @@ send_negotiate(mother, neg)
 #if HAVE_GSSAPI
    gss_buffer_desc gssapistate;
    char gssapistatemem[MAXGSSAPITOKENLEN];
-#endif
+#endif /* HAVE_GSSAPI */
    struct iovec iov[2];
    struct sockd_request_t req;
    struct msghdr msg;
@@ -330,7 +328,8 @@ send_negotiate(mother, neg)
    sockshost2sockaddr(&neg->negstate.dst, (struct sockaddr *)&req.to);
    req.req           = neg->req;
    req.rule          = neg->rule;
-   req.auth          = neg->auth;
+   req.clientauth    = neg->clientauth;
+   req.socksauth     = neg->socksauth;
    req.state         = neg->state;
    req.state.command = req.req.command;
    req.state.version = req.req.version;
@@ -345,12 +344,12 @@ send_negotiate(mother, neg)
    ++ioc;
 
 #if HAVE_GSSAPI
-   if (req.auth.method == AUTHMETHOD_GSSAPI) {
+   if (req.socksauth.method == AUTHMETHOD_GSSAPI) {
       gssapistate.value   = gssapistatemem;
       gssapistate.length  = sizeof(gssapistatemem);
 
-      if (gssapi_export_state(&req.auth.mdata.gssapi.state.id, &gssapistate)
-      != 0)
+      if (gssapi_export_state(&req.socksauth.mdata.gssapi.state.id,
+      &gssapistate) != 0)
          return 1;
 
       iov[ioc].iov_base = gssapistate.value;
@@ -400,8 +399,12 @@ send_negotiate(mother, neg)
    socks_unlock(mother->lock);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
-   slog(LOG_DEBUG, "%s: sent %d descriptors for command %d.  neg->s = %d",
-   function, fdsendt, req.state.command, neg->s);
+   slog(LOG_DEBUG, "%s: sent %d descriptors for command %d.  "
+                   "clientauth %s, socksauth %s, neg->s %d",
+                   function, fdsendt, req.state.command,
+                   method2string(req.clientauth.method),
+                   method2string(req.socksauth.method),
+                   neg->s);
 
    return w == length ? 0 : w;
 }
@@ -415,11 +418,12 @@ recv_negotiate(mother)
    struct sockd_negotiate_t *neg;
    struct iovec iov[1];
    struct msghdr msg;
-   char ruleinfo[256];
-   int permit, i, r, fdexpect, fdreceived;
    struct sockaddr src, dst;
    socklen_t len;
+   sigset_t oldset;
    CMSG_AALLOC(cmsg, sizeof(int));
+   char ruleinfo[256];
+   int permit, i, r, fdexpect, fdreceived;
 
    bzero(iov, sizeof(iov));
    iov[0].iov_base = &client;
@@ -498,14 +502,28 @@ recv_negotiate(mother)
    neg->state.command  = neg->state.clientcommand  = SOCKS_ACCEPT;
    neg->state.protocol = neg->state.clientprotocol = SOCKS_TCP;
 
-   neg->auth.method    = AUTHMETHOD_NOTSET; /* nothing so far. */
-   neg->req.auth       = &neg->auth;        /* pointer fixup */
+   neg->clientauth.method = AUTHMETHOD_NOTSET; /* nothing so far. */
+   neg->req.auth          = &neg->socksauth;   /* pointer fixup */
 
-   if (sockscf.sessionlock != -1)
-      socks_lock(sockscf.sessionlock, F_WRLCK, -1);
+   socks_sigblock(SIGHUP, &oldset);
 
-   permit = rulespermit(neg->s, &src, &dst, &neg->rule, &neg->auth, &neg->state,
-   &neg->negstate.src, &neg->negstate.dst, ruleinfo, sizeof(ruleinfo));
+   permit = rulespermit(neg->s,
+                        &src,
+                        &dst,
+                        NULL,
+                        &neg->rule,
+                        &neg->clientauth,
+                        &neg->state,
+                        &neg->negstate.src,
+                        &neg->negstate.dst,
+                        ruleinfo,
+                        sizeof(ruleinfo));
+
+   /*
+    * Might need to use some values from clientauth when negotiating,
+    * i.e. gssapi or pam-values.
+    */
+   neg->socksauth = neg->clientauth;
 
    if (permit && neg->rule.ss != NULL) { /* only bother if rules permit. */
       if (!session_use(neg->rule.ss)) {
@@ -517,39 +535,35 @@ recv_negotiate(mother)
       }
    }
 
-   if (sockscf.sessionlock != -1)
-      socks_unlock(sockscf.sessionlock);
+   socks_sigunblock(&oldset);
 
    iolog(&neg->rule, &neg->state, OPERATION_ACCEPT, &neg->negstate.src,
-   &neg->auth, &neg->negstate.dst, NULL, ruleinfo, 0);
+   &neg->socksauth, &neg->negstate.dst, NULL, ruleinfo, 0);
 
    if (!permit) {
       delete_negotiate(mother, neg);
       return 0;
    }
 
-   /*
-    * If a iobuf was allocated for this socket before, free and allocate new.
-    */
-   socks_freebuffer(neg->s);
    socks_allocbuffer(neg->s);
 
 #if HAVE_PAM
    /* copy over pam-values from matched rule. */
-   strcpy(neg->auth.mdata.pam.servicename, neg->rule.state.pamservicename);
+   strcpy(neg->socksauth.mdata.pam.servicename, neg->rule.state.pamservicename);
 #endif /* HAVE_PAM */
 
 #if HAVE_GSSAPI
    /* copy over gssapi-values from matched rule. */
-   strcpy(neg->auth.mdata.gssapi.servicename,
+   strcpy(neg->socksauth.mdata.gssapi.servicename,
    neg->rule.state.gssapiservicename);
 
-   strcpy(neg->auth.mdata.gssapi.keytab, neg->rule.state.gssapikeytab);
+   strcpy(neg->socksauth.mdata.gssapi.keytab, neg->rule.state.gssapikeytab);
 
-   neg->auth.mdata.gssapi.encryption = neg->rule.state.gssapiencryption;
+   neg->socksauth.mdata.gssapi.encryption = neg->rule.state.gssapiencryption;
 #endif /* HAVE_GSSAPI */
 
    neg->state.time.accepted = client.accepted;
+   /* XXX should move to recv_request() or something. */
    gettimeofday(&neg->state.time.negotiate, NULL);
    neg->allocated = 1;
    proctitleupdate();
@@ -561,7 +575,7 @@ recv_negotiate(mother)
    ruleaddr2sockshost(&neg->rule.bounce_to, &neg->req.host, SOCKS_TCP);
    neg->req.protocol      = SOCKS_TCP;
    neg->negstate.complete = 1;
-#endif /* BAERFOOTD */
+#endif /* BAREFOOTD */
 
    return 0;
 }
@@ -578,6 +592,7 @@ delete_negotiate(mother, neg)
    if (neg->rule.ss != NULL)
       session_unuse(neg->rule.ss);
 
+   socks_freebuffer(neg->s);
    close(neg->s);
 
    *neg = neginit;
@@ -736,7 +751,7 @@ siginfo(sig)
       return;
    }
 
-   sig = -sig; 
+   sig = -sig;
 
    slog(LOG_DEBUG, "%s: running due to previously received signal: %d",
    function, sig);

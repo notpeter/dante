@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.89 2009/09/25 09:47:22 michaels Exp $";
+"$Id: authneg.c,v 1.91 2009/10/23 11:43:35 karls Exp $";
 
 int
 negotiate_method(s, packet, route)
@@ -115,11 +115,11 @@ negotiate_method(s, packet, route)
    }
 
    /*
-    * sanitycheck servers reply.
+    * sanity check servers reply.
     */
 
    if (request[AUTH_VERSION] != response[AUTH_VERSION]) {
-      swarnx("%s: got replyversion %d, expected %d",
+      swarnx("%s: got reply version %d, expected %d",
       function, response[AUTH_VERSION], request[AUTH_VERSION]);
 
       errno = ECONNREFUSED;

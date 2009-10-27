@@ -53,7 +53,7 @@ static char yyrcsid[]
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.290 2009/09/10 14:23:30 michaels Exp $";
+"$Id: config_parse.y,v 1.292 2009/10/23 11:43:36 karls Exp $";
 
 #if HAVE_LIBWRAP && (SOCKS_SERVER || BAREFOOTD)
    extern jmp_buf tcpd_buf;
@@ -99,14 +99,14 @@ static struct extension_t     *extension;     /* new extensions               */
 static struct proxyprotocol_t *proxyprotocol; /* proxy protocol.              */
 
 static unsigned char          *atype;         /* atype of new address.        */
-static struct in_addr         *ipaddr;        /* new ipaddress                */
+static struct in_addr         *ipaddr;        /* new ip address               */
 static struct in_addr         *netmask;       /* new netmask                  */
 static char                   *domain;        /* new domain.                  */
 static char                   *ifname;        /* new ifname.                  */
 static char                   *url;           /* new url.                     */
 
-static in_port_t              *port_tcp;      /* new TCP portnumber.          */
-static in_port_t              *port_udp;      /* new UDP portnumber.          */
+static in_port_t              *port_tcp;      /* new TCP port number.         */
+static in_port_t              *port_udp;      /* new UDP port number.         */
 static int                    *methodv;       /* new authmethods.             */
 static size_t                 *methodc;       /* number of them.              */
 static struct protocol_t      *protocol;      /* new protocol.                */
@@ -122,7 +122,7 @@ static struct gssapi_enc_t   *gssapiencryption;  /* new encryption status.    */
 
 #if DEBUG
 #define YYDEBUG 1
-#endif
+#endif /* DEBUG */
 
 #define ADDMETHOD(method)                                        \
 do {                                                             \
@@ -1080,7 +1080,7 @@ parseconfig(filename)
    }
    else {
       socks_parseinit = 0;
-      yydebug         = 0;               
+      yydebug         = 0;
       yylineno        = 1;
 
       errno         = 0;   /* don't report old errors in yyparse(). */
@@ -1123,7 +1123,7 @@ parseconfig(filename)
 
       if (portstring - proxyserver == 0
       || (size_t)(portstring - proxyserver) > sizeof(ipstring) - 1)
-         serrx(EXIT_FAILURE, "%s: illegal format for ipaddress specification "
+         serrx(EXIT_FAILURE, "%s: illegal format for ip address specification "
          "in SOCKS_SERVER %s: too short/long", function, proxyserver);
 
       strncpy(ipstring, proxyserver, (size_t)(portstring - proxyserver));
@@ -1133,7 +1133,7 @@ parseconfig(filename)
       bzero(&saddr, sizeof(saddr));
       saddr.sin_family = AF_INET;
       if (inet_pton(saddr.sin_family, ipstring, &saddr.sin_addr) != 1)
-         serr(EXIT_FAILURE, "%s: illegal format for ipaddress specification "
+         serr(EXIT_FAILURE, "%s: illegal format for ip address specification "
          "in SOCKS_SERVER %s", function, ipstring);
       saddr.sin_port = htons(atoi(portstring));
 
@@ -1306,7 +1306,7 @@ yyerror(const char *fmt, ...)
                           (yytext == NULL || *yytext == NUL) ?
                           "'start of line'" : yytext);
 
-   else 
+   else
       bufused = snprintfn(buf, sizeof(buf),
                           "error in syntax of environment variable: ");
 
@@ -1336,7 +1336,7 @@ yywarn(const char *fmt, ...)
                          sockscf.option.configfile, yylineno,
                          (yytext == NULL || *yytext == NUL) ?
                          "'start of line'" : yytext);
-   else 
+   else
       bufused = snprintfn(buf, sizeof(buf),
                           "error in syntax of environment variable: ");
 
@@ -1767,7 +1767,7 @@ case 61:
 {
 #if SOCKS_SERVER || BAREFOOTD
       addexternal(ruleaddr);
-#endif
+#endif /* SOCKS_SERVER || BAREFOOTD */
    }
 break;
 case 62:
@@ -1777,7 +1777,7 @@ case 62:
       static struct ruleaddr_t mem;
 
       addrinit(&mem);
-#endif
+#endif /* SOCKS_SERVER || BAREFOOTD */
    }
 break;
 case 63:
@@ -2472,7 +2472,7 @@ case 231:
       *atype = SOCKS_ADDR_IFNAME;
 
       if (strlen(yyvsp[0].string) >= MAXIFNAMELEN)
-         yyerror("interfacename too long");
+         yyerror("interface name too long");
       strcpy(ifname, yyvsp[0].string);
    }
 break;

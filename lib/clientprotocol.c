@@ -51,7 +51,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.123 2009/10/01 15:17:09 michaels Exp $";
+"$Id: clientprotocol.c,v 1.125 2009/10/23 11:43:35 karls Exp $";
 
 static int
 recv_sockshost(int s, struct sockshost_t *host, int version,
@@ -265,7 +265,7 @@ socks_negotiate(s, control, packet, route)
    switch (packet->req.version) {
       case PROXY_SOCKS_V5:
          /*
-          * Whatever these filedescriptor-indexes were used for before, we
+          * Whatever these file descriptor-indexes were used for before, we
           * need to reset them now.
           */
 #if SOCKS_CLIENT
@@ -339,7 +339,7 @@ socks_negotiate(s, control, packet, route)
 
    if (!serverreplyisok(packet->res.version, packet->res.reply, route))
       return -1;
-   else { 
+   else {
       if (fdisblocking(control))
          errno = 0; /* OpenBSD 4.5's thread-stuff sometimes sets this. :-/ */
       else {
@@ -431,7 +431,7 @@ recv_sockshost(s, host, version, auth)
                NULL, auth)) != (ssize_t)sizeof(host->addr.ipv6)) {
                   swarn("%s: socks_recvfromn(): %ld/%ld",
                   function, (long)rc, (long)sizeof(host->addr.ipv6));
-                  
+
                   return -1;
                }
                break;
@@ -439,12 +439,12 @@ recv_sockshost(s, host, version, auth)
             case SOCKS_ADDR_DOMAIN: {
                unsigned char alen;
 
-               /* read length of domainname. */
+               /* read length of domain name. */
                if ((rc = socks_recvfromn(s, &alen, sizeof(alen), sizeof(alen),
                0, NULL, NULL, auth)) != (ssize_t)sizeof(alen)) {
                   swarn("%s: socks_recvfromn(): %ld/%ld",
                   function, (long)rc, (long)sizeof(alen));
-                  
+
                   return -1;
                }
 
@@ -479,7 +479,7 @@ recv_sockshost(s, host, version, auth)
          != (ssize_t)sizeof(host->port)) {
             swarn("%s: socks_recvfromn(): %ld/%ld",
             function, (long)rc, (long)sizeof(host->port));
-            
+
             return -1;
          }
 
@@ -782,7 +782,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
    struct authmethod_t *auth;
 {
    const char *function = "clientmethod_gssapi()";
-   
+
    OM_uint32 ret_flags;
    OM_uint32 major_status, minor_status;
    gss_name_t            client_name       = GSS_C_NO_NAME;
@@ -836,7 +836,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
             addr.sin_family = AF_INET;
             addr.sin_addr   = gw->addr.addr.ipv4;
 
-            if ((rc = getnameinfo((struct sockaddr *)&addr, sizeof(addr), 
+            if ((rc = getnameinfo((struct sockaddr *)&addr, sizeof(addr),
             nameinfo, sizeof(nameinfo), NULL, 0, NI_NAMEREQD)) != 0) {
                swarnx("%s: getnameinfo(%s) failed with error %ld\n",
                function, inet_ntoa(addr.sin_addr), (long)rc);

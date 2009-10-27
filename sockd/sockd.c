@@ -45,8 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.397 2009/10/08 08:50:09 michaels Exp $";
-
+"$Id: sockd.c,v 1.408 2009/10/27 12:11:07 karls Exp $";
 
 int
 #if HAVE_SETPROCTITLE
@@ -59,7 +58,7 @@ static void modulesetup(void);
 
 /*
  * signalhandler functions.  Upon reception of signal, "sig" is the real
- * signalvalue (> 0).  We then set a flag indicating we got a signal,
+ * signal value (> 0).  We then set a flag indicating we got a signal,
  * but we don't do anything and return immediately.  Later we are called
  * again, with "sig" having the value -(sig), to indicate we are not
  * executing in the signalhandler and it's safe to do whatever we
@@ -77,12 +76,12 @@ static void dotest(void);
  * runs some internal tests if the define is set.  Only used
  * during development.
  */
-#endif
+#endif /* DEBUG */
 
 static void
 serverinit(int argc, char *argv[], char *envp[]);
 /*
- * Initialises options/sockscf.  "argc" and "argv" should be
+ * Initializes options/sockscf.  "argc" and "argv" should be
  * the arguments passed to main().
  * Exits on failure.
  */
@@ -187,7 +186,7 @@ main(argc, argv, envp)
 
 #if DEBUG
    dotest();
-#endif
+#endif /* DEBUG */
 
    serverinit(argc, argv, envp);
    showconfig(&sockscf);
@@ -272,7 +271,7 @@ main(argc, argv, envp)
     */
    sockscf.state.maxopenfiles = getmaxofiles(softlimit);
 
-   /* set up signalhandlers. */
+   /* set up signal handlers. */
 
    bzero(&sigact, sizeof(sigact));
 
@@ -828,11 +827,12 @@ serverinit(argc, argv, envp)
    int ch, verifyonly = 0;
 
 #if !HAVE_PROGNAME
-   if (argv[0] != NULL)
+   if (argv[0] != NULL) {
       if ((__progname = strrchr(argv[0], '/')) == NULL)
          __progname = argv[0];
       else
          ++__progname;
+   }
 #endif /* !HAVE_PROGNAME */
 
 #if !HAVE_SETPROCTITLE
@@ -1004,8 +1004,8 @@ sigterm(sig)
    }
    else {
       if (sockscf.state.signalc > 0) {
+         sockscf.state.insignal = -sig;
          sig = -sig;
-
          slog(LOG_DEBUG, "%s: exiting due to previously received signal: %d",
          function, sig);
 
@@ -1208,7 +1208,10 @@ optioninit(void)
     */
 
    sockscf.resolveprotocol       = RESOLVEPROTOCOL_UDP;
-   sockscf.option.directfallback = 1;
+
+   sockscf.option.directfallback = socks_getenv("SOCKS_DIRECTROUTE_FALLBACK",
+                                                isfalse) ? 0 : 1;
+
    sockscf.option.keepalive      = 1;
    sockscf.option.udpconnectdst  = 1;
    sockscf.timeout.negotiate     = SOCKD_NEGOTIATETIMEOUT;
@@ -1376,13 +1379,14 @@ checkconfig(void)
       const int *methodv     = methodbasev[basec];
       const int methodc      = *methodbasec[basec];
       const int isclientrule = isclientrulev[basec];
-
       ++basec;
 
       if (rule == NULL)
          continue;
 
       for (; rule != NULL; rule = rule->next) {
+         const struct command_t udpreplycmd = { .udpreply = 1 };
+
          for (i = 0; i < rule->state.methodc; ++i) {
             switch (rule->state.methodv[i]) {
 #if HAVE_PAM
@@ -1447,24 +1451,26 @@ checkconfig(void)
 
             for (i = 0; i < methodc; ++i) {
                if (isreplycommandonly(&rule->state.command)) {
-                  switch (methodv[i]) { 
+                  switch (methodv[i]) {
                      case AUTHMETHOD_NONE:
                      case AUTHMETHOD_PAM:
                      case AUTHMETHOD_RFC931:
                         break;
 
-                     default: 
+                     default:
                         slog(LOG_DEBUG,
-                             "%s: not adding method %s to %s-rule #%d",
-                             function, method2string(methodv[i]), 
-                             isclientrule ? "client" : "socks", rule->number);
+                             "%s: not adding method %s to %s-rule #%lu",
+                             function, method2string(methodv[i]),
+                             isclientrule ? "client" : "socks",
+                             (unsigned long)rule->number);
                         continue;
                   }
                }
 
-               slog(LOG_DEBUG, "%s: adding method %s to %s-rule #%d",
-               function, method2string(methodv[i]), 
-               isclientrule ? "client" : "socks", rule->number);
+               slog(LOG_DEBUG, "%s: adding method %s to %s-rule #%lu",
+               function, method2string(methodv[i]),
+               isclientrule ? "client" : "socks",
+               (unsigned long)rule->number);
 
                rule->state.methodv[i] = methodv[i];
             }
@@ -1472,32 +1478,63 @@ checkconfig(void)
          }
 
          if (rule->state.methodc == 0)
-            slog(LOG_DEBUG, "%s: %s-rule #%d allows no methods",
-            function, isclientrule ? "client" : "socks", rule->number);
+            serrx(EXIT_FAILURE, "%s: %s-rule #%lu allows no methods",
+            function, isclientrule ? "client" : "socks",
+            (unsigned long)rule->number);
 
          if (isreplycommandonly(&rule->state.command)) {
             for (i = 0; i < rule->state.methodc; ++i) {
                switch (rule->state.methodv[i]) {
-                  case AUTHMETHOD_GSSAPI:
-                  case AUTHMETHOD_UNAME:
-                     serrx(EXIT_FAILURE, 
-                           "%s-rule #%d specifies method %s, but this method "
-                           "can not be provided by bind/udp-replies",
-                           isclientrule ? "client" : "socks", rule->number,
-                           method2string(rule->state.methodv[i]));
+                  case AUTHMETHOD_NONE:
+                  case AUTHMETHOD_PAM:
+                     break;
+
+                  case AUTHMETHOD_RFC931:
+                     if (memcmp(&rule->state.command, &udpreplycmd,
+                     sizeof(udpreplycmd)) == 0)
+                        serrx(EXIT_FAILURE,
+                              "%s-rule #%lu specifies method %s, but this "
+                              "method can not be provided by udpreplies",
+                              isclientrule ? "client" : "socks",
+                              (unsigned long)rule->number,
+                              method2string(rule->state.methodv[i]));
+                     break;
 
                   default:
-                     break;
+                     serrx(EXIT_FAILURE,
+                           "%s-rule #%lu specifies method %s, but this "
+                           "method can not be provided by bind/udpreplies",
+                           isclientrule ? "client" : "socks",
+                           (unsigned long)rule->number,
+                           method2string(rule->state.methodv[i]));
                }
             }
+         }
 
-            if ((rule->user != NULL || rule->group != NULL)
-            &&  !methodisset(AUTHMETHOD_RFC931,
-                             rule->state.methodv, rule->state.methodc)) 
-               serrx(EXIT_FAILURE, 
-                     "%s-rule #%d specifies a user/group-name, but no method "
-                     "that can provide it",
-                     isclientrule ? "client" : "socks", rule->number);
+         if (rule->user != NULL || rule->group != NULL) {
+            if (memcmp(&rule->state.command, &udpreplycmd, sizeof(udpreplycmd))
+            == 0)
+               serrx(EXIT_FAILURE, "error with %s-rule #%lu: udpreplies can "
+                                   "not provide any user/group information",
+                                   isclientrule ? "client" : "socks",
+                                   (unsigned long)rule->number);
+
+            for (i = 0; i < rule->state.methodc; ++i) {
+               switch (rule->state.methodv[i]) {
+                  case AUTHMETHOD_GSSAPI:
+                  case AUTHMETHOD_UNAME:
+                  case AUTHMETHOD_PAM:
+                  case AUTHMETHOD_RFC931:
+                     break;
+
+                  default:
+                     serrx(EXIT_FAILURE,
+                           "%s-rule #%lu specifies a user/group-name, "
+                           "but no method that can provide it",
+                           isclientrule ? "client" : "socks",
+                           (unsigned long)rule->number);
+               }
+            }
          }
       }
    }
@@ -1506,12 +1543,13 @@ checkconfig(void)
 static void
 modulesetup(void)
 {
-   shmem_lockall();
+   sigset_t oldset;
 
+   socks_sigblock(SIGHUP, &oldset);
    shmem_setup();
    redirectsetup();
 
-   shmem_unlockall();
+   socks_sigunblock(&oldset);
 }
 
 #if DEBUG

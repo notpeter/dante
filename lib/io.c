@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.141 2009/10/01 16:19:58 michaels Exp $";
+"$Id: io.c,v 1.143 2009/10/23 11:43:36 karls Exp $";
 
 #if !SOCKS_CLIENT
 static void checkforsignal(void);
@@ -549,9 +549,9 @@ sendmsgn(s, msg, flags)
    while ((p = sendmsg(s, msg, flags)) == -1 && errno == EINTR)
 #if SOCKS_CLIENT
       return -1;
-#else
+#else /* !SOCKS_CLIENT */
       ;
-#endif /* SOCKS_CLIENT */
+#endif /* !SOCKS_CLIENT */
 
    if (p <= 0)
       return p;
@@ -605,7 +605,7 @@ closen(d)
 {
    int rc;
 
-#undef close  /* we redeinfe close() to closen() for convinience. */
+#undef close  /* we redefine close() to closen() for convenience. */
    while ((rc = close(d)) == -1 && errno == EINTR)
       ;
 
@@ -627,7 +627,7 @@ selectn(nfds, rset, bufrset, wset, bufwset, xset, timeout)
    int i, rc, bufset_nfds;
 #if !SOCKS_CLIENT
    int goteintr = 0;
-#endif
+#endif /* !SOCKS_CLIENT */
 
    if (_rset == NULL) {
       _rset = allocate_maxsize_fdset();
@@ -721,7 +721,7 @@ selectn(nfds, rset, bufrset, wset, bufwset, xset, timeout)
     * Likewise, mother will know children has exited because in addition
     * to the sigchld handler, she also has the same pipes to check.
     */
-#endif
+#endif /* !SOCKS_CLIENT */
 
    while ((rc = select(nfds, rset, wset, xset, timeout)) == -1
    && errno == EINTR) {
@@ -729,7 +729,7 @@ selectn(nfds, rset, bufrset, wset, bufwset, xset, timeout)
       goteintr = 1;
       checkforsignal();
       errno    = 0;
-#endif
+#endif /* !SOCKS_CLIENT */
 
       if (rset != NULL)
          FD_COPY(rset, _rset);
@@ -746,7 +746,7 @@ selectn(nfds, rset, bufrset, wset, bufwset, xset, timeout)
 
 #if !SOCKS_CLIENT
    checkforsignal();
-#endif
+#endif /* !SOCKS_CLIENT */
 
    if (rc == -1) {
 #if !SOCKS_CLIENT

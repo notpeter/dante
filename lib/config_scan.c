@@ -1862,7 +1862,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.110 2009/09/10 14:04:13 michaels Exp $";
+"$Id: config_scan.l,v 1.112 2009/10/23 11:43:36 karls Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -1875,12 +1875,12 @@ static const char rcsid[] =
  */
 #define YY_NO_UNPUT 1
 /*%option debug             */
-/* non-exclusive startconditions. */
+/* non-exclusive start conditions. */
 #define start_address 1
 
 #define start_port 2
 
-/* exclusive startconditions */
+/* exclusive start conditions */
 #define lineprefix 3
 
 #define start_command 4
@@ -2553,7 +2553,7 @@ YY_RULE_SETUP
         return GSSAPIENC_PERMESSAGE;
 }
 	YY_BREAK
-/* non-startcondition dependents. */
+/* non-start condition dependents. */
 case 43:
 YY_RULE_SETUP
 #line 370 "config_scan.l"

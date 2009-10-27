@@ -1,14 +1,14 @@
 /*
- * $Id: session_key.c,v 1.3 2009/10/07 15:52:20 michaels Exp $
+ * $Id: session_key.c,v 1.5 2009/10/22 17:36:13 karls Exp $
  *
- * Copyright (c) 2005
+ * Copyright (c) 2005, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  */
 
 #include "common.h"
 
-static const char rcsid[] =
-"$Id: session_key.c,v 1.3 2009/10/07 15:52:20 michaels Exp $";
+static const char rcsid[] = 
+"$Id: session_key.c,v 1.5 2009/10/22 17:36:13 karls Exp $";
 
 const licensekey_t module_session_keyv[] = {
    {

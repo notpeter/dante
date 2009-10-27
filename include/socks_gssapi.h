@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallén 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -41,7 +41,7 @@
  *
  */
 
- /* 
+ /*
   * This code was contributed by
   * Markus Moeller (markus_moeller at compuserve.com).
   */
@@ -55,8 +55,8 @@ socks_get_gssapi_state(const unsigned int fd, const int havelock);
  * care of locking the addr object.
  *
  * Returns:
- *      On success:  the gsapit state associated with filedescriptor "fd".
- *      On failure:  NULL.  (no socketaddress associated with "fd").
+ *      On success:  the gssapi state associated with file descriptor "fd".
+ *      On failure:  NULL.  (no socket address associated with "fd").
  */
 
 ssize_t
@@ -94,16 +94,16 @@ int
 gssapi_export_state(gss_ctx_id_t *id, gss_buffer_desc *state);
 /*
  * Exports the gssapi security context given by "id" into "state".
- * Returns 0 on succes, -1 on failure.
+ * Returns 0 on success, -1 on failure.
  */
 
 int
 gssapi_import_state(gss_ctx_id_t *id, gss_buffer_desc *state);
 /*
  * Imports the gssapi security context given by "state".  On
- * successfull import, the id of the new context is stored in "id".
+ * successful import, the id of the new context is stored in "id".
  *
- * Returns 0 on succes, -1 on failure.
+ * Returns 0 on success, -1 on failure.
  */
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
@@ -154,4 +154,4 @@ void socks_mark_gssapi_io_as_normal(void);
    }                                                                           \
 } while (/* CONSTCOND */ 0)
 
-#endif
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */

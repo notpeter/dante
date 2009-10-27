@@ -54,7 +54,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.110 2009/09/10 14:04:13 michaels Exp $";
+"$Id: config_scan.l,v 1.112 2009/10/23 11:43:36 karls Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -75,11 +75,11 @@ static const char rcsid[] =
 
 PORTNUMBER [0-9]{1,5}
 
-   /* non-exclusive startconditions. */
+   /* non-exclusive start conditions. */
 %s start_address
 %s start_port
 
-   /* exclusive startconditions */
+   /* exclusive start conditions */
 %x lineprefix
 %x start_command
 %x start_compatibility
@@ -365,7 +365,7 @@ PORTNUMBER [0-9]{1,5}
         return GSSAPIENC_PERMESSAGE;
 }
 
-   /* non-startcondition dependents. */
+   /* non-start condition dependents. */
 
 debug {
    yylval.string = yytext;

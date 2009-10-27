@@ -1,6 +1,7 @@
-.\" $Id: sockd.conf.5,v 1.104 2009/09/09 14:11:56 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.108 2009/10/23 11:13:29 karls Exp $
 .\"
-.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2009
+.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
+.\"               2008, 2009
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -54,22 +55,22 @@ keyword is separated from it's value by a \fB':'\fP character.
 .\" .IP \fBchild.maxidle\fP
 .\" Maintains a maximum on how many children of each type can remain
 .\" idle.  Used to reduce the amount of idle processes after a "client burst"
-.\" has occured.  The default is \fB0\fP (no maximum).
+.\" has occurred.  The default is \fB0\fP (no maximum).
 .IP \fBclientmethod\fP
 A list of acceptable authentication methods for client-rules,
-in order of preference.  These are the authenticationmethods
+in order of preference.  These are the authentication methods
 that can be checked before the socks-negotiation has completed.
 
 Supported values are \fBnone\fP, \fBgssapi\fP, \fBrfc931\fP and \fBpam\fP.
 For all methods except \fBgssapi\fP, that means the authentication will
-be based on soly on the IP-address of the client, possibly in combination
+be based on solely on the IP-address of the client, possibly in combination
 with a \fBrfc931\fP ("ident") lookup.
 
 This list is used as the default for all coming rules until changed.
 Then the changed list is used as the default for the next rules.
 
 The default value is all methods that may be necessary for the later
-socks-based authentication, as specifed in the socks-method line.
+socks-based authentication, as specified in the socks-method line.
 Normally you should not need to set this variable.
 
 Any credentials provided during this pass will also be available for use
@@ -89,12 +90,12 @@ The \fBdraft-5.05\fP keyword will enable usage of parts of the socks
 v5-05 draft.  The only feature from this draft that \fBDante\fP supports
 is the "USECLIENTSPORT" extension.  Note that there is a conflicting
 interpretation of this extension, so enabling it might prevent
-clients using the conflicting interpretaion from working correctly.
+clients using the conflicting interpretation from working correctly.
 This only affects udp.
 
 .IP \fBtimeout.negotiate\fP
-The number of seconds a client can spend negotiating with the 
-\fBDante\fP server for a socks session before \fBDante\fP 
+The number of seconds a client can spend negotiating with the
+\fBDante\fP server for a socks session before \fBDante\fP
 will close the connection to the client.  The default is 30.
 Set it to 0 for forever, though that is strongly discouraged.
 .IP \fBtimeout.io\fP
@@ -108,7 +109,7 @@ Individual timeouts can be set for tcp and udp by suffixing io with
 Print debug info to the logs.  The value sets the debug level.
 .IP \fBexternal\fP
 The address to be used for outgoing connections.
-The address given may be either a IP address or an interfacename.
+The address given may be either a IP address or an interface name.
 Can be given multiple times for different addresses.
 .IP \fBexternal.rotation\fP
 If more than one external address is given, this governs which
@@ -121,7 +122,7 @@ ftp-clients using active ftp if the \fBDante\fP bind extension
 is enabled for the ftp-client.
 .IP \fBinternal\fP
 The internal addresses.  Connections will only be accepted on these addresses.
-The address given may be either a IP address or an interfacename.
+The address given may be either a IP address or an interface name.
 .IP \fBlogoutput\fP
 This value controls where the server sends logoutput.  It can
 be either \fBsyslog\fP[/\fBfacility\fP], \fBstdout\fP, \fBstderr\fP,
@@ -169,18 +170,18 @@ the server can only receive packets from the destination address.
 .IP \fBUserids\fP
 On platforms providing a privilege-model supported by \fBDante\fP,
 the \fBDante\fP server does not use userid-switching via the
-seteuid(2) systemcall.  On other platforms, it is prudent to 
+seteuid(2) system call.  On other platforms, it is prudent to
 set the userid to be used by the \fBDante\fP server to appropriate
 values.  The \fBDante\fP server can use two different userids, three
 if compiled with libwrap support.  They are as follows:
 
 .IP \fBuser.privileged\fP
-Username which will be used for doing privileged operations. 
-If you need special privileges to read the sockd.conf file,  
-to write the sockd.pid file (you can create it manualy before starting
-sockd), have anything in your configuration that requires binding
-privilieged tcp/udp ports (ports below 1024), or use some sort of
-password-based authentication, this probably needs to be set to root.
+Username which will be used for doing privileged operations.
+If you need special privileges to read the sockd.conf file or to write
+the sockd.pid file (you can create it manually before starting sockd),
+have anything in your configuration that requires binding privileged
+tcp/udp ports (ports below 1024), or use some sort of password-based
+authentication, this probably needs to be set to root.
 
 If not, you can probably set it to the same value as \fBuser.unprivileged\fP.
 
@@ -188,7 +189,7 @@ If not, you can probably set it to the same value as \fBuser.unprivileged\fP.
 User which the server runs as most of the time.  This should be
 an id with as little privileges as possible.
 .IP \fBuser.libwrap\fP
-User used to execute libwrap commands.  Normaly this should be the same
+User used to execute libwrap commands.  Normally this should be the same
 as \fBuser.unprivileged\fP
 
 .SH MODULES
@@ -218,15 +219,14 @@ installations of \fBDante\fP may support only a subset of these.
 This method requires no form of authentication.
 .IP \fBusername\fP
 This method requires the client to provide a username and password.
-This must match the username and password given in the system
-passwordfile.
+This must match the username and password given in the system passwordfile.
 .IP \fBgssapi\fP
-This method requires the setup of a kerberos environment and can 
-provide strong encryption and authentication. 
+This method requires the setup of a Kerberos environment and can
+provide strong encryption and authentication.
 .IP \fBrfc931\fP
 This method requires the client host to provide a rfc931 ("ident")
-reply for the connecting client.  The name given in the reply
-must be present in the password database.
+reply for the connecting client.
+This must match a username given in the system passwordfile.
 .IP \fBpam\fP
 This method requires the available clientdata to match against the
 pam database.
@@ -236,21 +236,22 @@ pam database.
 Each address field can consist of a IP address (and where meaningful,
 a netmask, separated from the IP address by a '\fB/\fP' sign.), a hostname,
 a domainname (designated so by the leading '\fB.\fP'), or an
-interfacename.
+interface name.
 Each address can be followed by a optional \fBport\fP specifier.
 .SH RULES
 There are two sets of rules and they work at different levels.
 Rules prefixed with \fBclient\fP are checked first and are used to
 see if the client is allowed to connect to the \fBDante\fP server.
 We will call them "client-rules".
-It is especially important that these do not use hostnames
-but only IP addresses, both for security and performance reasons.
-These rules work at the TCP/IP level.
+
+It is recommended  that these do not use hostnames but only IP addresses,
+both for security and performance reasons.  These rules work at the
+TCP level.
 
 The other rules, which we will call "socks-rules" are a level higher
 and are checked after the client connection has been accepted by the
 client-rules.  The socks-rules are used to evaluate the socks request
-that the client sends.  They thus work at the socks protocol level.
+that the client sends.
 
 Both set of rules start with a \fBpass\fP/\fBdeny\fP keyword (the
 client-rules have "client" prefixed to the \fBpass\fP/\fBdeny\fP
@@ -266,6 +267,10 @@ on.
 
 In the socks-rule context, \fBto\fP means the client's destination address,
 as formulated in the client's proxy request.
+
+Both set of rules are evaluated on a "first match is best match"
+basis.  That means, the first rule matched for a particular client
+or socks request is the rule that will be used.
 
 In addition to the addresses there is a set of optional keywords which
 can be given.  There are two forms of keywords, conditions and
@@ -284,18 +289,24 @@ may contain only a subset of the socks-rules.  More concrete, they
 may not contain any keywords related to the socks protocol.
 
 .IP
-The contents of a client-rule is:
+The contents of a \fBclient-rule\fP is:
 .IP \fBbandwidth\fP
 The clients matching this rule will all share the given amount of bandwidth,
 measured in bytes per second.  Requires the bandwidth module.
 .IP \fBclientcompatibility\fP
 Enables certain options for compatibility with broken clients.
-Valied values are: \fBnecgssapi\fP, for compatibility with clients
+Valid values are: \fBnecgssapi\fP, for compatibility with clients
 implementing GSSAPI the NEC socks way.
 .IP \fBfrom\fP
 The rule applies to requests coming from the address given as value.
 .IP \fBgroup\fP
 The user must belong to one of the groups given as value.
+
+Note that if gssapi-based authentication is used, the username as provided
+to the \fBDante\fP server normally includes the Kerberos domain.
+The name must be listed on the same form here and in the system
+groupfile (usually /etc/passwd) if it is to be used.
+
 .IP \fBgssapi.enctype\fP
 Which encryption to enforce for GSSAPI-authenticated communication.
 Possible values are \fBclear\fP, \fBintegrity\fP, or \fBconfidentiality\fP.
@@ -334,8 +345,12 @@ The user must match one of the names given as value.
 If no \fBuser\fP value is given for a rule requiring usernames, the
 effect will be the same as listing every user in the passwordfile.
 
+Note that if gssapi-based authentication is used, the username as provided
+to the \fBDante\fP server normally includes the Kerberos domain.
+The name must be listed on the same form here if it is to be used.
+
 .IP
-The contents of a socks-rule is:
+The contents of a \fBsocks-rule\fP is:
 .IP \fBbandwidth\fP
 The clients matching this rule will all share the given amount of bandwidth,
 measured in bytes per second.  Requires the bandwidth module.
@@ -376,12 +391,12 @@ The default is all ports.
 The rule applies to the given protocols.  Valid values are
 \fBtcp\fP and \fBudp\fP.  The default is all supported protocols.
 .IP \fBproxyprotocol\fP
-The rule applies to requests using the given proxyprotocol.
-Valid proxyprotocols are \fBsocks_v4\fP and \fBsocks_v5\fP.
-The default is all supported proxyprotocols.
+The rule applies to requests using the given proxy protocol.
+Valid proxy protocols are \fBsocks_v4\fP and \fBsocks_v5\fP.
+The default is all supported proxy protocols.
 .IP \fBredirect\fP
 The source and/or destination can be redirected using the
-\fBredirect\fP statement. 
+\fBredirect\fP statement.
 Requires the redirect module.
 
 The syntax of the redirect statement is
@@ -394,13 +409,13 @@ as follows:
 \fBredirect\fP to: \fBADDRESS\fP
 
 The semantics of \fBfrom\fP and \fBto\fP vary according to
-\fBcommand\fP.  See the redirect manual for more information.
+\fBcommand\fP.  See the redirect manual for detailed information.
 
 .IP \fBto\fP
 The rule applies to requests going to or using the address given as value.
 Note that the meaning of this address is affected by \fBcommand\fP.
 .IP \fBudprange\fP
-The argument to this keyword is two portnumbers, seperated by
+The argument to this keyword is two portnumbers, separated by
 a dash ('-').  They specify the udp port-range that will be
 used between the socks-client and the Dante-server for udp
 packets.  Note that this has no relation to the udp port-range
@@ -411,17 +426,21 @@ If no \fBuser\fP value is given for a rule requiring usernames, the
 effect will be the same as listing every user in the passwordfile.
 .SH ROUTES
 The routes are specified with a \fBroute\fP keyword.
-Inside a pair of parens ({}) a set of keywords control the behavior of
+Inside a pair of parenthesis ({}) a set of keywords control the behavior of
 the route.  See socks.conf(5) for a description.  This is used to
 perform so-called "server-chaining", where one socks-server connects
-to another socks-server futher upstream.
+to another socks-server further upstream.
+
+Note that at present, server-chaining is only supported for the
+\fBconnect\fP command.
+
 .SH EXAMPLES
 See the example directory in the distribution.
 .SH FILES
 .nf
 .ta \w 1
-/etc/sockd.conf	\fBDante\fP server configuration file.
-/etc/passwd	file used when checking username/passwords.
+/etc/sockd.conf   \fBDante\fP server configuration file.
+/etc/passwd   file used when checking username/passwords.
 .fi
 .SH AUTHORS
 For inferno Nettverk A/S:

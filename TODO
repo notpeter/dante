@@ -1,22 +1,27 @@
-# $Id: TODO,v 1.216 2009/10/08 09:04:51 michaels Exp $
+# $Id: TODO,v 1.226 2009/10/27 11:45:31 karls Exp $
 
-netperf
-   TCP REQUEST/RESPONSE TEST is slower with new server by ~7-8% (5100 vs 5800)
+* If the max number of filedescriptors is set to RLIM_INFINITY, we 
+  need to do something different.
+
+* look more at the openbsd non-blocking connect problem.
+
+* too much debuginfo is now beeing produced when debuging is enabled.
+  Need to change most of the "if (debug)" statements to "if (debug > 1), 
+  if (debug > 2)", etc. so that it can again be usefull to the average
+  user.
+
+* start looking at expanding the bytecounter in sockd to 64 bits, or
+  something else to prevent the total bytes transfered wrapping.
 
 * look into if we can reduce the stacksize of clientmethod_gssapi(),
   as it creates problems with e.g. solaris' host command.
   Do we really require so big gssapi buffers?
 
-* can we use fstat(2) or similar on the sockets to track them instead?
-
-* we evaluate rfc931 twice if both the client-rule and socks-rule specifies
-  rfc931, that is unnecessary.
-
 * connections blocked due to authenticationerrors or other things should
-  say block(n), not pass(n).
+  say block(n), not pass(n), or?
 
-* change gethostby* to getnameinfo(3)/getaddrinfo(3), which should hopefully
-  be threadsafe on most platforms.
+* change gethostby* to getnameinfo(3)/getaddrinfo(3), which should
+  hopefully be threadsafe on most platforms.
 
 * should try to get route for v4 first, since it's faster setup time?
 
@@ -40,7 +45,5 @@ netperf
   bytes needed for importing/exporting gssapi auth is?
 
 * IPV6 support
-
-* osdep.h:move defines from osdep.h to configure/autoconf.h
 
 * check for more configure related code that is no longer used

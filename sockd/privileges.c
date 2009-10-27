@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: privileges.c,v 1.8 2009/09/08 15:41:18 michaels Exp $";
+"$Id: privileges.c,v 1.11 2009/10/23 10:37:26 karls Exp $";
 
 static privilege_t lastprivelege;
 
@@ -136,13 +136,15 @@ init_privs(void)
    setreuid(getuid(), getuid());
    setregid(getgid(), getgid());
 
-   if (!sockscf.privileges.noprivs)
+   if (sockscf.privileges.noprivs)
       slog(LOG_DEBUG, "%s: privileges relinquished successfully", function);
+   else
+      swarnx("%s: disabling privilege switching due to errors", function);
 
 #else /* !HAVE_SOLARIS_PRIVS */
 
    if (socks_seteuid(NULL, sockscf.uid.unprivileged) != 0)
-      serr(EXIT_FAILURE, "%s: socks_seteuid to unprivilieged uid failed",
+      serr(EXIT_FAILURE, "%s: socks_seteuid to unprivileged uid failed",
       function);
 
    slog(LOG_DEBUG, "%s: will use uid %u normally",
@@ -285,7 +287,7 @@ sockd_priv(privilege, op)
 
       case SOCKD_PRIV_NET_ROUTESOCKET:
 #if HAVE_SOLARIS_PRIVS
-         /* nothing special required on solaris apparently. */
+         /* nothing special required on Solaris apparently. */
 
 #else /* !HAVE_SOLARIS_PRIVS */
 

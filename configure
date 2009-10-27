@@ -893,12 +893,12 @@ SERVER_INTERPOSITION_ALWAYS_TRUE
 SERVER_INTERPOSITION_ALWAYS_FALSE
 SOCKSIFY_PRELOAD_LIBS
 LIBRARY_PREFIX
-MAPOPT
 TOPSUBDIRS
 WANT_LIBWRAP_TRUE
 WANT_LIBWRAP_FALSE
 ac_krb5_config
 LIBSCSRC
+MAPOPT
 LIBOBJS
 TOPEXTRADIST
 DLIBDEPS
@@ -1986,7 +1986,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 version=1.2.0
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="3"
+#prerelease="3"
 if test x$prerelease != x; then
     prename="-pre$prerelease"
     TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
@@ -20039,6 +20039,14 @@ case $host in
 	CPPFLAGS="${CPPFLAGS} -D_PROTOTYPES"
 	;;
 
+    *-*-openbsd*)
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_OPENBSD_BUGS 1
+_ACEOF
+
+	;;
+
     *-*-solaris*)
 
 cat >>confdefs.h <<\_ACEOF
@@ -31546,39 +31554,6 @@ fi
 
 
 
-unset MAPOPT
-if test x"$GCC" != x -a x"${no_preload}" != xt; then
-   MAPFILE=dlib/socks.map
-
-   cp /dev/null $MAPFILE
-   echo "{
-global:
-" >> $MAPFILE
-   cat include/symbols_common.txt >> $MAPFILE
-   case $host in
-       *-*-linux-*)
-	   cat include/symbols_glibc.txt >> $MAPFILE
-	   ;;
-       *-*-solaris*)
-	   cat include/symbols_osol.txt >> $MAPFILE
-	   ;;
-       *-*-freebsd*)
-	   cat include/symbols_freebsd.txt >> $MAPFILE
-	   ;;
-   esac
-   echo "local:
-*;
-};" >> $MAPFILE
-   #if gcc+sun ld, option in -Wl,-Msocks.map, otherwise --version-script
-   gcc -Wl,-v 2>&1 | grep '/usr/ccs/bin/ld' > /dev/null
-   if test $? -eq 0; then
-       MAPOPT="-Wl,-Msocks.map"
-   else
-       MAPOPT="-Wl,--version-script=socks.map"
-   fi
-fi
-
-
 ac_config_files="$ac_config_files bin/socksify"
 
 
@@ -33019,7 +32994,14 @@ unset GSSAPI
 
 # Check whether --with-gssapi-path was given.
 if test "${with_gssapi_path+set}" = set; then
-  withval=$with_gssapi_path; GSSAPI="yes"  gssdir=$withval
+  withval=$with_gssapi_path; if test -e "$withval"; then
+     gssdir=$withval
+     #act as if --with-gssapi is specified if path is given
+     GSSAPI="yes"
+ else
+     { echo "$as_me:$LINENO: WARNING: invalid gssapi-path: $withval" >&5
+echo "$as_me: WARNING: invalid gssapi-path: $withval" >&2;}
+ fi
 fi
 
 
@@ -33127,8 +33109,8 @@ fi
 
       if test x"${ac_gssapi_cflags}" = x -a x"${ac_gssapi_libs}" = x -a \
            x"$gssdir" != x; then
-              CPPFLAGS="-I$gssdir/include"
-       LDFLAGS="-L$gssdir/lib"
+              CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I$gssdir/include"
+       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }-L$gssdir/lib"
    fi
 
       if test x"$ac_gssapi_cflags" != x; then
@@ -34376,23 +34358,21 @@ cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
-#ifdef HAVE_GSSAPI_H
+#if HAVE_GSSAPI_GSSAPI_H
+#include <gssapi/gssapi.h>
+#elif HAVE_GSSAPI_H
 #include <gssapi.h>
 #endif
 
-#ifdef HAVE_GSSAPI_GSSAPI_H
-#include <gssapi/gssapi.h>
-#endif
-
-#ifdef HAVE_GSSAPI_GSSAPI_EXT_H
+#if HAVE_GSSAPI_GSSAPI_EXT_H
 #include <gssapi/gssapi_ext.h>
 #endif
 
-#ifdef HAVE_GSSAPI_GSSAPI_KRB5_H
+#if HAVE_GSSAPI_GSSAPI_KRB5_H
 #include <gssapi/gssapi_krb5.h>
 #endif
 
-#ifdef HAVE_GSSAPI_GSSAPI_GENERIC_H
+#if HAVE_GSSAPI_GSSAPI_GENERIC_H
 #include <gssapi/gssapi_generic.h>
 #endif
 
@@ -35534,6 +35514,44 @@ _ACEOF
     #append contents for stdio preloading
     cat capi/socks_glibc.h >> capi/socks.h
 fi
+
+unset MAPOPT
+if test x"$GCC" != x -a x"${no_preload}" != xt; then
+   MAPFILE=dlib/socks.map
+
+   cp /dev/null $MAPFILE
+   echo "{
+global:
+" >> $MAPFILE
+   cat include/symbols_common.txt >> $MAPFILE
+   case $host in
+       *-*-linux-*)
+	   if test x"$stdio_preload" = xt; then
+	       cat include/symbols_glibc.txt >> $MAPFILE
+	   fi
+	   ;;
+       *-*-solaris*)
+	   cat include/symbols_osol.txt >> $MAPFILE
+	   if test x"$stdio_preload" = xt; then
+	       cat include/symbols_osol_stdio.txt >> $MAPFILE
+	   fi
+	   ;;
+       *-*-freebsd*)
+	   cat include/symbols_freebsd.txt >> $MAPFILE
+	   ;;
+   esac
+   echo "local:
+*;
+};" >> $MAPFILE
+   #if gcc+sun ld, option in -Wl,-Msocks.map, otherwise --version-script
+   gcc -Wl,-v 2>&1 | grep '/usr/ccs/bin/ld' > /dev/null
+   if test $? -eq 0; then
+       MAPOPT="-Wl,-Msocks.map"
+   else
+       MAPOPT="-Wl,--version-script=socks.map"
+   fi
+fi
+
 
 #expected select behaviour?
 unset nb_select_err
@@ -38834,12 +38852,12 @@ SERVER_INTERPOSITION_ALWAYS_TRUE!$SERVER_INTERPOSITION_ALWAYS_TRUE$ac_delim
 SERVER_INTERPOSITION_ALWAYS_FALSE!$SERVER_INTERPOSITION_ALWAYS_FALSE$ac_delim
 SOCKSIFY_PRELOAD_LIBS!$SOCKSIFY_PRELOAD_LIBS$ac_delim
 LIBRARY_PREFIX!$LIBRARY_PREFIX$ac_delim
-MAPOPT!$MAPOPT$ac_delim
 TOPSUBDIRS!$TOPSUBDIRS$ac_delim
 WANT_LIBWRAP_TRUE!$WANT_LIBWRAP_TRUE$ac_delim
 WANT_LIBWRAP_FALSE!$WANT_LIBWRAP_FALSE$ac_delim
 ac_krb5_config!$ac_krb5_config$ac_delim
 LIBSCSRC!$LIBSCSRC$ac_delim
+MAPOPT!$MAPOPT$ac_delim
 LIBOBJS!$LIBOBJS$ac_delim
 TOPEXTRADIST!$TOPEXTRADIST$ac_delim
 DLIBDEPS!$DLIBDEPS$ac_delim

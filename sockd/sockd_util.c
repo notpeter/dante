@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.140 2009/10/04 13:16:54 michaels Exp $";
+"$Id: sockd_util.c,v 1.143 2009/10/23 10:37:27 karls Exp $";
 
 #include "common.h"
 
@@ -63,7 +63,7 @@ selectmethod(methodv, methodc, offeredv, offeredc)
          /*
           * non-socks method.  Can select any of the standard
           * methods then, but might pay some attention to what
-          * is prefered.  For rfc931, choose the simplest.
+          * is preferred.  For rfc931, choose the simplest.
           * For pam, make a guess.
           */
          const unsigned char rfc931methodv[] = { AUTHMETHOD_NONE,
@@ -185,7 +185,7 @@ sockdexit(code)
 
    /*
     * Since this function can also be called on an assert-failure,
-    * try to guard against repated calls.
+    * try to guard against repeated calls.
     */
    if (exiting)
       return;
@@ -201,7 +201,7 @@ sockdexit(code)
    ||  sigaction(SIGCHLD, &sigact, NULL) != 0)
       swarn("%s: sigaction()", function);
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s: insignal = %d", function, (int)sockscf.state.insignal);
 
    if ((ismainmother = pidismother(sockscf.state.pid)) == 1) {
       if (sockscf.state.insignal)
@@ -304,7 +304,7 @@ socks_seteuid(old, new)
       return -1;
    }
 #if HAVE_LINUX_BUGS
-   errno = errno_s; 
+   errno = errno_s;
 #endif /* HAVE_LINUX_BUGS */
 
    /* groupid ... */

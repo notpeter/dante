@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: gssapi.c,v 1.62 2009/09/28 07:16:34 michaels Exp $";
+"$Id: gssapi.c,v 1.67 2009/10/23 10:11:45 karls Exp $";
 
 #if HAVE_GSSAPI
 
@@ -93,8 +93,8 @@ gss_err_isset(major_status, minor_status, buf, buflen)
          gss_release_buffer(&min_stat, &statstr);
       }
 
-      if (sizeof(buf) > len + 2) {
-         w = snprintfn(buf, buflen, ". ");
+      if (sizeof(buf) > len + strlen(".  ")) {
+         w = snprintfn(buf, buflen, ".  ");
          buf    += w;
          buflen -= w;
       }
@@ -107,7 +107,7 @@ gss_err_isset(major_status, minor_status, buf, buflen)
                                        GSS_C_NULL_OID,
                                        &msg_ctx, &statstr);
          if (maj_stat == GSS_S_COMPLETE) {
-            w = snprintfn(buf, buflen, "%.*s",
+            w = snprintfn(buf, buflen, "%.*s ",
                          (int)statstr.length, (char *)statstr.value);
             buf    += w;
             buflen -= w;
@@ -286,14 +286,24 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
    const char *function = "gssapi_decode_read()";
 #if SOCKS_SERVER
    size_t tokennumber;
-#else
-   const size_t encodedinbuffer = socks_bytesinbuffer(s, READ_BUF, 1);
-#endif /* SOCKS_SERVER */
+#else /* !SOCKS_SERVER */
+   size_t encodedinbuffer;
+#endif /* !SOCKS_SERVER */
    iobuffer_t *iobuf;
    unsigned short encodedlen;
    ssize_t nread;
    size_t tokenlen, toread;
    char token[GSSAPI_HLEN + MAXGSSAPITOKENLEN], tmpbuf[sizeof(iobuf->buf[0])];
+
+#if SOCKS_CLIENT
+   /*
+    * If the socket is blocking, we need to retry the read.
+    * The token buffers we allocate for this are too large to simply
+    * call ourselves again in that case.
+    */
+again:
+   encodedinbuffer = socks_bytesinbuffer(s, READ_BUF, 1); /* const. */
+#endif /* SOCKS_CLIENT */
 
    slog(LOG_DEBUG, "%s: socket %d, len %lu, flags %d, inbuf %lu/%lu",
    function, s, (long unsigned)len, flags,
@@ -388,9 +398,9 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
    if ((nread = recvfrom(s, token, toread,
 #if SOCKS_SERVER
    flags,
-#else
+#else /* !SOCKS_SERVER */
    flags | MSG_PEEK,
-#endif /* SOCKS_SERVER */
+#endif /* !SOCKS_SERVER */
    from, fromlen)) <= 0) {
       slog(LOG_DEBUG, "%s: read from socket returned %ld: %s",
       function, (long)nread, strerror(errno));
@@ -410,7 +420,7 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
    if (socks_bytesinbuffer(s, READ_BUF, 1) < GSSAPI_HLEN) {
       if (iobuf->stype == SOCK_DGRAM) {
          slog(LOG_DEBUG, "%s: udp packet read is shorter than minimal gssapi "
-                         "headerlength (%lu < %lu)",
+                         "header length (%lu < %lu)",
          function,
          (unsigned long)socks_bytesinbuffer(s, READ_BUF, 1) + nread,
          (unsigned long)GSSAPI_HLEN);
@@ -426,7 +436,7 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
          (unsigned long)(GSSAPI_HLEN - socks_bytesinbuffer(s, READ_BUF, 1)));
 
 #if SOCKS_CLIENT
-         slog(LOG_DEBUG, "%s: draining %lu bytes from socket", 
+         slog(LOG_DEBUG, "%s: draining %lu bytes from socket",
          function, (unsigned long)nread);
 
          recv(s, token, nread, 0);
@@ -435,7 +445,7 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
             slog(LOG_DEBUG, "%s: socket %d is blocking ... going round again.",
             function, s);
 
-            return gssapi_decode_read(s, buf, len, flags, from, fromlen, gs);
+            goto again;
          }
 #endif /* SOCKS_CLIENT */
 
@@ -485,7 +495,7 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
 
       if (iobuf->stype == SOCK_DGRAM) {
          slog(LOG_DEBUG, "%s: could not read whole gss-encoded udp packet.  "
-                         "Packetsize %lu, in buffer only %lu",
+                         "Packet size %lu, in buffer only %lu",
          function,  (long unsigned)GSSAPI_HLEN + encodedlen,
          (long unsigned)socks_bytesinbuffer(s, READ_BUF, 1));
 
@@ -499,12 +509,14 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
          (unsigned long)(GSSAPI_HLEN + encodedlen
                          - socks_bytesinbuffer(s, READ_BUF, 1)));
 
+#if SOCKS_CLIENT
          if (fdisblocking(s)) {
             slog(LOG_DEBUG, "%s: socket %d is blocking ... going round again",
             function, s);
 
-            return gssapi_decode_read(s, buf, len, flags, from, fromlen, gs);
+            goto again;
          }
+#endif /* SOCKS_CLIENT */
 
          errno = EAGAIN;
       }
@@ -525,6 +537,7 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
     * That is the size of the encoded token minus the number of bytes
     * we had already read.
     */
+
    iobuf->info[READ_BUF].peekedbytes
    = (GSSAPI_HLEN + encodedlen) - encodedinbuffer;
 
@@ -641,10 +654,10 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
           * erroneous token, but how can we know how long it is?
           * Things will probably only go downhill from here, and we should
           * close the session instead, but we already have some correct
-          * data from the caller, so atleast return that.
+          * data from the caller, so at least return that.
           */
 
-         swarnx("%s: data after token failed headercheck ... "
+         swarnx("%s: data after token failed header check ... "
                 "clearing remaining data in buffer", function);
 
          socks_clearbuffer(s, READ_BUF);
