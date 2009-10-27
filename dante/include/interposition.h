@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.74 2009/10/07 14:51:40 michaels Exp $ */
+/* $Id: interposition.h,v 1.75 2009/10/23 11:51:21 karls Exp $ */
 
 #ifndef _INTERPOSITION_H_
 #define _INTERPOSITION_H_
@@ -50,7 +50,7 @@
 #include "symbols.h"
 #endif /* !BAREFOOTD */
 
-typedef enum { pid = 0, thread } which_id_t; 
+typedef enum { pid = 0, thread } which_id_t;
 struct socks_id_t {
    which_id_t        whichid;
    union {
@@ -72,8 +72,8 @@ struct libsymbol_t {
    struct socks_id_t *dosyscall; /*
                                   * if this value is not set, the corresponding
                                   * syscall should be used for the given id.
-                                  * This is for cases where we are unable to 
-                                  * base the decision concerning whether the 
+                                  * This is for cases where we are unable to
+                                  * base the decision concerning whether the
                                   * function should resolve to a R*() function
                                   * or a syscall in other ways.
                                   */
@@ -150,7 +150,7 @@ socks_shouldcallasnative(const char *functionname);
 /*
  * If calls to the function with the name "functionname" should at the
  * moment, for the calling thread/process, always resolve to the
- * corresponding systemcall/native function, return true.
+ * corresponding system call/native function, return true.
  * Otherwise, return false.
  */
 
@@ -158,7 +158,7 @@ void
 socks_markasnative(const char *functionname);
 /*
  * Marks the function "functionname" as a function that should
- * always resolve to the native systemcall for the calling thread,
+ * always resolve to the native system call for the calling thread,
  * process if not threaded, regardless of anything else.
  */
 
@@ -167,8 +167,8 @@ socks_markasnormal(const char *functionname);
 /*
  * Removes the "mark as native" marker set by socks_markasnative(),
  * meaning the usual semantics will again be used to determine whether
- * the native systemcall or the corresponding R*() function should be
- * used when resolving "functionname". 
+ * the native system call or the corresponding R*() function should be
+ * used when resolving "functionname".
  */
 
 #else /* ! SOCKS_CLIENT */
@@ -189,7 +189,7 @@ void
 symbolcheck(void);
 /*
  * Checks that all defined symbols are loadable (and loads them).
- * Note that this might open filedescriptors (and keep them open).
+ * Note that this might open file descriptors (and keep them open).
  */
 
 #endif /* !_INTERPOSITION_H_ */

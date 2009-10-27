@@ -32,7 +32,7 @@
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
  *  Oslo Research Park
- *  Gaustadallllléen 21
+ *  Gaustadalléen 21
  *  NO-0349 Oslo
  *  Norway
  *
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.126 2009/10/07 14:51:40 michaels Exp $";
+"$Id: interposition.c,v 1.130 2009/10/23 11:50:06 karls Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
@@ -227,15 +227,15 @@ static struct libsymbol_t libsymbolv[] = {
 static void
 addtolist(const char *functionname, const struct socks_id_t *id);
 /*
- * Add "id" to the list of id's for which functionname should resolve
- * to the native systemcall directly.
+ * Add "id" to the list of id's for which function name should resolve
+ * to the native system call directly.
  */
 
 static void
 removefromlist(const char *functionname, const struct socks_id_t *id);
 /*
- * Add "id" to the list of id's for which functionname should resolve
- * to the native systemcall directly.
+ * Add "id" to the list of id's for which function name should resolve
+ * to the native system call directly.
  */
 
 
@@ -414,7 +414,7 @@ removefromlist(functionname, removeid)
       lib->dosyscall = lib->dosyscall->next;
       free(previous);
    }
-   else {   
+   else {
       for (id = previous->next; id != NULL; previous = id, id = id->next) {
          if (idsareequal(id, removeid)) {
             previous->next = id->next;
@@ -451,7 +451,7 @@ symbolfunction(symbol)
    if (lib->function == NULL) {
       if ((lib->function = dlsym(RTLD_NEXT, symbol)) == NULL) {
          if (strcmp(symbol, SYMBOL_WRITE) != 0)
-            serrx(EXIT_FAILURE, "%s: compiletime configuration error?  "
+            serrx(EXIT_FAILURE, "%s: compile time configuration error?  "
                                 "Failed to find \"%s\" using RTLD_NEXT: %s",
                                 function, symbol, dlerror());
       } else {
@@ -464,13 +464,13 @@ symbolfunction(symbol)
 #else /* !HAVE_RTLD_NEXT */
    if (lib->handle == NULL)
       if ((lib->handle = dlopen(lib->library, DL_LAZY)) == NULL)
-         serrx(EXIT_FAILURE, "%s: compiletime configuration error?  "
+         serrx(EXIT_FAILURE, "%s: compile time configuration error?  "
                              "Failed to open library \"%s\": %s",
                              function, lib->library, dlerror());
 
    if (lib->function == NULL)
       if ((lib->function = dlsym(lib->handle, symbol)) == NULL)
-         serrx(EXIT_FAILURE, "%s: compiletime configuration error?  "
+         serrx(EXIT_FAILURE, "%s: compile time configuration error?  "
                              "Failed to find \"%s\" in \"%s\": %s",
                              function, symbol, lib->library, dlerror());
 
@@ -1072,15 +1072,11 @@ sys_fclose(stream)
 HAVE_PROT_PRINTF_0
 sys_printf(HAVE_PROT_PRINTF_1 format, ...)
 {
-   const int d = fileno(stdout);
    va_list ap;
    HAVE_PROT_FPRINTF_0 rc;
 
    va_start(ap, format);
-
-   SYSCALL_START(d);
-   rc = vprintf(format, ap);
-   SYSCALL_END(d);
+   rc = sys_vprintf(format, ap);
    va_end(ap);
    return rc;
 }
@@ -1107,17 +1103,12 @@ sys_vprintf(format, ap)
 HAVE_PROT_FPRINTF_0
 sys_fprintf(HAVE_PROT_FPRINTF_1 stream, HAVE_PROT_FPRINTF_2 format, ...)
 {
-   const int d = fileno(stream);
    va_list ap;
    HAVE_PROT_FPRINTF_0 rc;
 
    va_start(ap, format);
-
-   SYSCALL_START(d);
-   rc = vfprintf(stream, format, ap);
-   SYSCALL_END(d);
+   rc = sys_vfprintf(stream, format, ap);
    va_end(ap);
-
    return rc;
 }
 
@@ -1414,7 +1405,7 @@ sendto(s, msg, len, flags, to, tolen)
 #endif /* !HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef __sun
-/* __xnet_foo variants of some functions exist on solaris if _XPG4_2 is set */
+/* __xnet_foo variants of some functions exist on Solaris if _XPG4_2 is set */
 
 HAVE_PROT_BIND_0
 sys_xnet_bind(s, name, namelen)
@@ -1947,7 +1938,7 @@ freehostent(ptr)
         struct hostent *ptr;
 {
 
-   if (socks_shouldcallasnative(SYMBOL_FREEHOSTENT)) 
+   if (socks_shouldcallasnative(SYMBOL_FREEHOSTENT))
       sys_freehostent(ptr);
    else
       Rfreehostent(ptr);

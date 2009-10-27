@@ -282,6 +282,9 @@
 /* platform symbol type */
 #undef HAVE_NO_SYMBOL_UNDERSCORE
 
+/* bug workaround */
+#undef HAVE_OPENBSD_BUGS
+
 /* openlog supports LOG_PERROR */
 #undef HAVE_OPENLOG_LOG_PERROR
 

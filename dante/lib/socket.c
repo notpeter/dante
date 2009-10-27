@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.63 2009/10/08 09:19:11 michaels Exp $";
+"$Id: socket.c,v 1.65 2009/10/23 11:43:37 karls Exp $";
 
 int
 socks_connecthost(s, host)
@@ -78,7 +78,7 @@ socks_connecthost(s, host)
 
 #if !SOCKS_CLIENT /* client may have setup e.g. an alarm for this. */
          if (rc != 0)
-            slog(LOG_DEBUG, "%s: connect() returned %d (%s)", 
+            slog(LOG_DEBUG, "%s: connect() returned %d (%s)",
             function, rc, strerror(errno));
 
          while (rc == -1 && errno == EINTR) {
@@ -107,8 +107,8 @@ socks_connecthost(s, host)
 
          if (rc == 0)
             /*
-             * OpenBSD 4.5. sometimes sets errno even though the 
-             * connect was successfull.  Seems to be an artifact
+             * OpenBSD 4.5. sometimes sets errno even though the
+             * connect was successful.  Seems to be an artifact
              * of the threads library, where it does a select(2)/poll(2)
              * after making the socket non-blocking, but forgets to
              * reset errno.
@@ -123,20 +123,20 @@ socks_connecthost(s, host)
             if (getsockname(s, (struct sockaddr *)&localaddr, &len) == -1) {
                slog(LOG_DEBUG, "%s: getsockname(2) failed: %s",
                function, strerror(errno));
-      
+
                return -1;
             }
 
             sockaddr2string((struct sockaddr *)&localaddr, localaddrstr,
             sizeof(localaddrstr));
          }
-         
+
          slog(LOG_DEBUG, "%s: connect to %s from %s on socket %d %s (%s)",
                          function,
                          sockaddr2string((struct sockaddr *)&address, addrstr,
                                          sizeof(addrstr)),
                          localaddrstr,
-                         s, 
+                         s,
                          rc == 0 ? "ok" :
                          ERRNOISINPROGRESS(errno) ? "in progress" : "failed",
                          strerror(errno));
@@ -164,7 +164,7 @@ socks_connecthost(s, host)
          socklen_t namelen;
          int new_s;
 
-         /* will also try to get the same portbinding. */
+         /* will also try to get the same port binding. */
          namelen = sizeof(name);
          if (getsockname(s, &name, &namelen) != 0)
             return -1;
@@ -275,7 +275,7 @@ socks_socketisforlan(s)
 
    /*
     * make an educated guess as to whether the socket is intended for
-    * lan-only use or not. 
+    * lan-only use or not.
     */
 
    len = sizeof(addr);

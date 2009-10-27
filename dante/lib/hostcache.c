@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.35 2009/09/06 19:31:02 michaels Exp $";
+"$Id: hostcache.c,v 1.37 2009/10/23 11:43:36 karls Exp $";
 
 #if !SOCKS_CLIENT
 
@@ -71,15 +71,15 @@ hostentupdate(struct hostent *old, struct hostent *new);
 static int
 hosthash(const char *name, size_t size);
 /*
- * Calculates a hashvalue for "name" and returns it's value.
- * Size of hashtable is given by "size".
+ * Calculates a hash value for "name" and returns it's value.
+ * Size of hash table is given by "size".
 */
 
 static int
 addrhash(in_addr_t addr, size_t size);
 /*
- * Calculates a hashvalue for "addr" and returns it's value.
- * Size of hashtable is given by "size".
+ * Calculates a hash value for "addr" and returns it's value.
+ * Size of hash table is given by "size".
 */
 
 #endif /* !SOCKS_CLIENT */

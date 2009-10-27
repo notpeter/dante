@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2003, 2008
+ * Copyright (c) 1997, 1998, 1999, 2001, 2003, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.51 2009/10/02 17:55:05 michaels Exp $";
+"$Id: sockd_socket.c,v 1.55 2009/10/23 10:37:27 karls Exp $";
 
 int
 sockd_bind(s, addr, retries)
@@ -54,6 +54,9 @@ sockd_bind(s, addr, retries)
 {
    const char *function = "sockd_bind()";
    int p;
+
+   slog(LOG_DEBUG, "%s: trying to bind address %s",
+   function, sockaddr2string(addr, NULL, 0));
 
    errno = 0;
    while (1) { /* CONSTCOND */
@@ -119,7 +122,7 @@ sockd_bindinrange(s, addr, first, last, op)
 
 
    /*
-    * use them in hostorder to make it easier, only convert before bind.
+    * use them in host order to make it easier, only convert before bind.
     */
    port       = 0;
    first      = ntohs(first);
@@ -194,7 +197,7 @@ sockd_bindinrange(s, addr, first, last, op)
          return 0;
 
       if (op == eq || op == none)
-         break; /* nothnig to retrying on these. */
+         break; /* nothing to retry for these. */
    } while (!exhausted);
 
    return -1;

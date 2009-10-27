@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,13 +39,13 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: broken.c,v 1.24 2009/09/02 11:39:41 michaels Exp $
+ * $Id: broken.c,v 1.27 2009/10/23 11:43:35 karls Exp $
  */
 
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: broken.c,v 1.24 2009/09/02 11:39:41 michaels Exp $";
+"$Id: broken.c,v 1.27 2009/10/23 11:43:35 karls Exp $";
 
 #if HAVE_SHADOW_H && HAVE_GETSPNAM
 #include <shadow.h>

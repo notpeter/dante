@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.43 2009/09/07 11:22:48 michaels Exp $";
+"$Id: userio.c,v 1.46 2009/10/23 11:43:37 karls Exp $";
 
 /* ARGSUSED */
 char *
@@ -184,8 +184,20 @@ socks_getenv(name, value)
    p = getenv(name);
 #endif /* !SOCKS_CLIENT */
 
-   if (p == NULL || value == dontcare)
-      return p;
+   if (p == NULL || value == dontcare) {
+      /*
+       * Some variables have a default based on configure/define.
+       */
+      if (strcmp(name, "SOCKS_DIRECTROUTE_FALLBACK") == 0) {
+#if SOCKS_DIRECTROUTE_FALLBACK
+         p = "yes";
+#else /* !SOCKS_DIRECTROUTE_FALLBACK */
+         p = "no";
+#endif /* SOCKS_DIRECTROUTE_FALLBACK */
+      }
+      else
+         return p;
+   }
 
    switch (value) {
       case istrue:

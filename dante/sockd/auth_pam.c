@@ -42,7 +42,7 @@
  */
 
 /*
- * Based on code originaly from
+ * Based on code originally from
  * Patrick Bihan-Faou, MindStep Corporation, patrick@mindstep.com.
  */
 
@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.59 2009/10/07 11:46:50 michaels Exp $";
+"$Id: auth_pam.c,v 1.61 2009/10/23 10:37:26 karls Exp $";
 
 static int
 _pam_conversation(int msgc, const struct pam_message **msgv,
@@ -80,8 +80,8 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    int rc;
 
    /*
-    * unforunatly we can not set password here, that needs to be set
-    * "from a module", i.e. in the converationfunction, at least with
+    * unfortunately we can not set password here, that needs to be set
+    * "from a module", i.e. in the conversion function, at least with
     * one linux pam implementation.
     */
    struct {
@@ -94,7 +94,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
       { PAM_USER,  "PAM_USER",  auth->name },
    };
 
-   slog(LOG_DEBUG, "%s: pam servicename to use for user \"%s\": %s",
+   slog(LOG_DEBUG, "%s: pam service name to use for user \"%s\": %s",
    function, auth->name, auth->servicename);
 
    pamconv.conv        = _pam_conversation;
@@ -105,11 +105,11 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
 
    /*
-    * Note: we can not save the state of pam after pam_start(3), as 
+    * Note: we can not save the state of pam after pam_start(3), as
     * e.g. Solaris 5.11 pam does not allow setting PAM_SERVICE
-    * except during pam_start(3). 
-    * Some Linux pam-implementations on the other hand can enter 
-    * some sort of busy-loop if we don't call pam_end(3) ever so 
+    * except during pam_start(3).
+    * Some Linux pam-implementations on the other hand can enter
+    * some sort of busy-loop if we don't call pam_end(3) ever so
     * often, so just disregard all that optimization stuff for
     * now and call pam_start(3) and pam_end(3) every time.
     */

@@ -44,13 +44,13 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serr.c,v 1.28 2009/09/14 12:27:27 michaels Exp $";
+"$Id: serr.c,v 1.30 2009/10/23 11:43:37 karls Exp $";
 
 #if SOCKS_CLIENT
 /* for errors, we want it logged. */
 #undef SOCKS_IGNORE_SIGNALSAFETY
 #define SOCKS_IGNORE_SIGNALSAFETY (1)
-#endif
+#endif /* SOCKS_CLIENT */
 
 void
 serr(int eval, const char *fmt, ...)

@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.70 2009/09/16 15:34:55 michaels Exp $ */
+/* $Id: config.h,v 1.72 2009/10/23 11:08:01 karls Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -93,14 +93,16 @@
 #define BADROUTE_EXPIRE            (60 * 5)
 
 
-/* socket buffersize for network i/o using TCP. */
+/* server socket buffer size for network i/o using TCP. */
 #define SOCKS_SOCKET_BUFSIZETCP         (1024 * 64 * 2)
 
 /*
- * server socket buffersize for network i/o using UDP.
+ * server socket buffer size for network i/o using UDP.
  * Probably no point in raising this above 64k for send, but for
  * receive, it can help a busy server keep up, allowing the socket
  * receive-buffer to contain more than one max-size udp packet.
+ * If you expect having to handle many large udp packets, you 
+ * might want to increase this.
  */
 #define SOCKS_SOCKET_BUFSIZEUDP         (1024 * 64 * 2)
 
@@ -114,12 +116,12 @@
 
 /*
  * If we are compiling with libwrap support, this sets the maximum
- * linelength for a libwrap line.  Should be the same or less as the
+ * line length for a libwrap line.  Should be the same or less as the
  * one libwrap uses internally, but we don't have access to that size.
  */
 #if HAVE_LIBWRAP
-#define LIBWRAPBUF         80
-#endif  /* HAVE_LIBWRAP */
+#define LIBWRAPBUF         (80)
+#endif /* HAVE_LIBWRAP */
 
 /*
  * Name to give as servicename when starting pam for rules that don't
@@ -145,7 +147,7 @@
 #endif /* !HAVE_SOCKD_PIDFILE */
 
 /* default port for server to listen on. */
-#define SOCKD_PORT               1080
+#define SOCKD_PORT               (1080)
 
 /* default server configfile */
 #if !HAVE_SOCKD_CONFIGFILE
@@ -156,9 +158,9 @@
 
 
 /*
- * Internal buffersize for network i/o.  This is the amount of
- * bufferspace set aside internally by the server for each socket.
- * It is *not* the socket buffersize.
+ * Internal buffer size for network i/o.  This is the amount of
+ * buffer space set aside internally by the server for each socket.
+ * It is *not* the socket buffer size.
  */
 
 #if HAVE_GSSAPI
@@ -168,15 +170,15 @@
  * Assuming a decoded token will never be bigger than an encoded token.
  */
 #define SOCKD_BUFSIZE         (2 * (MAXGSSAPITOKENLEN + GSSAPI_HLEN))
-#else
+#else /* !HAVE_GSSAPI */
 #define SOCKD_BUFSIZE         (1024 * 64 * 1)
-#endif
+#endif /* !HAVE_GSSAPI */
 
 /*
  * skew watermarks by this factor compared to "optimal".
  * Setting it to one minimizes cputime used by the server at a
  * possibly big cost in performance.  Never set it to more than one.
- * I'd be interested in hearing peoples result with this.
+ * I'd be interested in hearing peoples experiences with this.
  */
 #define LOWATSKEW                  (0.75)
 
@@ -185,16 +187,16 @@
  * It is important not to set it to too high a value as that will
  * probably degrade performance for clients even more, causing starvation.
  * Basically; low value  -> better interactive performance,
- *          high value -> better throughput.
+ *            high value -> better throughput.
  */
 #if !HAVE_SO_SNDLOWAT
 #define SO_SNDLOWAT_SIZE         (1024 * 4)
-#endif
+#endif /* !HAVE_SO_SNDLOWAT */
 
 /* max number of clients pending to server (argument to listen()).
  * The Apache people say:
  *   It defaults to 511 instead of 512 because some systems store it
- *   as an 8-bit datatype; 512 truncated to 8-bits is 0, while 511 is
+ *   as an 8-bit data type; 512 truncated to 8-bits is 0, while 511 is
  *   255 when truncated.
  */
 #define SOCKD_MAXCLIENTQUE         (511)
@@ -205,23 +207,23 @@
  * values affect this.
  */
 
-/* cacheentries we should allocate for caching hostnames. */
-#define SOCKD_HOSTCACHE            512
+/* cache entries we should allocate for caching hostnames. */
+#define SOCKD_HOSTCACHE            (512)
 
-/* cacheentries we should allocate for caching addresses. */
-#define SOCKD_ADDRESSCACHE         512
+/* cache entries we should allocate for caching addresses. */
+#define SOCKD_ADDRESSCACHE         (512)
 
-/* seconds a cacheentry is to be considered valid, don't set below 1. */
-#define SOCKD_CACHETIMEOUT         60
+/* seconds a cache entry is to be considered valid.  Don't set below 1. */
+#define SOCKD_CACHETIMEOUT         (60)
 
 /* print some statistics for every SOCKD_CACHESTAT lookup.  0 to disable. */
-#define SOCKD_CACHESTAT            0
+#define SOCKD_CACHESTAT            (0)
 
 /*
  * Number of slots to try and keep available for new clients at any given time.
  * The server tries to be a little more intelligent about this, but not much.
  */
-#define SOCKD_FREESLOTS            4
+#define SOCKD_FREESLOTS            (4)
 
 /*
  * Dante supports one process handling N clients, where the max value for
@@ -236,24 +238,24 @@
 /*
  * max number of clients each negotiate process will handle.
  * You can probably set this to a big number.
- * Each client will occupy one filedescriptor.
+ * Each client will occupy one file descriptor.
  */
 #if DEBUG
-#define SOCKD_NEGOTIATEMAX         2
+#define SOCKD_NEGOTIATEMAX         (2)
 #else
-#define SOCKD_NEGOTIATEMAX         24
+#define SOCKD_NEGOTIATEMAX         (24)
 #endif /* DEBUG */
 
 /*
  * max number of clients each i/o process will handle.
- * Each client will occupy up to three filedescriptors.
+ * Each client will occupy up to three file descriptors.
  * While shortage of slots in the other processes will create a
  * delay for the client, shortage of i/o slots will prevent the client
  * from doing any i/o until a i/o slot has become available.  It is
  * therefore important that enough i/o slots are available at all times.
  */
 #if DEBUG
-#define SOCKD_IOMAX               2
+#define SOCKD_IOMAX               (2)
 #else
-#define SOCKD_IOMAX               8
+#define SOCKD_IOMAX               (8)
 #endif /* DEBUG */

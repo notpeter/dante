@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.199 2009/10/05 15:25:45 michaels Exp $";
+"$Id: udp.c,v 1.203 2009/10/23 10:11:45 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -182,7 +182,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
    }
 
    if (socksfd.route->gw.state.proxyprotocol.direct) {
-      slog(LOG_DEBUG, "%s: using direct systemcalls for socket %d",
+      slog(LOG_DEBUG, "%s: using direct system calls for socket %d",
       function, s);
 
       return recvfrom(s, buf, len, flags, from, fromlen);
@@ -270,7 +270,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
       if (string2udpheader(newbuf, (size_t)n, &header) == NULL) {
          char badfrom[MAXSOCKADDRSTRING];
 
-         swarnx("%s: unrecognized socks udppacket from %s",
+         swarnx("%s: unrecognized socks udp packet from %s",
          function, sockaddr2string(&newfrom, badfrom, sizeof(badfrom)));
 
          errno = EAGAIN;
@@ -281,12 +281,12 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
       /* replace "newfrom" with the address socks server says packet is from. */
       fakesockshost2sockaddr(&header.host, &newfrom);
 
-      /* callee doesn't want socksheader. */
+      /* callee doesn't want socks header. */
       n -= (ssize_t)PACKETSIZE_UDP(&header);
       SASSERTX(n >= 0);
       memcpy(buf, &newbuf[PACKETSIZE_UDP(&header)], MIN(len, (size_t)n));
    }
-   else /* ordinary udppacket, not from socks server. */
+   else /* ordinary udp packet, not from socks server. */
       memcpy(buf, newbuf, MIN(len, (size_t)n));
 
    free(newbuf);
@@ -323,6 +323,12 @@ udpsetup(s, to, type)
    int shouldconnect = 0;
 
    /*
+    * don't bother setting it fully up, not expecting anybody to access
+    * any other fields if direct is set.
+    */
+   directroute.gw.state.proxyprotocol.direct = 1;
+
+   /*
     * we need to send the socks server our address.
     * First check if the socket already has a name, if so
     * use that, otherwise assign the name ourselves.
@@ -348,12 +354,6 @@ udpsetup(s, to, type)
    slog(LOG_DEBUG, "%s: socket %d, type = %s",
    function, s, type == SOCKS_RECV ? "receive" : "send");
 
-   /*
-    * don't bother setting it fully up, not expecting anybody to access
-    * any other fields.
-    */
-   directroute.gw.state.proxyprotocol.direct = 1;
-
    if (!socks_addrisours(s, 1))
       socks_rmaddr(s, 1);
 
@@ -374,12 +374,12 @@ udpsetup(s, to, type)
       case SOCKS_RECV:
          /*
           * problematic, trying to receive on socket not sent on.
-          * Only UPNP supports that, and in that case, the socket
+          * Only UPnP supports that, and in that case, the socket
           * should already have been bound, so socks_addrisours()
           * should have been true.
           */
          swarnx("%s: receive on udp socket not previously sent on is "
-                "not supported by the socks protocol, returing direct route",
+                "not supported by the socks protocol, returning direct route",
                 function);
 
          return &directroute;
@@ -414,13 +414,13 @@ udpsetup(s, to, type)
                      return &directroute;
 
                   default:
-                     swarnx("%s: unknown protocoltype %d", function, val);
+                     swarnx("%s: unknown protocol type %d", function, val);
                      return &directroute;
                }
 
-               slog(LOG_INFO,
+               slog(LOG_DEBUG,
                     "%s: socket %d is unknown, but has a datagram peer (%s).  "
-                    "Trying to accomodate ... ",
+                    "Trying to accommodate ... ",
                     function, s, sockaddr2string(&addr, NULL, 0));
 
                to            = &addr;
@@ -451,8 +451,8 @@ udpsetup(s, to, type)
    packet.req.version   = packet.version;
    packet.req.command   = SOCKS_UDPASSOCIATE;
 #if 0 /*
-       * some (nec-based) socks-server missinterpret this to mean something
-       * completly different.
+       * some (nec-based) socks-server misinterpret this to mean something
+       * completely different.
        */
    packet.req.flag     |= SOCKS_USECLIENTPORT;
 #endif
@@ -464,7 +464,7 @@ udpsetup(s, to, type)
       return NULL;
 
    if (packet.req.version == PROXY_DIRECT) {
-      slog(LOG_DEBUG, "%s: using direct systemcalls for socket %d",
+      slog(LOG_DEBUG, "%s: using direct system calls for socket %d",
       function, s);
 
       return &directroute;

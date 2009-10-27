@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.67 2009/08/09 19:04:40 michaels Exp $";
+"$Id: method_uname.c,v 1.69 2009/10/23 10:37:26 karls Exp $";
 
 static int
 recv_unamever(int s, struct request_t *request,
@@ -212,13 +212,13 @@ recv_passwd(s, request, state)
     * Very sadly we can't do checking of the username/password here
     * since we don't know what authentication to use yet.  It could
     * be username, but it could also be PAM, or some future method.
-    * It depends on what the socks request is.  We therfor would have
+    * It depends on what the socks request is.  We therefor would have
     * liked to give the client success status back no matter what
     * the username/password is, and later deny the connection if need be.
     *
     * That however creates problems with clients that, naturally, cache
     * the wrong username/password if they get success.
-    * We therfor check if we have a unique passworddb to use, and if so,
+    * We therefor check if we have a unique passworddb to use, and if so,
     * check the password here so we can return an immediate error to client.
     * This we can do because the passworddb is unique, i.e. there is
     * no chance of the result varying according to the clients request.
@@ -236,7 +236,7 @@ recv_passwd(s, request, state)
 
 #if HAVE_PAM
       case AUTHMETHOD_PAM: {
-         /* 
+         /*
           * it's a union, make a copy before moving into pam object.
           */
          const struct authmethod_uname_t uname

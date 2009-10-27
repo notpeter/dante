@@ -51,7 +51,7 @@
 #if HAVE_GSSAPI
 
 static const char rcsid[] =
-   "$Id: method_gssapi.c,v 1.39 2009/09/27 19:25:45 michaels Exp $";
+   "$Id: method_gssapi.c,v 1.41 2009/10/23 10:37:26 karls Exp $";
 
 static int
 recv_gssapi_auth_ver(int s, struct request_t *request,
@@ -261,7 +261,7 @@ recv_gssapi_auth_token(s, request, state)
                                       NULL, NULL);
       sockd_priv(SOCKD_PRIV_GSSAPI, PRIV_OFF);
 
-      slog(LOG_DEBUG,"%s: using gssapi servicename %s",
+      slog(LOG_DEBUG,"%s: using gssapi service name %s",
       function, request->auth->mdata.gssapi.servicename);
    }
    else {
@@ -291,7 +291,7 @@ recv_gssapi_auth_token(s, request, state)
          return -1;
       }
 
-      slog(LOG_DEBUG,"%s: using gssapi servicename %s",
+      slog(LOG_DEBUG,"%s: using gssapi service name %s",
       function, request->auth->mdata.gssapi.servicename);
 
       sockd_priv(SOCKD_PRIV_GSSAPI, PRIV_ON);

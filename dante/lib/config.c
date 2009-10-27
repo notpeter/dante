@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.257 2009/09/25 09:47:22 michaels Exp $";
+"$Id: config.c,v 1.265 2009/10/23 11:43:35 karls Exp $";
 
 void
 genericinit(void)
@@ -52,10 +52,10 @@ genericinit(void)
    const char *function = "genericinit()";
 #if BAREFOOTD
    struct rule_t *rule;
-#endif
+#endif /* BAREFOOTD */
 #if !SOCKS_CLIENT
    sigset_t set, oset;
-#endif
+#endif /* !SOCKS_CLIENT */
 
    if (!sockscf.state.init) {
 #if !HAVE_SETPROCTITLE
@@ -148,7 +148,7 @@ socks_addroute(newroute, last)
       serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
    *route = *newroute;
 
-   /* if no proxyprotocol set, set socks v5. */
+   /* if no proxy protocol set, set socks v5. */
    if (memcmp(&state.proxyprotocol, &route->gw.state.proxyprotocol,
    sizeof(state.proxyprotocol)) == 0) {
       memset(&route->gw.state.proxyprotocol, 0,
@@ -156,7 +156,7 @@ socks_addroute(newroute, last)
 
       route->gw.state.proxyprotocol.socks_v5 = 1;
    }
-   else { /* proxyprotocol set, do they make sense? */
+   else { /* proxy protocol set, do they make sense? */
       struct proxyprotocol_t proxy;
 
       if (route->gw.state.proxyprotocol.direct) {
@@ -165,7 +165,7 @@ socks_addroute(newroute, last)
 
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
             serrx(1,
-            "%s: can't combine proxyprotocol direct with other protocols",
+            "%s: can't combine proxy protocol direct with other protocols",
             function);
       }
       else if (route->gw.state.proxyprotocol.socks_v4
@@ -173,7 +173,7 @@ socks_addroute(newroute, last)
          if (route->gw.state.proxyprotocol.msproxy_v2
          ||  route->gw.state.proxyprotocol.http_v1_0
          ||  route->gw.state.proxyprotocol.upnp)
-         serrx(1, "%s: can't combine proxyprotocol socks with other protocols",
+         serrx(1, "%s: can't combine proxy protocol socks with other protocols",
          function);
       }
       else if (route->gw.state.proxyprotocol.msproxy_v2) {
@@ -182,7 +182,7 @@ socks_addroute(newroute, last)
 
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
             serrx(1,
-            "%s: can't combine proxyprotocol msproxy with other protocols",
+            "%s: can't combine proxy protocol msproxy with other protocols",
             function);
       }
       else if (route->gw.state.proxyprotocol.http_v1_0) {
@@ -191,7 +191,7 @@ socks_addroute(newroute, last)
 
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
             serrx(1,
-            "%s: can't combine proxyprotocol http_v1_0 with other protocols",
+            "%s: can't combine proxy protocol http_v1_0 with other protocols",
             function);
       }
       else if (route->gw.state.proxyprotocol.upnp) {
@@ -202,7 +202,7 @@ socks_addroute(newroute, last)
          proxy.upnp = 1;
 
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            serrx(1,"%s: can't combine proxyprotocol upnp with other protocols",
+            serrx(1,"%s: can't combine proxy protocol upnp with other protocols",
             function);
       }
    }
@@ -230,7 +230,7 @@ socks_addroute(newroute, last)
       }
 
       /*
-       * Now go through the proxyprotocol(s) supported by this route,
+       * Now go through the proxy protocol(s) supported by this route,
        * and enable the appropriate protocols and commands, if the
        * user has not already done so.
        */
@@ -348,9 +348,9 @@ socks_addroute(newroute, last)
    if (strcmp((char *)&state.gssapikeytab,
    (char *)&route->gw.state.gssapikeytab) == 0)
       strcpy(route->gw.state.gssapikeytab, DEFAULT_GSSAPIKEYTAB);
-#endif
+#endif /* HAVE_GSSAPI */
 
-   /* if no method set, set all we support for the set proxyprotocols. */
+   /* if no method set, set all we support for the set proxy protocols. */
    if (route->gw.state.methodc == 0) {
       int *methodv    =  route->gw.state.methodv;
       size_t *methodc = &route->gw.state.methodc;
@@ -360,13 +360,13 @@ socks_addroute(newroute, last)
 #if HAVE_GSSAPI
       if (route->gw.state.proxyprotocol.socks_v5)
          methodv[(*methodc)++] = AUTHMETHOD_GSSAPI;
-#endif
+#endif /* HAVE_GSSAPI */
 
       if (route->gw.state.proxyprotocol.socks_v5)
          methodv[(*methodc)++] = AUTHMETHOD_UNAME;
    }
 
-   /* Checks the methods set make sense for the given proxyprotocols. */
+   /* Checks the methods set make sense for the given proxy protocols. */
    for (i = 0; i < route->gw.state.methodc; ++i)
       switch (route->gw.state.methodv[i]) {
          case AUTHMETHOD_NONE:
@@ -376,7 +376,7 @@ socks_addroute(newroute, last)
          case AUTHMETHOD_UNAME:
             if (!route->gw.state.proxyprotocol.socks_v5)
                yyerror("rule specifies method %s, but that is not supported "
-                       "by given proxyprotocol(s) %s",
+                       "by given proxy protocol(s) %s",
                        method2string(route->gw.state.methodv[i]),
                        proxyprotocols2string(&route->gw.state.proxyprotocol,
                                              NULL, 0));
@@ -415,13 +415,13 @@ socks_addroute(newroute, last)
             break;
 
          default:
-            serrx(EXIT_FAILURE, "address type of gateway must be ipaddress or "
+            serrx(EXIT_FAILURE, "address type of gateway must be ip address or "
                                 "qualified domainname, but is %d\n",
                                 route->gw.addr.atype);
       }
 
    if (route->src.atype == SOCKS_ADDR_IFNAME)
-      yyerror("interfacenames not supported for src address");
+      yyerror("interface names not supported for src address");
 
    if (route->dst.atype == SOCKS_ADDR_IFNAME)
       if (ifname2sockaddr(route->dst.addr.ifname, 0, &addr, &mask) == NULL)
@@ -434,7 +434,7 @@ socks_addroute(newroute, last)
    do {
       /*
        * This needs to be a loop to handle the case where route->dst
-       * (now saved in dst) expands to multiple ipaddresses, which can
+       * (now saved in dst) expands to multiple ip addresses, which can
        * happen when it is e.g. a ifname with several addresses configured
        * on it.
        */
@@ -464,7 +464,7 @@ socks_addroute(newroute, last)
          else
             if (ifb == 1) {
                /*
-                * only update following routenumbers for first
+                * only update following route numbers for first
                 * ip-block on interface.
                 */
                for (i = 1, p = sockscf.route; p != NULL; p = p->next, ++i)
@@ -483,7 +483,7 @@ socks_addroute(newroute, last)
 
             if (ifb == 1)
                /*
-                * only update routenumbers for first
+                * only update route numbers for first
                 * ip-block on interface.
                 */
                nextroute->number = lastroute->number + 1;
@@ -879,7 +879,7 @@ socks_connectroute(s, packet, src, dst)
              * can't have client select() or wait for this, as no
              * socks negotiation has been done.
              */
-            close(current_s); 
+            close(current_s);
             current_s = -1;
          }
       }
@@ -915,41 +915,6 @@ socks_connectroute(s, packet, src, dst)
 #endif /* SOCKS_CLIENT */
    }
 
-#if 0 /* wrong I think, already checked if there should be a direct fallback. */
-   else {
-      if (sockscf.option.directfallback) {
-         static struct route_t dr;
-
-         slog(LOG_DEBUG, "%s: no route found, assuming direct fallback is ok",
-         function);
-
-         dr.src.atype                 = SOCKS_ADDR_IPV4;
-         dr.src.addr.ipv4.ip.s_addr   = htonl(0);
-         dr.src.addr.ipv4.mask.s_addr = htonl(0);
-         dr.src.operator              = none;
-
-         dr.dst = dr.src;
-
-         dr.gw.state.command.connect      = 1;
-         dr.gw.state.command.bind         = 1;
-         dr.gw.state.command.bindreply    = 1;
-         dr.gw.state.command.udpassociate = 1;
-         dr.gw.state.command.udpreply     = 1;
-
-         dr.gw.state.protocol.tcp         = 1;
-         dr.gw.state.protocol.udp         = 1;
-
-         dr.gw.state.proxyprotocol.direct = 1;
-
-         route = &dr;
-      }
-      else
-         slog(LOG_DEBUG, "%s: no route found to handle request and "
-                         "direct route fallback disabled.  Nothing we can do.",
-                         function);
-   }
-#endif
-
    errno = errno_s;
    return route;
 }
@@ -978,7 +943,7 @@ socks_blacklist(route)
 
 #if HAVE_LIBMINIUPNP
    bzero(&route->gw.state.data, sizeof(route->gw.state.data));
-#endif
+#endif /* HAVE_LIBMINIUPNP */
 
    ++route->state.failed;
    time(&route->state.badtime);
@@ -992,6 +957,17 @@ socks_requestpolish(req, src, dst)
 {
    const char *function = "socks_requestpolish()";
    const unsigned char originalversion = req->version;
+
+#if !SOCKS_CLIENT
+   switch (req->command) {
+      case SOCKS_CONNECT: /* only one supported for serverchaining. */
+         break;
+
+      default:
+         req->version = PROXY_DIRECT;
+         return req;
+   }
+#endif /* !SOCKS_CLIENT */
 
    if (socks_getroute(req, src, dst) != NULL)
       return req;
@@ -1093,7 +1069,7 @@ showstate(state)
       if (state->gssapiencryption.nec)
          slog(LOG_INFO, "clientcompatibility: necgssapi enabled");
    }
-#endif  /* HAVE_GSSAPI */
+#endif /* HAVE_GSSAPI */
 
 }
 

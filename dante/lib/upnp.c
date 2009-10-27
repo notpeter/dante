@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.60 2009/09/28 11:24:08 michaels Exp $";
+"$Id: upnp.c,v 1.62 2009/10/23 11:43:37 karls Exp $";
 
 #include "common.h"
 
@@ -251,7 +251,7 @@ upnp_negotiate(s, packet, state)
           * to send a udp packet, or we just did a connect(2).
           *
           * Similarly to a connect, the only information we can provide
-          * here is the external ip address of the controldevice.
+          * here is the external ip address of the control device.
           * Postponed for the same reason as for connect.
           */
          const int errno_s = errno;
@@ -292,7 +292,7 @@ upnp_negotiate(s, packet, state)
 
       case SOCKS_BIND: {
          /*
-          * Need tell the device to create a portmapping, mapping an
+          * Need tell the device to create a port mapping, mapping an
           * address on it's side to the address we have bound.
           * Then we need to get the ip address the device is using
           * on the external side.
@@ -324,7 +324,7 @@ upnp_negotiate(s, packet, state)
             sockaddr2sockshost((struct sockaddr *)&extaddr, &packet->res.host);
          }
 
-         slog(LOG_DEBUG, "%s: upnp controlpoint's external ip address is %s",
+         slog(LOG_DEBUG, "%s: upnp control point's external ip address is %s",
          function, straddr);
 
          if (!ADDRISBOUND(&addr)) {
@@ -345,7 +345,7 @@ upnp_negotiate(s, packet, state)
                      return -1;
                   }
 
-                  /* just want the ipaddr.  Portnumber etc. remains the same. */
+                  /* just want the ipaddr.  Port number etc. remains the same. */
                   addr.sin_addr = TOIN(&tmpaddr)->sin_addr;
                   break;
                }
@@ -434,7 +434,7 @@ upnp_negotiate(s, packet, state)
          snprintf(buf, sizeof(buf), "%s (%s/client v%s via libminiupnpc)",
          __progname, PACKAGE, VERSION);
 
-         slog(LOG_DEBUG, "%s: trying to add %s portmapping for socket %d on "
+         slog(LOG_DEBUG, "%s: trying to add %s port mapping for socket %d on "
                          "upnp device at %s: %s -> %s.%s",
                          function, protocol, s,
                          state->upnp.controlurl, strport, straddr, strport);
@@ -450,7 +450,7 @@ upnp_negotiate(s, packet, state)
                return -1;
          }
          else
-            slog(LOG_DEBUG, "%s: addition of portmapping succeeded", function);
+            slog(LOG_DEBUG, "%s: addition of port mapping succeeded", function);
 
 #if SOCKS_CLIENT
          if (!atexit_registered) {
@@ -561,7 +561,7 @@ upnpcleanup(s)
 
       /*
        * Is this the socket we listened on?  Or just a client we accept(2)'ed?
-       * The portmapping is just created for the first case.
+       * The port mapping is just created for the first case.
        */
       if (!socksfd->state.acceptpending)
          continue; /* just a client we accepted. */
@@ -578,18 +578,18 @@ upnpcleanup(s)
          continue;
       }
 
-      slog(LOG_DEBUG, "%s: deleting portmapping for external %s port %s",
+      slog(LOG_DEBUG, "%s: deleting port mapping for external %s port %s",
       function, protocol, port);
 
       str2upper(protocol);
 
-      /* 
+      /*
        * needed to avoid recursion, as the below delete-call might
        * very well end up calling us again, which makes us try
-       * to delete the portmapping twice.
+       * to delete the port mapping twice.
        */
       deleting = current;
-      
+
       if ((rc
       = UPNP_DeletePortMapping(socksfd->route->gw.state.data.upnp.controlurl,
                                socksfd->route->gw.state.data.upnp.servicetype,
@@ -597,7 +597,7 @@ upnpcleanup(s)
             swarnx("%s: UPNP_DeletePortMapping(%s, %s) failed: %s",
             function, port, protocol, strupnperror(rc));
       else
-         slog(LOG_DEBUG, "%s: deleted portmapping for external %s port %s",
+         slog(LOG_DEBUG, "%s: deleted port mapping for external %s port %s",
          function, protocol, port);
 
       deleting = -1;

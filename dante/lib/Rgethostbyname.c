@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.62 2009/10/06 10:21:18 michaels Exp $";
+"$Id: Rgethostbyname.c,v 1.65 2009/10/23 11:43:34 karls Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -237,8 +237,8 @@ Rgetaddrinfo(nodename, servname, hints, res)
    strncpy(addrstr, inet_ntoa(ipindex), sizeof(addrstr));
    SASSERTX(addrstr[sizeof(addrstr) - 1] == NUL);
 
-   slog(LOG_DEBUG, "%s: faking ipaddress %s for (%s, %s)", 
-   function, addrstr, 
+   slog(LOG_DEBUG, "%s: faking ip address %s for (%s, %s)",
+   function, addrstr,
    nodename == NULL ? "null" : nodename,
    servname == NULL ? "null" : servname);
 

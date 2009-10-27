@@ -1,7 +1,7 @@
 /*
- * $Id: checkmodule.c,v 1.9 2009/07/30 16:23:22 michaels Exp $
+ * $Id: checkmodule.c,v 1.11 2009/10/22 17:36:12 karls Exp $
  *
- * Copyright (c) 2001, 2002, 2003, 2009
+ * Copyright (c) 2001, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,8 +45,8 @@
 
 #include "common.h"
 
-static const char rcsid[] =
-"$Id: checkmodule.c,v 1.9 2009/07/30 16:23:22 michaels Exp $";
+static const char rcsid[] = 
+"$Id: checkmodule.c,v 1.11 2009/10/22 17:36:12 karls Exp $";
 
 void
 checkmodule(name)

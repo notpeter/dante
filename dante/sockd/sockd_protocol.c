@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.132 2009/10/02 09:45:58 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.134 2009/10/23 10:37:27 karls Exp $";
 
 static int
 recv_v4req(int s, struct request_t *request, struct negotiate_state_t *state);
@@ -243,7 +243,7 @@ recv_methods(s, request, state)
           */
          size_t i;
 
-         slog(LOG_DEBUG, "%s: method %d already choosen for this rule, "
+         slog(LOG_DEBUG, "%s: method %d already chosen for this rule, "
                          "not selecting again",
          function, request->auth->method);
 
@@ -288,7 +288,7 @@ recv_methods(s, request, state)
 
    if (request->auth->method == AUTHMETHOD_NOACCEPT) {
       snprintf(state->emsg, sizeof(state->emsg),
-      "client offered no acceptable authenticationmethod");
+      "client offered no acceptable authentication method");
       errno = EPROTO;
       return -1;
    }
@@ -584,8 +584,8 @@ recv_username(s, request, state)
       /*
        * Since we don't know how long the username is, we can only read one
        * byte at a time.  We don't want CHECK() to set state->rcurrent to
-       * NULL after each successfull read of that one byte, since
-       * recv_request() will then think we are starting from the begining
+       * NULL after each successful read of that one byte, since
+       * recv_request() will then think we are starting from the beginning
        * next time we call it.
        */
       state->rcurrent = recv_username;
@@ -641,7 +641,7 @@ send_response(s, response)
           * +----+-----+-------+------+----------+----------+
           *   1     1      1      1                   2
           *
-          * Which gives a fixed size of atleast 6 octets.
+          * Which gives a fixed size of at least 6 octets.
           * The first octet of DST.ADDR when it is SOCKS_ADDR_DOMAINNAME
           * contains the length.
           *

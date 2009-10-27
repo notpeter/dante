@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.238 2009/10/09 07:47:17 michaels Exp $";
+"$Id: connectchild.c,v 1.253 2009/10/27 12:00:22 karls Exp $";
 
 #define MOTHER  (0)   /* descriptor mother reads/writes on.  */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -58,7 +58,7 @@ static void sigio(int sig, siginfo_t *sip, void *scp);
 static void run_connectchild(const int mother_data, const int mother_ack);
 
 static struct sigaction       originalsig;
-static volatile sig_atomic_t  reqoutstanding; 
+static volatile sig_atomic_t  reqoutstanding;
 
 struct route_t *
 socks_nbconnectroute(s, control, packet, src, dst)
@@ -94,7 +94,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
    }
 
    if (currentsig.sa_flags & SA_SIGINFO) { /* sa_sigaction. */
-      isourhandler = (currentsig.sa_sigaction == sigio); 
+      isourhandler = (currentsig.sa_sigaction == sigio);
 
       if (!isourhandler) {
          if (currentsig.sa_sigaction == NULL) { /* OpenBSD threads weirdness. */
@@ -254,7 +254,10 @@ socks_nbconnectroute(s, control, packet, src, dst)
             struct itimerval timerval;
             size_t max, i;
 
-            slog(LOG_DEBUG, "%s: connectchild forked", function);
+            slog(LOG_DEBUG, "%s: connectchild forked, our pid is %lu, "
+                            "mother is %lu",
+                             function, (unsigned long)getpid(),
+                             (unsigned long)getppid());
 
             /* close unknown descriptors. */
             for (i = 0, max = getmaxofiles(softlimit); i < max; ++i)
@@ -291,17 +294,22 @@ socks_nbconnectroute(s, control, packet, src, dst)
          }
 
          default:
+            slog(LOG_DEBUG, "%s: connectchild forked with pid %lu",
+            function, (unsigned long)sockscf.connectchild);
+
             sockscf.child_data = datapipev[MOTHER];
             sockscf.child_ack  = ackpipev[MOTHER];
 
             close(datapipev[CHILD]);
             close(ackpipev[CHILD]);
 
-            if (fcntl(sockscf.child_data, F_SETOWN, getpid()) == -1)
+            if (fcntl(sockscf.child_data, F_SETOWN, getpid()) == -1
+            ||  fcntl(sockscf.child_ack, F_SETOWN, getpid())  == -1)
                serr(EXIT_FAILURE, "%s: fcntl(F_SETOWN)", function);
 
             if ((flags = fcntl(sockscf.child_data, F_GETFL, 0))    == -1
-            ||  fcntl(sockscf.child_data, F_SETFL, flags | FASYNC) == -1)
+            ||  fcntl(sockscf.child_data, F_SETFL, flags | FASYNC) == -1
+            ||  fcntl(sockscf.child_ack, F_SETFL, flags | FASYNC)  == -1)
                serr(EXIT_FAILURE, "%s: fcntl(F_SETFL, FASYNC)", function);
       }
    }
@@ -319,7 +327,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
           *
           * We therefore create a new unconnected socket and assign
           * it the same descriptor number as the number the client uses.
-          * This way, the clients select(2)/poll(2) will not mark the 
+          * This way, the clients select(2)/poll(2) will not mark the
           * descriptor as ready for anything while we are working on it.
           *
           * When the connection has been set up, by the child, we duplicate
@@ -345,7 +353,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
          /*
           * The below bind(2) and listen(2) is necessary for
           * Linux not to mark the socket as readable/writable.
-          * Under other unix systems, just a socket() is
+          * Under other UNIX systems, just a socket() is
           * enough.  Judging from the Open Unix spec., Linux
           * is the one that is correct though.
           */
@@ -391,8 +399,8 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
       case PROXY_MSPROXY_V2:
          /*
-          * Controlsocket is separate from datasocket.
-          * Identical to our fixed sockssetup.
+          * Control socket is separate from datasocket.
+          * Identical to our fixed socks setup.
           */
          break;
 
@@ -481,7 +489,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
    socks_addaddr(s, &socksfd, 1);
 
    /*
-    * send the request to our connectprocess and let it do the rest.
+    * send the request to our connect process and let it do the rest.
     * When it's done, we get a signal and dup "s" over "socksfd.control"
     * in the handler.
     */
@@ -508,8 +516,6 @@ socks_nbconnectroute(s, control, packet, src, dst)
 
    bzero(&childreq, sizeof(childreq)); /* silence valgrind warning */
    childreq.s       = s;
-   childreq.src     = *src;
-   childreq.dst     = *dst;
    childreq.packet  = *packet;
 
    iov[0].iov_base  = &childreq;
@@ -526,7 +532,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
    CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
 
    slog(LOG_DEBUG, "%s: sending request of size %lu + %lu to connectchild, "
-                   "%d requests previously outstanding", 
+                   "%d requests previously outstanding",
                    function, (unsigned long)len,
                    (unsigned long)CMSG_TOTLEN(msg), (int)reqoutstanding);
 
@@ -636,12 +642,10 @@ run_connectchild(mother_data, mother_ack)
          struct childpacket_t req;
          struct iovec iov[2];
          socklen_t len;
-         size_t tosend;
+         size_t tosend, fdsent;
          struct sockaddr local, remote;
          struct msghdr msg;
-         struct stat sb;
          int data, control, ioc, getpeernamefailed;
-
          CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
          ioc = 0;
@@ -657,7 +661,6 @@ run_connectchild(mother_data, mother_ack)
          msg.msg_name     = NULL;
          msg.msg_namelen  = 0;
 
-         /* LINTED pointer casts may be troublesome */
          CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
          if ((p = recvmsg(mother_data, &msg, 0)) != (ssize_t)len) {
             switch (p) {
@@ -685,23 +688,23 @@ run_connectchild(mother_data, mother_ack)
             swarnx("%s: msg from mother was truncated ... request discarded",
             function);
 
-            if (CMSG_TOTLEN(msg) > 0) 
+            if (CMSG_TOTLEN(msg) > 0)
                swarnx("%s: XXX should close received descriptors", function);
 
-            continue; 
+            continue;
          }
 
          if (msg.msg_flags & MSG_CTRUNC) {
             swarnx("%s: cmsg from mother was truncated ... request discarded",
             function);
 
-            continue; 
+            continue;
          }
 
          /* how many descriptors are we supposed to receive? */
          switch (req.packet.req.version) {
             case PROXY_MSPROXY_V2:
-               len = 2;   /* control + socket for dataflow. */
+               len = 2;   /* control + socket for data flow. */
                break;
 
             case PROXY_SOCKS_V4:
@@ -714,7 +717,6 @@ run_connectchild(mother_data, mother_ack)
             default:
                SERRX(req.packet.req.version);
          }
-
 
 #if !HAVE_DEFECT_RECVMSG
          SASSERTX((size_t)CMSG_TOTLEN(msg)
@@ -760,27 +762,26 @@ run_connectchild(mother_data, mother_ack)
          req.packet.req.auth         = &req.packet.state.auth;
          req.packet.req.auth->method = AUTHMETHOD_NOTSET;
 
+         /*
+          * we're not interested the extra hassle of negotiating over
+          * a non-blocking socket, so set it to blocking while we
+          * use it.
+          */
+         if ((flags = fcntl(control, F_GETFL, 0))                  == -1
+         ||           fcntl(control, F_SETFL, flags & ~O_NONBLOCK) == -1)
+            swarn("%s: fcntl(control)", function);
+
          len = sizeof(local);
-         if (getsockname(control, &local, &len) == 0)
+         if (getsockname(control, &local, &len) == 0
+         && ADDRISBOUND(TOIN(&local))) {
             slog(LOG_DEBUG, "%s: control local: %s",
             function, sockaddr2string(&local, string, sizeof(string)));
-         else
-            swarn("%s: getsockname(%d)", function, control);
 
-         len = sizeof(remote);
-         if (getpeername(control, &remote, &len) == 0) {
-            slog(LOG_DEBUG, "%s: control remote: %s",
-            function, sockaddr2string(&remote, string, sizeof(string)));
-         
             /*
              * On Solaris 5.11, it seems to be possible for a socket,
-             * used for a non-blocking connect, to fail to become 
-             * writable if the connect fails.  On our test-machine,
-             * this seems to happen about 1 in 2000 times.  Don't know why
-             * it happens, but is probably a kernel bug.
-             *
-             * Hopefully it's enough of a workaround to not do select(2) if
-             * the getpeername(2) call failed.
+             * used for a non-blocking connect, to fail to become
+             * writable if the connect fails.  Don't know why it happens,
+             * but must be a kernel bug:
              * getpeername(1, 0x080333E0, 0x0803340C, SOV_DEFAULT)
              *            Err#134 ENOTCONN
              * fcntl(1, F_SETFL, FWRITE)                       = 0
@@ -788,15 +789,6 @@ run_connectchild(mother_data, mother_ack)
              *         fd=1  ev=POLLOUT rev=0
              * <never returns>
              */
-
-            /*
-             * we're not interested the extra hassle of negotiating over
-             * a non-blocking socket, so set it to blocking while we
-             * use it.
-             */
-            if ((flags = fcntl(control, F_GETFL, 0))                  == -1
-            ||           fcntl(control, F_SETFL, flags & ~O_NONBLOCK) == -1)
-               swarn("%s: fcntl(control)", function);
 
             slog(LOG_DEBUG, "%s: waiting for connect response ...", function);
 
@@ -813,16 +805,16 @@ run_connectchild(mother_data, mother_ack)
             }
          }
          else
-            flags = -1;
+            swarn("%s: getsockname(%d) failed", function, control);
 
          /*
-          * sigh, for some reason, atleast some versions of Linux
+          * sigh, for some reason, at least some versions of Linux
           * return 0 for a read(control, NULL, 0), even if the connect(2)
           * failed, and the error does not become apparent til later,
           * on e.g. the first write(2).  Unfortunately, that write(2) also
           * resets SO_ERROR, which means that applications checking SO_ERROR
-          * to see if the connect failed won't work, and while 
-          * recv(control, buf, 1, MSG_PEEK) works on linux, it too resets
+          * to see if the connect failed won't work, and while
+          * recv(control, buf, 1, MSG_PEEK) works on Linux, it too resets
           * SO_ERROR.
           *
           * Getpeername(2) seems to work correctly on linux also, but
@@ -830,23 +822,8 @@ run_connectchild(mother_data, mother_ack)
           * to have a way that worked on linux also, but alas. :-/
           */
 
-         len = sizeof(local);
-         if (getsockname(control, &local, &len) != 0) {
-            slog(LOG_DEBUG, "%s: getsockname(control) failed: %s",
-            function, strerror(errno));
-
-            /*
-             * this is pretty bad, but it could happen unfortunately.
-             */
-            bzero(&local, sizeof(local));
-            local.sa_family               = AF_INET;
-            TOIN(&local)->sin_addr.s_addr = htonl(INADDR_ANY);
-            TOIN(&local)->sin_port        = htons(0);
-         }
-         sockaddr2sockshost(&local, &req.src);
-
+         len   = sizeof(remote);
          errno = 0;
-         len = sizeof(remote);
          if (getpeername(control, &remote, &len) != 0) {
             getpeernamefailed = 1;
             slog(LOG_DEBUG, "%s: getpeername(control) failed: %s",
@@ -906,46 +883,13 @@ run_connectchild(mother_data, mother_ack)
          msg.msg_name     = NULL;
          msg.msg_namelen  = 0;
 
-         /*
-          * Need to do getpeername again, and send zero for the
-          * remote addr if we no longer have a peer, as things
-          * may have changed during negotiation, and mother
-          * needs to know whether there is a peer or not.
-          */
-         len = sizeof(remote);
-         if (getpeernamefailed
-         || getpeername(control, &remote, &len) != 0) {
-            if (!getpeernamefailed)
-               slog(LOG_DEBUG, "%s: getpeername(control) failed: %s",
-               function, strerror(errno));
+         fdsent = 0;
+         CMSG_ADDOBJECT(control, cmsg, sizeof(control) * fdsent++);
+         CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
 
-            bzero(&remote, sizeof(remote));
-            remote.sa_family               = AF_INET;
-            TOIN(&remote)->sin_addr.s_addr = htonl(INADDR_ANY);
-            TOIN(&remote)->sin_port        = htons(0);
-         }
-         sockaddr2sockshost(&remote, &req.dst);
-
-         if (fstat(control, &sb) == 0) {
-            if (sb.st_ino == 0) {
-               /* assume 0 means the kernel does not support socket inodes. */
-               req.device = (dev_t)-1;
-               req.inode  = (ino_t)-1;
-            }
-            else {
-               req.device = sb.st_dev;
-               req.inode  = sb.st_ino;
-            }
-         }
-         else {
-            swarn("%s: fstat() failed", function);
-            req.inode = (ino_t)-1;
-         }
-
-         slog(LOG_DEBUG, "%s: sending response, size %ld, socket %d, "
-                         "inode %lu, to mother",
-                         function, (long)tosend, req.s,
-                         (unsigned long)req.inode);
+         slog(LOG_DEBUG, "%s: sending response to mother, size %ld, "
+                         "socket %d and %d",
+                         function, (long)tosend, req.s, control);
 
          if ((p = sendmsgn(mother_data, &msg, 0)) != (ssize_t)tosend)
             serr(EXIT_FAILURE, "%s: sendmsg() to mother failed: %ld out of %ld",
@@ -968,22 +912,22 @@ sigio(sig, sip, scp)
    const int errno_s = errno;
    struct socksfd_t socksfd;
    struct childpacket_t childres;
-   struct sockaddr localmem, *local = &localmem;
-   struct sockaddr remotemem, *remote = &remotemem;
    struct msghdr msg;
    struct iovec iov[2];
    socklen_t len;
    ssize_t p;
+   size_t gotpackets;
    char string[MAX(MAXSOCKADDRSTRING, MAXSOCKSHOSTSTRING)];
-   int s, gotapacket, ioc;
+   int s, ioc;
 #if HAVE_GSSAPI
    char gssapistatemem[MAXGSSAPITOKENLEN];
 #endif /* HAVE_GSSAPI */
+   CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
 #ifdef HAVE_LINUX_BUGS
    /*
     * Don't know how, but on linux, it seems possible for this to
-    * happen:
+    * happen, even though we only have one signal handler:
     *
     * #29 <signal handler called>
     * ...
@@ -999,14 +943,34 @@ sigio(sig, sip, scp)
 
       return;
    }
-#else
+#else /* !HAVE_LINUX_BUGS */
    SASSERTX(!sockscf.state.insignal);
-#endif /* HAVE_LINUX_BUGS */
+#endif /* !HAVE_LINUX_BUGS */
 
    sockscf.state.insignal = sig;
 
    slog(LOG_DEBUG, "%s: got signal, requests outstanding: %d",
    function, (int)reqoutstanding);
+
+   if ((p = recv(sockscf.child_ack, &msg, sizeof(msg), MSG_DONTWAIT)) >= 0) {
+      swarnx("%s: ick ick ick.  It seems our dear connect-child has suffered "
+             "unrepairable problems and sent us a message of size %ld.  "
+             "Probably we will just hang now",
+             function, (unsigned long)p);
+
+      sockscf.connectchild = 0;
+      close(sockscf.child_ack);
+      close(sockscf.child_data);
+
+      /*
+       * Should try to go through all in-progress sessions sent to
+       * connectchild, via socks_addrmatch() or similar, and either
+       * invalidate them or fork a new connectchild and try again,
+       * but that's a lot of work for something that should never
+       * happen.
+       */
+      return;
+   }
 
    if (originalsig.sa_flags & SA_SIGINFO
    &&  originalsig.sa_sigaction != NULL) {
@@ -1047,15 +1011,54 @@ sigio(sig, sip, scp)
 
    slog(LOG_DEBUG, "%s: trying to receive msg from child ...", function);
 
-   gotapacket = 0;
+   gotpackets = 0;
+
+   CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
    while ((p = recvmsg(sockscf.child_data, &msg, MSG_DONTWAIT))
    >= (ssize_t)sizeof(childres)) {
-      gotapacket = 1;
+      struct stat sb;
+      dev_t device;
+      ino_t inode;
+      struct sockaddr localmem, *local = &localmem;
+      struct sockaddr remotemem, *remote = &remotemem;
+      int child_s;
+
+      ++gotpackets;
       --reqoutstanding;
 
-      slog(LOG_DEBUG, "%s: received msg of size %ld from child, "
+      slog(LOG_DEBUG, "%s: received msg of size %ld + %lu from child, "
                       "%d requests now outstanding",
-                      function, (long)p, (int)reqoutstanding);
+                      function, (long)p, (unsigned long)CMSG_TOTLEN(msg),
+                      (int)reqoutstanding);
+
+      if (msg.msg_flags & MSG_TRUNC) {
+         swarnx("%s: msg from child was truncated ... request discarded",
+         function);
+
+         if (CMSG_TOTLEN(msg) > 0)
+            swarnx("%s: XXX should close received descriptors", function);
+
+         continue;
+      }
+
+      if (msg.msg_flags & MSG_CTRUNC) {
+         swarnx("%s: cmsg from mother was truncated ... request discarded",
+         function);
+
+         continue;
+      }
+
+      len = 1;
+#if !HAVE_DEFECT_RECVMSG
+      SASSERTX((size_t)CMSG_TOTLEN(msg)
+      == (size_t)(CMSG_SPACE(sizeof(int) * len)));
+#endif /* !HAVE_DEFECT_RECVMSG */
+
+      len = 0;
+      CMSG_GETOBJECT(child_s, cmsg, sizeof(child_s) * len++);
+
+      slog(LOG_DEBUG, "%s: child_s = %d\n", function, child_s);
+      SASSERTX(fdisopen(child_s));
 
       p -= sizeof(childres);
 
@@ -1065,43 +1068,94 @@ sigio(sig, sip, scp)
       slog(LOG_DEBUG, "%s: auth method child negotiated is %d",
       function, childres.packet.res.auth->method);
 
-      sockshost2sockaddr(&childres.src, local);
-      sockshost2sockaddr(&childres.dst, remote);
+      len = sizeof(*local);
+      if (getsockname(child_s, local, &len) == 0)
+         slog(LOG_DEBUG, "%s: local = %s",
+         function, sockaddr2string(local, string, sizeof(string)));
+      else {
+         local = NULL;
+         slog(LOG_DEBUG, "%s: getsockname() on socket failed", function);
+      }
 
-      slog(LOG_DEBUG, "%s: local = %s",
-      function, sockaddr2string(local, string, sizeof(string)));
-
-      slog(LOG_DEBUG, "%s: remote = %s",
-      function, sockaddr2string(remote, string, sizeof(string)));
-
-      if (!ADDRISBOUND(TOIN(local)) && !PORTISBOUND(TOIN(local)))
-         swarnx("%s: running Solaris, are we?  It lookks like the socket used "
-                "for the non-blocking connect no longer has a local name.  "
-                "It's quite possible the client will hang now",
-                function);
-
-      if (!ADDRISBOUND(TOIN(remote)) && !PORTISBOUND(TOIN(remote))) {
-         slog(LOG_DEBUG, "%s: remote address not bound, setup must have failed",
-         function);
+      len = sizeof(*remote);
+      if (getpeername(child_s, remote, &len) == 0)
+         slog(LOG_DEBUG, "%s: remote = %s",
+         function, sockaddr2string(remote, string, sizeof(string)));
+      else {
+         slog(LOG_DEBUG, "%s: getpeername() on socket failed", function);
          remote = NULL;
       }
 
-      if ((s = socks_addrcontrol(local, remote, childres.s, childres.device,
-      childres.inode, 1)) == -1) {
-         slog(LOG_DEBUG, "%s: socks_addrcontrol() failed, assuming socket %d/"
-                         "inode %lu has been recycled for other things",
-                         function, childres.s, (unsigned long)childres.inode);
+      if (fstat(child_s, &sb) == 0) {
+         if (sb.st_ino == 0) {
+            slog(LOG_DEBUG, "%s: socket inode is 0.  Assuming kernel does "
+                            "not support the inode field for (this) socket",
+                            function);
 
-         break;
+            device = (dev_t)-1;
+            inode  = (ino_t)-1;
+         }
+         else {
+            device = sb.st_dev;
+            inode  = sb.st_ino;
+         }
+      }
+      else {
+         swarn("%s: fstat() failed", function);
+         device = (dev_t)-1;
+         inode = (ino_t)-1;
+      }
+
+      s = socks_addrcontrol(local, remote, childres.s, child_s, 0);
+      close(child_s);
+
+#if HAVE_OPENBSD_BUGS
+      if (s == -1) {
+         /*
+          * On OpenBSD 4.5, if we have a process A, and that process sends
+          * a file descriptor to process B, and process B then send that
+          * same descriptor back to process A, the file status flags, at
+          * least O_NONBLOCK, is not shared.
+          * Thus if process A sends descriptor k to process B, and
+          * process B later sends that same descriptor back to process A,
+          * the descriptor B sends to A is a dup of k, and gets allocated
+          * a new index, e.g. k2.  We then expect that if we change the
+          * O_NONBLOCK flag on k2, it will be reflected on k, but the bug
+          * is that it is not.
+          * XXX sendbug this.
+          */
+         if (local == NULL) {
+            swarnx("%s: looks like the socket used for the non-blocking "
+                   "connect no longer has an address and we were unable to "
+                   "find it's match in any other way.  Since we are running "
+                   "on a platform known to have bugs related to this, we will "
+                   "hazard the guess that the socket we are looking for is "
+                   "%d.  We hope that will avoid having the client hang "
+                   "forever, though it may also mean we will invalidate the "
+                   "wrong socket",
+                   function, childres.s);
+
+            s = childres.s;
+         }
+      }
+#endif /* HAVE_OPENBSD_BUGS */
+
+      if (s == -1) {
+         slog(LOG_DEBUG, "%s: socks_addrcontrol() for socket %d failed, "
+                         "assuming the descriptor has been recycled ...",
+                         function, childres.s);
+
+         CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg)); /* for next. */
+         continue;
       }
 
       slog(LOG_DEBUG, "%s: packet belongs to socket %d", function, s);
 
-      if (socks_getaddr(s, 1) == NULL) {
+      if (socks_getaddr(s, 0) == NULL) {
          swarnx("%s: could not getaddr %d", function, s);
          break;
       }
-      socksfd = *socks_getaddr(s, 1);
+      socksfd = *socks_getaddr(s, 0);
 
       switch (socksfd.state.version) {
          case PROXY_MSPROXY_V2:
@@ -1126,13 +1180,13 @@ sigio(sig, sip, scp)
                SASSERT(errno != EBADF);
 
                socksfd.state.err = errno;
-               socks_addaddr(s, &socksfd, 1);
+               socks_addaddr(s, &socksfd, 0);
                break;
             }
 
             close(socksfd.control);
             socksfd.control = s;
-            socks_addaddr(s, &socksfd, 1);
+            socks_addaddr(s, &socksfd, 0);
             break;
 
          default:
@@ -1145,10 +1199,12 @@ sigio(sig, sip, scp)
 
       len = sizeof(socksfd.local);
       if (getsockname(s, &socksfd.local, &len) != 0) {
-         slog(LOG_INFO, "%s: getsockname() failed (%s), assuming client has "
+         slog(LOG_INFO, "%s: getsockname() failed (%s).  Assuming client has "
                           "closed the socket and removing socksfd",
                           function, strerror(errno));
-         socks_rmaddr(s, 1);
+         socks_rmaddr(s, 0);
+
+         CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg)); /* for next. */
          continue;
       }
       else
@@ -1161,7 +1217,7 @@ sigio(sig, sip, scp)
 
       socksfd.state.inprogress = 0;
 
-      socks_addaddr(s, &socksfd, 1);
+      socks_addaddr(s, &socksfd, 0);
 
       if (!serverreplyisok(childres.packet.res.version,
       childres.packet.res.reply, socksfd.route)) {
@@ -1170,7 +1226,7 @@ sigio(sig, sip, scp)
                          function, errno);
 
          socksfd.state.err = errno;
-         socks_addaddr(s, &socksfd, 1);
+         socks_addaddr(s, &socksfd, 0);
 
          /*
           * XXX If it's a server error it would be nice to retry, could
@@ -1197,10 +1253,10 @@ sigio(sig, sip, scp)
 
          SASSERTX(p > 0);
 
-         /* 
-          * can't import gssapi state here; we're in a signal handler and 
+         /*
+          * can't import gssapi state here; we're in a signal handler and
           * that is not safe.  Will be imported upon first call to
-          * socks_getaddr() later, so save it in iobuf for now, as 
+          * socks_getaddr() later, so save it in iobuf for now, as
           * nobody should be using that before call to socks_getaddr().
           *
           * Would be cleaner to have the memory in socksfd, but it's a
@@ -1222,7 +1278,7 @@ sigio(sig, sip, scp)
       }
 #endif /* HAVE_GSSAPI */
 
-      socks_addaddr(s, &socksfd, 1);
+      socks_addaddr(s, &socksfd, 0);
 
       /* needed for standard socks bind. */
       sockscf.state.lastconnect = socksfd.forus.connected;
@@ -1238,10 +1294,12 @@ sigio(sig, sip, scp)
       }
       }
 #endif
+
+      CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
    }
 
    if ((sip->si_pid == sockscf.connectchild || sip->si_pid == 0)
-   && !gotapacket)
+   && !gotpackets)
       swarn("%s: received %ld bytes from child, expected a minimum of %lu",
       function, (long)p, (unsigned long)sizeof(childres));
 

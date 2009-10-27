@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.85 2009/09/28 07:09:38 michaels Exp $";
+"$Id: client.c,v 1.87 2009/10/23 11:43:35 karls Exp $";
 
 #if !HAVE_PROGNAME
    char *__progname = "danteclient";
@@ -125,7 +125,7 @@ clientinit(void)
 #endif /* SOCKS_DIRECTROUTE_FALLBACK */
 
    slog(LOG_INFO, "%s/client v%s running", PACKAGE, VERSION);
-/*   sleep(10);                         */
+/*   sleep(20);                          */
 
    initing = 0;
 }

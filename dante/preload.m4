@@ -600,38 +600,4 @@ read(d, buf, nbytes)
     AC_MSG_WARN([this platform blocks preloading of libraries])
     blocked_preload=t])
 
-dnl generate mapfile (XXX suncc)
-unset MAPOPT
-if test x"$GCC" != x -a x"${no_preload}" != xt; then
-   MAPFILE=dlib/socks.map
-
-   cp /dev/null $MAPFILE
-   echo "{
-global:
-" >> $MAPFILE
-   cat include/symbols_common.txt >> $MAPFILE
-   case $host in
-       *-*-linux-*)
-	   cat include/symbols_glibc.txt >> $MAPFILE
-	   ;;
-       *-*-solaris*)
-	   cat include/symbols_osol.txt >> $MAPFILE
-	   ;;
-       *-*-freebsd*)
-	   cat include/symbols_freebsd.txt >> $MAPFILE
-	   ;;
-   esac
-   echo "local:
-*;
-};" >> $MAPFILE
-   #if gcc+sun ld, option in -Wl,-Msocks.map, otherwise --version-script
-   gcc -Wl,-v 2>&1 | grep '/usr/ccs/bin/ld' > /dev/null
-   if test $? -eq 0; then
-       MAPOPT="-Wl,-Msocks.map"
-   else
-       MAPOPT="-Wl,--version-script=socks.map"
-   fi
-fi
-AC_SUBST(MAPOPT)
-
 AC_CONFIG_FILES(bin/socksify)

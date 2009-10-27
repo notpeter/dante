@@ -43,16 +43,21 @@
 
 #include "common.h"
 
-static const char rcsid[] =
-"$Id: iobuf.c,v 1.44 2009/09/25 20:47:21 michaels Exp $";
+static const char rcsid[] = 
+"$Id: iobuf.c,v 1.49 2009/10/23 12:23:14 karls Exp $";
 
 static void socks_flushallbuffers(void);
 
 #if !SOCKS_CLIENT
 /*
- * Each ioclient can use one iobuffer for src/control, and one for dst.
+ * - Each negotiatechild client can use one iobuffer for control.
+ * - Each requestchild and iochild client can use one iobuffer for 
+ *   control, src, and st.
  */
-static iobuffer_t    iobufferv[SOCKD_IOMAX * 2];
+static iobuffer_t
+   iobufferv[MAX((SOCKD_NEGOTIATEMAX * 1  /* control */), 
+                  MAX((SOCKD_IOMAX   * 3  /* control, src, dst */), 
+                 (SOCKD_REQUESTMAX   * 3  /* control, src, dst */)))];
 static const size_t  iobufferc = ELEMENTS(iobufferv);
 
 #else /* SOCKS_CLIENT; allocate dynamically on a per-need basis. */
@@ -327,7 +332,7 @@ socks_allocbuffer(s)
          serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
 
       freebuffer = &iobufferv[iobufferc - 1];
-      bzero(freebuffer, sizeof(*freebuffer)); 
+      bzero(freebuffer, sizeof(*freebuffer));
    }
 
    freebuffer->info[WRITE_BUF].mode = _IONBF; /* default; no buffering. */
@@ -371,8 +376,8 @@ socks_freebuffer(s)
 
    for (i = 0; i < iobufferc; ++i)
       if (iobufferv[i].allocated && iobufferv[i].s == s) {
-         slog(LOG_DEBUG, "%s: freeing buffer %d", function, s); 
-         
+         slog(LOG_DEBUG, "%s: freeing buffer %d", function, s);
+
          if (sockscf.option.debug
          && ( socks_bytesinbuffer(s, READ_BUF, 0)  > 0
            || socks_bytesinbuffer(s, READ_BUF, 1)  > 0
@@ -386,7 +391,10 @@ socks_freebuffer(s)
             (unsigned long)socks_bytesinbuffer(s, WRITE_BUF, 1));
 
          bzero(&iobufferv[i], sizeof(iobufferv[i]));
+         break;
       }
+
+   /* XXX else, assert? */
 }
 
 size_t

@@ -1,4 +1,4 @@
-# $Id: CREDITS,v 1.36 2009/10/04 12:47:21 michaels Exp $
+# $Id: CREDITS,v 1.37 2009/10/27 11:44:35 karls Exp $
 
 Dante was developed for Inferno Nettverk A/S, Norway, by
    - Michael Shuldman
@@ -6,7 +6,7 @@ Dante was developed for Inferno Nettverk A/S, Norway, by
 
 
 At least the following additional people should be credited
-(remove example.com for the real mail-address):
+(remove example.com to get the real mail-addresses):
 
 - David Koblas (koblas@netcom.com.example.com) authored the original
   Socks protocol and implementation.

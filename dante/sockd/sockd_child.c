@@ -44,10 +44,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.208 2009/10/01 16:19:58 michaels Exp $";
+"$Id: sockd_child.c,v 1.211 2009/10/23 10:37:27 karls Exp $";
 
-#define MOTHER   0   /* descriptor mother reads/writes on.   */
-#define CHILD   1   /* descriptor child reads/writes on.   */
+#define MOTHER  (0)  /* descriptor mother reads/writes on.   */
+#define CHILD   (1)   /* descriptor child reads/writes on.   */
 
 static int
 setchildtype(int type, struct sockd_child_t ***childv, size_t **childc,
@@ -92,7 +92,7 @@ addchild(type)
    /*
     * It is better to reserve some descriptors for temporary use
     * than to get errors when receiving from a child, and lose clients
-    * that way, so make sure we always have some descriptors avaiable.
+    * that way, so make sure we always have some descriptors available.
     */
    const int reserved = FDPASS_MAX   /* max descriptors we receive/pass.  */
                       + 1            /* need a descriptor for accept().   */
@@ -102,14 +102,14 @@ addchild(type)
     * XXX This is an expensive test which shouldn't be hard to optimize away.
     */
    if ((p = freedescriptors(NULL)) < reserved) {
-      swarnx("%s: only have %d free filedescriptors left, need at least %d "
+      swarnx("%s: only have %d free file descriptors left, need at least %d "
              "for a new process", function, p, reserved);
       errno = EMFILE;
       return NULL;
    }
 
-   /* 
-    * create datapipe ...  
+   /*
+    * create datapipe ...
     */
    if (socketpair(AF_LOCAL, SOCK_DGRAM, 0, datapipev) != 0) {
       swarn("%s: socketpair(AF_LOCAL, SOCK_DGRAM)", function);
@@ -124,7 +124,7 @@ addchild(type)
    }
 
    /*
-    * Try to set socketbuffer and watermarks to a optimal size depending
+    * Try to set socket buffer and watermarks to a optimal size depending
     * on what kind of data passes over the pipes.
     */
    switch (setchildtype(type, &childv, &childc, &childfunction)) {
@@ -137,12 +137,12 @@ addchild(type)
           * childs send buffer.
           */
          bufval = (sizeof(struct sockd_request_t)
-                + sizeof(struct msghdr) 
+                + sizeof(struct msghdr)
                 + CMSG_SPACE(sizeof(int)) * FDPASS_MAX)
                 * SOCKD_NEGOTIATEMAX;
 #if HAVE_GSSAPI
          bufval += (MAX_GSS_STATE + sizeof(struct iovec)) * SOCKD_NEGOTIATEMAX;
-#endif
+#endif /* HAVE_GSSAPI */
 
          bufval += SENDMSG_PADBYTES * SOCKD_NEGOTIATEMAX;
 
@@ -165,7 +165,7 @@ addchild(type)
 
          bufval = (MAX(sizeof(struct sockd_request_t),
                        sizeof(struct sockd_io_t))
-                + sizeof(struct msghdr) 
+                + sizeof(struct msghdr)
                 + CMSG_SPACE(sizeof(int)) * FDPASS_MAX)
                 * SOCKD_REQUESTMAX;
 #if HAVE_GSSAPI
@@ -186,7 +186,7 @@ addchild(type)
           */
 
          bufval = (sizeof(struct sockd_io_t)
-                +  sizeof(struct msghdr) 
+                +  sizeof(struct msghdr)
                 +  CMSG_SPACE(sizeof(int)) * FDPASS_MAX)
                 * SOCKD_IOMAX;
 #if HAVE_GSSAPI
@@ -236,7 +236,7 @@ addchild(type)
    if (sockscf.option.debug > 1) {
       slog(LOG_DEBUG, "%s: minimum rcvbuf for mother and sndbuf for %s child: "
                       "%d and %d, set: %d and %d",
-      function, childtype2string(type), 
+      function, childtype2string(type),
       bufval, bufval, bufset, bufset2);
    }
 
@@ -267,9 +267,9 @@ addchild(type)
 
          /*
           * signals mother has set up but which we need ignore at this
-          * point, lest we accidently run mothers signalhandler if the
-          * child does not install it's own signalhandler for the 
-          * particular signal. 
+          * point, lest we accidentally run mothers signalhandler if the
+          * child does not install it's own signalhandler for the
+          * particular signal.
           */
          sigact.sa_handler = SIG_IGN;
 
@@ -307,7 +307,7 @@ addchild(type)
 
          mother.s   = datapipev[CHILD];
          mother.ack = ackpipev[CHILD];
-         
+
          /*
           * It would be nice to be able to lose all root privileges here
           * but unfortunately we can't;
@@ -321,10 +321,10 @@ addchild(type)
           *
           * io children:
           *      - could need privileges to listen for icmp errors.
-          *      - could need privileges to bind port if using the 
+          *      - could need privileges to bind port if using the
           *        redirect() module.
           *
-          * Also, all may need privilieges to re-read sockd.conf.
+          * Also, all may need privileges to re-read sockd.conf.
           *
           * If we have privilege-support, give up what we can though.
           */
@@ -394,7 +394,7 @@ addchild(type)
           * in the above close(2) loop.
           * This needs to happen as the first thing after the above loop,
           * as newprocinit() will close the old syslog descriptor, if any,
-          * before opening a new one.  If we have started to use the 
+          * before opening a new one.  If we have started to use the
           * descriptor for something else already (e.g. due to dup(2)),
           * newprocinit(), will still close the old descriptor, even
           * though it's no longer a syslog descriptor.
@@ -404,7 +404,7 @@ addchild(type)
 
          /*
           * This is minor optimization to make things faster for select(2)
-          * by avoiding having two increasingly high-numbered descriptors 
+          * by avoiding having two increasingly high-numbered descriptors
           * to check for, with most of the other descriptors in the lower-end.
           */
 
@@ -583,7 +583,7 @@ fillset(set)
          dbits = MAX(dbits, negchildv[i].s);
       }
 
-      /* we can always accept an ack ofcourse. */
+      /* we can always accept an ack of course. */
       SASSERTX(negchildv[i].ack >= 0);
       FD_SET(negchildv[i].ack, set);
       dbits = MAX(dbits, negchildv[i].ack);
@@ -597,7 +597,7 @@ fillset(set)
          dbits = MAX(dbits, reqchildv[i].s);
       }
 
-      /* we can always accept an ack ofcourse. */
+      /* we can always accept an ack of course. */
       SASSERTX(reqchildv[i].ack >= 0);
       FD_SET(reqchildv[i].ack, set);
       dbits = MAX(dbits, reqchildv[i].ack);
@@ -745,7 +745,7 @@ removechild(pid)
    }
    --(*childc);
 
-   /* 
+   /*
     * Don't bother with realloc(3) when reducing size.
     */
 #if 0
@@ -936,7 +936,7 @@ send_io(s, io)
    gss_buffer_desc gssapistate;
    gss_ctx_id_t gssid = GSS_C_NO_CONTEXT;
    char gssapistatemem[MAXGSSAPITOKENLEN];
-#endif
+#endif /* HAVE_GSSAPI */
    CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
    bzero(iov, sizeof(iov));
@@ -1032,7 +1032,7 @@ send_io(s, io)
 
    slog(LOG_DEBUG, "%s: sent %d descriptors for command %d.  "
                    "Control: %d, src: %d, dst: %d",
-                   function, fdsent, io->state.command, 
+                   function, fdsent, io->state.command,
                    io->control.s, io->src.s, io->dst.s);
 
    return 0;
@@ -1066,7 +1066,7 @@ send_client(s, client)
    CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsent);
 
    if ((rc = sendmsgn(s, &msg, 0)) != sizeof(*client))   {
-      swarn("%s: sendmsg(): sendt %ld/%ld",
+      swarn("%s: sendmsg(): sent %ld/%ld",
       function, (long)rc, (long)sizeof(*client));
 
       return -1;
@@ -1087,7 +1087,7 @@ send_req(s, req)
 #if HAVE_GSSAPI
    gss_buffer_desc gssapistate;
    char gssapistatemem[MAXGSSAPITOKENLEN];
-#endif
+#endif /* HAVE_GSSAPI */
    CMSG_AALLOC(cmsg, sizeof(int));
 
    ioc    = 0;
@@ -1100,12 +1100,12 @@ send_req(s, req)
    ++ioc;
 
 #if HAVE_GSSAPI
-   if (req->auth.method == AUTHMETHOD_GSSAPI) {
+   if (req->socksauth.method == AUTHMETHOD_GSSAPI) {
       gssapistate.value   = gssapistatemem;
       gssapistate.length  = sizeof(gssapistatemem);
 
-      if (gssapi_export_state(&req->auth.mdata.gssapi.state.id, &gssapistate)
-      != 0)
+      if (gssapi_export_state(&req->socksauth.mdata.gssapi.state.id,
+      &gssapistate) != 0)
          return 1;
 
       iov[ioc].iov_base = gssapistate.value;

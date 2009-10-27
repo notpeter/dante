@@ -48,7 +48,7 @@
 #include "ifaddrs_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.197 2009/09/10 09:17:06 michaels Exp $";
+"$Id: util.c,v 1.201 2009/10/23 11:43:37 karls Exp $";
 
 const char *
 strcheck(string)
@@ -1027,6 +1027,123 @@ fdisblocking(fd)
    return !(p & O_NONBLOCK);
 }
 
+int
+fdisdup(fd1, fd2)
+   const int fd1;
+   const int fd2;
+{
+   const char *function = "fdisdup()";
+   struct stat sb1, sb2;
+   struct sockaddr addr1, addr2;
+   socklen_t addr1len, addr2len;
+   int isdup, rc1, rc2, errno1, errno2, flags1, flags2;
+
+
+   slog(LOG_DEBUG, "%s: %d, %d", function, fd1, fd2);
+
+   if ((rc1 = fstat(fd1, &sb1)) != fstat(fd2, &sb2))
+      return 0;
+
+   if (rc1 == -1)
+      return 0; /* presumably fd is not open, can't say then. */
+
+#if HAVE_UNIQUE_SOCKET_INODES
+   if (sb1.st_dev != sb2.st_dev
+   ||  sb1.st_ino != sb2.st_ino)
+      return 0;
+#endif /* HAVE_UNIQUE_SOCKET_INODES */
+
+   addr1len = sizeof(addr1);
+   addr2len = sizeof(addr2);
+   rc1    = getsockname(fd1, &addr1, &addr1len);
+   errno1 = errno;
+   rc2 = getsockname(fd2, &addr2, &addr2len);
+   errno2 = errno;
+
+   if (rc1 != rc2 || errno1 != errno2 || addr1len != addr2len)
+      return 0;
+
+   if (rc1 == 0)
+      if (addr1.sa_family != addr2.sa_family
+      || memcmp(&addr1.sa_data, &addr2.sa_data, sizeof(addr1.sa_data)) != 0)
+         return 0;
+
+   addr1len = sizeof(addr1);
+   addr2len = sizeof(addr2);
+   rc1    = getpeername(fd1, &addr1, &addr1len);
+   errno1 = errno;
+   rc2 = getpeername(fd2, &addr2, &addr2len);
+   errno2 = errno;
+
+   if (rc1 != rc2 || errno1 != errno2 || addr1len != addr2len)
+      return 0;
+
+   flags1 = fcntl(fd1, F_GETFL, 0);
+   errno1 = errno;
+   flags2 = fcntl(fd2, F_GETFL, 0);
+   errno2 = errno;
+
+   if (flags1 != flags2 || errno1 != errno2)
+      return 0;
+
+   /*
+    * Ok, all looks equal.  No other (?) choice than to set a flag
+    * on fd1, and see if the same flag then gets set on fd2.
+    * XXX does not work on OpenBSD if one of the descriptors were passed
+    * us by another process.  Need to sendbug this.
+    */
+
+   if (flags1 & O_NONBLOCK) {
+      /*
+       * remove O_NONBLOCK from fd1 and see if it gets removed from fd2 too.
+       */
+      int newflags;
+
+      rc1 = fcntl(fd1, F_SETFL, flags1 & ~O_NONBLOCK);
+      SASSERTX(rc1 == 0);
+
+      newflags = fcntl(fd1, F_GETFL, 0);
+      SASSERTX(!(newflags & O_NONBLOCK));
+
+      newflags = fcntl(fd2, F_GETFL, 0);
+      if (newflags & O_NONBLOCK)
+         isdup = 0;
+      else
+         isdup = 1;
+   }
+   else {
+      /*
+       * add O_NONBLOCK to fd1 and see if it gets added to fd2 too.
+       */
+      int newflags;
+
+      rc1 = fcntl(fd1, F_SETFL, flags1 | O_NONBLOCK);
+      SASSERTX(rc1 == 0);
+
+      newflags = fcntl(fd1, F_GETFL, 0);
+      SASSERTX(newflags & O_NONBLOCK);
+
+      newflags = fcntl(fd2, F_GETFL, 0);
+      if (newflags & O_NONBLOCK)
+         isdup = 1;
+      else
+         isdup = 0;
+   }
+
+   /* restore flags back to original. */
+   rc1 = fcntl(fd1, F_SETFL, flags1);
+   rc2 = fcntl(fd2, F_SETFL, flags2);
+
+   SASSERTX(rc1 == 0 && rc2 == 0);
+   rc1 = fcntl(fd1, F_GETFL, 0);
+   rc2 = fcntl(fd2, F_GETFL, 0);
+
+   SASSERTX(rc1 == flags1);
+   SASSERTX(rc2 == flags2);
+
+   return isdup;
+}
+
 void
 closev(array, count)
    int *array;
@@ -1111,7 +1228,7 @@ urlstring2sockaddr(string, saddr)
    }
 
    if ((port = strrchr(string, ':')) == NULL) {
-      swarnx("could not find start of portnumber in %s", string);
+      swarnx("could not find start of port number in %s", string);
       return NULL;
    }
    ++port; /* skip ':' */
@@ -1135,7 +1252,7 @@ allocate_maxsize_fdset(void)
    if (sockscf.option.debug > 1)
       slog(LOG_DEBUG, "%s: allocated %lu bytes",
       function, (unsigned long)SOCKD_FD_SIZE());
-#endif
+#endif /* DEBUG */
 
    return set;
 }
@@ -1154,4 +1271,34 @@ getmaxofiles(limittype_t type)
       return rlimit.rlim_max;
    else
       SERR(type); /* NOTREACHED */
+
+}
+
+void
+socks_sigblock(sig, oldset)
+   const int sig;
+   sigset_t *oldset;
+{
+   const char *function = "socks_sigblock()";
+   sigset_t newmask;
+
+   if (sig == -1)
+      (void)sigfillset(&newmask);
+   else {
+      (void)sigemptyset(&newmask);
+      (void)sigaddset(&newmask, sig);
+   }
+
+   if (sigprocmask(SIG_BLOCK, &newmask, oldset) != 0)
+      swarn("%s: sigprocmask()", function);
+}
+
+void
+socks_sigunblock(oldset)
+   const sigset_t *oldset;
+{
+   const char *function = "socks_sigunblock()";
+
+   if (sigprocmask(SIG_SETMASK, oldset, NULL) != 0)
+      swarn("%s: sigprocmask()", function);
 }

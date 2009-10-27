@@ -1,6 +1,6 @@
-.\" $Id: socks.conf.5,v 1.51 2009/08/24 10:24:36 karls Exp $
+.\" $Id: socks.conf.5,v 1.56 2009/10/23 11:13:29 karls Exp $
 .\"
-.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2009
+.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2008, 2009
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -63,17 +63,28 @@ a combination.  The default is no logging.
 The protocol used to resolve hostnames.
 Valid values are \fBudp\fP, \fBtcp\fP and \fBfake\fP.  The default
 is \fBudp\fP.
-.TP
 .SH ROUTES
 The routes are specified with a \fBroute\fP keyword.
-Inside a pair of parens ({}) a set of keywords control the behavior of
+Inside a pair of parenthesis ({}) a set of keywords control the behavior of
 the route.
 Each \fBroute\fP can contain
 three address specifications; \fBfrom\fP, \fBto\fP and \fBvia\fP.
 A route is selected for a connection based on the values within the
-\fBroute\fP block.  The \fBroute\fP block can contain the following:
-.TP
-.SH ADDRESSES
+\fBroute\fP block.
+
+When searching for a route to match the clients request, the library
+will first look for a \fBdirect\fP route.  Then for a \fBsocks_v5\fP
+route, a \fBsocks_v4\fP route, a \fBhttp_v1.0\fP route, and lastly
+for a \fBupnp\fP route.
+
+Depending on how the library is configured and environment variables
+set (see the manual for \fBsocksify(1)\fP), there may or may not be an
+automatic fallback to an auto-generated \fBdirect\fP route if no
+other route is found.
+
+The \fBroute\fP block can contain the following:
+
+.IP \fBADDRESSES\fP
 Each address field can consist of a ipaddress (and where meaningful,
 a netmask, separated from the ipaddress by a '\fB/\fP' sign.), a hostname,
 a domainname (designated by the leading '\fB.\fP'), or an interfacename
@@ -98,7 +109,7 @@ will match all port numbers within the range <start #> and <end #>.
 .SH Options
 .IP \fBclientcompatibility\fP
 Enables certain options for compatibility with broken servers.
-Valied values are: \fBnecgssapi\fP, for compatibility with servers
+Valid values are: \fBnecgssapi\fP, for compatibility with servers
 implementing gssapi the NEC socks way.
 .IP \fBcommand\fP
 The server supports the given commands.  Valid commands
@@ -108,7 +119,7 @@ protocols set for the route.
 .IP \fBgssapi.enctype\fP
 Which encryption to enforce for GSSAPI-authenticated communication.
 Possible values are \fBclear\fP, \fBintegrity\fP, or \fBconfidentiality\fP.
-The default is to try for confidentialy, but accept whatever the
+The default is to try for confidentially, but accept whatever the
 server offers.
 .IP \fBgssapi.servicename\fP
 Which servicename to use when involving GSSAPI.  Default is "rcmd".

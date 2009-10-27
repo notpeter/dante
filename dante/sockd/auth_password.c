@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: auth_password.c,v 1.22 2009/10/02 07:51:19 michaels Exp $";
+"$Id: auth_password.c,v 1.24 2009/10/23 10:37:26 karls Exp $";
 
 int
 passwordcheck(name, clearpassword, emsg, emsglen)
@@ -53,14 +53,14 @@ passwordcheck(name, clearpassword, emsg, emsglen)
    char *emsg;
    size_t emsglen;
 {
-   const char *function = "passwordcheck()";  
+   const char *function = "passwordcheck()";
    struct passwd *pw;
    char password[MAXPWLEN];
    int rc;
 
    slog(LOG_DEBUG, "%s: name = %s", function, name);
 
-   if (clearpassword != NULL) /* don't need privilieges to lookup name. */
+   if (clearpassword != NULL) /* don't need privileges to lookup name. */
       sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_ON);
 
    if ((pw = socks_getpwnam(name)) == NULL) {

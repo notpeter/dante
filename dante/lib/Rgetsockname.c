@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,7 @@
 #endif /* HAVE_LIBMINIUPNP */
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.65 2009/10/05 15:25:45 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.68 2009/10/23 11:43:34 karls Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -88,12 +88,12 @@ Rgetsockname(s, name, namelen)
          if ((rc = UPNP_GetExternalIPAddress(socksfd.route->gw.state.data.upnp
          .controlurl, socksfd.route->gw.state.data.upnp.servicetype, straddr))
          != UPNPCOMMAND_SUCCESS) {
-            swarnx("%s: failed to get external ipaddress of upnp device: %d",
+            swarnx("%s: failed to get external ip address of upnp device: %d",
             function, rc);
             return -1;
          }
 
-         slog(LOG_DEBUG, "%s: upnp controlpoint's external ipaddress is %s",
+         slog(LOG_DEBUG, "%s: upnp controlpoint's external ip address is %s",
          function, straddr);
 
          if (inet_pton(socksfd.remote.sa_family,

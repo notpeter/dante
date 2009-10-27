@@ -24,8 +24,13 @@ esac
 unset GSSAPI
 AC_ARG_WITH(gssapi-path,
 [  --with-gssapi-path=PATH specify gssapi path],
-[GSSAPI="yes" dnl act as if --with-gssapi is specified if path is given
- gssdir=$withval])
+[if test -e "$withval"; then
+     gssdir=$withval
+     #act as if --with-gssapi is specified if path is given
+     GSSAPI="yes"
+ else
+     AC_MSG_WARN([invalid gssapi-path: $withval])
+ fi])
 
 AC_ARG_WITH(gssapi,
 [  --without-gssapi        disable gssapi support],
@@ -88,8 +93,8 @@ if test x"$GSSAPI" != xno; then
    if test x"${ac_gssapi_cflags}" = x -a x"${ac_gssapi_libs}" = x -a \
            x"$gssdir" != x; then
        dnl attempt to construct environment manuelly
-       CPPFLAGS="-I$gssdir/include"
-       LDFLAGS="-L$gssdir/lib"
+       CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I$gssdir/include"
+       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }-L$gssdir/lib"
    fi
 
    dnl any cflags values obtained from krb5-config?
@@ -154,23 +159,21 @@ if test x"$GSSAPI" != xno; then
    dnl do compile check
    AC_MSG_CHECKING([for working gssapi])
    AC_TRY_RUN([
-#ifdef HAVE_GSSAPI_H
+#if HAVE_GSSAPI_GSSAPI_H
+#include <gssapi/gssapi.h>
+#elif HAVE_GSSAPI_H
 #include <gssapi.h>
 #endif
 
-#ifdef HAVE_GSSAPI_GSSAPI_H
-#include <gssapi/gssapi.h>
-#endif
-
-#ifdef HAVE_GSSAPI_GSSAPI_EXT_H
+#if HAVE_GSSAPI_GSSAPI_EXT_H
 #include <gssapi/gssapi_ext.h>
 #endif
 
-#ifdef HAVE_GSSAPI_GSSAPI_KRB5_H
+#if HAVE_GSSAPI_GSSAPI_KRB5_H
 #include <gssapi/gssapi_krb5.h>
 #endif
 
-#ifdef HAVE_GSSAPI_GSSAPI_GENERIC_H
+#if HAVE_GSSAPI_GSSAPI_GENERIC_H
 #include <gssapi/gssapi_generic.h>
 #endif
 

@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.479 2009/10/09 08:05:13 michaels Exp $ */
+/* $Id: common.h,v 1.483 2009/10/23 11:08:01 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -69,7 +69,7 @@ extern char *__progname;
     * defines
     */
 #if HAVE_SOLARIS_BUGS
-#define HAVE_UNIQUE_SOCKET_INODES   (0) 
+#define HAVE_UNIQUE_SOCKET_INODES   (0)
 #else /* !HAVE_SOLARIS_BUGS */
 #define HAVE_UNIQUE_SOCKET_INODES   (1)
 #endif /* HAVE_SOLARIS_BUGS */
@@ -105,7 +105,7 @@ extern char *__progname;
 /*
  * redefine system limits to match that of socks protocol.
  * No need for these to be bigger than protocol allows, but they
- * _must_ be atleast as big as protocol allows.
+ * _must_ be at least as big as protocol allows.
  */
 
 #ifdef   MAXHOSTNAMELEN
@@ -150,7 +150,7 @@ extern char *__progname;
 /*                                             "." + "65535" + NUL */
 #define   MAXSOCKSHOSTSTRING (MAXHOSTNAMELEN + 1  +    5)
 
-#define   MAXRULEADDRSTRING    (MAXSOCKSHOSTSTRING * 2)
+#define   MAXRULEADDRSTRING  (MAXSOCKSHOSTSTRING * 2 + 32 /* atype, etc. */)
 #define   MAXGWSTRING        (MAXSOCKSHOSTSTRING)
 
 
@@ -195,7 +195,7 @@ do {                                         \
          break;                              \
 } while (/* CONSTCOND */ 0)
 
-/* char methodarray to integer methodarray. */
+/* char method array to integer method array. */
 #define CM2IM(methodc, charmethodv, intmethodv)      \
    do {                                              \
       int cm2im = (methodc);                         \
@@ -272,7 +272,7 @@ do {                                      \
 
 /*
  * Modern CMSG alignment macros. Use them if the platform has them,
- * if not we get the default behaviour.
+ * if not we get the default behavior.
  */
 
 #define SENDMSG_PADBYTES   (sizeof(long) * 8) /* just a guess. */
@@ -300,7 +300,7 @@ do {                                      \
 #endif /* HAVE_CMSGHDR */
 
 /*
- * allocate memory for a controlmessage of size "size".  "name" is the
+ * allocate memory for a control message of size "size".  "name" is the
  * name of the allocated memory.
  */
 #if HAVE_CMSGHDR
@@ -316,7 +316,7 @@ do {                                      \
 #endif /* !HAVE_CMSGHDR */
 
 /*
- * Returns the size of the previously allocated controlmessage named
+ * Returns the size of the previously allocated control message named
  * "name"
  */
 #if HAVE_CMSGHDR
@@ -326,7 +326,7 @@ do {                                      \
 #endif /* HAVE_CMSGHDR */
 
 /*
- * Returns the controldata member of "msg".
+ * Returns the control data member of "msg".
  */
 #if HAVE_CMSGHDR
 /*
@@ -357,7 +357,7 @@ do {                                      \
 
 
 /*
- * get a object from controldata "data".
+ * get a object from control data "data".
  * "object" is the object to fill with data gotten from "data" at offset
  * "offset".
  */
@@ -376,8 +376,8 @@ do {                                      \
 
 
 /*
- * Sets up "object" for sending a controlmessage of size "size".
- * "controlmem" is the memory the controlmessage is stored in.
+ * Sets up "object" for sending a control message of size "size".
+ * "controlmem" is the memory the control message is stored in.
  */
 #if HAVE_CMSGHDR
 #define CMSG_SETHDR_SEND(object, controlmem, size)             \
@@ -398,8 +398,8 @@ do {                                      \
 #endif /* !HAVE_CMSGHDR */
 
 /*
- * Sets up "object" for receiving a controlmessage of size "size".
- * "controlmem" is the memory set aside for the controlmessage.
+ * Sets up "object" for receiving a control message of size "size".
+ * "controlmem" is the memory set aside for the control message.
  */
 #if HAVE_CMSGHDR
 #define CMSG_SETHDR_RECV(object, controlmem, size)             \
@@ -416,7 +416,7 @@ do {                                      \
 #endif /* !HAVE_CMSGHDR */
 
 
-/* returns length of controldata actually sent. */
+/* returns length of control data actually sent. */
 #if HAVE_CMSGHDR
 #define CMSG_GETLEN(msg)   ((msg).msg_controllen - CMSG_LEN(0))
 #else
@@ -654,7 +654,7 @@ do {                                \
 #define DEFAULT_SSDP_BROADCAST_ADDR    "239.255.255.250"
 #define DEFAULT_SSDP_PORT              (1900)
 
-/* returncodes from UPNP_GetValidIGD(). */
+/* return codes from UPNP_GetValidIGD(). */
 #define UPNP_NO_IGD           (0)
 #define UPNP_CONNECTED_IGD    (1)
 #define UPNP_DISCONNECTED_IGD (2)
@@ -696,12 +696,12 @@ do {                                \
 
 #define MSPROXY_SOMETHING_2      0x4701   /* packet 4 from client.            */
 #define MSPROXY_SOMETHING_2_ACK  0x4715   /*
-                                           * packet 4 from server, high 8 
+                                           * packet 4 from server, high 8
                                            * bits seem to vary.               */
 #define MSPROXY_SOMETHING_2_ACK2 0x4716   /* could be this too... dunno.      */
 
 #define MSPROXY_RESOLVE          0x070d   /* resolve request from client.     */
-#define MSPROXY_RESOLVE_ACK      0x070f   /* resolved info from server.         */
+#define MSPROXY_RESOLVE_ACK      0x070f   /* resolved info from server.       */
 
 #define MSPROXY_BIND             0x0704   /* bind request.                    */
 #define MSPROXY_BIND_ACK         0x0706   /* bind request accepted.           */
@@ -785,11 +785,12 @@ struct logtype_t {
    int            type;      /* type of logging (where to).                   */
    FILE            **fpv;    /* if logging is to file, this is the open file. */
    char            **fnamev; /* ... name of file.                             */
-   int            *filenov;  /* ... filedescriptor of file (fileno).          */
+   int            *filenov;  /* ... file descriptor of file (fileno).         */
    size_t         fpc;       /* number of files.                              */
    int            *fplockv;  /* locking of logfiles.                          */
    int            facility;  /* if logging to syslog, this is the facility.   */
-   const char      *facilityname;   /* if logging to syslog, name of facility.   */ };
+   const char      *facilityname; /* if logging to syslog, name of facility   */
+};
 
 
 
@@ -805,10 +806,10 @@ struct extension_t {
 union socksaddr_t {
    struct in_addr ipv4;
    char            ipv6[SOCKS_IPV6_ALEN];
-   char            domain[MAXHOSTNAMELEN]; /* _always_ stored as C string.      */
+   char            domain[MAXHOSTNAMELEN]; /* _always_ stored as C string.    */
 };
 
-/* the hostspecific part of misc. things */
+/* the host specific part of misc. things */
 struct sockshost_t {
    unsigned char        atype;
    union socksaddr_t    addr;
@@ -1075,7 +1076,7 @@ struct msproxy_response_t {
          in_port_t      boundport;         /* 77-78: bind request; port used
                                            *          on client behalf.
                                           */
-         in_addr_t      boundaddr;         /* 79-82: addr used on client behalf*/
+         in_addr_t      boundaddr;        /* 79-82: addr used on client behalf*/
          char            pad10[90];         /* 83-172                           */
       } _5;
    } packet;
@@ -1239,9 +1240,9 @@ struct socksstate_t {
 #if HAVE_GSSAPI
    int                     gssimportneeded;
    gss_buffer_desc         gssapistate;   /* if gssimportneeded, data for it. */
-#endif
+#endif /* HAVE_GSSAPI */
    int                     inprogress;    /* operation in progress? (-1)      */
-   unsigned                issyscall:1;   /* started out as a real systemcall */
+   unsigned                issyscall:1;   /* started out as a real system call*/
    struct msproxy_state_t  msproxy;       /* if msproxy, msproxy state.       */
    struct protocol_t       protocol;      /* protocol in use.                 */
    unsigned char           udpconnect;    /* connected UDP socket?            */
@@ -1348,7 +1349,7 @@ enum portcmp { e_lt, e_gt, e_eq, e_neq, e_le, e_ge, e_nil };
  * This object is either used for straightforward buffering, or
  * in the case the data is gssapi-encapsulated, to handle gssapi-data.
  * In the case of simple, non-gssapi, buffering,
- * no futher explenation is given; the len field simply holds
+ * no further explanation is given; the len field simply holds
  * the number of bytes currently buffered.
  *
  * Next we describe how it is used in the case of gssapi.
@@ -1375,23 +1376,23 @@ enum portcmp { e_lt, e_gt, e_eq, e_neq, e_le, e_ge, e_nil };
  *
  *    4) When all data in buf has been returned, clear the iobuffer.
  *
- * The operation when writting is more complicated, because
+ * The operation when writing is more complicated, because
  * we can get multiple write requests that we fail to send down
  * to the socket buffer, which in sum may be bigger than the
- * the iobuffer set asside to hold buffered unwritten data.
+ * the iobuffer set aside to hold buffered unwritten data.
  *
- * The only way to prevent that situation from occuring is to
+ * The only way to prevent that situation from occurring is to
  * put a cap on how much we read, and never read more data than
  * we can store in our write-buffer, encoded.
  * We can use gss_wrap_size_limit() in combination with the amount
  * of data free in the buffer to find out the max amount of data to
  * read, and read no more than that in the tcp case.
  *
- * The operation for writting thus becomes:
+ * The operation for writing thus becomes:
  * 1) Encode the data received and write it to the socket.
  *
  * 2) If we fail to write all the data, and it is a tcp socket,
- *    store the remaing data in the iobuffer, setting encodedlen
+ *    store the remaining data in the iobuffer, setting encodedlen
  *    to the size of data remaining, and used to zero.
  *    If it's a udp socket, there is not much to do, so return the
  *    error.
@@ -1423,11 +1424,11 @@ typedef struct {
       size_t   peekedbytes;/* # of bytes we last peeked at.                   */
 #endif /* SOCKS_CLIENT */
 
-      size_t   len;        /* length of decoded/plaintext data in buffer.     */
+      size_t   len;        /* length of decoded/plain text data in buffer     */
       size_t   enclen;     /* length of encoded data in buffer.               */
    } info[2];
 
-   int      stype;         /* sockettype; tcp or udp                          */
+   int      stype;         /* socket type; tcp or udp                         */
 } iobuffer_t;
 
 
@@ -1492,8 +1493,8 @@ int
 socks_initupnp(const gwaddr_t *gw, proxystate_t *data);
 /*
  * Inits upnp for interface corresponding to address "gw".
- * If successfull, the necessary information to later use the found
- * upnp router is saved in "data", which should normaly be part of a
+ * If successful, the necessary information to later use the found
+ * upnp router is saved in "data", which should normally be part of a
  * route object.
  *
  * Returns:
@@ -1537,14 +1538,21 @@ udpheader_add(const struct sockshost_t *host, const void *msg, size_t *len,
 int
 fdisopen(const int fd);
 /*
- * returns true if the filedescriptor "fd" currently references a open fd,
+ * returns true if the file descriptor "fd" currently references a open fd,
  * false otherwise.
  */
 
 int
 fdisblocking(const int fd);
 /*
- * returns true if the filedescriptor "fd" is blocking, false otherwise.
+ * returns true if the file descriptor "fd" is blocking, false otherwise.
+ */
+
+int
+fdisdup(const int fd1, const int fd2);
+/*
+ * Tries to determine if file descriptor fd1 is a dup of fd2.
+ * Returns true if yes, false if not.
  */
 
 void
@@ -1579,7 +1587,7 @@ fakesockshost2sockaddr(const struct sockshost_t *host, struct sockaddr *addr);
 struct sockaddr *
 urlstring2sockaddr(const char *string, struct sockaddr *saddr);
 /*
- * Converts the address givein in "string", on URL:// format, to
+ * Converts the address given in "string", on URL:// format, to
  * a sockaddr address.
  */
 
@@ -1662,7 +1670,7 @@ sockaddr2ifname(struct sockaddr *addr, char *ifname, size_t iflen);
  * If "ifname" or "iflen" is NULL, the name is written to a local
  * buffer instead.
  *
- * Returns a pointer to the memory containing the interfacename, or
+ * Returns a pointer to the memory containing the interface name, or
  * NULL if no matching interface is found.
  *
  */
@@ -1692,7 +1700,7 @@ readn(int, void *, size_t, const size_t minread, struct authmethod_t *auth)
 /*
  * Like read() but with two additional arguments:
  * minread - the minimum amount of bytes to read before returning, or error.
- * auth    - authentication info for the filedescriptor.  May be NULL.
+ * auth    - authentication info for the file descriptor.  May be NULL.
  */
 
 ssize_t
@@ -1702,7 +1710,7 @@ writen(int, const void *, size_t, const size_t minwrite,
 /*
  * like write() but if with two additional arguments:
  * minwrite - the minimum amount of bytes to write before returning, or error.
- * auth     - authentication info for the filedescriptor.  May be NULL.
+ * auth     - authentication info for the file descriptor.  May be NULL.
  */
 
 ssize_t
@@ -1757,12 +1765,12 @@ selectn(int, fd_set *rset, fd_set *bufrset, fd_set *wset, fd_set *bufwset,
  * bufwset - if not NULL, descriptors with free space in the write buffer.
  *
  * In addition, if it's called by the server, it checks whether we
- * have a signal queed internally, and if so calls the appopriate
+ * have a signal queued internally, and if so calls the appropriate
  * signalhandler.
  * Note that if this happens, it's possible the function will set errno
  * to EINTR and return.  This can happen if the signalhandler closed one
  * of the descriptors in the sets, so that select(2) can no longer be called
- * without returing EBADF.
+ * without returning EBADF.
  */
 
 int
@@ -1784,11 +1792,27 @@ snprintfn(char *str, size_t size, const char *format, ...)
       __attribute__((__nonnull__(3)))
       __attribute__((__bounded__(__string__, 1, 2)));
 /*
- * Wrapper around snprintf() for consistent behaviour.  Same as stdio
+ * Wrapper around snprintf() for consistent behavior.  Same as stdio
  * snprintf() but the following are also enforced:
  *      returns 0 instead of -1 (rawterminates *str).
  *      never returns a value greater than size - 1.
  */
+
+void
+socks_sigblock(const int sig, sigset_t *oldset);
+/*
+ * If "sig" is -1, blocks all signals.  If not, adds only "sig" to
+ * the list of currently blocked signals.
+ *
+ * The old signalmask is returned in "oldset".
+ */
+
+void
+socks_sigunblock(const sigset_t *oldset);
+/*
+ * Restores the current signalmask to "oldset".
+ */
+
 
 const char *
 strcheck(const char *string);
@@ -1837,14 +1861,14 @@ void vslog(int priority, const char *fmt, va_list ap, va_list apcopy)
       __attribute__((format(printf, 2, 0)));
 /*
  * Same as slog() but assumes varargs/stdargs have already processed
- * the arguments. 
+ * the arguments.
  */
 
 int
 parseconfig(const char *filename);
 /*
  * Parses the config stored in in the filename "filename", as well
- * as environment-varibles related.
+ * as environment-variables related.
  *
  * Returns:
  *      On success: 0.
@@ -1923,7 +1947,7 @@ socks_connectroute(int s, struct socks_t *packet,
  * If src or dst is NULL, that argument is ignored.
  *
  * The route used may take into account the contents of "packet->req",
- * which is assumed to be the packet that will be sent to a socksserver,
+ * which is assumed to be the packet that will be sent to a socks server,
  * so it is recommended that it's contents be as conservative as possible.
  *
  * When it has successfully connected to a gateway it will set
@@ -1965,7 +1989,7 @@ socks_addroute(const struct route_t *route, const int last);
 /*
  * Appends a copy of "route" to our list of routes.
  * If "last" is true, the route is added to the end of our list.
- * If not, it's added to the start, and existing rulenumbers are updated
+ * If not, it's added to the start, and existing rule numbers are updated
  * correspondingly.
  *
  * Returns a pointer to the added route.
@@ -1995,7 +2019,7 @@ socks_getroute(const struct request_t *req, const struct sockshost_t *src,
  * If src or dst is NULL, that argument is ignored.
  *
  * The route used may take into account the contents of "req", which is
- * assumed to be the packet that will be sent to a socksserver, so it is
+ * assumed to be the packet that will be sent to a socks server, so it is
  * recommended that it's contents be as conservative as possible.
  *
  * Returns:
@@ -2118,17 +2142,17 @@ socketoptdup(int s);
 int
 socks_mklock(const char *template);
 /*
- * Creates a filedescriptor that can be used with socks_lock() and
+ * Creates a file descriptor that can be used with socks_lock() and
  * socks_unlock().
  * Returns:
- *      On success: filedescriptor
+ *      On success: file descriptor
  *      On failure: -1
  */
 
 int
 socks_lock(int fd, int type, int timeout);
 /*
- * Looks the filedescriptor "fd".
+ * Looks the file descriptor "fd".
  * "type" is the type of lock; F_RDLCK or F_WRLCK.
  * "timeout" is how long to wait for lock, supported values:
  *      -1: forever.
@@ -2141,7 +2165,7 @@ socks_lock(int fd, int type, int timeout);
 void
 socks_unlock(int d);
 /*
- * Unlocks the filedescriptor "d", previously locked by this process.
+ * Unlocks the file descriptor "d", previously locked by this process.
  */
 
 int
@@ -2209,7 +2233,7 @@ int
 msproxy_negotiate(int s, int control, struct socks_t *packet);
 /*
  * Negotiates with the msproxy server connected to "control".
- * "s" gives the socket to be used for dataflow.
+ * "s" gives the socket to be used for data flow.
  * "packet" contains the request and on return from the function
  * contains the response.
  * Returns:
@@ -2307,7 +2331,7 @@ serverreplyisok(int version, int reply, struct route_t *route);
  * "replycode" is the reply code returned by a socksserver of version
  * "version".
  * "route" is the route that was used for the socksserver.
- * If the errorcode indicates a serverfailure, the route might be
+ * If the errorcode indicates a server failure, the route might be
  * "blacklisted".
  *
  * Returns true if the reply indicates request succeeded, false otherwise
@@ -2332,7 +2356,7 @@ socks_blacklist(struct route_t *route);
 void
 socks_clearblacklist(struct route_t *route);
 /*
- * Clears bad markson route.
+ * Clears bad marks on route.
  */
 
 int
@@ -2354,15 +2378,15 @@ int
 clientmethod_uname(int s, const struct sockshost_t *host, int version,
        unsigned char *name, unsigned char *password);
 /*
- * Enters username/password negotiation with the socksserver connected to
+ * Enters username/password negotiation with the socks server connected to
  * the socket "s".
  * "host" gives the name of the server.
- * "version" gives the socksversion established to use.
+ * "version" gives the socks version established to use.
  * "name", if not NULL, gives the name to use for authenticating.
  * "password", if not NULL, gives the name to use for authenticating.
  * Returns:
  *      On success: 0
- *      On failure: whatever the remote socksserver returned as status.
+ *      On failure: whatever the remote socks server returned as status.
  */
 
 #if HAVE_GSSAPI
@@ -2370,14 +2394,14 @@ int
 clientmethod_gssapi(int s, int protocol, const struct gateway_t *gw,
        int version, struct authmethod_t *auth);
 /*
- * Enters gssapi negotiation with the socksserver connected to
+ * Enters gssapi negotiation with the socks server connected to
  * the socket "s".
  * "gw" gives the name of the gateway.
- * "version" gives the socksversion established to use.
+ * "version" gives the socks version established to use.
  * "*auth", authentication structure
  * Returns:
  *              On success: 0
- *              On failure: whatever the remote socksserver returned as status.
+ *              On failure: whatever the remote socks server returned as status.
  */
 
 int
@@ -2415,7 +2439,7 @@ void
 checkmodule(const char *name);
 /*
  * Checks that the system has the module "name" and permission to use it.
- * Aborts with an errormessage if not.
+ * Aborts with an error message if not.
  */
 
 int socks_yyparse(void);
@@ -2424,7 +2448,7 @@ int socks_yylex(void);
 int
 socks_sendrequest(int s, const struct request_t *request);
 /*
- * Sends the request "request" to the socksserver connected to "s".
+ * Sends the request "request" to the socks server connected to "s".
  * Returns:
  *      On success: 0
  *      On failure: -1
@@ -2435,7 +2459,7 @@ socks_recvresponse(int s, struct response_t *response, int version);
 /*
  * Receives a socks response from the "s".  "response" is filled in with
  * the data received.
- * "version" is the protocolversion negotiated.
+ * "version" is the protocol version negotiated.
  * Returns:
  *      On success: 0
  *      On failure: -1
@@ -2444,20 +2468,20 @@ socks_recvresponse(int s, struct response_t *response, int version);
 iobuffer_t *
 socks_allocbuffer(const int s);
 /*
- * Returns the iobuffer allocated to filedescriptor "s", or
+ * Returns the iobuffer allocated to file descriptor "s", or
  * a new free one if none is allocated.
  */
 
 iobuffer_t *
 socks_getbuffer(const int s);
 /*
- * Returns the iobuffer allocated to filedescriptor "s".
+ * Returns the iobuffer allocated to file descriptor "s".
  */
 
 void
 socks_freebuffer(const int s);
 /*
- * Marks the iobuffer allocated to filedescriptor "s" as free.
+ * Marks the iobuffer allocated to file descriptor "s" as free.
  */
 
 void
@@ -2476,7 +2500,7 @@ socks_clearbuffer(const int s, const whichbuf_t type);
 
 int socks_flushbuffer(const int s, const ssize_t len);
 /*
- * Tries to flush the data buffered for filedescriptor "s".
+ * Tries to flush the data buffered for file descriptor "s".
  * If "len" is -1, tries to flush all data, otherwise only flushed
  * up to "len" bytes.
  *
@@ -2534,7 +2558,7 @@ socks_freeinbuffer(const int s, const whichbuf_t which);
 fd_set *
 allocate_maxsize_fdset(void);
 /*
- * Allocate a fd_set big enough to hold the highest filedescriptor
+ * Allocate a fd_set big enough to hold the highest file descriptor
  * we could possibly use.
  * Returns a pointer to the allocated fd_set, or exits on failure.
  */
@@ -2579,9 +2603,9 @@ socks_getenv(const char *name, value_t value);
 /*
  * Depending on how the program was ./configured and on what
  * platform it runs, getenv(3) may or may not be disabled for
- * some names, for security reasons. 
+ * some names, for security reasons.
  *
- * This wrapper will return NULL if getenv(3) is disabled, 
+ * This wrapper will return NULL if getenv(3) is disabled,
  * otherwise it will return the result of getenv(3).
  *
  * In addition, if "value" is not "dontcare", the function will

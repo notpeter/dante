@@ -48,12 +48,12 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.292 2009/10/08 08:50:09 michaels Exp $";
+"$Id: serverconfig.c,v 1.305 2009/10/27 12:04:22 karls Exp $";
 
 static void
 showlist(const struct linkedname_t *list, const char *prefix);
 /*
- * shows usernames in "list".
+ * shows user names in "list".
  */
 
 static void
@@ -433,8 +433,8 @@ showrule(rule)
 {
    char addr[MAXRULEADDRSTRING];
 
-   slog(LOG_INFO, "socks-rule #%u, line #%lu",
-   rule->number, rule->linenumber);
+   slog(LOG_INFO, "socks-rule #%lu, line #%lu",
+   (unsigned long)rule->number, (unsigned long)rule->linenumber);
 
    slog(LOG_INFO, "verdict: %s", verdict2string(rule->verdict));
 
@@ -445,7 +445,7 @@ showrule(rule)
    ruleaddr2string(&rule->dst, addr, sizeof(addr)));
 
    if (rule->udprange.op == range)
-      slog(LOG_INFO, "udp portrange: %u - %u",
+      slog(LOG_INFO, "udp port range: %u - %u",
       ntohs(rule->udprange.start), ntohs(rule->udprange.end));
 
    if (rule->rdr_from.addr.ipv4.ip.s_addr != htonl(INADDR_ANY))
@@ -485,8 +485,8 @@ showclient(rule)
 {
    char addr[MAXRULEADDRSTRING];
 
-   slog(LOG_INFO, "client-rule #%u, line #%lu",
-   rule->number, rule->linenumber);
+   slog(LOG_INFO, "client-rule #%lu, line #%lu",
+   (unsigned long)rule->number, (unsigned long)rule->linenumber);
 
    slog(LOG_INFO, "verdict: %s", verdict2string(rule->verdict));
 
@@ -497,7 +497,7 @@ showclient(rule)
    ruleaddr2string(&rule->dst, addr, sizeof(addr)));
 
 #if BAREFOOTD
-   slog(LOG_INFO, "bunce to: %s",
+   slog(LOG_INFO, "bounce to: %s",
    ruleaddr2string(&rule->bounce_to, addr, sizeof(addr)));
 #endif /* BAREFOOTD */
 
@@ -567,6 +567,9 @@ showconfig(sockscf)
 
    slog(LOG_DEBUG, "resolveprotocol: %s",
    resolveprotocol2string(sockscf->resolveprotocol));
+
+   slog(LOG_DEBUG, "direct route fallback: %s",
+   sockscf->option.directfallback ? "enabled" : "disabled");
 
    slog(LOG_DEBUG, "srchost:\n%s",
    srchosts2string(&sockscf->srchost, "", buf, sizeof(buf)));
@@ -754,9 +757,10 @@ iolog(rule, state, operation, src, srcauth, dst, dstauth, data, count)
    p = strlen(dststring);
    sockshost2string(dst, &dststring[p], sizeof(dststring) - p);
 
-   snprintfn(rulecommand, sizeof(rulecommand), "%s(%d): %s/%s",
+   snprintfn(rulecommand, sizeof(rulecommand), "%s(%lu): %s/%s",
    verdict2string(rule->verdict),
-   rule->number, protocol2string(state->protocol),
+   (unsigned long)rule->number,
+   protocol2string(state->protocol),
    command2string(state->command));
 
    switch (operation) {
@@ -812,11 +816,13 @@ iolog(rule, state, operation, src, srcauth, dst, dstauth, data, count)
 }
 
 int
-rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
+rulespermit(s, peer, local, clientauth, match, srcauth, state,
+            src, dst, msg, msgsize)
    int s;
    const struct sockaddr *peer, *local;
+   struct authmethod_t *clientauth;
    struct rule_t *match;
-   struct authmethod_t *auth;
+   struct authmethod_t *srcauth;
    const struct connectionstate_t *state;
    const struct sockshost_t *src;
    const struct sockshost_t *dst;
@@ -915,9 +921,11 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
    }
 
    /*
-    * let auth be unchanged from original unless we actually get a match.
+    * let srcauth be unchanged from original unless we actually get a match.
     */
-   for (oldauth = *auth; rule != NULL; rule = rule->next, *auth = oldauth) {
+   for (oldauth = *srcauth;
+   rule != NULL;
+   rule = rule->next, *srcauth = oldauth) {
       int i;
 
       /* current rule covers desired command? */
@@ -992,20 +1000,25 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
          }
 
       /*
-       * This is a little tricky.  For some commands we may not
-       * have all info at time of (preliminary) rulechecks.
-       * What we want to do if there is no (complete) address given is
-       * to see if there's any chance at all the rules will permit this
-       * request when the address (later) becomes available.
-       * We therefore continue to scan the rules until we either get
-       * a pass (ignoring peer with missing info), or the default block
-       * is triggered.
+       * This is a little tricky.  For some commands we may not have
+       * all info at time of (preliminary) rulechecks.  What we want
+       * to do if there is no (complete) address given is to see if
+       * there's any chance at all the rules will permit this request
+       * when the address (later) becomes available.  We therefore
+       * continue to scan the rules until we either get a pass
+       * (ignoring peer with missing info), or the default block is
+       * triggered.
        *
        * This is the case for e.g. bindreply and udp, where we will
-       * have to call this function again when we get the addresses
-       * in question.
+       * have to call this function again when we get the addresses in
+       * question.
        */
 
+      /*
+       * XXX why addrmatch() without alias?
+       * If e.g. /etc/hosts has localhost localhost.example.com,
+       * we fail to match 127.0.0.1 against localhost.example.com.
+       */
       if (src != NULL) {
          if (!addrmatch(&rule->src, src, state->protocol, 0))
             continue;
@@ -1023,11 +1036,40 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
             continue; /* don't have complete address. */
 
       /*
-       * Does current rule authentication matches selected authentication?
+       * Does this rule's authentication match authentication in use?
        */
-      if (!methodisset(auth->method, rule->state.methodv, rule->state.methodc)){
+      if ((state->command == SOCKS_BINDREPLY
+        || state->command == SOCKS_UDPREPLY)
+      && !sockscf.srchost.checkreplyauth) {
          /*
-          * No.  There are however some methods which it's possible to get 
+          * To be consistent, we should insist that the user specifies
+          * authmethod none for replies, unless he really wants to use
+          * an authmethod in these cases also, which is possible (e.g.
+          * method rfc931, or ip-only based pam), though probably
+          * extremely unlikely.
+          *
+          * That can make the configfile look weird though; if the
+          * user e.g. wants all access to be password-authenticated,
+          * and thus specifies method "uname" on the global
+          * method-line, he can not do that without also adding method
+          * "none", as the global method-line is a superset of the
+          * methods specified in the individual rules.  That means he
+          * then needs to set the method on a rule-by-rule basis;
+          * "none" for replies, and "username" for all others.  With
+          * more than a few rules, this can become quite a hassle, is
+          * unexpected, and only needed because the server supports
+          * this probably quite unusual and rarely used feature.
+          *
+          * We therefor try to be more user-friendly about this, so
+          * unless "checkreplyauth" is set in "srchost:", assume
+          * authmethod should not be checked for replies also.
+          */
+          srcauth->method = AUTHMETHOD_NONE; /* don't bother checking. */
+      }
+      else if (!methodisset(srcauth->method, rule->state.methodv,
+      rule->state.methodc)) {
+         /*
+          * No.  There are however some methods which it's possible to get
           * a match on, even if above check failed.
           * I.e. it's possible to change/upgrade the method.
           * E.g. PAM is based on UNAME; if we have UNAME, we _may_ be
@@ -1043,9 +1085,12 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
 
          /*
           * This variable only says if current client has provided the
-          * neccessary information to check it's access with
-          * one of the methods required by the current rule.  It does
-          * not mean the information was checked.
+          * necessary information to check it's access with one of the
+          * methods required by the current rule.  It does not mean the
+          * information was checked.  I.e. if it's AUTHMETHOD_RFC931,
+          * and methodischeckable is set, it means we were able to retrieve
+          * rfc931 info, but not that we checked the retrieved information
+          * against the passsword database.
           *
           * XXX would be nice to cache this, so we don't have to
           * copy memory around each time.
@@ -1055,39 +1100,56 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
          for (i = 0; i < methodc; ++i) {
             if (methodisset(methodv[i], rule->state.methodv,
             rule->state.methodc)) {
+               slog(LOG_DEBUG, "%s: trying to find match for %s, "
+                               "for command %s ...",
+                               function, method2string(methodv[i]),
+                               command2string(state->command));
 
                switch (methodv[i]) {
                   case AUTHMETHOD_NONE:
-                     slog(LOG_DEBUG, "%s: trying to find match for none ...",
-                     function);
-
                      methodischeckable = 1; /* anything is good enough. */
                      break;
 
 #if HAVE_LIBWRAP
                   case AUTHMETHOD_RFC931:
-                     strncpy((char *)auth->mdata.rfc931.name,
-                     eval_user(&libwraprequest),
-                     sizeof(auth->mdata.rfc931.name) - 1);
+                     if (clientauth        != NULL
+                     && clientauth->method == AUTHMETHOD_RFC931) {
+                        slog(LOG_DEBUG, "%s: already have rfc931 name %s from "
+                                        "clientauthentication done before",
+                                        function,
+                                        clientauth->mdata.rfc931.name);
 
-                     /* libwrap sets it to unknown if no identreply. */
-                     if (strcmp((char *)auth->mdata.rfc931.name,
-                     STRING_UNKNOWN) == 0) {
-                        *auth->mdata.rfc931.name = NUL;
-                        slog(LOG_DEBUG, "%s: no rfc931 name", function);
+                        srcauth->mdata.rfc931 = clientauth->mdata.rfc931;
                      }
-                     else if (auth->mdata.rfc931.name[
-                     sizeof(auth->mdata.rfc931.name) - 1] != NUL) {
-                        auth->mdata.rfc931.name[sizeof(auth->mdata.rfc931.name)
-                        - 1] = NUL;
+                     else { /* need to do a tcp lookup. */
+                        slog(LOG_DEBUG, "%s: doing a tcp lookup to get rfc931 "
+                                        "name ...",
+                                        function);
 
-                        swarnx("%s: rfc931 name \"%s\" truncated", function,
-                        auth->mdata.rfc931.name);
 
-                        *auth->mdata.rfc931.name = NUL; /* unusable */
+                        strncpy((char *)srcauth->mdata.rfc931.name,
+                        eval_user(&libwraprequest),
+                        sizeof(srcauth->mdata.rfc931.name) - 1);
+
+                        /* libwrap sets it to unknown if no identreply. */
+                        if (strcmp((char *)srcauth->mdata.rfc931.name,
+                        STRING_UNKNOWN) == 0) {
+                           *srcauth->mdata.rfc931.name = NUL;
+                           slog(LOG_DEBUG, "%s: no rfc931 name", function);
+                        }
+                        else if (srcauth->mdata.rfc931.name[
+                        sizeof(srcauth->mdata.rfc931.name) - 1] != NUL) {
+                           srcauth->mdata.rfc931.name[
+                              sizeof(srcauth->mdata.rfc931.name) - 1] = NUL;
+
+                           swarnx("%s: rfc931 name \"%s\" truncated",
+                           function, srcauth->mdata.rfc931.name);
+
+                           *srcauth->mdata.rfc931.name = NUL; /* unusable */
+                        }
                      }
 
-                     if (*auth->mdata.rfc931.name != NUL)
+                     if (*srcauth->mdata.rfc931.name != NUL)
                         methodischeckable = 1;
                      break;
 #endif /* HAVE_LIBWRAP */
@@ -1097,27 +1159,22 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
                      /*
                       * PAM can support username/password, just username,
                       * or neither username nor password (i.e. based on
-                      * only ipaddress).
+                      * only ip address).
                       */
-
-                     slog(LOG_DEBUG, "%s: trying to find match for pam ...",
-                     function);
-
-                     switch (auth->method) {
+                     switch (srcauth->method) {
                         case AUTHMETHOD_UNAME: {
-
                            /* it's a union, make a copy first. */
                            const struct authmethod_uname_t uname
-                           = auth->mdata.uname;
+                           = srcauth->mdata.uname;
 
                            /*
                             * similar enough, just copy name/password.
                             */
 
-                           strcpy((char *)auth->mdata.pam.name,
+                           strcpy((char *)srcauth->mdata.pam.name,
                            (const char *)uname.name);
 
-                           strcpy((char *)auth->mdata.pam.password,
+                           strcpy((char *)srcauth->mdata.pam.password,
                            (const char *)uname.password);
 
                            methodischeckable = 1;
@@ -1128,17 +1185,17 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
                         case AUTHMETHOD_RFC931: {
                              /* it's a union, make a copy first. */
                              const struct authmethod_rfc931_t rfc931
-                             = auth->mdata.rfc931;
+                             = srcauth->mdata.rfc931;
 
                             /*
                              * no password, but we can check for the username
                              * we got from ident, with an empty password.
                              */
 
-                            strcpy((char *)auth->mdata.pam.name,
+                            strcpy((char *)srcauth->mdata.pam.name,
                             (const char *)rfc931.name);
 
-                           *auth->mdata.pam.password = NUL;
+                           *srcauth->mdata.pam.password = NUL;
 
                            methodischeckable = 1;
                            break;
@@ -1151,15 +1208,15 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
                             * PAM can also support no username/password.
                             */
 
-                           *auth->mdata.pam.name     = NUL;
-                           *auth->mdata.pam.password = NUL;
+                           *srcauth->mdata.pam.name     = NUL;
+                           *srcauth->mdata.pam.password = NUL;
 
                            methodischeckable = 1;
                            break;
 
                      }
 
-                     strcpy(auth->mdata.pam.servicename,
+                     strcpy(srcauth->mdata.pam.servicename,
                      rule->state.pamservicename);
 
                      break;
@@ -1169,32 +1226,29 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
                   case AUTHMETHOD_GSSAPI:
                      /*
                       * GSSAPI can only be checked/established during
-                      * negotitation (command = SOCKS_ACCEPT).
+                      * negotiation (command = SOCKS_ACCEPT).
                       * After that stage has completed, we either have
                       * it or we don't.
                       */
                      if (state->command != SOCKS_ACCEPT)
                         continue;
 
-                     slog(LOG_DEBUG,
-                     "%s: trying to match gssapi ...", function);
-
-                     strcpy(auth->mdata.gssapi.servicename,
+                     strcpy(srcauth->mdata.gssapi.servicename,
                      rule->state.gssapiservicename);
 
-                     strcpy(auth->mdata.gssapi.keytab,
+                     strcpy(srcauth->mdata.gssapi.keytab,
                      rule->state.gssapikeytab);
 
-                     auth->mdata.gssapi.encryption.nec
+                     srcauth->mdata.gssapi.encryption.nec
                      = rule->state.gssapiencryption.nec;
 
-                     auth->mdata.gssapi.encryption.clear
+                     srcauth->mdata.gssapi.encryption.clear
                      = rule->state.gssapiencryption.clear;
 
-                     auth->mdata.gssapi.encryption.integrity
+                     srcauth->mdata.gssapi.encryption.integrity
                      = rule->state.gssapiencryption.integrity;
 
-                     auth->mdata.gssapi.encryption.confidentiality
+                     srcauth->mdata.gssapi.encryption.confidentiality
                      = rule->state.gssapiencryption.confidentiality;
 
                      methodischeckable = 1;
@@ -1204,96 +1258,70 @@ rulespermit(s, peer, local, match, auth, state, src, dst, msg, msgsize)
 
                if (methodischeckable) {
                   slog(LOG_DEBUG, "%s: changing authmethod from %d to %d",
-                  function, auth->method, methodv[i]);
+                  function, srcauth->method, methodv[i]);
 
-                  auth->method = methodv[i]; /* changing method. */
+                  srcauth->method = methodv[i]; /* changing method. */
                   break;
                }
             }
          }
 
-         if (i == methodc) {
+         if (i == methodc)
             /*
              * current rules methods differs from what client can
-             * provide us with.  Go to next rule, unless it's a
-             * special case.
+             * provide us with.  Go to next rule.
              */
-
-            if ((state->command == SOCKS_BINDREPLY
-              || state->command == SOCKS_UDPREPLY)
-            && !sockscf.srchost.checkreplyauth) {
-               /*
-                * To be consistent, we should insist that the user specifies
-                * authmethod none for replies, unless he really wants to use
-                * an authmethod in these cases also, which is possible (e.g.
-                * method rfc931, or ip-only based pam), though probably
-                * extremely unlikly.
-                * That can make the configfile look weird though; if the user
-                * e.g. wants all access to be password-authenticated, and thus
-                * specifies method "uname" on the global method-line, he can
-                * not do that without also adding method "none", as the global
-                * method-line is a superset of the methods specified in the
-                * individual rules.  That means he then needs to set the method
-                * on a rule-by-rule basis; "none" for replies, and "username"
-                * for all others.  With more than a few rules, this can become
-                * quite a hassle, is unexpected, and only needed because the 
-                * server supports this probably quite unusual and rarly used
-                * feature.
-                *
-                * We therefor try to be more user-friendly about this, so
-                * unless "checkreplyauth" is set in "srchost:", assume auth-
-                * method should not be checked for replies.
-                */
-                auth->method = AUTHMETHOD_NONE;
-            }
-            else
-               continue;
-         }
-         /* else; XXX should try other methods if acccess fails on this. */
+            continue;
       }
 
       SASSERTX(state->command == SOCKS_BINDREPLY
       ||       state->command == SOCKS_UDPREPLY
-      ||       methodisset(auth->method, rule->state.methodv,
+      ||       methodisset(srcauth->method, rule->state.methodv,
                            rule->state.methodc));
 
-      if (auth->method != AUTHMETHOD_NONE
-      &&  rule->user   != NULL) /* rule requires user.  Ccovers current? */
-         if (!usermatch(auth, rule->user)) {
-               slog(LOG_DEBUG,
-               "%s: username \"%s\" did not match rule %d for command %s",
-               function, authname(auth) == NULL ? "<null>" : authname(auth),
-               rule->number, command2string(state->command));
+      if (srcauth->method != AUTHMETHOD_NONE && rule->user != NULL) {
+         /* rule requires user.  Covers current? */
+         if (!usermatch(srcauth, rule->user)) {
+            slog(LOG_DEBUG,
+            "%s: username \"%s\" did not match rule #%lu for command %s",
+            function,
+            authname(srcauth) == NULL ? "<null>" : authname(srcauth),
+            (unsigned long)rule->number,
+            command2string(state->command));
 
-               continue; /* no match. */
-            }
+            continue; /* no match. */
+         }
+      }
 
-      if (auth->method != AUTHMETHOD_NONE
-      &&  rule->group  != NULL) /* rule requires group.  Current included? */
-         if (!groupmatch(auth, rule->group)) {
-               slog(LOG_DEBUG,
-               "%s: username \"%s\" did not match rule %d for command %s",
-               function, authname(auth) == NULL ? "<null>" : authname(auth),
-               rule->number, command2string(state->command));
+      if (srcauth->method != AUTHMETHOD_NONE && rule->group != NULL) {
+         /* rule requires group.  Current included? */
+         if (!groupmatch(srcauth, rule->group)) {
+            slog(LOG_DEBUG,
+            "%s: groupname \"%s\" did not match rule #%lu for command %s",
+            function,
+            authname(srcauth) == NULL ? "<null>" : authname(srcauth),
+            (unsigned long)rule->number,
+            command2string(state->command));
 
-               continue; /* no match. */
-            }
+            continue; /* no match. */
+         }
+      }
 
       /* last step.  Does the authentication match? */
-      i = accesscheck(s, auth, peer, local, msg, msgsize);
+      i = accesscheck(s, srcauth, peer, local, msg, msgsize);
 
       /*
        * two fields we want to copy.  This is to speed things up so
        * we don't re-check the same method.
       */
-      memcpy(oldauth.methodv, auth->methodv,
-      auth->methodc * sizeof(*auth->methodv));
+      memcpy(oldauth.methodv, srcauth->methodv,
+      srcauth->methodc * sizeof(*srcauth->methodv));
 
-      oldauth.methodc = auth->methodc;
-      memcpy(oldauth.badmethodv, auth->badmethodv,
-      auth->badmethodc * sizeof(*auth->badmethodv));
+      oldauth.methodc = srcauth->methodc;
+      memcpy(oldauth.badmethodv, srcauth->badmethodv,
+      srcauth->badmethodc * sizeof(*srcauth->badmethodv));
 
-      oldauth.badmethodc = auth->badmethodc;
+      oldauth.badmethodc = srcauth->badmethodc;
 
       if (!i) {
          *match         = defrule;
@@ -1450,7 +1478,7 @@ addressisbindable(addr)
          &saddr);
 
          if (TOIN(&saddr)->sin_addr.s_addr == htonl(INADDR_ANY)) {
-            swarn("%s: can't resolve %s to an ipaddress",
+            swarn("%s: can't resolve %s to an ip address",
             function, addr->addr.domain);
 
             close(s);
@@ -1519,7 +1547,7 @@ addrule(newrule, rulebase, isclientrule)
       struct sockaddr addr, mask;
 
       if (ifname2sockaddr(rule->src.addr.ifname, 0, &addr, &mask) == NULL)
-         yyerror("no ipaddress found on interface %s", rule->src.addr.ifname);
+         yyerror("no ip address found on interface %s", rule->src.addr.ifname);
 
       if (rule->src.operator == none || rule->src.operator == eq)
          TOIN(&addr)->sin_port
@@ -1529,7 +1557,7 @@ addrule(newrule, rulebase, isclientrule)
       rule->src.addr.ipv4.mask = TOIN(&mask)->sin_addr;
 
       if (ifname2sockaddr(rule->src.addr.ifname, 1, &addr, &mask) != NULL)
-         yywarn("interfacenames with multiple ipaddresses not yet supported "
+         yywarn("interfacenames with multiple ip addresses not yet supported "
                 "in rules.  Will only use first address on interface");
    }
 
@@ -1537,7 +1565,7 @@ addrule(newrule, rulebase, isclientrule)
       struct sockaddr addr, mask;
 
       if (ifname2sockaddr(rule->dst.addr.ifname, 0, &addr, &mask) == NULL)
-         yyerror("no ipaddress found on interface %s", rule->dst.addr.ifname);
+         yyerror("no ip address found on interface %s", rule->dst.addr.ifname);
 
       if (rule->dst.operator == none || rule->dst.operator == eq)
          TOIN(&addr)->sin_port
@@ -1547,7 +1575,7 @@ addrule(newrule, rulebase, isclientrule)
       rule->dst.addr.ipv4.mask = TOIN(&mask)->sin_addr;
 
       if (ifname2sockaddr(rule->dst.addr.ifname, 1, &addr, &mask) != NULL)
-         yywarn("interfacnames with multiple ipaddresses not yet supported "
+         yywarn("interface names with multiple ip addresses not yet supported "
                 "in rules.  Will only use first address on interface");
    }
 
@@ -1736,7 +1764,7 @@ checkrule(rule, isclientrule)
    }
 
    if (rule->user != NULL || rule->group != NULL) {
-      /* check that all methods given in rule provide usernames. */
+      /* check that any methods given in rule provide usernames. */
       for (i = 0; i < rule->state.methodc; ++i) {
          switch (rule->state.methodv[i]) {
             case AUTHMETHOD_UNAME:
@@ -1757,11 +1785,6 @@ checkrule(rule, isclientrule)
                method2string(rule->state.methodv[i]));
          }
       }
-
-      if (i == 0)
-         yyerror("rule specifies user/group-names, yet does not specify any "
-                 "method that can provide these");
-
    }
 
    if (rule->rdr_from.atype != 0) {
@@ -1894,4 +1917,3 @@ connectisok(request, rule)
 
    return 1;
 }
-

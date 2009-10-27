@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.159 2009/10/06 10:29:54 michaels Exp $";
+"$Id: Rbind.c,v 1.161 2009/10/23 11:43:33 karls Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -187,7 +187,7 @@ Rbind(s, name, namelen)
       return -1;
 
    if (packet.req.version == PROXY_DIRECT) {
-      slog(LOG_DEBUG, "%s: using direct systemcalls for socket %d",
+      slog(LOG_DEBUG, "%s: using direct system calls for socket %d",
       function, s);
 
       return 0;
@@ -204,7 +204,7 @@ Rbind(s, name, namelen)
 
          default:
             slog(LOG_DEBUG, "%s: binding udp sockets is not supported by "
-            "proxyprotocol %s, hoping local bind is good enough\n",
+            "proxy protocol %s, hoping local bind is good enough\n",
             function, version2string(packet.req.version));
 
             return 0;
@@ -227,8 +227,8 @@ Rbind(s, name, namelen)
 
          /*
           * Make sure the control-connection is bound to the same
-          * ipaddress as 's', or the bind extension will not work if
-          * we connect to the socks server from a different ipaddress
+          * ip address as 's', or the bind extension will not work if
+          * we connect to the socks server from a different ip address
           * than the one we bound.
           */
          saddr = socksfd.local;
@@ -438,7 +438,7 @@ Rbind(s, name, namelen)
       }
 
       /*
-       * wont't be using a buffer for the socket we listen on, but 
+       * won't be using a buffer for the socket we listen on, but
        * may have to use it for the one we accepted the bind reply on.
        */
       socks_reallocbuffer(socksfd.control, s);
