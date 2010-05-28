@@ -1,10 +1,10 @@
 Summary: A free SOCKS v4/v5 client implementation
 Name: dante
-%define version 1.2.0
+%define version 1.2.1
 %define prefix /usr
 Version: %{version}
 Release: 1
-Copyright: BSD-type
+License: BSD-type
 Group: Networking/Utilities
 URL: http://www.inet.no/dante/
 Vendor: Inferno Nettverk A/S
@@ -137,15 +137,14 @@ fi
 
 %files
 %defattr(-, root, root, 0755)
-%doc BUGS CREDITS NEWS README SUPPORT TODO doc/README* doc/faq.tex example/socks.conf example/socks-simple-withoutnameserver.conf example/sockd.conf example/socks-simple.conf
+%doc BUGS CREDITS NEWS README SUPPORT TODO doc/README* example/socks.conf example/socks-simple-withoutnameserver.conf example/sockd.conf example/socks-simple.conf
 %config %{_sysconfdir}/socks.conf
-%{_libdir}/libsocks.so.0.1.0
+%{_libdir}/libsocks.so.0.1.1
 %{_libdir}/libsocks.so.0
 %{_libdir}/libsocks.so
-%{_libdir}/libdsocks.so.0.1.0
-%{_libdir}/libdsocks.so.0
 %{_libdir}/libdsocks.so
 %{_bindir}/socksify
+%{_mandir}/man1/socksify.1*
 %{_mandir}/man5/socks.conf.5*
 
 %files server
@@ -165,6 +164,9 @@ fi
 %{_includedir}/socks.h
 
 %changelog
+* Sat Dec 19 2009 Karl-Andre' Skevik <karls@inet.no>
+-Minor tweaking for fedora + add socksify manual page.
+
 * Wed Mar 26 2003 Karl-Andre' Skevik <karls@inet.no>
 -Integrated changes from spec file by <dag@wieers.com>, located
  at <URL:ftp://dag.wieers.com/home-made/dante/dante.spec>.

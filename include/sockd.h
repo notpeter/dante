@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.317 2009/10/23 11:08:01 karls Exp $ */
+/* $Id: sockd.h,v 1.317.2.6 2010/05/24 16:38:23 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -159,9 +159,9 @@ do {                                                           \
 
 /* types of children. */
 #define CHILD_MOTHER        1
-#define CHILD_IO            2
-#define CHILD_NEGOTIATE     3
-#define CHILD_REQUEST       4
+#define CHILD_NEGOTIATE     2
+#define CHILD_REQUEST       3
+#define CHILD_IO            4
 
 #define FDPASS_MAX         3   /* max number of descriptors we send/receive. */
 
@@ -177,11 +177,11 @@ do {                                                           \
 #define ROTATION_NONE       0
 #define ROTATION_ROUTE      1
 
-#define LOG_CONNECTs       "connect"
-#define LOG_DISCONNECTs    "disconnect"
-#define LOG_DATAs          "data"
-#define LOG_ERRORs         "error"
-#define LOG_IOOPERATIONs   "iooperation"
+#define SOCKS_LOG_CONNECTs       "connect"
+#define SOCKS_LOG_DISCONNECTs    "disconnect"
+#define SOCKS_LOG_DATAs          "data"
+#define SOCKS_LOG_ERRORs         "error"
+#define SOCKS_LOG_IOOPERATIONs   "iooperation"
 
 /*
  * privilege stuff.
@@ -452,6 +452,7 @@ struct statistic_t {
 
    struct {
       size_t               sendt;            /* clients sent to children.     */
+      size_t               received;         /* acks received back.           */
    } io;
 };
 
@@ -462,7 +463,11 @@ struct childstate_t {
    volatile sig_atomic_t   addchild;            /* okay to do a addchild()?   */
 #endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
 
-   int                     maxidle;             /* how many can be idle.      */
+   size_t                  maxidle;             /* how many can be idle.      */
+   size_t                  maxrequests;         /*  
+                                                 * max # of requests to handle 
+                                                 * before quiting.
+                                                 */
 };
 
 
@@ -671,17 +676,18 @@ struct sockd_mother_t {
    int                  ack;            /* connection for ack's.              */
 };
 
-struct sockd_child_t {
-   int              type;           /* child type.                            */
-   pid_t            pid;            /* childs pid.                            */
-   int              freec;          /* free slots on last count.              */
-   int              s;              /* connection to mother for ancillary.    */
+struct sockd_child_t {         
 #if HAVE_SENDMSG_DEADLOCK
    int              lock;           /* lock on request connection.            */
 #endif /* HAVE_SENDMSG_DEADLOCK */
    int              ack;            /* connection for ack's.                  */
-};
+   int              s;              /* connection to mother for data.         */
 
+   pid_t            pid;            /* childs pid.                            */
+   int              type;           /* child type.                            */
+   size_t           freec;          /* free slots at the moment.              */
+   size_t           sentc;          /* clients sent to this child.            */
+};
 
 int
 sockd_bind(int s, struct sockaddr *addr, size_t retries);
@@ -1095,15 +1101,6 @@ recv_sockspacket(int s, struct request_t *request,
  */
 
 struct sockd_child_t *
-addchild(int type);
-/*
- * Adds a new child that can accept objects of type "type" from mother.
- * Returns:
- *    On success: a pointer to the added child.
- *    On failure: NULL.  (resource shortage.)
- */
-
-struct sockd_child_t *
 getchild(pid_t pid);
 /*
  * Attempts to find a child with pid "pid".
@@ -1446,3 +1443,10 @@ socks_getmacaddr(const char *ifname, unsigned char *macaddr);
  * Returns a pointer to macaddress, or NULL if no mac-address
  * is set for the interface.
  */
+
+size_t maxfreeslots(const int childtype);
+/*
+ * Returns the maximum number of free slots a child of type "childtype"
+ * can have.
+ */
+

@@ -14,7 +14,7 @@ unset krb5confpath
 
 unset gssapi_default
 case $host in
-    #openbsd libthread is buggy; disable gssapi by default (needs pthread)
+    #openbsd libthread is buggy; disable gssapi by default (needs pthreads)
     *-*-openbsd*)
 	gssapi_default=no
         AC_DEFINE(HAVE_THREADS_EINTR_PROBLEMS, 1, [threads unstable platform])
@@ -52,6 +52,9 @@ if test x"$GSSAPI" != xno; then
       if test x"$krb5confpath" = x -a -x "$gssdir/bin/krb5-config"; then
             krb5confpath=$gssdir/bin/krb5-config
       fi
+   else
+      #set /usr as default gssdir
+      gssdir=/usr
    fi
 
    unset krb5fail
@@ -95,6 +98,10 @@ if test x"$GSSAPI" != xno; then
        dnl attempt to construct environment manuelly
        CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I$gssdir/include"
        LDFLAGS="${LDFLAGS}${LDFLAGS:+ }-L$gssdir/lib"
+       #includes under kerberosV dir on OpenBSD
+       if test -d "$gssdir/include/kerberosV"; then
+       	  CPPFLAGS="${CPPFLAGS} -I${gssdir}/include/kerberosV"
+       fi
    fi
 
    dnl any cflags values obtained from krb5-config?
@@ -198,38 +205,6 @@ main(void)
     AC_MSG_RESULT(yes)
     have_heimdal=t],
    [AC_MSG_RESULT(no)])
-
-   if test x"$have_heimdal" = xt; then
-       AC_MSG_CHECKING([for usable heimdal version])
-       AC_TRY_RUN([
-#include <stdio.h>
-#include <krb5.h>
-
-int main()
-{
-    int v1, v2, v3;
-
-    fprintf(stderr, "%s\n", heimdal_version);
-
-    if (sscanf(heimdal_version, "heimdal-%d.%d.%d", &v1, &v2, &v3) != 3 &&
-	sscanf(heimdal_version, "Heimdal %d.%d.%d", &v1, &v2, &v3) != 3)
-	return 1;
-
-    fprintf(stderr, "%s: %d %d %d\n", heimdal_version, v1, v2, v3);
-
-    /*
-     * _gssapi_wrap_size_cfx() is incorrect in e.g. 0.7.2.
-     * accept 0.8.0 and later
-     */
-    if ((v1 >= 1) || (v1 == 0 && v2 >= 8))
-	return 0;
-
-    return 1;
-}], [AC_MSG_RESULT([yes])],
-    [AC_MSG_RESULT([no])
-     bad_gssapi=t
-     no_gssapi=t])
-   fi
 
    for file in gssapi.h gssapi/gssapi.h gssapi/gssapi_generic.h; do
        AC_EGREP_HEADER(gss_nt_service_name, [$file],

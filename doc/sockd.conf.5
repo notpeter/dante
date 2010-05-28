@@ -1,7 +1,7 @@
-.\" $Id: sockd.conf.5,v 1.108 2009/10/23 11:13:29 karls Exp $
+.\" $Id: sockd.conf.5,v 1.108.2.5 2010/05/24 16:38:13 karls Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-.\"               2008, 2009
+.\"               2008, 2009, 2010
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -52,10 +52,25 @@ character \fB#\fP.
 .SH SERVER SETTINGS
 The server settings control the generic behaviour of the server.  Each
 keyword is separated from it's value by a \fB':'\fP character.
-.\" .IP \fBchild.maxidle\fP
-.\" Maintains a maximum on how many children of each type can remain
-.\" idle.  Used to reduce the amount of idle processes after a "client burst"
-.\" has occurred.  The default is \fB0\fP (no maximum).
+.IP \fBchild.maxidle\fP
+Maintains a rough max on how many children of each type can remain
+idle, waiting for clients.  This is used to reduce the amount of idle
+processes after a "client burst" has passed. 
+The default is \fBno\fP (no maximum), which is the recommended value
+for high load environments, but it can be set to "yes" if it is
+desirable to limit the process count, though note that setting it to
+"yes" may decrease performance.
+
+.\" .IP \fBchild.maxrequests\fP
+.\" Maintains a max on the total number of clients a child process will
+.\" serve before exiting.  After having served the given number of 
+.\" clients, the child process will exit.
+.\" 
+.\" The only reason for the existence of this option is to work around buggy
+.\" behaviour in external libraries used by the the \fBDante\fP server,
+.\" which may end up leaking resources or create other problems when having
+.\" run to long.  The default value is \fB0\fP, meaning no limit.
+.\" 
 .IP \fBclientmethod\fP
 A list of acceptable authentication methods for client-rules,
 in order of preference.  These are the authentication methods
@@ -115,7 +130,10 @@ Can be given multiple times for different addresses.
 If more than one external address is given, this governs which
 address is selected.  Valid values are \fBnone\fP (the default) and
 \fBroute\fP.  The latter might require you to set \fBuser.privileged\fP to
-\fBroot\fP.
+\fBroot\fP, and will try to determine what local address would normaly
+be selected by the kernel for connecting to the given destination.
+If that address is listed amongst the external addresses, the 
+\fBDante\fP server will connect out from that address.
 
 Note that \fBroute\fP might create problems for
 ftp-clients using active ftp if the \fBDante\fP bind extension

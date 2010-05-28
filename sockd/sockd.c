@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.408 2009/10/27 12:11:07 karls Exp $";
+"$Id: sockd.c,v 1.408.2.8 2010/05/24 16:39:12 karls Exp $";
 
 int
 #if HAVE_SETPROCTITLE
@@ -442,7 +442,7 @@ moncontrol(0);
       /* first, get ack of free slots. */
       while ((child = getset(ACKPIPE, rset)) != NULL) {
          char command;
-         int childisbad = 0;
+         int childisbad = 0, childhasfinished = 0;
 
          if ((p = socks_recvfromn(child->ack, &command, sizeof(command),
          sizeof(command), 0, NULL, NULL, NULL)) != sizeof(command)) {
@@ -471,6 +471,29 @@ moncontrol(0);
             switch(command) {
                case SOCKD_FREESLOT:
                   ++child->freec;
+
+                  slog(LOG_DEBUG, "%s: %s-child %lu has freed a slot, now has "
+                                  "%lu slot%s free",
+                                  function, childtype2string(child->type), 
+                                  (unsigned long)child->pid,
+                                  child->freec, child->freec == 1 ? "" : "s");
+
+                  if (child->type == CHILD_IO) {
+                     /*
+                      * don't really receive anything back from i/o childs
+                      * except the freeslot ack, as i/o childs are the
+                      * last in the chain.  Only reason to care about
+                      * freec in the case of io-child is that for
+                      * statistics, so we wait for the ack.
+                      */
+                     ++sockscf.stat.io.received; 
+
+                     if (sockscf.child.maxrequests != 0
+                     &&  child->freec == maxfreeslots(child->type)
+                     &&  child->sentc >= sockscf.child.maxrequests)
+                        childhasfinished = 1;
+                  }
+
                   break;
 
                default:
@@ -482,15 +505,24 @@ moncontrol(0);
 
          if (childisbad)
             removechild(child->pid);
+         else if (childhasfinished) {
+            slog(LOG_DEBUG, "closing connection to %s-child %lu as it "
+                            "has now handled %lu request%s",
+                            childtype2string(child->type),
+                            (unsigned long)child->pid, 
+                            (unsigned long)child->sentc,
+                            (unsigned long)child->sentc == 1 ? "" : "s");
+
+            removechild(child->pid);
+         }
       }
 
       /* next, get new requests. */
       while ((child = getset(DATAPIPE, rset)) != NULL) {
 #if DIAGNOSTIC
-         const int freed
-         = freedescriptors(sockscf.option.debug ? "start" : NULL);
+         int freed = freedescriptors(sockscf.option.debug ? "start" : NULL);
 #endif /* DIAGNOSTIC */
-         int childisbad = 0;
+         int childisbad = 0, childhasfinished = 0;
 
          switch (child->type) {
             /*
@@ -514,12 +546,12 @@ moncontrol(0);
                   childisbad = 1;
                   break;
                }
-
                ++sockscf.stat.negotiate.received;
 
                /* and send it to a request child. */
                if ((p = send_req(reqchild->s, &req)) == 0) {
                   --reqchild->freec;
+                  ++reqchild->sentc;
                   ++sockscf.stat.request.sendt;
                }
                else {
@@ -556,6 +588,7 @@ moncontrol(0);
                /* and send it to a io child. */
                if ((p = send_io(iochild->s, &io)) == 0) {
                   --iochild->freec;
+                  ++iochild->sentc;
                   ++sockscf.stat.io.sendt;
                }
                else {
@@ -571,7 +604,8 @@ moncontrol(0);
             case CHILD_IO:
                /*
                 * the only thing a iochild should return is a ack each time
-                * it finishes with a io, and that is handled in loop above.
+                * it finishes with a io, and that is handled in loop at
+                * the start.
                 */
                break;
          }
@@ -585,7 +619,7 @@ moncontrol(0);
 #endif /* DIAGNOSTIC */
          clearset(DATAPIPE, child, rset);
 
-         if (childisbad) /* error/eof from child. */
+         if (childisbad) { /* error/eof from child. */
             switch (errno) {
                case EMFILE:
                case ENFILE:
@@ -594,6 +628,20 @@ moncontrol(0);
                default:
                   removechild(child->pid);
             }
+         }
+         else if (sockscf.child.maxrequests != 0
+         &&       child->freec == maxfreeslots(child->type)
+         &&       child->sentc >= sockscf.child.maxrequests) {
+            slog(LOG_DEBUG, "closing connection to %s-child %lu as it "
+                            "has now handled %lu request%s",
+                            childtype2string(child->type),
+                            (unsigned long)child->pid, 
+                            (unsigned long)child->sentc,
+                            (unsigned long)child->sentc == 1 ? "" : "s");
+
+            removechild(child->pid);
+         }
+
       }
 
       /*
@@ -662,8 +710,13 @@ moncontrol(0);
                         socks_unlock(negchild->lock);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
-                     swarn("accept(): %s", strerror(errno));
-                     continue; /* connection aborted/failed. */
+                     if (sockscf.option.serverc > 1 && errno == EWOULDBLOCK)
+                        slog(LOG_DEBUG, "accept(): %s", strerror(errno));
+                     else               
+                        swarn("accept(): %s", strerror(errno));
+
+                     /* connection aborted/failed/was taken by other process. */
+                     continue; 
 
                   /*
                    * this should never happen since childcheck(), if
@@ -709,6 +762,7 @@ moncontrol(0);
 
             if (send_client(negchild->s, &client) == 0) {
                --negchild->freec;
+               ++negchild->sentc;
                ++sockscf.stat.negotiate.sendt;
             }
             else
@@ -938,11 +992,6 @@ serverinit(argc, argv, envp)
 
       setsockoptions(l->s);
 
-      ch = 1;
-      if (setsockopt(l->s, SOL_SOCKET, SO_REUSEADDR, &ch, sizeof(ch))
-      != 0)
-         swarn("%s: setsockopt(SO_REUSEADDR)", function);
-
       if (sockd_bind(l->s, (struct sockaddr *)&l->addr, 1) != 0) {
          char badbind[MAXSOCKADDRSTRING];
 
@@ -1087,7 +1136,7 @@ siginfo(sig)
    slog(LOG_INFO, "iorelayers (%d): a: %lu, h: %lu, c: %lu",
    childcheck(-CHILD_IO) / SOCKD_IOMAX,
    (unsigned long)sockscf.stat.io.sendt,
-   (unsigned long)sockscf.stat.io.sendt,
+   (unsigned long)sockscf.stat.io.received,
    (unsigned long)childcheck(-CHILD_IO) - childcheck(CHILD_IO));
 
    if (pidismother(sockscf.state.pid) == 1)   /* main mother */
@@ -1140,10 +1189,9 @@ sigchld(sig)
    int sig;
 {
    const char *function = "sigchld()";
-   static time_t deathtime;
    static int deaths;
-   int status;
    pid_t pid;
+   int status;
 
    if (sig > 0) {
       sockd_pushsignal(sig);
@@ -1152,43 +1200,58 @@ sigchld(sig)
 
    sig = -sig;
 
-   slog(LOG_DEBUG, "%s: running due to previously received signal: %d",
-   function, sig);
+   slog(LOG_DEBUG, function);
 
-   while ((pid = waitpid(WAIT_ANY, &status, WNOHANG)) > 0) {
-      /*
-       * No child should normally die, but try to cope with it happening.
-       */
+   while (1) {
+      pid = waitpid(WAIT_ANY, &status, WNOHANG);
+
+      if (pid == -1 && errno == EINTR)
+         continue;
+
+      if (pid <= 0)
+         break;
+
+      slog(LOG_DEBUG, "%s: process %lu exited", function, (unsigned long)pid);
 
       if (pidismother(pid))
          sockscf.state.motherpidv[pidismother(pid) - 1] = 0;
-      /* else;  assume relay child. */
 
+      /* else;  assume relay child. */
       ++deaths;
    }
 
-   if (deathtime == 0)
-      time(&deathtime);
+   if (sockscf.child.maxidle == 0) {
+      /*
+       * If maxidle is not set, and many children suddenly die, that
+       * probably means something is wrong, so check for it.
+       */
+      static time_t deathtime;
 
-   if (difftime(time(NULL), deathtime) > 60) { /* enough time passed; reset.  */
-      deaths = 0;
-      time(&deathtime);
-   }
+      if (deathtime == 0)
+         time(&deathtime);
 
-   if (deaths >= 10) {
-      if (deaths == 10) { /* only log once. */
-         slog(LOG_ERR, "%s: %d child deaths in %.0fs.  "
-                        "Locking count for a while",
-                        function, deaths, difftime(time(NULL), deathtime));
-
-         sockscf.child.addchild = 0;
+      if (difftime(time(NULL), deathtime) > 10) { /* enough time; reset.  */
+         deaths = 0;
+         time(&deathtime);
       }
 
-      time(&deathtime); /* once the ball starts rolling... */
-      alarm(60);
+      if (deaths >= 10) {
+         if (deaths == 10) { /* only log once. */
+            slog(LOG_ERR, "%s: %d child deaths in %.0fs.  "
+                           "Locking count for a while",
+                           function, deaths, difftime(time(NULL), deathtime));
+
+            sockscf.child.addchild = 0;
+         }
+
+         time(&deathtime); /* once the ball starts rolling... */
+         alarm(10);
+      }
+      else
+         sockscf.child.addchild = 1; /* if we could not before, now we can. */
    }
-   else
-      sockscf.child.addchild = 1; /* can try to add a new one. */
+
+   sockscf.child.addchild = 1; /* if we could not before, now we can. */
 }
 
 /* ARGSUSED */
@@ -1243,10 +1306,13 @@ optioninit(void)
    sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_PAM;
    sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_RFC931;
 #endif /* BAREFOOTD */
+
 #if DEBUG
-   sockscf.child.maxidle         = 0; /* XXX SOCKD_FREESLOTS;*/
+   sockscf.child.maxidle         = SOCKD_FREESLOTS * 2;
+   sockscf.child.maxrequests     = 2;
 #else
    sockscf.child.maxidle         = 0;
+   sockscf.child.maxrequests     = 0;
 #endif /* DEBUG */
 }
 
@@ -1551,6 +1617,7 @@ modulesetup(void)
 
    socks_sigunblock(&oldset);
 }
+
 
 #if DEBUG
 static void

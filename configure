@@ -201,7 +201,7 @@ if as_func_ret_failure; then
   echo as_func_ret_failure succeeded.
 fi
 
-if (set x; as_func_ret_success y && test x = \"\$1\" ); then
+if ( set x; as_func_ret_success y && test x = \"\$1\" ); then
   :
 else
   exitcode=1
@@ -405,7 +405,7 @@ if as_func_ret_failure; then
   echo as_func_ret_failure succeeded.
 fi
 
-if (set x; as_func_ret_success y && test x = \"\$1\" ); then
+if ( set x; as_func_ret_success y && test x = \"\$1\" ); then
   :
 else
   exitcode=1
@@ -1984,7 +1984,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
-version=1.2.0
+version=1.2.1
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="3"
 if test x$prerelease != x; then
@@ -3940,7 +3940,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
  #evidently also modifies CFLAGS
 # Check whether --enable-shared was given.
@@ -4846,7 +4846,7 @@ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
 else
   ac_cv_header_stdc=no
 fi
-rm -f conftest*
+rm -fr conftest*
 
 fi
 
@@ -4867,7 +4867,7 @@ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
 else
   ac_cv_header_stdc=no
 fi
-rm -f conftest*
+rm -fr conftest*
 
 fi
 
@@ -6348,7 +6348,7 @@ for ac_symprfx in "" "_"; do
   # Check to see that the pipe works correctly.
   pipe_works=no
 
-  rm -f conftest*
+  rm -rf conftest*
   cat > conftest.$ac_ext <<EOF
 #ifdef __cplusplus
 extern "C" {
@@ -7376,7 +7376,7 @@ ac_outfile=conftest.$ac_objext
 echo "$lt_simple_compile_test_code" >conftest.$ac_ext
 eval "$ac_compile" 2>&1 >/dev/null | $SED '/^$/d; /^ *+/d' >conftest.err
 _lt_compiler_boilerplate=`cat conftest.err`
-$rm conftest*
+$rm -r conftest*
 
 ac_outfile=conftest.$ac_objext
 echo "$lt_simple_link_test_code" >conftest.$ac_ext
@@ -7424,7 +7424,7 @@ else
        lt_cv_prog_compiler_rtti_exceptions=yes
      fi
    fi
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_rtti_exceptions" >&5
@@ -7714,7 +7714,7 @@ else
        lt_cv_prog_compiler_pic_works=yes
      fi
    fi
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_pic_works" >&5
@@ -7820,14 +7820,14 @@ else
      fi
    fi
    chmod u+w . 2>&5
-   $rm conftest*
+   $rm -r conftest*
    # SGI C++ compiler will create directory out/ii_files/ for
    # template instantiation
    test -d out/ii_files && $rm out/ii_files/* && rmdir out/ii_files
    $rm out/* && rmdir out
    cd ..
    rmdir conftest
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_c_o" >&5
@@ -7840,7 +7840,7 @@ if test "$lt_cv_prog_compiler_c_o" = no && test "$need_locks" != no; then
   { echo "$as_me:$LINENO: checking if we can lock with hard links" >&5
 echo $ECHO_N "checking if we can lock with hard links... $ECHO_C" >&6; }
   hard_links=yes
-  $rm conftest*
+  $rm -r conftest*
   ln conftest.a conftest.b 2>/dev/null && hard_links=no
   touch conftest.a
   ln conftest.a conftest.b 2>&5 || hard_links=no
@@ -8859,7 +8859,7 @@ x|xyes)
       # to ld, don't add -lc before -lgcc.
       { echo "$as_me:$LINENO: checking whether -lc should be explicitly linked in" >&5
 echo $ECHO_N "checking whether -lc should be explicitly linked in... $ECHO_C" >&6; }
-      $rm conftest*
+      $rm -r conftest*
       echo "$lt_simple_compile_test_code" > conftest.$ac_ext
 
       if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
@@ -8894,7 +8894,7 @@ echo $ECHO_N "checking whether -lc should be explicitly linked in... $ECHO_C" >&
       else
         cat conftest.err 1>&5
       fi
-      $rm conftest*
+      $rm -r conftest*
       { echo "$as_me:$LINENO: result: $archive_cmds_need_lc" >&5
 echo "${ECHO_T}$archive_cmds_need_lc" >&6; }
       ;;
@@ -11032,7 +11032,7 @@ ac_outfile=conftest.$ac_objext
 echo "$lt_simple_compile_test_code" >conftest.$ac_ext
 eval "$ac_compile" 2>&1 >/dev/null | $SED '/^$/d; /^ *+/d' >conftest.err
 _lt_compiler_boilerplate=`cat conftest.err`
-$rm conftest*
+$rm -r conftest*
 
 ac_outfile=conftest.$ac_objext
 echo "$lt_simple_link_test_code" >conftest.$ac_ext
@@ -12683,7 +12683,7 @@ else
        lt_cv_prog_compiler_pic_works_CXX=yes
      fi
    fi
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_pic_works_CXX" >&5
@@ -12789,14 +12789,14 @@ else
      fi
    fi
    chmod u+w . 2>&5
-   $rm conftest*
+   $rm -r conftest*
    # SGI C++ compiler will create directory out/ii_files/ for
    # template instantiation
    test -d out/ii_files && $rm out/ii_files/* && rmdir out/ii_files
    $rm out/* && rmdir out
    cd ..
    rmdir conftest
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_c_o_CXX" >&5
@@ -12809,7 +12809,7 @@ if test "$lt_cv_prog_compiler_c_o_CXX" = no && test "$need_locks" != no; then
   { echo "$as_me:$LINENO: checking if we can lock with hard links" >&5
 echo $ECHO_N "checking if we can lock with hard links... $ECHO_C" >&6; }
   hard_links=yes
-  $rm conftest*
+  $rm -r conftest*
   ln conftest.a conftest.b 2>/dev/null && hard_links=no
   touch conftest.a
   ln conftest.a conftest.b 2>&5 || hard_links=no
@@ -12874,7 +12874,7 @@ x|xyes)
       # to ld, don't add -lc before -lgcc.
       { echo "$as_me:$LINENO: checking whether -lc should be explicitly linked in" >&5
 echo $ECHO_N "checking whether -lc should be explicitly linked in... $ECHO_C" >&6; }
-      $rm conftest*
+      $rm -r conftest*
       echo "$lt_simple_compile_test_code" > conftest.$ac_ext
 
       if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
@@ -12909,7 +12909,7 @@ echo $ECHO_N "checking whether -lc should be explicitly linked in... $ECHO_C" >&
       else
         cat conftest.err 1>&5
       fi
-      $rm conftest*
+      $rm -r conftest*
       { echo "$as_me:$LINENO: result: $archive_cmds_need_lc_CXX" >&5
 echo "${ECHO_T}$archive_cmds_need_lc_CXX" >&6; }
       ;;
@@ -14031,7 +14031,7 @@ ac_outfile=conftest.$ac_objext
 echo "$lt_simple_compile_test_code" >conftest.$ac_ext
 eval "$ac_compile" 2>&1 >/dev/null | $SED '/^$/d; /^ *+/d' >conftest.err
 _lt_compiler_boilerplate=`cat conftest.err`
-$rm conftest*
+$rm -r conftest*
 
 ac_outfile=conftest.$ac_objext
 echo "$lt_simple_link_test_code" >conftest.$ac_ext
@@ -14370,7 +14370,7 @@ else
        lt_cv_prog_compiler_pic_works_F77=yes
      fi
    fi
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_pic_works_F77" >&5
@@ -14476,14 +14476,14 @@ else
      fi
    fi
    chmod u+w . 2>&5
-   $rm conftest*
+   $rm -r conftest*
    # SGI C++ compiler will create directory out/ii_files/ for
    # template instantiation
    test -d out/ii_files && $rm out/ii_files/* && rmdir out/ii_files
    $rm out/* && rmdir out
    cd ..
    rmdir conftest
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_c_o_F77" >&5
@@ -14496,7 +14496,7 @@ if test "$lt_cv_prog_compiler_c_o_F77" = no && test "$need_locks" != no; then
   { echo "$as_me:$LINENO: checking if we can lock with hard links" >&5
 echo $ECHO_N "checking if we can lock with hard links... $ECHO_C" >&6; }
   hard_links=yes
-  $rm conftest*
+  $rm -r conftest*
   ln conftest.a conftest.b 2>/dev/null && hard_links=no
   touch conftest.a
   ln conftest.a conftest.b 2>&5 || hard_links=no
@@ -15495,7 +15495,7 @@ x|xyes)
       # to ld, don't add -lc before -lgcc.
       { echo "$as_me:$LINENO: checking whether -lc should be explicitly linked in" >&5
 echo $ECHO_N "checking whether -lc should be explicitly linked in... $ECHO_C" >&6; }
-      $rm conftest*
+      $rm -r conftest*
       echo "$lt_simple_compile_test_code" > conftest.$ac_ext
 
       if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
@@ -15530,7 +15530,7 @@ echo $ECHO_N "checking whether -lc should be explicitly linked in... $ECHO_C" >&
       else
         cat conftest.err 1>&5
       fi
-      $rm conftest*
+      $rm -r conftest*
       { echo "$as_me:$LINENO: result: $archive_cmds_need_lc_F77" >&5
 echo "${ECHO_T}$archive_cmds_need_lc_F77" >&6; }
       ;;
@@ -16612,7 +16612,7 @@ ac_outfile=conftest.$ac_objext
 echo "$lt_simple_compile_test_code" >conftest.$ac_ext
 eval "$ac_compile" 2>&1 >/dev/null | $SED '/^$/d; /^ *+/d' >conftest.err
 _lt_compiler_boilerplate=`cat conftest.err`
-$rm conftest*
+$rm -r conftest*
 
 ac_outfile=conftest.$ac_objext
 echo "$lt_simple_link_test_code" >conftest.$ac_ext
@@ -16681,7 +16681,7 @@ else
        lt_cv_prog_compiler_rtti_exceptions=yes
      fi
    fi
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_rtti_exceptions" >&5
@@ -16971,7 +16971,7 @@ else
        lt_cv_prog_compiler_pic_works_GCJ=yes
      fi
    fi
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_pic_works_GCJ" >&5
@@ -17077,14 +17077,14 @@ else
      fi
    fi
    chmod u+w . 2>&5
-   $rm conftest*
+   $rm -r conftest*
    # SGI C++ compiler will create directory out/ii_files/ for
    # template instantiation
    test -d out/ii_files && $rm out/ii_files/* && rmdir out/ii_files
    $rm out/* && rmdir out
    cd ..
    rmdir conftest
-   $rm conftest*
+   $rm -r conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $lt_cv_prog_compiler_c_o_GCJ" >&5
@@ -17097,7 +17097,7 @@ if test "$lt_cv_prog_compiler_c_o_GCJ" = no && test "$need_locks" != no; then
   { echo "$as_me:$LINENO: checking if we can lock with hard links" >&5
 echo $ECHO_N "checking if we can lock with hard links... $ECHO_C" >&6; }
   hard_links=yes
-  $rm conftest*
+  $rm -r conftest*
   ln conftest.a conftest.b 2>/dev/null && hard_links=no
   touch conftest.a
   ln conftest.a conftest.b 2>&5 || hard_links=no
@@ -18116,7 +18116,7 @@ x|xyes)
       # to ld, don't add -lc before -lgcc.
       { echo "$as_me:$LINENO: checking whether -lc should be explicitly linked in" >&5
 echo $ECHO_N "checking whether -lc should be explicitly linked in... $ECHO_C" >&6; }
-      $rm conftest*
+      $rm -r conftest*
       echo "$lt_simple_compile_test_code" > conftest.$ac_ext
 
       if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
@@ -18151,7 +18151,7 @@ echo $ECHO_N "checking whether -lc should be explicitly linked in... $ECHO_C" >&
       else
         cat conftest.err 1>&5
       fi
-      $rm conftest*
+      $rm -r conftest*
       { echo "$as_me:$LINENO: result: $archive_cmds_need_lc_GCJ" >&5
 echo "${ECHO_T}$archive_cmds_need_lc_GCJ" >&6; }
       ;;
@@ -19232,7 +19232,7 @@ ac_outfile=conftest.$ac_objext
 echo "$lt_simple_compile_test_code" >conftest.$ac_ext
 eval "$ac_compile" 2>&1 >/dev/null | $SED '/^$/d; /^ *+/d' >conftest.err
 _lt_compiler_boilerplate=`cat conftest.err`
-$rm conftest*
+$rm -r conftest*
 
 ac_outfile=conftest.$ac_objext
 echo "$lt_simple_link_test_code" >conftest.$ac_ext
@@ -23838,7 +23838,7 @@ else
 echo "${ECHO_T}no" >&6; }
     check_const="yes"
 fi
-rm -f conftest*
+rm -fr conftest*
 
 if test x$check_const = xyes; then
     { echo "$as_me:$LINENO: checking for an ANSI C-conforming const" >&5
@@ -24013,10 +24013,10 @@ else
 echo "${ECHO_T}no, might result in reduced functionality" >&6; }
       no_routeinfo=t
 fi
-rm -f conftest*
+rm -fr conftest*
 
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 { echo "$as_me:$LINENO: checking whether <netdb.h> declares h_errno" >&5
@@ -24044,7 +24044,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 #XXXsys/socket.h?
@@ -24073,7 +24073,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 { echo "$as_me:$LINENO: checking whether <sys/types.h> defines inline" >&5
@@ -24100,7 +24100,7 @@ else
 echo "${ECHO_T}no" >&6; }
     check_inline="yes"
 fi
-rm -f conftest*
+rm -fr conftest*
 
 if test x$check_inline="yes";then
     { echo "$as_me:$LINENO: checking for inline" >&5
@@ -24194,7 +24194,7 @@ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
 else
   ac_cv_type_uid_t=no
 fi
-rm -f conftest*
+rm -fr conftest*
 
 fi
 { echo "$as_me:$LINENO: result: $ac_cv_type_uid_t" >&5
@@ -24906,7 +24906,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 { echo "$as_me:$LINENO: checking to see if stdlib.h defines EXIT_FAILURE" >&5
@@ -24937,7 +24937,7 @@ _ACEOF
     { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 #XXX actually checks if AF_UNIX should be used instead of AF_LOCAL
@@ -24973,7 +24973,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 { echo "$as_me:$LINENO: checking for SIGINFO" >&5
@@ -25004,7 +25004,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 { echo "$as_me:$LINENO: checking to see if MSG_WAITALL exists" >&5
@@ -25035,7 +25035,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 #SO_SNDLOWAT
@@ -25088,7 +25088,7 @@ echo "${ECHO_T}no" >&6; }
       { echo "$as_me:$LINENO: WARNING: performance in the server might be degraded without support for the SO_SNDLOWAT socket option" >&5
 echo "$as_me: WARNING: performance in the server might be degraded without support for the SO_SNDLOWAT socket option" >&2;}
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 { echo "$as_me:$LINENO: checking whether realloc with a NULL pointer calls malloc" >&5
@@ -25636,7 +25636,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 
@@ -31659,7 +31659,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 fi
 
@@ -31696,7 +31696,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 #XXXseems to be supported on Solaris2.6, but there might be some
@@ -32963,8 +32963,6 @@ else
 echo "${ECHO_T}yes" >&6; }
 fi
 
-cp capi/socks.h.in capi/socks.h
-
 no_gssapi=t
 
 nogssDLIBDEPS=$DLIBDEPS
@@ -32979,7 +32977,7 @@ unset krb5confpath
 
 unset gssapi_default
 case $host in
-    #openbsd libthread is buggy; disable gssapi by default (needs pthread)
+    #openbsd libthread is buggy; disable gssapi by default (needs pthreads)
     *-*-openbsd*)
 	gssapi_default=no
 
@@ -33033,6 +33031,9 @@ if test x"$GSSAPI" != xno; then
       if test x"$krb5confpath" = x -a -x "$gssdir/bin/krb5-config"; then
             krb5confpath=$gssdir/bin/krb5-config
       fi
+   else
+      #set /usr as default gssdir
+      gssdir=/usr
    fi
 
    unset krb5fail
@@ -33111,6 +33112,10 @@ fi
            x"$gssdir" != x; then
               CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I$gssdir/include"
        LDFLAGS="${LDFLAGS}${LDFLAGS:+ }-L$gssdir/lib"
+       #includes under kerberosV dir on OpenBSD
+       if test -d "$gssdir/include/kerberosV"; then
+       	  CPPFLAGS="${CPPFLAGS} -I${gssdir}/include/kerberosV"
+       fi
    fi
 
       if test x"$ac_gssapi_cflags" != x; then
@@ -34480,87 +34485,6 @@ fi
 rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
       conftest$ac_exeext conftest.$ac_ext
 
-   if test x"$have_heimdal" = xt; then
-       { echo "$as_me:$LINENO: checking for usable heimdal version" >&5
-echo $ECHO_N "checking for usable heimdal version... $ECHO_C" >&6; }
-       if test "$cross_compiling" = yes; then
-  { { echo "$as_me:$LINENO: error: cannot run test program while cross compiling
-See \`config.log' for more details." >&5
-echo "$as_me: error: cannot run test program while cross compiling
-See \`config.log' for more details." >&2;}
-   { (exit 1); exit 1; }; }
-else
-  cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-#include <stdio.h>
-#include <krb5.h>
-
-int main()
-{
-    int v1, v2, v3;
-
-    fprintf(stderr, "%s\n", heimdal_version);
-
-    if (sscanf(heimdal_version, "heimdal-%d.%d.%d", &v1, &v2, &v3) != 3 &&
-	sscanf(heimdal_version, "Heimdal %d.%d.%d", &v1, &v2, &v3) != 3)
-	return 1;
-
-    fprintf(stderr, "%s: %d %d %d\n", heimdal_version, v1, v2, v3);
-
-    /*
-     * _gssapi_wrap_size_cfx() is incorrect in e.g. 0.7.2.
-     * accept 0.8.0 and later
-     */
-    if ((v1 >= 1) || (v1 == 0 && v2 >= 8))
-	return 0;
-
-    return 1;
-}
-_ACEOF
-rm -f conftest$ac_exeext
-if { (ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_link") 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
-  { (case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  { echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6; }
-else
-  echo "$as_me: program exited with status $ac_status" >&5
-echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-( exit $ac_status )
-{ echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6; }
-     bad_gssapi=t
-     no_gssapi=t
-fi
-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
-fi
-
-
-   fi
-
    for file in gssapi.h gssapi/gssapi.h gssapi/gssapi_generic.h; do
        cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
@@ -34595,10 +34519,10 @@ _ACEOF
 
                               break;
 fi
-rm -f conftest*
+rm -fr conftest*
 
 fi
-rm -f conftest*
+rm -fr conftest*
 
    done
 fi
@@ -35505,6 +35429,9 @@ case $host in
 	fi
 	;;
 esac
+
+ac_config_files="$ac_config_files capi/socks.h"
+
 if test x"$stdio_preload" = xt; then
 
 cat >>confdefs.h <<\_ACEOF
@@ -35883,7 +35810,7 @@ else
   { echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6; }
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
 { echo "$as_me:$LINENO: checking for int8_t" >&5
@@ -36493,7 +36420,7 @@ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
 else
   ac_cv_prog_gcc_traditional=no
 fi
-rm -f conftest*
+rm -fr conftest*
 
 
   if test $ac_cv_prog_gcc_traditional = no; then
@@ -36510,7 +36437,7 @@ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
   $EGREP "$ac_pattern" >/dev/null 2>&1; then
   ac_cv_prog_gcc_traditional=yes
 fi
-rm -f conftest*
+rm -fr conftest*
 
   fi
 fi
@@ -37728,7 +37655,7 @@ echo $ECHO_N "checking for module redirect... $ECHO_C" >&6; }
 				if test x"$MODVER" = x; then
 		MODVER=`awk '/Id:/{ split($''4,a,".");print a[2]; exit }' licensed/redirect.c`
 	fi
-	if test "$MODVER" -lt "31"; then
+	if test "$MODVER" -lt "39"; then
 		echo ""
 		echo "You have a outdated version of the redirect module."
 		echo "Please contact Inferno Nettverk A/S for an updated"
@@ -38598,6 +38525,7 @@ do
     "include/autoconf.h") CONFIG_HEADERS="$CONFIG_HEADERS include/autoconf.h" ;;
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
     "bin/socksify") CONFIG_FILES="$CONFIG_FILES bin/socksify" ;;
+    "capi/socks.h") CONFIG_FILES="$CONFIG_FILES capi/socks.h" ;;
     "$ac_config_links_1") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_1" ;;
     "$ac_config_links_2") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_2" ;;
     "$ac_config_links_3") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_3" ;;

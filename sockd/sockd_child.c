@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009,
+ *               2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.211 2009/10/23 10:37:27 karls Exp $";
+"$Id: sockd_child.c,v 1.211.2.8 2010/05/24 16:39:12 karls Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -67,6 +68,16 @@ findchild(pid_t pid, int childc, const struct sockd_child_t *childv);
  *      On failure: -1.
  */
 
+static struct sockd_child_t *
+addchild(const int type);
+/*
+ * Adds a new child that can accept objects of type "type" from mother.
+ * Returns:
+ *    On success: a pointer to the added child.
+ *    On failure: NULL.  (resource shortage.)
+ */
+
+
 static struct sockd_child_t *iochildv;          /* all our iochildren         */
 static size_t iochildc;
 
@@ -76,9 +87,9 @@ static size_t negchildc;
 static struct sockd_child_t *reqchildv;         /* all our requestchildren    */
 static size_t reqchildc;
 
-struct sockd_child_t *
+static struct sockd_child_t *
 addchild(type)
-   int type;
+   const int type;
 {
    const char *function = "addchild()";
    void (*childfunction)(struct sockd_mother_t *mother);
@@ -373,7 +384,7 @@ addchild(type)
          }
 
          /* delete everything we got from parent. */
-         for (i = 0, maxfd = getmaxofiles(softlimit); i < maxfd; ++i) {
+         for (i = 0, maxfd = sockscf.state.maxopenfiles; i < maxfd; ++i) {
             /* exceptions */
             if (i == (size_t)mother.s
 #if HAVE_SENDMSG_DEADLOCK
@@ -424,6 +435,8 @@ addchild(type)
 
          errno = 0;
 
+         time(&sockscf.stat.boot);
+
          childfunction(&mother);
          /* NOTREACHED */
       }
@@ -446,6 +459,7 @@ addchild(type)
          (*childv)[*childc].pid    = pid;
          (*childv)[*childc].s      = datapipev[MOTHER];
          (*childv)[*childc].ack    = ackpipev[MOTHER];
+         (*childv)[*childc].sentc  = 0;
 #if HAVE_SENDMSG_DEADLOCK
          (*childv)[*childc].lock   = mother.lock;
 #endif /* HAVE_SENDMSG_DEADLOCK */
@@ -479,35 +493,33 @@ int
 childcheck(type)
    int type;
 {
-/*   const char *function = "childcheck()"; */
+   const char *function = "childcheck()"; 
    struct sockd_child_t **childv;
-   size_t child, *childc;
-   int proxyc, min, max, idle;
+   size_t child, *childc, minfreeslots, maxslotsperproc, idle, proxyc;
 
    switch (type) {
       case -CHILD_NEGOTIATE:
       case CHILD_NEGOTIATE:
-         childc   = &negchildc;
-         childv   = &negchildv;
-         min      = SOCKD_FREESLOTS;
-         max      = SOCKD_NEGOTIATEMAX;
+         childc          = &negchildc;
+         childv          = &negchildv;
+         minfreeslots    = SOCKD_FREESLOTS;
+         maxslotsperproc = SOCKD_NEGOTIATEMAX;
          break;
 
       case -CHILD_REQUEST:
       case CHILD_REQUEST:
-         childc   = &reqchildc;
-         childv   = &reqchildv;
-         min      = SOCKD_FREESLOTS;
-         max      = SOCKD_REQUESTMAX;
+         childc          = &reqchildc;
+         childv          = &reqchildv;
+         minfreeslots    = SOCKD_FREESLOTS;
+         maxslotsperproc = SOCKD_REQUESTMAX;
          break;
 
       case -CHILD_IO:
       case CHILD_IO:
-         childc   = &iochildc;
-         childv   = &iochildv;
-         /* attempt to keep in a state where we can accept all requests. */
-         min      = MAX(SOCKD_FREESLOTS, childcheck(-CHILD_REQUEST));
-         max      = SOCKD_IOMAX;
+         childc          = &iochildc;
+         childv          = &iochildv;
+         minfreeslots    = SOCKD_FREESLOTS;
+         maxslotsperproc = SOCKD_IOMAX;
          break;
 
       default:
@@ -516,34 +528,64 @@ childcheck(type)
 
    /*
     * get a estimate over how many (new) clients our children are able to
-    * accept in total.
+    * accept in total, so we know if we need to create more children,
+    * or if we can remove some.
     */
    for (child = idle = proxyc = 0; child < *childc; ++child) {
-      SASSERTX((*childv)[child].freec <= max);
-      proxyc += type < 0 ? max : (*childv)[child].freec;
+      SASSERTX((*childv)[child].freec <= maxslotsperproc);
 
-      if ((*childv)[child].freec == max) {
+      if (sockscf.child.maxrequests != 0)
+         if ((*childv)[child].sentc == sockscf.child.maxrequests) {
+            slog(LOG_DEBUG, "%s: not counting child %lu.  Should be removed "
+                            "when possible as it has already served %lu "
+                            "requests (currently has %lu/%lu slots free).",
+                            function,
+                            (unsigned long)(*childv)[child].pid,
+                            (unsigned long)(*childv)[child].sentc,
+                            (unsigned long)(*childv)[child].freec,
+                            (unsigned long)maxfreeslots((*childv)[child].type));
+            continue; 
+         }
+
+      proxyc += type < 0 ? maxslotsperproc : (*childv)[child].freec;
+
+      if ((*childv)[child].freec == maxslotsperproc) {
+         /* all slots in this child idle. */
          ++idle;
 
          if (sockscf.child.maxidle > 0 && idle > sockscf.child.maxidle) {
-            /* will remove this next, no longer part of free slots pool. */
-            proxyc -= type < 0 ? max : (*childv)[child].freec;
+            slog(LOG_DEBUG, "%s: already counted %d idle %s-children, "
+                            "removing %s-child with pid %lu",
+                            function, idle - 1,
+                            childtype2string(type < 0 ? -type : type),
+                            childtype2string(type < 0 ? -type : type),
+                            (unsigned long)(*childv)[child].pid);
+
+            /* will remove this now, no longer part of free slots pool. */
+            proxyc -= type < 0 ? maxslotsperproc : (*childv)[child].freec;
 
             removechild((*childv)[child].pid);
             --idle;
-            --child; /* everything was shifted once to the left. */
+            --child; /* everything was shifted one to the left. */
          }
       }
    }
 
-   if (type >= 0)
-      if (proxyc < min && sockscf.child.addchild) {
+   if (type >= 0) {
+       if (proxyc < minfreeslots && sockscf.child.addchild) {
+         slog(LOG_DEBUG, "%s: current # of free %s-slots is %d, thus less than "
+                         "configured minimum of %d.  Trying to add a "
+                         "%s-child",
+                         function, childtype2string(type), 
+                         (unsigned long)proxyc, (unsigned long)minfreeslots,
+                         childtype2string(type));
+
          if (addchild(type) != NULL)
             return childcheck(type);
-         else {
+         else 
             sockscf.child.addchild = 0;   /* don't retry until a child dies. */
-         }
       }
+   }
 
    return proxyc;
 }
@@ -709,10 +751,12 @@ void
 removechild(pid)
    pid_t pid;
 {
-/*   const char *function = "removechild()"; */
+   const char *function = "removechild()"; 
    struct sockd_child_t **childv;
    size_t *childc;
    int child;
+
+   slog(LOG_DEBUG, "%s: pid %lu", function, (unsigned long)pid);
 
    if (pid == 0) {
       int childtypev[] = {CHILD_IO, CHILD_NEGOTIATE, CHILD_REQUEST};
@@ -775,11 +819,12 @@ nextchild(type)
       wset = allocate_maxsize_fdset();
 
    FD_ZERO(wset);
-   for (i = 0, maxd = -1; i < *childc; ++i)
+   for (i = 0, maxd = -1; i < *childc; ++i) {
       if ((*childv)[i].freec > 0) {
          FD_SET((*childv)[i].s, wset);
          maxd = MAX(maxd, (*childv)[i].s);
       }
+   }
 
    if (maxd < 0) {
       slog(LOG_DEBUG, "%s: no free %s slots", function, childtype2string(type));
@@ -1160,6 +1205,29 @@ sigchildbroadcast(sig, childtype)
       for (i = 0; i < iochildc; ++i)
          kill(iochildv[i].pid, sig);
 }
+
+size_t
+maxfreeslots(childtype)
+   const int childtype;
+{
+
+   switch (childtype) {
+      case CHILD_NEGOTIATE:
+         return SOCKD_NEGOTIATEMAX;
+
+      case CHILD_REQUEST:
+         return SOCKD_REQUESTMAX;
+
+      case CHILD_IO:
+         return SOCKD_IOMAX;
+
+      default:
+         SERRX(childtype);
+   }
+
+   return 0; /* NOTREACHED */
+}
+
 
 #if DEBUG
 void

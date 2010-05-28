@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: osdep.h,v 1.51 2009/10/23 11:08:01 karls Exp $ */
+/* $Id: osdep.h,v 1.51.2.2 2010/05/24 16:38:23 karls Exp $ */
 
 #if HAVE_LINUX_ECCENTRICITIES
 /*
@@ -191,6 +191,9 @@
  * XXX _XOPEN_SOURCE needed for PTHREAD_MUTEX_ERRORCHECK, define after
  *     all other include files to avoid interference
  */
+#ifdef _XOPEN_SOURCE
+#undef _XOPEN_SOURCE
+#endif /* _XOPEN_SOURCE */
 #define _XOPEN_SOURCE 500
 #undef _FEATURES_H
 #endif /* HAVE_LINUX_ECCENTRICITIES */

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009
+ *               2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.292 2009/10/23 11:43:36 karls Exp $";
+"$Id: config_parse.y,v 1.292.2.7 2010/05/24 16:38:36 karls Exp $";
 
 #if HAVE_LIBWRAP && (SOCKS_SERVER || BAREFOOTD)
    extern jmp_buf tcpd_buf;
@@ -199,7 +199,7 @@ do {                                                             \
 %token   <string> GROUPNAME
 %token   <string> USER_PRIVILEGED USER_UNPRIVILEGED USER_LIBWRAP
 %token   <string> LOGOUTPUT LOGFILE
-%token   <string> CHILD_MAXIDLE
+%token   <string> CHILD_MAXIDLE CHILD_MAXREQUESTS
 
    /* route */
 %type   <string> route
@@ -241,7 +241,8 @@ do {                                                             \
 %token <string> LINE
 %token <string> LIBWRAPSTART
 %token <string> OPERATOR
-%token <string> LOG LOG_CONNECT  LOG_DATA LOG_DISCONNECT LOG_ERROR                               LOG_IOOPERATION
+%token <string> SOCKS_LOG SOCKS_LOG_CONNECT SOCKS_LOG_DATA
+                SOCKS_LOG_DISCONNECT SOCKS_LOG_ERROR SOCKS_LOG_IOOPERATION
 %token <string> IPADDRESS DOMAINNAME DIRECT IFNAME URL
 %token <string> PORT PORTNUMBER SERVICENAME
 %token <string> NUMBER
@@ -499,18 +500,18 @@ logoutputdevices:   logoutputdevice
    |   logoutputdevice logoutputdevices
    ;
 
-childstate:
-   CHILD_MAXIDLE ':' NUMBER {
-#if SOCKS_SERVER || BAREFOOTD
-      yyerror("Sorry, child.maxidle is disabled due to a suspected bug");
-      if (atoi($3) != 0 && atoi($3) < SOCKD_FREESLOTS)
-         yyerror("%s (%s) can't be less than SOCKD_FREESLOTS (%d)",
-         $1, $3, SOCKD_FREESLOTS);
-      sockscf.child.maxidle = atoi($3);
-#endif /* SOCKS_SERVER || BAREFOOTD */
+childstate: CHILD_MAXIDLE ':' YES {
+#if !SOCKS_CLIENT
+      sockscf.child.maxidle = SOCKD_FREESLOTS * 2;
+   }
+   | CHILD_MAXIDLE ':' NO {
+      sockscf.child.maxidle = 0;
+   }
+   | CHILD_MAXREQUESTS ':' NUMBER {
+      sockscf.child.maxrequests = atoi($3);
+#endif /* !SOCKS_CLIENT */
    }
    ;
-
 
 userids:   user_privileged
    |   user_unprivileged
@@ -949,23 +950,23 @@ bandwidth:   BANDWIDTH ':' NUMBER {
    ;
 
 
-log:   LOG ':' logs
+log:   SOCKS_LOG ':' logs
    ;
 
-logname:  LOG_CONNECT {
+logname:  SOCKS_LOG_CONNECT {
 #if SOCKS_SERVER || BAREFOOTD
    rule.log.connect = 1;
    }
-   |   LOG_DATA {
+   |   SOCKS_LOG_DATA {
          rule.log.data = 1;
    }
-   |   LOG_DISCONNECT {
+   |   SOCKS_LOG_DISCONNECT {
          rule.log.disconnect = 1;
    }
-   |   LOG_ERROR {
+   |   SOCKS_LOG_ERROR {
          rule.log.error = 1;
    }
-   |   LOG_IOOPERATION {
+   |   SOCKS_LOG_IOOPERATION {
          rule.log.iooperation = 1;
 #endif /* SOCKS_SERVER || BAREFOOTD */
    }
@@ -1343,7 +1344,9 @@ parseconfig(filename)
    }
    else {
       socks_parseinit = 0;
+#if YYDEBUG
       yydebug         = 0;
+#endif /* YYDEBUG */
       yylineno        = 1;
 
       errno         = 0;   /* don't report old errors in yyparse(). */
@@ -1666,13 +1669,9 @@ ruleinit(rule)
 
    bzero(&src, sizeof(src));
    bzero(&dst, sizeof(dst));
-   *rule = ruleinitmem;
-
-   src.atype = SOCKS_ADDR_IPV4;
-   src.addr.ipv4.ip.s_addr = htonl(INADDR_ANY);
-   src.port.tcp = src.port.udp = src.portend = htons(0);
 
    dst = rdr_from = rdr_to = src;
+   *rule = ruleinitmem;
 }
 
 #endif /* SOCKS_SERVER || BAREFOOTD */

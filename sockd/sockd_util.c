@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2008,
- *               2009
+ *               2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.143 2009/10/23 10:37:27 karls Exp $";
+"$Id: sockd_util.c,v 1.143.2.2 2010/05/24 16:39:13 karls Exp $";
 
 #include "common.h"
 
@@ -330,7 +330,7 @@ pidismother(pid)
    size_t i;
 
    if (sockscf.state.motherpidv == NULL)
-      return 1; /* so early we haven't even forked yet. */
+      return 1; /* so early we haven't forked yet. */
 
    for (i = 0; i < sockscf.option.serverc; ++i)
       if (sockscf.state.motherpidv[i] == pid)
@@ -360,6 +360,9 @@ sigserverbroadcast(sig)
    int sig;
 {
    size_t i;
+
+   if (sockscf.state.motherpidv == NULL)
+      return; /* so early we haven't forked yet. */
 
    for (i = 1; i < sockscf.option.serverc; ++i)
       if (sockscf.state.motherpidv[i] != 0)

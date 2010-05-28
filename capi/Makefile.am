@@ -1,1 +1,2 @@
-include_HEADERS = socks.h.in socks_glibc.h
+noinst_HEADERS = socks_glibc.h
+include_HEADERS = socks.h

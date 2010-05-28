@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.483 2009/10/23 11:08:01 karls Exp $ */
+/* $Id: common.h,v 1.483.2.4 2010/05/27 08:25:15 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -620,6 +620,7 @@ do {                                \
 
 
 /* address types XXX should be enum. */
+#define SOCKS_ADDR_NOTSET      0x00
 #define SOCKS_ADDR_IPV4        0x01
 #define SOCKS_ADDR_IFNAME      0x02 /* not a socks constant, for convenience. */
 #define SOCKS_ADDR_DOMAIN      0x03
@@ -2612,6 +2613,15 @@ socks_getenv(const char *name, value_t value);
  * also compare the value returned by getenv(3), if any, to
  * see it it matches the value described by "value".  If they don't
  * match, the function will return NULL.
+ */
+
+void seconds2days(unsigned long *seconds, unsigned long *days,
+                  unsigned long *hours, unsigned long *minutes);
+/*
+ * Converts "seconds" to the corresponding number of days, hours, minutes, 
+ * and seconds.
+ * Upon return, the days, hours, minutes, and seconds are stored in the 
+ * passed arguments.
  */
 
 #if SOCKSLIBRARY_DYNAMIC

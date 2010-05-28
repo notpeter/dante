@@ -1,4 +1,4 @@
-/* $Id: getifaddrs.c,v 1.12 2009/07/07 12:54:47 karls Exp $ */
+/* $Id: getifaddrs.c,v 1.12.2.1 2010/05/04 10:56:16 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -42,7 +42,7 @@
 #if 0
 #ifdef HAVE_CONFIG_H
 #include <config.h>
-RCSID("$Id: getifaddrs.c,v 1.12 2009/07/07 12:54:47 karls Exp $");
+RCSID("$Id: getifaddrs.c,v 1.12.2.1 2010/05/04 10:56:16 karls Exp $");
 #endif
 #include "roken.h"
 #endif
@@ -942,11 +942,11 @@ getifaddrs2(struct ifaddrs **ifap,
 	salen = sizeof(struct sockaddr);
 #if HAVE_SOCKADDR_SA_LEN
 	salen = sa->sa_len;
-	sz = max(sz, sizeof(ifr->ifr_name) + sa->sa_len);
+	sz = MAX(sz, sizeof(ifr->ifr_name) + sa->sa_len);
 #endif
 #ifdef SA_LEN
 	salen = SA_LEN(sa);
-	sz = max(sz, sizeof(ifr->ifr_name) + SA_LEN(sa));
+	sz = MAX(sz, sizeof(ifr->ifr_name) + SA_LEN(sa));
 #endif
 	memset (&ifreq, 0, sizeof(ifreq));
 	memcpy (ifreq.ifr_name, ifr->ifr_name, sizeof(ifr->ifr_name));
@@ -1105,11 +1105,11 @@ getlifaddrs2(struct ifaddrs **ifap,
 	salen = sizeof(struct sockaddr_storage);
 #if HAVE_SOCKADDR_SA_LEN
 	salen = sa->sa_len;
-	sz = max(sz, sizeof(ifr->ifr_name) + sa->sa_len);
+	sz = MAX(sz, sizeof(ifr->ifr_name) + sa->sa_len);
 #endif
 #ifdef SA_LEN
 	salen = SA_LEN(sa);
-	sz = max(sz, sizeof(ifr->ifr_name) + SA_LEN(sa));
+	sz = MAX(sz, sizeof(ifr->ifr_name) + SA_LEN(sa));
 #endif
 	memset(&ifreq, 0, sizeof(ifreq));
 	memcpy(ifreq.lifr_name, ifr->lifr_name, sizeof(ifr->lifr_name));
