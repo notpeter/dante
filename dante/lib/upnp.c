@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009
+ * Copyright (c) 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.62 2009/10/23 11:43:37 karls Exp $";
+"$Id: upnp.c,v 1.62.2.2 2010/05/24 16:38:36 karls Exp $";
 
 #include "common.h"
 
@@ -613,4 +613,11 @@ atexit_upnpcleanup(void)
    upnpcleanup(-1);
 }
 #endif /* SOCKS_CLIENT */
+#else /* !HAVE_LIBMINIUPNP */
+void
+upnpcleanup(s)
+   const int s;
+{
+      return;
+}
 #endif /* !HAVE_LIBMINIUPNP */

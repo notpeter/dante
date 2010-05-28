@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009
+ *               2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.155 2009/10/23 10:11:46 karls Exp $";
+"$Id: sockd_negotiate.c,v 1.155.2.4 2010/05/24 16:39:13 karls Exp $";
 
 static void siginfo(int sig);
 
@@ -223,7 +223,9 @@ run_negotiate(mother)
       FD_COPY(rset, tmpset);
 
       if (FD_ISSET(mother->ack, rset)) {
-         slog(LOG_DEBUG, "%s: mother exited, we should too", function);
+         slog(LOG_DEBUG, "%s: mother closed it's connection to us.  "
+                         "We should exit.",
+                         function);
          sockdexit(EXIT_SUCCESS);
       }
 
@@ -472,7 +474,8 @@ recv_negotiate(mother)
 
 #if !HAVE_DEFECT_RECVMSG
    SASSERT((size_t)CMSG_TOTLEN(msg)
-   == (size_t)(CMSG_SPACE(sizeof(int) * fdexpect)));
+   == (size_t)(CMSG_SPACE(sizeof(int) * fdexpect)) ||
+   (size_t)CMSG_TOTLEN(msg) == (size_t)(CMSG_LEN(sizeof(int) * fdexpect)));
 #endif /* !HAVE_DEFECT_RECVMSG */
 
    fdreceived = 0;
@@ -743,6 +746,7 @@ siginfo(sig)
    int sig;
 {
    const char *function = "siginfo()";
+   unsigned long seconds, days, hours, minutes;
    time_t timenow;
    int i;
 
@@ -756,7 +760,12 @@ siginfo(sig)
    slog(LOG_DEBUG, "%s: running due to previously received signal: %d",
    function, sig);
 
-   time(&timenow);
+   seconds = difftime(time(&timenow), sockscf.stat.boot);
+   seconds2days(&seconds, &days, &hours, &minutes);
+
+   slog(LOG_INFO, "negotiate-child up %lu day%s, %lu:%.2lu:%.2lu",
+                  days, days == 1 ? "" : "s", hours, minutes, seconds);
+
    for (i = 0; i < negc; ++i)
       if (!negv[i].allocated)
          continue;

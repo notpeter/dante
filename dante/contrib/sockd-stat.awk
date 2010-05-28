@@ -54,7 +54,10 @@ BEGIN {
 	SHOW_PORTS=30;
 	SHOW_CLIENTS=0;
 	SHOW_DESTINATIONS=50;
-	LOOKUP_IPS=1;
+	if (nodns == 1)
+		LOOKUP_IPS=0;
+	else
+		LOOKUP_IPS=1;
 
 	#
 	# no need to change anything below

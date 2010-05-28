@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009,
+ *               2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.253 2009/10/27 12:00:22 karls Exp $";
+"$Id: connectchild.c,v 1.253.2.3 2010/05/24 16:38:36 karls Exp $";
 
 #define MOTHER  (0)   /* descriptor mother reads/writes on.  */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -720,7 +721,8 @@ run_connectchild(mother_data, mother_ack)
 
 #if !HAVE_DEFECT_RECVMSG
          SASSERTX((size_t)CMSG_TOTLEN(msg)
-         == (size_t)(CMSG_SPACE(sizeof(int) * len)));
+         == (size_t)(CMSG_SPACE(sizeof(int) * len)) ||
+         (size_t)CMSG_TOTLEN(msg) == (size_t)(CMSG_LEN(sizeof(int) * len)));
 #endif /* !HAVE_DEFECT_RECVMSG */
 
          len = 0;
@@ -952,7 +954,7 @@ sigio(sig, sip, scp)
    slog(LOG_DEBUG, "%s: got signal, requests outstanding: %d",
    function, (int)reqoutstanding);
 
-   if ((p = recv(sockscf.child_ack, &msg, sizeof(msg), MSG_DONTWAIT)) >= 0) {
+   if ((p = recv(sockscf.child_ack, &msg, sizeof(msg), 0)) >= 0) {
       swarnx("%s: ick ick ick.  It seems our dear connect-child has suffered "
              "unrepairable problems and sent us a message of size %ld.  "
              "Probably we will just hang now",
@@ -1014,7 +1016,7 @@ sigio(sig, sip, scp)
    gotpackets = 0;
 
    CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
-   while ((p = recvmsg(sockscf.child_data, &msg, MSG_DONTWAIT))
+   while ((p = recvmsg(sockscf.child_data, &msg, 0))
    >= (ssize_t)sizeof(childres)) {
       struct stat sb;
       dev_t device;
@@ -1051,7 +1053,8 @@ sigio(sig, sip, scp)
       len = 1;
 #if !HAVE_DEFECT_RECVMSG
       SASSERTX((size_t)CMSG_TOTLEN(msg)
-      == (size_t)(CMSG_SPACE(sizeof(int) * len)));
+      == (size_t)(CMSG_SPACE(sizeof(int) * len)) ||
+      (size_t)CMSG_TOTLEN(msg) == (size_t)(CMSG_LEN(sizeof(int) * len)));
 #endif /* !HAVE_DEFECT_RECVMSG */
 
       len = 0;

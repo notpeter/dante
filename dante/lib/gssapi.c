@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009
+ * Copyright (c) 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: gssapi.c,v 1.67 2009/10/23 10:11:45 karls Exp $";
+"$Id: gssapi.c,v 1.67.2.5 2010/05/24 16:38:36 karls Exp $";
 
 #if HAVE_GSSAPI
 
@@ -299,7 +299,7 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
    /*
     * If the socket is blocking, we need to retry the read.
     * The token buffers we allocate for this are too large to simply
-    * call ourselves again in that case.
+    * call ourselves recursivly again.
     */
 again:
    encodedinbuffer = socks_bytesinbuffer(s, READ_BUF, 1); /* const. */
@@ -360,11 +360,19 @@ again:
       socks_getfrombuffer(s, READ_BUF, 0, buf, toread);
 
       if (flags & MSG_PEEK) {
-         /* what's left to read from the buffer. */
+         /*
+         * client peeking, need to add the data back to the buffer so it 
+         * is still there next time.
+         */
+
+         /*
+          * get the rest of the buffer first, so it is empty and we can add
+          * to the start ...
+          */
          nread = socks_getfrombuffer(s, READ_BUF, 0, tmpbuf, sizeof(tmpbuf));
 
          /*
-          * add all back to buffer so it's still here next time.
+          * ... and add it all back to the buffer.
           */
          socks_addtobuffer(s, READ_BUF, 0, buf, toread);
          socks_addtobuffer(s, READ_BUF, 0, tmpbuf, nread);
@@ -373,15 +381,16 @@ again:
       else if (socks_bytesinbuffer(s, READ_BUF, 0) == 0) {
          slog(LOG_DEBUG, "%s: all data from token returned to caller.  "
                          "Draining socket for last %lu byte%s",
-         function, (unsigned long)iobuf->info[READ_BUF].peekedbytes,
-         iobuf->info[READ_BUF].peekedbytes == 1 ? "" : "s");
+                         function,
+                         (unsigned long)iobuf->info[READ_BUF].peekedbytes,
+                         iobuf->info[READ_BUF].peekedbytes == 1 ? "" : "s");
 
          recv(s, tmpbuf, iobuf->info[READ_BUF].peekedbytes, 0);
+         iobuf->info[READ_BUF].peekedbytes = 0;
 
          SASSERTX(socks_bytesinbuffer(s, READ_BUF, 0) == 0);
          SASSERTX(socks_bytesinbuffer(s, READ_BUF, 1) == 0);
 
-         iobuf->info[READ_BUF].peekedbytes = 0;
       }
 #endif /* SOCKS_CLIENT */
 
@@ -463,8 +472,8 @@ again:
       /*
        * would be nice to only discard the data belonging to the
        * erroneous token, but how can we know how long it is?
-       * Things will probably only go downhill from here, and we should
-       * close the session instead.
+       * Things will probably only go downhill from heres so close
+       * the session instead, at least in the client tcp case.
        */
       socks_clearbuffer(s, READ_BUF);
 
@@ -484,8 +493,10 @@ again:
       return -1;
    }
 
-   memcpy(&encodedlen, &iobuf->buf[READ_BUF][GSSAPI_TOKEN_LENGTH],
-   sizeof(encodedlen));
+   memcpy(&encodedlen,
+          &iobuf->buf[READ_BUF][GSSAPI_TOKEN_LENGTH],
+          sizeof(encodedlen));
+
    encodedlen = ntohs(encodedlen);
 
    if (socks_bytesinbuffer(s, READ_BUF, 1) < (size_t)GSSAPI_HLEN + encodedlen) {
@@ -533,9 +544,9 @@ again:
 #if SOCKS_CLIENT
    /*
     * what we need to save in peekedbytes is the number of bytes we
-    * read now which belong to the current token, no more.
+    * read now that belong to the current token, no more.
     * That is the size of the encoded token minus the number of bytes
-    * we had already read.
+    * we had already read (and thus previously discarded).
     */
 
    iobuf->info[READ_BUF].peekedbytes
@@ -552,11 +563,12 @@ again:
 
    tokenlen = sizeof(token);
    if (gssapi_decode(tmpbuf, encodedlen, gs, token, &tokenlen) != 0) {
-      swarnx("%s: gssapi token of length %u failed to decode, discarded",
-      function, encodedlen);
+      swarnx("%s: gssapi %s token of length %u failed to decode, discarded",
+             iobuf->stype == SOCK_DGRAM ? "datagram" : "stream",
+             function, encodedlen);
 
 #if SOCKS_CLIENT /* drain the bytes we peeked at. */
-      recv(s, token, nread, 0);
+      recv(s, token, nread, iobuf->info[READ_BUF].peekedbytes);
 #endif /* SOCKS_CLIENT */
 
       if (iobuf->stype == SOCK_DGRAM)
@@ -612,23 +624,29 @@ again:
     */
    socks_getfrombuffer(s, READ_BUF, 1, tmpbuf, sizeof(tmpbuf));
 
-   if (socks_bytesinbuffer(s, READ_BUF, 0) == 0) {
-      if (flags & MSG_PEEK) {
-         /*
-          * Need to add the data we are returning to caller back to the
-          * start of the buffer.  It must be there next time too.
-          */
+   if (flags & MSG_PEEK) {
+      /*
+       * Need to add the data we are returning to caller now back to
+       * the start of our buffer; it must be there next time too.
+       */
 
-         socks_addtobuffer(s, READ_BUF, 0, buf, len);
-      }
-      else {
-         slog(LOG_DEBUG, "%s: complete token returned to caller, "
-                         "draining socket for last %lu bytes",
-         function, (unsigned long)iobuf->info[READ_BUF].peekedbytes);
+      /*
+       * Get whats left in the buffer first, so it is empty and we
+       * can add the data back to the start of the buffer.
+       */
+      nread = socks_getfrombuffer(s, READ_BUF, 0, tmpbuf, sizeof(tmpbuf));
 
-         recv(s, tmpbuf, iobuf->info[READ_BUF].peekedbytes, flags);
-         socks_clearbuffer(s, READ_BUF);
-      }
+      socks_addtobuffer(s, READ_BUF, 0, buf, len);
+      socks_addtobuffer(s, READ_BUF, 0, tmpbuf, nread);
+   }
+   else if (socks_bytesinbuffer(s, READ_BUF, 0) == 0) {
+      slog(LOG_DEBUG, "%s: complete token returned to caller, "
+                      "draining socket for last %lu bytes",
+                      function,
+                      (unsigned long)iobuf->info[READ_BUF].peekedbytes);
+
+      recv(s, tmpbuf, iobuf->info[READ_BUF].peekedbytes, flags);
+      socks_clearbuffer(s, READ_BUF);
    }
 #else /* !SOCKS_CLIENT */
 

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009,
+ *               2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.57 2009/10/23 11:43:37 karls Exp $";
+"$Id: tostring.c,v 1.57.2.2 2010/05/24 16:38:36 karls Exp $";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -973,23 +974,23 @@ logs2string(logs, str, strsize)
 
    if (logs->connect)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
-      QUOTE(LOG_CONNECTs));
+      QUOTE(SOCKS_LOG_CONNECTs));
 
    if (logs->disconnect)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
-      QUOTE(LOG_DISCONNECTs));
+      QUOTE(SOCKS_LOG_DISCONNECTs));
 
    if (logs->data)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
-      QUOTE(LOG_DATAs));
+      QUOTE(SOCKS_LOG_DATAs));
 
    if (logs->error)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
-      QUOTE(LOG_ERRORs));
+      QUOTE(SOCKS_LOG_ERRORs));
 
    if (logs->iooperation)
       strused += snprintfn(&str[strused], strsize - strused, "%s, ",
-      QUOTE(LOG_IOOPERATIONs));
+      QUOTE(SOCKS_LOG_IOOPERATIONs));
 
    STRIPTRAILING(str, strused);
    return str;

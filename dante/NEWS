@@ -1,6 +1,58 @@
-@(#)$Id: NEWS,v 1.62 2009/10/27 11:42:22 karls Exp $
+@(#)$Id: NEWS,v 1.62.2.16 2010/05/27 08:05:35 karls Exp $
 
 (NOTE: The contents of this file is not updated for pre-releases.)
+
+***
+***  Friday, May 28, 2010 -- Dante v1.2.1
+***
+
+ o GSSAPI support is no longer disabled on heimdal versions older than
+   0.8.0, which have no wrap/unwrap support for aes256-cts-hmac-sha1-96.
+   The following krb5.conf configuration might be needed to ensure that
+   AES-256 is not used:
+
+    default_etypes = arcfour-hmac-md5 des3-cbc-sha1 des-cbc-crc des-cbc-md5
+    default_etypes_des = des-cbc-crc des-cbc-md5
+
+   Problem analyzed by Markus Moeller <markus_moeller at compuserve.com>.
+
+ o Code for shutting down idle sockd processes put back and can be
+   enabled again, if desired.  It is not recommended for busy servers
+   however as performance may be slightly degraded.
+
+ o Fix bug related to clients using MSG_PEEK and GSSAPI on Linux.
+   Problem found by Markus Moeller <markus_moeller at compuserve.com>.
+
+ o Don't print warning if accept(2) fails when started with the -N<k> option.
+   When started with the -N option, it is expected that accept(2) will
+   fail in 1/k of the cases.  Instead just log a debug message about it.
+   
+   Should fix problem reported by Mark Sinner <mark.sinner@db.com.example.org>.
+
+ o The fflush() wrapper function did not handle a NULL argument.
+   Reported by "Kirby Zhou" <kirbyzhou@sohu-rd.com.example.org> and
+   Victor Sologoubov <victor0@rambler.ru.example.org>
+
+ o Fix libsocks upnpcleanup() linking problem when compiled without
+   libminiupnpc.
+   Problem reported by Kyle Thurow <krthurow@gmail.com.example.com> and
+   Adam Prato <adam.prato@gmail.com.example.com>.
+
+ o Assert failure related to message passing on some 64-bit architectures
+   fixed.  Problem reported by Soner Tari <soner@comixwall.org.example.com>.
+
+ o The capi/socks.h file was not correctly installed.
+   Problem reported by Soner Tari <soner@comixwall.org.example.com>.
+
+ o Compilation fixes for OpenSuse 11.1.
+   Problem reported by Markus Moeller (markus_moeller at compuserve.com).
+
+ o Compilation fix for config_parse.y compilation without YYDEBUG.
+   Problem reported by Markus Moeller (markus_moeller at compuserve.com).
+
+ o Compilation fixes for AIX 6.1.
+   Problem reported by Ralf Wenk <iz-dante-0910@hs-karlsruhe.de.example.com>.
+   Tested by Marcel Augenstein.
 
 ***
 ***  Tuesday, October 27, 2009 -- Dante v1.2.0

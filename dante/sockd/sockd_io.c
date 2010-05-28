@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.365 2009/10/27 12:11:08 karls Exp $";
+"$Id: sockd_io.c,v 1.365.2.5 2010/05/24 16:39:13 karls Exp $";
 
 /*
  * IO-child:
@@ -462,9 +462,9 @@ run_io(mother)
          if (rbits == -1) {
             SASSERTX(io_allocated(NULL, NULL) == 0);
 
-            slog(LOG_DEBUG, "%s: mother exited and we have no clients, "
-                            "we should exit too",
-                            function);
+            slog(LOG_DEBUG, "%s: no connection to mother and no clients.  "
+                            "We should exit",
+                             function);
 
             sockdexit(EXIT_SUCCESS);
          }
@@ -505,7 +505,7 @@ run_io(mother)
 #endif /* BAREFOOTD */
 
       if (mother->ack != -1 && FD_ISSET(mother->ack, rset)) {
-         slog(LOG_DEBUG, "%s: mother exited", function);
+         slog(LOG_DEBUG, "%s: mother closed", function);
 
          FD_CLR(mother->s, rset);
          FD_CLR(mother->ack, rset);
@@ -630,7 +630,7 @@ run_io(mother)
       }
 
       if (mother->ack != -1 && FD_ISSET(mother->ack, rset)) {
-         slog(LOG_DEBUG, "%s: mother exited", function);
+         slog(LOG_DEBUG, "%s: mother closed", function);
 
          FD_CLR(mother->s, rset);
          FD_CLR(mother->ack, rset);
@@ -1235,7 +1235,8 @@ recv_io(s, io)
 
 #if !HAVE_DEFECT_RECVMSG
    SASSERT((size_t)CMSG_TOTLEN(msg)
-   == (size_t)(CMSG_SPACE(sizeof(int) * fdexpect)));
+   == (size_t)(CMSG_SPACE(sizeof(int) * fdexpect)) ||
+   (size_t)CMSG_TOTLEN(msg) == (size_t)(CMSG_LEN(sizeof(int) * fdexpect)));
 #endif /* !HAVE_DEFECT_RECVMSG */
 
    /*
@@ -2847,6 +2848,7 @@ siginfo(sig)
    int sig;
 {
    const char *function = "siginfo()";
+   unsigned long seconds, days, hours, minutes;
    time_t timenow;
    size_t i;
 
@@ -2860,7 +2862,12 @@ siginfo(sig)
    slog(LOG_DEBUG, "%s: running due to previously received signal: %d",
    function, sig);
 
-   time(&timenow);
+   seconds = difftime(time(&timenow), sockscf.stat.boot);
+   seconds2days(&seconds, &days, &hours, &minutes);
+
+   slog(LOG_INFO, "io-child up %lu day%s, %lu:%.2lu:%.2lu",
+                  days, days == 1 ? "" : "s", hours, minutes, seconds);
+
    for (i = 0; i < ioc; ++i)
       if (iov[i].allocated) {
          char srcstring[MAXSOCKSHOSTSTRING];

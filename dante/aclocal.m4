@@ -269,7 +269,7 @@ ac_outfile=conftest.$ac_objext
 echo "$lt_simple_compile_test_code" >conftest.$ac_ext
 eval "$ac_compile" 2>&1 >/dev/null | $SED '/^$/d; /^ *+/d' >conftest.err
 _lt_compiler_boilerplate=`cat conftest.err`
-$rm conftest*
+$rm -r conftest*
 ])# _LT_COMPILER_BOILERPLATE
 
 
@@ -741,7 +741,7 @@ AC_CACHE_CHECK([$1], [$2],
        $2=yes
      fi
    fi
-   $rm conftest*
+   $rm -r conftest*
 ])
 
 if test x"[$]$2" = xyes; then
@@ -1159,14 +1159,14 @@ AC_CACHE_CHECK([if $compiler supports -c -o file.$ac_objext],
      fi
    fi
    chmod u+w . 2>&AS_MESSAGE_LOG_FD
-   $rm conftest*
+   $rm -r conftest*
    # SGI C++ compiler will create directory out/ii_files/ for
    # template instantiation
    test -d out/ii_files && $rm out/ii_files/* && rmdir out/ii_files
    $rm out/* && rmdir out
    cd ..
    rmdir conftest
-   $rm conftest*
+   $rm -r conftest*
 ])
 ])# AC_LIBTOOL_PROG_CC_C_O
 
@@ -1182,7 +1182,7 @@ if test "$_LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1)" = no && test "$need_locks"
   # do not overwrite the value of need_locks provided by the user
   AC_MSG_CHECKING([if we can lock with hard links])
   hard_links=yes
-  $rm conftest*
+  $rm -r conftest*
   ln conftest.a conftest.b 2>/dev/null && hard_links=no
   touch conftest.a
   ln conftest.a conftest.b 2>&5 || hard_links=no
@@ -4881,7 +4881,7 @@ for ac_symprfx in "" "_"; do
   # Check to see that the pipe works correctly.
   pipe_works=no
 
-  rm -f conftest*
+  rm -rf conftest*
   cat > conftest.$ac_ext <<EOF
 #ifdef __cplusplus
 extern "C" {
@@ -6456,7 +6456,7 @@ x|xyes)
       # systems, -lgcc has to come before -lc. If gcc already passes -lc
       # to ld, don't add -lc before -lgcc.
       AC_MSG_CHECKING([whether -lc should be explicitly linked in])
-      $rm conftest*
+      $rm -r conftest*
       echo "$lt_simple_compile_test_code" > conftest.$ac_ext
 
       if AC_TRY_EVAL(ac_compile) 2>conftest.err; then
@@ -6483,7 +6483,7 @@ x|xyes)
       else
         cat conftest.err 1>&5
       fi
-      $rm conftest*
+      $rm -r conftest*
       AC_MSG_RESULT([$_LT_AC_TAGVAR(archive_cmds_need_lc, $1)])
       ;;
     esac

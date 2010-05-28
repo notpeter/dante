@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009
+ *               2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,7 +54,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.112 2009/10/23 11:43:36 karls Exp $";
+"$Id: config_scan.l,v 1.112.2.3 2010/05/24 16:38:36 karls Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -221,27 +221,27 @@ PORTNUMBER [0-9]{1,5}
 
 <start_log>connect {
    yylval.string = yytext;
-   return LOG_CONNECT;
+   return SOCKS_LOG_CONNECT;
 }
 
 <start_log>data {
    yylval.string = yytext;
-   return LOG_DATA;
+   return SOCKS_LOG_DATA;
 }
 
 <start_log>disconnect {
    yylval.string = yytext;
-   return LOG_DISCONNECT;
+   return SOCKS_LOG_DISCONNECT;
 }
 
 <start_log>error {
    yylval.string = yytext;
-   return LOG_ERROR;
+   return SOCKS_LOG_ERROR;
 }
 
 <start_log>iooperation {
    yylval.string = yytext;
-   return LOG_IOOPERATION;
+   return SOCKS_LOG_IOOPERATION;
 }
 
 <start_portnumber,start_servicename>[a-zA-Z]+[^: /\t\n]* {
@@ -508,6 +508,12 @@ child\.maxidle {
    return CHILD_MAXIDLE;
 }
 
+child\.maxrequests {
+   yylval.string = yytext;
+   return CHILD_MAXREQUESTS;
+}
+
+
 user {
    BEGIN(start_username);
 
@@ -674,7 +680,7 @@ log {
    BEGIN(start_log);
 
    yylval.string = yytext;
-   return LOG;
+   return SOCKS_LOG;
 }
 
 libwrap {

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,9 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.294 2009/10/27 12:11:08 karls Exp $";
+"$Id: sockd_request.c,v 1.294.2.4 2010/05/24 16:39:13 karls Exp $";
+
+static void siginfo(int sig);
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -57,6 +59,8 @@ static const char rcsid[] =
  * Will also fix the terrible fact that we just sit around and wait if the
  * command is bind, wasting the whole process on practically nothing.
  */
+
+static void siginfo(int sig);
 
 static void
 send_failure(int s, struct response_t *response, int failure);
@@ -150,6 +154,20 @@ run_request(mother)
 {
    const char *function = "run_request()";
    struct sockd_request_t req;
+   struct sigaction sigact;
+
+   bzero(&sigact, sizeof(sigact));
+   sigact.sa_flags   = SA_RESTART;
+   sigact.sa_handler = siginfo;
+
+#if HAVE_SIGNAL_SIGINFO
+   if (sigaction(SIGINFO, &sigact, NULL) != 0)
+      serr(EXIT_FAILURE, "%s: sigaction(SIGINFO)", function);
+#endif /* HAVE_SIGNAL_SIGINFO */
+
+   /* same handler, for systems without SIGINFO. */
+   if (sigaction(SIGUSR1, &sigact, NULL) != 0)
+      serr(EXIT_FAILURE, "%s: sigaction(SIGINFO)", function);
 
    proctitleupdate(NULL);
 
@@ -192,7 +210,9 @@ run_request(mother)
       }
 
       if (FD_ISSET(mother->ack, rset)) {
-         slog(LOG_DEBUG, "%s: mother exited, we should too", function);
+         slog(LOG_DEBUG, "%s: mother closed it's connection to us.  "
+                         "We should exit.",
+                         function);
          sockdexit(EXIT_SUCCESS);
       }
 
@@ -380,7 +400,8 @@ recv_req(s, req)
 
 #if !HAVE_DEFECT_RECVMSG
    SASSERT((size_t)CMSG_TOTLEN(msg)
-   == (size_t)(CMSG_SPACE(sizeof(int) * fdexpect)));
+   == (size_t)(CMSG_SPACE(sizeof(int) * fdexpect)) ||
+   (size_t)CMSG_TOTLEN(msg) == (size_t)(CMSG_LEN(sizeof(int) * fdexpect)));
 #endif /* !HAVE_DEFECT_RECVMSG */
 
    fdreceived = 0;
@@ -2208,4 +2229,30 @@ send_failure(s, response, failure)
       CLEAN_GSS_TOKEN(output_token);
    }
 #endif /* HAVE_GSSAPI */
+}
+
+/* ARGSUSED */
+void
+siginfo(sig)
+   int sig;
+{
+   const char *function = "siginfo()";
+   unsigned long seconds, days, hours, minutes;
+   time_t timenow;
+
+   if (sig > 0) {
+      sockd_pushsignal(sig);
+      return;
+   }
+
+   sig = -sig;
+
+   slog(LOG_DEBUG, "%s: running due to previously received signal: %d",
+   function, sig);
+
+   seconds = difftime(time(&timenow), sockscf.stat.boot);
+   seconds2days(&seconds, &days, &hours, &minutes);
+
+   slog(LOG_INFO, "request-child up %lu day%s, %lu:%.2lu:%.2lu",
+                  days, days == 1 ? "" : "s", hours, minutes, seconds);
 }

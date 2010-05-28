@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.125 2009/10/23 11:43:35 karls Exp $";
+"$Id: clientprotocol.c,v 1.125.2.3 2010/05/25 05:13:29 michaels Exp $";
 
 static int
 recv_sockshost(int s, struct sockshost_t *host, int version,
@@ -1199,9 +1199,15 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg)))
       serrx(EXIT_FAILURE, "%s: gss_wrap_size_limit() failed: %s",
       function, emsg);
-   else
+   else {
       slog(LOG_DEBUG, "%s: max length of gssdata before encoding: %lu",
       function, (unsigned long)auth->mdata.gssapi.state.maxgssdata);
+
+      if ((unsigned long)auth->mdata.gssapi.state.maxgssdata == 0)
+          swarnx("%s: invalid max length, the kerberos library might not "
+                 "fully support the configured encoding type",
+                 function);
+   }
 
 #if SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT
    socks_mark_gssapi_io_as_normal();

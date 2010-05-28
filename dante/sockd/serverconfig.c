@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.305 2009/10/27 12:04:22 karls Exp $";
+"$Id: serverconfig.c,v 1.305.2.2 2010/05/24 16:39:12 karls Exp $";
 
 static void
 showlist(const struct linkedname_t *list, const char *prefix);
@@ -586,8 +586,11 @@ showconfig(sockscf)
    userids2string(&sockscf->uid, "", buf, sizeof(buf)));
 #endif /* !HAVE_PRIVILEGES */
 
-   slog(LOG_DEBUG, "child.maxidle: %d",
-   sockscf->child.maxidle);
+   slog(LOG_DEBUG, "child.maxrequests: %lu",
+   (unsigned long)sockscf->child.maxrequests);
+
+   slog(LOG_DEBUG, "child.maxidle: %lu",
+   (unsigned long)sockscf->child.maxidle);
 
    bufused = snprintfn(buf, sizeof(buf), "method(s): ");
    for (i = 0; (size_t)i < sockscf->methodc; ++i)

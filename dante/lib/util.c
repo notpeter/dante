@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009
+ *               2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #include "ifaddrs_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.201 2009/10/23 11:43:37 karls Exp $";
+"$Id: util.c,v 1.201.2.2 2010/05/24 16:38:36 karls Exp $";
 
 const char *
 strcheck(string)
@@ -1302,3 +1302,37 @@ socks_sigunblock(oldset)
    if (sigprocmask(SIG_SETMASK, oldset, NULL) != 0)
       swarn("%s: sigprocmask()", function);
 }
+
+
+void
+seconds2days(seconds, days, hours, minutes)
+   unsigned long *seconds;
+   unsigned long *days;
+   unsigned long *hours;
+   unsigned long *minutes;
+{
+
+   if (*seconds >= 3600 * 24) {
+      *days     = *seconds / (3600 * 24);
+      *seconds -= *days * 3600 * 24;
+   }
+   else
+      *days = 0;
+
+   if (*seconds >= 3600) {
+      *hours    = *seconds / 3600;
+      *seconds -= *hours * 3600;
+   }
+   else
+      *hours = 0;
+
+   if (*seconds >= 60) {
+      *minutes  = *seconds / 60;
+      *seconds -= *minutes * 60;
+   }
+   else
+      *minutes = 0;
+
+}
+
+

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,11 +45,13 @@
 
 #include "interposition.h"
 
+#ifndef __USE_GNU
 #define __USE_GNU /* XXX for RTLD_NEXT on Linux */
+#endif /* !__USE_GNU */
 #include <dlfcn.h>
 
 static const char rcsid[] =
-"$Id: address.c,v 1.177 2009/10/23 11:43:34 karls Exp $";
+"$Id: address.c,v 1.177.2.2 2010/05/24 16:38:36 karls Exp $";
 
 /* fake "ip address", for clients without DNS access. */
 static char **ipv;

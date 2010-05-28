@@ -1,8 +1,8 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.453 2009/10/21 10:41:23 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.453.2.3 2010/05/18 08:17:41 karls Exp $)
 
-version=1.2.0
+version=1.2.1
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="3"
 if test x$prerelease != x; then
@@ -887,9 +887,6 @@ else
     AC_MSG_RESULT([yes])
 fi
 
-dnl 'generate' capi/socks.h file (needs to be before gssapi.m4)
-cp capi/socks.h.in capi/socks.h
-
 dnl determine GSSAPI support
 no_gssapi=t
 m4_include(gssapi.m4)
@@ -907,6 +904,9 @@ case $host in
 	fi
 	;;
 esac
+
+dnl 'generate' capi/socks.h file
+AC_CONFIG_FILES(capi/socks.h)
 if test x"$stdio_preload" = xt; then
     AC_DEFINE(HAVE_LINUX_GLIBC_WORKAROUND, 1, [stdio function preloading])
     #append contents for stdio preloading
@@ -1065,7 +1065,7 @@ fi
 #look for modules, and check version
 servdir=sockd
 L_MODVER(bandwidth, 42, $servdir) #module name, version
-L_MODVER(redirect, 31, $servdir)
+L_MODVER(redirect, 39, $servdir)
 L_MODVER(session, 13, $servdir)
 
 #helper files

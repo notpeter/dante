@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.130 2009/10/23 11:50:06 karls Exp $";
+"$Id: interposition.c,v 1.130.2.3 2010/05/24 16:38:18 karls Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
@@ -66,7 +66,9 @@ sendto(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
     HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6);
 #endif
 
-#define __USE_GNU /* XXX for RTLD_NEXT on linux */
+#ifndef __USE_GNU
+#define __USE_GNU /* XXX for RTLD_NEXT on Linux */
+#endif /* !__USE_GNU */
 #include <dlfcn.h>
 
 #undef accept
@@ -1042,14 +1044,18 @@ sys_fflush(stream)
    HAVE_PROT_FFLUSH_1 stream;
 {
    HAVE_PROT_FFLUSH_0 rc;
-   int d = fileno(stream);
    typedef HAVE_PROT_FFLUSH_0 (*FFLUSH_FUNC_T)(HAVE_PROT_FFLUSH_1);
    FFLUSH_FUNC_T function;
 
-   SYSCALL_START(d);
+   if (stream != NULL)
+      SYSCALL_START(fileno(stream));
+
    function = (FFLUSH_FUNC_T)symbolfunction(SYMBOL_FFLUSH);
    rc = function(stream);
-   SYSCALL_END(d);
+
+   if (stream != NULL)
+      SYSCALL_END(fileno(stream));
+
    return rc;
 }
 
@@ -2055,7 +2061,7 @@ puts(buf)
 
    if (!sockscf.state.havegssapisockets || ISSYSCALL(d, SYMBOL_PUTS))
       return sys_puts(buf);
-   return Rfputs(buf,stdout);
+   return Rfputs(buf, stdout);
 }
 
 HAVE_PROT_FPUTS_0
@@ -2067,16 +2073,16 @@ fputs(buf, stream)
 
    if (!sockscf.state.havegssapisockets || ISSYSCALL(d, SYMBOL_FPUTS))
       return sys_fputs(buf, stream);
-   return Rfputs(buf,stream);
+   return Rfputs(buf, stream);
 }
 
 HAVE_PROT_FFLUSH_0
 fflush(stream)
    HAVE_PROT_FFLUSH_1 stream;
 {
-   const int d = fileno(stream);
 
-   if (!sockscf.state.havegssapisockets || ISSYSCALL(d, SYMBOL_FFLUSH))
+   if (!sockscf.state.havegssapisockets
+   || (stream != NULL && ISSYSCALL(fileno(stream), SYMBOL_FFLUSH)))
       return sys_fflush(stream);
    return Rfflush(stream);
 }
