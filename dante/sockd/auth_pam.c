@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009
+ * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,11 +51,15 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.61 2009/10/23 10:37:26 karls Exp $";
+"$Id: auth_pam.c,v 1.61.4.5 2010/09/21 11:24:43 karls Exp $";
 
 static int
-_pam_conversation(int msgc, const struct pam_message **msgv,
-                  struct pam_response **rspv, void *authdata);
+pam_conversation(int msgc, const struct pam_message **msgv,
+                 struct pam_response **rspv, void *authdata);
+/*
+ * Called by the pam system to fetch username and password info.
+ */
+
 
 typedef struct
 {
@@ -91,28 +95,34 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    } pamval[] = {
       { PAM_CONV,  "PAM_CONV",  &pamconv },
       { PAM_RHOST, "PAM_RHOST", inet_ntoa(TOCIN(src)->sin_addr) },
-      { PAM_USER,  "PAM_USER",  auth->name },
+      { PAM_USER,  "PAM_USER",  (*auth->name == NUL) ?
+                                DEFAULT_PAM_USER : (const char *)auth->name},
+      { PAM_RUSER, "PAM_RUSER", DEFAULT_PAM_RUSER },
    };
 
    slog(LOG_DEBUG, "%s: pam service name to use for user \"%s\": %s",
    function, auth->name, auth->servicename);
 
-   pamconv.conv        = _pam_conversation;
+   /*
+    * Note: we can not save the state of pam after pam_start(3), as
+    * e.g. Solaris 5.11 pam does not allow setting PAM_SERVICE
+    * except during pam_start(3), while we may need to change it
+    * depending on the client/rule.
+    * Some Linux pam-implementations on the other hand can enter
+    * some sort of busy-loop if we don't call pam_end(3) ever so
+    * often.
+    *
+    * Therefor, disregard all possible optimization stuff for now and
+    * call pam_start(3) and pam_end(3) every time.
+    */
+
+   pamconv.conv        = pam_conversation;
    pamconv.appdata_ptr = &authdata;
 
    sockd_priv(SOCKD_PRIV_PAM, PRIV_ON);
    rc = pam_start(auth->servicename, NULL, &pamconv, &pamh);
    sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
 
-   /*
-    * Note: we can not save the state of pam after pam_start(3), as
-    * e.g. Solaris 5.11 pam does not allow setting PAM_SERVICE
-    * except during pam_start(3).
-    * Some Linux pam-implementations on the other hand can enter
-    * some sort of busy-loop if we don't call pam_end(3) ever so
-    * often, so just disregard all that optimization stuff for
-    * now and call pam_start(3) and pam_end(3) every time.
-    */
    if (rc != PAM_SUCCESS) {
       snprintf(emsg, emsgsize, "pam_start() failed: %s",
       pam_strerror(pamh, rc));
@@ -121,14 +131,21 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    }
 
    for (i = 0; i < ELEMENTS(pamval); ++i) {
+      char value[256];
+
+      str2vis((const char *)pamval[i].value,
+              strlen((const char *)pamval[i].value),
+              value,
+              sizeof(value));
+
       slog(LOG_DEBUG, "%s: setting item \"%s\" to value \"%s\"",
-      function, pamval[i].itemname, (const char *)pamval[i].value);
+      function, pamval[i].itemname, value);
 
       if ((rc = pam_set_item(pamh, pamval[i].item, pamval[i].value))
       != PAM_SUCCESS) {
          snprintf(emsg, emsgsize, "pam_set_item(%s) to %s failed: %s",
                                   pamval[i].itemname,
-                                  (const char *)pamval[i].value,
+                                  value,
                                   pam_strerror(pamh, rc));
 
          pam_end(pamh, rc);
@@ -156,19 +173,22 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
       return -1;
    }
 
+   if ((rc = pam_end(pamh, rc)) != PAM_SUCCESS)
+      swarnx("%s: strange ... pam_end() failed: %s", pam_strerror(pamh, rc));
+
    return 0;
 }
 
 static int
-_pam_conversation(msgc, msgv, rspv, authdata)
+pam_conversation(msgc, msgv, rspv, authdata)
    int msgc;
    const struct pam_message **msgv;
    struct pam_response **rspv;
    void *authdata;
 {
    const struct authmethod_pam_t *auth = authdata;
-   const char *function = "_pam_conversation()";
-   int i;
+   const char *function = "pam_conversation()";
+   int i, rc;
 
    if (rspv == NULL || msgv == NULL || auth == NULL || msgc < 1) {
       swarnx("%s: called with invalid/unexpected input", function);
@@ -180,29 +200,53 @@ _pam_conversation(msgc, msgv, rspv, authdata)
       return PAM_CONV_ERR;
    }
 
+   /* initialize all to NULL so we can easily free on error. */
+   for (i = 0; i < msgc; ++i) {
+      (*rspv)[i].resp_retcode = 0; /* according to sun not used, should be 0. */
+      (*rspv)[i].resp         = NULL;
+   }
+
+   rc = PAM_SUCCESS;
    for (i = 0; i < msgc; ++i) {
       slog(LOG_DEBUG, "%s: msg_style = %d", function, msgv[i]->msg_style);
 
-      (*rspv)[i].resp_retcode = 0;
       switch(msgv[i]->msg_style) {
          case PAM_PROMPT_ECHO_OFF:
-            (*rspv)[i].resp = strdup((const char *)auth->password);
+            if (((*rspv)[i].resp = strdup((const char *)auth->password))
+            == NULL) {
+               swarn("%s: strdup() of password, length %lu, failed",
+               function, (unsigned long)strlen((const char *)auth->password));
+
+               rc = PAM_CONV_ERR;
+            }
             break;
 
-         default: {
-            int j;
+         case PAM_ERROR_MSG:
+            slog(LOG_INFO, "%s: %s", function, msgv[i]->msg);
+            break;
 
-            swarnx("%s: unknown msg_style = %d", function, msgv[i]->msg_style);
-            for (j = 0; j < i; ++j)
-               free((*rspv)[i].resp);
-            free(*rspv);
+         case PAM_TEXT_INFO:
+            /*
+             * not expecting this, and where it has been seen (some versions
+             * of FreeBSD), the string has been empty.
+             */
+            slog(LOG_DEBUG, "%s: %s", function, msgv[i]->msg);
+            break;
 
-            return PAM_CONV_ERR;
-         }
+         default:
+            swarnx("%s: unknown msg_style %d, ignored ...",
+            function, msgv[i]->msg_style);
+            break;
       }
    }
 
-   return PAM_SUCCESS;
+   if (rc != PAM_SUCCESS) { /* failed; will have to free the memory ourselves */
+      for (i = 0; i < msgc; ++i)
+         free((*rspv)[i].resp);
+      free(*rspv);
+   }
+
+   return rc;
 }
 
 #endif /* HAVE_PAM */

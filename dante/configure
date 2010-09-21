@@ -1984,7 +1984,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
-version=1.2.1
+version=1.2.2
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="3"
 if test x$prerelease != x; then
@@ -26637,6 +26637,165 @@ fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 
+{ echo "$as_me:$LINENO: checking prototypes for getsockopt" >&5
+echo $ECHO_N "checking prototypes for getsockopt... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+int
+getsockopt( int, int, int, void *, socklen_t *
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_0 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_2 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_3 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_4 void *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_5 socklen_t *
+_ACEOF
+
+  { echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6; }
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	cat >conftest.$ac_ext <<_ACEOF
+
+ /* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <netdb.h>
+#include <unistd.h>
+
+int
+getsockopt( int, int, int, char *, int *
+);
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_0 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_1 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_2 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_3 int
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_4 char *
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_PROT_GETSOCKOPT_5 int *
+_ACEOF
+
+  { echo "$as_me:$LINENO: result: ok" >&5
+echo "${ECHO_T}ok" >&6; }
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	{ echo "$as_me:$LINENO: result: failure" >&5
+echo "${ECHO_T}failure" >&6; }
+  failproto=t
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+
 { echo "$as_me:$LINENO: checking prototypes for listen" >&5
 echo $ECHO_N "checking prototypes for listen... $ECHO_C" >&6; }
 cat >conftest.$ac_ext <<_ACEOF
@@ -32059,6 +32218,116 @@ fi
 
 rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
       conftest$ac_exeext conftest.$ac_ext
+
+#AIX 6.1 needs sys/select.h, but can be problematic on other platforms
+{ echo "$as_me:$LINENO: checking is sys/select.h is needed" >&5
+echo $ECHO_N "checking is sys/select.h is needed... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/time.h>
+#include <string.h>
+#include <unistd.h>
+
+int
+main ()
+{
+fd_set *fdp;
+    size_t p;
+    fdp = NULL;
+    p = NFDBITS * sizeof(fd_mask);
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  { echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	    cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/select.h>
+#include <string.h>
+#include <unistd.h>
+
+int
+main ()
+{
+fd_set *fdp;
+    size_t p;
+    fdp = NULL;
+    p = NFDBITS * sizeof(fd_mask);
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_SYS_SELECT_H 1
+_ACEOF
+
+     { echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6; }
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 { echo "$as_me:$LINENO: checking for library containing crypt" >&5
 echo $ECHO_N "checking for library containing crypt... $ECHO_C" >&6; }
@@ -37592,6 +37861,7 @@ servdir=sockd
 { echo "$as_me:$LINENO: checking for module bandwidth" >&5
 echo $ECHO_N "checking for module bandwidth... $ECHO_C" >&6; }
  if test -f "licensed/bandwidth.c"; then
+	MINVER="44"
 	MODLINE=`head -1 licensed/bandwidth.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -37600,14 +37870,15 @@ echo $ECHO_N "checking for module bandwidth... $ECHO_C" >&6; }
 				if test x"$MODVER" = x; then
 		MODVER=`awk '/Id:/{ split($''4,a,".");print a[2]; exit }' licensed/bandwidth.c`
 	fi
-	if test "$MODVER" -lt "42"; then
-		echo ""
-		echo "You have a outdated version of the bandwidth module."
-		echo "Please contact Inferno Nettverk A/S for an updated"
-		echo "version before you attempt to compile."
-		echo "Inferno Nettverk A/S can be reached at info@inet.no."
-		echo ""
-		echo "There is no additional cost for upgrading."
+	if test "$MODVER" -lt "$MINVER"; then
+		echo "" >&2
+		echo "You have version 1.$MODVER of the bandwidth module, which is outdated." >&2
+		echo "This version of Dante requires at least version 1.$MINVER." >&2
+		echo "Please contact Inferno Nettverk A/S for an updated" >&2
+		echo "version before you attempt to compile." >&2
+		echo "Inferno Nettverk A/S can be reached at info@inet.no." >&2
+		echo "" >&2
+		echo "There is no additional cost for upgrading." >&2
 		exit 1
 	fi
 
@@ -37647,6 +37918,7 @@ fi
 { echo "$as_me:$LINENO: checking for module redirect" >&5
 echo $ECHO_N "checking for module redirect... $ECHO_C" >&6; }
  if test -f "licensed/redirect.c"; then
+	MINVER="39"
 	MODLINE=`head -1 licensed/redirect.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -37655,14 +37927,15 @@ echo $ECHO_N "checking for module redirect... $ECHO_C" >&6; }
 				if test x"$MODVER" = x; then
 		MODVER=`awk '/Id:/{ split($''4,a,".");print a[2]; exit }' licensed/redirect.c`
 	fi
-	if test "$MODVER" -lt "39"; then
-		echo ""
-		echo "You have a outdated version of the redirect module."
-		echo "Please contact Inferno Nettverk A/S for an updated"
-		echo "version before you attempt to compile."
-		echo "Inferno Nettverk A/S can be reached at info@inet.no."
-		echo ""
-		echo "There is no additional cost for upgrading."
+	if test "$MODVER" -lt "$MINVER"; then
+		echo "" >&2
+		echo "You have version 1.$MODVER of the redirect module, which is outdated." >&2
+		echo "This version of Dante requires at least version 1.$MINVER." >&2
+		echo "Please contact Inferno Nettverk A/S for an updated" >&2
+		echo "version before you attempt to compile." >&2
+		echo "Inferno Nettverk A/S can be reached at info@inet.no." >&2
+		echo "" >&2
+		echo "There is no additional cost for upgrading." >&2
 		exit 1
 	fi
 
@@ -37702,6 +37975,7 @@ fi
 { echo "$as_me:$LINENO: checking for module session" >&5
 echo $ECHO_N "checking for module session... $ECHO_C" >&6; }
  if test -f "licensed/session.c"; then
+	MINVER="18"
 	MODLINE=`head -1 licensed/session.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -37710,14 +37984,15 @@ echo $ECHO_N "checking for module session... $ECHO_C" >&6; }
 				if test x"$MODVER" = x; then
 		MODVER=`awk '/Id:/{ split($''4,a,".");print a[2]; exit }' licensed/session.c`
 	fi
-	if test "$MODVER" -lt "13"; then
-		echo ""
-		echo "You have a outdated version of the session module."
-		echo "Please contact Inferno Nettverk A/S for an updated"
-		echo "version before you attempt to compile."
-		echo "Inferno Nettverk A/S can be reached at info@inet.no."
-		echo ""
-		echo "There is no additional cost for upgrading."
+	if test "$MODVER" -lt "$MINVER"; then
+		echo "" >&2
+		echo "You have version 1.$MODVER of the session module, which is outdated." >&2
+		echo "This version of Dante requires at least version 1.$MINVER." >&2
+		echo "Please contact Inferno Nettverk A/S for an updated" >&2
+		echo "version before you attempt to compile." >&2
+		echo "Inferno Nettverk A/S can be reached at info@inet.no." >&2
+		echo "" >&2
+		echo "There is no additional cost for upgrading." >&2
 		exit 1
 	fi
 
@@ -37759,6 +38034,7 @@ fi
 { echo "$as_me:$LINENO: checking for module checkmodule" >&5
 echo $ECHO_N "checking for module checkmodule... $ECHO_C" >&6; }
  if test -f "licensed/checkmodule.c"; then
+	MINVER="27"
 	MODLINE=`head -1 licensed/checkmodule.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -37767,14 +38043,15 @@ echo $ECHO_N "checking for module checkmodule... $ECHO_C" >&6; }
 				if test x"$MODVER" = x; then
 		MODVER=`awk '/Id:/{ split($''4,a,".");print a[2]; exit }' licensed/checkmodule.c`
 	fi
-	if test "$MODVER" -lt "25"; then
-		echo ""
-		echo "You have a outdated version of the checkmodule module."
-		echo "Please contact Inferno Nettverk A/S for an updated"
-		echo "version before you attempt to compile."
-		echo "Inferno Nettverk A/S can be reached at info@inet.no."
-		echo ""
-		echo "There is no additional cost for upgrading."
+	if test "$MODVER" -lt "$MINVER"; then
+		echo "" >&2
+		echo "You have version 1.$MODVER of the checkmodule module, which is outdated." >&2
+		echo "This version of Dante requires at least version 1.$MINVER." >&2
+		echo "Please contact Inferno Nettverk A/S for an updated" >&2
+		echo "version before you attempt to compile." >&2
+		echo "Inferno Nettverk A/S can be reached at info@inet.no." >&2
+		echo "" >&2
+		echo "There is no additional cost for upgrading." >&2
 		exit 1
 	fi
 
@@ -37814,6 +38091,7 @@ fi
 { echo "$as_me:$LINENO: checking for module shmem" >&5
 echo $ECHO_N "checking for module shmem... $ECHO_C" >&6; }
  if test -f "licensed/shmem.c"; then
+	MINVER="29"
 	MODLINE=`head -1 licensed/shmem.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -37822,14 +38100,15 @@ echo $ECHO_N "checking for module shmem... $ECHO_C" >&6; }
 				if test x"$MODVER" = x; then
 		MODVER=`awk '/Id:/{ split($''4,a,".");print a[2]; exit }' licensed/shmem.c`
 	fi
-	if test "$MODVER" -lt "22"; then
-		echo ""
-		echo "You have a outdated version of the shmem module."
-		echo "Please contact Inferno Nettverk A/S for an updated"
-		echo "version before you attempt to compile."
-		echo "Inferno Nettverk A/S can be reached at info@inet.no."
-		echo ""
-		echo "There is no additional cost for upgrading."
+	if test "$MODVER" -lt "$MINVER"; then
+		echo "" >&2
+		echo "You have version 1.$MODVER of the shmem module, which is outdated." >&2
+		echo "This version of Dante requires at least version 1.$MINVER." >&2
+		echo "Please contact Inferno Nettverk A/S for an updated" >&2
+		echo "version before you attempt to compile." >&2
+		echo "Inferno Nettverk A/S can be reached at info@inet.no." >&2
+		echo "" >&2
+		echo "There is no additional cost for upgrading." >&2
 		exit 1
 	fi
 

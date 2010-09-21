@@ -67,7 +67,7 @@ am_libsocks_la_OBJECTS = config_parse.lo config_scan.lo Raccept.lo \
 	Rbindresvport.lo Rconnect.lo Rgethostbyname.lo debug.lo \
 	Rcompat.lo msproxy_clientprotocol.lo hostcache.lo broken.lo \
 	serr.lo httpproxy.lo tostring.lo addressmatch.lo Rlisten.lo \
-	upnp.lo gssapi.lo iobuf.lo
+	upnp.lo gssapi.lo iobuf.lo Rgetsockopt.lo
 libsocks_la_OBJECTS = $(am_libsocks_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/include
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -230,7 +230,8 @@ libsocks_la_SOURCES = config_parse.c config_scan.c Raccept.c Rbind.c \
 	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  \
 	Rconnect.c Rgethostbyname.c debug.c Rcompat.c \
 	msproxy_clientprotocol.c hostcache.c broken.c serr.c httpproxy.c \
-	tostring.c addressmatch.c Rlisten.c upnp.c gssapi.c iobuf.c
+	tostring.c addressmatch.c Rlisten.c upnp.c gssapi.c iobuf.c \
+	Rgetsockopt.c
 
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
@@ -328,6 +329,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rgethostbyname.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rgetpeername.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rgetsockname.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rgetsockopt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rlisten.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rrresvport.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/address.Plo@am__quote@

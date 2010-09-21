@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.239 2009/10/23 11:08:01 karls Exp $ */
+/* $Id: socks.h,v 1.239.4.4 2010/09/14 07:46:36 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -161,6 +161,15 @@
 #define getsockname(s, name, namelen)   sys_Egetsockname(s, name, namelen)
 #else
 #define getsockname(s, name, namelen)   sys_getsockname(s, name, namelen)
+#endif /* HAVE_EXTRA_OSF_SYMBOLS */
+
+#ifdef getsockopt
+#undef getsockopt
+#endif /* getsockopt */
+#if HAVE_EXTRA_OSF_SYMBOLS
+#define getsockopt(a, b, c, d, e) sys_Egetsockopt(a, b, c, d, e)
+#else
+#define getsockopt(a, b, c, d, e) sys_getsockopt(a, b, c, d, e)
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
 #ifdef listen
@@ -415,6 +424,7 @@ void upnpcleanup(const int s);
 int Raccept(int, struct sockaddr *, socklen_t *);
 int Rconnect(int, const struct sockaddr *, socklen_t);
 int Rgetsockname(int, struct sockaddr *, socklen_t *);
+int Rgetsockopt(int, int, int, void *, socklen_t *);
 int Rgetpeername(int, struct sockaddr *, socklen_t *);
 ssize_t Rsendto(int s, const void *msg, size_t len, int flags,
       const struct sockaddr *to, socklen_t tolen)
@@ -676,6 +686,10 @@ sys_getpeername(HAVE_PROT_GETPEERNAME_1, HAVE_PROT_GETPEERNAME_2,
       HAVE_PROT_GETPEERNAME_3);
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
+HAVE_PROT_GETSOCKOPT_0
+sys_getsockopt(HAVE_PROT_GETSOCKOPT_1, HAVE_PROT_GETSOCKOPT_2,
+      HAVE_PROT_GETSOCKOPT_3, HAVE_PROT_GETSOCKOPT_4, HAVE_PROT_GETSOCKOPT_5);
+
 #if HAVE_OSF_OLDSTYLE
 int sys_getsockname(int, struct sockaddr *, int *);
 #else
@@ -764,6 +778,9 @@ _getpeername(HAVE_PROT_GETPEERNAME_1, HAVE_PROT_GETPEERNAME_2,
 HAVE_PROT_GETSOCKNAME_0
 _getsockname(HAVE_PROT_GETSOCKNAME_1, HAVE_PROT_GETSOCKNAME_2,
     HAVE_PROT_GETSOCKNAME_3);
+HAVE_PROT_GETSOCKOPT_0
+_getsockopt(HAVE_PROT_GETSOCKOPT_1, HAVE_PROT_GETSOCKOPT_2,
+    HAVE_PROT_GETSOCKOPT_3, HAVE_PROT_GETSOCKOPT_4, HAVE_PROT_GETSOCKOPT_5);
 HAVE_PROT_LISTEN_0
 _listen(HAVE_PROT_LISTEN_1, HAVE_PROT_LISTEN_2);
 HAVE_PROT_READ_0

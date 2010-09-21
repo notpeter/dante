@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009
+ *               2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.143 2009/10/23 11:43:36 karls Exp $";
+"$Id: io.c,v 1.143.4.4 2010/09/21 11:24:43 karls Exp $";
 
 #if !SOCKS_CLIENT
 static void checkforsignal(void);
@@ -86,8 +86,11 @@ socks_recvfromn(s, buf, len, minread, flags, from, fromlen, auth)
             continue;
 #endif /* SOCKS_CLIENT */
 
-         if (errno == EAGAIN && minread < len - left) {
+         if (ERRNOISINPROGRESS(errno) && len - left < minread) {
             static fd_set *rset;
+
+            slog(LOG_DEBUG, "%s: minread ... min is %lu, got %lu, waiting ...",
+            function, (unsigned long)minread, (unsigned long)(len - left));
 
             if (rset == NULL)
                rset = allocate_maxsize_fdset();
@@ -231,7 +234,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
 
    /*
     * Return data from the buffer first, if non-empty, then read data from
-    * the socket if possible.
+    * socket if needed.
     */
 
    if ((readfrombuf = socks_getfrombuffer(s, READ_BUF, 0, buf, len)) > 0) {
@@ -247,6 +250,9 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
          }
       }
    }
+
+   if ((size_t)readfrombuf >= len)
+      return readfrombuf;
 
    if (socks_getbuffer(s) == NULL)
       r = len;
@@ -276,6 +282,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
       if (readfrombuf <= 0)
          return r;
 
+      errno = 0; /* even if read from socket failed, read from buf did not. */
       return readfrombuf;
    }
 

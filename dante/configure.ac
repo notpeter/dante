@@ -1,8 +1,8 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.453.2.3 2010/05/18 08:17:41 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.453.2.3.2.3 2010/09/21 12:05:18 karls Exp $)
 
-version=1.2.1
+version=1.2.2
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="3"
 if test x$prerelease != x; then
@@ -772,6 +772,32 @@ AC_TRY_LINK([extern char *__progname;],
  AC_MSG_RESULT(yes)],
 [AC_MSG_RESULT(no)])
 
+#AIX 6.1 needs sys/select.h, but can be problematic on other platforms
+AC_MSG_CHECKING([is sys/select.h is needed])
+AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/time.h>
+#include <string.h>
+#include <unistd.h>
+], [fd_set *fdp;
+    size_t p;
+    fdp = NULL;
+    p = NFDBITS * sizeof(fd_mask);
+], [AC_MSG_RESULT(no)],
+   [dnl compilation failure, try with sys/select.h (ignore if this fails)
+    AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/select.h>
+#include <string.h>
+#include <unistd.h>
+], [fd_set *fdp;
+    size_t p;
+    fdp = NULL;
+    p = NFDBITS * sizeof(fd_mask);],
+    [AC_DEFINE(HAVE_SYS_SELECT_H, 1, [sys/select.h needed])
+     AC_MSG_RESULT(yes)])])
+
 dnl Checks for libraries.
 AC_SEARCH_LIBS(crypt, crypt)
 
@@ -1064,13 +1090,13 @@ fi
 
 #look for modules, and check version
 servdir=sockd
-L_MODVER(bandwidth, 42, $servdir) #module name, version
+L_MODVER(bandwidth, 44, $servdir) #module name, version
 L_MODVER(redirect, 39, $servdir)
-L_MODVER(session, 13, $servdir)
+L_MODVER(session, 18, $servdir)
 
 #helper files
-L_MODVER(checkmodule, 25, $servdir, nokey)
-L_MODVER(shmem, 22, $servdir, nokey)
+L_MODVER(checkmodule, 27, $servdir, nokey)
+L_MODVER(shmem, 29, $servdir, nokey)
 
 #change all #undef's to #define foo 0
 AH_BOTTOM([

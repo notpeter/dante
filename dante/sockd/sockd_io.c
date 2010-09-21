@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.365.2.5 2010/05/24 16:39:13 karls Exp $";
+"$Id: sockd_io.c,v 1.365.2.5.2.2 2010/09/21 11:24:43 karls Exp $";
 
 /*
  * IO-child:
@@ -659,7 +659,6 @@ run_io(mother)
        *       This is what we can do i/o over.
        */
 
-
       /*
        * First check all io's which have an exception pending.
        * Getting an io here does not mean we can do i/o over it
@@ -1138,8 +1137,9 @@ recv_io(s, io)
    const char *function = "recv_io()";
    struct iovec iovecv[2];
    struct msghdr msg;
+   ssize_t received;
    size_t i, ioi;
-   int wearechild, received, flags, fdexpect, fdreceived, iovecc, fdv[3];
+   int wearechild, flags, fdexpect, fdreceived, iovecc, fdv[3];
 #if HAVE_GSSAPI
    gss_buffer_desc gssapistate;
    char gssapistatemem[MAXGSSAPITOKENLEN];
@@ -1197,8 +1197,8 @@ recv_io(s, io)
       if (received == 0)
          slog(LOG_DEBUG, "%s: recvmsg(): mother closed connection", function);
       else
-         swarn("%s: recvmsg(): %lu out of %lu bytes",
-         function, (long unsigned)received, (long unsigned)sizeof(*io));
+         swarn("%s: recvmsg(): %ld out of %lu bytes",
+         function, (long)received, (long unsigned)sizeof(*io));
 
       return -1;
    }

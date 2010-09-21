@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: config.h,v 1.72 2009/10/23 11:08:01 karls Exp $ */
+/* $Id: config.h,v 1.72.4.2 2010/09/03 14:09:10 karls Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -135,6 +135,27 @@
  */
 #define DEFAULT_GSSAPISERVICENAME      "rcmd"
 #define DEFAULT_GSSAPIKEYTAB           "FILE:/etc/sockd.keytab"
+
+/*
+ * Name to give as USER when using PAM and username is not available
+ * (such as when pam is used as a clientmethod).
+ */
+
+#if SOCKS_SERVER
+#define DEFAULT_PAM_USER "socksclient"
+#else /* BAREFOOTD */
+#define DEFAULT_PAM_USER "barefootclient"
+#endif /* BAREFOOTD */
+
+/*
+ * Name to give as RUSER when using PAM (corresponds to username of client).
+ */
+
+#if SOCKS_SERVER
+#define DEFAULT_PAM_RUSER "socksclient"
+#else /* BAREFOOTD */
+#define DEFAULT_PAM_RUSER "barefootclient"
+#endif /* BAREFOOTD */
 
 /*
  * The file the server will write it's process id to.

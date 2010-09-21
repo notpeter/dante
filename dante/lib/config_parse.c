@@ -53,7 +53,7 @@ static char yyrcsid[]
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.292.2.7 2010/05/24 16:38:36 karls Exp $";
+"$Id: config_parse.y,v 1.292.2.7.2.2 2010/09/21 11:24:42 karls Exp $";
 
 #if HAVE_LIBWRAP && (SOCKS_SERVER || BAREFOOTD)
    extern jmp_buf tcpd_buf;
@@ -1067,7 +1067,7 @@ short *yyss;
 short *yysslim;
 YYSTYPE *yyvs;
 int yystacksize;
-#line 1319 "config_parse.y"
+#line 1318 "config_parse.y"
 
 #define INTERACTIVE      0
 
@@ -1875,7 +1875,7 @@ case 80:
       sockscf.uid.libwrap_isset   = 1;
 #endif /* !HAVE_PRIVILEGES */
 #else  /* !HAVE_LIBWRAP && (SOCKS_SERVER || BAREFOOTD) */
-      yyerror("libwrapsupport not compiled in");
+      yyerror("libwrap support not compiled in");
 #endif /* !HAVE_LIBWRAP (SOCKS_SERVER || BAREFOOTD)*/
    }
 break;

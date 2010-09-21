@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: symbols.h,v 1.2 2009/10/05 17:55:39 karls Exp $ */
+/* $Id: symbols.h,v 1.2.4.2 2010/08/01 15:11:59 karls Exp $ */
 
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""
@@ -60,6 +60,7 @@
 #define SYMBOL_FREEHOSTENT "freehostent"
 #define SYMBOL_GETPEERNAME "getpeername"
 #define SYMBOL_GETSOCKNAME "getsockname"
+#define SYMBOL_GETSOCKOPT "getsockopt"
 #define SYMBOL_LISTEN "listen"
 #define SYMBOL_READ "read"
 #define SYMBOL_READV "readv"
@@ -192,6 +193,13 @@
 #ifndef LIBRARY_GETSOCKNAME
 #define LIBRARY_GETSOCKNAME               LIBRARY_LIBC
 #endif
+
+#ifndef SYMBOL_GETSOCKOPT
+#define SYMBOL_GETSOCKOPT                   "_getsockopt"
+#endif /* !SYMBOL_GETSOCKOPT */
+#ifndef LIBRARY_GETSOCKOPT
+#define LIBRARY_GETSOCKOPT                  LIBRARY_LIBC
+#endif /* !LIBRARY_GETSOCKOPT */
 
 #ifndef SYMBOL_LISTEN
 #define SYMBOL_LISTEN                  "_listen"

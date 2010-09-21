@@ -775,6 +775,36 @@
 #endif
 
 
+#ifndef HAVE_PROT_GETSOCKOPT_0
+#define HAVE_PROT_GETSOCKOPT_0 0
+#endif
+
+
+#ifndef HAVE_PROT_GETSOCKOPT_1
+#define HAVE_PROT_GETSOCKOPT_1 0
+#endif
+
+
+#ifndef HAVE_PROT_GETSOCKOPT_2
+#define HAVE_PROT_GETSOCKOPT_2 0
+#endif
+
+
+#ifndef HAVE_PROT_GETSOCKOPT_3
+#define HAVE_PROT_GETSOCKOPT_3 0
+#endif
+
+
+#ifndef HAVE_PROT_GETSOCKOPT_4
+#define HAVE_PROT_GETSOCKOPT_4 0
+#endif
+
+
+#ifndef HAVE_PROT_GETSOCKOPT_5
+#define HAVE_PROT_GETSOCKOPT_5 0
+#endif
+
+
 #ifndef HAVE_PROT_GETS_0
 #define HAVE_PROT_GETS_0 0
 #endif
@@ -1312,6 +1342,11 @@
 
 #ifndef HAVE_SYS_IPC_H
 #define HAVE_SYS_IPC_H 0
+#endif
+
+
+#ifndef HAVE_SYS_SELECT_H
+#define HAVE_SYS_SELECT_H 0
 #endif
 
 

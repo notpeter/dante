@@ -6,7 +6,8 @@ libsocks_la_SOURCES = config_parse.c config_scan.c Raccept.c Rbind.c \
 	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  \
 	Rconnect.c Rgethostbyname.c debug.c Rcompat.c \
 	msproxy_clientprotocol.c hostcache.c broken.c serr.c httpproxy.c \
-	tostring.c addressmatch.c Rlisten.c upnp.c gssapi.c iobuf.c
+	tostring.c addressmatch.c Rlisten.c upnp.c gssapi.c iobuf.c \
+	Rgetsockopt.c
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info

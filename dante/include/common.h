@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.483.2.4 2010/05/27 08:25:15 karls Exp $ */
+/* $Id: common.h,v 1.483.2.4.2.4 2010/09/21 11:24:42 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -181,6 +181,11 @@ extern char *__progname;
    /*
     * macros
     */
+
+#ifndef ROUNDUP
+#define ROUNDUP(x, size)    ((((x) + (size) - 1) / (size)) * (size))
+#endif
+
 
 #define close(n)   closen(n)
 
@@ -374,27 +379,35 @@ do {                                      \
 #endif /* !HAVE_CMSGHDR */
 
 
-
 /*
  * Sets up "object" for sending a control message of size "size".
  * "controlmem" is the memory the control message is stored in.
+ *
+ * CMSG_SPACE() rather than CMSG_LEN() apparently correct value
+ * for msg_controllen.
  */
 #if HAVE_CMSGHDR
-#define CMSG_SETHDR_SEND(object, controlmem, size)             \
-   do {                                                        \
-      controlmem->cmsg_level  = SOL_SOCKET;                    \
-      controlmem->cmsg_type   = SCM_RIGHTS;                    \
-      controlmem->cmsg_len    = CMSG_LEN(size);                \
-                                                               \
-      object.msg_control      = (caddr_t)controlmem;           \
-      object.msg_controllen   = controlmem->cmsg_len;          \
-   } while (/* CONSTCOND */ 0)
+#define CMSG_SETHDR_SEND(object, controlmem, size)                             \
+do {                                                                           \
+   if (size == 0) {                                                            \
+      object.msg_control      = NULL;                                          \
+      object.msg_controllen   = 0;                                             \
+   }                                                                           \
+   else {                                                                      \
+      controlmem->cmsg_level  = SOL_SOCKET;                                    \
+      controlmem->cmsg_type   = SCM_RIGHTS;                                    \
+      controlmem->cmsg_len    = CMSG_LEN(size);                                \
+                                                                               \
+      object.msg_control      = (caddr_t)controlmem;                           \
+      object.msg_controllen   = (size) == 0 ? 0 : CMSG_SPACE((size));          \
+  }                                                                            \
+} while (/* CONSTCOND */ 0)
 #else /* !HAVE_CMSGHDR */
-#define CMSG_SETHDR_SEND(object, controlmem, size)             \
-   do {                                                        \
-      object.msg_accrights      = (caddr_t)controlmem;         \
-      object.msg_accrightslen   = (size);                      \
-   } while (/* CONSTCOND */ 0)
+#define CMSG_SETHDR_SEND(object, controlmem, size)                             \
+do {                                                                           \
+  object.msg_accrights      = (caddr_t)controlmem;                             \
+  object.msg_accrightslen   = (size);                                          \
+} while (/* CONSTCOND */ 0)
 #endif /* !HAVE_CMSGHDR */
 
 /*
@@ -431,7 +444,10 @@ do {                                      \
 
 
 #define INTERNAL_ERROR \
-"an internal error was detected at %s:%d\nvalue = %ld, version = %s"
+"an internal error was detected at %s:%d\nvalue = %ld, version = %s\n" \
+"Please report this to dante-bugs@inet.no"
+ 
+
 
 #define SASSERT(expression)      \
 do {                             \
@@ -2618,9 +2634,9 @@ socks_getenv(const char *name, value_t value);
 void seconds2days(unsigned long *seconds, unsigned long *days,
                   unsigned long *hours, unsigned long *minutes);
 /*
- * Converts "seconds" to the corresponding number of days, hours, minutes, 
+ * Converts "seconds" to the corresponding number of days, hours, minutes,
  * and seconds.
- * Upon return, the days, hours, minutes, and seconds are stored in the 
+ * Upon return, the days, hours, minutes, and seconds are stored in the
  * passed arguments.
  */
 

@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.211.2.8 2010/05/24 16:39:12 karls Exp $";
+"$Id: sockd_child.c,v 1.211.2.8.2.2 2010/09/21 11:24:43 karls Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -493,7 +493,7 @@ int
 childcheck(type)
    int type;
 {
-   const char *function = "childcheck()"; 
+   const char *function = "childcheck()";
    struct sockd_child_t **childv;
    size_t child, *childc, minfreeslots, maxslotsperproc, idle, proxyc;
 
@@ -544,7 +544,7 @@ childcheck(type)
                             (unsigned long)(*childv)[child].sentc,
                             (unsigned long)(*childv)[child].freec,
                             (unsigned long)maxfreeslots((*childv)[child].type));
-            continue; 
+            continue;
          }
 
       proxyc += type < 0 ? maxslotsperproc : (*childv)[child].freec;
@@ -576,13 +576,13 @@ childcheck(type)
          slog(LOG_DEBUG, "%s: current # of free %s-slots is %d, thus less than "
                          "configured minimum of %d.  Trying to add a "
                          "%s-child",
-                         function, childtype2string(type), 
+                         function, childtype2string(type),
                          (unsigned long)proxyc, (unsigned long)minfreeslots,
                          childtype2string(type));
 
          if (addchild(type) != NULL)
             return childcheck(type);
-         else 
+         else
             sockscf.child.addchild = 0;   /* don't retry until a child dies. */
       }
    }
@@ -751,7 +751,7 @@ void
 removechild(pid)
    pid_t pid;
 {
-   const char *function = "removechild()"; 
+   const char *function = "removechild()";
    struct sockd_child_t **childv;
    size_t *childc;
    int child;
@@ -781,6 +781,9 @@ removechild(pid)
 
    close((*childv)[child].s);
    close((*childv)[child].ack);
+#if HAVE_SENDMSG_DEADLOCK
+    close((*childv)[child].lock);
+#endif /* HAVE_SENDMSG_DEADLOCK */
 
    /* shift all following one down */
    while ((size_t)child < *childc - 1) {
@@ -792,14 +795,6 @@ removechild(pid)
    /*
     * Don't bother with realloc(3) when reducing size.
     */
-#if 0
-   if ((newchildv = realloc(*childv, sizeof(**childv) * (*childc + 1)))
-   == NULL) {
-      slog(LOG_WARNING, NOMEM);
-      return;
-   }
-   *childv = newchildv;
-#endif
 }
 
 struct sockd_child_t *
