@@ -165,6 +165,10 @@ if test "x$preload_enabled" = "xt"; then
 	 [int, int, struct sockaddr *, socklen_t *],
 	 [int, int, struct sockaddr *, Psocklen_t])
 
+	L_NSOCKPROTO(getsockopt, [failproto=t],
+	 [int, int, int, int, void *, socklen_t *],
+	 [int, int, int, int, char *, int *])
+
 	L_NSOCKPROTO(listen, [failproto=t],
 	 [int, int, int])
 

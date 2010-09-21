@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009
+ *               2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +42,7 @@
  *
  */
 
-/* $Id: socks.h.in,v 1.21 2009/10/27 11:49:38 karls Exp $ */
+/* $Id: socks.h.in,v 1.21.4.2 2010/09/21 11:29:41 karls Exp $ */
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -66,6 +67,7 @@
 #define getipnodebyname Rgetipnodebyname
 #define getpeername Rgetpeername
 #define getsockname Rgetsockname
+#define getsockopt Rgetsockopt
 #define listen Rlisten
 #define read Rread
 #define readv Rreadv
@@ -92,6 +94,7 @@ SOCKSinit(char *progname);
 int Raccept(int, struct sockaddr *, socklen_t *);
 int Rconnect(int, const struct sockaddr *, socklen_t);
 int Rgetsockname(int, struct sockaddr *, socklen_t *);
+int Rgetsockopt(int, int, int, void *, socklen_t *);
 int Rgetpeername(int, struct sockaddr *, socklen_t *);
 ssize_t Rsendto(int s, const void *msg, size_t len, int flags,
       const struct sockaddr *to, socklen_t tolen);

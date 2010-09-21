@@ -3,6 +3,7 @@ _bind;
 _connect;
 _getpeername;
 _getsockname;
+_getsockopt;
 _listen;
 _read;
 _readv;

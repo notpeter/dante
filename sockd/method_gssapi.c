@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009
+ * Copyright (c) 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_GSSAPI
 
 static const char rcsid[] =
-   "$Id: method_gssapi.c,v 1.41 2009/10/23 10:37:26 karls Exp $";
+   "$Id: method_gssapi.c,v 1.41.4.2 2010/09/21 11:24:43 karls Exp $";
 
 static int
 recv_gssapi_auth_ver(int s, struct request_t *request,
@@ -183,7 +183,7 @@ recv_gssapi_auth_type(s, request, state)
       case SOCKS_GSSAPI_PACKET:
          snprintf(state->emsg, sizeof(state->emsg),
          "%s: received out of sequence exchange from client.  "
-	 "Got type %d, expected type %d",
+         "Got type %d, expected type %d",
          function, gssapi_auth_type, SOCKS_GSSAPI_AUTHENTICATION);
 
          return -1;

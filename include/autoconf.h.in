@@ -475,6 +475,24 @@
 #undef HAVE_PROT_GETSOCKNAME_3
 
 /* proto */
+#undef HAVE_PROT_GETSOCKOPT_0
+
+/* proto */
+#undef HAVE_PROT_GETSOCKOPT_1
+
+/* proto */
+#undef HAVE_PROT_GETSOCKOPT_2
+
+/* proto */
+#undef HAVE_PROT_GETSOCKOPT_3
+
+/* proto */
+#undef HAVE_PROT_GETSOCKOPT_4
+
+/* proto */
+#undef HAVE_PROT_GETSOCKOPT_5
+
+/* proto */
 #undef HAVE_PROT_GETS_0
 
 /* proto */
@@ -797,6 +815,9 @@
 
 /* Define to 1 if you have the <sys/ipc.h> header file. */
 #undef HAVE_SYS_IPC_H
+
+/* sys/select.h needed */
+#undef HAVE_SYS_SELECT_H
 
 /* Define to 1 if you have the <sys/sem.h> header file. */
 #undef HAVE_SYS_SEM_H

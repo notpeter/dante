@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: gssapi.c,v 1.67.2.5 2010/05/24 16:38:36 karls Exp $";
+"$Id: gssapi.c,v 1.67.2.5.2.2 2010/09/21 11:24:43 karls Exp $";
 
 #if HAVE_GSSAPI
 
@@ -73,7 +73,7 @@ gss_err_isset(major_status, minor_status, buf, buflen)
 
       len = 0;
       msg_ctx = 0;
-      while (!msg_ctx) {
+      do {
          /* convert major status code (GSSAPI error) to text */
          maj_stat = gss_display_status(&min_stat, major_status,
                                        GSS_C_GSS_CODE,
@@ -91,7 +91,7 @@ gss_err_isset(major_status, minor_status, buf, buflen)
          }
 
          gss_release_buffer(&min_stat, &statstr);
-      }
+      } while (msg_ctx != 0 && !GSS_ERROR(maj_stat));
 
       if (sizeof(buf) > len + strlen(".  ")) {
          w = snprintfn(buf, buflen, ".  ");
@@ -100,7 +100,7 @@ gss_err_isset(major_status, minor_status, buf, buflen)
       }
 
       msg_ctx = 0;
-      while (!msg_ctx) {
+      do {
          /* convert minor status code (underlying routine error) to text */
          maj_stat = gss_display_status(&min_stat, minor_status,
                                        GSS_C_MECH_CODE,
@@ -117,7 +117,7 @@ gss_err_isset(major_status, minor_status, buf, buflen)
          }
 
          gss_release_buffer(&min_stat, &statstr);
-      }
+      } while (msg_ctx != 0 && !GSS_ERROR(maj_stat));
 
       return 1;
    }
@@ -361,7 +361,7 @@ again:
 
       if (flags & MSG_PEEK) {
          /*
-         * client peeking, need to add the data back to the buffer so it 
+         * client peeking, need to add the data back to the buffer so it
          * is still there next time.
          */
 

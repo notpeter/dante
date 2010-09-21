@@ -1,7 +1,7 @@
 /*
- * $Id: getifa.c,v 1.57 2009/10/23 10:37:26 karls Exp $
+ * $Id: getifa.c,v 1.57.4.5 2010/09/21 11:24:43 karls Exp $
  *
- * Copyright (c) 2001, 2002, 2006, 2008, 2009
+ * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,8 @@
 
 /*
  * The Linux code originated from Tom Chan <tchan@austin.rr.com>.
- * The BSD code came from Christoph Badura <bad@bsd.de>.
+ * The BSD code came from Christoph Badura <bad@bsd.de> and W. R. Stevens
+ * UNP book.
  *
  * Thanks, guys.
  */
@@ -53,12 +54,13 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getifa.c,v 1.57 2009/10/23 10:37:26 karls Exp $";
+"$Id: getifa.c,v 1.57.4.5 2010/09/21 11:24:43 karls Exp $";
 
 /*
  * Given a destination address, getifa() returns the local source address
  * that will be selected by the OS to connect to that destination address.
  */
+
 #if HAVE_NET_IF_DL_H
 #include   <net/if_dl.h>
 #endif /* HAVE_NET_IF_DL_H */
@@ -176,8 +178,8 @@ getifa(destaddr)
    raddr.sa_family = AF_INET;
 
    for (rrta = (struct rtattr *)((char *)rrt + sizeof(struct rtmsg));
-         RTA_OK(rrta, attrlen);
-         rrta = (struct rtattr *)RTA_NEXT(rrta, attrlen)) {
+        RTA_OK(rrta, attrlen);
+        rrta = (struct rtattr *)RTA_NEXT(rrta, attrlen)) {
       if (rrta->rta_type == RTA_PREFSRC) {
          TOIN(&raddr)->sin_addr = *(struct in_addr *)RTA_DATA(rrta);
 
@@ -204,8 +206,21 @@ getifa(destaddr)
 }
 #elif HAVE_ROUTEINFO_BSD /* !HAVE_ROUTEINFO_LINUX */
 
-#define ROUNDUP(a) \
-       ((a) > 0 ? (1 + (((a) - 1) | (sizeof(long) - 1))) : sizeof(long))
+#if HAVE_SOCKADDR_SA_LEN
+
+#define NEXT_SA(ap) ap = (struct sockaddr *)                                   \
+   ((caddr_t)ap + (ap->sa_len ?                                                \
+   ROUNDUP(ap->sa_len, sizeof(unsigned long)) : sizeof(unsigned long)))
+
+#else /* !HAVE_SOCKADDR_SA_LEN */
+
+#define NEXT_SA(ap) ap = (struct sockaddr *)                                   \
+   ((caddr_t)ap + (ifa_sa_len(ap->sa_family) ?                                 \
+    ROUNDUP(ifa_sa_len(ap->sa_family), sizeof(unsigned long))                  \
+  : sizeof(unsigned long)))
+
+#endif /* !HAVE_SOCKADDR_SA_LEN */
+
 #define BUFLEN   (  sizeof(struct rt_msghdr) \
                   + sizeof(struct sockaddr_storage) * RTAX_MAX)
 
@@ -223,16 +238,20 @@ getifa(destaddr)
 #define RTAX_MAX RTA_NUMBITS
 #endif /* !RTAX_MAX */
 
+static void get_rtaddrs(const int addrs, struct sockaddr *sa,
+                        struct sockaddr **rti_info);
+static size_t ifa_sa_len(const sa_family_t family);
+
 struct in_addr
 getifa(destaddr)
    struct in_addr destaddr;
 {
    const char *function = "getifa()";
-   int              sockfd, i;
-   char             buf[BUFLEN], a[MAXSOCKADDRSTRING], *cp;
-   pid_t            pid;
    struct rt_msghdr *rtm;
-   struct sockaddr  *sa, *ifa;
+   struct sockaddr *sa, *rti_info[RTAX_MAX];
+   char rtmbuf[BUFLEN], a[MAXSOCKADDRSTRING];
+   ssize_t rc;
+   int sockfd;
 
    if (sockscf.external.addrc <= 1
    ||  sockscf.external.rotation == ROTATION_NONE)
@@ -250,117 +269,132 @@ getifa(destaddr)
    /*
     * Build the necessary data structures to get routing info.
     * The structures are:
-    *   rt_msghdr - Specifies RTM_GET for getting routing table
-    *      info
-    *   sockaddr - contains the destination address
+    *   rt_msghdr - specifies RTM_GET for getting routing table info.
+    *   sockaddr  - contains the destination address.
     */
-   bzero(buf, sizeof(buf));
-   rtm                     = (struct rt_msghdr *) buf;
-   rtm->rtm_msglen         = sizeof(struct rt_msghdr) +
-                             sizeof(struct sockaddr_in);
+   bzero(rtmbuf, sizeof(rtmbuf));
+   rtm                     = (struct rt_msghdr *)rtmbuf;
+   rtm->rtm_msglen         = sizeof(struct rt_msghdr)
+                           + sizeof(struct sockaddr_in);
    rtm->rtm_version        = RTM_VERSION;
    rtm->rtm_type           = RTM_GET;
    rtm->rtm_addrs          = RTA_DST | RTA_IFA;
-   rtm->rtm_pid            = pid = getpid();
+   rtm->rtm_pid            = sockscf.state.pid;
    rtm->rtm_seq            = SEQ;
    rtm->rtm_flags          = RTF_UP | RTF_HOST | RTF_GATEWAY;
 
    sa = (struct sockaddr *) (rtm + 1);
-   /* LINTED pointer casts may be troublesome */
    TOIN(sa)->sin_family    = AF_INET;
-   /* LINTED pointer casts may be troublesome */
    TOIN(sa)->sin_addr      = destaddr;
-   /* LINTED pointer casts may be troublesome */
    TOIN(sa)->sin_port      = htons(0);
 #if HAVE_SOCKADDR_SA_LEN
-   sa->sa_len = sizeof(struct sockaddr_in);
+   sa->sa_len              = sizeof(struct sockaddr_in);
 #endif /* HAVE_SOCKADDR_SA_LEN */
 
-   /* send the request and get the response */
-   if (write(sockfd, rtm, (size_t)rtm->rtm_msglen) != rtm->rtm_msglen) {
-      swarn("%s: write() to AF_ROUTE failed", function);
+   if ((rc = write(sockfd, rtm, (size_t)rtm->rtm_msglen)) != rtm->rtm_msglen) {
+      swarn("%s: write() to AF_ROUTE failed (wrote %ld/%ld)",
+      function, (long)rc, (long)rtm->rtm_msglen);
+
       close(sockfd);
       return getdefaultexternal();
    }
 
-   bzero(buf, sizeof(buf));
+   bzero(rtmbuf, sizeof(rtmbuf));
    do {
-      if (read(sockfd, rtm, sizeof(buf)) == -1) {
-         swarn("%s: read from AF_ROUTE failed", function);
-         close(sockfd);
+      if ((rc = read(sockfd, rtm, sizeof(rtmbuf))) == -1) {
+         swarn("%s: read from AF_ROUTE failed (read %ld)",
+         function, (long)rc);
 
+         close(sockfd);
          return getdefaultexternal();
       }
    } while (rtm->rtm_type != RTM_GET
          || rtm->rtm_seq  != SEQ
-         || rtm->rtm_pid  != pid);
-
-   /*
-    * iterate over the address structure extracting only the relevant
-    * addresses.
-    */
-   cp  = (char *)(rtm + 1);
-   sa = (struct sockaddr *)cp;
-
-   ifa = NULL;
-   for (i = 0; (i < RTAX_MAX) && (cp < buf + sizeof(buf)); i++) {
-      switch (i) {
-         case RTAX_GATEWAY:
-            if (!(rtm->rtm_addrs & RTA_GATEWAY)) {
-               swarnx("%s: can't find gateway for %s, using default external",
-               function, inet_ntoa(destaddr));
-               close(sockfd);
-
-               return getdefaultexternal();
-            }
-            break;
-
-         case RTAX_IFA:
-            if (!(rtm->rtm_addrs & RTA_IFA)
-            ||  TOIN(sa)->sin_family != AF_INET) {
-              swarnx("%s: can't find ifa for %s, using default external",
-              function, inet_ntoa(destaddr));
-              close(sockfd);
-              return getdefaultexternal();
-            }
-	    ifa = sa;
-            break;
-      }
-
-      if (rtm->rtm_addrs & (1 << i)) {
-	 if (sa->sa_family == AF_INET)
-	    cp = cp + ROUNDUP(sizeof(struct sockaddr_in));
-#ifdef AF_INET6
-	 else if (sa->sa_family == AF_INET6)
-	    cp = cp + ROUNDUP(sizeof(struct sockaddr_in6));
-#endif /* AF_INET6 */
-	 else if (sa->sa_family == AF_LINK)
-	    cp = cp + ROUNDUP(sizeof(struct sockaddr_dl));
-	 else
-	    SERRX(sa->sa_family);
-	 sa = (struct sockaddr *)cp;
-      }
-   }
+         || rtm->rtm_pid  != sockscf.state.pid);
 
    close(sockfd);
 
-   SASSERTX(ifa != NULL);
+   sa  = (struct sockaddr *)(rtm + 1);
+   get_rtaddrs(rtm->rtm_addrs, sa, rti_info);
 
-   if (!isonexternal(ifa)) {
+   if (rti_info[RTAX_GATEWAY] == NULL) {
+      swarnx("%s: can't find gateway for %s, using default external",
+      function, inet_ntoa(destaddr));
+
+      return getdefaultexternal();
+   }
+
+   if (rti_info[RTAX_IFA] == NULL) {
+     swarnx("%s: can't find ifa for %s, using default external",
+     function, inet_ntoa(destaddr));
+
+     return getdefaultexternal();
+   }
+
+   sa = rti_info[RTAX_IFA];
+   if (sa->sa_family != AF_INET) {
+      swarnx("%s: got unexpected/unsupported address family %d", function);
+     return getdefaultexternal();
+   }
+
+   if (!isonexternal(sa)) {
       swarnx("%s: address %s selected, but not set for external interface",
-      function, sockaddr2string(ifa, a, sizeof(a)));
+      function, sockaddr2string(sa, a, sizeof(a)));
 
       return getdefaultexternal();
    }
 
    slog(LOG_DEBUG, "%s: address %s selected for dst %s",
-   function, sockaddr2string(ifa, a, sizeof(a)), inet_ntoa(destaddr));
+   function, sockaddr2string(sa, a, sizeof(a)), inet_ntoa(destaddr));
 
-   /* LINTED pointer casts may be troublesome */
-   return TOIN(ifa)->sin_addr;
+   return TOIN(sa)->sin_addr;
 }
 
-#else /* HAVE_ROUTEINFO_BSD */
+static void
+get_rtaddrs(addrs, sa, rti_info)
+   const int addrs;
+   struct sockaddr *sa;
+   struct sockaddr **rti_info;
+{
+   const char *function = "get_rtaddrs()";
+   int i;
+
+   for (i = 0; i < RTAX_MAX; ++i) {
+      if (addrs & (1 << i)) {
+/*         slog(LOG_DEBUG, "%s: bit %d is set", function, i); */
+
+         rti_info[i] = sa;
+         NEXT_SA(sa);
+      }
+      else
+         rti_info[i] = NULL;
+   }
+}
+
+static size_t
+ifa_sa_len(family)
+   const sa_family_t family;
+{
+   const char *function = "ifa_sa_len()";
+
+   switch (family) {
+      case AF_INET:
+         return sizeof(struct sockaddr_in);
+
+      case AF_INET6:
+         return sizeof(struct sockaddr_in6);
+
+      case AF_LINK:
+         return sizeof(struct sockaddr_dl);
+   }
+
+   swarnx("%s: unknown socket family: %d", function, family);
+   SWARNX(family);
+
+   return sizeof(struct sockaddr);
+}
+
+#else /* !HAVE_ROUTEINFO_BSD */
 struct in_addr
 getifa(destaddr)
    struct in_addr destaddr;
@@ -375,7 +409,7 @@ getdefaultexternal(void)
    const char *function = "getdefaultexternal()";
    struct sockaddr bound;
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s", function);
 
    /* find address to bind on clients behalf */
    switch ((*sockscf.external.addrv).atype) {

@@ -1,6 +1,23 @@
-@(#)$Id: NEWS,v 1.62.2.16 2010/05/27 08:05:35 karls Exp $
+@(#)$Id: NEWS,v 1.62.2.16.2.8 2010/09/21 11:24:42 karls Exp $
 
 (NOTE: The contents of this file is not updated for pre-releases.)
+
+***
+***  Tuesday, September 21, 2010 -- Dante v1.2.2
+***
+
+ o Fix PAM bug introduced in v1.2.0 that would leak resources when
+   using PAM.  Also relax the code handling PAM concerning
+   unknown msg_styles.
+
+ o Set PAM_RUSER so that rhosts-based PAM authentication can work.
+
+ o Wrapper for calling getsockopt(2) with SO_ERROR added.
+
+ o Compilation fixes for AIX 6.1.
+   Problem reported by Ralf Wenk <iz-dante-0910@hs-karlsruhe.de.example.com>.
+   Note to Ralf Wenk: we have been unable to contact you on the email
+   address you send from.
 
 ***
 ***  Friday, May 28, 2010 -- Dante v1.2.1
@@ -26,7 +43,7 @@
  o Don't print warning if accept(2) fails when started with the -N<k> option.
    When started with the -N option, it is expected that accept(2) will
    fail in 1/k of the cases.  Instead just log a debug message about it.
-   
+
    Should fix problem reported by Mark Sinner <mark.sinner@db.com.example.org>.
 
  o The fflush() wrapper function did not handle a NULL argument.
@@ -60,10 +77,10 @@
 
  o Improvements to client thread compatibility.  The client
    library should now be mostly threadsafe.
- 
+
  o Solaris privilege model support.  Based on patch from
    Mayuresh Nirhali <Mayuresh.Nirhali@Sun.COM.example.com> & co.
- 
+
  o Make support for the socks 5 version described in draft-5.05 be
    configurable.  Before this was always enabled, but it breaks clients
    based on NEC socks code in some cases as they use the same bit to
@@ -71,94 +88,94 @@
    A new option has been added to sockd.conf to enable it:
    "compatibility: draft-5.05".  Unless explicitly enabled, the Dante
    server will not use the socks 5.05 draft specification.
- 
+
    Problem found by Markus Moeller (markus_moeller at compuserve.com).
- 
+
  o Don't leak username/passwords provided to us for local authentication
    to upstream proxy server when server-chaining.  Error reported by
    Mathieu DELAPLACE <mathieu.delaplace@gmail.com.example.com>.
- 
+
  o Fixed a bug/oversight that imposed an artificial limit on the number
    of sockd processes that could be created, even when the load required
    more.
- 
+
  o Slight improvement of configuration parsing in an attempt to avoid
    confusing non-qualified hostnames with NIC interfacenames.
- 
+
  o The default connect-timeout/negotiate-timeout has been reduced from
    120 seconds to 30 seconds.  The "connecttimeout" name has also been
    deprecated in favour of "timeout.negotiate".
- 
+
  o Separate iotimeouts can be set for udp and tcp clients.  The "iotimeout"
    object has also been deprecated in favour of "timeout.io".
- 
+
  o New configure option: "--disable-drt-fallback".
    Used to disable the attempted automatic fallback to a direct route
-   if there are no usable proxy routes.  Default is, as before, 
+   if there are no usable proxy routes.  Default is, as before,
    automatic fallback.
- 
+
  o Added a new option: "udp.connectdst".  Controls whether the server
    should connect udp sockets to the destination.
    The default for this release is yes, which improves performance,
    but _may_ be incompatible with some udp-based application protocols.
 
    Please let us know if you experience problems with some applications
-   no longer working. 
- 
+   no longer working.
+
  o Markus Moeller (markus_moeller at compuserve.com) contributed support
    for GSSAPI encryption/authentication (RFC 1961) to both the socks
    server and socks client.  Many thanks to Markus for this and for a
    lot of help in testing it.
- 
+
  o Fixed problem with connection close before accept on HPUX.
    Based on patch from Reine Persson <reine.persson@skatteverket.se>.
- 
+
  o Support for sunos 4 and Solaris 2.5.1 removed.
- 
+
  o Added gethostbyaddr prototype for compilation on FreeBSD v6.2.
    Patch from "Igor Mozolevsky" <igor@hybrid-lab.co.uk>.
- 
+
  o Fix getifa compilation problem on Solaris 8.
    Reported by "Thomas" <dante@birdhouse.ch.example.com>.
- 
+
  o Patch from Markus Moeller (markus_moeller at compuserve.com),
    to limit the range of udp-ports used between the socks-client
    and the Dante server.
- 
+
  o By default, try to auto-add direct routes for all addresses on the LAN.
    To disable it, set SOCKS_AUTOADD_LANROUTES to "no".
- 
+
  o Fix bug that caused problems with certain combinations of
    bind(2)/accept(2)/close(2).
    Reported by Markus Moeller (markus_moeller at compuserve.com).
- 
+
  o Fix bug that erroneously blocked the bind request from some clients.
    Reported by Markus Moeller (markus_moeller at compuserve.com).
- 
+
  o Add support for environment variables SOCKS4_SERVER, SOCKS5_SERVER,
    HTTP_PROXY, and UPNP_IGD.
    If set, they specify the socks v4, socks v5 server, http proxy,
    or UPNP-enabled ID to use, without the need for a socks.conf.
- 
+
    This should make it possible to run socksify with reasonable results
    even without a socks.conf, as long as one of these new environment
    variables are set correctly.
- 
+
  o Auto-add direct routes for all gateways.  Should make the client
    a little more user-friendly by not having to specify "direct" routes
    for the proxyserver any longer.
- 
+
  o More finegrained marking of when to mark a proxy route as "bad" so that
    it will not be used again by the same client.
- 
+
    Also add a new variable to config.h, MAX_ROUTE_FAILS, determining
    how many times a route can fail before being blacklisted.  Default
    is one (same semantics as before there was a variable to control this).
- 
+
  o Fix bug that could prevent password authentication from working
    on some systems. Spotted by
-   Nathan Johnson <n.johnson@vanderbilt.edu.example.com>. 
- 
+   Nathan Johnson <n.johnson@vanderbilt.edu.example.com>.
+
  o Add configure option --without-glibc-secure, which disables check for
    the glibc variable __libc_enable_secure. Creates undesired dependencies
    for packaging.  Reported by Mathieu CHOUQUET-STRINGER
@@ -171,7 +188,7 @@
 
  o New version of the BSD version of "external.rotation: route",
    from Christoph Badura <bad@bsd.de.example.com>.
- 
+
  o Support for interfacenames in sockd rules, and in the destination
    address for socks routes.
 
@@ -179,53 +196,53 @@
    the client (specify all local interfacenames in route statements),
    and block connections to e.g. loopback addresses (specify the the
    loopback interfacename in a block rule) in the server.
- 
+
  o UPnP support in the client, using the miniupnp library by
    Thomas Bernard (http://miniupnp.free.fr/).
- 
+
    UPnP is a protocol implemented by many home/small-business routers
    and adsl-modems.  It allows you to dynamically open up ports on
    the router for accepting incoming connections, as well as figuring
    out what the external ipaddress of the router is.
- 
+
    Dante uses this to make socksify of ftp/bittorent/etc programs
    work via the UPnP router.
 
-   Note that only the miniupnp library with releasedate 2009/09/21 
+   Note that only the miniupnp library with releasedate 2009/09/21
    or later is expected to work with Dante.
- 
+
  o Be less strict about bind in the client.  The standards says
    it is expected that the client first performs a connect via
    the socks server, but it seems some/many socks servers support
    the client requesting a bind without a previous connect, so we
    assume that is the case in the client from now on.
- 
+
  o Changed the magic bytes that indicate the client is requesting
    use of the Dante-specific bind extension from 0x00000000 to
    0xffffffff, as part of the process to become less strict about
    the bind command requiring a previous connection.
- 
+
  o Don't zero password in client if we read it from environment, or
    it will not work the next time the same clientprocess tries to
    authenticate to the server.
    Found by Pavel Fedin <fedin@matek.ru.example.com>.
- 
+
    That mailaddress no longer works.  Please contact us if you have
    another address for Mr. Fedin.
- 
+
  o Add support for "group:" syntax to rules, similar to "user:" statement.
    Requested by Don Harvie <donharvi@au1.ibm.com.example.com>
- 
+
  o Close connection to PAM server each time we get an error-reply from
    it, fixing a bug.
    Patch from Robert Marcano <robert@marcanoonline.com.example.com>.
- 
+
  o Incorrect assert fixed. Problem reported by
    "d binderman" <dcb314@hotmail.com.example.com>.
- 
+
  o Log close of client-rule with correct command.
    Fixes bug reported by Tom Vandenbelt <tvandenb@au1.ibm.com.example.com>.
- 
+
  o Update to autoconf 2.61 and libtool 1.5.26.
 
 ***
@@ -235,57 +252,57 @@
  o Disabled code for shutting down idle sockd processes, appears to need
    more testing.
    Thanks to Rene Burkhardt <rene.burkhardt@ch.ibm.com.example.com>.
- 
+
  o Upgrade to Automake 1.9.6.
- 
+
  o Use __libc_enable_secure if it exists and issetugid() doesn't.
    Should allow the SOCKS_CONF environment variable to be used on Linux.
- 
+
  o Check if large files need special support; logfiles can grow
    large.
    Problem reported by Tom Vandenbelt <tvandenb@au1.ibm.com.example.com>.
- 
+
  o Drop trying to optimize away unnecessary PAM calls, creates
    obscure problems on some PAM-Linux implementations.
    Based on good work by Mr E_T <troll@arach.net.au.example.com>, many thanks.
- 
+
  o Fixed bug introduced as part of additions to better preserve TCP
    semantics across connections.
    Thanks to Rene Burkhardt <rene.burkhardt@ch.ibm.com.example.com>.
- 
+
  o New module available: session.  This gives control over how
    many sessions different clients can create.
    See the module page "http://www.inet.no/dante/module.html"
    and doc/module for more information.
- 
+
  o In order to share some code, there were some api changes
    made to the bandwidth module, requiring users to upgrade.
    Users of the bandwidth module can contact sales for a free upgrade.
- 
+
  o Fix bug preventing immediate-error on wrong password to take effect
    for servers configured to use PAM.
    Thanks for help to Rene Burkhardt <rene.burkhardt@ch.ibm.com.example.com>.
- 
+
  o Update usage of 'head'. Problem first reported by
    "William Adams" <wlarip@gmail.com.example.com>.
- 
+
  o Support server-chaining.  Currently only the tcp connect command
    is supported.  It might be possible to add support for udp and
    tcp bind if requested.
- 
+
  o Fix PAM-related bug introduced in version 1.1.16.
    Reported by Jacob Toxværd <tox@microknights.dk.example.com>.
- 
+
 ***
 ***  Friday, September 9, 2005 -- Dante v1.1.18
 ***
 
  o Fix bug involving syslog.
    Problem report from Nicola <nicola.canepa@sys-net.it.example.com>
- 
+
  o Fix bug related to socks header split across multiple segments.
    Thanks to Patrick LeBoutillier <patrick.leboutillier@gmail.com.example.com>.
- 
+
 ***
 ***  Thursdag, July 14, 2005 -- Dante v1.1.17
 ***
@@ -297,39 +314,39 @@
 ***
 
  o Enabled code for shutting down idle sockd processes.
- 
+
  o Some additions to better preserve TCP semantics across connections.
- 
+
  o Allow PAM tests to be disabled.
    Thanks to Daniel <dragonheart@gentoo.org.example.com> for patch.
- 
+
  o Conflict between socks.h and netinet/in.h fixed.
    Thanks to Daniel <dragonheart@gentoo.org.example.com> for patch.
- 
+
  o Error in capi/socks.h fixed.  Thanks to Alin Nastac
    <mrness@gentoo.org.example.com> for patch solving problem.
- 
+
  o Fix res_9_init related compilation problems on OS X.
    Problem reported by Changshin Lee <iasandcb@gmail.com.example.com>.
- 
+
  o Return immediate error if username/password is wrong in the common
    case, rather than delaying it for later.  Helps avoid the case where
    socks-clients cache the wrong username/password.  Reworked
    rule-checking code a little too.
- 
+
  o In one rare case, such as triggered in some LVS health-checker
    installations, a bug could make us leak descriptors.
    Thanks to Antonio Paulo Salgado Forster <aforster@br.ibm.com.example.com>
    and Pete Harvey <Peter.Harvey@newcastle.ac.uk.example.com> for help with
    debugging.
- 
+
  o Fix a bug where server could hang while waiting for input from client
    during negotiation.
    Thanks to Robert Marcano <robert@marcanoonline.com.example.com>.
- 
+
  o Fix formating of some warning messages.
    Thanks to James Carlson <james.d.carlson@sun.com.example.com>.
- 
+
 ***
 ***  Monday, January 31, 2005 -- Dante v1.1.15
 ***
@@ -443,7 +460,7 @@
 ***
 
  o Don't mark the rule as good either if sockscf.state.unfixedpamdata,
-   fixes bug reported by Jerry Murdock" <jmurdock@itraktech.com.example.com>.
+   fixes bug reported by Jerry Murdock <jmurdock@itraktech.com.example.com>.
 
  o fix a bug preventing the list given in a 'user:' keyword from being checked
    correctly. Reported by Oleg Bulavsky <bulch@ftc.ru.example.com>.

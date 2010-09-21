@@ -67,7 +67,7 @@ am_libdsocks_la_OBJECTS = interposition.lo int_osf1.lo int_osf2.lo \
 	Rbindresvport.lo Rconnect.lo util.lo Rgethostbyname.lo \
 	Rcompat.lo msproxy_clientprotocol.lo broken.lo hostcache.lo \
 	serr.lo httpproxy.lo tostring.lo addressmatch.lo Rlisten.lo \
-	upnp.lo gssapi.lo iobuf.lo
+	upnp.lo gssapi.lo iobuf.lo Rgetsockopt.lo
 libdsocks_la_OBJECTS = $(am_libdsocks_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/include
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -236,7 +236,7 @@ libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c int_osf3.c \
 	../lib/msproxy_clientprotocol.c ../lib/broken.c ../lib/hostcache.c \
 	../lib/serr.c ../lib/httpproxy.c ../lib/tostring.c \
 	../lib/addressmatch.c ../lib/Rlisten.c ../lib/upnp.c ../lib/gssapi.c \
-	../lib/iobuf.c
+	../lib/iobuf.c ../lib/Rgetsockopt.c
 
 libdsocks_la_LDFLAGS = -avoid-version -all-dynamic @MAPOPT@
 libdsocks_la_LIBADD = ../libscompat/libscompat.la @DLIBDEPS@
@@ -327,6 +327,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rgethostbyname.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rgetpeername.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rgetsockname.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rgetsockopt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rlisten.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rrresvport.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/address.Plo@am__quote@
@@ -648,6 +649,13 @@ iobuf.lo: ../lib/iobuf.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/iobuf.c' object='iobuf.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o iobuf.lo `test -f '../lib/iobuf.c' || echo '$(srcdir)/'`../lib/iobuf.c
+
+Rgetsockopt.lo: ../lib/Rgetsockopt.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT Rgetsockopt.lo -MD -MP -MF "$(DEPDIR)/Rgetsockopt.Tpo" -c -o Rgetsockopt.lo `test -f '../lib/Rgetsockopt.c' || echo '$(srcdir)/'`../lib/Rgetsockopt.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/Rgetsockopt.Tpo" "$(DEPDIR)/Rgetsockopt.Plo"; else rm -f "$(DEPDIR)/Rgetsockopt.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/Rgetsockopt.c' object='Rgetsockopt.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o Rgetsockopt.lo `test -f '../lib/Rgetsockopt.c' || echo '$(srcdir)/'`../lib/Rgetsockopt.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

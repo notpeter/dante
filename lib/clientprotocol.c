@@ -46,12 +46,11 @@
   * Markus Moeller (markus_moeller at compuserve.com).
   */
 
-
 #include "common.h"
 #include "interposition.h"
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.125.2.3 2010/05/25 05:13:29 michaels Exp $";
+"$Id: clientprotocol.c,v 1.125.2.3.2.2 2010/09/21 11:24:42 karls Exp $";
 
 static int
 recv_sockshost(int s, struct sockshost_t *host, int version,
@@ -540,7 +539,7 @@ serverreplyisok(version, reply, route)
                return 1;
 
             case SOCKS_FAILURE:
-               swarnx("%s: generic proxy server failure", function);
+               swarnx("%s: unknown proxy server failure", function);
                socks_blacklist(route);
                errno = ECONNREFUSED;
                return 0;

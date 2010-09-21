@@ -13,7 +13,7 @@ libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c int_osf3.c \
 	../lib/msproxy_clientprotocol.c ../lib/broken.c ../lib/hostcache.c \
 	../lib/serr.c ../lib/httpproxy.c ../lib/tostring.c \
 	../lib/addressmatch.c ../lib/Rlisten.c ../lib/upnp.c ../lib/gssapi.c \
-	../lib/iobuf.c
+	../lib/iobuf.c ../lib/Rgetsockopt.c
 
 libdsocks_la_LDFLAGS = -avoid-version -all-dynamic @MAPOPT@
 libdsocks_la_LIBADD = ../libscompat/libscompat.la @DLIBDEPS@

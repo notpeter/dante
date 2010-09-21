@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.69 2009/10/23 10:37:26 karls Exp $";
+"$Id: method_uname.c,v 1.69.4.2 2010/09/21 11:24:43 karls Exp $";
 
 static int
 recv_unamever(int s, struct request_t *request,
@@ -161,7 +161,7 @@ recv_uname(s, request, state)
    CHECK(request->auth->mdata.uname.name + 1, request->auth, NULL);
 
    /* convert to string. */
-   memcpy(request->auth->mdata.uname.name, request->auth->mdata.uname.name + 1,
+   memmove(request->auth->mdata.uname.name, request->auth->mdata.uname.name + 1,
    ulen);
    request->auth->mdata.uname.name[ulen] = NUL;
 
@@ -204,7 +204,7 @@ recv_passwd(s, request, state)
    CHECK(request->auth->mdata.uname.password + 1, request->auth, NULL);
 
    /* convert to string. */
-   memcpy(request->auth->mdata.uname.password,
+   memmove(request->auth->mdata.uname.password,
    request->auth->mdata.uname.password + 1, plen);
    request->auth->mdata.uname.password[plen] = NUL;
 

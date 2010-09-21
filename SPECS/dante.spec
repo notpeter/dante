@@ -1,6 +1,6 @@
 Summary: A free SOCKS v4/v5 client implementation
 Name: dante
-%define version 1.2.1
+%define version 1.2.2
 %define prefix /usr
 Version: %{version}
 Release: 1

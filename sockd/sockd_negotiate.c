@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.155.2.4 2010/05/24 16:39:13 karls Exp $";
+"$Id: sockd_negotiate.c,v 1.155.2.4.2.5 2010/09/21 11:24:43 karls Exp $";
 
 static void siginfo(int sig);
 
@@ -243,7 +243,7 @@ run_negotiate(mother)
 
          if ((p = recv_request(neg->s, &neg->req, &neg->negstate)) <= 0) {
 #if HAVE_GSSAPI
-            gss_buffer_desc output_token;
+            gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
             OM_uint32 minor_status;
 #endif /* HAVE_GSSAPI */
             const char *reason = NULL;   /* init or gcc complains. */
@@ -276,16 +276,16 @@ run_negotiate(mother)
             iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->negstate.src,
             &neg->socksauth, &neg->negstate.dst, NULL, reason, 0);
 
-            delete_negotiate(mother, neg);
-
 #if HAVE_GSSAPI
-            neg->socksauth.mdata.gssapi.state.id = GSS_C_NO_CONTEXT;
-            if (neg->socksauth.method == AUTHMETHOD_GSSAPI)
+            if (neg->socksauth.method == AUTHMETHOD_GSSAPI
+            && neg->socksauth.mdata.gssapi.state.id != GSS_C_NO_CONTEXT)
                if (gss_delete_sec_context(&minor_status,
                   &neg->socksauth.mdata.gssapi.state.id, &output_token)
                   != GSS_S_COMPLETE)
                      swarn("%s: gss_delete_sec_context failed", function);
 #endif /* HAVE_GSSAPI */
+
+            delete_negotiate(mother, neg);
          }
          else if (wset != NULL && FD_ISSET(mother->s, wset)) {
             /* read a complete request, send to mother. */
@@ -320,7 +320,7 @@ send_negotiate(mother, neg)
    CMSG_AALLOC(cmsg, sizeof(int));
 
 #if HAVE_SENDMSG_DEADLOCK
-   if (socks_lock(mother->lock, F_WRLCK, 0) != 0)
+   if (socks_lock(mother->lock, F_WRLCK, -1) != 0)
       return 1;
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
@@ -694,7 +694,6 @@ neg_gettimeout(timeout)
 {
    time_t timenow;
    int i;
-
 
    if (sockscf.timeout.negotiate == 0 || (allocated() == completed()))
       return NULL;

@@ -4,6 +4,7 @@ define([concat],
 AC_DEFUN([L_MODVER],
 [AC_MSG_CHECKING(for module $1)
  if test -f "licensed/$1.c"; then
+	MINVER="$2"
 	MODLINE=`head -1 licensed/$1.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -15,14 +16,15 @@ AC_DEFUN([L_MODVER],
 	if test x"$MODVER" = x; then
 		MODVER=`awk '/Id:/{ split($''4,a,".");print a[[2]]; exit }' licensed/$1.c`
 	fi
-	if test "$MODVER" -lt "$2"; then
-		echo ""
-		echo "You have a outdated version of the $1 module."
-		echo "Please contact Inferno Nettverk A/S for an updated"
-		echo "version before you attempt to compile."
-		echo "Inferno Nettverk A/S can be reached at info@inet.no."
-		echo ""
-		echo "There is no additional cost for upgrading."
+	if test "$MODVER" -lt "$MINVER"; then
+		echo "" >&2
+		echo "You have version 1.$MODVER of the $1 module, which is outdated." >&2
+		echo "This version of Dante requires at least version 1.$MINVER." >&2
+		echo "Please contact Inferno Nettverk A/S for an updated" >&2
+		echo "version before you attempt to compile." >&2
+		echo "Inferno Nettverk A/S can be reached at info@inet.no." >&2
+		echo "" >&2
+		echo "There is no additional cost for upgrading." >&2
 		exit 1
 	fi
 

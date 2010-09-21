@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.317.2.6 2010/05/24 16:38:23 karls Exp $ */
+/* $Id: sockd.h,v 1.317.2.6.2.3 2010/09/21 11:24:42 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -84,9 +84,9 @@
 #define gethostbyaddr(addr, len, type) cgethostbyaddr(addr, len, type)
 
 
-#define INIT(length)                            \
-   const size_t start   = state->start;         \
-   const size_t end      = start + (length);    \
+#define INIT(length)                                                           \
+   const size_t start   = state->start;       /* start of next block. */       \
+   const size_t end     = start + (length);   /* end of next block.   */       \
    errno = 0
 
 #define MEMLEFT()      (sizeof(state->mem) - state->reqread)
@@ -114,14 +114,15 @@
 
 #define CHECK(object, auth, nextfunction)                      \
 do {                                                           \
-   int p;                                                      \
+   SASSERTX(state->reqread <= end);                            \
                                                                \
    if (LEFT()) {                                               \
+      ssize_t p;                                               \
                                                                \
       SASSERT(LEFT() > 0);                                     \
                                                                \
       if (LEFT() > MEMLEFT())                                  \
-         SERRX(MEMLEFT());                                     \
+         SERRX(LEFT());                                        \
                                                                \
       errno = 0;                                               \
       if ((p = READ(s, LEFT(), auth)) <= 0)                    \
@@ -464,8 +465,8 @@ struct childstate_t {
 #endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
 
    size_t                  maxidle;             /* how many can be idle.      */
-   size_t                  maxrequests;         /*  
-                                                 * max # of requests to handle 
+   size_t                  maxrequests;         /*
+                                                 * max # of requests to handle
                                                  * before quiting.
                                                  */
 };
@@ -629,7 +630,7 @@ struct negotiate_state_t {
 #endif /* HAVE_GSSAPI */
                            + sizeof(struct request_t)
                            ];
-   int                  reqread;                     /* read so far.          */
+   size_t               reqread;                     /* read so far.          */
    size_t               start;                       /* start of current req  */
    char                 emsg[512];                   /* error message, if any.*/
    int                  (*rcurrent)(int s,
@@ -676,7 +677,7 @@ struct sockd_mother_t {
    int                  ack;            /* connection for ack's.              */
 };
 
-struct sockd_child_t {         
+struct sockd_child_t {
 #if HAVE_SENDMSG_DEADLOCK
    int              lock;           /* lock on request connection.            */
 #endif /* HAVE_SENDMSG_DEADLOCK */
@@ -1449,4 +1450,3 @@ size_t maxfreeslots(const int childtype);
  * Returns the maximum number of free slots a child of type "childtype"
  * can have.
  */
-

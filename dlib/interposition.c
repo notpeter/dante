@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.130.2.3 2010/05/24 16:38:18 karls Exp $";
+"$Id: interposition.c,v 1.130.2.3.2.4 2010/09/21 11:24:42 karls Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
@@ -83,6 +83,7 @@ sendto(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
 #undef freehostent
 #undef getpeername
 #undef getsockname
+#undef getsockopt
 #undef listen
 #undef read
 #undef readv
@@ -135,6 +136,7 @@ static struct libsymbol_t libsymbolv[] = {
 { SYMBOL_CONNECT,              LIBRARY_CONNECT,        NULL,   NULL, NULL },
 { SYMBOL_GETPEERNAME,          LIBRARY_GETPEERNAME,    NULL,   NULL, NULL },
 { SYMBOL_GETSOCKNAME,          LIBRARY_GETSOCKNAME,    NULL,   NULL, NULL },
+{ SYMBOL_GETSOCKOPT,           LIBRARY_GETSOCKOPT,     NULL,   NULL, NULL },
 { SYMBOL_LISTEN,               LIBRARY_LISTEN,         NULL,   NULL, NULL },
 { SYMBOL_READ,                 LIBRARY_READ,           NULL,   NULL, NULL },
 { SYMBOL_READV,                LIBRARY_READV,          NULL,   NULL, NULL },
@@ -630,6 +632,30 @@ sys_getsockname(s, name, namelen)
    return rc;
 }
 #endif /* !HAVE_EXTRA_OSF_SYMBOLS */
+
+HAVE_PROT_GETSOCKOPT_0
+sys_getsockopt(s, level, optname, optval, optlen)
+   HAVE_PROT_GETSOCKOPT_1 s;
+   HAVE_PROT_GETSOCKOPT_2 level;
+   HAVE_PROT_GETSOCKOPT_3 optname;
+   HAVE_PROT_GETSOCKOPT_4 optval;
+   HAVE_PROT_GETSOCKOPT_5 optlen;
+{
+   int rc;
+   typedef HAVE_PROT_GETSOCKOPT_0
+       (*GETSOCKOPT_FUNC_T)(HAVE_PROT_GETSOCKOPT_1,
+                             HAVE_PROT_GETSOCKOPT_2,
+                             HAVE_PROT_GETSOCKOPT_3,
+                             HAVE_PROT_GETSOCKOPT_4,
+                             HAVE_PROT_GETSOCKOPT_5);
+   GETSOCKOPT_FUNC_T function;
+
+   SYSCALL_START(s);
+   function = (GETSOCKOPT_FUNC_T)symbolfunction(SYMBOL_GETSOCKOPT);
+   rc = function(s, level, optname, optval, optlen);
+   SYSCALL_END(s);
+   return rc;
+}
 
 HAVE_PROT_LISTEN_0
 sys_listen(s, backlog)
@@ -1262,6 +1288,19 @@ getsockname(s, name, namelen)
    return Rgetsockname(s, name, namelen);
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
+
+HAVE_PROT_GETSOCKOPT_0
+getsockopt(s, level, optname, optval, optlen)
+   HAVE_PROT_GETSOCKOPT_1 s;
+   HAVE_PROT_GETSOCKOPT_2 level;
+   HAVE_PROT_GETSOCKOPT_3 optname;
+   HAVE_PROT_GETSOCKOPT_4 optval;
+   HAVE_PROT_GETSOCKOPT_5 optlen;
+{
+   if (ISSYSCALL(s, SYMBOL_GETSOCKNAME))
+      return sys_getsockopt(s, level, optname, optval, optlen);
+   return Rgetsockopt(s, level, optname, optval, optlen);
+}
 
 HAVE_PROT_LISTEN_0
 listen(s, backlog)

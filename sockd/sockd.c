@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.408.2.8 2010/05/24 16:39:12 karls Exp $";
+"$Id: sockd.c,v 1.408.2.8.2.5 2010/09/21 11:24:43 karls Exp $";
 
 int
 #if HAVE_SETPROCTITLE
@@ -409,16 +409,12 @@ moncontrol(0);
       rbits = fillset(rset);
 
 #if BAREFOOTD
-
       switch ((p = selectn(++rbits, rset, NULL, NULL, NULL, NULL,
-      sockscf.state.alludpbounced ? NULL : &timeout))) {
-
+      sockscf.state.alludpbounced ? NULL : &timeout)))
 #else /* SOCKS_SERVER */
-
-      switch ((p = selectn(++rbits, rset, NULL, NULL, NULL, NULL, NULL))) {
-
+      switch ((p = selectn(++rbits, rset, NULL, NULL, NULL, NULL, NULL)))
 #endif /* SOCKS_SERVER */
-
+      {
          case 0:
 #if BAREFOOTD
             break;
@@ -474,7 +470,7 @@ moncontrol(0);
 
                   slog(LOG_DEBUG, "%s: %s-child %lu has freed a slot, now has "
                                   "%lu slot%s free",
-                                  function, childtype2string(child->type), 
+                                  function, childtype2string(child->type),
                                   (unsigned long)child->pid,
                                   child->freec, child->freec == 1 ? "" : "s");
 
@@ -486,7 +482,7 @@ moncontrol(0);
                       * freec in the case of io-child is that for
                       * statistics, so we wait for the ack.
                       */
-                     ++sockscf.stat.io.received; 
+                     ++sockscf.stat.io.received;
 
                      if (sockscf.child.maxrequests != 0
                      &&  child->freec == maxfreeslots(child->type)
@@ -503,17 +499,24 @@ moncontrol(0);
 
          clearset(ACKPIPE, child, rset);
 
-         if (childisbad)
-            removechild(child->pid);
-         else if (childhasfinished) {
+         if (childhasfinished)
             slog(LOG_DEBUG, "closing connection to %s-child %lu as it "
                             "has now handled %lu request%s",
                             childtype2string(child->type),
-                            (unsigned long)child->pid, 
+                            (unsigned long)child->pid,
                             (unsigned long)child->sentc,
                             (unsigned long)child->sentc == 1 ? "" : "s");
 
+         if (childhasfinished || childisbad) {
             removechild(child->pid);
+
+            /*
+             * Can no longer be sure we have any free slots to handle
+             * new requests.  Finish handling ack of free slots,
+             * but after that, restart the loop.
+             */
+            FD_ZERO(rset);
+            break;
          }
       }
 
@@ -627,6 +630,7 @@ moncontrol(0);
 
                default:
                   removechild(child->pid);
+                  FD_ZERO(rset);
             }
          }
          else if (sockscf.child.maxrequests != 0
@@ -635,13 +639,13 @@ moncontrol(0);
             slog(LOG_DEBUG, "closing connection to %s-child %lu as it "
                             "has now handled %lu request%s",
                             childtype2string(child->type),
-                            (unsigned long)child->pid, 
+                            (unsigned long)child->pid,
                             (unsigned long)child->sentc,
                             (unsigned long)child->sentc == 1 ? "" : "s");
 
             removechild(child->pid);
+            FD_ZERO(rset);
          }
-
       }
 
       /*
@@ -657,27 +661,22 @@ moncontrol(0);
             struct sockaddr from;
             socklen_t len;
 
-            negchild = nextchild(CHILD_NEGOTIATE);
-
 #if NEED_ACCEPTLOCK
             if (sockscf.option.serverc > 1)
                if (socks_lock(l->lock, F_WRLCK, 0) != 0)
                   continue;
 #endif /* NEED_ACCEPTLOCK */
 
-#if HAVE_SENDMSG_DEADLOCK
-            if (negchild != NULL
-            &&  socks_lock(negchild->lock, F_WRLCK, 0) != 0) {
-#if NEED_ACCEPTLOCK
-               if (sockscf.option.serverc > 1)
-                  socks_unlock(l->lock);
-#endif /* NEED_ACCEPTLOCK */
-               continue;
-            }
-#endif /* HAVE_SENDMSG_DEADLOCK */
-
             len = sizeof(from);
-            if ((client.s = acceptn(l->s, &from, &len)) == -1)
+            client.s = acceptn(l->s, &from, &len);
+
+#if NEED_ACCEPTLOCK
+            if (sockscf.option.serverc > 1)
+               socks_unlock(l->lock);
+#endif /* NEED_ACCEPTLOCK */
+
+
+            if (client.s == -1)
                switch (errno) {
 #ifdef EPROTO
                   case EPROTO:         /* overloaded SVR4 error */
@@ -700,23 +699,13 @@ moncontrol(0);
                   case ENETUNREACH:
 #endif /* ENETUNREACH */
 
-#if NEED_ACCEPTLOCK
-                     if (sockscf.option.serverc > 1)
-                        socks_unlock(l->lock);
-#endif /* NEED_ACCEPTLOCK */
-
-#if HAVE_SENDMSG_DEADLOCK
-                     if (negchild != NULL)
-                        socks_unlock(negchild->lock);
-#endif /* HAVE_SENDMSG_DEADLOCK */
-
                      if (sockscf.option.serverc > 1 && errno == EWOULDBLOCK)
                         slog(LOG_DEBUG, "accept(): %s", strerror(errno));
-                     else               
+                     else
                         swarn("accept(): %s", strerror(errno));
 
                      /* connection aborted/failed/was taken by other process. */
-                     continue; 
+                     continue;
 
                   /*
                    * this should never happen since childcheck(), if
@@ -744,15 +733,10 @@ moncontrol(0);
                swarn("tried to work around Linux bug via fcntl()");
 #endif /* HAVE_LINUX_BUGS */
 
-#if NEED_ACCEPTLOCK
-            if (sockscf.option.serverc > 1)
-               socks_unlock(l->lock);
-#endif /* NEED_ACCEPTLOCK */
-
             slog(LOG_DEBUG, "got accept(): %s",
             sockaddr2string(&from, accepted, sizeof(accepted)));
 
-            if (negchild == NULL) {
+            if ((negchild = nextchild(CHILD_NEGOTIATE)) == NULL) {
                swarnx("new client from %s dropped: no resources "
                "(no free negotiator slots / file descriptors)", accepted);
 
@@ -765,7 +749,7 @@ moncontrol(0);
                ++negchild->sentc;
                ++sockscf.stat.negotiate.sendt;
             }
-            else
+            else {
                switch (errno) {
                   case EMFILE:
                   case ENFILE:
@@ -773,17 +757,20 @@ moncontrol(0);
 
                   default:
                      removechild(negchild->pid);
+                     negchild = NULL;
+                     FD_ZERO(rset);
                }
+            }
 
 #if HAVE_SENDMSG_DEADLOCK
-            socks_unlock(negchild->lock);
+            if (negchild != NULL)
+               socks_unlock(negchild->lock);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
             close(client.s);
          }
       }
    }
-
    /* NOTREACHED */
 }
 
@@ -793,7 +780,8 @@ usage(code)
 {
 
    fprintf(code == 0 ? stdout : stderr,
-   "%s: usage: %s [-DLNVdfhnv]\n"
+   "%s v%s.  Copyright (c) 1997 - 2010, Inferno Nettverk A/S, Norway.\n"
+   "usage: %s [-DLNVdfhnv]\n"
    "   -D             : run in daemon mode\n"
    "   -L             : shows the license for this program\n"
    "   -N <number>    : fork of <number> servers [1]\n"
@@ -803,7 +791,9 @@ usage(code)
    "   -h             : print this information\n"
    "   -n             : disable TCP keep-alive\n"
    "   -v             : print version info\n",
-   __progname, __progname, SOCKD_CONFIGFILE);
+   PACKAGE, VERSION,
+   __progname,
+   SOCKD_CONFIGFILE);
 
    exit(code);
 }
@@ -824,7 +814,7 @@ showlicense(void)
 "\
 /*\n\
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,\n\
- *               2007, 2008, 2009\n\
+ *               2007, 2008, 2009, 2010\n\
  *      Inferno Nettverk A/S, Norway.  All rights reserved.\n\
  *\n\
  * Redistribution and use in source and binary forms, with or without\n\
