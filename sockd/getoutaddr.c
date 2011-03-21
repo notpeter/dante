@@ -1,5 +1,5 @@
 /*
- * $Id: getifa.c,v 1.57.4.5 2010/09/21 11:24:43 karls Exp $
+ * $Id: getoutaddr.c,v 1.57.4.5.2.1 2011/03/03 14:25:41 michaels Exp $
  *
  * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -54,7 +54,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getifa.c,v 1.57.4.5 2010/09/21 11:24:43 karls Exp $";
+"$Id: getoutaddr.c,v 1.57.4.5.2.1 2011/03/03 14:25:41 michaels Exp $";
 
 /*
  * Given a destination address, getifa() returns the local source address
@@ -333,8 +333,10 @@ getifa(destaddr)
 
    sa = rti_info[RTAX_IFA];
    if (sa->sa_family != AF_INET) {
-      swarnx("%s: got unexpected/unsupported address family %d", function);
-     return getdefaultexternal();
+      swarnx("%s: got unexpected/unsupported address family %d",
+      function, (int)sa->sa_family);
+
+      return getdefaultexternal();
    }
 
    if (!isonexternal(sa)) {

@@ -10,7 +10,7 @@ sockd_SOURCES = ../lib/config_parse.c ../lib/config_scan.c                  \
 	redirect.c redirect_key.c                                           \
 	../lib/addressmatch.c checkmodule.c shmem.c                         \
 	bandwidth.c bandwidth_key.c					    \
-	getifa.c ../lib/clientprotocol.c ../lib/httpproxy.c                 \
+	getoutaddr.c ../lib/clientprotocol.c ../lib/httpproxy.c                 \
 	../lib/authneg.c  ../lib/userio.c                                   \
 	session.c session_key.c                                             \
 	../lib/upnp.c method_gssapi.c ../lib/gssapi.c ../lib/iobuf.c        \

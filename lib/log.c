@@ -42,9 +42,11 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.113 2009/10/23 11:43:36 karls Exp $";
+"$Id: log.c,v 1.113.6.7 2011/03/08 15:06:32 michaels Exp $";
 
 #include "common.h"
+#include "config_parse.h"
+
 
 #if HAVE_EXECINFO_H && DEBUG
 #include <execinfo.h>
@@ -303,7 +305,8 @@ vslog(priority, message, ap, apsyslog)
 
 
 #if !SOCKS_IGNORE_SIGNALSAFETY
-   if (sockscf.state.insignal && priority > LOG_ERR) /* > pri means < serious */
+   if (sockscf.state.insignal 
+   /* && priority > LOG_ERR */) /* > pri means < serious */
       /*
        * Note that this can be the case even if insignal is not set.
        * This can happen in the client if the application has
@@ -415,6 +418,183 @@ logformat(priority, buf, buflen, message, ap)
 
    return buf;
 }
+
+#if !SOCKS_CLIENT
+#define DO_BUILD(srcdst_str, dst_too)                                          \
+do {                                                                           \
+   char srcstr[MAX_IOLOGADDR];                                                 \
+                                                                               \
+   BUILD_ADDRSTR_SRC(src_peer,                                                 \
+                     src_proxy_ext,                                            \
+                     src_proxy,                                                \
+                     src_local,                                                \
+                     src_auth,                                                 \
+                     src_proxyauth,                                            \
+                     (dst_too) ? (srcstr) : (srcdst_str),                      \
+                     (dst_too) ? sizeof(srcstr) : sizeof(srcdst_str));         \
+                                                                               \
+   if ((dst_too)) {                                                            \
+      char dststr[MAX_IOLOGADDR];                                              \
+                                                                               \
+      BUILD_ADDRSTR_DST(dst_local,                                             \
+                        dst_proxy,                                             \
+                        dst_proxy_ext,                                         \
+                        dst_peer,                                              \
+                        dst_auth,                                              \
+                        dst_proxyauth,                                         \
+                        dststr,                                                \
+                        sizeof(dststr));                                       \
+                                                                               \
+      snprintf((srcdst_str), sizeof((srcdst_str)), "%s -> %s", srcstr, dststr);\
+   }                                                                           \
+} while (/* CONSTCOND */ 0)
+
+void
+iolog(rule, state, operation,
+      src_local, src_peer, src_auth, src_proxy, src_proxy_ext, src_proxyauth,
+      dst_local, dst_peer, dst_auth, dst_proxy, dst_proxy_ext, dst_proxyauth,
+      data, count)
+   struct rule_t *rule;
+   const struct connectionstate_t *state;
+   const operation_t operation;
+   const struct sockaddr *src_local;
+   const struct sockshost_t *src_peer;
+   const struct authmethod_t *src_auth;
+   const gwaddr_t *src_proxy;
+   const struct sockshost_t *src_proxy_ext;
+   const struct authmethod_t *src_proxyauth;
+   const struct sockaddr *dst_local;
+   const struct sockshost_t *dst_peer;
+   const struct authmethod_t *dst_auth;
+   const gwaddr_t *dst_proxy;
+   const struct sockshost_t *dst_proxy_ext;
+   const struct authmethod_t *dst_proxyauth;
+   const char *data;
+   size_t count;
+{
+   char srcdst_str[MAX_IOLOGADDR + strlen(" -> ") + MAX_IOLOGADDR],
+        rulecommand[256], 
+        ruleinfo[SOCKD_BUFSIZE * 4 + 1 + sizeof(srcdst_str)
+                 + 1024 /* misc stuff, if any. */];
+   int logdstinfo;
+
+   if (state->command == SOCKS_ACCEPT)
+      logdstinfo = 0; /* no dst (yet); connect is from client to us. */
+   else
+      logdstinfo = 1;
+
+   switch (operation) {
+      case OPERATION_ACCEPT:
+      case OPERATION_CONNECT:
+         if (!rule->log.connect)
+            return;
+         else {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo),
+                     "[: %s%s%s",
+                     srcdst_str,
+                     (data == NULL || *data == NUL) ? "" : ": ",
+                     (data == NULL || *data == NUL) ? "" : data);
+         }
+         break;
+
+      case OPERATION_DISCONNECT:
+         if (!rule->log.disconnect)
+            return;
+         else {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo), "]: %s", srcdst_str);
+         }
+         break;
+
+
+      case OPERATION_TIMEOUT:
+         if (!(rule->log.disconnect || rule->log.error))
+            return;
+         else {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo), "]: %s: %s", srcdst_str, data);
+         }
+         break;
+
+      case OPERATION_TMPERROR:
+         if (!rule->log.error)
+            return;
+         else {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo), "-: %s: %s",
+                     srcdst_str, 
+                     (data == NULL || *data == NUL) ? ERRNOSTR(errno) : data);
+         }
+         break;
+
+      case OPERATION_ERROR:
+         if (!rule->log.error)
+            return;
+         else {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo),
+                     "]: %s: %s",
+                     srcdst_str,
+                    (data == NULL || *data == NUL) ? ERRNOSTR(errno) : data);
+         }
+         break;
+
+      case OPERATION_BLOCK:
+         if (!rule->log.disconnect)
+            return;
+         else {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo),
+                     "]: %s%s%s",
+                     srcdst_str,
+                     (data == NULL || *data == NUL) ? "" : ": ",
+                     (data == NULL || *data == NUL) ? "" : data);
+         }
+         break;
+
+      case OPERATION_IO:
+         if (!(rule->log.data || rule->log.iooperation))
+            return;
+
+         if (rule->log.data && count != 0) {
+            char visdata[SOCKD_BUFSIZE * 4 + 1];
+
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo),
+                     "-: %s (%lu): %s",
+                     srcdst_str, (unsigned long)count,
+                     str2vis(data, count, visdata, sizeof(visdata)));
+         }
+         else if (rule->log.iooperation || rule->log.data) {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo),
+                     "-: %s (%lu)",
+                     srcdst_str, (unsigned long)count);
+         }
+         break;
+
+      default:
+         SERRX(operation);
+   }
+
+   snprintf(rulecommand, sizeof(rulecommand), "%s(%lu): %s/%s",
+            verdict2string(operation == OPERATION_BLOCK ?
+                           VERDICT_BLOCK : rule->verdict),
+#if BAREFOOTD
+            /* always use the number from the user-created rule. */
+            (state->protocol == SOCKS_UDP && rule->crule != NULL) ?
+            (unsigned long)rule->crule->number : (unsigned long)rule->number,
+#else /* !BAREFOOTD */
+            (unsigned long)rule->number,
+#endif /* !BAREFOOTD */
+            protocol2string(state->protocol),
+            command2string(state->command));
+
+   slog(LOG_INFO, "%s %s", rulecommand, ruleinfo);
+}
+#endif /* !SOCKS_CLIENT */
+
 
 #if DEBUG && 0 /* XXX should be && <glibc> */
 void

@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.365.2.5.2.2 2010/09/21 11:24:43 karls Exp $";
+"$Id: sockd_io.c,v 1.365.2.5.2.2.2.16 2011/03/13 17:13:37 michaels Exp $";
 
 /*
  * IO-child:
@@ -782,14 +782,13 @@ delete_io(mother, io, fd, status)
    time(&timenow);
 
    /* log the disconnect if client-rule or socks-rule says so. */
-   rulev[0] = &io->crule;
-   rulev[1] = &io->rule;
+   rulev[0] = &io->rule;
+   rulev[1] = &io->crule;
    for (i = 0; i < ELEMENTS(rulev); ++i) {
       const struct rule_t *rule = rulev[i];
       size_t bufused;
-      char in[MAXSOCKADDRSTRING + MAXAUTHINFOLEN], timeinfo[256],
-           out[sizeof(in)], logmsg[sizeof(in) + sizeof(out) + 1024];
-      int p;
+      char in[MAX_IOLOGADDR], out[MAX_IOLOGADDR],
+           timeinfo[256], logmsg[sizeof(in) + sizeof(out) + 1024];
 
       if (!rule->log.disconnect)
          continue;
@@ -807,45 +806,77 @@ delete_io(mother, io, fd, status)
       dst_packetsread    = io->dst.read.packets;
 
       if (rule == &io->crule) { /* client-rule */
-         authinfo(&io->control.auth, in, sizeof(in));
-         p = strlen(in);
-         sockaddr2string(&io->control.raddr, &in[p], sizeof(in) - p);
+         BUILD_ADDRSTR_SRC(&io->control.host,
+                           NULL,
+                           NULL,
+                           &io->control.laddr,
+                           &io->clientauth, 
+                           NULL,
+                           in,
+                           sizeof(in));
 
-         authinfo(&io->control.auth, out, sizeof(out));
-         p = strlen(out);
+         *out = NUL; /* client-rule is from client to socks-server, and stop. */
 
-         sockaddr2string(&io->control.laddr, &out[p], sizeof(out) - p);
          command  = io->state.clientcommand;
          protocol = io->state.clientprotocol;
       }
       else if (rule == &io->rule) { /* socks rule. */
-         authinfo(&io->src.auth, in, sizeof(in));
-         p = strlen(in);
-         sockaddr2string(&io->src.raddr, &in[p], sizeof(in) - p);
-
-         authinfo(&io->dst.auth, out, sizeof(out));
-         p = strlen(out);
+         /*
+          * XXX if support for serverchaining is added to bind, the
+          * bindreply might involve a proxy on the src side.
+          */
+         BUILD_ADDRSTR_SRC(&io->src.host,
+                           NULL,
+                           NULL,
+                           &io->src.laddr,
+                           &io->src.auth, 
+                           NULL,
+                           in,
+                           sizeof(in));
 
          switch (io->state.command) {
-            case SOCKS_BIND:
             case SOCKS_BINDREPLY:
-               /* LINTED pointer casts may be troublesome */
-               sockaddr2string(&io-> dst.raddr, &out[p], sizeof(out) - p);
+            case SOCKS_BIND:
+            case SOCKS_CONNECT: {
+               BUILD_ADDRSTR_DST(&io->dst.laddr,
+                                 io->state.proxyprotocol == PROXY_DIRECT
+                                    ? NULL : &io->state.proxychain.server,
+                                 io->state.proxyprotocol == PROXY_DIRECT
+                                    ? NULL : &io->state.proxychain.extaddr,
+                                 &io->dst.host,
+                                 &io->dst.auth, 
+                                 NULL,
+                                 out,
+                                 sizeof(out));
                break;
-
-            case SOCKS_CONNECT:
-               /* LINTED pointer casts may be troublesome */
-               sockshost2string(&io->dst.host, &out[p], sizeof(out) - p);
-               break;
+            }
 
             case SOCKS_UDPASSOCIATE: {
 #if BAREFOOTD
                struct udpclient *client;
 #endif /* BAREFOOTD */
                if (io->dst.state.connected)
-                  sockshost2string(&io->dst.host, &out[p], sizeof(out) - p);
+                  BUILD_ADDRSTR_DST(&io->dst.laddr,
+                                    io->state.proxyprotocol == PROXY_DIRECT
+                                        ? NULL : &io->state.proxychain.server,
+                                    io->state.proxyprotocol == PROXY_DIRECT
+                                        ? NULL : &io->state.proxychain.extaddr,
+                                    &io->dst.host,
+                                    &io->dst.auth, 
+                                    NULL,
+                                    out,
+                                    sizeof(out));
                else
-                  snprintfn(&out[p], sizeof(out) - p, "0.0.0.0/0");
+                  BUILD_ADDRSTR_DST(&io->dst.laddr,
+                                    io->state.proxyprotocol == PROXY_DIRECT
+                                       ? NULL : &io->state.proxychain.server,
+                                    io->state.proxyprotocol == PROXY_DIRECT
+                                       ? NULL : &io->state.proxychain.extaddr,
+                                    NULL,
+                                    &io->dst.auth, 
+                                    NULL,
+                                    out,
+                                    sizeof(out));
 #if BAREFOOTD
                client = udpclientofsocket(io->dst.s, io->dstc, io->dstv);
                SASSERTX(client != NULL);
@@ -883,17 +914,35 @@ delete_io(mother, io, fd, status)
                           protocol2string(protocol),
                           command2string(command));
 
-      if (protocol == SOCKS_TCP)
-         bufused
-         += snprintfn(&logmsg[bufused], sizeof(logmsg) - bufused,
-                     "%lu -> %s -> %lu,  %lu -> %s -> %lu",
-                     (unsigned long)src_written, in, (unsigned long)src_read,
-                     (unsigned long)dst_written, out, (unsigned long)dst_read);
+      if (protocol == SOCKS_TCP) {
+         if (*out == NUL) {
+            const int isreversed
+            = (io->state.command == SOCKS_BINDREPLY ? 1 : 0);
 
-      else
+            bufused +=
+            snprintfn(&logmsg[bufused], sizeof(logmsg) - bufused,
+                      "%lu -> %s -> %lu",
+                      (unsigned long)(isreversed ? dst_written : src_written),
+                      in,
+                      (unsigned long)(isreversed ? src_written : dst_written));
+         }
+         else
+            bufused
+            += snprintfn(&logmsg[bufused], sizeof(logmsg) - bufused,
+                        "%lu -> %s -> %lu, %lu -> %s -> %lu",
+                        (unsigned long)(src_written),
+                        in,
+                        (unsigned long)(src_read),
+                        (unsigned long)(dst_written),
+                        out,
+                        (unsigned long)(dst_read));
+      }
+      else {
+         SASSERTX(*out != NUL);
+
          bufused
          += snprintfn(&logmsg[bufused], sizeof(logmsg) - bufused,
-                      "%lu/%lu -> %s -> %lu/%lu,  %lu/%lu -> %s -> %lu/%lu",
+                      "%lu/%lu -> %s -> %lu/%lu, %lu/%lu -> %s -> %lu/%lu",
                       (unsigned long)src_written,
                       (unsigned long)src_packetswritten,
                       in,
@@ -904,6 +953,7 @@ delete_io(mother, io, fd, status)
                       out,
                       (unsigned long)dst_read,
                       (unsigned long)dst_packetsread);
+      }
 
       bufused = snprintf(timeinfo, sizeof(timeinfo), "after %.0fs",
                          difftime(timenow, io->state.time.established.tv_sec));
@@ -980,6 +1030,7 @@ delete_io(mother, io, fd, status)
 
                break;
             }
+
             case IO_CLOSE:
                slog(LOG_INFO, "%s: client closed %s", logmsg, timeinfo);
                break;
@@ -1036,6 +1087,35 @@ delete_io(mother, io, fd, status)
       }
       else
          SERRX(fd);
+
+
+      if (io->state.command == SOCKS_BINDREPLY && rule == &io->rule) {
+         /*
+          * log the close of the opened bind session also.
+          */
+
+         const int original_command = io->state.command;
+         io->state.command          = SOCKS_BIND;
+         iolog(&io->rule,
+               &io->state,
+               OPERATION_DISCONNECT,
+               /* bindreply order is reversed compared to bind. */
+               &io->dst.laddr,
+               io->state.extension.bind ? NULL : &io->dst.host,
+               &io->dst.auth,
+               NULL,
+               NULL,
+               NULL,
+               &io->src.laddr,
+               &io->src.host,
+               &io->src.auth,
+               NULL,
+               NULL,
+               NULL,
+               NULL,
+               0);
+         io->state.command          = original_command;
+      }
    }
 
 #if HAVE_GSSAPI
@@ -1543,8 +1623,25 @@ doio(mother, io, rset, wset, flags)
             if (r == -1)
                r = 0; /* bad is not set, so temporary error. */
 
-            iolog(&io->rule, &io->state, OPERATION_IO, &io->src.host,
-            &io->src.auth, &io->dst.host, &io->dst.auth, buf, r);
+            iolog(&io->rule,
+                  &io->state,
+                  OPERATION_IO,
+                  &io->src.laddr, 
+                  &io->src.host,
+                  &io->src.auth,
+                  NULL,
+                  NULL,
+                  NULL,
+                  &io->dst.laddr,
+                  &io->dst.host,
+                  &io->dst.auth,
+                  io->state.proxyprotocol
+                     == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                  io->state.proxyprotocol == PROXY_DIRECT
+                     ? NULL : &io->state.proxychain.extaddr,
+                  NULL,
+                  buf,
+                  r);
 
             bwused        += r;
             dsthaswritebuf = 0;
@@ -1582,8 +1679,25 @@ doio(mother, io, rset, wset, flags)
             if (r == -1) /* bad is not set, must be temporary error. */
                r = 0;
 
-            iolog(&io->rule, &io->state, OPERATION_IO, &io->dst.host,
-            &io->dst.auth, &io->src.host, &io->src.auth, buf, (size_t)r);
+            iolog(&io->rule,
+                  &io->state,
+                  OPERATION_IO,
+                  &io->dst.laddr,
+                  &io->dst.host,
+                  &io->dst.auth,
+                  io->state.proxyprotocol
+                     == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                  io->state.proxyprotocol == PROXY_DIRECT
+                     ? NULL : &io->state.proxychain.extaddr,
+                  NULL,
+                  &io->src.laddr,
+                  &io->src.host,
+                  &io->src.auth,
+                  NULL,
+                  NULL,
+                  NULL,
+                  buf,
+                  (size_t)r);
 
             bwused += r;
             srchaswritebuf = 0;
@@ -1655,15 +1769,45 @@ doio(mother, io, rset, wset, flags)
             &from, &len, &io->src.auth)) == -1) {
                if (ERRNOISTMP(errno) || errno == ECONNREFUSED) {
                   if (errno == ECONNREFUSED)
-                     iolog(&io->rule, &io->state, OPERATION_TMPERROR,
-                           &io->dst.host, &io->dst.auth,
-                           &io->src.host, &io->src.auth,
-                           NULL, 0);
+                     iolog(&io->rule,
+                           &io->state,
+                           OPERATION_TMPERROR,
+                           &io->dst.laddr,
+                           &io->dst.host,
+                           &io->dst.auth,
+                           io->state.proxyprotocol == PROXY_DIRECT ?
+                              NULL : &io->state.proxychain.server,
+                           io->state.proxyprotocol == PROXY_DIRECT
+                              ? NULL : &io->state.proxychain.extaddr,
+                           NULL,
+                           &io->src.laddr,
+                           &io->src.host,
+                           &io->src.auth,
+                           NULL,
+                           NULL,
+                           NULL,
+                           NULL,
+                           0);
                   else
-                     iolog(&io->rule, &io->state, OPERATION_TMPERROR,
-                           &io->src.host, &io->src.auth,
-                           &io->dst.host, &io->dst.auth,
-                           NULL, 0);
+                     iolog(&io->rule,
+                           &io->state,
+                           OPERATION_TMPERROR,
+                           &io->src.laddr,
+                           &io->src.host,
+                           &io->src.auth,
+                           NULL,
+                           NULL,
+                           NULL,
+                           &io->dst.laddr,
+                           &io->dst.host,
+                           &io->dst.auth,
+                           io->state.proxyprotocol == PROXY_DIRECT
+                              ? NULL : &io->state.proxychain.server,
+                           io->state.proxyprotocol == PROXY_DIRECT
+                              ? NULL : &io->state.proxychain.extaddr,
+                           NULL,
+                           NULL,
+                           0);
 
                   return;
                }
@@ -1819,14 +1963,12 @@ doio(mother, io, rset, wset, flags)
 #endif /* SOCKS_SERVER */
 
                /*
-                * First packet.  Or, in theory, the socks client could send
-                * a packet with destination 0.0.0.0, which would reset
-                * things, but no reason it should do that unless it has
-                * some special ideas.  Shouldn't hurt us if it does though.
+                * First packet.  
                 */
 #if BAREFOOTD
                char tostr[MAXSOCKSHOSTSTRING];
 #endif /* BAREFOOTD */
+
                io->dst.host = header.host;
                sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
 
@@ -1895,9 +2037,25 @@ doio(mother, io, rset, wset, flags)
 
                      snprintf(buf, sizeof(buf), DENY_SESSIONLIMITs);
 
-                     iolog(&io->rule, &io->state, OPERATION_CONNECT,
-                     &io->src.host, &io->src.auth, &io->dst.host, &io->dst.auth,
-                     buf, 0);
+                     iolog(&io->rule,
+                           &io->state,
+                           OPERATION_CONNECT,
+                           &io->src.laddr,
+                           &io->src.host,
+                           &io->src.auth,
+                           NULL,
+                           NULL,
+                           NULL,
+                           &io->dst.laddr,
+                           &io->dst.host,
+                           &io->dst.auth,
+                           io->state.proxyprotocol == PROXY_DIRECT
+                              ? NULL : &io->state.proxychain.server,
+                           io->state.proxyprotocol == PROXY_DIRECT
+                              ? NULL : &io->state.proxychain.extaddr,
+                           NULL,
+                           buf,
+                           0);
 
                      removeudpclient(udpclient->s, &io->dstc, iov->dstv);
                      return;
@@ -1995,27 +2153,57 @@ doio(mother, io, rset, wset, flags)
 #endif /* BAREFOOTD */
 
             if (!permit) {
-               iolog(&io->rule, &io->state, OPERATION_IO, &io->src.host,
-               &io->src.auth, &io->dst.host, &io->dst.auth,
+               iolog(&io->rule,
+                     &io->state,
+                     OPERATION_IO,
+                     &io->src.laddr,
+                     &io->src.host,
+                     &io->src.auth,
+                     NULL,
+                     NULL,
+                     NULL,
+                     &io->dst.laddr,
+                     &io->dst.host,
+                     &io->dst.auth,
+                     io->state.proxyprotocol == PROXY_DIRECT
+                        ?  NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol == PROXY_DIRECT
+                        ? NULL : &io->state.proxychain.extaddr,
+                     NULL,
 #if BAREFOOTD
-               buf,
+                     buf,
 #else /* SOCKS_SERVER */
-               &buf[PACKETSIZE_UDP(&header)],
+                     &buf[PACKETSIZE_UDP(&header)],
 #endif /* SOCKS_SERVER */
-               (size_t)r);
+                     (size_t)r);
 
                bw_unuse(io->rule.bw);
                break;
             }
 
-            iolog(&io->rule, &io->state, OPERATION_IO, &io->src.host,
-            &io->src.auth, &io->dst.host, &io->dst.auth,
+            iolog(&io->rule,
+                  &io->state,
+                  OPERATION_IO,
+                  &io->src.laddr, 
+                  &io->src.host,
+                  &io->src.auth,
+                  NULL,
+                  NULL,
+                  NULL,
+                  &io->dst.laddr,
+                  &io->dst.host,
+                  &io->dst.auth,
+                  io->state.proxyprotocol == PROXY_DIRECT
+                     ? NULL : &io->state.proxychain.server,
+                  io->state.proxyprotocol == PROXY_DIRECT
+                     ? NULL : &io->state.proxychain.extaddr,
+                  NULL,
 #if BAREFOOTD
-            buf,
+                  buf,
 #else /* SOCKS_SERVER */
-            &buf[PACKETSIZE_UDP(&header)],
+                  &buf[PACKETSIZE_UDP(&header)],
 #endif /* SOCKS_SERVER */
-            (size_t)r);
+                  (size_t)r);
 
             sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
 
@@ -2027,8 +2215,25 @@ doio(mother, io, rset, wset, flags)
 #endif /* SOCKS_SERVER */
             (size_t)r, lflags, &io->dst.raddr, sizeof(io->dst.raddr),
             &io->dst.auth)) != r)
-               iolog(&io->rule, &io->state, OPERATION_ERROR, &io->src.host,
-               &io->src.auth, &io->dst.host, &io->dst.auth, NULL, 0);
+               iolog(&io->rule,
+                     &io->state,
+                     OPERATION_ERROR,
+                     &io->src.laddr,
+                     &io->src.host,
+                     &io->src.auth,
+                     NULL,
+                     NULL,
+                     NULL,
+                     &io->dst.laddr,
+                     &io->dst.host,
+                     &io->dst.auth,
+                     io->state.proxyprotocol == PROXY_DIRECT
+                        ? NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol == PROXY_DIRECT
+                        ? NULL : &io->state.proxychain.extaddr,
+                     NULL,
+                     NULL,
+                     0);
 
 #if SOCKS_SERVER
             io->dst.written.bytes += MAX(0, w);
@@ -2109,15 +2314,45 @@ doio(mother, io, rset, wset, flags)
                          * means the error is actually from our write
                          * to this destination
                          */
-                        iolog(&io->rule, &io->state, OPERATION_TMPERROR,
-                        &io->src.host, &io->src.auth,
-                        &io->dst.host, &io->dst.auth,
-                        NULL, 0);
+                        iolog(&io->rule,
+                              &io->state,
+                              OPERATION_TMPERROR,
+                              &io->src.laddr,
+                              &io->src.host,
+                              &io->src.auth,
+                              NULL,
+                              NULL,
+                              NULL,
+                              &io->dst.laddr,
+                              &io->dst.host,
+                              &io->dst.auth,
+                              io->state.proxyprotocol == PROXY_DIRECT
+                                 ? NULL : &io->state.proxychain.server,
+                              io->state.proxyprotocol == PROXY_DIRECT
+                                 ? NULL : &io->state.proxychain.extaddr,
+                              NULL,
+                              NULL,
+                              0);
                      else
-                        iolog(&io->rule, &io->state, OPERATION_TMPERROR,
-                        &io->dst.host, &io->dst.auth,
-                        &io->src.host, &io->src.auth,
-                        NULL, 0);
+                        iolog(&io->rule,
+                              &io->state,
+                              OPERATION_TMPERROR,
+                              &io->dst.laddr,
+                              &io->dst.host,
+                              &io->dst.auth,
+                              io->state.proxyprotocol == PROXY_DIRECT
+                                 ? NULL : &io->state.proxychain.server,
+                              io->state.proxyprotocol == PROXY_DIRECT
+                                 ? NULL : &io->state.proxychain.extaddr,
+                              NULL,
+                              &io->src.laddr,
+                              &io->src.host,
+                              &io->src.auth,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL,
+                              0);
                   }
                   else /* unknown error, assume fatal. */
                      delete_io(mother, io, io->src.s, IO_ERROR);
@@ -2175,8 +2410,25 @@ doio(mother, io, rset, wset, flags)
             ++udpclient->dst_read.packets;
 #endif /* BAREFOOTD */
 
-            iolog(&io->replyrule, &replystate, OPERATION_IO, &io->dst.host,
-            &io->dst.auth, &io->src.host, &io->src.auth, buf, (size_t)r);
+            iolog(&io->replyrule,
+                  &replystate,
+                  OPERATION_IO,
+                  &io->dst.laddr,
+                  &io->dst.host,
+                  &io->dst.auth,
+                  io->state.proxyprotocol == PROXY_DIRECT
+                     ? NULL : &io->state.proxychain.server,
+                  io->state.proxyprotocol == PROXY_DIRECT
+                     ? NULL : &io->state.proxychain.extaddr,
+                  NULL,
+                  &io->src.laddr,
+                  &io->src.host,
+                  &io->src.auth,
+                  NULL,
+                  NULL,
+                  NULL,
+                  buf,
+                  (size_t)r);
 
             if (!permit) {
                bw_unuse(io->replyrule.bw);
@@ -2229,9 +2481,25 @@ doio(mother, io, rset, wset, flags)
             NULL, 0,
 #endif /* SOCKS_SERVER */
             &io->src.auth)) != r)
-               iolog(&io->replyrule, &replystate, OPERATION_ERROR,
-               &io->dst.host, &io->dst.auth, &io->src.host, &io->src.auth,
-               NULL, 0);
+               iolog(&io->replyrule,
+                     &replystate,
+                     OPERATION_ERROR,
+                     &io->dst.laddr,
+                     &io->dst.host,
+                     &io->dst.auth,
+                     io->state.proxyprotocol == PROXY_DIRECT
+                        ? NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol == PROXY_DIRECT
+                        ? NULL : &io->state.proxychain.extaddr,
+                     NULL,
+                     &io->src.laddr,
+                     &io->src.host,
+                     &io->src.auth,
+                     NULL,
+                     NULL,
+                     NULL,
+                     NULL,
+                     0);
 
             BWUPDATE(io, timenow, bwused);
             bw_unuse(io->replyrule.bw); /* packet-by-packet. */
@@ -2868,87 +3136,54 @@ siginfo(sig)
    slog(LOG_INFO, "io-child up %lu day%s, %lu:%.2lu:%.2lu",
                   days, days == 1 ? "" : "s", hours, minutes, seconds);
 
-   for (i = 0; i < ioc; ++i)
-      if (iov[i].allocated) {
-         char srcstring[MAXSOCKSHOSTSTRING];
-         char dststring[MAXSOCKSHOSTSTRING];
+   for (i = 0; i < ioc; ++i) {
+      char srcstring[ MAXSOCKADDRSTRING
+                    + strlen(" ")
+                    + MAXSOCKSHOSTSTRING
+                    + MAXAUTHINFOLEN], dststring[sizeof(srcstring)];
 
-         sockshost2string(&iov[i].dst.host, dststring, sizeof(dststring));
+      if (!iov[i].allocated)
+         continue;
 
-#if BAREFOOTD
-         if (iov[i].state.command == SOCKS_UDPASSOCIATE) {
-            struct udpclient *client;
-            size_t srci;
+      BUILD_ADDRSTR_SRC(&iov[i].src.host,
+                        NULL,
+                        NULL,
+                        &iov[i].src.laddr,
+                        &iov[i].src.auth,
+                        NULL,
+                        srcstring,
+                        sizeof(srcstring));
 
-            if (iov[i].dstc == 1)
-               /* if we have no active clients, print out the dummy one. */
-               srci = 0;
-            else
-               /* start from the first live one. */
-               srci = 1;
+      BUILD_ADDRSTR_DST(&iov[i].dst.laddr,
+                        iov[i].state.proxyprotocol == PROXY_DIRECT
+                           ? NULL : &iov[i].state.proxychain.server,
+                        iov[i].state.proxyprotocol == PROXY_DIRECT
+                           ? NULL : &iov[i].state.proxychain.extaddr,
+                        &iov[i].dst.host,
+                        &iov[i].dst.auth,
+                        NULL,
+                        dststring,
+                        sizeof(dststring));
 
-            for (; srci < iov[i].dstc; ++srci) {
-               client = &iov[i].dstv[srci];
-
-               sockaddr2string(&client->laddr, srcstring, sizeof(srcstring));
-
-               slog(LOG_INFO, "%s: %s <-> %s: idle: %.0fs, "
-                              "byte%s transferred: %lu, packet%s: %lu",
-                              protocol2string(iov[i].state.protocol),
-                              srcstring, dststring,
-                              difftime(timenow, (time_t)client->iotime.tv_sec),
-                              client->src_written.bytes
-                              + client->dst_written.bytes == 1 ?
-                              "" : "s",
-                              (unsigned long)(  client->src_written.bytes
-                                              + client->dst_written.bytes),
-                                client->src_written.packets,
-                              + client->dst_written.packets == 1 ?  "" : "s",
-                              (unsigned long)(  client->src_written.packets
-                                              + client->dst_written.packets));
-            }
-         }
-         else {
-            sockshost2string(&iov[i].src.host, srcstring, sizeof(srcstring));
-
-            slog(LOG_INFO, "%s: %s <-> %s: idle: %.0fs, byte%s transferred: %lu",
-                 protocol2string(iov[i].state.protocol),
-                 srcstring, dststring,
-                 difftime(timenow, (time_t)iov[i].iotime.tv_sec),
-                 iov[i].src.written.bytes + iov[i].dst.written.bytes
-                 == 1 ? "" : "s",
-                 (unsigned long)(iov[i].src.written.bytes
-                 + iov[i].dst.written.bytes));
-         }
-#else /* SOCKS_SERVER */
-
-         sockshost2string(&iov[i].src.host, srcstring, sizeof(srcstring));
-
-         if (iov[i].state.command == SOCKS_UDPASSOCIATE)
-            slog(LOG_INFO, "%s: %s <-> %s: idle: %.0fs, "
-                           "byte%s transferred: %lu, packet%s: %lu",
-                 protocol2string(iov[i].state.protocol),
-                 srcstring, dststring,
-                 difftime(timenow, (time_t)iov[i].iotime.tv_sec),
-                 iov[i].src.written.bytes + iov[i].dst.written.bytes
-                 == 1 ? "" : "s",
-                 (unsigned long)(iov[i].src.written.bytes
-                 + iov[i].dst.written.bytes),
-                 iov[i].src.written.packets + iov[i].dst.written.packets == 1 ?
-                 "" : "s",
-                 (unsigned long)(  iov[i].src.written.packets
-                                 + iov[i].dst.written.packets));
-         else
-            slog(LOG_INFO, "%s: %s <-> %s: idle: %.0fs, byte%s transferred: %lu",
-                 protocol2string(iov[i].state.protocol),
-                 srcstring, dststring,
-                 difftime(timenow, (time_t)iov[i].iotime.tv_sec),
-                 iov[i].src.written.bytes + iov[i].dst.written.bytes
-                 == 1 ? "" : "s",
-                 (unsigned long)(iov[i].src.written.bytes
-                 + iov[i].dst.written.bytes));
-#endif /* SOCKS_SERVER */
-      }
+      if (iov[i].state.command == SOCKS_UDPASSOCIATE)
+         slog(LOG_INFO, "%s: %s <-> %s: idle: %.0fs, "
+                        "bytes transferred: %lu <-> %lu, packets: %lu <-> %lu",
+              protocol2string(iov[i].state.protocol),
+              srcstring, dststring,
+              difftime(timenow, (time_t)iov[i].iotime.tv_sec),
+              (unsigned long)iov[i].dst.written.bytes,
+              (unsigned long)iov[i].src.written.bytes,
+              (unsigned long)iov[i].dst.written.packets,
+              (unsigned long)iov[i].src.written.packets);
+      else
+         slog(LOG_INFO,
+              "%s: %s <-> %s: idle: %.0fs, bytes transferred: %lu <-> %lu",
+              protocol2string(iov[i].state.protocol),
+              srcstring, dststring,
+              difftime(timenow, (time_t)iov[i].iotime.tv_sec),
+              (unsigned long)iov[i].dst.written.bytes,
+              (unsigned long)iov[i].src.written.bytes);
+   }
 }
 
 #if BAREFOOTD

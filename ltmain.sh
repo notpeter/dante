@@ -1490,6 +1490,17 @@ EOF
 	continue
 	;;
 
+#Dante hack - start
+      -all-dynamic)
+        if test "$build_libtool_libs" = no; then
+          $echo "$modename: warning: unable to build only dynamic libraries in this configuration" 1>&2
+        fi
+        build_old_libs=no
+        prefer_static_libs=no
+        continue
+        ;;
+#Dante hack - end
+
       -allow-undefined)
 	# FIXME: remove this flag sometime in the future.
 	$echo "$modename: \`-allow-undefined' is deprecated because it is the default" 1>&2

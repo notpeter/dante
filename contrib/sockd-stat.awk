@@ -86,8 +86,8 @@ function sorted_output (filename, field, count, rev_dns,	curhost,a,b)
 {
 	# sort and stuff all lines it into a temp file
 	if (count==0)
-	system("sort -nr +"field" "filename" 2>/dev/null >"filename".1");
-	else system("sort -nr +"field" "filename" 2>/dev/null | head -n "count" >"filename".1");
+	system("sort -nr +"field" "filename"  >"filename".1");
+	else system("sort -nr +"field" "filename" | head -n "count" >"filename".1");
 
 	# read temp file back in, print it out and rev-dns if needed
 	b=filename".1";
@@ -210,13 +210,13 @@ function rmfile (filename)
 	#
 	# clean up fields
 	#
-	gsub(/,/,"",curr_line[field_ofs+8]);
-	gsub(/:/,"",curr_line[field_ofs+13]);
+	gsub(/,/,"",curr_line[field_ofs+9]);
+	gsub(/:/,"",curr_line[field_ofs+15]);
 	split(curr_line[field_ofs+6],a,/\./);
 	c_ip=a[1]"."a[2]"."a[3]"."a[4];
-	if (match(curr_line[field_ofs+11],/^`world'$/))
-		curr_line[field_ofs+11]="0.0.0.0."a[5];
-	split(curr_line[field_ofs+11],a,/\./);
+	if (match(curr_line[field_ofs+12],/^`world'$/))
+		curr_line[field_ofs+12]="0.0.0.0."a[5];
+	split(curr_line[field_ofs+12],a,/\./);
 	t_ip=a[1]"."a[2]"."a[3]"."a[4];
 	t_port=a[5];
 
@@ -224,9 +224,9 @@ function rmfile (filename)
 	# add to totals
 	#
 	total_to_client_bytes += curr_line[field_ofs+4];
-	total_from_client_bytes += curr_line[field_ofs+8];
-	total_to_target_bytes += curr_line[field_ofs+9];
-	total_from_target_bytes += curr_line[field_ofs+13];
+	total_from_client_bytes += curr_line[field_ofs+9];
+	total_to_target_bytes += curr_line[field_ofs+10];
+	total_from_target_bytes += curr_line[field_ofs+15];
 
 	#
 	# update client
@@ -235,28 +235,28 @@ function rmfile (filename)
 	if (match(c_ip,/0\.0\.0\.0/)==0) {
 		client[c_ip]=1;
 		to_client[c_ip] += curr_line[field_ofs+4];
-		from_client[c_ip] += curr_line[field_ofs+8];
+		from_client[c_ip] += curr_line[field_ofs+9];
 	}
 
 	#
 	# update target
 	#
 	target[t_ip]=1;
-	to_target[t_ip] += curr_line[field_ofs+9];
-	from_target[t_ip] += curr_line[field_ofs+13];
+	to_target[t_ip] += curr_line[field_ofs+10];
+	from_target[t_ip] += curr_line[field_ofs+15];
 
 	#
 	# update port
 	#
 	if (match(curr_line[field_ofs+2],/tcp/)) {
 		tcp_port[t_port]=1;
-		tcp_port_to[t_port] += curr_line[field_ofs+9];
-		tcp_port_from[t_port] += curr_line[field_ofs+13];
+		tcp_port_to[t_port] += curr_line[field_ofs+10];
+		tcp_port_from[t_port] += curr_line[field_ofs+15];
 		tcp_port_used[t_port] += 1;
 	} else {
 		udp_port[t_port]=1;
-		udp_port_to[t_port] += curr_line[field_ofs+9];
-		udp_port_from[t_port] += curr_line[field_ofs+13];
+		udp_port_to[t_port] += curr_line[field_ofs+10];
+		udp_port_from[t_port] += curr_line[field_ofs+15];
 		udp_port_used[t_port] += 1;
 	}
 }

@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.155.2.4.2.5 2010/09/21 11:24:43 karls Exp $";
+"$Id: sockd_negotiate.c,v 1.155.2.4.2.5.2.7 2011/03/08 17:19:09 michaels Exp $";
 
 static void siginfo(int sig);
 
@@ -184,9 +184,26 @@ run_negotiate(mother)
 
       while ((neg = neg_gettimedout()) != NULL) {
          const char *reason = "negotiation timed out";
+         struct sockaddr sa;
 
-         iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->negstate.src,
-         &neg->socksauth, &neg->negstate.dst, NULL, reason, 0);
+         iolog(&neg->rule,
+               &neg->state,
+               OPERATION_TIMEOUT,
+               sockshost2sockaddr(&neg->negstate.dst, &sa),
+               &neg->negstate.src,
+               &neg->clientauth,
+               NULL,
+               NULL,
+               NULL,
+               NULL,
+               NULL,
+               NULL,
+               NULL,
+               NULL,
+               NULL,
+               reason,
+               strlen(reason));
+
          delete_negotiate(mother, neg);
       }
 
@@ -237,6 +254,7 @@ run_negotiate(mother)
 
 
       while ((neg = neg_getset(rset)) != NULL) {
+         struct sockaddr sa;
          neg_clearset(neg, rset);
 
          errno = 0;
@@ -273,8 +291,23 @@ run_negotiate(mother)
                   }
             }
 
-            iolog(&neg->rule, &neg->state, OPERATION_ABORT, &neg->negstate.src,
-            &neg->socksauth, &neg->negstate.dst, NULL, reason, 0);
+            iolog(&neg->rule,
+                  &neg->state,
+                  OPERATION_ERROR,
+                  sockshost2sockaddr(&neg->negstate.dst, &sa),
+                  &neg->negstate.src,
+                  &neg->clientauth,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  reason,
+                  strlen(reason));
 
 #if HAVE_GSSAPI
             if (neg->socksauth.method == AUTHMETHOD_GSSAPI
@@ -524,9 +557,10 @@ recv_negotiate(mother)
 
    /*
     * Might need to use some values from clientauth when negotiating,
-    * i.e. gssapi or pam-values.
+    * i.e. gssapi or pam-values, so just copy everything.
     */
-   neg->socksauth = neg->clientauth;
+   neg->socksauth        = neg->clientauth;
+   neg->socksauth.method = AUTHMETHOD_NOTSET;
 
    if (permit && neg->rule.ss != NULL) { /* only bother if rules permit. */
       if (!session_use(neg->rule.ss)) {
@@ -540,8 +574,23 @@ recv_negotiate(mother)
 
    socks_sigunblock(&oldset);
 
-   iolog(&neg->rule, &neg->state, OPERATION_ACCEPT, &neg->negstate.src,
-   &neg->socksauth, &neg->negstate.dst, NULL, ruleinfo, 0);
+   iolog(&neg->rule,
+         &neg->state,
+         OPERATION_ACCEPT,
+         &dst,
+         &neg->negstate.src,
+         &neg->clientauth,
+         NULL,
+         NULL,
+         NULL,
+         NULL,
+         NULL,
+         NULL,
+         NULL,
+         NULL,
+         NULL,
+         ruleinfo,
+         strlen(ruleinfo));
 
    if (!permit) {
       delete_negotiate(mother, neg);
@@ -769,10 +818,21 @@ siginfo(sig)
       if (!negv[i].allocated)
          continue;
       else {
-         char srcstring[MAXSOCKSHOSTSTRING];
+         struct sockaddr sa;
+         char srcstring[MAX_IOLOGADDR]; 
 
-         slog(LOG_INFO, "%s: negotiating for %.0fs",
-         sockshost2string(&negv[i].negstate.src, srcstring, sizeof(srcstring)),
-         difftime(timenow, negv[i].state.time.negotiate.tv_sec));
+         BUILD_ADDRSTR_SRC(&negv[i].negstate.src,
+                           NULL,
+                           NULL,
+                           sockshost2sockaddr(&negv[i].negstate.dst, &sa),
+                           &negv[i].clientauth,
+                           NULL,
+                           srcstring,
+                           sizeof(srcstring));
+
+         slog(LOG_INFO,
+              "%s: negotiating for %.0fs",
+              srcstring,
+              difftime(timenow, negv[i].state.time.negotiate.tv_sec));
       }
 }

@@ -1,4 +1,4 @@
-/* $Id: getifaddrs.c,v 1.12.2.1 2010/05/04 10:56:16 karls Exp $ */
+/* $Id: getifaddrs.c,v 1.12.2.1.4.1 2011/02/27 15:32:18 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -42,7 +42,7 @@
 #if 0
 #ifdef HAVE_CONFIG_H
 #include <config.h>
-RCSID("$Id: getifaddrs.c,v 1.12.2.1 2010/05/04 10:56:16 karls Exp $");
+RCSID("$Id: getifaddrs.c,v 1.12.2.1.4.1 2011/02/27 15:32:18 karls Exp $");
 #endif
 #include "roken.h"
 #endif
@@ -129,10 +129,10 @@ struct mbuf;
 #include <malloc.h>
 #include <errno.h>
 #include <unistd.h>
+#endif
 
 #include <sys/socket.h>
 #include <asm/types.h>
-#endif
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <sys/types.h>
@@ -145,7 +145,7 @@ struct mbuf;
 #include <net/if_arp.h>
 #include <netinet/in.h>
 
-#include "ifaddrs.h_compat"
+#include "ifaddrs_compat.h"
 
 #define __set_errno(e) (errno = (e))
 #define __close(fd) (close(fd))

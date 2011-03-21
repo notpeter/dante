@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.65 2009/10/23 11:43:37 karls Exp $";
+"$Id: socket.c,v 1.65.6.1 2011/03/02 06:03:49 michaels Exp $";
 
 int
 socks_connecthost(s, host)
@@ -117,7 +117,7 @@ socks_connecthost(s, host)
 
          if (rc == -1 && !ERRNOISINPROGRESS(errno))
             /* connect failed, don't change errno. */
-            snprintf(localaddrstr, sizeof(localaddrstr), "<N/A>");
+            snprintf(localaddrstr, sizeof(localaddrstr), "0.0.0.0");
          else {
             len = sizeof(localaddr);
             if (getsockname(s, (struct sockaddr *)&localaddr, &len) == -1) {

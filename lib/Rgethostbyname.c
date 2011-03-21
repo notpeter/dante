@@ -49,7 +49,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.65 2009/10/23 11:43:34 karls Exp $";
+"$Id: Rgethostbyname.c,v 1.65.6.1 2011/03/16 06:24:51 michaels Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -210,6 +210,12 @@ Rgetaddrinfo(nodename, servname, hints, res)
          gaierr = getaddrinfo(nodename, servname, hints, res);
          if (gaierr == 0 || !fakeip_flag)
             return gaierr;
+
+         slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) failed: %s",
+         function,
+         nodename == NULL ? "null" : nodename,
+         servname == NULL ? "null" : servname, gai_strerror(gaierr));
+
          break;
 
       case RESOLVEPROTOCOL_FAKE:
@@ -223,12 +229,6 @@ Rgetaddrinfo(nodename, servname, hints, res)
 
    if (!fakeip_flag || nodename == NULL)
       return EAI_NONAME;
-
-   if (sockscf.resolveprotocol != RESOLVEPROTOCOL_FAKE)
-      slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) failed: %s",
-      function,
-      nodename == NULL ? "null" : nodename,
-      servname == NULL ? "null" : servname, gai_strerror(gaierr));
 
    if ((ipindex.s_addr = socks_addfakeip(nodename)) == htonl(INADDR_NONE))
       return EAI_NONAME;
@@ -291,7 +291,7 @@ Rgetipnodebyname2(name, af, flags, error_num)
    switch (sockscf.resolveprotocol) {
       case RESOLVEPROTOCOL_TCP:
       case RESOLVEPROTOCOL_UDP:
-          slog(LOG_DEBUG, "%s: using udp/tcp", function);
+         slog(LOG_DEBUG, "%s: using udp/tcp", function);
          if ((hostent = getipnodebyname(name, af, flags, error_num)) != NULL)
             return hostent;
          break;

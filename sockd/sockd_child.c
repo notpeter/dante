@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.211.2.8.2.2 2010/09/21 11:24:43 karls Exp $";
+"$Id: sockd_child.c,v 1.211.2.8.2.2.2.2 2011/03/16 07:06:30 michaels Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -98,7 +98,7 @@ addchild(type)
    pid_t ourpid, pid;
    socklen_t optlen;
    size_t *childc;
-   int p, bufval, bufset, bufset2,
+   int p, bufval, bufset, bufset2, msg_sep_fuzz,
        datapipev[] = { -1, -1 }, ackpipev[] = { -1, -1 };
    /*
     * It is better to reserve some descriptors for temporary use
@@ -155,7 +155,8 @@ addchild(type)
          bufval += (MAX_GSS_STATE + sizeof(struct iovec)) * SOCKD_NEGOTIATEMAX;
 #endif /* HAVE_GSSAPI */
 
-         bufval += SENDMSG_PADBYTES * SOCKD_NEGOTIATEMAX;
+         bufval       += SENDMSG_PADBYTES * SOCKD_NEGOTIATEMAX;
+         msg_sep_fuzz  = 100 * SOCKD_NEGOTIATEMAX;
 
 #if HAVE_SENDMSG_DEADLOCK
          if ((mother.lock = socks_mklock(SOCKS_LOCKFILE)) == -1) {
@@ -183,7 +184,8 @@ addchild(type)
          bufval += (MAX_GSS_STATE + sizeof(struct iovec)) * SOCKD_REQUESTMAX;
 #endif /* HAVE_GSSAPI */
 
-         bufval += SENDMSG_PADBYTES * SOCKD_REQUESTMAX;
+         bufval       += SENDMSG_PADBYTES * SOCKD_REQUESTMAX;
+         msg_sep_fuzz  = 100 * SOCKD_REQUESTMAX;
 
 
 #if HAVE_SENDMSG_DEADLOCK
@@ -204,7 +206,8 @@ addchild(type)
          bufval += (MAX_GSS_STATE + sizeof(struct iovec)) * SOCKD_IOMAX;
 #endif /* HAVE_GSSAPI */
 
-         bufval += SENDMSG_PADBYTES * SOCKD_REQUESTMAX;
+         bufval       += SENDMSG_PADBYTES * SOCKD_IOMAX;
+         msg_sep_fuzz  = 100 * SOCKD_IOMAX;
 
 #if HAVE_SENDMSG_DEADLOCK
          mother.lock = -1;   /* doesn't need lock. */
@@ -215,6 +218,8 @@ addchild(type)
       default:
          SERRX(type);
    }
+
+   bufval += msg_sep_fuzz;
 
    if (setsockopt(datapipev[MOTHER], SOL_SOCKET, SO_RCVBUF, &bufval,
    sizeof(bufval)) != 0
@@ -582,8 +587,13 @@ childcheck(type)
 
          if (addchild(type) != NULL)
             return childcheck(type);
-         else
+         else {
+            swarn("%s: failed to add a new child to handle new clients",
+            function);
+
+            errno = 0;
             sockscf.child.addchild = 0;   /* don't retry until a child dies. */
+         }
       }
    }
 

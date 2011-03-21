@@ -48,7 +48,7 @@
 #include "ifaddrs_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.201.2.2 2010/05/24 16:38:36 karls Exp $";
+"$Id: util.c,v 1.201.2.2.4.2 2011/03/18 08:48:30 michaels Exp $";
 
 const char *
 strcheck(string)
@@ -1267,11 +1267,11 @@ getmaxofiles(limittype_t type)
 
    if (type == softlimit)
       return rlimit.rlim_cur;
-   else if (type == hardlimit)
-      return rlimit.rlim_max;
-   else
-      SERR(type); /* NOTREACHED */
 
+   if (type == hardlimit)
+      return rlimit.rlim_max;
+
+   SERR(type); /* NOTREACHED */
 }
 
 void

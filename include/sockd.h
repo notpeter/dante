@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.317.2.6.2.3 2010/09/21 11:24:42 karls Exp $ */
+/* $Id: sockd.h,v 1.317.2.6.2.3.2.10 2011/03/12 16:53:43 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -149,6 +149,84 @@ do {                                                           \
  * that was added to object on this call, or error.
 */
 
+/* 
+ * build a string for the source and one for the destination that can
+ * be used in iolog() and similar for logging the address related to
+ * something.
+ */
+#define MAX_IOLOGADDR                                                          \
+   MAXSOCKADDRSTRING + strlen(" ")                   /* local */               \
+ + MAXAUTHINFOLEN + MAXSOCKSHOSTSTRING + strlen(" ") /* proxy */               \
+ + MAXSOCKSHOSTSTRING + strlen(" ")                  /* proxy's ext addr. */   \
+ + MAXAUTHINFOLEN + MAXSOCKSHOSTSTRING               /* peer  */
+
+#define BUILD_ADDRSTR_SRC(peer, proxy_ext, proxy, local,                       \
+                          peerauth, proxyauth, str, len)                       \
+do {                                                                           \
+   struct sockshost_t p;                                                       \
+   char peerstr[MAXSOCKSHOSTSTRING], peerauthstr[MAXAUTHINFOLEN],              \
+        proxyauthstr[MAXAUTHINFOLEN], pstr[MAXSOCKSHOSTSTRING],                \
+        pe_str[MAXSOCKSHOSTSTRING], lstr[MAXSOCKSHOSTSTRING];                  \
+                                                                               \
+   snprintf((str), (len),                                                      \
+            "%s%s "                                                            \
+            "%s%s"                                                             \
+            "%s%s%s"                                                           \
+            "%s",                                                              \
+                                                                               \
+            authinfo((peerauth), peerauthstr, sizeof(peerauthstr)),            \
+            (peer) == NULL ?                                                   \
+            "0.0.0.0.0" : sockshost2string((peer), peerstr, sizeof(peerstr)),  \
+                                                                               \
+            (proxy_ext) == NULL ?                                              \
+               "" : sockshost2string((proxy_ext), pe_str, sizeof(pe_str)),     \
+            (proxy_ext) == NULL ? "" : " ",                                    \
+                                                                               \
+            authinfo((proxyauth), proxyauthstr, sizeof(proxyauthstr)),         \
+            (proxy) == NULL ?                                                  \
+             "" : sockshost2string(gwaddr2sockshost((proxy), &p),              \
+                                   pstr,                                       \
+                                   sizeof(pstr)),                              \
+            (proxy) == NULL ? "" : " ",                                        \
+                                                                               \
+            (local) == NULL ?                                                  \
+            "0.0.0.0.0" : sockaddr2string((local), lstr, sizeof(lstr)));       \
+} while (/* CONSTCOND */ 0)
+
+#define BUILD_ADDRSTR_DST(local, proxy, proxy_ext, peer,                       \
+                          peerauth, proxyauth, str, len)                       \
+do {                                                                           \
+   struct sockshost_t p;                                                       \
+   char peerstr[MAXSOCKSHOSTSTRING], peerauthstr[MAXAUTHINFOLEN],              \
+        proxyauthstr[MAXAUTHINFOLEN], pstr[MAXSOCKSHOSTSTRING],                \
+        pe_str[MAXSOCKSHOSTSTRING], lstr[MAXSOCKSHOSTSTRING];                  \
+                                                                               \
+   snprintf((str), (len),                                                      \
+            "%s "                                                              \
+            "%s%s%s"                                                           \
+            "%s%s"                                                             \
+            "%s%s",                                                            \
+                                                                               \
+            (local) == NULL ?                                                  \
+            "0.0.0.0.0" : sockaddr2string((local), lstr, sizeof(lstr)),        \
+                                                                               \
+            authinfo((proxyauth), proxyauthstr, sizeof(proxyauthstr)),         \
+            (proxy) == NULL ?                                                  \
+             "" : sockshost2string(gwaddr2sockshost((proxy), &p),              \
+                                   pstr,                                       \
+                                   sizeof(pstr)),                              \
+            (proxy) == NULL ? "" : " ",                                        \
+                                                                               \
+            (proxy_ext) == NULL ?                                              \
+               "" : sockshost2string((proxy_ext), pe_str, sizeof(pe_str)),     \
+            (proxy_ext) == NULL ? "" : " ",                                    \
+                                                                               \
+            authinfo((peerauth), peerauthstr, sizeof(peerauthstr)),            \
+            (peer) == NULL ?                                                   \
+            "0.0.0.0.0" : sockshost2string((peer), peerstr, sizeof(peerstr))); \
+} while (/* CONSTCOND */ 0)
+
+
 /* sent by sockd children to mother. */
 #define SOCKD_NEWREQUEST   (1)   /* sending a new request.          */
 #define SOCKD_FREESLOT     (2)   /* free'd a slot.                  */
@@ -204,13 +282,6 @@ typedef enum { SOCKD_PRIV_NOTSET = 0,
                SOCKD_PRIV_GSSAPI
 } privilege_t;
 
-
-#define OPERATION_ACCEPT      1
-#define OPERATION_CONNECT     (OPERATION_ACCEPT + 1)
-#define OPERATION_IO          (OPERATION_CONNECT + 1)
-#define OPERATION_ABORT       (OPERATION_IO + 1)
-#define OPERATION_ERROR       (OPERATION_ABORT + 1)
-#define OPERATION_TMPERROR    (OPERATION_ERROR + 1)
 
 #define DENY_SESSIONLIMITs    "session-limit reached"
 
@@ -304,6 +375,17 @@ typedef struct {
       unsigned char  macaddr[ETHER_ADDR_LEN];
    } value;
 } licensekey_t;
+
+typedef enum { 
+   OPERATION_ACCEPT,
+   OPERATION_CONNECT,
+   OPERATION_DISCONNECT,
+   OPERATION_IO,
+   OPERATION_TIMEOUT,
+   OPERATION_TMPERROR,
+   OPERATION_ERROR,
+   OPERATION_BLOCK
+} operation_t;
 
 /* linked list over current rules. */
 struct rule_t {
@@ -520,13 +602,23 @@ struct config_t {
    size_t                     methodc;             /* methods in list.        */
 };
 
+typedef struct {
+   gwaddr_t             server;
+   struct sockshost_t   extaddr;
+} proxychaininfo_t;
 
 struct connectionstate_t {
    int                  command;
    int                  clientcommand;
+   int                  proxyprotocol;
    int                  protocol;
    int                  clientprotocol;
-   struct extension_t   extension;         /* extensions set.                 */
+
+   
+   proxychaininfo_t     proxychain;   /* only if proxyprotocol is not direct. */
+
+   struct extension_t   extension;     /* extensions set.                     */
+
    struct {
       struct timeval    accepted;      /* time connection accepted.           */
       struct timeval    negotiate;     /* time negotiation started.           */
@@ -568,9 +660,9 @@ struct sockd_io_direction_t {
    struct sockshost_t         host;
    /*
     * Varies according to context.
-    * src    : as laddr but on sockshost_t form.
+    * src    : as raddr but on sockshost_t form.
     * dst    : name as given by client.
-    * control: as laddr
+    * control: same as src.
    */
 
    int                        sndlowat;   /* low-water mark for send.         */
@@ -606,8 +698,12 @@ struct sockd_io_t {
 
    struct rule_t                 crule;    /* client rule matched.            */
    struct rule_t                 rule;     /* matched rule for i/o.           */
-   struct rule_t                 replyrule;/* matched rule for (udp)reply i/o.*/
-   struct route_t                route;    /* route to next proxy, if used.   */
+
+   struct rule_t                 replyrule;/* 
+                                            * matched rule for reply i/o, 
+                                            * if separate. 
+                                            */
+
    struct timeval                iotime;   /* time of last i/o operation.     */
    struct sockd_io_t             *next;    /* for some special cases.         */
 };
@@ -965,9 +1061,15 @@ method_gssapi(int s, struct request_t *request,
 
 void
 iolog(struct rule_t *rule, const struct connectionstate_t *state,
-      int operation,
-      const struct sockshost_t *src, const struct authmethod_t *srcauth,
-      const struct sockshost_t *dst, const struct authmethod_t *dstauth,
+      const operation_t operation,
+      const struct sockaddr *src_local, const struct sockshost_t *src_peer,
+      const struct authmethod_t *src_auth,
+      const gwaddr_t *src_proxy, const struct sockshost_t *src_proxyext, 
+      const struct authmethod_t *src_proxyauth,
+      const struct sockaddr *dst_local, const struct sockshost_t *dst_peer,
+      const struct authmethod_t *dst_auth,
+      const gwaddr_t *dst_proxy, const struct sockshost_t *dst_proxyext,
+      const struct authmethod_t *dst_proxyauth,
       const char *data, size_t count);
 /*
  * Called after each each complete io operation
@@ -977,8 +1079,19 @@ iolog(struct rule_t *rule, const struct connectionstate_t *state,
  * possible libwrap interaction.
  * "state" is the state of the connection.
  * "operation" is the operation that was performed.
- * "src" is where data was read from.
- * "dst" is where data was written to.
+ * "src_peer" is where data was received from, on the local endpoint
+ *  "src_local".
+ * "dst_peer" is where data was written to, on the local endpoint
+ * "dst_local".
+ *
+ * "{src,dst}_proxy", if not NULL, is the proxyserver used in this 
+ * serverchain, for data to/from src_peer or to/from dst_peer,
+ * with auth {src,dst}_proxyauth.
+ *
+ * "{src,dst}_proxyext", if not NULL, is the external address used by the
+ * proxyserver in this serverchain, for data to/from src_peer or
+ * to/from dst_peer,
+ *
  * "data" and "count" are interpreted depending on "operation".
  *
  * If "operation" is
