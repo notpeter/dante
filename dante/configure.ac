@@ -1,8 +1,8 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.453.2.3.2.3 2010/09/21 12:05:18 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.453.2.3.2.3.2.4 2011/03/03 20:17:06 karls Exp $)
 
-version=1.2.2
+version=1.2.3
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="3"
 if test x$prerelease != x; then
@@ -23,7 +23,6 @@ AC_DEFINE(BAREFOOTD, 0, [we are Dante])
 #NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
 unset CFLAGS
-AC_AIX #evidently also modifies CFLAGS
 AC_PROG_LIBTOOL
 autoconf_compflags=$CFLAGS
 CFLAGS=$oCFLAGS
@@ -39,13 +38,14 @@ AC_PROG_CPP
 AM_CONDITIONAL(PRERELEASE, test x$prerelease != x)
 
 #known keywords for --enable/disable-foo(=yes/no)?
-LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77"
-KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback"
-for keyword in `set | egrep '^enable_' | sed -e 's/^enable_\(.*\)=.*/\1/'`; do
+LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77|option_checking"
+KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile"
+for keyword in `set | egrep '^enable_' | sed -e 's/^enable_//' | \
+                sed -e 's/=.*$//'`; do
     echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
     if test $? -ne 0; then
 	AC_MSG_WARN([unknown option '$keyword', ignoring ...])
-	sleep 10;
+#	sleep 10;
     fi
 done
 
@@ -60,8 +60,7 @@ esac
 #disable acceptlock
 #XXX add proper test for this?
 case $host in
-    *-*-*bsd* | alpha*-dec-osf* | *-*-hpux* | *-*-aix4* | *-*-aix5* | \
-    *-*-solaris*)
+    *-*-*bsd* | alpha*-dec-osf* | *-*-hpux* | *-*-aix* | *-*-solaris*)
 	no_acceptlock=t
 	;;
 esac
@@ -94,12 +93,21 @@ case $host in
 	AC_DEFINE(HAVE_DEFECT_RECVMSG, 1, [bug workaround])
 	AC_DEFINE(HAVE_LINUX_BUGS, 1, [bug workaround])
 	AC_DEFINE(HAVE_LINUX_ECCENTRICITIES, 1, [platform workarounds])
+	CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE=600 -D_XOPEN_SOURCE_EXTENDED"
+#	CPPFLAGS="${CPPFLAGS} -D_FORTIFY_SOURCE=2"
+	CPPFLAGS="${CPPFLAGS} -D_BSD_SOURCE"
+	if test x"$GCC" != x; then
+		#XXX want to avoid extension used in struct cmsghdr
+		CPPFLAGS="${CPPFLAGS} -U__GNUC__ -D__GNUC__=0"
+	fi
 	AC_DEFINE(SPT_PADCHAR, '\0', [setproctitle])
 	;;
 
-    *-*-aix4* | *-*-aix5*)
+    *-*-aix*)
 	OSPIDFILE="/etc/sockd.pid"
 	AC_DEFINE(HAVE_SYSTEM_XMSG_MAGIC, 1, [platform workaround])
+	AC_DEFINE(_ALL_SOURCE, 1, [contents from old AC_AIX test])
+	CPPFLAGS="${CPPFLAGS}${CPPFLAGS+ } -DXOPEN_SOURCE_EXTENDED=1"
 	;;
 esac
 
@@ -159,15 +167,6 @@ case $host in
 	fi
 	AC_MSG_RESULT([$comp_flags])
 	;;
-
-    *-*-aix4* | *-*-aix5*)
-	if test "x$GCC" = x; then
-	    comp_flags="-qlanglvl=ansi"
-	    #XXX
-	    CPPFLAGS="${CPPFLAGS} -qlanglvl=ansi"
-	fi
-	AC_MSG_RESULT([$comp_flags])
-     ;;
 
     *)
 	AC_MSG_RESULT([none])
@@ -596,6 +595,10 @@ case $host in
 	;;
 
     *-osf*)
+	so_sndlowat=t
+	;;
+
+    *-aix*)
 	so_sndlowat=t
 	;;
 esac

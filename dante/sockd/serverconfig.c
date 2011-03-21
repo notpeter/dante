@@ -48,7 +48,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.305.2.2 2010/05/24 16:39:12 karls Exp $";
+"$Id: serverconfig.c,v 1.305.2.2.4.5 2011/03/20 14:56:20 michaels Exp $";
 
 static void
 showlist(const struct linkedname_t *list, const char *prefix);
@@ -559,6 +559,9 @@ showconfig(sockscf)
    slog(LOG_DEBUG, "extensions enabled: %s",
    extensions2string(&sockscf->extension, buf, sizeof(buf)));
 
+   slog(LOG_DEBUG, "connect udp sockets to destination: %s",
+   sockscf->option.udpconnectdst ? "yes" : "no");
+
    slog(LOG_DEBUG, "logoutput goes to: %s",
    logtypes2string(&sockscf->log, buf, sizeof(buf)));
 
@@ -624,7 +627,6 @@ showconfig(sockscf)
       for (count = 0, route = sockscf->route; route != NULL;
       route = route->next)
          ++count;
-
       slog(LOG_DEBUG, "routes (%d): ", count);
       for (route = sockscf->route; route != NULL; route = route->next)
          socks_showroute(route);
@@ -732,90 +734,6 @@ resetconfig(void)
 
    /* childstate, most read from configfile, but some not. */
    sockscf.child.maxidle = 0;
-}
-
-void
-iolog(rule, state, operation, src, srcauth, dst, dstauth, data, count)
-   struct rule_t *rule;
-   const struct connectionstate_t *state;
-   int operation;
-   const struct sockshost_t *src;
-   const struct authmethod_t *srcauth;
-   const struct sockshost_t *dst;
-   const struct authmethod_t *dstauth;
-   const char *data;
-   size_t count;
-{
-   /* CONSTCOND */
-   char srcstring[MAXSOCKSHOSTSTRING + MAXAUTHINFOLEN];
-   char dststring[sizeof(srcstring)];
-   char rulecommand[256];
-   int p;
-
-   authinfo(srcauth, srcstring, sizeof(srcstring));
-   p = strlen(srcstring);
-   sockshost2string(src, &srcstring[p], sizeof(srcstring) - p);
-
-   authinfo(dstauth, dststring, sizeof(dststring));
-   p = strlen(dststring);
-   sockshost2string(dst, &dststring[p], sizeof(dststring) - p);
-
-   snprintfn(rulecommand, sizeof(rulecommand), "%s(%lu): %s/%s",
-   verdict2string(rule->verdict),
-   (unsigned long)rule->number,
-   protocol2string(state->protocol),
-   command2string(state->command));
-
-   switch (operation) {
-      case OPERATION_ACCEPT:
-      case OPERATION_CONNECT:
-         if (rule->log.connect)
-            slog(LOG_INFO, "%s [: %s -> %s%s%s",
-            rulecommand, srcstring, dststring,
-            (data == NULL || *data == NUL) ? "" : ": ",
-            (data == NULL || *data == NUL) ? "" : data);
-         break;
-
-      case OPERATION_ABORT:
-         if (rule->log.disconnect || rule->log.error)
-            slog(LOG_INFO, "%s ]: %s -> %s: %s",
-            rulecommand, srcstring, dststring,
-            (data == NULL || *data == NUL) ? strerror(errno) : data);
-         break;
-
-      case OPERATION_ERROR:
-         if (rule->log.error)
-            slog(LOG_INFO, "%s ]: %s -> %s: %s",
-            rulecommand, srcstring, dststring,
-            (data == NULL || *data == NUL) ? strerror(errno) : data);
-         break;
-
-      case OPERATION_TMPERROR:
-         if (rule->log.error)
-            slog(LOG_INFO, "%s -: %s -> %s: %s",
-            rulecommand, srcstring, dststring,
-            (data == NULL || *data == NUL) ? strerror(errno) : data);
-         break;
-
-      case OPERATION_IO:
-         if (rule->log.data && count != 0) {
-            char visdata[SOCKD_BUFSIZE * 4 + 1];
-
-            slog(LOG_INFO, "%s -: %s -> %s (%lu): %s",
-            rulecommand, srcstring, dststring, (unsigned long)count,
-            str2vis(data, count, visdata, sizeof(visdata)));
-
-            break;
-         }
-
-         if (rule->log.iooperation || rule->log.data)
-            slog(LOG_INFO, "%s -: %s -> %s (%lu)",
-            rulecommand, srcstring, dststring, (unsigned long)count);
-         break;
-
-      default:
-         SERRX(operation);
-   }
 }
 
 int
@@ -1398,6 +1316,13 @@ authinfo(auth, info, infolen)
    size_t infolen;
 {
    const char *name, *method, *methodinfo = NULL;
+
+   if (info == NULL || infolen == 0) {
+      static char buf[MAXAUTHINFOLEN];
+
+      info    = buf;
+      infolen = sizeof(buf);
+   }
 
    if (auth != NULL) {
       name   = authname(auth);

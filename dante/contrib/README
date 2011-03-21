@@ -6,10 +6,18 @@
 
    If any of these are no longer working, please send
    a bug-report so they can be removed.
+
    If you have suggestions for improvements, please contact the author
    of the contributed file, not Inferno Nettverk.
 
 
 Filename            Description
-sockd-stat.awk      provides statistics based on sockd logfiles
+--------------------------------------------------------------------------------
+sockd-stat.awk      provides statistics based on sockd logfiles.
+                    Note that this is an ancient script written by
+                    Stephan Eisvogel, who last updated this 10 years ago.
+                    A minimal update was done in 2011 by Inferno Nettverk
+                    in an attempt to sync it with changes to the logformat
+                    in Dante 1.2.3.
+
 Startup*            startupitems for Mac OS X

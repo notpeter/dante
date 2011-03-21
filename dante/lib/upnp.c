@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.62.2.2 2010/05/24 16:38:36 karls Exp $";
+"$Id: upnp.c,v 1.62.2.2.4.1 2011/03/04 13:46:17 michaels Exp $";
 
 #include "common.h"
 
@@ -86,6 +86,9 @@ socks_initupnp(gw, state)
 #else
    if (*state->upnp.controlurl != NUL)
       return 0;
+
+   bzero(&url, sizeof(url));
+   bzero(&data, sizeof(data));
 
    if (gw->atype == SOCKS_ADDR_URL) {
       slog(LOG_DEBUG, "%s: using IGD at \"%s\"\n", function, gw->addr.urlname);
@@ -172,23 +175,27 @@ socks_initupnp(gw, state)
                errno = ENETUNREACH;
 
             rc = -1;
+            break;
 
          default:
             swarnx("%s: unknown return code from UPNP_GetValidIGD(): %d",
             function, devtype);
-            rc = -1;
 
             if (errno == 0)
                errno = ENETUNREACH;
+
+            rc = -1;
       }
 
       freeUPNPDevlist(dev);
    }
 
-   SASSERTX(strlen(url.controlURL) < sizeof(state->upnp.controlurl));
-   strcpy(state->upnp.controlurl, url.controlURL);
-   SASSERTX(strlen(data.servicetype) < sizeof(state->upnp.servicetype));
-   strcpy(state->upnp.servicetype, data.servicetype);
+   if (rc == 0) {
+      SASSERTX(strlen(url.controlURL) < sizeof(state->upnp.controlurl));
+      strcpy(state->upnp.controlurl, url.controlURL);
+      SASSERTX(strlen(data.servicetype) < sizeof(state->upnp.servicetype));
+      strcpy(state->upnp.servicetype, data.servicetype);
+   }
 
    FreeUPNPUrls(&url);
 

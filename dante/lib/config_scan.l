@@ -54,7 +54,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.112.2.3 2010/05/24 16:38:36 karls Exp $";
+"$Id: config_scan.l,v 1.112.2.3.4.2 2011/03/04 13:03:39 michaels Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -187,22 +187,37 @@ PORTNUMBER [0-9]{1,5}
    return URL;
 }
 
-<start_address>[\.a-zA-Z]+[:\.a-zA-Z0-9]* {
+<start_address>\. {
+   BEGIN(start_port);
+
+   yylval.string = yytext;
+   return DOMAINNAME;
+}
+
+<start_address>[^: \t\n][^/ \t\n]+ {
    struct sockaddr addr;
+   struct in_addr ipv4;
 
    BEGIN(start_port);
 
    yylval.string = yytext;
 
    /*
-    * we don't have a reliable regex to differentiate between
-    * domainname and ifname on all systems, so do a rough match and
-     * then a practical test to see which one it is.
+    * we don't have a reliable regex to differentiate between a
+    * domainname and ifname on all systems. 
+    * With a very general regex like the above, it is not so easy 
+    * to exclude an ipaddress from matching it also.  So instead
+    * of contiuing to try and create a perfect regex, do a bruteforce
+    * check to see what the text represents.
     */
+
+   if (inet_pton(AF_INET, yytext, &ipv4) == 1)
+      return IPADDRESS;
+
    if (ifname2sockaddr(yytext, 0, &addr, NULL) != NULL)
       return IFNAME;
-   else
-      return DOMAINNAME;
+
+   return DOMAINNAME;
 }
 
 <start_port>port {
@@ -736,14 +751,6 @@ localdomain.*:.*|connecttimeout|iotimeout {
 
 
    /* misc. generic stuff. */
-
-<start_address>[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3} {
-   BEGIN(start_port);
-
-   yylval.string = yytext;
-   return IPADDRESS;
-}
-
 
 <*>[0-9]+ {
    yylval.string = yytext;

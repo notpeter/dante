@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.143.4.4 2010/09/21 11:24:43 karls Exp $";
+"$Id: io.c,v 1.143.4.4.2.1 2011/03/16 06:19:00 michaels Exp $";
 
 #if !SOCKS_CLIENT
 static void checkforsignal(void);
@@ -629,12 +629,14 @@ selectn(nfds, rset, bufrset, wset, bufwset, xset, timeout)
 {
    const char *function = "selectn()";
    static fd_set *_rset, *_wset, *_xset;
-   struct timeval zerotimeout = { 0, 0 };
-   /* const */ struct timeval _timeout = timeout == NULL ? _timeout : *timeout;
+   struct timeval zerotimeout = { 0, 0 }, _timeout;
    int i, rc, bufset_nfds;
 #if !SOCKS_CLIENT
    int goteintr = 0;
 #endif /* !SOCKS_CLIENT */
+
+   if (timeout != NULL)
+      _timeout = *timeout;
 
    if (_rset == NULL) {
       _rset = allocate_maxsize_fdset();

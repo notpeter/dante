@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009, 2010
+ * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.61.4.5 2010/09/21 11:24:43 karls Exp $";
+"$Id: auth_pam.c,v 1.61.4.5.2.1 2011/03/03 13:42:11 michaels Exp $";
 
 static int
 pam_conversation(int msgc, const struct pam_message **msgv,
@@ -100,8 +100,8 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
       { PAM_RUSER, "PAM_RUSER", DEFAULT_PAM_RUSER },
    };
 
-   slog(LOG_DEBUG, "%s: pam service name to use for user \"%s\": %s",
-   function, auth->name, auth->servicename);
+   slog(LOG_DEBUG, "%s: user \"%s\", servicename \"%s\", emsgsize %ld",
+   function, auth->name, auth->servicename, (long)emsgsize);
 
    /*
     * Note: we can not save the state of pam after pam_start(3), as
@@ -110,10 +110,10 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
     * depending on the client/rule.
     * Some Linux pam-implementations on the other hand can enter
     * some sort of busy-loop if we don't call pam_end(3) ever so
-    * often.
+    * often. 
     *
-    * Therefor, disregard all possible optimization stuff for now and
-    * call pam_start(3) and pam_end(3) every time.
+    * Therefor, disregard all possible optimization stuff for now and 
+    * call pam_start(3) and pam_end(3) every time.  
     */
 
    pamconv.conv        = pam_conversation;
@@ -133,9 +133,9 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    for (i = 0; i < ELEMENTS(pamval); ++i) {
       char value[256];
 
-      str2vis((const char *)pamval[i].value,
-              strlen((const char *)pamval[i].value),
-              value,
+      str2vis((const char *)pamval[i].value, 
+              strlen((const char *)pamval[i].value), 
+              value, 
               sizeof(value));
 
       slog(LOG_DEBUG, "%s: setting item \"%s\" to value \"%s\"",
@@ -157,6 +157,9 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    if ((rc = pam_authenticate(pamh, 0)) != PAM_SUCCESS) {
       sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
 
+      slog(LOG_DEBUG, "%s: pam_authenticate() failed: %s",
+      function, pam_strerror(pamh, rc));
+
       snprintf(emsg, emsgsize, "pam_authenticate(): %s",
       pam_strerror(pamh, rc));
 
@@ -166,7 +169,11 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 
    rc = pam_acct_mgmt(pamh, PAM_SILENT);
    sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
+
    if (rc != PAM_SUCCESS) {
+      slog(LOG_DEBUG, "%s: pam_acct_mgmt() failed: %s",
+      function, pam_strerror(pamh, rc));
+
       snprintf(emsg, emsgsize, "pam_acct_mgmt(): %s", pam_strerror(pamh, rc));
 
       pam_end(pamh, rc);
@@ -174,8 +181,10 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    }
 
    if ((rc = pam_end(pamh, rc)) != PAM_SUCCESS)
-      swarnx("%s: strange ... pam_end() failed: %s", pam_strerror(pamh, rc));
+      swarnx("%s: strange ... pam_end() failed: %s", 
+      function, pam_strerror(pamh, rc));
 
+   slog(LOG_DEBUG, "%s: pam authentication succeeded", function);
    return 0;
 }
 
@@ -196,7 +205,9 @@ pam_conversation(msgc, msgv, rspv, authdata)
    }
 
    if (((*rspv) = malloc(msgc * sizeof(struct pam_response))) == NULL) {
-      swarn("%s: malloc(%d * %d)", function, msgc, sizeof(struct pam_response));
+      swarn("%s: malloc(%d * %lu)",
+      function, msgc, (unsigned long)sizeof(struct pam_response));
+
       return PAM_CONV_ERR;
    }
 
@@ -222,7 +233,8 @@ pam_conversation(msgc, msgv, rspv, authdata)
             break;
 
          case PAM_ERROR_MSG:
-            slog(LOG_INFO, "%s: %s", function, msgv[i]->msg);
+            slog(LOG_INFO, "%s: got a pam error msg: %s",
+            function, msgv[i]->msg);
             break;
 
          case PAM_TEXT_INFO:
@@ -230,7 +242,8 @@ pam_conversation(msgc, msgv, rspv, authdata)
              * not expecting this, and where it has been seen (some versions
              * of FreeBSD), the string has been empty.
              */
-            slog(LOG_DEBUG, "%s: %s", function, msgv[i]->msg);
+            slog(LOG_DEBUG, "%s: got PAM_TEXT_INFO: \"%s\"",
+            function, msgv[i]->msg);
             break;
 
          default:

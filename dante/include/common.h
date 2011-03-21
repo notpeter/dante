@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.483.2.4.2.4 2010/09/21 11:24:42 karls Exp $ */
+/* $Id: common.h,v 1.483.2.4.2.4.2.2 2011/03/04 16:57:47 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -244,6 +244,10 @@ do {                                      \
    memcpy((dst), (src), SOCKD_FD_SIZE()); \
 } while (/* CONSTCOND */ 0)
 
+
+#define ERRNOSTR(errno)  \
+   (((errno) == 0 ? "no system error" : strerror(errno)))
+
 #define ERRNOISTMP(errno) \
    (  (errno) == EAGAIN  || (errno) == EWOULDBLOCK || (errno) == EINTR \
    || (errno) == ENOBUFS)
@@ -280,7 +284,7 @@ do {                                      \
  * if not we get the default behavior.
  */
 
-#define SENDMSG_PADBYTES   (sizeof(long) * 8) /* just a guess. */
+#define SENDMSG_PADBYTES   (sizeof(long) * 32) /* just a guess. */
 
 #if HAVE_CMSGHDR
 

@@ -1,6 +1,38 @@
-@(#)$Id: NEWS,v 1.62.2.16.2.8 2010/09/21 11:24:42 karls Exp $
+@(#)$Id: NEWS,v 1.62.2.16.2.8.2.12 2011/03/20 22:44:35 karls Exp $
 
 (NOTE: The contents of this file is not updated for pre-releases.)
+
+***
+***  Monday, March 21, 2011 -- Dante v1.2.3
+***
+
+ o Fix problem introduced in version 1.2.1, causing the SO_REUSEADDR
+   flag to not be set. Would cause problems during server restart if
+   only the main process was killed.
+
+   Thanks to Ralf Wenk <Ralf.Wenk@hs-karlsruhe.de.example.com> for
+   reporting this problem.
+
+ o The regular expression for host and interface name parsing has been
+   relaxed somewhat, allowing the use of some interface names and host
+   names containing characters that were not allowed previously.
+
+   Fixes problem reported by karesmakro <ipcop@it-connect-unix.de.example.com>,
+   Ralf Wenk <Ralf.Wenk@hs-karlsruhe.de.example.com>, 
+   and <Adam.Barclay@barclayscapital.com.example.com>.
+
+ o The traffic log format has been slightly extended and now includes
+   complete information about all communication endpoints, for both
+   normal usage and with server chaining.
+
+ o Compilation fixes for older Linux distributions.
+
+ o Fix bug where the Solaris capabilities were not correctly
+   added/removed at all times.
+
+ o Compilation fixes for AIX 6.1.  Problem report and testing by
+   Ville O Kesola <ville.kesola@fi.ibm.com.example.com> and
+   Ralf Wenk <iz-dante-0910@hs-karlsruhe.de.example.com>.
 
 ***
 ***  Tuesday, September 21, 2010 -- Dante v1.2.2

@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.57.2.2 2010/05/24 16:38:36 karls Exp $";
+"$Id: tostring.c,v 1.57.2.2.4.1 2011/03/16 14:14:44 michaels Exp $";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -156,13 +156,13 @@ socks_packet2string(packet, type)
          switch (type) {
             case SOCKS_REQUEST:
                snprintfn(buf, sizeof(buf),
-               "(V4) VN: %d CD: %d address: %s",
+               "VER: %d CMD: %d address: %s",
                request->version, request->command,
                sockshost2string(&request->host, hstring, sizeof(hstring)));
                break;
 
             case SOCKS_RESPONSE:
-               snprintfn(buf, sizeof(buf), "(V4) VN: %d CD: %d address: %s",
+               snprintfn(buf, sizeof(buf), "VER: %d REP: %d address: %s",
                response->version, response->reply,
                sockshost2string(&response->host, hstring, sizeof(hstring)));
                break;

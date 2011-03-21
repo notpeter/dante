@@ -47,7 +47,7 @@ am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/libscompat.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
-mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+mkinstalldirs = $(SHELL) $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/include/autoconf.h
 CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(sbindir)"
@@ -66,7 +66,7 @@ am_sockd_OBJECTS = config_parse.$(OBJEXT) config_scan.$(OBJEXT) \
 	auth_pam.$(OBJEXT) tostring.$(OBJEXT) redirect.$(OBJEXT) \
 	redirect_key.$(OBJEXT) addressmatch.$(OBJEXT) \
 	checkmodule.$(OBJEXT) shmem.$(OBJEXT) bandwidth.$(OBJEXT) \
-	bandwidth_key.$(OBJEXT) getifa.$(OBJEXT) \
+	bandwidth_key.$(OBJEXT) getoutaddr.$(OBJEXT) \
 	clientprotocol.$(OBJEXT) httpproxy.$(OBJEXT) authneg.$(OBJEXT) \
 	userio.$(OBJEXT) session.$(OBJEXT) session_key.$(OBJEXT) \
 	upnp.$(OBJEXT) method_gssapi.$(OBJEXT) gssapi.$(OBJEXT) \
@@ -236,7 +236,7 @@ sockd_SOURCES = ../lib/config_parse.c ../lib/config_scan.c                  \
 	redirect.c redirect_key.c                                           \
 	../lib/addressmatch.c checkmodule.c shmem.c                         \
 	bandwidth.c bandwidth_key.c					    \
-	getifa.c ../lib/clientprotocol.c ../lib/httpproxy.c                 \
+	getoutaddr.c ../lib/clientprotocol.c ../lib/httpproxy.c                 \
 	../lib/authneg.c  ../lib/userio.c                                   \
 	session.c session_key.c                                             \
 	../lib/upnp.c method_gssapi.c ../lib/gssapi.c ../lib/iobuf.c        \
@@ -349,7 +349,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/config_parse.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/config_scan.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getifa.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getoutaddr.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gssapi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostcache.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/httpproxy.Po@am__quote@

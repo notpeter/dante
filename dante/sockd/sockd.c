@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.408.2.8.2.5 2010/09/21 11:24:43 karls Exp $";
+"$Id: sockd.c,v 1.408.2.8.2.5.2.5 2011/03/18 08:31:40 michaels Exp $";
 
 int
 #if HAVE_SETPROCTITLE
@@ -152,6 +152,7 @@ main(argc, argv, envp)
 #endif /* HAVE_SETPROCTITLE */
 {
    const char *function = "main()";
+   struct rlimit rlimit;
    FILE *fp;
    struct sigaction sigact;
    ssize_t p;
@@ -226,50 +227,47 @@ main(argc, argv, envp)
 
    /*
     * Check system limits against what we need.
-    * Enough descriptors for each child process?  +2 for pipes to mother.
+    * Enough descriptors for each child process? + 2 for the pipes from 
+    * the child to mother.
     */
 
    /* CONSTCOND */
    minfd = MAX(SOCKD_NEGOTIATEMAX,
    MAX(SOCKD_REQUESTMAX, SOCKD_IOMAX * FDPASS_MAX)) + 2;
 
-   if (dforchild < minfd) {
-      struct rlimit rlimit;
-
-      swarnx("%s: ... strange, we only have %lu descriptors available for "
-             "child processes  ... need at least %lu.  Increasing ...",
-             function, (unsigned long)dforchild, (unsigned long)minfd);
-
-      rlimit.rlim_cur = rlimit.rlim_max = MIN(minfd, getmaxofiles(hardlimit));
-
-      if (setrlimit(RLIMIT_OFILE, &rlimit) != 0) {
-         const int maxofiles = getmaxofiles(softlimit);
-
-         if (errno != EPERM)
-            serr(EXIT_FAILURE, "setrlimit(RLIMIT_OFILE, %d)",
-            (int)rlimit.rlim_max);
-         else if (maxofiles < SOCKD_NEGOTIATEMAX + 2)
-            serr(EXIT_FAILURE,
-            "%d descriptors configured for negotiation, %d available",
-            SOCKD_NEGOTIATEMAX + 2, maxofiles);
-         else if (maxofiles < SOCKD_REQUESTMAX + 2)
-            serr(EXIT_FAILURE,
-            "%d descriptors configured for request completion, %d available",
-            SOCKD_REQUESTMAX + 2, maxofiles);
-         else if (maxofiles < SOCKD_IOMAX * FDPASS_MAX + 2)
-            serr(EXIT_FAILURE,
-            "%d descriptors configured for i/o, %d available",
-            SOCKD_IOMAX * FDPASS_MAX + 2, maxofiles);
-         else
-            SERRX(maxofiles);
-      }
-   }
-
    /*
     * need to know max number of open files so we can allocate correctly
     * sized fd_sets.
     */
-   sockscf.state.maxopenfiles = getmaxofiles(softlimit);
+   sockscf.state.maxopenfiles = getmaxofiles(hardlimit);
+   slog(LOG_DEBUG, "hardlimit for max number of open files is %lu, "
+                   "softlimit is %lu",
+                   (unsigned long)sockscf.state.maxopenfiles,
+                   (unsigned long)getmaxofiles(softlimit));
+
+   if (sockscf.state.maxopenfiles < minfd) {
+      swarnx("have only %lu filedescriptors available, but need at least %lu "
+             "according to the configuration.  Trying to increase it ...",
+             (unsigned long)sockscf.state.maxopenfiles, minfd);
+
+      sockscf.state.maxopenfiles = minfd;
+   }
+
+   rlimit.rlim_cur = rlimit.rlim_max = sockscf.state.maxopenfiles;
+
+   if (setrlimit(RLIMIT_OFILE, &rlimit) == 0)
+      slog(sockscf.state.maxopenfiles < minfd ? LOG_INFO : LOG_DEBUG,
+           "max number of filedescriptors is now %lu",
+           (unsigned long)sockscf.state.maxopenfiles);
+  else
+      swarnx("failed to increase the max number of filedescriptors.  "
+            "setrlimit(RLIMIT_OFILE, {%lu, %lu}) failed (%s).  "
+            "Change the kernel's limit, or change the values in %s's "
+            "include/config.h, or %s will not run reliably",
+            (unsigned long)rlimit.rlim_cur, (unsigned long)rlimit.rlim_max,
+            strerror(errno),
+            PACKAGE,
+            PACKAGE);
 
    /* set up signal handlers. */
 
@@ -525,7 +523,7 @@ moncontrol(0);
 #if DIAGNOSTIC
          int freed = freedescriptors(sockscf.option.debug ? "start" : NULL);
 #endif /* DIAGNOSTIC */
-         int childisbad = 0, childhasfinished = 0;
+         int childisbad = 0;
 
          switch (child->type) {
             /*
@@ -981,6 +979,10 @@ serverinit(argc, argv, envp)
          serr(EXIT_FAILURE, "%s: socket(SOCK_STREAM)", function);
 
       setsockoptions(l->s);
+
+      ch = 1;
+      if (setsockopt(l->s, SOL_SOCKET, SO_REUSEADDR, &ch, sizeof(ch)) != 0)
+         swarn("%s: setsockopt(SO_REUSEADDR)", function);
 
       if (sockd_bind(l->s, (struct sockaddr *)&l->addr, 1) != 0) {
          char badbind[MAXSOCKADDRSTRING];
