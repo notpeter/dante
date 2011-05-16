@@ -52,7 +52,7 @@
 #endif /* HAVE_LIBMINIUPNP */
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.68 2009/10/23 11:43:34 karls Exp $";
+"$Id: Rgetsockname.c,v 1.72 2010/09/22 08:58:47 michaels Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -68,22 +68,22 @@ Rgetsockname(s, name, namelen)
 
    slog(LOG_DEBUG, "%s, socket %d", function, s);
 
-   if (!socks_addrisours(s, 1)) {
+   if (!socks_addrisours(s, &socksfd, 1)) {
       socks_rmaddr(s, 1);
       return getsockname(s, name, namelen);
    }
-
-   socksfd = *socks_getaddr(s, 1);
 
    if (socksfd.state.version == PROXY_UPNP) {
 #if HAVE_LIBMINIUPNP
       if (ADDRISBOUND(TOIN(&socksfd.remote)))
          addr = socksfd.remote; /* already have it. */
       else {
+         struct socksfd_t *p;
          char straddr[INET_ADDRSTRLEN];
          int rc;
 
-         socksfd = *socks_getaddr(s, 1);
+         p = socks_getaddr(s, &socksfd, 1);
+         SASSERTX(p != NULL);
 
          if ((rc = UPNP_GetExternalIPAddress(socksfd.route->gw.state.data.upnp
          .controlurl, socksfd.route->gw.state.data.upnp.servicetype, straddr))
@@ -115,9 +115,9 @@ Rgetsockname(s, name, namelen)
          case SOCKS_CONNECT: {
             sigset_t set, oset;
 
-            /* for non-blocking connect, we get a SIGCHLD upon completion. */
+            /* for non-blocking connect, we get a SIGIO upon completion. */
             (void)sigemptyset(&set);
-            (void)sigaddset(&set, SIGCHLD);
+            (void)sigaddset(&set, SIGIO);
             if (sigprocmask(SIG_BLOCK, &set, &oset) != 0) {
                swarn("%s: sigprocmask()", function);
                return -1;
@@ -126,13 +126,13 @@ Rgetsockname(s, name, namelen)
             if (socksfd.state.inprogress) { /* non-blocking connect. */
                /*
                 * this is bad.  We don't know what address the socks server
-                * will use on our behalf yet.  Lets wait for a SIGCHLD
+                * will use on our behalf yet.  Lets wait for a SIGIO
                 * and then retry, unless client is blocking that signal,
                 * then we can only hope the client will retry on ENOBUFS,
                 * but we are probably screwed anyway.
                */
-               if (sigismember(&oset, SIGCHLD)) {
-                  slog(LOG_DEBUG, "%s: SIGCHLD blocked by client", function);
+               if (sigismember(&oset, SIGIO)) {
+                  slog(LOG_DEBUG, "%s: SIGIO blocked by client", function);
 
                   if (sigprocmask(SIG_BLOCK, &oset, NULL) != 0) {
                      swarn("%s: sigprocmask()", function);

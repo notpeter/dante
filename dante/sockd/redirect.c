@@ -44,10 +44,10 @@
 #include "common.h"
 
 static const char rcsid[] = 
-"$Id: redirect.c,v 1.9 2009/10/22 17:36:12 karls Exp $";
+"$Id: redirect.c,v 1.10 2010/05/31 13:27:46 karls Exp $";
 
 const char module_redirect_version[] =
-"$Id: redirect.c,v 1.9 2009/10/22 17:36:12 karls Exp $";
+"$Id: redirect.c,v 1.10 2010/05/31 13:27:46 karls Exp $";
 
 
 void
@@ -65,6 +65,13 @@ redirect(s, addr, host, command, from, to)
    const struct ruleaddr_t *from;
    const struct ruleaddr_t *to;
 {
+
+   (void)s;
+   (void)addr;
+   (void)host;
+   (void)command;
+   (void)from;
+   (void)to;
 
    return 0;
 }

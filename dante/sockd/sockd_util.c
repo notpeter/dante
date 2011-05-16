@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2008,
- *               2009, 2010
+ *               2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,10 +43,9 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.143.2.2 2010/05/24 16:39:13 karls Exp $";
+"$Id: sockd_util.c,v 1.187 2011/05/09 09:53:06 michaels Exp $";
 
 #include "common.h"
-
 
 int
 selectmethod(methodv, methodc, offeredv, offeredc)
@@ -61,10 +60,8 @@ selectmethod(methodv, methodc, offeredv, offeredc)
    for (i = 0; i < methodc; ++i) {
       if (methodv[i] > AUTHMETHOD_NOACCEPT) {
          /*
-          * non-socks method.  Can select any of the standard
-          * methods then, but might pay some attention to what
-          * is preferred.  For rfc931, choose the simplest.
-          * For pam, make a guess.
+          * non-socks method.  Can select any of the standard methods 
+          * that can provide the necessary information.
           */
          const unsigned char rfc931methodv[] = { AUTHMETHOD_NONE,
                                                  AUTHMETHOD_UNAME,
@@ -74,10 +71,17 @@ selectmethod(methodv, methodc, offeredv, offeredc)
                                                };
 
          const unsigned char pammethodv[] = {    AUTHMETHOD_UNAME,
+                                                 AUTHMETHOD_NONE,
 #if HAVE_GSSAPI
                                                  AUTHMETHOD_GSSAPI,
 #endif /* HAVE_GSSAPI */
-                                                 AUTHMETHOD_NONE   };
+                                            };
+
+         const unsigned char bsdmethodv[] = {    AUTHMETHOD_UNAME,
+#if HAVE_GSSAPI
+                                                 AUTHMETHOD_GSSAPI,
+#endif /* HAVE_GSSAPI */
+                                            };
          int intmethodv[MAXMETHOD];
          size_t ii;
 
@@ -91,6 +95,11 @@ selectmethod(methodv, methodc, offeredv, offeredc)
             case AUTHMETHOD_PAM:
                methodokc = ELEMENTS(pammethodv);
                methodokv = pammethodv;
+               break;
+
+            case AUTHMETHOD_BSDAUTH:
+               methodokc = ELEMENTS(bsdmethodv);
+               methodokv = bsdmethodv;
                break;
 
             default:
@@ -112,66 +121,6 @@ selectmethod(methodv, methodc, offeredv, offeredc)
    return AUTHMETHOD_NOACCEPT;
 }
 
-void
-setsockoptions(s)
-   int s;
-{
-   const char *function = "setsockoptions()";
-   socklen_t len;
-   int type, val, bufsize;
-
-
-   len = sizeof(type);
-   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0) {
-      swarn("%s: getsockopt(SO_TYPE)", function);
-      return;
-   }
-
-   switch (type) {
-      case SOCK_STREAM:
-         bufsize = SOCKS_SOCKET_BUFSIZETCP;
-
-         val = 1;
-         if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) != 0)
-            swarn("%s: setsockopt(TCP_NODELAY)", function);
-
-         val = 1;
-         if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val)) != 0)
-            swarn("%s: setsockopt(SO_OOBINLINE)", function);
-
-         if (sockscf.option.keepalive) {
-            val = 1;
-            if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) != 0)
-               swarn("%s: setsockopt(SO_KEEPALIVE)", function);
-         }
-         break;
-
-      case SOCK_DGRAM:
-         bufsize = SOCKS_SOCKET_BUFSIZEUDP;
-
-         val = 1;
-         if (setsockopt(s, SOL_SOCKET, SO_BROADCAST, &val, sizeof(val)) != 0)
-            if (errno != ENOPROTOOPT)
-               swarn("%s: setsockopt(SO_BROADCAST)", function);
-
-         break;
-
-      default:
-         SERRX(type);
-   }
-
-   val = bufsize;
-   if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val)) != 0
-   ||  setsockopt(s, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val)) != 0)
-      swarn("%s: setsockopt(SO_SNDBUF/SO_RCVBUF)", function);
-
-#if HAVE_LIBWRAP
-   if ((val = fcntl(s, F_GETFD, 0))       == -1
-   || fcntl(s, F_SETFD, val | FD_CLOEXEC) == -1)
-      swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
-#endif /* HAVE_LIBWRAP */
-}
-
 
 void
 sockdexit(code)
@@ -179,6 +128,11 @@ sockdexit(code)
 {
    const char *function = "sockdexit()";
    static int exiting;
+   struct rule_t *rulev[] = { sockscf.crule,
+#if HAVE_TWO_LEVEL_ACL
+                              sockscf.srule 
+#endif /* HAVE_TWO_LEVEL_ACL */
+   };
    struct sigaction sigact;
    size_t i;
    int ismainmother;
@@ -189,6 +143,7 @@ sockdexit(code)
     */
    if (exiting)
       return;
+
    exiting = 1;
 
    /*
@@ -211,25 +166,32 @@ sockdexit(code)
          slog(LOG_ALERT, "%s: terminating", function);
 
 #if !HAVE_DISABLED_PIDFILE
-      if (sockscf.state.init)
+      if (sockscf.state.inited)
          sockd_priv(SOCKD_PRIV_FILE_WRITE, PRIV_ON);
 
-      if (truncate(SOCKD_PIDFILE, 0) != 0)
-         swarn("%s: truncate(%s)", function, SOCKD_PIDFILE);
+      if (sockscf.option.pidfile              != NULL
+      &&  truncate(sockscf.option.pidfile, 0) != 0)
+         swarn("%s: truncate(%s)", function, sockscf.option.pidfile);
 
-      if (sockscf.state.init)
+      if (sockscf.state.inited)
          sockd_priv(SOCKD_PRIV_FILE_WRITE, PRIV_OFF);
 #endif /* !HAVE_DISABLED_PIDFILE */
 
    }
 
 #if HAVE_PROFILING
-   if (chdir(SOCKS_PROFILEDIR) != 0)
-      swarn("%s: chdir(%s)", function, SOCKS_PROFILEDIR);
+   if (chdir(SOCKS_PROFILEDIR) != 0) {
+      if (pidismother(sockscf.state.pid))
+         slog(LOG_ERR,
+              "%s: profiling is enabled, but could not chdir(2) to it (%s).  "
+              "If you wish profiling output to be saved, create a directory "
+              "named \"%s\" in the same as directory as you start %s",
+              function, strerror(errno), SOCKS_PROFILEDIR, PACKAGE);
+   }
    else {
       char dir[80];
 
-      snprintfn(dir, sizeof(dir), "%s.%d",
+      snprintf(dir, sizeof(dir), "%s.%d",
       childtype2string(sockscf.state.type), (int)getpid());
 
       if (mkdir(dir, S_IRWXU) != 0)
@@ -240,29 +202,57 @@ sockdexit(code)
    }
 #endif /* HAVE_PROFILING */
 
+   /*
+    * For some reason, Valgrind complains that the pointer to "name" is
+    * lost:
+    *
+    * #  13 bytes in 1 blocks are definitely lost in loss record 3 of 9
+    * #     at 0x4A0763E: malloc (vg_replace_malloc.c:207)
+    * #     by 0x3FC387F681: strdup (in /lib64/libc-2.10.2.so)
+    * #     by 0x43CE90: addlinkedname (rule.c:257)
+    * #     by 0x403E3E: socks_yyparse (config_parse.y:470)
+    * #     by 0x405B55: parseconfig (config_parse.y:2016)
+    * #     by 0x41DE29: genericinit (config.c:80)
+    * #     by 0x40AA22: serverinit (sockd.c:1157)
+    * #     by 0x408EF8: main (sockd.c:193)
+    *
+    * Don't understand why valgrind complains, as it's not lost afaik, 
+    * and adding this code to make the (on unix unnecessary) free(3) call
+    * seems to prove that. 
+    */
+   for (i = 0; i < ELEMENTS(rulev); ++i) {
+      struct rule_t *rule;
+
+      for (rule = rulev[i]; rule != NULL; rule = rule->next) {
+         struct linkedname_t *link;
+
+         for (link = rule->user; link != NULL; link = link->next)
+            free(link->name);
+
+         for (link = rule->group; link != NULL; link = link->next)
+            free(link->name);
+      }
+   }
+
    if (pidismother(sockscf.state.pid))
       removechild(0);
 
-   if (ismainmother)
+   if (ismainmother) {
       sigserverbroadcast(SIGTERM); /* let others terminate too. */
-
-   if (!sockscf.state.insignal || SIGNALISOK(sockscf.state.insignal))
-      for (i = 0;  i < sockscf.log.fpc; ++i) {
-         fclose(sockscf.log.fpv[i]);
-         close(sockscf.log.fplockv[i]);
-      }
-
-
-   if (ismainmother)
+      resetconfig(1); /* mainly for removing old shared memory stuff. */
       exit(code);
-   else {
-#if HAVE_PROFILING
-      exit(code);
-#else
-      fflush(NULL);
-      _exit(code);
-#endif /* HAVE_PROFILING */
    }
+
+   /* 
+    * Else; we are child.
+    */
+
+#if HAVE_PROFILING
+   exit(code);
+#else
+   fflush(NULL);
+   _exit(code);
+#endif /* HAVE_PROFILING */
 }
 
 int
@@ -344,12 +334,22 @@ descriptorisreserved(d)
    int d;
 {
 
-   if (d == sockscf.bwlock
-   ||  d == sockscf.sessionlock)
+   if (d == sockscf.hostfd
+   ||  d == sockscf.shmemfd
+   ||  d == sockscf.loglock
+#if HAVE_LDAP
+
+   ||  d == sockscf.ldapfd
+#endif /* HAVE_LDAP */
+   ||  d == sockscf.configfd 
+   /* due to external libraries/software trying to log to stdout/stderr. :-( */
+   ||  d == STDOUT_FILENO
+   ||  d == STDERR_FILENO)
       return 1;
 
-   /* don't close sockscf/log files. */
-   if (socks_logmatch((size_t)d, &sockscf.log))
+   /* don't close log files. */
+   if (socks_logmatch((size_t)d, &sockscf.log)
+   ||  socks_logmatch((size_t)d, &sockscf.errlog))
       return 1;
 
    return 0;
@@ -370,57 +370,17 @@ sigserverbroadcast(sig)
 }
 
 
-unsigned char *
-socks_getmacaddr(ifname, addr)
-   const char *ifname;
-   unsigned char *addr;
-{
-   const char *function = "socks_getmacaddr()";
-#ifdef SIOCGIFHWADDR
-   struct ifreq ifr;
-   int s;
-
-   slog(LOG_DEBUG, "%s: ifname %s", function, ifname);
-
-   if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-      swarn("%s: socket()", function);
-      return NULL;
-   }
-
-   strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
-   ifr.ifr_name[sizeof(ifr.ifr_name) - 1] = NUL;
-
-   if (ioctl(s, SIOCGIFHWADDR, &ifr) != 0) {
-      swarn("%s: ioctl(SIOCGIFHWADDR)", function);
-
-      close(s);
-      return NULL;
-   }
-
-   memcpy(addr, ifr.ifr_hwaddr.sa_data, ETHER_ADDR_LEN);
-
-   slog(LOG_DEBUG, "%s: mac address of interface %s is "
-                   "%02x:%02x:%02x:%02x:%02x:%02x",
-                   function, ifname,
-                   addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
-
-   return addr;
-
-#else /* !SIOCGIFHWADDR */
-   swarnx("%s: getting the mac address not supported on this platform",
-   function);
-
-   return NULL;
-#endif /* !SIOCGIFHWADDR */
-}
 
 void
-sockd_pushsignal(sig)
+sockd_pushsignal(sig, siginfo)
    const int sig;
+   const siginfo_t *siginfo;
 {
    const char *function = "sockd_pushsignal()";
    sigset_t all, oldmask;
    size_t i, alreadythere;
+
+   SASSERTX(sig > 0);
 
    (void)sigfillset(&all);
    if (sigprocmask(SIG_SETMASK, &all, &oldmask) != 0)
@@ -428,14 +388,17 @@ sockd_pushsignal(sig)
 
    /* if already there, don't add. */
    for (i = alreadythere = 0; i < (size_t)sockscf.state.signalc; ++i)
-      if (sockscf.state.signalv[i] == sig) {
+      if (sockscf.state.signalv[i].signal == sig) {
          alreadythere = 1;
          break;
       }
 
    if (!alreadythere) {
-      if (i < ELEMENTS(sockscf.state.signalv))
-         sockscf.state.signalv[sockscf.state.signalc++] = sig;
+      if (i < ELEMENTS(sockscf.state.signalv)) {
+         sockscf.state.signalv[sockscf.state.signalc].signal    = sig;
+         sockscf.state.signalv[sockscf.state.signalc].siginfo = *siginfo;
+         ++sockscf.state.signalc;
+      }
       else
          SERRX(sig);
    }
@@ -445,7 +408,7 @@ sockd_pushsignal(sig)
 }
 
 int
-sockd_popsignal(void)
+sockd_popsignal(siginfo_t *siginfo)
 {
    const char *function = "sockd_popsignal()";
    sigset_t all, oldmask;
@@ -457,7 +420,9 @@ sockd_popsignal(void)
 
    SASSERTX(sockscf.state.signalc > 0);
 
-   sig = sockscf.state.signalv[0];
+   sig      = sockscf.state.signalv[0].signal;
+   *siginfo = sockscf.state.signalv[0].siginfo;
+
    memmove(sockscf.state.signalv, &sockscf.state.signalv[1],
    sizeof(*sockscf.state.signalv) * (--sockscf.state.signalc));
 
@@ -466,3 +431,45 @@ sockd_popsignal(void)
 
    return sig;
 }
+
+int
+sockd_handledsignals()
+{
+   const char *function = "sockd_handledsignals()";
+   struct sigaction oact;
+   int i, rc = 0;
+
+   if (sockscf.state.signalc == 0)
+      return 0;
+
+   if (sockscf.option.debug > 1)
+      for (i = 0, rc = 0; i < sockscf.state.signalc; ++i)
+         slog(LOG_DEBUG, "%s: signal #%d on the stack is signal %d",
+         function, i + 1, (int)sockscf.state.signalv[i].signal);
+
+   while (sockscf.state.signalc) {
+      siginfo_t siginfo;
+      const int signal = sockd_popsignal(&siginfo);
+
+      slog(LOG_DEBUG, "%s: %d signals on the stack, popped signal %d",
+      function, sockscf.state.signalc, signal);
+
+      if (sigaction(signal, NULL, &oact) != 0)
+         SERR(0);
+
+      if (oact.sa_handler != SIG_IGN && oact.sa_handler != SIG_DFL) {
+         oact.sa_sigaction(-signal, &siginfo, NULL);
+         rc = 1;
+      }
+      else
+         /*
+          * can happen when a child temporarily changes the
+          * signal disposition while starting up.
+          */
+         slog(LOG_DEBUG, "%s: no handler for signal %d at the moment",
+         function, signal);
+   }
+
+   return rc;
+}
+

@@ -1,4 +1,4 @@
-# $Id: BUGS,v 1.63.2.2.2.2.2.1 2011/03/20 16:59:05 michaels Exp $
+# $Id: BUGS,v 1.70 2011/05/11 17:35:32 michaels Exp $
 
 To report a new bug, mail dante-bugs@inet.no.
 Make sure you read the FAQ (http://www.inet.no/dante/FAQ/) first.
@@ -11,8 +11,6 @@ Bugs in the server:
    Reported by Mathieu DELAPLACE <mathieu.delaplace@gmail.com.example.com>
 
 Bugs in the client: 
- - If debugging is enabled, there are a some cases where a deadlock
-   can occur.  Not analyzed yet.
 
 There are various known problems due to limitations on certain platforms
 that can cause problems for Dante, but which we currently do not consider

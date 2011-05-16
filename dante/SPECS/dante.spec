@@ -1,21 +1,20 @@
 Summary: A free SOCKS v4/v5 client implementation
 Name: dante
-%define version 1.2.3
+%define fullversion 1.3.0-pre1
 %define prefix /usr
-Version: %{version}
-Release: 1
+Prefix: %{prefix}
+Version: 1.3.0
+Release: 0.pre1%{?dist}
 License: BSD-type
 Group: Networking/Utilities
 URL: http://www.inet.no/dante/
 Vendor: Inferno Nettverk A/S
-Source: ftp://ftp.inet.no/pub/socks/dante-%{version}.tar.gz
-Buildroot: %{_tmppath}/dante-root
+Source: ftp://ftp.inet.no/pub/socks/dante-%{fullversion}.tar.gz
+Buildroot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
-%if %{?rh62:1}%{!?rh62:0}
-BuildRequires: pam
-%else
 BuildRequires: pam-devel
-%endif
+BuildRequires: bison
+BuildRequires: flex
 
 %description
 Dante is a free implementation of the SOCKS proxy protocol, version 4,
@@ -29,7 +28,7 @@ protocol.
 
 %package server
 Summary: A free SOCKS v4/v5 server implementation
-Group: Networking/Daemons
+Group: System Environment/Daemons
 Requires: dante
 
 %description server
@@ -47,65 +46,90 @@ Requires: dante
 Additional libraries required to compile programs that use SOCKS.
 
 %prep
-%setup
+%setup -n dante-1.3.0-pre1
 
 # This file is embedded here instead of being another source in order
 # to the prefix directory
 cat >sockd.init <<EOF
 #!/bin/sh
 #
-# sockd         This shell script takes care of starting and stopping
-#               the Dante server.
+# Init file for the Dante Socks server
+#
+# Written by Dag Wieers <dag@wieers.com>.
 #
 # chkconfig: 2345 65 35
-# description: sockd implements a SOCKS v4/v5 proxy server
+# description: Dante SOCKS v4/v5 proxy server
+#
+# processname: sockd
+# config: %{_sysconfdir}/sockd.conf
+# pidfile: %{_localstatedir}/run/sockd
 
-# Source function library.
-. %{_initrddir}/functions
-
-# Source networking configuration.
-. %{_sysconfdir}/sysconfig/network
+source %{_initrddir}/functions
+source %{_sysconfdir}/sysconfig/network
 
 # Check that networking is up.
-[ \${NETWORKING} = "no" ] && exit 0
+[ ${NETWORKING} = "no" ] && exit 1
 
-[ -f %{_sbindir}/sockd ] || exit 0
-[ -f %{_sysconfdir}/sockd.conf ] || exit 0
+[ -x %{_sbindir}/sockd ] || exit 1
+[ -r %{_sysconfdir}/sockd.conf ] || exit 1
 
-# See how we were called.
-case "\$1" in
+RETVAL=0
+prog="sockd"
+progpath="%{_sbindir}/$prog"
+desc="Dante Socks server"
+
+start() {
+    echo -n $"Starting $desc ($prog): "
+    daemon $progpath -D
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch %{_localstatedir}/lock/subsys/$prog
+    return $RETVAL
+}
+
+stop() {
+    echo -n $"Shutting down $desc ($prog): "
+    killproc $prog
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && rm -f %{_localstatedir}/lock/subsys/$prog
+    return $RETVAL
+}
+
+restart() {
+    stop
+    start
+}
+
+case "$1" in
   start)
-	# Start daemons.
-	echo -n "Starting sockd: "
-	daemon %{_sbindir}/sockd -D
-	echo
-	touch %{_localstatedir}/lock/subsys/sockd
-	;;
+    start
+    ;;
   stop)
-	# Stop daemons.
-	echo -n "Shutting down sockd: "
-	killproc sockd
-	echo
-	rm -f ${_localstatedir}/lock/subsys/sockd
-	;;
-  restart)
-	\$0 stop
-	\$0 start
-	;;
+    stop
+    ;;
+  restart|reload)
+    restart
+    ;;
+  condrestart)
+    [ -e %{_localstatedir}/lock/subsys/$prog ] && restart
+    RETVAL=$?
+    ;;
   status)
-	status sockd
-	;;
+    status $prog
+    RETVAL=$?
+    ;;
   *)
-	echo "Usage: sockd {start|stop|restart|status}"
-	exit 1
+    echo $"Usage: $0 {start|stop|restart|condrestart|status}"
+    RETVAL=1
 esac
 
-exit 0
+exit $RETVAL
 EOF
 
 %build
 #%serverbuild
-%configure --without-glibc-secure
+%configure --without-glibc-secure %{_extraflags}
 %{__make}
 
 %install
@@ -164,6 +188,10 @@ fi
 %{_includedir}/socks.h
 
 %changelog
+* Tue May 10 2011 Karl-Andre' Skevik <karls@inet.no>
+-Integrate some changes from Dat Wieers spec file at:
+ http://svn.rpmforge.net/svn/trunk/rpms/dante/dante.spec
+
 * Sat Dec 19 2009 Karl-Andre' Skevik <karls@inet.no>
 -Minor tweaking for fedora + add socksify manual page.
 

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.60 2009/10/23 11:43:34 karls Exp $";
+"$Id: Rcompat.c,v 1.65 2010/11/08 06:45:33 michaels Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -67,7 +67,8 @@ Rwrite(d, buf, nbytes)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d, bytes %lu",
+   function, d, (unsigned long)nbytes);
 
    return Rsend(d, buf, nbytes, 0);
 }
@@ -83,12 +84,10 @@ Rwritev(d, iov, iovcnt)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
-
+   slog(LOG_DEBUG, "%s: socket %d, iovcnt %d", function, d, iovcnt);
 
    bzero(&msg, sizeof(msg));
-   /* LINTED operands have incompatible pointer types */
-   msg.msg_iov         = (const struct iovec *)iov;
+   msg.msg_iov         = iov;
    msg.msg_iovlen      = iovcnt;
 
    return Rsendmsg(d, &msg, 0);
@@ -101,18 +100,15 @@ Rsend(s, msg, len, flags)
    size_t len;
    int flags;
 {
-   struct msghdr msghdr;
-   struct iovec iov;
    const char *function = "Rsend()";
+   struct msghdr msghdr;
+   /* any way to get rid of warning about losing const except make a copy? */
+   struct iovec iov = { msg, len };
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, s);
-
-   bzero(&iov, sizeof(iov));
-   /* LINTED operands have incompatible pointer types */
-   iov.iov_base = msg;
-   iov.iov_len  = len;
+   slog(LOG_DEBUG, "%s: socket %d, bytes %lu, flags %d",
+   function, s, (unsigned long)len, flags);
 
    bzero(&msghdr, sizeof(msghdr));
    msghdr.msg_iov    = &iov;
@@ -136,7 +132,7 @@ Rsendmsg(s, msg, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d, msg %p", function, s, msg);
+   slog(LOG_DEBUG, "%s: socket %d, msg %p, flags %d", function, s, msg, flags);
 
    if (msg == NULL)
       return write(s, NULL, 0);
@@ -189,27 +185,29 @@ Rread(d, buf, nbytes)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d, bytes %lu",
+   function, d, (unsigned long)nbytes);
 
    return Rrecv(d, buf, nbytes, 0);
 }
 
 ssize_t
-Rreadv(d, iov, iovcnt)
+Rreadv(d, _iov, iovcnt)
    int d;
-   const struct iovec *iov;
+   const struct iovec *_iov;
    int iovcnt;
 {
    const char *function = "Rreadv()";
+   struct iovec iov = { _iov->iov_base, _iov->iov_len };
    struct msghdr msg;
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d, iovcnt %d", function, d, iovcnt);
 
    bzero(&msg, sizeof(msg));
    /* LINTED operands have incompatible pointer types */
-   msg.msg_iov      = (struct iovec *)iov;
+   msg.msg_iov      = &iov;
    msg.msg_iovlen   = iovcnt;
 
    return Rrecvmsg(d, &msg, 0);
@@ -228,7 +226,8 @@ Rrecv(s, msg, len, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, s);
+   slog(LOG_DEBUG, "%s: socket %d, len %lu, flags %d",
+   function, s, (unsigned long)len, flags);
 
    /* LINTED cast discards 'const' from pointer target type */
    bzero(&iov, sizeof(iov));
@@ -257,8 +256,8 @@ Rrecvmsg(s, msg, flags)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d, msg %s",
-   function, s, msg == NULL ? "= NULL" : "!= NULL");
+   slog(LOG_DEBUG, "%s: socket %d, msg 0x%p, flags %d",
+   function, s, msg, flags);
 
    if (msg == NULL)
       return recvmsg(s, msg, flags);
@@ -323,7 +322,7 @@ Rfputc(c, stream)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (!gssapi_isencrypted(d))
       return fputc(c, stream);
@@ -343,7 +342,7 @@ Rfputs(buf, stream)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (!gssapi_isencrypted(d))
       return fputs(buf,stream);
@@ -364,7 +363,7 @@ Rfwrite(ptr, size, nmb, stream)
    const int d = fileno(stream);
    size_t i;
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (!gssapi_isencrypted(d))
       return fwrite(ptr, size, nmb, stream);
@@ -386,7 +385,7 @@ Rfprintf(FILE *stream, const char *format, ...)
    va_list ap;
    int rc;
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    va_start(ap, format);
 
@@ -410,7 +409,7 @@ Rvfprintf(stream,  format, ap)
    char buf[8 * BUFSIZ];
    int rc;
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (!gssapi_isencrypted(d))
       return vfprintf(stream, format, ap);
@@ -438,7 +437,7 @@ Rfflush(s)
 
    d = fileno(s);
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (!gssapi_isencrypted(d))
       return fflush(s);
@@ -456,7 +455,7 @@ Rfclose(s)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (gssapi_isencrypted(d))
       socks_flushbuffer(d, -1);
@@ -473,7 +472,7 @@ int Rfgetc(stream)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (!gssapi_isencrypted(d))
       return fgetc(stream);
@@ -494,7 +493,7 @@ Rgets(buf)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (!gssapi_isencrypted(d))
       return gets(buf);
@@ -521,7 +520,7 @@ Rfgets(buf, size, stream)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (!gssapi_isencrypted(d))
       return fgets(buf, size, stream);
@@ -544,7 +543,7 @@ Rfread(void *ptr, size_t size, size_t nmb, FILE *stream)
    size_t i;
    const int d = fileno(stream);
 
-   slog(LOG_DEBUG, "%s, socket %d", function, d);
+   slog(LOG_DEBUG, "%s: socket %d", function, d);
 
    if (!gssapi_isencrypted(d))
       return fread(ptr, size, nmb, stream);

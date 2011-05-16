@@ -44,11 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.87 2009/10/23 11:43:35 karls Exp $";
+"$Id: client.c,v 1.98 2011/05/09 09:53:06 michaels Exp $";
 
-#if !HAVE_PROGNAME
+
+#if HAVE_DARWIN || !HAVE_PROGNAME
    char *__progname = "danteclient";
-#endif /* !HAVE_PROGNAME */
+#endif /* HAVE_DARWIN || !HAVE_PROGNAME */
 
 int
 SOCKSinit(progname)
@@ -63,69 +64,47 @@ void
 clientinit(void)
 {
 #ifdef HAVE_VOLATILE_SIG_ATOMIC_T
-   static sig_atomic_t initing;
+   static sig_atomic_t still_initing;
 #else
    static volatile sig_atomic_t initing;
 #endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
 /*   const char *function = "clientinit()"; */
 
-   if (sockscf.state.init)
+   if (sockscf.state.inited
+      /*
+       * XXX should really be sched_yield() or something if initing, unless 
+       * the thread initing is ours.  If the thread initing is ours, 
+       * we can just return, to handle recursive problems during init.
+       */
+   ||  still_initing)
       return;
 
-/*   sleep(20);  */
+   still_initing = 1; /* XXX should be our threadid. */
 
-   if (initing)
-      return; /* in case of same process/thread trying to get the lock. */
-   initing = 1;
+   sockscf.loglock = -1;
 
-   if (sockscf.state.init) {
-      /* somebody else inited while we were waiting for the lock. */
-      initing = 0;
-      return;
-   }
+#if HAVE_DARWIN
+   __progname = getprogname();
+#endif /* HAVE_DARWIN */
 
-   /*
-    * need to know max number of open files so we can allocate correctly
-    * sized fd_set.
-    */
-   sockscf.state.maxopenfiles = getmaxofiles(hardlimit);
+/*   sleep(20);   */
 
+   /* needs to be as early as possible, before any i/o calls if possible. */
+   socks_addrinit();
 
    if ((sockscf.option.configfile = socks_getenv("SOCKS_CONF", dontcare))
    == NULL)
       sockscf.option.configfile = SOCKS_CONFIGFILE;
 
-   /*
-    * initialize misc. options to sensible default.
-    */
-
-   sockscf.resolveprotocol = RESOLVEPROTOCOL_UDP;
-
-#if HAVE_SOCKADDR_SA_LEN
-   sockscf.state.lastconnect.sa_len    = sizeof(sockscf.state.lastconnect);
-#endif /* HAVE_SOCKADDR_SA_LEN */
-   sockscf.state.lastconnect.sa_family = AF_INET;
-   bzero(&sockscf.state.lastconnect.sa_data,
-   sizeof(sockscf.state.lastconnect.sa_data));
-
    genericinit();
    newprocinit();
-   addrlockinit();
 
-#if SOCKS_DIRECTROUTE_FALLBACK
-   if (socks_getenv("SOCKS_DIRECTROUTE_FALLBACK", isfalse) == NULL)
-      sockscf.option.directfallback = 1;
-   else
-      sockscf.option.directfallback = 0;
-#else /* !SOCKS_DIRECTROUTE_FALLBACK */
-   if (socks_getenv("SOCKS_DIRECTROUTE_FALLBACK", istrue) == NULL)
-      sockscf.option.directfallback = 1;
-   else
-      sockscf.option.directfallback = 0;
-#endif /* SOCKS_DIRECTROUTE_FALLBACK */
+   showconfig(&sockscf);
 
    slog(LOG_INFO, "%s/client v%s running", PACKAGE, VERSION);
-/*   sleep(20);                          */
+/*   sleep(20);                           */
 
-   initing = 0;
+   sockscf.state.inited = 1;
+   still_initing = 0;
 }
+

@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.61.4.5.2.1 2011/03/03 13:42:11 michaels Exp $";
+"$Id: auth_pam.c,v 1.76 2011/03/28 10:27:47 michaels Exp $";
 
 static int
 pam_conversation(int msgc, const struct pam_message **msgv,
@@ -59,13 +59,6 @@ pam_conversation(int msgc, const struct pam_message **msgv,
 /*
  * Called by the pam system to fetch username and password info.
  */
-
-
-typedef struct
-{
-   const char *user;
-   const char *password;
-} _pam_data_t;
 
 
 int
@@ -167,6 +160,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
       return -1;
    }
 
+   /* LINTED passing const, expecting non-const (PAM_SILENT) */
    rc = pam_acct_mgmt(pamh, PAM_SILENT);
    sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
 

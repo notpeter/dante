@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.161 2009/10/23 11:43:33 karls Exp $";
+"$Id: Rbind.c,v 1.165 2011/03/29 15:48:21 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -70,6 +70,7 @@ Rbind(s, name, namelen)
    socks_rmaddr(s, 1);
 
    rc = bind(s, name, namelen);
+   slog(LOG_DEBUG, "%s: local bind returned %d", function, rc);
 
    if (name->sa_family != AF_INET) {
       slog(LOG_DEBUG, "%s: socket %d, unsupported af '%d', system fallback",
@@ -195,11 +196,10 @@ Rbind(s, name, namelen)
 
    packet.version = packet.req.version;
 
-   if (packet.req.protocol == SOCKS_UDP)
+   if (packet.req.protocol == SOCKS_UDP) {
       /* not all proxy protocols support udp. */
       switch (packet.version) {
          case PROXY_UPNP:
-         case PROXY_MSPROXY_V2:
             break; /* ok, udp supported. */
 
          default:
@@ -209,6 +209,7 @@ Rbind(s, name, namelen)
 
             return 0;
       }
+   }
 
    /*
     * Create a separate socket for the control connection, so that if
@@ -219,24 +220,11 @@ Rbind(s, name, namelen)
    switch (packet.req.version) {
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V5: {
-         int portisreserved;
+         int portisreserved, haveboundaddr;
          struct sockaddr saddr;
 
          if ((socksfd.control = socketoptdup(s)) == -1)
             return -1;
-
-         /*
-          * Make sure the control-connection is bound to the same
-          * ip address as 's', or the bind extension will not work if
-          * we connect to the socks server from a different ip address
-          * than the one we bound.
-          */
-         saddr = socksfd.local;
-         TOIN(&saddr)->sin_port = htons(0);
-         if (bind(socksfd.control, &saddr, sizeof(saddr)) != 0) {
-            swarn("%s: failed to bind control-socket", function);
-            return -1;
-         }
 
          switch (packet.req.version) {
             case PROXY_SOCKS_V4:
@@ -260,42 +248,51 @@ Rbind(s, name, namelen)
                SERRX(packet.req.version);
          }
 
-         if (portisreserved) {
-            int p;
-            struct sockaddr_in controladdr;
+         /*
+          * Make sure the control-connection is bound to the same
+          * ip address as 's', or the bind extension will not work if
+          * we connect to the socks server from a different ip address
+          * than the one we bound.
+          */
+         saddr                  = socksfd.local;
+         TOIN(&saddr)->sin_port = htons(0);
 
+         haveboundaddr = 0;
+         if (portisreserved) {
             /*
              * Our caller has gotten a reserved port.  It is possible the
              * server will differentiate between requests coming from
              * privileged ports and those not so try to connect to server
              * from a privileged port.
              */
+            slog(LOG_DEBUG, "%s: caller has a privileged port ... then we " 
+                            "should probably also try to bind a privileged "
+                            "port locally",
+                            function);
 
-            bzero(&controladdr, sizeof(controladdr));
-            controladdr.sin_family      = AF_INET;
-            controladdr.sin_addr.s_addr = htonl(INADDR_ANY);
-            controladdr.sin_port        = htons(0);
+            if (bindresvport(socksfd.control, (struct sockaddr_in *)&saddr)
+            == 0)
+               haveboundaddr = 1;
+            else
+               slog(LOG_DEBUG,
+                    "%s: failed to locally bind a privileged port "
+                    "using address %s.  Errno = %d (%s)", 
+                    function,
+                    sockaddr2string(&saddr, NULL, 0),
+                    errno,
+                    strerror(errno));
+         }
 
-            if ((p = bindresvport(socksfd.control, &controladdr)) != 0) {
-               controladdr.sin_port = htons(0);
-               /* LINTED pointer casts may be troublesome */
-               p = bind(socksfd.control, (struct sockaddr *)&controladdr,
-               sizeof(controladdr));
-            }
-
-            if (p != 0) {
+         if (!haveboundaddr)
+            if (bind(socksfd.control, &saddr, sizeof(saddr)) != 0) {
+               swarn("%s: failed to bind address for control-socket", function);
                close(socksfd.control);
+
                return -1;
             }
-         }
 
          break;
       }
-
-      case PROXY_MSPROXY_V2:
-         if ((socksfd.control = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
-            return -1;
-         break;
 
       case PROXY_UPNP:
          socksfd.control = s; /* no separate controlsocket. */
@@ -368,12 +365,6 @@ Rbind(s, name, namelen)
       case PROXY_SOCKS_V5:
          socksfd.reply                = socksfd.remote;   /* same IP address. */
          socksfd.state.acceptpending  = socksfd.route->gw.state.extension.bind;
-         break;
-
-      case PROXY_MSPROXY_V2:
-         socksfd.state.acceptpending  = 1; /* separate data connection. */
-         socksfd.state.msproxy        = packet.state.msproxy;
-         /* don't know what address connection will be forwarded from yet. */
          break;
 
       case PROXY_UPNP:
@@ -460,18 +451,6 @@ Rbind(s, name, namelen)
       case PROXY_SOCKS_V5:
       case PROXY_UPNP:
          socks_addaddr(s, &socksfd, 1);
-         break;
-
-      case PROXY_MSPROXY_V2:
-         /* more talk will have to occur before we can perform a accept(). */
-         socksfd.state.inprogress = 1;
-
-         socks_addaddr(s, &socksfd, 1);
-         if (msproxy_sigio(s) != 0) {
-            socks_rmaddr(s, 1);
-            return -1;
-         }
-
          break;
 
       default:

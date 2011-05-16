@@ -1,7 +1,5 @@
 /*
- * $Id: shmem.c,v 1.8 2009/10/22 17:36:13 karls Exp $
- *
- * Copyright (c) 2005, 2006, 2009
+ * Copyright (c) 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,11 +43,55 @@
 
 #include "common.h"
 
-static const char rcsid[] = 
-"$Id: shmem.c,v 1.8 2009/10/22 17:36:13 karls Exp $";
+#if HAVE_BSDAUTH
 
-void
-shmem_setup(void)
+static const char rcsid[] =
+"$Id: auth_bsd.c,v 1.10 2010/12/04 10:20:08 karls Exp $";
+
+#include <login_cap.h>
+#include <bsd_auth.h>
+
+int
+bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
+   int s;
+   const struct sockaddr *src, *dst;
+   struct authmethod_bsd_t *auth;
+   char *emsg;
+   size_t emsgsize;
 {
+   const char *function = "bsdauth_passwordcheck()";
+   char password[MAXPWLEN], *style;
+   size_t i;
+   int rc;
 
+   if (*auth->style == NUL)
+      style = NULL;
+   else
+      style = auth->style;
+
+   /* auth_userokay clears password parameter, pass a copy */
+   strncpy(password, auth->password, sizeof(password) - 1);
+   password[sizeof(password) - 1] = NUL;
+
+   slog(LOG_DEBUG, "%s: bsdauth style to use for user \"%s\": %s)",
+   function, auth->name, style == NULL ? "default" : style);
+
+   /*
+    * note: NULL password would lead to libc requesting it interactively. 
+    * if NULL, user can specify in username, e.g., uname:radius
+    */
+   sockd_priv(SOCKD_PRIV_BSDAUTH, PRIV_ON);
+   rc = auth_userokay(auth->name, style, "auth-sockd", password);
+   sockd_priv(SOCKD_PRIV_BSDAUTH, PRIV_OFF);
+
+   if (rc == 0) {
+      slog(LOG_DEBUG, "%s: bsdauth method failed for user \"%s\": (%s)",
+      function, auth->name, style == NULL ? "default" : style);
+
+      return -1;
+   }
+
+   return 0;
 }
+
+#endif /* HAVE_BSDAUTH */

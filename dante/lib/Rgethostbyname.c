@@ -49,7 +49,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.65.6.1 2011/03/16 06:24:51 michaels Exp $";
+"$Id: Rgethostbyname.c,v 1.72 2011/04/05 09:35:03 michaels Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -61,6 +61,10 @@ Rgethostbyname2(name, af)
    static char *aliases[] = { NULL };
    struct in_addr ipindex;
    struct hostent *hostent;
+   char ipv4[sizeof(struct in_addr)];
+#if HAVE_IPV6_SUPPORT
+   char ipv6[sizeof(struct in6_addr)];
+#endif /* HAVE_IPV6_SUPPORT */
 
    clientinit();
 
@@ -104,29 +108,23 @@ Rgethostbyname2(name, af)
 
    if (hostent->h_addr_list == NULL) {
       /* * 2; NULL terminated and always only one valid entry (fake). */
-      if ((hostent->h_addr_list
-      = malloc(sizeof(hostent->h_addr_list) * 2)) == NULL)
+      if ((hostent->h_addr_list = malloc(sizeof(hostent->h_addr_list) * 2))
+      == NULL)
          return NULL;
       hostent->h_addr_list[1] = NULL;
    }
 
    switch (af) {
-      case AF_INET: {
-         static char ipv4[sizeof(struct in_addr)];
-
-         hostent->h_length     = sizeof(ipv4);
-         *hostent->h_addr_list = ipv4;
+      case AF_INET:
+         hostent->h_length       = sizeof(ipv4);
+         hostent->h_addr_list[0] = ipv4;
          break;
-      }
 
 #if HAVE_IPV6_SUPPORT
-      case AF_INET6: {
-         static char ipv6[struct in6_addr)];
-
-         hostent->h_length     = sizeof(ipv6);
-         *hostent->h_addr_list = ipv6;
+      case AF_INET6:
+         hostent->h_length        = sizeof(ipv6);
+         *hostent->h_addr_list[0] = ipv6;
          break;
-      }
 #endif /* HAVE_IPV6_SUPPORT */
 
       default:
@@ -197,7 +195,6 @@ Rgetaddrinfo(nodename, servname, hints, res)
       if (inet_pton(AF_INET6, nodename, addrbuf) == 1)
          fakeip_flag = 0;
 #endif /* HAVE_IPV6_SUPPORT */
-
    }
    else if (hints->ai_protocol == PF_INET) {
       if (inet_pton(AF_INET,  nodename, addrbuf) == 1)
@@ -214,7 +211,8 @@ Rgetaddrinfo(nodename, servname, hints, res)
          slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) failed: %s",
          function,
          nodename == NULL ? "null" : nodename,
-         servname == NULL ? "null" : servname, gai_strerror(gaierr));
+         servname == NULL ? "null" : servname,
+         gai_strerror(gaierr));
 
          break;
 
@@ -238,16 +236,18 @@ Rgetaddrinfo(nodename, servname, hints, res)
    SASSERTX(addrstr[sizeof(addrstr) - 1] == NUL);
 
    slog(LOG_DEBUG, "%s: faking ip address %s for (%s, %s)",
-   function, addrstr,
-   nodename == NULL ? "null" : nodename,
-   servname == NULL ? "null" : servname);
+        function,
+        addrstr,
+        nodename == NULL ? "null" : nodename,
+        servname == NULL ? "null" : servname);
 
    if (hints == NULL) {
       fakehints.ai_flags     = AI_NUMERICHOST;
       fakehints.ai_family    = PF_INET;
       fakehints.ai_socktype  = 0;
       fakehints.ai_protocol  = 0;
-   } else {
+   }
+   else {
       fakehints.ai_flags    = hints->ai_flags | AI_NUMERICHOST;
       fakehints.ai_family   = hints->ai_family;
       fakehints.ai_socktype = hints->ai_socktype;
@@ -291,7 +291,7 @@ Rgetipnodebyname2(name, af, flags, error_num)
    switch (sockscf.resolveprotocol) {
       case RESOLVEPROTOCOL_TCP:
       case RESOLVEPROTOCOL_UDP:
-         slog(LOG_DEBUG, "%s: using udp/tcp", function);
+          slog(LOG_DEBUG, "%s: using udp/tcp", function);
          if ((hostent = getipnodebyname(name, af, flags, error_num)) != NULL)
             return hostent;
          break;
@@ -309,7 +309,8 @@ Rgetipnodebyname2(name, af, flags, error_num)
    if (h_errno != NO_RECOVERY)
       return hostent;
 
-   hostent = malloc(sizeof(struct hostent));
+   if ((hostent = malloc(sizeof(struct hostent))) == NULL)
+      return NULL;
 
    /* anything that fails from here is due to resource shortage. */
    h_errno = TRY_AGAIN;
@@ -366,7 +367,7 @@ Rgetipnodebyname2(name, af, flags, error_num)
       free(*addrlist);
       free(addrlist);
 
-        return NULL;
+      return NULL;
    }
 
    switch (af) {
@@ -389,9 +390,6 @@ Rgetipnodebyname2(name, af, flags, error_num)
       default:
          SERRX(af);
    }
-
-   slog(LOG_DEBUG, "%s: after inet_pton (0x%x, %s)",
-   function, (unsigned int)*addrlist, inet_ntoa(ipindex));
 
    hostent->h_addr_list = addrlist++;
    *addrlist = NULL;

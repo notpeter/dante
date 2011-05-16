@@ -1,4 +1,4 @@
-/* $Id: issetugid.c,v 1.12 2009/08/13 09:03:49 karls Exp $ */
+/* $Id: issetugid.c,v 1.13 2011/04/24 09:26:13 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -57,10 +57,12 @@ int
 issetugid(void)
 {
 #if HAVE_LIBC_ENABLE_SECURE
-   if (__libc_enable_secure)
-      return 1;
-   else
+   if (!__libc_enable_secure)
       return 0;
-#endif /* HAVE_LIBC_ENABLE_SECURE */
+#elif HAVE_LIBC_ENABLE_SECURE_DISABLED
+   if (getuid() == geteuid() && getgid() == getegid())
+      return 0;
+#endif /* HAVE_LIBC_ENABLE_SECURE_DISABLED */
+
    return 1; /* don't know, better safe than sorry. */
 }

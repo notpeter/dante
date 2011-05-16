@@ -1,10 +1,10 @@
-/* $Id: seteuid.c,v 1.6 2009/07/07 12:54:47 karls Exp $ */
+/* $Id: seteuid.c,v 1.7 2010/09/26 13:26:59 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
 
-#include "common.h"
+#include "osdep.h"
 
 int
 setegid(gid_t egid)

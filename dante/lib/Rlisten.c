@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rlisten.c,v 1.27 2009/10/23 11:43:34 karls Exp $";
+"$Id: Rlisten.c,v 1.28 2010/08/16 19:25:52 michaels Exp $";
 
 int
 Rlisten(s, backlog)
@@ -52,19 +52,18 @@ Rlisten(s, backlog)
    int backlog;
 {
    const char *function = "Rlisten()";
-   const struct socksfd_t *socksfd;
+   struct socksfd_t socksfd;
 
    clientinit();
 
    slog(LOG_DEBUG, "%s, socket %d", function, s);
 
-   if (!socks_addrisours(s, 1))
+   if (!socks_addrisours(s, &socksfd, 1))
       return listen(s, backlog);
 
-   socksfd = socks_getaddr(s, 1);
-   if (socksfd->state.command != SOCKS_BIND) {
+   if (socksfd.state.command != SOCKS_BIND) {
       swarnx("%s: doing listen on socket, but command state is %d",
-      function, socksfd->state.command);
+      function, socksfd.state.command);
       socks_rmaddr(s, 1);
 
       return listen(s, backlog);
@@ -77,7 +76,7 @@ Rlisten(s, backlog)
     * we have previously done connect(2) on (for connect to the socks
     * server) does not necessarily work so well on all (any?) systems.
     */
-   if (socksfd->state.acceptpending)
+   if (socksfd.state.acceptpending)
       return listen(s, backlog);
    return 0;
 }

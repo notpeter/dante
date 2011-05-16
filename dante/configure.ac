@@ -1,24 +1,41 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.453.2.3.2.3.2.4 2011/03/03 20:17:06 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.515 2011/05/13 19:29:47 karls Exp $)
 
-version=1.2.3
+version=1.3.0
+RPMVERSION1="$version"
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="3"
+prerelease="1"
 if test x$prerelease != x; then
-    prename="-pre$prerelease"
+    prename="pre$prerelease"
+    version="${version}-$prename"
+    RPMVERSION2="0.$prename"
     TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
 else
     prename=""
+    RPMVERSION2="1.$prename"
 fi
 
-echo "Configuring Dante ${version}${prename}:"
+echo "Configuring Dante ${version}:"
 
-AM_INIT_AUTOMAKE(dante, ${version}${prename})
+AM_INIT_AUTOMAKE(dante, ${version})
 AC_CONFIG_SRCDIR(include/common.h)
 AM_CONFIG_HEADER(include/autoconf.h)
 
+AC_SUBST(RPMVERSION1)
+AC_SUBST(RPMVERSION2)
+
+#compile silently, if possible
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+
 AC_DEFINE(BAREFOOTD, 0, [we are Dante])
+AC_DEFINE(COVENANT, 0, [we are Dante])
+m4_define(dantebuild, yes)
+
+if test x`uname` = xDarwin; then
+   #XXX problem with -MD and -arch values
+   enable_dependency_tracking=no
+fi
 
 #NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS=$CFLAGS
@@ -26,6 +43,10 @@ unset CFLAGS
 AC_PROG_LIBTOOL
 autoconf_compflags=$CFLAGS
 CFLAGS=$oCFLAGS
+
+AC_ARG_ENABLE(release,
+[  --enable-release        build prerelease as full release],
+[unset prerelease])
 
 if test x$prerelease != x; then
     AC_DEFINE(PRERELEASE, 1, [software prerelease])
@@ -66,6 +87,10 @@ case $host in
 esac
 
 case $host in
+    *-*-darwin*)
+	AC_DEFINE(HAVE_DARWIN, 1, [enable darwin/osx workarounds])
+	;;
+    
     alpha*-dec-osf*)
 	CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE_EXTENDED -DBYTE_ORDER=LITTLE_ENDIAN -D_POSIX_SOURCE -D_POSIX_C_SOURCE=199309L -D_OSF_SOURCE"
 	;;
@@ -83,16 +108,12 @@ case $host in
     *-*-solaris*)
 	AC_DEFINE(HAVE_SENDMSG_DEADLOCK, 1, [bug workaround])
 	AC_DEFINE(HAVE_SOLARIS_BUGS, 1, [bug workaround])
-	AC_DEFINE(BSD_COMP, 1, [enable BSD compatibility])
-	AC_DEFINE(HAVE_SOLARIS_PAM_BUG, 1, [bug workaround])
-	#for msghdr msg_flags
-	CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE=500 -D_XOPEN_SOURCE_EXTENDED -D__EXTENSIONS__"
+	CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE=600 -D_XOPEN_SOURCE_EXTENDED"
+	CPPFLAGS="${CPPFLAGS} -D__EXTENSIONS__ -DBSD_COMP"
 	;;
 
-    *-*-linux-*) # XXX This might only concern 2.0.x kernels (add test?)
-	AC_DEFINE(HAVE_DEFECT_RECVMSG, 1, [bug workaround])
+    *-*-linux-*)
 	AC_DEFINE(HAVE_LINUX_BUGS, 1, [bug workaround])
-	AC_DEFINE(HAVE_LINUX_ECCENTRICITIES, 1, [platform workarounds])
 	CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE=600 -D_XOPEN_SOURCE_EXTENDED"
 #	CPPFLAGS="${CPPFLAGS} -D_FORTIFY_SOURCE=2"
 	CPPFLAGS="${CPPFLAGS} -D_BSD_SOURCE"
@@ -100,7 +121,7 @@ case $host in
 		#XXX want to avoid extension used in struct cmsghdr
 		CPPFLAGS="${CPPFLAGS} -U__GNUC__ -D__GNUC__=0"
 	fi
-	AC_DEFINE(SPT_PADCHAR, '\0', [setproctitle])
+	AC_DEFINE(SPT_TYPE, SPT_REUSEARGV, [setproctitle replacement type])
 	;;
 
     *-*-aix*)
@@ -123,22 +144,9 @@ case $host in
 	if test "x$GCC" = x; then
 	    #-xs provides allows easier debugging with gdb
 	    comp_flags="-Xt -xs" #XXX -Xt needed to compile?
-	    #XXX due to some problems with sockaddr alignment
-	    #XXX sun cc needs -misalign
-#	    comp_flags="$comp_flags -misalign -xO0"
-#	    AC_MSG_RESULT([$comp_flags])
-#	    AC_MSG_WARN([there might currenly be some performance problems with suncc - it needs -misalign])
 	    have_suncc=t
-	    $CC 2>&1 | grep ucbcc > /dev/null
-	    if test $? -eq 0; then
-		#XXX ucbcc uses includes from /usr/ucbinclude, but these are
-		#not complete. add /usr/include to include path to get
-		#all prototypes (read/write are missing)
-		#XXX
-		CPPFLAGS="-I/usr/include $CPPFLAGS${CPPFLAGS:+ } "
-	    fi
 	fi
-#	AC_MSG_RESULT([$comp_flags])
+	AC_MSG_RESULT([$comp_flags])
     ;;
 
     alphaev6-dec-osf*)
@@ -276,6 +284,24 @@ else
     AC_MSG_RESULT([none])
 fi
 
+#for solaris, generate 64-bit binaries if running in 64-bit mode.
+#building 32-bit binaries (the default) causes problems with
+#LD_PRELOAD if running in a 64-bit environment.
+#XXX more general solution would be to build and install both
+unset sol64
+case $host in
+     *-*-solaris*)
+	if test x`isainfo -b` = x64; then
+		ISA64DIR=`isainfo -n`
+		if test x"$ISA64DIR" != x; then
+			sol64=t
+			AC_SUBST(ISA64DIR)
+			AC_MSG_WARN([building for 64-bit addressing model])
+		fi
+	fi
+     ;;
+esac
+
 #NOTE: set warnings at the bottom; might interfere with tests
 CFLAGS="$CFLAGS $comp_flags"
 
@@ -320,11 +346,31 @@ AC_ARG_ENABLE(linting,
      AC_MSG_WARN([linting requested, but lint not found])
  else
      s_linting=t
-     LINTFLAGS=-abcebiprxz
+     case $host in
+	 *-*-openbsd*)
+             LINTFLAGS="-abcebprxz"
+	     LINTPASS1="-i"
+	     LINTPASS2=""
+	     LINTLIBOPT="-C"
+	     ;;
+	 *-*-solaris*)
+#	     LINTFLAGS=-c -errchk=%all -errsecurity=extended -fd -Ncheck=%all -Nlevel=3 -p -s
+#	     SUPPRESS="-x -erroff=E_FUNC_DECL_VAR_ARG2"
+	     LINTLIBS="-lnsl -lsocket -lwrap"
+	     LINTWARN="-errsecurity=extended -errchk=%all -errhdr -Ncheck=%all -Nlevel=3"
+	     LINTFLAGS="-fd -s -errfmt=simple $SUPPRESS $LINTWARN"
+	     LINTPASS1="-c"
+	     LINTPASS2="$LINTFLAGS $LINTLIBS"
+	     LINTLIBOPT="-o"
+	     ;;
+     esac
  fi])
 AM_CONDITIONAL(RUNLINT, test x$s_linting = xt)
 AC_SUBST(LINT)
 AC_SUBST(LINTFLAGS)
+AC_SUBST(LINTPASS1)
+AC_SUBST(LINTPASS2)
+AC_SUBST(LINTLIBOPT)
 
 AC_MSG_CHECKING([whether libwrap should be disabled])
 AC_ARG_ENABLE(libwrap,
@@ -352,7 +398,7 @@ AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS(fcntl.h limits.h malloc.h paths.h strings.h syslog.h)
 AC_CHECK_HEADERS(unistd.h crypt.h sys/file.h sys/ioctl.h sys/time.h)
 AC_CHECK_HEADERS(tcpd.h shadow.h ifaddrs.h sys/sem.h netinet/in.h)
-AC_CHECK_HEADERS(sys/ipc.h arpa/nameser.h net/if_dl.h execinfo.h)
+AC_CHECK_HEADERS(sys/ipc.h arpa/nameser.h net/if_dl.h execinfo.h sys/pstat.h)
 
 case $host in
     #XXX only check for priv.h support on solaris for now
@@ -579,38 +625,6 @@ yes
     AC_MSG_RESULT(yes)],
     AC_MSG_RESULT(no))
 
-#SO_SNDLOWAT
-#irix 6.2 only seems to look at lowest 8 bit of value
-#Solaris also seems to be broken (up to 2.6 atleast)
-AC_MSG_CHECKING([whether a working SO_SNDLOWAT exists])
-AC_EGREP_CPP(yes, [
-#include <sys/socket.h>
-#ifdef SO_SNDLOWAT
-yes
-#endif
-], [
-case $host in
-    *bsd*)
-	so_sndlowat=t
-	;;
-
-    *-osf*)
-	so_sndlowat=t
-	;;
-
-    *-aix*)
-	so_sndlowat=t
-	;;
-esac
-if test "x${so_sndlowat}" = xt; then
-    AC_DEFINE(HAVE_SO_SNDLOWAT, 1, [platform supports SO_SNDLOWAT socket option])
-    AC_MSG_RESULT(yes)
-else
-    AC_MSG_RESULT(disabled)
-    AC_MSG_WARN([performance in the server might be degraded without support for the SO_SNDLOWAT socket option])
-fi], [AC_MSG_RESULT(no)
-      AC_MSG_WARN([performance in the server might be degraded without support for the SO_SNDLOWAT socket option])])
-
 AC_MSG_CHECKING([whether realloc with a NULL pointer calls malloc])
 AC_TRY_RUN([
 #include <stdlib.h>
@@ -654,12 +668,15 @@ m4_include(preload.m4)
 SUBDIRS="sockd unlicensed example doc bin SPECS capi contrib"
 if test "x${no_preload_client}" = x; then
     SUBDIRS="dlib $SUBDIRS"
+    if test "x$sol64" != x; then
+       SUBDIRS="dlib64 $SUBDIRS"
+    fi
 fi
+
 #include should be done before compilation to ensure that
 #redefac is executed first
 #lib handles yacc/lex generation for dlib/sockd
 TOPSUBDIRS="$subdirs include libscompat lib $SUBDIRS"
-
 AC_SUBST(TOPSUBDIRS)
 
 AC_MSG_CHECKING([if getsockopt needs cast])
@@ -761,20 +778,6 @@ foo.sa_len = 0;
     AC_MSG_RESULT(yes)],
    [AC_MSG_RESULT(no)])
 
-AC_MSG_CHECKING([to see if malloc_options exists])
-AC_TRY_LINK([extern char *malloc_options;],
-[ malloc_options = 0; ],
-[AC_DEFINE(HAVE_MALLOC_OPTIONS, 1, [support for malloc debugging])
- AC_MSG_RESULT(yes)],
-[AC_MSG_RESULT(no)])
-
-AC_MSG_CHECKING([to see if __progname exists])
-AC_TRY_LINK([extern char *__progname;],
-[ __progname = 0; ],
-[AC_DEFINE(HAVE_PROGNAME, 1, [programe name symbol exists])
- AC_MSG_RESULT(yes)],
-[AC_MSG_RESULT(no)])
-
 #AIX 6.1 needs sys/select.h, but can be problematic on other platforms
 AC_MSG_CHECKING([is sys/select.h is needed])
 AC_TRY_COMPILE([
@@ -801,6 +804,20 @@ AC_TRY_COMPILE([
     [AC_DEFINE(HAVE_SYS_SELECT_H, 1, [sys/select.h needed])
      AC_MSG_RESULT(yes)])])
 
+AC_MSG_CHECKING([to see if malloc_options exists])
+AC_TRY_LINK([extern char *malloc_options;],
+[ malloc_options = 0; ],
+[AC_DEFINE(HAVE_MALLOC_OPTIONS, 1, [support for malloc debugging])
+ AC_MSG_RESULT(yes)],
+[AC_MSG_RESULT(no)])
+
+AC_MSG_CHECKING([to see if __progname exists])
+AC_TRY_LINK([extern char *__progname;],
+[ __progname = 0; ],
+[AC_DEFINE(HAVE_PROGNAME, 1, [programe name symbol exists])
+ AC_MSG_RESULT(yes)],
+[AC_MSG_RESULT(no)])
+
 dnl Checks for libraries.
 AC_SEARCH_LIBS(crypt, crypt)
 
@@ -810,54 +827,8 @@ AC_SEARCH_LIBS(getspnam, sec)
 #FreeBSD has setproctitle in -lutil (Per Hedeland <per@erix.ericsson.se>)
 AC_SEARCH_LIBS(setproctitle, util)
 
-#miniupnpc
-AC_ARG_WITH(upnp,
-[  --without-upnp          disable upnp support @<:@default=detect@:>@],
-[UPNP=$withval])
-
-no_upnp=t
-if test x"${UPNP}" != xno; then
-    AC_MSG_CHECKING([for miniupnpc headers])
-    AC_TRY_COMPILE([#include <miniupnpc/miniupnpc.h>],
-        [struct UPNPDev upnpdev;],
-        [AC_MSG_RESULT(yes)
-         upnphdr=t],
-        [AC_MSG_RESULT(no)
-         unset upnphdr])
-
-    if test "x$upnphdr" = "xt"; then
-	oLIBS=$LIBS
-        AC_SEARCH_LIBS(UPNP_GetValidIGD, miniupnpc, [have_libminiupnp=t])
-	UPNPLIB=$LIBS
-	LIBS=$oLIBS
-    fi
-    if test x"${have_libminiupnp}" = xt; then
-	#only miniupnpc-1.3 API currently supported
-        AC_MSG_CHECKING([for supported miniupnpc library])
-	AC_TRY_COMPILE([
-            #include <stdio.h>
-            #include <miniupnpc/miniupnpc.h>
-            #include <miniupnpc/upnpcommands.h>
-            #include <miniupnpc/upnperrors.h>], [
-
-            char *str = NULL;
-            struct UPNPDev *UPNPDev;
-            struct UPNPUrls *UPNPUrls = NULL;
-            struct IGDdatas *IGDdatas = NULL;
-
-            (void)UPNP_GetIGDFromUrl(str, UPNPUrls, IGDdatas, str, 0);
-            (void)UPNP_GetValidIGD(UPNPDev, UPNPUrls, IGDdatas, str, 0);
-            (void)UPNP_GetExternalIPAddress(str, str, str);
-            (void)UPNP_AddPortMapping(str, str, str, str, str, str, str, str);
-            (void)UPNP_DeletePortMapping(str, str, str, str, str);],
-         [AC_MSG_RESULT(yes)
-          AC_DEFINE(HAVE_LIBMINIUPNP, 1, [UPNP support library])
-          unset no_upnp
-	  SOCKDDEPS="${DLIBDEPS}${DLIBDEPS:+ }$UPNPLIB"
-	  DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$UPNPLIB"],
-         [AC_MSG_RESULT(no)])
-    fi
-fi
+#miniupnpc tests
+m4_include(miniupnpc.m4)
 
 dnl #XXX include header in compilation test?
 dnl normal library testing doesn't work for libwrap (doesn't link
@@ -904,6 +875,19 @@ if test "${PAM}" != no; then
     fi
 fi
 
+AC_ARG_WITH(bsdauth,
+[  --without-bsdauth       disable bsdauth support @<:@default=detect@:>@],
+[BSDAUTH=$withval])
+if test "${BSDAUTH}" != no; then
+    #look for bsd authentication support
+    AC_CHECK_HEADERS(bsd_auth.h, [have_bsdauth_header=t])
+    AC_CHECK_FUNC(auth_userokay, [have_bsdauth=t])
+
+    if test x"${have_bsdauth_header}" != x -a x"${have_bsdauth}" != x; then
+	AC_DEFINE(HAVE_BSDAUTH, 1, [BSD Authentication support])
+    fi
+fi
+
 #only relevant for platforms lacking issetugid()
 AC_MSG_CHECKING([full environment usage])
 AC_ARG_WITH(full-env,
@@ -916,9 +900,18 @@ else
     AC_MSG_RESULT([yes])
 fi
 
-dnl determine GSSAPI support
+dnl determine GSSAPI/KERBEROS/LDAP/SASL support
 no_gssapi=t
+no_krb5=t
+no_ldap=t
+no_sasl=t
+
 m4_include(gssapi.m4)
+if test x"${no_gssapi}" != xt; then
+   m4_include(kerberos.m4)
+   m4_include(ldap.m4)
+   m4_include(sasl.m4)
+fi
 
 dnl compatibility library tests
 m4_include(libscompat.m4)
@@ -948,10 +941,18 @@ if test x"$GCC" != x -a x"${no_preload}" != xt; then
    MAPFILE=dlib/socks.map
 
    cp /dev/null $MAPFILE
-   echo "{
+   if test x`uname` != xDarwin; then
+       echo "{
 global:
 " >> $MAPFILE
-   cat include/symbols_common.txt >> $MAPFILE
+       cat include/symbols_common.txt >> $MAPFILE
+   else
+       #only symbol names with Darwin linker (strip ';' characters)
+       sed -e 's/;//g' < include/symbols_common.txt >> $MAPFILE
+       cat include/symbols_darwin.txt >> $MAPFILE
+   fi
+
+   #platform dependent symbols
    case $host in
        *-*-linux-*)
 	   if test x"$stdio_preload" = xt; then
@@ -968,15 +969,35 @@ global:
 	   cat include/symbols_freebsd.txt >> $MAPFILE
 	   ;;
    esac
-   echo "local:
+   if test x`uname` != xDarwin; then
+      echo "local:
 *;
 };" >> $MAPFILE
-   #if gcc+sun ld, option in -Wl,-Msocks.map, otherwise --version-script
-   gcc -Wl,-v 2>&1 | grep '/usr/ccs/bin/ld' > /dev/null
-   if test $? -eq 0; then
-       MAPOPT="-Wl,-Msocks.map"
+       #if gcc+sun ld, option in -Wl,-Msocks.map, otherwise --version-script
+       gcc -Wl,-v 2>&1 | grep '/usr/ccs/bin/ld' > /dev/null
+       if test $? -eq 0; then
+       	  MAPOPT="-Wl,-Msocks.map"
+       else
+	  MAPOPT="-Wl,--version-script=socks.map"
+       fi
    else
-       MAPOPT="-Wl,--version-script=socks.map"
+        #XXX skip symbol flags for now
+#       MAPOPT="-Wl,-exported_symbols_list -Wl,socks.map"
+	HW=`uname -m`
+	case $HW in
+	     ppc*)
+	     	CFLAGS="$CFLAGS${CFLAGS:+ }-arch ppc -arch ppc64"
+	     	LDFLAGS="$LDLAGS${LDLAGS:+ }-arch ppc -arch ppc64"
+		;;
+	     *)
+	     	CFLAGS="$CFLAGS${CFLAGS:+ }-arch i386 -arch x86_64"
+	     	LDFLAGS="$LDLAGS${LDLAGS:+ }-arch i386 -arch x86_64"
+		;;
+	esac
+   fi
+
+   if test x"$sol64" = xt; then
+       cp $MAPFILE dlib64/
    fi
 fi
 AC_SUBST(MAPOPT)
@@ -989,6 +1010,13 @@ L_UNCON_SELECT([],
 if test x"${nb_select_err}" = xt; then
    AC_MSG_WARN([operations on nonblocking sockets might fail on this platform])
 fi
+
+#expected shmem behavior
+#L_SHMEM([], [l_shmem_fail=t])
+#if test x"${l_shmem_fail}" = xt; then
+#   AC_MSG_WARN(unsupported shmem behavior)
+#   exit 1
+#fi
 
 AC_MSG_CHECKING([direct route fallback in client enabled])
 with_drtfallback=t
@@ -1093,13 +1121,13 @@ fi
 
 #look for modules, and check version
 servdir=sockd
-L_MODVER(bandwidth, 44, $servdir) #module name, version
+L_MODVER(bandwidth, 58, $servdir) #module name, version
 L_MODVER(redirect, 39, $servdir)
-L_MODVER(session, 18, $servdir)
+L_MODVER(session, 21, $servdir)
+L_MODVER(ldap, 1, $servdir)
 
 #helper files
-L_MODVER(checkmodule, 27, $servdir, nokey)
-L_MODVER(shmem, 29, $servdir, nokey)
+L_MODVER(checkmodule, 35, $servdir, nokey)
 
 #change all #undef's to #define foo 0
 AH_BOTTOM([
@@ -1128,7 +1156,7 @@ AC_CONFIG_FILES(sockd/Makefile include/Makefile lib/Makefile dlib/Makefile)
 AC_CONFIG_FILES(Makefile example/Makefile doc/Makefile bin/Makefile)
 AC_CONFIG_FILES(capi/Makefile SPECS/Makefile SPECS/dante.spec)
 AC_CONFIG_FILES(libscompat/Makefile contrib/Makefile)
-AC_CONFIG_FILES(unlicensed/Makefile doc/module/Makefile VERSION)
+AC_CONFIG_FILES(unlicensed/Makefile VERSION dlib64/Makefile)
 
 AC_OUTPUT
 
@@ -1148,11 +1176,6 @@ if test x"${no_preload}" = xt; then
    fi
 else
     echo "Preloading:        OK"
-fi
-if test x"${so_sndlowat}" = xt; then
-    echo "SO_SNDLOWAT:       OK"
-else
-    echo "SO_SNDLOWAT:       not enabled for this platform"
 fi
 if test x"${nb_select_err}" = xt; then
     echo "select:            unexpected select behaviour on unconnected sockets,"
@@ -1174,6 +1197,21 @@ if test x"${no_gssapi}" = xt; then
    fi
 else
 	echo "GSSAPI:            OK"
+fi
+if test x"${no_krb5}" = xt; then
+        echo "KRB5:              not found"
+else
+        echo "KRB5:              OK"
+fi
+if test x"${no_ldap}" = xt; then
+        echo "LDAP:              not found"
+else
+        echo "LDAP:              OK"
+fi
+if test x"${no_sasl}" = xt; then
+        echo "SASL:              not found"
+else
+        echo "SASL:              OK"
 fi
 if test x"${no_upnp}" = xt; then
     if test x"${have_libminiupnp}" = xt; then
@@ -1206,6 +1244,11 @@ if test x"$MOD_SESSION" = x; then
     echo "session:           OK"
 else
     echo "session:           not found"
+fi
+if test x"$MOD_LDAP" = x; then
+    echo "ldap:              OK"
+else
+    echo "ldap:              not found"
 fi
 echo ""
 

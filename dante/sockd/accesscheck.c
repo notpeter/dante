@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.43 2009/10/23 10:37:26 karls Exp $";
+"$Id: accesscheck.c,v 1.60 2011/04/28 08:18:07 michaels Exp $";
 
 int
 usermatch(auth, userlist)
@@ -75,13 +75,41 @@ groupmatch(auth, grouplist)
 {
    const char *function = "groupmatch()";
    const char *username;
+   struct passwd *pw;
+   struct group *groupent;
+
+   SASSERTX(grouplist != NULL);
 
    if ((username = authname(auth)) == NULL)
       return 0; /* no username, no match. */
 
-   /* go through grouplist, matching username against members of each group. */
+   /* 
+    * First check the primary group of the user against grouplist.
+    * If the groupname given there matches, we don't need to go through
+    * all users in the list of group.
+    */
+   if ((pw = socks_getpwnam(username))   != NULL
+   &&  (groupent = getgrgid(pw->pw_gid)) != NULL) {
+      const struct linkedname_t *listent = grouplist;
+
+      do 
+         if (strcmp(groupent->gr_name, listent->name) == 0)
+            return 1;
+      while ((listent = listent->next) != NULL);
+   }
+   else {
+      if (pw == NULL)
+         slog(LOG_DEBUG, "%s: unknown unsername \"%s\"", function, username);
+      else if (groupent == NULL)
+         slog(LOG_DEBUG, "%s: unknown primary groupid %ld",
+         function, (long)pw->pw_gid);
+   }
+
+   /*
+    * Go through grouplist, matching username against each groupmember of 
+    * all the groups in grouplist.
+    */
    do {
-      struct group *groupent;
       char **groupname;
 
       if ((groupent = getgrnam(grouplist->name)) == NULL) {
@@ -102,6 +130,77 @@ groupmatch(auth, grouplist)
    return 0;
 }
 
+#if HAVE_LDAP
+int
+ldapgroupmatch(auth, rule)
+   const struct authmethod_t *auth;
+   const struct rule_t *rule;
+{
+   const char *function = "ldapgroupmatch()";
+   const struct linkedname_t *grouplist;
+   const char *username;
+   char *userdomain, *groupdomain;
+   int retval;
+
+   if ((username = authname(auth)) == NULL)
+      return 0; /* no username, no match. */
+
+#if !HAVE_GSSAPI
+   if (!rule->state.ldap.ldapurl)
+      SERRX(rule->state.ldap.ldapurl != NULL);
+#endif /* !HAVE_GSSAPI */
+
+   if ((userdomain = strchr(username, '@')) != NULL)
+      ++userdomain;
+
+   if (userdomain == NULL && *rule->state.ldap.domain == NUL && rule->state.ldap.ldapurl == NULL) {
+      slog(LOG_DEBUG, "%s: can not check ldap group membership for user %s: "
+                      "user has no domain postfix and no ldap url is defined",
+                      function, username);
+      return 0;
+   }
+
+   if ((retval = ldap_user_is_cached(username)) >= 0)
+      return retval;
+
+   /* go through grouplist, matching username against members of each group. */
+   grouplist = rule->ldapgroup;
+   do {
+      char groupname[MAXNAMELEN];
+
+      slog(LOG_DEBUG, "%s: checking if user %s is member of ldap group %s",
+                      function, username, grouplist->name);
+
+      SASSERTX(sizeof(groupname) > strlen(grouplist->name));
+      strcpy(groupname, grouplist->name);
+
+      if ((groupdomain = strchr(groupname, '@')) != NULL) {
+         *groupdomain = NUL; /* seperates groupname from groupdomain. */
+         ++groupdomain;
+      }
+
+      if (groupdomain != NULL && userdomain != NULL) {
+         if (strcmp(groupdomain, userdomain) != 0
+         &&  strcmp(groupdomain, "") != 0) {
+            slog(LOG_DEBUG, "%s: userdomain \"%s\" does not match groupdomain "
+                            "\"%s\" and groupdomain is not default domain.  "
+                            "Trying next entry",
+                            function, userdomain, groupdomain);
+            continue;
+         }
+      }
+
+      if (ldapgroupmatches(username, userdomain, groupname, groupdomain, rule)){
+         cache_ldap_user(username, 1);
+         return 1;
+      }
+   } while ((grouplist = grouplist->next) != NULL);
+
+   cache_ldap_user(username, 0);
+   return 0;
+}
+#endif /* HAVE_LDAP */
+
 /* ARGSUSED */
 int
 accesscheck(s, auth, src, dst, emsg, emsgsize)
@@ -115,10 +214,14 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
    char srcstr[MAXSOCKADDRSTRING], dststr[sizeof(srcstr)];
    int match, authresultisfixed;
 
-   slog(LOG_DEBUG, "%s: method: %s, %s -> %s ",
-   function, method2string(auth->method),
-   src == NULL ? "<unknown>" : sockaddr2string(src, srcstr, sizeof(srcstr)),
-   dst == NULL ? "<unknown>" : sockaddr2string(dst, dststr, sizeof(dststr)));
+   if (emsgsize > 0)
+      *emsg = NUL;
+
+   if (sockscf.option.debug)
+      slog(LOG_DEBUG, "%s: method: %s, %s -> %s ",
+      function, method2string(auth->method),
+      src == NULL ? "<unknown>" : sockaddr2string(src, srcstr, sizeof(srcstr)),
+      dst == NULL ? "<unknown>" : sockaddr2string(dst, dststr, sizeof(dststr)));
 
    /*
     * We don't want to re-check the same method.  This could
@@ -129,11 +232,24 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
     *    fail next time also.
    */
 
-   if (methodisset(auth->method, auth->methodv, (size_t)auth->methodc))
-      return 1; /* already checked, matches. */
+   if (methodisset(auth->method, auth->methodv, (size_t)auth->methodc)) {
+      slog(LOG_DEBUG, "%s: method %s already checked, matches", 
+      function, method2string(auth->method));
 
-   if (methodisset(auth->method, auth->badmethodv, (size_t)auth->badmethodc))
+      return 1; /* already checked, matches. */
+   }
+
+   if (methodisset(auth->method, auth->badmethodv, (size_t)auth->badmethodc)) {
+      snprintf(emsg, emsgsize,
+              "authentication provided by client for method \"%s\" "
+              "does not match",
+              method2string(auth->method));
+
+      slog(LOG_DEBUG, "%s: method %s already checked, does not match", 
+      function, method2string(auth->method));
+      
       return 0; /* already checked, won't match. */
+   }
 
    match = 0;
    switch (auth->method) {
@@ -176,12 +292,33 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 #if DIAGNOSTIC
          if (freec != freedescriptors(sockscf.option.debug ?  "end" : NULL))
             swarnx("%s: lost %d file descriptor%s in pam_passwordcheck()",
-            function, freec - freedescriptors(NULL),
-            (freec - freedescriptors(NULL)) == 1 ? "" : "s");
+                   function, freec - freedescriptors(NULL),
+                   (freec - freedescriptors(NULL)) == 1 ? "" : "s");
 #endif /* DIAGNOSTIC */
          break;
       }
 #endif /* HAVE_PAM */
+
+#if HAVE_BSDAUTH
+      case AUTHMETHOD_BSDAUTH: {
+#if DIAGNOSTIC
+         const int freec = freedescriptors(sockscf.option.debug ?
+         "start" : NULL);
+#endif /* DIAGNOSTIC */
+
+         if (bsdauth_passwordcheck(s, src, dst, &auth->mdata.bsd, emsg,
+         emsgsize) == 0)
+            match = 1;
+
+#if DIAGNOSTIC
+         if (freec != freedescriptors(sockscf.option.debug ?  "end" : NULL))
+            swarnx("%s: lost %d file descriptor%s in bsdauth_passwordcheck()",
+                   function, freec - freedescriptors(NULL),
+                   (freec - freedescriptors(NULL)) == 1 ? "" : "s");
+#endif /* DIAGNOSTIC */
+         break;
+      }
+#endif /* HAVE_BSDAUTH */
 
       default:
          SERRX(auth->method);
@@ -197,6 +334,15 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 #if HAVE_PAM
       case AUTHMETHOD_PAM:
          if (sockscf.state.pamservicename == NULL)
+            authresultisfixed = 0;
+         else
+            authresultisfixed = 1;
+         break;
+#endif /* HAVE_PAM */
+
+#if HAVE_BSDAUTH
+   case AUTHMETHOD_BSDAUTH:
+         if (sockscf.state.bsdauthstylename == NULL)
             authresultisfixed = 0;
          else
             authresultisfixed = 1;
@@ -242,6 +388,8 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
        */
    }
 
+   if (!match && emsgsize > 0)
+      slog(LOG_DEBUG, "%s: no match: %s", function, emsg);
 
    return match;
 }

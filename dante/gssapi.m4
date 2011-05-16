@@ -129,7 +129,11 @@ if test x"$GSSAPI" != xno; then
 
    dnl look for libs
    if test x"$ac_gssapi_libs" != x; then
-       LDFLAGS="${LDFLAGS} $ac_gssapi_libs"
+       _libsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep '^-l' | xargs echo`
+       _optsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
+       
+       LIBS="${LIBS} ${_libsonly}"
+       LDFLAGS="${LDFLAGS} ${_optsonly}"
    else
        oLIBS=$LIBS
        LIBS=""
@@ -163,26 +167,50 @@ if test x"$GSSAPI" != xno; then
        LIBS="${oLIBS}${oLIBS:+ }$LIBS"
    fi
 
+   unset have_heimdal
+   AC_MSG_CHECKING([for heimdal])
+   AC_TRY_LINK([#include "krb5.h"], [printf("%s\n", heimdal_version);],
+   [AC_DEFINE(HAVE_HEIMDAL_KERBEROS, 1, [Heimdal kerberos implementation])
+    AC_MSG_RESULT(yes)
+    have_heimdal=t],
+   [AC_MSG_RESULT(no)])
+
+   if test x"$ac_gssapi_libs" != x; then
+       case $host in
+	   *-*-freebsd7*)
+	       #skip check, causes problems
+	       ;;
+	   *)
+	       have_gssapi_krb5="`echo ${LIBS} | grep gssapi_krb5`"
+	       if test x"$have_gssapi_krb5" = x; then
+		   AC_CHECK_LIB(gssapi_krb5,
+		       gsskrb5_register_acceptor_identity,
+		       LIBS="${LIBS} -lgssapi_krb5",)
+	       fi
+	       ;;
+       esac
+   fi
+
    dnl do compile check
    AC_MSG_CHECKING([for working gssapi])
    AC_TRY_RUN([
-#if HAVE_GSSAPI_GSSAPI_H
-#include <gssapi/gssapi.h>
-#elif HAVE_GSSAPI_H
+#if HAVE_GSSAPI_H
 #include <gssapi.h>
-#endif
+#elif HAVE_GSSAPI_GSSAPI_H
+#include <gssapi/gssapi.h>
+#endif /* HAVE_GSSAPI_H */
 
+#if !HAVE_HEIMDAL_KERBEROS
 #if HAVE_GSSAPI_GSSAPI_EXT_H
 #include <gssapi/gssapi_ext.h>
-#endif
-
+#endif /* HAVE_GSSAPI_GSSAPI_EXT_H */
 #if HAVE_GSSAPI_GSSAPI_KRB5_H
 #include <gssapi/gssapi_krb5.h>
-#endif
-
+#endif /* HAVE_GSSAPI_GSSAPI_KRB5_H */
 #if HAVE_GSSAPI_GSSAPI_GENERIC_H
 #include <gssapi/gssapi_generic.h>
-#endif
+#endif /* HAVE_GSSAPI_GSSAPI_GENERIC_H */
+#endif /* HAVE_HEIMDAL_KERBEROS */
 
 int
 main(void)
@@ -196,14 +224,6 @@ main(void)
 }
 ], [unset no_gssapi
     AC_MSG_RESULT(yes)],
-   [AC_MSG_RESULT(no)])
-
-   unset have_heimdal
-   AC_MSG_CHECKING([for heimdal])
-   AC_TRY_LINK([#include "krb5.h"], [printf("%s\n", heimdal_version);],
-   [AC_DEFINE(HAVE_HEIMDAL_KERBEROS, 1, [Heimdal kerberos implementation])
-    AC_MSG_RESULT(yes)
-    have_heimdal=t],
    [AC_MSG_RESULT(no)])
 
    for file in gssapi.h gssapi/gssapi.h gssapi/gssapi_generic.h; do
@@ -228,7 +248,7 @@ if test x"$no_gssapi" = xt; then
     LIBS=$nogssLIBS
 else
     #include libs as dependencies as needed in subdirs
-    LIBS=$nogssLIBS
+    LIBS="${LIBS} $nogssLIBS"
 
     AC_DEFINE(HAVE_GSSAPI, 1, [GSSAPI support])
 fi

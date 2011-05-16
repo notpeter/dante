@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010
+ *          2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,7 +54,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.112.2.3.4.2 2011/03/04 13:03:39 michaels Exp $";
+"$Id: config_scan.l,v 1.151 2011/05/12 15:32:50 michaels Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -71,9 +71,7 @@ static const char rcsid[] =
 %option noyywrap
 %option nounput
 
-/*%option debug             */
-
-PORTNUMBER [0-9]{1,5}
+/*%option debug               */
 
    /* non-exclusive start conditions. */
 %s start_address
@@ -87,18 +85,30 @@ PORTNUMBER [0-9]{1,5}
 %x start_log
 %x start_logoutput
 %x start_method
-%x start_operator
 %x start_option
 %x start_proxyprotocol
 %x start_username
 %x start_groupname
-%x start_portnumber
+%x start_libwrapfile
+%x start_ldapdomain
+%x start_ldapbasedn
+%x start_ldapurl
+%x start_ldapfilter
+%x start_ldapattribute
+%x start_ldapservername
+%x start_ldapgroupname
+%x start_ldapkeytabname
+%x start_ldapcertfile
+%x start_ldapcertpath
 %x start_srchost
 %x start_protocol
 %x start_servicename
+%x start_portnumber
+%x start_bsdauthstylename
 %x start_gssapiservicename
 %x start_gssapikeytabname
 %x start_encryption
+%x start_realmname
 %%
 
 
@@ -112,20 +122,33 @@ PORTNUMBER [0-9]{1,5}
       socks_parseinit = 1;
 
       switch (socks_configtype) {
-         case CONFIGTYPE_SERVER:
-            return SERVERCONFIG;
+    case CONFIGTYPE_SERVER:
+       return SERVERCONFIG;
 
-         case CONFIGTYPE_CLIENT:
-            return CLIENTCONFIG;
+    case CONFIGTYPE_CLIENT:
+       return CLIENTCONFIG;
 
-         default:
-            SERRX(socks_configtype);
+    default:
+       SERRX(socks_configtype);
       }
    }
 %}
 
    /* start-condition dependent stuff. */
 
+<start_servicename,start_portnumber>[a-zA-Z]+[^: /\t\n]* {
+	BEGIN(0);
+
+   yylval.string = yytext;
+   return SERVICENAME;
+}
+
+<start_portnumber>[0-9]{1,5} {
+	BEGIN(0);
+
+   yylval.string = yytext;
+   return NUMBER;
+}
 
 <start_proxyprotocol>socks_v4 {
    yylval.string = yytext;
@@ -137,14 +160,9 @@ PORTNUMBER [0-9]{1,5}
    return PROXYPROTOCOL_SOCKS_V5;
 }
 
-<start_proxyprotocol>msproxy_v2 {
+<start_proxyprotocol>http|http_v1.0 {
    yylval.string = yytext;
-   return DEPRECATED;
-}
-
-<start_proxyprotocol>http_v1.0 {
-   yylval.string = yytext;
-   return PROXYPROTOCOL_HTTP_V1_0;
+   return PROXYPROTOCOL_HTTP;
 }
 
 <start_proxyprotocol>upnp {
@@ -176,6 +194,7 @@ PORTNUMBER [0-9]{1,5}
    yylval.string = yytext;
    return COMMAND_UDPREPLY;
 }
+
 
 <start_address>direct {
    yylval.string = yytext;
@@ -221,17 +240,8 @@ PORTNUMBER [0-9]{1,5}
 }
 
 <start_port>port {
-   BEGIN(start_operator);
-
    yylval.string = yytext;
    return PORT;
-}
-
-<start_operator>eq|=|ne|!=|ge|>=|le|<=|gt|>|lt|< {
-   BEGIN(start_portnumber);
-
-   yylval.string = yytext;
-   return OPERATOR;
 }
 
 <start_log>connect {
@@ -259,27 +269,10 @@ PORTNUMBER [0-9]{1,5}
    return SOCKS_LOG_IOOPERATION;
 }
 
-<start_portnumber,start_servicename>[a-zA-Z]+[^: /\t\n]* {
-   BEGIN(INITIAL);
-
+<start_bsdauthstylename>[a-zA-Z]+[^: /\t\n]* {
    yylval.string = yytext;
-   return SERVICENAME;
+   return BSDAUTHSTYLENAME;
 }
-
-<start_operator>{PORTNUMBER} {
-   BEGIN(start_portnumber); /* no operator, first port in range then. */
-
-   yylval.string = yytext;
-   return PORTNUMBER;
-}
-
-<start_portnumber>{PORTNUMBER} {
-   BEGIN(INITIAL);
-
-   yylval.string = yytext;
-   return PORTNUMBER;
-}
-
 
 <start_logoutput>[^: \t\n]+ {
    yylval.string = yytext;
@@ -296,19 +289,79 @@ PORTNUMBER [0-9]{1,5}
    return GROUPNAME;
 }
 
+<start_libwrapfile>[^: \t\n]+ {
+   yylval.string = yytext;
+   return LIBWRAP_FILE;
+}
+
+<start_ldapdomain>[^: \t\n]+[^\t\n]+ {
+   yylval.string = yytext;
+   return LDAP_DOMAIN;
+}
+
+<start_ldapbasedn>[^: \t\n]+[^\t\n]+ {
+   yylval.string = yytext;
+   return LDAP_BASEDN;
+}
+
+<start_ldapfilter>[^: \t\n]+[^\t\n]+ {
+   yylval.string = yytext;
+   return LDAP_FILTER;
+}
+
+<start_ldapurl>(ldap|ldaps)\:\/\/.* {
+   yylval.string = yytext;
+   return LDAP_URL;
+}
+
+<start_ldapattribute>[^: \t\n]+[^\t\n]+ {
+   yylval.string = yytext;
+   return LDAP_ATTRIBUTE;
+}
+
+<start_ldapgroupname>[^: \t\n]+[^\t\n]+ {
+   yylval.string = yytext;
+   return LDAPGROUP_NAME;
+}
+
+<start_ldapservername>[^: \t\n]+[^\t\n]+ {
+   yylval.string = yytext;
+   return LDAPSERVER_NAME;
+}
+
+<start_ldapcertfile>[^: \t\n]+ {
+   yylval.string = yytext;
+   return LDAP_CERTFILE;
+}
+
+<start_ldapcertpath>[^: \t\n]+ {
+   yylval.string = yytext;
+   return LDAP_CERTPATH;
+}
+
+<start_ldapkeytabname>[^: \t\n]+ {
+   yylval.string = yytext;
+   return LDAPKEYTABNAME;
+}
+
+<start_ldapkeytabname>FILE:[^ \t\n]+ {
+   yylval.string = yytext;
+   return LDAPKEYTABNAME;
+}
+
 <start_gssapikeytabname>[^: \t\n]+ {
-        yylval.string = yytext;
-        return GSSAPIKEYTABNAME;
+   yylval.string = yytext;
+   return GSSAPIKEYTABNAME;
 }
 
 <start_gssapikeytabname>FILE:[^ \t\n]+ {
-        yylval.string = yytext;
-        return GSSAPIKEYTABNAME;
+   yylval.string = yytext;
+   return GSSAPIKEYTABNAME;
 }
 
 <start_gssapiservicename>[^: \t\n]+ {
-        yylval.string = yytext;
-        return GSSAPISERVICENAME;
+   yylval.string = yytext;
+   return GSSAPISERVICENAME;
 }
 
 <lineprefix>: {
@@ -319,20 +372,20 @@ PORTNUMBER [0-9]{1,5}
 }
 
 <start_line>.* {
-   BEGIN(INITIAL);
+   BEGIN(0);
 
    yylval.string = yytext;
    return LINE;
 }
 
-<start_srchost>nomismatch {
+<start_srchost>nodnsmismatch {
    yylval.string = yytext;
-   return NOMISMATCH;
+   return NODNSMISMATCH;
 }
 
-<start_srchost>nounknown {
+<start_srchost>nodnsunknown {
    yylval.string = yytext;
-   return NOUNKNOWN;
+   return NODNSUNKNOWN;
 }
 
 <start_srchost>checkreplyauth {
@@ -356,40 +409,93 @@ PORTNUMBER [0-9]{1,5}
 }
 
 <start_encryption>any {
-        yylval.string = yytext;
-        return GSSAPIENC_ANY;
+   yylval.string = yytext;
+   return GSSAPIENC_ANY;
 }
 
 <start_encryption>clear {
-        yylval.string = yytext;
-        return GSSAPIENC_CLEAR;
+   yylval.string = yytext;
+   return GSSAPIENC_CLEAR;
 }
 
 <start_encryption>integrity {
-        yylval.string = yytext;
-        return GSSAPIENC_INTEGRITY;
+   yylval.string = yytext;
+   return GSSAPIENC_INTEGRITY;
 }
 
 <start_encryption>confidentiality {
-        yylval.string = yytext;
-        return GSSAPIENC_CONFIDENTIALITY;
+   yylval.string = yytext;
+   return GSSAPIENC_CONFIDENTIALITY;
 }
 
 <start_encryption>permessage {
-        yylval.string = yytext;
-        return GSSAPIENC_PERMESSAGE;
+   yylval.string = yytext;
+   return GSSAPIENC_PERMESSAGE;
+}
+
+<start_realmname>[^: \t\n]+ {
+   yylval.string = yytext;
+   return REALNAME;
+}
+
+<start_method>none {
+   yylval.string = yytext;
+   return NONE;
+}
+
+<start_method>gssapi {
+   yylval.string = yytext;
+   return GSSAPI;
+}
+
+<start_method>username {
+   yylval.string = yytext;
+   return UNAME;
+}
+
+<start_method>rfc931 {
+   yylval.string = yytext;
+   return RFC931;
+}
+
+<start_method>pam {
+   yylval.string = yytext;
+   return PAM;
+}
+
+<start_method>bsdauth {
+   yylval.string = yytext;
+   return BSDAUTH;
 }
 
    /* non-start condition dependents. */
 
+eq|=|ne|!=|ge|>=|le|<=|gt|>|lt|< {
+   BEGIN(start_portnumber);
+
+   yylval.string = yytext;
+   return OPERATOR;
+}
+
+
 debug {
    yylval.string = yytext;
-   return DEBUGING;
+   return DEBUGGING;
 }
 
 route {
    yylval.string = yytext;
    return ROUTE;
+}
+
+maxfail {
+   yylval.string = yytext;
+   return MAXFAIL;
+}
+
+badexpire {
+   yylval.string = yytext;
+   return BADROUTE_EXPIRE;
 }
 
 resolveprotocol {
@@ -406,12 +512,45 @@ srchost {
    return SRCHOST;
 }
 
+socket {
+   yylval.string = yytext;
+   return SOCKET;
+}
+
+clientsocket {
+   yylval.string = yytext;
+   return CLIENTSIDE_SOCKET;
+}
+
+sendbuf {
+   BEGIN(start_protocol);
+
+   yylval.string = yytext;
+   return SNDBUF;
+}
+
+recvbuf {
+   BEGIN(start_protocol);
+
+   yylval.string = yytext;
+   return RCVBUF;
+}
+
+
 proxyprotocol {
    BEGIN(start_proxyprotocol);
 
    yylval.string = yytext;
    return PROXYPROTOCOL;
 }
+
+errorlog {
+   BEGIN(start_logoutput);
+
+   yylval.string = yytext;
+   return ERRORLOG;
+}
+
 
 logoutput {
    BEGIN(start_logoutput);
@@ -435,8 +574,6 @@ command {
 }
 
 udp\.portrange {
-   BEGIN(start_operator);
-
    yylval.string = yytext;
    return UDPPORTRANGE;
 }
@@ -510,6 +647,10 @@ none {
    return NONE;
 }
 
+same-same {
+   yylval.string = yytext;
+   return SAMESAME;
+}
 
 external {
    BEGIN(start_address);
@@ -564,6 +705,17 @@ user\.libwrap {
    return USER_LIBWRAP;
 }
 
+timeout\.connect {
+   yylval.string = yytext;
+   return CONNECTTIMEOUT;
+}
+
+timeout\.tcp_fin_wait {
+   yylval.string = yytext;
+   return TCP_FIN_WAIT;
+}
+
+
 timeout\.io {
    yylval.string = yytext;
    return IOTIMEOUT;
@@ -579,14 +731,15 @@ timeout\.io\.udp {
    return IOTIMEOUT_UDP;
 }
 
+timeout\.negotiate {
+   yylval.string = yytext;
+   return NEGOTIATETIMEOUT;
+}
+
+
 compatibility {
    yylval.string = yytext;
    return COMPATIBILITY;
-}
-
-reuseaddr {
-   yylval.string = yytext;
-   return REUSEADDR;
 }
 
 sameport {
@@ -607,11 +760,6 @@ clientcompatibility {
 necgssapi {
    yylval.string = yytext;
    return NECGSSAPI;
-}
-
-timeout\.negotiate {
-   yylval.string = yytext;
-   return NEGOTIATETIMEOUT;
 }
 
 extension {
@@ -642,32 +790,6 @@ clientmethod {
    yylval.string = yytext;
    return CLIENTMETHOD;
 }
-
-<start_method>none {
-   yylval.string = yytext;
-   return NONE;
-}
-
-<start_method>gssapi {
-   yylval.string = yytext;
-   return GSSAPI;
-}
-
-<start_method>username {
-   yylval.string = yytext;
-   return UNAME;
-}
-
-<start_method>rfc931 {
-   yylval.string = yytext;
-   return RFC931;
-}
-
-<start_method>pam {
-   yylval.string = yytext;
-   return PAM;
-}
-
 
    /* filterrules */
 
@@ -705,6 +827,25 @@ libwrap {
    return LIBWRAPSTART;
 }
 
+libwrap\.allow {
+   BEGIN(start_libwrapfile);
+
+   yylval.string = yytext;
+   return LIBWRAP_ALLOW;
+}
+
+libwrap\.deny {
+   BEGIN(start_libwrapfile);
+
+   yylval.string = yytext;
+   return LIBWRAP_DENY;
+}
+
+libwrap\.hosts_access {
+   yylval.string = yytext;
+   return LIBWRAP_HOSTS_ACCESS;
+}
+
 pam\.servicename|pamservicename {
    BEGIN(start_servicename);
 
@@ -712,25 +853,212 @@ pam\.servicename|pamservicename {
    return PAMSERVICENAME;
 }
 
-gssapi\.servicename {
-        BEGIN(start_gssapiservicename);
+bsdauth\.stylename {
+   BEGIN(start_bsdauthstylename);
 
-        yylval.string = yytext;
-        return GSSAPISERVICE;
+   yylval.string = yytext;
+   return BSDAUTHSTYLE;
+}
+
+gssapi\.servicename {
+   BEGIN(start_gssapiservicename);
+
+   yylval.string = yytext;
+   return GSSAPISERVICE;
 }
 
 gssapi\.keytab {
        BEGIN(start_gssapikeytabname);
 
-        yylval.string = yytext;
-        return GSSAPIKEYTAB;
+   yylval.string = yytext;
+   return GSSAPIKEYTAB;
 }
 
 gssapi\.enctype {
        BEGIN(start_encryption);
 
-        yylval.string = yytext;
-        return GSSAPIENCTYPE;
+   yylval.string = yytext;
+   return GSSAPIENCTYPE;
+}
+
+ldap\.basedn {
+       BEGIN(start_ldapbasedn);
+
+   yylval.string = yytext;
+   return LDAPBASEDN;
+}
+
+ldap\.basedn\.hex {
+       BEGIN(start_ldapbasedn);
+
+   yylval.string = yytext;
+   return LDAPBASEDN_HEX;
+}
+
+ldap\.basedn\.hex\.all {
+       BEGIN(start_ldapbasedn);
+
+   yylval.string = yytext;
+   return LDAPBASEDN_HEX_ALL;
+}
+
+ldap\.port {
+   yylval.string = yytext;
+   return LDAPPORT;
+}
+
+ldap\.port\.ssl {
+   yylval.string = yytext;
+   return LDAPPORTSSL;
+}
+
+ldap\.url {
+       BEGIN(start_ldapurl);
+
+   yylval.string = yytext;
+   return LDAPURL;
+}
+
+ldap\.certfile {
+   BEGIN(start_ldapcertfile);
+
+   yylval.string = yytext;
+   return LDAPCERTFILE;
+}
+
+ldap\.certpath {
+   BEGIN(start_ldapcertpath);
+
+   yylval.string = yytext;
+   return LDAPCERTPATH;
+}
+
+ldap\.domain {
+       BEGIN(start_ldapdomain);
+
+   yylval.string = yytext;
+   return LDAPDOMAIN;
+}
+
+ldap\.debug {
+   yylval.string = yytext;
+   return LDAPDEBUG;
+}
+
+ldap\.mdepth {
+   yylval.string = yytext;
+   return LDAPDEPTH;
+}
+
+ldap\.ssl {
+   yylval.string = yytext;
+   return LDAPSSL;
+}
+
+ldap\.auto\.off {
+   yylval.string = yytext;
+   return LDAPAUTO;
+}
+
+ldap\.certcheck {
+   yylval.string = yytext;
+   return LDAPCERTCHECK;
+}
+
+ldap\.keeprealm {
+   yylval.string = yytext;
+   return LDAPKEEPREALM;
+}
+
+ldap\.filter {
+       BEGIN(start_ldapfilter);
+
+   yylval.string = yytext;
+   return LDAPFILTER;
+}
+
+ldap\.filter\.ad {
+       BEGIN(start_ldapfilter);
+
+   yylval.string = yytext;
+   return LDAPFILTER_AD;
+}
+
+ldap\.filter\.hex {
+       BEGIN(start_ldapfilter);
+
+   yylval.string = yytext;
+   return LDAPFILTER_HEX;
+}
+
+ldap\.filter\.ad\.hex {
+       BEGIN(start_ldapfilter);
+
+   yylval.string = yytext;
+   return LDAPFILTER_AD_HEX;
+}
+
+ldap\.attribute {
+       BEGIN(start_ldapattribute);
+
+   yylval.string = yytext;
+   return LDAPATTRIBUTE;
+}
+
+ldap\.attribute\.ad {
+       BEGIN(start_ldapattribute);
+
+   yylval.string = yytext;
+   return LDAPATTRIBUTE_AD;
+}
+
+ldap\.attribute\.hex {
+       BEGIN(start_ldapattribute);
+
+   yylval.string = yytext;
+   return LDAPATTRIBUTE_HEX;
+}
+
+ldap\.attribute\.ad\.hex {
+       BEGIN(start_ldapattribute);
+
+   yylval.string = yytext;
+   return LDAPATTRIBUTE_AD_HEX;
+}
+
+ldap\.server {
+   BEGIN(start_ldapservername);
+
+   yylval.string = yytext;
+   return LDAPSERVER;
+}
+
+ldap\.group {
+   BEGIN(start_ldapgroupname);
+
+   yylval.string = yytext;
+   return LDAPGROUP;
+}
+
+ldap\.group\.hex {
+   BEGIN(start_ldapgroupname);
+
+   yylval.string = yytext;
+   return LDAPGROUP_HEX;
+}
+
+ldap\.group\.hex\.all {
+   BEGIN(start_ldapgroupname);
+
+   yylval.string = yytext;
+   return LDAPGROUP_HEX_ALL;
+}
+
+ldap\.keytab {
+   BEGIN(start_ldapkeytabname);
+
+   yylval.string = yytext;
+   return LDAPKEYTAB;
 }
 
 bounce {
@@ -738,6 +1066,12 @@ bounce {
    return BOUNCE;
 }
 
+realm {
+  BEGIN(start_realmname);
+
+   yylval.string = yytext;
+   return REALM;
+}
 
  /*
   * global keywords that are no longer used.
@@ -753,10 +1087,10 @@ localdomain.*:.*|connecttimeout|iotimeout {
    /* misc. generic stuff. */
 
 <*>[0-9]+ {
+
    yylval.string = yytext;
    return NUMBER;
 }
-
 
    /* ignored */
 <*>[[:blank:]]+ {
@@ -770,7 +1104,7 @@ localdomain.*:.*|connecttimeout|iotimeout {
 
    /* state always ends at eol. */
 <*>\n {
-   BEGIN(INITIAL);
+   BEGIN(0);
 }
 
    /* unless it's escaped. */

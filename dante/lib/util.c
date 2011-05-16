@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009, 2010
+ *               2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #include "ifaddrs_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.201.2.2.4.2 2011/03/18 08:48:30 michaels Exp $";
+"$Id: util.c,v 1.257 2011/05/11 10:14:22 michaels Exp $";
 
 const char *
 strcheck(string)
@@ -57,10 +57,10 @@ strcheck(string)
    return string == NULL ? NOMEM : string;
 }
 
-unsigned char
+unsigned int
 sockscode(version, code)
-   int version;
-   int code;
+   const int version;
+   const int code;
 {
 
    switch (version) {
@@ -73,39 +73,30 @@ sockscode(version, code)
             default:
                return SOCKSV4_FAIL; /* v4 is not very specific. */
          }
-      /* NOTREACHED */
-
-      case PROXY_SOCKS_V5:
-         switch (code) {
-            default:
-               return (unsigned char)code; /* current codes are all V5. */
-         }
-      /* NOTREACHED */
-
-      case PROXY_MSPROXY_V2:
-         switch (code) {
-            case SOCKS_SUCCESS:
-               return MSPROXY_SUCCESS;
-
-            case SOCKS_FAILURE:
-               return MSPROXY_FAILURE;
-
-            default:
-               SERRX(code);
-         }
          /* NOTREACHED */
 
-      case PROXY_HTTP_V1_0:
+      case PROXY_SOCKS_V5:
+         return (unsigned char)code; /* current codes are all V5. */
+
+      case PROXY_HTTP_10:
+      case PROXY_HTTP_11:
          switch (code) {
             case SOCKS_SUCCESS:
                return HTTP_SUCCESS;
 
             case SOCKS_FAILURE:
-               /* LINTED constant argument to NOT */
-               return !HTTP_SUCCESS;
+               return HTTP_FAILURE;
+
+            case SOCKS_NOTALLOWED:
+               return HTTP_NOTALLOWED;
+
+            case SOCKS_NETUNREACH:
+            case SOCKS_HOSTUNREACH:
+            case SOCKS_CONNREFUSED:
+               return HTTP_HOSTUNREACH;
 
             default:
-               SERRX(code);
+               return HTTP_FAILURE;
          }
          /* NOTREACHED */
 
@@ -130,7 +121,7 @@ sockscode(version, code)
    /* NOTREACHED */
 }
 
-unsigned char
+unsigned int
 errno2reply(errnum, version)
    int errnum;
    int version;
@@ -144,6 +135,7 @@ errno2reply(errnum, version)
          return sockscode(version, SOCKS_HOSTUNREACH);
 
       case ECONNREFUSED:
+      case ECONNRESET:
          return sockscode(version, SOCKS_CONNREFUSED);
 
       case ETIMEDOUT:
@@ -162,36 +154,33 @@ sockshost2sockaddr(host, addr)
    uint8_t sa_length;
 
    bzero(addr, sizeof(*addr));
-
    switch (host->atype) {
       case SOCKS_ADDR_IPV4:
          addr->sa_family = AF_INET;
-         sa_length = sizeof(struct sockaddr_in);
+         sa_length       = sizeof(struct sockaddr_in);
 
-         /* LINTED pointer casts may be troublesome */
          TOIN(addr)->sin_addr = host->addr.ipv4;
+         TOIN(addr)->sin_port = host->port;
          break;
 
       case SOCKS_ADDR_DOMAIN: {
          struct hostent *hostent;
 
          addr->sa_family = AF_INET;
-         sa_length = sizeof(struct sockaddr_in);
+         sa_length       = sizeof(struct sockaddr_in);
 
          if ((hostent = gethostbyname(host->addr.domain)) == NULL
          ||   hostent->h_addr_list == NULL) {
-            /* LINTED pointer casts may be troublesome */
-            swarnx("%s: gethostbyname(%s): %s",
+            slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
             function, host->addr.domain, hstrerror(h_errno));
 
             /* LINTED pointer casts may be troublesome */
             TOIN(addr)->sin_addr.s_addr = htonl(INADDR_ANY);
-
-            break;
          }
-
-         /* LINTED pointer casts may be troublesome */
-         TOIN(addr)->sin_addr = *(struct in_addr *)(*hostent->h_addr_list);
+         else {
+            TOIN(addr)->sin_addr = *(struct in_addr *)(*hostent->h_addr_list);
+            TOIN(addr)->sin_port = host->port;
+         }
 
          break;
       }
@@ -204,9 +193,6 @@ sockshost2sockaddr(host, addr)
    addr->sa_len = sa_length;
 #endif /* HAVE_SOCKADDR_SA_LEN */
 
-   /* LINTED pointer casts may be troublesome */
-   TOIN(addr)->sin_port = host->port;
-
    return addr;
 }
 
@@ -218,7 +204,7 @@ sockaddr2sockshost(addr, host)
 
    switch (addr->sa_family) {
       case AF_INET:
-         host->atype     = SOCKS_ADDR_IPV4;
+         host->atype     = (unsigned char)SOCKS_ADDR_IPV4;
          /* LINTED pointer casts may be troublesome */
          host->addr.ipv4 = TOCIN(addr)->sin_addr;
          /* LINTED pointer casts may be troublesome */
@@ -232,6 +218,19 @@ sockaddr2sockshost(addr, host)
    return host;
 }
 
+struct sockaddr *
+ruleaddr2sockaddr(address, sa, protocol)
+   const struct ruleaddr_t *address;
+   struct sockaddr *sa;
+   const int protocol;
+{
+   struct sockshost_t host;
+
+   ruleaddr2sockshost(address, &host, protocol);
+   return sockshost2sockaddr(&host, sa);
+}
+
+
 struct sockshost_t *
 ruleaddr2sockshost(address, host, protocol)
    const struct ruleaddr_t *address;
@@ -240,7 +239,7 @@ ruleaddr2sockshost(address, host, protocol)
 {
    const char *function = "ruleaddr2sockshost()";
 
-   switch (host->atype = address->atype) {
+   switch (host->atype = (unsigned char)address->atype) {
       case SOCKS_ADDR_IPV4:
          host->addr.ipv4 = address->addr.ipv4.ip;
          break;
@@ -253,7 +252,7 @@ ruleaddr2sockshost(address, host, protocol)
       case SOCKS_ADDR_IFNAME: {
          struct sockaddr addr;
 
-         host->atype = SOCKS_ADDR_IPV4;
+         host->atype = (unsigned char)SOCKS_ADDR_IPV4;
 
          if (ifname2sockaddr(address->addr.ifname, 0, &addr, NULL) == NULL) {
             swarnx("%s: can't find interface named %s with ip configured, "
@@ -325,12 +324,12 @@ gwaddr2sockshost(gw, host)
 
    switch (gw->atype) {
       case SOCKS_ADDR_IPV4:
-         host->atype     = gw->atype;
+         host->atype     = (unsigned char)gw->atype;
          host->addr.ipv4 = gw->addr.ipv4;
          break;
 
       case SOCKS_ADDR_DOMAIN:
-         host->atype = gw->atype;
+         host->atype = (unsigned char)gw->atype;
          SASSERTX(strlen(gw->addr.domain) < sizeof(gw->addr.domain));
          strcpy(host->addr.domain, gw->addr.domain);
          break;
@@ -371,7 +370,7 @@ sockshost2ruleaddr(host, addr)
    struct ruleaddr_t *addr;
 {
 
-   switch (addr->atype = host->atype) {
+   switch (addr->atype = (atype_t)host->atype) {
       case SOCKS_ADDR_IPV4:
          addr->addr.ipv4.ip            = host->addr.ipv4;
          addr->addr.ipv4.mask.s_addr   = htonl(0xffffffff);
@@ -414,12 +413,11 @@ sockaddr2ruleaddr(addr, ruleaddr)
 struct sockaddr *
 hostname2sockaddr(name, index, addr)
    const char *name;
-   int index;
+   size_t index;
    struct sockaddr *addr;
 {
    struct hostent *hostent;
-   int i;
-
+   size_t i;
 
    if ((hostent = gethostbyname(name)) == NULL)
       return NULL;
@@ -428,13 +426,21 @@ hostname2sockaddr(name, index, addr)
       if (i == index) {
          bzero(addr, sizeof(*addr));
          addr->sa_family = (uint8_t)hostent->h_addrtype;
+
 #if HAVE_SOCKADDR_SA_LEN
-         addr->sa_len = hostent->h_length;
+         switch (addr->sa_family) {
+            case AF_INET:
+               SASSERTX(hostent->h_length == sizeof(struct in_addr));
+               addr->sa_len = sizeof(struct sockaddr_in);
+               break;
+
+            default:
+               SERRX(addr->sa_family);
+         }
 #endif /* HAVE_SOCKADDR_SA_LEN */
+
          SASSERTX(addr->sa_family == AF_INET);
-         /* LINTED pointer casts may be troublesome */
          TOIN(addr)->sin_addr = *(struct in_addr *)hostent->h_addr_list[i];
-         /* LINTED pointer casts may be troublesome */
          TOIN(addr)->sin_port = htons(0);
 
          return addr;
@@ -446,44 +452,75 @@ hostname2sockaddr(name, index, addr)
 struct sockaddr *
 ifname2sockaddr(ifname, index, addr, mask)
    const char *ifname;
-   int index;
+   size_t index;
    struct sockaddr *addr;
    struct sockaddr *mask;
 {
-   int i;
+   const char *function = "ifname2sockaddr()";
    struct ifaddrs ifa, *ifap = &ifa, *iface;
+   size_t i;
+   int foundifname, foundbutnoipv4;
 
-   if (getifaddrs(&ifap) != 0)
+   if (getifaddrs(&ifap) != 0) {
+      swarn("%s: getifaddrs() failed", function);
       return NULL;
+   }
 
-   for (iface = ifap, i = 0; i <= index && iface != NULL;
-   iface = iface->ifa_next)
-      if (strcmp(iface->ifa_name, ifname) == 0
-      && iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET) {
-         if (i++ != index)
-            continue;
+   foundbutnoipv4 = 0;
+   foundifname    = 0;
+   for (iface = ifap, i = 0;
+        i <= index && iface != NULL;
+        iface = iface->ifa_next) {
+      if (strcmp(iface->ifa_name, ifname) != 0)
+         continue;
 
-         *addr = *iface->ifa_addr;
-
-         if (mask != NULL)
-            *mask = *iface->ifa_netmask;
-
-         freeifaddrs(ifap);
-
-         return addr;
+      if (iface->ifa_addr == NULL || iface->ifa_addr->sa_family != AF_INET) {
+         foundbutnoipv4 = 1;
+         continue;
       }
 
+      foundbutnoipv4 = 0;
+      if (i++ != index)
+         continue;
+
+      foundifname = 1;
+
+      *addr = *iface->ifa_addr;
+
+      if (mask != NULL)
+         *mask = *iface->ifa_netmask;
+
+      break;
+   }
+
    freeifaddrs(ifap);
-   return NULL;
+
+   if (index == 0 && foundbutnoipv4) {
+      swarnx("%s: ifname %s has no ipv4 addresses configured.  Not usable",
+      function, ifname);
+
+      return NULL;
+   }
+
+   if (!foundifname) {
+      if (index == 0)
+         slog(LOG_DEBUG, "%s: no interface with the name \"%s\" found",
+         function, ifname);
+
+      return NULL;
+   }
+
+   return addr;
 }
 
 const char *
-sockaddr2ifname(addr, ifname, iflen)
-   struct sockaddr *addr;
+sockaddr2ifname(_addr, ifname, iflen)
+   struct sockaddr *_addr;
    char *ifname;
    size_t iflen;
 {
    const char *function = "sockaddr2ifname()";
+   struct sockaddr addr = *_addr;
    struct ifaddrs ifa, *ifap = &ifa, *iface;
 
    if (ifname == NULL || iflen == 0) {
@@ -494,21 +531,25 @@ sockaddr2ifname(addr, ifname, iflen)
    }
 
    bzero(ifname, iflen);
+   TOIN(&addr)->sin_port = htons(0);
 
    if (getifaddrs(&ifap) != 0)
       return NULL;
 
    for (iface = ifap; iface != NULL; iface = iface->ifa_next)
-      if (iface->ifa_addr != NULL &&  sockaddrareeq(iface->ifa_addr, addr)) {
+      if (iface->ifa_addr != NULL && sockaddrareeq(iface->ifa_addr, &addr)) {
          strncpy(ifname, iface->ifa_name, iflen - 1);
          ifname[iflen - 1] = NUL;
 
          slog(LOG_DEBUG, "%s: address %s belongs to interface %s",
-         function, sockaddr2string(addr, NULL, 0), ifname);
+         function, sockaddr2string(&addr, NULL, 0), ifname);
 
          freeifaddrs(ifap);
          return ifname;
       }
+      else
+         slog(LOG_DEBUG, "%s: address %s does not belong to interface %s",
+         function, sockaddr2string(&addr, NULL, 0), iface->ifa_name);
 
    freeifaddrs(ifap);
    return NULL;
@@ -521,10 +562,10 @@ socks_logmatch(d, log)
 {
    size_t i;
 
-   for (i = 0; i < log->fpc; ++i)
-      if (d == (unsigned int)log->fplockv[i]
-      ||    d == (unsigned int)fileno(log->fpv[i]))
+   for (i = 0; i < log->filenoc; ++i)
+      if (d == (unsigned int)log->filenov[i])
          return 1;
+
    return 0;
 }
 
@@ -628,203 +669,20 @@ methodisset(method, methodv, methodc)
    const int *methodv;
    size_t methodc;
 {
+   const char *function = "methodisset()";
    size_t i;
+
+   if (sockscf.option.debug)
+      slog(LOG_DEBUG, "%s: checking if method %s is set in the list \"%s\"",
+                      function,
+                      method2string(method),
+                      methods2string(methodc, methodv, NULL, 0));
 
    for (i = 0; i < methodc; ++i)
       if (methodv[i] == method)
          return 1;
+
    return 0;
-}
-
-int
-socketoptdup(s)
-   int s;
-{
-   const char *function = "socketoptdup()";
-   unsigned int i;
-   int flags, new_s, errno_s;
-   socklen_t len;
-   union {
-      int               int_val;
-      struct linger     linger_val;
-      struct timeval    timeval_val;
-      struct in_addr    in_addr_val;
-      u_char            u_char_val;
-      struct sockaddr   sockaddr_val;
-      struct ipoption   ipoption;
-   } val;
-   int levelname[][2] = {
-
-      /* socket options */
-
-#ifdef SO_BROADCAST
-      { SOL_SOCKET,   SO_BROADCAST      },
-#endif /* SO_BROADCAST */
-
-#ifdef SO_DEBUG
-      { SOL_SOCKET,   SO_DEBUG          },
-#endif /* SO_DEBUG */
-
-#ifdef SO_DONTROUTE
-      { SOL_SOCKET,   SO_DONTROUTE      },
-#endif /* SO_DONTROUTE */
-
-#ifdef SO_KEEPALIVE
-      { SOL_SOCKET,   SO_KEEPALIVE      },
-#endif /* SO_KEEPALIVE */
-
-#ifdef SO_LINGER
-      { SOL_SOCKET,   SO_LINGER         },
-#endif /* SO_LINGER */
-
-#ifdef SO_OOBINLINE
-      { SOL_SOCKET,   SO_OOBINLINE      },
-#endif /* SO_OOBINLINE */
-
-#ifdef SO_RCVBUF
-      { SOL_SOCKET,   SO_RCVBUF         },
-#endif /* SO_RCVBUF */
-
-#ifdef SO_SNDBUF
-      { SOL_SOCKET,   SO_SNDBUF         },
-#endif /* SO_SNDBUF */
-
-#if HAVE_SO_SNDLOWAT
-#ifdef SO_RCVLOWAT
-      { SOL_SOCKET,   SO_RCVLOWAT       },
-#endif /* SO_RCVLOWAT */
-#endif /* HAVE_SO_SNDLOWAT */
-
-#if HAVE_SO_SNDLOWAT
-#ifdef SO_SNDLOWAT
-      { SOL_SOCKET,   SO_SNDLOWAT       },
-#endif /* SO_SNDLOWAT */
-#endif /* HAVE_SO_SNDLOWAT */
-
-#ifdef SO_RCVTIMEO
-      { SOL_SOCKET,   SO_RCVTIMEO       },
-#endif /* SO_RCVTIMEO */
-
-#ifdef SO_SNDTIMEO
-      { SOL_SOCKET,   SO_SNDTIMEO       },
-#endif /* SO_SNDTIMEO */
-
-#ifdef SO_REUSEADDR
-      { SOL_SOCKET,   SO_REUSEADDR      },
-#endif /* SO_REUSEADDR */
-
-#ifdef SO_REUSEPORT
-      { SOL_SOCKET,   SO_REUSEPORT      },
-#endif /* SO_REUSEPORT */
-
-#ifdef SO_USELOOPBACK
-      { SOL_SOCKET,   SO_USELOOPBACK    },
-#endif /* SO_USELOOPBACK */
-
-      /* IP options */
-
-#ifdef IP_HDRINCL
-      { IPPROTO_IP,   IP_HDRINCL        },
-#endif /* IP_HDRINCL */
-
-#ifdef IP_OPTIONS
-      { IPPROTO_IP,   IP_OPTIONS        },
-#endif /* IP_OPTIONS */
-
-#ifdef IP_RECVDSTADDR
-      { IPPROTO_IP,   IP_RECVDSTADDR    },
-#endif/* IP_RECVDSTADDR */
-
-#ifdef IP_RECVIF
-      { IPPROTO_IP,   IP_RECVIF         },
-#endif /* IP_RECVIF */
-
-#ifdef IP_TOS
-      { IPPROTO_IP,   IP_TOS            },
-#endif /* IP_TOS */
-
-#ifdef IP_TTL
-      { IPPROTO_IP,   IP_TTL            },
-#endif /* IP_TTL */
-
-#ifdef IP_MULTICAST_IF
-      { IPPROTO_IP,   IP_MULTICAST_IF   },
-#endif /* IP_MULTICAST_IF */
-
-#ifdef IP_MULTICAST_TTL
-      { IPPROTO_IP,   IP_MULTICAST_TTL  },
-#endif /* IP_MULTICAST_TTL */
-
-#ifdef IP_MULTICAST_LOOP
-      { IPPROTO_IP,   IP_MULTICAST_LOOP },
-#endif /* IP_MULTICAST_LOOP */
-
-      /* TCP options */
-
-#ifdef TCP_KEEPALIVE
-      { IPPROTO_TCP,   TCP_KEEPALIVE    },
-#endif /* TCP_KEEPALIVE */
-
-#ifdef TCP_MAXRT
-      { IPPROTO_TCP,   TCP_MAXRT        },
-#endif /* TCP_MAXRT */
-
-#ifdef TCP_MAXSEG
-      { IPPROTO_TCP,   TCP_MAXSEG       },
-#endif /* TCP_MAXSEG */
-
-#ifdef TCP_NODELAY
-      { IPPROTO_TCP,   TCP_NODELAY      },
-#endif /* TCP_NODELAY */
-
-#ifdef TCP_STDURG
-      { IPPROTO_TCP,   TCP_STDURG       }
-#endif /* TCP_STDURG */
-
-   };
-
-   errno_s = errno;
-
-   len = sizeof(val);
-   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) == -1) {
-      swarn("%s: getsockopt(SO_TYPE)", function);
-      return -1;
-   }
-
-   if ((new_s = socket(AF_INET, val.int_val, 0)) == -1) {
-      swarn("%s: socket(AF_INET, %d)", function, val.int_val);
-      return -1;
-   }
-
-   for (i = 0; i < ELEMENTS(levelname); ++i) {
-      len = sizeof(val);
-      if (getsockopt(s, levelname[i][0], levelname[i][1], &val, &len) == -1) {
-         if (errno != ENOPROTOOPT)
-            slog(LOG_DEBUG, "%s: getsockopt(%d, %d) failed: %s",
-            function, levelname[i][0], levelname[i][1], strerror(errno));
-
-         continue;
-      }
-
-      if (setsockopt(new_s, levelname[i][0], levelname[i][1], &val, len) == -1)
-         if (errno != ENOPROTOOPT)
-            slog(LOG_DEBUG, "%s: setsockopt(%d, %d) failed: %s",
-            function, levelname[i][0], levelname[i][1], strerror(errno));
-   }
-
-   if ((flags = fcntl(s, F_GETFL, 0))          == -1
-   ||           fcntl(new_s, F_SETFL, flags)   == -1)
-      swarn("%s: fcntl(F_GETFL/F_SETFL)", function);
-
-#if !SOCKS_CLIENT && HAVE_LIBWRAP
-   if ((s = fcntl(new_s, F_GETFD, 0))             == -1
-   ||       fcntl(new_s, F_SETFD, s | FD_CLOEXEC) == -1)
-      swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
-#endif /* SOCKS_SERVER */
-
-   errno = errno_s;
-
-   return new_s;
 }
 
 char *
@@ -837,7 +695,9 @@ str2vis(string, len, visstring, vislen)
    const int visflag = VIS_TAB | VIS_NL | VIS_CSTYLE | VIS_OCTAL;
 
    if (visstring == NULL) {
-      /* see vis(3) for "* 4" */
+      SASSERTX(0); /* should never be used. */
+
+      /* see vis(3) for "* 4" */ 
       if ((visstring = malloc((sizeof(*visstring) * len * 4) + 1)) == NULL)
          return NULL;
 
@@ -851,44 +711,98 @@ str2vis(string, len, visstring, vislen)
 }
 
 int
-socks_mklock(template)
+socks_mklock(template, newname, newnamelen)
    const char *template;
+   char *newname;
+   const size_t newnamelen;
 {
    const char *function = "socks_mklock()";
-   char *prefix, *newtemplate;
-   int s, flag;
+   static char newtemplate[PATH_MAX];
    size_t len;
+   char *prefix;
+   int s, flag;
 
    if ((prefix = socks_getenv("TMPDIR", dontcare)) != NULL)
       if (*prefix == NUL)
          prefix = NULL;
 
    if (prefix == NULL)
-      prefix = "/tmp";
+      prefix = "";
 
    len = strlen(prefix) + strlen("/") + strlen(template) + 1;
-   if ((newtemplate = malloc(sizeof(*newtemplate) * len)) == NULL)
-      return -1;
+   if (len > sizeof(newtemplate))
+      serr(EXIT_FAILURE, "%s: the combination of \"%s\" (%lu) and \"%s\""
+                         "is longer than the system max path length of %lu",
+                         function,
+                         prefix,
+                         (unsigned long)strlen(prefix),
+                         template,
+                         (unsigned long)sizeof(newtemplate));
 
-   snprintfn(newtemplate, len, "%s/%s", prefix, template);
-   if (strstr(newtemplate, "XXXXXX") != NULL)
-      s = mkstemp(newtemplate);
+   if (newnamelen != 0 && len > newnamelen)
+      serr(EXIT_FAILURE, "%s: the combination of \"%s\" (%lu) and \"%s\""
+                         "is longer than the passed maxlength length of %lu",
+                         function, prefix, (unsigned long)strlen(prefix), 
+                         template, (unsigned long)newnamelen);
+
+   if (*prefix != NUL)
+      snprintf(newtemplate, len, "%s/%s", prefix, template);
    else
-      s = open(newtemplate, O_RDWR | O_CREAT | O_EXCL);
+      snprintf(newtemplate, len, "%s", template);
+
+   if (sockscf.option.debug > 1)
+      slog(LOG_DEBUG, "%s: newtemplate = \"%s\", prefix = \"%s\" "
+      "uid = %d, euid = %d, gid = %d, egid = %d",
+      function, newtemplate, prefix,
+      (int)getuid(), (int)geteuid(), 
+      (int)getgid(), (int)getegid());
+
+   if (strstr(newtemplate, "XXXXXX") != NULL) {
+      s = mkstemp(newtemplate);
+#if HAVE_SOLARIS_BUGS
+      if (s == -1 && *newtemplate == NUL) { 
+          /*
+           * Solaris 5.11 sometimes loses the template on failure. :-/
+           */
+         if (*prefix != NUL)
+            snprintf(newtemplate, len, "%s/%s", prefix, template);
+         else
+            snprintf(newtemplate, len, "%s", template);
+      }
+#endif /* HAVE_SOLARIS_BUGS */
+   }
+   else
+      s = open(newtemplate, O_RDWR | O_CREAT | O_EXCL, 0600);
 
    if (s == -1) {
-      swarn("%s: mkstemp(%s)", function, newtemplate);
-      free(newtemplate);
+      if (*prefix == NUL) {
+         slog(LOG_DEBUG, "%s: failed to create \"%s\" (%s) and TMPDIR is not "
+                         "set.  Trying again with TMPDIR set to \"/tmp\"", 
+                         function, newtemplate, strerror(errno));
+
+         if (setenv("TMPDIR", "/tmp", 1) != 0)
+            serr(EXIT_FAILURE, "%s: could not setenv(\"TMPDIR\", \"/tmp\")",
+            function);
+
+         SASSERT(socks_getenv("TMPDIR", dontcare) != NULL);
+         return socks_mklock(template, newname, newnamelen);
+      }
+
+      swarn("%s: open(%s)", function, newtemplate);
       return -1;
    }
+   else
+      if (sockscf.option.debug > 1)
+         slog(LOG_DEBUG, "%s: created file %s", function, newtemplate);
 
-   if (unlink(newtemplate) == -1) {
-      swarn("%s: unlink(%s)", function, newtemplate);
-      free(newtemplate);
-      return -1;
+   if (newnamelen == 0) {
+      if (unlink(newtemplate) == -1) {
+         swarn("%s: unlink(%s)", function, newtemplate);
+         return -1;
+      }
    }
-
-   free(newtemplate);
+   else
+      strcpy(newname, newtemplate);
 
    if ((flag = fcntl(s, F_GETFD, 0))       == -1
    || fcntl(s, F_SETFD, flag | FD_CLOEXEC) == -1)
@@ -898,79 +812,39 @@ socks_mklock(template)
 }
 
 int
-socks_lock(descriptor, type, timeout)
-   int descriptor;
-   int type;
-   int timeout;
+socks_lock(d, exclusive, wait)
+   const int d;
+   const int exclusive;
+   const int wait;
 {
-   const char *function = "socks_lock()";
+/*   const char *function = "socks_lock()"; */
    struct flock lock;
    int rc;
 
-/*   slog(LOG_DEBUG, "%s: %d", function, descriptor);  */
+/*   slog(LOG_DEBUG, "%s: %d", function, d);  */
 
-   SASSERTX(timeout <= 0);
-
-   lock.l_type   = (short)type;
    lock.l_start  = 0;
-   lock.l_whence = SEEK_SET;
    lock.l_len    = 0;
+   lock.l_whence = SEEK_SET;
 
-#if 0 /* missing some bits here to handle race condition. */
-   if (timeout > 0) {
-      struct sigaction sigact;
+   if (exclusive)
+      lock.l_type = F_WRLCK;
+   else
+      lock.l_type = F_RDLCK;
 
-#if SOCKS_CLIENT
-      if (sigaction(SIGALRM, NULL, &sigact) != 0)
-         return -1;
-
-      /* if handler already set for signal, don't override. */
-      if (sigact.sa_handler == SIG_DFL || sigact.sa_handler == SIG_IGN) {
-#else /* !SOCKS_CLIENT */
-      /* CONSTCOND */
-      if (1) {
-#endif /* !SOCKS_CLIENT */
-
-         bzero(&sigact, sizeof(sigact));
-         sigact.sa_handler = SIG_IGN;
-         if (sigaction(SIGALRM, &sigact, NULL) != 0)
-            return -1;
-      }
-
-      alarm((unsigned int)timeout);
-   }
-#endif
-
-retry:
    do
-      rc = fcntl(descriptor, timeout ? F_SETLKW : F_SETLK, &lock);
-   while (rc == -1 && timeout == -1 && errno == EINTR);
+      rc = fcntl(d, wait ? F_SETLKW : F_SETLK, &lock);
+   while (rc == -1 && ERRNOISTMP(errno) && wait);
 
-   if (rc == -1)
-      switch (errno) {
-         case EACCES:
-         case EAGAIN:
-         case EINTR:
-            break;
+   if (rc == -1) {
+      if (!ERRNOISTMP(errno))
+         SERR(d);
 
-         case ENOLCK:
-            swarn("%s: fcntl()", function);
-            sleep(1);
-            goto retry; /* don't exhaust the stack by calling socks_lock(). */
+      if (wait)
+         SERR(d);
+   }
 
-         default:
-            SERR(descriptor);
-      }
-
-#if 0
-   if (timeout > 0)
-      alarm(0);
-#endif
-
-   if (rc != 0 && timeout == -1)
-      abort();
-
-   return rc == -1 ? rc : 0;
+   return rc;
 }
 
 void
@@ -978,10 +852,17 @@ socks_unlock(d)
    int d;
 {
 /*   const char *function = "socks_unlock()";  */
+   struct flock lock;
 
 /*   slog(LOG_DEBUG, "%s: %d", function, d);  */
 
-   socks_lock(d, F_UNLCK, -1);
+   lock.l_start  = 0;
+   lock.l_len    = 0;
+   lock.l_type   = F_UNLCK;
+   lock.l_whence = SEEK_SET;
+
+   if (fcntl(d, F_SETLK, &lock) == -1)
+      SERR(errno);
 }
 
 int
@@ -989,18 +870,18 @@ freedescriptors(message)
    const char *message;
 {
    const int errno_s = errno;
-   int i, freed, max;
+   size_t i, freed, max;
 
    /* LINTED expression has null effect */
-   for (freed = 0, i = 0, max = getmaxofiles(softlimit); i < max; ++i)
-      if (!fdisopen(i))
+   for (freed = 0, i = 0, max = sockscf.state.maxopenfiles; i < max; ++i)
+      if (!fdisopen((int)i))
          ++freed;
 
    if (message != NULL)
-      slog(LOG_DEBUG, "freedescriptors(%s): %d/%d", message, freed, max);
+      slog(LOG_DEBUG, "freedescriptors(%s): %ld/%ld",
+            message, (long)freed, (long)max);
 
    errno = errno_s;
-
    return freed;
 }
 
@@ -1027,158 +908,16 @@ fdisblocking(fd)
    return !(p & O_NONBLOCK);
 }
 
-int
-fdisdup(fd1, fd2)
-   const int fd1;
-   const int fd2;
-{
-   const char *function = "fdisdup()";
-   struct stat sb1, sb2;
-   struct sockaddr addr1, addr2;
-   socklen_t addr1len, addr2len;
-   int isdup, rc1, rc2, errno1, errno2, flags1, flags2;
-
-
-   slog(LOG_DEBUG, "%s: %d, %d", function, fd1, fd2);
-
-   if ((rc1 = fstat(fd1, &sb1)) != fstat(fd2, &sb2))
-      return 0;
-
-   if (rc1 == -1)
-      return 0; /* presumably fd is not open, can't say then. */
-
-#if HAVE_UNIQUE_SOCKET_INODES
-   if (sb1.st_dev != sb2.st_dev
-   ||  sb1.st_ino != sb2.st_ino)
-      return 0;
-#endif /* HAVE_UNIQUE_SOCKET_INODES */
-
-   addr1len = sizeof(addr1);
-   addr2len = sizeof(addr2);
-   rc1    = getsockname(fd1, &addr1, &addr1len);
-   errno1 = errno;
-   rc2 = getsockname(fd2, &addr2, &addr2len);
-   errno2 = errno;
-
-   if (rc1 != rc2 || errno1 != errno2 || addr1len != addr2len)
-      return 0;
-
-   if (rc1 == 0)
-      if (addr1.sa_family != addr2.sa_family
-      || memcmp(&addr1.sa_data, &addr2.sa_data, sizeof(addr1.sa_data)) != 0)
-         return 0;
-
-   addr1len = sizeof(addr1);
-   addr2len = sizeof(addr2);
-   rc1    = getpeername(fd1, &addr1, &addr1len);
-   errno1 = errno;
-   rc2 = getpeername(fd2, &addr2, &addr2len);
-   errno2 = errno;
-
-   if (rc1 != rc2 || errno1 != errno2 || addr1len != addr2len)
-      return 0;
-
-   flags1 = fcntl(fd1, F_GETFL, 0);
-   errno1 = errno;
-   flags2 = fcntl(fd2, F_GETFL, 0);
-   errno2 = errno;
-
-   if (flags1 != flags2 || errno1 != errno2)
-      return 0;
-
-   /*
-    * Ok, all looks equal.  No other (?) choice than to set a flag
-    * on fd1, and see if the same flag then gets set on fd2.
-    * XXX does not work on OpenBSD if one of the descriptors were passed
-    * us by another process.  Need to sendbug this.
-    */
-
-   if (flags1 & O_NONBLOCK) {
-      /*
-       * remove O_NONBLOCK from fd1 and see if it gets removed from fd2 too.
-       */
-      int newflags;
-
-      rc1 = fcntl(fd1, F_SETFL, flags1 & ~O_NONBLOCK);
-      SASSERTX(rc1 == 0);
-
-      newflags = fcntl(fd1, F_GETFL, 0);
-      SASSERTX(!(newflags & O_NONBLOCK));
-
-      newflags = fcntl(fd2, F_GETFL, 0);
-      if (newflags & O_NONBLOCK)
-         isdup = 0;
-      else
-         isdup = 1;
-   }
-   else {
-      /*
-       * add O_NONBLOCK to fd1 and see if it gets added to fd2 too.
-       */
-      int newflags;
-
-      rc1 = fcntl(fd1, F_SETFL, flags1 | O_NONBLOCK);
-      SASSERTX(rc1 == 0);
-
-      newflags = fcntl(fd1, F_GETFL, 0);
-      SASSERTX(newflags & O_NONBLOCK);
-
-      newflags = fcntl(fd2, F_GETFL, 0);
-      if (newflags & O_NONBLOCK)
-         isdup = 1;
-      else
-         isdup = 0;
-   }
-
-   /* restore flags back to original. */
-   rc1 = fcntl(fd1, F_SETFL, flags1);
-   rc2 = fcntl(fd2, F_SETFL, flags2);
-
-   SASSERTX(rc1 == 0 && rc2 == 0);
-   rc1 = fcntl(fd1, F_GETFL, 0);
-   rc2 = fcntl(fd2, F_GETFL, 0);
-
-   SASSERTX(rc1 == flags1);
-   SASSERTX(rc2 == flags2);
-
-   return isdup;
-}
-
 void
-closev(array, count)
+closev(array, i)
    int *array;
-   int count;
+   int i;
 {
 
-   for (--count; count >= 0; --count)
-      if (array[count] >= 0)
-         if (close(array[count]) != 0)
-            SERR(-1);
-}
-
-size_t
-snprintfn(char *str, size_t size, const char *format, ...)
-{
-   va_list ap;
-   int rc;
-
-   if (size <= 0)
-      return 0;
-
-   /* LINTED pointer casts may be troublesome */
-   va_start(ap, format);
-
-   rc = vsnprintf(str, size, format, ap);
-
-   /* LINTED expression has null effect */
-   va_end(ap);
-
-   if (rc == -1) {
-      *str = NUL;
-      return 0;
-   }
-
-   return MIN(rc, (int)(size - 1));
+   for (--i; i >= 0; --i)
+      if (array[i] >= 0)
+         if (close(array[i]) != 0)
+            SERR(array[i]);
 }
 
 /*
@@ -1233,7 +972,7 @@ urlstring2sockaddr(string, saddr)
    }
    ++port; /* skip ':' */
 
-   TOIN(saddr)->sin_port = htons(atoi(port));
+   TOIN(saddr)->sin_port = htons((in_port_t)atoi(port));
 
    return saddr;
 }
@@ -1244,9 +983,22 @@ allocate_maxsize_fdset(void)
    const char *function = "allocate_maxsize_fdset()";
    fd_set *set;
 
+#if SOCKS_CLIENT
+   if ((sockscf.state.maxopenfiles = getmaxofiles(hardlimit)) == RLIM_INFINITY)
+      /*
+       * In the client the softlimit can vary at any time, so this is not
+       * 100% safe, but I see no other practical solution at the moment.
+       */
+      sockscf.state.maxopenfiles = getmaxofiles(softlimit);
+#endif
+
+   if (sockscf.state.maxopenfiles == RLIM_INFINITY)
+      swarnx("%s: maxopenfiles is RLIM_INFINITY (%lu)",
+      function, (unsigned long)RLIM_INFINITY);
+
    if ((set = malloc(SOCKD_FD_SIZE())) == NULL)
       serr(EXIT_FAILURE, "%s: malloc() of %lu bytes for fd_set failed",
-           function, (unsigned long)SOCKD_FD_SIZE());
+      function, (unsigned long)SOCKD_FD_SIZE());
 
 #if DEBUG
    if (sockscf.option.debug > 1)
@@ -1269,7 +1021,11 @@ getmaxofiles(limittype_t type)
       return rlimit.rlim_cur;
 
    if (type == hardlimit)
+#if HAVE_DARWIN /* documented os x bug.  What on earth are they thinking? */
+      return MIN(rlimit.rlim_max, OPEN_MAX);
+#else /* !HAVE_DARWIN */
       return rlimit.rlim_max;
+#endif /* !HAVE_DARWIN */
 
    SERR(type); /* NOTREACHED */
 }
@@ -1304,6 +1060,28 @@ socks_sigunblock(oldset)
 }
 
 
+int
+socks_msghaserrors(prefix, msg)
+   const char *prefix;
+   const struct msghdr *msg;
+{
+   if (msg->msg_flags & MSG_TRUNC) {
+      swarnx("%s: msg is truncated ... message discarded", prefix);
+
+      if (CMSG_TOTLEN(*msg) > 0)
+         swarnx("%s: XXX should close received descriptors", prefix);
+
+      return 1;
+   }
+
+   if (msg->msg_flags & MSG_CTRUNC) {
+      swarnx("%s: cmsg was truncated ... message discarded", prefix);
+      return 1;
+   }
+
+   return 0;
+}
+
 void
 seconds2days(seconds, days, hours, minutes)
    unsigned long *seconds;
@@ -1335,4 +1113,32 @@ seconds2days(seconds, days, hours, minutes)
 
 }
 
+#undef snprintf
+size_t
+snprintfn(char *str, size_t size, const char *format, ...)
+{
+   const int errno_s = errno;
+   va_list ap;
+   ssize_t rc;
+
+   if (size <= 0)
+      return 0;
+
+   /* LINTED pointer casts may be troublesome */
+   va_start(ap, format);
+
+   rc = vsnprintf(str, size, format, ap);
+
+   /* LINTED expression has null effect */
+   va_end(ap);
+
+   errno = errno_s; /* don't want snprintf(3) to change errno. */
+
+   if (rc == -1) {
+      *str = NUL;
+      return 0;
+   }
+
+   return MIN((size_t)rc, size - 1);
+}
 

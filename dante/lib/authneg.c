@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.91 2009/10/23 11:43:35 karls Exp $";
+"$Id: authneg.c,v 1.92 2011/03/24 15:52:58 michaels Exp $";
 
 int
 negotiate_method(s, packet, route)
@@ -103,8 +103,8 @@ negotiate_method(s, packet, route)
 
    if ((rc = socks_recvfromn(s, response, sizeof(response), sizeof(response),
    0, NULL, NULL, packet->req.auth)) != sizeof(response)) {
-      swarn("%s: could not read server response for method to use, read %d/%ld",
-      function, rc, (long)sizeof(response));
+      swarn("%s: could not read server response for method to use, read %d/%lu",
+      function, rc, (unsigned long)sizeof(response));
 
       socks_blacklist(route);
 

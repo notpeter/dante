@@ -1,4 +1,4 @@
-.\" $Id: socksify.1,v 1.4 2009/10/23 11:13:29 karls Exp $
+.\" $Id: socksify.1,v 1.7 2009/12/09 09:46:04 michaels Exp $
 .\"
 .\" Copyright (c) 2009
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -40,7 +40,7 @@
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.TH SOCKSIFY 1 "August, 2009"
+.TH SOCKSIFY 1 "November 1 2009"
 .SH NAME
 socksify \- runtime socksification of selected programs
 .SH DESCRIPTION
@@ -93,8 +93,9 @@ without having a socks.conf file. The accepted format is
 If the \fBSOCKS_SERVER\fP value is set, it indicates the specified server
 supports all socks versions supported by Dante.  If if either of the other
 two variables are used, they indicate the given socks server supports only
-the corresponding socks version,
-v4 or v5.
+the corresponding socks version, v4 or v5.
+Note that if the socks server requires any form of authentication, you
+need to use \fBSOCKS5_SERVER\fP, as v4 does not support authentication.
 .TP
 \fBHTTP_PROXY\fP
 This variable can be used to specify the location of a HTTP proxy supporting
@@ -122,7 +123,7 @@ For inferno Nettverk A/S:
    Michael Shuldman
    Karl-Andre' Skevik
 .SH SEE ALSO
-socks.conf(5) sockd(8) sockd.conf(5)
+socks.conf(5), sockd(8), sockd.conf(5)
 .Pp
 Information about new releases and other related issues can be found
 on the

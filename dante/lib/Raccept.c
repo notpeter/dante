@@ -44,15 +44,14 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.116 2009/10/23 11:43:33 karls Exp $";
+"$Id: Raccept.c,v 1.122 2011/04/25 17:32:58 michaels Exp $";
 
 static int
 addforwarded(const int local, const int remote,
              const struct sockaddr *remoteaddr,
-             const struct sockaddr *virtualremoteaddr);
+             const struct sockshost_t *virtualremoteaddr);
 /*
- * Adds a proxy-forwarded remote client to our list over proxied
- * clients.
+ * Adds a proxy-forwarded remote client to our list over proxied clients.
  * "local" gives the local socket we listen on,
  * "remote" is the socket connected to the remote client,
  * "remoteaddr" is the physical peer of "remote" (the proxyserver),
@@ -68,7 +67,7 @@ Raccept(s, addr, addrlen)
    socklen_t *addrlen;
 {
    const char *function = "Raccept()";
-   static fd_set *rset;
+   fd_set *rset;
    struct socksfd_t socksfd;
    char addrstring[MAXSOCKADDRSTRING];
    struct sockaddr accepted;
@@ -80,21 +79,17 @@ Raccept(s, addr, addrlen)
    slog(LOG_DEBUG, "%s, socket %d", function, s);
 
    /* can't call Raccept() on unknown descriptors. */
-   if (!socks_addrisours(s, 1)) {
+   if (!socks_addrisours(s, &socksfd, 1)) {
       slog(LOG_DEBUG, "%s: socket %d is unknown, going direct", function, s);
       socks_rmaddr(s, 1);
 
       return accept(s, addr, addrlen);
    }
 
-   socksfd = *socks_getaddr(s, 1);
-
    bzero(&packet, sizeof(packet));
    packet.version = (unsigned char)socksfd.state.version;
 
-   if (rset == NULL)
-      rset = allocate_maxsize_fdset();
-
+   rset = allocate_maxsize_fdset();
    FD_ZERO(rset);
    fdbits = -1;
 
@@ -110,11 +105,9 @@ Raccept(s, addr, addrlen)
          fdbits = MAX(fdbits, socksfd.control);
          break;
 
-      case PROXY_MSPROXY_V2:
-         break;   /* controlconnection checked asynchronously. */
-
       case PROXY_UPNP:
          /* ordinary accept(2). */
+         free(rset);
          return accept(s, addr, addrlen);
 
       default:
@@ -139,28 +132,35 @@ Raccept(s, addr, addrlen)
    else
       p = selectn(fdbits, rset, NULL, NULL, NULL, NULL, NULL);
 
-   if (p == -1)
+   if (p == -1) {
+      free(rset);
       return -1;
+   }
 
    SASSERTX(p > 0);
 
    if (FD_ISSET(socksfd.control, rset)) { /* check this first.  */
-      /* pending connection on controlchannel, server wants to forward addr. */
-      SASSERTX(FD_ISSET(socksfd.control, rset));
+      /*
+       * pending data on controlchannel, server wants to forward addr. 
+       */
+
+      free(rset);
 
       switch (packet.version) {
          case PROXY_SOCKS_V4:
          case PROXY_SOCKS_V5: {
-            struct socksfd_t sfddup;
+            struct socksfd_t sfddup, *p;
 
             packet.res.auth = &socksfd.state.auth;
             if (socks_recvresponse(socksfd.control, &packet.res,
-            packet.version) != 0)
+            packet.version) != 0) {
                return -1;
-            fakesockshost2sockaddr(&packet.res.host, &accepted);
+            }
 
-            socksfd = *socks_getaddr(s, 1);
-            socksfd.forus.accepted = accepted;
+            p = socks_getaddr(s, &socksfd, 1);
+            SASSERTX(p != NULL);
+
+            socksfd.forus.accepted = packet.res.host;
             socks_addaddr(s, &socksfd, 1);
 
             if ((remote = dup(socksfd.control)) == -1) {
@@ -183,16 +183,21 @@ Raccept(s, addr, addrlen)
             break;
          }
 
-         case PROXY_MSPROXY_V2:
-            SERRX(0); /* should not be checked, so not checked either. */
-            break;
-
          default:
             SERRX(packet.version);
       }
+
+      sockshost2sockaddr(&socksfd.forus.accepted, &accepted);
+
+      slog(LOG_DEBUG, "%s: accepted: %s",
+      function, sockaddr2string(&accepted, addrstring, sizeof(addrstring)));
    }
    else { /* pending connection on datasocket. */
       socklen_t len;
+
+      SASSERTX(FD_ISSET(s, rset));
+
+      free(rset);
 
       len = sizeof(accepted);
       if ((remote = accept(s, &accepted, &len)) == -1)
@@ -249,33 +254,12 @@ Raccept(s, addr, addrlen)
                   break;
                }
 
-               case PROXY_MSPROXY_V2:
-                  if (sockaddrareeq(&socksfd.reply, &accepted)) {
-                     /* socksfd.forus.accepted filled in by sigio(). */
-                     accepted = socksfd.forus.accepted;
-                     sockaddr2sockshost(&socksfd.forus.accepted,
-                     &packet.res.host);
-
-                     socksfd = *socks_getaddr(s, 1);
-                     /* seems to support only one forward. */
-                     socksfd.state.acceptpending = 0;
-                     socks_addaddr(s, &socksfd, 1);
-                     forwarded = 1;
-                  }
-                  else
-                     forwarded = 0;
-                  break;
-
                default:
                   SERRX(socksfd.state.version);
             }
 
             if (forwarded) {
-               struct sockaddr fakeaddr;
-
-               fakesockshost2sockaddr(&packet.res.host, &fakeaddr);
-
-               if (addforwarded(s, remote, &accepted, &fakeaddr) != 0)
+               if (addforwarded(s, remote, &accepted, &packet.res.host) != 0)
                   return -1;
             }
             /* else; ordinary remote connect, nothing to do. */
@@ -298,16 +282,16 @@ addforwarded(local, remote, remoteaddr, virtualremoteaddr)
    const int local;
    const int remote;
    const struct sockaddr *remoteaddr;
-   const struct sockaddr *virtualremoteaddr;
+   const struct sockshost_t *virtualremoteaddr;
 {
    const char *function = "addforwarded()";
    socklen_t len;
-   struct socksfd_t rfd;
+   struct socksfd_t socksfd, rfd;
 
    slog(LOG_DEBUG, "%s: registering socket %d as accepted from socket %d",
    function, remote, local);
 
-   if (socks_addrdup(socks_getaddr(local, 1), &rfd) == NULL) {
+   if (socks_addrdup(socks_getaddr(local, &socksfd, 1), &rfd) == NULL) {
       swarn("%s: socks_addrdup()", function);
 
       if (errno == EBADF)

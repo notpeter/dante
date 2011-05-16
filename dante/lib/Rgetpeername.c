@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetpeername.c,v 1.45 2009/10/23 11:43:34 karls Exp $";
+"$Id: Rgetpeername.c,v 1.47 2010/11/08 07:00:11 michaels Exp $";
 
 int
 Rgetpeername(s, name, namelen)
@@ -53,49 +53,49 @@ Rgetpeername(s, name, namelen)
    socklen_t *namelen;
 {
    const char *function = "Rgetpeername()";
-   const struct socksfd_t *socksfd;
-   const struct sockaddr *addr;
+   struct socksfd_t socksfd;
+   struct sockaddr addr;
 
    clientinit();
 
    slog(LOG_DEBUG, "%s, socket %d", function, s);
 
-   if (!socks_addrisours(s, 1)) {
+   if (!socks_addrisours(s, &socksfd, 1)) {
       socks_rmaddr(s, 1);
       return getpeername(s, name, namelen);
    }
 
-   socksfd = socks_getaddr(s, 1);
-   SASSERTX(socksfd != NULL);
 
-   switch (socksfd->state.command) {
+   switch (socksfd.state.command) {
       case SOCKS_BIND:
-         addr = &socksfd->forus.accepted;
+         fakesockshost2sockaddr(&socksfd.forus.accepted, &addr);
          break;
 
       case SOCKS_CONNECT:
-         if (socksfd->state.err != 0) {
+         if (socksfd.state.err != 0) {
             errno = ENOTCONN;
             return -1;
          }
-         addr = &socksfd->forus.connected;
+
+         fakesockshost2sockaddr(&socksfd.forus.connected, &addr);
          break;
 
       case SOCKS_UDPASSOCIATE:
-         if (!socksfd->state.udpconnect) {
+         if (!socksfd.state.udpconnect) {
             errno = ENOTCONN;
             return -1;
          }
-         addr = &socksfd->forus.connected;
+
+         fakesockshost2sockaddr(&socksfd.forus.connected, &addr);
          break;
 
       default:
-         SERRX(socksfd->state.command);
+         SERRX(socksfd.state.command);
    }
 
 
-   *namelen = MIN(*namelen, (socklen_t)sizeof(*addr));
-   memcpy(name, addr, (size_t)*namelen);
+   *namelen = MIN(*namelen, (socklen_t)sizeof(addr));
+   memcpy(name, &addr, (size_t)*namelen);
 
    return 0;
 }

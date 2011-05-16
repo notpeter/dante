@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.203 2009/10/23 10:11:45 karls Exp $";
+"$Id: udp.c,v 1.210 2011/04/25 08:05:30 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -57,18 +57,18 @@ Rsendto(s, msg, len, flags, to, tolen)
    socklen_t tolen;
 {
    const char *function = "Rsendto()";
-   struct socksfd_t socksfd;
-   struct sockshost_t host;
-   char srcstring[MAXSOCKADDRSTRING], dststring[sizeof(srcstring)];
-   void *nmsg;
+   struct socksfd_t socksfd, *p;
+   struct sockshost_t tohost;
    size_t nlen;
    ssize_t n;
+   char srcstring[MAXSOCKADDRSTRING], dststring[sizeof(srcstring)];
+   char nmsg[SOCKD_BUFSIZE];
 
    clientinit();
 
    slog(LOG_DEBUG, "%s: socket %d, len %lu, address %s",
    function, s, (long unsigned)len,
-   to == NULL ? "<none given>" : sockaddr2string(to, NULL, 0));
+   to == NULL ? "NULL" : sockaddr2string(to, NULL, 0));
 
    if (to != NULL && to->sa_family != AF_INET) {
       slog(LOG_DEBUG, "%s: unsupported address family '%d', system fallback",
@@ -83,8 +83,9 @@ Rsendto(s, msg, len, flags, to, tolen)
    }
 
    slog(LOG_DEBUG, "%s: route returned by udpsetup() is a %s route",
-   function,
-   proxyprotocols2string(&socksfd.route->gw.state.proxyprotocol, NULL, 0));
+                   function,
+                   proxyprotocols2string(&socksfd.route->gw.state.proxyprotocol,
+                   NULL, 0));
 
    if (socksfd.route->gw.state.proxyprotocol.direct) {
       slog(LOG_DEBUG, "%s: using direct systemcalls for socket %d",
@@ -93,7 +94,8 @@ Rsendto(s, msg, len, flags, to, tolen)
       return sendto(s, msg, len, flags, to, tolen);
    }
 
-   socksfd = *socks_getaddr(s, 1);
+   p = socks_getaddr(s, &socksfd, 1);
+   SASSERTX(p != NULL);
 
    if (socksfd.state.issyscall
    ||  socksfd.state.version == PROXY_UPNP)
@@ -109,7 +111,7 @@ Rsendto(s, msg, len, flags, to, tolen)
 
    if (to == NULL) {
       if (socksfd.state.udpconnect)
-         to = &socksfd.forus.connected;
+         tohost = socksfd.forus.connected;
       else { /* tcp. */
          n = socks_sendto(s, msg, len, flags, NULL, 0, &socksfd.state.auth);
 
@@ -122,31 +124,38 @@ Rsendto(s, msg, len, flags, to, tolen)
          return n;
       }
    }
+   else
+      fakesockaddr2sockshost(to, &tohost);
 
-   /* prefix a UDP header to the msg */
+
+   /*
+    * need to prefix a socks udp header to the message.  Copy the original
+    * payload into nmsg, which should have room to prefix the socks
+    * udpheader, and then send it.
+    */
+    slog(LOG_DEBUG, "%s: prefixing address %s to payload from client ...",
+    function, sockshost2string(&tohost, NULL, 0));
+
+   memcpy(nmsg, msg, len);
    nlen = len;
-   /* LINTED warning: cast discards 'const' from pointer target type */
-   if ((nmsg = udpheader_add(fakesockaddr2sockshost(to, &host), msg, &nlen,
-   len)) == NULL) {
-      errno = ENOBUFS;
+   if (udpheader_add(&tohost, nmsg, &nlen, sizeof(nmsg)) == NULL)
       return -1;
-   }
 
    n = socks_sendto(s, nmsg, nlen, flags,
-   socksfd.state.udpconnect ? NULL : &socksfd.reply,
-   socksfd.state.udpconnect ? (socklen_t)0 : sizeof(socksfd.reply),
-   &socksfd.state.auth);
+                    socksfd.state.udpconnect ? NULL : &socksfd.reply,
+                    socksfd.state.udpconnect ?
+                        (socklen_t)0 : sizeof(socksfd.reply),
+                    &socksfd.state.auth);
 
    n -= (ssize_t)(nlen - len);
 
-   if (msg != nmsg)
-      free(nmsg);
-
    slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)",
-   function, protocol2string(SOCKS_UDP),
-   sockaddr2string(&socksfd.local, dststring, sizeof(dststring)),
-   sockaddr2string(&socksfd.reply, srcstring, sizeof(srcstring)),
-   (unsigned long)n);
+                   function, protocol2string(SOCKS_UDP),
+                   sockaddr2string(&socksfd.local, dststring,
+                                   sizeof(dststring)),
+                   sockaddr2string(&socksfd.reply, srcstring,
+                                   sizeof(srcstring)),
+                   (unsigned long)n);
 
    return MAX(-1, n);
 }
@@ -163,6 +172,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
    const char *function = "Rrecvfrom()";
    struct socksfd_t socksfd;
    struct udpheader_t header;
+   struct route_t *route;
    struct sockaddr newfrom;
    socklen_t newfromlen;
    char srcstring[MAXSOCKADDRSTRING], dststring[sizeof(srcstring)], *newbuf;
@@ -171,24 +181,22 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 
    slog(LOG_DEBUG, "%s: socket %d, len %lu", function, s, (long unsigned)len);
 
-   if (!socks_addrisours(s, 1)) {
+   if (!socks_addrisours(s, &socksfd, 1)) {
       socks_rmaddr(s, 1);
       return recvfrom(s, buf, len, flags, from, fromlen);
    }
 
-   if ((socksfd.route = udpsetup(s, from, SOCKS_RECV)) == NULL) {
+   if ((route = udpsetup(s, from, SOCKS_RECV)) == NULL) {
       slog(LOG_DEBUG, "%s: udpsetup() failed for socket %d", function, s);
       return -1;
    }
 
-   if (socksfd.route->gw.state.proxyprotocol.direct) {
+   if (route->gw.state.proxyprotocol.direct) {
       slog(LOG_DEBUG, "%s: using direct system calls for socket %d",
       function, s);
 
       return recvfrom(s, buf, len, flags, from, fromlen);
    }
-
-   socksfd = *socks_getaddr(s, 1);
 
    if (socksfd.state.issyscall
    ||  socksfd.state.version == PROXY_UPNP)
@@ -203,7 +211,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
    }
 
    if (socksfd.state.protocol.tcp) {
-      const struct sockaddr *forus;
+      const struct sockshost_t *forus;
 
       if (socksfd.state.err != 0) {
          errno = socksfd.state.err;
@@ -227,7 +235,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
          case SOCKS_BIND:
             forus = &socksfd.forus.accepted;
 
-            if (forus->sa_family == 0) {
+            if (forus->atype == SOCKS_ADDR_NOTSET) {
                swarnx("%s: strange ... trying to read from socket %d, "
                       "which is for bind, but no bind-reply received yet ...",
                       function, s);
@@ -242,9 +250,9 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
       slog(LOG_DEBUG, "%s: %s: %s -> %s (%ld: %s)",
       function, protocol2string(SOCKS_TCP),
       forus == NULL ?
-      "<NULL>" : sockaddr2string(forus, srcstring, sizeof(srcstring)),
+      "<NULL>" : sockshost2string(forus, srcstring, sizeof(srcstring)),
       sockaddr2string(&socksfd.local, dststring, sizeof(dststring)),
-      (long)n, strerror(errno));
+      (long)n, errnostr(errno));
 
       return n;
    }
@@ -313,7 +321,6 @@ udpsetup(s, to, type)
 {
    const char *function = "udpsetup()";
    static struct route_t directroute;
-   const struct socksfd_t *socksfdptr;
    struct socksfd_t socksfd;
    struct authmethod_t auth;
    struct socks_t packet;
@@ -350,20 +357,18 @@ udpsetup(s, to, type)
    }
    sockaddr2sockshost(&socksfd.local, &src);
 
-
    slog(LOG_DEBUG, "%s: socket %d, type = %s",
    function, s, type == SOCKS_RECV ? "receive" : "send");
 
-   if (!socks_addrisours(s, 1))
-      socks_rmaddr(s, 1);
-
-   if ((socksfdptr = socks_getaddr(s, 1)) != NULL) {
+   if (socks_addrisours(s, &socksfd, 1)) {
       slog(LOG_DEBUG, "%s: route already setup for socket %d", function, s);
-      return socksfdptr->route; /* all set up. */
+      return socksfd.route;
    }
 
+   socks_rmaddr(s, 1);
+
    if (socks_socketisforlan(s)) {
-      slog(LOG_DEBUG, "%s: socket %d is for lan only, system fallback",
+      slog(LOG_DEBUG, "%s: socket %d is for lan only.  System fallback",
       function, s);
 
       return &directroute;
@@ -556,7 +561,7 @@ udpsetup(s, to, type)
 
    if (shouldconnect) {
       socksfd.state.udpconnect = 1;
-      socksfd.forus.connected  = *to;
+      sockaddr2sockshost(to, &socksfd.forus.connected);
    }
 
    if (socksfd.state.version == PROXY_UPNP) {

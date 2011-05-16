@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.27 2009/10/23 11:43:35 karls Exp $";
+"$Id: addressmatch.c,v 1.35 2011/03/30 20:01:27 michaels Exp $";
 
 static int
 addrisinlist(const struct in_addr *addr, const struct in_addr *mask,
@@ -92,6 +92,7 @@ hostareeq(const char *domain, const char *remotedomain);
  *      else: false
  */
 
+#define HOSTENT_MAX_ALIASES   (10)
 
 int
 addrmatch(rule, address, protocol, alias)
@@ -101,17 +102,21 @@ addrmatch(rule, address, protocol, alias)
    int alias;
 {
    const char *function = "addrmatch()";
-   struct hostent *hostent;
+   struct hostent *hostent, hostentdupmem;
    in_port_t ruleport;
-   int matched, doresolve;
-   char rstring[MAXRULEADDRSTRING], astring[MAXSOCKSHOSTSTRING];
+   size_t hosti;
+   int i, matched, doresolve;
 
-   slog(LOG_DEBUG, "%s: matching %s against %s, for protocol %s, %s alias",
-   function,
-   ruleaddr2string(rule, rstring, sizeof(rstring)),
-   sockshost2string(address, astring, sizeof(astring)),
-   protocol2string(protocol),
-   alias ? "with" : "without");
+   if (sockscf.option.debug) {
+      char rstring[MAXRULEADDRSTRING], astring[MAXSOCKSHOSTSTRING];
+
+      slog(LOG_DEBUG, "%s: matching %s against %s, for protocol %s, %s alias",
+      function,
+      ruleaddr2string(rule, rstring, sizeof(rstring)),
+      sockshost2string(address, astring, sizeof(astring)),
+      protocol2string(protocol),
+      alias ? "with" : "without");
+   }
 
    /* test port first since we always have all info needed for that locally. */
    switch (protocol) {
@@ -189,17 +194,16 @@ addrmatch(rule, address, protocol, alias)
    /*
     * The hard work begins.
     */
-
    matched = 0;
 
    /*
     * if mask of rule is 0, it should match anything.  Try that first
-    * so we can save lots of potentially heavy work.
+    * so we can save ourselves lots of potentially heavy work.
     */
    if (rule->atype == SOCKS_ADDR_IPV4 && (rule->addr.ipv4.mask.s_addr == 0))
       matched = 1;
-   else if (rule->atype    == SOCKS_ADDR_IPV4
-   &&       address->atype == SOCKS_ADDR_DOMAIN) {
+   else if (rule->atype             == SOCKS_ADDR_IPV4
+   &&       (atype_t)address->atype == SOCKS_ADDR_DOMAIN) {
       /*
        * match(rule.ipaddress, address.hostname)
        * resolve address to ipaddress(es) and try to match each
@@ -221,8 +225,8 @@ addrmatch(rule, address, protocol, alias)
       matched = addrisinlist(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
       (const struct in_addr **)hostent->h_addr_list);
    }
-   else if (rule->atype    == SOCKS_ADDR_IPV4
-   &&       address->atype == SOCKS_ADDR_IPV4) {
+   else if (rule->atype             == SOCKS_ADDR_IPV4
+   &&       (atype_t)address->atype == SOCKS_ADDR_IPV4) {
       /*
        * match(rule.ipaddress, address.ipaddress)
        * try first a simple comparison, address against rule.
@@ -242,7 +246,6 @@ addrmatch(rule, address, protocol, alias)
 
          if (alias) {
             char *nexthost;
-            int i;
 
             /* LINTED pointer casts may be troublesome */
             if ((hostent = gethostbyaddr(&address->addr.ipv4,
@@ -252,10 +255,12 @@ addrmatch(rule, address, protocol, alias)
                return 0;
             }
 
-            if ((hostent = hostentdup(hostent)) == NULL) {
+            if (hostentdup(hostent, &hostentdupmem, HOSTENT_MAX_ALIASES)
+            == NULL) {
                swarnx("%s: hostentdup()", function);
                return 0;
             }
+            *hostent = hostentdupmem;
 
             nexthost = hostent->h_name;
             i = 0;
@@ -276,17 +281,15 @@ addrmatch(rule, address, protocol, alias)
                   break;
                }
             } while (hostent->h_aliases != NULL
-            && (nexthost = hostent->h_aliases[i++]) != NULL);
-
-            hostentfree(hostent);
+            &&       (nexthost = hostent->h_aliases[i++]) != NULL);
          }
 
          if (!matched)
             return 0;
       }
    }
-   else if (rule->atype    == SOCKS_ADDR_DOMAIN
-   &&       address->atype == SOCKS_ADDR_DOMAIN) {
+   else if (rule->atype             == SOCKS_ADDR_DOMAIN
+   &&       (atype_t)address->atype == SOCKS_ADDR_DOMAIN) {
       /*
        * match(rule.hostname, address.hostname)
        * Try simple match first.
@@ -304,7 +307,6 @@ addrmatch(rule, address, protocol, alias)
       else if (doresolve && *rule->addr.domain != '.') {
          struct hostent *addresshostent;
          struct in_addr mask;
-         int i;
 
          if ((hostent = gethostbyname(rule->addr.domain)) == NULL) {
                slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
@@ -312,15 +314,16 @@ addrmatch(rule, address, protocol, alias)
                return 0;
          }
 
-         if ((hostent = hostentdup(hostent)) == NULL) {
+         if (hostentdup(hostent, &hostentdupmem, HOSTENT_MAX_ALIASES) == NULL) {
             swarnx("%s: hostentdup()", function);
             return 0;
          }
+         *hostent = hostentdupmem;
 
          if ((addresshostent = gethostbyname(address->addr.domain)) == NULL) {
             slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
             function, address->addr.domain, hstrerror(h_errno));
-            hostentfree(hostent);
+
             return 0;
          }
 
@@ -328,10 +331,8 @@ addrmatch(rule, address, protocol, alias)
           *   rule->ipaddress(es) isin address->ipaddress(es)
           */
 
-         if (hostent->h_addr_list == NULL) {
-            hostentfree(hostent);
+         if (hostent->h_addr_list == NULL)
             return 0;
-         }
 
          mask.s_addr = htonl(0xffffffff);
          for (i = 0; !matched && hostent->h_addr_list[i] != NULL; ++i)
@@ -339,15 +340,13 @@ addrmatch(rule, address, protocol, alias)
             matched
             = addrisinlist((const struct in_addr *)hostent->h_addr_list[i],
             &mask, (const struct in_addr **)addresshostent->h_addr_list);
-
-         hostentfree(hostent);
       }
 
       if (!matched)
          return 0;
    }
-   else if (rule->atype    == SOCKS_ADDR_DOMAIN
-   &&       address->atype == SOCKS_ADDR_IPV4) {
+   else if (rule->atype             == SOCKS_ADDR_DOMAIN
+   &&       (atype_t)address->atype == SOCKS_ADDR_IPV4) {
       /*
        * match(rule.hostname, address.ipaddress)
        * If rule is not a domain but a hostname, try resolving rule to
@@ -419,18 +418,40 @@ addrmatch(rule, address, protocol, alias)
           * hostent is already address->hostname due to above.
           */
          char *nexthost;
-         int i;
 
-         if ((hostent = hostentdup(hostent)) == NULL) {
+         if (hostentdup(hostent, &hostentdupmem, HOSTENT_MAX_ALIASES) == NULL) {
             swarnx("%s: hostentdup()", function);
             return 0;
          }
+         *hostent = hostentdupmem;
 
          nexthost = hostent->h_name;
          i = 0;
          do {
+            struct hostent *host, hostdupmem;
             int ii;
-            struct hostent *host;
+
+            /*
+             * memory for hostent pointers.  The contents of hostent is set to 
+             * point to the corresponding area here, rather than allocating
+             * it on the stack.
+             */
+            char _h_name[MAXHOSTNAMELEN];
+            char *_h_aliases[HOSTENT_MAX_ALIASES + 1];  
+            char *_h_addr_list[HOSTENT_MAX_ALIASES + 1];
+            char _h_aliasesmem[HOSTENT_MAX_ALIASES][MAXHOSTNAMELEN];
+            char _h_addr_listmem[HOSTENT_MAX_ALIASES][
+               MAX(sizeof(struct in_addr), sizeof(struct in6_addr))];
+
+            for (hosti = 0; hosti < HOSTENT_MAX_ALIASES; ++hosti)
+               _h_aliases[hosti] = _h_aliasesmem[hosti];
+
+            for (hosti = 0; hosti < HOSTENT_MAX_ALIASES; ++hosti)
+               _h_addr_list[hosti] =_h_addr_listmem[hosti];
+
+            hostdupmem.h_name      = _h_name;
+            hostdupmem.h_aliases   = _h_aliases;
+            hostdupmem.h_addr_list = _h_addr_list;
 
             /* host; address->hostname->ipaddress */
             if ((host = gethostbyname(nexthost)) == NULL) {
@@ -439,10 +460,11 @@ addrmatch(rule, address, protocol, alias)
                continue;
             }
 
-            if ((host = hostentdup(host)) == NULL) {
+            if (hostentdup(host, &hostdupmem, HOSTENT_MAX_ALIASES) == NULL) {
                swarnx("%s: hostentdup()", function);
-               break;
+               return 0;
             }
+            *host = hostdupmem;
 
             /* LINTED pointer casts may be troublesome */
             for (ii = 0;
@@ -480,12 +502,8 @@ addrmatch(rule, address, protocol, alias)
                }
 #endif /* !HAVE_NO_RESOLVESTUFF */
             }
-
-            hostentfree(host);
          } while (!matched && hostent->h_aliases != NULL
          && (nexthost = hostent->h_aliases[i++]) != NULL);
-
-         hostentfree(hostent);
       }
       if (!matched)
          return 0;
@@ -496,7 +514,6 @@ addrmatch(rule, address, protocol, alias)
        *
        * match(rule.ifname2ipaddress, address)
        */
-       int i;
        struct sockaddr sa;
 
        i = 0;
@@ -504,11 +521,12 @@ addrmatch(rule, address, protocol, alias)
        != NULL) {
          struct ruleaddr_t ruleaddr;
 
-         ruleaddr = *rule;   /* identical except addr field. */
-         ruleaddr.atype                     = SOCKS_ADDR_IPV4;
-         /* LINTED pointer casts may be troublesome */
-         ruleaddr.addr.ipv4.ip            = TOIN(&sa)->sin_addr;
-         ruleaddr.addr.ipv4.mask.s_addr   = htonl(0xffffffff);
+         /* identical except addr field. */
+         ruleaddr                       = *rule;
+
+         ruleaddr.atype                 = SOCKS_ADDR_IPV4;
+         ruleaddr.addr.ipv4.ip          = TOIN(&sa)->sin_addr;
+         ruleaddr.addr.ipv4.mask.s_addr = htonl(0xffffffff);
 
          matched = addrmatch(&ruleaddr, address, protocol, alias);
       }
@@ -571,8 +589,8 @@ hostareeq(domain, remotedomain)
    const char *domain;
    const char *remotedomain;
 {
-   const char *function = "hostareeq()";
-   const int domainlen = strlen(domain);
+   const char *function      = "hostareeq()";
+   const int domainlen       = strlen(domain);
    const int remotedomainlen = strlen(remotedomain);
 
    slog(LOG_DEBUG, "%s: %s, %s", function, domain, remotedomain);

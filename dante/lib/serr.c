@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serr.c,v 1.30 2009/10/23 11:43:37 karls Exp $";
+"$Id: serr.c,v 1.32 2010/10/18 07:04:46 michaels Exp $";
 
 #if SOCKS_CLIENT
 /* for errors, we want it logged. */
@@ -67,8 +67,9 @@ serr(int eval, const char *fmt, ...)
       va_end(ap);
 
       if (errno != 0)
-         bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
-         ": %s (errno = %d)", strerror(errno), errno);
+         snprintf(&buf[bufused], sizeof(buf) - bufused,
+                  ": %s (errno = %d)",
+                  strerror(errno), errno);
 
       slog(LOG_ERR, "%s", buf);
    }
@@ -119,8 +120,9 @@ swarn(const char *fmt, ...)
       bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
 
       if (errno != 0)
-         bufused += snprintfn(&buf[bufused], sizeof(buf) - bufused,
-         ": %s (errno = %d)", strerror(errno), errno);
+         snprintf(&buf[bufused], sizeof(buf) - bufused,
+                  ": %s (errno = %d)",
+                  strerror(errno), errno);
 
       slog(LOG_ERR, "%s", buf);
 

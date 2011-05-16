@@ -1,0 +1,139 @@
+@(#)$Id: PRERELEASE,v 1.369 2011/05/16 06:32:02 michaels Exp $
+
+*
+* This is a prerelease.  Do not use this to upgrade from a previous
+* release of Dante unless you want to help testing.
+* Report any problems to: dante-bugs@inet.no
+*
+
+-------------------------------------------------------------------------------
+***
+***  XXXday, XXXber XXX, 20XX -- Dante v1.3.0-pre1
+***
+ 
+ o Logfiles can be added or changed in sockd.conf after startup.
+
+ o Priority of proxy routes has changed, so that a socks v4 route is
+   now preferred over a socks v5 route when both can be used, because
+   v4 requests can be performed faster than v5 requests.
+
+ o Support for a new module, providing LDAP-based authentication access.
+   Developed by Markus Moeller (markus_moeller at compuserve.com).
+   Note that modules need to be purchased separately.
+
+ o Resource requirements have been significantly reduced.
+   Performance has also been improved.
+
+ o When checking whether a username is member of a group, as used in
+   in group-based authentication checks, also check against the
+   primary groupname of the user, as listed in /etc/passwd or similar,
+   rather than only against the entries in /etc/group or similar.
+
+   Based on a patch from Ralf Wenk <Ralf.Wenk@hs-karlsruhe.de.example.com>.
+   Thanks.
+
+ o The socket buffersizes can now be set in sockd.conf.  The default
+   value is 0, which lets the kernel choose the buffer sizes itself.
+
+ o A new keyword has been added to the configuration files: "errorlog".
+   The syntax is the same as for the "logoutput" keyword, but
+   "errorlog" is used to specify how errors, and only errors, should
+   be logged.
+
+   The meaning of the "logoutput" keyword has not changed, and will
+   still log errors if configured to do so.
+
+ o "child.maxidle: yes" is now the default setting, meaning most idle
+   sockd child processes will be terminated automatically.
+
+ o A bug that prevented binding privileged ports in the client from working
+   has been fixed.
+   Bug reported by Christophe Réquillart <requillart@gmail.com.example.com>
+
+ o Two new timeout parameters have been added to sockd.conf:
+   - "timeout.connect":
+     This controls how many seconds the server will wait for a connect
+     initiated on behalf of the socks-client to complete.  The default
+     is 30.  Setting it to 0 will use the kernel default.
+
+   - "timeout.tcp_fin_wait":
+     This controls the equivalent of TCP FIN-WAIT-2.
+
+     Note that FIN-WAIT-2 is a normal TCP state.  Having many tcp
+     connections stuck in this state does not indicate something is wrong,
+     but it can create a resource problem for the kernel if there are
+     too many of them.
+     
+     The default value is 0, meaning, let the kernel handle it as before
+     rather than for Dante to time out sessions in this state.
+
+ o "timeout.connect" is also supported in socks.conf.  The value
+   overrides the default timeout when the client attempts to connect
+   to the SOCKS server.
+
+ o The different server timeouts (negotiate, connect, i/o) can now be
+   set on a rule-by-rule basis, and not just globally for all rules.
+
+ o The config.h variables MAX_ROUTE_FAILS and BADROUTE_EXPIRE are now
+   set in the configuration files instead of at compile time.
+   The values are "route.maxfail" and "route.badexpire" and control
+   how to handle bad routes (to e.g., a SOCKS/HTTP proxy server).
+
+ o Support for a new value for the "external.rotation" keyword: "same-same".
+   This will tell the Dante server to use the same address for outgoing
+   connections as the address the socks client was accepted on, i.e.,
+   one of the internal addresses.
+
+   Based on a patch from Lysenko Konstantin <gshaud@gmail.com.example.com>.
+   Thanks.
+
+ o Fixed a bug where we could end up exiting if we got a SIGHUP
+   at a point where we had no more free file descriptors, and
+   thus could not reopen the sockd.conf.
+   Problem reported by Mark Sinner <mark.sinner@db.com.example.com>.
+
+ o The most time consuming part of the work performed by the request
+   children (waiting for connect(2) to complete) has been moved to the
+   i/o children.
+
+   This should reduce the total number of sockd processes necessary to
+   handle medium and higher loads, since the request children can only
+   handle one client at a time, while the i/o children can handle many.
+
+ o The "srchost" parameter "nomismatch" has been renamed to "nodnsmismatch",
+   while "nounknown" has been renamed to "nodnsunknown".
+
+   The "nodnsmismatch" and "nodnsunknown" functionality is now
+   implemented internally in sockd, rather than via libwrap; there is
+   no longer any dependency on libwrap ("tcp_wrappers") to use these
+   options.
+
+ o BSD authentication support on OpenBSD.
+
+ o Option ordering in sockd.conf is now enforced, rather than just
+   recommended.  Server options now always have to come before rules
+   and routes.
+
+ o The file to write the pid to can now be specified on the commandline
+   using the "-p" option.
+
+ o If TMPDIR is not set, temporary files will be created in the
+   current working directory when sockd is started.  If this fails,
+   temporary files will be created in "/tmp" as before.
+
+ o 64-bit version of libdsocks built on 64-bit Opensolaris machines.
+   Should make socksify work with 64-bit applications.
+
+ o Fix compilation on machines with Linuxthreads.
+   Locking via Linuxthreads is however not supported.
+   Problem report and testing by
+   Nicolas VANHAUTE <nicolas.vanhaute@ac-clermont.fr.example.com>
+
+ o Fix usage of negation operation in shell scripts causing problems
+   for socksify when using Bourne shell on Solaris 8.
+   Problem reported by Sebastian Kayser <skayser@opencsw.org.example.com>.
+
+ o Size of byte and packet counters used for logging changed to 64 bits.
+ 
+ o IBM Visual Age C/C++ V8 compilation fixes for AIX.
+   Problem reported by Kieron Curtis2 <KCURTIS2@uk.ibm.com.example.com>

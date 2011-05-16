@@ -1,4 +1,4 @@
-/* $Id: strvis.c,v 1.13 2009/08/12 18:30:03 karls Exp $ */
+/* $Id: strvis.c,v 1.14 2010/02/02 10:06:01 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -40,17 +40,18 @@
 #include <string.h>
 #include <vis_compat.h>
 
-#define	isoctal(c)	(((u_char)(c)) >= '0' && ((u_char)(c)) <= '7')
-#define	isvisible(c)							\
-	(((u_int)(c) <= UCHAR_MAX && isascii((u_char)(c)) &&		\
-	(((c) != '*' && (c) != '?' && (c) != '[' && (c) != '#') ||	\
-		(flag & VIS_GLOB) == 0) && isgraph((u_char)(c))) ||	\
-	((flag & VIS_SP) == 0 && (c) == ' ') ||				\
-	((flag & VIS_TAB) == 0 && (c) == '\t') ||			\
-	((flag & VIS_NL) == 0 && (c) == '\n') ||			\
-	((flag & VIS_SAFE) && ((c) == '\b' ||				\
-		(c) == '\007' || (c) == '\r' ||				\
-		isgraph((u_char)(c)))))
+#define	isoctal(c)                                                          \
+	(((unsigned char)(c)) >= '0' && ((unsigned char)(c)) <= '7')
+#define	isvisible(c)							    \
+	(((unsigned int)(c) <= UCHAR_MAX && isascii((unsigned char)(c)) &&  \
+	(((c) != '*' && (c) != '?' && (c) != '[' && (c) != '#') ||	    \
+		(flag & VIS_GLOB) == 0) && isgraph((unsigned char)(c))) ||  \
+	((flag & VIS_SP) == 0 && (c) == ' ') ||				    \
+	((flag & VIS_TAB) == 0 && (c) == '\t') ||			    \
+	((flag & VIS_NL) == 0 && (c) == '\n') ||			    \
+	((flag & VIS_SAFE) && ((c) == '\b' ||				    \
+		(c) == '\007' || (c) == '\r' ||				    \
+		isgraph((unsigned char)(c)))))
 
 /*
  * vis - visually encode characters
@@ -113,9 +114,9 @@ vis(char *dst, int c, int flag, int nextc)
 	if (((c & 0177) == ' ') || (flag & VIS_OCTAL) ||
 	    ((flag & VIS_GLOB) && (c == '*' || c == '?' || c == '[' || c == '#'))) {
 		*dst++ = '\\';
-		*dst++ = ((u_char)c >> 6 & 07) + '0';
-		*dst++ = ((u_char)c >> 3 & 07) + '0';
-		*dst++ = ((u_char)c & 07) + '0';
+		*dst++ = ((unsigned char)c >> 6 & 07) + '0';
+		*dst++ = ((unsigned char)c >> 3 & 07) + '0';
+		*dst++ = ((unsigned char)c & 07) + '0';
 		goto done;
 	}
 	if ((flag & VIS_NOSLASH) == 0)
@@ -124,7 +125,7 @@ vis(char *dst, int c, int flag, int nextc)
 		c &= 0177;
 		*dst++ = 'M';
 	}
-	if (iscntrl((u_char)c)) {
+	if (iscntrl((unsigned char)c)) {
 		*dst++ = '^';
 		if (c == 0177)
 			*dst++ = '?';

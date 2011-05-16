@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.55 2009/10/23 10:37:27 karls Exp $";
+"$Id: sockd_socket.c,v 1.73 2011/04/27 09:53:38 michaels Exp $";
 
 int
 sockd_bind(s, addr, retries)
@@ -55,8 +55,8 @@ sockd_bind(s, addr, retries)
    const char *function = "sockd_bind()";
    int p;
 
-   slog(LOG_DEBUG, "%s: trying to bind address %s",
-   function, sockaddr2string(addr, NULL, 0));
+   slog(LOG_DEBUG, "%s: trying to bind address %s, retries is %lu",
+   function, sockaddr2string(addr, NULL, 0), (unsigned long)retries);
 
    errno = 0;
    while (1) { /* CONSTCOND */
@@ -71,31 +71,26 @@ sockd_bind(s, addr, retries)
 
       if (p == 0) {
          socklen_t addrlen = sizeof(*addr);
-         p = getsockname(s, addr, &addrlen);
-
+         p                 = getsockname(s, addr, &addrlen);
          break;
       }
 
-      /* else;  non-fatal error and retry? */
+      /*
+       * else;  non-fatal error and retry?
+       */
+
+      slog(LOG_DEBUG, "%s: failed to bind %s (%s)", 
+      function, sockaddr2string(addr, NULL, 0), errnostr(errno));
+
       switch (errno) {
          case EINTR:
             continue; /* don't count this attempt. */
 
          case EADDRINUSE:
-            slog(LOG_DEBUG, "%s: failed to bind %s: %s%s",
-            function, sockaddr2string(addr, NULL, 0), strerror(errno),
-            retries ? ", retrying" : "");
-
             if (retries--) {
                sleep(1);
                continue;
             }
-            break;
-
-         case EACCES:
-            slog(LOG_DEBUG,
-                 "%s: failed to bind %s: %s",
-                 function, sockaddr2string(addr, NULL, 0), strerror(errno));
             break;
       }
 
@@ -119,7 +114,6 @@ sockd_bindinrange(s, addr, first, last, op)
    slog(LOG_DEBUG, "%s: %s %u %s %u",
                    function, sockaddr2string(addr, NULL, 0),
                    ntohs(first), operator2string(op), ntohs(last));
-
 
    /*
     * use them in host order to make it easier, only convert before bind.
@@ -196,9 +190,189 @@ sockd_bindinrange(s, addr, first, last, op)
       if (sockd_bind(s, addr, 0) == 0)
          return 0;
 
+      if (errno == EACCES) {
+         if  (op == gt || op == ge || op == range)
+            port = 1023; /* short-circut to first possibility - 1. */
+         else if (op == lt || op == le)
+            exhausted = 1; /* going down, will get same error for all. */
+      }
+
       if (op == eq || op == none)
          break; /* nothing to retry for these. */
    } while (!exhausted);
 
    return -1;
 }
+
+int
+bindinternal(protocol)
+   const int protocol;
+{
+   const char *function = "bindinternal()";
+   size_t i;
+
+   for (i = 0; i < sockscf.internalc; ++i) {
+      struct listenaddress_t *l = &sockscf.internalv[i];
+      int val;
+
+      if (l->protocol != protocol)
+         continue;
+
+      if (l->s != -1) {
+         slog(LOG_DEBUG, "%s: address %s should be bound to socket %d already",
+         function, sockaddr2string(&l->addr, NULL, 0), l->s);
+
+         SASSERTX(fdisopen(l->s));
+         continue; 
+      }
+
+      if ((l->s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+         swarn("%s: socket(SOCK_STREAM) failed", function);
+         return -1;
+      }
+
+      setsockoptions(l->s, SOCK_STREAM, 1);
+
+      val = 1;
+      if (setsockopt(l->s, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val)) != 0)
+         swarn("%s: setsockopt(SO_REUSEADDR)", function);
+
+      if (sockd_bind(l->s, (struct sockaddr *)&l->addr, 1) != 0) {
+         char badbind[MAXSOCKADDRSTRING];
+
+         /* LINTED pointer casts may be troublesome */
+         swarn("%s: bind of address %s failed",
+               function,
+               sockaddr2string((struct sockaddr *)&l->addr,
+               badbind, sizeof(badbind)));
+
+         return -1;
+      }
+
+      val = 1;
+      if (setsockopt(l->s, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val)) != 0)
+         swarn("%s: setsockopt(SO_REUSEADDR)", function);
+
+      if (listen(l->s, SOCKD_MAXCLIENTQUE) == -1) {
+         swarn("%s: listen(%d) failed", function, SOCKD_MAXCLIENTQUE);
+         return -1;
+      }
+
+      /*
+       * We want to accept(2) the client on a non-blocking descriptor.
+       */
+      if ((val = fcntl(l->s, F_GETFL, 0))               == -1
+      ||         fcntl(l->s, F_SETFL, val | O_NONBLOCK) == -1) {
+         swarn("%s: fcntl() failed", function);
+         return -1;
+      }
+
+#if NEED_ACCEPTLOCK
+      if (sockscf.option.serverc > 1)
+         if ((l->lock = socks_mklock(SOCKS_LOCKFILE, NULL, 0)) == -1) {
+            swarn("%s: socks_mklock() failed", function);
+            return -1;
+         }
+#endif /* NEED_ACCEPTLOCK */
+   }
+
+   return 0;
+}
+
+void
+setsockoptions(s, type, isclientside)
+   const int s;
+   const int type;
+   const int isclientside;
+{
+   const char *function = "setsockoptions()";
+   socklen_t vallen;
+   int val, sndbuf, rcvbuf;
+
+   slog(LOG_DEBUG, "%s: s = %d, type = %d, isclientside = %d",
+   function, s, type, isclientside);
+
+   switch (type) {
+      case SOCK_STREAM:
+         rcvbuf = sockscf.socket.tcp.rcvbuf;
+         sndbuf = sockscf.socket.tcp.sndbuf;
+
+         val = 1;
+         if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) != 0)
+            swarn("%s: setsockopt(TCP_NODELAY)", function);
+
+         val = 1;
+         if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val)) != 0)
+            swarn("%s: setsockopt(SO_OOBINLINE)", function);
+
+         if (sockscf.option.keepalive) {
+            val = 1;
+            if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) != 0)
+               swarn("%s: setsockopt(SO_KEEPALIVE)", function);
+         }
+         break;
+
+      case SOCK_DGRAM:
+#if BAREFOOTD
+         if (isclientside) {
+            sndbuf = sockscf.socket.clientside_udp.sndbuf;
+            rcvbuf = sockscf.socket.clientside_udp.rcvbuf;
+         }
+         else {
+            sndbuf = sockscf.socket.udp.sndbuf;
+            rcvbuf = sockscf.socket.udp.rcvbuf;
+         }
+
+#else /* !BAREFOOTD */
+
+         sndbuf = sockscf.socket.udp.sndbuf;
+         rcvbuf = sockscf.socket.udp.rcvbuf;
+#endif /* !BAREFOOTD */
+
+         val = 1;
+         if (setsockopt(s, SOL_SOCKET, SO_BROADCAST, &val, sizeof(val)) != 0)
+            if (errno != ENOPROTOOPT)
+               swarn("%s: setsockopt(SO_BROADCAST)", function);
+         break;
+
+      default:
+         SERRX(type);
+   }
+
+   if ((val = sndbuf) != 0)
+      if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val)) != 0)
+         swarn("%s: setsockopt(SO_SNDBUF, %lu) failed",
+         function, (unsigned long)val);
+
+   if ((val = rcvbuf) != 0)
+      if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val)) != 0)
+         swarn("%s: setsockopt(SO_RCVBUF, %lu) failed",
+         function, (unsigned long)val);
+
+   if (sockscf.option.debug > 0) {
+      vallen = sizeof(val);
+      if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, &val, &vallen) != 0)
+         swarn("%s: getsockopt(SO_SNDBUF)", function);
+      else
+         slog(LOG_DEBUG, "%s: SO_SNDBUF of socket %d: %d",
+         function, s, val);
+
+      if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, &val, &vallen) != 0)
+         swarn("%s: getsockopt(SO_RCVBUF)", function);
+      else
+         slog(LOG_DEBUG, "%s: SO_RCVBUF of socket %d: %d",
+         function, s, val);
+   }
+
+   if ((val = fcntl(s, F_GETFL, 0))         == -1
+   ||   fcntl(s, F_SETFL, val | O_NONBLOCK) == -1)
+      swarn("%s: fcntl() failed to set descriptor to non-blocking", function);
+
+#if HAVE_LIBWRAP
+   if ((val = fcntl(s, F_GETFD, 0))       == -1
+   || fcntl(s, F_SETFD, val | FD_CLOEXEC) == -1)
+      swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
+#endif /* HAVE_LIBWRAP */
+}
+
+

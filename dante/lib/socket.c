@@ -44,58 +44,156 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.65.6.1 2011/03/02 06:03:49 michaels Exp $";
+"$Id: socket.c,v 1.91 2011/05/13 16:06:48 michaels Exp $";
 
 int
-socks_connecthost(s, host)
+socks_connecthost(s, host, saddr, timeout)
    int s;
    const struct sockshost_t *host;
+   struct sockaddr *saddr;
+   const long timeout;
 {
    const char *function = "socks_connecthost()";
    struct hostent *hostent;
-   struct sockaddr_in address;
+   struct sockaddr_in address, laddr;
    socklen_t len;
-   char **ip, addrstr[MAXSOCKADDRSTRING], hoststr[MAXSOCKSHOSTSTRING];
-   int failed;
+   char **ip, addrstr[MAXSOCKADDRSTRING], hoststr[MAXSOCKSHOSTSTRING], 
+              laddrstr[MAXSOCKADDRSTRING];
+   int failed, rc;
+   static fd_set *wset;
 
-   slog(LOG_DEBUG, "%s: to %s on socket %d\n",
-        function, sockshost2string(host, hoststr, sizeof(hoststr)), s);
+   /*
+    * caller depends on errno to know whether the connect(2) failed
+    * permanently, or whether things are now in progress, so make
+    * sure errno is correct upon return, and definitly not some old
+    * residue.
+    */
+   errno = 0;
 
-   bzero(&address, sizeof(address));
-   address.sin_family   = AF_INET;
-   address.sin_port     = host->port;
+   if (wset == NULL)
+      wset = allocate_maxsize_fdset();
+
+   len = sizeof(laddr);
+   if (getsockname(s, (struct sockaddr *)&laddr, &len) == -1) {
+      slog(LOG_DEBUG, "%s: getsockname(2) failed: %s",
+      function, strerror(errno));
+
+      return -1;
+   }
+   sockaddr2string((struct sockaddr *)&laddr, laddrstr, sizeof(laddrstr));
+
+   slog(LOG_DEBUG, "%s: connect to %s from %s, on socket %d.  Timeout is %ld\n",
+        function,
+        sockshost2string(host, hoststr, sizeof(hoststr)),
+        laddrstr,
+        s,
+        timeout);
+
+   if (saddr == NULL)
+      saddr = (struct sockaddr *)&address;
+
+   bzero(saddr, sizeof(*saddr));
+   TOIN(saddr)->sin_family = AF_INET;
+   TOIN(saddr)->sin_port   = host->port;
 
    switch (host->atype) {
       case SOCKS_ADDR_IPV4: {
-         struct sockaddr_in localaddr;
-         char localaddrstr[MAXSOCKADDRSTRING];
-         int rc;
+         int connect_errno, flags, changed_to_nonblocking;
 
-         address.sin_addr = host->addr.ipv4;
+         changed_to_nonblocking = 0;
+         if (timeout != -1) {
+            if ((flags = fcntl(s, F_GETFL, 0)) == -1) {
+               swarn("%s: fcntl(%d, F_GETFL) failed", function, s);
+               return -1;
+            }
+
+            if (!(flags & O_NONBLOCK)) {
+               slog(LOG_DEBUG, "%s: temporarily changing fd %d to nonblocking "
+                               "in order to facilate the specified connect "
+                               "timeout", 
+                               function, s);
+
+               if (fcntl(s, F_SETFL, flags | O_NONBLOCK) == -1) {
+                  swarn("%s; could not change fd %d to nonblocking",
+                  function, s);
+
+                  return -1;
+               }
+
+               changed_to_nonblocking = 1;
+            }
+         }
+
+         TOIN(saddr)->sin_addr = host->addr.ipv4;
 
          /* LINTED pointer casts may be troublesome */
-         rc = connect(s, (struct sockaddr *)&address, sizeof(address));
+         rc            = connect(s, saddr, sizeof(*saddr));
+         connect_errno = errno;
 
-#if !SOCKS_CLIENT /* client may have setup e.g. an alarm for this. */
-         if (rc != 0)
-            slog(LOG_DEBUG, "%s: connect() returned %d (%s)",
-            function, rc, strerror(errno));
+         slog(LOG_DEBUG, "%s: connect() returned %d (%s)",
+         function, rc, errnostr(errno));
 
-         while (rc == -1 && errno == EINTR) {
+         if (changed_to_nonblocking) 
+            if (fcntl(s, F_SETFL, flags & ~O_NONBLOCK) == -1)
+               swarn("%s: failed reverting fd %d back to blocking", 
+               function, s);
+
+         if (rc == 0)
+            /*
+             * OpenBSD 4.5 sometimes sets errno even though the
+             * connect was successful.  Seems to be an artifact
+             * of the threads library, where it does a select(2)/poll(2)
+             * after making the socket non-blocking, but forgets to
+             * reset errno.
+             */
+            connect_errno = 0;
+
+         errno = connect_errno;
+
+#if SOCKS_CLIENT
+         /*
+          * if errno is EINTR, it may be due to the client having set up an 
+          * alarm for this.  We can't know for sure, so better not 
+          * retry in that case.
+          */
+          if (rc == -1) {
+            if (errno == EINTR)
+               return rc;
+
+            if (!changed_to_nonblocking) 
+               /*
+                * was passed a non-blocking fd by the client, so client does
+                * not want to wait for the connect to complete.  Let the
+                * connectchild handle this then, if applicable.
+                */
+               return rc;
+         }
+#endif /* SOCKS_CLIENT */
+
+         if (timeout == 0)
+            return rc;
+
+         while (rc == -1
+         &&    (   ERRNOISINPROGRESS(errno)
+#if SOCKS_CLIENT
+                || errno == EINTR
+#endif /* SOCKS_CLIENT */
+         )) {
+            struct timeval tval = { timeout, (long)0 };
             socklen_t len;
-            fd_set wset;
 
-            FD_ZERO(&wset);
-            FD_SET(s, &wset);
+            FD_ZERO(wset);
+            FD_SET(s, wset);
 
-            if ((rc = select(s + 1, NULL, &wset, NULL, NULL)) == -1
-            &&  errno == EINTR)
+            rc = select(s + 1, NULL, wset, NULL, timeout >= 0 ? &tval : NULL);
+            if (rc == -1 && errno == EINTR)
                continue;
 
-            len = sizeof(errno);
-            if ((rc = getsockopt(s, SOL_SOCKET, SO_ERROR, &errno, &len)) == -1){
-               swarn("%s: getsockopt()", function);
-               break;
+            if (rc == 0)
+               errno = ETIMEDOUT;
+            else { 
+               len = sizeof(errno);
+               getsockopt(s, SOL_SOCKET, SO_ERROR, &errno, &len);
             }
 
             if (errno == 0)
@@ -103,62 +201,60 @@ socks_connecthost(s, host)
             else
                rc = -1;
          }
-#endif /* !SOCKS_CLIENT */
 
-         if (rc == 0)
+         if (rc == 0 || ERRNOISINPROGRESS(errno)) {
             /*
-             * OpenBSD 4.5. sometimes sets errno even though the
-             * connect was successful.  Seems to be an artifact
-             * of the threads library, where it does a select(2)/poll(2)
-             * after making the socket non-blocking, but forgets to
-             * reset errno.
+             * if address was incomplete before, it should be complete now.
              */
-            errno = 0;
-
-         if (rc == -1 && !ERRNOISINPROGRESS(errno))
-            /* connect failed, don't change errno. */
-            snprintf(localaddrstr, sizeof(localaddrstr), "0.0.0.0");
-         else {
-            len = sizeof(localaddr);
-            if (getsockname(s, (struct sockaddr *)&localaddr, &len) == -1) {
+            len = sizeof(laddr);
+            if (getsockname(s, (struct sockaddr *)&laddr, &len) == -1) {
                slog(LOG_DEBUG, "%s: getsockname(2) failed: %s",
                function, strerror(errno));
 
                return -1;
             }
 
-            sockaddr2string((struct sockaddr *)&localaddr, localaddrstr,
-            sizeof(localaddrstr));
+            sockaddr2string((struct sockaddr *)&laddr,
+                            laddrstr,
+                            sizeof(laddrstr));
          }
 
          slog(LOG_DEBUG, "%s: connect to %s from %s on socket %d %s (%s)",
                          function,
-                         sockaddr2string((struct sockaddr *)&address, addrstr,
-                                         sizeof(addrstr)),
-                         localaddrstr,
+                         sockaddr2string(saddr, addrstr, sizeof(addrstr)),
+                         laddrstr,
                          s,
                          rc == 0 ? "ok" :
                          ERRNOISINPROGRESS(errno) ? "in progress" : "failed",
-                         strerror(errno));
+                         errnostr(errno));
 
          return rc;
       }
 
       case SOCKS_ADDR_DOMAIN:
-         if ((hostent = gethostbyname(host->addr.domain)) == NULL)
-            slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-            function, host->addr.domain, hstrerror(h_errno));
+         hostent = gethostbyname(host->addr.domain);
+         if (hostent == NULL || (ip = hostent->h_addr_list) == NULL) {
+            slog(LOG_DEBUG, "%s: could not resolve hostname \"%s\": %s",
+                 function,
+                 host->addr.domain, 
+                 hstrerror(h_errno));
+
+            errno = ENETUNREACH; /* something indicating permanent failure. */
+            return -1;
+         }
          break;
 
       default:
          SERRX(host->atype);
    }
 
-   if (hostent == NULL || (ip = hostent->h_addr_list) == NULL)
-      return -1;
+   SASSERTX(host->atype == SOCKS_ADDR_DOMAIN);
+   SASSERTX(hostent != NULL && ip != NULL);
 
    failed = 0;
-   do {
+   do { /* try all ipaddresses hostname resolves to. */
+      struct sockshost_t newhost;
+
       if (failed) { /* previously failed, need to create a new socket. */
          struct sockaddr name;
          socklen_t namelen;
@@ -187,44 +283,29 @@ socks_connecthost(s, host)
 #endif /* SOCKS_SERVER */
       }
 
-      address.sin_addr = *((struct in_addr *)*ip);
+      TOIN(saddr)->sin_addr = *((struct in_addr *)*ip);
+      sockaddr2sockshost(saddr, &newhost);
 
-      if (connect(s, (struct sockaddr *)&address, sizeof(address)) == 0
-      ||  ERRNOISINPROGRESS(errno)) {
-         slog(LOG_DEBUG, "%s: connected to %s",
-         function, sockaddr2string((struct sockaddr *)&address, addrstr,
-         sizeof(addrstr)));
-
-         break;
-       }
-       else
-         slog(LOG_DEBUG, "%s: failed connecting to %s: %s", function,
-         sockaddr2string((struct sockaddr *)&address, addrstr, sizeof(addrstr)),
-         strerror(errno));
-
-#if !SOCKS_CLIENT /* clients may have set up alarms to interrupt. */
-      if (errno == EINTR) {
-         static fd_set *rset;
-
-         if (rset == NULL)
-            rset = allocate_maxsize_fdset();
-
-         FD_ZERO(rset);
-         FD_SET(s, rset);
-
-         if (selectn(s + 1, rset, NULL, NULL, NULL, NULL, NULL) != 1)
-            SERR(0);
-
-         if (read(s, NULL, 0) == 0) {
-            errno = 0;
-            break;
-         }
+      if (*(ip + 1) == NULL)
          /*
-          * else; errno should be set and we can handle it as there was no
-          * interrupt.
-          */
-      }
-#endif /* !SOCKS_CLIENT */
+          * no more ipaddresses to try.  That means we can simply call
+          * socks_connecthost() with the timeout as received.
+          * If not, we will need to disregard the passed in timeout and
+          * connect to one address at a time and await the result. :-/
+          *
+          * XXX improve this by keeping track of how much time we've used
+          * so far, so we can decrement the timeout on each connecthost()
+          * call?
+          */ 
+         rc = socks_connecthost(s, &newhost, saddr, timeout);
+      else
+         rc = socks_connecthost(s, &newhost, saddr,
+                                sockscf.timeout.connect ?
+                                /* LINTED cast from unsigned to signed. */
+                                (long)sockscf.timeout.connect : -1);
+
+      if (rc == 0)
+         return 0;
 
       /*
        * Only retry/try next address if errno indicates server/network error.
@@ -241,12 +322,9 @@ socks_connecthost(s, host)
          default:
             return -1;
       }
-   } while (*++ip != NULL);
+   } while (*(++ip) != NULL);
 
-   if (*ip == NULL)
-      return -1; /* list exhausted, no successful connect. */
-
-   return 0;
+   return -1; /* list exhausted, no successful connect. */
 }
 
 int
@@ -258,7 +336,11 @@ acceptn(s, addr, addrlen)
    int rc;
 
    while ((rc = accept(s, addr, addrlen)) == -1 && errno == EINTR)
+#if !SOCKS_CLIENT
+      sockd_handledsignals();
+#else /* SOCKS_CLIENT */
       ;
+#endif /* SOCKS_CLIENT */
 
    return rc;
 }
@@ -328,7 +410,7 @@ socks_unconnect(s)
    remote.sa_family = AF_UNSPEC;
 
    if (connect(s, &remote, sizeof(remote)) != 0)
-      slog(LOG_DEBUG, "%s: unconnect of socket returned %s",
+      slog(LOG_DEBUG, "%s: \"unconnect\" of socket returned %s",
       function, strerror(errno));
 
    /*
@@ -345,3 +427,375 @@ socks_unconnect(s)
 
    return 0;
 }
+
+int
+socketoptdup(s)
+   int s;
+{
+   const char *function = "socketoptdup()";
+   unsigned int i;
+   int flags, new_s, errno_s;
+   socklen_t len;
+   union {
+      int               int_val;
+      struct linger     linger_val;
+      struct timeval    timeval_val;
+      struct in_addr    in_addr_val;
+      u_char            u_char_val;
+      struct sockaddr   sockaddr_val;
+      struct ipoption   ipoption;
+   } val;
+   int levelname[][2] = {
+
+      /* socket options */
+
+#ifdef SO_BROADCAST
+      { SOL_SOCKET,   SO_BROADCAST      },
+#endif /* SO_BROADCAST */
+
+#ifdef SO_DEBUG
+      { SOL_SOCKET,   SO_DEBUG          },
+#endif /* SO_DEBUG */
+
+#ifdef SO_DONTROUTE
+      { SOL_SOCKET,   SO_DONTROUTE      },
+#endif /* SO_DONTROUTE */
+
+#ifdef SO_KEEPALIVE
+      { SOL_SOCKET,   SO_KEEPALIVE      },
+#endif /* SO_KEEPALIVE */
+
+#ifdef SO_LINGER
+      { SOL_SOCKET,   SO_LINGER         },
+#endif /* SO_LINGER */
+
+#ifdef SO_OOBINLINE
+      { SOL_SOCKET,   SO_OOBINLINE      },
+#endif /* SO_OOBINLINE */
+
+#ifdef SO_RCVBUF
+      { SOL_SOCKET,   SO_RCVBUF         },
+#endif /* SO_RCVBUF */
+
+#ifdef SO_SNDBUF
+      { SOL_SOCKET,   SO_SNDBUF         },
+#endif /* SO_SNDBUF */
+
+#ifdef SO_RCVLOWAT
+      { SOL_SOCKET,   SO_RCVLOWAT       },
+#endif /* SO_RCVLOWAT */
+
+#ifdef SO_SNDLOWAT
+      { SOL_SOCKET,   SO_SNDLOWAT       },
+#endif /* SO_SNDLOWAT */
+
+#ifdef SO_RCVTIMEO
+      { SOL_SOCKET,   SO_RCVTIMEO       },
+#endif /* SO_RCVTIMEO */
+
+#ifdef SO_SNDTIMEO
+      { SOL_SOCKET,   SO_SNDTIMEO       },
+#endif /* SO_SNDTIMEO */
+
+#ifdef SO_REUSEADDR
+      { SOL_SOCKET,   SO_REUSEADDR      },
+#endif /* SO_REUSEADDR */
+
+#ifdef SO_REUSEPORT
+      { SOL_SOCKET,   SO_REUSEPORT      },
+#endif /* SO_REUSEPORT */
+
+#ifdef SO_USELOOPBACK
+      { SOL_SOCKET,   SO_USELOOPBACK    },
+#endif /* SO_USELOOPBACK */
+
+      /* IP options */
+
+#ifdef IP_HDRINCL
+      { IPPROTO_IP,   IP_HDRINCL        },
+#endif /* IP_HDRINCL */
+
+#ifdef IP_OPTIONS
+      { IPPROTO_IP,   IP_OPTIONS        },
+#endif /* IP_OPTIONS */
+
+#ifdef IP_RECVDSTADDR
+      { IPPROTO_IP,   IP_RECVDSTADDR    },
+#endif/* IP_RECVDSTADDR */
+
+#ifdef IP_RECVIF
+      { IPPROTO_IP,   IP_RECVIF         },
+#endif /* IP_RECVIF */
+
+#ifdef IP_TOS
+      { IPPROTO_IP,   IP_TOS            },
+#endif /* IP_TOS */
+
+#ifdef IP_TTL
+      { IPPROTO_IP,   IP_TTL            },
+#endif /* IP_TTL */
+
+#ifdef IP_MULTICAST_IF
+      { IPPROTO_IP,   IP_MULTICAST_IF   },
+#endif /* IP_MULTICAST_IF */
+
+#ifdef IP_MULTICAST_TTL
+      { IPPROTO_IP,   IP_MULTICAST_TTL  },
+#endif /* IP_MULTICAST_TTL */
+
+#ifdef IP_MULTICAST_LOOP
+      { IPPROTO_IP,   IP_MULTICAST_LOOP },
+#endif /* IP_MULTICAST_LOOP */
+
+      /* TCP options */
+
+#ifdef TCP_KEEPALIVE
+      { IPPROTO_TCP,   TCP_KEEPALIVE    },
+#endif /* TCP_KEEPALIVE */
+
+#ifdef TCP_MAXRT
+      { IPPROTO_TCP,   TCP_MAXRT        },
+#endif /* TCP_MAXRT */
+
+#ifdef TCP_MAXSEG
+      { IPPROTO_TCP,   TCP_MAXSEG       },
+#endif /* TCP_MAXSEG */
+
+#ifdef TCP_NODELAY
+      { IPPROTO_TCP,   TCP_NODELAY      },
+#endif /* TCP_NODELAY */
+
+#ifdef TCP_STDURG
+      { IPPROTO_TCP,   TCP_STDURG       }
+#endif /* TCP_STDURG */
+
+   };
+
+   errno_s = errno;
+
+   len = sizeof(val);
+   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) == -1) {
+      swarn("%s: getsockopt(SO_TYPE)", function);
+      return -1;
+   }
+
+   if ((new_s = socket(AF_INET, val.int_val, 0)) == -1) {
+      swarn("%s: socket(AF_INET, %d)", function, val.int_val);
+      return -1;
+   }
+
+   for (i = 0; i < ELEMENTS(levelname); ++i) {
+      len = sizeof(val);
+      if (getsockopt(s, levelname[i][0], levelname[i][1], &val, &len) == -1) {
+         if (errno != ENOPROTOOPT)
+            slog(LOG_DEBUG, "%s: getsockopt(%d, %d) failed: %s",
+            function, levelname[i][0], levelname[i][1], strerror(errno));
+
+         continue;
+      }
+
+      if (setsockopt(new_s, levelname[i][0], levelname[i][1], &val, len) == -1)
+         if (errno != ENOPROTOOPT)
+            slog(LOG_DEBUG, "%s: setsockopt(%d, %d) failed: %s",
+            function, levelname[i][0], levelname[i][1], strerror(errno));
+   }
+
+   if ((flags = fcntl(s, F_GETFL, 0))          == -1
+   ||           fcntl(new_s, F_SETFL, flags)   == -1)
+      swarn("%s: fcntl(F_GETFL/F_SETFL)", function);
+
+#if !SOCKS_CLIENT && HAVE_LIBWRAP
+   if ((s = fcntl(new_s, F_GETFD, 0))             == -1
+   ||       fcntl(new_s, F_SETFD, s | FD_CLOEXEC) == -1)
+      swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
+#endif /* SOCKS_SERVER */
+
+   errno = errno_s;
+
+   return new_s;
+}
+
+
+#if DEBUG
+void 
+printsocketopts(s)
+   const int s;
+{
+   const char *function = "printsocketopts()";
+   unsigned int i;
+   int flags, errno_s;
+   socklen_t len;
+   union {
+      int               int_val;
+      struct linger     linger_val;
+      struct timeval    timeval_val;
+      struct in_addr    in_addr_val;
+      u_char            u_char_val;
+      struct sockaddr   sockaddr_val;
+      struct ipoption   ipoption;
+   } val;
+   struct {
+      int level;
+      int optname;
+      char *optstr;
+   } option[] = {
+      /* socket options */
+
+#ifdef SO_BROADCAST
+      { SOL_SOCKET, SO_BROADCAST, "SO_BROADCAST"      },
+#endif /* SO_BROADCAST */
+
+#ifdef SO_DEBUG
+      { SOL_SOCKET, SO_DEBUG, "SO_DEBUG"          },
+#endif /* SO_DEBUG */
+
+#ifdef SO_DONTROUTE
+      { SOL_SOCKET, SO_DONTROUTE, "SO_DONTROUTE"      },
+#endif /* SO_DONTROUTE */
+
+#ifdef SO_KEEPALIVE
+      { SOL_SOCKET, SO_KEEPALIVE, "SO_KEEPALIVE"      },
+#endif /* SO_KEEPALIVE */
+
+#ifdef SO_LINGER
+      { SOL_SOCKET, SO_LINGER, "SO_LINGER"         },
+#endif /* SO_LINGER */
+
+#ifdef SO_OOBINLINE
+      { SOL_SOCKET, SO_OOBINLINE, "SO_OOBINLINE"      },
+#endif /* SO_OOBINLINE */
+
+#ifdef SO_RCVBUF
+      { SOL_SOCKET, SO_RCVBUF, "SO_RCVBUF"         },
+#endif /* SO_RCVBUF */
+
+#ifdef SO_SNDBUF
+      { SOL_SOCKET, SO_SNDBUF, "SO_SNDBUF"         },
+#endif /* SO_SNDBUF */
+
+#ifdef SO_RCVLOWAT
+      { SOL_SOCKET, SO_RCVLOWAT, "SO_RCVLOWAT"       },
+#endif /* SO_RCVLOWAT */
+
+#ifdef SO_SNDLOWAT
+      { SOL_SOCKET, SO_SNDLOWAT, "SO_SNDLOWAT"       },
+#endif /* SO_SNDLOWAT */
+
+#ifdef SO_RCVTIMEO
+      { SOL_SOCKET, SO_RCVTIMEO, "SO_RCVTIMEO"       },
+#endif /* SO_RCVTIMEO */
+
+#ifdef SO_SNDTIMEO
+      { SOL_SOCKET, SO_SNDTIMEO, "SO_SNDTIMEO"       },
+#endif /* SO_SNDTIMEO */
+
+#ifdef SO_REUSEADDR
+      { SOL_SOCKET, SO_REUSEADDR, "SO_REUSEADDR"      },
+#endif /* SO_REUSEADDR */
+
+#ifdef SO_REUSEPORT
+      { SOL_SOCKET, SO_REUSEPORT, "SO_REUSEPORT"      },
+#endif /* SO_REUSEPORT */
+
+#ifdef SO_USELOOPBACK
+      { SOL_SOCKET, SO_USELOOPBACK, "SO_USELOOPBACK"    },
+#endif /* SO_USELOOPBACK */
+
+      /* IP options */
+
+#ifdef IP_HDRINCL
+      { IPPROTO_IP, IP_HDRINCL, "IP_HDRINCL"        },
+#endif /* IP_HDRINCL */
+
+#ifdef IP_OPTIONS
+      { IPPROTO_IP, IP_OPTIONS, "IP_OPTIONS"        },
+#endif /* IP_OPTIONS */
+
+#ifdef IP_RECVDSTADDR
+      { IPPROTO_IP, IP_RECVDSTADDR, "IP_RECVDSTADDR"    },
+#endif/* IP_RECVDSTADDR */
+
+#ifdef IP_RECVIF
+      { IPPROTO_IP, IP_RECVIF, "IP_RECVIF"         },
+#endif /* IP_RECVIF */
+
+#ifdef IP_TOS
+      { IPPROTO_IP, IP_TOS, "IP_TOS"            },
+#endif /* IP_TOS */
+
+#ifdef IP_TTL
+      { IPPROTO_IP, IP_TTL, "IP_TTL"            },
+#endif /* IP_TTL */
+
+#ifdef IP_MULTICAST_IF
+      { IPPROTO_IP, IP_MULTICAST_IF, "IP_MULTICAST_IF"   },
+#endif /* IP_MULTICAST_IF */
+
+#ifdef IP_MULTICAST_TTL
+      { IPPROTO_IP, IP_MULTICAST_TTL, "IP_MULTICAST_TTL"  },
+#endif /* IP_MULTICAST_TTL */
+
+#ifdef IP_MULTICAST_LOOP
+      { IPPROTO_IP, IP_MULTICAST_LOOP, "IP_MULTICAST_LOOP" },
+#endif /* IP_MULTICAST_LOOP */
+
+      /* TCP options */
+
+#ifdef TCP_KEEPALIVE
+      { IPPROTO_TCP, TCP_KEEPALIVE, "TCP_KEEPALIVE"    },
+#endif /* TCP_KEEPALIVE */
+
+#ifdef TCP_MAXRT
+      { IPPROTO_TCP, TCP_MAXRT, "TCP_MAXRT"        },
+#endif /* TCP_MAXRT */
+
+#ifdef TCP_MAXSEG
+      { IPPROTO_TCP, TCP_MAXSEG, "TCP_MAXSEG"       },
+#endif /* TCP_MAXSEG */
+
+#ifdef TCP_NODELAY
+      { IPPROTO_TCP, TCP_NODELAY, "TCP_NODELAY"      },
+#endif /* TCP_NODELAY */
+
+#ifdef TCP_STDURG
+      { IPPROTO_TCP, TCP_STDURG, "TCP_STDURG"       }
+#endif /* TCP_STDURG */
+   };
+
+   errno_s = errno;
+
+   len = sizeof(val);
+   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) == -1) {
+      swarn("%s: getsockopt(SO_TYPE)", function);
+      return;
+   }
+
+   for (i = 0; i < ELEMENTS(option); ++i) {
+      len = sizeof(val);
+      if (getsockopt(s, option[i].level, option[i].optname, &val, &len) == -1) {
+         if (errno != ENOPROTOOPT)
+            swarn("%s: getsockopt(%s) failed", function, option[i].optstr);
+         continue;
+      }
+
+      slog(LOG_DEBUG, "%s: value of socketoption %s is %d\n",
+      function, option[i].optstr, val.int_val);
+   }
+
+   if ((flags = fcntl(s, F_GETFL, 0)) == -1)
+      swarn("%s: fcntl(F_GETFL)", function);
+   else
+      slog(LOG_DEBUG, "%s: value of file status flags is %d\n",
+      function, flags);
+      
+
+   if ((flags = fcntl(s, F_GETFD, 0)) == -1)
+      swarn("fcntl(F_GETFD)");
+   else
+      slog(LOG_DEBUG, "%s: value of file descriptor flags is %d\n",
+      function, flags);
+
+   errno = errno_s;
+}
+
+#endif /* DEBUG */

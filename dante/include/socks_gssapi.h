@@ -106,31 +106,25 @@ gssapi_import_state(gss_ctx_id_t *id, gss_buffer_desc *state);
  * Returns 0 on success, -1 on failure.
  */
 
-#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-
-void socks_mark_gssapi_io_as_native(void);
-void socks_mark_gssapi_io_as_normal(void);
-/*
- * Marks calls that can be made by the gssapi library as native or normal,
- * using the socks_markas{native,normal}() functions.
- */
-
-#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
-
 #define CLEAN_GSS_TOKEN(token) do {                                            \
    OM_uint32 major_status, minor_status;                                       \
+   SIGSET_ALLOCATE(oldset);                                                    \
    char buf[1024];                                                             \
                                                                                \
+   SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);                                   \
    major_status = gss_release_buffer(&minor_status, &(token));                 \
    if (gss_err_isset(major_status, minor_status, buf, sizeof(buf)))            \
       swarnx("%s: gss_release_buffer() at %s:%d failed: %s",                   \
       function, __FILE__, __LINE__, buf);                                      \
+   SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);                                        \
 } while (/* CONSTCOND */ 0)
 
 #define CLEAN_GSS_AUTH(client_name, server_name, server_creds) do {            \
    OM_uint32 major_status, minor_status;                                       \
+   SIGSET_ALLOCATE(oldset);                                                    \
    char buf[1024];                                                             \
                                                                                \
+   SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);                                   \
                                                                                \
    if ((client_name) != GSS_C_NO_NAME) {                                       \
       major_status = gss_release_name(&minor_status, &(client_name));          \
@@ -152,6 +146,8 @@ void socks_mark_gssapi_io_as_normal(void);
          swarnx("%s: gss_release_name() at %s:%d failed: %s",                  \
          function, __FILE__, __LINE__, buf);                                   \
    }                                                                           \
+                                                                               \
+   SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);                                        \
 } while (/* CONSTCOND */ 0)
 
 #endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */

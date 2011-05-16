@@ -41,11 +41,10 @@
  *
  */
 
-/* $Id: config.h,v 1.72.4.2 2010/09/03 14:09:10 karls Exp $ */
+/* $Id: config.h,v 1.108 2011/05/13 16:06:48 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
-#endif
 
 /*
  * Everything in this file is put here so you can change it to suit
@@ -55,21 +54,25 @@
  * Several of the variables can have a big impact on performance,
  * latency and throughput.  Tuning the server to the optimum for
  * your particular environment might be difficult, but hopefully
- * the defaults as set in this file will provide a adequate
- * compromise.  Should you desire more optimal tuning, you
- * might want to look at the SUPPORT file coming with Dante.
+ * the defaults as set in this file will provide an adequate
+ * compromise in most cases.
  */
 
 
-   /*
-    * client/server stuff.
-    */
 
 /*
  * default client/server lockfile (put in $TMPDIR, or /tmp).
  * Put this on a fast, low-latency fs.  Under /tmp is usually good.
+ * Note that if set, $TMPDIR is prefixed to this path.
  */
-#define SOCKS_LOCKFILE            "./sockslockXXXXXXXXXX"
+#define SOCKS_LOCKFILE            ".sockslockXXXXXXXXXX"
+
+/*
+ * default server file for shared memory mappings (put in $TMPDIR, or /tmp).
+ * Put this on a fast, low-latency fs.  Under /tmp is usually good.
+ * Note that if set, $TMPDIR is prefixed to this path.
+ */
+#define SOCKD_SHMEMFILE           ".sockdshmemXXXXXXXXXX"
 
 /* default client config file. */
 #if !HAVE_SOCKS_CONFIGFILE
@@ -79,32 +82,50 @@
 #endif /* !HAVE_SOCKS_CONFIGFILE */
 
 
-/*
- * how many times a route can fail before being marked as bad.
- * A value of zero means it will never be marked as bad.
+#if COVENANT
+
+/* max length of a http request.  XXX probably to small. */
+#define MAXREQLEN              (2048)
+
+#define DEFAULT_REALMNAME          "not the Inferno Nettverk A/S realm"
+
+#elif SOCKS_SERVER /* !COVENANT */
+
+/* max length of a socks request,  excluding gssapi-stuff. */
+#define MAXREQLEN              (sizeof(struct request_t))
+
+#endif /* SOCKS_SERVER */
+
+
+/* 
+ * server send/receive socket buffer size for network i/o using TCP. 
+ * A value of 0 indicates we should not set any value, but use whatever
+ * the kernel chooses.
  */
-#define MAX_ROUTE_FAILS            (1)
+#define SOCKS_SOCKET_SNDBUF_TCP         (0)
+#define SOCKS_SOCKET_RCVBUF_TCP         (0)
 
 /*
- * if we mark a route/proxyserver as bad, how many seconds to wait
- * until we expire the badmarking so it will be tried again for new
- * connections.  A value of zero means never.
- */
-#define BADROUTE_EXPIRE            (60 * 5)
-
-
-/* server socket buffer size for network i/o using TCP. */
-#define SOCKS_SOCKET_BUFSIZETCP         (1024 * 64 * 2)
-
-/*
- * server socket buffer size for network i/o using UDP.
- * Probably no point in raising this above 64k for send, but for
- * receive, it can help a busy server keep up, allowing the socket
- * receive-buffer to contain more than one max-size udp packet.
+ * server receive socket buffer size for network i/o using UDP.
  * If you expect having to handle many large udp packets, you 
- * might want to increase this.
+ * might want to increase this. 
+ * A value of 0 indicates we should not set any value, but use whatever
+ * the kernel chooses.
  */
-#define SOCKS_SOCKET_BUFSIZEUDP         (1024 * 64 * 2)
+#define SOCKS_SOCKET_SNDBUF_UDP         (0)
+#define SOCKS_SOCKET_RCVBUF_UDP         (1024 * 64 * 1)
+
+#if BAREFOOTD
+/*
+ * Barefootd will possibly handle hundreds, even thousands, of udp clients
+ * on one socket, so that socket buffer we want to be as big as possible.
+ * A value of 0 indicates we should not set any value, but use whatever
+ * the kernel chooses.
+ */
+#define SOCKS_SOCKET_RCVBUF_UDP_CLIENTSIDE (SOCKS_SOCKET_RCVBUF_UDP * 10)
+#define SOCKS_SOCKET_SNDBUF_UDP_CLIENTSIDE (0)
+#endif /* BAREFOOTD */
+
 
 /* if profiling is enabled, directory to store profile files in. */
 #define SOCKS_PROFILEDIR         "./.prof"
@@ -120,14 +141,26 @@
  * one libwrap uses internally, but we don't have access to that size.
  */
 #if HAVE_LIBWRAP
-#define LIBWRAPBUF         (80)
+#define LIBWRAPBUF         (150)
 #endif /* HAVE_LIBWRAP */
 
 /*
  * Name to give as servicename when starting pam for rules that don't
  * set it.
  */
+#if SOCKS_SERVER
 #define DEFAULT_PAMSERVICENAME   "sockd"
+#elif BAREFOOTD
+#define DEFAULT_PAMSERVICENAME   "barefootd"
+#else 
+#define DEFAULT_PAMSERVICENAME   "httprelayd"
+#endif
+
+/*
+ * Name to give as stylename when using bsdauth for rules that don't
+ * set it.
+ */
+#define DEFAULT_BSDAUTHSTYLENAME "" /* use ""; NULL is default value */
 
 /*
  * Name to give as servicename when starting gssapi for rules that don't
@@ -136,33 +169,52 @@
 #define DEFAULT_GSSAPISERVICENAME      "rcmd"
 #define DEFAULT_GSSAPIKEYTAB           "FILE:/etc/sockd.keytab"
 
+
+/*
+ * Name to give as filter and attribute name for ldap server
+ */
+#define DEFAULT_LDAP_FILTER        "(memberuid=%s)"
+#define DEFAULT_LDAP_ATTRIBUTE     "cn"
+
+/*
+ * Name to give as filter and attribute name for Active Directory server
+ */
+#define DEFAULT_LDAP_FILTER_AD     "(samaccountname=%s)"
+#define DEFAULT_LDAP_ATTRIBUTE_AD  "memberof"
+
+/*
+ * Name to give as ca cert file or cert db path
+ */
+#define DEFAULT_LDAP_CACERTFILE    "/etc/ssl/certs/cert.pem"
+#define DEFAULT_LDAP_CERTDBPATH    "/etc/certs"
+
 /*
  * Name to give as USER when using PAM and username is not available
  * (such as when pam is used as a clientmethod).
  */
 
-#if SOCKS_SERVER
-#define DEFAULT_PAM_USER "socksclient"
-#else /* BAREFOOTD */
-#define DEFAULT_PAM_USER "barefootclient"
-#endif /* BAREFOOTD */
+#define DEFAULT_PAM_USER "rhostusr"
 
 /*
  * Name to give as RUSER when using PAM (corresponds to username of client).
  */
 
-#if SOCKS_SERVER
-#define DEFAULT_PAM_RUSER "socksclient"
-#else /* BAREFOOTD */
-#define DEFAULT_PAM_RUSER "barefootclient"
-#endif /* BAREFOOTD */
+#define DEFAULT_PAM_RUSER "rhostusr"
 
 /*
  * The file the server will write it's process id to.
  * Note that this file should be in a restricted directory.
  */
 #if !HAVE_SOCKD_PIDFILE
+
+#if SOCKS_SERVER
 #define SOCKD_PIDFILE            "/var/run/sockd.pid"
+#elif BAREFOOTD
+#define SOCKD_PIDFILE            "/var/run/barefootd.pid"
+#else
+#define SOCKD_PIDFILE            "/var/run/httprelayd.pid"
+#endif
+
 #else
 #define SOCKD_PIDFILE            HAVE_ALT_SOCKD_PIDFILE
 #endif /* !HAVE_SOCKD_PIDFILE */
@@ -172,7 +224,15 @@
 
 /* default server configfile */
 #if !HAVE_SOCKD_CONFIGFILE
+
+#if SOCKS_SERVER
 #define SOCKD_CONFIGFILE         "/etc/sockd.conf"
+#elif BAREFOOTD
+#define SOCKD_CONFIGFILE         "/etc/barefootd.conf"
+#else
+#define SOCKD_CONFIGFILE         "/etc/httprelayd.conf"
+#endif 
+
 #else
 #define SOCKD_CONFIGFILE         HAVE_ALT_SOCKD_CONFIGFILE
 #endif /* !HAVE_SOCKD_CONFIGFILE */
@@ -192,27 +252,12 @@
  */
 #define SOCKD_BUFSIZE         (2 * (MAXGSSAPITOKENLEN + GSSAPI_HLEN))
 #else /* !HAVE_GSSAPI */
+/*
+ * Warning: this size needs to be at least big enough to hold one max-size
+ * udp packet.
+ */
 #define SOCKD_BUFSIZE         (1024 * 64 * 1)
 #endif /* !HAVE_GSSAPI */
-
-/*
- * skew watermarks by this factor compared to "optimal".
- * Setting it to one minimizes cputime used by the server at a
- * possibly big cost in performance.  Never set it to more than one.
- * I'd be interested in hearing peoples experiences with this.
- */
-#define LOWATSKEW                  (0.75)
-
-/*
- * For systems that do not have the "low watermarks" socket option.
- * It is important not to set it to too high a value as that will
- * probably degrade performance for clients even more, causing starvation.
- * Basically; low value  -> better interactive performance,
- *            high value -> better throughput.
- */
-#if !HAVE_SO_SNDLOWAT
-#define SO_SNDLOWAT_SIZE         (1024 * 4)
-#endif /* !HAVE_SO_SNDLOWAT */
 
 /* max number of clients pending to server (argument to listen()).
  * The Apache people say:
@@ -228,11 +273,8 @@
  * values affect this.
  */
 
-/* cache entries we should allocate for caching hostnames. */
+/* cache entries we should allocate for caching hostnames/addresses. */
 #define SOCKD_HOSTCACHE            (512)
-
-/* cache entries we should allocate for caching addresses. */
-#define SOCKD_ADDRESSCACHE         (512)
 
 /* seconds a cache entry is to be considered valid.  Don't set below 1. */
 #define SOCKD_CACHETIMEOUT         (60)
@@ -241,10 +283,32 @@
 #define SOCKD_CACHESTAT            (0)
 
 /*
+ * Cache for LDAP stuff. 
+ */
+
+/* number of entries in cache. */
+#define SOCKD_LDAPCACHE            (512)
+
+/* seconds a cache entry is to be considered valid.  Don't set below 1. */
+#define SOCKD_LDAPCACHE_TIMEOUT    (60 * 15) 
+
+/* print some statistics for every SOCKD_CACHESTAT lookup.  0 to disable. */
+#define SOCKD_LDAPCACHE_STAT       (0)
+
+
+/*
  * Number of slots to try and keep available for new clients at any given time.
  * The server tries to be a little more intelligent about this, but not much.
  */
-#define SOCKD_FREESLOTS            (4)
+#define SOCKD_FREESLOTS_NEGOTIATE     (4)
+#define SOCKD_FREESLOTS_REQUEST       (4)
+#define SOCKD_FREESLOTS_IO            (4)
+
+#if SOCKD_FREESLOTS_NEGOTIATE < 1 
+||  SOCKD_FREESLOTS_REQUEST < 1 
+||  SOCKD_FREESLOTS_IO < 1 
+#error "SOCKD_FREESLOTS_* can not be less than 1"
+#endif /* SOCKD_FREESLOTS < 1 */
 
 /*
  * Dante supports one process handling N clients, where the max value for
@@ -280,3 +344,15 @@
 #else
 #define SOCKD_IOMAX               (8)
 #endif /* DEBUG */
+
+#if BAREFOOTD
+/*
+ * each i/o process should attempt to handle at least this many udp clients. 
+ * Note that there is no hardcoded bound on this in Barefoot, this is only
+ * limited by system resources.  If the system resources are too low for
+ * this value, we will complain when starting up though.
+ */
+#define MIN_UDPCLIENTS           (512)
+#endif /* BAREFOOTD */
+
+#endif /* !_CONFIG_H_ */

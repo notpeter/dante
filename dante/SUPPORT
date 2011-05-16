@@ -1,4 +1,4 @@
-# $Id: SUPPORT,v 1.10 2001/12/12 12:54:32 karls Exp $
+# $Id: SUPPORT,v 1.11 2009/11/05 12:24:24 michaels Exp $
 
 Dante is developed by Inferno Nettverk A/S, Norway.
 
@@ -9,9 +9,9 @@ related to Dante.  This sponsors further development.
 The services include both custom installs of Dante, performed over
 the network if need be, as well as commercial support.
 
-For more information about commercial installs and support please
-contact sales@inet.no.
-Also see the Dante support page, http://www.inet.no/dante/support.html.
+For more information about commercial installs and support
+please contact sales@inet.no.  Also see the Dante support page,
+"http://www.inet.no/dante/support.html".
 
 
 For non-commercial support, see http://www.inet.no/dante/lists.html
