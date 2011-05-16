@@ -1,0 +1,72 @@
+dnl sasl.m4 -- find compiler and linker flags for SASL
+dnl Based on patch from Markus Moeller (markus_moeller at compuserve.com)
+
+dnl default prefix for sasl headers/libs
+sasldir=/usr
+AC_ARG_WITH(sasl,
+ [  --without-sasl        disable sasl support @<:@default=detect@:>@],
+ [SASL=$withval])
+
+AC_ARG_WITH(sasl-path,
+ [  --with-sasl-path=PATH specify sasl path @<:@default=$sasldir@:>@],
+ [sasldir=$withval])
+
+if test x"$SASL" != xno; then
+   unset saslfail
+
+   if test x"$sasldir" != xno; then
+      ac_sasl_cflags=-I$sasldir/include
+      ac_sasl_libs=-L$sasldir/lib
+   else
+      ac_sasl_cflags=
+      ac_sasl_libs=
+   fi
+
+   dnl any cflags values obtained from krb5-config?
+   if test x"$ac_sasl_cflags" != x; then
+      CPPFLAGS="${CPPFLAGS} $ac_sasl_cflags"
+   fi
+
+   dnl any libs obtained from krb5-config?
+   if test x"$ac_sasl_libs" != x; then
+      dnl XXX assumes required libs start with -l prefix
+      NDEPS=`echo $ac_sasl_libs | xargs -n1 | egrep  '^-l' | xargs echo`
+
+      dnl add as dependency for libdsocks
+      DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$NDEPS"
+
+      NPATH=`echo $ac_sasl_libs | xargs -n1 | egrep  '^-L' | xargs echo`
+      LDFLAGS="${LDFLAGS}${LDFLAGS:+ }$NPATH"
+   fi
+
+   dnl look for gssapi headers
+   AC_CHECK_HEADERS(sasl.h sasl/sasl.h)
+
+   dnl look for libs
+   oLIBS=$LIBS
+   LIBS=""
+
+   sys=`uname`
+   case $sys in
+      Darwin) ac_lib_sav=$LIBS
+              AC_CHECK_LIB(sasl2,main)
+              LIBS=$ac_lib_sav
+              if test "$ac_cv_lib_sasl2_main" = "yes" ; then
+                 AC_DEFINE(HAVE_SASL_DARWIN,1,[Define to 1 if Mac Darwin without sasl.h])
+              fi
+              ;;
+   esac
+
+   if test x"$ac_cv_header_sasl_h" = xyes ||
+      test x"$ac_cv_header_sasl_sasl_h" = xyes ||
+      test x"$ac_cv_lib_sasl2_main" = xyes ; then
+      unset no_sasl
+   fi
+
+   dnl add as dependency for libdsocks
+   if test x"${LIBS}" != x; then
+      DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$LIBS"
+   fi
+
+   LIBS="${oLIBS}${oLIBS:+ }$LIBS"
+fi

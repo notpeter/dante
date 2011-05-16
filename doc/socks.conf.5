@@ -1,4 +1,4 @@
-.\" $Id: socks.conf.5,v 1.56 2009/10/23 11:13:29 karls Exp $
+.\" $Id: socks.conf.5,v 1.64 2011/04/29 07:12:33 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2008, 2009
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -40,17 +40,17 @@
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.TH SOCKS.CONF 5 "January, 2009"
+.TH SOCKS.CONF 5 "November 1 2009"
 .SH NAME
 socks.conf \- socks client configuration file syntax
 .SH DESCRIPTION
 The configuration file for the socks client library allow control over
-logging and server selection.  It is divided into two parts,
-miscellaneous settings and routes.  A line can be commented using the
+logging and server selection.  It is divided into two parts;
+global settings and routes.  A line can be commented using the
 standard comment character \fB#\fP.
 .SH FORMAT
-The miscellaneous settings have a keyword followed by a colon and the
-value.
+The global settings are in the form of a keyword followed by a colon
+and the value.
 .TP
 \fBdebug\fP
 Setting this field to 1 turns on debugging.
@@ -63,6 +63,15 @@ a combination.  The default is no logging.
 The protocol used to resolve hostnames.
 Valid values are \fBudp\fP, \fBtcp\fP and \fBfake\fP.  The default
 is \fBudp\fP.
+.IP \fBroute.maxfail\fP
+How many times a route can fail before it is marked as bad.
+.IP \fBroute.badexpire\fP
+How long the "bad" marking of a route should remain valid before 
+the "bad" marking should expire.
+.IP \fBtimeout.connect\fP
+The number of seconds the client will wait for a connect to the
+proxy server to complete.  The default is 0, indicating the client
+should use the systems default.
 .SH ROUTES
 The routes are specified with a \fBroute\fP keyword.
 Inside a pair of parenthesis ({}) a set of keywords control the behavior of
@@ -73,8 +82,8 @@ A route is selected for a connection based on the values within the
 \fBroute\fP block.
 
 When searching for a route to match the clients request, the library
-will first look for a \fBdirect\fP route.  Then for a \fBsocks_v5\fP
-route, a \fBsocks_v4\fP route, a \fBhttp_v1.0\fP route, and lastly
+will first look for a \fBdirect\fP route.  Then for a \fBsocks_v4\fP
+route, a \fBsocks_v5\fP route, a \fBhttp\fP route, and lastly
 for a \fBupnp\fP route.
 
 Depending on how the library is configured and environment variables
@@ -96,9 +105,13 @@ The route is used only by requests coming from the address given as value.
 .IP \fBto\fP
 The route is used only by requests going to the address given as value.
 .IP \fBvia\fP
-Address of server to be used as gateway for the connection.  In the case of
-upnp, it can also be the name of the interface to use for discovering the
-upnp controlpoint, if the full url for the IGD is not yet known.
+Address of the proxy server that should be used as a gateway for the
+connection, or the special value \fBdirect\fP to indicate the connection
+should be direct rather than go via any proxy server.
+
+In the case of \fBupnp\fP, it can also be the name of the interface
+to use for discovering the upnp controlpoint, if the full url for
+the IGD is not yet known.
 .IP \fBport\fP
 Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
 \fBeq/=, ne/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
@@ -136,7 +149,11 @@ supported protocols.
 .IP \fBproxyprotocol\fP
 The proxy protocols the server supports.
 Currently supported values are \fBsocks_v4\fP, \fBsocks_v5\fP,
-\fBhttp_v1.0\fP, and \fBupnp\fP.  The default is \fBsocks_v5\fP.
+\fBhttp\fP, and \fBupnp\fP.  The default is \fBsocks_v4\fP and
+\fBsocks_v5\fP.
+Note that if the socks server requires any form of authentication, you
+need to explicitly set this to to \fBsocks_v5\fP, as v4 does not support
+authentication.
 .SH EXAMPLES
 See the example directory in the distribution.
 .SH ENVIRONMENT
@@ -169,7 +186,7 @@ For inferno Nettverk A/S:
    Michael Shuldman
    Karl-Andre' Skevik
 .SH SEE ALSO
-socksify(1) sockd(8) sockd.conf(5)
+socksify(1), sockd(8), sockd.conf(5)
 .TP
 Information about new releases and other related issues can be found
 on the

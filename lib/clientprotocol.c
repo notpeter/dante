@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,11 +46,15 @@
   * Markus Moeller (markus_moeller at compuserve.com).
   */
 
+
 #include "common.h"
+
+#if SOCKS_CLIENT || SOCKS_SERVER /* XXX is this correct? */
 #include "interposition.h"
+#endif /* SOCKS_CLIENT || SOCKS_SERVER */
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.125.2.3.2.2 2010/09/21 11:24:42 karls Exp $";
+"$Id: clientprotocol.c,v 1.144 2011/04/12 15:40:35 michaels Exp $";
 
 static int
 recv_sockshost(int s, struct sockshost_t *host, int version,
@@ -91,9 +95,9 @@ socks_sendrequest(s, request)
 
          p = sockshost2mem(&request->host, p, request->version);
 
-         *p++ = 0; /* not bothering to send any userid.  Should we? */
-
-         break; /* SOCKS_V4 */
+         *p = NUL; /* not bothering to send any userid.  Should we? */
+         ++p;
+         break; 
 
        case PROXY_SOCKS_V5:
          /*
@@ -124,7 +128,6 @@ socks_sendrequest(s, request)
          p += sizeof(request->flag);
 
          p = sockshost2mem(&request->host, p, request->version);
-
          break;
 
        default:
@@ -132,13 +135,19 @@ socks_sendrequest(s, request)
    }
 
    slog(LOG_DEBUG, "%s: sending request: %s",
-   function, socks_packet2string(request, SOCKS_REQUEST));
+   function, socks_packet2string(request, 1));
 
    /*
     * Send the request to the server.
     */
-   if (socks_sendton(s, requestmem, (size_t)(p - requestmem),
-   (size_t)(p - requestmem), 0, NULL, 0, request->auth) != p - requestmem) {
+   if (socks_sendton(s,
+                     requestmem,
+                     (size_t)(p - requestmem),
+                     (size_t)(p - requestmem),
+                     0,
+                     NULL,
+                     0,
+                     request->auth) != (ssize_t)(p - requestmem)) {
       swarn("%s: socks_sendton()", function);
       return -1;
    }
@@ -164,7 +173,7 @@ socks_recvresponse(s, response, version)
           *  1 + 1  +   2   +   4
           */
          char responsemem[ sizeof(response->version)
-                         + sizeof(response->reply)
+                         + sizeof(response->reply.socks)
                          ];
          char *p = responsemem;
 
@@ -186,8 +195,8 @@ socks_recvresponse(s, response, version)
          }
 
          /* CD */
-         memcpy(&response->reply, p, sizeof(response->reply));
-         p += sizeof(response->reply);
+         memcpy(&response->reply.socks, p, sizeof(response->reply.socks));
+         p += sizeof(response->reply.socks);
          break;
       }
 
@@ -205,7 +214,7 @@ socks_recvresponse(s, response, version)
           *
           */
          char responsemem[sizeof(response->version)
-                        + sizeof(response->reply)
+                        + sizeof(response->reply.socks)
                         + sizeof(response->flag)
                         ];
          char *p = responsemem;
@@ -228,8 +237,8 @@ socks_recvresponse(s, response, version)
          }
 
          /* REP */
-         memcpy(&response->reply, p, sizeof(response->reply));
-         p += sizeof(response->reply);
+         memcpy(&response->reply.socks, p, sizeof(response->reply.socks));
+         p += sizeof(response->reply.socks);
 
          /* FLAG */
          memcpy(&response->flag, p, sizeof(response->flag));
@@ -246,7 +255,7 @@ socks_recvresponse(s, response, version)
       return -1;
 
    slog(LOG_DEBUG, "%s: received response: %s",
-   function, socks_packet2string(response, SOCKS_RESPONSE));
+   function, socks_packet2string(response, 0));
 
    return 0;
 }
@@ -259,7 +268,11 @@ socks_negotiate(s, control, packet, route)
    struct socks_t *packet;
    struct route_t *route;
 {
+   const char *function = "socks_negotiate()";
 
+   slog(LOG_DEBUG, "%s: initiating negotiation on socket %d, address %s",
+   function, s, socket2string(s, NULL, 0));
+   
    packet->res.auth = packet->req.auth;
    switch (packet->req.version) {
       case PROXY_SOCKS_V5:
@@ -304,17 +317,8 @@ socks_negotiate(s, control, packet, route)
          }
          break;
 
-#if SOCKS_CLIENT
-      case PROXY_MSPROXY_V2:
-         if (msproxy_negotiate(s, control, packet) != 0) {
-            if (errno == 0)
-               errno = ECONNREFUSED; /* something wrong.  If nothing else ... */
-            return -1;
-         }
-         break;
-#endif /* SOCKS_CLIENT */
-
-      case PROXY_HTTP_V1_0:
+      case PROXY_HTTP_10:
+      case PROXY_HTTP_11:
          if (httpproxy_negotiate(control, packet) != 0) {
             if (errno == 0)
                errno = ECONNREFUSED; /* something wrong.  If nothing else ... */
@@ -336,7 +340,9 @@ socks_negotiate(s, control, packet, route)
          SERRX(packet->req.version);
    }
 
-   if (!serverreplyisok(packet->res.version, packet->res.reply, route))
+   if (!serverreplyisok(packet->res.version,
+                        socks_get_responsevalue(&packet->res),
+                        route))
       return -1;
    else {
       if (fdisblocking(control))
@@ -374,13 +380,13 @@ recv_sockshost(s, host, version, auth)
 
          if ((rc = socks_recvfromn(s, hostmem, sizeof(hostmem), sizeof(hostmem),
          0, NULL, NULL, auth)) != (ssize_t)sizeof(hostmem)) {
-            swarn("%s: socks_recvfromn(): %ld/%ld",
-            function, (long)rc, (long)sizeof(hostmem));
+            swarn("%s: socks_recvfromn(): %ld/%lu",
+            function, (long)rc, (unsigned long)sizeof(hostmem));
 
             return -1;
          }
 
-         host->atype = SOCKS_ADDR_IPV4;
+         host->atype = (unsigned char)SOCKS_ADDR_IPV4;
 
          /* BND.PORT */
          memcpy(&host->port, p, sizeof(host->port));
@@ -406,8 +412,8 @@ recv_sockshost(s, host, version, auth)
          if ((rc = socks_recvfromn(s, &host->atype, sizeof(host->atype),
          sizeof(host->atype), 0, NULL, NULL, auth))
          != (ssize_t)sizeof(host->atype)) {
-            swarn("%s: socks_recvfromn(): %ld/%ld",
-            function, (long)rc, (long)sizeof(host->atype));
+            swarn("%s: socks_recvfromn(): %ld/%lu",
+            function, (long)rc, (unsigned long)sizeof(host->atype));
 
             return -1;
          }
@@ -417,8 +423,8 @@ recv_sockshost(s, host, version, auth)
                if ((rc = socks_recvfromn(s, &host->addr.ipv4,
                sizeof(host->addr.ipv4), sizeof(host->addr.ipv4), 0, NULL,
                NULL, auth)) != (ssize_t)sizeof(host->addr.ipv4)) {
-                  swarn("%s: socks_recvfromn(): %ld/%ld",
-                  function, (long)rc, (long)sizeof(host->addr.ipv4));
+                  swarn("%s: socks_recvfromn(): %ld/%lu",
+                  function, (long)rc, (unsigned long)sizeof(host->addr.ipv4));
 
                   return -1;
                }
@@ -428,8 +434,8 @@ recv_sockshost(s, host, version, auth)
                if ((rc = socks_recvfromn(s, host->addr.ipv6,
                sizeof(host->addr.ipv6), sizeof(host->addr.ipv6), 0, NULL,
                NULL, auth)) != (ssize_t)sizeof(host->addr.ipv6)) {
-                  swarn("%s: socks_recvfromn(): %ld/%ld",
-                  function, (long)rc, (long)sizeof(host->addr.ipv6));
+                  swarn("%s: socks_recvfromn(): %ld/%lu",
+                  function, (long)rc, (unsigned long)sizeof(host->addr.ipv6));
 
                   return -1;
                }
@@ -441,8 +447,8 @@ recv_sockshost(s, host, version, auth)
                /* read length of domain name. */
                if ((rc = socks_recvfromn(s, &alen, sizeof(alen), sizeof(alen),
                0, NULL, NULL, auth)) != (ssize_t)sizeof(alen)) {
-                  swarn("%s: socks_recvfromn(): %ld/%ld",
-                  function, (long)rc, (long)sizeof(alen));
+                  swarn("%s: socks_recvfromn(): %ld/%lu",
+                  function, (long)rc, (unsigned long)sizeof(alen));
 
                   return -1;
                }
@@ -476,8 +482,8 @@ recv_sockshost(s, host, version, auth)
          if ((rc = socks_recvfromn(s, &host->port, sizeof(host->port),
          sizeof(host->port), 0, NULL, NULL, auth))
          != (ssize_t)sizeof(host->port)) {
-            swarn("%s: socks_recvfromn(): %ld/%ld",
-            function, (long)rc, (long)sizeof(host->port));
+            swarn("%s: socks_recvfromn(): %ld/%lu",
+            function, (long)rc, (unsigned long)sizeof(host->port));
 
             return -1;
          }
@@ -491,7 +497,7 @@ recv_sockshost(s, host, version, auth)
 int
 serverreplyisok(version, reply, route)
    int version;
-   int reply;
+   unsigned int reply;
    struct route_t *route;
 {
    const char *function = "serverreplyisok()";
@@ -539,7 +545,7 @@ serverreplyisok(version, reply, route)
                return 1;
 
             case SOCKS_FAILURE:
-               swarnx("%s: unknown proxy server failure", function);
+               swarnx("%s: generic proxy server failure", function);
                socks_blacklist(route);
                errno = ECONNREFUSED;
                return 0;
@@ -589,35 +595,8 @@ serverreplyisok(version, reply, route)
          }
          break;
 
-      case PROXY_MSPROXY_V2:
-         switch (reply) {
-            case MSPROXY_SUCCESS:
-               return 1;
-
-            case MSPROXY_FAILURE:
-               errno = ECONNREFUSED;
-               socks_blacklist(route);
-               return 0;
-
-            case MSPROXY_CONNREFUSED:
-               errno = ECONNREFUSED;
-               return 0;
-
-            case MSPROXY_NOTALLOWED:
-               swarnx("%s: connection denied by proxy server: authenticated?",
-               function);
-               socks_blacklist(route);
-               errno = ECONNREFUSED;
-               return 0;
-
-            default:
-               swarnx("%s: unknown v%d reply from proxy server: %d",
-               function, version, reply);
-               errno = ECONNREFUSED;
-         }
-         break;
-
-      case PROXY_HTTP_V1_0:
+      case PROXY_HTTP_10:
+      case PROXY_HTTP_11:
          switch (reply) {
             case HTTP_SUCCESS:
                socks_clearblacklist(route);
@@ -735,7 +714,8 @@ clientmethod_uname(s, host, version, name, password)
    function, uname.name, (*uname.password == NUL) ? "\"\"" : "********");
 
    if ((rc = socks_sendton(s, request, (size_t)(offset - request),
-   (size_t)(offset - request), 0, NULL, 0, NULL)) != offset - request) {
+   (size_t)(offset - request), 0, NULL, 0, NULL))
+   != (ssize_t)(offset - request)) {
       swarn("%s: send of username/password failed, sent %d/%d",
       function, (int)rc, (int)(offset - request));
 
@@ -766,6 +746,7 @@ clientmethod_uname(s, host, version, name, password)
    return response[UNAME_STATUS];
 }
 
+
 #if HAVE_GSSAPI
  /*
   * This code was contributed by
@@ -781,7 +762,6 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
    struct authmethod_t *auth;
 {
    const char *function = "clientmethod_gssapi()";
-
    OM_uint32 ret_flags;
    OM_uint32 major_status, minor_status;
    gss_name_t            client_name       = GSS_C_NO_NAME;
@@ -792,11 +772,12 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
    gss_buffer_desc       output_token      = GSS_C_EMPTY_BUFFER;
    gss_buffer_desc       gss_context_token = GSS_C_EMPTY_BUFFER;
    gss_buffer_desc       *context_token    = GSS_C_NO_BUFFER;
-   unsigned short        token_length;
+   sigset_t oldset;
+   ssize_t rc;
+   unsigned short token_length;
    unsigned char request[GSSAPI_HLEN + MAXGSSAPITOKENLEN];
    unsigned char response[GSSAPI_HLEN + MAXGSSAPITOKENLEN];
    char nameinfo[MAXNAMELEN + MAXNAMELEN], buf[sizeof(nameinfo)], emsg[512];
-   ssize_t rc;
    unsigned char gss_server_enc, gss_enc;
    int conf_state;
 
@@ -815,14 +796,14 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
     *
     * It will not work in the (hopefully very rare) case where the
     * user actually has set things up correctly, but the route to
-    * the kdc is via another, non-gssapi proxy though.
+    * the kdc is via another, non-gssapi, proxy though.
     *
     * Based on an idea by Markus Moeller for forcing connect(2) to the
     * Kerberos kdc to use the native connect(2), rather than most
     * likely create a routing loop when the user neglects to mark
     * the route to the kdc as "direct" in socks.conf.
     */
-   socks_mark_gssapi_io_as_native();
+   socks_mark_io_as_native();
 #endif /* SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT */
 
    version = version;
@@ -835,13 +816,22 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
             addr.sin_family = AF_INET;
             addr.sin_addr   = gw->addr.addr.ipv4;
 
-            if ((rc = getnameinfo((struct sockaddr *)&addr, sizeof(addr),
-            nameinfo, sizeof(nameinfo), NULL, 0, NI_NAMEREQD)) != 0) {
+            SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+            rc = getnameinfo((struct sockaddr *)&addr,
+                             sizeof(addr),
+                             nameinfo,
+                             sizeof(nameinfo),
+                             NULL,
+                             0,
+                             NI_NAMEREQD);
+            SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
+
+            if (rc != 0) {
                swarnx("%s: getnameinfo(%s) failed with error %ld\n",
                function, inet_ntoa(addr.sin_addr), (long)rc);
 
 #if SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT
-               socks_mark_gssapi_io_as_normal();
+               socks_mark_io_as_normal();
 #endif /* SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT */
 
                return -1;
@@ -859,7 +849,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
    }
    else {
 #if SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT
-      socks_mark_gssapi_io_as_normal();
+      socks_mark_io_as_normal();
 #endif /* SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT */
 
       return -1;
@@ -874,6 +864,8 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
       swarnx("%s: gss_import_name() %s", function, emsg);
+
+      socks_sigunblock(&oldset);
       goto error;
    }
 
@@ -881,6 +873,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
    auth->mdata.gssapi.state.id = GSS_C_NO_CONTEXT;
 
    while (1) {
+      SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
       major_status = gss_init_sec_context(&minor_status,
                                           GSS_C_NO_CREDENTIAL,
                                           &auth->mdata.gssapi.state.id,
@@ -909,6 +902,10 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
                                           &output_token,
                                           &ret_flags,
                                           NULL);
+      SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
+
+      slog(LOG_DEBUG, "%s: length of output_token is %lu", 
+      function, (unsigned long)output_token.length);
 
       switch (major_status) {
          case GSS_S_COMPLETE:
@@ -929,13 +926,16 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
       }
 
       if(output_token.length != 0) {
-         request[GSSAPI_STATUS]  = SOCKS_GSSAPI_AUTHENTICATION;
+         request[GSSAPI_STATUS] = SOCKS_GSSAPI_AUTHENTICATION;
 
          token_length = htons((unsigned short)output_token.length);
          memcpy(request + GSSAPI_TOKEN_LENGTH, &token_length, sizeof(short));
 
          SASSERTX(output_token.length <= sizeof(request) - GSSAPI_HLEN);
          memcpy(request + GSSAPI_HLEN, output_token.value, output_token.length);
+
+         slog(LOG_DEBUG, "%s: sending token of length %lu to server", 
+         function, (unsigned long)output_token.length);
 
          if ((rc = socks_sendton(s, request, GSSAPI_HLEN + output_token.length,
          GSSAPI_HLEN + output_token.length, 0, NULL, 0, NULL))
@@ -957,6 +957,9 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
          function, (long)rc, (long)GSSAPI_HLEN);
          goto error;
       }
+
+      slog(LOG_DEBUG, "%s: read %ld bytes of response data from server", 
+      function, (long)rc);
 
       if(response[GSSAPI_VERSION] != SOCKS_GSSAPI_VERSION) {
          swarnx("%s: invalid GSSAPI authentication response type (%d, %d)",
@@ -993,6 +996,9 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
 
          goto error;
       }
+
+      slog(LOG_DEBUG, "%s: read %lu byte token from server", 
+      function, (long)input_token.length);
 
       context_token = &input_token;
    }
@@ -1058,9 +1064,11 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
       input_token.value  = response;
       memcpy(input_token.value, &gss_enc, input_token.length);
 
+      SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
       major_status = gss_wrap(&minor_status, auth->mdata.gssapi.state.id,
                               0, GSS_C_QOP_DEFAULT, &input_token, &conf_state,
                               &output_token);
+      SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
       if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
          swarnx("%s: gss_wrap() %s", function, emsg);
@@ -1203,13 +1211,17 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
       function, (unsigned long)auth->mdata.gssapi.state.maxgssdata);
 
       if ((unsigned long)auth->mdata.gssapi.state.maxgssdata == 0)
-          swarnx("%s: invalid max length, the kerberos library might not "
-                 "fully support the configured encoding type",
-                 function);
+          swarnx("%s: for a token of length %lu "
+                 "gss_wrap_size_limit() returned %lu.  "
+                 "The kerberos library might not fully support "
+                 "the configured encoding type",
+                 function,
+                 (unsigned long)auth->mdata.gssapi.state.maxgssdata,
+                 (unsigned long)auth->mdata.gssapi.state.maxgssdata);
    }
 
 #if SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT
-   socks_mark_gssapi_io_as_normal();
+   socks_mark_io_as_normal();
 #endif /* SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT */
 
    return 0;
@@ -1220,7 +1232,7 @@ error:
    CLEAN_GSS_AUTH(client_name, server_name, server_creds);
 
 #if SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT
-   socks_mark_gssapi_io_as_normal();
+   socks_mark_io_as_normal();
 #endif /* SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT */
 
    return -1;

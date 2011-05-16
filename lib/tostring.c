@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009,
- *               2010
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +45,9 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.57.2.2.4.1 2011/03/16 14:14:44 michaels Exp $";
+"$Id: tostring.c,v 1.87 2011/04/25 08:27:09 michaels Exp $";
+
+static const char *stripstring = ", \t\n";
 
 char *
 proxyprotocols2string(proxyprotocols, str, strsize)
@@ -67,30 +68,26 @@ proxyprotocols2string(proxyprotocols, str, strsize)
    strused = 0;
 
    if (proxyprotocols->socks_v4)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(PROXY_SOCKS_V4s));
 
    if (proxyprotocols->socks_v5)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(PROXY_SOCKS_V5s));
 
-   if (proxyprotocols->msproxy_v2)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
-      QUOTE(PROXY_MSPROXY_V2s));
-
-   if (proxyprotocols->http_v1_0)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
-      QUOTE(PROXY_HTTP_V1_0s));
+   if (proxyprotocols->http)
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
+      QUOTE("HTTP"));
 
    if (proxyprotocols->upnp)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(PROXY_UPNPs));
 
    if (proxyprotocols->direct)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(PROXY_DIRECTs));
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
@@ -113,21 +110,21 @@ protocols2string(protocols, str, strsize)
    strused = 0;
 
    if (protocols->tcp)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(PROTOCOL_TCPs));
 
    if (protocols->udp)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(PROTOCOL_UDPs));
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
 const char *
-socks_packet2string(packet, type)
+socks_packet2string(packet, isrequest)
      const void *packet;
-     int type;
+     int isrequest;
 {
    static char buf[1024];
    char hstring[MAXSOCKSHOSTSTRING];
@@ -135,65 +132,77 @@ socks_packet2string(packet, type)
    const struct request_t *request = NULL;
    const struct response_t *response = NULL;
 
-   switch (type) {
-      case SOCKS_REQUEST:
-         request = (const struct request_t *)packet;
-         version = request->version;
-         break;
-
-      case SOCKS_RESPONSE:
-         response = (const struct response_t *)packet;
-         version   = response->version;
-         break;
-
-     default:
-       SERRX(type);
-  }
+   if (isrequest) {
+      request = (const struct request_t *)packet;
+      version = request->version;
+   }
+   else {
+      response = (const struct response_t *)packet;
+      version   = response->version;
+   }
 
    switch (version) {
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V4REPLY_VERSION:
-         switch (type) {
-            case SOCKS_REQUEST:
-               snprintfn(buf, sizeof(buf),
-               "VER: %d CMD: %d address: %s",
-               request->version, request->command,
-               sockshost2string(&request->host, hstring, sizeof(hstring)));
-               break;
-
-            case SOCKS_RESPONSE:
-               snprintfn(buf, sizeof(buf), "VER: %d REP: %d address: %s",
-               response->version, response->reply,
-               sockshost2string(&response->host, hstring, sizeof(hstring)));
-               break;
-         }
+         if (isrequest)
+            snprintf(buf, sizeof(buf),
+            "VER: %d CMD: %d address: %s",
+            request->version,
+            request->command,
+            sockshost2string(&request->host, hstring, sizeof(hstring)));
+         else
+            snprintf(buf, sizeof(buf),
+            "VER: %d REP: %d address: %s",
+            response->version,
+            response->reply.socks,
+            sockshost2string(&response->host, hstring, sizeof(hstring)));
+         
          break;
 
       case PROXY_SOCKS_V5:
-         switch (type) {
-            case SOCKS_REQUEST:
-               snprintfn(buf, sizeof(buf),
-               "VER: %d CMD: %d FLAG: %d ATYP: %d address: %s",
-               request->version, request->command, request->flag,
-               request->host.atype,
-               sockshost2string(&request->host, hstring, sizeof(hstring)));
-               break;
+         if (isrequest)
+            snprintf(buf, sizeof(buf),
+            "VER: %d CMD: %d FLAG: %d ATYP: %d address: %s",
+            request->version,
+            request->command,
+            request->flag,
+            request->host.atype,
+            sockshost2string(&request->host, hstring, sizeof(hstring)));
+         else 
+            snprintf(buf, sizeof(buf),
+            "VER: %d REP: %d FLAG: %d ATYP: %d address: %s",
+            response->version,
+            response->reply.socks,
+            response->flag,
+            response->host.atype,
+            sockshost2string(&response->host, hstring, sizeof(hstring)));
 
-            case SOCKS_RESPONSE:
-               snprintfn(buf, sizeof(buf),
-               "VER: %d REP: %d FLAG: %d ATYP: %d address: %s",
-               response->version, response->reply, response->flag,
-               response->host.atype,
-               sockshost2string(&response->host, hstring, sizeof(hstring)));
-               break;
-         }
+         break;
+
+      case PROXY_HTTP_10:
+      case PROXY_HTTP_11:
+         if (isrequest)
+            snprintf(buf, sizeof(buf),
+            "VER: %d CMD: %d ATYP: %d address: %s",
+            request->version,
+            request->command,
+            request->host.atype,
+            sockshost2string(&request->host, hstring, sizeof(hstring)));
+         else
+            snprintf(buf, sizeof(buf),
+            "VER: %d REP: %d ATYP: %d address: %s",
+            response->version,
+            response->reply.http,
+            response->host.atype,
+            sockshost2string(&response->host, hstring, sizeof(hstring)));
+         
          break;
 
       default:
          SERRX(version);
   }
 
-   return buf;
+  return buf;
 }
 
 enum operator_t
@@ -281,11 +290,9 @@ ruleaddr2string(address, string, len)
 
    switch (address->atype) {
       case SOCKS_ADDR_IPV4: {
-         char *a;
-
-         snprintfn(&string[lenused], len - lenused,
+         snprintf(&string[lenused], len - lenused,
          "%s/%d%s, %s: %s%d%s, %s: %s%d%s, %s: %s, %s: %s%d",
-         strcheck(a = strdup(inet_ntoa(address->addr.ipv4.ip))),
+         inet_ntoa(address->addr.ipv4.ip),
          bitcount((unsigned long)address->addr.ipv4.mask.s_addr),
          QUOTE0(),
          QUOTE("tcp"),
@@ -302,12 +309,11 @@ ruleaddr2string(address, string, len)
          QUOTE0(),
          ntohs(address->portend));
 
-         free(a);
          break;
       }
 
       case SOCKS_ADDR_DOMAIN:
-         snprintfn(&string[lenused], len - lenused,
+         snprintf(&string[lenused], len - lenused,
          "%s%s, %s: %s%d%s, %s: %s%d%s, %s: %s, %s: %s%d",
          address->addr.domain,
          QUOTE0(),
@@ -327,7 +333,7 @@ ruleaddr2string(address, string, len)
          break;
 
       case SOCKS_ADDR_IFNAME:
-         snprintfn(&string[lenused], len - lenused,
+         snprintf(&string[lenused], len - lenused,
          "%s%s, %s: %s%d%s, %s : %s%d%s, %s: %s, %s: %s%d",
          address->addr.ifname,
          QUOTE0(),
@@ -421,6 +427,9 @@ command2string(command)
       case SOCKS_DISCONNECT:
          return QUOTE(SOCKS_DISCONNECTs);
 
+      case SOCKS_BOUNCETO:
+         return QUOTE(SOCKS_BOUNCETOs);
+
       case SOCKS_UNKNOWN:
          return QUOTE(SOCKS_UNKNOWNs);
 
@@ -450,26 +459,26 @@ commands2string(command, str, strsize)
    strused = 0;
 
    if (command->bind)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       command2string(SOCKS_BIND));
 
    if (command->bindreply)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       command2string(SOCKS_BINDREPLY));
 
    if (command->connect)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       command2string(SOCKS_CONNECT));
 
    if (command->udpassociate)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       command2string(SOCKS_UDPASSOCIATE));
 
    if (command->udpreply)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       command2string(SOCKS_UDPREPLY));
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
@@ -500,6 +509,9 @@ method2string(method)
       case AUTHMETHOD_PAM:
          return QUOTE(AUTHMETHOD_PAMs);
 
+      case AUTHMETHOD_BSDAUTH:
+         return QUOTE(AUTHMETHOD_BSDAUTHs);
+
       default:
          SERRX(method);
    }
@@ -519,11 +531,11 @@ version2string(version)
       case PROXY_SOCKS_V5:
          return QUOTE(PROXY_SOCKS_V5s);
 
-      case PROXY_MSPROXY_V2:
-         return QUOTE(PROXY_MSPROXY_V2s);
+      case PROXY_HTTP_10:
+         return QUOTE(PROXY_HTTP_10s);
 
-      case PROXY_HTTP_V1_0:
-         return QUOTE(PROXY_HTTP_V1_0s);
+      case PROXY_HTTP_11:
+         return QUOTE(PROXY_HTTP_11s);
 
       case PROXY_UPNP:
          return QUOTE(PROXY_UPNPs);
@@ -558,12 +570,11 @@ methods2string(methodc, methodv, str, strsize)
    *str    = NUL;
    strused = 0;
 
-   strused = 0;
    for (i = 0; i < methodc; ++i)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       method2string(methodv[i]));
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
@@ -579,7 +590,8 @@ string2method(methodname)
       { AUTHMETHOD_UNAMEs,    AUTHMETHOD_UNAME    },
       { AUTHMETHOD_GSSAPIs,   AUTHMETHOD_GSSAPI   },
       { AUTHMETHOD_RFC931s,   AUTHMETHOD_RFC931   },
-      { AUTHMETHOD_PAMs,      AUTHMETHOD_PAM      }
+      { AUTHMETHOD_PAMs,      AUTHMETHOD_PAM      },
+      { AUTHMETHOD_BSDAUTHs,  AUTHMETHOD_BSDAUTH  }
    };
    size_t i;
 
@@ -606,17 +618,17 @@ sockshost2string(host, string, len)
 
    switch (host->atype) {
       case SOCKS_ADDR_IPV4:
-         snprintfn(string, len, "%s.%d",
+         snprintf(string, len, "%s.%d",
          inet_ntoa(host->addr.ipv4), ntohs(host->port));
          break;
 
       case SOCKS_ADDR_IPV6:
-            snprintfn(string, len, "%s.%d",
+            snprintf(string, len, "%s.%d",
             "<IPv6 address not supported>", ntohs(host->port));
             break;
 
       case SOCKS_ADDR_DOMAIN:
-         snprintfn(string, len, "%s.%d", host->addr.domain, ntohs(host->port));
+         snprintf(string, len, "%s.%d", host->addr.domain, ntohs(host->port));
          break;
 
       default:
@@ -642,20 +654,20 @@ gwaddr2string(gw, string, len)
 
    switch (gw->atype) {
       case SOCKS_ADDR_IPV4:
-         snprintfn(string, len, "%s.%d",
+         snprintf(string, len, "%s.%d",
          inet_ntoa(gw->addr.ipv4), ntohs(gw->port));
          break;
 
       case SOCKS_ADDR_DOMAIN:
-         snprintfn(string, len, "%s.%d", gw->addr.domain, ntohs(gw->port));
+         snprintf(string, len, "%s.%d", gw->addr.domain, ntohs(gw->port));
          break;
 
       case SOCKS_ADDR_IFNAME:
-         snprintfn(string, len, "%s", gw->addr.ifname);
+         snprintf(string, len, "%s", gw->addr.ifname);
          break;
 
       case SOCKS_ADDR_URL:
-         snprintfn(string, len, "%s", gw->addr.urlname);
+         snprintf(string, len, "%s", gw->addr.urlname);
          break;
 
       default:
@@ -693,13 +705,13 @@ sockaddr2string(address, string, len)
          /* LINTED pointer casts may be troublesome */
          const struct sockaddr_in *addr = TOCIN(address);
 
-         snprintfn(string, len, "%s.%d",
+         snprintf(string, len, "%s.%d",
          inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
          break;
       }
 
       default:
-         snprintfn(string, len, "<unknown af %d>", address->sa_family);
+         snprintf(string, len, "<unknown af %d>", address->sa_family);
    }
 
    return string;
@@ -752,10 +764,10 @@ extensions2string(extensions, str, strsize)
    strused = 0;
 
    if (extensions->bind)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE("bind"));
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
@@ -765,7 +777,7 @@ str2upper(string)
 {
 
    while (*string != NUL) {
-      *string = toupper(*string);
+      *string = (char)toupper(*string);
       ++string;
    }
 
@@ -829,7 +841,7 @@ socket2string(s, buf, buflen)
 
 const char *
 atype2string(atype)
-   const int atype;
+   const atype_t atype;
 {
 
    switch (atype) {
@@ -837,22 +849,41 @@ atype2string(atype)
          return "IPv4 address";
 
       case SOCKS_ADDR_IFNAME:
-         return "interface name";
+         return "interfacename";
 
       case SOCKS_ADDR_DOMAIN:
-         return "host/domain name";
+         return "host/domain-name";
 
       case SOCKS_ADDR_IPV6:
          return "IPv6 address";
 
       case SOCKS_ADDR_URL:
-         return "url string";
+         return "url";
 
       default:
          SERRX(atype);
    }
 
    /* NOTREACHED */
+}
+
+const char *
+errnostr(err)
+   const int err;
+{
+   const int errno_s = errno;
+   char *errstr;
+
+   if (err == 0)
+      return "no system error";
+
+   errstr = strerror(err);
+
+   if (errno != errno_s 
+   &&  errno != EINVAL) 
+      errno  = errno_s; /* don't expect strerror(3) to change errno normally. */
+
+   return errstr; 
 }
 
 #if HAVE_GSSAPI
@@ -878,7 +909,34 @@ gssapiprotection2string(protection)
 }
 #endif /* HAVE_GSSAPI */
 
-#if !SOCKS_CLIENT
+char *
+routeoptions2string(options, str, strsize)
+   const routeoptions_t *options;
+   char *str;
+   size_t strsize;
+{
+   size_t strused;
+
+   if (strsize == 0) {
+      static char buf[512];
+
+      str = buf;
+      strsize = sizeof(buf);
+   }
+
+   *str    = NUL;
+   strused = 0;
+
+   strused += snprintf(&str[strused], strsize - strused,
+                       "\"badexpire: %lu\", ",
+                       (unsigned long)options->badexpire);
+
+   strused += snprintf(&str[strused], strsize - strused,
+                       "\"maxfail: %lu\"",
+                       (unsigned long)options->maxfail);
+
+   return str;
+}
 
 char *
 logtypes2string(logtypes, str, strsize)
@@ -900,17 +958,19 @@ logtypes2string(logtypes, str, strsize)
    strused = 0;
 
    if (logtypes->type & LOGTYPE_SYSLOG)
-      strused += snprintfn(&str[strused], strsize - strused, "\"syslog.%s\", ",
+      strused += snprintf(&str[strused], strsize - strused, "\"syslog.%s\", ",
       logtypes->facilityname);
 
    if (logtypes->type & LOGTYPE_FILE)
-      for (i = 0; i < logtypes->fpc; ++i)
-         strused += snprintfn(&str[strused], strsize - strused, "\"%s\", ",
+      for (i = 0; i < logtypes->filenoc; ++i)
+         strused += snprintf(&str[strused], strsize - strused, "\"%s\", ",
          logtypes->fnamev[i]);
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
+
+#if !SOCKS_CLIENT
 
 char *
 options2string(options, prefix, str, strsize)
@@ -931,26 +991,26 @@ options2string(options, prefix, str, strsize)
    *str    = NUL;
    strused = 0;
 
-   strused += snprintfn(&str[strused], strsize - strused,
+   strused += snprintf(&str[strused], strsize - strused,
    "\"%sconfigfile\": \"%s\",\n", prefix, options->configfile == NULL ?
    SOCKD_CONFIGFILE : options->configfile);
 
-   strused += snprintfn(&str[strused], strsize - strused,
+   strused += snprintf(&str[strused], strsize - strused,
    "\"%sdaemon\": \"%d\",\n", prefix, options->daemon);
 
-   strused += snprintfn(&str[strused], strsize - strused,
+   strused += snprintf(&str[strused], strsize - strused,
    "\"%sdebug\": \"%d\",\n", prefix, options->debug);
 
-   strused += snprintfn(&str[strused], strsize - strused,
+   strused += snprintf(&str[strused], strsize - strused,
    "\"%skeepalive\": \"%d\",\n", prefix, options->keepalive);
 
-   strused += snprintfn(&str[strused], strsize - strused,
+   strused += snprintf(&str[strused], strsize - strused,
    "\"%slinebuffer\": \"%d\",\n", prefix, options->debug);
 
-   strused += snprintfn(&str[strused], strsize - strused,
+   strused += snprintf(&str[strused], strsize - strused,
    "\"%sservercount\": \"%lu\",\n", prefix, (unsigned long)options->serverc);
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
@@ -973,26 +1033,26 @@ logs2string(logs, str, strsize)
    strused = 0;
 
    if (logs->connect)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(SOCKS_LOG_CONNECTs));
 
    if (logs->disconnect)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(SOCKS_LOG_DISCONNECTs));
 
    if (logs->data)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(SOCKS_LOG_DATAs));
 
    if (logs->error)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(SOCKS_LOG_ERRORs));
 
    if (logs->iooperation)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE(SOCKS_LOG_IOOPERATIONs));
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
@@ -1026,8 +1086,16 @@ verdict2string(verdict)
    int verdict;
 {
 
-   return verdict == VERDICT_PASS ?
-   QUOTE(VERDICT_PASSs) : QUOTE(VERDICT_BLOCKs);
+   switch (verdict) {
+      case VERDICT_PASS:
+         return QUOTE(VERDICT_PASSs);
+
+      case VERDICT_BLOCK:
+         return QUOTE(VERDICT_BLOCKs);
+   }
+
+   /* NOTREACHED */
+   SERRX(verdict);
 }
 
 char *
@@ -1046,7 +1114,7 @@ list2string(list, str, strsize)
    strused = 0;
 
    for (; list != NULL; list = list->next)
-      strused += snprintfn(&str[strused], strsize - strused, "\"%s\", ",
+      strused += snprintf(&str[strused], strsize - strused, "\"%s\", ",
       list->name);
 
    return str;
@@ -1070,15 +1138,11 @@ compats2string(compats, str, strsize)
    *str    = NUL;
    strused = 0;
 
-   if (compats->reuseaddr)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
-      QUOTE("reuseaddr"));
-
    if (compats->sameport)
-      strused += snprintfn(&str[strused], strsize - strused, "%s, ",
+      strused += snprintf(&str[strused], strsize - strused, "%s, ",
       QUOTE("sameport"));
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
@@ -1101,15 +1165,15 @@ srchosts2string(srchost, prefix, str, strsize)
    *str    = NUL;
    strused = 0;
 
-   if (srchost->nomismatch)
-      strused += snprintfn(&str[strused], strsize - strused,
-      "\"%snomismatch\", ", prefix);
+   if (srchost->nodnsmismatch)
+      strused += snprintf(&str[strused], strsize - strused,
+      "\"%snodnsmismatch\", ", prefix);
 
-   if (srchost->nounknown)
-      strused += snprintfn(&str[strused], strsize - strused,
-      "\"%snounknown\",", prefix);
+   if (srchost->nodnsunknown)
+      strused += snprintf(&str[strused], strsize - strused,
+      "\"%snodnsunknown\",", prefix);
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
@@ -1144,14 +1208,17 @@ timeouts2string(timeouts, prefix, str, strsize)
    *str    = NUL;
    strused = 0;
 
-   strused += snprintfn(&str[strused], strsize - strused,
-   "\"%sconnecttimeout\": \"%ld\",\n", prefix, (long)timeouts->negotiate);
+   strused += snprintf(&str[strused], strsize - strused,
+                       "\"%sconnecttimeout\": \"%ld\",\n",
+                       prefix, (unsigned long)timeouts->negotiate);
 
-   strused += snprintfn(&str[strused], strsize - strused,
-   "\"%siotimeout\": tcp: \"%lu\", udp: \"%lu\" \n",
-   prefix, (unsigned long)timeouts->tcpio, (unsigned long)timeouts->udpio);
+   strused += snprintf(&str[strused], strsize - strused,
+                       "\"%siotimeout\": tcp: \"%lu\", udp: \"%lu\" \n",
+                       prefix,
+                       (unsigned long)timeouts->tcpio,
+                       (unsigned long)timeouts->udpio);
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 
@@ -1163,6 +1230,9 @@ rotation2string(rotation)
    switch (rotation) {
       case ROTATION_NONE:
          return "none";
+
+      case ROTATION_SAMESAME:
+         return "same-same";
 
       case ROTATION_ROUTE:
          return "route";
@@ -1211,18 +1281,65 @@ userids2string(userids, prefix, str, strsize)
    *str    = NUL;
    strused = 0;
 
-   strused += snprintfn(&str[strused], strsize - strused,
+   strused += snprintf(&str[strused], strsize - strused,
    "\"%sprivileged\": \"%s\",\n", prefix, uid2name(userids->privileged));
 
-   strused += snprintfn(&str[strused], strsize - strused,
+   strused += snprintf(&str[strused], strsize - strused,
    "\"%sunprivileged\": \"%s\",\n", prefix, uid2name(userids->unprivileged));
 
-   strused += snprintfn(&str[strused], strsize - strused,
+   strused += snprintf(&str[strused], strsize - strused,
    "\"%slibwrap\": \"%s\",\n", prefix, uid2name(userids->libwrap));
 
-   STRIPTRAILING(str, strused);
+   STRIPTRAILING(str, strused, stripstring);
    return str;
 }
 #endif /* !HAVE_PRIVILEGES */
+
+#if COVENANT
+const char *
+httpcode2string(version, code)
+   const int version;
+   const int code;
+{
+   static char prefix[16], buf[64]; 
+
+   SASSERTX(version == PROXY_HTTP_10 
+   ||       version == PROXY_HTTP_11);
+
+   snprintf(prefix, sizeof(prefix), "HTTP/1.%d %d",
+   version == PROXY_HTTP_10 ? 0 : 1, code);
+
+   switch (code) {
+      case HTTP_SUCCESS: 
+         snprintf(buf, sizeof(buf), "%s Success", prefix);
+         break;
+
+      case HTTP_FORBIDDEN:
+         snprintf(buf, sizeof(buf), "%s Not allowed", prefix);
+         break;
+
+      case HTTP_NOTALLOWED:
+         snprintf(buf, sizeof(buf), "%s Not authorized", prefix);
+         break;
+
+      case HTTP_PROXYAUTHREQUIRED:
+         snprintf(buf, sizeof(buf), "%s Not authorized", prefix);
+         break;
+
+      case HTTP_HOSTUNREACH:
+         snprintf(buf, sizeof(buf), "%s Not reachable", prefix);
+         break;
+
+      case HTTP_FAILURE:
+         snprintf(buf, sizeof(buf), "%s Unknown proxy server error", prefix);
+         break;
+
+      default:
+         SERRX(code);
+   }
+
+   return buf;
+}
+#endif /* COVENANT */
 
 #endif /* !SOCKS_CLIENT */

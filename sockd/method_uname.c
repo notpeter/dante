@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,22 +44,22 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.69.4.2 2010/09/21 11:24:43 karls Exp $";
+"$Id: method_uname.c,v 1.80 2010/09/15 12:35:57 michaels Exp $";
 
-static int
+static negotiate_result_t
 recv_unamever(int s, struct request_t *request,
       struct negotiate_state_t *state);
 
-static int
+static negotiate_result_t
 recv_ulen(int s, struct request_t *request, struct negotiate_state_t *state);
 
-static int
+static negotiate_result_t
 recv_uname(int s, struct request_t *request, struct negotiate_state_t *state);
 
-static int
+static negotiate_result_t
 recv_plen(int s, struct request_t *request, struct negotiate_state_t *state);
 
-static int
+static negotiate_result_t
 recv_passwd(int s, struct request_t *request, struct negotiate_state_t *state);
 
 static int
@@ -71,31 +71,7 @@ passworddbisunique(void);
  */
 
 
-static int
-passworddbisunique(void)
-{
-   if (methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)) {
-     if (!methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc))
-         return AUTHMETHOD_UNAME;
-      else
-         return 0;
-   }
-
-#if HAVE_PAM
-   if (methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc)) {
-      if (!methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)
-        && sockscf.state.pamservicename != NULL)
-         return AUTHMETHOD_PAM;
-      else
-         return 0;
-   }
-#endif /* HAVE_PAM */
-
-   /* no passworddb-based methods set.  Should not have been called. */
-   return -1;
-}
-
-int
+negotiate_result_t
 method_uname(s, request, state)
    int s;
    struct request_t *request;
@@ -108,6 +84,46 @@ method_uname(s, request, state)
 }
 
 static int
+passworddbisunique(void)
+{
+   const char *function = "passworddbisunique()";
+   int rc;
+
+   if (methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)) {
+     if (!methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc))
+         rc = AUTHMETHOD_UNAME;
+      else
+         rc = 0;
+   }
+
+#if HAVE_PAM
+   else if (methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc)) {
+      if (!methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)
+        && sockscf.state.pamservicename != NULL)
+         rc = AUTHMETHOD_PAM;
+      else
+         rc = 0;
+   }
+#endif /* HAVE_PAM */
+
+#if HAVE_BSDAUTH
+   else if (methodisset(AUTHMETHOD_BSDAUTH, sockscf.methodv, sockscf.methodc)) {
+      if (!methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)
+      &&  sockscf.state.bsdauthstylename != NULL)
+         return AUTHMETHOD_BSDAUTH;
+      else
+         rc = 0;
+   }
+#endif /* HAVE_BSDAUTH */
+   else /* no passworddb-based methods set.  Should not have been called. */
+      rc = -1;
+
+   slog(LOG_DEBUG, "%s: returning %d", function, rc);
+   return rc;
+}
+
+
+static negotiate_result_t
 recv_unamever(s, request, state)
    int s;
    struct request_t *request;
@@ -124,14 +140,14 @@ recv_unamever(s, request, state)
       default:
          slog(LOG_DEBUG, "unknown version on uname packet from client: %d",
          request->auth->mdata.uname.version);
-         return -1;
+         return NEGOTIATE_ERROR;
    }
 
    state->rcurrent = recv_ulen;
    return state->rcurrent(s, request, state);
 }
 
-static int
+static negotiate_result_t
 recv_ulen(s, request, state)
    int s;
    struct request_t *request;
@@ -145,11 +161,10 @@ recv_ulen(s, request, state)
    OCTETIFY(*request->auth->mdata.uname.name);
 
    state->rcurrent = recv_uname;
-
    return state->rcurrent(s, request, state);
 }
 
-static int
+static negotiate_result_t
 recv_uname(s, request, state)
    int s;
    struct request_t *request;
@@ -161,16 +176,16 @@ recv_uname(s, request, state)
    CHECK(request->auth->mdata.uname.name + 1, request->auth, NULL);
 
    /* convert to string. */
-   memmove(request->auth->mdata.uname.name, request->auth->mdata.uname.name + 1,
-   ulen);
+   memmove(request->auth->mdata.uname.name,
+           request->auth->mdata.uname.name + 1,
+           ulen);
    request->auth->mdata.uname.name[ulen] = NUL;
 
    state->rcurrent = recv_plen;
-
    return state->rcurrent(s, request, state);
 }
 
-static int
+static negotiate_result_t
 recv_plen(s, request, state)
    int s;
    struct request_t *request;
@@ -184,11 +199,10 @@ recv_plen(s, request, state)
    OCTETIFY(*request->auth->mdata.uname.password);
 
    state->rcurrent = recv_passwd;
-
    return state->rcurrent(s, request, state);
 }
 
-static int
+static negotiate_result_t
 recv_passwd(s, request, state)
    int s;
    struct request_t *request;
@@ -205,7 +219,8 @@ recv_passwd(s, request, state)
 
    /* convert to string. */
    memmove(request->auth->mdata.uname.password,
-   request->auth->mdata.uname.password + 1, plen);
+           request->auth->mdata.uname.password + 1,
+           plen);
    request->auth->mdata.uname.password[plen] = NUL;
 
    /*
@@ -230,7 +245,10 @@ recv_passwd(s, request, state)
    response[UNAME_VERSION] = request->auth->mdata.uname.version;
    switch (passworddbisunique()) {
       case 0:
-         /* Return ok, check correct db later, when we know what correct is. */
+         /*
+          * not unique.  Return ok now, and check correct db later, 
+          * when we know what rules to use and what "correct" is.
+          */
          response[UNAME_STATUS] = (unsigned char)0;
          break;
 
@@ -256,11 +274,35 @@ recv_passwd(s, request, state)
       }
 #endif /* HAVE_PAM */
 
+#if HAVE_BSDAUTH
+      case AUTHMETHOD_BSDAUTH: {
+         /*
+          * it's a union, make a copy before moving into bsd object.
+          */
+         const struct authmethod_uname_t uname
+         = request->auth->mdata.uname;
+
+         request->auth->method = AUTHMETHOD_BSDAUTH;
+         if (sockscf.state.bsdauthstylename != NULL)
+            strcpy((char *)request->auth->mdata.bsd.style,
+                   sockscf.state.bsdauthstylename);
+         else
+            request->auth->mdata.bsd.style[0] = NUL;
+
+         strcpy((char *)request->auth->mdata.bsd.name,
+         (const char *)uname.name);
+
+         strcpy((char *)request->auth->mdata.bsd.password,
+         (const char *)uname.password);
+         /* FALLTHROUGH */
+      }
+#endif /* HAVE_BSDAUTH */
+
       case AUTHMETHOD_UNAME: {
          struct sockaddr src, dst;
 
          sockshost2sockaddr(&state->src, &src);
-         sockshost2sockaddr(&state->src, &dst);
+         dst = src;
 
          if (accesscheck(s, request->auth, &src, &dst, state->emsg,
          sizeof(state->emsg)))
@@ -277,7 +319,7 @@ recv_passwd(s, request, state)
 
    if (socks_sendton(s, response, sizeof(response), 0, 0, NULL, 0,
    request->auth) != sizeof(response))
-      return -1;
+      return NEGOTIATE_ERROR;
 
    if (response[UNAME_STATUS] == 0) { /* 0 is success */
       state->rcurrent = recv_sockspacket;
@@ -285,7 +327,5 @@ recv_passwd(s, request, state)
    }
 
    /* else; failed authentication. */
-   errno = 0;
-   return -1;
-
+   return NEGOTIATE_ERROR;
 }

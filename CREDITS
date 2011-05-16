@@ -1,4 +1,4 @@
-# $Id: CREDITS,v 1.37 2009/10/27 11:44:35 karls Exp $
+# $Id: CREDITS,v 1.39 2010/10/18 14:11:14 michaels Exp $
 
 Dante was developed for Inferno Nettverk A/S, Norway, by
    - Michael Shuldman
@@ -62,7 +62,7 @@ At least the following additional people should be credited
 
 - Tom Chan <tchan@austin.rr.com.example.com> contributed code to find out what
   local address the system would select to use for connecting to a
-  particular ipaddress.
+  particular ipaddress, used for "external.rotation: route".
 
 - Lennart Dahlström <lennart@appgate.com.example.com> contributed an
   implementation of getipnodebyname().
@@ -77,5 +77,8 @@ At least the following additional people should be credited
 - Markus Moeller (markus_moeller at compuserve.com) contributed
   support for the GSSAPI (RFC 1961) to both the server and the client.
   Many thanks to Markus for this.
+
+-  Lysenko Konstantin <gshaud@gmail.com.example.com> contributed support for
+  "external.rotation: same-same".
 
 - Also thanks to everyone who reported bugs and other problems.

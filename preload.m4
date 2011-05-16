@@ -11,6 +11,11 @@ case $host in
 		SOLIB_POSTFIX=sl
 	;;
 
+	*-*-darwin*)
+		SOLIB_POSTFIX=dylib
+		PRELOAD="DYLD"
+	;;
+
 	*-*-irix*)
 		PRELOAD="RLD"
 	;;
@@ -28,6 +33,12 @@ esac
 AC_SUBST(SOLIB_POSTFIX)
 
 case $PRELOAD in
+	DYLD)
+		PRELOAD_SEPERATOR=":"
+		PRELOAD_VARIABLE="DYLD_INSERT_LIBRARIES"
+		PRELOAD_POSTFIX=""
+	;;
+
 	RLD)
 		PRELOAD_SEPERATOR=":"
 		PRELOAD_VARIABLE="_RLD_LIST"
@@ -89,7 +100,7 @@ if test x"$no_preload" = x; then
 	    no_preload_server=t
 	    AC_MSG_RESULT([yes])
     else
-	    if text x"$enableval" = xyes; then
+	    if test x"$enableval" = xyes; then
 		serverdl_always_on=t
 	    fi
 	    AC_MSG_RESULT([no])
@@ -304,34 +315,59 @@ if test "x$preload_enabled" = "xt" -a "x${ac_cv_search_bindresvport}" = "x-lrpcs
 	AC_DEFINE(LIBRARY_BINDRESVPORT, LIBRARY_LIBRPCSOC, [function loc])
 fi
 
-#do not wish to link directly with libpthreads, included only if needed
 AC_CHECK_HEADER(pthread.h,
 [AC_DEFINE(HAVE_PTHREAD_H, 1, [have pthread header])
+
+ #do not wish to link directly with libpthreads, included only if needed
  tLIBS=$LIBS
  AC_SEARCH_LIBS(pthread_mutexattr_init, pthread)
- LIBS=$tLIBS
- if test x"${ac_cv_search_pthread_mutexattr_init}" = x"-lpthread"; then
-    case $host in
-       *-*-linux-*)
-	#XXX  attempt to find latest pthread library
-	  PATH=$PATH:/sbin
-	  export PATH
-	  unset LIBPT_ALTS
-	  for file in `ldconfig -p | grep /libpthread.so| xargs -n 1 echo | grep /libpthread.so`; do
-	     test -s "$file" && LIBPT_ALTS="${LIBPT_ALTS}${LIBPT_ALTS:+ }$file"
-	  done
-		LIBPT_NAME=`echo ${LIBPT_ALTS} | sed -e 's/.*\///' | sort -nr | head -n 1`
-		if test "x${LIBPT_NAME}" = x; then
-			#nothing found, set something anyway
-			LIBPT_NAME="${base_library_path}libc.so"
-		fi
-       ;;
 
-       *)
-	  LIBPT_NAME="libpthread.${SOLIB_POSTFIX}"
-       ;;
-    esac
-    AC_DEFINE_UNQUOTED(LIBRARY_PTHREAD, "${base_library_path}$LIBPT_NAME", [libloc])
+ #try compiling
+ AC_MSG_CHECKING([whether compilation with pthread.h works])
+ unset use_threads
+ AC_TRY_RUN([
+#include <pthread.h> 
+
+int main()
+{
+	pthread_mutexattr_t attr;
+        if (pthread_mutexattr_init(&attr) == 0)
+                return 0;
+        else
+                return 1;
+}],
+ [AC_MSG_RESULT(yes)
+  use_threads=t],
+ [AC_MSG_RESULT(no)])
+ LIBS=$tLIBS
+
+ if test x"$use_threads" = xt; then
+     AC_DEFINE(HAVE_PTHREAD_H, 1, [have pthread header])
+     if test x"${ac_cv_search_pthread_mutexattr_init}" = x"-lpthread"; then
+        case $host in
+           *-*-linux-*)
+     	#XXX  attempt to find latest pthread library
+     	  PATH=$PATH:/sbin
+     	  export PATH
+     	  unset LIBPT_ALTS
+     	  for file in `ldconfig -p | grep /libpthread.so| xargs -n 1 echo | grep /libpthread.so`; do
+     	     test -s "$file" && LIBPT_ALTS="${LIBPT_ALTS}${LIBPT_ALTS:+ }$file"
+     	  done
+     		LIBPT_NAME=`echo ${LIBPT_ALTS} | sed -e 's/.*\///' | sort -nr | head -n 1`
+     		if test "x${LIBPT_NAME}" = x; then
+     			#nothing found, set something anyway
+     			LIBPT_NAME="${base_library_path}libc.so"
+     		fi
+           ;;
+
+           *)
+     	  LIBPT_NAME="libpthread.${SOLIB_POSTFIX}"
+           ;;
+        esac
+        AC_DEFINE_UNQUOTED(LIBRARY_PTHREAD, "${base_library_path}$LIBPT_NAME", [libloc])
+     fi
+ else
+     AC_DEFINE(HAVE_PTHREAD_H, 0, [no usable pthread header])
  fi],
  [AC_DEFINE(HAVE_PTHREAD_H, 0, [no pthread header])])
 
@@ -515,7 +551,31 @@ fi
 AC_MSG_RESULT(${LIBC_NAME})
 AC_DEFINE_UNQUOTED(LIBRARY_LIBC, "${LIBC_NAME}", [libc name])
 
-L_SYMBOL_UNDERSCORE()
+AC_MSG_CHECKING([for symbol lookup without underscore])
+AC_TRY_RUN([
+#include <dlfcn.h>
+#include <stdio.h>
+
+#include "include/symbols.h"
+
+int main()
+{
+	void *lib;
+	void *sym;
+
+	if ((lib = dlopen(LIBRARY_CONNECT, DL_LAZY)) == NULL) {
+		fprintf(stderr, "dlopen: %s\n", dlerror());
+		return 1;
+	}
+	(void)dlerror();
+	if ((sym = dlsym(lib, "connect")) == NULL) {
+		fprintf(stderr, "dlsym: %s\n", dlerror());
+		return 1;
+	}
+	return 0;
+}], [AC_MSG_RESULT(yes)
+     AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE, 1, [underscores not needed])],
+    [AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([for working dlsym])
 AC_TRY_RUN([
@@ -530,12 +590,12 @@ int main()
 	void *sym;
 
 	if ((lib = dlopen(LIBRARY_CONNECT, DL_LAZY)) == NULL) {
-		fprintf(stderr, "dlopen: %s", dlerror());
+		fprintf(stderr, "dlopen: %s\n", dlerror());
 		return 1;
 	}
 	(void)dlerror();
 	if ((sym = dlsym(lib, SYMBOL_CONNECT)) == NULL) {
-		fprintf(stderr, "dlsym: %s", dlerror());
+		fprintf(stderr, "dlsym: %s\n", dlerror());
 		return 1;
 	}
 	return 0;
@@ -558,7 +618,7 @@ int main()
 	void *sym;
 
 	if ((sym = dlsym(RTLD_NEXT, SYMBOL_READ)) == NULL) {
-		fprintf(stderr, "dlsym: %s", dlerror());
+		fprintf(stderr, "dlsym: %s\n", dlerror());
 		return 1;
 	}
 	return 0;
@@ -567,9 +627,10 @@ int main()
     [AC_MSG_RESULT(no)
      AC_DEFINE(HAVE_RTLD_NEXT, 0, [no working dlsym RTLD_NEXT])])
 
-#solaris might block preloading
-AC_MSG_CHECKING([libc preload blocking])
-AC_TRY_RUN([
+if test x"$preload_enabled" = xt; then
+    #solaris might block preloading
+    AC_MSG_CHECKING([libc preload blocking])
+    AC_TRY_RUN([
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>                                                             
@@ -603,5 +664,12 @@ read(d, buf, nbytes)
    [AC_MSG_RESULT(yes)
     AC_MSG_WARN([this platform blocks preloading of libraries])
     blocked_preload=t])
+fi
+
+unset NOPRELOAD
+if test x"${no_preload}" != x -o x"${no_preload_client}" != x; then
+   NOPRELOAD=t
+fi
+AC_SUBST(NOPRELOAD)
 
 AC_CONFIG_FILES(bin/socksify)

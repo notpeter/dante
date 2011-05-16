@@ -1,0 +1,30 @@
+# $Id: UPGRADE,v 1.7 2011/05/16 07:25:50 michaels Exp $
+
+This file describes the upgrade procedure from various versions of Dante
+if any.
+
+*** Upgrading from 1.2.x to 1.3.0
+
+ o The "-d" (debug) option now requires a value, setting the debug level.
+   E.g., instead of "-d", one has to say "-d1", and instead of "-dd",
+   one has to say "-d2".
+    
+ o Priority of proxy routes has changed, so that a socks v4 route is
+   now preferred over a socks v5 route when both can be used, because
+   v4 requests can be performed faster than v5 requests.
+
+ o "child.maxidle: yes" is now the default setting, meaning most idle
+   sockd child processes will be terminated automatically.
+
+ o The config.h variables MAX_ROUTE_FAILS and BADROUTE_EXPIRE are now
+   set in the configuration files instead of at compile time.
+   The values are "route.maxfail" and "route.badexpire" and control
+   how to handle bad routes (to e.g., a SOCKS/HTTP proxy server).
+
+ o Option ordering in sockd.conf is now enforced, rather than just
+   recommended.  Server options now always have to come before rules
+   and routes.
+
+ o The "srchost" parameter "nomismatch" has been renamed to "nodnsmismatch",
+   while "nounknown" has been renamed to "nodnsunknown".
+

@@ -41,11 +41,10 @@
  *
  */
 
-/* $Id: socks.h,v 1.239.4.4 2010/09/14 07:46:36 karls Exp $ */
+/* $Id: socks.h,v 1.252 2011/05/09 09:53:06 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
-#endif /* !_SOCKS_H_ */
 
 #ifndef HAVE_OSF_OLDSTYLE
 #define HAVE_OSF_OLDSTYLE 0
@@ -366,14 +365,18 @@
 #define FDPASS_MAX         2   /* max number of descriptors we send/receive.  */
 
 struct configstate_t {
-   int               init;             /* inited?                             */
-   sig_atomic_t      insignal;         /* executing in signalhandler?         */
+   unsigned char      inited;           
+   sig_atomic_t       insignal;         /* executing in signalhandler?        */
+   sig_atomic_t       signalforus;      /*
+                                        * between now and the time this 
+                                        * variable was last cleared, did we
+                                        * handle a signal?
+                                        */
 
-   struct sockaddr   lastconnect;      /* address we last connected to.       */
-   pid_t             pid;              /* our pid.                            */
-   int               havegssapisockets;/* have gssapi-sockets?                */
-   rlim_t            maxopenfiles;
-
+   struct sockshost_t lastconnect;      /* address we last connected to.      */
+   pid_t              pid;              /* our pid.                           */
+   int                havegssapisockets;/* have gssapi-sockets?               */
+   rlim_t             maxopenfiles;
 };
 
 struct option_t {
@@ -388,11 +391,19 @@ struct config_t {
    int                      child_ack;               /* ack to child.         */
 
    char                     domain[MAXHOSTNAMELEN];  /* localdomain.          */
+
+   struct logtype_t         errlog;                  /* for errors only.      */
    struct logtype_t         log;                     /* where to log.         */
+   int                      loglock;                 /* lockfile for logging. */
+
    struct option_t          option;                  /* misc. options.        */
-   struct configstate_t     state;
    int                      resolveprotocol;         /* resolveprotocol.      */
+
+   routeoptions_t           routeoptions;            /* global route flags.   */
    struct route_t           *route;                  /* linked list of routes */
+
+   struct configstate_t     state;
+   struct timeout_t         timeout;
 };
 
 struct childpacket_t {
@@ -497,7 +508,11 @@ udpsetup(int s, const struct sockaddr *to, int type);
     *  Misc. functions to help keep track of our connection(s) to the server.
     */
 
-void addrlockinit(void);
+void socks_addrinit(void);
+/*
+ * inits thing, including memory and locks, for socks_addaddr()-functions.
+ */
+
 void socks_addrlock(const int locktype, addrlockopaque_t *opaque);
 void socks_addrunlock(const addrlockopaque_t *opaque);
 /*
@@ -537,8 +552,12 @@ socks_addaddr(const int clientfd, const struct socksfd_t *socksaddress,
  */
 
 struct socksfd_t *
-socks_getaddr(const int fd, const int takelock);
+socks_getaddr(const int fd, struct socksfd_t *socksfd, const int takelock);
 /*
+ * Returns a copy of the socksfd corresponding to "fd".  
+ * If "socksfd" is not NULL, the contents of the socksfd is also stored in
+ * "socksfd".
+ *
  * If "takelock" is true, it means the function should take the
  * socksfdv/addrlock.
  *
@@ -605,13 +624,17 @@ socks_isaddr(const int fd, const int takelock);
  */
 
 int
-socks_addrisours(const int s, const int takelock);
+socks_addrisours(const int s, struct socksfd_t *socksfd, const int takelock);
 /*
+ * Compares the current address of "s" to the registered address.
+ * If there is a mismatch, the function will try to correct it if possible.
+ *
  * If "takelock" is true, it means the function should take the
  * socksfdv/addrlock.
  *
- * Compares the current address of "s" to the registered address.
- * If there is a mismatch, the function will try to correct it if possible.
+ * If the current address matches the registered address and "socksfd" 
+ * is not NULL, "socksfd" is filled in with the data of the matching socket.
+ *
  * Returns:
  *      If current address found to match registered: true.
  *      Else: false.
@@ -686,10 +709,6 @@ sys_getpeername(HAVE_PROT_GETPEERNAME_1, HAVE_PROT_GETPEERNAME_2,
       HAVE_PROT_GETPEERNAME_3);
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
-HAVE_PROT_GETSOCKOPT_0
-sys_getsockopt(HAVE_PROT_GETSOCKOPT_1, HAVE_PROT_GETSOCKOPT_2,
-      HAVE_PROT_GETSOCKOPT_3, HAVE_PROT_GETSOCKOPT_4, HAVE_PROT_GETSOCKOPT_5);
-
 #if HAVE_OSF_OLDSTYLE
 int sys_getsockname(int, struct sockaddr *, int *);
 #else
@@ -697,6 +716,10 @@ HAVE_PROT_GETSOCKNAME_0
 sys_getsockname(HAVE_PROT_GETSOCKNAME_1, HAVE_PROT_GETSOCKNAME_2,
       HAVE_PROT_GETSOCKNAME_3);
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
+
+HAVE_PROT_GETSOCKOPT_0
+sys_getsockopt(HAVE_PROT_GETSOCKOPT_1, HAVE_PROT_GETSOCKOPT_2,
+      HAVE_PROT_GETSOCKOPT_3, HAVE_PROT_GETSOCKOPT_4, HAVE_PROT_GETSOCKOPT_5);
 
 #if HAVE_OSF_OLDSTYLE
 int sys_recvfrom(int, void*, int, int, struct sockaddr *, int *);
@@ -845,3 +868,5 @@ sys_fread(HAVE_PROT_FREAD_1, HAVE_PROT_FREAD_2, HAVE_PROT_FREAD_3,
 #endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
+
+#endif /* !_SOCKS_H_ */

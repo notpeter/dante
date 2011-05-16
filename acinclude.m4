@@ -180,64 +180,6 @@ selectcheck(s)
     [AC_MSG_RESULT(no)
      [$2]])])
 
-#can it really be this simple?
-#nope, doesn't handle coff files which also have no underscore
-AC_DEFUN([L_SYMBOL_UNDERSCORE],
-[AC_MSG_CHECKING(for object file type)
-AH_TEMPLATE([HAVE_NO_SYMBOL_UNDERSCORE], [platform symbol type])
-AC_TRY_RUN([
-/* look for ELF identification header at the start of argv[0] */
-
-#include <stdio.h>
-#include <fcntl.h>
-#include <string.h>
-
-/*
- * ELF header, from ELF standard (Portable Formats Specification,
- *  Version 1.1).
- */
-char elfheader[] = { 0x7f, 'E', 'L', 'F' };
-
-int
-main (argc, argv)
-	int argc;
-	char *argv[];
-{
-	int fd;
-	int len = sizeof(elfheader);
-	char header[len];
-
-	if ((fd = open(argv[0], O_RDONLY, 0)) == -1) {
-		perror("open");
-		exit(1);
-	}
-	if (read(fd, header, len) != len) {
-		perror("read");
-		exit(1);
-	}
-	if (memcmp(header, elfheader, len) == 0)
-		exit(0); /* pointy ears */
-	else
-		exit(1);
-}
-], [AC_MSG_RESULT(elf)
-    AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)],
-   [
-	#XXX exceptions for coff platforms, should be detected automatically
-	case $host in
-		alpha*-dec-osf*)
-			AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)
-			AC_MSG_RESULT(coff)
-			;;
-		*-*-hpux*) #XXX apparently does not use underscore
-			AC_DEFINE(HAVE_NO_SYMBOL_UNDERSCORE)
-			AC_MSG_RESULT(a.out?)
-			;;
-		*)
-			AC_MSG_RESULT(a.out)
-			;;
-	esac])])
-
 
 dnl addproto - generate AC_DEFINE statements
 define([addproto],
@@ -295,5 +237,102 @@ AC_REQUIRE([AC_COMPILE_IFELSE])dnl
 AC_MSG_CHECKING([prototypes for $1])dnl
 
 tstdioproto($@)])
+
+dnl L_SHMEM - verify expected shared memory behavior
+AC_DEFUN([L_SHMEM],
+[AC_MSG_CHECKING(for expected shmem behaviour)
+AC_RUN_IFELSE([[
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <signal.h>
+
+#define SHMEM_ELEMENTS (1024)
+
+void sighandler(int sig);
+
+
+int
+main(argc,argv)
+   int argc;
+   char *argv[];
+{
+   int *mem;
+   key_t key;
+   int id;
+   
+
+   key = getpid();
+   if ((id = shmget(key, sizeof(*mem) * SHMEM_ELEMENTS,
+   IPC_CREAT | IPC_EXCL | 0660)) == -1) {
+      fprintf(stderr, "failed to allocate shmem segment using key %ld: %s\n",
+      (long)key, strerror(errno));
+
+      exit(1);
+   }
+
+   if ((mem = shmat(id, NULL, 0)) == (void *)-1) {
+      fprintf(stderr, "failed to attach to shmem segment with id %d: %s\n",
+      id, strerror(errno));
+
+      exit(1);
+   }
+
+   memset(mem, 0xdeadbeef, sizeof(*mem) * SHMEM_ELEMENTS);
+   mem[SHMEM_ELEMENTS - 2] = 0xfeedbabe;
+   mem[SHMEM_ELEMENTS - 1] = 0xdeadbeef;
+
+
+   fprintf(stderr, "allocated shmem segment of size %ld with id %d, using key %ld.\n"
+          "Now testing if we can remove it, but still access it with the "
+          "same contents\n",
+          (long)(sizeof(*mem) * SHMEM_ELEMENTS), id, (long)key);
+
+   if (shmctl(id, IPC_RMID, NULL) != 0) {
+      fprintf(stderr, "failed to remove to shmem segment with id %d: %s\n",
+      id, strerror(errno));
+
+      exit(1);
+   }
+
+   if (signal(SIGSEGV, sighandler) == SIG_ERR) {
+      fprintf(stderr, "failed to install handler for SIGSEGV: %s\n",
+      strerror(errno));
+
+      exit(1);
+   }
+
+
+   if (mem[SHMEM_ELEMENTS - 2] != 0xfeedbabe
+   ||  mem[SHMEM_ELEMENTS - 1] != 0xdeadbeef) {
+      fprintf(stderr, "contents changed.  "
+                      "Old value was 0x%d, 0x%d, new is %0xd, 0x%x\n",
+                      0xfeedbabe, 0xdeadbeef,
+                      mem[SHMEM_ELEMENTS - 2], mem[SHMEM_ELEMENTS - 1]);
+
+      exit(1);
+   }
+
+   fprintf(stderr, "yes, all is ok\n");
+   return 0;
+}
+
+void
+sighandler(int sig)
+{
+
+   fprintf(stderr, "oops, did not work\n");
+   exit(1);
+}
+]], [AC_MSG_RESULT(yes)
+     [$1]],
+    [AC_MSG_RESULT(no)
+     [$2]])])
 
 # -- acinclude end --

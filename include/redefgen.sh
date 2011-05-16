@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: redefgen.sh,v 1.7 2009/05/30 13:58:48 karls Exp $
+# $Id: redefgen.sh,v 1.8 2010/07/01 11:08:49 karls Exp $
 #
 # generate redefac.h from autoheader.h.in
 #
@@ -15,6 +15,5 @@ for define in `egrep '^#undef' < $IN | egrep 'HAVE|NEED|FALLBACK|BAREFOOT' | awk
     echo "#ifndef ${define}
 #define ${define} 0
 #endif
-
 " >> $OUT
 done

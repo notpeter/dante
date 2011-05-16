@@ -44,12 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: auth_password.c,v 1.24 2009/10/23 10:37:26 karls Exp $";
+"$Id: auth_password.c,v 1.28 2010/10/18 07:04:46 michaels Exp $";
 
 int
-passwordcheck(name, clearpassword, emsg, emsglen)
+passwordcheck(name, cleartextpw, emsg, emsglen)
    const char *name;
-   const char *clearpassword;
+   const char *cleartextpw;
    char *emsg;
    size_t emsglen;
 {
@@ -58,14 +58,15 @@ passwordcheck(name, clearpassword, emsg, emsglen)
    char password[MAXPWLEN];
    int rc;
 
-   slog(LOG_DEBUG, "%s: name = %s", function, name);
+   slog(LOG_DEBUG, "%s: name = %s, password = %s",
+   function, name, "<cleartextpw>");
 
-   if (clearpassword != NULL) /* don't need privileges to lookup name. */
+   if (cleartextpw != NULL) /* don't need privileges to lookup name. */
       sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_ON);
 
    if ((pw = socks_getpwnam(name)) == NULL) {
       sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_OFF);
-      snprintfn(emsg, emsglen, "no such user on system: %s", name);
+      snprintf(emsg, emsglen, "no such user on system: %s", name);
 
       return -1;
    }
@@ -74,18 +75,18 @@ passwordcheck(name, clearpassword, emsg, emsglen)
    strncpy(password, pw->pw_passwd, sizeof(password) - 1);
    password[sizeof(password) - 1] = NUL;
 
-   if (clearpassword != NULL)
+   if (cleartextpw != NULL)
       sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_OFF);
 
-   if (clearpassword == NULL) /* no password to check. */
+   if (cleartextpw == NULL) /* no password to check. */
       rc = 0;
    else {
       const char *salt = password;
 
-      if (strcmp(crypt(clearpassword, salt), password) == 0)
+      if (strcmp(crypt(cleartextpw, salt), password) == 0)
          rc = 0;
       else {
-         snprintfn(emsg, emsglen, "system password authentication failed");
+         snprintf(emsg, emsglen, "system password authentication failed");
          rc = -1;
       }
    }

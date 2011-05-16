@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010
+ *               2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,21 +42,7 @@
  *
  */
 
-/* $Id: osdep.h,v 1.51.2.2.4.2 2011/02/27 15:32:18 karls Exp $ */
-
-#if HAVE_LINUX_ECCENTRICITIES
-/*
- * XXX This is a hack. Avoid transparent sockaddr union used in Linux
- *  to avoid the use of the union in the code. Mainly used in
- *  interposition.c (also for CMSG_)
- */
-
-#ifdef __GNUC__
-#undef __GNUC__
-#define __GNUC__ 0
-#endif /* __GNUC__ */
-
-#endif /* HAVE_LINUX_ECCENTRICITIES */
+/* $Id: osdep.h,v 1.62 2010/12/31 10:27:29 karls Exp $ */
 
 #include <sys/types.h>
 #if HAVE_SYS_TIME_H
@@ -124,6 +110,8 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/udp.h>
 
+#include <inttypes.h>
+
 #include <assert.h>
 #if HAVE_CRYPT_H
 #include <crypt.h>
@@ -141,10 +129,12 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #if HAVE_STRINGS_H
 #include <strings.h>
 #endif /* HAVE_STRINGS_H */
 #include <string.h>
+
 #include <syslog.h>
 #if HAVE_LIBWRAP && HAVE_TCPD_H
 #include <tcpd.h>
@@ -171,11 +161,13 @@
 
 #if HAVE_GSSAPI
 
-#if HAVE_GSSAPI_GSSAPI_H
-#include <gssapi/gssapi.h>
-#elif HAVE_GSSAPI_H
+#if HAVE_GSSAPI_H
 #include <gssapi.h>
-#endif /* HAVE_GSSAPI_GSSAPI_H */
+#elif HAVE_GSSAPI_GSSAPI_H
+#include <gssapi/gssapi.h>
+#endif /* HAVE_GSSAPI_H */
+
+#if !HAVE_HEIMDAL_KERBEROS
 #if HAVE_GSSAPI_GSSAPI_EXT_H
 #include <gssapi/gssapi_ext.h>
 #endif /* HAVE_GSSAPI_GSSAPI_EXT_H */
@@ -185,7 +177,7 @@
 #if HAVE_GSSAPI_GSSAPI_GENERIC_H
 #include <gssapi/gssapi_generic.h>
 #endif /* HAVE_GSSAPI_GSSAPI_GENERIC_H */
-
+#endif /* !HAVE_HEIMDAL_KERBEROS */
 #endif /* HAVE_GSSAPI */
 
 #if HAVE_PTHREAD_H
@@ -219,12 +211,16 @@
 #if !HAVE_SETPROCTITLE
 void setproctitle(const char *fmt, ...)
    __attribute__((format(__printf__, 1, 2)));
-int initsetproctitle(int, char **, char **);
+void initsetproctitle(int, char **);
 #endif /* !HAVE_SETPROCTITLE */
 
 #if !HAVE_SOCKATMARK
 #include "sockatmark.h"
 #endif /* !HAVE_SOCKATMARK */
+
+#if !HAVE_STRLCPY
+#include "strlcpy.h"
+#endif /* !HAVE_STRLCPY */
 
 #if !HAVE_INET_ATON
 int inet_aton(register const char *cp, struct in_addr *addr);
@@ -263,7 +259,7 @@ typedef int sig_atomic_t;
  typedef unsigned char ubits_8;
  typedef          char sbits_8;
 #else
-error "no known 8 bits wide data type"
+#error "no known 8 bits wide data type"
 #endif
 
 #if SIZEOF_SHORT == 2
@@ -274,7 +270,7 @@ error "no known 8 bits wide data type"
   typedef unsigned int ubits_16;
   typedef          int sbits_16;
 # else
-error "no known 16 bits wide data type"
+#error "no known 16 bits wide data type"
 # endif
 #endif
 
@@ -290,7 +286,7 @@ error "no known 16 bits wide data type"
     typedef unsigned long ubits_32;
     typedef          long sbits_32;
 #  else
-error "no known 32 bits wide data type"
+#error "no known 32 bits wide data type"
 #  endif /* SIZEOF_LONG == 4 */
 # endif /* SIZEOF_SHORT == 4 */
 #endif /* SIZEOF_INT == 4 */

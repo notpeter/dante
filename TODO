@@ -1,49 +1,53 @@
-# $Id: TODO,v 1.226 2009/10/27 11:45:31 karls Exp $
+# $Id: TODO,v 1.275 2011/05/12 17:05:38 michaels Exp $
 
-* If the max number of filedescriptors is set to RLIM_INFINITY, we 
-  need to do something different.
+           [ General ]
 
-* look more at the openbsd non-blocking connect problem.
+* socks_connect() should take a string argument to store reason for error
+  in.  If it is e.g., dns resolving that fails, we can not read that from
+  errno.
 
-* too much debuginfo is now beeing produced when debuging is enabled.
-  Need to change most of the "if (debug)" statements to "if (debug > 1), 
-  if (debug > 2)", etc. so that it can again be usefull to the average
-  user.
+* change _t struct's to typedef.
 
-* start looking at expanding the bytecounter in sockd to 64 bits, or
-  something else to prevent the total bytes transfered wrapping.
+* IPV6 support
+
+* check for more configure related code that is no longer used
+
+* remove unused libs, e.g., in ldap.m4, if not enabled
+
+* Can we find out what the maximum amount of bytes needed for
+  importing/exporting gssapi auth is?
+
+
+           [ Server ]
+
+* shrink io_t, too big and creates dependency on large socketbuffers 
+  between mother and i/o-children.
+
+* should the session end summary include the bytes transfered during
+  initial socks negotiation also?  And what about the overhead of
+  e.g. gssapi?  We include the overhead of the socks udp protocol,
+  but not gssapi.  That is not consistent.
+
+* code for getting interface mac without ifconfig(8).
+
+* add an option to resolve ipaddresses used for logging?  Have a 
+  dns-cache, so should not take much extra time.  Perhaps
+  add the resolved hostnames in parantheses next to the ipaddress?
+
+* should make reloading config file a two-step operation.  First 
+  parse and load the new config into one sockscf object, and 
+  if all is ok, only then clear the old config and start using
+  the new one.
+
+* make requestchildren support multiple clients too.
+
+           [ Client ]
+
+* make route-search use longest-prefix match and support priority?
 
 * look into if we can reduce the stacksize of clientmethod_gssapi(),
   as it creates problems with e.g. solaris' host command.
   Do we really require so big gssapi buffers?
 
-* connections blocked due to authenticationerrors or other things should
-  say block(n), not pass(n), or?
-
 * change gethostby* to getnameinfo(3)/getaddrinfo(3), which should
   hopefully be threadsafe on most platforms.
-
-* should try to get route for v4 first, since it's faster setup time?
-
-* (bandwidth?) module could support a limit on the total amount transfered
-  per time (day/hour) also.  Usefull?
-
-* connecttimeout should mean "timeout for connect(2) on behalf of socks
-  client".
-
-* make request-children support multiple clients.
-
-* change _t struct's to typedef.
-
-* share host/addr cache across processes.
-
-* clean up namespace (including for dlib, function names can collide with apps)
-
-* make requestchildren support multiple clients too.
-
-* shrink io_t, too big.  Can we find out what the maximum amount of 
-  bytes needed for importing/exporting gssapi auth is?
-
-* IPV6 support
-
-* check for more configure related code that is no longer used

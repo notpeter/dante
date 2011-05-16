@@ -1,10 +1,10 @@
-/* $Id: getifaddrs.c,v 1.12.2.1.4.1 2011/02/27 15:32:18 karls Exp $ */
+/* $Id: getifaddrs.c,v 1.16 2011/03/26 08:17:14 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
 
-#include "common.h"
+#include "osdep.h"
 
 /*
  * Copyright (c) 2000 - 2002, 2005 Kungliga Tekniska Högskolan
@@ -42,7 +42,7 @@
 #if 0
 #ifdef HAVE_CONFIG_H
 #include <config.h>
-RCSID("$Id: getifaddrs.c,v 1.12.2.1.4.1 2011/02/27 15:32:18 karls Exp $");
+RCSID("$Id: getifaddrs.c,v 1.16 2011/03/26 08:17:14 karls Exp $");
 #endif
 #include "roken.h"
 #endif
@@ -1030,7 +1030,6 @@ getifaddrs2(struct ifaddrs **ifap,
     close(fd);
     free(buf);
     errno = ret;
-    slog(LOG_DEBUG, "getifaddrs2: failed %s", strerror(errno));
     return -1;
 }
 
@@ -1193,7 +1192,6 @@ getlifaddrs2(struct ifaddrs **ifap,
     close(fd);
     free(buf);
     errno = ret;
-    slog(LOG_DEBUG, "getlifaddrs2: failed %s", strerror(errno));
     return -1;
 }
 #endif /* defined(HAVE_IPV6) && defined(SIOCGLIFCONF) && defined(SIOCGLIFFLAGS) */

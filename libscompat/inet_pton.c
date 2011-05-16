@@ -1,10 +1,10 @@
-/* $Id: inet_pton.c,v 1.8 2009/07/07 12:54:47 karls Exp $ */
+/* $Id: inet_pton.c,v 1.9 2010/09/26 13:26:59 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
 
-#include "common.h"
+#include "osdep.h"
 
 /*   $OpenBSD: inet_pton.c,v 1.2 1997/04/13 05:08:24 deraadt Exp $   */
 

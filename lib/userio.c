@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.46 2009/10/23 11:43:37 karls Exp $";
+"$Id: userio.c,v 1.49 2010/11/22 04:52:06 michaels Exp $";
 
 /* ARGSUSED */
 char *
@@ -62,13 +62,13 @@ socks_getusername(host, buf, buflen)
       slog(LOG_DEBUG, "%s: using socks username from environment: \"%s\"",
       function, name);
 #if SOCKS_CLIENT
-   else if ((name = getlogin()) != NULL)
-      ;
    else {
       struct passwd *pw;
 
       if ((pw = getpwuid(getuid())) != NULL)
          name = pw->pw_name;
+      else 
+         name = getlogin();
    }
 #endif /* SOCKS_CLIENT */
 
@@ -105,7 +105,7 @@ socks_getpassword(host, user, buf, buflen)
       char prompt[256 + MAXSOCKSHOSTSTRING];
       char hstring[MAXSOCKSHOSTSTRING];
 
-      snprintfn(prompt, sizeof(prompt), "%s@%s socks password: ",
+      snprintf(prompt, sizeof(prompt), "%s@%s socks password: ",
       user, sockshost2string(host, hstring, sizeof(hstring)));
       password = getpass(prompt);
       password_is_from_env = 0;
@@ -188,13 +188,8 @@ socks_getenv(name, value)
       /*
        * Some variables have a default based on configure/define.
        */
-      if (strcmp(name, "SOCKS_DIRECTROUTE_FALLBACK") == 0) {
-#if SOCKS_DIRECTROUTE_FALLBACK
-         p = "yes";
-#else /* !SOCKS_DIRECTROUTE_FALLBACK */
-         p = "no";
-#endif /* SOCKS_DIRECTROUTE_FALLBACK */
-      }
+      if (strcmp(name, "SOCKS_DIRECTROUTE_FALLBACK") == 0)
+         p = (SOCKS_DIRECTROUTE_FALLBACK ? "yes" : "no");
       else
          return p;
    }

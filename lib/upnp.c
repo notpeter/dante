@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010
+ * Copyright (c) 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.62.2.2.4.1 2011/03/04 13:46:17 michaels Exp $";
+"$Id: upnp.c,v 1.77 2011/04/19 17:30:35 michaels Exp $";
 
 #include "common.h"
 
@@ -79,7 +79,7 @@ socks_initupnp(gw, state)
    int devtype, rc;
 #endif /* HAVE_LIBMINIUPNP */
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s", function);
 
 #if !HAVE_LIBMINIUPNP
    return -1;
@@ -110,6 +110,7 @@ socks_initupnp(gw, state)
       struct UPNPDev *p;
 
       gwaddr2sockshost(gw, &host);
+
       SASSERTX(host.atype == SOCKS_ADDR_IPV4);
       inet_ntop(AF_INET, &host.addr.ipv4, addrstring, sizeof(addrstring));
 
@@ -193,8 +194,16 @@ socks_initupnp(gw, state)
    if (rc == 0) {
       SASSERTX(strlen(url.controlURL) < sizeof(state->upnp.controlurl));
       strcpy(state->upnp.controlurl, url.controlURL);
+
+#if HAVE_LIBMINIUPNP13
       SASSERTX(strlen(data.servicetype) < sizeof(state->upnp.servicetype));
       strcpy(state->upnp.servicetype, data.servicetype);
+#elif HAVE_LIBMINIUPNP14
+      SASSERTX(strlen(data.CIF.servicetype) < sizeof(state->upnp.servicetype));
+      strcpy(state->upnp.servicetype, data.CIF.servicetype);
+#else
+#  error "unexpected miniupnp version"
+#endif /* HAVE_LIBMINIUPNP14 */
    }
 
    FreeUPNPUrls(&url);
@@ -217,7 +226,7 @@ upnp_negotiate(s, packet, state)
    int rc;
 #endif /* HAVE_LIBMINIUPNP */
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s", function);
 
 #if !HAVE_LIBMINIUPNP
    SERRX(0);
@@ -225,7 +234,7 @@ upnp_negotiate(s, packet, state)
    packet->res.version = PROXY_UPNP;
 
    switch (packet->req.command) {
-      case SOCKS_CONNECT:
+      case SOCKS_CONNECT: {
          /*
           * Can only find out what the external ip address of the device is.
           *
@@ -238,18 +247,22 @@ upnp_negotiate(s, packet, state)
           * it here though, since it is part of the response returned
           * to the socks client.
           */
-
-         if (socks_connecthost(s, &packet->req.host) != 0)
+         if (socks_connecthost(s,
+                               &packet->req.host,
+                               NULL,
+                               sockscf.timeout.connect
+                                 ? (long)sockscf.timeout.connect : -1) != 0)
             if (!ERRNOISINPROGRESS(errno)) {
                slog(LOG_DEBUG, "%s: socks_connecthost(%s) failed: %s",
                function, sockshost2string(&packet->req.host, NULL, 0),
                strerror(errno));
 
-               packet->res.reply = UPNP_FAILURE;
+               socks_set_responsevalue(&packet->res, UPNP_FAILURE);
                return -1;
             }
 
          /* FALLTHROUGH */
+      }
 
       case SOCKS_UDPASSOCIATE: {
          /*
@@ -272,7 +285,7 @@ upnp_negotiate(s, packet, state)
          if ((rc = UPNP_GetExternalIPAddress(state->upnp.controlurl,
          state->upnp.servicetype, straddr)) != UPNPCOMMAND_SUCCESS) {
             swarnx("failed to get external ip address of upnp device: %d", rc);
-            packet->res.reply = UPNP_FAILURE;
+            socks_set_responsevalue(&packet->res, UPNP_FAILURE);
 
             return -1;
          }
@@ -289,7 +302,7 @@ upnp_negotiate(s, packet, state)
          }
          packet->res.host.port = TOIN(&addr)->sin_port;
          slog(LOG_DEBUG, "%s: will never know for sure, but hoping IGD "
-                         "will use same port as we (%d)",
+                         "will use same port as we; %d",
                          function, ntohs(packet->res.host.port));
 
          rc    = 0;
@@ -314,14 +327,14 @@ upnp_negotiate(s, packet, state)
          addrlen = sizeof(addr);
          if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0) {
             swarn("getsockname()");
-            packet->res.reply = UPNP_FAILURE;
+            socks_set_responsevalue(&packet->res, UPNP_FAILURE);
             return -1;
          }
 
          if ((rc = UPNP_GetExternalIPAddress(state->upnp.controlurl,
          state->upnp.servicetype, straddr)) != UPNPCOMMAND_SUCCESS) {
             swarnx("failed to get external ip address of upnp device: %d", rc);
-            packet->res.reply = UPNP_FAILURE;
+            socks_set_responsevalue(&packet->res, UPNP_FAILURE);
             return -1;
          }
          else {
@@ -348,11 +361,11 @@ upnp_negotiate(s, packet, state)
                    if (ifname2sockaddr(packet->gw.addr.addr.ifname, 0, &tmpaddr,
                    NULL) == NULL) {
                      swarn("ifname2sockaddr(%s)", packet->gw.addr.addr.ifname);
-                     packet->res.reply = UPNP_FAILURE;
+                     socks_set_responsevalue(&packet->res, UPNP_FAILURE);
                      return -1;
                   }
 
-                  /* just want the ipaddr.  Port number etc. remains the same. */
+                  /* just want the ipaddr.  Port number, etc., remains same. */
                   addr.sin_addr = TOIN(&tmpaddr)->sin_addr;
                   break;
                }
@@ -363,7 +376,7 @@ upnp_negotiate(s, packet, state)
 
                   if (urlstring2sockaddr(packet->gw.addr.addr.urlname, &tmpaddr)
                   == NULL) {
-                     packet->res.reply = UPNP_FAILURE;
+                     socks_set_responsevalue(&packet->res, UPNP_FAILURE);
                      return -1;
                   }
 
@@ -378,23 +391,28 @@ upnp_negotiate(s, packet, state)
 
                   if ((ss = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
                      swarn("%s: socket()", function);
-                     packet->res.reply = UPNP_FAILURE;
+                     socks_set_responsevalue(&packet->res, UPNP_FAILURE);
+
                      return -1;
                   }
 
                   if (connect(ss, &tmpaddr, sizeof(tmpaddr)) != 0) {
                      swarn("%s: connect(%s)",
                      function, sockaddr2string(&tmpaddr, NULL, 0));
-                     packet->res.reply = UPNP_FAILURE;
+
+                     socks_set_responsevalue(&packet->res, UPNP_FAILURE);
                      close(ss);
+
                      return -1;
                   }
 
                   tmpaddrlen = sizeof(tmpaddr);
                   if (getsockname(ss, &tmpaddr, &tmpaddrlen) != 0) {
                      swarn("%s: getsockname()", function);
-                     packet->res.reply = UPNP_FAILURE;
+
+                     socks_set_responsevalue(&packet->res, UPNP_FAILURE);
                      close(ss);
+
                      return -1;
                   }
 
@@ -412,14 +430,14 @@ upnp_negotiate(s, packet, state)
          if (inet_ntop(addr.sin_family, &addr.sin_addr, straddr,
          sizeof(straddr)) == NULL) {
             swarn("inet_ntop()");
-            packet->res.reply = UPNP_FAILURE;
+            socks_set_responsevalue(&packet->res, UPNP_FAILURE);
             return -1;
          }
 
          len = sizeof(val);
          if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) != 0) {
             swarn("getsockopt()");
-            packet->res.reply = UPNP_FAILURE;
+            socks_set_responsevalue(&packet->res, UPNP_FAILURE);
             return -1;
          }
          switch (val) {
@@ -433,7 +451,7 @@ upnp_negotiate(s, packet, state)
 
             default:
                swarn("unknown protocol type %d", val);
-               packet->res.reply = UPNP_FAILURE;
+               socks_set_responsevalue(&packet->res, UPNP_FAILURE);
                return -1;
          }
 
@@ -453,7 +471,7 @@ upnp_negotiate(s, packet, state)
                swarnx("%s: UPNP_AddPortMapping() failed: %s",
                function, strupnperror(rc));
 
-               packet->res.reply = UPNP_FAILURE;
+               socks_set_responsevalue(&packet->res, UPNP_FAILURE);
                return -1;
          }
          else
@@ -498,7 +516,7 @@ upnp_negotiate(s, packet, state)
          SERRX(packet->req.command);
    }
 
-   packet->res.reply = UPNP_SUCCESS;
+   socks_set_responsevalue(&packet->res, UPNP_SUCCESS);
 
    return 0;
 #endif /* !HAVE_LIBMINIUPNP */
@@ -531,7 +549,7 @@ upnpcleanup(s)
    const int s;
 {
    const char *function = "upnpcleanup()";
-   struct socksfd_t *socksfd;
+   struct socksfd_t socksfd;
    int rc, current, last;
 
    slog(LOG_DEBUG, "%s: socket %d", function, s);
@@ -552,33 +570,33 @@ upnpcleanup(s)
       if (deleting == current)
          continue;
 
-      if ((socksfd = socks_getaddr(current, 0 /* XXX */)) == NULL)
+      if (socks_getaddr(current, &socksfd, 0 /* XXX */) == NULL)
          continue;
 
-      if (socksfd->state.version != PROXY_UPNP)
+      if (socksfd.state.version != PROXY_UPNP)
          continue;
 
       slog(LOG_DEBUG, "%s: socket %d has upnp session set up for command "
                       "%s, accept pending: %d",
-                      function, current, command2string(socksfd->state.command),
-                      socksfd->state.acceptpending);
+                      function, current, command2string(socksfd.state.command),
+                      socksfd.state.acceptpending);
 
-      if (socksfd->state.command != SOCKS_BIND)
+      if (socksfd.state.command != SOCKS_BIND)
          continue;
 
       /*
        * Is this the socket we listened on?  Or just a client we accept(2)'ed?
        * The port mapping is just created for the first case.
        */
-      if (!socksfd->state.acceptpending)
+      if (!socksfd.state.acceptpending)
          continue; /* just a client we accepted. */
 
       snprintf(port, sizeof(port), "%d",
-      ntohs(TOCIN(&socksfd->remote)->sin_port));
+      ntohs(TOCIN(&socksfd.remote)->sin_port));
 
-      if (socksfd->state.protocol.tcp)
+      if (socksfd.state.protocol.tcp)
          snprintf(protocol, sizeof(protocol), PROTOCOL_TCPs);
-      else if (socksfd->state.protocol.udp)
+      else if (socksfd.state.protocol.udp)
          snprintf(protocol, sizeof(protocol), PROTOCOL_UDPs);
       else {
          SWARNX(0);
@@ -598,8 +616,8 @@ upnpcleanup(s)
       deleting = current;
 
       if ((rc
-      = UPNP_DeletePortMapping(socksfd->route->gw.state.data.upnp.controlurl,
-                               socksfd->route->gw.state.data.upnp.servicetype,
+      = UPNP_DeletePortMapping(socksfd.route->gw.state.data.upnp.controlurl,
+                               socksfd.route->gw.state.data.upnp.servicetype,
                                port, protocol, NULL)) != UPNPCOMMAND_SUCCESS)
             swarnx("%s: UPNP_DeletePortMapping(%s, %s) failed: %s",
             function, port, protocol, strupnperror(rc));
@@ -625,6 +643,6 @@ void
 upnpcleanup(s)
    const int s;
 {
-      return;
+        return;
 }
 #endif /* !HAVE_LIBMINIUPNP */

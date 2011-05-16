@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.59 2009/07/09 14:04:22 karls Exp $";
+"$Id: protocol.c,v 1.66 2011/03/30 20:01:27 michaels Exp $";
 
 unsigned char *
 sockshost2mem(host, mem, version)
@@ -56,7 +56,7 @@ sockshost2mem(host, mem, version)
    switch (version) {
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V4REPLY_VERSION:
-         SASSERTX(host->atype == SOCKS_ADDR_IPV4);
+         SASSERTX((atype_t)host->atype == SOCKS_ADDR_IPV4);
 
          /* DSTPORT */
          memcpy(mem, &host->port, sizeof(host->port));
@@ -159,13 +159,14 @@ mem2sockshost(host, mem, len, version)
                return NULL;
 
             default:
-               slog(LOG_INFO, "%s: unknown atype field: %d",
+               slog(LOG_INFO, "%s: unknown atype value: %d",
                function, host->atype);
                return NULL;
          }
 
          if (len < sizeof(host->port))
             return NULL;
+
          memcpy(&host->port, mem, sizeof(host->port));
          mem += sizeof(host->port);
          len -= sizeof(host->port);
@@ -178,3 +179,54 @@ mem2sockshost(host, mem, len, version)
 
    return mem;
 }
+
+void
+socks_set_responsevalue(response, value)                                     
+    struct response_t *response;
+    unsigned int value;
+{
+
+    switch (response->version) {
+      case PROXY_SOCKS_V4REPLY_VERSION:
+      case PROXY_SOCKS_V5:
+         response->reply.socks = (unsigned char)value;
+         break;
+
+      case PROXY_UPNP:
+         response->reply.upnp = (unsigned char)value;
+         break;
+
+      case PROXY_HTTP_10:
+      case PROXY_HTTP_11:
+         response->reply.http = (unsigned short)value;
+         break;
+
+      default:
+         SERRX(response->version);
+   }
+}
+
+unsigned int
+socks_get_responsevalue(response)
+    const struct response_t *response;
+{
+
+    switch (response->version) {
+      case PROXY_SOCKS_V4REPLY_VERSION:
+      case PROXY_SOCKS_V5:
+         return response->reply.socks;
+
+      case PROXY_UPNP:
+         return response->reply.upnp;
+
+      case PROXY_HTTP_10:
+      case PROXY_HTTP_11:
+         return response->reply.http;
+
+      default:
+         SERRX(response->version);
+   }
+
+   /* NOTREACHED */
+}
+

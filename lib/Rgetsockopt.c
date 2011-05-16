@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockopt.c,v 1.2.2.1 2010/08/01 15:28:22 karls Exp $";
+"$Id: Rgetsockopt.c,v 1.4 2011/05/09 07:03:51 michaels Exp $";
 
 int
 Rgetsockopt(s, level, optname, optval, optlen)
@@ -63,14 +63,15 @@ Rgetsockopt(s, level, optname, optval, optlen)
    clientinit();
    slog(LOG_DEBUG, "%s, socket %d", function, s);
 
-   if (!socks_addrisours(s, 1))
+   if (!socks_addrisours(s, &socksfd, 1))
       return getsockopt(s, level, optname, optval, optlen);
 
-   socksfd = *socks_getaddr(s, 1);
-
    slog(LOG_DEBUG, "%s, socket %d, err = %d", function, s, socksfd.state.err);
-
    memcpy(optval, &socksfd.state.err, *optlen);
 
+   /*
+    * XXX should clear SO_ERROR, meaning we need to add a separate so_error
+    * variable.
+    */
    return 0;
 }

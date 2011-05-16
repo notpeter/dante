@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009,
- *               2010
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.253.2.3 2010/05/24 16:38:36 karls Exp $";
+"$Id: connectchild.c,v 1.299 2011/05/10 16:42:11 michaels Exp $";
 
 #define MOTHER  (0)   /* descriptor mother reads/writes on.  */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -170,7 +169,8 @@ socks_nbconnectroute(s, control, packet, src, dst)
       ||           fcntl(ackpipev[0],  F_SETFL, flags | O_NONBLOCK)  == -1
       ||           fcntl(ackpipev[1],  F_SETFL, flags | O_NONBLOCK)  == -1)
          swarn("%s: fcntl() failed to set pipe between mother and "
-               "connect-child to non-blocking", function);
+               "connect-child to non-blocking",
+               function);
 
       valtoset = (sizeof(struct childpacket_t)
                   + sizeof(struct msghdr)
@@ -319,7 +319,8 @@ socks_nbconnectroute(s, control, packet, src, dst)
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V5:
       case PROXY_UPNP:
-      case PROXY_HTTP_V1_0: {
+      case PROXY_HTTP_10:
+      case PROXY_HTTP_11: {
          /*
           * Controlsocket is what later becomes datasocket.
           * We don't want to allow the client to read/write/select etc.
@@ -343,7 +344,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
             return NULL;
 
 #if HAVE_GSSAPI
-         if (socks_allocbuffer(s) == NULL) {
+         if (socks_allocbuffer(s, SOCK_STREAM) == NULL) {
             swarn("%s: socks_allocbuffer() failed", function);
             close(control);
 
@@ -398,13 +399,6 @@ socks_nbconnectroute(s, control, packet, src, dst)
          break;
       }
 
-      case PROXY_MSPROXY_V2:
-         /*
-          * Control socket is separate from datasocket.
-          * Identical to our fixed socks setup.
-          */
-         break;
-
       default:
          SERRX(packet->req.version);
    }
@@ -444,14 +438,11 @@ socks_nbconnectroute(s, control, packet, src, dst)
          switch (packet->req.version) {
             case PROXY_SOCKS_V4:
             case PROXY_SOCKS_V5:
-            case PROXY_HTTP_V1_0:
+            case PROXY_HTTP_10:
+            case PROXY_HTTP_11:
             case PROXY_UPNP:
                close(control); /* created in this function. */
                control = s;
-               break;
-
-            case PROXY_MSPROXY_V2:
-            swarn("%s: connect failed", function);
                break;
 
             default:
@@ -485,7 +476,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
    socksfd.state.version       = packet->req.version;
    socksfd.state.protocol.tcp  = 1;
    socksfd.state.inprogress    = 1;
-   sockshost2sockaddr(&packet->req.host, &socksfd.forus.connected);
+   socksfd.forus.connected     = packet->req.host;
 
    socks_addaddr(s, &socksfd, 1);
 
@@ -496,19 +487,14 @@ socks_nbconnectroute(s, control, packet, src, dst)
     */
 
    fdsent = 0;
-   /* LINTED pointer casts may be troublesome */
    CMSG_ADDOBJECT(control, cmsg, sizeof(control) * fdsent++);
 
    switch (packet->req.version) {
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V5:
-      case PROXY_HTTP_V1_0:
+      case PROXY_HTTP_10:
+      case PROXY_HTTP_11:
       case PROXY_UPNP:
-         break;
-
-      case PROXY_MSPROXY_V2:
-         /* LINTED pointer casts may be troublesome */
-         CMSG_ADDOBJECT(s, cmsg, sizeof(s) * fdsent++);
          break;
 
       default:
@@ -537,22 +523,6 @@ socks_nbconnectroute(s, control, packet, src, dst)
                    function, (unsigned long)len,
                    (unsigned long)CMSG_TOTLEN(msg), (int)reqoutstanding);
 
-#if 0
-   if (1) {
-      static int sleept;
-
-      if (!sleept) {
-         sleep(20);
-         sleept = 1;
-      }
-   }
-#endif
-
-   /*
-    * must be before we send request to child, or child could finish
-    * and signal us first.
-    */
-   errno = EINPROGRESS;
 
    if ((p = sendmsgn(sockscf.child_data, &msg, 0)) != (ssize_t)len) {
       swarn("%s: sendmsg(): %ld of %ld", function, (long)p, (long)len);
@@ -602,14 +572,25 @@ run_connectchild(mother_data, mother_ack)
    while (1) {
       int flags;
 
+      errno = 0; /* reset for each iteration. */
+
       FD_ZERO(rset);
       FD_SET(mother_data, rset);
       FD_SET(mother_ack, rset);
       rbits = MAX(mother_data, mother_ack);
 
       ++rbits;
-      switch (selectn(rbits, rset, NULL, NULL, NULL, NULL, NULL)) {
+      switch (selectn(rbits,
+                      rset,
+                      NULL,
+                      NULL,
+                      NULL,
+                      NULL,
+                      NULL)) {
          case -1:
+            if (errno == EINTR)
+               continue;
+
             SERR(-1);
             /* NOTREACHED */
       }
@@ -619,7 +600,7 @@ run_connectchild(mother_data, mother_ack)
 
          switch ((p = read(mother_ack, buf, sizeof(buf)))) {
             case -1:
-               slog(LOG_DEBUG, "%s: read(): mother closed: %s",
+               slog(LOG_DEBUG, "%s: read(): mother exited: %s",
                function, strerror(errno));
                _exit(EXIT_SUCCESS);
                /* NOTREACHED */
@@ -646,7 +627,8 @@ run_connectchild(mother_data, mother_ack)
          size_t tosend, fdsent;
          struct sockaddr local, remote;
          struct msghdr msg;
-         int data, control, ioc, getpeernamefailed;
+         int data, control, ioc;
+         struct timeval tval = { sockscf.timeout.connect, (long)0 };
          CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
          ioc = 0;
@@ -663,11 +645,12 @@ run_connectchild(mother_data, mother_ack)
          msg.msg_namelen  = 0;
 
          CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
-         if ((p = recvmsg(mother_data, &msg, 0)) != (ssize_t)len) {
+         if ((p = recvmsgn(mother_data, &msg, 0)) != (ssize_t)len) {
             switch (p) {
                case -1:
-                  serr(EXIT_FAILURE, "%s: recvmsg()", function);
-                  /* NOTREACHED */
+                  if (!ERRNOISTMP(errno))
+                     serr(EXIT_FAILURE, "%s: recvmsg()", function);
+                  break;
 
                case 0:
                   slog(LOG_DEBUG, "%s: recvmsg(): mother closed", function);
@@ -685,32 +668,15 @@ run_connectchild(mother_data, mother_ack)
          slog(LOG_DEBUG, "%s: received request of size %ld + %lu from mother",
          function, (long)p, (unsigned long)CMSG_TOTLEN(msg));
 
-         if (msg.msg_flags & MSG_TRUNC) {
-            swarnx("%s: msg from mother was truncated ... request discarded",
-            function);
-
-            if (CMSG_TOTLEN(msg) > 0)
-               swarnx("%s: XXX should close received descriptors", function);
-
+         if (socks_msghaserrors(function, &msg))
             continue;
-         }
-
-         if (msg.msg_flags & MSG_CTRUNC) {
-            swarnx("%s: cmsg from mother was truncated ... request discarded",
-            function);
-
-            continue;
-         }
 
          /* how many descriptors are we supposed to receive? */
          switch (req.packet.req.version) {
-            case PROXY_MSPROXY_V2:
-               len = 2;   /* control + socket for data flow. */
-               break;
-
             case PROXY_SOCKS_V4:
             case PROXY_SOCKS_V5:
-            case PROXY_HTTP_V1_0:
+            case PROXY_HTTP_10:
+            case PROXY_HTTP_11:
             case PROXY_UPNP:
                len = 1; /* only controlsocket (which is also datasocket). */
                break;
@@ -719,25 +685,17 @@ run_connectchild(mother_data, mother_ack)
                SERRX(req.packet.req.version);
          }
 
-#if !HAVE_DEFECT_RECVMSG
-         SASSERTX((size_t)CMSG_TOTLEN(msg)
-         == (size_t)(CMSG_SPACE(sizeof(int) * len)) ||
-         (size_t)CMSG_TOTLEN(msg) == (size_t)(CMSG_LEN(sizeof(int) * len)));
-#endif /* !HAVE_DEFECT_RECVMSG */
+         CMSG_VERIFY_RCPTLEN(msg, sizeof(int) * len);
 
          len = 0;
          /* LINTED pointer casts may be troublesome */
          CMSG_GETOBJECT(control, cmsg, sizeof(control) * len++);
 
          switch (req.packet.req.version) {
-            case PROXY_MSPROXY_V2:
-               /* LINTED pointer casts may be troublesome */
-               CMSG_GETOBJECT(data, cmsg, sizeof(data) * len++);
-               break;
-
             case PROXY_SOCKS_V4:
             case PROXY_SOCKS_V5:
-            case PROXY_HTTP_V1_0:
+            case PROXY_HTTP_10:
+            case PROXY_HTTP_11:
             case PROXY_UPNP:
                data = control;   /* datachannel is controlchannel. */
                break;
@@ -752,9 +710,25 @@ run_connectchild(mother_data, mother_ack)
          /*
           * default, in case we don't even get a valid response.
           */
-         req.packet.res.reply
-         = sockscode(req.packet.req.version, SOCKS_FAILURE);
-         req.packet.res.version = req.packet.req.version;
+         switch (req.packet.req.version) {
+            case PROXY_SOCKS_V4:
+               req.packet.res.version = PROXY_SOCKS_V4REPLY_VERSION;
+               break;
+
+            case PROXY_SOCKS_V5:
+            case PROXY_HTTP_10:
+            case PROXY_HTTP_11:
+            case PROXY_UPNP:
+               req.packet.res.version = req.packet.req.version;
+               break;
+
+            default:
+               SERRX(req.packet.req.version);
+         }
+
+         socks_set_responsevalue(&req.packet.res,
+                                 sockscode(req.packet.res.version,
+                                 SOCKS_FAILURE));
 
          if (req.packet.req.version == PROXY_SOCKS_V4)
             req.packet.res.version = PROXY_SOCKS_V4REPLY_VERSION;
@@ -771,11 +745,13 @@ run_connectchild(mother_data, mother_ack)
           */
          if ((flags = fcntl(control, F_GETFL, 0))                  == -1
          ||           fcntl(control, F_SETFL, flags & ~O_NONBLOCK) == -1)
-            swarn("%s: fcntl(control)", function);
+            swarn("%s: fcntl(control) to set fd to blocking failed", function);
+
+         errno = 0;
 
          len = sizeof(local);
-         if (getsockname(control, &local, &len) == 0
-         && ADDRISBOUND(TOIN(&local))) {
+         if ((p = getsockname(control, &local, &len)) == 0
+         && ADDRISBOUND(TOIN(&local))) /* can happpen on solaris on fail. */ {
             slog(LOG_DEBUG, "%s: control local: %s",
             function, sockaddr2string(&local, string, sizeof(string)));
 
@@ -790,51 +766,64 @@ run_connectchild(mother_data, mother_ack)
              * pollsys(0x08033220, 1, 0x00000000, 0x00000000) (sleeping...)
              *         fd=1  ev=POLLOUT rev=0
              * <never returns>
+             * 
+             * In that case, getsockname(2) seems to return a zero address
+             * also, so we try to use that to detect the problem.
              */
 
             slog(LOG_DEBUG, "%s: waiting for connect response ...", function);
 
             FD_ZERO(wset);
             FD_SET(control, wset);
-            switch (selectn(control + 1, NULL, NULL, wset, NULL, NULL, NULL)) {
+            switch (selectn(control + 1,
+                            NULL,
+                            NULL,
+                            NULL,
+                            wset,
+                            NULL, 
+                            sockscf.timeout.connect == 0 ? NULL : &tval)) {
                case -1:
+                  if (errno == EINTR)
+                     continue;
+
                   SERR(-1);
                   /* NOTREACHED */
 
                case 0:
-                  SERRX(0);
-                  /* NOTREACHED */
+                  slog(LOG_DEBUG, "%s: select(2) timed out", function);
+                  errno = ETIMEDOUT;
+                  break;
             }
          }
-         else
-            swarn("%s: getsockname(%d) failed", function, control);
-
-         /*
-          * sigh, for some reason, at least some versions of Linux
-          * return 0 for a read(control, NULL, 0), even if the connect(2)
-          * failed, and the error does not become apparent til later,
-          * on e.g. the first write(2).  Unfortunately, that write(2) also
-          * resets SO_ERROR, which means that applications checking SO_ERROR
-          * to see if the connect failed won't work, and while
-          * recv(control, buf, 1, MSG_PEEK) works on Linux, it too resets
-          * SO_ERROR.
-          *
-          * Getpeername(2) seems to work correctly on linux also, but
-          * that doesn't tell us why the connect failed.  Would be nice
-          * to have a way that worked on linux also, but alas. :-/
-          */
-
-         len   = sizeof(remote);
-         errno = 0;
-         if (getpeername(control, &remote, &len) != 0) {
-            getpeernamefailed = 1;
-            slog(LOG_DEBUG, "%s: getpeername(control) failed: %s",
-            function, strerror(errno));
+         else {
+            if (p == 0)
+               slog(LOG_DEBUG, "%s: getsockname(control) returned an unbound "
+                               "address.  Running Solaris?",
+                               function);
+            else
+               slog(LOG_DEBUG, "%s: getsockname(control) failed: %s",
+               function, errnostr(errno));
          }
-         else
-            getpeernamefailed = 0;
+
+         if (errno != 0) {
+            len = sizeof(errno);
+            getsockopt(control, SOL_SOCKET, SO_ERROR, &errno, &len);
+         }
 
          req.packet.state.err = errno;
+
+         len = sizeof(remote);
+         if (getpeername(control, &remote, &len) != 0) {
+            if (req.packet.state.err == 0) {
+               swarn("%s: that's strange.  SO_ERROR says no error, "
+                     "but getpeername(control) failed", function);
+
+               req.packet.state.err = errno; /* better than nothing. */
+            }
+
+            slog(LOG_DEBUG, "%s: getpeername(control) failed: %s",
+            function, errnostr(errno));
+         }
 
          slog(LOG_DEBUG, "%s: checking result ... connect %s",
          function, req.packet.state.err == 0 ? "succeeded" : "failed");
@@ -842,6 +831,8 @@ run_connectchild(mother_data, mother_ack)
          if (req.packet.state.err == 0) { /* connected ok. */
             if (socks_negotiate(data, control, &req.packet, NULL) != 0) {
                slog(LOG_DEBUG, "%s: socks_negotiate() failed", function);
+
+               req.packet.res.auth->method = AUTHMETHOD_NOTSET;
                req.packet.state.err = errno;
             }
             else {
@@ -853,7 +844,7 @@ run_connectchild(mother_data, mother_ack)
          /* back to original. */
          if (flags != -1)
             if (fcntl(control, F_SETFL, flags) == -1)
-               swarn("%s: fcntl(control)", function);
+               swarn("%s: fcntl(control) to restore fd flags failed", function);
 
          ioc = 0;
          bzero(iov, sizeof(iov));
@@ -874,8 +865,12 @@ run_connectchild(mother_data, mother_ack)
             tosend            += iov[ioc].iov_len;
             ++ioc;
 
-            slog(LOG_DEBUG, "%s: exporting gssapistate of size %lu",
-            function, (long unsigned)gssapistate.length);
+            slog(LOG_DEBUG, "%s: exporting gssapistate of size %lu "
+                 "(start: 0x%x, 0x%x)",
+                 function, (unsigned long)gssapistate.length,
+                 ((char *)gssapistate.value)[0],
+                 ((char *)gssapistate.value)[1]);
+
          }
 #endif /* HAVE_GSSAPI */
 
@@ -954,11 +949,16 @@ sigio(sig, sip, scp)
    slog(LOG_DEBUG, "%s: got signal, requests outstanding: %d",
    function, (int)reqoutstanding);
 
-   if ((p = recv(sockscf.child_ack, &msg, sizeof(msg), 0)) >= 0) {
-      swarnx("%s: ick ick ick.  It seems our dear connect-child has suffered "
-             "unrepairable problems and sent us a message of size %ld.  "
-             "Probably we will just hang now",
-             function, (unsigned long)p);
+   /*
+    * Nothing is expected over the ack pipe, but it's a stream pipe
+    * so we can use it to know when our connect-child has died.
+    */
+   if ((p = recv(sockscf.child_ack, &msg, sizeof(msg), 0)) != -1
+   && !ERRNOISTMP(errno)) {
+      swarn("%s: ick ick ick.  It seems our dear connect-child has suffered "
+            "unrepairable problems and sent us a message of size %ld over "
+            "the ack-pipe.  Probably we will just hang now",
+            function, (unsigned long)p);
 
       sockscf.connectchild = 0;
       close(sockscf.child_ack);
@@ -971,6 +971,7 @@ sigio(sig, sip, scp)
        * but that's a lot of work for something that should never
        * happen.
        */
+      sockscf.state.insignal = 0;
       return;
    }
 
@@ -1016,11 +1017,8 @@ sigio(sig, sip, scp)
    gotpackets = 0;
 
    CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
-   while ((p = recvmsg(sockscf.child_data, &msg, 0))
+   while ((p = recvmsgn(sockscf.child_data, &msg, 0))
    >= (ssize_t)sizeof(childres)) {
-      struct stat sb;
-      dev_t device;
-      ino_t inode;
       struct sockaddr localmem, *local = &localmem;
       struct sockaddr remotemem, *remote = &remotemem;
       int child_s;
@@ -1033,51 +1031,34 @@ sigio(sig, sip, scp)
                       function, (long)p, (unsigned long)CMSG_TOTLEN(msg),
                       (int)reqoutstanding);
 
-      if (msg.msg_flags & MSG_TRUNC) {
-         swarnx("%s: msg from child was truncated ... request discarded",
-         function);
-
-         if (CMSG_TOTLEN(msg) > 0)
-            swarnx("%s: XXX should close received descriptors", function);
-
+      if (socks_msghaserrors(function, &msg))
          continue;
-      }
-
-      if (msg.msg_flags & MSG_CTRUNC) {
-         swarnx("%s: cmsg from mother was truncated ... request discarded",
-         function);
-
-         continue;
-      }
 
       len = 1;
-#if !HAVE_DEFECT_RECVMSG
-      SASSERTX((size_t)CMSG_TOTLEN(msg)
-      == (size_t)(CMSG_SPACE(sizeof(int) * len)) ||
-      (size_t)CMSG_TOTLEN(msg) == (size_t)(CMSG_LEN(sizeof(int) * len)));
-#endif /* !HAVE_DEFECT_RECVMSG */
+      CMSG_VERIFY_RCPTLEN(msg, sizeof(int) * len);
 
       len = 0;
       CMSG_GETOBJECT(child_s, cmsg, sizeof(child_s) * len++);
 
       slog(LOG_DEBUG, "%s: child_s = %d\n", function, child_s);
       SASSERTX(fdisopen(child_s));
+      /*
+       * if an address has been associated with fdindex child_s before,
+       * it can't possibly be valid any more.
+       */
+      socks_rmaddr(child_s, 0); 
 
       p -= sizeof(childres);
-
-      childres.packet.req.auth = childres.packet.res.auth
-      = &childres.packet.state.auth;
-
-      slog(LOG_DEBUG, "%s: auth method child negotiated is %d",
-      function, childres.packet.res.auth->method);
 
       len = sizeof(*local);
       if (getsockname(child_s, local, &len) == 0)
          slog(LOG_DEBUG, "%s: local = %s",
          function, sockaddr2string(local, string, sizeof(string)));
       else {
+         slog(LOG_DEBUG, "%s: getsockname() on socket failed, errno %d",
+         function, errno);
+
          local = NULL;
-         slog(LOG_DEBUG, "%s: getsockname() on socket failed", function);
       }
 
       len = sizeof(*remote);
@@ -1085,29 +1066,21 @@ sigio(sig, sip, scp)
          slog(LOG_DEBUG, "%s: remote = %s",
          function, sockaddr2string(remote, string, sizeof(string)));
       else {
-         slog(LOG_DEBUG, "%s: getpeername() on socket failed", function);
+         slog(LOG_DEBUG, "%s: getpeername() on socket failed, errno %d",
+         function, errno);
+
          remote = NULL;
       }
 
-      if (fstat(child_s, &sb) == 0) {
-         if (sb.st_ino == 0) {
-            slog(LOG_DEBUG, "%s: socket inode is 0.  Assuming kernel does "
-                            "not support the inode field for (this) socket",
-                            function);
+      childres.packet.req.auth
+      = childres.packet.res.auth = &childres.packet.state.auth;
 
-            device = (dev_t)-1;
-            inode  = (ino_t)-1;
-         }
-         else {
-            device = sb.st_dev;
-            inode  = sb.st_ino;
-         }
-      }
-      else {
-         swarn("%s: fstat() failed", function);
-         device = (dev_t)-1;
-         inode = (ino_t)-1;
-      }
+      if (childres.packet.state.err != 0)
+         slog(LOG_DEBUG, "%s: child failed to establish a session, errno = %d",
+         function, childres.packet.state.err);
+      else
+         slog(LOG_DEBUG, "%s: auth method child negotiated is %d",
+         function, childres.packet.res.auth->method);
 
       s = socks_addrcontrol(local, remote, childres.s, child_s, 0);
       close(child_s);
@@ -1154,19 +1127,16 @@ sigio(sig, sip, scp)
 
       slog(LOG_DEBUG, "%s: packet belongs to socket %d", function, s);
 
-      if (socks_getaddr(s, 0) == NULL) {
+      if (socks_getaddr(s, &socksfd, 0) == NULL) {
          swarnx("%s: could not getaddr %d", function, s);
          break;
       }
-      socksfd = *socks_getaddr(s, 0);
 
       switch (socksfd.state.version) {
-         case PROXY_MSPROXY_V2:
-            break; /* nothing to do, control separate from data. */
-
          case PROXY_SOCKS_V4:
          case PROXY_SOCKS_V5:
-         case PROXY_HTTP_V1_0:
+         case PROXY_HTTP_10:
+         case PROXY_HTTP_11:
          case PROXY_UPNP:
             if (socksfd.control == s) {
                slog(LOG_DEBUG, "%s: duping %d over %d not needed",
@@ -1202,9 +1172,9 @@ sigio(sig, sip, scp)
 
       len = sizeof(socksfd.local);
       if (getsockname(s, &socksfd.local, &len) != 0) {
-         slog(LOG_INFO, "%s: getsockname() failed (%s).  Assuming client has "
-                          "closed the socket and removing socksfd",
-                          function, strerror(errno));
+         slog(LOG_DEBUG, "%s: getsockname() failed with errno %d.  Assuming "
+                        "client has closed the socket and removing socksfd",
+                        function, errno);
          socks_rmaddr(s, 0);
 
          CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg)); /* for next. */
@@ -1216,14 +1186,15 @@ sigio(sig, sip, scp)
 
       len = sizeof(socksfd.server);
       if (getpeername(s, &socksfd.server, &len) != 0)
-         swarn("%s: getpeername(s)", function);
+         slog(LOG_DEBUG, "%s: second getpeername() on socket failed, errno %d",
+         function, errno);
 
       socksfd.state.inprogress = 0;
-
       socks_addaddr(s, &socksfd, 0);
 
       if (!serverreplyisok(childres.packet.res.version,
-      childres.packet.res.reply, socksfd.route)) {
+                           socks_get_responsevalue(&childres.packet.res),
+                           socksfd.route)) {
          slog(LOG_DEBUG, "%s: connectchild failed to set up connection, "
                          "error mapped to %d",
                          function, errno);
@@ -1237,7 +1208,11 @@ sigio(sig, sip, scp)
           */
 
 #if DIAGNOSTIC
-         SASSERTX(socks_addrisours(s, 1));
+         do { 
+            struct socksfd_t socksfd;
+
+            SASSERTX(socks_addrisours(s, &socksfd, 1));
+         } while (0);
 #endif /* DIAGNOSTIC */
 
          break;
@@ -1247,36 +1222,26 @@ sigio(sig, sip, scp)
       sockshost2string(&childres.packet.res.host, string, sizeof(string)));
 
       socksfd.state.auth         = *childres.packet.res.auth;
-      socksfd.state.msproxy      = childres.packet.state.msproxy;
       sockshost2sockaddr(&childres.packet.res.host, &socksfd.remote);
 
 #if HAVE_GSSAPI
       if (socksfd.state.auth.method == AUTHMETHOD_GSSAPI) {
-         iobuffer_t *iobuf;
-
          SASSERTX(p > 0);
 
          /*
           * can't import gssapi state here; we're in a signal handler and
           * that is not safe.  Will be imported upon first call to
-          * socks_getaddr() later, so save it in iobuf for now, as
-          * nobody should be using that before call to socks_getaddr().
-          *
-          * Would be cleaner to have the memory in socksfd, but it's a
-          * big buffer, and only needed once, so do it like this for now.
+          * socks_getaddr() later, so just save it for now.
           */
-         slog(LOG_DEBUG, "%s: read gssapistate of size %ld, will store it in "
-                         "iobuffer for socket %d",
-                         function, (long)p, s);
-
-         SASSERTX((iobuf = socks_getbuffer(s)) != NULL);
-         SASSERTX(iobuf->info[0].len == 0 && iobuf->info[0].enclen == 0);
-         SASSERTX(iobuf->info[1].len == 0 && iobuf->info[1].enclen == 0);
-         SASSERTX(sizeof(iobuf->buf) >= sizeof(gssapistatemem));
+         slog(LOG_DEBUG, "%s: read gssapistate of size %ld for socket %d "
+                         "(start: 0x%x, 0x%x),",
+                         function, (long)p, s,
+                         (int)gssapistatemem[0], (int)gssapistatemem[1]);
 
          socksfd.state.gssimportneeded    = 1;
-         socksfd.state.gssapistate.value  = iobuf->buf;
+         socksfd.state.gssapistate.value  = socksfd.state.gssapistatemem;
          socksfd.state.gssapistate.length = p;
+         SASSERTX(sizeof(socksfd.state.gssapistatemem) >= (size_t)p);
          memcpy(socksfd.state.gssapistate.value, gssapistatemem, p);
       }
 #endif /* HAVE_GSSAPI */
@@ -1301,10 +1266,11 @@ sigio(sig, sip, scp)
       CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
    }
 
-   if ((sip->si_pid == sockscf.connectchild || sip->si_pid == 0)
-   && !gotpackets)
-      swarn("%s: received %ld bytes from child, expected a minimum of %lu",
-      function, (long)p, (unsigned long)sizeof(childres));
+   if (gotpackets)
+      sockscf.state.signalforus = sig;
+   else
+      swarn("%s: received no packets from child (%ld bytes)",
+      function, (long)p);
 
    errno = errno_s;
    sockscf.state.insignal = 0;

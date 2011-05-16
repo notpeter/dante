@@ -1,13 +1,12 @@
 lib_LTLIBRARIES = libsocks.la
 libsocks_la_SOURCES = config_parse.c config_scan.c Raccept.c Rbind.c \
-	Rgetpeername.c Rgetsockname.c Rrresvport.c io.c    \
+	Rgetpeername.c Rgetsockname.c Rgetsockopt.c Rrresvport.c io.c    \
 	address.c authneg.c client.c clientconfig.c clientprotocol.c \
 	udp.c userio.c connectchild.c config.c  \
 	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  \
 	Rconnect.c Rgethostbyname.c debug.c Rcompat.c \
-	msproxy_clientprotocol.c hostcache.c broken.c serr.c httpproxy.c \
-	tostring.c addressmatch.c Rlisten.c upnp.c gssapi.c iobuf.c \
-	Rgetsockopt.c
+	hostcache.c broken.c serr.c httpproxy.c \
+	tostring.c addressmatch.c Rlisten.c upnp.c gssapi.c iobuf.c
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info
@@ -28,11 +27,12 @@ AM_LFLAGS = -P${PREFIX} -olex.yy.c
 YFLAGS = @YFLAGS@
 #LFLAGS = @LFLAGS@
 
-#XXX need to include common.h before any other headers for lex/yacc
-#    files so we keep the generation rules here, with a slight modification
+#XXX ensure common.h is included before any other headers for lex/yacc;
+#    keep the generation rules here, with a slight modification
+#    XXX likely no longer needed
 config_parse.c: config_parse.y
 	$(YACC) $(YFLAGS) $(AM_YFLAGS) config_parse.y
-	if test -f y.tab.h; then \
+	@if test -f y.tab.h; then \
 	  to=`echo "$*_H" | sed \
                 -e 'y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/' \
                 -e 's/[^ABCDEFGHIJKLMNOPQRSTUVWXYZ]/_/g'`; \
@@ -45,19 +45,19 @@ config_parse.c: config_parse.y
 	    mv $*.ht $*.h; \
 	  fi; \
 	fi
-	if test -f y.output; then \
+	@if test -f y.output; then \
 	  mv y.output $*.output; \
 	fi
-	echo '#include "common.h"' > $@
-	sed '/^#/ s|y\.tab\.c|$@|' y.tab.c >$@t && cat $@t >> $@ && \
+	@echo '#include "common.h"' > $@
+	@sed '/^#/ s|y\.tab\.c|$@|' y.tab.c >$@t && cat $@t >> $@ && \
 	   rm -f $@t
-	rm -f y.tab.c
+	@rm -f y.tab.c
 
 config_scan.c: config_scan.l
 	$(LEX) $(LFLAGS) $(AM_LFLAGS) config_scan.l
-	echo '#include "common.h"' > $@
-	sed '/^#/ s|$(LEX_OUTPUT_ROOT)\.c|$@|' $(LEX_OUTPUT_ROOT).c >> $@
-	rm -f $(LEX_OUTPUT_ROOT).c
+	@echo '#include "common.h"' > $@
+	@sed '/^#/ s|$(LEX_OUTPUT_ROOT)\.c|$@|' $(LEX_OUTPUT_ROOT).c >> $@
+	@rm -f $(LEX_OUTPUT_ROOT).c
 
 #lint files
 LINT = @LINT@
@@ -68,10 +68,13 @@ SUFFIXES = .ln
 LINTFILESa = $(libsocks_la_SOURCES:.c=.ln)
 LINTFILESb = $(LINTFILESa:.y=.ln)
 LINTFILES = $(LINTFILESb:.l=.ln)
-libsocks_la_DEPENDENCIES = $(LINTFILES)
+libsocks_la_DEPENDENCIES = $(LINTFILES) llib-lsocks.ln
 
 CLEANFILES = $(LINTFILES)
 
 .c.ln:
-	$(LINT) $(LINTFLAGS) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(AM_CFLAGS) $<
+	$(LINT) $(LINTPASS1) $(LINTFLAGS) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(AM_CFLAGS) $< > $@.lint 2>&1
+
+llib-lsocks.ln: $(LINTFILES)
+	$(LINT) $(LINTPASS2) $(LINTFLAGS) $(LINTLIBOPT)socks $(LINTFILES) > $@.lint 2>&1
 endif #RUNLINT

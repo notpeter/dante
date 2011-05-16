@@ -46,49 +46,64 @@
 #include <math.h> /* XXX */
 
 static const char rcsid[] = 
-"$Id: bandwidth.c,v 1.20 2009/10/22 17:36:12 karls Exp $";
+"$Id: bandwidth.c,v 1.24 2011/01/27 18:46:48 michaels Exp $";
 
 const char module_bandwidth_version[] =
-"$Id: bandwidth.c,v 1.20 2009/10/22 17:36:12 karls Exp $";
+"$Id: bandwidth.c,v 1.24 2011/01/27 18:46:48 michaels Exp $";
 
 
 void
-bw_use(bw)
-   bw_t *bw;
+bw_use(bw, lock)
+   shmem_object_t *bw;
+   const int lock;
 {
 
+   (void)bw;
 }
 
 void
-bw_unuse(bw)
-   bw_t *bw;
+bw_unuse(bw, lock)
+   shmem_object_t *bw;
+   const int lock;
 {
 
+   (void)bw;
 }
 
 ssize_t
-bw_left(bw)
-   const bw_t *bw;
+bw_left(bw, lock)
+   const shmem_object_t *bw;
+   const int lock;
 {
 
+   (void)bw;
    return SOCKD_BUFSIZE;
 }
 
 void
-bw_update(bw, bwused, bwusedtime)
-   bw_t *bw;
+bw_update(bw, bwused, bwusedtime, lock)
+   shmem_object_t *bw;
    size_t bwused;
    const struct timeval *bwusedtime;
+   const int lock;
 {
 
+   (void)bw;
+   (void)bwused;
+   (void)bwusedtime;
 }
 
 struct timeval *
-bw_isoverflow(bw, timenow, overflow)
-   bw_t *bw;
+bw_isoverflow(bw, timenow, overflow, lock)
+   shmem_object_t *bw;
    const struct timeval *timenow;
    struct timeval *overflow;
+   const int lock;
 {
+
+   (void)bw;
+   (void)timenow;
+   (void)overflow;
 
    return NULL;
 }

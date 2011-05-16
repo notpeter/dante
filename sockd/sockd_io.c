@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010
+ *               2008, 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,30 +46,50 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.365.2.5.2.2.2.16 2011/03/13 17:13:37 michaels Exp $";
+"$Id: sockd_io.c,v 1.613 2011/05/12 16:49:28 michaels Exp $";
 
 /*
  * IO-child:
  * Accept io objects from mother and do io on them.  We never
  * send back ancillary data, only ordinary data, so no need for
  * locking here even on broken systems (#ifdef HAVE_SENDMSG_DEADLOCK).
+ * XXX with covenant, no longer true.  Need to add lock, if it is still
+ * necessary due to kernel bugs, but hopefully it is not.
+ *
+ * XXX remove io_allocated()?  Add some variables instead that we 
+ * always keep updated.
  */
 
-/* for delete_io() calls. */
-typedef enum { IO_ERRORUNKNOWN, IO_TIMEOUT, IO_ERROR, IO_CLOSE, IO_SHORT,
-               IO_SRCBLOCK
+typedef enum { TIMEOUT_CONNECT = 1,
+               TIMEOUT_IO,
+               TIMEOUT_TCP_FIN_WAIT
+} timeout_type_t;
+
+/* why a doio() call failed. */
+typedef enum { IO_NOERROR,
+               IO_TMPERROR,          /* some error occured, but not fatal.  */
+               IO_EAGAIN,            /* no data available to read currently. */
+               IO_TIMEOUT,
+               IO_ERROR,
+               IO_CLOSE,
+               IO_BLOCK,
+               IO_ADMINTERMINATION,
 } iostatus_t;
 
-static void siginfo(int sig);
+typedef enum { RAWSOCKET_NOP,          /* nothing to care about. */
+               RAWSOCKET_IO_DELETED    /* an io was deleted.     */
+} rawsocketstatus_t;
+
+static void siginfo(int sig, siginfo_t *sip, void *scp);
 
 static size_t
 io_allocated(int *for_tcp, int *for_udp);
 /*
- * Returns the number of allocated (active) io's.
+ * Returns the number of allocated (active) ios.
  *
- * If "for_tcp" is not NULL, on return it will contain the number of io's
+ * If "for_tcp" is not NULL, on return it will contain the number of ios
  * allocated for tcp.
- * If "for_udp" is not NULL, on return it will contain the number of io's
+ * If "for_udp" is not NULL, on return it will contain the number of ios
  * allocated for udp.
  */
 
@@ -89,16 +109,29 @@ io_finddescriptor(int d);
  * Finds the io object where one of the descriptors matches "fd".
  */
 
+
 static int
-io_fillset(fd_set *set, int antiflags, const struct timeval *timenow);
+io_fillset(fd_set *set, int antiflags, const struct timeval *tnow);
 /*
- * Sets all descriptors from our list, in "set".  If "antiflags"
- * is set, io's with any of the flags in "antiflags" set will be excluded.
- * IO's with state.fin set will also be excluded.
- * "timenow" is the time now.
+ * Sets all descriptors from our list, in "set".  
+ * If "antiflags" is set, ios with any of the flags in "antiflags" set 
+ * will be excluded.  
+ * In addition, IOs with state.fin set, and IOs that have not finished 
+ * connecting will also be excluded.
+ *
+ * "tnow" is the time now.
+ *
  * Returns the highest descriptor in our list, or -1 if we don't
  * have any descriptors we want to select() on currently.
  */
+
+static int
+io_fillset_connectinprogress(fd_set *set);
+/*
+ * Like io_fillset(), but fills "set" only with descriptors belonging
+ * to connects that are marked as still being in progress.
+ */
+
 
 static void
 io_clearset(const struct sockd_io_t *io, fd_set *set);
@@ -106,24 +139,38 @@ io_clearset(const struct sockd_io_t *io, fd_set *set);
  * Clears all file descriptors in "io" from "set".
  */
 
-static void
-doio(int mother, struct sockd_io_t *io, fd_set *rset, fd_set *wset,
-      int flags);
+static iostatus_t
+doio(struct sockd_io_t *io, fd_set *rset, fd_set *wset,
+     const int flags, int *badfd);
 /*
  * Does i/o over the descriptors in "io", in to out and out to in.
- * "mother" is the write connection to mother if we need to send a ack.
  * "io" is the object to do i/o over,
  * "flags" is the flags to set on the actual i/o calls
  * (read()/write(), recvfrom()/sendto()), currently only MSG_OOB.
- * If any of the calls fail the "io" is deleted.
+ *
+ * Returns the status of the doio() call, IO_NOERROR on success, or
+ * some other value on error.  If error and "badfd" is not -1, it 
+ * will have the value of the filedescriptor on which the error was
+ * detected.
+ *
+ * In most cases, delete_io() should be called upon error.
  */
 
 static int
 io_rw(struct sockd_io_direction_t *in, struct sockd_io_direction_t *out,
-      int *bad, void *buf, size_t bufsize, int flags);
+      int *bad, const requestflags_t *reqflags, char *buf, size_t bufsize,
+      size_t *bufused, int flags);
 /*
  * Transfers data from "in" to "out" using "buf" as a temporary buffer
  * to store the data, and sets flag "flags" in sendto()/recvfrom().
+ * "reqflags" is flags for the clientside of the request.
+ *
+ * The size of "buf" is given by bufsize, and "bufused", if not NULL,
+ * indicates how much of "buf" has previously been used, but not 
+ * written to "out".  Upon return, "bufused" is updated with the 
+ * new value.  "bufused" is only used by the Covenant server, and should
+ * be set to NULL when called by anyone else.
+ *
  * "inauth" is the authentication used for reading from "in",
  * "outauth" is the authentication * used when writing to out.
  * The data transferred uses "buf" as a buffer, which is of size "bufsize".
@@ -131,9 +178,12 @@ io_rw(struct sockd_io_direction_t *in, struct sockd_io_direction_t *out,
  * of "out".
  *
  * Returns:
- *      On success: bytes transferred or 0 for eof.
+ *      On success: number of bytes transferred from "in" to "out".
  *      On failure: -1.  "bad" is set to the value of the descriptor that
- *                  failure was first detected on.
+ *                  "failure" was first detected on, or -1 if the "failure"
+ *                  was temporary.
+ *                  "failure" may also be eof, in which case the number of
+ *                  bytes transfered will be zero.
  */
 
 static void
@@ -142,13 +192,7 @@ delete_io(int mother, struct sockd_io_t *io, int fd, const iostatus_t status);
  * deletes the io object "io".  "fd" is the descriptor on which "status"
  * was returned.  If "fd" is negative, it is ignored.
  * If "mother" is >= 0, the deletion of "io" is ACK'ed to her.
- * "status" can have one of these values and is normally intended to be the
- * result from a io call (read/write/etc).
- *      IO_ERRORUNKNOWN:   unknown error.
- *      IO_TIMEOUT     :   connection timed out.  ("fd" argument is ignored).
- *      IO_ERROR       :   error using "fd".
- *      IO_CLOSE       :   socket was closed.
- *      > 0            :   short read/write
+ * "status" is the reason for why the io was deleted.
  */
 
 static void
@@ -157,108 +201,146 @@ proctitleupdate(void);
  * Updates the title of this process.
  */
 
+static int
+io_timeoutispossible(const struct sockd_io_t *io);
+/*
+ * Returns true if it's possible the ioboject "io" could time out, i.e., 
+ * the config and state of the io object is such that it is possible.  
+ *
+ * Returns false if it is not possible for the i/o object to time out
+ * in it's current state with the current config.
+ */
+
+static long 
+io_timetiltimeout(struct sockd_io_t *io, const struct timeval *tnow, 
+                  timeout_type_t *type);
+/*
+ * Returns the number of seconds til the io object "io" will timeout, at
+ * the earliest.  "type", if not NULL, is filled in with the type of timeout
+ * that will occur at that time, if any.
+ *
+ * Returns -1 if no timeout on the io is currently present.
+ */
+
 static struct timeval *
-io_gettimeout(struct timeval *timeout, const struct timeval *timenow);
+io_gettimeout(struct timeval *timeout, const struct timeval *tnow);
 /*
  * If there is a timeout on the current clients for how long to exist
- * without doing i/o, this function fills in "timeout" with the appropriate
- * timeout.
+ * without doing i/o, this function fills in "timeout" with the how much
+ * is remaining til timeout for the io object most imminent to time out.
  * Returns:
  *      If there is a timeout: pointer to filled in "timeout".
  *      If there is no timeout: NULL.
  */
 
 static struct sockd_io_t *
-io_gettimedout(const struct timeval *timenow);
+io_gettimedout(const struct timeval *tnow, struct timeval *nexttimeout,
+               int *havenexttimeout);
 /*
  * Scans all clients for one that has timed out according to sockscf
- * settings. "timenow" is the time now.
+ * settings. 
+ * "tnow" is the time now. 
+ * If "havenexttimeout" is set, "nexttimeout" is filled in with the time 
+ * the next timeout will occur
+ *
  * Returns:
  *      If timed out client found: pointer to it.
  *      Else: NULL.
  */
 
 static void
-getnewio(struct sockd_mother_t *mother);
+getnewio(void);
 /*
- * Receives a io from "mother".  Closes "mother" and sets
+ * Receives a io from mother.  Closes mother and sets
  * sockets to -1 if there is an error.
  */
 
+static void
+freebuffers(const struct sockd_io_t *io);
+/* 
+ * Frees buffers, if any, used by "io".
+ */
+
+static int
+checkconnectstatus(struct sockd_io_t *io);
+/* 
+ * Checks if the socket on "io->dst" has finished connecting, and fills
+ * in status flags as apropriate.   
+ *
+ * Returns 0 if still in progress, or true if connected or error.
+ *
+ * Note that this function must be called after the connect has completed,
+ * as in the socks case we (and some covenant cases) we need to send
+ * a response back to the client before it will start sending us data.
+ * We can thus not delay calling this function til we get ordinary i/o 
+ * from one side, as it's possible none will be comming til after we
+ * have sent the response to the client.
+ */
+
+static int rawsocket = -1;
+static void
+rawsocket_send(const int s, const struct sockshost_t *peer, 
+               const struct sockshost_t *local, const struct sockshost_t *dst,
+               const int code);
+/*
+ * Handles packets output in on the raw socket "s".  Used
+ * to send icmp-errors concerning packets we forward.  
+ * "peer" is the address that sendt the problematic packet, 
+ * "local" is the address we received the packet on, 
+ * "dst" it the address the packet was intended for, and
+ * "code" is the icmp code of the error.
+ */
+
+
+
 #if BAREFOOTD
 
-#define UDPBLOCK (16)   /*
-                         * how many clients to allocate memory for, or by
-                         * how many clients to increase allocated memory
-                         * when needed.
-                         */
+#define UDP_MEMBLOCK (16)   /*
+                                * by how many clients to increase allocated 
+                                * memory when needed.
+                                */
 
 #define MAX_ICMPLEN (60 /* MAX IP LEN */ + 8 + 60 + 8)
 #define MIN_ICMPLEN (20 /* MIN IP LEN */ + 8)
 
-static void handlerawsocket(const int s);
+static rawsocketstatus_t
+rawsocket_recv(const int s);
 /*
- * Handles packets coming in on the raw socket "s".  Used
+ * Handles packets input in on the raw socket "s".  Used
  * to read icmp-errors concerning packets we send to udp clients.
  */
 
-static const struct udpclient *
+static size_t
+io_udpclients(void);
+/*
+ * Returns the number of active udp clients.
+ */
+
+
+static struct udpclient *
 udpclientofladdr(const struct sockaddr *addr, const size_t udpclientc,
-                 const struct udpclient *udpclientv);
+                 struct udpclient *udpclientv);
 /*
  * Returns the udpclient that has the local address "addr", or NULL
  * if no such client exists.
  */
 
-static const struct udpclient *udpclientofraddr(const struct sockaddr *addr,
-                                                const size_t udpclientc,
-                                            const struct udpclient *udpclientv);
+static struct udpclient *
+udpclientofclientaddr(const struct sockaddr *addr, const size_t udpclientc,
+                      struct udpclient *udpclientv);
 /*
- * Returns the udpclient that has the remote address "addr", or NULL
+ * Returns the udpclient that has the client address "addr", or NULL
  * if no such client exists.
  */
 
-static int socketofudpraddr(const struct sockaddr *addr,
-                            const size_t udpclientc,
-                            const struct udpclient *udpclientv);
-/*
- * Returns the udpclient that has the remote address "addr", or NULL
- * if no such client exists.
- */
 
 static struct udpclient *
 udpclientofsocket(const int s, const size_t udpclientc,
-      struct udpclient *udpclientv);
+                  struct udpclient *udpclientv);
 /*
  * Returns the udpclient belonging to socket "s", or NULL if no
  * such client.
  */
-
-static const struct sockaddr *
-srcofudpsocket(const int s, const size_t udpclientc,
-       struct udpclient *udpclientv);
-/*
- * Returns the srcaddress of the udpclient belonging to socket "s",
- * or NULL if no such client.
- */
-
-static int socketofudpraddr(const struct sockaddr *addr,
-                            const size_t udpclientc,
-                            const struct udpclient *udpclientv);
-/*
- * Returns the socket belonging to the udpclient that has the
- * remote address "addr", or -1 if no such client.
- */
-
-#if 0
-static int socketofudpladdr(const struct sockaddr *addr,
-                            const size_t udpclientc,
-                            const struct udpclient *udpclientv);
-/*
- * Returns the socket belonging to the udpclient that has the
- * remote address "addr", or -1 if no such client.
- */
-#endif
 
 static struct udpclient *
 addudpclient(const struct udpclient *client, size_t *clientc,
@@ -284,54 +366,71 @@ removeudpclient(const int s, size_t *clientc, struct udpclient *clientv);
 
 #endif /* BAREFOOTD */
 
-/* Solaris sometimes fails to return srcaddress in recvfrom(). */
-#define UDPFROMLENCHECK(socket, fromlen) \
-   do {                                                                       \
-      if (fromlen == 0) {                                                     \
-         static int failures;                                                 \
-                                                                              \
-         swarnx("%s: system error: did not get address in recvfrom()",        \
-         function);                                                           \
-                                                                              \
-         if (++failures > 5) {                                                \
-            swarnx("%s: running Solaris <= 2.5.1, are we?  "                  \
-            "giving up after %d failures", function, failures);               \
-            delete_io(mother, io, (socket), IO_ERROR);                        \
-            failures = 0;                                                     \
-         }                                                                    \
-         return;                                                              \
-      }                                                                       \
-   } while (/*CONSTCOND*/0)
-
-#define BWUPDATE(io, timenow, bwused)                                         \
-do {                                                                          \
-   if (bwused) {                                                              \
-      io->iotime = timenow;                                                   \
-                                                                              \
-      if (io->rule.bw != NULL)                                                \
-         bw_update(io->rule.bw, bwused, &io->iotime);                         \
-   }                                                                          \
+#define IOUPDATE(timenow, iotime, bwused, rule, lock)                          \
+do {                                                                           \
+   (*iotime) = (timenow);                                                      \
+                                                                               \
+   if (bwused && (rule)->bw_shmid != 0) {                                      \
+      const int needattach = (rule)->bw == NULL;                               \
+                                                                               \
+      if (needattach)                                                          \
+         sockd_shmat((rule), SHMEM_BW);                                        \
+                                                                               \
+      bw_update((rule)->bw, (bwused), (iotime), (lock));                       \
+                                                                               \
+      if (needattach)                                                          \
+         sockd_shmdt((rule), SHMEM_BW);                                        \
+   }                                                                           \
 } while (/*CONSTCOND*/0)
 
-static struct sockd_io_t iov[SOCKD_IOMAX];   /* each child has these io's. */
-static size_t ioc = ELEMENTS(iov);
+#if BAREFOOTD
+/* 
+ * In barefoot, udp is a point-to-multipoint case.  We receive all client
+ * packets on one socket, but we must use different sockets for sending
+ * them out. 
+ */
+#define SYNC_UDPDST(dst, udpclient)                                            \
+do {                                                                           \
+   (dst)->s      = (udpclient)->s;                                             \
+   (dst)->laddr  = (udpclient)->laddr;                                         \
+   (dst)->raddr  = (udpclient)->raddr;                                         \
+} while (/*CONSTCOND*/ 0)
+
+#endif /* BAREFOOTD */
+
+#define IOSTATUS_NONFATAL_ERROR(error)  \
+(  (error) == IO_NOERROR                \
+|| (error) == IO_TMPERROR               \
+|| (error) == IO_BLOCK                  \
+|| (error) == IO_EAGAIN)
+
+
+static struct sockd_io_t iov[SOCKD_IOMAX];   /* each child has these ios. */
+static const size_t ioc = ELEMENTS(iov);
+
+static int freefds; /* number of currently free filedescriptors. */
+
+/*
+ * if not 0, we have "overflowed" according to max bandwidth configured.
+ * We can not attribute it to any given client though, so we penalize
+ * all by delaying a little.  This object gives the time at which we
+ * can again do i/o.  
+ */
 static struct timeval bwoverflow;
 
 void
-run_io(mother)
-   struct sockd_mother_t *mother;
+run_io()
 {
    const char *function = "run_io()";
    struct sigaction sigact;
    int p;
 #if BAREFOOTD
    socklen_t optlen;
-   int rawsocket;
 #endif /* BAREFOOTD */
 
    bzero(&sigact, sizeof(sigact));
-   sigact.sa_flags   = SA_RESTART;
-   sigact.sa_handler = siginfo;
+   sigact.sa_flags     = SA_RESTART | SA_SIGINFO;
+   sigact.sa_sigaction = siginfo;
 
 #if HAVE_SIGNAL_SIGINFO
    if (sigaction(SIGINFO, &sigact, NULL) != 0)
@@ -345,7 +444,7 @@ run_io(mother)
 #if BAREFOOTD
    /*
     * Set up a raw socket so we can get icmp errors for
-    * udp packets sent to clients, and delete them if so.
+    * udp packets sent to clients, and delete the clients if so.
     */
 
    sockd_priv(SOCKD_PRIV_NET_ICMPACCESS, PRIV_ON);
@@ -390,6 +489,10 @@ run_io(mother)
 
 #endif /* BAREFOOTD */
 
+   freefds = freedescriptors(NULL);
+   slog(LOG_DEBUG, "%s: ready to serve with %d free filedescriptors",
+   function, freefds);
+
    proctitleupdate();
 
    /* CONSTCOND */
@@ -403,6 +506,12 @@ run_io(mother)
        * the corresponding descriptor to write out on is not ready, we will
        * be busy-looping; above select will keep returning descriptors set,
        * but we will not be able to write (and thus won't read) them.
+       *
+       * Our solution to this is two select(2) calls.  One to see 
+       * what descriptors are readable, and another select(2) call to
+       * block until at least one of the descriptors on the corresponding 
+       * write-side has become writable.
+       *
        * We therefore only set in wset the descriptors that have the
        * corresponding read descriptor readable, so that when the
        * second select() returns, the io objects we get from wset will
@@ -422,12 +531,15 @@ run_io(mother)
        * readable too, thus any new exceptions will be in newrset before
        * we have reason to care about them.
        */
+      iostatus_t iostatus;
       static fd_set *rset, *wset, *xset, *newrset, *controlset,
-                    *tmpset, *bufrset;
+                    *tmpset, *bufrset, *buffwset;
       struct sockd_io_t *io;
-      struct timeval timeout, timenow;
-      sigset_t oldset;
-      int rbits, wbits;
+      struct timeval timeout, tnow, *timeoutpointer;
+      int i, bits, first_rbits, rbits, wbits, newsocketsconnected,
+          havetimeout, badfd;
+
+      errno = 0; /* reset for each iteration. */
 
       if (rset == NULL) {
          rset       = allocate_maxsize_fdset();
@@ -437,214 +549,362 @@ run_io(mother)
          controlset = allocate_maxsize_fdset();
          tmpset     = allocate_maxsize_fdset();
          bufrset    = allocate_maxsize_fdset();
+         buffwset   = allocate_maxsize_fdset();
       }
 
-      /* look for timed-out clients. */
-      gettimeofday(&timenow, NULL);
-      while ((io = io_gettimedout(&timenow)) != NULL)
-         delete_io(mother->ack, io, -1, IO_TIMEOUT);
+      gettimeofday(&tnow, NULL);
 
-      /* starting a new run. */
+      /* starting a new run, will recalculate. */
       timerclear(&bwoverflow);
 
-      io_fillset(xset, MSG_OOB, &timenow);
-      rbits = io_fillset(rset, 0, &timenow);
+      /* look for timed-out clients and calculate the next timeout, if any. */
+      while ((io = io_gettimedout(&tnow, &timeout, &havetimeout)) != NULL)
+         delete_io(sockscf.state.mother.ack, io, -1, IO_TIMEOUT);
 
-      if (mother->s != -1) {
-         FD_SET(mother->s, rset);
-         rbits = MAX(rbits, mother->s);
+      io_fillset(xset, MSG_OOB, &tnow);
+      rbits = io_fillset(rset, 0, &tnow); 
+
+      /*
+       * buffwset.  What descriptors do we want to check whether have 
+       * data buffered for write?  Having data buffered for write means
+       * we have data to write on them, thus we want to know if they
+       * are writable.  Pretty much any client-related descriptor we want
+       * to check for having data buffered for write, except those 
+       * specifically skipped (due to e.g., bw overflow).
+       */
+      FD_COPY(buffwset, rset);
+
+      /* likewise for having data buffered for read. */
+      FD_COPY(bufrset, rset);
+
+      if (sockscf.state.mother.s != -1) {
+         FD_SET(sockscf.state.mother.s, rset);
+         rbits = MAX(rbits, sockscf.state.mother.s);
 
          /* checked so we know if mother goes away.  */
-         FD_SET(mother->ack, rset);
-         rbits = MAX(rbits, mother->ack);
+         FD_SET(sockscf.state.mother.ack, rset);
+         rbits = MAX(rbits, sockscf.state.mother.ack);
       }
-      else /* no mother.  Do we have any other descriptors to work with? */
-         if (rbits == -1) {
+      else { /* no mother.  Do we have any other descriptors to work with? */
+         if (rbits == -1 && !timerisset(&bwoverflow)) {
+            /* no clients in fd_sets, and not due to bwoverflow ... */
             SASSERTX(io_allocated(NULL, NULL) == 0);
 
             slog(LOG_DEBUG, "%s: no connection to mother and no clients.  "
-                            "We should exit",
-                             function);
+                            "Exiting",
+                            function);
 
             sockdexit(EXIT_SUCCESS);
          }
-
+      }
 #if BAREFOOTD
-      if (rawsocket != -1)
+      if (rawsocket != -1 && (io_udpclients() > 0)) {
+      /* raw socket is only of interest if we have udp clients. */
+
          FD_SET(rawsocket, rset);
          rbits = MAX(rbits, rawsocket);
+      }
 #endif /* BAREFOOTD */
 
       /*
-       * first find descriptors that are readable; we won't write if
-       * we can't read.  Also select for exceptions so we can tell
-       * the i/o function if there's one pending later.
+       * First find descriptors that are readable; we won't write if
+       * we can't read.  
+       * Connects that are in progress is a special case that we also need
+       * to check for here.  Once the connect has completed, successfully or
+       * not, the socket will become writable and we may need to send a 
+       * response to the client.
+       *
+       * Also select for exceptions so we can tell the i/o function if
+       * there's one pending later.
        */
 
-      switch (selectn(++rbits, rset, bufrset, NULL, NULL, xset,
-      io_gettimeout(&timeout, &timenow))) {
+      wbits               = io_fillset_connectinprogress(wset);
+      newsocketsconnected = 0;
+      bits                = MAX(rbits, wbits) + 1;
+
+      if (timerisset(&bwoverflow)) {
+         struct timeval bwoverflow_relative;
+
+         SASSERTX(timercmp(&bwoverflow, &tnow, >));
+         timersub(&bwoverflow, &tnow, &bwoverflow_relative);
+
+          if (!havetimeout
+          ||  timercmp(&bwoverflow_relative, &timeout, <)) {
+            havetimeout = 1;
+            timeout     = bwoverflow_relative;
+         }
+      }
+
+      slog(LOG_DEBUG,
+           "%s: first select, what is readable, what has finished connecting",
+           function);
+      switch (selectn(bits,
+                      rset, bufrset, buffwset,
+                      wset, 
+                      xset,
+                      havetimeout ? &timeout : NULL)) {
          case -1:
-            SERR(-1);
+            if (errno == EINTR)
+               continue;
+
+            SERR(errno);
+            /* NOTREACHED */
 
          case 0:
             continue; /* restart the loop. */
       }
 
+      if (sockscf.state.mother.ack != -1
+      && FD_ISSET(sockscf.state.mother.ack, rset)) { /* only eof expected. */
+         slog(LOG_DEBUG, "%s: mother closed the connection to us",
+         function);
+
+         sockscf.state.mother.s = sockscf.state.mother.ack = -1;
+
+#if BAREFOOTD
+         /*
+          * terminate all udp sessions.  If not, a restart will not
+          * be able to rebind the ports used.
+          */
+         io_remove_session(NULL, SOCKS_UDP);
+#endif /* BAREFOOTD */
+
+         continue; /* safest to regenerate the fd_sets. */
+      }
+
+      /* needs to be after check of ack-pipe to avoid errormessages. */
+      if (sockscf.state.mother.s != -1
+      && FD_ISSET(sockscf.state.mother.s, rset)) {
+         getnewio();
+         continue; /* need to scan rset again; should have a new client. */
+      }
+
+      first_rbits = bits;
+
+      FD_ZERO(tmpset);
+      if (FD_CMP(tmpset, wset) != 0) {
+         for (p = 0; p < bits; ++p)
+            if (FD_ISSET(p, wset)) {
+               io = io_finddescriptor(p);
+               SASSERTX(io != NULL);
+               SASSERTX(p == io->dst.s);
+
+               if (checkconnectstatus(io) != 0)
+                  ++newsocketsconnected; /* success or failure, don't care. */
+            }
+
+         slog(LOG_DEBUG, "%s: %d new socket%s finished connecting",
+         function, newsocketsconnected, newsocketsconnected == 1 ? "" : "%s");
+      }
+
       /*
        * Add bufrset to rset, so rset contains all sockets we can
-       * read from, whether from the socket or from the buffer.
+       * read from, whether it's from the socket or from the buffer.
        */
-      fdsetop(rbits, '|', rset, bufrset, tmpset);
+      fdsetop(bits, '|', rset, bufrset, tmpset);
       FD_COPY(rset, tmpset);
 
 #if BAREFOOTD
       if (rawsocket != -1 && FD_ISSET(rawsocket, rset)) {
-         handlerawsocket(rawsocket);
          FD_CLR(rawsocket, rset);
+
+         if (rawsocket_recv(rawsocket) == RAWSOCKET_IO_DELETED)
+            /*
+             * one or more ios were deleted.  Don't know which, so 
+             * need to regenerate the descriptorsets for select.
+             */
+            continue;
       }
 #endif /* BAREFOOTD */
-
-      if (mother->ack != -1 && FD_ISSET(mother->ack, rset)) {
-         slog(LOG_DEBUG, "%s: mother closed", function);
-
-         FD_CLR(mother->s, rset);
-         FD_CLR(mother->ack, rset);
-
-         mother->s = mother->ack = -1;
-      }
-
-      if (mother->s != -1 && FD_ISSET(mother->s, rset)) {
-         getnewio(mother);
-         continue; /* need to scan rset again, have a new client. */
-      }
 
       /*
        * We now know what descriptors are readable; rset.
        * Next prepare for the second select(2), where we want to
        * know which of the descriptors, paired with the above readable
        * descriptors, we can write to.  In that select(2) we also need to
-       * check for read, but only those descriptors that are not already
-       * readable, as that constitutes at least a status change which
-       * we should loop around for.
+       * check for read again, but only those descriptors that are not 
+       * already readable, as that constitutes at least a status change 
+       * which we should loop around for.  Likewise, we again need to
+       * check whether some new sockets have finished connecting (and
+       * thus become writable).
        */
 
-      gettimeofday(&timenow, NULL);
-      wbits = io_fillset(tmpset, 0, &timenow);
-      wbits = fdsetop(wbits + 1, '^', rset, tmpset, newrset);
+      i     = io_fillset(tmpset, 0, &tnow);
+      rbits = fdsetop(i + 1, '^', rset, tmpset, newrset);
 
-      if (mother->s != -1) { /* mother status may change too. */
-         FD_SET(mother->s, newrset);
-         wbits = MAX(wbits, mother->s);
+      if (sockscf.state.mother.s != -1) { /* mother status may change too. */
+         FD_SET(sockscf.state.mother.s, newrset);
+         rbits = MAX(rbits, sockscf.state.mother.s);
 
          /* checked so we know if mother goes away.  */
-         FD_SET(mother->ack, newrset);
-         wbits = MAX(wbits, mother->ack);
+         FD_SET(sockscf.state.mother.ack, newrset);
+         rbits = MAX(rbits, sockscf.state.mother.ack);
       }
 
       /*
        * descriptors to check for writability: those with the corresponding
-       * read-descriptor set, or data already buffered for write.
-       * If the descriptor is not readable, don't bother checking for
-       * exceptions either.
+       * read-descriptor set or data already buffered for write, as well
+       * as the connects that are still in progress. 
+       * Initialize with the set of connects still in progress, and then add 
+       * those fds that have the corresponding other side readable.
        */
+      wbits = io_fillset_connectinprogress(wset);
 
-      FD_ZERO(wset);
       FD_ZERO(controlset);
-      for (p = 0; p < rbits; ++p) {
-         if (!FD_ISSET(p, rset)) {
-            FD_CLR(p, xset);
-            continue;
-         }
+      for (p = 0; p < MAX(bits, first_rbits); ++p) {
+         if (FD_ISSET(p, buffwset)) {
+            /*
+             * Descriptor has data buffered for write.  That means
+             * we should mark the other side as readable as regardless
+             * of whether we can read from the other side or not now, we have
+             * data that we previously read from it and that we need to write.
+             */
+            int other_side;
 
-         io = io_finddescriptor(p);
-         SASSERTX(io != NULL);
+            io = io_finddescriptor(p);
+            SASSERTX(io != NULL);
+            SASSERTX(socks_bufferhasbytes(p, WRITE_BUF));
 
-         if (socks_bytesinbuffer(p, WRITE_BUF, 0) > 0
-         ||  socks_bytesinbuffer(p, WRITE_BUF, 1) > 0) {
+            if (p == io->src.s)
+               other_side = io->dst.s;
+            else if (p == io->dst.s)
+               other_side = io->src.s;
+            else
+               SERRX(p);
+
+            slog(LOG_DEBUG, "%s: fd %d has data buffered for write; "
+                            "checking it for writability and marking "
+                            "other side, fd %d, as readable",
+                            function, p, other_side);
+
+            FD_SET(other_side, rset);
+            rbits = MAX(other_side, rbits);
+
+            /*
+             * ok, we know we have data buffered for write, but /can/
+             * we write?  Need to check.
+             */
             FD_SET(p, wset);
             wbits = MAX(wbits, p);
          }
+         else {
+            /*
+             * No data buffered for write.  Is the socket readable, 
+             * from the buffer or from the socket itself?
+             */
+            if (!FD_ISSET(p, rset)) {
+               /*
+                * No.  Don't have anything to write either in that case, so
+                * don't bother checking for exceptions either.
+                */
+               FD_CLR(p, xset);
+               continue;
+            }
+
+            /*
+             * Yes, have data to read. 
+             */
+            io = io_finddescriptor(p);
+            SASSERTX(io != NULL);
+
+            /*
+             * find out what sockets we should check for writability.
+             */
 
 #if BAREFOOTD
-         /*
-          * The tcp case is the same as socks, but in the case of udp,
-          * we have a one-to-many scenario, where packets received
-          * on "in" can go to many different "out's.", and we don't
-          * know which out socket to use until we have read the packet,
-          * to see who the sender is.
-          *
-          * Udp sockets shouldn't block though, so selecting
-          * for writability is not really required.  Thus,
-          * we just need to make sure at all times that dst.s
-          * always contains one of the valid out sockets.  If
-          * one is writable, all should be.
-          *
-          * The reverse, when a packet comes in on one of the many
-          * out sockets is slightly more complicated. In this case,
-          * we need to select for readability on all the many out
-          * sockets.  This is handled in io_fillset(), but we also
-          * need to make sure that io->dst.s is set to the (possibly
-          * one of many) descriptors in dstv[] that is readable when
-          * we call doio().
-          */
+            /*
+             * The tcp case is the same as socks, but in the case of udp,
+             * we have a one-to-many scenario, where packets received
+             * on "in" can go to many different "outs.", and we don't
+             * know which out socket to use until we have read the packet,
+             * to see who the sender is.
+             *
+             * Udp sockets shouldn't block though, so selecting
+             * for writability is not really required.  Thus,
+             * we just need to make sure at all times that dst.s
+             * always contains one of the valid out sockets.  If
+             * one is writable, all should be.
+             *
+             * The reverse, when a packet comes in on one of the many
+             * out sockets is slightly more complicated. In this case,
+             * we need to select for readability on all the many out
+             * sockets.  This is handled in io_fillset(), but we also
+             * need to make sure that io->dst.s is set to the (possibly
+             * one of many) descriptors in dstv[] that is readable when
+             * we call doio().
+             */
 #endif /* BAREFOOTD */
 
-         if (io->src.s == p) {
-            /* read from in requires out to be writable. */
-            FD_SET(io->dst.s, wset);
-            wbits = MAX(wbits, io->dst.s);
-         }
-         else if (io->dst.s == p) {
-            /* read from out requires in to be writable. */
-            FD_SET(io->src.s, wset);
-            wbits = MAX(wbits, io->src.s);
-         }
-         else {
-            SASSERTX(io->control.s == p);
-            FD_SET(io->control.s, controlset);
+            if (io->src.s == p) { /* read from in requires writable out. */
+               FD_SET(io->dst.s, wset);
+               wbits = MAX(wbits, io->dst.s);
+            }
+            else if (io->dst.s == p) { /* read from out requires writable in. */
+               FD_SET(io->src.s, wset);
+               wbits = MAX(wbits, io->src.s);
+            }
+            else {
+               SASSERTX(io->control.s == p);
+               FD_SET(io->control.s, controlset);
 
-            /* also readable without matching writable. */
-            FD_SET(io->control.s, newrset);
-
-            wbits = MAX(wbits, io->control.s);
+               /* 
+                * also readable without matching writable.   Used to signal
+                * session close in udp and bind extension case.
+                */
+               FD_SET(io->control.s, newrset);
+               wbits = MAX(wbits, io->control.s);
+            }
          }
       }
 
       if (wbits++ == -1)
          continue;
 
-      switch (selectn(wbits, newrset, NULL, wset, NULL, NULL,
-      io_gettimeout(&timeout, &timenow))) {
+      if (newsocketsconnected) {
+         /* 
+          * Don't wait.  Handle what we can now, and then restart the loop,
+          * including the new socket(s).
+          */
+         bzero(&timeout, sizeof(timeout));
+         timeoutpointer = &timeout;
+      }
+      else
+         timeoutpointer = io_gettimeout(&timeout, &tnow);
+
+      bits = MAX(rbits, wbits) + 1;
+
+      slog(LOG_DEBUG, "%s: second select, what is writable?", function);
+      switch (selectn(bits, newrset, NULL, NULL, wset, NULL, timeoutpointer)) {
          case -1:
-            if (errno != EINTR)
-               SERR(-1);
-            continue;
+            if (errno == EINTR)
+               continue;
+
+            SERR(-1);
+            /* NOTREACHED */
 
          case 0:
             continue;
       }
 
-      if (mother->s != -1 && FD_ISSET(mother->s, rset)) {
-         FD_CLR(mother->s, rset);
-         getnewio(mother);
+      if (sockscf.state.mother.s != -1
+      && FD_ISSET(sockscf.state.mother.s, rset)) {
+         FD_CLR(sockscf.state.mother.s, rset);
+         getnewio();
       }
 
-      if (mother->ack != -1 && FD_ISSET(mother->ack, rset)) {
-         slog(LOG_DEBUG, "%s: mother closed", function);
-
-         FD_CLR(mother->s, rset);
-         FD_CLR(mother->ack, rset);
-
-         mother->s = mother->ack = -1;
-      }
+      if (sockscf.state.mother.ack != -1
+      && FD_ISSET(sockscf.state.mother.ack, rset))
+         continue; /* handle it in one place, above. */
 
       FD_COPY(tmpset, controlset);
-      fdsetop(wbits, '&', newrset, tmpset, controlset);
+      fdsetop(bits, '&', newrset, tmpset, controlset);
 
       /*
        * newrset: descriptors readable, all new apart from controldescriptors.
        *          Don't do anything with them here, loop around and check for
-       *          writability first.
+       *          writability first.  
+       *          XXX possible optimization target.  If the write buffer
+       *              has space, we can read at least that much.
        *
        * controlset: subset of newrset containing control descriptors
        *             that are readable.
@@ -654,29 +914,27 @@ run_io(mother)
        * xset: subset of rset with exceptions pending.
        *
        * wset: descriptors writable with at least one of:
-       *          - a matching descriptor in rset/xset.
-       *          - data buffered on the write side.
-       *       This is what we can do i/o over.
+       *          a) a matching descriptor in rset/xset.
+       *          b) data buffered on the write side.
+       *          c) a connect previously in progress, and now completed.
+       *       a) and b) we can do i/o over, c) we can't know for sure.
        */
 
+
       /*
-       * First check all io's which have an exception pending.
+       * Check all ios which have an exception pending.
        * Getting an io here does not mean we can do i/o over it
        * however, so need to check for writability also.
        */
-      while ((io = io_getset(rbits, xset)) != NULL) {
+      while ((io = io_getset(bits, xset)) != NULL) {
          slog(LOG_DEBUG, "select(): exception set");
 
          if (FD_ISSET(io->dst.s, wset)) {
-            if (io->state.protocol == SOCKS_UDP)
-               socks_sigblock(SIGHUP, &oldset);
-
-            doio(mother->ack, io, xset, wset, MSG_OOB);
-
-            if (io->state.protocol == SOCKS_UDP)
-               socks_sigunblock(&oldset);
-
+            iostatus = doio(io, xset, wset, MSG_OOB, &badfd);
             io_clearset(io, wset);
+
+            if (!IOSTATUS_NONFATAL_ERROR(iostatus))
+               delete_io(sockscf.state.mother.ack, io, badfd, iostatus);
          }
 
          io_clearset(io, xset);
@@ -689,45 +947,103 @@ run_io(mother)
       }
 
       /*
-       * Get all io's which are writable.  They will have a matching
-       * descriptor that is readable.
+       * Get all ios which are writable.  They will either have a matching 
+       * descriptor that is readable, data buffered for write, or belong to 
+       * an io that has just finished connecting.
        */
-      while ((io = io_getset(wbits, wset)) != NULL) {
-         if (io->state.protocol == SOCKS_UDP)
-            socks_sigblock(SIGHUP, &oldset);
-         doio(mother->ack, io, rset, wset, 0);
+      while ((io = io_getset(bits, wset)) != NULL) {
+         if (io->state.command  == SOCKS_CONNECT
+         && !io->dst.state.connected) {
+            SASSERTX(FD_ISSET(io->dst.s, wset));
 
-         if (io->state.protocol == SOCKS_UDP)
-            socks_sigunblock(&oldset);
+            checkconnectstatus(io);
+            FD_CLR(io->dst.s, wset);
 
+            continue; /* don't know what the status of this one is. */
+         }
 #if BAREFOOTD
-         if (io->state.command == SOCKS_UDPASSOCIATE
-         && FD_SET(io->src.s, rset)) {
+         if (io->state.command == SOCKS_UDPASSOCIATE) {
             /*
-             * More tricky; udp is a "point-to-multipoint" case.
-             * If it is the source that is readable, we can not
-             * assume that since the destination is writable, we will
-             * have a packet pending on source, as with multiple
-             * destinations, that, possibly one, packet pending on
-             * source has not been read.  We thus need to clear all
-             * other destinations too after we have read from source.
+             * Since udp is a "point-to-multipoint" case, the
+             * descriptors in rset could be any of the descriptors in 
+             * io->dstv, or the one in io->src.s.
+             *
+             * If it's the former, we need to find out which one(s) it is,
+             * and set io->dst.s appropriatly. 
+             *
+             * If it's the later, there could be many packets queued
+             * up, especially since that one socket will be handling
+             * io->dstc number of clients.  If so, we'll want to 
+             * read from the socket until there are no more packets,
+             * to reduce the chance of packets being dropped because
+             * the socket buffer runs full.
              */
             size_t i;
 
-            for (i = 0; i < io->dstc; ++i)
-               FD_CLR(io->dstv[i].s, wset);
-         }
-#endif /* BAREFOOTD */
+            /*
+             * possibly wset contains the dummy fd only, but 
+             * we want to treat the udp socket as always 
+             * writable, no mater which udp socket it is.
+             */
+            FD_SET(io->dst.s, wset);
 
+            if (FD_ISSET(io->src.s, rset)) {
+               do
+                  iostatus = doio(io, rset, wset, 0, &badfd);
+               while (!timerisset(&bwoverflow) 
+               &&     io->dstc > 1
+               &&     iostatus != IO_EAGAIN
+               &&     IOSTATUS_NONFATAL_ERROR(iostatus));
+
+               FD_CLR(io->dst.s, wset);
+               for (i = 0; i < io->dstc; ++i)
+                  FD_CLR(io->dstv[i].s, wset);
+            }
+            else {
+               /*
+                 * reply from at least one destionatin.  Loop through all.
+                 * Don't care about about bwoverflow here, as if we do,
+                 * we might end up only reading packets from the first
+                 * range of clients for a long while.  More fair to read
+                 * from all, and then pause if neccessary. 
+                 */
+               for (i = 1; i < io->dstc; ++i) {
+                  if (FD_ISSET(io->dstv[i].s, rset)) {
+                     SYNC_UDPDST(&io->dst, &io->dstv[i]);
+                     iostatus = doio(io, rset, wset, 0, &badfd);
+                     FD_CLR(io->dst.s, wset);
+
+                     if (!IOSTATUS_NONFATAL_ERROR(iostatus))
+                        delete_io(sockscf.state.mother.ack,
+                                  io,
+                                  badfd,
+                                  iostatus);
+                  }
+               }
+            }
+
+            io_clearset(io, rset);
+            io_clearset(io, wset);
+            io_clearset(io, controlset);
+         }
+         else { /* tcp; same as Dante. */
+#endif /* BAREFOOTD */
+         iostatus = doio(io, rset, wset, 0, &badfd);
          io_clearset(io, rset);
          io_clearset(io, wset);
          io_clearset(io, controlset);
+
+         if (!IOSTATUS_NONFATAL_ERROR(iostatus))
+            delete_io(sockscf.state.mother.ack, io, badfd, iostatus);
+#if BAREFOOTD
+         }
+#endif /* BAREFOOTD */
       }
 
       /*
-       * Get all io's which have controldescriptors that are readable.
+       * Get all ios which have controldescriptors that are readable.
        */
-      while ((io = io_getset(rbits, controlset)) != NULL) {
+      while ((io = io_getset(bits, controlset)) != NULL) {
          static fd_set *nullset;
 
          if (nullset == NULL)
@@ -735,22 +1051,116 @@ run_io(mother)
 
          FD_ZERO(nullset);
 
-         if (io->state.protocol == SOCKS_UDP)
-            socks_sigblock(SIGHUP, &oldset);
-
-         doio(mother->ack, io, controlset, nullset, 0);
-
-         if (io->state.protocol == SOCKS_UDP)
-            socks_sigunblock(&oldset);
+         iostatus = doio(io, controlset, nullset, 0, &badfd);
 
          io_clearset(io, controlset);
          /* controlset is subset of newrset so clear newrset too. */
          io_clearset(io, newrset);
+
+         if (!IOSTATUS_NONFATAL_ERROR(iostatus))
+            delete_io(sockscf.state.mother.ack, io, badfd, iostatus);
       }
 
       /* possible future optimization: if newrset not empty, use it? */
    }
 }
+
+void
+io_handlesighup(void)
+{
+   const char *function = "io_handlesighup()";
+   size_t i;
+
+   slog(LOG_DEBUG, "%s: ioc = %ld", function, (long)ioc);
+
+   for (i = 0; i < ioc; ++i) {
+#if BAREFOOTD
+      size_t clienti;
+#endif /* BAREFOOTD */
+
+      if (!iov[i].allocated)
+         continue;
+
+      iov[i].use_saved_rule      = 0;
+      iov[i].use_saved_replyrule = 0;
+
+#if BAREFOOTD
+      slog(LOG_DEBUG, "%s: iov #%ld, dstc = %ld",
+      function, (long)ioc, (long)iov[i].dstc);
+
+      for (clienti = 1; clienti < iov[i].dstc; ++clienti) {
+         iov[i].dstv[clienti].use_saved_rule      = 0;
+         iov[i].dstv[clienti].use_saved_replyrule = 0;
+      }
+#endif /* BAREFOOTD */
+   }
+}
+
+
+#if BAREFOOTD
+int
+io_remove_session(laddr, protocol)
+   const struct sockaddr  *laddr;
+   const int protocol;
+{
+   const char *function = "io_remove_session()";
+   size_t i;
+
+   SASSERTX(protocol == SOCKS_UDP);
+  
+   slog(LOG_DEBUG, "%s: searching for local address %s", 
+   function, laddr == NULL ? "<any>" : sockaddr2string(laddr, NULL, 0));
+
+   for (i = 0; i < ioc; ++i) {
+      size_t clienti;
+
+      if (!iov[i].allocated
+      || iov[i].state.protocol != protocol)
+         continue;
+
+      if (laddr != NULL
+      &&  memcmp(&iov[i].src.laddr, laddr, sizeof(*laddr)) != 0)
+         continue;
+
+      slog(LOG_DEBUG, "removing iov #%lu with %lu active udp session%s in "
+                      "child %lu", 
+                      (unsigned long)i,
+                      (unsigned long)iov[i].dstc - 1,
+                      (iov[i].dstc - 1) == 1 ? "" : "s",
+                      (unsigned long)sockscf.state.pid);
+
+
+      close(iov[i].src.s); /* delete_io() does not close udp src in barefoot. */
+      for (clienti = 1; clienti < iov[i].dstc; ++clienti) {
+         iov[i].rule  = iov[i].dstv[clienti].rule;
+         iov[i].crule = iov[i].dstv[clienti].crule;
+
+         SYNC_UDPDST(&iov[i].dst, &iov[i].dstv[clienti]);
+         delete_io(-1, &iov[i], -1, IO_ADMINTERMINATION);
+      }
+      SYNC_UDPDST(&iov[i].dst, &iov[i].dstv[0]);
+
+      freebuffers(&iov[i]);
+      free(iov[i].dstv);
+
+      iov[i].allocated = 0;
+
+      if (sockscf.state.mother.ack != -1) {
+         const char p = SOCKD_FREESLOT_UDP;
+
+         /* ack io slot free. */
+         if (socks_sendton(sockscf.state.mother.ack, &p, sizeof(p), sizeof(p),
+         0, NULL, 0, NULL) != sizeof(p))
+             swarn("%s: socks_sendton(): mother", function);
+      }
+
+      proctitleupdate();
+      return 0;
+   }
+
+   return -1;
+}
+#endif /* BAREFOOTD */
 
 static void
 delete_io(mother, io, fd, status)
@@ -761,36 +1171,56 @@ delete_io(mother, io, fd, status)
 {
    const char *function = "delete_io()";
    const int errno_s = errno;
-   struct rule_t *rulev[2];
-   size_t i, src_read, src_written, dst_read, dst_written,
-          src_packetsread, src_packetswritten, dst_packetsread,
-          dst_packetswritten;
-   time_t timenow;
+   size_t i;
+   struct timeval tnow, timeestablished;
+   uint64_t src_read, src_written, dst_read, dst_written,
+            src_packetsread, src_packetswritten, dst_packetsread,
+            dst_packetswritten;
+   /*
+    * XXX log socks-rule first, then client-rule, so it's consistent with
+    * session-start.
+    */
+   struct rule_t *rulev[] = { &io->rule,
+                              &io->crule };
+   int isclientrulev[] =    { 0,
+                              1 };
    int command, protocol;
 #if HAVE_GSSAPI
    gss_buffer_desc output_token;
    OM_uint32 minor_status;
 #endif /* HAVE_GSSAPI */
 
+   SASSERTX(  fd < 0 
+           || fd == io->src.s 
+           || fd == io->control.s
+           || fd == io->dst.s);
+
    SASSERTX(io->allocated);
 
-   session_unuse(io->rule.ss);
+   SHMEM_UNUSE(&io->rule,
+               &(TOIN(&io->control.raddr)->sin_addr),
+               sockscf.shmemfd);
 
-   if (io->state.protocol == SOCKS_TCP) /* udp rules are temporary. */
-      bw_unuse(io->rule.bw);
-
-   time(&timenow);
+   gettimeofday(&tnow, NULL);
 
    /* log the disconnect if client-rule or socks-rule says so. */
-   rulev[0] = &io->rule;
-   rulev[1] = &io->crule;
    for (i = 0; i < ELEMENTS(rulev); ++i) {
       const struct rule_t *rule = rulev[i];
       size_t bufused;
       char in[MAX_IOLOGADDR], out[MAX_IOLOGADDR],
-           timeinfo[256], logmsg[sizeof(in) + sizeof(out) + 1024];
+           timeinfo[512],
+           logmsg[sizeof(in) + sizeof(out) + 1024 + sizeof(timeinfo)];
 
-      if (!rule->log.disconnect)
+#if !HAVE_TWO_LEVEL_ACL 
+      if (rule == &io->crule)
+         if (!sockscf.option.debug)
+            continue; /* normally, only log from the socks-rule. */
+#endif /* HAVE_TWO_LEVEL_ACL */
+
+      if (rule->log.disconnect
+      || (rule->log.error && status == IO_ERROR))
+         /* LINTED */ /* EMPTY */;
+      else
          continue;
 
       src_written        = io->src.written.bytes;
@@ -805,7 +1235,24 @@ delete_io(mother, io, fd, status)
       dst_read           = io->dst.read.bytes;
       dst_packetsread    = io->dst.read.packets;
 
-      if (rule == &io->crule) { /* client-rule */
+      timeestablished    = io->state.time.established;
+
+      if (isclientrulev[i]) {
+#if BAREFOOTD
+         if (io->state.protocol == SOCKS_UDP)
+            /*
+             * In udp-case, we copy logstate from client-rule
+             * to socks-rule, as we need to do a rulecheck on
+             * each packet.  Since we don't want to log twice, 
+             * we need to ignore the logstate of the client-rule.
+             */
+            continue;
+#endif
+
+         /*
+          * XXX if support for serverchaining is added to bind, the
+          * bindreply might involve a proxy on the src side.
+          */
          BUILD_ADDRSTR_SRC(&io->control.host,
                            NULL,
                            NULL,
@@ -820,11 +1267,7 @@ delete_io(mother, io, fd, status)
          command  = io->state.clientcommand;
          protocol = io->state.clientprotocol;
       }
-      else if (rule == &io->rule) { /* socks rule. */
-         /*
-          * XXX if support for serverchaining is added to bind, the
-          * bindreply might involve a proxy on the src side.
-          */
+      else { /* socks rule. */
          BUILD_ADDRSTR_SRC(&io->src.host,
                            NULL,
                            NULL,
@@ -835,8 +1278,8 @@ delete_io(mother, io, fd, status)
                            sizeof(in));
 
          switch (io->state.command) {
-            case SOCKS_BINDREPLY:
             case SOCKS_BIND:
+            case SOCKS_BINDREPLY:
             case SOCKS_CONNECT: {
                BUILD_ADDRSTR_DST(&io->dst.laddr,
                                  io->state.proxyprotocol == PROXY_DIRECT
@@ -858,9 +1301,9 @@ delete_io(mother, io, fd, status)
                if (io->dst.state.connected)
                   BUILD_ADDRSTR_DST(&io->dst.laddr,
                                     io->state.proxyprotocol == PROXY_DIRECT
-                                        ? NULL : &io->state.proxychain.server,
+                                       ? NULL : &io->state.proxychain.server,
                                     io->state.proxyprotocol == PROXY_DIRECT
-                                        ? NULL : &io->state.proxychain.extaddr,
+                                       ? NULL : &io->state.proxychain.extaddr,
                                     &io->dst.host,
                                     &io->dst.auth, 
                                     NULL,
@@ -892,6 +1335,8 @@ delete_io(mother, io, fd, status)
 
                dst_read           = client->dst_read.bytes;
                dst_packetsread    = client->dst_read.packets;
+
+               timeestablished    = client->firstio;
 #endif /* BAREFOOTD */
 
                break;
@@ -904,62 +1349,63 @@ delete_io(mother, io, fd, status)
          command  = io->state.command;
          protocol = io->state.protocol;
       }
-      else
-         SERRX(0);
 
-      bufused = snprintfn(logmsg, sizeof(logmsg), "%s(%lu): %s/%s ]: ",
-                          rule->verdict == VERDICT_PASS ?
-                          VERDICT_PASSs : VERDICT_BLOCKs,
-                          (unsigned long)rule->number,
-                          protocol2string(protocol),
-                          command2string(command));
+      bufused = snprintf(logmsg, sizeof(logmsg), "%s(%lu): %s/%s ]: ",
+                         rule->verdict == VERDICT_PASS ?
+                         VERDICT_PASSs : VERDICT_BLOCKs,
+#if BAREFOOTD
+                        /* use the number from the user-created rule. */
+                        io->state.protocol == SOCKS_UDP ?
+                          (unsigned long)io->crule.number
+                        : (unsigned long)io->rule.number,
+#else /* !BAREFOOTD */
+                        (unsigned long)io->rule.number,
+#endif /* !BAREFOOTD */
+                         protocol2string(protocol),
+                         command2string(command));
 
       if (protocol == SOCKS_TCP) {
          if (*out == NUL) {
             const int isreversed
             = (io->state.command == SOCKS_BINDREPLY ? 1 : 0);
 
-            bufused +=
-            snprintfn(&logmsg[bufused], sizeof(logmsg) - bufused,
-                      "%lu -> %s -> %lu",
-                      (unsigned long)(isreversed ? dst_written : src_written),
-                      in,
-                      (unsigned long)(isreversed ? src_written : dst_written));
+            bufused
+            += snprintf(&logmsg[bufused], sizeof(logmsg) - bufused,
+                       "%"PRIu64" -> %s -> %"PRIu64"",
+                       (isreversed ? dst_written : src_written),
+                       in,
+                       (isreversed ? src_written  : dst_written));
          }
          else
             bufused
-            += snprintfn(&logmsg[bufused], sizeof(logmsg) - bufused,
-                        "%lu -> %s -> %lu, %lu -> %s -> %lu",
-                        (unsigned long)(src_written),
-                        in,
-                        (unsigned long)(src_read),
-                        (unsigned long)(dst_written),
-                        out,
-                        (unsigned long)(dst_read));
+            += snprintf(&logmsg[bufused], sizeof(logmsg) - bufused,
+                       "%"PRIu64" -> %s -> %"PRIu64", "
+                       "%"PRIu64" -> %s -> %"PRIu64"",
+                       src_written, in, src_read,
+                       dst_written, out, dst_read);
       }
       else {
          SASSERTX(*out != NUL);
 
-         bufused
-         += snprintfn(&logmsg[bufused], sizeof(logmsg) - bufused,
-                      "%lu/%lu -> %s -> %lu/%lu, %lu/%lu -> %s -> %lu/%lu",
-                      (unsigned long)src_written,
-                      (unsigned long)src_packetswritten,
-                      in,
-                      (unsigned long)src_read,
-                      (unsigned long)src_packetsread,
-                      (unsigned long)dst_written,
-                      (unsigned long)dst_packetswritten,
-                      out,
-                      (unsigned long)dst_read,
-                      (unsigned long)dst_packetsread);
+         bufused += snprintf(&logmsg[bufused], sizeof(logmsg) - bufused,
+                            "%"PRIu64"/%"PRIu64" -> %s -> %"PRIu64"/%"PRIu64", "
+                            "%"PRIu64"/%"PRIu64" -> %s -> %"PRIu64"/%"PRIu64"",
+                            src_written, src_packetswritten, in,
+                            src_read, src_packetsread,
+                            dst_written, dst_packetswritten, out,
+                            dst_read, dst_packetsread);
       }
 
-      bufused = snprintf(timeinfo, sizeof(timeinfo), "after %.0fs",
-                         difftime(timenow, io->state.time.established.tv_sec));
+      bufused = snprintf(timeinfo, sizeof(timeinfo), "after %lds",
+                         (long)(tnow.tv_sec - timeestablished.tv_sec));
 
-      if (sockscf.option.debug) {
-         struct timeval accept2negotiate, neg2establish, established2io;
+      if (sockscf.option.debug
+#if BAREFOOTD
+      &&  protocol == SOCKS_TCP
+#endif /* BAREFOOTD */
+      ) {
+         struct timeval accept2negotiate, neg2establish, sessionduration;
+         char established2io_str[16];
 
          timersub(&io->state.time.negotiate, &io->state.time.accepted,
                   &accept2negotiate);
@@ -967,135 +1413,137 @@ delete_io(mother, io, fd, status)
          timersub(&io->state.time.established, &io->state.time.negotiate,
                   &neg2establish);
 
-         timersub(&io->state.time.firstio, &io->state.time.established,
-                  &established2io);
+         if (io->state.time.firstio.tv_sec == 0) {
+            SASSERTX(sizeof(established2io_str) >= sizeof("N/A"));
+            strcpy(established2io_str, "N/A");
+         }
+         else {
+            struct timeval established2io;
+
+            timersub(&io->state.time.firstio, &io->state.time.established,
+                     &established2io);
+
+            snprintf(established2io_str, sizeof(established2io_str), 
+                     "%ld.%06lds",
+                    (long)established2io.tv_sec,
+                    (long)established2io.tv_usec);
+         }
+
+         timersub(&tnow, &io->state.time.accepted, &sessionduration);
 
          bufused += snprintf(&timeinfo[bufused], sizeof(timeinfo) - bufused,
                              "\n"
-                             "accept to negotiate start       : %ld.%ld\n"
-                             "negotiate start to finish       : %ld.%ld\n"
-                             "session establish to first i/o  : %ld.%ld\n",
+                             "accept to negotiate start       : %ld.%06lds\n"
+                             "negotiate start to finish       : %ld.%06lds\n"
+                             "session establish to first i/o  : %s\n"
+                             "total session duration          : %ld.%06lds\n",
                              (long)accept2negotiate.tv_sec,
                              (long)accept2negotiate.tv_usec,
                              (long)neg2establish.tv_sec,
                              (long)neg2establish.tv_usec,
-                             (long)established2io.tv_sec, (long)
-                             established2io.tv_usec);
+                             established2io_str,
+                             (long)sessionduration.tv_sec, 
+                             (long)sessionduration.tv_usec);
       }
 
       errno = errno_s;
-      if (fd < 0) {
-         switch (status) {
-            case IO_SRCBLOCK:
-               slog(LOG_INFO, "%s: delayed source block %s", logmsg, timeinfo);
-               break;
+      switch (status) {
+         case IO_BLOCK:
+            slog(LOG_INFO, "%s: blocked, %s", logmsg, timeinfo);
+            break;
 
-            case IO_ERROR:
-               swarn("%s: connection error %s", logmsg, timeinfo);
-               break;
+         case IO_ERROR: {
+            char errbuf[128];
 
-            case IO_CLOSE:
-               slog(LOG_INFO, "%s: connection closed %s", logmsg, timeinfo);
-               break;
+            if (errno != 0)
+               snprintf(errbuf, sizeof(errbuf), " (%s)", errnostr(errno));
+            else
+               *errbuf = NUL;
 
-            case IO_TIMEOUT:
-               slog(LOG_INFO, "%s: session i/o timeout %s", logmsg, timeinfo);
-               break;
+            slog(LOG_INFO, "%s: %s error, %s%s",
+                 logmsg,  fd < 0 ? "session" : fd == io->dst.s ?
+                 "remote peer" : "client",
+                 timeinfo, 
+                 errbuf);
 
-            case IO_SHORT:
-               slog(LOG_INFO, "%s: short read/write %s", logmsg, timeinfo);
-               break;
-
-            default:
-               SERRX(status);
-         }
-      }
-      else if (fd == io->src.s || fd == io->control.s) {
-         switch (status) {
-            case IO_SRCBLOCK:
-               slog(LOG_INFO, "%s: delayed source block %s", logmsg, timeinfo);
-               break;
-
-            case IO_ERROR: {
+            if (fd >= 0) { /* try to send rst to other end. */
                struct linger linger;
 
-               swarn("%s: error from client %s", logmsg, timeinfo);
-
-               /* send rst to other end. */
                linger.l_onoff  = 1;
                linger.l_linger = 0;
-               if (setsockopt(io->dst.s, SOL_SOCKET, SO_LINGER, &linger,
-               sizeof(linger)) != 0)
-                  swarn("%s: setsockopt(io->dst, SO_LINGER)", function);
 
-               break;
+               if (setsockopt(fd == io->dst.s ? io->src.s : io->dst.s,
+                              SOL_SOCKET,
+                              SO_LINGER,
+                              &linger,
+                              sizeof(linger)) != 0)
+                  slog(LOG_DEBUG,
+                       "%s: setsockopt(io->dst, SO_LINGER) failed: %s",
+                       function, strerror(errno));
+            }
+            break;
+         }
+
+         case IO_CLOSE:
+            slog(LOG_INFO, "%s: %s closed, %s",
+                logmsg,
+                fd < 0 ? "session" : fd == io->dst.s ?
+                "remote peer" : "client",
+                timeinfo);
+            break;
+
+         case IO_TIMEOUT: {
+            const char *timeoutinfo;
+            timeout_type_t timeouttype;
+            long timetiltimeout;
+
+            timetiltimeout = io_timetiltimeout(io, &tnow, &timeouttype);
+            SASSERTX(timetiltimeout <= 0);
+
+            switch (timeouttype) {
+               case TIMEOUT_CONNECT:
+                  timeoutinfo = "the connect to complete";
+                  break;
+
+               case TIMEOUT_IO:
+                  timeoutinfo = "more data";
+                  break;
+               
+               case TIMEOUT_TCP_FIN_WAIT:
+                  SASSERTX(io->src.state.shutdown_wr
+                  ||       io->dst.state.shutdown_wr);
+
+                  if (io->dst.state.shutdown_wr)
+                     timeoutinfo = "the client to close the connection";
+                  else
+                     timeoutinfo = "the remote peer to close the connection";
+                  break;
+
+              default:
+               SERRX(timeouttype);
             }
 
-            case IO_CLOSE:
-               slog(LOG_INFO, "%s: client closed %s", logmsg, timeinfo);
-               break;
+            slog(LOG_INFO, "%s: timeout while waiting for %s, %s",
+            logmsg, timeoutinfo, timeinfo);
 
-            case IO_TIMEOUT:
-               slog(LOG_INFO, "%s: session i/o timeout %s", logmsg, timeinfo);
-               break;
-
-            case IO_SHORT:
-               slog(LOG_INFO, "%s: short read/write from client %s",
-               logmsg, timeinfo);
-               break;
-
-            default:
-               SERRX(status);
+            break;
          }
+
+         case IO_ADMINTERMINATION:
+            slog(LOG_INFO, "%s: admin termination, %s", logmsg, timeinfo);
+            break;
+
+         default:
+            SERRX(status);
       }
-      else if (fd == io->dst.s) {
-         switch (status) {
-            case IO_SRCBLOCK:
-               slog(LOG_INFO, "%s: delayed source block %s", logmsg, timeinfo);
-               break;
 
-            case IO_ERROR: {
-               struct linger linger;
-
-               swarn("%s: error from remote peer %s", logmsg, timeinfo);
-
-               /* send rst to other end. */
-               linger.l_onoff    = 1;
-               linger.l_linger    = 0;
-               if (setsockopt(io->src.s, SOL_SOCKET, SO_LINGER, &linger,
-               sizeof(linger)) != 0)
-                  swarn("%s: setsockopt(io->dst, SO_LINGER)", function);
-               break;
-            }
-
-            case IO_CLOSE:
-               slog(LOG_INFO, "%s: remote peer closed %s", logmsg, timeinfo);
-               break;
-
-            case IO_TIMEOUT:
-               slog(LOG_INFO, "%s: session i/o timeout %s", logmsg, timeinfo);
-               break;
-
-            case IO_SHORT:
-               slog(LOG_INFO, "%s: short read/write from remote peer %s",
-               logmsg, timeinfo);
-               break;
-
-            default:
-               SERRX(status);
-         }
-      }
-      else
-         SERRX(fd);
-
-
-      if (io->state.command == SOCKS_BINDREPLY && rule == &io->rule) {
+      if (io->state.command == SOCKS_BINDREPLY && !isclientrulev[i]) {
          /*
           * log the close of the opened bind session also.
           */
 
          const int original_command = io->state.command;
-         io->state.command          = SOCKS_BIND;
+         io->state.command = SOCKS_BIND;
          iolog(&io->rule,
                &io->state,
                OPERATION_DISCONNECT,
@@ -1116,6 +1564,7 @@ delete_io(mother, io, fd, status)
                0);
          io->state.command          = original_command;
       }
+
    }
 
 #if HAVE_GSSAPI
@@ -1140,27 +1589,25 @@ delete_io(mother, io, fd, status)
 #if BAREFOOTD
    if (io->state.command == SOCKS_UDPASSOCIATE) {
       /*
-       * The io itself is never freed in the udp-case, as we can
-       * always get new clients.
+       * The io itself is normaly not freed in the udp-case, as we can
+       * always get new clients; only the client is removed.
+       * The only exception to this is if sockd.conf is changed before
+       * a sighup.  It may then be we should no longer maintain a
+       * udp session for these clients, but that needs to be handled
+       * specially.
        */
       removeudpclient(io->dst.s, &io->dstc, io->dstv);
-      io->dst.s = io->dstv[0].s; /* needs to point at something. */
    }
-   else { /* not UDP, must be TCP, free io as usual then. */
+   else { /* not UDP, must be TCP.  Free io as usual then. */
 #endif /* BAREFOOTD */
 
-   if (io->control.s != -1 && io->control.s != io->src.s)
-      socks_freebuffer(io->control.s);
-
-   socks_freebuffer(io->src.s);
-   socks_freebuffer(io->dst.s);
-
+   freebuffers(io);
    close_iodescriptors(io);
-
    io->allocated = 0;
 
    if (mother != -1) {
-      const char b = SOCKD_FREESLOT;
+      const char b = io->state.command
+      == SOCKS_UDPASSOCIATE ? SOCKD_FREESLOT_UDP : SOCKD_FREESLOT_TCP;
 
       /* ack io slot free. */
       if (socks_sendton(mother, &b, sizeof(b), sizeof(b), 0, NULL, 0, NULL)
@@ -1179,9 +1626,18 @@ void
 close_iodescriptors(io)
    const struct sockd_io_t *io;
 {
+   const char *function = "close_iodescriptors()";
 
    close(io->src.s);
    close(io->dst.s);
+
+#if !SOCKS_SERVER
+   if (sockscf.state.type == CHILD_IO) {
+      freefds += 2;
+      slog(LOG_DEBUG, "%s: free fds: %d", function, freefds);
+   }
+
+#else /* may have control also. */
 
    switch (io->state.command) {
       case SOCKS_CONNECT:
@@ -1193,20 +1649,14 @@ close_iodescriptors(io)
             break;
          /* else: */ /* FALLTHROUGH */
 
-      case SOCKS_UDPASSOCIATE: {
-#if BAREFOOTD
-         size_t i;
-
-         for (i = 1; i < io->dstc; ++i)
-            close(io->dstv[i].s);
-#else /* !BAREFOOTD */
+      case SOCKS_UDPASSOCIATE:
          close(io->control.s);
-#endif /* !BAREFOOTD */
          break;
-      }
+
       default:
          SERRX(io->state.command);
    }
+#endif /* !SOCKS_SERVER */
 }
 
 int
@@ -1215,47 +1665,24 @@ recv_io(s, io)
    struct sockd_io_t *io;
 {
    const char *function = "recv_io()";
+   struct sockd_io_t tmpio;
    struct iovec iovecv[2];
    struct msghdr msg;
+   size_t ioi;
    ssize_t received;
-   size_t i, ioi;
-   int wearechild, flags, fdexpect, fdreceived, iovecc, fdv[3];
+   struct timeval tnow;
+   int wearechild, fdexpect, fdreceived, iovecc;
 #if HAVE_GSSAPI
    gss_buffer_desc gssapistate;
    char gssapistatemem[MAXGSSAPITOKENLEN];
 #endif /* HAVE_GSSAPI */
    CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
-   ioi = 0;
-   if (io == NULL) {   /* child semantics; find a io ourselves. */
-      wearechild = 1;
-
-      for (; ioi < ioc; ++ioi)
-         if (!iov[ioi].allocated) {
-            io = &iov[ioi];
-            break;
-         }
-
-      if (io == NULL) {
-         /*
-          * either mother died/closed connection, or there is another error.
-          * Both cases should be rare so try to find out what the problem is.
-          */
-         char buf;
-
-         if (recv(s, &buf, sizeof(buf), MSG_PEEK) > 0)
-            SERRX(io_allocated(NULL, NULL));
-         return -1;
-      }
-   }
-   else
-      wearechild = 0;
-
    bzero(iovecv, sizeof(iovecv));
    iovecc = 0;
 
-   iovecv[iovecc].iov_base = io;
-   iovecv[iovecc].iov_len  = sizeof(*io);
+   iovecv[iovecc].iov_base = &tmpio;
+   iovecv[iovecc].iov_len  = sizeof(tmpio);
    ++iovecc;
 
 #if HAVE_GSSAPI
@@ -1273,16 +1700,52 @@ recv_io(s, io)
    /* LINTED pointer casts may be troublesome */
    CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
 
-   if ((received = recvmsg(s, &msg, 0)) < (ssize_t)sizeof(*io)) {
+   if (io == NULL) /* child semantics; find a free io ourselves. */
+      wearechild = 1;
+   else
+      wearechild = 0;
+      
+   if ((received = recvmsgn(s, &msg, 0)) < (ssize_t)sizeof(*io)) {
       if (received == 0)
-         slog(LOG_DEBUG, "%s: recvmsg(): mother closed connection", function);
-      else
-         swarn("%s: recvmsg(): %ld out of %lu bytes",
-         function, (long)received, (long unsigned)sizeof(*io));
+         slog(LOG_DEBUG, "%s: recvmsg(): %s closed connection",
+         function, pidismother(sockscf.state.pid) ? "mother" : "child");
 
       return -1;
    }
+         
+   if (socks_msghaserrors(function, &msg))
+      return -1;
 
+   /*
+    * ok, received a io.  Find out where to store it.
+    */
+   ioi = 0;
+   if (wearechild) { /* child semantics; find a free io ourselves. */
+      SASSERTX(io == NULL);
+
+      for (; ioi < ioc; ++ioi)
+         if (!iov[ioi].allocated) {
+            io = &iov[ioi];
+            break;
+         }
+
+      if (io == NULL) {
+         /*
+          * Only reason this should happen is if mother died/closed connection,
+          * or there is another error, as mother knows how many ios we can 
+          * accept.  Try to find out what the problem is.
+          */
+         char buf;
+
+         if (recv(s, &buf, sizeof(buf), MSG_PEEK) > 0)
+            /* mismatch between us and mother. */
+            SERRX(io_allocated(NULL, NULL));
+
+         return -1;
+      }
+   }
+
+   *io       = tmpio;
    received -= sizeof(*io);
 
    /* figure out how many descriptors we are supposed to be passed. */
@@ -1311,13 +1774,8 @@ recv_io(s, io)
          SERRX(io->state.command);
    }
 
-   /* calculate expected datalen */
-
-#if !HAVE_DEFECT_RECVMSG
-   SASSERT((size_t)CMSG_TOTLEN(msg)
-   == (size_t)(CMSG_SPACE(sizeof(int) * fdexpect)) ||
-   (size_t)CMSG_TOTLEN(msg) == (size_t)(CMSG_LEN(sizeof(int) * fdexpect)));
-#endif /* !HAVE_DEFECT_RECVMSG */
+   /* verify expected datalen */
+   CMSG_VERIFY_RCPTLEN(msg, sizeof(int) * fdexpect);
 
    /*
     * Get descriptors sent us.  Should be at least two.
@@ -1333,7 +1791,9 @@ recv_io(s, io)
    gssapistate.length = received;
 
    if (received > 0)
-      slog(LOG_DEBUG, "%s: read gssapistate of size %d", function, received);
+      if (sockscf.option.debug > 1)
+         slog(LOG_DEBUG, "%s: read gssapistate of size %ld",
+         function, (unsigned long)received);
 #endif /* HAVE_GSSAPI */
 
    /* any more descriptors to expect? */
@@ -1394,7 +1854,11 @@ recv_io(s, io)
                return -1;
          }
 #endif /* HAVE_GSSAPI */
-#endif /* SOCKS_SERVER */
+#else /* !SOCKS_SERVER */
+
+         io->control.s = -1;
+#endif /* !SOCKS_SERVER */
+
          break;
 
       default:
@@ -1402,12 +1866,18 @@ recv_io(s, io)
    }
 
    if (wearechild) { /* only child does i/o and needs a buffer. */
-      /* needs to be set now for correct bandwidth calculation/limiting. */
-      gettimeofday(&io->iotime, NULL);
+      gettimeofday(&tnow, NULL);
 
-#if BAREFOOTD /* set up things for first socket. */
+      /* needs to be set now for correct bandwidth calculation/limiting. */
+      io->iotime = tnow;
+
+#if BAREFOOTD 
       if (io->state.command == SOCKS_UDPASSOCIATE) {
-         if ((io->dstv = malloc(UDPBLOCK * sizeof(*io->dstv))) == NULL) {
+         /*
+          * prepare things for udp client
+          */
+
+         if ((io->dstv = malloc(UDP_MEMBLOCK * sizeof(*io->dstv))) == NULL) {
             swarn("%s: failed to allocate memory for udp clients", function);
             close(io->src.s);
             close(io->dst.s);
@@ -1416,51 +1886,171 @@ recv_io(s, io)
          }
 
          io->dstc    = 0;
-         io->dstcmax = UDPBLOCK;
+         io->dstcmax = UDP_MEMBLOCK;
 
          /*
-          * dummy-socket.  Need to put in something valid
-          * so select() etc. won't error out on bad descriptor.
+          * dummy-socket.  Need to put in something valid so
+          * select(2) has something to select for write on, but it
+          * is never actually used for any i/o, as each client will
+          * require it's own outgoing socket, with it's own local address
+          * so that we know what destinations are failing.
+          *
+          * The dst, as used for rulespermit(), is however the address
+          * we receive the udp packet on (src.laddr), and that remains the
+          * same for all our udp clients of course.
           */
-         bzero(&io->dstv[io->dstc].laddr, sizeof(io->dstv[io->dstc].laddr));
-         io->dstv[io->dstc].s               = io->dst.s;
+         bzero(&io->dstv[io->dstc], sizeof(io->dstv[io->dstc]));
+
+         io->state.time.established         = tnow;
+
          io->dstv[io->dstc].laddr.sa_family = AF_INET;
-         io->dstv[io->dstc].raddr.sa_family = AF_INET;
-         io->dstv[io->dstc].iotime          = io->iotime;
+         io->dstv[io->dstc].raddr           = io->dstv[io->dstc].laddr;
+         io->dstv[io->dstc].client          = io->dstv[io->dstc].laddr;
+
+         io->dstv[io->dstc].s               = io->dst.s;
          ++io->dstc;
       }
-
-      /* only log once. */
-      memset(&io->crule.log, 0, sizeof(io->crule.log));
 #endif /* BAREFOOTD */
 
-      if (io->control.s != -1 && io->control.s != io->src.s)
-         socks_allocbuffer(io->control.s);
+      if (io->control.s != -1)
+         socks_allocbuffer(io->control.s, SOCK_STREAM);
 
-      socks_allocbuffer(io->src.s);
-      socks_allocbuffer(io->dst.s);
+      socks_allocbuffer(io->src.s,
+                        io->state.command
+                        == SOCKS_UDPASSOCIATE ? SOCK_DGRAM : SOCK_STREAM);
+
+#if HAVE_NEGOTIATE_PHASE
+      if (io->clientdatalen != 0) {
+         slog(LOG_DEBUG, "%s: adding initial data of size %ld "
+                         "from client %s to iobuf",
+                         function,
+                         io->clientdatalen,
+                         sockshost2string(&io->src.host, NULL, 0));
+
+         /*
+          * XXX if covenant, this request has already been parsed and we
+          * already know we need to forward it; should optimize away
+          * re-parsing.
+          */
+
+         socks_addtobuffer(io->src.s,
+                           READ_BUF,
+                           0,
+                           io->clientdata,
+                           io->clientdatalen);
+
+         io->clientdatalen = 0;
+      }
+
+#if COVENANT
+      io->src.state.isclientside = 1;
+#endif /* COVENANT */
+
+#endif /* HAVE_NEGOTIATE_PHASE */
+
+      socks_allocbuffer(io->dst.s,
+                        io->state.command
+                        == SOCKS_UDPASSOCIATE ? SOCK_DGRAM : SOCK_STREAM);
    }
 
-   slog(LOG_DEBUG, "%s: received %d descriptor(s) for command %d.  "
-                   "Control: %d, src: %d, dst: %d.  Allocated to iov #%lu",
-                   function, fdreceived, io->state.command,
-                   io->control.s, io->src.s, io->dst.s, (unsigned long)ioi);
+   if (sockscf.option.debug > 1) {
+      slog(LOG_DEBUG, "%s: received %d descriptor(s) for command %d.  "
+                      "Control: %d, src: %d, dst: %d.  Allocated to iov #%lu",
+                      function, fdreceived, io->state.command,
+                      io->control.s, io->src.s, io->dst.s, (unsigned long)ioi);
 
+      slog(LOG_DEBUG, "%s: received src socket %d (%s) ...",
+      function, io->src.s, socket2string(io->src.s, NULL, 0));
+
+      slog(LOG_DEBUG, "%s: received dst socket %d (%s) ...",
+      function, io->dst.s, socket2string(io->dst.s, NULL, 0));
+
+      if (io->control.s != -1) {
+         slog(LOG_DEBUG, "%s: received control socket %d (%s) ...",
+         function, io->control.s, socket2string(io->control.s, NULL, 0));
+      }
+   }
+
+   if (io->crule.bw_shmid != 0 || io->crule.ss_shmid != 0)
+      slog(LOG_DEBUG, "%s: client-rule: bw_shmid: %ld, ss_shmid: %ld",
+                      function, io->crule.bw_shmid, io->crule.ss_shmid);
+
+
+   if (io->rule.bw_shmid != 0 || io->rule.ss_shmid != 0)
+      slog(LOG_DEBUG, "%s: socks-rule: bw_shmid: %ld, ss_shmid: %ld",
+                      function, io->rule.bw_shmid, io->rule.ss_shmid);
+
+   if (sockscf.option.debug > 1) {
+      sockd_shmat(&io->rule, SHMEM_ALL);
+      sockd_shmat(&io->crule, SHMEM_ALL);
+
+      if (io->crule.bw_shmid != 0) 
+         slog(LOG_DEBUG, "%s: client-rule: "
+                         "bw object at location %p, ts %ld.%06ld, "
+                         "clients: %ld, rulenumber: %ld, isclientrule: %d",
+                         function, &io->crule.bw,
+                         (long)io->crule.bw->mstate.allocatedts.tv_sec,
+                         (long)io->crule.bw->mstate.allocatedts.tv_usec,
+                         (long)io->crule.bw->mstate.clients,
+                         (unsigned long)io->crule.bw->mstate.rulenumber,
+                         io->crule.bw->mstate.isclientrule);
+
+      if (io->rule.bw_shmid != 0) 
+         slog(LOG_DEBUG, "%s: socks-rule: "
+                         "bw object at location %p, ts %ld.%06ld, "
+                         "clients: %ld, rulenumber: %ld, isclientrule: %d",
+                         function, &io->rule.bw,
+                         (long)io->rule.bw->mstate.allocatedts.tv_sec,
+                         (long)io->rule.bw->mstate.allocatedts.tv_usec,
+                         (long)io->rule.bw->mstate.clients,
+                         (unsigned long)io->rule.bw->mstate.rulenumber,
+                         io->rule.bw->mstate.isclientrule);
+
+      if (io->crule.ss_shmid != 0) 
+         slog(LOG_DEBUG, "%s: client-rule: "
+                         "ss object at location %p, ts %ld.%06ld, "
+                         "clients: %ld, rulenumber: %ld, isclientrule: %d",
+                         function, &io->crule.ss,
+                         (long)io->crule.ss->mstate.allocatedts.tv_sec,
+                         (long)io->crule.ss->mstate.allocatedts.tv_usec,
+                         (long)io->crule.ss->mstate.clients,
+                         (unsigned long)io->crule.ss->mstate.rulenumber,
+                         io->crule.ss->mstate.isclientrule);
+
+      if (io->rule.ss_shmid != 0) 
+         slog(LOG_DEBUG, "%s: socks-rule: "
+                         "ss object at location %p, ts %ld.%06ld, "
+                         "clients: %ld, rulenumber: %ld, isclientrule: %d",
+                         function, &io->rule.ss,
+                         (long)io->rule.ss->mstate.allocatedts.tv_sec,
+                         (long)io->rule.ss->mstate.allocatedts.tv_usec,
+                         (long)io->rule.ss->mstate.clients,
+                         (unsigned long)io->rule.ss->mstate.rulenumber,
+                         io->rule.ss->mstate.isclientrule);
+
+      sockd_shmdt(&io->crule, SHMEM_ALL);
+      sockd_shmdt(&io->rule, SHMEM_ALL);
+   }
+
+
+#if BAREFOOTD
    /*
-    * make sure all our descriptors are non-blocking from now on.
+    * in barefootd, only the resources for the tcp-rule are fixed at this
+    * point.
+    * For udp we need to wait til we get the clients before we know what
+    * rules to use.
     */
-   fdv[0] = io->src.s;
-   fdv[1] = io->dst.s;
-   fdv[2] = io->control.s;
-   for (i = 0; i < ELEMENTS(fdv); ++i) {
-      if (fdv[i] == -1)
-         continue;
+   if (io->state.protocol == SOCKS_TCP)
+#endif
+      /* attach now, so we don't have to attach/detach for every i/o op. */
+      sockd_shmat(&io->rule, SHMEM_ALL);
 
-      if ((flags = fcntl(fdv[i], F_GETFL, 0))         == -1
-      ||   fcntl(fdv[i], F_SETFL, flags | O_NONBLOCK) == -1)
-         swarn("%s: fcntl() failed to set descriptor %d to non-blocking",
-         function, fdv[i]);
+#if BAREFOOTD
+   if (sockscf.state.type == CHILD_IO) {
+      freefds -= fdreceived;
+      slog(LOG_DEBUG, "%s: free fds: %d", function, freefds);
    }
+#endif /* BAREFOOTD */
 
    io->allocated = 1;
    return 0;
@@ -1512,60 +2102,92 @@ io_allocated(tcp_alloc, udp_alloc)
       udp_alloc = &udp_alloc_mem;
 
    *udp_alloc = *tcp_alloc = 0;
-   for (i = 0; i < ioc; ++i)
-      if (iov[i].allocated) {
-#if BAREFOOTD
-         if (iov[i].state.command == SOCKS_UDPASSOCIATE)
+   for (i = 0; i < ioc; ++i) {
+      if (!iov[i].allocated)
+         continue;
+
+      switch (iov[i].state.protocol) {
+         case SOCKS_UDP:
             ++(*udp_alloc);
-         else
+            break;
+
+         case SOCKS_TCP:
             ++(*tcp_alloc);
-#else /* SOCKS_SERVER */
-         ++(*tcp_alloc);
-#endif /* SOCKS_SERVER */
+            break;
+
+         default:
+            SERRX(iov[i].state.protocol);
       }
 
-   slog(LOG_DEBUG, "%s: allocated for tcp: %d, udp: %d",
-   function, *tcp_alloc, *udp_alloc);
+      if (sockscf.option.debug > 1)
+         slog(LOG_DEBUG, "%s: iov #%lu allocated for %s",
+         function, (unsigned long)i, protocol2string(iov[i].state.protocol));
+   }
+
+   if (sockscf.option.debug > 1)
+      slog(LOG_DEBUG, "%s: allocated for tcp: %d, udp: %d",
+      function, *tcp_alloc, *udp_alloc);
 
    return *tcp_alloc + *udp_alloc;
 }
 
-static void
-doio(mother, io, rset, wset, flags)
-   int mother;
+
+static iostatus_t
+doio(io, rset, wset, flags, bad)
    struct sockd_io_t *io;
    fd_set *rset, *wset;
-   int flags;
+   const int flags;
+   int *bad;
 {
    const char *function = "doio()";
-   struct timeval timenow;
+   struct timeval tnow;
+   ssize_t r;
+   size_t bwused;
+#if COVENANT
+   char *buf      = io->clientdata;
+   size_t buflen  = sizeof(io->clientdata) - io->clientdatalen;
+   size_t bufused = io->clientdatalen;
+#else
    char buf[SOCKD_BUFSIZE];
-   ssize_t r, w;
+   size_t buflen  = sizeof(buf);
+   size_t bufused = 0;
+#endif /* !COVENANT */
    int srchaswritebuf, dsthaswritebuf;
 
    SASSERTX(io->allocated);
 
+   slog(LOG_DEBUG, "%s: control: %d, src: %d, dst: %d",
+   function, io->control.s, io->src.s, io->dst.s);
+
+   if (io->state.command == SOCKS_CONNECT)
+      SASSERTX(io->dst.state.connected);
+
    errno = 0; /* reset on each call. */
+
+   if (FD_ISSET(io->src.s, rset))
+      dsthaswritebuf = 0; /* or really, "don't care". */
+   else {
+      if (socks_bufferhasbytes(io->dst.s, WRITE_BUF))
+         dsthaswritebuf = 1;
+      else
+         dsthaswritebuf = 0;
+   }
 
    if (FD_ISSET(io->dst.s, rset))
       srchaswritebuf = 0; /* or really, "don't care". */
    else {
-      if (socks_bytesinbuffer(io->src.s, WRITE_BUF, 0) > 0
-      ||  socks_bytesinbuffer(io->src.s, WRITE_BUF, 1) > 0)
+      if (socks_bufferhasbytes(io->src.s, WRITE_BUF))
          srchaswritebuf = 1;
       else
          srchaswritebuf = 0;
    }
 
-   if (FD_ISSET(io->src.s, rset))
-      dsthaswritebuf = 0; /* or really, "don't care". */
-   else {
-      if (socks_bytesinbuffer(io->dst.s, WRITE_BUF, 0) > 0
-      ||  socks_bytesinbuffer(io->dst.s, WRITE_BUF, 1) > 0)
-         dsthaswritebuf = 1;
-      else
-         dsthaswritebuf = 0;
-   }
+#if BAREFOOTD
+   if (io->state.command == SOCKS_UDPASSOCIATE)
+      SASSERTX((FD_ISSET(io->src.s, rset) || dsthaswritebuf)
+      ||       (FD_ISSET(io->dst.s, rset) || srchaswritebuf));
+   else
+#endif /* BAREFOOTD */
 
    SASSERTX(((FD_ISSET(io->src.s, rset) || dsthaswritebuf)
      && FD_ISSET(io->dst.s, wset))
@@ -1573,265 +2195,299 @@ doio(mother, io, rset, wset, flags)
      && FD_ISSET(io->src.s, wset))
    ||       (io->control.s != -1 && FD_ISSET(io->control.s, rset)));
 
-   /*
-    * we are only called when we have i/o to do.
-    * Could probably remove this gettimeofday() call too, but there are
-    * platforms without SO_SNDLOWAT which prevents us.
-    */
-   gettimeofday(&timenow, NULL);
-   if (io->state.time.firstio.tv_sec == 0
-   && io->state.time.firstio.tv_usec == 0)
-      io->state.time.firstio = timenow;
+   gettimeofday(&tnow, NULL);
+   if (io->state.time.firstio.tv_sec  == 0
+   &&  io->state.time.firstio.tv_usec == 0)
+      io->state.time.firstio = tnow;
 
+   bwused = 0;
    switch (io->state.protocol) {
       case SOCKS_TCP: {
-         size_t bufsize, bwused;
-         int bad;
+         if (io->rule.bw_shmid != 0) {
+            /* 
+             * If all clients are active, this should distribute the bw
+             * reasonably fair.  If not, this is suboptimal as we may
+             * need to do more i/o operations than otherwise necessary,
+             * as our buflen is smaller than need be.
+             */
+            buflen = MAX(1, buflen / io->rule.bw->mstate.clients);
 
-         if (io->rule.bw != NULL) {
-            ssize_t left;
-
-            if ((left = bw_left(io->rule.bw)) <= 0) {
-               /*
-                * update data (new time) so next bw_left() presumably
-                * has some left.
-                * No harm in calling bw_update() without le 0 check, but
-                * maybe this is smarter (avoids extra lock in gt 0 case).
-                */
-               bw_update(io->rule.bw, 0, &timenow);
-               left = bw_left(io->rule.bw);
-            }
-
-            if ((bufsize = MIN(sizeof(buf), (size_t)left)) == 0)
-               break;
+            slog(LOG_DEBUG, "%s: buflen is %lu",
+            function, (unsigned long)buflen);
          }
-         else
-            bufsize = sizeof(buf);
-
-         bwused = 0;
 
          /* from in to out ... */
          if ((FD_ISSET(io->src.s, rset) || dsthaswritebuf)
          && FD_ISSET(io->dst.s, wset)) {
-            bad = -1;
-            r = io_rw(&io->src, &io->dst, &bad, buf, bufsize, flags);
-            if (bad != -1) {
-               delete_io(mother, io, bad, r == 0 ? IO_CLOSE : IO_ERROR);
-               return;
+            r = io_rw(&io->src,
+                      &io->dst,
+                      bad,
+                      &io->reqflags,
+                      buf,
+                      buflen,
+                      &bufused,
+                      flags);
+
+            if (*bad != -1)
+               return r == 0 ? IO_CLOSE : IO_ERROR;
+
+            switch (r) {
+               case -1:
+                  r = 0; /* bad is not set, so temporary error. */
+                  break;
+
+               case 0:
+                  break;
+
+               default:
+                  iolog(&io->rule,
+                        &io->state,
+                        OPERATION_IO,
+                        &io->src.laddr,
+                        &io->src.host,
+                        &io->src.auth,
+                        NULL,
+                        NULL,
+                        NULL,
+                        &io->dst.laddr,
+                        &io->dst.host,
+                        &io->dst.auth,
+                        io->state.proxyprotocol
+                          == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                        io->state.proxyprotocol
+                         == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                        NULL,
+                        buf,
+                        r);
             }
 
-            if (r == -1)
-               r = 0; /* bad is not set, so temporary error. */
-
-            iolog(&io->rule,
-                  &io->state,
-                  OPERATION_IO,
-                  &io->src.laddr, 
-                  &io->src.host,
-                  &io->src.auth,
-                  NULL,
-                  NULL,
-                  NULL,
-                  &io->dst.laddr,
-                  &io->dst.host,
-                  &io->dst.auth,
-                  io->state.proxyprotocol
-                     == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
-                  io->state.proxyprotocol == PROXY_DIRECT
-                     ? NULL : &io->state.proxychain.extaddr,
-                  NULL,
-                  buf,
-                  r);
-
-            bwused        += r;
-            dsthaswritebuf = 0;
+            bwused         += r;
+            dsthaswritebuf  = 0;
          }
 
          /* ... and out to in. */
-#if 0
-         /*
-          * This doesn't work too good since we can end up doing i/o
-          * only in -> out for a long time.  Also since we assume one
-          * side is on the lan (where b/w isn't that critical)
-          * and the other side is the net, assume some slack on
-          * one side is ok.  Same applies to udp case.
-          * Another option would be to alternate which direction we
-          * do i/o on first each time, but we instead do the simple
-          * thing and just don't subtract bufsize.
-          */
-         bufsize -= bwused;
-#endif
-
-         if (bufsize == 0) {
-            BWUPDATE(io, timenow, bwused);
-            break;
-         }
-
          if ((FD_ISSET(io->dst.s, rset) || srchaswritebuf)
          && FD_ISSET(io->src.s, wset)) {
-            bad = -1;
-            r = io_rw(&io->dst, &io->src, &bad, buf, bufsize, flags);
-            if (bad != -1) {
-               delete_io(mother, io, bad, r == 0 ? IO_CLOSE : IO_ERROR);
-               return;
+            r = io_rw(&io->dst,
+                      &io->src,
+                      bad,
+                      &io->reqflags,
+                      buf,
+                      buflen,
+                      &bufused,
+                      flags);
+
+            if (*bad != -1)
+               return r == 0 ? IO_CLOSE : IO_ERROR;
+
+            switch (r) {
+               case -1:
+                  r = 0; /* bad is not set, so temporary error. */
+                  break;
+
+               case 0:
+                  break;
+
+               default:
+                  iolog(&io->rule,
+                        &io->state,
+                        OPERATION_IO,
+                        &io->dst.laddr,
+                        &io->dst.host,
+                        &io->dst.auth,
+                        io->state.proxyprotocol
+                          == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                        io->state.proxyprotocol
+                         == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                        NULL,
+                        &io->src.laddr,
+                        &io->src.host,
+                        &io->src.auth,
+                        NULL,
+                        NULL,
+                        NULL,
+                        buf,
+                        (size_t)r);
             }
 
-            if (r == -1) /* bad is not set, must be temporary error. */
-               r = 0;
-
-            iolog(&io->rule,
-                  &io->state,
-                  OPERATION_IO,
-                  &io->dst.laddr,
-                  &io->dst.host,
-                  &io->dst.auth,
-                  io->state.proxyprotocol
-                     == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
-                  io->state.proxyprotocol == PROXY_DIRECT
-                     ? NULL : &io->state.proxychain.extaddr,
-                  NULL,
-                  &io->src.laddr,
-                  &io->src.host,
-                  &io->src.auth,
-                  NULL,
-                  NULL,
-                  NULL,
-                  buf,
-                  (size_t)r);
-
-            bwused += r;
-            srchaswritebuf = 0;
+            bwused         += r;
+            srchaswritebuf  = 0;
          }
 
-         BWUPDATE(io, timenow, bwused);
+         IOUPDATE(tnow, &io->iotime, bwused, &io->rule, sockscf.shmemfd);
          break;
       }
 
+#if HAVE_UDP_SUPPORT
       case SOCKS_UDP: {
-         session_t *ss = io->rule.ss;
          /*
-          * This is the original session object, if any, allocated
-          * when we got the request.  For udp, it does not make sense
-          * to switch the session-object around depending on the rule
-          * used for each packet.  We want it to operate on the
-          * control-connection, not on each packet.  We therefor need
-          * to save it and restore it after each rulespermit(), as we
-          * want it to always refer to the session-object set up
-          * for the original control-connection.
+          * In the socks case the client-side of udp i/o is always fixed.
+          * In barefoot the client-side can/will vary for each packet,
+          * as one socket can receive packets from multiple clients.
           *
-          * This in contrast with the bandwidth and the redirect
-          * objects, which operate on each packet.
+          * The destination side can vary for each packet in both Dante 
+          * Barefoot.  In Dante, because the client wants to send to a 
+          * different address from last time.  In Barefoot it can normally
+          * not vary, since the bounce-to address is set in the rule and
+          * fixed there.  A sighup can change the bounce-to address however,
+          * so we must be prepared to handle that.
+          *
+          * This makes udp i/o considerably more complicated compared 
+          * to tcp, as we may need to check rules on each packet if the
+          * destination changes from one packet to the next, or the source
+          * also in Barefoots case.
+          * 
+          * Also note that we are less strict about bandwidth in the udp
+          * case since we can't truncate packets.  Therefore we don't limit 
+          * the amount of i/o we do in one go for the udp-case; it has to be 
+          * whole packets.
+          * (Now that we have the iobuffer mechanism, we could in theory check
+          * if we have enough bandwidth allocated to send the packet, and
+          * if not, buffer it for later, but don't bother for now.)
           */
+
 #if BAREFOOTD
          struct udpclient *udpclient;
+         struct connectionstate_t clientrulestate;
 #endif /* BAREFOOTD */
+         struct rule_t *packetrule; /* rule matched for this packet. */
+         struct sockshost_t host;
+         char hosta[MAXSOCKSHOSTSTRING], hostb[MAXSOCKSHOSTSTRING];
          struct udpheader_t header;
          socklen_t len;
+         ssize_t w;
          int permit;
-
-         /*
-          * One side of the udp i/o is always fixed; the socks-client side.
-          * The other side can vary for each packet.
+#if SOCKS_SERVER
+         /* 
+          * In both Barefoot and Dante, we need to do both a rulespermit()
+          * per packet, but we also need to save the original rule. 
+          * In Dante, that is the socks-rule that matched the 
+          * control-connection, while in Barefoot, is is client-rule that
+          * was used to generate the corresponding socks-rule.  
           *
-          * This makes udp i/o more complicated in the socks case, compared to
-          * tcp, as we  may need to check rules on each packet if the
-          * destination changes from one packet to the next.
+          * In Barefoot's case, we always have the client-rule available in
+          * io.crule, following a rulespermit() lookup.
+          * In Dante's case however, it is only available in io.rule, so
+          * we can not pass io.rule to rulespermit() every time, as we would
+          * loose the original rule.
+          * In Dante's case we therefore need to let packetrule, i.e. the rule
+          * the current packet matched, be stored in some other memory
+          * than io.rule, while in Barefoot's case, we want to use io.rule for 
+          * this.
           */
+         struct rule_t packetrule_mem;
 
-         /*
-          * We are less strict about bandwidth in the udp case since we
-          * don't want to truncate packets.  Therefore we don't limit
-          * the amount of i/o we do in one go for the udp-case; it has to
-          * be whole packets.
-          *
-          * Now that we have a iobuffer, we could in theory check if
-          * we have enough bandwidth allocated to send the packet, and
-          * if not, wait til later, but don't bother for now.
-          */
+         packetrule = &packetrule_mem;
+#endif /* SOCKS_SERVER */
 
          /*
           * UDP to relay from client to destination?
-          * Note that here io->dst can vary for each packet, unless
-          * we're barefootd.
           */
          if ((FD_ISSET(io->src.s, rset) || dsthaswritebuf)
-         && FD_ISSET(io->dst.s, wset)) {
-            /*
-             * io->src is src of packet.
-             * io->dst is dst of packet.
-             */
+         &&  FD_ISSET(io->dst.s, wset)) {
             const int lflags = flags & ~MSG_OOB;
             struct sockaddr from;
-            size_t bwused;
+#if SOCKS_SERVER
+            const int dst_s = io->dst.s; 
+#else /* BAREFOOTD */
+            struct udpclient udpsrc;
+            int dst_s; /* in barefootd, this will have to be set later. */
+
+            bzero(&udpsrc, sizeof(udpsrc));
+#endif /* BAREFOOTD */
+
+            *packetrule = io->rule;
 
             len = sizeof(from);
-            if ((r = socks_recvfrom(io->src.s, buf, sizeof(buf), lflags,
-            &from, &len, &io->src.auth)) == -1) {
+            if ((r = socks_recvfrom(io->src.s,
+                                    buf,
+                                    buflen,
+                                    lflags,
+                                    &from,
+                                    &len,
+                                    &io->src.auth)) == -1) {
+#if BAREFOOTD
+               /* 
+                * Barefoot can have many udp clients and we can't know 
+                * here which one this error is for.  Hopefully it will be 
+                * picked up via the raw socket also, if we have one,
+                * and logged correctly there.
+                */
+               io->src.host.atype            = (unsigned char)SOCKS_ADDR_IPV4;
+               io->src.host.addr.ipv4.s_addr = htonl(INADDR_ANY);
+               io->src.host.port             = htons(0);
+#endif /* BAREFOOTD */
+
                if (ERRNOISTMP(errno) || errno == ECONNREFUSED) {
-                  if (errno == ECONNREFUSED)
-                     iolog(&io->rule,
+                  if (errno == ECONNREFUSED) {
+                     /*
+                      * error is from a previous packet sent by us to
+                      * this client. 
+                      */
+
+#if SOCKS_SERVER
+                     /*
+                      * Don't treat it as fatal, more packets could come
+                      * and they may be accepted by the client.  As long
+                      * as we still have the controlconnection, assume
+                      * the client is alive.
+                      */
+#elif BAREFOOTD /* !SOCKS_SERVER */
+                     if (rawsocket == -1) {
+                        /*
+                         * no raw socket, but log at least something. 
+                         * No sense in returning a permanent error for this 
+                         * as we have no idea which client it is.  Will have
+                         * to wait til the session times out the regular way.
+                         */
+#endif /* BAREFOOTD */
+
+                     iolog(packetrule,
                            &io->state,
-                           OPERATION_TMPERROR,
+                           OPERATION_ERROR,
                            &io->dst.laddr,
                            &io->dst.host,
                            &io->dst.auth,
                            io->state.proxyprotocol == PROXY_DIRECT ?
                               NULL : &io->state.proxychain.server,
-                           io->state.proxyprotocol == PROXY_DIRECT
-                              ? NULL : &io->state.proxychain.extaddr,
+                           io->state.proxyprotocol == PROXY_DIRECT ?
+                              NULL : &io->state.proxychain.extaddr,
                            NULL,
                            &io->src.laddr,
                            &io->src.host,
                            &io->src.auth,
                            NULL,
-                           NULL,
-                           NULL,
-                           NULL,
-                           0);
-                  else
-                     iolog(&io->rule,
-                           &io->state,
-                           OPERATION_TMPERROR,
-                           &io->src.laddr,
-                           &io->src.host,
-                           &io->src.auth,
-                           NULL,
-                           NULL,
-                           NULL,
-                           &io->dst.laddr,
-                           &io->dst.host,
-                           &io->dst.auth,
-                           io->state.proxyprotocol == PROXY_DIRECT
-                              ? NULL : &io->state.proxychain.server,
-                           io->state.proxyprotocol == PROXY_DIRECT
-                              ? NULL : &io->state.proxychain.extaddr,
+                           NULL, 
                            NULL,
                            NULL,
                            0);
+#if BAREFOOTD
+                     }
+#endif /* BAREFOOTD */
 
-                  return;
+                     return IO_TMPERROR;
+                  }
+                  else
+                     return IO_EAGAIN;
                }
 
                /* else: unknown error, assume fatal. */
-               delete_io(mother, io, io->src.s, IO_ERROR);
-               return;
+               *bad = io->src.s;
+               return IO_ERROR;
             }
 
 #if SOCKS_SERVER
             if (!ADDRISBOUND(TOIN(&io->src.raddr))
             ||  !PORTISBOUND(TOIN(&io->src.raddr))) {
                /*
-                * Client hasn't sent us it's address yet, so we have
-                * to assume this packet is from it.  We then connect
-                * the socket for better performance, for receiving errors
-                * from sendto() if the clients is not there/goes away,
-                * for getpeername() (libwrap in rulespermit()), for ...
-                * that's reason enough.
+                * Client hasn't sent us it's complete address yet, but if
+                * the parts of the address it has sent, if any, matches
+                * the source of this packet, we have to assume this packet 
+                * is from it.  We then connect the socket to the client, for
+                * better performance, for receiving errors from sendto(),
+                * for getpeername() libwrap in rulespermit()), for ...
+                * well, that's reasons enough.
                 */
-               struct connectionstate_t rstate;
-               struct authmethod_t      replyauth;
-
-               UDPFROMLENCHECK(io->src.s, len);
 
                if (!ADDRISBOUND(TOIN(&io->src.raddr)))
                   TOIN(&io->src.raddr)->sin_addr.s_addr
@@ -1843,317 +2499,126 @@ doio(mother, io, rset, wset, flags)
                if (!sockaddrareeq(&io->src.raddr, &from)) {
                   char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING];
 
-                  /* XXX can we change this to iolog()? */
-                  slog(LOG_INFO, "%s(0): %s: expected udp packet from %s, but"
-                                 "got it from %s",
-                  VERDICT_BLOCKs, protocol2string(io->state.protocol),
-                  sockaddr2string(&io->src.raddr, src, sizeof(src)),
-                  sockaddr2string(&from, dst, sizeof(dst)));
+                  buflen
+                  = snprintf(buf, sizeof(buf), 
+                             "expected udp packet from %s, but got it from %s",
+                             sockaddr2string(&io->src.raddr, src, sizeof(src)),
+                             sockaddr2string(&from, dst, sizeof(dst)));
+
+                  iolog(packetrule,
+                        &io->state,
+                        OPERATION_BLOCK,
+                        &io->src.laddr,
+                        &io->src.host,
+                        &io->src.auth,
+                        NULL,
+                        NULL,
+                        NULL,
+                        &io->dst.laddr,
+                        &io->dst.host,
+                        &io->dst.auth,
+                        io->state.proxyprotocol
+                          == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                        io->state.proxyprotocol
+                         == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                        NULL,
+                        buf, 
+                        buflen);
 
                   break;
                }
 
-
-               slog(LOG_DEBUG, "%s: first udp packet from previously "
-                               "unconnected socks client.  Connecting to"
-                               "client at address %s",
-               function, sockaddr2string(&io->src.raddr, NULL, 0));
-
                sockaddr2sockshost(&io->src.raddr, &io->src.host);
                if (connect(io->src.s, &io->src.raddr, sizeof(io->src.raddr))
                != 0) {
-                  delete_io(mother, io, io->src.s, IO_ERROR);
-                  return;
-               }
-
-               rstate           = io->state;
-               rstate.command   = SOCKS_UDPREPLY;
-               replyauth.method = AUTHMETHOD_NOTSET;
-
-               permit = rulespermit(io->control.s,
-                                    &io->control.raddr,
-                                    &io->control.laddr,
-                                    &io->clientauth,
-                                    &io->rule,
-                                    &io->src.auth,
-                                    &io->state,
-                                    &io->src.host,
-                                    NULL,
-                                    NULL,
-                                    0)
-               ||       rulespermit(io->control.s,
-                                    &io->control.raddr,
-                                    &io->control.laddr,
-                                    &io->clientauth,
-                                    &io->rule,
-                                    &replyauth,
-                                    &rstate,
-                                    NULL,
-                                    &io->src.host,
-                                    NULL,
-                                    0);
-               io->rule.ss = ss;
-
-               if (!permit) {
-                  /*
-                   * can't send anywhere, can't receive from anyone; drop it.
-                   */
-                  delete_io(mother, io, io->src.s, IO_SRCBLOCK);
-                  return;
+                  *bad = io->src.s;
+                  return IO_ERROR;
                }
             }
 
-            io->src.read.bytes += r;
-            ++io->src.read.packets;
+            io->src.read.bytes   += r;
+            io->src.read.packets += 1;
 #endif /* SOCKS_SERVER */
 
 #if BAREFOOTD
             /*
-             * no socks header.  Dst must always be bounce_to, but src varies.
+             * no socks header.  Dst is the fixed bounce-to address 
+             * in the matching client-rule, so need to find the matching
+             * client-rule before we know what dst will be.
+             * That rule also contains the resource limits to use, if any.
              */
 
-            bzero(&header, sizeof(header));
-            ruleaddr2sockshost(&io->rule.bounce_to, &header.host, SOCKS_UDP);
-            sockaddr2sockshost(&from, &io->src.host);
-#else /* SOCKS_SERVER */
+            udpclient = udpclientofclientaddr(&from, io->dstc, io->dstv);
+            if (udpclient != 0)
+               dst_s = udpclient->s;
+            else
+               dst_s = -1;
 
-            /* got packet, pull out socks UDP header. */
-            if (string2udpheader(buf, (size_t)r, &header) == NULL) {
-               char badfrom[MAXSOCKADDRSTRING];
+            slog(LOG_DEBUG, "%s: %sfirst udp packet from %s to %s, length %ld",
+                            function,
+                            dst_s == -1 ? "" : "not ",
+                            sockaddr2string(&from, hosta, sizeof(hosta)),
+                            sockaddr2string(&io->src.laddr,
+                                            hostb,
+                                            sizeof(hostb)),
+                            (long)r);
 
-               swarnx("%s: bad socks udp packet (length = %u) from %s",
-               function, (unsigned)r, sockaddr2string(&io->src.raddr, badfrom,
-               sizeof(badfrom)));
+            if (dst_s == -1 || !udpclient->use_saved_rule) {
+               io->src.raddr = from;
+               sockaddr2sockshost(&io->src.raddr, &io->src.host);
+               sockaddr2sockshost(&io->src.laddr, &io->dst.host);
 
-               break;
-            }
+               clientrulestate         = io->state;
+               clientrulestate.command = SOCKS_BOUNCETO;
 
-            if (header.frag != 0) {
-               char badfrom[MAXSOCKADDRSTRING];
+               bzero(&io->clientauth, sizeof(io->clientauth));
+               bzero(&io->src.auth, sizeof(io->src.auth));
 
-               swarnx("%s: %s: fragmented udp packet from %s.  Not supported",
-               function, protocol2string(io->state.protocol),
-               sockaddr2string(&io->src.raddr, badfrom, sizeof(badfrom)));
+               io->clientauth.method   = AUTHMETHOD_NOTSET;
+               io->src.auth.method     = AUTHMETHOD_NOTSET;
 
-               break;
-            }
-#endif /* SOCKS_SERVER */
-
-            /*
-             * A slight optimization.  If the client will only be
-             * sending udp packets to one address, it is much more
-             * efficient to connect the socket to that address.
-             *
-             * However, because we do that, we must be sure to unconnect
-             * the socket before sending out on it again if the client wants
-             * to send to a new address, and from that point on, leave the
-             * socket unconnected.
-             */
-
-#if BAREFOOTD
-            if ((io->dst.s = socketofudpraddr(&from, io->dstc, io->dstv))
-            == -1) {
-               struct udpclient udpsrc;
-
-               bzero(&udpsrc, sizeof(udpsrc));
-#else /* SOCKS_SERVER */
-
-            if (sockscf.option.udpconnectdst
-            && !ADDRISBOUND(TOIN(&io->dst.raddr))) {
-#endif /* SOCKS_SERVER */
-
-               /*
-                * First packet.  
-                */
-#if BAREFOOTD
-               char tostr[MAXSOCKSHOSTSTRING];
-#endif /* BAREFOOTD */
-
-               io->dst.host = header.host;
-               sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
-
-#if BAREFOOTD
-               /*
-                * Create a new socket and use that for sending out
-                * packets from this client only.  When reading replies on
-                * this socket, we will thus know who it's destined for (from).
-                */
-               if ((io->dst.s = udpsrc.s = socket(AF_INET, SOCK_DGRAM, 0))
-               == -1) {
-                  swarn("%s: no more sockets available", function);
-                  return;
-               }
-
-               setsockoptions(udpsrc.s);
-               udpsrc.laddr = io->dst.laddr;
-               TOIN(&udpsrc.laddr)->sin_port = htons(0);
-               if (sockd_bind(udpsrc.s, &udpsrc.laddr, 0) != 0)
-                  swarn("%s: sockd_bind(udpsrc.s)", function);
-
-               len = sizeof(udpsrc.laddr);
-               if (getsockname(udpsrc.s, &udpsrc.laddr, &len) != 0)
-                  swarn("%s: getsockname(udpsrc.s)", function);
-               else
-                  slog(LOG_DEBUG, "%s: address bound for udp socket %d: %s",
-                  function, udpsrc.s, sockaddr2string(&udpsrc.laddr, NULL, 0));
-
-               udpsrc.raddr  = from;
-               udpsrc.iotime = timenow;
-               if ((udpclient = addudpclient(&udpsrc, &io->dstc, &io->dstcmax,
-               &io->dstv)) == NULL) {
-                  swarn("%s: no more udp clients can be accepted (compile-time "
-                        "limit).  Client from %s dropped.  "
-                        "Increase BAREFOOTD_UDPCLIENTMAX and recompile",
-                        function, sockaddr2string(&from, NULL, 0));
-
-                  return;
-               }
-#endif /* BAREFOOTD */
-
-               permit = rulespermit(io->control.s,
-                                    &io->control.raddr,
-                                    &io->control.laddr,
+               permit = rulespermit(io->src.s, 
+                                    &io->src.raddr, 
+                                    &io->src.laddr,
                                     &io->clientauth,
-                                    &io->rule,
                                     &io->src.auth,
-                                    &io->state,
+                                    &io->crule,
+                                    &clientrulestate,
                                     &io->src.host,
                                     &io->dst.host,
                                     NULL,
                                     0);
-               io->rule.ss = ss;
-
-               /* connect to redirected-to address, if applicable. */
-               if (permit)
-                  redirect(io->dst.s, &io->dst.laddr, &io->dst.host,
-                  io->state.command, &io->rule.rdr_from, &io->rule.rdr_to);
-
-#if BAREFOOTD
-               if (permit && io->rule.ss != NULL) {
-                  if (!session_use(io->rule.ss)) {
-                     permit           = 0;
-                     io->rule.verdict = VERDICT_BLOCK;
-                     io->rule.ss      = NULL;
-
-                     snprintf(buf, sizeof(buf), DENY_SESSIONLIMITs);
-
-                     iolog(&io->rule,
-                           &io->state,
-                           OPERATION_CONNECT,
-                           &io->src.laddr,
-                           &io->src.host,
-                           &io->src.auth,
-                           NULL,
-                           NULL,
-                           NULL,
-                           &io->dst.laddr,
-                           &io->dst.host,
-                           &io->dst.auth,
-                           io->state.proxyprotocol == PROXY_DIRECT
-                              ? NULL : &io->state.proxychain.server,
-                           io->state.proxyprotocol == PROXY_DIRECT
-                              ? NULL : &io->state.proxychain.extaddr,
-                           NULL,
-                           buf,
-                           0);
-
-                     removeudpclient(udpclient->s, &io->dstc, iov->dstv);
-                     return;
-                  }
-               }
-
-               if (permit && sockscf.option.udpconnectdst) {
-                  slog(LOG_DEBUG, "%s: first udp packet from %s.  "
-                                  "Connecting socket to %s",
-                  function,
-                  sockshost2string(&io->src.host, NULL, 0),
-                  sockshost2string(&io->dst.host, tostr, sizeof(tostr)));
-
-                  socks_connecthost(io->dst.s, &io->dst.host);
-                  io->dst.state.connected = 1;
-               }
-#endif /* BAREFOOTD */
-            }
-            else { /* not first packet from this client. */
-#if BAREFOOTD
-               udpclient = udpclientofsocket(io->dst.s, io->dstc, io->dstv);
-               SASSERTX(udpclient != NULL);
-#endif /* BAREFOOTD */
 
                /*
-                * the check against INADDR_ANY guarantees this is not the
-                * first packet and thus dst.host, containing the dst of
-                * the previous packet, can meaningfully be compared to see
-                * if it matches the new destination.  If it does, we can
-                * skip the rulespermit() check.
+                * for now, til we've done rulespermit() and got the right
+                * one.
                 */
-               if ((io->dst.host.atype            != SOCKS_ADDR_IPV4
-               ||   io->dst.host.addr.ipv4.s_addr != htonl(INADDR_ANY))
-               && sockshostareeq(&header.host, &io->dst.host)) {
-                  permit = io->rule.verdict == VERDICT_PASS;
+               io->rule       = io->crule;
+               io->rule.crule = &io->crule;
+            }
+            else { /* reuse rules from last time. */
+               SASSERTX(udpclient != NULL);
 
-                  slog(LOG_DEBUG, "%s: reusing old verdict, permit = %d",
-                  function, permit);
-               }
-               else {
-                  /*
-                   * this packet does not have the same destination as the
-                   * previous one.
-                   * If the socket is connected, we need to unconnect it,
-                   * or we can't receive further replies from the previous
-                   * destination.  Check that a redirect() does not change
-                   * it back to what we used last time though.
-                   */
+               io->crule      = udpclient->crule;
+               io->rule.crule = &io->crule;
+               io->rule       = udpclient->rule;
 
-                  permit = rulespermit(io->control.s,
-                                       &io->control.raddr,
-                                       &io->control.laddr,
-                                       &io->clientauth,
-                                       &io->rule,
-                                       &io->src.auth,
-                                       &io->state,
-                                       &io->src.host,
-                                       &header.host,
-                                       NULL,
-                                       0);
-
-                  io->rule.ss = ss;
-
-                  if (redirect(io->dst.s, &io->dst.laddr, &header.host,
-                  io->state.command, &io->rule.rdr_from, &io->rule.rdr_to)
-                  != 0) {
-                     swarn("%s: redirect()", function);
-                     break;
-                  }
-
-                  if (io->dst.state.connected)  {
-                     if (!sockshostareeq(&header.host, &io->dst.host)) {
-                        /* still not same, must be new host then.  Unconnect. */
-                        socks_unconnect(io->dst.s);
-                        io->dst.state.connected = 0;
-                     }
-                  }
-
-                  io->dst.host = header.host;
-                  sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
-               }
+               permit         = io->crule.verdict == VERDICT_PASS;
             }
 
-            if (io->rule.bw != NULL)
-               bw_use(io->rule.bw);
+            bzero(&header, sizeof(header));
+            ruleaddr2sockshost(&io->crule.bounce_to, &header.host, SOCKS_UDP);
 
-#if SOCKS_SERVER
-            /* set r to bytes sent by client sans socks UDP header. */
-            r -= PACKETSIZE_UDP(&header);
-#endif /* SOCKS_SERVER */
+            slog(LOG_DEBUG,
+                 "%s: bounce-to address for client %s is %s",
+                 function,
+                 sockshost2string(&io->src.host, hosta, sizeof(hosta)),
+                 sockshost2string(&header.host, hostb, sizeof(hostb)));
 
-#if BAREFOOTD
-            udpclient->src_read.bytes += r;
-            ++udpclient->src_read.packets;
-#endif /* BAREFOOTD */
-
+            io->dst.host = header.host;
+            
             if (!permit) {
-               iolog(&io->rule,
+               iolog(&io->crule,
                      &io->state,
                      OPERATION_IO,
                      &io->src.laddr,
@@ -2165,57 +2630,71 @@ doio(mother, io, rset, wset, flags)
                      &io->dst.laddr,
                      &io->dst.host,
                      &io->dst.auth,
-                     io->state.proxyprotocol == PROXY_DIRECT
-                        ?  NULL : &io->state.proxychain.server,
-                     io->state.proxyprotocol == PROXY_DIRECT
-                        ? NULL : &io->state.proxychain.extaddr,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
                      NULL,
-#if BAREFOOTD
                      buf,
-#else /* SOCKS_SERVER */
-                     &buf[PACKETSIZE_UDP(&header)],
-#endif /* SOCKS_SERVER */
                      (size_t)r);
 
-               bw_unuse(io->rule.bw);
-               break;
+               rawsocket_send(rawsocket,
+                              &io->src.host,
+                              sockaddr2sockshost(&io->src.laddr, &host),
+                              &io->dst.host, 
+                              -1);
+
+               return IO_BLOCK;
             }
 
-            iolog(&io->rule,
-                  &io->state,
-                  OPERATION_IO,
-                  &io->src.laddr, 
-                  &io->src.host,
-                  &io->src.auth,
-                  NULL,
-                  NULL,
-                  NULL,
-                  &io->dst.laddr,
-                  &io->dst.host,
-                  &io->dst.auth,
-                  io->state.proxyprotocol == PROXY_DIRECT
-                     ? NULL : &io->state.proxychain.server,
-                  io->state.proxyprotocol == PROXY_DIRECT
-                     ? NULL : &io->state.proxychain.extaddr,
-                  NULL,
-#if BAREFOOTD
-                  buf,
-#else /* SOCKS_SERVER */
-                  &buf[PACKETSIZE_UDP(&header)],
-#endif /* SOCKS_SERVER */
-                  (size_t)r);
 
-            sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
-
-            if ((w = socks_sendto(io->dst.s,
-#if BAREFOOTD
-            buf,
 #else /* SOCKS_SERVER */
-            &buf[PACKETSIZE_UDP(&header)],
-#endif /* SOCKS_SERVER */
-            (size_t)r, lflags, &io->dst.raddr, sizeof(io->dst.raddr),
-            &io->dst.auth)) != r)
-               iolog(&io->rule,
+
+            /* got a packet, pull out the socks UDP header. */
+            if (string2udpheader(buf, (size_t)r, &header) == NULL) {
+               buflen
+               = snprintf(buf, sizeof(buf),
+                          "bad socks udp packet (length = %u) received from "
+                          "client at %s",
+                          (unsigned)r,
+                          sockaddr2string(&io->src.raddr, NULL, 0));
+
+               iolog(packetrule,
+                     &io->state,
+                     OPERATION_ERROR,
+                     &io->src.laddr,
+                     &io->src.host,
+                     &io->src.auth,
+                     NULL,
+                     NULL,
+                     NULL,
+                     &io->dst.laddr,
+                     NULL,
+                     &io->dst.auth,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                     NULL,
+                     buf,
+                     buflen);
+
+               rawsocket_send(rawsocket,
+                              &io->src.host,
+                              sockaddr2sockshost(&io->src.laddr, &host),
+                              NULL,
+                              -1);
+
+               return IO_TMPERROR;
+            }
+
+            io->dst.host = header.host;
+
+            if (header.frag != 0) {
+               buflen = snprintf(buf, sizeof(buf),
+                                 "fragmented udp packets are not supported");
+
+               iolog(packetrule,
                      &io->state,
                      OPERATION_ERROR,
                      &io->src.laddr,
@@ -2227,187 +2706,820 @@ doio(mother, io, rset, wset, flags)
                      &io->dst.laddr,
                      &io->dst.host,
                      &io->dst.auth,
-                     io->state.proxyprotocol == PROXY_DIRECT
-                        ? NULL : &io->state.proxychain.server,
-                     io->state.proxyprotocol == PROXY_DIRECT
-                        ? NULL : &io->state.proxychain.extaddr,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                     NULL,
+                     buf,
+                     buflen);
+
+               rawsocket_send(rawsocket,
+                              &io->src.host,
+                              sockaddr2sockshost(&io->src.laddr, &host),
+                              &io->dst.host, 
+                              -1);
+
+               return IO_TMPERROR;
+            }
+#endif /* SOCKS_SERVER */
+
+            /*
+             * A slight optimization; if the client will only be
+             * sending udp packets to one address, it is much more
+             * efficient to connect the socket to that address.
+             * This is always the case in barefootd, and may also be
+             * the usual case with socks.
+             *
+             * However, if we do that, we must be sure to unconnect
+             * the socket before sending out on it again if the client wants
+             * to send to a new address, and from that point on, leave the
+             * socket unconnected, so that possible future packets from the
+             * address we first connected to will also be received.
+             */
+
+#if BAREFOOTD
+            if (dst_s == -1 || !udpclient->use_saved_rule)
+
+#else /* SOCKS_SERVER */
+            if (!io->use_saved_rule)
+#endif /* SOCKS_SERVER */
+            {
+               /*
+                * first packet (or fist after sighup) from this client.
+                */
+
+               slog(LOG_DEBUG,
+                    "%s: first udp packet from client %s.  "
+                    "Dst determined to be %s",
+                    function,
+                    sockaddr2string(&from, NULL, 0),
+                    sockshost2string(&io->dst.host, NULL, 0));
+
+               sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
+               if (!ADDRISBOUND(TOIN(&io->dst.raddr))) {
+                  buflen
+                  = snprintf(buf, sizeof(buf),
+                             "can not resolve destination %s for client %s",
+                             sockshost2string(&io->dst.host, NULL, 0),
+                             sockaddr2string(&from, NULL, 0));
+
+                  iolog(packetrule,
+                        &io->state,
+                        OPERATION_ERROR,
+                        &io->src.laddr,
+                        &io->src.host,
+                        &io->src.auth,
+                        NULL,
+                        NULL,
+                        NULL,
+                        &io->dst.laddr,
+                        &io->dst.host,
+                        &io->dst.auth,
+                        io->state.proxyprotocol == PROXY_DIRECT ?
+                           NULL : &io->state.proxychain.server,
+                        io->state.proxyprotocol == PROXY_DIRECT ? 
+                           NULL : &io->state.proxychain.extaddr,
+                        NULL,
+                        buf,
+                        buflen);
+
+                  rawsocket_send(rawsocket,
+                                 &io->src.host,
+                                 sockaddr2sockshost(&io->src.laddr, &host),
+                                 &io->dst.host, 
+                                 -1);
+
+                  return IO_TMPERROR;
+               }
+#if BAREFOOTD
+               /*
+                * Create a new socket and use that for sending out packets 
+                * from this client only.  When reading replies on this socket,
+                * we will thus know who it's destined for (from).
+                *
+                * Since we place no bound on the number of udp clients we 
+                * handle, we need to make sure we leave room for at least 
+                * SOCKD_IOMAX tcp clients, so we don't fail on recvmsg(2) 
+                * when mother sends us a new tcp client.
+                */
+
+               if (dst_s == -1) {
+                  if (freefds <= ((SOCKD_IOMAX - 1) * FDPASS_MAX)
+                  || (dst_s = udpsrc.s = socket(AF_INET, SOCK_DGRAM, 0)) == -1){
+                     swarn("%s: could not create udp socket", function);
+
+                     buflen = snprintf(buf, sizeof(buf),
+                                      "no more sockets available (%s)",
+                                      errnostr(errno));
+
+                     iolog(packetrule,
+                           &io->state,
+                           OPERATION_ERROR,
+                           &io->src.laddr,
+                           &io->src.host,
+                           &io->src.auth,
+                           NULL,
+                           NULL,
+                           NULL,
+                           &io->dst.laddr,
+                           &io->dst.host,
+                           &io->dst.auth,
+                           io->state.proxyprotocol == PROXY_DIRECT ?
+                              NULL : &io->state.proxychain.server,
+                           io->state.proxyprotocol == PROXY_DIRECT ? 
+                              NULL : &io->state.proxychain.extaddr,
+                           NULL,
+                           buf,
+                           buflen);
+
+                     rawsocket_send(rawsocket,
+                                    &io->src.host,
+                                    sockaddr2sockshost(&io->src.laddr, &host),
+                                    &io->dst.host, 
+                                    -1);
+
+                     return IO_TMPERROR;
+                  }
+
+                  --freefds;
+                  slog(LOG_DEBUG, "%s: free fds: %d", function, freefds);
+
+                  setsockoptions(udpsrc.s, SOCK_DGRAM, 0);
+
+                  bzero(&udpsrc.laddr, sizeof(udpsrc.laddr));
+                  TOIN(&udpsrc.laddr)->sin_family = AF_INET;
+                  TOIN(&udpsrc.laddr)->sin_port   = htons(0);
+                  TOIN(&udpsrc.laddr)->sin_addr
+                  = getoutaddr(TOIN(&from)->sin_addr, header.host.addr.ipv4);
+
+                  if (sockd_bind(udpsrc.s, &udpsrc.laddr, 0) != 0) {
+                     swarn("%s: could not bind udp address %s",
+                           function,
+                           sockaddr2string(&udpsrc.laddr, NULL, 0));
+
+                     buflen = snprintf(buf, sizeof(buf),
+                                      "could not bind udp address %s (%s)",
+                                      sockaddr2string(&udpsrc.laddr, NULL, 0),
+                                      errnostr(errno));
+
+                     iolog(packetrule,
+                           &io->state,
+                           OPERATION_ERROR,
+                           &io->src.laddr,
+                           &io->src.host,
+                           &io->src.auth,
+                           NULL,
+                           NULL,
+                           NULL,
+                           &io->dst.laddr,
+                           &io->dst.host,
+                           &io->dst.auth,
+                           io->state.proxyprotocol == PROXY_DIRECT ?
+                              NULL : &io->state.proxychain.server,
+                           io->state.proxyprotocol == PROXY_DIRECT ?
+                              NULL : &io->state.proxychain.extaddr,
+                           NULL,
+                           buf,
+                           buflen);
+
+                     rawsocket_send(rawsocket,
+                                    &io->src.host,
+                                    sockaddr2sockshost(&io->src.laddr, &host),
+                                    &io->dst.host, 
+                                    -1);
+
+                     return IO_TMPERROR;
+                  }
+
+                  len = sizeof(udpsrc.laddr);
+                  if (getsockname(udpsrc.s, &udpsrc.laddr, &len) != 0)
+                     /* XXX error out. */
+                     swarn("%s: getsockname(udpsrc.s)", function);
+                  else {
+                     char laddr[MAXSOCKADDRSTRING], caddr[MAXSOCKADDRSTRING];
+
+                     slog(LOG_DEBUG,
+                          "%s: address bound on udp socket %d, for sending "
+                          "packets on behalf of client at %s, is %s",
+                          function,
+                          udpsrc.s,
+                          sockaddr2string(&from, caddr, sizeof(caddr)),
+                          sockaddr2string(&udpsrc.laddr, laddr, sizeof(laddr)));
+                  }
+
+                  udpsrc.client     = from;
+                  udpsrc.raddr      = io->dst.raddr;
+                  udpsrc.iotime     = tnow;
+                  udpsrc.firstio    = tnow;
+
+                  if ((udpclient = addudpclient(&udpsrc,
+                                                &io->dstc,
+                                                &io->dstcmax,
+                                                &io->dstv)) == NULL) {
+                     swarn("%s: could not add udpclient %s",
+                           function,
+                           sockaddr2string(&udpsrc.laddr, NULL, 0));
+
+                     buflen = snprintf(buf, sizeof(buf),
+                                      "could not add udpclient %s (%s)",
+                                      sockaddr2string(&udpsrc.laddr, NULL, 0),
+                                      errnostr(errno));
+
+                     iolog(packetrule,
+                           &io->state,
+                           OPERATION_ERROR,
+                           &io->src.laddr,
+                           &io->src.host,
+                           &io->src.auth,
+                           NULL,
+                           NULL,
+                           NULL,
+                           &io->dst.laddr,
+                           &io->dst.host,
+                           &io->dst.auth,
+                           io->state.proxyprotocol
+                              == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                           io->state.proxyprotocol
+                              == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                           NULL,
+                           buf,
+                           buflen);
+
+                     close(udpsrc.s);
+                     ++freefds;
+
+                     slog(LOG_DEBUG, "%s: free fds: %d", function, freefds);
+                     return IO_TMPERROR;
+                  }
+
+                  SYNC_UDPDST(&io->dst, udpclient);
+               }
+
+#endif /* BAREFOOTD */
+
+               /* 
+                * Now check if the rules allow this packet from the 
+                * client through.
+                */
+
+               permit = rulespermit(
+#if SOCKS_SERVER
+                                    io->control.s,
+                                    &io->control.raddr,
+                                    &io->control.laddr,
+#else /* BAREFOOTD */
+                                    io->src.s, 
+                                    &io->src.raddr, 
+                                    &io->src.laddr,
+#endif /* BAREFOOTD */
+                                    &io->clientauth,
+                                    &io->src.auth,
+                                    packetrule,
+                                    &io->state,
+                                    &io->src.host,
+                                    &io->dst.host,
+                                    NULL,
+                                    0);
+
+#if BAREFOOTD
+               SASSERTX(udpclient != NULL);
+               udpclient->rule           = io->rule;
+               udpclient->crule          = io->crule;
+               udpclient->use_saved_rule = 1;
+
+#else /* SOCKS_SERVER */
+               io->use_saved_rule = 1;
+#endif
+
+               /* use redirected addresses, if applicable. */
+               if (permit) {
+                  redirect(dst_s,
+                          &io->dst.laddr,
+                          &io->dst.host,
+                          io->state.command,
+                          &packetrule->rdr_from,
+                          &packetrule->rdr_to);
+               }
+
+#if BAREFOOTD
+               if (permit) {
+                  sockd_shmat(&io->crule, SHMEM_ALL);
+                  if (io->crule.ss_shmid != 0) {
+                     if (!session_use(io->crule.ss, sockscf.shmemfd)) {
+                        permit       = 0;
+                        io->crule.verdict = VERDICT_BLOCK;
+
+                        buflen = snprintf(buf, buflen, DENY_SESSIONLIMITs);
+                        sockd_shmdt(&io->crule, SHMEM_SS);
+                     }
+                     /*
+                      * else; remain attached, so that if mother exits and 
+                      * deletes the shmem file, we still have access.
+                      */
+                  }
+
+                  if (permit) {
+                     if (io->crule.bw_shmid != 0)
+                        bw_use(io->crule.bw, sockscf.shmemfd);
+                  }
+
+                  udpclient->crule      = io->crule;
+                  udpclient->rule       = io->rule;
+                  udpclient->rule.crule = &io->crule;
+               }
+
+               if (!permit) {
+                  iolog(packetrule,
+                        &io->state,
+                        OPERATION_IO,
+                        &io->src.laddr,
+                        &io->src.host,
+                        &io->src.auth,
+                        NULL,
+                        NULL,
+                        NULL,
+                        &io->dst.laddr,
+                        &io->dst.host,
+                        &io->dst.auth,
+                        io->state.proxyprotocol == PROXY_DIRECT ?
+                           NULL : &io->state.proxychain.server,
+                        io->state.proxyprotocol == PROXY_DIRECT ? 
+                           NULL : &io->state.proxychain.extaddr,
+                        NULL,
+                        buf,
+                        (size_t)r);
+
+                  rawsocket_send(rawsocket,
+                                 &io->src.host,
+                                 sockaddr2sockshost(&io->src.laddr, &host),
+                                 &io->dst.host, 
+                                 -1);
+
+                  removeudpclient(udpclient->s, &io->dstc, iov->dstv);
+                  return IO_BLOCK;
+               }
+
+               if (sockscf.udpconnectdst) {
+                  slog(LOG_DEBUG,
+                       "%s: connecting udp socket to %s, for client at %s",
+                       function,
+                       sockshost2string(&io->dst.host, hosta, sizeof(hosta)),
+                       sockshost2string(&io->src.host, hostb, sizeof(hostb)));
+
+                  socks_connecthost(dst_s, &io->dst.host, NULL, -1);
+                  io->dst.state.connected = 1;
+               }
+#endif /* BAREFOOTD */
+            }
+            else {
+               slog(LOG_DEBUG, "%s: not first udp packet from client %s.  "
+                               "Already set up with client-rule #%lu (%s) "
+                               "and socks-rule #%lu (%s)",
+                               function,
+                               sockaddr2string(&from, NULL, 0),
+                               (unsigned long)io->crule.number,
+                               verdict2string(io->crule.verdict),
+                               (unsigned long)packetrule->number,
+                               verdict2string(packetrule->verdict));
+
+               permit = packetrule->verdict == VERDICT_PASS;
+
+               if (redirect(dst_s,
+                            &io->dst.laddr,
+                            &header.host,
+                            io->state.command,
+                            &packetrule->rdr_from,
+                            &packetrule->rdr_to) != 0) {
+
+                  buflen = snprintf(buf, sizeof(buf), "redirect failed (%s)",
+                                   errnostr(errno));
+
+                  iolog(packetrule,
+                        &io->state,
+                        OPERATION_ERROR,
+                        &io->src.laddr,
+                        &io->src.host,
+                        &io->src.auth,
+                        NULL,
+                        NULL,
+                        NULL,
+                        &io->dst.laddr,
+                        &io->dst.host,
+                        &io->dst.auth,
+                        io->state.proxyprotocol == PROXY_DIRECT ?
+                           NULL : &io->state.proxychain.server,
+                        io->state.proxyprotocol == PROXY_DIRECT ? 
+                           NULL : &io->state.proxychain.extaddr,
+                        NULL,
+                        buf,
+                        buflen);
+
+                  rawsocket_send(rawsocket,
+                                 &io->src.host,
+                                 sockaddr2sockshost(&io->src.laddr, &host),
+                                 &io->dst.host, 
+                                 -1);
+
+                  return IO_TMPERROR;
+               }
+
+               if (io->dst.state.connected)  {
+                  if (!sockshostareeq(&header.host, &io->dst.host)) {
+                     char client[MAXSOCKADDRSTRING],
+                          dstbefore[MAXSOCKSHOSTSTRING],
+                          dstnow[MAXSOCKSHOSTSTRING];
+
+                     slog(LOG_DEBUG, "%s: destination host for packet from %s "
+                                     "changed, from %s to %s.  Unconnecting",
+                                     function,
+                                     sockaddr2string(&io->control.raddr,
+                                                     client,
+                                                     sizeof(client)),
+                                     sockshost2string(&io->dst.host, 
+                                                      dstbefore,
+                                                      sizeof(dstbefore)),
+                                     sockshost2string(&header.host, 
+                                                      dstnow, 
+                                                      sizeof(dstnow)));
+
+                     socks_unconnect(dst_s);
+                     io->dst.state.connected = 0;
+                  }
+               }
+
+               io->dst.host = header.host;
+               sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
+
+#if BAREFOOTD
+               if (permit) {
+                  /* 
+                   * save for next time we get a packet from this client.
+                   * Both source and destination is fixed from here on
+                   * in barefoot, except if we get a sighup.
+                   */
+                   udpclient->crule = io->crule;
+                   udpclient->rule  = io->rule;
+               }
+#endif /* BAREFOOTD */
+            }
+
+#if SOCKS_SERVER
+            /* set r to bytes sent by client sans socks UDP header. */
+            r -= PACKETSIZE_UDP(&header);
+#endif /* SOCKS_SERVER */
+
+#if BAREFOOTD
+            udpclient->src_read.bytes   += r;
+            udpclient->src_read.packets += 1;
+#endif /* BAREFOOTD */
+
+            if (!permit) {
+               iolog(packetrule,
+                     &io->state,
+                     OPERATION_IO,
+                     &io->src.laddr,
+                     &io->src.host,
+                     &io->src.auth,
+                     NULL,
+                     NULL,
+                     NULL,
+                     &io->dst.laddr,
+                     &io->dst.host,
+                     &io->dst.auth,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                     NULL,
+                     buf,
+                     (size_t)r);
+
+               rawsocket_send(rawsocket,
+                              &io->src.host,
+                              sockaddr2sockshost(&io->src.laddr, &host),
+                              &io->dst.host, 
+                              -1);
+
+               return IO_BLOCK;
+            }
+
+            sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
+            if (!ADDRISBOUND(TOIN(&io->dst.raddr))) {
+               buflen
+               = snprintf(buf, sizeof(buf),
+                          "could not resolve destination %s for client %s",
+                          sockshost2string(&io->dst.host, NULL, 0),
+                          sockaddr2string(&from, NULL, 0));
+
+               iolog(packetrule,
+                     &io->state,
+                     OPERATION_ERROR,
+                     &io->src.laddr,
+                     &io->src.host,
+                     &io->src.auth,
+                     NULL,
+                     NULL,
+                     NULL,
+                     &io->dst.laddr,
+                     &io->dst.host,
+                     &io->dst.auth,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                     NULL,
+                     buf,
+                     buflen);
+
+               rawsocket_send(rawsocket,
+                              &io->src.host,
+                              sockaddr2sockshost(&io->src.laddr, &host),
+                              NULL,
+                              -1);
+
+               return IO_TMPERROR;
+            }
+
+            if ((w = socks_sendto(dst_s,
+#if BAREFOOTD
+                                  buf,
+#else /* SOCKS_SERVER */
+                                  &buf[PACKETSIZE_UDP(&header)],
+#endif /* SOCKS_SERVER */
+                                  (size_t)r,
+                                  lflags,
+                                  io->dst.state.connected ?
+                                  NULL : &io->dst.raddr,
+                                  io->dst.state.connected ?
+                                  0 : sizeof(io->dst.raddr),
+                                  &io->dst.auth)) != r) {
+               iolog(packetrule,
+                     &io->state,
+                     OPERATION_ERROR,
+                     &io->src.laddr,
+                     &io->src.host,
+                     &io->src.auth,
+                     NULL,
+                     NULL,
+                     NULL,
+                     &io->dst.laddr,
+                     &io->dst.host,
+                     &io->dst.auth,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
                      NULL,
                      NULL,
                      0);
+            }
+            else
+               iolog(packetrule,
+                     &io->state,
+                     OPERATION_IO,
+                     &io->src.laddr,
+                     &io->src.host,
+                     &io->src.auth,
+                     NULL,
+                     NULL,
+                     NULL,
+                     &io->dst.laddr,
+                     &io->dst.host,
+                     &io->dst.auth,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol
+                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                     NULL,
+#if BAREFOOTD
+                     buf,
+#else /* SOCKS_SERVER */
+                     &buf[PACKETSIZE_UDP(&header)],
+#endif /* SOCKS_SERVER */
+                     (size_t)r);
 
-#if SOCKS_SERVER
+            bwused = MAX(0, w);
+
+#if SOCKS_SERVER || COVENANT 
+
             io->dst.written.bytes += MAX(0, w);
             if (w >= 0)
                ++io->dst.written.packets;
+
 #else /* BAREFOOTD */
+
             udpclient->dst_written.bytes += MAX(0, w);
-            if (w >= 0)
+            if (w >= 0) {
                ++udpclient->dst_written.packets;
-#endif /* BAREFOOTD */
-
-            bwused = MAX(0, w);
-            BWUPDATE(io, timenow, bwused);
-            bw_unuse(io->rule.bw);
-
-#if BAREFOOTD
-            if (bwused) {
-               struct udpclient *udpclient;
-
-               udpclient = udpclientofsocket(io->dst.s, io->dstc, io->dstv);
-               SASSERTX(udpclient != NULL);
-               udpclient->iotime = timenow;
+               udpclient->iotime = tnow;
             }
+
 #endif /* BAREFOOTD */
 
+            if (w >= 0)
+               IOUPDATE(tnow,
+                        &io->iotime,
+                        MAX(0, w),
+#if HAVE_TWO_LEVEL_ACL
+                        &io->rule,
+#else /* !HAVE_TWO_LEVEL_ACL */
+                        &io->crule,
+#endif /* !HAVE_TWO_LEVEL_ACL */
+                        sockscf.shmemfd);
          }
 
          /*
           * Datagram reply from remote present?
           */
 
-#if 0 /* see comment for tcp case. */
-         if (bwused >= io->rule.bw->maxbps)
-            break;
-#endif
-
          if ((FD_ISSET(io->dst.s, rset) || srchaswritebuf)
          && FD_ISSET(io->src.s, wset)) {
             /*
-             * io->dst is src of packet, and can vary for each packet.
-             * io->src is dst of packet (socks client).
+             * - io->dst is src of packet, and can vary for each packet unless
+             *   the socket is connected.
+             *
+             * - io->src is dst of packet (socks client).
              */
             const int lflags = flags & ~MSG_OOB;
             struct connectionstate_t replystate;
             struct sockaddr rfrom;
             struct sockshost_t replyto;
             char *newbuf;
-            size_t bwused;
             int redirected;
 
-            if (io->dst.state.connected && io->dst.read.bytes != 0) {
+            *packetrule = io->rule;
+
+#if BAREFOOTD
+            udpclient = udpclientofsocket(io->dst.s, io->dstc, io->dstv);
+            SASSERTX(udpclient != NULL);
+
+            sockaddr2sockshost(&udpclient->client, &io->src.host);
+            io->dst.laddr = udpclient->laddr;
+
+            if (io->dst.state.connected)
+               io->dst.raddr = udpclient->raddr;
+#endif /* BAREFOOTD */
+
+            len = sizeof(rfrom);
+            if ((r = socks_recvfrom(io->dst.s,
+                               buf, 
+                               buflen,
+                               lflags,
+                               &rfrom,
+                               &len,
+                               &io->dst.auth)) == -1) {
+               if (ERRNOISTMP(errno) || errno == ECONNREFUSED) {
+                  if (errno == ECONNREFUSED) {
+                     /*
+                      * means the error is actually from our previous
+                      * write to this destination.  That failing is 
+                      * non-fatal, keep the session.
+                      */
+
+                     if (!io->dst.state.connected) {
+                        /* can't be sure who the error is related to. */
+                        io->dst.host.atype
+                        = (unsigned char)SOCKS_ADDR_IPV4;
+                        io->dst.host.addr.ipv4.s_addr = htonl(INADDR_ANY);
+                        io->dst.host.port             = htons(0);
+                     }
+#if BAREFOOTD
+                     else 
+                        sockaddr2sockshost(&io->dst.raddr, &io->dst.host);
+#endif /* BAREFOOTD */
+
+                     iolog(packetrule,
+                           &io->state,
+                           OPERATION_ERROR,
+                           &io->dst.laddr,
+                           &io->dst.host,
+                           &io->dst.auth,
+                           io->state.proxyprotocol == PROXY_DIRECT
+                              ? NULL : &io->state.proxychain.server,
+                           io->state.proxyprotocol == PROXY_DIRECT
+                              ? NULL : &io->state.proxychain.extaddr,
+                           NULL,
+                           &io->src.laddr,
+                           &io->src.host,
+                           &io->src.auth,
+                           NULL,
+                           NULL,
+                           NULL,
+                           NULL,
+                           0);
+
+                     /* can't send icmp error as we don't save sent data. */
+                     return IO_TMPERROR;
+                  }
+
+                  return IO_EAGAIN;
+               }
+
+               /* other, unknown error.  Assume it's fatal. */
+               *bad = io->dst.s;
+               return IO_ERROR;
+            }
+
+            if (io->dst.state.connected
+#if BAREFOOTD
+            &&  udpclient->use_saved_replyrule
+#else /* SOCKS_SERVER */
+            &&  io->use_saved_replyrule
+#endif /* SOCKS_SERVER */
+            ) {
                /*
-                * connected and not first reply -> rule must have been
-                * matched previously, so reuse it.
+                * connected and not first reply; rule must have been
+                * matched previously, so reuse previous match.
                 */
+               slog(LOG_DEBUG, "%s: not first udp reply from %s to %s, "
+                               "length %ld.  "
+                               "Already set up with reply-rule #%lu (%s), ",
+                               function,
+#if BAREFOOTD
+                               sockaddr2string(&udpclient->laddr, NULL, 0),
+                               sockaddr2string(&udpclient->client, NULL, 0),
+                               (long)r,
+                               (unsigned long)udpclient->replyrule.number,
+                               verdict2string(udpclient->replyrule.verdict));
+#else /* SOCKS_SERVER */
+                               sockaddr2string(&io->dst.raddr, NULL, 0),
+                               sockaddr2string(&io->src.raddr, NULL, 0),
+                               (long)r,
+                               (unsigned long)io->replyrule.number,
+                               verdict2string(io->replyrule.verdict));
+#endif /* SOCKS_SERVER */
+
+#if BAREFOOTD
+               io->crule      = udpclient->crule;
+               io->rule       = udpclient->rule;
+               io->replyrule  = udpclient->replyrule;
+#endif /* BAREFOOTD */
+
                permit              = io->replyrule.verdict == VERDICT_PASS;
                replystate          = io->state;
                replystate.command  = SOCKS_UDPREPLY;
             }
             else {
                /*
-                * Is the reply allowed back in?
-                *
-                * We first peek at it so we can find out what address it's
-                * from.  Then we check rules and then we drain the socket
-                * buffer.
-                * The reason why we need to peek first is that if the rule
-                * calls libwrap, libwrap would hang since we'd already read
-                * the packet and libwrap also wants to peek.
+                * First reply.  Is it allowed in?
                 */
 
-               len = sizeof(rfrom);
-               if ((r = socks_recvfrom(io->dst.s, buf, 1, lflags | MSG_PEEK,
-               &rfrom, &len, &io->dst.auth)) == -1) {
-                  if (ERRNOISTMP(errno) || errno == ECONNREFUSED) {
-                     if (errno == ECONNREFUSED)
-                        /*
-                         * means the error is actually from our write
-                         * to this destination
-                         */
-                        iolog(&io->rule,
-                              &io->state,
-                              OPERATION_TMPERROR,
-                              &io->src.laddr,
-                              &io->src.host,
-                              &io->src.auth,
-                              NULL,
-                              NULL,
-                              NULL,
-                              &io->dst.laddr,
-                              &io->dst.host,
-                              &io->dst.auth,
-                              io->state.proxyprotocol == PROXY_DIRECT
-                                 ? NULL : &io->state.proxychain.server,
-                              io->state.proxyprotocol == PROXY_DIRECT
-                                 ? NULL : &io->state.proxychain.extaddr,
-                              NULL,
-                              NULL,
-                              0);
-                     else
-                        iolog(&io->rule,
-                              &io->state,
-                              OPERATION_TMPERROR,
-                              &io->dst.laddr,
-                              &io->dst.host,
-                              &io->dst.auth,
-                              io->state.proxyprotocol == PROXY_DIRECT
-                                 ? NULL : &io->state.proxychain.server,
-                              io->state.proxyprotocol == PROXY_DIRECT
-                                 ? NULL : &io->state.proxychain.extaddr,
-                              NULL,
-                              &io->src.laddr,
-                              &io->src.host,
-                              &io->src.auth,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL,
-                              0);
-                  }
-                  else /* unknown error, assume fatal. */
-                     delete_io(mother, io, io->src.s, IO_ERROR);
-
-                  return;
-               }
-
-               UDPFROMLENCHECK(io->dst.s, len);
+               slog(LOG_DEBUG, "%s: first udp reply from %s to %s (or first "
+                               "after sighup), length = %ld",
+                               function,
+                               sockaddr2string(&rfrom, hosta, sizeof(hosta)),
+                               sockshost2string(&io->src.host, hostb, 0),
+                               (long)r);
 
                sockaddr2sockshost(&rfrom, &io->dst.host);
 
-               replystate          = io->state;
-               replystate.command  = SOCKS_UDPREPLY;
-               bzero(&io->dst.auth, sizeof(io->dst.auth));
-               io->dst.auth.method = AUTHMETHOD_NOTSET;
+#if BAREFOOTD 
+               bzero(&io->clientauth, sizeof(io->clientauth));
+               io->clientauth.method = AUTHMETHOD_NOTSET;
+#endif /* BREFOOTD */
 
-               permit = rulespermit(io->control.s,
+               bzero(&io->dst.auth, sizeof(io->dst.auth));
+               io->dst.auth.method   = AUTHMETHOD_NOTSET;
+
+               replystate            = io->state;
+               replystate.command    = SOCKS_UDPREPLY;
+
+               permit = rulespermit(
+#if SOCKS_SERVER
+                                    io->control.s,
                                     &io->control.raddr,
                                     &io->control.laddr,
+#else /* BAREFOOTD */
+                                    io->dst.s,
+                                    &rfrom,
+                                    &io->control.laddr,
+#endif /* BAREFOOTD */
                                     &io->clientauth,
-                                    &io->replyrule,
                                     &io->dst.auth,
+                                    &io->replyrule,
                                     &replystate,
                                     &io->dst.host,
                                     &io->src.host,
                                     NULL,
                                     0);
 
-               io->rule.ss = ss;
-            }
-
+               if (io->dst.state.connected) {/* save it for future replies. */
 #if BAREFOOTD
-            udpclient = udpclientofsocket(io->dst.s, io->dstc, io->dstv);
-            SASSERTX(udpclient != NULL);
-#endif /* BAREFOOTD */
-
-            if (io->replyrule.bw != NULL)
-               bw_use(io->replyrule.bw);
-
-            /* read the (possibly peeked at) packet. */
-            if ((r = socks_recvfrom(io->dst.s, buf, sizeof(buf), lflags,
-            &rfrom, &len, &io->dst.auth)) == -1) {
-               bw_unuse(io->rule.bw);
-               delete_io(mother, io, io->dst.s, IO_ERROR);
-               return;
+                  udpclient->replyrule           = io->replyrule;
+                  udpclient->use_saved_replyrule = 1;
+#else /* SOCKS_SERVER  */
+                  io->use_saved_replyrule = 1;
+#endif /* SOCKS_SERVER */
+               }
             }
 
-            bwused = r;
-
-#if SOCKS_SERVER
-            io->dst.read.bytes += r;
-            ++io->dst.read.packets;
-#else /* BAREFOOTD */
-            udpclient->dst_read.bytes += r;
-            ++udpclient->dst_read.packets;
+#if BAREFOOTD 
+            udpclient->dst_read.bytes   += r;
+            udpclient->dst_read.packets += 1;
+#else /* !BAREFOOTD */
+            io->dst.read.bytes   += r;
+            io->dst.read.packets += 1;
 #endif /* BAREFOOTD */
 
             iolog(&io->replyrule,
@@ -2416,8 +3528,8 @@ doio(mother, io, rset, wset, flags)
                   &io->dst.laddr,
                   &io->dst.host,
                   &io->dst.auth,
-                  io->state.proxyprotocol == PROXY_DIRECT
-                     ? NULL : &io->state.proxychain.server,
+                  io->state.proxyprotocol
+                     == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
                   io->state.proxyprotocol == PROXY_DIRECT
                      ? NULL : &io->state.proxychain.extaddr,
                   NULL,
@@ -2431,36 +3543,60 @@ doio(mother, io, rset, wset, flags)
                   (size_t)r);
 
             if (!permit) {
-               bw_unuse(io->replyrule.bw);
-               break;
+               rawsocket_send(rawsocket,
+                              &io->dst.host,
+                              sockaddr2sockshost(&io->dst.laddr, &host),
+                              &io->src.host, 
+                              -1);
+
+               return IO_BLOCK;
             }
 
             replyto = io->src.host;
-            if (redirect(io->src.s, &rfrom, &replyto, replystate.command,
-            &io->replyrule.rdr_from, &io->replyrule.rdr_to) != 0) {
+            if (redirect(io->src.s,
+                         &rfrom,
+                         &replyto,
+                         replystate.command,
+                         &io->replyrule.rdr_from,
+                         &io->replyrule.rdr_to) != 0) {
                swarn("%s: redirect()", function);
-               bw_unuse(io->replyrule.bw);
-               break;
+
+               rawsocket_send(rawsocket,
+                              &io->dst.host,
+                              sockaddr2sockshost(&io->dst.laddr, &host),
+                              &io->src.host, 
+                              -1);
+
+               return IO_TMPERROR;
             }
 
+#if !BAREFOOTD /* barefootd never connects to client. */
             if (!sockshostareeq(&replyto, &io->src.host)) {
                char oldto[MAXSOCKSHOSTSTRING], newto[MAXSOCKSHOSTSTRING];
 
-               slog(LOG_DEBUG, "%s: need to redirect reply, unconnecting socket"
-                               " temporarily from %s for redirecting to %s ...",
-               function,
-               sockshost2string(&io->src.host, oldto, sizeof(oldto)),
-               sockshost2string(&replyto, newto, sizeof(newto)));
+               slog(LOG_DEBUG,
+                    "%s: need to redirect reply, unconnecting socket "
+                    "temporarily from %s, for redirection to %s ...",
+                    function,
+                    sockshost2string(&io->src.host, oldto, sizeof(oldto)),
+                    sockshost2string(&replyto, newto, sizeof(newto)));
 
                if (socks_unconnect(io->src.s) != 0) {
                   swarn("%s: socks_unconnect()", function);
-                  bw_unuse(io->replyrule.bw);
-                  break;
+
+                  rawsocket_send(rawsocket,
+                                 &io->dst.host,
+                                 sockaddr2sockshost(&io->dst.laddr, &host),
+                                 &io->src.host, 
+                                 -1);
+
+                  return IO_TMPERROR;
                }
 
                redirected = 1;
             }
             else
+#endif /* !BAREFOOTD */
                redirected = 0;
 
             /* in case redirect() changed it . */
@@ -2468,19 +3604,23 @@ doio(mother, io, rset, wset, flags)
 
 #if BAREFOOTD
             newbuf = buf;
-#else /* SOCKS_SERVER; add socks UDP header.  */
-            newbuf
-            = udpheader_add(&io->dst.host, buf, (size_t *)&r, sizeof(buf));
+#else /* SOCKS_SERVER; add socks UDP header before sending to client.  */
+            newbuf = udpheader_add(&io->dst.host, buf, (size_t *)&r, buflen);
             SASSERTX(newbuf == buf);
 #endif /* SOCKS_SERVER */
 
-            if ((w = socks_sendto(io->src.s, newbuf, (size_t)r, lflags,
-#if BAREFOOTD /* never connected. */
-            (struct sockaddr *)&udpclient->raddr, sizeof(udpclient->raddr),
+            if ((w = socks_sendto(io->src.s,
+                                  newbuf,
+                                  (size_t)r,
+                                  lflags,
+#if BAREFOOTD /* never connected; same socket receives from all clients. */
+                                  (struct sockaddr *)&udpclient->client,
+                                  sizeof(udpclient->client),
 #else /* SOCKS_SERVER: always connected. */
-            NULL, 0,
+                                   NULL,
+                                   0,
 #endif /* SOCKS_SERVER */
-            &io->src.auth)) != r)
+                                   &io->src.auth)) != r) {
                iolog(&io->replyrule,
                      &replystate,
                      OPERATION_ERROR,
@@ -2498,37 +3638,78 @@ doio(mother, io, rset, wset, flags)
                      NULL,
                      NULL,
                      NULL,
-                     NULL,
-                     0);
+                     newbuf,
+                     (size_t)r);
+            }
 
-            BWUPDATE(io, timenow, bwused);
-            bw_unuse(io->replyrule.bw); /* packet-by-packet. */
+            if (w >= 0) {
+#if BAREFOOTD
+               udpclient->iotime = tnow;
+#endif /* BAREFOOTD */
 
-#if SOCKS_SERVER
-            io->src.written.bytes += MAX(0, w);
-            if (w >= 0)
-               ++io->src.written.packets;
-#else /* BAREFOOTD */
+               bwused += w;
+
+               IOUPDATE(tnow,
+                        &io->iotime,
+                        w,
+#if HAVE_TWO_LEVEL_ACL
+                        &io->rule,
+#else /* !HAVE_TWO_LEVEL_ACL */
+                        &io->crule,
+#endif /* !HAVE_TWO_LEVEL_ACL */
+                        sockscf.shmemfd);
+            }
+
+#if BAREFOOTD
+
             udpclient->src_written.bytes += MAX(0, w);
             if (w >= 0)
                ++udpclient->src_written.packets;
+
+#else /* !BAREFOOTD */
+
+            io->src.written.bytes += MAX(0, w);
+            if (w >= 0)
+               ++io->src.written.packets;
+
 #endif /* BAREFOOTD */
 
             if (redirected) /* connect back to client. */
                if (connect(io->src.s, &io->src.raddr, sizeof(io->src.raddr))
                != 0) {
-                  delete_io(mother, io, io->src.s, IO_ERROR);
-                  return;
+                  slog(LOG_DEBUG,
+                       "%s: failed to connect back to client after "
+                       "redirection (%s)",
+                       function, strerror(errno));
+
+                  rawsocket_send(rawsocket,
+                                 &io->dst.host,
+                                 sockaddr2sockshost(&io->dst.laddr, &host),
+                                 &io->src.host, 
+                                 -1);
+
+                  *bad = io->src.s; 
+                  return IO_ERROR;
                }
 
             if (w == -1) {
-               delete_io(mother, io, io->src.s, IO_ERROR);
-               return;
+               if (ERRNOISTMP(errno))
+                  return IO_TMPERROR;
+
+               rawsocket_send(rawsocket,
+                              &io->dst.host,
+                              sockaddr2sockshost(&io->dst.laddr, &host),
+                              &io->src.host, 
+                              -1);
+
+               *bad = io->src.s;
+               return IO_ERROR;
             }
          }
 
          break;
       }
+#endif /* HAVE_UDP_SUPPORT */
 
       default:
          SERRX(io->state.protocol);
@@ -2536,40 +3717,69 @@ doio(mother, io, rset, wset, flags)
 
    /*
     * Only thing we expect from client's control connection is an eof.
-    * For commands that do not have a control connection, we set it
-    * to -1 when receiving the others.
+    * For commands that do not have a separate control connection, we set 
+    * it to -1 when receiving the other descriptors.
     */
 
    if (io->control.s != -1 && FD_ISSET(io->control.s, rset)) {
-      if ((r = read(io->control.s, buf, sizeof(buf))) <= 0)
-         delete_io(mother, io, io->control.s, r == 0 ? IO_CLOSE : IO_ERROR);
+      if ((r = read(io->control.s, buf, buflen)) <= 0) {
+         *bad = io->control.s;
+         return r == 0 ? IO_CLOSE : IO_ERROR;
+      }
       else {
          char controladdr[MAXSOCKADDRSTRING], visbuf[256];
 
          slog(LOG_NOTICE, "%s/control: %ld unexpected byte%s: %s",
-         sockaddr2string(&io->control.raddr, controladdr,
-         sizeof(controladdr)), (long)r, r == 1 ? "" : "s",
-         str2vis(buf, r, visbuf, sizeof(visbuf)));
+                          sockaddr2string(&io->control.raddr, controladdr,
+                                          sizeof(controladdr)),
+                          (long)r,
+                          r == 1 ? "" : "s",
+                          str2vis(buf, r, visbuf, sizeof(visbuf)));
       }
    }
+
+#if BAREFOOTD
+   if (io->state.protocol == SOCKS_UDP && io->dst.s == -1)
+      SYNC_UDPDST(&io->dst, &io->dstv[0]); /* needs to point at something. */
+#endif /* BAREFOOTD */
+
+   slog(LOG_DEBUG, "%s: bwused = %ld", function, (unsigned long)bwused);
+   if (bwused)
+      return IO_NOERROR;
+   else
+      return IO_EAGAIN;
 }
 
 static int
-io_rw(in, out, bad, buf, bufsize, flag)
+io_rw(in, out, bad, reqflags, buf, bufsize, bufused, flag)
    struct sockd_io_direction_t *in;
    struct sockd_io_direction_t *out;
    int *bad;
-   void *buf;
+   const requestflags_t *reqflags;
+   char *buf;
    size_t bufsize;
+   size_t *bufused;
    int flag;
 {
    const char *function = "io_rw()";
    const int sv[] = { in->s, out->s };
    ssize_t r, w, p;
+   size_t bufusedmem = 0;
    int allflushed;
 
-   slog(LOG_DEBUG, "%s: %d -> %d, bufsize = %lu, flag = %d",
-   function, in->s, out->s, (long unsigned)bufsize, flag);
+   if (bufused == NULL)
+      bufused = &bufusedmem;
+
+   if (sockscf.option.debug > 1)
+      slog(LOG_DEBUG, "%s: %d -> %d, bufsize = %lu, bufused = %lu, flag = %d",
+                      function,
+                      in->s,
+                      out->s,
+                      (unsigned long)bufsize,
+                      (unsigned long)*bufused,
+                      flag);
+
+   *bad = -1; /* no error so far. */
 
    /*
     * If we have previously tried to write to in our out, but could not
@@ -2578,7 +3788,7 @@ io_rw(in, out, bad, buf, bufsize, flag)
     * that data has already been logged as written, don't log it again.
     */
    for (p = 0, allflushed = 1; p < (ssize_t)ELEMENTS(sv); ++p)
-      if ((w = socks_flushbuffer(sv[p], -1)) == -1) {
+      if (socks_flushbuffer(sv[p], -1) == -1) {
          if (!ERRNOISTMP(errno))
             *bad = sv[p];
 
@@ -2588,49 +3798,73 @@ io_rw(in, out, bad, buf, bufsize, flag)
    if (!allflushed)
       return -1;
 
-   /*
-    * We receive OOB in-line.  If flag has MSG_OOB set, it means we
-    * are at the OOB marker.  The next byte we read (and it will be
-    * only one) is the OOB byte, and since we receive it in-line,
-    * we should turn off the MSG_OOB flag.
-    *
-    * When we write the data we will keep the MSG_OOB flag, and
-    * hopefully that will work even if the write is combined with
-    * data read from the buffer (so we send more than one byte), with
-    * the last byte, which we will now read, being tagged as the
-    * "oob" data.  Possible this will not work 100% correctly on
-    * some non-BSD implementations, but go with it for now.
-    */
-   if (flag & MSG_OOB) {
-      if (sockatmark(in->s) != 1)
-         flag &= ~MSG_OOB;
-      else
-         slog(LOG_DEBUG, "%s: have OOB data", function);
+   if (in->state.err != 0) { 
+      slog(LOG_DEBUG, "%s: failure already detected on socket %d "
+                      "(%s, errno = %d)",
+                      function, in->s, 
+                      strerror(in->state.err), in->state.err);
+
+      errno = in->state.err;
+      r = -1;
    }
+   else {
+      /*
+       * read data from in ...
+       */
 
-   /*
-    * read data from in ...
-    */
 
+      /*
+       * We receive OOB in-line.  If flag has MSG_OOB set, it means we
+       * are at the OOB marker.  The next byte we read (and it will be
+       * only one) is the OOB byte, and since we receive it in-line,
+       * we should turn off the MSG_OOB flag.
+       *
+       * When we write the data we will keep the MSG_OOB flag, and
+       * hopefully that will work even if the write is combined with
+       * data read from the buffer (so we send more than one byte), with
+       * the last byte, which we will now read, being tagged as the
+       * "oob" data.  Possible this will not work 100% correctly on
+       * some non-BSD implementations, but go with it for now.
+       */
+      if (flag & MSG_OOB) {
+         if (sockatmark(in->s) != 1)
+            flag &= ~MSG_OOB;
+         else
+            slog(LOG_DEBUG, "%s: have OOB data", function);
+      }
 
-   /*
-    * never read more from in than we can write to out, buffer included.
-    */
-   p = MIN(bufsize, socks_freeinbuffer(out->s, WRITE_BUF));
+      /*
+       * never read more from in than we can write to out, buffer included.
+       * Also make sure we can always NUL-terminate buf if neccessary.
+       */
+      p = MIN(bufsize - *bufused, socks_freeinbuffer(out->s, WRITE_BUF));
+      SASSERTX(p > 0);
 
 #if HAVE_GSSAPI
-   /*
-    * If the data we are writing needs to be gssapi-encapsulated,
-    * also make sure we don't read more than we can encapsulate in
-    * a gssapi token; we don't want to deal with "segmentation" of
-    * gssapi tokens.
-    */
-   if (out->auth.method == AUTHMETHOD_GSSAPI)
-      p = MIN(p, (ssize_t)out->maxgssdata);
+      /*
+       * If the data we are writing needs to be gssapi-encapsulated,
+       * also make sure we don't read more than we can encapsulate in
+       * a gssapi token; we don't want to deal with "segmentation" of
+       * gssapi tokens.
+       */
+      if (out->auth.method == AUTHMETHOD_GSSAPI)
+         p = MIN(p, (ssize_t)out->maxgssdata);
 #endif /* HAVE_GSSAPI */
+#if COVENANT 
+   if (in->state.isclientside && !reqflags->httpconnect)
+      flag |= MSG_PEEK;
+#endif /* COVENANT  */
 
-   if ((r = socks_recvfrom(in->s, buf, p, flag & ~MSG_OOB, NULL, NULL,
-   &in->auth)) <= 0) {
+      r = socks_recvfrom(in->s,
+                         &buf[*bufused],
+                         p,
+                         flag & ~MSG_OOB,
+                         NULL,
+                         NULL,
+                         &in->auth);
+   }
+
+   if (r <= 0) {
       if (r == 0) {
          /*
           * FIN from "in".  It won't send us any more data, so
@@ -2643,13 +3877,37 @@ io_rw(in, out, bad, buf, bufsize, flag)
           * Only then can we close the socket.  Since we may clear
           * state.fin however, state.shutdown should be used
           * for testing here.
-          *
           */
 
-         slog(LOG_DEBUG, "%s: got EOF on in->s (%d)", function, in->s);
+         slog(LOG_DEBUG, "%s: got EOF on in->s (%d) when trying to read up to "
+                         "%ld bytes",
+                         function, in->s, (long)p);
+
          in->state.fin = 1;
 
-         SASSERTX(socks_bytesinbuffer(out->s, WRITE_BUF, 0)  == 0);
+#if HAVE_DARWIN
+         if (in->read.bytes == 0) {
+            socklen_t optlen;
+            int opt;
+
+            optlen = sizeof(opt);
+            if (getsockopt(in->s, SOL_SOCKET, SO_RCVBUF, &opt, &optlen) == -1) 
+               swarn("%s: getsockopt(SO_RCVBUF)", function);
+
+            if (opt == 0)
+               swarnx("%s: There is a bug in the OS X Kernel, v10.5.0 "
+                      "at least, that for some reason makes a sockets "
+                      "SO_RCVBUF become zero sometimes.  "
+                      "Subsequent reads from it return 0 even if the other "
+                      "side has not closed the connection, and "
+                      "select(2) also says the socket is readable.  This "
+                      "makes the TCP EOF indication not work correctly, "
+                      " and %s ends up closing the session prematurely.\n",
+                      function, PACKAGE);
+         }
+#endif /* HAVE_DARWIN */
+
+         SASSERTX(socks_bytesinbuffer(out->s, WRITE_BUF, 0) == 0);
 
          if (in->state.shutdown_wr) /* have already received FIN from out. */
             *bad = out->s; /* done with this socket, "out" closed first. */
@@ -2661,26 +3919,122 @@ io_rw(in, out, bad, buf, bufsize, flag)
             slog(LOG_DEBUG, "%s: shutting down out->s (%d) for writing",
             function, out->s);
 
-            if (shutdown(out->s, SHUT_WR) != 0)
-               swarn("%s: shutdown()", function);
-            else
+            if (shutdown(out->s, SHUT_WR) != 0) {
+               slog(LOG_DEBUG,
+                    "%s: shutdown() for write towards remote peer failed: %s",
+                    function, strerror(errno));
+
+               *bad = out->s;
+            }
+            else 
                out->state.shutdown_wr = 1;
          }
       }
-      else if (!ERRNOISTMP(errno))
-         *bad = in->s;
+      else 
+         if (!ERRNOISTMP(errno))
+            *bad = in->s;
 
       return r;
    }
 
+#if COVENANT 
+   if (in->state.isclientside && !reqflags->httpconnect) {
+      /*
+       * As long as the target of the clients request does not change, we
+       * can forward it as normal.  If it changes, we need to restart 
+       * negotiation however.  
+       * Since we have no other way to know when the target changes, we have
+       * to parse all data from the the http client before we can forward it,
+       * as if the request is to a different server, it should not be
+       * forwarded to the current target.
+       */ 
+      const char *http_eof = "\r\n\r\n";
+      struct sockd_client_t client;
+      char *p, emsg[512];
+
+      buf[*bufused + r] = NUL;
+      p = strstr(buf, http_eof);
+
+      slog(LOG_DEBUG, "%s: read %ld bytes now, %lu bytes in total.  "
+                      "%s HTTP request eof",
+                      function, (long)r, (unsigned long)*bufused + r,
+                      p == NULL ? "Not yet at" : "Now have");
+         
+      if (p == NULL)
+         ;  /* no eof yet, save all read. */
+      else { /* got the end of the request.  How far out in the buffer is it? */
+          r        = (p + strlen(http_eof)) - buf;
+          *bufused = 0;
+      }
+
+      flag &= ~MSG_PEEK;
+
+      /* re-read the data peeked at. */
+      w = socks_recvfrom(in->s,
+                         &buf[*bufused],
+                         r,
+                         flag & ~MSG_OOB,
+                         NULL,
+                         NULL,
+                         &in->auth);
+      SASSERTX(r == w);
+
+      if (p == NULL)
+         return 0; /* no eof.  Return. */
+
+      /*
+       * got the request.  Parse it and see if the target is still
+       * the same.
+       */
+       client.request.auth = &client.auth; 
+       if (parse_httprequest(&client.request, buf, emsg, sizeof(emsg)) != 0) {
+         char visbuf[2048];
+
+         swarnx("%s: failed to parse http request \"%s\" from %s: %s",
+                function,
+                socket2string(in->s, NULL, 0),
+                str2vis(buf, r, visbuf, sizeof(visbuf)),
+                emsg);
+      }
+
+      if (!sockshostareeq(&out->host, &client.request.host)) {
+         char old[MAXSOCKSHOSTSTRING], new[MAXSOCKSHOSTSTRING];
+
+         slog(LOG_DEBUG, "%s: client at %s changing target from %s to %s.  "
+                         "Need to renegotiate",
+                         function, 
+                         socket2string(in->s, NULL, 0),
+                         sockshost2string(&out->host, old, sizeof(old)),
+                         sockshost2string(&client.request.host,
+                                          new, sizeof(new)));
+
+         memcpy(client.clientdata, buf, *bufused + r);
+         client.clientdatalen = *bufused + r;
+         client.s             = in->s;
+         gettimeofday(&client.accepted, NULL);
+
+         send_client(sockscf.state.mother.s, &client, buf, *bufused);
+
+         *bad = in->s;
+         return 0;
+      }
+      else
+         slog(LOG_DEBUG, "%s: no problem, target in the new request is the "
+                         "same as before (%s)",
+                         function, 
+                         sockshost2string(&client.request.host, NULL, 0));
+   }
+#endif /* COVENANT */
+
    in->read.bytes += r;
 
-   slog(LOG_DEBUG, "%s: read %ld", function, (long)r);
+   if (sockscf.option.debug > 1)
+      slog(LOG_DEBUG, "%s: read %ld", function, (long)r);
 
    if (flag & MSG_OOB)
       in->flags |= MSG_OOB;   /* read oob data.            */
    else
-      in->flags &= ~MSG_OOB;  /* did not read oob data.   */
+      in->flags &= ~MSG_OOB;  /* did not read oob data.    */
 
    /*
     * ... and send the data read to out.
@@ -2689,6 +4043,9 @@ io_rw(in, out, bad, buf, bufsize, flag)
    if ((w = socks_sendto(out->s, buf, (size_t)r, flag, NULL, 0, &out->auth))
    > 0)
       out->written.bytes += w;
+
+   if (sockscf.option.debug > 1)
+      slog(LOG_DEBUG, "%s: wrote %ld", function, (long)w);
 
    if (w != r) {
       if (w == -1)
@@ -2747,54 +4104,55 @@ io_getset(nfds, set)
       /*
        * find the io d is part of.
        */
-
       for (i = 0, evaluating = NULL; i < ioc; ++i) {
          if (!iov[i].allocated)
             continue;
 
-         if (s == iov[i].src.s) {
+         if (s == iov[i].src.s || s == iov[i].dst.s) {
             evaluating = &iov[i];
             break;
          }
-         else if (s == iov[i].dst.s) {
-            evaluating = &iov[i];
-            break;
-         }
-         else {
-            switch (iov[i].state.command) {
-               case SOCKS_BIND:
-               case SOCKS_BINDREPLY:
-                  if (iov[i].state.extension.bind && s == iov[i].control.s)
-                     evaluating = &iov[i];
-                  break;
 
-               case SOCKS_UDPASSOCIATE:
-                  if (s == iov[i].control.s)
-                     evaluating = &iov[i];
+         switch (iov[i].state.command) {
+            case SOCKS_BIND:
+            case SOCKS_BINDREPLY:
+               if (iov[i].state.extension.bind && s == iov[i].control.s)
+                  evaluating = &iov[i];
+               break;
+
+            case SOCKS_UDPASSOCIATE: {
+               struct udpclient *client;
+
+               if (s == iov[i].control.s)
+                  evaluating = &iov[i];
 #if BAREFOOTD
-                  else if (srcofudpsocket(s, iov[i].dstc, iov[i].dstv) != NULL)
-                     evaluating = &iov[i];
+               else if ((client = udpclientofsocket(s, iov[i].dstc,
+               iov[i].dstv)) != NULL) {
+                  SYNC_UDPDST(&iov[i].dst, client);
+                  evaluating = &iov[i];
+               }
 #endif /* BAREFOOTD */
-                  break;
-
-               default:
-                  break;
+               break;
             }
 
-            if (evaluating != NULL)
+            default:
                break;
          }
-      }
 
+         if (evaluating != NULL)
+            break;
+      }
+      
       SASSERTX(evaluating != NULL);
 
-      /* select the i/o that has least recently done i/o. */
+      /* want the i/o object that has least recently done i/o. */
       if (best == NULL || timercmp(&evaluating->iotime, &best->iotime, <))
          best = evaluating;
    }
 
    return best;
 }
+
 
 static struct sockd_io_t *
 io_finddescriptor(d)
@@ -2805,12 +4163,13 @@ io_finddescriptor(d)
    for (i = 0; i < ioc; ++i)
       if (iov[i].allocated) {
          if (d == iov[i].src.s || d == iov[i].dst.s) {
-
 #if BAREFOOTD
             if (d == iov[i].src.s
             && iov[i].state.command == SOCKS_UDPASSOCIATE)
-               iov[i].dst.s = iov[i].dstv[0].s; /* dummy socket. */
+               /* dummy socket. demux later. */
+               SYNC_UDPDST(&iov[i].dst, &iov[i].dstv[0]);
 #endif /* BAREFOOTD */
+
             return &iov[i];
          }
 
@@ -2821,10 +4180,12 @@ io_finddescriptor(d)
                   break;
                /* else: */ /* FALLTHROUGH */
 
-            case SOCKS_UDPASSOCIATE:
+            case SOCKS_UDPASSOCIATE: {
 #if BAREFOOTD
-               if (srcofudpsocket(d, iov[i].dstc, iov[i].dstv) != NULL) {
-                  iov[i].dst.s = d;
+               struct udpclient *udpclient;
+               if ((udpclient = udpclientofsocket(d, iov[i].dstc, iov[i].dstv))
+               != NULL) {
+                  SYNC_UDPDST(&iov[i].dst, udpclient); 
                   return &iov[i];
                }
 #else
@@ -2832,6 +4193,7 @@ io_finddescriptor(d)
                   return &iov[i];
 #endif /* BAREFOOTD */
                break;
+            }
 
             default:
                break;
@@ -2841,287 +4203,479 @@ io_finddescriptor(d)
    return NULL;
 }
 
+#define NEXT_IF_BWOVERFLOW(rule, tnow, controlfd, srcfd, dstfd)                \
+{                                                                              \
+   static long previous_bw_shmid;                                              \
+   static struct timeval previous_tnow;                                        \
+   static int previous_result;                                                 \
+   struct timeval new_bwoverflow, howlongtil;                                  \
+   int have_bwoverflow;                                                        \
+                                                                               \
+   SASSERTX((rule)->bw != NULL);                                               \
+                                                                               \
+   /*                                                                          \
+    * try to optimize away the probably common case where most of the          \
+    * clients use the same few rules.                                          \
+    */                                                                         \
+   if (previous_bw_shmid == (rule)->bw_shmid                                   \
+   &&  timercmp(&previous_tnow, tnow, ==)) {                                   \
+      have_bwoverflow = previous_result;                                       \
+      new_bwoverflow  = bwoverflow;                                            \
+   }                                                                           \
+   else /* must calculate. */                                                  \
+      have_bwoverflow = -1;                                                    \
+                                                                               \
+   if (have_bwoverflow == -1) {                                                \
+      slog(LOG_DEBUG, "%s: checking bw_shmid %lu for overflow ...",            \
+      function, (unsigned long)(rule)->bw_shmid);                              \
+                                                                               \
+      if (bw_isoverflow((rule)->bw,                                            \
+                        tnow,                                                  \
+                        &new_bwoverflow,                                       \
+                        sockscf.shmemfd) != NULL)                              \
+         have_bwoverflow = 1;                                                  \
+      else                                                                     \
+         have_bwoverflow = 0;                                                  \
+   }                                                                           \
+                                                                               \
+   previous_bw_shmid = (rule)->bw_shmid;                                       \
+   previous_tnow     = *tnow;                                                  \
+   previous_result   = have_bwoverflow;                                        \
+                                                                               \
+   if (have_bwoverflow) {                                                      \
+      SASSERTX(timercmp(&new_bwoverflow, tnow, >));                            \
+                                                                               \
+      /*                                                                       \
+       * this also means we won't catch errors on this                         \
+       * client for the duration.  Hopefully not a problem, as                 \
+       * we are not expecting to overflow too much.                            \
+       */                                                                      \
+      if (!timerisset(&bwoverflow)                                             \
+      ||  timercmp(&new_bwoverflow, &bwoverflow, <))                           \
+         bwoverflow = new_bwoverflow;                                          \
+                                                                               \
+      timersub(&bwoverflow, tnow, &howlongtil);                                \
+      slog(LOG_DEBUG,                                                          \
+           "%s: skipping io #%lu (rule #%lu) with fds %d, %d, %d "             \
+           "due to bwoverflow (have to wait for %ld.%06ld, til %ld.%06ld)",    \
+            function,                                                          \
+            (unsigned long)i, (unsigned long)((rule)->number),                 \
+            controlfd,                                                         \
+            srcfd,                                                             \
+            dstfd,                                                             \
+            (long)howlongtil.tv_sec,                                           \
+            (long)howlongtil.tv_usec,                                          \
+            (long)bwoverflow.tv_sec,                                           \
+            (long)bwoverflow.tv_usec);                                         \
+                                                                               \
+      continue;                                                                \
+   }                                                                           \
+}
+
 static int
-io_fillset(set, antiflags, timenow)
+io_fillset(set, antiflags, tnow)
    fd_set *set;
    int antiflags;
-   const struct timeval *timenow;
+   const struct timeval *tnow;
 {
-/*   const char *function = "io_fillset()"; */
+   const char *function = "io_fillset()"; 
    size_t i;
    int max;
 
    FD_ZERO(set);
-
    for (i = 0, max = -1; i < ioc; ++i) {
       struct sockd_io_t *io = &iov[i];
 
-      if (io->allocated) {
-         if (io->rule.bw != NULL) {
-            struct timeval new_bwoverflow;
+      if (!io->allocated)
+         continue;
 
-            if (bw_isoverflow(io->rule.bw, timenow, &new_bwoverflow) != NULL) {
-               if (!timerisset(&bwoverflow)
-               ||  timercmp(&new_bwoverflow, &bwoverflow, <))
-                  bwoverflow = new_bwoverflow;
-
-               /*
-                * this also means we won't catch errors on this
-                * client for the duration.  Hopefully not a problem.
-                */
-               continue;
-            }
-         }
-
-         if (!io->src.state.fin && !(antiflags & io->src.flags)) {
-            FD_SET(io->src.s, set);
-            max = MAX(max, io->src.s);
-         }
-
-         if (!io->dst.state.fin && !(antiflags & io->dst.flags)) {
 #if BAREFOOTD
-            if (io->state.command == SOCKS_UDPASSOCIATE) {
-               size_t i;
+      /* udp-clients need special handling in barefootd. */
+      if (io->state.protocol == SOCKS_TCP) {
+#endif /* BAREFOOTD */
 
-               for (i = 0; i < io->dstc; ++i) {
-                  FD_SET(io->dstv[i].s, set);
-                  max = MAX(max, io->dstv[i].s);
-               }
+      if (io->rule.bw_shmid != 0)
+         NEXT_IF_BWOVERFLOW(&io->rule,
+                            tnow,
+                            io->control.s == -1 ? io->src.s : io->control.s,
+                            io->src.s,
+                            io->dst.s);
+#if BAREFOOTD
+      }
+#endif /* BAREFOOTD */
+
+      if (!io->src.state.fin && !(antiflags & io->src.flags)) {
+         FD_SET(io->src.s, set);
+         max = MAX(max, io->src.s);
+      }
+
+      if (!io->dst.state.fin && !(antiflags & io->dst.flags)) {
+#if BAREFOOTD
+         if (io->state.command == SOCKS_UDPASSOCIATE) {
+            size_t ii;
+
+            for (ii = 1; ii < io->dstc; ++ii) {
+               if (io->dstv[ii].crule.bw_shmid != 0)
+                  NEXT_IF_BWOVERFLOW(&io->dstv[ii].crule,
+                                     tnow,
+                                     io->control.s,
+                                     io->src.s,
+                                     io->dstv[ii].s);
+
+               FD_SET(io->dstv[ii].s, set);
+               max = MAX(max, io->dstv[ii].s);
             }
+         }
+         else {
+            if (iov[i].state.command == SOCKS_CONNECT
+            && !iov[i].dst.state.connected)
+               ;
             else {
                FD_SET(io->dst.s, set);
                max = MAX(max, io->dst.s);
             }
+         }
 #else /* SOCKS_SERVER */
+         if (iov[i].state.command == SOCKS_CONNECT
+         && !iov[i].dst.state.connected)
+            ;
+         else {
             FD_SET(io->dst.s, set);
             max = MAX(max, io->dst.s);
-#endif /* SOCKS_SERVER */
-         }
-
-#if SOCKS_SERVER
-         switch (io->state.command) {
-            case SOCKS_BIND:
-            case SOCKS_BINDREPLY:
-               if (!io->state.extension.bind)
-                  break;
-               /* else: */ /* FALLTHROUGH */
-
-            case SOCKS_UDPASSOCIATE:
-               if (!(antiflags & io->control.flags)) {
-                  FD_SET(io->control.s, set);
-                  max = MAX(max, io->control.s);
-               }
-               break;
-
-            default:
-               break;
          }
 #endif /* SOCKS_SERVER */
       }
+
+#if SOCKS_SERVER
+      switch (io->state.command) {
+         case SOCKS_BIND:
+         case SOCKS_BINDREPLY:
+            if (!io->state.extension.bind)
+               break;
+            /* else: */ /* FALLTHROUGH */
+
+         case SOCKS_UDPASSOCIATE:
+            if (!(antiflags & io->control.flags)) {
+               FD_SET(io->control.s, set);
+               max = MAX(max, io->control.s);
+            }
+            break;
+
+         default:
+            break;
+      }
+#endif /* SOCKS_SERVER */
    }
 
    return max;
 }
 
-static struct timeval *
-io_gettimeout(timeout, timenow)
-   struct timeval *timeout;
-   const struct timeval *timenow;
+static int
+io_fillset_connectinprogress(set)
+   fd_set *set;
 {
-   const char *function = "io_gettimeout()";
-   size_t i, haveio;
+   const char *function = "io_fillset_connectinprogress()";
+   int i, bits, count;
+
+   FD_ZERO(set);
+   for (i = count = 0, bits = -1; (size_t)i < ioc; ++i) {
+      if (iov[i].allocated
+      && !iov[i].dst.state.connected
+      && iov[i].state.command == SOCKS_CONNECT) {
+
+         FD_SET(iov[i].dst.s, set);
+         bits = MAX(bits, iov[i].dst.s);
+
+         slog(LOG_DEBUG, "%s: socket %d marked as still connecting",
+         function, iov[i].dst.s);
+
+         ++count;
+      }
+   }
+
+   return bits;
+}
+
+static struct timeval *
+io_gettimeout(timeout, tnow)
+   struct timeval *timeout;
+   const struct timeval *tnow;
+{
+/*   const char *function = "io_gettimeout()"; */
+   struct timeval timetohavebw;
+   size_t i;
+   int havetimeout;
+
+   if (timerisset(&bwoverflow)) {
+      if (timercmp(tnow, &bwoverflow, >=)) { /* waited long enough. */
+         timeout->tv_sec  = 0;
+         timeout->tv_usec = 0;
+
+         return timeout;
+      }
+      else /* still have some to wait. */
+         timersub(&bwoverflow, tnow, &timetohavebw);
+   }
 
    if (io_allocated(NULL, NULL) == 0)
       return NULL;
 
-   if (sockscf.timeout.tcpio == 0 && sockscf.timeout.udpio == 0
-   && !timerisset(&bwoverflow))
-      return NULL;
-
-   timeout->tv_sec  = MAX(sockscf.timeout.tcpio, sockscf.timeout.udpio);
-   timeout->tv_usec = 0;
-
-   haveio = 0;
-   if (timerisset(timeout)) { /* iotimeout set. */
-      for (i = 0; i < ioc; ++i) {
-         if (timeout->tv_sec <= 0)  {
-            timeout->tv_sec = 0;
-            break; /* at or past timeout already, don't look further. */
-         }
-
-         if (!iov[i].allocated)
-            continue;
-
-         if (iov[i].state.protocol == SOCKS_UDP) {
-            if (sockscf.timeout.udpio == 0)
-               continue;
-         }
-         else { /* TCP */
-            if (sockscf.timeout.tcpio == 0)
-               continue;
-         }
-
-         if (timenow->tv_sec < iov[i].iotime.tv_sec) {
-            slog(LOG_DEBUG, "%s: clock was stepped backwards?", function);
-            iov[i].iotime.tv_sec = timenow->tv_sec;
-         }
-
-#if BAREFOOTD
-         if (iov[i].state.protocol == SOCKS_UDP) {
-            size_t ii;
-
-            for (ii = 1; ii < iov[i].dstc; ++ii) {
-               struct udpclient *udpclient = &iov[i].dstv[ii];
-
-               timeout->tv_sec
-               = MIN(timeout->tv_sec,
-                      (ssize_t)sockscf.timeout.udpio
-                      - (timenow->tv_sec - udpclient->iotime.tv_sec));
-
-               haveio = 1;
-            }
-
-            continue;
-         }
-         else
-#endif /* BAREFOOTD */
-
-         timeout->tv_sec = MIN(timeout->tv_sec,
-         (iov[i].state.protocol == SOCKS_TCP ?
-         (ssize_t)sockscf.timeout.tcpio : (ssize_t)sockscf.timeout.udpio)
-         - (timenow->tv_sec - iov[i].iotime.tv_sec));
-
-         haveio = 1;
-      }
-   }
-
-   if (timerisset(&bwoverflow)) {
-      struct timeval timetobw;
-
-      if (timercmp(timenow, &bwoverflow, >)) /* waited long enough. */
-         timerclear(&timetobw);
-      else /* still have some to wait. */
-         timersub(&bwoverflow, timenow, &timetobw);
-
-      if (!haveio || timercmp(&timetobw, timeout, <)) {
-         *timeout = timetobw;
-         haveio = 1;
-      }
-   }
-
-   if (haveio)
-      return timeout;
-   else
-      return NULL;
-}
-
-static struct sockd_io_t *
-io_gettimedout(timenow)
-   const struct timeval *timenow;
-{
-   const char *function = "io_gettimedout()";
-   size_t i;
-
-   if (sockscf.timeout.tcpio == 0 && sockscf.timeout.udpio == 0)
-      return NULL;
-
+   havetimeout = 0;
    for (i = 0; i < ioc; ++i) {
-      struct timeval iotimemem, *iotime = &iotimemem;
+      struct timeval iotimeout;
 
-      if (!iov[i].allocated)
+      if (!io_timeoutispossible(&iov[i]))
          continue;
 
-      if (iov[i].state.protocol == SOCKS_UDP) {
-         if (sockscf.timeout.udpio == 0)
-            continue;
-      }
-      else { /* TCP */
-         if (sockscf.timeout.tcpio == 0)
-            continue;
+      iotimeout.tv_usec = 0;
+      if ((iotimeout.tv_sec = io_timetiltimeout(&iov[i], tnow, NULL)) != -1
+      &&  (!havetimeout || timercmp(&iotimeout, timeout, <))) {
+         *timeout    = iotimeout;
+         havetimeout = 1;
       }
 
-#if BAREFOOTD
-      if (iov[i].state.command == SOCKS_UDPASSOCIATE) {
-         size_t ii;
+      if (havetimeout
+      && timeout->tv_sec <= 0 && timeout->tv_usec <= 0)
+         return timeout; /* at or past timeout already, don't look further. */
 
-         if (iov[i].dstc <= 1)
-            continue;
-
-         for (ii = 1; ii < iov[i].dstc; ++ii) {
-            struct udpclient *udpclient = &iov[i].dstv[ii];
-
-            iotime = &udpclient->iotime;
-
-            if (timenow->tv_sec < iotime->tv_sec) {
-               slog(LOG_DEBUG, "%s: clock was stepped backwards?", function);
-
-               *iotime = *timenow;
-               continue;
-            }
-
-            if ((size_t)(timenow->tv_sec - iotime->tv_sec)
-            >= (iov[i].state.protocol == SOCKS_TCP ?
-            sockscf.timeout.tcpio : sockscf.timeout.udpio)) {
-
-               iov[i].dst.s     = udpclient->s;
-               iov[i].src.laddr = udpclient->laddr;
-               iov[i].src.raddr = udpclient->raddr;
-
-               return &iov[i];
-            }
-         }
-
-         *iotime = *timenow; /* no clients have timed out in this io-object. */
-         continue;
-      }
-      else
-         iotime = &iov[i].iotime;
-#else /* SOCKS_SERVER */
-      iotime = &iov[i].iotime;
-#endif /* SOCKS_SERVER */
-
-      if (timenow->tv_sec < iotime->tv_sec) {
-         slog(LOG_DEBUG, "%s: clock was stepped backwards?", function);
-
-         *iotime = *timenow;
-         continue;
-      }
-
-      if ((size_t)(timenow->tv_sec - iotime->tv_sec)
-      >= (iov[i].state.protocol == SOCKS_TCP ?
-      sockscf.timeout.tcpio : sockscf.timeout.udpio))
-         return &iov[i];
+      /* else; continue looking for the one that will time out most imminent. */
    }
+
+   if (timerisset(&bwoverflow))
+      /* XXX this is wrong, timetohavebw may not be set. */
+      if (!havetimeout || timercmp(&timetohavebw, timeout, <)) {
+         *timeout    = timetohavebw;
+         havetimeout = 1;
+      }
+
+   if (havetimeout)
+      return timeout;
 
    return NULL;
 }
 
-static void
-getnewio(mother)
-   struct sockd_mother_t *mother;
+static struct sockd_io_t *
+io_gettimedout(tnow, nexttimeout, nexttimeoutisset)
+   const struct timeval *tnow;
+   struct timeval *nexttimeout;
+   int *nexttimeoutisset;
+{
+   const char *function = "io_gettimedout()"; 
+   struct sockd_io_t *io;
+   size_t i;
+
+   *nexttimeoutisset = 0;
+   io                = NULL;
+   for (i = 0; i < ioc; ++i) {
+      struct timeval timeout;
+
+      if (!iov[i].allocated)
+         continue;
+
+      if ((timeout.tv_sec = io_timetiltimeout(&iov[i], tnow, NULL)) == -1)
+         continue;  /* no timeout on this object. */
+
+      timeout.tv_usec = 0; /* whole seconds is good enough. */
+      
+      if (timeout.tv_sec <= 0 && timeout.tv_usec <= 0)
+         io = &iov[i]; /* timeout is now. */
+      /*
+       * else; object has not yet timed out, but continue to get the time 
+       * of the next timeout, if any, so that we can return the time 
+       * the first io object will time out.
+       */
+
+      if (!*nexttimeoutisset || timercmp(&timeout, nexttimeout, <)) {
+         *nexttimeout      = timeout;
+         *nexttimeoutisset = 1;
+      }
+   }
+
+   if (io != NULL)
+      slog(LOG_DEBUG, "%s: io with control %d, src %d, dst %d, " 
+                      "has reached the timeout point",
+                      function, io->control.s, io->src.s, io->dst.s);
+
+   return io;
+}
+
+static int
+io_timeoutispossible(io)
+   const struct sockd_io_t *io;
 {
 
-   if (recv_io(mother->s, NULL) == 0)
-      proctitleupdate();
+   if (!io->allocated)
+      return 0;
+
+   if (io->state.command == SOCKS_UDPASSOCIATE) {
+#if BAREFOOTD 
+      if (io->dstc <= 1) /* index 0 is dummy. */
+         return -1;
+#endif /* BAREFOOTD */
+
+      return io->rule.timeout.udpio != 0;
+   }
+
+   if (io->dst.state.connected) {
+      if (io->src.state.shutdown_wr || io->dst.state.shutdown_wr)
+         return io->rule.timeout.tcp_fin_wait != 0;
+      else
+         return io->rule.timeout.tcpio != 0;
+   }
+   else
+      return io->rule.timeout.connect != 0;
+
+   /* NOTREACHED */
+   SERRX(0);
+}
+
+
+static long
+io_timetiltimeout(io, tnow, timeouttype)
+   struct sockd_io_t *io;
+   const struct timeval *tnow;
+   timeout_type_t *timeouttype;
+{
+   const char *function = "io_timetiltimeout()";
+   timeout_type_t timeouttype_mem;
+   time_t *lastio;
+   long protocoltimeout;
+
+   if (!io_timeoutispossible(io))
+      return -1;
+
+   if (timeouttype == NULL)
+      timeouttype = &timeouttype_mem;
+
+#if BAREFOOTD 
+   if (io->state.command == SOCKS_UDPASSOCIATE) {
+      size_t ii;
+      long timetiltimeout;
+
+      if (io->dstc <= 1) /* index 0 is dummy. */
+         return -1;
+
+      for (ii = 1, timetiltimeout = -1; ii < io->dstc; ++ii) {
+         struct udpclient *udpclient = &io->dstv[ii];
+
+         if (tnow->tv_sec < udpclient->iotime.tv_sec) {
+            slog(LOG_DEBUG, "%s: clock was stepped backwards?", function);
+
+            udpclient->iotime = *tnow;
+            continue;
+         }
+
+         if (timetiltimeout == -1 
+         || (unsigned long)timetiltimeout
+         > io->rule.timeout.udpio - (tnow->tv_sec - udpclient->iotime.tv_sec)) {
+            timetiltimeout = io->rule.timeout.udpio
+                             - (tnow->tv_sec - udpclient->iotime.tv_sec);
+ 
+            *timeouttype    = TIMEOUT_IO;
+            SYNC_UDPDST(&io->dst, udpclient); 
+         }
+      }
+
+      return timetiltimeout;
+   }
+#else /* SOCKS_SERVER */
+   if (io->state.protocol == SOCKS_UDP) {
+      *timeouttype    = TIMEOUT_IO;
+      protocoltimeout = io->rule.timeout.udpio;
+      lastio          = (time_t *)&io->iotime.tv_sec;
+   }
+#endif /* SOCKS_SERVER */
+
    else {
-      close(mother->s);
-      close(mother->ack);
-      mother->s = mother->ack = -1;
+      SASSERTX(io->state.protocol == SOCKS_TCP);
+
+      if (io->dst.state.connected) {
+         if (io->src.state.shutdown_wr || io->dst.state.shutdown_wr) {
+            *timeouttype    = TIMEOUT_TCP_FIN_WAIT;
+            protocoltimeout = io->rule.timeout.tcp_fin_wait;
+         }
+         else {
+            *timeouttype    = TIMEOUT_IO;
+            protocoltimeout = io->rule.timeout.tcpio;
+         }
+
+         lastio = (time_t *)&io->iotime.tv_sec;
+      }
+      else {
+         *timeouttype    = TIMEOUT_CONNECT;
+         protocoltimeout = io->rule.timeout.connect;
+         lastio          = (time_t *)&io->state.time.established.tv_sec;
+      }
+   }
+
+   if (protocoltimeout == 0)
+      return -1;
+
+   if (difftime(*lastio, tnow->tv_sec) > 0) {
+      slog(LOG_DEBUG, "%s: clock was stepped backwards?", function);
+
+      *lastio = tnow->tv_sec;
+   }
+
+   if (MAX(0, protocoltimeout - difftime(tnow->tv_sec, *lastio)) == 0)
+      slog(LOG_DEBUG, "%s: protocoltimeout = %ld, tnow = %ld, lastio = %ld",
+      function, protocoltimeout, (long)tnow->tv_sec, (long)*lastio);
+
+   return MAX(0,
+              protocoltimeout - ROUNDFLOAT(difftime(tnow->tv_sec, *lastio)));
+}
+
+static void
+getnewio()
+{
+   const char *function = "getnewio()";
+   int rc, receivedc;
+
+   receivedc = 0;
+   while ((rc = recv_io(sockscf.state.mother.s, NULL)) == 0)
+      ++receivedc;
+   
+   slog(receivedc == 0 ? LOG_ERR : LOG_DEBUG,
+        "%s: received %d new io%s, errno = %d (%s)", 
+        function,
+        receivedc,
+        receivedc == 1 ? "" : "s",
+        errno,
+        errnostr(errno));
+
+   SASSERTX(rc == -1);
+
+   if (!ERRNOISTMP(errno) && !ERRNOISSENDMSGFD(errno)) {
+      swarn("%s: fatal error on receving io from mother", function);
+
+      close(sockscf.state.mother.s);
+      close(sockscf.state.mother.ack);
+      sockscf.state.mother.s = sockscf.state.mother.ack = -1;
+   }
+   else {
+      if (receivedc == 0)
+         swarn("%s: strange ... we were called to receive a new io, but no "
+               "new io was there to receive ...",
+               function);
+      else
+         proctitleupdate();
    }
 }
 
 /* ARGSUSED */
 static void
-siginfo(sig)
+siginfo(sig, sip, scp)
    int sig;
+   siginfo_t *sip;
+   void *scp;
 {
    const char *function = "siginfo()";
    unsigned long seconds, days, hours, minutes;
-   time_t timenow;
+   struct timeval tnow;
    size_t i;
 
    if (sig > 0) {
-      sockd_pushsignal(sig);
+      sockd_pushsignal(sig, sip);
       return;
    }
 
@@ -3130,107 +4684,327 @@ siginfo(sig)
    slog(LOG_DEBUG, "%s: running due to previously received signal: %d",
    function, sig);
 
-   seconds = difftime(time(&timenow), sockscf.stat.boot);
+   gettimeofday(&tnow, NULL);
+   seconds = ROUNDFLOAT(difftime(time((time_t *)&tnow.tv_sec),
+                                 sockscf.stat.boot));
    seconds2days(&seconds, &days, &hours, &minutes);
 
    slog(LOG_INFO, "io-child up %lu day%s, %lu:%.2lu:%.2lu",
                   days, days == 1 ? "" : "s", hours, minutes, seconds);
 
    for (i = 0; i < ioc; ++i) {
-      char srcstring[ MAXSOCKADDRSTRING
-                    + strlen(" ")
-                    + MAXSOCKSHOSTSTRING
-                    + MAXAUTHINFOLEN], dststring[sizeof(srcstring)];
+      char srcstring[MAX_IOLOGADDR], dststring[MAX_IOLOGADDR],
+           timeinfo[64], idlestr[64];
 
       if (!iov[i].allocated)
          continue;
 
-      BUILD_ADDRSTR_SRC(&iov[i].src.host,
-                        NULL,
-                        NULL,
-                        &iov[i].src.laddr,
-                        &iov[i].src.auth,
-                        NULL,
-                        srcstring,
-                        sizeof(srcstring));
+#if BAREFOOTD
+      if (iov[i].state.protocol == SOCKS_TCP) {
+#endif /* BAREFOOTD */
+         BUILD_ADDRSTR_SRC(&iov[i].src.host,
+                           NULL,
+                           NULL,
+                           &iov[i].src.laddr,
+                           &iov[i].src.auth,
+                           NULL,
+                           srcstring,
+                           sizeof(srcstring));
 
-      BUILD_ADDRSTR_DST(&iov[i].dst.laddr,
-                        iov[i].state.proxyprotocol == PROXY_DIRECT
-                           ? NULL : &iov[i].state.proxychain.server,
-                        iov[i].state.proxyprotocol == PROXY_DIRECT
-                           ? NULL : &iov[i].state.proxychain.extaddr,
-                        &iov[i].dst.host,
-                        &iov[i].dst.auth,
-                        NULL,
-                        dststring,
-                        sizeof(dststring));
+         BUILD_ADDRSTR_DST(&iov[i].dst.laddr,
+                           iov[i].state.proxyprotocol == PROXY_DIRECT
+                              ? NULL : &iov[i].state.proxychain.server,
+                           iov[i].state.proxyprotocol == PROXY_DIRECT
+                              ? NULL : &iov[i].state.proxychain.extaddr,
+                           &iov[i].dst.host,
+                           &iov[i].dst.auth,
+                           NULL,
+                           dststring,
+                           sizeof(dststring));
+#if BAREFOOTD
+      }
+#endif /* BAREFOOTD */
 
-      if (iov[i].state.command == SOCKS_UDPASSOCIATE)
-         slog(LOG_INFO, "%s: %s <-> %s: idle: %.0fs, "
-                        "bytes transferred: %lu <-> %lu, packets: %lu <-> %lu",
-              protocol2string(iov[i].state.protocol),
-              srcstring, dststring,
-              difftime(timenow, (time_t)iov[i].iotime.tv_sec),
-              (unsigned long)iov[i].dst.written.bytes,
-              (unsigned long)iov[i].src.written.bytes,
-              (unsigned long)iov[i].dst.written.packets,
-              (unsigned long)iov[i].src.written.packets);
+      if (iov[i].state.protocol == SOCKS_UDP
+      ||  iov[i].dst.state.connected)
+         snprintfn(idlestr, sizeof(idlestr), "%lds", 
+                   (long)(tnow.tv_sec - iov[i].iotime.tv_sec));
       else
-         slog(LOG_INFO,
-              "%s: %s <-> %s: idle: %.0fs, bytes transferred: %lu <-> %lu",
+         snprintfn(idlestr, sizeof(idlestr), 
+                   "%lds (waiting for the connect to complete)",
+                   (long)(  tnow.tv_sec
+                          - iov[i].state.time.established.tv_sec));
+
+#if BAREFOOTD
+      if (iov[i].state.protocol == SOCKS_TCP)
+#endif /* BAREFOOTD */
+      snprintf(timeinfo, sizeof(timeinfo),
+               "age: %lds, idle: %s",
+               (long)(tnow.tv_sec - iov[i].state.time.accepted.tv_sec),
+               idlestr);
+               
+
+      if (iov[i].state.protocol == SOCKS_UDP) {
+#if BAREFOOTD
+         struct udpclient *client;
+         size_t srci;
+
+         for (srci = 1; srci < iov[i].dstc; ++srci) {
+            struct sockshost_t host;
+            client = &iov[i].dstv[srci];
+
+            BUILD_ADDRSTR_SRC(sockaddr2sockshost(&client->client, &host),
+                              NULL, 
+                              NULL,
+                              &iov[i].src.laddr,
+                              &iov[i].src.auth,
+                              NULL,
+                              srcstring,
+                              sizeof(srcstring));
+
+            SYNC_UDPDST(&iov[i].dst, client);
+            BUILD_ADDRSTR_DST(&iov[i].dst.laddr,
+                              iov[i].state.proxyprotocol == PROXY_DIRECT
+                                 ? NULL : &iov[i].state.proxychain.server,
+                              iov[i].state.proxyprotocol == PROXY_DIRECT
+                                 ? NULL : &iov[i].state.proxychain.extaddr,
+                              &iov[i].dst.host,
+                              &iov[i].dst.auth,
+                              NULL,
+                              dststring,
+                              sizeof(dststring));
+
+            snprintf(timeinfo, sizeof(timeinfo),
+                     "age: %lds, idle: %lds",
+                      (long)(tnow.tv_sec
+                             - (srci == 0 ? iov[i].state.time.established.tv_sec
+                                          : client->iotime.tv_sec)),
+                     (long)(tnow.tv_sec 
+                             - (srci == 0 ? iov[i].state.time.established.tv_sec
+                                          : client->firstio.tv_sec)));
+
+            slog(LOG_INFO, "%s: %s <-> %s: %s, "
+                           "bytes transferred: %"PRIu64" <-> %"PRIu64", "
+                           "packets: %"PRIu64" <-> %"PRIu64"",
+                           protocol2string(iov[i].state.protocol),
+                           srcstring, dststring,
+                           timeinfo,
+                           client->dst_written.bytes,
+                           client->src_written.bytes,
+                           client->dst_written.packets,
+                           client->src_written.packets);
+         }
+#else /* !BAREFOOTD */
+         slog(LOG_INFO, "%s: %s <-> %s: %s, "
+                        "bytes transferred: %"PRIu64" <-> %"PRIu64", "
+                        "packets: %"PRIu64" <-> %"PRIu64"",
               protocol2string(iov[i].state.protocol),
               srcstring, dststring,
-              difftime(timenow, (time_t)iov[i].iotime.tv_sec),
-              (unsigned long)iov[i].dst.written.bytes,
-              (unsigned long)iov[i].src.written.bytes);
+              timeinfo,
+              iov[i].dst.written.bytes, iov[i].src.written.bytes,
+              iov[i].dst.written.packets, iov[i].src.written.packets);
+#endif /* !BAREFOOTD */
+      }
+      else { /* TCP */
+         slog(LOG_INFO, 
+              "%s: %s <-> %s: %s, bytes transferred: %"PRIu64" <-> %"PRIu64"",
+              protocol2string(iov[i].state.protocol),
+              srcstring, dststring,
+              timeinfo,
+              iov[i].dst.written.bytes, iov[i].src.written.bytes);
+      }
    }
 }
 
+static void
+freebuffers(io)
+   const struct sockd_io_t *io;
+{
+   if (io->control.s != -1 && io->control.s != io->src.s)
+      socks_freebuffer(io->control.s);
+
+   socks_freebuffer(io->src.s);
+   socks_freebuffer(io->dst.s);
+}
+
+static int
+checkconnectstatus(io)
+   struct sockd_io_t *io;
+{
+   const char *function = "checkconnectstatus()";
+   socklen_t len;
+
+   SASSERTX(io->state.command == SOCKS_CONNECT && !io->dst.state.connected);
+
+   /*
+    * Check if the socket has become connected.
+    */
+   len = 0;
+   if (getpeername(io->dst.s, (struct sockaddr *)&len, &len) == 0) {
+      io->dst.state.connected = 1;
+
+      slog(LOG_DEBUG, "%s: connect to %s on socket %d completed successfully",
+      function, sockshost2string(&io->dst.host, NULL, 0), io->dst.s);
+
+#if HAVE_NEGOTIATE_PHASE
+      if (SOCKS_SERVER || io->reqflags.httpconnect) {
+         struct response_t response;
+         struct sockshost_t host;
+
+         if (SOCKS_SERVER) {
+            SASSERTX(io->state.command == SOCKS_CONNECT);
+            sockaddr2sockshost(&io->dst.laddr, &host);
+         }
+         else
+            host = io->dst.host;
+
+         create_response(&host,
+                         &io->src.auth,
+                         io->state.version,
+                         SOCKS_SUCCESS,
+                         &response);
+
+         if (send_response(io->control.s == -1 ? io->src.s : io->control.s,
+                           &response) != 0) {
+            slog(LOG_DEBUG, "%s: send_response(%d) to %s failed: %s",
+                            function,
+                            io->control.s == -1 ? io->src.s : io->control.s,
+                            sockshost2string(&io->src.host, NULL, 0),
+                            errnostr(errno));
+         }
+      }
+#endif /* HAVE_NEGOTIATE_PHASE */
+   }
+   else {
+      char src[MAXSOCKSHOSTSTRING], dst[MAXSOCKSHOSTSTRING];
+
+      slog(LOG_DEBUG, "%s: getpeername(%d): %s",
+      function, io->dst.s, strerror(errno));
+
+      len = sizeof(errno);
+      getsockopt(io->dst.s, SOL_SOCKET, SO_ERROR, &errno, &len);
+
+      slog(LOG_DEBUG, "%s: current status on connect to %s on socket %d, "
+                      "on behalf of client %s, is: %s, errno = %d",
+                      function, 
+                      sockshost2string(&io->dst.host, src, sizeof(src)),
+                      io->dst.s,
+                      sockshost2string(&io->src.host, dst, sizeof(dst)),
+                      errnostr(errno),
+                      errno);
+
+      if (ERRNOISTMP(errno)) /* still in progress. */ 
+         errno = 0;
+
+      if (errno != 0) {
+         /*
+          * well, not really connected, but no longer in progress either;
+          * a permanent failure.
+          */
+         io->dst.state.connected = 1;
+         io->dst.state.err       = errno;
+
+#if HAVE_NEGOTIATE_PHASE
+         if (SOCKS_SERVER || io->reqflags.httpconnect) {
+            struct response_t response;
+
+            create_response(NULL,
+                            &io->src.auth,
+                            io->state.version,
+                            errno2reply(errno, io->state.version),
+                            &response);
+
+            if (send_response(io->src.s, &response) != 0) {
+               slog(LOG_DEBUG, "%s: send_response(%d) to %s failed: %s",
+                               function,
+                               io->src.s,
+                               sockshost2string(&io->src.host, NULL, 0),
+                               errnostr(errno));
+            }
+         }
+#endif /* HAVE_NEGOTIATE_PHASE */
+      }
+   }
+
+   if (io->dst.state.connected)
+      iolog(&io->rule,
+            &io->state,
+            OPERATION_CONNECT,
+            &io->src.laddr, 
+            &io->src.host,
+            &io->src.auth,
+            NULL,
+            NULL,
+            NULL,
+            &io->dst.laddr,
+            &io->dst.host,
+            &io->dst.auth,
+            io->state.proxyprotocol == PROXY_DIRECT ?
+               NULL : &io->state.proxychain.server,
+            io->state.proxyprotocol == PROXY_DIRECT ?
+               NULL : &io->state.proxychain.extaddr,
+            NULL,
+            NULL,
+            0);
+
+   slog(LOG_DEBUG, "%s: socket %d marked as %sconnected", 
+   function, io->dst.s, io->dst.state.connected ? "" : "not ");
+
+   return io->dst.state.connected;
+}
+
+static void
+rawsocket_send(s, peer, local, dst, code)
+   const int s;
+   const struct sockshost_t *peer;
+   const struct sockshost_t *local;
+   const struct sockshost_t *dst;
+   const int code;
+{
+   const char *function = "rawsocket_send()";
+   char peer_str[MAXSOCKSHOSTSTRING], local_str[MAXSOCKSHOSTSTRING], 
+        dst_str[MAXSOCKSHOSTSTRING];
+
+   slog(LOG_DEBUG,
+        "%s: XXX should send an icmp error with code %d to %s, concerning "
+        "packet for %s received on %s, but that is not implemented yet",
+        function,
+        code,
+        sockshost2string(peer, peer_str, sizeof(peer_str)),
+        dst == NULL ?
+           "0.0.0.0" : sockshost2string(dst, dst_str, sizeof(dst_str)),
+        sockshost2string(local, local_str, sizeof(local_str)));
+
+}
+
+
+
 #if BAREFOOTD
 
-static const struct sockaddr *
-srcofudpsocket(s, udpclientc, udpclientv)
-   const int s;
-   const size_t udpclientc;
-   struct udpclient *udpclientv;
+static size_t
+io_udpclients(void)
 {
-   struct udpclient *udpclient;
+   const char *function = "io_udpclients()";
+   size_t i, allocated;
 
-   if ((udpclient = udpclientofsocket(s, udpclientc, udpclientv)) != NULL)
-      return &udpclient->raddr;
+   for (i = 0, allocated = 0; i < ioc; ++i) {
+      if (!iov[i].allocated)
+         continue;
 
-   return NULL;
+      if (iov[i].state.protocol != SOCKS_UDP)
+         continue;
+
+      SASSERTX(iov[i].dstc >= 1);
+
+      allocated += (iov[i].dstc - 1); /* first index is dummy slot. */
+   }
+
+   slog(LOG_DEBUG, "%s: have %lu udp client%s",
+   function, (unsigned long)allocated, allocated == 1 ? "" : "s");
+
+   return allocated;
 }
 
-static int
-socketofudpraddr(addr, udpclientc, udpclientv)
-   const struct sockaddr *addr;
-   const size_t udpclientc;
-   const struct udpclient *udpclientv;
-{
-   const struct udpclient *client;
-
-   if ((client = udpclientofraddr(addr, udpclientc, udpclientv)) != NULL)
-      return client->s;
-
-   return -1;
-}
-
-#if 0
-static int
-socketofudpladdr(addr, udpclientc, udpclientv)
-   const struct sockaddr *addr;
-   const size_t udpclientc;
-   const struct udpclient *udpclientv;
-{
-   const struct udpclient *client;
-
-   if ((client = udpclientofladdr(addr, udpclientc, udpclientv)) != NULL)
-      return client->s;
-
-   return -1;
-}
-#endif
 
 static struct udpclient *
 udpclientofsocket(s, udpclientc, udpclientv)
@@ -3238,7 +5012,10 @@ udpclientofsocket(s, udpclientc, udpclientv)
    const size_t udpclientc;
    struct udpclient *udpclientv;
 {
-   size_t i;
+   static size_t i;
+
+   if (i < udpclientc && udpclientv[i].s == s)
+      return &udpclientv[i];
 
    for (i = 0; i < udpclientc; ++i)
       if (udpclientv[i].s == s)
@@ -3247,11 +5024,11 @@ udpclientofsocket(s, udpclientc, udpclientv)
    return NULL;
 }
 
-static const struct udpclient *
+static struct udpclient *
 udpclientofladdr(addr, udpclientc, udpclientv)
    const struct sockaddr *addr;
    const size_t udpclientc;
-   const struct udpclient *udpclientv;
+   struct udpclient *udpclientv;
 {
    size_t i;
 
@@ -3266,11 +5043,11 @@ udpclientofladdr(addr, udpclientc, udpclientv)
    return NULL;
 }
 
-static const struct udpclient *
-udpclientofraddr(addr, udpclientc, udpclientv)
+static struct udpclient *
+udpclientofclientaddr(addr, udpclientc, udpclientv)
    const struct sockaddr *addr;
    const size_t udpclientc;
-   const struct udpclient *udpclientv;
+   struct udpclient *udpclientv;
 {
    size_t i;
 
@@ -3278,7 +5055,7 @@ udpclientofraddr(addr, udpclientc, udpclientv)
       if (udpclientv[i].s == -1)
          continue;
 
-      if (sockaddrareeq(addr, &udpclientv[i].raddr))
+      if (sockaddrareeq(addr, &udpclientv[i].client))
          return &udpclientv[i];
    }
 
@@ -3296,23 +5073,23 @@ addudpclient(client, clientc, maxclientc, clientv)
    const char *function = "addudpclient()";
    char laddr[MAXSOCKADDRSTRING], raddr[MAXSOCKADDRSTRING];
 
-   slog(LOG_DEBUG, "%s: adding udp client for socket %d, clientaddr %s, "
-                   "bound addr %s",
-                   function, client->s,
-                   sockaddr2string(&client->raddr, raddr, sizeof(raddr)),
-                   sockaddr2string(&client->laddr, laddr, sizeof(laddr)));
+   slog(LOG_DEBUG,
+        "%s: adding udp client for socket %d, clientaddr %s, bound addr %s",
+        function, client->s,
+        sockaddr2string(&client->raddr, raddr, sizeof(raddr)),
+        sockaddr2string(&client->laddr, laddr, sizeof(laddr)));
 
    if (*clientc >= *maxclientc) {
       struct udpclient *p;
 
-      if ((p = realloc(*clientv, (*maxclientc + UDPBLOCK) * sizeof(*p)))
+      if ((p = realloc(*clientv, (*maxclientc + UDP_MEMBLOCK) * sizeof(*p)))
       == NULL) {
          swarn("%s: failed to allocate memory for new udp client", function);
          return NULL;
       }
 
-      *clientv = p;
-      *maxclientc += UDPBLOCK;
+      *clientv     = p;
+      *maxclientc += UDP_MEMBLOCK;
 
       slog(LOG_DEBUG, "%s: reallocated memory for udp clients, have memory "
                       "for %lu clients now",
@@ -3333,10 +5110,19 @@ removeudpclient(s, clientc, clientv)
    const char *function = "removeudpclient()";
    size_t i;
 
-   for (i = 0; i < *clientc; ++i)
+   for (i = 1; i < *clientc; ++i)
       if (clientv[i].s == s) {
-         slog(LOG_DEBUG, "%s: removing client %s on socket %d",
-         function, sockaddr2string(&clientv[i].raddr, NULL, 0), s);
+         close(clientv[i].s);
+         ++freefds;
+
+         slog(LOG_DEBUG, "%s: removing client %s on socket %d, free fds: %d",
+                         function,
+                         sockaddr2string(&clientv[i].raddr, NULL, 0), s,
+                         freefds);
+
+         SHMEM_UNUSE(&clientv[i].crule,
+                     &(TOIN(&clientv[i].raddr)->sin_addr),
+                     sockscf.shmemfd);
 
          memmove(&clientv[i],
                  &clientv[i + 1],
@@ -3346,14 +5132,15 @@ removeudpclient(s, clientc, clientv)
          return 0;
       }
 
-   SASSERTX(0);
+   /* NOTREACHED */
+   SERRX(0);
 }
 
-static void
-handlerawsocket(s)
+static rawsocketstatus_t
+rawsocket_recv(s)
    const int s;
 {
-   const char *function = "handlerawsocket()";
+   const char *function = "rawsocket_recv()";
    struct icmp *icmp;
    struct ip *ip;
    struct udphdr *udp;
@@ -3365,15 +5152,16 @@ handlerawsocket(s)
 
    addrlen = sizeof(addr);
    if ((r = recvfrom(s, packet, sizeof(packet), 0, &addr, &addrlen)) == -1) {
-      swarn("%s: recvfrom() raw socket failed", function);
-      return;
+      swarn("%s: recvfrom() on raw socket %d failed", function, s);
+
+      return RAWSOCKET_NOP;
    }
 
    if (r < MIN_ICMPLEN)    {
-      swarn("%s: short read on recvfrom() raw socket: %d/%d",
-      function, r, MIN_ICMPLEN);
+      swarn("%s: short read on recvfrom() from raw socket: %ld/%lu",
+      function, (long)r, (unsigned long)MIN_ICMPLEN);
 
-      return;
+      return RAWSOCKET_NOP;
    }
 
    ip   = (struct ip *)packet;
@@ -3383,31 +5171,33 @@ handlerawsocket(s)
       swarn("%s: strange ... kernel says ip hl is %d, but packet size is %ld",
       function, ip->ip_hl << 2, (long)r);
 
-      return;
+      return RAWSOCKET_NOP;
    }
 
-   slog(LOG_DEBUG, "%s: received raw packet from %s, type %d/%d, length %d",
-                   function,
-                   inet_ntop(AF_INET, &(TOIN(&addr)->sin_addr), fromstr,
-                             sizeof(fromstr)),
-                   icmp->icmp_type, icmp->icmp_code, r);
+   if (sockscf.option.debug > 1)
+      slog(LOG_DEBUG, "%s: received raw packet from %s, type %d/%d, length %ld",
+                      function,
+                      inet_ntop(AF_INET, &(TOIN(&addr)->sin_addr), fromstr,
+                                sizeof(fromstr)),
+                      icmp->icmp_type, icmp->icmp_code, (long)r);
 
    if (icmp->icmp_type != ICMP_UNREACH)
-      return;
+      return RAWSOCKET_NOP;
 
    /* ip-packet the icmp error is in reply to. */
    ip = (struct ip *)(icmp->icmp_data);
 
    if (ip->ip_p != IPPROTO_UDP)
-      return;
+      return RAWSOCKET_NOP;
 
    udp = (struct udphdr *)(icmp->icmp_data + (ip->ip_hl << 2));
 
    TOIN(&addr)->sin_addr = ip->ip_src;
    TOIN(&addr)->sin_port = udp->uh_sport;
 
-   slog(LOG_DEBUG, "%s: icmp packet is in response to udp packet to %s",
-   function, sockaddr2string(&addr, NULL, 0));
+   if (sockscf.option.debug > 1)
+      slog(LOG_DEBUG, "%s: icmp packet is in response to udp packet to %s",
+      function, sockaddr2string(&addr, NULL, 0));
 
    /*
     * Now we need to go through all io-objects with udp clients and
@@ -3423,17 +5213,90 @@ handlerawsocket(s)
          continue;
 
       if ((client = udpclientofladdr(&addr, iov[i].dstc, iov[i].dstv)) != NULL){
-         slog(LOG_DEBUG, "%s: removing client associated with %s from iov #%d",
-         function, sockaddr2string(&addr, NULL, 0), i);
+         slog(LOG_DEBUG, "%s: removing client associated with %s from iov #%lu",
+         function, sockaddr2string(&addr, NULL, 0), (unsigned long)i);
 
-         iov[i].dst.s     = client->s;
-         iov[i].src.laddr = client->laddr;
-         iov[i].src.raddr = client->raddr;
-
+         SYNC_UDPDST(&iov[i].dst, client);
          delete_io(-1 /* nothing to ack */, &iov[i], client->s, IO_CLOSE);
-         break;
+
+         return RAWSOCKET_IO_DELETED;
       }
    }
+
+   return RAWSOCKET_NOP;
 }
 
-#endif /* BAREFOOTD */
+#elif COVENANT /* !BAREFOOT */
+
+int
+recv_resentclient(s, client)
+   int s;
+   struct sockd_client_t *client;
+{
+   const char *function = "recv_resentclient()";
+   struct iovec iov[2];
+   struct msghdr msg;
+   int ioc, fdexpect, fdreceived, r;
+   CMSG_AALLOC(cmsg, sizeof(int));
+
+   ioc = 0;
+   bzero(iov, sizeof(iov));
+   iov[ioc].iov_base = client;
+   iov[ioc].iov_len  = sizeof(*client);
+   ++ioc;
+
+   bzero(&msg, sizeof(msg));
+   msg.msg_iov     = iov;
+   msg.msg_iovlen  = ioc;
+   msg.msg_name    = NULL;
+   msg.msg_namelen = 0;
+
+   /* LINTED pointer casts may be troublesome */
+   CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
+
+   if ((r = recvmsgn(s, &msg, 0)) < (ssize_t)sizeof(*client)) {
+      switch (r) {
+         case -1:
+            swarn("%s: recvmsg() failed", function);
+            break;
+
+         case 0:
+            slog(LOG_DEBUG, "%s: recvmsg(): other side closed connection",
+            function);
+            break;
+
+         default:
+            swarnx("%s: recvmsg(): unexpected short read: %d/%ld",
+            function, r, (long)sizeof(*client));
+      }
+
+      return -1;
+   }
+
+   if (socks_msghaserrors(function, &msg))
+      return -1;
+
+   r       -= sizeof(*client);
+   fdexpect = 1; /* client. */
+
+   CMSG_VERIFY_RCPTLEN(msg, sizeof(int) * fdexpect);
+
+   fdreceived = 0;
+   if (fdexpect > 0) {
+      SASSERTX(fdexpect == 1);
+      CMSG_GETOBJECT(client->s, cmsg, sizeof(client->s) * fdreceived++);
+
+      if (sockscf.option.debug > 1)
+         slog(LOG_DEBUG, "%s: received socket %d (%s) ...",
+         function, client->s, socket2string(client->s, NULL, 0));
+   }
+
+   if (sockscf.option.debug > 1)
+      slog(LOG_DEBUG, "%s: received %d descriptors for client",
+                      function, fdreceived);
+
+   return 0;
+}
+#endif /* COVENANT */
+
+

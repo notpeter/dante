@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011
+ * Copyright (c) 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: privileges.c,v 1.11.6.1 2011/02/27 12:58:45 karls Exp $";
+"$Id: privileges.c,v 1.21 2011/04/25 15:23:55 michaels Exp $";
 
 static privilege_t lastprivelege;
 
@@ -202,10 +202,11 @@ sockd_priv(privilege, op)
          case SOCKD_PRIV_LIBWRAP:
          case SOCKD_PRIV_UNPRIVILEGED: 
          case SOCKD_PRIV_PAM:
+         case SOCKD_PRIV_BSDAUTH: 
             if (getppriv(PRIV_EFFECTIVE, lastprivset) != 0) {
                SWARN(errno);
                swarn("%s: very strange ...  getppriv(PRIV_EFFECTIVE) failed.  "
-                     "This might not work out too well",
+                     "This might not work out too well ...",
                      function);
             }
             break;
@@ -223,7 +224,8 @@ sockd_priv(privilege, op)
       case SOCKD_PRIV_PRIVILEGED:
       case SOCKD_PRIV_LIBWRAP:
       case SOCKD_PRIV_UNPRIVILEGED: 
-      case SOCKD_PRIV_PAM: {
+      case SOCKD_PRIV_PAM:
+      case SOCKD_PRIV_BSDAUTH: {
 #if HAVE_SOLARIS_PRIVS
          priv_set_t *privtoset;
 
@@ -231,6 +233,7 @@ sockd_priv(privilege, op)
             switch (privilege) {
                case SOCKD_PRIV_PRIVILEGED:
                case SOCKD_PRIV_PAM:
+               case SOCKD_PRIV_BSDAUTH:
                   privtoset = sockscf.privileges.privileged;
                   break;
 
@@ -257,6 +260,7 @@ sockd_priv(privilege, op)
          switch (privilege) {
             case SOCKD_PRIV_PRIVILEGED:
             case SOCKD_PRIV_PAM:
+            case SOCKD_PRIV_BSDAUTH:
                if (sockscf.uid.privileged_isset) {
                   neweuid  = sockscf.uid.privileged;
                   haveeuid = 1;

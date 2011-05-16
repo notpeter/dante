@@ -41,11 +41,10 @@
  *
  */
 
-/* $Id: tostring.h,v 1.32 2009/10/23 11:08:02 karls Exp $ */
+/* $Id: tostring.h,v 1.40 2011/04/04 06:33:44 michaels Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
-#endif /* !_TOSTRING_H_ */
 
 #if HAVE_DUMPCONF
 #define QUOTE(a)   __CONCAT3("\"", a, "\"")
@@ -103,7 +102,6 @@ commands2string(const struct command_t *command, char *str, size_t strsize)
 
 char *
 methods2string(size_t methodc, const int *methodv, char *str, size_t strsize)
-      __attribute__((__nonnull__(3)))
       __attribute__((__bounded__(__string__, 3, 4)));
 /*
  * Returns a printable representation of the methods "methodv", of
@@ -211,10 +209,12 @@ string2udpheader(const char *data, size_t len, struct udpheader_t *header)
  */
 
 const char *
-socks_packet2string(const void *packet, int type);
+socks_packet2string(const void *packet, int isrequest);
 /*
- * debug function; dumps socks packet content
- * "packet" is a socks packet, "type" indicates it's type.
+ * debug function; dumps socks packet content.
+ * "packet" is a socks packet, "isrequest" is set if it is a request
+ * packet, false otherwise.
+ *
  * Returns:
  *      On success: 0
  *      On failure: -1
@@ -257,14 +257,14 @@ str2upper(char *string);
 
 char *
 socket2string(const int s, char *buf, size_t buflen)
-      __attribute__((__nonnull__(2)))
       __attribute__((__bounded__(__string__, 2, 3)));
 /*
  * Prints out address info for the socket "s".
  * "buf" gives the buffer to write the address info to, "buflen" the
- * size of "buf".
+ * size of "buf".  If buflen is zero, a staticly allocated buffer will
+ * be used instead.
  *
- * Returns a pointer to buf.
+ * Returns a pointer to buf.  
  */
 
 const char *
@@ -274,12 +274,20 @@ version2string(int version);
  */
 
 const char *
-atype2string(const int atype);
+atype2string(const atype_t atype);
 /*
  * Returns a printable representation of the atype "atype".
  */
 
-#if SOCKS_SERVER || BAREFOOTD
+char *
+routeoptions2string(const routeoptions_t *options, char *str, size_t strsize);
+/*
+ * Returns a printable representation of the atype "atype".
+ * If "str" and "strsize" is NULL and zero, the function returns a
+ * string that will be overwritten on the next call to this function.
+ */
+
+
 
 char *
 logtypes2string(const struct logtype_t *logtypes, char *str, size_t strsize)
@@ -292,6 +300,8 @@ logtypes2string(const struct logtype_t *logtypes, char *str, size_t strsize)
  *
  * Returns: "str", NUL terminated.
  */
+
+#if !SOCKS_CLIENT
 
 char *
 timeouts2string(const struct timeout_t *timeouts, const char *prefix,
@@ -417,4 +427,14 @@ privop2string(const priv_op_t op);
  * Returns a printable representation of "op".
  */
 
-#endif /* SOCKS_SERVER */
+#if COVENANT
+const char *httpcode2string(const int version, const int code);
+/*
+ * Returns a short printable representation of the http version 
+ * "version" responsecode "code"
+ */
+
+#endif /* COVENANT */
+#endif /* !SOCKS_CLIENT */
+
+#endif /* !_TOSTRING_H_ */

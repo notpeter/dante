@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010
+ * Copyright (c) 2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: gssapi.c,v 1.67.2.5.2.2 2010/09/21 11:24:43 karls Exp $";
+"$Id: gssapi.c,v 1.88 2011/04/25 08:05:30 michaels Exp $";
 
 #if HAVE_GSSAPI
 
@@ -64,65 +64,74 @@ gss_err_isset(major_status, minor_status, buf, buflen)
    char *buf;
    size_t buflen;
 {
-   size_t w;
+   OM_uint32 maj_stat, min_stat, msg_ctx;
+   gss_buffer_desc statstr;
+#if SOCKS_CLIENT
+   sigset_t oldset;
+#endif /* SOCKS_CLIENT */
+   size_t w, len;
 
-   if (GSS_ERROR(major_status)) {
-      OM_uint32 maj_stat, min_stat, msg_ctx;
-      gss_buffer_desc statstr;
-      size_t len;
+   if (!GSS_ERROR(major_status))
+      return 0;
 
-      len = 0;
-      msg_ctx = 0;
-      do {
-         /* convert major status code (GSSAPI error) to text */
-         maj_stat = gss_display_status(&min_stat, major_status,
-                                       GSS_C_GSS_CODE,
-                                       GSS_C_NULL_OID,
-                                       &msg_ctx, &statstr);
+   len     = 0;
+   msg_ctx = 0;
+   do {
+      /*
+       * convert major status code (GSSAPI error) to text.
+       */
+      
+      SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+      maj_stat = gss_display_status(&min_stat, major_status,
+                                    GSS_C_GSS_CODE,
+                                    GSS_C_NULL_OID,
+                                    &msg_ctx, &statstr);
+      SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
-         if (maj_stat == GSS_S_COMPLETE) {
-            w = snprintfn(buf, buflen, "%.*s",
-                         (int)statstr.length, (char *)statstr.value);
-            buf    += w;
-            buflen -= w;
-
-            gss_release_buffer(&min_stat, &statstr);
-            break;
-         }
-
-         gss_release_buffer(&min_stat, &statstr);
-      } while (msg_ctx != 0 && !GSS_ERROR(maj_stat));
-
-      if (sizeof(buf) > len + strlen(".  ")) {
-         w = snprintfn(buf, buflen, ".  ");
+      if (!GSS_ERROR(maj_stat)) {
+         w = snprintf(buf, buflen, "%.*s",
+                      (int)statstr.length, (char *)statstr.value);
          buf    += w;
          buflen -= w;
       }
 
-      msg_ctx = 0;
-      do {
-         /* convert minor status code (underlying routine error) to text */
-         maj_stat = gss_display_status(&min_stat, minor_status,
-                                       GSS_C_MECH_CODE,
-                                       GSS_C_NULL_OID,
-                                       &msg_ctx, &statstr);
-         if (maj_stat == GSS_S_COMPLETE) {
-            w = snprintfn(buf, buflen, "%.*s ",
-                         (int)statstr.length, (char *)statstr.value);
-            buf    += w;
-            buflen -= w;
+      SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+      gss_release_buffer(&min_stat, &statstr);
+      SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
+   } while (msg_ctx != 0 && !GSS_ERROR(maj_stat));
 
-            gss_release_buffer(&min_stat, &statstr);
-            break;
-         }
-
-         gss_release_buffer(&min_stat, &statstr);
-      } while (msg_ctx != 0 && !GSS_ERROR(maj_stat));
-
-      return 1;
+   if (sizeof(buf) > len + strlen(".  ")) {
+      w = snprintf(buf, buflen, ".  ");
+      buf    += w;
+      buflen -= w;
    }
 
-   return 0;
+   msg_ctx = 0;
+   do {
+      /*
+       * convert minor status code (underlying routine error) to text.
+       */
+
+      SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+      maj_stat = gss_display_status(&min_stat, minor_status,
+                                    GSS_C_MECH_CODE,
+                                    GSS_C_NULL_OID,
+                                    &msg_ctx, &statstr);
+      SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
+
+      if (!GSS_ERROR(maj_stat)) {
+         w = snprintf(buf, buflen, "%.*s ",
+                      (int)statstr.length, (char *)statstr.value);
+         buf    += w;
+         buflen -= w;
+      }
+
+      SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+      gss_release_buffer(&min_stat, &statstr);
+      SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
+   } while (msg_ctx != 0 && !GSS_ERROR(maj_stat));
+
+   return 1;
 }
 
 int
@@ -136,6 +145,9 @@ gssapi_encode(input, ilen, gs, output, olen)
    const char *function = "gssapi_encode()";
    gss_buffer_desc input_token, output_token;
    OM_uint32 minor_status, major_status;
+#if SOCKS_CLIENT
+   sigset_t oldset;
+#endif /* SOCKS_CLIENT */
    unsigned char buf[GSSAPI_HLEN + MAXGSSAPITOKENLEN];
    char emsg[1024];
    int conf_state;
@@ -148,9 +160,10 @@ gssapi_encode(input, ilen, gs, output, olen)
    memcpy(input_token.value, input, ilen);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-   socks_mark_gssapi_io_as_native();
+   socks_mark_io_as_native();
 #endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
+   SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
    major_status = gss_wrap(&minor_status,
                            gs->id,
                            gs->protection == GSSAPI_CONFIDENTIALITY ?
@@ -159,9 +172,10 @@ gssapi_encode(input, ilen, gs, output, olen)
                            &input_token,
                            &conf_state,
                            &output_token);
+   SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-   socks_mark_gssapi_io_as_normal();
+   socks_mark_io_as_normal();
 #endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
@@ -207,9 +221,12 @@ gssapi_decode(input, ilen, gs, output, olen)
    const char *function = "gssapi_decode()";
    gss_buffer_desc input_token, output_token;
    OM_uint32  minor_status, major_status;
-   int req_conf_state;
-   char emsg[1024];
+#if SOCKS_CLIENT
+   sigset_t oldset;
+#endif /* SOCKS_CLIENT */
    unsigned char buf[GSSAPI_HLEN + MAXGSSAPITOKENLEN];
+   char emsg[1024];
+   int req_conf_state;
 
    if (sockscf.option.debug > 1)
       slog(LOG_DEBUG, "%s:  0x%x, 0x%x, 0x%x, 0x%x",
@@ -231,14 +248,16 @@ gssapi_decode(input, ilen, gs, output, olen)
    = (gs->protection == GSSAPI_CONFIDENTIALITY ? GSS_REQ_CONF : GSS_REQ_INT);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-   socks_mark_gssapi_io_as_native();
+   socks_mark_io_as_native();
 #endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
+   SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
    major_status = gss_unwrap(&minor_status, gs->id, &input_token,
                              &output_token, &req_conf_state, GSS_C_QOP_DEFAULT);
+   SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-   socks_mark_gssapi_io_as_normal();
+   socks_mark_io_as_normal();
 #endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
@@ -310,11 +329,20 @@ again:
    (unsigned long)socks_bytesinbuffer(s, READ_BUF, 0),
    (unsigned long)socks_bytesinbuffer(s, READ_BUF, 1));
 
-   if ((iobuf = socks_getbuffer(s))    == NULL
-   &&  (iobuf = socks_allocbuffer(s))  == NULL) {
-      swarnx("%s: could not allocate iobuffer", function);
-      errno = ENOMEM;
-      return -1;
+   if ((iobuf = socks_getbuffer(s)) == NULL) {
+      int stype;
+      socklen_t tlen = sizeof(stype);
+
+      if (getsockopt(s, SOL_SOCKET, SO_TYPE, &stype, &tlen) != 0) {
+         swarn("%s: getsockopt(SO_TYPE)", function);
+         return -1;
+      }
+
+      if ((iobuf = socks_allocbuffer(s, stype)) == NULL) {
+         swarnx("%s: could not allocate iobuffer", function);
+         errno = ENOMEM;
+         return -1;
+      }
    }
 
 #if SOCKS_CLIENT /* always flush before read. */
@@ -361,7 +389,7 @@ again:
 
       if (flags & MSG_PEEK) {
          /*
-         * client peeking, need to add the data back to the buffer so it
+         * client peeking, need to add the data back to the buffer so it 
          * is still there next time.
          */
 
@@ -388,8 +416,7 @@ again:
          recv(s, tmpbuf, iobuf->info[READ_BUF].peekedbytes, 0);
          iobuf->info[READ_BUF].peekedbytes = 0;
 
-         SASSERTX(socks_bytesinbuffer(s, READ_BUF, 0) == 0);
-         SASSERTX(socks_bytesinbuffer(s, READ_BUF, 1) == 0);
+         SASSERTX(socks_bufferhasbytes(s, READ_BUF) == 0);
 
       }
 #endif /* SOCKS_CLIENT */
@@ -412,7 +439,7 @@ again:
 #endif /* !SOCKS_SERVER */
    from, fromlen)) <= 0) {
       slog(LOG_DEBUG, "%s: read from socket returned %ld: %s",
-      function, (long)nread, strerror(errno));
+      function, (long)nread, errnostr(errno));
 
       return nread;
    }
@@ -483,12 +510,13 @@ again:
 
       if (iobuf->stype == SOCK_DGRAM)
          errno = ENOMSG;
-      else {
-#if SOCKS_CLIENT
-         close(s);
-#endif /* SOCKS_CLIENT */
+      else
+         /*
+          * client should know it can not read again after this, but
+          * it would be better if we detected the client trying to.
+          * We can however not close the socket on the clients behalf.
+          */
          errno = ECONNABORTED;
-      }
 
       return -1;
    }
@@ -573,12 +601,13 @@ again:
 
       if (iobuf->stype == SOCK_DGRAM)
          errno = ENOMSG;
-      else {
-#if SOCKS_CLIENT
-         close(s);
-#endif /* SOCKS_CLIENT */
+      else
+         /*
+          * client should know it can not read again after this, but
+          * it would be better if we detected the client trying to.
+          * We can however not close the socket on the clients behalf.
+          */
          errno = ECONNABORTED;
-      }
 
       return -1;
    }
@@ -663,7 +692,6 @@ again:
        function, (long unsigned)++tokennumber);
 
        nread = socks_getfrombuffer(s, READ_BUF, 1, tmpbuf, sizeof(tmpbuf));
-
        SASSERTX(socks_bytesinbuffer(s, READ_BUF, 1) == 0);
 
        if (!gssapi_headerisok(tmpbuf)) {
@@ -771,11 +799,21 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, gs)
 
    slog(LOG_DEBUG, "%s: socket %d", function, s);
 
-   if ((iobuf = socks_getbuffer(s))    == NULL
-   &&  (iobuf = socks_allocbuffer(s))  == NULL) {
-      swarnx("%s: could not allocate iobuffer", function);
-      errno = ENOMEM;
-      return -1;
+   if ((iobuf = socks_getbuffer(s)) == NULL) {
+      int stype;
+      socklen_t tlen = sizeof(stype);
+
+      if (getsockopt(s, SOL_SOCKET, SO_TYPE, &stype, &tlen) != 0) {
+         swarn("%s: getsockopt(SO_TYPE)", function);
+         return -1;
+      }
+      
+      if ((iobuf = socks_allocbuffer(s, stype)) == NULL) {
+         swarnx("%s: could not allocate iobuffer", function);
+         errno = ENOMEM;
+
+         return -1;
+      }
    }
 
    /*
@@ -849,8 +887,8 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, gs)
 
       socks_getfrombuffer(s, WRITE_BUF, 1, token, towrite);
       if ((written = sendto(s, token, towrite, flags, to, tolen)) != towrite) {
-         slog(LOG_DEBUG, "%s: sendto() of %lu bytes failed: %s",
-         function, (long unsigned)towrite, strerror(errno));
+         slog(LOG_DEBUG, "%s: sendt %ld/%lu: %s",
+              function, (long)written, (unsigned long)towrite, errnostr(errno));
 
          if (written == -1)
             return -1;
@@ -973,10 +1011,16 @@ gssapi_export_state(id, state)
    OM_uint32 major_status, minor_status;
    gss_buffer_desc token;
    char emsg[512];
+#if SOCKS_CLIENT
+   sigset_t oldset;
+#endif /* SOCKS_CLIENT */
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s", function);
 
+   SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
    major_status = gss_export_sec_context(&minor_status, id, &token);
+   SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
+
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
       swarnx("%s: gss_export_sec_context(): %s", function, emsg);
       return -1;
@@ -986,7 +1030,13 @@ gssapi_export_state(id, state)
    memcpy(state->value, token.value, token.length);
    state->length = token.length;
 
+   SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
    gss_release_buffer(&minor_status, &token);
+   SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
+
+   slog(LOG_DEBUG, "%s: created gssapistate of length %lu (start: 0x%x, 0x%x)",
+                   function, (unsigned long)state->length,
+                   ((char *)state->value)[0], ((char *)state->value)[1]);
 
    errno = errno_s; /* at least some gssapi libraries change errno. :-/ */
    return 0;
@@ -1001,10 +1051,18 @@ gssapi_import_state(id, state)
    const int errno_s = errno;
    OM_uint32 major_status, minor_status;
    char emsg[512];
+#if SOCKS_CLIENT
+   sigset_t oldset;
+#endif /* SOCKS_CLIENT */
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s: importing gssapistate of length %lu "
+                   "(start: 0x%x, 0x%x)",
+                   function, (unsigned long)state->length,
+                   ((char *)state->value)[0], ((char *)state->value)[1]);
 
+   SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
    major_status = gss_import_sec_context(&minor_status, state, id);
+   SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
       swarnx("%s: gss_import_sec_context(): %s", function, emsg);
@@ -1022,11 +1080,11 @@ gssapi_headerisok(headerbuf)
 {
    const char *function = "gssapi_headerisok()";
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s", function);
 
    if (headerbuf[GSSAPI_VERSION] != SOCKS_GSSAPI_VERSION
    ||  headerbuf[GSSAPI_STATUS]  != SOCKS_GSSAPI_PACKET) {
-      swarnx("%s: invalid socks gssapi header: (0x%x, 0x%x), not (0x%x, 0x%x)",
+      swarnx("%s: invalid socks gssapi header (0x%x, 0x%x, not 0x%x, 0x%x)",
       function,
       (unsigned char)headerbuf[GSSAPI_VERSION],
       (unsigned char)headerbuf[GSSAPI_STATUS],
@@ -1043,47 +1101,23 @@ int
 gssapi_isencrypted(s)
    const int s;
 {
-   const struct socksfd_t *socksfd;
+   struct socksfd_t socksfd;
 
    if (!sockscf.state.havegssapisockets)
       return 0;
 
    /* XXX this takes too long. */
-   if (!socks_addrisours(s, 1)) {
+   if (!socks_addrisours(s, &socksfd, 1)) {
       socks_rmaddr(s, 1);
       return 0;
    }
 
-   socksfd = socks_getaddr(s, 1);
-   if (socksfd->state.auth.method != AUTHMETHOD_GSSAPI)
+   if (socksfd.state.auth.method != AUTHMETHOD_GSSAPI)
       return 0;
 
-   return socksfd->state.auth.mdata.gssapi.state.encryption;
+   return socksfd.state.auth.mdata.gssapi.state.encryption;
 }
 
-#if SOCKSLIBRARY_DYNAMIC
-void
-socks_mark_gssapi_io_as_native()
-{
-   const char *function = "socks_mark_gssapi_io_as_native()";
-
-   slog(LOG_DEBUG, "%s: marking gssapi-related i/o calls as native ...",
-   function);
-
-   socks_markasnative("*");
-}
-
-void
-socks_mark_gssapi_io_as_normal()
-{
-   const char *function = "socks_mark_gssapi_io_as_normal()";
-
-   slog(LOG_DEBUG, "%s: marking gssapi-related i/o calls as normal again",
-   function);
-
-   socks_markasnormal("*");
-}
-#endif /* SOCKSLIBRARY_DYNAMIC */
 
 #endif /* SOCKS_CLIENT */
 

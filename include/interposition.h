@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.75 2009/10/23 11:51:21 karls Exp $ */
+/* $Id: interposition.h,v 1.80 2011/04/10 06:56:01 michaels Exp $ */
 
 #ifndef _INTERPOSITION_H_
 #define _INTERPOSITION_H_
@@ -82,56 +82,38 @@ struct libsymbol_t {
 
 #if SOCKS_CLIENT
 
-#define SYSCALL_START(s)                                             \
-do {                                                                 \
-   struct socksfd_t *p;                                              \
-   addrlockopaque_t opaque;                                          \
-                                                                     \
-   socks_addrlock(F_WRLCK, &opaque);                                 \
-                                                                     \
-   if ((p = socks_getaddr(s, 0)) == NULL) {                          \
-      struct socksfd_t socksfd;                                      \
-                                                                     \
-      bzero(&socksfd, sizeof(socksfd));                              \
-      socksfd.state.command   = -1;                                  \
-      socksfd.state.issyscall = 1;                                   \
-      p = socks_addaddr(s, &socksfd, 0);                             \
-   }                                                                 \
-                                                                     \
-   SASSERTX(p != NULL);                                              \
-   ++p->state.syscalldepth;                                          \
-                                                                     \
-   socks_addrunlock(&opaque);                                        \
-} while (/*CONSTCOND*/0)
+void socks_mark_io_as_native(void);
+void socks_mark_io_as_normal(void);
+/*
+ * Marks i/o calls as native or normal,
+ * using the socks_markas{native,normal}() functions.
+ */
 
-#define SYSCALL_END(s)                                               \
-do {                                                                 \
-   addrlockopaque_t opaque;                                          \
-   struct socksfd_t *p;                                              \
-                                                                     \
-   socks_addrlock(F_WRLCK, &opaque);                                 \
-                                                                     \
-   p = socks_getaddr(s, 0);                                          \
-   SASSERTX(p != NULL);                                              \
-   SASSERTX(p->state.syscalldepth > 0);                              \
-                                                                     \
-   --p->state.syscalldepth;                                          \
-                                                                     \
-   if (p->state.syscalldepth <= 0) { /* all finished. */             \
-      if (p->state.issyscall) /* started out as a syscall. */        \
-         socks_rmaddr(s, 0);                                         \
-   }                                                                 \
-                                                                     \
-   socks_addrunlock(&opaque);                                        \
-} while (/*CONSTCOND*/0)
+void socks_syscall_start(const int s);
+/*
+ * Marks that functions involving the descriptor "s" should resolve
+ * to system calls.
+ */
 
-#define ISSYSCALL(s, name)                                           \
-   socks_shouldcallasnative((name))                                  \
-   ||   (socks_getaddr(s, 1) != NULL                                 \
-      && socks_getaddr(s, 1)->state.syscalldepth > 0)
+void socks_syscall_end(const int s);
+/*
+ * Removes the marking that functions involving the descriptor "s" should
+ * resolve to system calls.
+ */
+
+int
+socks_issyscall(const int s, const char *name);
+/*
+ * Checks whether the function with the name "name" should resolve
+ * to a system call when used with the filedescriptor "s".
+ *
+ * Returns true if so, false otherwise.
+ */
+
+
 #else /* !SOCKS_CLIENT */
-#define SYSCALL_START(s)
-#define SYSCALL_END(s)
+#define socks_syscall_start(s)
+#define socks_syscall_end(s)
 #endif /* !SOCKS_CLIENT */
 
 #if SOCKS_CLIENT
