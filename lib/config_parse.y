@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009
+ *               2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.383 2011/05/12 17:14:34 michaels Exp $";
+"$Id: config_parse.y,v 1.395 2011/06/13 08:35:14 michaels Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -66,8 +66,8 @@ do {                                                                           \
 
 #define CHECKPORTNUMBER(portnumber)                                            \
 do {                                                                           \
-      CHECKNUMBER(portnumber, >, 0);                                           \
-      CHECKNUMBER(portnumber, <, 65536);                                       \
+      CHECKNUMBER(portnumber, >=, 0);                                          \
+      CHECKNUMBER(portnumber, <=, IP_MAXPORT);                                 \
 } while (0)
 
 static void
@@ -84,7 +84,7 @@ static void parseclientenv(void);
 #else /* !SOCKS_CLIENT */
 
 /*
- * Reset pointers to point away from rule-spesific memory to global
+ * Reset pointers to point away from rule-specific memory to global
  * memory.  Should be called after adding a rule.
  */
 static void rulereset(void);
@@ -133,7 +133,7 @@ static atype_t                *atype;         /* atype of new address.        */
 static struct in_addr         *ipaddr;        /* new ip address               */
 static struct in_addr         *netmask;       /* new netmask                  */
 static int                    netmask_required;/*
-                                                * netmask required for this 
+                                                * netmask required for this
                                                 * address?
                                                 */
 static char                   *domain;        /* new domain.                  */
@@ -195,13 +195,13 @@ do {                                                                           \
 %type   <string> gssapikeytab
 %type   <string> gssapienctype
 %type   <string> resolveprotocol resolveprotocolname
-%type   <string> socket 
+%type   <string> socket
 %type   <string> srchost srchostoption srchostoptions
 %type   <string> command commands commandname
 %type   <string> routeinit
 %type   <string> udpportrange udpportrange_start udpportrange_end
 %type   <string> debuging
-%type   <string> realm 
+%type   <string> realm
 
    /* clientconfig exclusive. */
 %type   <string> clientinit clientconfig
@@ -209,7 +209,7 @@ do {                                                                           \
 
 
    /* serverconfig exclusive */
-%type   <string> timeout iotimeout negotiatetimeout connecttimeout 
+%type   <string> timeout iotimeout negotiatetimeout connecttimeout
                  tcp_fin_timeout
 %type   <string> extension extensionname extensions
 %type   <string> internal internalinit external externalinit
@@ -228,12 +228,12 @@ do {                                                                           \
 %type   <string> childstate
 %type   <string> redirect
 %type   <string> bandwidth
-%type   <string> session maxsessions 
+%type   <string> session maxsessions
 %type   <string> libwrapfiles libwrap_allowfile libwrap_denyfile
 %type   <string> libwrap_hosts_access
 %type   <string> udpconnectdst
-%type   <string> lurl ldapssl ldapcertcheck ldapkeeprealm 
-%type   <string> lbasedn lbasedn_hex lbasedn_hex_all 
+%type   <string> lurl ldapssl ldapcertcheck ldapkeeprealm
+%type   <string> lbasedn lbasedn_hex lbasedn_hex_all
 %type   <string> lserver lgroup lgroup_hex lgroup_hex_all
 %type   <string> ldapfilter ldapfilter_ad ldapfilter_hex ldapfilter_ad_hex
 %type   <string> ldapdomain
@@ -243,9 +243,9 @@ do {                                                                           \
 
 
 %token   <string> CLIENTRULE
-%token   <string> INTERNAL EXTERNAL 
+%token   <string> INTERNAL EXTERNAL
 %token   <string> REALM REALNAME
-%token   <string> EXTERNAL_ROTATION SAMESAME 
+%token   <string> EXTERNAL_ROTATION SAMESAME
 %token   <string> DEBUGGING RESOLVEPROTOCOL
 %token   <string> SOCKET CLIENTSIDE_SOCKET SNDBUF RCVBUF
 %token   <string> SRCHOST NODNSMISMATCH NODNSUNKNOWN CHECKREPLYAUTH
@@ -263,10 +263,10 @@ do {                                                                           \
 %token   <string> CHILD_MAXIDLE CHILD_MAXREQUESTS
 
    /* route */
-%type   <string> global_routeoption 
+%type   <string> global_routeoption
 %type   <string> route via gateway routeoption routeoptions
 
-%token   <string> ROUTE VIA BADROUTE_EXPIRE MAXFAIL 
+%token   <string> ROUTE VIA BADROUTE_EXPIRE MAXFAIL
 
    /* rulelines */
 %type   <string> rule ruleoption ruleoptions
@@ -285,7 +285,7 @@ do {                                                                           \
                  portservice
 %type   <string> bounce bounce_to
 
-%token <string> VERDICT_BLOCK VERDICT_PASS 
+%token <string> VERDICT_BLOCK VERDICT_PASS
 %token <string> PAMSERVICENAME
 %token <string> BSDAUTHSTYLENAME
 %token <string> BSDAUTHSTYLE
@@ -307,21 +307,21 @@ do {                                                                           \
                 SOCKS_LOG_DISCONNECT SOCKS_LOG_ERROR SOCKS_LOG_IOOPERATION
 %token <string> IPADDRESS DOMAINNAME DIRECT IFNAME URL
 %token <string> PORT SERVICENAME
-%token <string> NUMBER 
+%token <string> NUMBER
 %token <string> FROM TO
 %token <string> REDIRECT
 %token <string> BANDWIDTH
-%token <string> MAXSESSIONS 
+%token <string> MAXSESSIONS
 %token <string> UDPPORTRANGE UDPCONNECTDST
 %token <string> YES NO
 %token <string> BOUNCE
-%token <string> LDAPURL LDAP_URL 
-%token <string> LDAPSSL LDAPCERTCHECK LDAPKEEPREALM 
+%token <string> LDAPURL LDAP_URL
+%token <string> LDAPSSL LDAPCERTCHECK LDAPKEEPREALM
 %token <string> LDAPBASEDN LDAP_BASEDN
 %token <string> LDAPBASEDN_HEX LDAPBASEDN_HEX_ALL
 %token <string> LDAPSERVER LDAPSERVER_NAME
 %token <string> LDAPGROUP LDAPGROUP_NAME
-%token <string> LDAPGROUP_HEX LDAPGROUP_HEX_ALL 
+%token <string> LDAPGROUP_HEX LDAPGROUP_HEX_ALL
 %token <string> LDAPFILTER LDAPFILTER_AD LDAPFILTER_HEX LDAPFILTER_AD_HEX
 %token <string> LDAPATTRIBUTE LDAPATTRIBUTE_AD LDAPATTRIBUTE_HEX LDAPATTRIBUTE_AD_HEX
 %token <string> LDAPCERTFILE LDAPCERTPATH LDAPPORT LDAPPORTSSL
@@ -407,13 +407,19 @@ serveroption:  compatibility
    |   realm
    |   socket
    |   srchost
-   |   timeout;
+   |   timeout {
+#if !SOCKS_CLIENT
+                  if (timeout->tcp_fin_wait == 0
+                  ||  timeout->tcp_fin_wait >  timeout->tcpio)
+                     timeout->tcp_fin_wait = timeout->tcpio;
+#endif /* !SOCKS_CLIENT */
+      }
    ;
 
-timeout: connecttimeout 
-   |  iotimeout 
+timeout: connecttimeout
+   |  iotimeout
    |  negotiatetimeout
-   |  tcp_fin_timeout;
+   |  tcp_fin_timeout
    ;
 
 deprecated:   DEPRECATED {
@@ -485,7 +491,7 @@ user: USER ':' usernames
    ;
 
 username:   USERNAME {
-#if !SOCKS_CLIENT 
+#if !SOCKS_CLIENT
       if (addlinkedname(&rule.user, $1) == NULL)
          yyerror(NOMEM);
 #endif /* !SOCKS_CLIENT */
@@ -596,7 +602,7 @@ global_routeoption: ROUTE '.' MAXFAIL ':' NUMBER {
 
       if (value < 0)
          yyerror("max route fails can not be negative (%d)  Use \"0\" to "
-                 "indicate routes should never be marked as bad", 
+                 "indicate routes should never be marked as bad",
                  value);
 
       sockscf.routeoptions.maxfail = value;
@@ -853,7 +859,7 @@ resolveprotocolname:   PROTOCOL_FAKE {
    ;
 
 socket: SOCKET '.' SNDBUF '.' PROTOCOL_UDP ':' NUMBER {
-#if !SOCKS_CLIENT 
+#if !SOCKS_CLIENT
       CHECKNUMBER($7, >=, 0);
       sockscf.socket.udp.sndbuf = (size_t)atol($7);
    }
@@ -905,7 +911,7 @@ srchostoptions:   srchostoption
    ;
 
 realm: REALM ':' REALNAME {
-#if COVENANT 
+#if COVENANT
    if (strlen($3) >= sizeof(sockscf.realmname))
       yyerror("realmname \"%s\" is too long.  Recompilation of %s required "
               "is required if you want to use a name longer than %d characters",
@@ -1796,7 +1802,7 @@ from:   FROM {
    ;
 
 to:   TO {
-      addrinit(&dst, 
+      addrinit(&dst,
 #if SOCKS_SERVER
                1
 #else /* BAREFOOT || COVENANT */
@@ -1836,7 +1842,7 @@ externaladdress: ipaddress
 
 
 address: ipaddress '/' netmask port
-   |   ipaddress { 
+   |   ipaddress {
          if (netmask_required)
             yyerror("no netmask given");
          else
@@ -2044,7 +2050,7 @@ parseconfig(filename)
 
    yyin = fopen(filename, "r");
 
-#if !SOCKS_CLIENT 
+#if !SOCKS_CLIENT
    if (sockscf.state.inited)
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
 #endif /* SERVER */
@@ -2052,7 +2058,7 @@ parseconfig(filename)
 
 #if !SOCKS_CLIENT && !HAVE_PRIVILEGES
    /*
-    * uid, read from configfile.  But save olds one first, in case we
+    * uid, read from configfile.  But save old one first, in case we
     * need them to reopen logfiles.
     */
 
@@ -2087,7 +2093,7 @@ parseconfig(filename)
 #else
       /*
        * Leave it open so that if we get a sighup later, we are
-       * always guranteed to have a descriptor we can close/reopen
+       * always guaranteed to have a descriptor we can close/reopen
        * to parse the configfile.
        */
       sockscf.configfd = fileno(yyin);
@@ -2145,7 +2151,7 @@ yywarn(const char *fmt, ...)
 
    if (parsingconfig)
       bufused = snprintfn(buf, sizeof(buf),
-                         "%s: warning on line %d, near \"%.10s\": ",
+                         "%s: on line %d, near \"%.10s\": ",
                          sockscf.option.configfile, yylineno,
                          (yytext == NULL || *yytext == NUL) ?
                          "'start of line'" : yytext);
@@ -2202,7 +2208,7 @@ static void
 parseclientenv(void)
 {
    const char *function = "parseclientenv()";
-   char *proxyserver, *logfile, *debug;
+   char *proxyserver, *logfile, *debug, proxyservervis[256];
 
    if ((logfile = socks_getenv("SOCKS_LOGOUTPUT", dontcare)) != NULL)
       socks_addlogfile(&sockscf.log, logfile);
@@ -2210,44 +2216,85 @@ parseclientenv(void)
    if ((debug = socks_getenv("SOCKS_DEBUG", dontcare)) != NULL)
       sockscf.option.debug = atoi(debug);
 
-   if ((proxyserver = socks_getenv("SOCKS4_SERVER", dontcare)) != NULL
-   ||  (proxyserver = socks_getenv("SOCKS5_SERVER", dontcare)) != NULL
-   ||  (proxyserver = socks_getenv("SOCKS_SERVER",  dontcare)) != NULL
-   ||  (proxyserver = socks_getenv("HTTP_PROXY",    dontcare)) != NULL) {
-      char ipstring[INET_ADDRSTRLEN], *portstring;
+   if ((proxyserver = socks_getenv(ENV_SOCKS4_SERVER, dontcare)) != NULL
+   ||  (proxyserver = socks_getenv(ENV_SOCKS5_SERVER, dontcare)) != NULL
+   ||  (proxyserver = socks_getenv(ENV_SOCKS_SERVER,  dontcare)) != NULL
+   ||  (proxyserver = socks_getenv(ENV_HTTP_PROXY,    dontcare)) != NULL) {
       struct sockaddr_in saddr;
       struct route_t route;
       struct ruleaddr_t raddr;
+      char ipstring[INET_ADDRSTRLEN], *portstring;
 
-      slog(LOG_DEBUG, "%s: found proxyserver set in environment, value %s",
-      function, proxyserver);
+      bzero(&route, sizeof(route));
+      if (socks_getenv(ENV_SOCKS4_SERVER, dontcare)      != NULL)
+         route.gw.state.proxyprotocol.socks_v4 = 1;
+      else if (socks_getenv(ENV_SOCKS5_SERVER, dontcare) != NULL)
+         route.gw.state.proxyprotocol.socks_v5 = 1;
+      else if (socks_getenv(ENV_SOCKS_SERVER, dontcare)  != NULL) {
+         route.gw.state.proxyprotocol.socks_v5 = 1;
+         route.gw.state.proxyprotocol.socks_v4 = 1;
+      }
+      else if (socks_getenv(ENV_HTTP_PROXY, dontcare)    != NULL)
+         route.gw.state.proxyprotocol.http = 1;
+      else
+         SERRX(0); /* NOTREACHED */
 
-      if ((portstring = strchr(proxyserver, ':')) == NULL)
-         serrx(EXIT_FAILURE, "%s: illegal format for port specification "
-         "in proxy server %s: missing ':' delimiter", function, proxyserver);
+      str2vis(proxyserver,
+              strlen(proxyserver),
+              proxyservervis,
+              sizeof(proxyservervis));
 
-      if (atoi(portstring + 1) < 1 || atoi(portstring + 1) > 0xffff)
-         serrx(EXIT_FAILURE, "%s: illegal value for port specification "
-         "in proxy server %s: must be between %d and %d",
-         function, proxyserver, 1, 0xffff);
+      slog(LOG_DEBUG,
+           "%s: found %s proxyserver set in environment, value %s",
+           function,
+           proxyprotocols2string(&route.gw.state.proxyprotocol, NULL, 0),
+           proxyservervis);
 
-      if (portstring - proxyserver == 0
-      || (size_t)(portstring - proxyserver) > sizeof(ipstring) - 1)
-         serrx(EXIT_FAILURE, "%s: illegal format for ip address specification "
-         "in proxy server %s: too short/long", function, proxyserver);
+      if (route.gw.state.proxyprotocol.http) {
+         char emsg[256];
 
-      strncpy(ipstring, proxyserver, (size_t)(portstring - proxyserver));
-      ipstring[portstring - proxyserver] = NUL;
-      ++portstring;
+         if (urlstring2sockaddr(proxyserver,
+                                (struct sockaddr *)&saddr,
+                                emsg,
+                                sizeof(emsg))
+         == NULL) 
+            serrx(EXIT_FAILURE,
+                  "%s: can't understand format of proxyserver %s: %s",
+                  function, proxyservervis, emsg);
+                  
+      }
+      else {
+         if ((portstring = strchr(proxyserver, ':')) == NULL)
+            serrx(EXIT_FAILURE, "%s: illegal format for port specification "
+                                "in proxyserver %s: missing ':' delimiter",
+                                function, proxyservervis);
 
-      bzero(&saddr, sizeof(saddr));
-      saddr.sin_family = AF_INET;
-      if (inet_pton(saddr.sin_family, ipstring, &saddr.sin_addr) != 1)
-         serr(EXIT_FAILURE, "%s: illegal format for ip address specification "
-         "in proxy server %s", function, ipstring);
-      saddr.sin_port = htons(atoi(portstring));
+         if (atoi(portstring + 1) < 1 || atoi(portstring + 1) > 0xffff)
+            serrx(EXIT_FAILURE, "%s: illegal value (%d) for port specification "
+                                "in proxyserver %s: must be between %d and %d",
+                                function, atoi(portstring + 1),
+                                proxyservervis, 1, 0xffff);
 
-      memset(&route, 0, sizeof(route));
+         if (portstring - proxyserver == 0
+         || (size_t)(portstring - proxyserver) > sizeof(ipstring) - 1)
+            serrx(EXIT_FAILURE,
+                  "%s: illegal format for ip address specification "
+                  "in proxyserver %s: too short/long",
+                  function, proxyservervis);
+
+         strncpy(ipstring, proxyserver, (size_t)(portstring - proxyserver));
+         ipstring[portstring - proxyserver] = NUL;
+         ++portstring;
+
+         bzero(&saddr, sizeof(saddr));
+         saddr.sin_family = AF_INET;
+         if (inet_pton(saddr.sin_family, ipstring, &saddr.sin_addr) != 1)
+            serr(EXIT_FAILURE, "%s: illegal format for ip address "
+                               "specification in proxyserver %s",
+                               function, proxyservervis);
+         saddr.sin_port = htons(atoi(portstring));
+      }
+
       route.src.atype                           = SOCKS_ADDR_IPV4;
       route.src.addr.ipv4.ip.s_addr             = htonl(0);
       route.src.addr.ipv4.mask.s_addr           = htonl(0);
@@ -2259,19 +2306,6 @@ parseclientenv(void)
       ruleaddr2gwaddr(sockaddr2ruleaddr((struct sockaddr *)&saddr, &raddr),
       &route.gw.addr);
 
-      if (socks_getenv("SOCKS4_SERVER", dontcare)      != NULL)
-         route.gw.state.proxyprotocol.socks_v4 = 1;
-      else if (socks_getenv("SOCKS5_SERVER", dontcare) != NULL)
-         route.gw.state.proxyprotocol.socks_v5 = 1;
-      else if (socks_getenv("SOCKS_SERVER", dontcare)  != NULL) {
-         route.gw.state.proxyprotocol.socks_v5 = 1;
-         route.gw.state.proxyprotocol.socks_v4 = 1;
-      }
-      else if (socks_getenv("HTTP_PROXY", dontcare)    != NULL)
-         route.gw.state.proxyprotocol.http = 1;
-      else
-         SERRX(0); /* NOTREACHED */
-
       socks_addroute(&route, 1);
    }
    else if ((proxyserver = socks_getenv("UPNP_IGD", dontcare)) != NULL) {
@@ -2282,7 +2316,14 @@ parseclientenv(void)
        */
       struct route_t route;
 
-      memset(&route, 0, sizeof(route));
+      bzero(&route, sizeof(route));
+      route.gw.state.proxyprotocol.upnp = 1;
+
+      str2vis(proxyserver,
+              strlen(proxyserver),
+              proxyservervis,
+              sizeof(proxyservervis));
+
       route.src.atype                 = SOCKS_ADDR_IPV4;
       route.src.addr.ipv4.ip.s_addr   = htonl(0);
       route.src.addr.ipv4.mask.s_addr = htonl(0);
@@ -2303,11 +2344,10 @@ parseclientenv(void)
          != NUL)
             serrx(EXIT_FAILURE, "url for igd, \"%s\", is too.  "
                                 "Max is %lu characters",
-                                proxyserver,
+                                proxyservervis,
                                 (unsigned long)sizeof(
                                                route.gw.addr.addr.urlname) - 1);
 
-         route.gw.state.proxyprotocol.upnp = 1;
          socks_addroute(&route, 1);
       }
       else if (strcasecmp(proxyserver, "broadcast") == 0) {
@@ -2319,7 +2359,6 @@ parseclientenv(void)
          struct ifaddrs *ifap, *iface;
 
          route.gw.addr.atype                 = SOCKS_ADDR_IFNAME;
-         route.gw.state.proxyprotocol.upnp = 1;
 
          if (getifaddrs(&ifap) == -1)
             serr(EXIT_FAILURE, "%s: getifaddrs() failed to get interface list",
@@ -2354,18 +2393,18 @@ parseclientenv(void)
 
          if (ifname2sockaddr(proxyserver, 0, &addr, &mask) == NULL)
             serr(1, "%s: can't find interface named %s with ip configured",
-            function, proxyserver);
+            function, proxyservervis);
 
          route.gw.addr.atype = SOCKS_ADDR_IFNAME;
 
          if (strlen(proxyserver) > sizeof(route.gw.addr.addr.ifname) - 1)
             serr(1, "%s: ifname %s is too long, max is %lu",
-            function, proxyserver,
-            (unsigned long)(sizeof(route.gw.addr.addr.ifname) - 1));
+                    function,
+                    proxyservervis,
+                    (unsigned long)(sizeof(route.gw.addr.addr.ifname) - 1));
 
          strcpy(route.gw.addr.addr.ifname, proxyserver);
 
-         route.gw.state.proxyprotocol.upnp = 1;
          socks_addroute(&route, 1);
       }
    }

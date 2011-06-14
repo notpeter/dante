@@ -1,4 +1,4 @@
-/* $Id: strvis.c,v 1.14 2010/02/02 10:06:01 karls Exp $ */
+/* $Id: strvis.c,v 1.15 2011/05/18 13:11:07 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -142,10 +142,10 @@ done:
 
 /*
  * strvis, strnvis, strvisx - visually encode characters from src into dst
- *	
+ *
  *	Dst must be 4 times the size of src to account for possible
  *	expansion.  The length of dst, not including the trailing NULL,
- *	is returned. 
+ *	is returned.
  *
  *	Strnvis will write no more than siz-1 bytes (and will NULL terminate).
  *	The number of bytes needed to fully encode the string is returned.

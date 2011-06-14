@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
+ *               2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +42,7 @@
  *
  */
 
-/* $Id: config.h,v 1.108 2011/05/13 16:06:48 michaels Exp $ */
+/* $Id: config.h,v 1.112 2011/06/08 09:43:17 karls Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -97,8 +98,8 @@
 #endif /* SOCKS_SERVER */
 
 
-/* 
- * server send/receive socket buffer size for network i/o using TCP. 
+/*
+ * server send/receive socket buffer size for network i/o using TCP.
  * A value of 0 indicates we should not set any value, but use whatever
  * the kernel chooses.
  */
@@ -107,8 +108,8 @@
 
 /*
  * server receive socket buffer size for network i/o using UDP.
- * If you expect having to handle many large udp packets, you 
- * might want to increase this. 
+ * If you expect having to handle many large udp packets, you
+ * might want to increase this.
  * A value of 0 indicates we should not set any value, but use whatever
  * the kernel chooses.
  */
@@ -152,7 +153,7 @@
 #define DEFAULT_PAMSERVICENAME   "sockd"
 #elif BAREFOOTD
 #define DEFAULT_PAMSERVICENAME   "barefootd"
-#else 
+#else
 #define DEFAULT_PAMSERVICENAME   "httprelayd"
 #endif
 
@@ -231,7 +232,7 @@
 #define SOCKD_CONFIGFILE         "/etc/barefootd.conf"
 #else
 #define SOCKD_CONFIGFILE         "/etc/httprelayd.conf"
-#endif 
+#endif
 
 #else
 #define SOCKD_CONFIGFILE         HAVE_ALT_SOCKD_CONFIGFILE
@@ -279,18 +280,15 @@
 /* seconds a cache entry is to be considered valid.  Don't set below 1. */
 #define SOCKD_CACHETIMEOUT         (60)
 
-/* print some statistics for every SOCKD_CACHESTAT lookup.  0 to disable. */
-#define SOCKD_CACHESTAT            (0)
-
 /*
- * Cache for LDAP stuff. 
+ * Cache for LDAP stuff.
  */
 
 /* number of entries in cache. */
 #define SOCKD_LDAPCACHE            (512)
 
 /* seconds a cache entry is to be considered valid.  Don't set below 1. */
-#define SOCKD_LDAPCACHE_TIMEOUT    (60 * 15) 
+#define SOCKD_LDAPCACHE_TIMEOUT    (60 * 15)
 
 /* print some statistics for every SOCKD_CACHESTAT lookup.  0 to disable. */
 #define SOCKD_LDAPCACHE_STAT       (0)
@@ -304,9 +302,9 @@
 #define SOCKD_FREESLOTS_REQUEST       (4)
 #define SOCKD_FREESLOTS_IO            (4)
 
-#if SOCKD_FREESLOTS_NEGOTIATE < 1 
-||  SOCKD_FREESLOTS_REQUEST < 1 
-||  SOCKD_FREESLOTS_IO < 1 
+#if SOCKD_FREESLOTS_NEGOTIATE < 1
+||  SOCKD_FREESLOTS_REQUEST < 1
+||  SOCKD_FREESLOTS_IO < 1
 #error "SOCKD_FREESLOTS_* can not be less than 1"
 #endif /* SOCKD_FREESLOTS < 1 */
 
@@ -325,11 +323,13 @@
  * You can probably set this to a big number.
  * Each client will occupy one file descriptor.
  */
+#ifndef SOCKD_NEGOTIATEMAX
 #if DEBUG
 #define SOCKD_NEGOTIATEMAX         (2)
 #else
 #define SOCKD_NEGOTIATEMAX         (24)
 #endif /* DEBUG */
+#endif /* SOCKD_NEGOTIATEMAX */
 
 /*
  * max number of clients each i/o process will handle.
@@ -339,15 +339,22 @@
  * from doing any i/o until a i/o slot has become available.  It is
  * therefore important that enough i/o slots are available at all times.
  */
+
+#ifndef SOCKD_IOMAX
 #if DEBUG
 #define SOCKD_IOMAX               (2)
 #else
 #define SOCKD_IOMAX               (8)
 #endif /* DEBUG */
+#endif /* SOCKD_IOMAX */
+
+#if SOCKD_NEGOTIATEMAX < 1 ||  SOCKD_IOMAX < 1
+#error "SOCKD_IOMAX/NEGOTIATEMAX can not be less than 1"
+#endif /* SOCKD_NEGOTIATEMAX < 1 || SOCKD_IOMAX < 1 */
 
 #if BAREFOOTD
 /*
- * each i/o process should attempt to handle at least this many udp clients. 
+ * each i/o process should attempt to handle at least this many udp clients.
  * Note that there is no hardcoded bound on this in Barefoot, this is only
  * limited by system resources.  If the system resources are too low for
  * this value, we will complain when starting up though.

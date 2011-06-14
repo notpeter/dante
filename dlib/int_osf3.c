@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -66,7 +66,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: int_osf3.c,v 1.35 2010/08/17 18:06:57 michaels Exp $";
+"$Id: int_osf3.c,v 1.37 2011/06/13 08:35:14 michaels Exp $";
 
 #undef accept
 #undef bind
@@ -464,7 +464,7 @@ recvmsg(s, msg, flags)
       msg->msg_iovlen = n_msg.msg_iovlen;
       /* XXX msg_control / msg_accrights */
       if (n_msg.msg_controllen != 0)
-         swarn("warning: msg_accrights/controllen conversion not supported");
+         swarn("msg_accrights/controllen conversion not supported");
    }
 
    return rc;

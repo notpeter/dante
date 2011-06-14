@@ -159,7 +159,7 @@ selectcheck(s)
 	FD_SET(s, &rset);
 	wset = xset = rset;
 
-	timeout.tv_sec 	= 0;
+	timeout.tv_sec		= 0;
 	timeout.tv_usec	= 0;
 
 	errno = 0;
@@ -266,7 +266,6 @@ main(argc,argv)
    int *mem;
    key_t key;
    int id;
-   
 
    key = getpid();
    if ((id = shmget(key, sizeof(*mem) * SHMEM_ELEMENTS,

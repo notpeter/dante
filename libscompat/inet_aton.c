@@ -1,4 +1,4 @@
-/* $Id: inet_aton.c,v 1.8 2009/07/07 09:07:12 karls Exp $ */
+/* $Id: inet_aton.c,v 1.9 2011/05/18 13:11:07 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -11,7 +11,7 @@
  * -
  * Copyright (c) 1983, 1990, 1993
  *    The Regents of the University of California.  All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -23,7 +23,7 @@
  * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -37,14 +37,14 @@
  * SUCH DAMAGE.
  * -
  * Portions Copyright (c) 1993 by Digital Equipment Corporation.
- * 
+ *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies, and that
  * the name of Digital Equipment Corporation not be used in advertising or
  * publicity pertaining to distribution of the document or software without
  * specific, written prior permission.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND DIGITAL EQUIPMENT CORP. DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
  * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL DIGITAL EQUIPMENT

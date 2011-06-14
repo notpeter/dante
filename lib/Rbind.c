@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2006, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2006, 2008, 2009,
+ *               2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.165 2011/03/29 15:48:21 michaels Exp $";
+"$Id: Rbind.c,v 1.167 2011/05/18 13:48:45 karls Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -265,7 +266,7 @@ Rbind(s, name, namelen)
              * privileged ports and those not so try to connect to server
              * from a privileged port.
              */
-            slog(LOG_DEBUG, "%s: caller has a privileged port ... then we " 
+            slog(LOG_DEBUG, "%s: caller has a privileged port ... then we "
                             "should probably also try to bind a privileged "
                             "port locally",
                             function);
@@ -276,7 +277,7 @@ Rbind(s, name, namelen)
             else
                slog(LOG_DEBUG,
                     "%s: failed to locally bind a privileged port "
-                    "using address %s.  Errno = %d (%s)", 
+                    "using address %s.  Errno = %d (%s)",
                     function,
                     sockaddr2string(&saddr, NULL, 0),
                     errno,
@@ -295,7 +296,7 @@ Rbind(s, name, namelen)
       }
 
       case PROXY_UPNP:
-         socksfd.control = s; /* no separate controlsocket. */
+         socksfd.control = s; /* no separate control socket. */
          break;
 
       default:
@@ -347,7 +348,7 @@ Rbind(s, name, namelen)
          if (TOIN(&socksfd.remote)->sin_addr.s_addr == htonl(0)) {
             /*
              * v4 specific; server doesn't say, so should set it to address
-             * we connected to for the controlconnection.
+             * we connected to for the control connection.
              */
             struct sockaddr_in addr;
 
@@ -419,7 +420,7 @@ Rbind(s, name, namelen)
       /* will accept(2) connection on 's', don't need to do anything more.  */
       socks_freebuffer(socksfd.control);
    else { /* dup socksfd.control over to 's', control and data is the same. */
-      slog(LOG_DEBUG, "will accept bind data over controlsocket ... "
+      slog(LOG_DEBUG, "will accept bind data over control socket ... "
                       "dup(2)ing %d to %d",
                        socksfd.control, s);
 

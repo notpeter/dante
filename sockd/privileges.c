@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009
+ * Copyright (c) 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: privileges.c,v 1.21 2011/04/25 15:23:55 michaels Exp $";
+"$Id: privileges.c,v 1.24 2011/06/13 08:35:14 michaels Exp $";
 
 static privilege_t lastprivelege;
 
@@ -87,7 +87,7 @@ init_privs(void)
    /* ... and remove. */
 
    /*
-    * removing this would mean libwraps exec statement won't work, but 
+    * removing this would mean libwraps exec statement won't work, but
     * probably nobody uses that from sockd anyway.  Could it be needed
     * by pam, though?  Leave it in for now.
     */
@@ -108,7 +108,7 @@ init_privs(void)
          swarn("%s: can't add %s privilege", function, extra_privs[i]);
          sockscf.privileges.noprivs = 1;
       }
-      else 
+      else
          slog(LOG_DEBUG, "%s: added privilege %s to the privileged set",
          function, extra_privs[i]);
 
@@ -186,7 +186,7 @@ sockd_priv(privilege, op)
    /*
     * these asserts are only valid as long as we never turn more than
     * one privilege on/off at a time.  If that ever changes, we need
-    * to remove these asserts, but til then, they are usefull.
+    * to remove these asserts, but til then, they are useful.
     */
    if (op == PRIV_ON) {
       SASSERTX(lastprivelege == SOCKD_PRIV_NOTSET);
@@ -200,9 +200,9 @@ sockd_priv(privilege, op)
           */
          case SOCKD_PRIV_PRIVILEGED:
          case SOCKD_PRIV_LIBWRAP:
-         case SOCKD_PRIV_UNPRIVILEGED: 
+         case SOCKD_PRIV_UNPRIVILEGED:
          case SOCKD_PRIV_PAM:
-         case SOCKD_PRIV_BSDAUTH: 
+         case SOCKD_PRIV_BSDAUTH:
             if (getppriv(PRIV_EFFECTIVE, lastprivset) != 0) {
                SWARN(errno);
                swarn("%s: very strange ...  getppriv(PRIV_EFFECTIVE) failed.  "
@@ -223,7 +223,7 @@ sockd_priv(privilege, op)
       /* the full sets. */
       case SOCKD_PRIV_PRIVILEGED:
       case SOCKD_PRIV_LIBWRAP:
-      case SOCKD_PRIV_UNPRIVILEGED: 
+      case SOCKD_PRIV_UNPRIVILEGED:
       case SOCKD_PRIV_PAM:
       case SOCKD_PRIV_BSDAUTH: {
 #if HAVE_SOLARIS_PRIVS
@@ -237,7 +237,7 @@ sockd_priv(privilege, op)
                   privtoset = sockscf.privileges.privileged;
                   break;
 
-               case SOCKD_PRIV_UNPRIVILEGED: 
+               case SOCKD_PRIV_UNPRIVILEGED:
                case SOCKD_PRIV_LIBWRAP: /* currently the same. */
                   privtoset = sockscf.privileges.unprivileged;
                   break;
@@ -250,7 +250,7 @@ sockd_priv(privilege, op)
             privtoset = lastprivset;
 
          if (setppriv(PRIV_SET, PRIV_EFFECTIVE, privtoset) != 0)
-            serr(EXIT_FAILURE, "%s: error switching privilege level %d %s",
+            serr(EXIT_FAILURE, "%s: switching privilege level %d %s failed",
             function, (int)privilege, privop2string(op));
 
 #else /* !HAVE_SOLARIS_PRIVS */
@@ -300,7 +300,7 @@ sockd_priv(privilege, op)
             p = socks_seteuid(NULL, lasteuid);
 
          if (p != 0)
-            serr(EXIT_FAILURE, "%s: error switching to euid %u",
+            serr(EXIT_FAILURE, "%s: switching to euid %u failed",
             function, op == PRIV_ON ? (unsigned)neweuid : (unsigned)lasteuid);
 #endif /* !HAVE_SOLARIS_PRIVS */
 
@@ -311,11 +311,11 @@ sockd_priv(privilege, op)
       case SOCKD_PRIV_GSSAPI:
 #if HAVE_SOLARIS_PRIVS
          if (priv_set(op, PRIV_EFFECTIVE, PRIV_FILE_DAC_SEARCH, NULL) != 0)
-            serr(EXIT_FAILURE, "%s: error switching PRIV_FILE_DAC_SEARCH %s",
+            serr(EXIT_FAILURE, "%s: switching PRIV_FILE_DAC_SEARCH %s failed",
             function, privop2string(op));
 
          if (priv_set(op, PRIV_EFFECTIVE, PRIV_FILE_DAC_READ, NULL) != 0)
-            serr(EXIT_FAILURE, "%s: error switching PRIV_FILE_DAC_READ %s",
+            serr(EXIT_FAILURE, "%s: switching PRIV_FILE_DAC_READ %s failed",
             function, privop2string(op));
 #else /* !HAVE_SOLARIS_PRIVS */
          if (!sockscf.uid.privileged_isset)
@@ -327,7 +327,7 @@ sockd_priv(privilege, op)
             p = socks_seteuid(NULL, lasteuid);
 
          if (p != 0)
-            serr(EXIT_FAILURE, "%s: error switching to euid %u",
+            serr(EXIT_FAILURE, "%s: switching to euid %u failed",
             function, op == PRIV_ON ? sockscf.uid.privileged : lasteuid);
 #endif /* !HAVE_SOLARIS_PRIVS */
 
@@ -336,15 +336,15 @@ sockd_priv(privilege, op)
       case SOCKD_PRIV_FILE_WRITE:
 #if HAVE_SOLARIS_PRIVS
          if (priv_set(op, PRIV_EFFECTIVE, PRIV_FILE_DAC_SEARCH, NULL) != 0)
-            serr(EXIT_FAILURE, "%s: error switching PRIV_FILE_DAC_SEARCH %s",
+            serr(EXIT_FAILURE, "%s: switching PRIV_FILE_DAC_SEARCH %s failed",
             function, privop2string(op));
 
          if (priv_set(op, PRIV_EFFECTIVE, PRIV_FILE_DAC_READ, NULL) != 0)
-            serr(EXIT_FAILURE, "%s: error switching PRIV_FILE_DAC_READ %s",
+            serr(EXIT_FAILURE, "%s: switching PRIV_FILE_DAC_READ %s failed",
             function, privop2string(op));
 
          if (priv_set(op, PRIV_EFFECTIVE, PRIV_FILE_DAC_WRITE, NULL) != 0)
-            serr(EXIT_FAILURE, "%s: error switching PRIV_FILE_DAC_WRITE %s",
+            serr(EXIT_FAILURE, "%s: switching PRIV_FILE_DAC_WRITE %s failed",
             function, privop2string(op));
 
 #else /* !HAVE_SOLARIS_PRIVS */
@@ -357,7 +357,7 @@ sockd_priv(privilege, op)
             p = socks_seteuid(NULL, lasteuid);
 
          if (p != 0)
-            serr(EXIT_FAILURE, "%s: error switching to euid %u",
+            serr(EXIT_FAILURE, "%s: switching to euid %u failed",
             function, op == PRIV_ON ? sockscf.uid.privileged : lasteuid);
 #endif /* !HAVE_SOLARIS_PRIVS */
 
@@ -366,7 +366,7 @@ sockd_priv(privilege, op)
       case SOCKD_PRIV_NET_ADDR:
 #if HAVE_SOLARIS_PRIVS
          if (priv_set(op, PRIV_EFFECTIVE, PRIV_NET_PRIVADDR, NULL) != 0)
-            serr(EXIT_FAILURE, "%s: error switching PRIV_NET_PRIVADDR %s",
+            serr(EXIT_FAILURE, "%s: switching PRIV_NET_PRIVADDR %s failed",
             function, privop2string(op));
 
 #else /* !HAVE_SOLARIS_PRIVS */
@@ -379,7 +379,7 @@ sockd_priv(privilege, op)
             p = socks_seteuid(NULL, lasteuid);
 
          if (p != 0)
-            serr(EXIT_FAILURE, "%s: error switching to euid %u",
+            serr(EXIT_FAILURE, "%s: switching to euid %u failed",
             function, op == PRIV_ON ? sockscf.uid.privileged : lasteuid);
 #endif /* !HAVE_SOLARIS_PRIVS */
 
@@ -388,7 +388,7 @@ sockd_priv(privilege, op)
       case SOCKD_PRIV_NET_ICMPACCESS:
 #if HAVE_SOLARIS_PRIVS
          if (priv_set(op, PRIV_EFFECTIVE, PRIV_NET_ICMPACCESS, NULL) != 0)
-            serr(EXIT_FAILURE, "%s: error switching PRIV_NET_ICMPACCESS %s",
+            serr(EXIT_FAILURE, "%s: switching PRIV_NET_ICMPACCESS %s failed",
             function, privop2string(op));
 
 #else /* !HAVE_SOLARIS_PRIVS */
@@ -401,7 +401,7 @@ sockd_priv(privilege, op)
             p = socks_seteuid(NULL, lasteuid);
 
          if (p != 0)
-            serr(EXIT_FAILURE, "%s: error switching to euid %u",
+            serr(EXIT_FAILURE, "%s: switching to euid %u failed",
             function, op == PRIV_ON ? sockscf.uid.privileged : lasteuid);
 #endif /* !HAVE_SOLARIS_PRIVS */
 
@@ -421,7 +421,7 @@ sockd_priv(privilege, op)
             p = socks_seteuid(NULL, lasteuid);
 
          if (p != 0)
-            serr(EXIT_FAILURE, "%s: error switching to euid %u",
+            serr(EXIT_FAILURE, "%s: switching to euid %u failed",
             function, op == PRIV_ON ? sockscf.uid.privileged : lasteuid);
 #endif /* !HAVE_SOLARIS_PRIVS */
 

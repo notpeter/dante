@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.44 2011/03/28 15:58:43 michaels Exp $";
+"$Id: httpproxy.c,v 1.46 2011/05/18 13:48:46 karls Exp $";
 
 int
 httpproxy_negotiate(s, packet)
@@ -88,7 +88,7 @@ httpproxy_negotiate(s, packet)
    }
 
    /*
-    * read til we get the eof response so there's no junk left in buffer 
+    * read til we get the eof response so there's no junk left in buffer
     * for client, then return the response code.
     */
    eof = checked = readsofar = 0;
@@ -106,7 +106,7 @@ httpproxy_negotiate(s, packet)
       }
 
       buf[readsofar + len] = NUL;
-      slog(LOG_DEBUG, "%s: read: %s", 
+      slog(LOG_DEBUG, "%s: read: %s",
            function, str2vis(&buf[readsofar], len, visbuf, sizeof(visbuf)));
       readsofar += len;
 
@@ -162,10 +162,10 @@ httpproxy_negotiate(s, packet)
                             "expected (<a number>)",
                             function,
                             str2vis(&bufp[offset],
-                                    linelen - offset, 
+                                    linelen - offset,
                                     visbuf,
                                     sizeof(visbuf)));
-                     
+
                      error = 1;
                      break;
                   }
@@ -180,9 +180,9 @@ httpproxy_negotiate(s, packet)
 
                   /*
                    * we have no idea what address the server will use on
-                   * our behalf, so set it to what we use.  Better than 
+                   * our behalf, so set it to what we use.  Better than
                    * nothing, perhaps. :-/
-                  */
+                   */
                   addrlen = sizeof(addr);
                   if (getsockname(s, &addr, &addrlen) != 0)
                      SWARN(s);

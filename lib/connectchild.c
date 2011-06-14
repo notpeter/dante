@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009,
+ *               2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.299 2011/05/10 16:42:11 michaels Exp $";
+"$Id: connectchild.c,v 1.303 2011/05/25 07:07:04 michaels Exp $";
 
 #define MOTHER  (0)   /* descriptor mother reads/writes on.  */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -322,7 +323,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
       case PROXY_HTTP_10:
       case PROXY_HTTP_11: {
          /*
-          * Controlsocket is what later becomes datasocket.
+          * Control socket is what later becomes data socket.
           * We don't want to allow the client to read/write/select etc.
           * on the socket yet, since we need to read/write on it
           * ourselves to setup the connection to the socks server.
@@ -411,7 +412,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
       return route;
 
    /*
-    * datasocket probably unbound.  If so we need to bind it so
+    * data socket probably unbound.  If so we need to bind it so
     * we can get a (hopefully) unique local address for it.
     */
 
@@ -524,7 +525,7 @@ socks_nbconnectroute(s, control, packet, src, dst)
                    (unsigned long)CMSG_TOTLEN(msg), (int)reqoutstanding);
 
 
-   if ((p = sendmsgn(sockscf.child_data, &msg, 0)) != (ssize_t)len) {
+   if ((p = sendmsgn(sockscf.child_data, &msg, 0, -1)) != (ssize_t)len) {
       swarn("%s: sendmsg(): %ld of %ld", function, (long)p, (long)len);
       return NULL;
    }
@@ -619,7 +620,7 @@ run_connectchild(mother_data, mother_ack)
          /*
           * Mother sending us a connected (or in the process of being
           * connected) socket and necessary info to negotiate with
-          * proxyserver.
+          * proxy server.
           */
          struct childpacket_t req;
          struct iovec iov[2];
@@ -648,8 +649,7 @@ run_connectchild(mother_data, mother_ack)
          if ((p = recvmsgn(mother_data, &msg, 0)) != (ssize_t)len) {
             switch (p) {
                case -1:
-                  if (!ERRNOISTMP(errno))
-                     serr(EXIT_FAILURE, "%s: recvmsg()", function);
+                  swarn("%s: recvmsg()", function);
                   break;
 
                case 0:
@@ -678,7 +678,7 @@ run_connectchild(mother_data, mother_ack)
             case PROXY_HTTP_10:
             case PROXY_HTTP_11:
             case PROXY_UPNP:
-               len = 1; /* only controlsocket (which is also datasocket). */
+               len = 1; /* only control socket (which is also data socket). */
                break;
 
             default:
@@ -697,7 +697,7 @@ run_connectchild(mother_data, mother_ack)
             case PROXY_HTTP_10:
             case PROXY_HTTP_11:
             case PROXY_UPNP:
-               data = control;   /* datachannel is controlchannel. */
+               data = control;   /* data channel is control channel. */
                break;
 
             default:
@@ -751,7 +751,7 @@ run_connectchild(mother_data, mother_ack)
 
          len = sizeof(local);
          if ((p = getsockname(control, &local, &len)) == 0
-         && ADDRISBOUND(TOIN(&local))) /* can happpen on solaris on fail. */ {
+         && ADDRISBOUND(TOIN(&local))) /* can happen on solaris on fail. */ {
             slog(LOG_DEBUG, "%s: control local: %s",
             function, sockaddr2string(&local, string, sizeof(string)));
 
@@ -766,7 +766,7 @@ run_connectchild(mother_data, mother_ack)
              * pollsys(0x08033220, 1, 0x00000000, 0x00000000) (sleeping...)
              *         fd=1  ev=POLLOUT rev=0
              * <never returns>
-             * 
+             *
              * In that case, getsockname(2) seems to return a zero address
              * also, so we try to use that to detect the problem.
              */
@@ -780,7 +780,7 @@ run_connectchild(mother_data, mother_ack)
                             NULL,
                             NULL,
                             wset,
-                            NULL, 
+                            NULL,
                             sockscf.timeout.connect == 0 ? NULL : &tval)) {
                case -1:
                   if (errno == EINTR)
@@ -888,7 +888,7 @@ run_connectchild(mother_data, mother_ack)
                          "socket %d and %d",
                          function, (long)tosend, req.s, control);
 
-         if ((p = sendmsgn(mother_data, &msg, 0)) != (ssize_t)tosend)
+         if ((p = sendmsgn(mother_data, &msg, 0, -1)) != (ssize_t)tosend)
             serr(EXIT_FAILURE, "%s: sendmsg() to mother failed: %ld out of %ld",
             function, (long)p, (long)len);
 
@@ -1046,7 +1046,7 @@ sigio(sig, sip, scp)
        * if an address has been associated with fdindex child_s before,
        * it can't possibly be valid any more.
        */
-      socks_rmaddr(child_s, 0); 
+      socks_rmaddr(child_s, 0);
 
       p -= sizeof(childres);
 
@@ -1208,7 +1208,7 @@ sigio(sig, sip, scp)
           */
 
 #if DIAGNOSTIC
-         do { 
+         do {
             struct socksfd_t socksfd;
 
             SASSERTX(socks_addrisours(s, &socksfd, 1));

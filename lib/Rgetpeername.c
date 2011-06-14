@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetpeername.c,v 1.47 2010/11/08 07:00:11 michaels Exp $";
+"$Id: Rgetpeername.c,v 1.48 2011/05/18 13:48:45 karls Exp $";
 
 int
 Rgetpeername(s, name, namelen)

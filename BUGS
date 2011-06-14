@@ -1,4 +1,4 @@
-# $Id: BUGS,v 1.70 2011/05/11 17:35:32 michaels Exp $
+# $Id: BUGS,v 1.72 2011/05/18 16:39:11 michaels Exp $
 
 To report a new bug, mail dante-bugs@inet.no.
 Make sure you read the FAQ (http://www.inet.no/dante/FAQ/) first.
@@ -32,7 +32,7 @@ Client part:
     for the connect-result to be reported.
  
   - GSSAPI related:
-    - The threadlibrary on OpenBSD 4.5, 4.8, and possible releases before,
+    - The thread library on OpenBSD 4.5, 4.8, and possible releases before,
       after, and in between, has numerous problems.  Some of these can
       lead to the client crashing, while others can lead to it hanging.
 
@@ -91,5 +91,7 @@ Client part:
       
       Note that a direct dns route is recommended regardless of whether
       you are using gssapi or not, for performance reasons if nothing
-      else.
+      else.  Hostnames can also be resolved by the socks server, but
+      this will not always provide the client with the information it
+      wants.
  

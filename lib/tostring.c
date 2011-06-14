@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009,
+ *               2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.87 2011/04/25 08:27:09 michaels Exp $";
+"$Id: tostring.c,v 1.93 2011/06/13 11:14:44 michaels Exp $";
 
 static const char *stripstring = ", \t\n";
 
@@ -156,7 +157,7 @@ socks_packet2string(packet, isrequest)
             response->version,
             response->reply.socks,
             sockshost2string(&response->host, hstring, sizeof(hstring)));
-         
+
          break;
 
       case PROXY_SOCKS_V5:
@@ -168,7 +169,7 @@ socks_packet2string(packet, isrequest)
             request->flag,
             request->host.atype,
             sockshost2string(&request->host, hstring, sizeof(hstring)));
-         else 
+         else
             snprintf(buf, sizeof(buf),
             "VER: %d REP: %d FLAG: %d ATYP: %d address: %s",
             response->version,
@@ -195,7 +196,7 @@ socks_packet2string(packet, isrequest)
             response->reply.http,
             response->host.atype,
             sockshost2string(&response->host, hstring, sizeof(hstring)));
-         
+
          break;
 
       default:
@@ -802,39 +803,40 @@ socket2string(s, buf, buflen)
       buflen = sizeof(sbuf);
    }
 
-   *buf = NUL;
-
    len = sizeof(addr);
    if (getsockname(s, &addr, &len) == -1)
-      return buf;
-
-   sockaddr2string(&addr, src, sizeof(src));
+      *src = NUL;
+   else
+      sockaddr2string(&addr, src, sizeof(src));
 
    len = sizeof(addr);
    if (getpeername(s, &addr, &len) == -1)
-      return buf;
-
-   sockaddr2string(&addr, dst, sizeof(dst));
+      *dst = NUL;
+   else
+      sockaddr2string(&addr, dst, sizeof(dst));
 
    len = sizeof(val);
-   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) != 0)
-      return buf;
+   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) == -1)
+      protocol = NULL;
+   else
+      switch (val) {
+         case SOCK_DGRAM:
+            protocol = PROTOCOL_UDPs;
+            break;
 
-   switch (val) {
-      case SOCK_DGRAM:
-         protocol = PROTOCOL_UDPs;
-         break;
+         case SOCK_STREAM:
+            protocol = PROTOCOL_TCPs;
+            break;
 
-      case SOCK_STREAM:
-         protocol = PROTOCOL_TCPs;
-         break;
+         default:
+            protocol = "unknown";
+      }
 
-      default:
-         protocol = "unknown";
-   }
-
-   snprintf(buf, buflen, "laddr: %s, raddr: %s, protocol: %s",
-   src, dst, protocol);
+   snprintf(buf, buflen,
+            "laddr: %s, raddr: %s, protocol: %s",
+            *src     == NUL  ? "N/A" : src,
+            *dst     == NUL  ? "N/A" : src,
+            protocol == NULL ? "N/A" : protocol);
 
    return buf;
 }
@@ -879,11 +881,11 @@ errnostr(err)
 
    errstr = strerror(err);
 
-   if (errno != errno_s 
-   &&  errno != EINVAL) 
+   if (errno != errno_s
+   &&  errno != EINVAL)
       errno  = errno_s; /* don't expect strerror(3) to change errno normally. */
 
-   return errstr; 
+   return errstr;
 }
 
 #if HAVE_GSSAPI
@@ -969,6 +971,43 @@ logtypes2string(logtypes, str, strsize)
    STRIPTRAILING(str, strused, stripstring);
    return str;
 }
+
+const char *
+loglevel2string(loglevel)
+   const int loglevel;
+{
+
+   switch (loglevel) {
+      case LOG_EMERG:
+         return "emergency";
+
+      case LOG_ALERT: 
+         return "alert";
+
+      case LOG_CRIT:
+         return "critical";
+
+      case LOG_ERR:
+         return "error";
+
+      case LOG_WARNING:
+         return "warning";
+
+      case LOG_NOTICE:
+         return "notice";
+
+      case LOG_INFO:
+         return "info";
+
+      case LOG_DEBUG:
+         return "debug";
+
+      default:
+         SWARNX(loglevel);
+         return "uknown loglevel";
+   }
+}
+
 
 #if !SOCKS_CLIENT
 
@@ -1301,16 +1340,16 @@ httpcode2string(version, code)
    const int version;
    const int code;
 {
-   static char prefix[16], buf[64]; 
+   static char prefix[16], buf[64];
 
-   SASSERTX(version == PROXY_HTTP_10 
+   SASSERTX(version == PROXY_HTTP_10
    ||       version == PROXY_HTTP_11);
 
    snprintf(prefix, sizeof(prefix), "HTTP/1.%d %d",
    version == PROXY_HTTP_10 ? 0 : 1, code);
 
    switch (code) {
-      case HTTP_SUCCESS: 
+      case HTTP_SUCCESS:
          snprintf(buf, sizeof(buf), "%s Success", prefix);
          break;
 

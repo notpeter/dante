@@ -4,11 +4,11 @@ dnl Based on patch from Markus Moeller (markus_moeller at compuserve.com)
 dnl default prefix for kerberos headers/libs
 krb5dir=/usr
 AC_ARG_WITH(krb5,
- [  --without-krb5        disable kerberos 5 support @<:@default=detect@:>@],
+ [  --without-krb5          disable kerberos 5 support @<:@default=detect@:>@],
  [KRB5=$withval])
 
 AC_ARG_WITH(krb5-path,
- [  --with-krb5-path=PATH specify kerberos 5 path @<:@default=$krb5dir@:>@],
+ [  --with-krb5-path=PATH   specify kerberos 5 path @<:@default=$krb5dir@:>@],
  [krb5dir=$withval])
 
 AC_ARG_WITH(krb5-config,

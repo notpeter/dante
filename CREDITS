@@ -1,4 +1,4 @@
-# $Id: CREDITS,v 1.39 2010/10/18 14:11:14 michaels Exp $
+# $Id: CREDITS,v 1.41 2011/06/09 13:51:14 michaels Exp $
 
 Dante was developed for Inferno Nettverk A/S, Norway, by
    - Michael Shuldman
@@ -6,7 +6,6 @@ Dante was developed for Inferno Nettverk A/S, Norway, by
 
 
 At least the following additional people should be credited
-(remove example.com to get the real mail-addresses):
 
 - David Koblas (koblas@netcom.com.example.com) authored the original
   Socks protocol and implementation.
@@ -78,7 +77,7 @@ At least the following additional people should be credited
   support for the GSSAPI (RFC 1961) to both the server and the client.
   Many thanks to Markus for this.
 
--  Lysenko Konstantin <gshaud@gmail.com.example.com> contributed support for
+- Lysenko Konstantin <gshaud@gmail.com.example.com> contributed support for
   "external.rotation: same-same".
 
 - Also thanks to everyone who reported bugs and other problems.

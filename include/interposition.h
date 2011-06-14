@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.80 2011/04/10 06:56:01 michaels Exp $ */
+/* $Id: interposition.h,v 1.82 2011/05/18 13:48:45 karls Exp $ */
 
 #ifndef _INTERPOSITION_H_
 #define _INTERPOSITION_H_
@@ -105,7 +105,7 @@ int
 socks_issyscall(const int s, const char *name);
 /*
  * Checks whether the function with the name "name" should resolve
- * to a system call when used with the filedescriptor "s".
+ * to a system call when used with the file descriptor "s".
  *
  * Returns true if so, false otherwise.
  */

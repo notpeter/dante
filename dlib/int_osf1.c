@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #if SOCKSLIBRARY_DYNAMIC
 
 static const char rcsid[] =
-"$Id: int_osf1.c,v 1.21 2010/08/17 18:06:57 michaels Exp $";
+"$Id: int_osf1.c,v 1.22 2011/05/18 13:48:45 karls Exp $";
 
 #undef accept
 #undef getpeername

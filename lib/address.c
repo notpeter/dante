@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,10 +51,10 @@
 #include <dlfcn.h>
 
 static const char rcsid[] =
-"$Id: address.c,v 1.202 2011/05/06 08:53:16 michaels Exp $";
+"$Id: address.c,v 1.204 2011/05/18 13:48:45 karls Exp $";
 
 /*
- * During init, we need to let all systemcalls resolve to the native
+ * During init, we need to let all system calls resolve to the native
  * version.  I.e., socks_shouldcallasnative() need to always return
  * true as long as we are initing. Use this object for holding that
  * knowledge.
@@ -66,9 +66,9 @@ volatile sig_atomic_t doing_addrinit;
 #endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
 
 
-/* 
- * "fake" ipaddresses for clients that want/need to use that.
- * Note that this is process-spesific, so it will not work with
+/*
+ * "fake" ip addresses for clients that want/need to use that.
+ * Note that this is process-specific, so it will not work with
  * programs that fork of "dns-helper".  Shared memory might have worked,
  * but even that would have depended on us being able to set up the
  * shared memory early enough, so just say we don't support that.
@@ -223,7 +223,7 @@ socks_getaddr(d, socksfd, takelock)
 #endif /* HAVE_GSSAPI */
    struct socksfd_t *sfd;
    addrlockopaque_t lock;
-   
+
    if (socksfd == NULL) {
       static struct socksfd_t ifnullsocksfd;
 
@@ -246,7 +246,7 @@ socks_getaddr(d, socksfd, takelock)
             swarnx("%s: failed to import gssapi context of length %lu "
                    "for socket %d",
                    function, (unsigned long)sfd->state.gssapistate.length, d);
-            
+
             socks_rmaddr(d, 0);
             sfd = NULL;
          }
@@ -273,7 +273,7 @@ socks_rmaddr(d, takelock)
    const int d;
    const int takelock;
 {
-   const char *function = "socks_rmaddr()";    
+   const char *function = "socks_rmaddr()";
    addrlockopaque_t lock;
 
    if (d < 0 || (size_t)d >= socksfdc)
@@ -301,7 +301,7 @@ socks_rmaddr(d, takelock)
 
                   /*
                    * If we are using the bind extension it's possible
-                   * that this controlconnection is shared with other
+                   * that this control connection is shared with other
                    * (accept()'ed) addresses, if so we must leave it
                    * open for the other connections.
                   */
@@ -314,7 +314,7 @@ socks_rmaddr(d, takelock)
                   break;
 
                case SOCKS_CONNECT:
-                  break; /* no separate controlconnection. */
+                  break; /* no separate control connection. */
 
                case SOCKS_UDPASSOCIATE:
                   if (socksfdv[d].control != -1)
@@ -825,13 +825,13 @@ socks_getfakehost(addr)
    }
    else {
       if (ntohl(addr) >= FAKEIP_START &&  ntohl(addr) <= FAKEIP_END)
-         swarnx("%s: looks like ipaddress %s might be a \"fake\" ipaddress, "
+         swarnx("%s: looks like ip address %s might be a \"fake\" ip address, "
                 "but we have no knowledge of that address in this process.  "
                 "Possibly this client is forking of a \"dns-helper\"-style "
                 "program for dns stuff.  We unfortunately do not support "
-                "using fake ipaddresses in that case.",
+                "using fake ip addresses in that case.",
                 function, inet_ntoa(*(struct in_addr *)&addr));
-                
+
       host = NULL;
    }
 
@@ -1062,25 +1062,25 @@ fdisdup(fd1, fd2)
 
    /*
     * Test is to set a flag on fd1, and see if the same flag then gets set on
-    * fd2.  Note that this flag must be a flag we can set on a socket that 
-    * failed during connect(2), or where the remote end has closed it's side 
-    * of the pipe, and that will be shared between descriptors that are 
+    * fd2.  Note that this flag must be a flag we can set on a socket that
+    * failed during connect(2), or where the remote end has closed it's side
+    * of the pipe, and that will be shared between descriptors that are
     * dup(2)'s of each other.
     *
     * File status flags are shared, but descriptor flags (e.g., FD_CLOEXEC),
     * are of course not.  Also note that not all platforms let all F_SETFL
     * commands change the same flags, and not all platforms let us set
     * the flag on a "failed" socket (a socket where the connect(2) failed).
-    * We however assume that if the socket failed, and we are getting the 
-    * same errno from the socket we are checking against, it is either the 
+    * We however assume that if the socket failed, and we are getting the
+    * same errno from the socket we are checking against, it is either the
     * socket, or any failed socket is as good as any other failed socket.
     *
     * XXX this does not work on OpenBSD if one of the descriptors were passed
     * us by another process (e.g., passed us by the connect child).
-    * Need to sendbug this. 
+    * Need to sendbug this.
     *
-    * The reason we do not do this test first is that if there are multiple 
-    * processes/threads using the same fd, we want to minimalise the chance
+    * The reason we do not do this test first is that if there are multiple
+    * processes/threads using the same fd, we want to minimize the chance
     * of us changing the descriptor under their feet while they are using it.
     */
 
@@ -1134,7 +1134,7 @@ fdisdup(fd1, fd2)
    else
       isdup = 0;
 
-   slog(LOG_DEBUG, "%s: final test indicates fd %d %s of fd %d", 
+   slog(LOG_DEBUG, "%s: final test indicates fd %d %s of fd %d",
    function, fd1, isdup ? "is a dup" : "is not a dup", fd2);
 
    /* restore flags back to original. */
@@ -1166,8 +1166,8 @@ socks_addrinit(void)
 
    if (doing_addrinit)
       /*
-       * XXX should really be sched_yield() or similar if initing, unless 
-       * the thread initing is ours.  If the thread initing is ours, 
+       * XXX should really be sched_yield() or similar if initing, unless
+       * the thread initing is ours.  If the thread initing is ours,
        * we can just return, to handle recursive problems during init.
        */
       return;
@@ -1196,7 +1196,7 @@ socks_addrinit(void)
    /* init all to -1, a illegal value for a descriptor. */
    while (dc < FDV_INITSIZE)
       dv[dc++] = -1;
-   
+
 
 #if HAVE_PTHREAD_H
    if (socks_getenv("SOCKS_DISABLE_THREADLOCK", istrue) != NULL)
@@ -1302,7 +1302,7 @@ socks_addrinit(void)
       }
 #endif /* HAVE_PTHREAD_H */
    }
-   
+
    inited         = 1;
    doing_addrinit = 0;
 }

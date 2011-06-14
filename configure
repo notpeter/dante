@@ -1538,6 +1538,8 @@ Optional Packages:
   --with-socks-conf=FILE  change location of socks client configuration file
   --with-sockd-conf=FILE  change location of socks server configuration file
   --with-pidfile=FILE     change location of server pidfile
+  --with-iomax=NUMBER     change number of clients per io process
+  --with-negmax=NUMBER    change number of clients per negotiate process
   --with-libc=NAME        manually set name of c library if necessary
   --without-upnp          disable upnp support [default=detect]
   --without-pam           disable pam support [default=detect]
@@ -1546,12 +1548,12 @@ Optional Packages:
   --with-gssapi-path=PATH specify gssapi path
   --without-gssapi        disable gssapi support
   --with-krb5-config=PATH specify path to krb5-config [default=detect]
-  --without-krb5        disable kerberos 5 support [default=detect]
-  --with-krb5-path=PATH specify kerberos 5 path [default=$krb5dir]
-  --without-ldap        disable ldap support [default=detect]
-  --with-ldap-path=PATH specify ldap path [default=$ldapdir]
-  --without-sasl        disable sasl support [default=detect]
-  --with-sasl-path=PATH specify sasl path [default=$sasldir]
+  --without-krb5          disable kerberos 5 support [default=detect]
+  --with-krb5-path=PATH   specify kerberos 5 path [default=$krb5dir]
+  --without-ldap          disable ldap support [default=detect]
+  --with-ldap-path=PATH   specify ldap path [default=$ldapdir]
+  --without-sasl          disable sasl support [default=detect]
+  --with-sasl-path=PATH   specify sasl path [default=$sasldir]
   --without-glibc-secure  disable libc_enable_secure check [default=detect]
 
 Some influential environment variables:
@@ -2003,15 +2005,14 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 version=1.3.0
 RPMVERSION1="$version"
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+#prerelease="1"
 if test x$prerelease != x; then
     prename="pre$prerelease"
     version="${version}-$prename"
     RPMVERSION2="0.$prename"
     TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
 else
-    prename=""
-    RPMVERSION2="1.$prename"
+    RPMVERSION2="1"
 fi
 
 echo "Configuring Dante ${version}:"
@@ -4400,7 +4401,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 4403 "configure"' > conftest.$ac_ext
+  echo '#line 4404 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7471,11 +7472,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7474: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7475: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7478: \$? = $ac_status" >&5
+   echo "$as_me:7479: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7761,11 +7762,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7764: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7765: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7768: \$? = $ac_status" >&5
+   echo "$as_me:7769: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7865,11 +7866,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7868: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7869: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:7872: \$? = $ac_status" >&5
+   echo "$as_me:7873: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -10229,7 +10230,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 10232 "configure"
+#line 10233 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -10329,7 +10330,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 10332 "configure"
+#line 10333 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -12730,11 +12731,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:12733: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:12734: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:12737: \$? = $ac_status" >&5
+   echo "$as_me:12738: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -12834,11 +12835,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:12837: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:12838: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:12841: \$? = $ac_status" >&5
+   echo "$as_me:12842: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -14417,11 +14418,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:14420: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:14421: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:14424: \$? = $ac_status" >&5
+   echo "$as_me:14425: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -14521,11 +14522,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:14524: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:14525: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:14528: \$? = $ac_status" >&5
+   echo "$as_me:14529: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -16728,11 +16729,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:16731: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:16732: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:16735: \$? = $ac_status" >&5
+   echo "$as_me:16736: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -17018,11 +17019,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:17021: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:17022: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:17025: \$? = $ac_status" >&5
+   echo "$as_me:17026: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -17122,11 +17123,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:17125: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:17126: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:17129: \$? = $ac_status" >&5
+   echo "$as_me:17130: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -20063,21 +20064,40 @@ fi
 
 
 #known keywords for --enable/disable-foo(=yes/no)?
-LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77|option_checking"
+LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77|option_checking|silent_rules"
 KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile"
 for keyword in `set | egrep '^enable_' | sed -e 's/^enable_//' | \
                 sed -e 's/=.*$//'`; do
     echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
     if test $? -ne 0; then
-	{ echo "$as_me:$LINENO: WARNING: unknown option '$keyword', ignoring ..." >&5
-echo "$as_me: WARNING: unknown option '$keyword', ignoring ..." >&2;}
-#	sleep 10;
+	{ echo "$as_me:$LINENO: WARNING: unknown --enable/disable keyword '$keyword'" >&5
+echo "$as_me: WARNING: unknown --enable/disable keyword '$keyword'" >&2;}
+	#check is not entirely reliable, only exit in prerelease
+	if test x$prerelease != x; then
+	    exit 1
+	fi
+    fi
+done
+
+#known keywords for --with/without-foo?
+LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx"
+KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|ldap|ldap_path|sasl|sasl_path|glibc_secure"
+for keyword in `set | egrep '^with_' | sed -e 's/^with_//' | \
+                sed -e 's/=.*$//'`; do
+    echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
+    if test $? -ne 0; then
+	{ echo "$as_me:$LINENO: WARNING: unknown --with/without keyword '$keyword'" >&5
+echo "$as_me: WARNING: unknown --with/without keyword '$keyword'" >&2;}
+	#check is not entirely reliable, only exit in prerelease
+	if test x$prerelease != x; then
+	    exit 1
+	fi
     fi
 done
 
 case $host in
     *-*-osf*)
-      	{ echo "$as_me:$LINENO: WARNING: OSF support might be removed in the near future." >&5
+	{ echo "$as_me:$LINENO: WARNING: OSF support might be removed in the near future." >&5
 echo "$as_me: WARNING: OSF support might be removed in the near future." >&2;}
 	{ echo "$as_me:$LINENO: WARNING: Please contact dante-bugs@inet.no if you are using this platform." >&5
 echo "$as_me: WARNING: Please contact dante-bugs@inet.no if you are using this platform." >&2;}
@@ -20556,12 +20576,12 @@ echo "${ECHO_T}yes" >&6; }
 
  case $host in
      *-*-openbsd* | *-*-freebsd*)
-         #static linking, disable server preloading
-      	 no_preload_server=t
-	 #openbsd and freebsd appear to be happier if -lc is included
-	 #when profiling is enabled
-	 LIBS="$LIBS${LIBS:+ }-lc"
-	 ;;
+	#static linking, disable server preloading
+	no_preload_server=t
+	#openbsd and freebsd appear to be happier if -lc is included
+	#when profiling is enabled
+	LIBS="$LIBS${LIBS:+ }-lc"
+	;;
  esac
 else
   { echo "$as_me:$LINENO: result: no" >&5
@@ -20615,7 +20635,7 @@ echo "$as_me: WARNING: linting requested, but lint not found" >&2;}
      s_linting=t
      case $host in
 	 *-*-openbsd*)
-             LINTFLAGS="-abcebprxz"
+	     LINTFLAGS="-abcebprxz"
 	     LINTPASS1="-i"
 	     LINTPASS2=""
 	     LINTLIBOPT="-C"
@@ -23759,6 +23779,35 @@ _ACEOF
 
     fi
 fi
+
+#SOCKD_IOMAX/NEGOTIATEMAX override?
+{ echo "$as_me:$LINENO: checking for SOCKD_IOMAX value" >&5
+echo $ECHO_N "checking for SOCKD_IOMAX value... $ECHO_C" >&6; }
+
+# Check whether --with-iomax was given.
+if test "${with_iomax+set}" = set; then
+  withval=$with_iomax; { echo "$as_me:$LINENO: result: $withval" >&5
+echo "${ECHO_T}$withval" >&6; }
+ CPPFLAGS="${CPPFLAGS} -DSOCKD_IOMAX=$withval"
+else
+  { echo "$as_me:$LINENO: result: default" >&5
+echo "${ECHO_T}default" >&6; }
+fi
+
+
+{ echo "$as_me:$LINENO: checking for SOCKD_NEGOTIATEMAX value" >&5
+echo $ECHO_N "checking for SOCKD_NEGOTIATEMAX value... $ECHO_C" >&6; }
+
+# Check whether --with-negmax was given.
+if test "${with_negmax+set}" = set; then
+  withval=$with_negmax; { echo "$as_me:$LINENO: result: $withval" >&5
+echo "${ECHO_T}$withval" >&6; }
+ CPPFLAGS="${CPPFLAGS} -DSOCKD_NEGOTIATEMAX=$withval"
+else
+  { echo "$as_me:$LINENO: result: default" >&5
+echo "${ECHO_T}default" >&6; }
+fi
+
 
 if test "${ac_cv_header_sys_sockio_h+set}" = set; then
   { echo "$as_me:$LINENO: checking for sys/sockio.h" >&5
@@ -29473,22 +29522,22 @@ _ACEOF
      if test x"${ac_cv_search_pthread_mutexattr_init}" = x"-lpthread"; then
         case $host in
            *-*-linux-*)
-     	#XXX  attempt to find latest pthread library
-     	  PATH=$PATH:/sbin
-     	  export PATH
-     	  unset LIBPT_ALTS
-     	  for file in `ldconfig -p | grep /libpthread.so| xargs -n 1 echo | grep /libpthread.so`; do
-     	     test -s "$file" && LIBPT_ALTS="${LIBPT_ALTS}${LIBPT_ALTS:+ }$file"
-     	  done
-     		LIBPT_NAME=`echo ${LIBPT_ALTS} | sed -e 's/.*\///' | sort -nr | head -n 1`
-     		if test "x${LIBPT_NAME}" = x; then
-     			#nothing found, set something anyway
-     			LIBPT_NAME="${base_library_path}libc.so"
-     		fi
+	#XXX  attempt to find latest pthread library
+	  PATH=$PATH:/sbin
+	  export PATH
+	  unset LIBPT_ALTS
+	  for file in `ldconfig -p | grep /libpthread.so| xargs -n 1 echo | grep /libpthread.so`; do
+	     test -s "$file" && LIBPT_ALTS="${LIBPT_ALTS}${LIBPT_ALTS:+ }$file"
+	  done
+		LIBPT_NAME=`echo ${LIBPT_ALTS} | sed -e 's/.*\///' | sort -nr | head -n 1`
+		if test "x${LIBPT_NAME}" = x; then
+			#nothing found, set something anyway
+			LIBPT_NAME="${base_library_path}libc.so"
+		fi
            ;;
 
            *)
-     	  LIBPT_NAME="libpthread.${SOLIB_POSTFIX}"
+	  LIBPT_NAME="libpthread.${SOLIB_POSTFIX}"
            ;;
         esac
 
@@ -40167,7 +40216,7 @@ global:
        #if gcc+sun ld, option in -Wl,-Msocks.map, otherwise --version-script
        gcc -Wl,-v 2>&1 | grep '/usr/ccs/bin/ld' > /dev/null
        if test $? -eq 0; then
-       	  MAPOPT="-Wl,-Msocks.map"
+		  MAPOPT="-Wl,-Msocks.map"
        else
 	  MAPOPT="-Wl,--version-script=socks.map"
        fi
@@ -40177,12 +40226,12 @@ global:
 	HW=`uname -m`
 	case $HW in
 	     ppc*)
-	     	CFLAGS="$CFLAGS${CFLAGS:+ }-arch ppc -arch ppc64"
-	     	LDFLAGS="$LDLAGS${LDLAGS:+ }-arch ppc -arch ppc64"
+		CFLAGS="$CFLAGS${CFLAGS:+ }-arch ppc -arch ppc64"
+		LDFLAGS="$LDLAGS${LDLAGS:+ }-arch ppc -arch ppc64"
 		;;
 	     *)
-	     	CFLAGS="$CFLAGS${CFLAGS:+ }-arch i386 -arch x86_64"
-	     	LDFLAGS="$LDLAGS${LDLAGS:+ }-arch i386 -arch x86_64"
+		CFLAGS="$CFLAGS${CFLAGS:+ }-arch i386 -arch x86_64"
+		LDFLAGS="$LDLAGS${LDLAGS:+ }-arch i386 -arch x86_64"
 		;;
 	esac
    fi
@@ -40193,7 +40242,7 @@ global:
 fi
 
 
-#expected select behaviour?
+#expected select behavior?
 unset nb_select_err
 { echo "$as_me:$LINENO: checking for expected select behaviour" >&5
 echo $ECHO_N "checking for expected select behaviour... $ECHO_C" >&6; }
@@ -40320,7 +40369,7 @@ selectcheck(s)
 	FD_SET(s, &rset);
 	wset = xset = rset;
 
-	timeout.tv_sec 	= 0;
+	timeout.tv_sec		= 0;
 	timeout.tv_usec	= 0;
 
 	errno = 0;
@@ -42312,7 +42361,7 @@ servdir=sockd
 { echo "$as_me:$LINENO: checking for module bandwidth" >&5
 echo $ECHO_N "checking for module bandwidth... $ECHO_C" >&6; }
  if test -f "licensed/bandwidth.c"; then
-	MINVER="58"
+	MINVER="68"
 	MODLINE=`head -1 licensed/bandwidth.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -42369,7 +42418,7 @@ fi
 { echo "$as_me:$LINENO: checking for module redirect" >&5
 echo $ECHO_N "checking for module redirect... $ECHO_C" >&6; }
  if test -f "licensed/redirect.c"; then
-	MINVER="39"
+	MINVER="47"
 	MODLINE=`head -1 licensed/redirect.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -42426,7 +42475,7 @@ fi
 { echo "$as_me:$LINENO: checking for module session" >&5
 echo $ECHO_N "checking for module session... $ECHO_C" >&6; }
  if test -f "licensed/session.c"; then
-	MINVER="21"
+	MINVER="30"
 	MODLINE=`head -1 licensed/session.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -42483,7 +42532,7 @@ fi
 { echo "$as_me:$LINENO: checking for module ldap" >&5
 echo $ECHO_N "checking for module ldap... $ECHO_C" >&6; }
  if test -f "licensed/ldap.c"; then
-	MINVER="1"
+	MINVER="44"
 	MODLINE=`head -1 licensed/ldap.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -42542,7 +42591,7 @@ fi
 { echo "$as_me:$LINENO: checking for module checkmodule" >&5
 echo $ECHO_N "checking for module checkmodule... $ECHO_C" >&6; }
  if test -f "licensed/checkmodule.c"; then
-	MINVER="35"
+	MINVER="39"
 	MODLINE=`head -1 licensed/checkmodule.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -42604,7 +42653,7 @@ fi
 #add any warning flags (value set above)
 CFLAGS="$CFLAGS $warn"
 
-if test "x${prerelease}" != "x"; then
+#if test "x${prerelease}" != "x"; then
     echo "warning flags: $warn"
     echo "compiler flags: $comp_flags"
     echo "CFLAGS: $CFLAGS"
@@ -42613,7 +42662,7 @@ if test "x${prerelease}" != "x"; then
     echo "LDFLAGS: $LDFLAGS"
     echo "DLIBDEPS: $DLIBDEPS"
     echo "SOCKDDEPS: $SOCKDDEPS"
-fi
+#fi
 
 
 
@@ -44173,91 +44222,87 @@ echo ""
 echo "                     Configure status:"
 echo ""
 if test x"${no_acceptlock}" = xt; then
-    echo "Acceptlock:        OK (not required)"
-else
-    echo "Acceptlock:        workaround enabled on this platform"
+#    echo "Acceptlock:        Disabled"
+#else
+    echo "Acceptlock:        Enabled"
 fi
 if test x"${no_preload}" = xt; then
    if test x"${blocked_preload}" = xt; then
-	echo "Preloading:        client preloading might not be reliable on this platform"
+	echo "Preloading:        Client preloading might not be reliable on this platform"
    else
-	echo "Preloading:        disabled"
+	echo "Preloading:        Disabled"
    fi
 else
-    echo "Preloading:        OK"
+    echo "Preloading:        Enabled"
 fi
 if test x"${nb_select_err}" = xt; then
-    echo "select:            unexpected select behaviour on unconnected sockets,"
+    echo "select:            Unexpected select behaviour on unconnected sockets,"
     echo "                   operations on nonblocking sockets might fail "
     echo "                   on this platform when using socksify"
-else
-    echo "select:            OK"
+#else
+#    echo "select:            OK"
 fi
 if test x"${no_routeinfo}" = xt; then
-    echo "Routeinfo:         not supported on this platform"
-else
-    echo "Routeinfo:         OK"
+    echo "Routeinfo:         Not supported on this platform"
+#else
+#    echo "Routeinfo:         OK"
 fi
 if test x"${no_gssapi}" = xt; then
    if test x"${bad_gssapi}" = xt; then
-	echo "GSSAPI:            located gssapi library not usable"
+	echo "GSSAPI:            Located gssapi library not usable"
    else
-	echo "GSSAPI:            not found"
+	echo "GSSAPI:            Not found/disabled"
    fi
 else
-	echo "GSSAPI:            OK"
+	echo "GSSAPI:            Enabled"
 fi
 if test x"${no_krb5}" = xt; then
-        echo "KRB5:              not found"
+        echo "KRB5:              Not found/disabled"
 else
-        echo "KRB5:              OK"
+        echo "KRB5:              Enabled"
 fi
 if test x"${no_ldap}" = xt; then
-        echo "LDAP:              not found"
+        echo "LDAP:              Not found/disabled"
 else
-        echo "LDAP:              OK"
+        echo "LDAP:              Enabled"
 fi
 if test x"${no_sasl}" = xt; then
-        echo "SASL:              not found"
+        echo "SASL:              Not found/disabled"
 else
-        echo "SASL:              OK"
+        echo "SASL:              Enabled"
 fi
 if test x"${no_upnp}" = xt; then
     if test x"${have_libminiupnp}" = xt; then
-	echo "UPNP:              unsupported miniupnp library version"
+	echo "UPNP:              Unsupported miniupnp library version"
     else
-	echo "UPNP:              supported library not found"
+	echo "UPNP:              Supported library not found"
     fi
 else
-    echo "UPNP:              OK"
+    echo "UPNP:              Enabled"
 fi
 
 echo ""
-echo "This software should perform optimally when all the lines above report 'OK'."
-echo "This is not possible on all platforms."
-echo ""
-
 echo "                     Modules:"
 echo ""
 if test x"$MOD_REDIRECT" = x; then
-    echo "redirect:          OK"
+    echo "redirect:          Enabled"
 else
-    echo "redirect:          not found"
+    echo "redirect:          Not found"
 fi
 if test x"$MOD_BANDWIDTH" = x; then
-    echo "bandwidth:         OK"
+    echo "bandwidth:         Enabled"
 else
-    echo "bandwidth:         not found"
+    echo "bandwidth:         Not found"
 fi
 if test x"$MOD_SESSION" = x; then
-    echo "session:           OK"
+    echo "session:           Enabled"
 else
-    echo "session:           not found"
+    echo "session:           Not found"
 fi
 if test x"$MOD_LDAP" = x; then
-    echo "ldap:              OK"
+    echo "ldap:              Enabled"
 else
-    echo "ldap:              not found"
+    echo "ldap:              Not found"
 fi
 echo ""
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: symbols.h,v 1.8 2011/04/11 17:21:01 karls Exp $ */
+/* $Id: symbols.h,v 1.9 2011/05/18 13:48:45 karls Exp $ */
 
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""

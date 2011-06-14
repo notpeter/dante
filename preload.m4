@@ -326,7 +326,7 @@ AC_CHECK_HEADER(pthread.h,
  AC_MSG_CHECKING([whether compilation with pthread.h works])
  unset use_threads
  AC_TRY_RUN([
-#include <pthread.h> 
+#include <pthread.h>
 
 int main()
 {
@@ -346,22 +346,22 @@ int main()
      if test x"${ac_cv_search_pthread_mutexattr_init}" = x"-lpthread"; then
         case $host in
            *-*-linux-*)
-     	#XXX  attempt to find latest pthread library
-     	  PATH=$PATH:/sbin
-     	  export PATH
-     	  unset LIBPT_ALTS
-     	  for file in `ldconfig -p | grep /libpthread.so| xargs -n 1 echo | grep /libpthread.so`; do
-     	     test -s "$file" && LIBPT_ALTS="${LIBPT_ALTS}${LIBPT_ALTS:+ }$file"
-     	  done
-     		LIBPT_NAME=`echo ${LIBPT_ALTS} | sed -e 's/.*\///' | sort -nr | head -n 1`
-     		if test "x${LIBPT_NAME}" = x; then
-     			#nothing found, set something anyway
-     			LIBPT_NAME="${base_library_path}libc.so"
-     		fi
+	#XXX  attempt to find latest pthread library
+	  PATH=$PATH:/sbin
+	  export PATH
+	  unset LIBPT_ALTS
+	  for file in `ldconfig -p | grep /libpthread.so| xargs -n 1 echo | grep /libpthread.so`; do
+	     test -s "$file" && LIBPT_ALTS="${LIBPT_ALTS}${LIBPT_ALTS:+ }$file"
+	  done
+		LIBPT_NAME=`echo ${LIBPT_ALTS} | sed -e 's/.*\///' | sort -nr | head -n 1`
+		if test "x${LIBPT_NAME}" = x; then
+			#nothing found, set something anyway
+			LIBPT_NAME="${base_library_path}libc.so"
+		fi
            ;;
 
            *)
-     	  LIBPT_NAME="libpthread.${SOLIB_POSTFIX}"
+	  LIBPT_NAME="libpthread.${SOLIB_POSTFIX}"
            ;;
         esac
         AC_DEFINE_UNQUOTED(LIBRARY_PTHREAD, "${base_library_path}$LIBPT_NAME", [libloc])
@@ -633,19 +633,19 @@ if test x"$preload_enabled" = xt; then
     AC_TRY_RUN([
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>                                                             
+#include <unistd.h>
 int
 main(int argc, char *argv[])
 {
    char buf[1024];
-  
+
    strcpy(buf, "lari -V ");
    strcat(buf, argv[0]);
    strcat(buf, " | grep read | grep protected > /dev/null");
 
    /*
     * return error if 'protected'
-    * (ignore errors, not indicative of blocking) */ 
+    * (ignore errors, not indicative of blocking) */
    if (system(buf) == 0)
         return 1;
    else

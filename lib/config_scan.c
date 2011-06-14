@@ -1935,7 +1935,7 @@ char *yytext;
 #define INITIAL 0
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *          2009
+ *               2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1988,7 +1988,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.151 2011/05/12 15:32:50 michaels Exp $";
+"$Id: config_scan.l,v 1.155 2011/06/13 08:57:38 michaels Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -2470,10 +2470,10 @@ YY_RULE_SETUP
 
    /*
     * we don't have a reliable regex to differentiate between a
-    * domainname and ifname on all systems. 
-    * With a very general regex like the above, it is not so easy 
+    * domainname and ifname on all systems.
+    * With a very general regex like the above, it is not so easy
     * to exclude an ipaddress from matching it also.  So instead
-    * of contiuing to try and create a perfect regex, do a bruteforce
+    * of continuing to try and create a perfect regex, do a brute force
     * check to see what the text represents.
     */
 
@@ -3746,7 +3746,6 @@ case 158:
 YY_RULE_SETUP
 #line 1089 "config_scan.l"
 {
-
    yylval.string = yytext;
    return NUMBER;
 }
@@ -3754,7 +3753,7 @@ YY_RULE_SETUP
 /* ignored */
 case 159:
 YY_RULE_SETUP
-#line 1096 "config_scan.l"
+#line 1095 "config_scan.l"
 {
    ;
 }
@@ -3762,7 +3761,7 @@ YY_RULE_SETUP
 /* shell style comment */
 case 160:
 YY_RULE_SETUP
-#line 1101 "config_scan.l"
+#line 1100 "config_scan.l"
 {
    ;
 }
@@ -3770,7 +3769,7 @@ YY_RULE_SETUP
 /* state always ends at eol. */
 case 161:
 YY_RULE_SETUP
-#line 1106 "config_scan.l"
+#line 1105 "config_scan.l"
 {
    BEGIN(0);
 }
@@ -3778,15 +3777,16 @@ YY_RULE_SETUP
 /* unless it's escaped. */
 case 162:
 YY_RULE_SETUP
-#line 1111 "config_scan.l"
+#line 1110 "config_scan.l"
 {
    ;
 }
 	YY_BREAK
 case 163:
 YY_RULE_SETUP
-#line 1115 "config_scan.l"
+#line 1114 "config_scan.l"
 {
+   yylval.string = yytext;
    return *yytext;
 }
 	YY_BREAK

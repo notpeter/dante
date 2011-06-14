@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009
+ *               2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,10 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.255 2011/05/10 16:42:11 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.264 2011/06/09 09:47:03 michaels Exp $";
+
+static struct sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
+static const size_t negc = ELEMENTS(negv);
 
 static void siginfo(int sig, siginfo_t *sip, void *scp);
 
@@ -64,8 +67,8 @@ recv_negotiate(void);
 /*
  * Tries to receive a client from mother.
  * Returns:
- *      On success, or if there was some temporary error: 0
- *      On failure: -1
+ *      If a new negotiate object was received successfully: 0.
+ *      Otherwise: -1.
  */
 
 static void
@@ -77,9 +80,16 @@ delete_negotiate(struct sockd_negotiate_t *neg);
  */
 
 static int
-neg_fillset(fd_set *set);
+neg_fillset(fd_set *set, const int skipcompleted, const int skipinprogress);
 /*
- * Sets all descriptors in our list in the set "set".
+ * Sets all client descriptors in our list in the set "set".
+ *
+ * If "skipcompleted" is set, skip those descriptors that belong to
+ * clients that have completed negotation.
+ *
+ * If "skipinprogress" is set, skip those descriptors that belong to
+ * clients that have not yet completed negotation.
+ *
  * Returns the highest descriptor in our list, or -1 if we don't
  * have any descriptors open currently.
  */
@@ -131,7 +141,7 @@ neg_gettimeout(struct timeval *timeout);
  *      If there is no timeout: NULL.
  */
 
-#if !BAREFOOTD
+#if HAVE_NEGOTIATE_PHASE
 static struct sockd_negotiate_t *
 neg_gettimedout(void);
 /*
@@ -141,16 +151,73 @@ neg_gettimedout(void);
  *      If timed out client found: pointer to it.
  *      Else: NULL.
  */
-#endif /* !BAREFOOTD */
+#endif /* HAVE_NEGOTIATE_PHASE */
 
-static struct sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
-static const size_t negc = ELEMENTS(negv);
+static void
+neg_clearset(struct sockd_negotiate_t *neg, fd_set *set);
+/*
+ * Clears all file descriptors in "neg" from "set".
+ */
+
+static struct sockd_negotiate_t *
+neg_getset(fd_set *set);
+/*
+ * Goes through our list until it finds a negotiate object where at least
+ * one of the descriptors is set, or where the negotiation has completed,
+ * which always implies the descriptor is "set".
+ *
+ * Returns:
+ *      On success: pointer to the found object.
+ *      On failure: NULL.
+ */
+
+static size_t
+completed(const size_t howmany);
+/*
+ * Returns the number of objects completed and ready to be sent currently.
+ * The function stops counting when a count of "howmany" is reached.
+ */
+
+static size_t
+allocated(void);
+/*
+ * Returns the number of objects currently allocated for use.
+ */
+
+static void
+proctitleupdate(void);
+/*
+ * Updates the title of this process.
+ */
+
+static struct timeval *
+neg_gettimeout(struct timeval *timeout);
+/*
+ * Fills in "timeout" with time til the first clients connection
+ * expires.
+ * Returns:
+ *      If there is a timeout: pointer to filled in "timeout".
+ *      If there is no timeout: NULL.
+ */
+
+#if HAVE_NEGOTIATE_PHASE
+static struct sockd_negotiate_t *
+neg_gettimedout(void);
+/*
+ * Scans all clients for one that has timed out according to sockscf
+ * settings.
+ * Returns:
+ *      If timed out client found: pointer to it.
+ *      Else: NULL.
+ */
+#endif /* HAVE_NEGOTIATE_PHASE */
 
 void
 run_negotiate()
 {
    const char *function = "run_negotiate()";
    struct sigaction sigact;
+   fd_set *rset, *rsetbuf, *tmpset, *wsetmem;
    int sendfailed;
 
    bzero(&sigact, sizeof(sigact));
@@ -168,9 +235,13 @@ run_negotiate()
 
    proctitleupdate();
 
-   sendfailed       = 0;
+   rset        = allocate_maxsize_fdset();
+   rsetbuf     = allocate_maxsize_fdset();
+   tmpset      = allocate_maxsize_fdset();
+   wsetmem     = allocate_maxsize_fdset();
+   sendfailed  = 0;
+
    while (1 /* CONSTCOND */) {
-      static fd_set *rset, *rsetbuf, *tmpset, *wsetmem;
       negotiate_result_t negstatus;
       fd_set *wset;
       int fdbits;
@@ -179,18 +250,8 @@ run_negotiate()
 
       errno = 0; /* reset for each iteration. */
 
-      if (rset == NULL) {
-         rset    = allocate_maxsize_fdset();
-#if BAREFOOTD
-         rsetbuf = NULL;
-#else /* !BAREFOOTD */
-         rsetbuf = allocate_maxsize_fdset();
-#endif /* !BAREFOOTD */
-         tmpset  = allocate_maxsize_fdset();
-         wsetmem = allocate_maxsize_fdset();
-      }
 
-#if !BAREFOOTD /* barefootd has no negotiation phase. */
+#if HAVE_NEGOTIATE_PHASE
       while ((neg = neg_gettimedout()) != NULL) {
          struct sockaddr sa;
 
@@ -207,22 +268,40 @@ run_negotiate()
                NULL,
                NULL,
                NULL,
-               NULL, 
+               NULL,
                NULL,
                "negotiation timed out",
                0);
 
          delete_negotiate(neg);
       }
-#endif /* !BAREFOOTD */
 
-      fdbits = neg_fillset(rset);
+      fdbits = neg_fillset(rset,
+                           sendfailed, /* 
+                                        * If we've previously failed sending
+                                        * the completed clients back to mother,
+                                        * don't bother select(2)ing o them
+                                        * for readability; can't send them
+                                        * until we know mother is writable.
+                                        */
+                           0);         /* 
+                                        * clients where negotiation is not
+                                        * yet completed we want to continue
+                                        * negotiating with.
+                                        */
+#else /* !HAVE_NEGOTIATE_PHASE */
 
-      if (rsetbuf != NULL)
-         FD_COPY(rsetbuf, rset);
+      /*
+       * don't bother checking here.  All, if any, should be completed.
+       * Meaning, completed(1) will be true and no timeout will be set
+       * on select(2), unless sending to mother failed. 
+       */
+      fdbits = -1;
+      FD_ZERO(rset);
 
-      FD_SET(sockscf.state.mother.s, rset);
-      fdbits = MAX(fdbits, sockscf.state.mother.s);
+#endif /* HAVE_NEGOTIATE_PHASE */
+
+      FD_COPY(rsetbuf, rset);
 
       if (completed(1) && !sendfailed) {
          timeout         = &timeoutmem;
@@ -231,10 +310,14 @@ run_negotiate()
       else
          timeout = neg_gettimeout(&timeoutmem);
 
+      FD_SET(sockscf.state.mother.s, rset);
+      fdbits = MAX(fdbits, sockscf.state.mother.s);
+
       if (sendfailed) {
          /*
-          * Previously failed sending request to mother.
-          * Pull in select this time to check. 
+          * Previously failed sending a request to mother.
+          * Pull in select this time to check; normally we don't
+          * bother and just assume mother will be able to accept it.
           */
          FD_ZERO(wsetmem);
          FD_SET(sockscf.state.mother.s, wsetmem);
@@ -250,6 +333,8 @@ run_negotiate()
       FD_SET(sockscf.state.mother.ack, rset);
       fdbits = MAX(fdbits, sockscf.state.mother.ack);
 
+      SASSERTX(fdbits >= 0);
+
       ++fdbits;
       switch (selectn(fdbits, rset, rsetbuf, NULL, wset, NULL, timeout)) {
          case -1:
@@ -260,27 +345,45 @@ run_negotiate()
             /* NOTREACHED */
 
          case 0:
-            continue;
+            if (completed(1))
+               break;
+            else
+               continue;
       }
 
-#if !BAREFOOTD 
-      fdsetop(fdbits, '|', rset, rsetbuf, tmpset);
-      FD_COPY(rset, tmpset);
-#endif /* !BAREFOOTD */
+#if !HAVE_NEGOTIATE_PHASE
+      /*
+       * since we have no negotiate phase, any fd's should be "readable", or
+       * in practice, "completed", so just add them to what is reported
+       * as readable by selectn() (could only be mother).
+       */
+      fdbits = MAX(fdbits, neg_fillset(tmpset, 0, 1));
+
+      fdsetop(fdbits, '|', rset, tmpset, rset);
+#else /* HAVE_NEGOTIATE_PHASE */
+
+      fdsetop(fdbits, '|', rset, rsetbuf, rset);
+
+      /* 
+       * Those descriptors that have completed negotiation we want to
+       * consider readable/ready, so we know to call recv_clientrequest()
+       * on them.
+       */
+      fdbits = MAX(fdbits, neg_fillset(tmpset, 0, 1));
+      fdsetop(fdbits, '|', rset, tmpset, rset);
+#endif /* HAVE_NEGOTIATE_PHASE */
 
       if (FD_ISSET(sockscf.state.mother.ack, rset)) {
          slog(LOG_DEBUG,
-              "%s: mother closed it's connection to us.  We should exit.",
+              "%s: mother closed it's connection to us.  We should exit",
               function);
 
          sockdexit(EXIT_SUCCESS);
       }
 
       if (FD_ISSET(sockscf.state.mother.s, rset)) {
-         if (recv_negotiate() != 0) {
-            swarn("%s: recv_negotiate() failed", function);
-            sockdexit(EXIT_FAILURE);
-         }
+         if (recv_negotiate() != 0)
+            continue;
 
          FD_CLR(sockscf.state.mother.s, rset);
       }
@@ -308,14 +411,14 @@ run_negotiate()
             if (neg->negstate.havedonerulespermit)
                slog(LOG_DEBUG, "%s: must have failed to send client %s to "
                                "mother before ... trying again",
-                               function, 
+                               function,
                                sockshost2string(&neg->negstate.src, NULL, 0));
             else {
                /*
                 * Need to do rulespermit() of second-level acl in this
-                * process as well, as if it fails due to missing proxy 
+                * process as well, as if it fails due to missing proxy
                 * authentication we need to inform the client and restart
-                * negotiation (i.e., wait for the client to repeat the 
+                * negotiation (i.e., wait for the client to repeat the
                 * request, but this time with proxy authentication).
                 */
                struct sockaddr src, dst;
@@ -330,11 +433,11 @@ run_negotiate()
 
                slog(LOG_DEBUG,
                     "%s: doing second-level acl check on %s -> %s",
-                    function, 
+                    function,
                     sockaddr2string(&src, srchost, sizeof(srchost)),
                     sockshost2string(&neg->req.host, dsthost, sizeof(dsthost)));
 
-               permit = rulespermit(neg->s, 
+               permit = rulespermit(neg->s,
                                     &src,
                                     &dst,
                                     &neg->clientauth,
@@ -347,7 +450,7 @@ run_negotiate()
                                     sizeof(neg->negstate.emsg));
 
                if (permit)
-                  neg->negstate.havedonerulespermit = 1; 
+                  neg->negstate.havedonerulespermit = 1;
                else {
                   struct sockaddr sa;
                   struct response_t response;
@@ -377,7 +480,7 @@ run_negotiate()
 
                      slog(LOG_DEBUG, "%s: already told client at %s to provide "
                                      "proxy authentication, but again it sent "
-                                     "us a request without authentication", 
+                                     "us a request without authentication",
                                      function,  sockaddr2string(&src, NULL, 0));
                   }
 
@@ -413,26 +516,14 @@ run_negotiate()
 
             if (wset != NULL && !FD_ISSET(sockscf.state.mother.s, wset)) {
                sendfailed = 1;
-               continue; /* don't bother trying. */
+               continue; /* don't bother trying now. */
             }
 
             if (send_negotiate(neg) == 0)
                delete_negotiate(neg);
             else {
-               if (!ERRNOISTMP(errno)) {
-                  swarn("%s: could not send client to mother, fatal error",
-                  function);
-
-                  sockdexit(EXIT_FAILURE);
-               }
-               else {
-                  slog(LOG_DEBUG,
-                       "%s: could not send client to mother (%s).  "
-                       "Is a tmp error, so we will retry later.",
-                       function, strerror(errno));
-
-                  sendfailed = 1;
-               }
+               swarn("%s: could not send client to mother", function);
+               sendfailed = 1;
             }
          }
          else if (negstatus == NEGOTIATE_ERROR) {
@@ -517,7 +608,7 @@ send_negotiate(neg)
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
 
-   /* 
+   /*
     * copy needed fields from negotiate.
     */
    bzero(&req, sizeof(req)); /* silence valgrind warning */
@@ -525,8 +616,8 @@ send_negotiate(neg)
    sockshost2sockaddr(&neg->negstate.dst, (struct sockaddr *)&req.to);
    req.req           = neg->req;
 
-#if HAVE_NEGOTIATE_PHASE 
-   /* 
+#if HAVE_NEGOTIATE_PHASE
+   /*
     * save initial requestdata from client, if any.
     */
 
@@ -544,7 +635,7 @@ send_negotiate(neg)
    if ((length = socks_bytesinbuffer(neg->s, READ_BUF, 0)) != 0) {
       slog(length > sizeof(req.clientdata) ? LOG_INFO : LOG_DEBUG,
            "%s: socks client at %s has sent us %lu bytes of payload data "
-           "before we have told it that it can do that.  Not permited by "
+           "before we have told it that it can do that.  Not permitted by "
            "the SOCKS standard and not expected.  %s",
            function,
            socket2string(neg->s, NULL, 0),
@@ -554,7 +645,7 @@ send_negotiate(neg)
 
       if (length > sizeof(req.clientdata))
         return -1;
- 
+
       socks_getfrombuffer(neg->s, READ_BUF, 0, req.clientdata, length);
    }
 #endif /* SOCKS_SERVER */
@@ -563,7 +654,7 @@ send_negotiate(neg)
 
     if (req.clientdatalen > 0)
        slog(LOG_DEBUG,
-            "%s: saving clientdata of length %lu for later forwarding", 
+            "%s: saving client data of length %lu for later forwarding",
             function, (unsigned long)req.clientdatalen);
 #endif /* HAVE_NEGOTIATE_PHASE */
 
@@ -640,7 +731,7 @@ send_negotiate(neg)
          function, neg->s, socket2string(neg->s, NULL, 0));
    }
 
-   if ((w = sendmsgn(sockscf.state.mother.s, &msg, 0)) != (ssize_t)length)
+   if ((w = sendmsgn(sockscf.state.mother.s, &msg, 0, 1)) != (ssize_t)length)
       swarn("%s: sendmsg(): %ld of %lu",
       function, (long)w, (unsigned long)length);
    else {
@@ -698,32 +789,22 @@ recv_negotiate(void)
       if ((r = recvmsgn(sockscf.state.mother.s, &msg, 0)) != sizeof(client)) {
          switch (r) {
             case -1:
-               slog(packetc == 0 ? LOG_ERR : LOG_DEBUG,
-                    "%s: recvmsg() from mother returned -1 "
-                    "after having received %d packets, errno = %d (%s)",
-                     function, packetc, errno, errnostr(errno));
-
-               if (ERRNOISTMP(errno))
-                  r = 0; 
-               break;
-
             case 0:
-               slog(LOG_DEBUG, "%s: recvmsg() failed after %d packets: "
-                               "mother closed connection",
-                               function, packetc);
-               r = -1; /* fatal. */
+               slog(LOG_DEBUG,
+                    "%s: recvmsg() from mother returned %ld "
+                    "after having received %d packets, errno = %d (%s)",
+                    function, (long)r,
+                    packetc, errno, errnostr(errno));
                break;
 
             default:
                swarnx("%s: recvmsg(): unexpected short read from mother "
                       "after %d packets.  Got %ld/%lu bytes",
-                      function, packetc, (long)r,
-                      (unsigned long)sizeof(client));
-
-               r = 0; /* very strange, is a datagram socket. */
+                      function,
+                      packetc, (long)r, (unsigned long)sizeof(client));
          }
 
-         return r;
+         return -1;
       }
 
       if (socks_msghaserrors(function, &msg))
@@ -758,16 +839,18 @@ recv_negotiate(void)
       len = sizeof(src);
       if (getpeername(neg->s, &src, &len) != 0) {
          slog(LOG_DEBUG, "%s: getpeername(): %s", function, strerror(errno));
+
          delete_negotiate(neg);
-         return 1;
+         return -1;
       }
       sockaddr2sockshost(&src, &neg->negstate.src);
 
       len = sizeof(dst);
       if (getsockname(neg->s, &dst, &len) != 0) {
          slog(LOG_DEBUG, "%s: getsockname(): %s", function, strerror(errno));
+
          delete_negotiate(neg);
-         return 1;
+         return -1;
       }
       sockaddr2sockshost(&dst, &neg->negstate.dst);
 
@@ -868,13 +951,13 @@ recv_negotiate(void)
 
       if (!permit) {
          delete_negotiate(neg);
-         return 0;
+         return -1;
       }
 
-#if SOCKS_SERVER 
-   /* only socks-server wants iobuffer in this process.  Barefoot 
+#if SOCKS_SERVER
+   /* only socks-server wants iobuffer in this process.  Barefoot
     * has no negotiate-phase, and while Covenant does, it must be
-    * carefull not to read past the first eof; i.e., we do not
+    * careful not to read past the first eof; i.e., we do not
     * want to fill the iobuffer with "unread" data, as we only have
     * space allocated to the first eof, which we must pass on to
     * other processes, but we are not passing on the iobuf, so it
@@ -937,7 +1020,7 @@ recv_negotiate(void)
 
       ++packetc;
    }
-   
+
    /* NOTREACHED */
 }
 
@@ -949,7 +1032,7 @@ delete_negotiate(neg)
    const char command = SOCKD_FREESLOT_TCP;
 
 #if !BAREFOOTD
-   /* 
+   /*
     * barefootd needs to let socks-rule inherit ss, dante never lets ss
     * be inherited, so dante needs to unuse it now.
     */
@@ -981,26 +1064,32 @@ delete_negotiate(neg)
 }
 
 static int
-neg_fillset(set)
+neg_fillset(set, skipcompleted, skipinprogress)
    fd_set *set;
+   const int skipcompleted;
+   const int skipinprogress;
 {
    size_t i;
    int max;
 
    FD_ZERO(set);
-   for (i = 0, max = -1; i < negc; ++i)
-      if (negv[i].allocated) {
-         negv[i].ignore = 0;
-#if BAREFOOTD
-         /*
-          * never need to bother select(2)'ing, just make sure to
-          * set ignore to 0.
-          */
-#else /* !BAREFOOTD */          
-         FD_SET(negv[i].s, set);
-         max = MAX(max, negv[i].s);
-#endif /* !BAREFOOTD */
-      }
+   for (i = 0, max = -1; i < negc; ++i) {
+      if (!negv[i].allocated)
+         continue;
+
+#if !HAVE_NEGOTIATE_PHASE
+      SASSERTX(negv[i].negstate.complete);
+#endif /* HAVE_NEGOTIATE_PHASE */
+
+      if (skipcompleted && negv[i].negstate.complete)
+         continue;
+
+      if (skipinprogress && !negv[i].negstate.complete)
+         continue;
+
+      FD_SET(negv[i].s, set);
+      max = MAX(max, negv[i].s);
+   }
 
    return max;
 }
@@ -1012,7 +1101,6 @@ neg_clearset(neg, set)
 {
 
    FD_CLR(neg->s, set);
-   neg->ignore = 1;
 }
 
 static struct sockd_negotiate_t *
@@ -1021,19 +1109,13 @@ neg_getset(set)
 {
    size_t i;
 
-   for (i = 0; i < negc; ++i)
-      if (negv[i].allocated) {
-         if (negv[i].ignore)
-            continue;
+   for (i = 0; i < negc; ++i) {
+      if (!negv[i].allocated)
+         continue;
 
-         if (negv[i].negstate.complete)
-            return &negv[i];
-
-#if !BAREFOOTD
-         if (FD_ISSET(negv[i].s, set))
-            return &negv[i];
-#endif /* !BAREFOOTD */
-      }
+      if (FD_ISSET(negv[i].s, set))
+         return &negv[i];
+   }
 
    return NULL;
 }
@@ -1076,9 +1158,7 @@ static struct timeval *
 neg_gettimeout(timeout)
    struct timeval *timeout;
 {
-#if BAREFOOTD
-   return NULL;
-#else
+#if HAVE_NEGOTIATE_PHASE
    time_t timenow;
    size_t i;
 
@@ -1090,7 +1170,7 @@ neg_gettimeout(timeout)
        */
       return NULL;
 
-   timeout->tv_sec  = -1; 
+   timeout->tv_sec  = -1;
    timeout->tv_usec = 0;
 
    /* find how long it is till the first session should time out. */
@@ -1113,9 +1193,13 @@ neg_gettimeout(timeout)
 
    if (timeout->tv_sec == -1)
       return NULL;
-   
+
    return timeout;
-#endif /* !BAREFOOTD */
+#else /* !HAVE_NEGOTIATE_PHASE */
+   timeout = NULL;
+#endif /* !HAVE_NEGOTIATE_PHASE */
+
+   return timeout;
 }
 
 /* ARGSUSED */
@@ -1169,7 +1253,7 @@ siginfo(sig, sip, scp)
       }
 }
 
-#if !BAREFOOTD
+#if HAVE_NEGOTIATE_PHASE
 static struct sockd_negotiate_t *
 neg_gettimedout(void)
 {
@@ -1181,9 +1265,7 @@ neg_gettimedout(void)
       if (!negv[i].allocated)
          continue;
 
-      if (negv[i].ignore)
-         continue;
-      else if (negv[i].rule.timeout.negotiate != 0)
+      if (negv[i].rule.timeout.negotiate != 0)
          if (difftime(timenow, negv[i].state.time.negotiate.tv_sec)
          >= negv[i].rule.timeout.negotiate)
             return &negv[i];
@@ -1191,5 +1273,4 @@ neg_gettimedout(void)
 
    return NULL;
 }
-#endif /* !BAREFOOTD */
-
+#endif /* HAVE_NEGOTIATE_PHASE */

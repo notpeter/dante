@@ -76,7 +76,7 @@ AC_TRY_COMPILE([
 #ifndef SIOCGIFHWADDR
 #error "SIOCGIFHWADDR not defined"
 #endif
-], [ 
+], [
 struct ifreq ifr;
 unsigned char c;
 

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
+ *               2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.312 2011/05/11 09:08:27 michaels Exp $";
+"$Id: config.c,v 1.318 2011/05/31 18:14:17 michaels Exp $";
 
 void
 genericinit(void)
@@ -62,7 +63,7 @@ genericinit(void)
 #else /* !SOCKS_CLIENT */
    if (sockscf.loglock == -1)
       if ((sockscf.loglock = socks_mklock(SOCKS_LOCKFILE, NULL, 0)) == -1)
-         serr(EXIT_FAILURE, "%s: could not create lockfile for logging", 
+         serr(EXIT_FAILURE, "%s: could not create lockfile for logging",
          function);
 #endif
 
@@ -610,7 +611,7 @@ socks_showroute(route)
 
    slog(LOG_DEBUG, "route state: autoadded: %s, failed: %lu, badtime: %ld",
                    route->state.autoadded ? "yes" : "no",
-                   (long)route->state.failed, 
+                   (long)route->state.failed,
                    (long)route->state.badtime);
 
    showstate(&route->gw.state, 0);
@@ -656,7 +657,7 @@ socks_getroute(req, src, dst)
 
       switch (req->version) {
          /*
-          * First check if this rule can provide requested proxyprotocol 
+          * First check if this rule can provide requested proxyprotocol
           * version with necessary functionality.
           */
 
@@ -666,7 +667,7 @@ socks_getroute(req, src, dst)
                continue;
             }
 
-            if (!methodisset(AUTHMETHOD_NONE, route->gw.state.methodv, 
+            if (!methodisset(AUTHMETHOD_NONE, route->gw.state.methodv,
             route->gw.state.methodc)) {
                slog(LOG_DEBUG, "%s: route does not match; method", function);
                continue;
@@ -717,7 +718,7 @@ socks_getroute(req, src, dst)
                continue;
             }
 
-            if (!methodisset(AUTHMETHOD_NONE, route->gw.state.methodv, 
+            if (!methodisset(AUTHMETHOD_NONE, route->gw.state.methodv,
             route->gw.state.methodc)) {
                slog(LOG_DEBUG, "%s: route does not match; method", function);
                continue;
@@ -864,8 +865,8 @@ socks_connectroute(s, packet, src, dst)
    const struct sockshost_t *dst;
 {
    const char *function = "socks_connectroute()";
-   int sdup, current_s, errno_s;
    struct route_t *route;
+   int sdup, current_s, errno_s;
 
    /*
     * This is a little tricky since we attempt to support trying
@@ -892,7 +893,7 @@ socks_connectroute(s, packet, src, dst)
    sdup        = -1;
 
    while ((route = socks_getroute(&packet->req, src, dst)) != NULL) {
-      char gwstring[MAXGWSTRING], dststring[MAXSOCKSHOSTSTRING];
+      char gwstring[MAXGWSTRING], dststring[MAXSOCKSHOSTSTRING], emsg[256];
       struct sockshost_t host;
 
       slog(LOG_DEBUG, "%s: found %s route (route #%d) to %s via %s",
@@ -937,14 +938,16 @@ socks_connectroute(s, packet, src, dst)
                             NULL,
                             sockscf.timeout.connect ?
                             /* LINTED cast from unsigned to signed. */
-                            (long)sockscf.timeout.connect : -1) == 0)
+                            (long)sockscf.timeout.connect : -1,
+                            emsg,
+                            sizeof(emsg)) == 0)
          break;
       else {
          /*
           * Check whether the error indicates bad socks server or
           * something else.
           */
-         if (ERRNOISINPROGRESS(errno)) {
+         if (errno == EINPROGRESS) {
             SASSERTX(current_s == s);
             break;
          }
@@ -955,11 +958,10 @@ socks_connectroute(s, packet, src, dst)
             break;
          }
          else {
-#if SOCKS_CLIENT
-            swarn("%s: socks_connecthost(%s)",
-            function, gwaddr2string(&route->gw.addr, gwstring,
-            sizeof(gwstring)));
-#endif /* SOCKS_CLIENT */
+            slog(LOG_DEBUG, "%s: socks_connecthost(%s) failed: %s",
+                 function,
+                 gwaddr2string(&route->gw.addr, gwstring, sizeof(gwstring)),
+                 emsg);
 
             if (errno == EINVAL) {
                struct sockaddr_in laddr;
@@ -1147,26 +1149,25 @@ showstate(state, isclientrule)
 #if HAVE_GSSAPI
    if (methodisset(AUTHMETHOD_GSSAPI, state->methodv, state->methodc)) {
       if (*state->gssapiservicename != NUL)
-         slog(LOG_INFO, "gssapi.servicename: %s", state->gssapiservicename);
+         slog(LOG_DEBUG, "gssapi.servicename: %s", state->gssapiservicename);
 
       if (*state->gssapikeytab != NUL)
-         slog(LOG_INFO, "gssapi.keytab: %s", state->gssapikeytab);
+         slog(LOG_DEBUG, "gssapi.keytab: %s", state->gssapikeytab);
 
       if (state->gssapiencryption.clear
       ||  state->gssapiencryption.integrity
       ||  state->gssapiencryption.confidentiality
       || state->gssapiencryption.permessage)
-         slog(LOG_INFO, "gssapi.encryption:%s%s%s%s",
+         slog(LOG_DEBUG, "gssapi.encryption:%s%s%s%s",
          state->gssapiencryption.clear?           " clear"           :"",
          state->gssapiencryption.integrity?       " integrity"       :"",
          state->gssapiencryption.confidentiality? " confidentiality" :"",
          state->gssapiencryption.permessage?      " permessage"      :"");
 
       if (state->gssapiencryption.nec)
-         slog(LOG_INFO, "clientcompatibility: necgssapi enabled");
+         slog(LOG_DEBUG, "clientcompatibility: necgssapi enabled");
    }
 #endif /* HAVE_GSSAPI */
-
 }
 
 void
@@ -1184,8 +1185,8 @@ void
 optioninit(void)
 {
    /*
-    * initialize misc. options to sensible default.  Some may be 
-    * overriden later by user in the sockd.conf.
+    * initialize misc. options to sensible default.  Some may be
+    * overridden later by user in the sockd.conf.
     */
 
    sockscf.resolveprotocol       = RESOLVEPROTOCOL_UDP;
@@ -1247,7 +1248,7 @@ optioninit(void)
    sockscf.state.ldapcertpath      = DEFAULT_LDAP_CERTDBPATH;
 #endif /* HAVE_LDAP */
 
-#if !SOCKS_SERVER 
+#if !SOCKS_SERVER
    /*
     * Enable all methods that are not socks-dependent, so that regardless
     * of what method user sets in clientmethod (the only one supported in
@@ -1424,5 +1425,3 @@ showconfig(sockscf)
          socks_showroute(route);
    }
 }
-
-

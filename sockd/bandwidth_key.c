@@ -1,14 +1,14 @@
 /*
- * $Id: bandwidth_key.c,v 1.7 2009/10/22 17:36:12 karls Exp $
+ * $Id: bandwidth_key.c,v 1.9 2011/05/18 13:48:47 karls Exp $
  *
- * Copyright (c) 2001, 2009
+ * Copyright (c) 2001, 2009, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  */
 
 #include "common.h"
 
-static const char rcsid[] = 
-"$Id: bandwidth_key.c,v 1.7 2009/10/22 17:36:12 karls Exp $";
+static const char rcsid[] =
+"$Id: bandwidth_key.c,v 1.9 2011/05/18 13:48:47 karls Exp $";
 
 const licensekey_t module_bandwidth_keyv[1] = {
    {

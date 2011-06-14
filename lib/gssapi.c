@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009
+ * Copyright (c) 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: gssapi.c,v 1.88 2011/04/25 08:05:30 michaels Exp $";
+"$Id: gssapi.c,v 1.90 2011/05/18 13:48:46 karls Exp $";
 
 #if HAVE_GSSAPI
 
@@ -80,7 +80,7 @@ gss_err_isset(major_status, minor_status, buf, buflen)
       /*
        * convert major status code (GSSAPI error) to text.
        */
-      
+
       SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
       maj_stat = gss_display_status(&min_stat, major_status,
                                     GSS_C_GSS_CODE,
@@ -318,7 +318,7 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
    /*
     * If the socket is blocking, we need to retry the read.
     * The token buffers we allocate for this are too large to simply
-    * call ourselves recursivly again.
+    * call ourselves recursively again.
     */
 again:
    encodedinbuffer = socks_bytesinbuffer(s, READ_BUF, 1); /* const. */
@@ -389,7 +389,7 @@ again:
 
       if (flags & MSG_PEEK) {
          /*
-         * client peeking, need to add the data back to the buffer so it 
+         * client peeking, need to add the data back to the buffer so it
          * is still there next time.
          */
 
@@ -499,7 +499,7 @@ again:
       /*
        * would be nice to only discard the data belonging to the
        * erroneous token, but how can we know how long it is?
-       * Things will probably only go downhill from heres so close
+       * Things will probably only go downhill from here so close
        * the session instead, at least in the client tcp case.
        */
       socks_clearbuffer(s, READ_BUF);
@@ -807,7 +807,7 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, gs)
          swarn("%s: getsockopt(SO_TYPE)", function);
          return -1;
       }
-      
+
       if ((iobuf = socks_allocbuffer(s, stype)) == NULL) {
          swarnx("%s: could not allocate iobuffer", function);
          errno = ENOMEM;

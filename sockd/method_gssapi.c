@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009
+ * Copyright (c) 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_GSSAPI
 
 static const char rcsid[] =
-   "$Id: method_gssapi.c,v 1.50 2011/04/25 08:05:30 michaels Exp $";
+   "$Id: method_gssapi.c,v 1.52 2011/05/18 13:48:46 karls Exp $";
 
 static negotiate_result_t
 recv_gssapi_auth_ver(int s, struct request_t *request,
@@ -313,7 +313,7 @@ recv_gssapi_auth_token(s, request, state)
                             NULL);
    sockd_priv(SOCKD_PRIV_GSSAPI, PRIV_OFF);
 
-   slog(LOG_DEBUG, "%s: length of output_token is %lu", 
+   slog(LOG_DEBUG, "%s: length of output_token is %lu",
    function, (unsigned long)output_token.length);
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {

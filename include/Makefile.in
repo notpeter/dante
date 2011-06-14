@@ -193,7 +193,7 @@ noinst_HEADERS = common.h sockd.h socks.h config.h yacconfig.h redefac.h \
 		 socks_gssapi.h symbols.h
 
 EXTRA_DIST = redefgen.sh symbols_common.txt symbols_freebsd.txt \
-             symbols_glibc.txt symbols_osol.txt symbols_osol_stdio.txt \
+	     symbols_glibc.txt symbols_osol.txt symbols_osol_stdio.txt \
 	     symbols_darwin.txt
 
 all: autoconf.h

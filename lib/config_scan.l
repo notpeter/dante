@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *          2009
+ *               2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,7 +54,7 @@ extern int socks_parseinit;
 extern const int socks_configtype;
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.151 2011/05/12 15:32:50 michaels Exp $";
+"$Id: config_scan.l,v 1.155 2011/06/13 08:57:38 michaels Exp $";
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -223,10 +223,10 @@ static const char rcsid[] =
 
    /*
     * we don't have a reliable regex to differentiate between a
-    * domainname and ifname on all systems. 
-    * With a very general regex like the above, it is not so easy 
+    * domainname and ifname on all systems.
+    * With a very general regex like the above, it is not so easy
     * to exclude an ipaddress from matching it also.  So instead
-    * of contiuing to try and create a perfect regex, do a bruteforce
+    * of continuing to try and create a perfect regex, do a brute force
     * check to see what the text represents.
     */
 
@@ -1087,7 +1087,6 @@ localdomain.*:.*|connecttimeout|iotimeout {
    /* misc. generic stuff. */
 
 <*>[0-9]+ {
-
    yylval.string = yytext;
    return NUMBER;
 }
@@ -1113,5 +1112,6 @@ localdomain.*:.*|connecttimeout|iotimeout {
 }
 
 <*>. {
+   yylval.string = yytext;
    return *yytext;
 }

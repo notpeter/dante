@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
+ *               2009, 2010, 2011
  *               2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
@@ -45,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.60 2011/04/28 08:18:07 michaels Exp $";
+"$Id: accesscheck.c,v 1.62 2011/05/18 13:48:46 karls Exp $";
 
 int
 usermatch(auth, userlist)
@@ -83,7 +84,7 @@ groupmatch(auth, grouplist)
    if ((username = authname(auth)) == NULL)
       return 0; /* no username, no match. */
 
-   /* 
+   /*
     * First check the primary group of the user against grouplist.
     * If the groupname given there matches, we don't need to go through
     * all users in the list of group.
@@ -92,7 +93,7 @@ groupmatch(auth, grouplist)
    &&  (groupent = getgrgid(pw->pw_gid)) != NULL) {
       const struct linkedname_t *listent = grouplist;
 
-      do 
+      do
          if (strcmp(groupent->gr_name, listent->name) == 0)
             return 1;
       while ((listent = listent->next) != NULL);
@@ -106,7 +107,7 @@ groupmatch(auth, grouplist)
    }
 
    /*
-    * Go through grouplist, matching username against each groupmember of 
+    * Go through grouplist, matching username against each groupmember of
     * all the groups in grouplist.
     */
    do {
@@ -175,7 +176,7 @@ ldapgroupmatch(auth, rule)
       strcpy(groupname, grouplist->name);
 
       if ((groupdomain = strchr(groupname, '@')) != NULL) {
-         *groupdomain = NUL; /* seperates groupname from groupdomain. */
+         *groupdomain = NUL; /* separates groupname from groupdomain. */
          ++groupdomain;
       }
 
@@ -233,7 +234,7 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
    */
 
    if (methodisset(auth->method, auth->methodv, (size_t)auth->methodc)) {
-      slog(LOG_DEBUG, "%s: method %s already checked, matches", 
+      slog(LOG_DEBUG, "%s: method %s already checked, matches",
       function, method2string(auth->method));
 
       return 1; /* already checked, matches. */
@@ -245,9 +246,9 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
               "does not match",
               method2string(auth->method));
 
-      slog(LOG_DEBUG, "%s: method %s already checked, does not match", 
+      slog(LOG_DEBUG, "%s: method %s already checked, does not match",
       function, method2string(auth->method));
-      
+
       return 0; /* already checked, won't match. */
    }
 

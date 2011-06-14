@@ -1,19 +1,18 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.515 2011/05/13 19:29:47 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.528 2011/06/14 11:23:32 karls Exp $)
 
 version=1.3.0
 RPMVERSION1="$version"
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="1"
+#prerelease="1"
 if test x$prerelease != x; then
     prename="pre$prerelease"
     version="${version}-$prename"
     RPMVERSION2="0.$prename"
     TOPEXTRADIST="${TOPEXTRADIST} PRERELEASE"
 else
-    prename=""
-    RPMVERSION2="1.$prename"
+    RPMVERSION2="1"
 fi
 
 echo "Configuring Dante ${version}:"
@@ -59,20 +58,38 @@ AC_PROG_CPP
 AM_CONDITIONAL(PRERELEASE, test x$prerelease != x)
 
 #known keywords for --enable/disable-foo(=yes/no)?
-LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77|option_checking"
+LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77|option_checking|silent_rules"
 KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile"
 for keyword in `set | egrep '^enable_' | sed -e 's/^enable_//' | \
                 sed -e 's/=.*$//'`; do
     echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
     if test $? -ne 0; then
-	AC_MSG_WARN([unknown option '$keyword', ignoring ...])
-#	sleep 10;
+	AC_MSG_WARN([unknown --enable/disable keyword '$keyword'])
+	#check is not entirely reliable, only exit in prerelease
+	if test x$prerelease != x; then
+	    exit 1
+	fi
+    fi
+done
+
+#known keywords for --with/without-foo?
+LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx"
+KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|ldap|ldap_path|sasl|sasl_path|glibc_secure"
+for keyword in `set | egrep '^with_' | sed -e 's/^with_//' | \
+                sed -e 's/=.*$//'`; do
+    echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
+    if test $? -ne 0; then
+	AC_MSG_WARN([unknown --with/without keyword '$keyword'])
+	#check is not entirely reliable, only exit in prerelease
+	if test x$prerelease != x; then
+	    exit 1
+	fi
     fi
 done
 
 case $host in
     *-*-osf*)
-      	AC_MSG_WARN([OSF support might be removed in the near future.])
+	AC_MSG_WARN([OSF support might be removed in the near future.])
 	AC_MSG_WARN([Please contact dante-bugs@inet.no if you are using this platform.])
 	exit 1
 	;;
@@ -90,7 +107,7 @@ case $host in
     *-*-darwin*)
 	AC_DEFINE(HAVE_DARWIN, 1, [enable darwin/osx workarounds])
 	;;
-    
+
     alpha*-dec-osf*)
 	CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE_EXTENDED -DBYTE_ORDER=LITTLE_ENDIAN -D_POSIX_SOURCE -D_POSIX_C_SOURCE=199309L -D_OSF_SOURCE"
 	;;
@@ -330,12 +347,12 @@ AC_ARG_ENABLE(profiling,
 
  case $host in
      *-*-openbsd* | *-*-freebsd*)
-         #static linking, disable server preloading
-      	 no_preload_server=t
-	 #openbsd and freebsd appear to be happier if -lc is included
-	 #when profiling is enabled
-	 LIBS="$LIBS${LIBS:+ }-lc"
-	 ;;
+	#static linking, disable server preloading
+	no_preload_server=t
+	#openbsd and freebsd appear to be happier if -lc is included
+	#when profiling is enabled
+	LIBS="$LIBS${LIBS:+ }-lc"
+	;;
  esac],
 [AC_MSG_RESULT([no])])
 
@@ -348,7 +365,7 @@ AC_ARG_ENABLE(linting,
      s_linting=t
      case $host in
 	 *-*-openbsd*)
-             LINTFLAGS="-abcebprxz"
+	     LINTFLAGS="-abcebprxz"
 	     LINTPASS1="-i"
 	     LINTPASS2=""
 	     LINTLIBOPT="-C"
@@ -478,6 +495,21 @@ if test x"${have_pidfile}" != xt; then
 	AC_DEFINE_UNQUOTED(HAVE_ALT_SOCKD_PIDFILE, "$OSPIDFILE")
     fi
 fi
+
+#SOCKD_IOMAX/NEGOTIATEMAX override?
+AC_MSG_CHECKING([for SOCKD_IOMAX value])
+AC_ARG_WITH(iomax,
+[  --with-iomax=NUMBER     change number of clients per io process],
+[AC_MSG_RESULT($withval)
+ CPPFLAGS="${CPPFLAGS} -DSOCKD_IOMAX=$withval"],
+[AC_MSG_RESULT(default)])
+
+AC_MSG_CHECKING([for SOCKD_NEGOTIATEMAX value])
+AC_ARG_WITH(negmax,
+[  --with-negmax=NUMBER    change number of clients per negotiate process],
+[AC_MSG_RESULT($withval)
+ CPPFLAGS="${CPPFLAGS} -DSOCKD_NEGOTIATEMAX=$withval"],
+[AC_MSG_RESULT(default)])
 
 AC_CHECK_HEADER(sys/sockio.h,
 [AC_DEFINE(HAVE_SYS_SOCKIO_H, 1, [sys/sockio.h exists])
@@ -976,7 +1008,7 @@ global:
        #if gcc+sun ld, option in -Wl,-Msocks.map, otherwise --version-script
        gcc -Wl,-v 2>&1 | grep '/usr/ccs/bin/ld' > /dev/null
        if test $? -eq 0; then
-       	  MAPOPT="-Wl,-Msocks.map"
+		  MAPOPT="-Wl,-Msocks.map"
        else
 	  MAPOPT="-Wl,--version-script=socks.map"
        fi
@@ -986,12 +1018,12 @@ global:
 	HW=`uname -m`
 	case $HW in
 	     ppc*)
-	     	CFLAGS="$CFLAGS${CFLAGS:+ }-arch ppc -arch ppc64"
-	     	LDFLAGS="$LDLAGS${LDLAGS:+ }-arch ppc -arch ppc64"
+		CFLAGS="$CFLAGS${CFLAGS:+ }-arch ppc -arch ppc64"
+		LDFLAGS="$LDLAGS${LDLAGS:+ }-arch ppc -arch ppc64"
 		;;
 	     *)
-	     	CFLAGS="$CFLAGS${CFLAGS:+ }-arch i386 -arch x86_64"
-	     	LDFLAGS="$LDLAGS${LDLAGS:+ }-arch i386 -arch x86_64"
+		CFLAGS="$CFLAGS${CFLAGS:+ }-arch i386 -arch x86_64"
+		LDFLAGS="$LDLAGS${LDLAGS:+ }-arch i386 -arch x86_64"
 		;;
 	esac
    fi
@@ -1002,7 +1034,7 @@ global:
 fi
 AC_SUBST(MAPOPT)
 
-#expected select behaviour?
+#expected select behavior?
 unset nb_select_err
 L_UNCON_SELECT([],
  [nb_select_err=t])
@@ -1121,13 +1153,13 @@ fi
 
 #look for modules, and check version
 servdir=sockd
-L_MODVER(bandwidth, 58, $servdir) #module name, version
-L_MODVER(redirect, 39, $servdir)
-L_MODVER(session, 21, $servdir)
-L_MODVER(ldap, 1, $servdir)
+L_MODVER(bandwidth, 68, $servdir) #module name, version
+L_MODVER(redirect, 47, $servdir)
+L_MODVER(session, 30, $servdir)
+L_MODVER(ldap, 44, $servdir)
 
 #helper files
-L_MODVER(checkmodule, 35, $servdir, nokey)
+L_MODVER(checkmodule, 39, $servdir, nokey)
 
 #change all #undef's to #define foo 0
 AH_BOTTOM([
@@ -1137,7 +1169,7 @@ AH_BOTTOM([
 #add any warning flags (value set above)
 CFLAGS="$CFLAGS $warn"
 
-if test "x${prerelease}" != "x"; then
+#if test "x${prerelease}" != "x"; then
     echo "warning flags: $warn"
     echo "compiler flags: $comp_flags"
     echo "CFLAGS: $CFLAGS"
@@ -1146,7 +1178,7 @@ if test "x${prerelease}" != "x"; then
     echo "LDFLAGS: $LDFLAGS"
     echo "DLIBDEPS: $DLIBDEPS"
     echo "SOCKDDEPS: $SOCKDDEPS"
-fi
+#fi
 
 AC_SUBST(TOPEXTRADIST)
 AC_SUBST(DLIBDEPS)
@@ -1164,91 +1196,87 @@ echo ""
 echo "                     Configure status:"
 echo ""
 if test x"${no_acceptlock}" = xt; then
-    echo "Acceptlock:        OK (not required)"
-else
-    echo "Acceptlock:        workaround enabled on this platform"
+#    echo "Acceptlock:        Disabled"
+#else
+    echo "Acceptlock:        Enabled"
 fi
 if test x"${no_preload}" = xt; then
    if test x"${blocked_preload}" = xt; then
-	echo "Preloading:        client preloading might not be reliable on this platform"
-   else   
-	echo "Preloading:        disabled"
+	echo "Preloading:        Client preloading might not be reliable on this platform"
+   else
+	echo "Preloading:        Disabled"
    fi
 else
-    echo "Preloading:        OK"
+    echo "Preloading:        Enabled"
 fi
 if test x"${nb_select_err}" = xt; then
-    echo "select:            unexpected select behaviour on unconnected sockets,"
+    echo "select:            Unexpected select behaviour on unconnected sockets,"
     echo "                   operations on nonblocking sockets might fail "
     echo "                   on this platform when using socksify"
-else
-    echo "select:            OK"
+#else
+#    echo "select:            OK"
 fi
 if test x"${no_routeinfo}" = xt; then
-    echo "Routeinfo:         not supported on this platform"
-else
-    echo "Routeinfo:         OK"
+    echo "Routeinfo:         Not supported on this platform"
+#else
+#    echo "Routeinfo:         OK"
 fi
 if test x"${no_gssapi}" = xt; then
    if test x"${bad_gssapi}" = xt; then
-	echo "GSSAPI:            located gssapi library not usable"
+	echo "GSSAPI:            Located gssapi library not usable"
    else
-	echo "GSSAPI:            not found"
+	echo "GSSAPI:            Not found/disabled"
    fi
 else
-	echo "GSSAPI:            OK"
+	echo "GSSAPI:            Enabled"
 fi
 if test x"${no_krb5}" = xt; then
-        echo "KRB5:              not found"
+        echo "KRB5:              Not found/disabled"
 else
-        echo "KRB5:              OK"
+        echo "KRB5:              Enabled"
 fi
 if test x"${no_ldap}" = xt; then
-        echo "LDAP:              not found"
+        echo "LDAP:              Not found/disabled"
 else
-        echo "LDAP:              OK"
+        echo "LDAP:              Enabled"
 fi
 if test x"${no_sasl}" = xt; then
-        echo "SASL:              not found"
+        echo "SASL:              Not found/disabled"
 else
-        echo "SASL:              OK"
+        echo "SASL:              Enabled"
 fi
 if test x"${no_upnp}" = xt; then
     if test x"${have_libminiupnp}" = xt; then
-	echo "UPNP:              unsupported miniupnp library version"
+	echo "UPNP:              Unsupported miniupnp library version"
     else
-	echo "UPNP:              supported library not found"
+	echo "UPNP:              Supported library not found"
     fi
 else
-    echo "UPNP:              OK"
+    echo "UPNP:              Enabled"
 fi
 
 echo ""
-echo "This software should perform optimally when all the lines above report 'OK'."
-echo "This is not possible on all platforms."
-echo ""
-
 echo "                     Modules:"
 echo ""
 if test x"$MOD_REDIRECT" = x; then
-    echo "redirect:          OK"
+    echo "redirect:          Enabled"
 else
-    echo "redirect:          not found"
+    echo "redirect:          Not found"
 fi
 if test x"$MOD_BANDWIDTH" = x; then
-    echo "bandwidth:         OK"
+    echo "bandwidth:         Enabled"
 else
-    echo "bandwidth:         not found"
+    echo "bandwidth:         Not found"
 fi
 if test x"$MOD_SESSION" = x; then
-    echo "session:           OK"
+    echo "session:           Enabled"
 else
-    echo "session:           not found"
+    echo "session:           Not found"
 fi
 if test x"$MOD_LDAP" = x; then
-    echo "ldap:              OK"
+    echo "ldap:              Enabled"
 else
-    echo "ldap:              not found"
+    echo "ldap:              Not found"
 fi
 echo ""
 

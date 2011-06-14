@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009
+ * Copyright (c) 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.77 2011/04/19 17:30:35 michaels Exp $";
+"$Id: upnp.c,v 1.82 2011/05/27 08:06:48 michaels Exp $";
 
 #include "common.h"
 
@@ -75,7 +75,7 @@ socks_initupnp(gw, state)
    struct UPNPUrls url;
    struct IGDdatas data;
    char myaddr[INET_ADDRSTRLEN], gwstring[MAXGWSTRING],
-        addrstring[MAXSOCKSHOSTSTRING];
+        addrstring[MAXSOCKSHOSTSTRING], emsg[256];
    int devtype, rc;
 #endif /* HAVE_LIBMINIUPNP */
 
@@ -134,8 +134,13 @@ socks_initupnp(gw, state)
          struct sockaddr saddr;
          struct sockaddr_in smask;
 
-         if (urlstring2sockaddr(p->descURL, &saddr) == NULL)
+         if (urlstring2sockaddr(p->descURL, &saddr, emsg, sizeof(emsg))
+         == NULL) {
+            slog(LOG_DEBUG, "%s: urlstring2sockaddr() failed: %s", 
+                 function, emsg);
+
             continue;
+         }
 
          bzero(&smask, sizeof(smask));
          smask.sin_family      = AF_INET;
@@ -222,7 +227,7 @@ upnp_negotiate(s, packet, state)
 #if HAVE_LIBMINIUPNP
    struct sockaddr_in addr;
    socklen_t addrlen;
-   char straddr[INET_ADDRSTRLEN], strport[sizeof("65535")];
+   char straddr[INET_ADDRSTRLEN], strport[sizeof("65535")], emsg[256];
    int rc;
 #endif /* HAVE_LIBMINIUPNP */
 
@@ -247,15 +252,19 @@ upnp_negotiate(s, packet, state)
           * it here though, since it is part of the response returned
           * to the socks client.
           */
+
          if (socks_connecthost(s,
                                &packet->req.host,
                                NULL,
                                sockscf.timeout.connect
-                                 ? (long)sockscf.timeout.connect : -1) != 0)
-            if (!ERRNOISINPROGRESS(errno)) {
+                                 ? (long)sockscf.timeout.connect : -1,
+                               emsg,
+                               sizeof(emsg)) != 0)
+            if (errno == EINPROGRESS) {
                slog(LOG_DEBUG, "%s: socks_connecthost(%s) failed: %s",
-               function, sockshost2string(&packet->req.host, NULL, 0),
-               strerror(errno));
+                    function,
+                    sockshost2string(&packet->req.host, NULL, 0),
+                    emsg);
 
                socks_set_responsevalue(&packet->res, UPNP_FAILURE);
                return -1;
@@ -374,9 +383,16 @@ upnp_negotiate(s, packet, state)
                   socklen_t tmpaddrlen;
                   int ss;
 
-                  if (urlstring2sockaddr(packet->gw.addr.addr.urlname, &tmpaddr)
+                  if (urlstring2sockaddr(packet->gw.addr.addr.urlname,
+                                         &tmpaddr,
+                                         emsg,
+                                         sizeof(emsg))
                   == NULL) {
+                     slog(LOG_DEBUG, "%s: urlstring2sockaddr() failed: %s", 
+                          function, emsg);
+
                      socks_set_responsevalue(&packet->res, UPNP_FAILURE);
+
                      return -1;
                   }
 

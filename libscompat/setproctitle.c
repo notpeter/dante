@@ -1,4 +1,4 @@
-/* $Id: setproctitle.c,v 1.18 2011/05/14 13:54:37 karls Exp $ */
+/* $Id: setproctitle.c,v 1.19 2011/05/18 13:11:07 karls Exp $ */
 /* Based on conf.c from UCB sendmail 8.8.8 */
 
 #ifdef HAVE_CONFIG_H
@@ -78,7 +78,7 @@ initsetproctitle(int argc, char *argv[])
 
 	/*
 	 * NB: This assumes that argv has already been copied out of the
-	 * way. This is true for sshd, but may not be true for other 
+	 * way. This is true for sshd, but may not be true for other
 	 * programs. Beware.
 	 */
 

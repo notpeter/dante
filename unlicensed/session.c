@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2006, 2008, 2009
+ * Copyright (c) 2005, 2006, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,16 +39,16 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: session.c,v 1.10 2010/07/10 22:51:02 michaels Exp $
+ * $Id: session.c,v 1.12 2011/05/18 13:48:47 karls Exp $
  */
 
 #include "common.h"
 
-static const char rcsid[] = 
-"$Id: session.c,v 1.10 2010/07/10 22:51:02 michaels Exp $";
+static const char rcsid[] =
+"$Id: session.c,v 1.12 2011/05/18 13:48:47 karls Exp $";
 
 const char module_session_version[] =
-"$Id: session.c,v 1.10 2010/07/10 22:51:02 michaels Exp $";
+"$Id: session.c,v 1.12 2011/05/18 13:48:47 karls Exp $";
 
 extern const char *module_session_ipaddrv[];
 extern const int module_session_ipaddrc;

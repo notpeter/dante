@@ -4,7 +4,7 @@ dnl Based on patch from Markus Moeller (markus_moeller at compuserve.com)
 dnl default prefix for ldap headers/libs
 ldapdir=/usr
 AC_ARG_WITH(ldap,
- [  --without-ldap        disable ldap support @<:@default=detect@:>@],
+ [  --without-ldap          disable ldap support @<:@default=detect@:>@],
  [LDAP=$withval])
 
 dnl XXX disable ldap if gssapi is not configured for now
@@ -13,7 +13,7 @@ if test x"$no_gssapi" = xt; then
 fi
 
 AC_ARG_WITH(ldap-path,
- [  --with-ldap-path=PATH specify ldap path @<:@default=$ldapdir@:>@],
+ [  --with-ldap-path=PATH   specify ldap path @<:@default=$ldapdir@:>@],
  [ldapdir=$withval])
 
 if test x"$LDAP" != xno; then

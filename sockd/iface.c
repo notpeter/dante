@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010
+ * Copyright (c) 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: iface.c,v 1.8 2011/03/24 15:52:59 michaels Exp $";
+"$Id: iface.c,v 1.11 2011/06/13 08:35:14 michaels Exp $";
 
 #include "common.h"
 
@@ -105,25 +105,25 @@ socks_getmacaddr(ifname, addr)
 
    if (get_ifconfig_output(ifname, output, sizeof(output)) != 0) {
       slog(LOG_DEBUG,
-           "%s: could not retreive ifconfig(8) output for interface %s",
+           "%s: could not retrieve ifconfig(8) output for interface %s",
            function, ifname);
 
       return NULL;
    }
 
    if (parse_ifconfig_output(output, addr) != 0) {
-      slog(LOG_DEBUG, "%s: error parseing ifconfig output for interface %s",
+      slog(LOG_DEBUG, "%s: parsing ifconfig output for interface %s failed",
       function, ifname);
 
 #if HAVE_SOLARIS_PRIVS
       if (sockscf.privileges.noprivs)
-         swarnx("%s: error parsing ifconfig output for interface %s.  "
+         swarnx("%s: parsing ifconfig output for interface %s failed.  "
                 "Retrieving the hardware address requires the elevated "
                 "privileges on Solaris.  Please make sure %s is started "
                 "by root",
                 function, ifname, PACKAGE);
 #endif /* HAVE_SOLARIS_PRIVS */
-      
+
       return NULL;
    }
 #endif /* !SIOCGIFHWADDR */
@@ -150,7 +150,7 @@ get_ifconfig_output(ifname, output, outputlen)
                                     "/sbin/ifconfig",
                                     "/usr/sbin/ifconfig"
    };
-                                     
+
    for (i = 0; i < ELEMENTS(ifconfig_paths); ++i) {
       char cmd[256];
 
@@ -159,7 +159,7 @@ get_ifconfig_output(ifname, output, outputlen)
 
       slog(LOG_DEBUG, "%s: trying %s ... \n", function, cmd);
 
-      /* at least on solaris we need to be priveleged to read the hw addr.  */
+      /* at least on Solaris we need to be privileged to read the hw addr.  */
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
       fp = popen(cmd, "r");
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
@@ -232,7 +232,7 @@ parse_ifconfig_output(input, addr)
          swarnx("%s: missing ':' separator in string: %s\n", function, input);
          return -1;
       }
-      
+
       if (errno == ERANGE) {
          swarn("%s: out of range in string: %s\n", function, input);
          return -1;

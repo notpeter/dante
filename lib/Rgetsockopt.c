@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010
+ * Copyright (c) 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockopt.c,v 1.4 2011/05/09 07:03:51 michaels Exp $";
+"$Id: Rgetsockopt.c,v 1.5 2011/05/18 13:48:45 karls Exp $";
 
 int
 Rgetsockopt(s, level, optname, optval, optlen)

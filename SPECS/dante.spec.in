@@ -161,7 +161,7 @@ fi
 
 %files
 %defattr(-, root, root, 0755)
-%doc BUGS CREDITS NEWS README SUPPORT TODO doc/README* example/socks.conf example/socks-simple-withoutnameserver.conf example/sockd.conf example/socks-simple.conf
+%doc BUGS CREDITS NEWS README SUPPORT doc/README* example/socks.conf example/socks-simple-withoutnameserver.conf example/sockd.conf example/socks-simple.conf
 %config %{_sysconfdir}/socks.conf
 %{_libdir}/libsocks.so.0.1.1
 %{_libdir}/libsocks.so.0

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.181 2011/05/09 06:57:45 michaels Exp $";
+"$Id: Rconnect.c,v 1.183 2011/05/18 13:48:45 karls Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -382,12 +382,12 @@ Rconnect(s, name, namelen)
    if (nbconnect) {
       if (!socks_addrisours(s, &socksfd, 1)) {
          swarnx("%s: something went wrong when setting up the non-blocking "
-                "connect", 
+                "connect",
                 function);
 
          return -1;
       }
-         
+
       if (socksfd.state.inprogress) {
          slog(LOG_DEBUG, "%s: got route, non-blocking connect in progress",
                           function);

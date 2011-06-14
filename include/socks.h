@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009,
+ *               2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +42,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.252 2011/05/09 09:53:06 michaels Exp $ */
+/* $Id: socks.h,v 1.254 2011/05/18 13:48:45 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -365,10 +366,10 @@
 #define FDPASS_MAX         2   /* max number of descriptors we send/receive.  */
 
 struct configstate_t {
-   unsigned char      inited;           
+   unsigned char      inited;
    sig_atomic_t       insignal;         /* executing in signalhandler?        */
    sig_atomic_t       signalforus;      /*
-                                        * between now and the time this 
+                                        * between now and the time this
                                         * variable was last cleared, did we
                                         * handle a signal?
                                         */
@@ -387,7 +388,7 @@ struct option_t {
 
 struct config_t {
    pid_t                    connectchild;            /* connect process.      */
-   int                      child_data;              /* datasocket to child.  */
+   int                      child_data;              /* data socket to child.  */
    int                      child_ack;               /* ack to child.         */
 
    char                     domain[MAXHOSTNAMELEN];  /* localdomain.          */
@@ -497,7 +498,7 @@ struct route_t *
 udpsetup(int s, const struct sockaddr *to, int type);
 /*
  * sets up udp relaying between address of "s" and "to" by connecting
- * to a proxyserver.
+ * to a proxy server.
  * If relaying is already set up the function returns with success.
  * Type is the type of connection to set up, SOCKS_SEND or SOCKS_RECV.
  *
@@ -540,7 +541,7 @@ socks_addaddr(const int clientfd, const struct socksfd_t *socksaddress,
  * socksfdv/addrlock.
  *
  * The function duplicates all arguments in it's own form and does
- * not access the memory referenced by them afterwards.
+ * not access the memory referenced by them afterwords.
  *
  * The function checks the state of all file descriptors on each call and
  * removes those that are no longer open.
@@ -554,7 +555,7 @@ socks_addaddr(const int clientfd, const struct socksfd_t *socksaddress,
 struct socksfd_t *
 socks_getaddr(const int fd, struct socksfd_t *socksfd, const int takelock);
 /*
- * Returns a copy of the socksfd corresponding to "fd".  
+ * Returns a copy of the socksfd corresponding to "fd".
  * If "socksfd" is not NULL, the contents of the socksfd is also stored in
  * "socksfd".
  *
@@ -632,7 +633,7 @@ socks_addrisours(const int s, struct socksfd_t *socksfd, const int takelock);
  * If "takelock" is true, it means the function should take the
  * socksfdv/addrlock.
  *
- * If the current address matches the registered address and "socksfd" 
+ * If the current address matches the registered address and "socksfd"
  * is not NULL, "socksfd" is filled in with the data of the matching socket.
  *
  * Returns:

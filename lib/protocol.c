@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.66 2011/03/30 20:01:27 michaels Exp $";
+"$Id: protocol.c,v 1.68 2011/05/18 13:48:46 karls Exp $";
 
 unsigned char *
 sockshost2mem(host, mem, version)
@@ -181,7 +181,7 @@ mem2sockshost(host, mem, len, version)
 }
 
 void
-socks_set_responsevalue(response, value)                                     
+socks_set_responsevalue(response, value)
     struct response_t *response;
     unsigned int value;
 {
@@ -229,4 +229,3 @@ socks_get_responsevalue(response)
 
    /* NOTREACHED */
 }
-
