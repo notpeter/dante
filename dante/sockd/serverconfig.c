@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "ifaddrs_compat.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.402 2011/05/11 17:22:56 michaels Exp $";
+"$Id: serverconfig.c,v 1.406 2011/06/09 11:12:31 michaels Exp $";
 
 struct config_t sockscf;
 const int socks_configtype = CONFIGTYPE_SERVER;
@@ -136,7 +136,7 @@ addinternal(addr, protocol)
             }
          }
          else {
-            if (changesupported) 
+            if (changesupported)
                slog(LOG_DEBUG, "%s: address %s is already on the internal list "
                                "of addresses to accept clients on.  Ignored",
                                function, sockaddr2string(&sa, NULL, 0));
@@ -171,7 +171,7 @@ addinternal(addr, protocol)
                }
             }
             else {
-               if (changesupported) 
+               if (changesupported)
                   slog(LOG_DEBUG, "%s: address %s, resolved from \"%s\", is "
                                   "already on the internal list (#%d) for "
                                   "addresses to accept clients on.  Ignored",
@@ -227,9 +227,9 @@ addinternal(addr, protocol)
                   }
                }
                else {
-                  if (changesupported) 
+                  if (changesupported)
                      slog(LOG_DEBUG, "%s: address %s, expanded  from the "
-                                     "ifname \"%s\", is already on the " 
+                                     "ifname \"%s\", is already on the "
                                      "internal list for addresses to accept "
                                      "clients on.  Ignored",
                                      function, sockaddr2string(&sa, NULL, 0),
@@ -322,7 +322,7 @@ resetconfig(exiting)
    size_t oldc, i;
    void *tmpmem;
 
-#if SOCKS_SERVER 
+#if SOCKS_SERVER
    /*
     * internal; don't touch, only settable at start for now.
     */
@@ -357,9 +357,9 @@ resetconfig(exiting)
 
 #if !HAVE_TWO_LEVEL_ACL
          if (!isclientrulev[i]) {
-            /* 
+            /*
              * All pointers are pointers to the same as in the clientrule,
-             * so it has already been freed, and only the rul itself remains
+             * so it has already been freed, and only the rule itself remains
              * to be freed.
              */
 
@@ -423,7 +423,7 @@ resetconfig(exiting)
                   for (i = 0; i < moreoldshmemc; ++i) {
                      sockscf.oldshmemv[sockscf.oldshmemc++] = moreoldshmemv[i];
 
-                     slog(LOG_DEBUG, "%s: saving shmid %ld for later", 
+                     slog(LOG_DEBUG, "%s: saving shmid %ld for later",
                      function, moreoldshmemv[i].id);
                   }
                }
@@ -446,8 +446,8 @@ resetconfig(exiting)
        * and nobody not already using them should need to attach to them
        * after we exit.  The exception is udp-clients in barefoot, but
        * we remove all the udp clients when mother exits, so we just need
-       * to cope with the possible failure in the timeframe between
-       * mother exiting and deleting the segments, and the io-child 
+       * to cope with the possible failure in the time frame between
+       * mother exiting and deleting the segments, and the io-child
        * detecting it.
        */
 
@@ -490,26 +490,30 @@ resetconfig(exiting)
    bzero(&sockscf.extension, sizeof(sockscf.extension));
 
    /* log; read from configfile, but keep lockfile. */
-   for (i = 0; i < sockscf.log.filenoc; ++i)
+   for (i = 0; i < sockscf.log.filenoc; ++i) {
+      free(sockscf.log.fnamev[i]);
+
       if (sockscf.log.filenov[i] != STDOUT_FILENO
       &&  sockscf.log.filenov[i] != STDERR_FILENO)
          close(sockscf.log.filenov[i]);
-
+   }
    free(sockscf.log.fnamev);
    free(sockscf.log.filenov);
    bzero(&sockscf.log, sizeof(sockscf.log));
 
-   for (i = 0; i < sockscf.errlog.filenoc; ++i)
+   for (i = 0; i < sockscf.errlog.filenoc; ++i) {
+      free(sockscf.errlog.fnamev[i]);
+
       if (sockscf.errlog.filenov[i] != STDOUT_FILENO
       &&  sockscf.errlog.filenov[i] != STDERR_FILENO)
          close(sockscf.errlog.filenov[i]);
-
+   }
    free(sockscf.errlog.fnamev);
    free(sockscf.errlog.filenov);
    bzero(&sockscf.errlog, sizeof(sockscf.errlog));
 
    /*
-    * option; some only setable at commandline, some only read from configfile.
+    * option; some only settable at commandline, some only read from configfile.
     * Those only read from configfile will be reset to default in optioninit().
     */
 
@@ -517,7 +521,7 @@ resetconfig(exiting)
    bzero(&sockscf.resolveprotocol, sizeof(sockscf.resolveprotocol));
 
    /*
-    * socketconfig, read from configfile, but also has defaults set by 
+    * socketconfig, read from configfile, but also has defaults set by
     * optioninit(), so don't need to touch it.
     */
 
@@ -673,7 +677,7 @@ addrindex_on_externallist(external, _addr)
             sockshost2sockaddr(ruleaddr2sockshost(&external->addrv[i], &host,
                                                  SOCKS_TCP),
                                &sa);
-            
+
             if (sockaddrareeq(&addr, &sa))
                return (ssize_t)i;
 

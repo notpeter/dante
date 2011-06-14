@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009
+ *               2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,11 +44,23 @@
 
 #include "common.h"
 
+#ifdef STANDALONE_UNIT_TEST
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include <netdb.h>
+#include <string.h>
+#include <stdio.h>
+
+#else /* STANDALONE_UNIT_TEST */
+
 #include "vis_compat.h"
 #include "ifaddrs_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.257 2011/05/11 10:14:22 michaels Exp $";
+"$Id: util.c,v 1.263 2011/05/26 08:39:33 michaels Exp $";
 
 const char *
 strcheck(string)
@@ -321,6 +333,7 @@ gwaddr2sockshost(gw, host)
    const gwaddr_t *gw;
    struct sockshost_t *host;
 {
+   const char *function = "gwaddr2sockshost()";
 
    switch (gw->atype) {
       case SOCKS_ADDR_IPV4:
@@ -348,9 +361,13 @@ gwaddr2sockshost(gw, host)
 
       case SOCKS_ADDR_URL: {
          struct sockaddr saddr;
+         char emsg[256];
 
-         if (urlstring2sockaddr(gw->addr.urlname, &saddr) == NULL)
-            serrx(1, "can't convert %s to sockaddr", gw->addr.urlname);
+         if (urlstring2sockaddr(gw->addr.urlname, &saddr, emsg, sizeof(emsg))
+         == NULL)
+            serrx(1, "%s: can't convert ulrstring to sockaddr: %s",
+                      function,  
+                      emsg);
 
          sockaddr2sockshost(&saddr, host);
          break;
@@ -619,8 +636,8 @@ sockshostareeq(a, b)
 }
 
 int
-fdsetop(nfds, op, a, b, result)
-   int nfds;
+fdsetop(highestfd, op, a, b, result)
+   int highestfd;
    int op;
    const fd_set *a;
    const fd_set *b;
@@ -628,28 +645,36 @@ fdsetop(nfds, op, a, b, result)
 {
    int i, bits;
 
-   FD_ZERO(result);
    bits = -1;
-
    switch (op) {
       case '&':
-         for (i = 0; i < nfds; ++i)
+         FD_ZERO(result);
+         for (i = 0; i <= highestfd; ++i)
             if (FD_ISSET(i, a) && FD_ISSET(i, b)) {
                FD_SET(i, result);
                bits = MAX(i, bits);
             }
+
          break;
 
       case '^':
-         for (i = 0; i < nfds; ++i)
+         FD_ZERO(result);
+         for (i = 0; i <= highestfd; ++i)
             if (FD_ISSET(i, a) != FD_ISSET(i, b)) {
                FD_SET(i, result);
                bits = MAX(i, bits);
             }
+            else
+               FD_CLR(i, result);
+
          break;
 
       case '|':
-         for (i = 0; i < nfds; ++i)
+         /*
+          * no FD_ZERO() required.  Allows caller to call us without using
+          * a temporary object for result if he wants to do result = a | b.
+          */
+         for (i = 0; i <= highestfd; ++i)
             if (FD_ISSET(i, a) || FD_ISSET(i, b)) {
                FD_SET(i, result);
                bits = MAX(i, bits);
@@ -697,7 +722,7 @@ str2vis(string, len, visstring, vislen)
    if (visstring == NULL) {
       SASSERTX(0); /* should never be used. */
 
-      /* see vis(3) for "* 4" */ 
+      /* see vis(3) for "* 4" */
       if ((visstring = malloc((sizeof(*visstring) * len * 4) + 1)) == NULL)
          return NULL;
 
@@ -742,7 +767,7 @@ socks_mklock(template, newname, newnamelen)
    if (newnamelen != 0 && len > newnamelen)
       serr(EXIT_FAILURE, "%s: the combination of \"%s\" (%lu) and \"%s\""
                          "is longer than the passed maxlength length of %lu",
-                         function, prefix, (unsigned long)strlen(prefix), 
+                         function, prefix, (unsigned long)strlen(prefix),
                          template, (unsigned long)newnamelen);
 
    if (*prefix != NUL)
@@ -754,13 +779,13 @@ socks_mklock(template, newname, newnamelen)
       slog(LOG_DEBUG, "%s: newtemplate = \"%s\", prefix = \"%s\" "
       "uid = %d, euid = %d, gid = %d, egid = %d",
       function, newtemplate, prefix,
-      (int)getuid(), (int)geteuid(), 
+      (int)getuid(), (int)geteuid(),
       (int)getgid(), (int)getegid());
 
    if (strstr(newtemplate, "XXXXXX") != NULL) {
       s = mkstemp(newtemplate);
 #if HAVE_SOLARIS_BUGS
-      if (s == -1 && *newtemplate == NUL) { 
+      if (s == -1 && *newtemplate == NUL) {
           /*
            * Solaris 5.11 sometimes loses the template on failure. :-/
            */
@@ -777,7 +802,7 @@ socks_mklock(template, newname, newnamelen)
    if (s == -1) {
       if (*prefix == NUL) {
          slog(LOG_DEBUG, "%s: failed to create \"%s\" (%s) and TMPDIR is not "
-                         "set.  Trying again with TMPDIR set to \"/tmp\"", 
+                         "set.  Trying again with TMPDIR set to \"/tmp\"",
                          function, newtemplate, strerror(errno));
 
          if (setenv("TMPDIR", "/tmp", 1) != 0)
@@ -937,60 +962,18 @@ bitcount(number)
    return bitsset;
 }
 
-struct sockaddr *
-urlstring2sockaddr(string, saddr)
-   const char *string;
-   struct sockaddr *saddr;
-{
-   const char *httpprefix = "http://";
-   char *port, buf[INET_ADDRSTRLEN];
-
-   if (strstr(string, httpprefix) == NULL) {
-      swarnx("could not find http prefix in http address \"%s\"", string);
-      return NULL;
-   }
-
-   snprintf(buf, sizeof(buf), "%s",
-   strstr(string, httpprefix) + strlen(httpprefix));
-
-   if (strchr(buf, ':') == NULL) {
-      swarnx("could not find port separator in %s", string);
-      return NULL;
-   }
-   *strchr(buf, ':') = NUL;
-
-   bzero(saddr, sizeof(*saddr));
-   saddr->sa_family = AF_INET;
-   if (inet_pton(saddr->sa_family, buf, &(TOIN(saddr)->sin_addr)) != 1) {
-      swarn("could not convert %s to network address", buf);
-      return NULL;
-   }
-
-   if ((port = strrchr(string, ':')) == NULL) {
-      swarnx("could not find start of port number in %s", string);
-      return NULL;
-   }
-   ++port; /* skip ':' */
-
-   TOIN(saddr)->sin_port = htons((in_port_t)atoi(port));
-
-   return saddr;
-}
-
 fd_set *
 allocate_maxsize_fdset(void)
 {
    const char *function = "allocate_maxsize_fdset()";
    fd_set *set;
 
-#if SOCKS_CLIENT
    if ((sockscf.state.maxopenfiles = getmaxofiles(hardlimit)) == RLIM_INFINITY)
       /*
        * In the client the softlimit can vary at any time, so this is not
-       * 100% safe, but I see no other practical solution at the moment.
+       * 100%, but see no other practical solution at the moment.
        */
       sockscf.state.maxopenfiles = getmaxofiles(softlimit);
-#endif
 
    if (sockscf.state.maxopenfiles == RLIM_INFINITY)
       swarnx("%s: maxopenfiles is RLIM_INFINITY (%lu)",
@@ -1112,6 +1095,99 @@ seconds2days(seconds, days, hours, minutes)
       *minutes = 0;
 
 }
+#endif /* !STANDALONE_UNIT_TEST */
+
+struct sockaddr *
+urlstring2sockaddr(string, saddr, emsg, emsglen)
+   const char *string;
+   struct sockaddr *saddr;
+   char *emsg;
+   const size_t emsglen;
+{
+   const char *function = "urlstring2sockaddr()";
+   const char *httpprefix = "http://";
+   char *port, buf[MAX(INET_ADDRSTRLEN, 256)], *s;
+   int p;
+
+   if ((s = strstr(string, httpprefix)) == NULL) {
+      p = snprintf(buf, sizeof(buf), 
+                   "could not find http prefix in http address \"%.80s\"",
+                   string);
+      str2vis(buf, p, emsg, emsglen);
+
+      return NULL;
+   }
+
+   snprintf(buf, sizeof(buf), "%s", s + strlen(httpprefix));
+
+   if ((s = strchr(buf, ':')) == NULL) {
+      p = snprintf(buf, sizeof(buf),
+                  "could not find port separator in \"%.80s\"",
+                  string);
+      str2vis(buf, p, emsg, emsglen);
+
+      return NULL;
+   }
+   *s = NUL;
+
+   if (*buf == NUL) {
+      p = snprintf(buf, sizeof(buf),
+                  "could not find address string in \"%.80s\"",
+                  string);
+      str2vis(buf, p, emsg, emsglen);
+
+      return NULL;
+   }
+
+   slog(LOG_DEBUG, "%s: address is %s", function, buf);
+
+   bzero(saddr, sizeof(*saddr));
+   saddr->sa_family = AF_INET;
+   if (inet_pton(saddr->sa_family, buf, &(TOIN(saddr)->sin_addr)) != 1) {
+      struct hostent *hostent;
+      long lval;
+      char *ep, buf2[256];
+
+      errno = 0;
+      lval = strtol(buf, &ep, 10);
+      if (*ep == NUL) { /* only digits, but inet_pton() failed. */
+         p = snprintf(buf2, sizeof(buf2),
+                     "\"%.80s\" does not appear to be a valid IP address",
+                     buf);
+         str2vis(buf2, p, emsg, emsglen);
+
+         return NULL;
+      }
+
+      if ((hostent = gethostbyname(buf)) == NULL 
+      ||   hostent->h_addr               == NULL) {
+         p = snprintf(buf2, sizeof(buf2),
+                      "could not resolve hostname \"%.80s\"",
+                      buf);
+         str2vis(buf2, p, emsg, emsglen);
+
+         return NULL;
+      }
+
+      memcpy(&TOIN(saddr)->sin_addr, hostent->h_addr, hostent->h_length);
+   }
+
+   if ((port = strrchr(string, ':')) == NULL) {
+      p = snprintf(buf, sizeof(buf), 
+                  "could not find start of port number in \"%.80s\"",
+                  string);
+      str2vis(buf, p, emsg, emsglen);
+
+      return NULL;
+   }
+   ++port; /* skip ':' */
+
+   TOIN(saddr)->sin_port = htons((in_port_t)atoi(port));
+
+   return saddr;
+}
+
+#ifndef STANDALONE_UNIT_TEST
 
 #undef snprintf
 size_t
@@ -1141,4 +1217,4 @@ snprintfn(char *str, size_t size, const char *format, ...)
 
    return MIN((size_t)rc, size - 1);
 }
-
+#endif /* !STANDALONE_UNIT_TEST */

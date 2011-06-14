@@ -1,7 +1,7 @@
-.\" $Id: sockd.conf.5,v 1.141 2011/04/30 09:04:13 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.147 2011/06/14 10:16:43 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-.\"               2008, 2009
+.\"               2008, 2009, 2010, 2011
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -58,9 +58,9 @@ keyword is separated from it's value by a \fB':'\fP character.
 .IP \fBchild.maxidle\fP
 Maintains a rough maximum on how many children of each type can remain
 idle waiting for clients.  This is used to reduce the amount of idle
-processes after a "client burst" has passed. 
+processes after a "client burst" has passed.
 The default is \fByes\fP (maintain a maximum on how many processes can be
-idle), which is the recommended value for optimial resource usage.  
+idle), which is the recommended value for optimal resource usage.
 
 It can be set to \fBno\fP if it is desirable to never shut down idle
 processes.  This can be used if client bursts are frequent and it is
@@ -70,14 +70,14 @@ used to handle the peak load.
 
 .\" .IP \fBchild.maxrequests\fP
 .\" Maintains a max on the total number of clients a child process will
-.\" serve before exiting.  After having served the given number of 
+.\" serve before exiting.  After having served the given number of
 .\" clients, the child process will exit.
-.\" 
+.\"
 .\" The only reason for the existence of this option is to work around buggy
-.\" behaviour in external libraries used by the the \fBDante\fP server,
+.\" behavior in external libraries used by the the \fBDante\fP server,
 .\" which may end up leaking resources or create other problems when having
 .\" run to long.  The default value is \fB0\fP, meaning no limit.
-.\" 
+.\"
 .IP \fBclientmethod\fP
 A list of acceptable authentication methods for client-rules,
 in order of preference.  It is thus important that you specify these
@@ -108,27 +108,32 @@ v5-05 draft.  The only feature from this draft that \fBDante\fP supports
 is the "USECLIENTSPORT" extension.  Note that there is a conflicting
 interpretation of this extension, so enabling it might prevent
 clients using the conflicting interpretation from working correctly.
-This only affects udp.
+This only affects UDP.
 
 .IP \fBdebug\fP
 Print debug info to the logs.  The value sets the debug level.
 .IP \fBerrorlog\fP
 This value can be set to receive only error-related logoutput.  Note that
-this does not include client-specific errors, but only more serious 
+this does not include client-specific errors, but only more serious
 "global" errors.
 
-The possible values are the same as for the \fBlogoutput\fP keyword.
-The intent is to have a special place that only errors are logged so
+The possible values are the same as for the \fBlogoutput\fP keyword mentioned
+below.
+
+The intent is to have a special place that only serious errors are logged so
 that they can discovered quickly.  The default is to not have any special
 place to log errors.
 .IP \fBexternal\fP
 The address to be used for outgoing connections.
-The address given may be either a IP address or an interfacename.
+The address given may be either a IP address or an interface name.
 Can be given multiple times for different addresses.
 .IP \fBexternal.rotation\fP
 If more than one external address is given, this governs which
-address is selected as the source address for outgoing connections
-to a given destination.
+of the given addresses is selected as the source address for 
+a given outgoing connections/packet.  Note that regardless of what
+sort of external rotation you use, all addresses you want to choose
+from must be listed via the \fBexternal\fP keyword first.
+
 Valid values are \fBnone\fP (the default), \fBroute\fP, and \fBsame-same\fP.
 
 \fBnone\fP indicates the first address on the list of external addresses
@@ -142,12 +147,12 @@ ftp-clients using active ftp if the \fBDante\fP bind extension
 is enabled for the ftp-client.
 
 \fBsame-same\fP indicates the source address for a given destination
-should be the same address as the \fBDante\fP server accepted the clients
+should be the same address as the \fBDante\fP server accepted the client's
 connection on.
 
 .IP \fBinternal\fP
 The internal addresses.  Connections will only be accepted on these addresses.
-The address given may be either a IP address or an interfacename.
+The address given may be either a IP address or an interface name.
 .IP \fBlibwrap.hosts_access\fP
 If the server is compiled with libwrap support, determines whether the
 \fBhosts_access()\fP function should be used for access control. When
@@ -195,7 +200,7 @@ These control what socket buffersize the \fBDante\fP server will ask the
 kernel to use for the sockets.  The numeric argument given to the keyword
 indicates the size of the socket buffer in bytes.  You can set different
 values depending on the protocol (\fBtcp\fP or \fBudp\fP), and on whether
-it is for receving (\fBrecvbuf\fP) or sending (\fBsendbuf\fP) data.
+it is for receiving (\fBrecvbuf\fP) or sending (\fBsendbuf\fP) data.
 
 .IP \fBsrchost\fP
 This keyword allows you to configure a few options that relate to the
@@ -217,34 +222,36 @@ the socks-clients, from non-socks clients, and thus only a limited
 set of authentication methods are possible.  These methods are
 the methods not involving the socks protocol; \fBrfc931\fP and
 \fBpam\fP (using only the ipaddress and portnumber).
-The default is not to check the authentication on replies.
+Default is not to check the authentication on replies.
+
 .IP \fBtimeout.connect\fP
 The number of seconds the server will wait for a connect initiated
 on behalf of the socks-client to complete.  The default is 30.
 Setting it to 0 will use the systems default.
-.IP \fBtimeout.negotiate\fP
-The number of seconds a client can spend negotiating with the
-\fBDante\fP server for a socks session before \fBDante\fP
-will close the connection to the client.  The default is 30.
-Set it to 0 for forever, though that is strongly discouraged.
 .IP \fBtimeout.io\fP
 The number of seconds an established connection can be idle.
 The default is 86400 (24 hours).  Set it to 0 for forever.
 See also the "-n" option in the sockd(8) manpage.
 
-Individual timeouts can be set for tcp and udp by suffixing io with
+Individual timeouts can be set for TCP and UDP by suffixing io with
 ".<protocolname>", i.e. \fBtimeout.io.tcp\fP or \fBtimeout.io.udp\fP.
 
 Individual timeouts can also be set within rules, using the same syntax.
 The timeout set in the rule will then override the default timeouts for
 clients matching the rule.
+.IP \fBtimeout.negotiate\fP
+The number of seconds a client can spend negotiating with the
+\fBDante\fP server for a socks session before \fBDante\fP
+will close the connection to the client.  The default is 30.
+Set it to 0 for forever, though that is strongly discouraged.
 .IP \fBtimeout.tcp_fin_wait\fP
-The timeout for the equivalent of TCP's FIN-WAIT-2.  
+The timeout for the equivalent of TCP's FIN-WAIT-2.
 .IP \fBudp.connectdst\fP
-Enables or disables whether the server should attempt connecting udp
+Enables or disables whether the server should attempt connecting UDP
 sockets to the destination.  Valid values are \fByes\fP and \fBno\fP.
-The default is \fByes\fP, which improves udp performance, but may not
-be compatible with some udp-based application protocols as it means
+
+The default is \fByes\fP, which improves UDP performance, but may not
+be compatible with some UDP-based application protocols as it means
 the server can only receive packets from the destination address.
 .IP \fBUserids\fP
 On platforms providing a privilege-model supported by \fBDante\fP,
@@ -258,7 +265,7 @@ Username which will be used for doing privileged operations.
 If you need special privileges to read the sockd.conf file or to write
 the sockd.pid file (you can create it manually before starting sockd),
 have anything in your configuration that requires binding privileged
-tcp/udp ports (ports below 1024), or use some sort of password-based
+TCP/UDP ports (ports below 1024), or use some sort of password-based
 authentication, this probably needs to be set to root.
 
 If not, you can probably set it to the same value as \fBuser.unprivileged\fP.
@@ -297,19 +304,19 @@ installations of \fBDante\fP may support only a subset of these.
 This method requires no form of authentication.
 .IP \fBusername\fP
 This method requires the client to provide a username and password.
-This must match the username and password given in the system passwordfile.
+This must match the username and password given in the system password file.
 .IP \fBgssapi\fP
 This method requires the setup of a Kerberos environment and can
 provide strong encryption and authentication.
 .IP \fBrfc931\fP
 This method requires the client host to provide a rfc931 ("ident")
 reply for the connecting client.
-This must match a username given in the system passwordfile.
+This must match a username given in the system password file.
 .IP \fBpam\fP
-This method requires the available clientdata to match against the
+This method requires the available client data to match against the
 pam database.
 .IP \fBbsdauth\fP
-This method requires the available clientdata to be verified by
+This method requires the available client data to be verified by
 the BSD Authentication system.
 
 
@@ -317,7 +324,7 @@ the BSD Authentication system.
 Each address field can consist of a IP address (and where required,
 a netmask, separated from the IP address by a '\fB/\fP' sign), a hostname,
 a domainname (designated so by the leading '\fB.\fP'), or an
-interfacename.
+interface name.
 Each address can be followed by a optional \fBport\fP specifier.
 .SH RULES
 There are two sets of rules and they work at different levels.
@@ -369,14 +376,14 @@ The list of condition keywords is:
 \fBclientcompatibility\fP, \fBcommand\fP, \fBfrom\fP, \fBgroup\fP,
 \fBmethod\fP, \fBprotocol\fP, \fBproxyprotocol\fP, \fBto\fP, \fBuser\fP.
 
-The list of actions keywords is: \fBbandwidth\fP, \fBlibwrap\fP,
+The list of action keywords is: \fBbandwidth\fP, \fBlibwrap\fP,
 \fBlog\fP, \fBmaxsessions\fP, \fBredirect\fP,
 \fBtimeout.connect\fP, \fBtimeout.negotiate\fP, \fBtimeout.io\fP,
-\fBudprange\fP.
+and \fBudp.portrange\fP.
 
 The format and content of the the keyword as used in client-rules or
 socks-rules is identical, but client-rules can contain only a subset of
-the keyword that socks-rules may contain.  
+the keyword that socks-rules may contain.
 
 .IP
 The contents of a \fBclient-rule\fP can be:
@@ -418,6 +425,8 @@ value.  Requires the session module.
 .IP \fBmethod\fP
 Require that the connection be "authenticated" using one of the
 given methods.
+.IP \fBpam.servicename\fP
+Which servicename to use when involving pam.  Default is "sockd".
 .IP \fBport\fP
 Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
 \fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
@@ -426,8 +435,6 @@ will match all port numbers within the range <start #> and <end #>.
 
 The default is all ports.
 
-.IP \fBpam.servicename\fP
-Which servicename to use when involving pam.  Default is "sockd".
 .IP \fBtimeout.negotiate\fP
 See the global \fBtimeout.negotiate\fP option.
 .IP \fBto\fP
@@ -435,7 +442,7 @@ The rule applies to requests going to the address given as value.
 .IP \fBuser\fP
 The user must match one of the names given as value.
 If no \fBuser\fP value is given for a rule requiring usernames, the
-effect will be the same as listing every user in the passwordfile.
+effect will be the same as listing every user in the password file.
 
 Note that if gssapi-based authentication is used, the username as provided
 to the \fBDante\fP server normally includes the Kerberos domain.
@@ -446,6 +453,9 @@ The contents of a \fBsocks-rule\fP can be:
 .IP \fBbandwidth\fP
 The clients matching this rule will all share the given amount of bandwidth,
 measured in bytes per second.  Requires the bandwidth module.
+.IP \fBbsdauth.stylename\fP
+The name of the BSD authentication style to use. The default is to not
+specify a value, causing the default system style to be used.
 .IP \fBcommand\fP
 The rule applies to the given commands.  Valid commands
 are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP
@@ -471,9 +481,6 @@ the rule.
 Valid values are the same as in the global \fBmethod\fP line.
 .IP \fBpam.servicename\fP
 What servicename to use when involving pam.  Default is "sockd".
-.IP \fBbsdauth.stylename\fP
-The name of the BSD authentication style to use. The default is to not
-specify a value, causing the default system style to be used.
 .IP \fBport\fP
 Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
 \fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
@@ -506,23 +513,25 @@ as follows:
 The semantics of \fBfrom\fP and \fBto\fP vary according to
 \fBcommand\fP.  See the redirect manual for detailed information.
 
-.IP \fBto\fP
-The rule applies to requests going to or using the address given as value.
-Note that the meaning of this address is affected by \fBcommand\fP.
 .IP \fBtimeout.connect\fP
 See the global \fBtimeout.connect\fP option.
 .IP \fBtimeout.io\fP
 See the global \fBtimeout.io\fP option.
-.IP \fBudprange\fP
+
+.IP \fBto\fP
+The rule applies to requests going to or using the address given as value.
+Note that the meaning of this address is affected by \fBcommand\fP.
+
+.IP \fBudp.portrange\fP
 The argument to this keyword is two portnumbers, separated by
-a dash ('-').  They specify the udp port-range that will be
-used between the \fBsocks-client\fP and the Dante-server for udp
-packets.  Note that this has no relation to the udp port-range
+a dash ('-').  They specify the UDP port-range that will be
+used between the \fBsocks-client\fP and the Dante-server for UDP
+packets.  Note that this has no relation to the UDP port-range
 used between the Dante-server and external, non-socks, clients/servers.
 .IP \fBuser\fP
 The user must match one of the names given as value.
 If no \fBuser\fP value is given for a rule requiring usernames, the
-effect will be the same as listing every user in the passwordfile.
+effect will be the same as listing every user in the password file.
 .SH ROUTES
 The routes are specified with a \fBroute\fP keyword.
 Inside a pair of parenthesis ({}) a set of keywords control the behavior of

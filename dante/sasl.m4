@@ -4,11 +4,11 @@ dnl Based on patch from Markus Moeller (markus_moeller at compuserve.com)
 dnl default prefix for sasl headers/libs
 sasldir=/usr
 AC_ARG_WITH(sasl,
- [  --without-sasl        disable sasl support @<:@default=detect@:>@],
+ [  --without-sasl          disable sasl support @<:@default=detect@:>@],
  [SASL=$withval])
 
 AC_ARG_WITH(sasl-path,
- [  --with-sasl-path=PATH specify sasl path @<:@default=$sasldir@:>@],
+ [  --with-sasl-path=PATH   specify sasl path @<:@default=$sasldir@:>@],
  [sasldir=$withval])
 
 if test x"$SASL" != xno; then

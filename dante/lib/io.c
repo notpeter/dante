@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009
+ *               2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.190 2011/05/15 16:08:29 michaels Exp $";
+"$Id: io.c,v 1.201 2011/06/08 12:50:24 michaels Exp $";
 
 static void
 print_selectfds(const char *preamble, const int docheck, const int nfds,
@@ -100,7 +100,7 @@ socks_recvfromn(s, buf, len, minread, flags, from, fromlen, auth)
          }
 #endif /* SOCKS_CLIENT */
 
-         if (ERRNOISINPROGRESS(errno) && len - left < minread) {
+         if (ERRNOISTMP(errno) && len - left < minread) {
 #if SOCKS_CLIENT
             fd_set *rset = NULL;
 #else /* SERVER */
@@ -319,7 +319,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
 
    if (r != -1 && passed_fromlen >= sizeof(struct sockaddr_in)) {
       /* 
-       * Solaris, at least 2.5.1,  sometimes fails to return the srcaddress 
+       * Solaris, at least 2.5.1, sometimes fails to return the srcaddress 
        * in recvfrom(2). 
        * More recently it has also been seen at least once on OS X, Kernel 
        * Version 10.5.0, at a point where recvfrom(2) returned 0.
@@ -640,42 +640,70 @@ recvmsgn(s, msg, flags)
 }
 
 ssize_t
-sendmsgn(s, msg, flags)
+sendmsgn(s, msg, flags, timeoutseconds)
    int s;
    const struct msghdr *msg;
    int flags;
+   const int timeoutseconds;
 {
    const char *function = "sendmsgn()";
+   static int failedlasttime;
    ssize_t sent;
-   size_t len, p;
-   int failures;
 
-   for (p = len = 0; p < msg->msg_iovlen; ++p)
-      len += msg->msg_iov[p].iov_len;
+   if ((sent = sendmsg(s, msg, flags)) == -1) {
+      const int doblock = (   ERRNOISTMP(errno)
+                           && !failedlasttime
+                           && (timeoutseconds != 0));
+      ssize_t p, len;
 
-   errno = failures = 0;
-   while ((sent = sendmsg(s, msg, flags)) == -1
-   && ERRNOISTMP(errno)
-   && ++failures < 5) {
-      swarn("%s: sendmsg() of size %ld on socket %d failed on try #%d",
-            function, (long)len, s, failures);
+      for (p = len = 0; p < (ssize_t)msg->msg_iovlen; ++p)
+         len += msg->msg_iov[p].iov_len;
 
-      usleep(1000);
-      errno = 0;
+      swarnx("%s: sendmsg() of %ld bytes on socket %d failed:  %s.  %s",
+             function,
+             (long)len,
+             s, 
+             errnostr(errno),
+             doblock ?  "Will try blocking on the fd to become writable" : "");
+
+      if (doblock) {
+         static fd_set *wset;
+         struct timeval timeout;
+
+         failedlasttime = 1;
+
+         if (timeoutseconds != -1) {
+            timeout.tv_sec  = timeoutseconds;
+            timeout.tv_usec = 0;
+         }
+
+         if (wset == NULL)
+            wset = allocate_maxsize_fdset();
+
+         FD_ZERO(wset);
+         FD_SET(s, wset);
+         if (selectn(s + 1,
+                     NULL,
+                     NULL,
+                     NULL,
+                     wset,
+                     NULL,
+                     timeoutseconds == -1 ? NULL : &timeout) == 1) {
+            if (timeoutseconds == -1)
+               slog(LOG_WARNING, "%s: XXX blocked on select", function);
+            else
+               slog(LOG_WARNING,
+                    "%s: XXX blocked on select, returned time is %ld.%06ld",
+                    function,
+                    (long)timeout.tv_sec, (long)timeout.tv_usec);
+
+            errno = 0;
+            return sendmsgn(s, msg, 0, timeoutseconds);
+         }
+      }
    }
 
-   if (sent < 0) {
-      swarn("%s: sendmsg() of size %ld on socket %d failed, sent %ld bytes",
-      function, (long)len, s, (long)sent);
-
-      return sent;
-   }
-
-   if (sent != (ssize_t)len) {
-      SWARNX(sent); /* is a datagram socket.  Should send all or nothing. */
-      return -1;
-   }
-
+   failedlasttime = 0;  /* always reset if not select(2)-ing.  */
    return sent;
 
    /* 

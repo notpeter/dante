@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.578 2011/05/12 15:31:54 michaels Exp $ */
+/* $Id: common.h,v 1.589 2011/06/13 09:55:00 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -136,7 +136,7 @@ extern char *__progname;
 #define GSSAPI_HLEN       (4) /* GSSAPI headerlen. */
 
 /*
- * XXX should be max-size of exported state, but we don't know what it is. 
+ * XXX should be max-size of exported state, but we don't know what it is.
  * Is there any way to find out?
  */
 #define MAX_GSS_STATE     (2000)
@@ -199,8 +199,8 @@ extern char *__progname;
 
 
 /*
- * If client, it might need to call malloc(3) to expand socksfdv 
- * from the signalhandler upon SIGIO, but if we are in a gssapi-function
+ * If client, it might need to call malloc(3) to expand socksfdv
+ * from the signal handler upon SIGIO, but if we are in a gssapi-function
  * that also is calling malloc(3) ...
  */
 #if SOCKS_CLIENT
@@ -214,7 +214,7 @@ do { socks_sigunblock(oldset); } while (/* CONSTCOND */ 0)
 #define SIGSET_ALLOCATE(name) sigset_t name
 
 #else /* !SOCKS_CLIENT */
-#define SIGSET_ALLOCATE(name) 
+#define SIGSET_ALLOCATE(name)
 #define SOCKS_SIGBLOCK_IF_CLIENT(sig, oldset)
 #define SOCKS_SIGUNBLOCK_IF_CLIENT(oldset)
 #endif /* !SOCKS_CLIENT */
@@ -225,8 +225,8 @@ do { socks_sigunblock(oldset); } while (/* CONSTCOND */ 0)
 #undef snprintf
 #define snprintf   snprintfn
 
-/* 
- * If "str", of size "strused", contains characters present in 
+/*
+ * If "str", of size "strused", contains characters present in
  * "strip", strips them off from "str".
  */
 #define STRIPTRAILING(str, strused, strip)   \
@@ -288,29 +288,14 @@ do {                                      \
 #define ERRNOISNOFILE(errno) \
    ((errno) == EMFILE || (errno) == ENFILE)
 
-#define ERRNOISTMP(errno) 	\
-   (  (errno) == EAGAIN     	\
-   || (errno) == EWOULDBLOCK	\
-   || (errno) == EINTR 		\
-   || (errno) == ENOBUFS	\
+#define ERRNOISTMP(errno)      \
+   (  (errno) == EAGAIN        \
+   || (errno) == EWOULDBLOCK   \
+   || (errno) == EINTR         \
+   || (errno) == ENOBUFS       \
    || (errno) == ENOMEM)
 
-#define ERRNOISINPROGRESS(errno) \
-   ((errno) == EWOULDBLOCK || (errno) == EINPROGRESS || (errno) == EAGAIN)
-
 #define ERRNOISACCES(errno) ((errno) == EPERM || (errno) == EACCES)
-
-/* 
- * since our pipe is a datagram pipe, this must mean a 
- * problem has occured with one of the fds we wanted to
- * pass and is thus a local/session problem, rather
- * than a fatal error.
- */
-#define ERRNOISSENDMSGFD(errno) ((errno) == ECONNREFUSED     \
-                              || (errno) == ECONNRESET       \
-                              || (errno) == ENETUNREACH      \
-                              || (errno) == EHOSTUNREACH     \
-                              || (errno) == ETIMEDOUT)       \
 
 #define PORTISRESERVED(port)   \
    (ntohs((port)) != 0 && ntohs((port)) < IPPORT_RESERVED)
@@ -540,7 +525,7 @@ do {                                                                           \
 #error "who are we?"
 #endif
 
-#if DIAGNOSTIC 
+#if DIAGNOSTIC
 
 #define SASSERT(expression)      \
 do {                             \
@@ -666,7 +651,7 @@ do {                                \
 #define PROXY_HTTP_11               8
 #define PROXY_HTTP_11s              "HTTP/1.1"
 
-/* subnegotiation. */
+/* sub negotiation. */
 #define SOCKS_UNAMEVERSION              1
 #define SOCKS_GSSAPI_VERSION            1
 #define SOCKS_GSSAPI_AUTHENTICATION     1
@@ -803,6 +788,12 @@ do {                                \
 #define SOCKS_INTERFACEDATA      0x01
 
 
+/* environment variables. */
+#define ENV_SOCKS4_SERVER     "SOCKS4_SERVER"
+#define ENV_SOCKS5_SERVER     "SOCKS5_SERVER"
+#define ENV_SOCKS_SERVER      "SOCKS_SERVER"
+#define ENV_HTTP_PROXY        "HTTP_PROXY"
+
 #define SOCKS_TCP         1
 #define SOCKS_UDP         2
 
@@ -856,11 +847,11 @@ typedef enum { SOCKS_ADDR_NOTSET   = 0,
                SOCKS_ADDR_DOMAIN   = 3,
                SOCKS_ADDR_IPV6     = 4,
                SOCKS_ADDR_URL      = 5
-} atype_t; 
+} atype_t;
 
-typedef struct { 
+typedef struct {
    /*
-    * if we mark a route/proxyserver as bad, how many seconds to wait
+    * if we mark a route/proxy server as bad, how many seconds to wait
     * until we expire the badmarking so it will be tried again for new
     * connections.  A value of zero means never.
     */
@@ -870,14 +861,14 @@ typedef struct {
     * how many times a route can fail before being marked as bad.
     * A value of zero means it will never be marked as bad.
     */
-   size_t maxfail; 
+   size_t maxfail;
 } routeoptions_t;
 
 struct logtype_t {
    int            type;      /* type of logging (where to).                   */
 
    char           **fnamev;  /* name of file, if logging to file.             */
-   int            *filenov;  /* if logging is to file, the filedescriptor.    */
+   int            *filenov;  /* if logging is to file, the file descriptor.   */
    size_t         filenoc;   /* number of files.                              */
 
    int            facility;  /* if logging to syslog, this is the facility.   */
@@ -908,8 +899,8 @@ struct timeout_t {
 /* the address part of a socks packet */
 union socksaddr_t {
    struct in_addr ipv4;
-   char            ipv6[SOCKS_IPV6_ALEN];
-   char            domain[MAXHOSTNAMELEN]; /* _always_ stored as C string.    */
+   char           ipv6[SOCKS_IPV6_ALEN];
+   char           domain[MAXHOSTNAMELEN]; /* _always_ stored as C string.    */
 };
 
 /* the host specific part of misc. things */
@@ -1327,7 +1318,7 @@ struct socksfd_t {
 
 
 struct route_t {
-   int                     number;      /* routenumber.                       */
+   int                     number;      /* route number.                       */
 
    struct {
       unsigned char autoadded;/* autoadded route?                             */
@@ -1367,7 +1358,7 @@ genericinit(void);
 void
 optioninit(void);
 /*
- * sets options to a reasonable default.  
+ * sets options to a reasonable default.
  */
 
 
@@ -1407,8 +1398,8 @@ udpheader_add(const struct sockshost_t *host, void *msg, size_t *len,
  * which is of length "len".
  * "msgsize" gives the size of the memory pointed to by "msg".
  *
- * If "msgsize" is large enough the function will prepend the socks 
- * udpheader to "msg", moving the old contents to the right.  
+ * If "msgsize" is large enough the function will prepend the socks
+ * udpheader to "msg", moving the old contents to the right.
  * If not, NULL will be returned with errno set to EMSGSIZE.  This
  * should only happen if the payload + the socks udpheader is larger
  * than the maxsize of a UDP (IP) packet.
@@ -1463,10 +1454,15 @@ fakesockshost2sockaddr(const struct sockshost_t *host, struct sockaddr *addr);
  */
 
 struct sockaddr *
-urlstring2sockaddr(const char *string, struct sockaddr *saddr);
+urlstring2sockaddr(const char *string, struct sockaddr *saddr,
+                   char *emsg, const size_t emsglen);
 /*
  * Converts the address given in "string", on URL:// format, to
- * a sockaddr address.
+ * a sockaddr address stored in "saddr".
+ *
+ * Returns "saddr" on success.
+ * Returns NULL on failure with the reason written to "emsg", which must
+ * be of at least "emsglen" size.
  */
 
 struct sockshost_t *
@@ -1573,13 +1569,15 @@ sockatmark(int s);
 ssize_t
 recvmsgn(int s, struct msghdr *msg, int flags);
 /*
- * Like recvmsg(), but handles some os-spesific bugs.
+ * Like recvmsg(), but handles some os-specific bugs.
  */
 
 ssize_t
-sendmsgn(int s, const struct msghdr *msg, int flags);
+sendmsgn(int s, const struct msghdr *msg, int flags, const int timeout);
 /*
- * Like sendmsg(), but retries on temporary errors.
+ * Like sendmsg(), but retries on temporary errors, including blocking
+ * with select(2) for up to "timeout" seconds.  If "timeout" is -1,
+ * block forever.
  */
 
 ssize_t
@@ -1655,7 +1653,7 @@ selectn(int nfds, fd_set *rset, fd_set *bufrset, fd_set *buffwset,
  *
  * In addition, if it's called by the server, it checks whether we
  * have a signal queued internally, and if so calls the appropriate
- * signalhandler.
+ * signal handler.
  */
 
 int
@@ -1805,9 +1803,9 @@ struct hostent *
 hostentdup(struct hostent *hostent, struct hostent *duped,
            const ssize_t maxaliases);
 /*
- * Duplicates "hostent".  If "duped" is NULL, memory is allocated 
+ * Duplicates "hostent".  If "duped" is NULL, memory is allocated
  * dynamically to duplicate "hostent".  This memory must later
- * be freed with hostentfree().  
+ * be freed with hostentfree().
  * If "duped" is not NULL, the duplicated "hostent" is stored there,
  * otherwise a new struct hostent is allocated that must be freed by caller.
  * "maxaliases" gives the maximum number of aliases or addresses to
@@ -1828,23 +1826,27 @@ hostentfree(struct hostent *hostent);
 
 int
 socks_connecthost(int s, const struct sockshost_t *host,
-                  struct sockaddr *addr, const long timeout);
+                  struct sockaddr *addr, const long timeout,
+                  char *emsg, const size_t emsglen);
 /*
  * Tries to connect to "host".  If "host"'s address is not a IP address,
  * the function also tries to connect to any alias for "host"'s
  * name.  The connection is done using the open descriptor "s".
  * If "addr" is not NULL, it is filled in with the address connected to if
- * successfull.  If "host" is a an ipaddress, it will be identical to that
- * ipaddress, but if "host" is a hostname, they will of course differ.
+ * successful.  If "host" is a an ip address, it will be identical to that
+ * ip address, but if "host" is a hostname, they will of course differ.
  *
  * If "timeout" is not negative, it gives the timeout for how long to wait
- * for the connect to complete.  A value of zero means no wait will be 
+ * for the connect to complete.  A value of zero means no wait will be
  * done, and the the function may return with errno set to EINPROGRESS.
  * A negative value for timeout means wait the kernel/system default.
- * 
+ *
+ * If the function fails, the reason is writtent to emsg, which must be
+ * at least "emsglen" long.
+ *
  * Returns:
  *      On success: 0
- *      On failure: -1
+ *      On failure: -1.  Reason for error is written to emsg.
  */
 
 int
@@ -2030,18 +2032,18 @@ sockshostareeq(const struct sockshost_t *a, const struct sockshost_t *b);
  */
 
 int
-fdsetop(int nfds, int op, const fd_set *a, const fd_set *b, fd_set *result);
+fdsetop(int highestfd, int op, const fd_set *a, const fd_set *b,
+        fd_set *result);
 /*
  * Performs operation on descriptor sets.
- * "nfds" is the number of descriptors to perform "op" on in the sets
- * "a" and "b".
- * "op" is the operation to be performed on the descriptor sets and
- * can take on the value of standard C bitwise operators.
+ * "highestfd" is the descriptors with the highest index to perform operation
+ * "op" on in the sets "a" and "b".
+ *
  * The result of the operation is stored in "result".
  *
  * Returns the number of the highest descriptor set in "result".
  * NOTES:
- *      Operators supported is: AND ('&'), XOR ('^'), and OR ('|').
+ *      - operators supported is: AND ('&'), XOR ('^'), and OR ('|').
  */
 
 int
@@ -2065,10 +2067,10 @@ int
 socks_mklock(const char *template, char *newname, const size_t newnamelen);
 /*
  * Creates a file that can be used with socks_lock() and
- * socks_unlock().  Returns the filedescriptor of the created file.
+ * socks_unlock().  Returns the file descriptor of the created file.
  * If "newname" or "newnamelen" is zero, the created file is unlinked.
  * Otherwise the file is not unlinked and the name of the created file is
- * is saved to newname.  
+ * is saved to newname.
  *
  * Returns:
  *      On success: file descriptor
@@ -2082,7 +2084,7 @@ socks_lock(const int fd, const int exclusive, const int wait);
  * If "exclusive" is true, the lock is exclusive.  If not, it is shared.
  * If "wait" is true, wait for the lock.  If not, return if the lock
  * can not be taken.
- * Upgrade/downgrade to/from exclusive is permited.
+ * Upgrade/downgrade to/from exclusive is permitted.
  *
  * Returns:
  *      On success: 0
@@ -2212,10 +2214,10 @@ socks_negotiate(int s, int control, struct socks_t *packet,
 int
 serverreplyisok(int version, unsigned int reply, struct route_t *route);
 /*
- * "replycode" is the reply code returned by a socksserver of version
+ * "replycode" is the reply code returned by a socks server of version
  * "version".
- * "route" is the route that was used for the socksserver.
- * If the errorcode indicates a server failure, the route might be
+ * "route" is the route that was used for the socks server.
+ * If the error code indicates a server failure, the route might be
  * "blacklisted".
  *
  * Returns true if the reply indicates request succeeded, false otherwise
@@ -2413,7 +2415,7 @@ size_t socks_addtobuffer(const int s, const whichbuf_t which,
 /*
  * Adds "data", of length "datalen" to the buffer belonging to "s".
  * "which" must have one of the values WRITE_BUF or READ_BUF, to
- * indicate what part of the buffer to add the data to; 
+ * indicate what part of the buffer to add the data to;
  * READ_BUF : data that has been read from the socket.
  * WRITE_BUF: data that should be written to the socket.
  *
@@ -2517,7 +2519,7 @@ int
 socks_msghaserrors(const char *prefix, const struct msghdr *msg);
 /*
  * Checks if "msg", as received via recvmsg(2), was truncated or
- * had other detectable errors, and reports it if so. 
+ * had other detectable errors, and reports it if so.
  * If reporting, "prefix" should contain information about where
  * the message was received.
  *
@@ -2527,9 +2529,9 @@ socks_msghaserrors(const char *prefix, const struct msghdr *msg);
 void seconds2days(unsigned long *seconds, unsigned long *days,
                   unsigned long *hours, unsigned long *minutes);
 /*
- * Converts "seconds" to the corresponding number of days, hours, minutes, 
+ * Converts "seconds" to the corresponding number of days, hours, minutes,
  * and seconds.
- * Upon return, the days, hours, minutes, and seconds are stored in the 
+ * Upon return, the days, hours, minutes, and seconds are stored in the
  * passed arguments.
  */
 
@@ -2539,7 +2541,7 @@ showconfig(const struct config_t *config);
  * prints out config "config".
  */
 
-#if COVENANT 
+#if COVENANT
 char *socks_decode_base64(char *in, char *out, size_t outlen);
 
 #endif /* COVENANT */

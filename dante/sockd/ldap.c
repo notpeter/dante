@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009
+ * Copyright (c) 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: ldap.c,v 1.7 2011/04/22 16:41:36 karls Exp $
+ * $Id: ldap.c,v 1.9 2011/05/18 13:48:47 karls Exp $
  */
 
  /*
@@ -50,10 +50,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: ldap.c,v 1.7 2011/04/22 16:41:36 karls Exp $";
+"$Id: ldap.c,v 1.9 2011/05/18 13:48:47 karls Exp $";
 
 const char module_checkldapgroup_version[] =
-"$Id: ldap.c,v 1.7 2011/04/22 16:41:36 karls Exp $";
+"$Id: ldap.c,v 1.9 2011/05/18 13:48:47 karls Exp $";
 
 
 #if HAVE_LDAP
@@ -140,7 +140,7 @@ static struct kstruct {
 } kparam;
 #endif
 
-void 
+void
 ldapcachesetup(void)
 {
 
@@ -152,17 +152,17 @@ ldapgroupmatches(username, userdomain, group, groupdomain, rule)
    const char *userdomain;
    const char *group;
    const char *groupdomain;
-   const struct rule_t *rule; 
+   const struct rule_t *rule;
 {
    const char *function = "ldapgroupmatches()";
 
    (void)rule;
 
-   slog(LOG_DEBUG, "%s: user: %s user domain: %s", function, username, 
+   slog(LOG_DEBUG, "%s: user: %s user domain: %s", function, username,
       userdomain != NULL ? userdomain : "NULL");
-   slog(LOG_DEBUG, "%s: group: %s group domain: %s", function, group, 
+   slog(LOG_DEBUG, "%s: group: %s group domain: %s", function, group,
       groupdomain != NULL ? groupdomain: "NULL");
- 
+
    return 0;
 }
 
@@ -177,7 +177,7 @@ cache_ldap_user(username, retval)
 }
 
 int
-ldap_user_is_cached(username) 
+ldap_user_is_cached(username)
    const char *username;
 {
 

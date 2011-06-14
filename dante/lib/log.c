@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
+ *               2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.176 2011/05/10 10:17:16 michaels Exp $";
+"$Id: log.c,v 1.187 2011/06/13 11:06:36 michaels Exp $";
 
 #include "common.h"
 #include "config_parse.h"
@@ -166,7 +167,7 @@ iolog(rule, state, operation,
    size_t count;
 {
    char srcdst_str[MAX_IOLOGADDR + strlen(" -> ") + MAX_IOLOGADDR],
-        rulecommand[256], 
+        rulecommand[256],
         ruleinfo[SOCKD_BUFSIZE * 4 + 1 + sizeof(srcdst_str)
                  + 1024 /* misc stuff, if any. */];
    int logdstinfo;
@@ -293,7 +294,8 @@ newprocinit(void)
    sockscf.state.pid = getpid();
 
    /* CONSTCOND */
-   if ((sockscf.log.type & LOGTYPE_SYSLOG)
+   if ((sockscf.log.type    & LOGTYPE_SYSLOG)
+   ||  (sockscf.errlog.type & LOGTYPE_SYSLOG)
    ||  HAVE_LIBWRAP /* libwrap may also log to syslog. */) {
       closelog();
 
@@ -301,10 +303,15 @@ newprocinit(void)
        * LOG_NDELAY so we don't end up in a situation where we
        * have no free descriptors and haven't yet syslog-ed anything.
        */
-      openlog(__progname, LOG_NDELAY | LOG_PID, sockscf.log.facility);
+      openlog(__progname,
+              LOG_NDELAY | LOG_PID
+#ifdef LOG_NOWAIT
+              | LOG_NOWAIT
+#endif /* LOG_NOWAIT */
+              , 0);
    }
 
-   /* 
+   /*
     * Don't inherit mothers signal-queue.
     */
    sockscf.state.signalc = 0;
@@ -363,7 +370,7 @@ socks_addlogfile(logcf, logfile)
          logcf->filenov[logcf->filenoc] = fileno(stderr);
       else {
 #if !SOCKS_CLIENT
-         if (sockscf.state.inited) 
+         if (sockscf.state.inited)
             sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
 #endif /* SERVER */
 
@@ -380,10 +387,9 @@ socks_addlogfile(logcf, logfile)
             serr(EXIT_FAILURE, "open(%s)", logfile);
       }
 
-      if ((flag = fcntl(logcf->filenov[logcf->filenoc],
-      F_GETFD, 0)) == -1
-      ||  fcntl(logcf->filenov[logcf->filenoc], F_SETFD,
-      flag | FD_CLOEXEC) == -1)
+      if ((flag = fcntl(logcf->filenov[logcf->filenoc], F_GETFD, 0)) == -1
+      ||  fcntl(logcf->filenov[logcf->filenoc], F_SETFD, flag | FD_CLOEXEC)
+      == -1)
          serr(EXIT_FAILURE, "fcntl(F_GETFD/F_SETFD)");
 
       if ((logcf->fnamev[logcf->filenoc] = strdup(logfile)) == NULL)
@@ -434,8 +440,8 @@ vslog(priority, message, ap, apsyslog)
    int logged = 0;
 
 #if !SOCKS_IGNORE_SIGNALSAFETY
-   if (sockscf.state.insignal 
-   /* && priority > LOG_ERR */) /* > pri means < serious */
+   if (sockscf.state.insignal
+   /* && priority > LOG_WARNING */) /* > pri means < serious */
       /*
        * Note that this can be the case even if insignal is not set.
        * This can happen in the client if the application has
@@ -448,8 +454,41 @@ vslog(priority, message, ap, apsyslog)
    if (priority == LOG_DEBUG && !sockscf.option.debug)
       return;
 
+   /*
+    * Do syslog logging first ...
+    */
+   if ((sockscf.errlog.type & LOGTYPE_SYSLOG)
+   ||  (sockscf.log.type    & LOGTYPE_SYSLOG)) {
+      int p;
+
+      if ((p = vsnprintf(logstr, sizeof(logstr), message, apsyslog)) < 0 
+      ||  p >= (int)sizeof(logstr))
+         return;
+
+      if (priority <= LOG_WARNING) /* lower pri value means more serious */
+         if (sockscf.errlog.type & LOGTYPE_SYSLOG) {
+            syslog(priority | sockscf.errlog.facility,
+                   "%s: %s",
+                   loglevel2string(priority), logstr);
+
+            logged = 1;
+         }
+
+      if (sockscf.log.type & LOGTYPE_SYSLOG) {
+         syslog(priority | sockscf.log.facility,
+                "%s: %s",
+                loglevel2string(priority), logstr);
+
+         logged = 1;
+      }
+   }
+
+   /*
+    * ... and then logging to file.
+    */
+
    needlock = 0;
-   if ((priority <= LOG_ERR && (sockscf.errlog.type & LOGTYPE_FILE))
+   if ((priority <= LOG_WARNING && (sockscf.errlog.type & LOGTYPE_FILE))
    || ((sockscf.log.type & LOGTYPE_FILE))) {
       loglen = logformat(priority, logstr, sizeof(logstr), message, ap);
 
@@ -461,17 +500,8 @@ vslog(priority, message, ap, apsyslog)
    else
       loglen = 0;
 
-
-   /*
-    * Do error-related loging first ...
-    */
-
-   if (priority <= LOG_ERR) { /* lower pri value means more serious */
-      if (sockscf.errlog.type & LOGTYPE_SYSLOG) {
-         vsyslog(priority, message, apsyslog);
-         logged = 1;
-      }
-   
+   /* error-related logging first ...  */
+   if (priority <= LOG_WARNING) { /* lower pri value means more serious */
       if (loglen != 0 && (sockscf.errlog.type & LOGTYPE_FILE)) {
          size_t i;
 
@@ -482,15 +512,7 @@ vslog(priority, message, ap, apsyslog)
       }
    }
 
-   /*
-    * ... and then normal logging.
-    */
-
-   if (sockscf.log.type & LOGTYPE_SYSLOG) {
-      vsyslog(priority, message, apsyslog);
-      logged = 1;
-   }
-
+   /* ... and then normal logging. */
    if (loglen != 0 && (sockscf.log.type & LOGTYPE_FILE)) {
       size_t i;
 
@@ -509,20 +531,24 @@ vslog(priority, message, ap, apsyslog)
     * work.
     */
 
-   if (loglen != 0
-   &&  !logged
+   if (!logged
+   &&  !sockscf.state.inited
    &&  priority != LOG_DEBUG
-   && !sockscf.state.inited
 #if !SOCKS_CLIENT
    && !sockscf.option.daemon
 #endif /* !SOCKS_CLIENT */
    ) {
       /* may not have set-up logfiles yet. */
 #if !SOCKS_CLIENT /*
-                   * log to stderr for now. 
+                   * log to stderr for now.
                    * no idea where stdout points to in client case.
                    */
-      write(fileno(stderr), logstr, loglen - 1);
+
+      if (loglen == 0)
+         loglen = logformat(priority, logstr, sizeof(logstr), message, ap);
+
+      if (loglen != 0)
+         write(fileno(stderr), logstr, loglen - 1);
 #endif /* SOCKS_SERVER */
    }
 
@@ -559,39 +585,70 @@ logformat(priority, buf, buflen, message, ap)
       case LOG_DEBUG:
          if (!sockscf.option.debug)
             return 0;
-         break;
    }
 
    gettimeofday(&timenow, NULL);
+   bufused = 0;
 
    if (!sockscf.state.insignal) { /* very prone to hanging on some systems. */
       secondsnow = (time_t)timenow.tv_sec;
-      bufused = strftime(buf, buflen, "%h %e %T ", localtime(&secondsnow));
+      bufused += strftime(&buf[bufused], buflen - bufused,
+                          "%h %e %T ",
+                          localtime(&secondsnow));
    }
    else
-      bufused = snprintf(buf, buflen, "<in signalhandler - no localtime> ");
+      bufused += snprintf(&buf[bufused], buflen - bufused,
+                          "<in signalhandler> ");
 
-   if (bufused <= 0)
-      return 0;
+   if (bufused >= buflen) {
+      buf[buflen - 1] = NUL;
+      return buflen;
+   }
 
-   ++bufused; /* count the terminating NUL also, once. */
-
-   bufused += snprintf(&buf[bufused - 1], buflen - bufused,
+   bufused += snprintf(&buf[bufused], buflen - bufused,
                        "(%ld.%ld) %s[%lu]: ",
                        (long)timenow.tv_sec,
                        (long)timenow.tv_usec,
                        __progname,
                        (unsigned long)pid);
 
-   if ((p = vsnprintf(&buf[bufused - 1], buflen - bufused, message, ap)) <= 0)
+   if (bufused >= buflen) {
+      buf[buflen - 1] = NUL;
+      return buflen;
+   }
+
+   bufused += snprintf(&buf[bufused], buflen - bufused,
+                       "%s: ",
+                       loglevel2string(priority));
+
+   if (bufused >= buflen) {
+      buf[buflen - 1] = NUL;
+      return buflen;
+   }
+
+   if ((p = vsnprintf(&buf[bufused], buflen - bufused, message, ap)) < 0
+   ||  (size_t)p >= buflen - bufused)
       return 0;
+
    bufused += p;
 
-   if (buf[bufused - 2] != '\n') { /* add ending newline. */
-      bufused        = MIN(bufused - 1, buflen - 2); /* silently truncate. */
+   if (bufused >= buflen) {
+      buf[buflen - 1] = NUL;
+      return buflen;
+   }
+
+   SASSERTX(buf[bufused] == NUL);
+
+   /* make sure there always is an ending newline. */
+   if (buf[bufused - 1] != '\n') {
+      if ((bufused - 1) + strlen("\n") + 1 /* NUL */ >= buflen)
+         --bufused; /* silently truncate. */
+
       buf[bufused++] = '\n';
       buf[bufused++] = NUL;
    }
+   else
+      ++bufused; /* count NUL also. */
 
    return bufused;
 }
@@ -619,4 +676,4 @@ slogstack(void)
 
    free(strings);
 }
-#endif
+#endif /* DEBUG && HAVE_BACKTRACE */

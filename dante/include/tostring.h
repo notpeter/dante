@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2006, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2006, 2008, 2009, 2010,
+ *               2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +42,7 @@
  *
  */
 
-/* $Id: tostring.h,v 1.40 2011/04/04 06:33:44 michaels Exp $ */
+/* $Id: tostring.h,v 1.43 2011/06/13 08:55:49 michaels Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
@@ -261,10 +262,10 @@ socket2string(const int s, char *buf, size_t buflen)
 /*
  * Prints out address info for the socket "s".
  * "buf" gives the buffer to write the address info to, "buflen" the
- * size of "buf".  If buflen is zero, a staticly allocated buffer will
+ * size of "buf".  If buflen is zero, a statically allocated buffer will
  * be used instead.
  *
- * Returns a pointer to buf.  
+ * Returns a pointer to buf.
  */
 
 const char *
@@ -288,6 +289,10 @@ routeoptions2string(const routeoptions_t *options, char *str, size_t strsize);
  */
 
 
+const char *loglevel2string(const int loglevel);
+/*
+ * returns a printable representation of the loglevel "loglevel".
+ */
 
 char *
 logtypes2string(const struct logtype_t *logtypes, char *str, size_t strsize)
@@ -430,8 +435,8 @@ privop2string(const priv_op_t op);
 #if COVENANT
 const char *httpcode2string(const int version, const int code);
 /*
- * Returns a short printable representation of the http version 
- * "version" responsecode "code"
+ * Returns a short printable representation of the http version
+ * "version" response code "code"
  */
 
 #endif /* COVENANT */

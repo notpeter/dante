@@ -41,11 +41,11 @@
  *
  */
 
-/* $Id: socks_glibc.h,v 1.7 2009/10/27 12:13:01 karls Exp $ */
+/* $Id: socks_glibc.h,v 1.8 2011/05/18 11:27:31 karls Exp $ */
 
 /*
- * Workaround for limitations in newer glibc versions, as LD_PRELOAD
- * cannot catch system calls made by glibc.
+ * Workaround for limitations in newer glibc versions, where LD_PRELOAD
+ * cannot intercept system calls made by glibc.
  *
  * Code contributed by Markus Moeller (markus_moeller at compuserve.com),
  * thanks.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2003, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2001, 2003, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.73 2011/04/27 09:53:38 michaels Exp $";
+"$Id: sockd_socket.c,v 1.75 2011/05/18 13:48:47 karls Exp $";
 
 int
 sockd_bind(s, addr, retries)
@@ -79,7 +79,7 @@ sockd_bind(s, addr, retries)
        * else;  non-fatal error and retry?
        */
 
-      slog(LOG_DEBUG, "%s: failed to bind %s (%s)", 
+      slog(LOG_DEBUG, "%s: failed to bind %s (%s)",
       function, sockaddr2string(addr, NULL, 0), errnostr(errno));
 
       switch (errno) {
@@ -223,7 +223,7 @@ bindinternal(protocol)
          function, sockaddr2string(&l->addr, NULL, 0), l->s);
 
          SASSERTX(fdisopen(l->s));
-         continue; 
+         continue;
       }
 
       if ((l->s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
@@ -374,5 +374,3 @@ setsockoptions(s, type, isclientside)
       swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
 #endif /* HAVE_LIBWRAP */
 }
-
-

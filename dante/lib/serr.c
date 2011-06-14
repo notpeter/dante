@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serr.c,v 1.32 2010/10/18 07:04:46 michaels Exp $";
+"$Id: serr.c,v 1.36 2011/06/13 09:55:00 michaels Exp $";
 
 #if SOCKS_CLIENT
 /* for errors, we want it logged. */
@@ -94,8 +94,8 @@ serrx(int eval, const char *fmt, ...)
       vslog(LOG_ERR, fmt, ap, apcopy);
 
       /* LINTED expression has null effect */
-      va_end(ap);
       va_end(apcopy);
+      va_end(ap);
    }
 
 #if SOCKS_CLIENT
@@ -124,7 +124,7 @@ swarn(const char *fmt, ...)
                   ": %s (errno = %d)",
                   strerror(errno), errno);
 
-      slog(LOG_ERR, "%s", buf);
+      slog(LOG_WARNING, "%s", buf);
 
       /* LINTED expression has null effect */
       va_end(ap);
@@ -142,10 +142,10 @@ swarnx(const char *fmt, ...)
       va_start(ap, fmt);
       va_start(apcopy, fmt);
 
-      vslog(LOG_ERR, fmt, ap, apcopy);
+      vslog(LOG_WARNING, fmt, ap, apcopy);
 
       /* LINTED expression has null effect */
-      va_end(ap);
       va_end(apcopy);
+      va_end(ap);
    }
 }

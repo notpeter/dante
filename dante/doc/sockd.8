@@ -1,6 +1,7 @@
-.\" $Id: sockd.8,v 1.48 2011/05/11 16:51:24 michaels Exp $
+.\" $Id: sockd.8,v 1.51 2011/05/20 16:17:01 michaels Exp $
 .\"
-.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2008, 2009
+.\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2008, 2009, 2010,
+.\"               2011
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -84,7 +85,7 @@ others as possible.
 .B \-V
 Verifies config file and exits.
 .TP
-.B \-d number
+.BI \-d number
 Sets the level of debugging, zero to disable.
 .TP
 .BI \-f file
@@ -115,8 +116,7 @@ version.
 .SH SIGNALS
 .TP
 .B SIGHUP
-Reload the configuration file.  Will also reopen logfiles, but note that
-you can not change the value of logoutput after starting the server.
+Reload the configuration file.  Will also reopen logfiles.
 .TP
 .B SIGINFO/SIGUSR1
 Print some information about the servers current state and clients.
@@ -125,13 +125,13 @@ Print some information about the servers current state and clients.
 .B TMPDIR
 Use
 .B TMPDIR
-for temporary files.  
+for temporary files.
 .B Dante
 will use this directory for lockfiles and memory-mapped files.
 It is recommended that
 .B TMPDIR
 be set to a (local) filesystem with low latency.  The directory
-should have read/write/execute permission by both the 
+should have read/write/execute permission by both the
 privileged and unprivileged userid (as specified in
 /etc/sockd.conf), but no other non-privileged users.
 .SH FILES

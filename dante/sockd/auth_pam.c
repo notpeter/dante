@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009
+ * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.76 2011/03/28 10:27:47 michaels Exp $";
+"$Id: auth_pam.c,v 1.78 2011/05/18 13:48:46 karls Exp $";
 
 static int
 pam_conversation(int msgc, const struct pam_message **msgv,
@@ -103,10 +103,10 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
     * depending on the client/rule.
     * Some Linux pam-implementations on the other hand can enter
     * some sort of busy-loop if we don't call pam_end(3) ever so
-    * often. 
+    * often.
     *
-    * Therefor, disregard all possible optimization stuff for now and 
-    * call pam_start(3) and pam_end(3) every time.  
+    * Therefor, disregard all possible optimization stuff for now and
+    * call pam_start(3) and pam_end(3) every time.
     */
 
    pamconv.conv        = pam_conversation;
@@ -126,9 +126,9 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    for (i = 0; i < ELEMENTS(pamval); ++i) {
       char value[256];
 
-      str2vis((const char *)pamval[i].value, 
-              strlen((const char *)pamval[i].value), 
-              value, 
+      str2vis((const char *)pamval[i].value,
+              strlen((const char *)pamval[i].value),
+              value,
               sizeof(value));
 
       slog(LOG_DEBUG, "%s: setting item \"%s\" to value \"%s\"",
@@ -175,7 +175,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    }
 
    if ((rc = pam_end(pamh, rc)) != PAM_SUCCESS)
-      swarnx("%s: strange ... pam_end() failed: %s", 
+      swarnx("%s: strange ... pam_end() failed: %s",
       function, pam_strerror(pamh, rc));
 
    slog(LOG_DEBUG, "%s: pam authentication succeeded", function);

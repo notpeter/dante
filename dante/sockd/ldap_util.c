@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010
+ * Copyright (c) 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,41 +49,43 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: ldap_util.c,v 1.5 2011/01/04 09:41:07 karls Exp $";
+"$Id: ldap_util.c,v 1.8 2011/06/02 08:22:58 michaels Exp $";
 
 #if HAVE_LDAP
 char
-*asciitoutf8(input) 
+*asciitoutf8(input)
    char *input;
 {
    const char *function = "asciitoutf8()";
    size_t n, a;
    unsigned char *p, *utf8;
-   int c = 0, s;
    char *at;
+   int c, s;
 
    SASSERTX(input != NULL);
-      
-   for (n = 0; n < strlen(input); ++n)
+
+   for (n = 0, c = 0; n < strlen(input); ++n)
       if ((unsigned char)input[n] > 127)
          c++;
+
    at = strrchr(input, '@');
    if (at)
       a = at - input;
    else
-      a = strlen(input) - 1; 
+      a = strlen(input) - 1;
+
    if (c != 0) {
       if ((p = malloc(strlen(input) + c)) == NULL)
          serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
 
       utf8 = p;
       for (n = 0; n < strlen(input); ++n) {
-         if (n == a) { 
+         if (n == a) {
             /* Do not change domain name */
             break;
          }
          s = (unsigned char)input[n];
-         /* Change ASCII > 127 to UTF-8 
+         /* Change ASCII > 127 to UTF-8
             0xC2 0x80-0xBF
             0xC3 0x80-0xBF
          */
@@ -146,14 +148,14 @@ char
    if ((utf8 = malloc(strlen(input))) == NULL)
       serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
 
-   i     = 0;   
+   i     = 0;
    iUTF2 = 0;
    iUTF3 = 0;
    iUTF4 = 0;
-   
+
    n = 0;
    while (n < strlen(input)) {
-      if (!flag && n == a) { 
+      if (!flag && n == a) {
          /* Do not change domain name */
          break;
       }
@@ -161,7 +163,7 @@ char
          /* Do not change @ seperator */
          utf8[i] = '@';
          i++;
-         n++; 
+         n++;
       }
 
       ival = input[n];
@@ -174,14 +176,14 @@ char
       else {
          slog(LOG_DEBUG, "%s: invalid Hex value 0x%x", function, ival);
 
-         SASSERTX((ival > 64 && ival < 71) || 
+         SASSERTX((ival > 64 && ival < 71) ||
                   (ival > 96 && ival < 103) ||
                   (ival > 47 && ival < 58));
       }
 
       if (n == a - 1) {
         slog(LOG_DEBUG, "%s: invalid Hex UTF-8 string \"%s\"", function, input);
-        SASSERTX(n < a - 1);  
+        SASSERTX(n < a - 1);
       }
 
       n++;
@@ -191,7 +193,7 @@ char
       else if (ival > 47 && ival < 58) ichar = ichar + ival - 48;
       else {
          slog(LOG_DEBUG, "%s: invalid Hex value 0x%x", function, ival);
-         SASSERTX((ival > 64 && ival < 71) || 
+         SASSERTX((ival > 64 && ival < 71) ||
                   (ival > 96 && ival < 103) ||
                   (ival > 47 && ival < 58));
       }
@@ -345,7 +347,7 @@ char
       }
 
       n++;
-   } 
+   }
 
    utf8[i] = NUL;
    if (iUTF2 || iUTF3 || iUTF4) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.59 2011/03/24 15:52:59 michaels Exp $";
+"$Id: udp_util.c,v 1.61 2011/05/18 13:48:46 karls Exp $";
 
 struct udpheader_t *
 sockaddr2udpheader(to, header)
@@ -68,7 +68,7 @@ udpheader_add(host, msg, len, msgsize)
    size_t *len;
    const size_t msgsize;
 {
-   const char *function = "udpheader_add()"; 
+   const char *function = "udpheader_add()";
    struct udpheader_t header;
    unsigned char *offset;
 

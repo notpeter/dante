@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2001, 2005, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,20 +44,22 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.91 2011/05/13 16:06:48 michaels Exp $";
+"$Id: socket.c,v 1.99 2011/05/27 10:24:28 michaels Exp $";
 
 int
-socks_connecthost(s, host, saddr, timeout)
+socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
    int s;
    const struct sockshost_t *host;
    struct sockaddr *saddr;
    const long timeout;
+   char *emsg;
+   const size_t emsglen;
 {
    const char *function = "socks_connecthost()";
    struct hostent *hostent;
-   struct sockaddr_in address, laddr;
+   struct sockaddr laddr, saddrmem;
    socklen_t len;
-   char **ip, addrstr[MAXSOCKADDRSTRING], hoststr[MAXSOCKSHOSTSTRING], 
+   char **ip, addrstr[MAXSOCKADDRSTRING], hoststr[MAXSOCKSHOSTSTRING],
               laddrstr[MAXSOCKADDRSTRING];
    int failed, rc;
    static fd_set *wset;
@@ -65,22 +67,23 @@ socks_connecthost(s, host, saddr, timeout)
    /*
     * caller depends on errno to know whether the connect(2) failed
     * permanently, or whether things are now in progress, so make
-    * sure errno is correct upon return, and definitly not some old
+    * sure errno is correct upon return, and definitely not some old
     * residue.
     */
    errno = 0;
+
+   if (emsglen > 0)
+      *emsg = NUL; /* init. */
 
    if (wset == NULL)
       wset = allocate_maxsize_fdset();
 
    len = sizeof(laddr);
-   if (getsockname(s, (struct sockaddr *)&laddr, &len) == -1) {
-      slog(LOG_DEBUG, "%s: getsockname(2) failed: %s",
-      function, strerror(errno));
-
+   if (getsockname(s, &laddr, &len) == -1) {
+      snprintf(emsg, emsglen, "getsockname(2) failed: %s", errnostr(errno));
       return -1;
    }
-   sockaddr2string((struct sockaddr *)&laddr, laddrstr, sizeof(laddrstr));
+   sockaddr2string(&laddr, laddrstr, sizeof(laddrstr));
 
    slog(LOG_DEBUG, "%s: connect to %s from %s, on socket %d.  Timeout is %ld\n",
         function,
@@ -90,7 +93,7 @@ socks_connecthost(s, host, saddr, timeout)
         timeout);
 
    if (saddr == NULL)
-      saddr = (struct sockaddr *)&address;
+      saddr = &saddrmem;
 
    bzero(saddr, sizeof(*saddr));
    TOIN(saddr)->sin_family = AF_INET;
@@ -103,19 +106,22 @@ socks_connecthost(s, host, saddr, timeout)
          changed_to_nonblocking = 0;
          if (timeout != -1) {
             if ((flags = fcntl(s, F_GETFL, 0)) == -1) {
-               swarn("%s: fcntl(%d, F_GETFL) failed", function, s);
+               snprintf(emsg, emsglen, "fcntl(F_GETFL) failed: %s",
+                        errnostr(errno));
+
                return -1;
             }
 
             if (!(flags & O_NONBLOCK)) {
                slog(LOG_DEBUG, "%s: temporarily changing fd %d to nonblocking "
-                               "in order to facilate the specified connect "
-                               "timeout", 
+                               "in order to facilitate the specified connect "
+                               "timeout",
                                function, s);
 
                if (fcntl(s, F_SETFL, flags | O_NONBLOCK) == -1) {
-                  swarn("%s; could not change fd %d to nonblocking",
-                  function, s);
+                  snprintf(emsg, emsglen,
+                           "could not change fd to nonblocking: %s",
+                           errnostr(errno));
 
                   return -1;
                }
@@ -133,9 +139,9 @@ socks_connecthost(s, host, saddr, timeout)
          slog(LOG_DEBUG, "%s: connect() returned %d (%s)",
          function, rc, errnostr(errno));
 
-         if (changed_to_nonblocking) 
+         if (changed_to_nonblocking)
             if (fcntl(s, F_SETFL, flags & ~O_NONBLOCK) == -1)
-               swarn("%s: failed reverting fd %d back to blocking", 
+               swarn("%s: failed reverting fd %d back to blocking",
                function, s);
 
          if (rc == 0)
@@ -152,15 +158,15 @@ socks_connecthost(s, host, saddr, timeout)
 
 #if SOCKS_CLIENT
          /*
-          * if errno is EINTR, it may be due to the client having set up an 
-          * alarm for this.  We can't know for sure, so better not 
+          * if errno is EINTR, it may be due to the client having set up an
+          * alarm for this.  We can't know for sure, so better not
           * retry in that case.
           */
           if (rc == -1) {
             if (errno == EINTR)
                return rc;
 
-            if (!changed_to_nonblocking) 
+            if (!changed_to_nonblocking)
                /*
                 * was passed a non-blocking fd by the client, so client does
                 * not want to wait for the connect to complete.  Let the
@@ -174,7 +180,7 @@ socks_connecthost(s, host, saddr, timeout)
             return rc;
 
          while (rc == -1
-         &&    (   ERRNOISINPROGRESS(errno)
+         &&    (   errno == EINPROGRESS
 #if SOCKS_CLIENT
                 || errno == EINTR
 #endif /* SOCKS_CLIENT */
@@ -191,7 +197,7 @@ socks_connecthost(s, host, saddr, timeout)
 
             if (rc == 0)
                errno = ETIMEDOUT;
-            else { 
+            else {
                len = sizeof(errno);
                getsockopt(s, SOL_SOCKET, SO_ERROR, &errno, &len);
             }
@@ -202,21 +208,20 @@ socks_connecthost(s, host, saddr, timeout)
                rc = -1;
          }
 
-         if (rc == 0 || ERRNOISINPROGRESS(errno)) {
+         if (rc == 0 || errno == EINPROGRESS) {
             /*
              * if address was incomplete before, it should be complete now.
              */
             len = sizeof(laddr);
-            if (getsockname(s, (struct sockaddr *)&laddr, &len) == -1) {
-               slog(LOG_DEBUG, "%s: getsockname(2) failed: %s",
-               function, strerror(errno));
+            if (getsockname(s, &laddr, &len) == -1) {
+               snprintf(emsg, emsglen,
+                        "getsockname(2) after connect(2) failed: %s",
+                        errnostr(errno));
 
                return -1;
             }
 
-            sockaddr2string((struct sockaddr *)&laddr,
-                            laddrstr,
-                            sizeof(laddrstr));
+            sockaddr2string(&laddr, laddrstr, sizeof(laddrstr));
          }
 
          slog(LOG_DEBUG, "%s: connect to %s from %s on socket %d %s (%s)",
@@ -225,7 +230,7 @@ socks_connecthost(s, host, saddr, timeout)
                          laddrstr,
                          s,
                          rc == 0 ? "ok" :
-                         ERRNOISINPROGRESS(errno) ? "in progress" : "failed",
+                         errno == EINPROGRESS ? "in progress" : "failed",
                          errnostr(errno));
 
          return rc;
@@ -234,12 +239,10 @@ socks_connecthost(s, host, saddr, timeout)
       case SOCKS_ADDR_DOMAIN:
          hostent = gethostbyname(host->addr.domain);
          if (hostent == NULL || (ip = hostent->h_addr_list) == NULL) {
-            slog(LOG_DEBUG, "%s: could not resolve hostname \"%s\": %s",
-                 function,
-                 host->addr.domain, 
-                 hstrerror(h_errno));
+            snprintf(emsg, emsglen, "could not resolve hostname \"%s\": %s",
+                     host->addr.domain, hstrerror(h_errno));
 
-            errno = ENETUNREACH; /* something indicating permanent failure. */
+            errno = EHOSTUNREACH; /* anything but EINPROGRESS. */
             return -1;
          }
          break;
@@ -248,38 +251,43 @@ socks_connecthost(s, host, saddr, timeout)
          SERRX(host->atype);
    }
 
-   SASSERTX(host->atype == SOCKS_ADDR_DOMAIN);
+   SASSERTX(host->atype == (unsigned char)SOCKS_ADDR_DOMAIN);
    SASSERTX(hostent != NULL && ip != NULL);
+   SASSERTX(ADDRISBOUND(TOIN(&laddr)));
 
    failed = 0;
-   do { /* try all ipaddresses hostname resolves to. */
+   do { /* try all ip addresses hostname resolves to. */
       struct sockshost_t newhost;
 
       if (failed) { /* previously failed, need to create a new socket. */
-         struct sockaddr name;
-         socklen_t namelen;
          int new_s;
 
-         /* will also try to get the same port binding. */
-         namelen = sizeof(name);
-         if (getsockname(s, &name, &namelen) != 0)
-            return -1;
+         if ((new_s = socketoptdup(s)) == -1) {
+            snprintf(emsg, emsglen, "socketoptdup() failed: %s",
+                     errnostr(errno));
 
-         if ((new_s = socketoptdup(s)) == -1)
             return -1;
+         }
 
          if (dup2(new_s, s) == -1) {
+            snprintf(emsg, emsglen, "dup2() failed: %s", errnostr(errno));
             close(new_s);
+
             return -1;
          }
          close(new_s); /* s is now a new socket but keeps the same index. */
 
+         /* try to bind the same address/port. */
 #if SOCKS_CLIENT
-         if (bind(s, &name, namelen) != 0)
+         if (bind(s, &laddr, sizeof(laddr)) != 0) {
+            snprintf(emsg, emsglen, "bind() failed: %s", strerror(errno));
             return -1;
+         }
 #else /* SOCKS_SERVER */
-         if (sockd_bind(s, &name, 1) != 0)
+         if (sockd_bind(s, &laddr, 1) != 0) {
+            snprintf(emsg, emsglen, "sockd_bind() failed: %s", errnostr(errno));
             return -1;
+         }
 #endif /* SOCKS_SERVER */
       }
 
@@ -288,7 +296,7 @@ socks_connecthost(s, host, saddr, timeout)
 
       if (*(ip + 1) == NULL)
          /*
-          * no more ipaddresses to try.  That means we can simply call
+          * no more ip addresses to try.  That means we can simply call
           * socks_connecthost() with the timeout as received.
           * If not, we will need to disregard the passed in timeout and
           * connect to one address at a time and await the result. :-/
@@ -296,13 +304,17 @@ socks_connecthost(s, host, saddr, timeout)
           * XXX improve this by keeping track of how much time we've used
           * so far, so we can decrement the timeout on each connecthost()
           * call?
-          */ 
-         rc = socks_connecthost(s, &newhost, saddr, timeout);
+          */
+         rc = socks_connecthost(s, &newhost, saddr, timeout, emsg, emsglen);
       else
-         rc = socks_connecthost(s, &newhost, saddr,
+         rc = socks_connecthost(s,
+                                &newhost,
+                                saddr,
                                 sockscf.timeout.connect ?
                                 /* LINTED cast from unsigned to signed. */
-                                (long)sockscf.timeout.connect : -1);
+                                (long)sockscf.timeout.connect : -1,
+                                emsg,
+                                emsglen);
 
       if (rc == 0)
          return 0;
@@ -324,6 +336,7 @@ socks_connecthost(s, host, saddr, timeout)
       }
    } while (*(++ip) != NULL);
 
+   snprintf(emsg, emsglen, "%s", errnostr(errno));
    return -1; /* list exhausted, no successful connect. */
 }
 
@@ -617,7 +630,7 @@ socketoptdup(s)
 
 
 #if DEBUG
-void 
+void
 printsocketopts(s)
    const int s;
 {
@@ -787,7 +800,6 @@ printsocketopts(s)
    else
       slog(LOG_DEBUG, "%s: value of file status flags is %d\n",
       function, flags);
-      
 
    if ((flags = fcntl(s, F_GETFD, 0)) == -1)
       swarn("fcntl(F_GETFD)");

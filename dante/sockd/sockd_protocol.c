@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
+ *               2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.162 2011/04/25 08:05:30 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.164 2011/05/18 13:48:47 karls Exp $";
 
 #if SOCKS_SERVER
 static negotiate_result_t
@@ -113,7 +114,7 @@ recv_clientrequest(s, request, state)
 #if HAVE_NEGOTIATE_PHASE
    if (state->rcurrent != NULL)   /* not first call on this client. */
       rc = state->rcurrent(s, request, state);
-   else { 
+   else {
       char src[MAXSOCKSHOSTSTRING], dst[sizeof(src)];
 
 #if SOCKS_SERVER
@@ -130,7 +131,7 @@ recv_clientrequest(s, request, state)
             break;
 
          default:
-            snprintf(state->emsg, sizeof(state->emsg), 
+            snprintf(state->emsg, sizeof(state->emsg),
                      "unknown socks version %d in clientrequest",
                      request->version);
             return NEGOTIATE_ERROR;
@@ -152,7 +153,7 @@ recv_clientrequest(s, request, state)
       rc = state->rcurrent(s, request, state);
    }
 
-   state->complete = (rc == NEGOTIATE_FINISHED); 
+   state->complete = (rc == NEGOTIATE_FINISHED);
    return rc;
 #else /* !HAVE_NEGOTIATE_PHASE */
 
@@ -414,9 +415,9 @@ recv_methods(s, request, state)
       default: {
          /*
           * Socks-methods that can be decided for use before we receive
-          * the actual request.  Normaly only gssapi, but if the
+          * the actual request.  Normally only gssapi, but if the
           * rule has singleauth enabled and the client matches the
-          * criteria for it, the socks-method will also have been 
+          * criteria for it, the socks-method will also have been
           * chosen already (should be NONE).
           */
          size_t i;
@@ -754,7 +755,7 @@ recv_username(s, request, state)
        * Since we don't know how long the username is, we can only read one
        * byte at a time.  We don't want CHECK() to set state->rcurrent to
        * NULL after each successful read of that one byte, since
-       * recv_clientrequest() will then think we are starting from the 
+       * recv_clientrequest() will then think we are starting from the
        * beginning next time we call it.
        */
       state->rcurrent = recv_username;

@@ -175,7 +175,7 @@ function rmfile (filename)
 	split($0,curr_line);
 	for (i=1; i<=NF; i++)
 		if (match(curr_line[i],/sockd\[[0-9]+\]:/)) {
-			field_ofs=i;
+			field_ofs = i + 1;
 			break;
 		}
 	#
@@ -199,7 +199,7 @@ function rmfile (filename)
 	split($0,curr_line);
 	for (i=1; i<=NF; i++)
 		if (match(curr_line[i],/sockd\[[0-9]+\]:/)) {
-			field_ofs=i;
+			field_ofs = i + 1;
 			break;
 		}
 	#

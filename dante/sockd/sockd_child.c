@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009,
+ *               2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.266 2011/05/12 16:48:13 michaels Exp $";
+"$Id: sockd_child.c,v 1.275 2011/06/13 08:39:27 michaels Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -138,7 +139,7 @@ addchild(type)
    switch (setchildtype(type, &childv, &childc, &childfunction)) {
       case CHILD_NEGOTIATE:
          /*
-          * A negotiator child receives a sockd_client_t struct, 
+          * A negotiator child receives a sockd_client_t struct,
           * and sends back a sockd_request_t struct.
           */
          bufval = (MAX(sizeof(struct sockd_client_t),
@@ -191,7 +192,7 @@ addchild(type)
       case CHILD_IO:
          /*
           * A io child receives a sockd_io_t structure,
-          * it sends back only an ack-byte.  
+          * it sends back only an ack-byte.
           * XXX that is not true in COVENANT's case.
           */
 
@@ -287,10 +288,10 @@ addchild(type)
 
          /*
           * signals mother has set up but which we need ignore at this
-          * point, lest we accidentally run mothers signalhandler if the
-          * child does not install it's own signalhandler for the
+          * point, lest we accidentally run mothers signal handler if the
+          * child does not install it's own signal handler for the
           * particular signal.
-          * Later on, the child sets up it's own signalhandlers.
+          * Later on, the child sets up it's own signal handlers.
           */
          sigact.sa_handler = SIG_IGN;
 
@@ -457,7 +458,7 @@ addchild(type)
 
          if ((newchildv = realloc(*childv,
          sizeof(**childv) * (*childc + 1))) == NULL) {
-            slog(LOG_WARNING, "%s: %s", function, NOMEM);
+            swarn("%s: %s", function, NOMEM);
             closev(datapipev, ELEMENTS(datapipev));
             closev(ackpipev, ELEMENTS(ackpipev));
 
@@ -470,7 +471,7 @@ addchild(type)
          (*childv)[*childc].s              = datapipev[MOTHER];
          (*childv)[*childc].ack            = ackpipev[MOTHER];
          (*childv)[*childc].sentc          = 0;
-#if BAREFOOTD 
+#if BAREFOOTD
          (*childv)[*childc].hasudpsession  = 0;
 #endif /* BAREFOOTD */
 
@@ -507,10 +508,10 @@ int
 childcheck(type)
    int type;
 {
-   const char *function = "childcheck()"; 
+   const char *function = "childcheck()";
    struct sockd_child_t **childv;
    size_t child, *childc, minfreeslots, maxslotsperproc, maxidle, idle, proxyc;
-#if BAREFOOTD 
+#if BAREFOOTD
    pid_t havefreeudpslot = 0;
 #endif /* BAREFOOTD */
    const int errno_s = errno;
@@ -565,10 +566,10 @@ childcheck(type)
                             (unsigned long)(*childv)[child].sentc,
                             (unsigned long)(*childv)[child].freec,
                             (unsigned long)maxfreeslots((*childv)[child].type));
-            continue; 
+            continue;
          }
 
-#if BAREFOOTD 
+#if BAREFOOTD
       if (type == CHILD_IO && !(*childv)[child].hasudpsession)
          havefreeudpslot = (*childv)[child].pid;
 #endif /* BAREFOOTD */
@@ -576,7 +577,7 @@ childcheck(type)
       proxyc += type < 0 ? maxslotsperproc : (*childv)[child].freec;
 
       if ((*childv)[child].freec == maxslotsperproc) {
-#if BAREFOOTD 
+#if BAREFOOTD
          if (type == CHILD_IO) {
             if (havefreeudpslot && havefreeudpslot != (*childv)[child].pid)
                /* LINTED */ /* EMPTY */;
@@ -598,7 +599,8 @@ childcheck(type)
          if (maxidle != 0 && idle > maxidle) {
             slog(LOG_DEBUG, "%s: already counted %lu idle %s-children, "
                             "removing %s-child with pid %lu",
-                            function, (unsigned long)(idle - 1),
+                            function,
+                            (unsigned long)(idle - 1),
                             childtype2string(type < 0 ? -type : type),
                             childtype2string(type < 0 ? -type : type),
                             (unsigned long)(*childv)[child].pid);
@@ -616,7 +618,7 @@ childcheck(type)
    if (type >= 0
    && sockscf.child.addchild
    && ((proxyc < minfreeslots)
-#if BAREFOOTD 
+#if BAREFOOTD
          ||    (type == CHILD_IO && !havefreeudpslot)
 #endif /* BAREFOOTD */
       )) {
@@ -629,7 +631,7 @@ childcheck(type)
        * than to get errors when receiving from a child and lose clients
        * that way.  Make sure we always have some descriptors available,
        * and don't try to add a child if we don't.
-       * If we can add a child after reserving the below number of 
+       * If we can add a child after reserving the below number of
        * descriptors, things are ok.  If not, it means we have to few.
        */
       for (i = 0, freec = 0; i < ELEMENTS(reservedv); ++i)
@@ -637,7 +639,7 @@ childcheck(type)
             ++freec;
 
       if (freec != ELEMENTS(reservedv)) {
-         swarn("%s: not enough free sockets/filedescriptors to add a "
+         swarn("%s: not enough free sockets/file descriptors to add a "
                "new child.  Need at least %lu, but have only %lu",
                function,
                (unsigned long)ELEMENTS(reservedv),
@@ -646,27 +648,26 @@ childcheck(type)
          sockscf.child.addchild = 0;   /* don't retry until a child exits. */
       }
 
-      while (sockscf.child.addchild 
+      while (sockscf.child.addchild
       &&       ((proxyc < minfreeslots)
-#if BAREFOOTD 
+#if BAREFOOTD
          ||    (type == CHILD_IO && !havefreeudpslot)
 #endif /* BAREFOOTD */
       )) {
          slog(LOG_DEBUG, "%s: current # of free %s-slots is %lu, "
                          "while the configured minimum is %lu. "
-                         "Thus need to add %lu %s-children",
+                         "Thus need to add a %s-child",
                          function,
                          childtype2string(type),
-                         (unsigned long)proxyc, (unsigned long)minfreeslots,
-                         (unsigned long)ROUNDFLOAT((minfreeslots - proxyc)
-                                                   / maxslotsperproc),
+                         (unsigned long)proxyc,
+                         (unsigned long)minfreeslots,
                          childtype2string(type));
 
          if (addchild(type) != NULL) {
             proxyc += maxslotsperproc;
-#if BAREFOOTD 
+#if BAREFOOTD
             if (type == CHILD_IO)
-              havefreeudpslot;
+              havefreeudpslot = 1;
 #endif /* BAREFOOTD */
          }
          else {
@@ -715,7 +716,7 @@ fillset(set, negc, reqc, ioc)
    dbits = -1;
 
    for (i = 0; i < sockscf.internalc; ++i) {
-#if BAREFOOTD 
+#if BAREFOOTD
       if (sockscf.internalv[i].protocol != SOCKS_TCP)
          continue; /* udp handled by io children. */
 #endif /* BAREFOOTD */
@@ -728,8 +729,8 @@ fillset(set, negc, reqc, ioc)
        * Also, if we get into the situation where we have no negotiate slots
        * and are unable to fork new negotiate processes, things are probably
        * pretty bad, so it might be better to drop new clients
-       * and log a warning about it.  
-       */ 
+       * and log a warning about it.
+       */
 
       SASSERTX(sockscf.internalv[i].s >= 0);
       FD_SET(sockscf.internalv[i].s, set);
@@ -879,7 +880,7 @@ void
 removechild(pid)
    pid_t pid;
 {
-   const char *function = "removechild()"; 
+   const char *function = "removechild()";
    struct sockd_child_t **childv;
    size_t *childc;
    int child;
@@ -1193,9 +1194,17 @@ send_io(s, io)
 
    CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdtosend);
 
-   if ((w = sendmsgn(s, &msg, 0)) != length) {
-      swarn("%s: sendmsg() failed.  Sent %ld of %ld",
-      function, (long)w, (long)length);
+   if ((w = sendmsgn(s,
+                     &msg,
+                     0,
+                     /*
+                      * if not mother, request child.  Since that child only
+                      * handles one client at a time, it's safe to block 
+                      * as long as it takes.
+                      */
+                     sockscf.state.type == CHILD_MOTHER ? 1 : -1)) != length) {
+      swarn("%s: sendmsgn() of length %ld failed.  Sent %ld",
+            function, (long)length, (long)w);
 
       return -1;
    }
@@ -1263,7 +1272,7 @@ send_client(s, _client, buf, buflen)
       slog(LOG_DEBUG, "%s: sending socket %d (%s) ...",
       function, client.s, socket2string(client.s, NULL, 0));
 
-   if ((rc = sendmsgn(s, &msg, 0)) != sizeof(client))   {
+   if ((rc = sendmsgn(s, &msg, 0, 1)) != sizeof(client))   {
       swarn("%s: sendmsg(): sent %ld/%lu",
       function, (long)rc, (unsigned long)sizeof(client));
 
@@ -1336,7 +1345,10 @@ send_req(s, req)
       slog(LOG_DEBUG, "%s: sending socket %d (%s) ...",
       function, req->s, socket2string(req->s, NULL, 0));
 
-   if ((rc = sendmsgn(s, &msg, 0)) != length)   {
+   if ((rc = sendmsgn(s,
+                      &msg,
+                      0,
+                      sockscf.state.type == CHILD_MOTHER ? 1 : -1)) != length) {
       swarn("%s: sendmsg() sent %ld/%ld", function, (long)rc, (long)length);
       return -1;
    }
@@ -1354,7 +1366,7 @@ sigchildbroadcast(sig, childtype)
    struct sockd_child_t **childv;
 
    for (childtypec = 0; childtypec < ELEMENTS(childtypesv); ++childtypec)
-      if (childtype & childtypesv[childtypec]) { 
+      if (childtype & childtypesv[childtypec]) {
          size_t i;
 
          setchildtype(childtypesv[childtypec], &childv, &childc, NULL);

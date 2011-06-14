@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010
+ * Copyright (c) 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method.c,v 1.7 2011/03/06 10:54:09 michaels Exp $";
+"$Id: method.c,v 1.9 2011/05/18 13:48:46 karls Exp $";
 
 int
 methodisvalid(method, forclientrules)
@@ -103,7 +103,7 @@ methodcanprovide(method, what)
 
          return 0;
 
-      case AUTHMETHOD_UNAME: 
+      case AUTHMETHOD_UNAME:
          switch (what) {
             case username:
                return 1;
@@ -111,7 +111,7 @@ methodcanprovide(method, what)
 
          return 0;
 
-      case AUTHMETHOD_RFC931:  
+      case AUTHMETHOD_RFC931:
          switch (what) {
             case username:
                return 1;
@@ -119,7 +119,7 @@ methodcanprovide(method, what)
 
          return 0;
 
-      case AUTHMETHOD_PAM:    
+      case AUTHMETHOD_PAM:
          switch (what) {
             case username:
                return 1;
@@ -225,4 +225,3 @@ authinfo(auth, info, infolen)
 
    return info;
 }
-

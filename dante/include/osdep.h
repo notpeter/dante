@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009
+ *               2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: osdep.h,v 1.62 2010/12/31 10:27:29 karls Exp $ */
+/* $Id: osdep.h,v 1.64 2011/05/19 07:59:08 karls Exp $ */
 
 #include <sys/types.h>
 #if HAVE_SYS_TIME_H

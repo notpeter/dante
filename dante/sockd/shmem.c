@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009
+ * Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,13 +43,13 @@
 
 #include "common.h"
 
-static const char rcsid[] =  
-"$Id: shmem.c,v 1.67 2011/03/24 15:52:59 michaels Exp $";
+static const char rcsid[] =
+"$Id: shmem.c,v 1.69 2011/05/18 13:48:46 karls Exp $";
 
 /*
  * Mother needs to create and fill in the correct contents initially.
- * Afterwards she can detach from the memory it, and not touch it again 
- * until exit or sighup, at which point she may need to save those segments 
+ * Afterwards she can detach from the memory it, and not touch it again
+ * until exit or sighup, at which point she may need to save those segments
  * that are still use (if SIGHUP), or delete those that are no longer in use.
  */
 #define HANDLE_SHMCR(ismother, rule, memfield, idfield, fdfield, key)          \
@@ -233,7 +233,7 @@ shmem_unuse(object, lock)
       socks_lock(lock, 1, 1);
 
    if (sockscf.option.debug > 1)
-      slog(LOG_DEBUG, "%s: lock = %d, clients = %lu, %s-rule = %lu, " 
+      slog(LOG_DEBUG, "%s: lock = %d, clients = %lu, %s-rule = %lu, "
                       "object = %p",
                       function, lock,
                       (unsigned long)object->mstate.clients,
@@ -289,14 +289,14 @@ shmem_setup(void)
 
       SASSERTX(pidismother(sockscf.state.pid) == 1);
 
-      /* as good as startingpoint as any. */
+      /* as good as starting point as any. */
       lastkey = 1;
 
       if (sizeof(sockscf.shmem_fnamebase) < sizeof(SOCKD_SHMEMFILE))
-         serrx(EXIT_FAILURE, 
+         serrx(EXIT_FAILURE,
                "%s: SOCKD_SHMEMFILE (%s) is %lu bytes too long, max is %lu",
                function,
-               SOCKD_SHMEMFILE, 
+               SOCKD_SHMEMFILE,
                (unsigned long)( sizeof(sockscf.shmem_fnamebase)
                                - sizeof(SOCKD_SHMEMFILE)),
                (unsigned long)sizeof(SOCKD_SHMEMFILE));
@@ -331,8 +331,8 @@ shmem_setup(void)
          serr(EXIT_FAILURE, "%s: failed to mmap shmeminfo", function);
 
       /* can unlink this file; all children will inherit the fd. */
-      if (unlink(sockscf.shmem_fnamebase) != 0) 
-         serr(EXIT_FAILURE, "%s: failed to unlink %s", 
+      if (unlink(sockscf.shmem_fnamebase) != 0)
+         serr(EXIT_FAILURE, "%s: failed to unlink %s",
          function, sockscf.shmem_fnamebase);
 
    }
@@ -341,7 +341,7 @@ shmem_setup(void)
 
    if (pidismother(sockscf.state.pid) == 1)
       /*
-       * only mother updates the keyvalue in shmem.  The children
+       * only mother updates the key value in shmem.  The children
        * only read it.
        */
       sockscf.shmeminfo->firstkey = lastkey + 1;
@@ -369,7 +369,7 @@ mem2shmem(firstkey)
    /*
     * Only main mother allocates the memory.  Children just
     * get the shmid and attach to the memory as needed later on.
-    * Mother makes sure all they keys are in consequitive order starting
+    * Mother makes sure all they keys are in consecutive order starting
     * from the passed "firstkey" argument, so children just need to
     * increment it to get the shmid of the next object.
     */
@@ -418,4 +418,3 @@ mem2shmem(firstkey)
 
    return nextkey;
 }
-

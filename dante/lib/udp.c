@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
+ *               2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.210 2011/04/25 08:05:30 michaels Exp $";
+"$Id: udp.c,v 1.212 2011/05/18 13:48:46 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -88,7 +89,7 @@ Rsendto(s, msg, len, flags, to, tolen)
                    NULL, 0));
 
    if (socksfd.route->gw.state.proxyprotocol.direct) {
-      slog(LOG_DEBUG, "%s: using direct systemcalls for socket %d",
+      slog(LOG_DEBUG, "%s: using direct system calls for socket %d",
       function, s);
 
       return sendto(s, msg, len, flags, to, tolen);

@@ -7,7 +7,7 @@
 #
         ldap.keytab: FILE:/opt/dante-1.2-ldap/etc/sockd.keytab
 #
-# Ldap connection timeout
+# ldap connection timeout
 #
         ldap.timeout: 2
 #
@@ -87,4 +87,3 @@
 # Time (in sec) an ldap search can take
 #
         ldap.searchtime: 30
-

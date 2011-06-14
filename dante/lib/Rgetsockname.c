@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,7 @@
 #endif /* HAVE_LIBMINIUPNP */
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.72 2010/09/22 08:58:47 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.73 2011/05/18 13:48:45 karls Exp $";
 
 int
 Rgetsockname(s, name, namelen)

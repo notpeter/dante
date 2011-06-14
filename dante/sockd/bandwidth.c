@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2003, 2005, 2008, 2009
+ * Copyright (c) 2001, 2003, 2005, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,11 +45,11 @@
 
 #include <math.h> /* XXX */
 
-static const char rcsid[] = 
-"$Id: bandwidth.c,v 1.24 2011/01/27 18:46:48 michaels Exp $";
+static const char rcsid[] =
+"$Id: bandwidth.c,v 1.26 2011/05/18 13:48:47 karls Exp $";
 
 const char module_bandwidth_version[] =
-"$Id: bandwidth.c,v 1.24 2011/01/27 18:46:48 michaels Exp $";
+"$Id: bandwidth.c,v 1.26 2011/05/18 13:48:47 karls Exp $";
 
 
 void

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
+ *               2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.122 2011/04/25 17:32:58 michaels Exp $";
+"$Id: Raccept.c,v 1.124 2011/05/18 13:48:45 karls Exp $";
 
 static int
 addforwarded(const int local, const int remote,
@@ -141,7 +142,7 @@ Raccept(s, addr, addrlen)
 
    if (FD_ISSET(socksfd.control, rset)) { /* check this first.  */
       /*
-       * pending data on controlchannel, server wants to forward addr. 
+       * pending data on control channel, server wants to forward addr.
        */
 
       free(rset);

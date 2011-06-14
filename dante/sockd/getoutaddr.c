@@ -1,7 +1,7 @@
 /*
- * $Id: getoutaddr.c,v 1.70 2011/04/24 10:19:32 michaels Exp $
+ * $Id: getoutaddr.c,v 1.72 2011/05/18 13:48:46 karls Exp $
  *
- * Copyright (c) 2001, 2002, 2006, 2008, 2009
+ * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,7 +54,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getoutaddr.c,v 1.70 2011/04/24 10:19:32 michaels Exp $";
+"$Id: getoutaddr.c,v 1.72 2011/05/18 13:48:46 karls Exp $";
 
 #if HAVE_NET_IF_DL_H
 #include   <net/if_dl.h>
@@ -110,7 +110,7 @@ getoutaddr(src, dst)
    if (sockscf.external.rotation == ROTATION_SAMESAME) {
       if (addrindex_on_externallist(&sockscf.external, src) != -1)
          return src;
-      else 
+      else
          return getdefaultexternal();
    }
 
@@ -209,7 +209,7 @@ getoutaddr(src, dst)
 }
 #elif HAVE_ROUTEINFO_BSD /* !HAVE_ROUTEINFO_LINUX */
 
-#if HAVE_SOCKADDR_SA_LEN    
+#if HAVE_SOCKADDR_SA_LEN
 
 #define NEXT_SA(ap) ap = (struct sockaddr *)                                   \
    ((caddr_t)ap + (ap->sa_len ?                                                \
@@ -243,9 +243,9 @@ getoutaddr(src, dst)
 
 static void get_rtaddrs(const int addrs, struct sockaddr *sa,
                         struct sockaddr **rti_info);
-#if !HAVE_SOCKADDR_SA_LEN    
+#if !HAVE_SOCKADDR_SA_LEN
 static size_t ifa_sa_len(const sa_family_t family);
-#endif /* !HAVE_SOCKADDR_SA_LEN */    
+#endif /* !HAVE_SOCKADDR_SA_LEN */
 
 struct in_addr
 getoutaddr(src, dst)
@@ -266,7 +266,7 @@ getoutaddr(src, dst)
    if (sockscf.external.rotation == ROTATION_SAMESAME) {
       if (addrindex_on_externallist(&sockscf.external, src) != -1)
          return src;
-      else 
+      else
          return getdefaultexternal();
    }
 
@@ -327,7 +327,7 @@ getoutaddr(src, dst)
 
    close(sockfd);
 
-   sa  = (struct sockaddr *)(rtm + 1); 
+   sa  = (struct sockaddr *)(rtm + 1);
    get_rtaddrs(rtm->rtm_addrs, sa, rti_info);
 
    if (rti_info[RTAX_GATEWAY] == NULL) {
@@ -386,7 +386,7 @@ get_rtaddrs(addrs, sa, rti_info)
    }
 }
 
-#if !HAVE_SOCKADDR_SA_LEN    
+#if !HAVE_SOCKADDR_SA_LEN
 static size_t
 ifa_sa_len(family)
    const sa_family_t family;
@@ -409,7 +409,7 @@ ifa_sa_len(family)
 
    return sizeof(struct sockaddr);
 }
-#endif /* !HAVE_SOCKADDR_SA_LEN */    
+#endif /* !HAVE_SOCKADDR_SA_LEN */
 
 #else /* !HAVE_ROUTEINFO_BSD */
 struct in_addr
@@ -440,8 +440,8 @@ getdefaultexternal(void)
             TOIN(&bound)->sin_addr.s_addr = htonl(INADDR_NONE);
          }
          else
-            slog(LOG_DEBUG, "%s: address for %s is %s", 
-                 function, 
+            slog(LOG_DEBUG, "%s: address for %s is %s",
+                 function,
                  (*sockscf.external.addrv).addr.ifname,
                  sockaddr2string(&bound, NULL, 0));
 

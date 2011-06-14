@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2008,
- *               2009
+ *               2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.187 2011/05/09 09:53:06 michaels Exp $";
+"$Id: sockd_util.c,v 1.190 2011/05/19 07:59:09 karls Exp $";
 
 #include "common.h"
 
@@ -60,7 +60,7 @@ selectmethod(methodv, methodc, offeredv, offeredc)
    for (i = 0; i < methodc; ++i) {
       if (methodv[i] > AUTHMETHOD_NOACCEPT) {
          /*
-          * non-socks method.  Can select any of the standard methods 
+          * non-socks method.  Can select any of the standard methods
           * that can provide the necessary information.
           */
          const unsigned char rfc931methodv[] = { AUTHMETHOD_NONE,
@@ -130,7 +130,7 @@ sockdexit(code)
    static int exiting;
    struct rule_t *rulev[] = { sockscf.crule,
 #if HAVE_TWO_LEVEL_ACL
-                              sockscf.srule 
+                              sockscf.srule
 #endif /* HAVE_TWO_LEVEL_ACL */
    };
    struct sigaction sigact;
@@ -176,7 +176,6 @@ sockdexit(code)
       if (sockscf.state.inited)
          sockd_priv(SOCKD_PRIV_FILE_WRITE, PRIV_OFF);
 #endif /* !HAVE_DISABLED_PIDFILE */
-
    }
 
 #if HAVE_PROFILING
@@ -203,7 +202,7 @@ sockdexit(code)
 #endif /* HAVE_PROFILING */
 
    /*
-    * For some reason, Valgrind complains that the pointer to "name" is
+    * For some reason, valgrind complains that the pointer to "name" is
     * lost:
     *
     * #  13 bytes in 1 blocks are definitely lost in loss record 3 of 9
@@ -216,9 +215,9 @@ sockdexit(code)
     * #     by 0x40AA22: serverinit (sockd.c:1157)
     * #     by 0x408EF8: main (sockd.c:193)
     *
-    * Don't understand why valgrind complains, as it's not lost afaik, 
+    * Don't understand why valgrind complains, as it's not lost afaik,
     * and adding this code to make the (on unix unnecessary) free(3) call
-    * seems to prove that. 
+    * seems to prove that.
     */
    for (i = 0; i < ELEMENTS(rulev); ++i) {
       struct rule_t *rule;
@@ -243,7 +242,7 @@ sockdexit(code)
       exit(code);
    }
 
-   /* 
+   /*
     * Else; we are child.
     */
 
@@ -341,7 +340,7 @@ descriptorisreserved(d)
 
    ||  d == sockscf.ldapfd
 #endif /* HAVE_LDAP */
-   ||  d == sockscf.configfd 
+   ||  d == sockscf.configfd
    /* due to external libraries/software trying to log to stdout/stderr. :-( */
    ||  d == STDOUT_FILENO
    ||  d == STDERR_FILENO)
@@ -472,4 +471,3 @@ sockd_handledsignals()
 
    return rc;
 }
-

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2002, 2004, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2001, 2002, 2004, 2008, 2009, 2010
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.65 2010/11/08 06:45:33 michaels Exp $";
+"$Id: Rcompat.c,v 1.66 2011/05/18 13:48:45 karls Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)

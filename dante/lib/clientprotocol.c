@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
+ *               2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,7 +55,7 @@
 #endif /* SOCKS_CLIENT || SOCKS_SERVER */
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.144 2011/04/12 15:40:35 michaels Exp $";
+"$Id: clientprotocol.c,v 1.148 2011/06/02 07:40:58 michaels Exp $";
 
 static int
 recv_sockshost(int s, struct sockshost_t *host, int version,
@@ -97,7 +98,7 @@ socks_sendrequest(s, request)
 
          *p = NUL; /* not bothering to send any userid.  Should we? */
          ++p;
-         break; 
+         break;
 
        case PROXY_SOCKS_V5:
          /*
@@ -269,10 +270,11 @@ socks_negotiate(s, control, packet, route)
    struct route_t *route;
 {
    const char *function = "socks_negotiate()";
+   const int errno_s = errno;
 
    slog(LOG_DEBUG, "%s: initiating negotiation on socket %d, address %s",
    function, s, socket2string(s, NULL, 0));
-   
+
    packet->res.auth = packet->req.auth;
    switch (packet->req.version) {
       case PROXY_SOCKS_V5:
@@ -344,15 +346,8 @@ socks_negotiate(s, control, packet, route)
                         socks_get_responsevalue(&packet->res),
                         route))
       return -1;
-   else {
-      if (fdisblocking(control))
-         errno = 0; /* OpenBSD 4.5's thread-stuff sometimes sets this. :-/ */
-      else {
-         if (!ERRNOISINPROGRESS(errno))
-            errno = 0;
-      }
-   }
 
+   errno = errno_s;
    return 0;
 }
 
@@ -904,7 +899,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
                                           NULL);
       SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
-      slog(LOG_DEBUG, "%s: length of output_token is %lu", 
+      slog(LOG_DEBUG, "%s: length of output_token is %lu",
       function, (unsigned long)output_token.length);
 
       switch (major_status) {
@@ -934,7 +929,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
          SASSERTX(output_token.length <= sizeof(request) - GSSAPI_HLEN);
          memcpy(request + GSSAPI_HLEN, output_token.value, output_token.length);
 
-         slog(LOG_DEBUG, "%s: sending token of length %lu to server", 
+         slog(LOG_DEBUG, "%s: sending token of length %lu to server",
          function, (unsigned long)output_token.length);
 
          if ((rc = socks_sendton(s, request, GSSAPI_HLEN + output_token.length,
@@ -958,7 +953,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
          goto error;
       }
 
-      slog(LOG_DEBUG, "%s: read %ld bytes of response data from server", 
+      slog(LOG_DEBUG, "%s: read %ld bytes of response data from server",
       function, (long)rc);
 
       if(response[GSSAPI_VERSION] != SOCKS_GSSAPI_VERSION) {
@@ -997,7 +992,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
          goto error;
       }
 
-      slog(LOG_DEBUG, "%s: read %lu byte token from server", 
+      slog(LOG_DEBUG, "%s: read %lu byte token from server",
       function, (long)input_token.length);
 
       context_token = &input_token;
@@ -1009,14 +1004,17 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
 
    request[GSSAPI_STATUS] = SOCKS_GSSAPI_ENCRYPTION;
 
-   if (gw->state.gssapiencryption.clear)
-      gss_enc = SOCKS_GSSAPI_CLEAR;
-
-   if (gw->state.gssapiencryption.integrity)
-      gss_enc = SOCKS_GSSAPI_INTEGRITY;
-
+   /* offer the "best" we are configured to support. */
    if (gw->state.gssapiencryption.confidentiality)
       gss_enc = SOCKS_GSSAPI_CONFIDENTIALITY;
+   else if (gw->state.gssapiencryption.integrity)
+      gss_enc = SOCKS_GSSAPI_INTEGRITY;
+   else if (gw->state.gssapiencryption.clear)
+      gss_enc = SOCKS_GSSAPI_CLEAR;
+   else {
+      swarnx("%s: no gssapi type to offer set", function);
+      SERRX(0);
+   }
 
    if (gw->state.gssapiencryption.nec) {
       const size_t tosend = GSSAPI_HLEN + 1, toread = tosend;
@@ -1177,13 +1175,13 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
    }
 
    if (gss_server_enc == SOCKS_GSSAPI_CLEAR
-   && gw->state.gssapiencryption.clear)
+   &&  gw->state.gssapiencryption.clear)
       gss_enc = SOCKS_GSSAPI_CLEAR;
    else if (gss_server_enc == SOCKS_GSSAPI_INTEGRITY
-   && gw->state.gssapiencryption.integrity)
+   &&       gw->state.gssapiencryption.integrity)
       gss_enc = SOCKS_GSSAPI_INTEGRITY;
    else if (gss_server_enc == SOCKS_GSSAPI_CONFIDENTIALITY
-   && gw->state.gssapiencryption.confidentiality)
+   &&       gw->state.gssapiencryption.confidentiality)
       gss_enc = SOCKS_GSSAPI_CONFIDENTIALITY;
 
    slog(LOG_INFO, "%s: use %s protection",

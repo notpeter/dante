@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010
+ * Copyright (c) 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #if HAVE_BSDAUTH
 
 static const char rcsid[] =
-"$Id: auth_bsd.c,v 1.10 2010/12/04 10:20:08 karls Exp $";
+"$Id: auth_bsd.c,v 1.12 2011/05/18 13:48:46 karls Exp $";
 
 #include <login_cap.h>
 #include <bsd_auth.h>
@@ -77,7 +77,7 @@ bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    function, auth->name, style == NULL ? "default" : style);
 
    /*
-    * note: NULL password would lead to libc requesting it interactively. 
+    * note: NULL password would lead to libc requesting it interactively.
     * if NULL, user can specify in username, e.g., uname:radius
     */
    sockd_priv(SOCKD_PRIV_BSDAUTH, PRIV_ON);

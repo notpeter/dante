@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.143 2011/04/26 07:28:07 karls Exp $";
+"$Id: interposition.c,v 1.145 2011/05/18 13:48:45 karls Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
@@ -198,7 +198,7 @@ static struct libsymbol_t libsymbolv[] = {
 
 #endif /* SOCKS_CLIENT */
 
-/* 
+/*
  * symbols we want to interpose in the server also, for library functions
  * that might call them (e.g. pam/ldap/gssapi).  Lets them use our superior
  * caching versions.
@@ -296,7 +296,7 @@ libsymbol(const char *symbol);
 
 #if SOCKS_CLIENT
 int
-socks_issyscall(s, name)                                           
+socks_issyscall(s, name)
    const int s;
    const char *name;
 {
@@ -316,64 +316,64 @@ void
 socks_syscall_start(s)
    const int s;
 {
-   struct socksfd_t *p;                                              
-   addrlockopaque_t opaque;                                          
-                                                                     
+   struct socksfd_t *p;
+   addrlockopaque_t opaque;
+
    if (socks_logmatch(s, &sockscf.log)
    ||  socks_logmatch(s, &sockscf.errlog))
       return; /* don't set up things for our logging fd's, creates problems. */
-      
-   socks_addrlock(F_WRLCK, &opaque);                                 
 
-   if ((p = socks_getaddr(s, NULL, 0)) == NULL) {                    
-      struct socksfd_t socksfd;                                      
-                                                                     
-      bzero(&socksfd, sizeof(socksfd));                              
-      socksfd.state.command   = -1;                                  
-      socksfd.state.issyscall = 1;                                   
-      p = socks_addaddr(s, &socksfd, 0);                             
-   }                                                                 
+   socks_addrlock(F_WRLCK, &opaque);
 
-   SASSERTX(p != NULL);                                              
+   if ((p = socks_getaddr(s, NULL, 0)) == NULL) {
+      struct socksfd_t socksfd;
 
-   ++(p->state.syscalldepth);                                        
-   socks_addaddr(s, p, 0);                                           
-                                                                     
-   socks_addrunlock(&opaque);                                        
+      bzero(&socksfd, sizeof(socksfd));
+      socksfd.state.command   = -1;
+      socksfd.state.issyscall = 1;
+      p = socks_addaddr(s, &socksfd, 0);
+   }
+
+   SASSERTX(p != NULL);
+
+   ++(p->state.syscalldepth);
+   socks_addaddr(s, p, 0);
+
+   socks_addrunlock(&opaque);
 }
 
 void
 socks_syscall_end(s)
    const int s;
 {
-   addrlockopaque_t opaque;                                          
-   struct socksfd_t socksfd, *p;                                     
+   addrlockopaque_t opaque;
+   struct socksfd_t socksfd, *p;
 
    if (socks_logmatch(s, &sockscf.log)
    ||  socks_logmatch(s, &sockscf.errlog))
       return; /* don't set up things for our logging fd's, creates problems. */
 
-   socks_addrlock(F_WRLCK, &opaque);                                 
+   socks_addrlock(F_WRLCK, &opaque);
 
-   p = socks_getaddr(s, &socksfd, 0);                                
+   p = socks_getaddr(s, &socksfd, 0);
 
    if (p == NULL) { /* should not happen ... */
-      socks_addrunlock(&opaque);                                        
+      socks_addrunlock(&opaque);
       return;
    }
 
-   if (p->state.syscalldepth <= 0) 
+   if (p->state.syscalldepth <= 0)
       ; /* should not happen ... */
-   else 
-      --(p->state.syscalldepth);                                          
-                                                                     
-   if (p->state.syscalldepth <= 0) { /* all finished. */             
-      if (p->state.issyscall) /* started out as a syscall. */        
-         socks_rmaddr(s, 0);                                         
-   }                                                                 
-                                                                     
-   socks_addaddr(s, &socksfd, 0);                                    
-   socks_addrunlock(&opaque);                                        
+   else
+      --(p->state.syscalldepth);
+
+   if (p->state.syscalldepth <= 0) { /* all finished. */
+      if (p->state.issyscall) /* started out as a syscall. */
+         socks_rmaddr(s, 0);
+   }
+
+   socks_addaddr(s, &socksfd, 0);
+   socks_addrunlock(&opaque);
 }
 
 
@@ -392,7 +392,7 @@ symbolcheck(void)
 #if SOCKS_CLIENT
 
 /*
- * During init, we need to let all systemcalls resolve to the native
+ * During init, we need to let all system calls resolve to the native
  * version.  I.e., socks_shouldcallasnative() need to always return
  * true as long as we are initing. Use this object for holding that
  * knowledge.
@@ -412,7 +412,7 @@ socks_shouldcallasnative(functionname)
 
    if (doing_addrinit)
       return 1;
- 
+
    lib = libsymbol(functionname);
 
    if ((fid = lib->dosyscall) == NULL)

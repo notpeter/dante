@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010
+ *               2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,15 +45,15 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.568 2011/05/14 10:30:22 michaels Exp $";
+"$Id: sockd.c,v 1.580 2011/06/13 08:35:14 michaels Exp $";
 
 
 /*
- * signalhandler functions.  Upon reception of signal, "sig" is the real
+ * signal handler functions.  Upon reception of signal, "sig" is the real
  * signal value (> 0).  We then set a flag indicating we got a signal,
  * but we don't do anything and return immediately.  Later we are called
  * again, with "sig" having the value -(sig), to indicate we are not
- * executing in the signalhandler and it's safe to do whatever we
+ * executing in the signal handler and it's safe to do whatever we
  * need to do.
  */
 static void sigterm(int sig, siginfo_t *sip, void *scp);
@@ -85,7 +85,7 @@ usage(int code);
 
 static char *
 getlimitinfo(void);
-/* 
+/*
  * returns a string with some information about current state and limits.
  */
 
@@ -105,7 +105,7 @@ static void
 checkconfig(void);
 /*
  * Scans through the config, perhaps fixing some things and warning
- * about strange things, or erroring out on serious mistakes.
+ * about strange things, or errors out on serious mistakes.
  */
 
 #if DIAGNOSTIC && HAVE_MALLOC_OPTIONS
@@ -158,12 +158,13 @@ main(argc, argv)
       SIGPIPE
    };
    const size_t ignoresignalc = ELEMENTS(ignoresignalv);
-#ifdef RLIMIT_NPROC 
+#ifdef RLIMIT_NPROC
    struct rlimit maxproc;
 #endif /* RLIMIT_NPROC */
    struct sigaction sigact;
    struct rlimit rlimit;
    rlim_t minfd;
+   fd_set *rset;
    ssize_t p;
    size_t dforchild;
 #if DIAGNOSTIC && HAVE_MALLOC_OPTIONS
@@ -198,7 +199,6 @@ main(argc, argv)
    dotest();
    exit(0);
 #endif
-
 
    showconfig(&sockscf);
 
@@ -238,7 +238,7 @@ main(argc, argv)
 
    /*
     * Check system limits against what we need.
-    * Enough descriptors for each child process? + 2 for the pipes from 
+    * Enough descriptors for each child process? + 2 for the pipes from
     * the child to mother.
     */
 
@@ -256,13 +256,13 @@ main(argc, argv)
     * processes to the hard limit.
     */
    sockscf.state.maxopenfiles = getmaxofiles(hardlimit);
-   slog(LOG_DEBUG, "hardlimit for max number of open files is %lu, "
-                   "softlimit is %lu",
+   slog(LOG_DEBUG, "hard limit for max number of open files is %lu, "
+                   "soft limit is %lu",
                    (unsigned long)sockscf.state.maxopenfiles,
                    (unsigned long)getmaxofiles(softlimit));
 
    if (sockscf.state.maxopenfiles < minfd) {
-      swarnx("have only %lu filedescriptors available, but need at least %lu "
+      swarnx("have only %lu file descriptors available, but need at least %lu "
              "according to the configuration.  Trying to increase it ...",
              (unsigned long)sockscf.state.maxopenfiles, (unsigned long)minfd);
 
@@ -273,10 +273,10 @@ main(argc, argv)
 
    if (setrlimit(RLIMIT_OFILE, &rlimit) == 0)
       slog(sockscf.state.maxopenfiles < minfd ? LOG_INFO : LOG_DEBUG,
-           "max number of filedescriptors is now %lu",
+           "max number of file descriptors is now %lu",
            (unsigned long)sockscf.state.maxopenfiles);
   else
-      swarnx("failed to increase the max number of filedescriptors.  "
+      swarnx("failed to increase the max number of file descriptors.  "
             "setrlimit(RLIMIT_OFILE, {%lu, %lu}) failed (%s).  "
             "Change the kernel's limit, or change the values in %s's "
             "include/config.h, or %s will not run reliably",
@@ -290,7 +290,7 @@ main(argc, argv)
       swarn("getrlimit(RLIMIT_NPROC) failed");
    else {
       maxproc.rlim_cur = maxproc.rlim_max;
-     
+
       if (setrlimit(RLIMIT_NPROC, &maxproc) != 0)
          swarn("setrlimit(RLIMIT_NPROC, { %lu, %lu }) failed",
          (unsigned long)rlimit.rlim_cur, (unsigned long)rlimit.rlim_max);
@@ -388,7 +388,7 @@ main(argc, argv)
          swarn("fork()");
       else if (pid == 0) {
          newprocinit();
-         sockscf.option.serverc = p; 
+         sockscf.option.serverc = p;
          break;
       }
       else
@@ -410,7 +410,7 @@ moncontrol(1);
 #if PRERELEASE
    slog(LOG_INFO, "\n"
    "   ******************************************************************\n"
-#if BAREFOOTD 
+#if BAREFOOTD
    "   *** Thank you for testing this %s pre-release.          ***\n"
 #elif COVENANT
    "   *** Thank you for testing this %s pre-release.           ***\n"
@@ -418,11 +418,11 @@ moncontrol(1);
    "   *** Thank you for testing this %s pre-release.              ***\n"
 #else
 #error "hmm, who are we?"
-#endif 
+#endif /* SOCKS_SERVER */
    "   *** Please note pre-releases are always configured in a way    ***\n"
    "   *** that puts a considerably larger load on the running system ***\n"
    "   *** system than the standard releases.                         ***\n"
-   "   *** This is to help simulate high-load situations and aid in   ***\n" 
+   "   *** This is to help simulate high-load situations and aid in   ***\n"
    "   *** finding bugs before a full release is done.                ***\n"
    "   ******************************************************************",
    PACKAGE);
@@ -431,27 +431,22 @@ moncontrol(1);
    if (sockscf.option.debug)
       slog(LOG_DEBUG, getlimitinfo());
 
+   rset = allocate_maxsize_fdset();
+
    slog(LOG_INFO, "%s/server v%s running\n", PACKAGE, VERSION);
 
    /*
     * main loop; accept new connections and handle our children.
+    * CONSTCOND 
     */
-
-   /* CONSTCOND */
    while (1) {
-      static fd_set *rset;
       struct sockd_child_t *child;
       int rbits, havefreeslots, free_negc, free_reqc, free_ioc;
-      int childisbad = 0, childhasfinished = 0;
 #if BAREFOOTD
       struct timeval zerotimeout  = { 0, 0 };
 #endif /* BAREFOOTD */
 
       errno = 0; /* reset for each iteration. */
-
-      if (rset == NULL)
-         rset = allocate_maxsize_fdset();
-
       rbits = fillset(rset, &free_negc, &free_reqc, &free_ioc);
 
       slog(LOG_DEBUG, "calling select().  Free negc: %d reqc: %d; ioc: %d",
@@ -481,11 +476,8 @@ moncontrol(1);
 #endif /* SOCKS_SERVER */
 
          case -1:
-            if (errno == EINTR)
-               continue;
-
-            SERR(errno);
-            /* NOTREACHED */
+            SASSERT(errno == EINTR);
+            continue;
       }
 
       slog(LOG_DEBUG, "%s: selectn() returned %ld (%s)",
@@ -496,7 +488,7 @@ moncontrol(1);
        *
        * First, get the client objects from the children.  This needs to
        * be done before reading the freeslot ack to avoid a situation where
-       * the child acks it has freed many slots, but the data is still 
+       * the child acks it has freed many slots, but the data is still
        * pending in the buffer between ourselves and the child.  If that
        * should happen, we might send a new request to the child, and if
        * the child finishes that request and sends us a client object
@@ -504,10 +496,10 @@ moncontrol(1);
        * from that child, the queue between us and the child may already
        * be full.
        *
-       * Also, don't get too many requests here.  If we do, we could end up 
-       * needlessly forking a lot of new processes, while at the same time 
-       * having a lot of unread SOCKD_FREESLOT messages which we won't get 
-       * to read before we've finished reading the new requests.  
+       * Also, don't get too many requests here.  If we do, we could end up
+       * needlessly forking a lot of new processes, while at the same time
+       * having a lot of unread SOCKD_FREESLOT messages which we won't get
+       * to read before we've finished reading the new requests.
        */
       havefreeslots = 1;
       while (havefreeslots && (child = getset(DATAPIPE, rset)) != NULL) {
@@ -515,12 +507,13 @@ moncontrol(1);
          int freed = freedescriptors(sockscf.option.debug ? "start" : NULL);
 #endif /* DIAGNOSTIC */
 
-         childisbad     = 0;
-         errno          = 0;
+         clearset(DATAPIPE, child, rset);
+         errno = 0;
+
          switch (child->type) {
             /*
              * in the order a packet travels between children;
-             * negotiate -> request -> io 
+             * negotiate -> request -> io
              * (and in Covenants case, -> io -> negotiate again, sometimes).
              */
 
@@ -531,7 +524,7 @@ moncontrol(1);
                if ((reqchild = nextchild(CHILD_REQUEST, SOCKS_TCP)) == NULL) {
                   slog(LOG_DEBUG, "no request slot available for new client");
                   havefreeslots = 0;
-                  break; 
+                  break;
                }
 
                SASSERTX(reqchild->freec > 0);
@@ -539,15 +532,10 @@ moncontrol(1);
                slog(LOG_DEBUG, "trying to receive request from negotiator-"
                                "child %lu",
                                (unsigned long)child->pid);
-                       
-               p = recv_req(child->s, &req);
-               clearset(DATAPIPE, child, rset);
 
-               if (p != 0) {
-                   swarn("recv_req() failed");
-
-                   if (!ERRNOISTMP(errno))
-                     childisbad = 1;
+               if ((p = recv_req(child->s, &req)) != 0) {
+                  slog(LOG_DEBUG, "recv_req() failed with %ld: %s",
+                       (long)p, errnostr(errno));
 
                   break;
                }
@@ -566,41 +554,30 @@ moncontrol(1);
                   ++sockscf.stat.request.sendt;
                }
                else {
-                  swarn("send_req() failed");
-
-                  if (ERRNOISSENDMSGFD(errno) || ERRNOISTMP(errno)) {
 #if HAVE_NEGOTIATE_PHASE
-                     struct response_t response;
+                  struct response_t response;
 
-                     create_response(NULL,
-                                     &req.clientauth,
-                                     req.req.version,
-                                     ERRNOISSENDMSGFD(errno) ? 
-                                         errno2reply(errno, req.req.version)
-                                       : SOCKS_FAILURE,
-                                     &response);
+                  create_response(NULL,
+                                  &req.clientauth,
+                                  req.req.version,
+                                  errno2reply(errno, req.req.version),
+                                  &response);
 
-                     if (send_response(req.s, &response) != 0) {
-                        slog(LOG_DEBUG,
-                             "%s: send_response(%d) to %s failed: %s",
-                             function,
-                             req.s,
-                             sockaddr2string(&req.from, NULL, 0),
-                             errnostr(errno));
-                     }
+                  if (send_response(req.s, &response) != 0) {
+                     slog(LOG_DEBUG,
+                          "%s: send_response(%d) to %s failed: %s",
+                          function,
+                          req.s,
+                          sockaddr2string(&req.from, NULL, 0),
+                          errnostr(errno));
+                  }
 #endif /* HAVE_NEGOTIATE_PHASE */
-                  }
-                  else {
-                     childisbad = 1;
-                     child      = reqchild;
-                  }
+
+                  slog(LOG_DEBUG, "send_req() failed: %s", errnostr(errno));
+                  break;
                }
 
-               if (req.s == -1)
-                  SASSERTX(BAREFOOTD && req.req.command == SOCKS_UDPASSOCIATE);
-               else
-                  close(req.s);
-
+               close(req.s);
                break;
             }
 
@@ -637,14 +614,10 @@ moncontrol(1);
                slog(LOG_DEBUG, "trying to receive request from request-"
                                "child %lu",
                                (unsigned long)child->pid);
-               p = recv_io(child->s, &io);
-               clearset(DATAPIPE, child, rset);
 
-               if (p != 0) {
-                  swarn("recv_io() failed");
-
-                  if (!ERRNOISTMP(errno) && !ERRNOISSENDMSGFD(errno))
-                     childisbad = 1;
+               if ((p = recv_io(child->s, &io)) != 0) {
+                  slog(LOG_DEBUG, "recv_io() failed with %ld: %s",
+                       (long)p, errnostr(errno));
 
                   break;
                }
@@ -678,7 +651,7 @@ moncontrol(1);
 #if BAREFOOTD
                   if (io.state.protocol == SOCKS_UDP) {
                      SASSERTX(iochild->hasudpsession == 0);
-                     ++iochild->hasudpsession; 
+                     ++iochild->hasudpsession;
 
                      slog(LOG_DEBUG, "sent udp session for local address %s "
                                      "to io-child %lu",
@@ -688,34 +661,25 @@ moncontrol(1);
 #endif /* BAREFOOTD */
                }
                else {
-                  swarn("send_io() failed");
-
-                  if (ERRNOISSENDMSGFD(errno) || ERRNOISTMP(errno)) {
 #if HAVE_NEGOTIATE_PHASE
-                     struct response_t response;
+                  struct response_t response;
 
-                     create_response(NULL,
-                                     &io.src.auth,
-                                     io.state.version,
-                                     ERRNOISSENDMSGFD(errno) ? 
-                                         errno2reply(errno, io.state.version)
-                                       : SOCKS_FAILURE,
-                                     &response);
+                  create_response(NULL,
+                                  &io.src.auth,
+                                  io.state.version,
+                                  errno2reply(errno, io.state.version),
+                                  &response);
 
-                     if (send_response(io.control.s, &response) != 0) {
-                        slog(LOG_DEBUG,
-                             "%s: send_response(%d) to %s failed: %s",
-                             function,
-                             io.control.s,
-                             sockshost2string(&io.src.host, NULL, 0),
-                             errnostr(errno));
-                     }
+                  if (send_response(io.control.s, &response) != 0) {
+                     slog(LOG_DEBUG,
+                          "%s: send_response(%d) to %s failed: %s",
+                          function,
+                          io.control.s,
+                          sockshost2string(&io.src.host, NULL, 0),
+                          errnostr(errno));
+                  }
 #endif /* HAVE_NEGOTIATE_PHASE */
-                  }
-                  else {
-                     childisbad = 1;
-                     child      = iochild;
-                  }
+                  slog(LOG_DEBUG, "send_io() failed: %s", errnostr(errno));
                }
 
                close_iodescriptors(&io);
@@ -730,43 +694,38 @@ moncontrol(1);
                if ((negchild = nextchild(CHILD_NEGOTIATE, SOCKS_TCP)) == NULL) {
                   slog(LOG_DEBUG,
                        "no negotiate child available to accept old client");
-                  break; 
+                  break;
                }
 
                SASSERTX(negchild->freec > 0);
 
                slog(LOG_DEBUG, "trying to receive request from io-child %lu",
-                               (unsigned long)hild->pid);
-               p = recv_resentclient(child->s, &client);
-               clearset(DATAPIPE, child, rset);
+                               (unsigned long)child->pid);
 
-               if (p == 0) {
-                  ++sockscf.stat.io.received;
-                  ++recv_ioc;
-               }
-               else {
-                  if (!ERRNOISSENDMSGFD(errno))
-                     childisbad = 1;
+               if ((p = recv_resentclient(child->s, &client)) != 0) {
+                  slog(LOG_DEBUG, "recv_resentclient() failed with %ld: %s",
+                       (long)p, errnostr(errno));
+
                   break;
                }
 
+               ++sockscf.stat.io.received;
+               ++recv_ioc;
+
 #if HAVE_SENDMSG_DEADLOCK
-            if (socks_lock(negchild->lock, 1, 0) != 0)
-               continue;
+               if (socks_lock(negchild->lock, 1, 0) != 0)
+                  continue;
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
-            slog(LOG_DEBUG, "sending client to negchild %lu",
-            (unsigned long)negchild->pid);
+               slog(LOG_DEBUG, "sending client to negchild %lu",
+               (unsigned long)negchild->pid);
 
-            if (send_client(negchild->s, &client, NULL, 0) == 0) {
-               --negchild->freec;
-               ++negchild->sentc;
-               ++sockscf.stat.negotiate.sendt;
-            }
-            else {
-               swarn("send_client() failed");
-
-               if (ERRNOISSENDMSGFD(errno) || ERRNOISTMP(errno)) {
+               if ((p = send_client(negchild->s, &client, NULL, 0)) == 0) {
+                  --negchild->freec;
+                  ++negchild->sentc;
+                  ++sockscf.stat.negotiate.sendt;
+               }
+               else {
 #if HAVE_NEGOTIATE_PHASE
                   struct response_t response;
 
@@ -774,9 +733,7 @@ moncontrol(1);
                   create_response(NULL,
                                   &io.src.auth,
                                   io.state.version,
-                                  ERRNOISSENDMSGFD(errno) ? 
-                                      errno2reply(errno, req.req.version)
-                                    : SOCKS_FAILURE,
+                                  errno2reply(errno, req.req.version),
                                   &response);
 
                   if (send_response(io.control.s, &response) != 0) {
@@ -788,30 +745,23 @@ moncontrol(1);
                           errnostr(errno));
                   }
 #endif /* HAVE_NEGOTIATE_PHASE */
-               }
-               else {
-                  childisbad = 1;
-                  child      = negchild;
-               }
-            }
+                  slog(LOG_DEBUG, "send_client() failed with %ld: %s",
+                       (long)p, errnostr(errno));
+                  }
 
 #if HAVE_SENDMSG_DEADLOCK
-            if (negchild != NULL)
-               socks_unlock(negchild->lock);
+               if (negchild != NULL)
+                  socks_unlock(negchild->lock);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
-            close(client.s);
-
-#else /* !COVENANT */
-               /*
-                * the only thing a iochild should return is a ack each time
-                * it finishes with a io, and that is handled in loop at
-                * the start.
-                */
-               SERRX(child->pid);
+               close(client.s);
 #endif /* COVENANT */
+
                break;
             }
+
+            default:
+               SERRX(child->type);
          }
 
 #if DIAGNOSTIC
@@ -822,25 +772,14 @@ moncontrol(1);
                    (freed - freedescriptors(NULL)) == 1 ? "" : "s");
 #endif /* DIAGNOSTIC */
 
-         if (childisbad) { /* error/eof from child. */
-            havefreeslots = 0;
-
-            switch (errno) {
-               case EMFILE:
-               case ENFILE:
-                  break;   /* child is ok, we are not. */
-
-               default:
-                  removechild(child->pid);
-            }
-         }
-         else if (sockscf.child.maxrequests != 0
-         &&       child->freec              == maxfreeslots(child->type)
-         &&       child->sentc              >= sockscf.child.maxrequests) {
+         /* XXX same code as later down; merge. */
+         if (sockscf.child.maxrequests != 0
+         &&  child->freec              == maxfreeslots(child->type)
+         &&  child->sentc              >= sockscf.child.maxrequests) {
             slog(LOG_DEBUG, "closing connection to %s-child %lu as it "
                             "has now handled %lu request%s",
                             childtype2string(child->type),
-                            (unsigned long)child->pid, 
+                            (unsigned long)child->pid,
                             (unsigned long)child->sentc,
                             (unsigned long)child->sentc == 1 ? "" : "s");
             havefreeslots = 0;
@@ -848,7 +787,7 @@ moncontrol(1);
          else if (free_negc == 0
          ||       free_reqc == 0
          ||       free_ioc  == 0) {
-            /* 
+            /*
              * Could have created more in the meantime, but better
              * safe than sorry.
              */
@@ -860,11 +799,12 @@ moncontrol(1);
          }
       }
 
-      /* 
+      /*
        * next, get ack of free slots.
        */
       while ((child = getset(ACKPIPE, rset)) != NULL) {
          char command;
+         int childisbad = 0, childhasfinished = 0;
 
          errno = 0;
 
@@ -913,7 +853,7 @@ moncontrol(1);
                                   function,
                                   childtype2string(child->type),
                                   (unsigned long)child->pid,
-                                  command == SOCKD_FREESLOT_TCP ? 
+                                  command == SOCKD_FREESLOT_TCP ?
                                   "tcp" : "udp",
                                   (unsigned long)child->freec,
                                   child->freec == 1 ? "" : "s");
@@ -924,10 +864,10 @@ moncontrol(1);
                       * except the freeslot ack, as i/o childs are the
                       * last in the chain.
                       */
-                     ++sockscf.stat.io.received; 
-#if BAREFOOTD 
+                     ++sockscf.stat.io.received;
+#if BAREFOOTD
                      if (command == SOCKD_FREESLOT_UDP) {
-                        --child->hasudpsession; 
+                        --child->hasudpsession;
                         SASSERTX(child->hasudpsession == 0);
                      }
 #endif /* BAREFOOTD */
@@ -948,13 +888,13 @@ moncontrol(1);
             slog(LOG_DEBUG, "closing connection to %s-child %lu as it "
                             "has now handled %lu request%s",
                             childtype2string(child->type),
-                            (unsigned long)child->pid, 
+                            (unsigned long)child->pid,
                             (unsigned long)child->sentc,
                             (unsigned long)child->sentc == 1 ? "" : "s");
 
          if (childhasfinished || childisbad) {
             removechild(child->pid);
-           
+
            /*
             * Can no longer be sure we have any free slots to handle
             * new clients accept(2)-ed, so restart the loop.
@@ -970,7 +910,7 @@ moncontrol(1);
          char accepted[MAXSOCKADDRSTRING];
          struct sockd_client_t client;
 
-#if BAREFOOTD 
+#if BAREFOOTD
          if (sockscf.internalv[p].protocol != SOCKS_TCP)
             continue; /* udp handled by io children. */
 #endif /* BAREFOOTD */
@@ -1023,10 +963,13 @@ moncontrol(1);
 
                      if (sockscf.option.serverc > 1 && errno == EWOULDBLOCK)
                         slog(LOG_DEBUG, "accept(): %s", strerror(errno));
+                     else if (errno == ECONNABORTED)
+                        slog(LOG_NOTICE, "accept(2) failed: %s",
+                        errnostr(errno));
                      else
-                        swarn("accept()");
+                        swarn("accept(2) failed");
 
-                     /* 
+                     /*
                       * assume connection was aborted/failed/was taken by
                       * another (if serverc > 1) process.
                       */
@@ -1234,7 +1177,7 @@ serverinit(argc, argv)
          case 'N': {
             char *endptr;
 
-            if ((sockscf.option.serverc = (int)strtol(optarg, &endptr, 10)) < 1 
+            if ((sockscf.option.serverc = (int)strtol(optarg, &endptr, 10)) < 1
             ||  *endptr != NUL)
                serrx(EXIT_FAILURE, "%s: illegal value for -%c: %s",
                function, ch, optarg);
@@ -1300,8 +1243,8 @@ serverinit(argc, argv)
       sockscf.option.pidfile = SOCKD_PIDFILE;
 
    /*
-    * needs to be before configfile read, as configfile may access
-    * hostcache. 
+    * needs to be before config file read, as config file may access
+    * hostcache.
     */
    hostcachesetup();
 
@@ -1362,21 +1305,21 @@ sigterm(sig, sip, scp)
          swarnx("%s: terminating on unexpected signal %d", function, sig);
 
          /*
-          * Reinstall default signalhandler for this signal and raise it again,
+          * Reinstall default signal handler for this signal and raise it again,
           * assuming we will terminate and get a coredump if that is default
-          * behaviour.
+          * behavior.
           */
 
          if (signal(sig, SIG_DFL) == SIG_ERR)
             serr(EXIT_FAILURE,
-                 "%s: failed to reinstal original signalhandler for signal %d",
+                 "%s: failed to reinstall original signal handler for signal %d",
                  function, sig);
 
          raise(sig);
-         return; /* need to exit this signalhandler so the default can run. */
+         return; /* need to exit this signal handler so the default can run. */
       }
    }
-   else 
+   else
       sig = -sig;
 
    slog(LOG_INFO, "%s: exiting on signal %d", function, sig);
@@ -1394,7 +1337,7 @@ siginfo(sig, sip, scp)
    const char *function = "siginfo()";
    const int errno_s = errno;
    unsigned long seconds, days, hours, minutes, free_negc, free_reqc, free_ioc;
-   
+
    size_t clients;
 
    if (sig > 0) {
@@ -1491,15 +1434,19 @@ sighup(sig, sip, scp)
 #endif
 
    if (pidismother(sockscf.state.pid) != 1) {
-      /* 
+      /*
        * we are not main mother.  Can we assume the signal is from mother?
        * If not, ignore it.
        */
       static int lastsighupid;
 
       if (lastsighupid == sockscf.shmeminfo->sighupid) {
+         /*
+          * mothers sighupid has not changed, meaning she has not gotten any
+          * sighup.
+          */
          swarnx("%s: received SIGHUP, but it does not seem to have been sent "
-                "by mother, so ignoring it.",
+                "by mother.   Ignoring it.",
                 function);
 
           return;
@@ -1507,14 +1454,12 @@ sighup(sig, sip, scp)
 
       lastsighupid = sockscf.shmeminfo->sighupid;
    }
-   else
-      ++sockscf.shmeminfo->sighupid;
 
    slog(LOG_INFO, "%s: got SIGHUP, reloading ...", function);
 
    /*
-    * Copy the current addresses on the internal interfaces so that after 
-    * we have read in the new configuration, we can compare the old list 
+    * Copy the current addresses on the internal interfaces so that after
+    * we have read in the new configuration, we can compare the old list
     * against the new to know which addresses/sockets are longer in use,
     * and stop listening on them.
     *
@@ -1522,13 +1467,13 @@ sighup(sig, sip, scp)
     * and then start listening on them (again) after we in read the new
     * config, as that would mean we could lose clients in the time-gap
     * between unbinding and rebinding the addresses.
-    * 
+    *
     * This is mainly for barefootd, where adding/removing bounce-to
-    * addresses is probably not uncommon.  In the case of barefootd, 
+    * addresses is probably not uncommon.  In the case of barefootd,
     * we additionally have udp addresses we listen on constantly that
     * we need to handle in a similar way.
     *
-    * We also have a slight problem with udp rules, as we need to  
+    * We also have a slight problem with udp rules, as we need to
     * know if the rule existed before the reload.  If it did,
     * we will fail when we try to bind on the internal side,
     * and also waste time trying to set up bouncing for the same
@@ -1542,11 +1487,11 @@ sighup(sig, sip, scp)
     * but of course only one "to:" address/socket.
     *
     * Our solution for this is to also save the unique udp addresses we
-    * need to listen to, and compare against them upon config reload. 
+    * need to listen to, and compare against them upon config reload.
     * If one of the udp address is the same as before, we consider the
     * session to be "bounced" already, and if one of the addresses
     * present on the old list is not present on the new list, we know
-    * we have an old session/socket to terminate.  
+    * we have an old session/socket to terminate.
     */
 
     oldinternalc      = sockscf.internalc;
@@ -1564,6 +1509,11 @@ sighup(sig, sip, scp)
 
    genericinit();
    checkconfig();
+
+   /* delay this as long as possible. */
+   if (pidismother(sockscf.state.pid) == 1)
+      ++sockscf.shmeminfo->sighupid;
+
    shmem_setup();
 
    for (i = 0; i < oldinternalc; ++i) {
@@ -1579,11 +1529,11 @@ sighup(sig, sip, scp)
           * this socket/session should continue to exist.
           */
          sockscf.internalv[p].s = oldinternalv[i].s;
-         continue; 
+         continue;
       }
 
 #if BAREFOOTD
-      /* 
+      /*
        * this socket should be removed.
        */
 
@@ -1625,14 +1575,14 @@ sighup(sig, sip, scp)
          /*
           * Go through all rules and see if the current udp addresses
           * to bind matches any of the old ones, to see which new addresses
-          * we need to bounce.  Those already bounced we can mostly ignore, 
+          * we need to bounce.  Those already bounced we can mostly ignore,
           * except we need to mark them as bounced already.
           */
 
          /*
           * Assume there are no new addresses to bounce initially.
           */
-         sockscf.state.alludpbounced = 1; 
+         sockscf.state.alludpbounced = 1;
 
          for (rule = sockscf.crule; rule != NULL; rule = rule->next) {
             struct sockshost_t hosttobind;
@@ -1650,7 +1600,7 @@ sighup(sig, sip, scp)
                   &addrtobind, SOCKS_UDP) != -1) {
                      slog(LOG_DEBUG, "%s: marking address %s in rule %lu "
                                      "as bounced; previously bounced",
-                                     function, 
+                                     function,
                                      sockaddr2string(&addrtobind, NULL, 0),
                                      (unsigned long)rule->number);
                      rule->bounced = 1;
@@ -1667,7 +1617,7 @@ sighup(sig, sip, scp)
                      &addrtobind, SOCKS_UDP) != -1) {
                         slog(LOG_DEBUG, "%s: marking address %s in rule %lu "
                                         "as bounced; previously bounced",
-                                        function, 
+                                        function,
                                         sockaddr2string(&addrtobind, NULL, 0),
                                         (unsigned long)rule->number);
                         rule->bounced = 1;
@@ -1702,11 +1652,11 @@ sighup(sig, sip, scp)
             }
 
             if (!rule->bounced)
-               sockscf.state.alludpbounced = 0; 
+               sockscf.state.alludpbounced = 0;
          }
       }
 
-      /* may have added addresses in new config, rebind if neccessary. */
+      /* may have added addresses in new config, rebind if necessary. */
       if (bindinternal(SOCKS_TCP) != 0)
          serr(EXIT_FAILURE, "%s: failed to bind internal addresses()",
          function);
@@ -1729,8 +1679,8 @@ sighup(sig, sip, scp)
       }
    }
 
-   slog(LOG_INFO, "%s: finished SIGHUP reloading ...", function); 
-       
+   slog(LOG_INFO, "%s: finished SIGHUP reloading ...", function);
+
    time(&sockscf.stat.configload);
    errno = errno_s;
 }
@@ -1771,9 +1721,9 @@ sigchld(sig, sip, scp)
          sockscf.state.motherpidv[pidismother(pid) - 1] = 0;
 
       /*
-       * else;  assume relay child. 
+       * else;  assume relay child.
        * The reason we have to check if the child is known is that we also
-       * call removechild() if the child appears to have become "bad", 
+       * call removechild() if the child appears to have become "bad",
        * or signals us that it has exited via eof.  I.e., by the time we
        * get here, the child could already have been removed.
        */
@@ -1883,7 +1833,7 @@ checkconfig(void)
 #endif /* !HAVE_PRIVILEGES */
 #endif /* !HAVE_DUMPCONF */
 
-#if !HAVE_DUMPCONF && SOCKS_SERVER 
+#if !HAVE_DUMPCONF && SOCKS_SERVER
 
    if (sockscf.clientmethodc == 0) {
       sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_NONE;
@@ -2029,7 +1979,7 @@ checkconfig(void)
             &&  !sockscf.srchost.checkreplyauth)
                /* don't require user to specify a method for reply-only rules */
                ;
-            else 
+            else
                serrx(EXIT_FAILURE,
                      "%s: %s-rule #%lu allows no authentication methods",
                      function,
@@ -2071,7 +2021,7 @@ checkconfig(void)
          if (rule->user != NULL || rule->group != NULL) {
             if (memcmp(&rule->state.command, &udpreplyonly,
             sizeof(udpreplyonly)) == 0)
-               serrx(EXIT_FAILURE, "error with %s-rule #%lu: udpreplies can "
+               serrx(EXIT_FAILURE, "%s-rule #%lu: udpreplies can "
                                    "not provide any user/group information",
                                    isclientrule ? "client" : "socks",
                                    (unsigned long)rule->number);
@@ -2092,7 +2042,7 @@ checkconfig(void)
          if (isclientrule && rule->state.protocol.tcp)
             /*
              * Add all "to:" addresses to the list of internal interfaces;
-             * barefootd doesn't use a seperate "internal:" keyword for it.
+             * barefootd doesn't use a separate "internal:" keyword for it.
              */
              addinternal(&rule->dst, SOCKS_TCP);
          else if (!isclientrule && rule->state.protocol.udp)
@@ -2103,7 +2053,7 @@ checkconfig(void)
 
 #if HAVE_PAM
    if (sockscf.state.pamservicename != NULL
-   &&  pamservicename               != NULL) 
+   &&  pamservicename               != NULL)
       /*
        * pamservicename does not vary, but is not necessarily the
        * the same as sockscf.state.pamservicename (default).
@@ -2121,26 +2071,26 @@ checkconfig(void)
 
 #if HAVE_BSDAUTH
    if (sockscf.state.bsdauthstylename != NULL
-   &&  bsdauthstylename               != NULL) 
+   &&  bsdauthstylename               != NULL)
       if (strcmp(bsdauthstylename, sockscf.state.bsdauthstylename) != 0)
          sockscf.state.bsdauthstylename = bsdauthstylename;
 #endif /* HAVE_BSDAUTH */
 
 #if HAVE_GSSAPI
    if (sockscf.state.gssapiservicename != NULL
-   &&  gssapiservicename               != NULL) 
+   &&  gssapiservicename               != NULL)
       if (strcmp(gssapiservicename, sockscf.state.gssapiservicename) != 0)
          sockscf.state.gssapiservicename = gssapiservicename;
 
    if (sockscf.state.gssapikeytab != NULL
-   &&  gssapikeytab               != NULL) 
+   &&  gssapikeytab               != NULL)
       if (strcmp(gssapikeytab, sockscf.state.gssapikeytab) != 0)
          sockscf.state.gssapikeytab = gssapikeytab;
 #endif /* HAVE_GSSAPI */
 
    /*
     * Go through all rules again and set default values for
-    * authentication-methods, if none set.  
+    * authentication-methods, if none set.
     */
    basec = 0;
    while (basec < ELEMENTS(basev)) {
@@ -2156,7 +2106,7 @@ checkconfig(void)
          continue;
 
       for (; rule != NULL; rule = rule->next) {
-#if HAVE_PAM 
+#if HAVE_PAM
          if (methodisset(AUTHMETHOD_PAM, methodv, methodc))
             if (*rule->state.pamservicename == NUL) { /* set to default. */
                SASSERTX(strlen(sockscf.state.pamservicename)
@@ -2254,12 +2204,12 @@ checkconfig(void)
             <= sizeof(rule->state.ldap.certpath));
             strcpy(rule->state.ldap.certpath, DEFAULT_LDAP_CERTDBPATH);
          }
-         
+
          if (rule->state.ldap.port == 0) /* set to default */
-            rule->state.ldap.port = SOCKD_EXPLICIT_LDAP_PORT; 
-         
+            rule->state.ldap.port = SOCKD_EXPLICIT_LDAP_PORT;
+
          if (rule->state.ldap.portssl == 0) /* set to default */
-            rule->state.ldap.portssl = SOCKD_EXPLICIT_LDAPS_PORT; 
+            rule->state.ldap.portssl = SOCKD_EXPLICIT_LDAPS_PORT;
 #endif /* HAVE_LDAP */
       }
    }
@@ -2278,7 +2228,7 @@ checkconfig(void)
    if (sockscf.external.addrc == 0)
       serrx(EXIT_FAILURE,
             "%s: no external address given for server to use forwarding "
-            "data on behalf of clients", 
+            "data on behalf of clients",
             function);
 
    if (sockscf.external.rotation == ROTATION_SAMESAME
@@ -2339,24 +2289,24 @@ getlimitinfo(void)
    if (maxfd.rlim_cur == RLIM_INFINITY
    &&  maxproc.rlim_cur == RLIM_INFINITY)
       return "no applicable environment resource limits configured";
-   
+
    if (maxproc.rlim_cur == RLIM_INFINITY)
       snprintf(maxprocstr, sizeof(maxprocstr), "no limit");
    else
-      snprintf(maxprocstr, sizeof(maxprocstr), "%lu", 
+      snprintf(maxprocstr, sizeof(maxprocstr), "%lu",
                (unsigned long)maxproc.rlim_cur);
 
    if (maxfd.rlim_cur == RLIM_INFINITY)
       snprintf(maxfdstr, sizeof(maxfdstr), "no limit");
    else
-      snprintf(maxfdstr, sizeof(maxfdstr), "%lu", 
+      snprintf(maxfdstr, sizeof(maxfdstr), "%lu",
                (unsigned long)maxfd.rlim_cur);
 
    fds_free    = freedescriptors(NULL) - FDPASS_MAX;
    fds_in_use  = (unsigned long)maxfd.rlim_cur - fds_free;
 
    proc_free   = maxproc.rlim_cur
-               - sockscf.option.serverc 
+               - sockscf.option.serverc
                - childcheck(-CHILD_NEGOTIATE) / SOCKD_NEGOTIATEMAX
                - childcheck(-CHILD_REQUEST)   / SOCKD_REQUESTMAX
                - childcheck(-CHILD_IO)        / SOCKD_IOMAX;
@@ -2393,16 +2343,16 @@ getlimitinfo(void)
 
    snprintf(buf, sizeof(buf),
             "current resource limits:\n"
-            "   processes: %s, file descriptors: %s\n" 
+            "   processes: %s, file descriptors: %s\n"
             "number of %s limits max clients per phase to the following:\n"
             "   negotiate phase: %lu\n"
             "   request phase  : %lu\n"
             "   io phase       : %lu\n"
             "note that resources are shared; actual limits will depend on "
-            "phase composition", 
+            "phase composition",
              maxprocstr, maxfdstr,
              limiter,
-             negc_limit, 
+             negc_limit,
              reqc_limit,
              ioc_limit);
 
@@ -2411,7 +2361,7 @@ getlimitinfo(void)
 }
 
 
-#if DEBUG 
+#if DEBUG
 static void
 dotest(void)
 {
@@ -2428,7 +2378,7 @@ dotest(void)
       serr(EXIT_FAILURE, "%s: nextchild(CHILD_NEGOTIATE) failed", function);
 
    if (kill(child->pid, SIGSTOP) != 0)
-      serr(EXIT_FAILURE, "%s: kill(SIGSTOP) of child %ld failed", 
+      serr(EXIT_FAILURE, "%s: kill(SIGSTOP) of child %ld failed",
       function, (long)child->pid);
 
    bzero(&client, sizeof(client));
@@ -2440,7 +2390,7 @@ dotest(void)
       ++i;
 
    if (kill(child->pid, SIGTERM) != 0)
-      serr(EXIT_FAILURE, "%s: kill(SIGTERM) of child %ld failed", 
+      serr(EXIT_FAILURE, "%s: kill(SIGTERM) of child %ld failed",
       function, (long)child->pid);
 
    if (i >= SOCKD_NEGOTIATEMAX)
@@ -2456,7 +2406,7 @@ dotest(void)
       serr(EXIT_FAILURE, "%s: nextchild(CHILD_REQUEST) failed", function);
 
    if (kill(child->pid, SIGSTOP) != 0)
-      serr(EXIT_FAILURE, "%s: kill(SIGSTOP) of child %ld failed", 
+      serr(EXIT_FAILURE, "%s: kill(SIGSTOP) of child %ld failed",
       function, (long)child->pid);
 
    bzero(&request, sizeof(request));
@@ -2468,7 +2418,7 @@ dotest(void)
       ++i;
 
    if (kill(child->pid, SIGTERM) != 0)
-      serr(EXIT_FAILURE, "%s: kill(SIGTERM) of child %ld failed", 
+      serr(EXIT_FAILURE, "%s: kill(SIGTERM) of child %ld failed",
       function, (long)child->pid);
 
    if (i >= SOCKD_REQUESTMAX)
@@ -2483,7 +2433,7 @@ dotest(void)
       serr(EXIT_FAILURE, "%s: nextchild(CHILD_IO) failed", function);
 
    if (kill(child->pid, SIGSTOP) != 0)
-      serr(EXIT_FAILURE, "%s: kill(SIGSTOP) of child %ld failed", 
+      serr(EXIT_FAILURE, "%s: kill(SIGSTOP) of child %ld failed",
       function, (long)child->pid);
 
    bzero(&io, sizeof(io));
@@ -2498,7 +2448,7 @@ dotest(void)
       ++i;
 
    if (kill(child->pid, SIGTERM) != 0)
-      serr(EXIT_FAILURE, "%s: kill(SIGTERM) of child %ld failed", 
+      serr(EXIT_FAILURE, "%s: kill(SIGTERM) of child %ld failed",
       function, (long)child->pid);
 
    if (i >= SOCKD_IOMAX)

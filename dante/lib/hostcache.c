@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,11 +44,9 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.67 2011/03/26 17:11:50 michaels Exp $";
+"$Id: hostcache.c,v 1.72 2011/05/23 18:57:01 michaels Exp $";
 
-#if 0
-#define SOCKD_CACHESTAT    (100)
-#endif
+#define SOCKD_CACHESTAT    (1000) /* how often to print info.     */
 
 #define HOSTENT_MAX_ALIASES (2)   /* max h_aliases or h_addr_list */
 
@@ -74,7 +72,7 @@ struct hostentry_t {
    struct hostent hostent;
 
    /*
-    * memory for hostent pointers.  The contents of hostent is set to 
+    * memory for hostent pointers.  The contents of hostent is set to
     * point to the corresponding area here, rather than allocating
     * it on the stack.
     */
@@ -83,7 +81,7 @@ struct hostentry_t {
    char *_h_addr_list[HOSTENT_MAX_ALIASES + 1];  /* +1; NULL-terminated. */
 
    char _h_aliasesmem[HOSTENT_MAX_ALIASES][MAXHOSTNAMELEN];
-   char _h_addr_listmem[HOSTENT_MAX_ALIASES][MAX(sizeof(struct in_addr), 
+   char _h_addr_listmem[HOSTENT_MAX_ALIASES][MAX(sizeof(struct in_addr),
                                                  sizeof(struct in6_addr))];
 };
 
@@ -95,7 +93,7 @@ static struct hostentry_t *hostcache;
 static int dnsfd = -1; /*
                         * Try to reserve one fd for dns-resolving.
                         * If the libresolv-call fails, and the errno
-                        * indicates it is because there are to many 
+                        * indicates it is because there are to many
                         * files open, close this fd and try again.
                         * It is of course not certain libresolv-call
                         * will return with errno indicating this, but
@@ -130,7 +128,8 @@ hostentcopy(struct hostentry_t *to, const struct hostent *from,
  * The only reason this function may fail is if "from" is too big, i.e.
  * has names that are too long or similar.
  *
- * Note that this function does not set to->ipv4 or to->h_name, on
+ * Note that this function does not set to->ipv4 or to->h_name.
+ * This must be done by caller.  XXX why?
  *
  * Returns "to" on success, NULL on failure.
 */
@@ -314,7 +313,7 @@ hostentistoobig(hostent, maxaliases)
 
    if ((size_t)hostent->h_length
    > MAX(sizeof(struct in_addr), sizeof(struct in6_addr))) {
-      swarnx("%s: h_length of %s is %d bytes long, max expected is %lu", 
+      swarnx("%s: h_length of %s is %d bytes long, max expected is %lu",
              function, hostent->h_name, hostent->h_length,
              (unsigned long)MAX(sizeof(struct in_addr),
                                 sizeof(struct in6_addr)));
@@ -323,7 +322,7 @@ hostentistoobig(hostent, maxaliases)
    }
 
    if (strlen(hostent->h_name) >= MAXHOSTNAMELEN) {
-      swarnx("%s: name %s is %lu bytes long, max expected is %d", 
+      swarnx("%s: name %s is %lu bytes long, max expected is %d",
              function, hostent->h_name, (unsigned long)strlen(hostent->h_name),
              MAXHOSTNAMELEN - 1);
 
@@ -332,7 +331,7 @@ hostentistoobig(hostent, maxaliases)
 
    for (i = 0; i < maxaliases && hostent->h_aliases[i] != NULL; ++i) {
       if (strlen(hostent->h_aliases[i]) >= MAXHOSTNAMELEN) {
-         swarnx("%s: name %s is %lu bytes long, max expected is %d", 
+         swarnx("%s: name %s is %lu bytes long, max expected is %d",
                 function, hostent->h_aliases[i],
                 (unsigned long)strlen(hostent->h_aliases[i]),
                 MAXHOSTNAMELEN - 1);
@@ -364,39 +363,34 @@ hostcachesetup(void)
 
 
 struct hostent *
-cgethostbyname(_name)
-   const char *_name;
+cgethostbyname(name)
+   const char *name;
 {
    const char *function = "cgethostbyname()";
    static struct hostentry_t hostentrymem;
    static size_t i;
-   static unsigned int hit, miss;
+   static unsigned long hit, miss;
+   static int count;
    const time_t timenow = time(NULL);
    struct hostentry_t *freehost;
    struct hostent *hostent;
-   char name[MAXHOSTNAMELEN];
    int hashi;
-#if SOCKD_CACHESTAT
-   static int count;
-
-   if (count++ % SOCKD_CACHESTAT == 0)
-      slog(LOG_INFO, "%s: hit: %d, miss: %d", function, hit, miss);
-#endif /* SOCKD_CACHESTAT */
 
    if (sockscf.option.debug)
-      slog(LOG_DEBUG, "%s: %s", function, _name); 
+      if (count++ % SOCKD_CACHESTAT == 0)
+         slog(LOG_DEBUG, "%s: hit: %lu, miss: %lu", function, hit, miss);
 
-   if (strlen(_name) >= MIN(sizeof(freehost->name), sizeof(name))) {
+   if (sockscf.option.debug)
+      slog(LOG_DEBUG, "%s: %s", function, name);
+
+   if (strlen(name) >= sizeof(freehost->name)) {
       swarnx("%s: hostname \"%s\" is too long.  Max length is %lu",
-              function, name,
-              (unsigned long)(MIN(sizeof(freehost->name), sizeof(name)) - 1));
+              function, name, (unsigned long)sizeof(freehost->name) - 1);
 
       return NULL;
    }
 
-   strcpy(name, _name);  /* _addr is const */
-
-   socks_lock(sockscf.hostfd, 0, 1); 
+   socks_lock(sockscf.hostfd, 0, 1);
 
    if (i < SOCKD_HOSTCACHE
    &&  hostcache[i].allocated
@@ -442,8 +436,8 @@ cgethostbyname(_name)
    }
 
    ++miss;
-
    socks_unlock(sockscf.hostfd);
+
    if ((hostent = gethostbyname(name)) == NULL)
       if (ERRNOISNOFILE(errno) && dnsfd != -1) {
          close(dnsfd);
@@ -451,7 +445,7 @@ cgethostbyname(_name)
          dnsfd   = socket(AF_LOCAL, SOCK_DGRAM, 0);
       }
 
-   socks_lock(sockscf.hostfd, 1, 1); 
+   socks_lock(sockscf.hostfd, 1, 1);
 
    if (freehost == NULL) {
       for (i = hashi, freehost = &hostcache[i]; i < SOCKD_HOSTCACHE; ++i) {
@@ -465,12 +459,14 @@ cgethostbyname(_name)
       }
    }
 
+   SASSERTX(freehost != NULL);
+
    if (hostent == NULL) {
       static struct hostent hostentmem;
       static char *addrlist[1];
 
       hostent              = &hostentmem;
-      hostent->h_name      = _name; 
+      hostent->h_name      = (char *)name;
       hostent->h_aliases   = addrlist;
       hostent->h_addr_list = addrlist;
       hostent->h_length    = sizeof(struct in_addr);
@@ -487,7 +483,8 @@ cgethostbyname(_name)
       return NULL;
    }
 
-   strcpy(freehost->name, name); 
+   strcpy(freehost->name, name);
+   hostent->h_name = freehost->name;
 
    if (!freehost->notfound)
       memcpy(&freehost->ipv4, hostent->h_addr, hostent->h_length);
@@ -500,7 +497,11 @@ cgethostbyname(_name)
    if (freehost->notfound)
       return NULL;
 
-   return hostent; /* since it may contain more than HOSTENT_MAX_ALIASES. */
+   return hostent; /*
+                    * since it may contain more than HOSTENT_MAX_ALIASES. 
+                    * If user later retrieves our cached version, he will
+                    * only get up to HOSTENT_MAX_ALIASES though.
+                    */
 }
 
 struct hostent *
@@ -512,18 +513,17 @@ cgethostbyaddr(_addr, len, type)
    const char *function = "cgethostbyaddr()";
    static struct hostent *hostent;
    static struct hostentry_t hostentrymem;
-   static unsigned long int hit, miss;
+   static unsigned long hit, miss;
    static size_t i;
+   static int count;
    const time_t timenow = time(NULL);
    struct hostentry_t *freehost;
    char addr[sizeof(struct in_addr)];
    int hashi;
-#if SOCKD_CACHESTAT
-   static int count;
 
-   if (count++ % SOCKD_CACHESTAT == 0)
-      slog(LOG_INFO, "%s: hit: %d, miss: %d", function, hit, miss);
-#endif /* SOCKD_CACHESTAT */
+   if (sockscf.option.debug)
+      if (count++ % SOCKD_CACHESTAT == 0)
+         slog(LOG_DEBUG, "%s: hit: %lu, miss: %lu", function, hit, miss);
 
    SASSERTX(type == AF_INET);
    SASSERTX(len <= sizeof(addr));
@@ -532,7 +532,7 @@ cgethostbyaddr(_addr, len, type)
    if (sockscf.option.debug)
       slog(LOG_DEBUG, "%s: %s", function, inet_ntoa(*((struct in_addr *)addr)));
 
-   socks_lock(sockscf.hostfd, 0, 1); 
+   socks_lock(sockscf.hostfd, 0, 1);
 
    if (i < SOCKD_HOSTCACHE
    &&  hostcache[i].allocated
@@ -631,7 +631,7 @@ cgethostbyaddr(_addr, len, type)
 
    if (!freehost->notfound) {
       SASSERTX(strlen(hostent->h_name) < sizeof(freehost->name));
-      strcpy(freehost->name, hostent->h_name); 
+      strcpy(freehost->name, hostent->h_name);
    }
 
    freehost->written   = timenow;
@@ -685,7 +685,7 @@ hostentcopy(to, from, maxaliases)
 {
    size_t i;
 
-   if (hostentistoobig(from, HOSTENT_MAX_ALIASES)) 
+   if (hostentistoobig(from, HOSTENT_MAX_ALIASES))
       return NULL;
 
    to->hostent.h_addrtype = from->h_addrtype;

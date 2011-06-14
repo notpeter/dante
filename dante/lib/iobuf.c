@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009
+ * Copyright (c) 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,20 +43,20 @@
 
 #include "common.h"
 
-static const char rcsid[] = 
-"$Id: iobuf.c,v 1.71 2011/05/13 17:53:17 michaels Exp $";
+static const char rcsid[] =
+"$Id: iobuf.c,v 1.73 2011/05/18 13:48:46 karls Exp $";
 
 static void socks_flushallbuffers(void);
 
 #if !SOCKS_CLIENT
 /*
  * - Each negotiatechild client can use one iobuffer for control.
- * - Each requestchild and iochild client can use one iobuffer for 
+ * - Each requestchild and iochild client can use one iobuffer for
  *   control, src, and st.
  */
 static iobuffer_t
-   iobufv[MAX((SOCKD_NEGOTIATEMAX * 1  /* control */), 
-               MAX((SOCKD_IOMAX   * 3  /* control, src, dst */), 
+   iobufv[MAX((SOCKD_NEGOTIATEMAX * 1  /* control */),
+               MAX((SOCKD_IOMAX   * 3  /* control, src, dst */),
                     (SOCKD_REQUESTMAX   * 3  /* control, src, dst */)))];
 static const size_t  iobufc = ELEMENTS(iobufv);
 
@@ -275,7 +275,7 @@ socks_getbuffer(s)
 {
 /*   const char *function = "socks_getbuffer()";  */
    static size_t i;
-   
+
    if (i < iobufc && iobufv[i].s == s && iobufv[i].allocated)
       return &iobufv[i];
 
@@ -310,7 +310,7 @@ socks_allocbuffer(s, stype)
    const int stype;
 {
    const char *function = "socks_allocbuffer()";
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
    sigset_t oset;
 #endif /* SOCKS_CLIENT */
    iobuffer_t *freebuffer;
@@ -332,11 +332,11 @@ socks_allocbuffer(s, stype)
             break;
          }
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
    /*
     * for non-blocking connect, we get a SIGIO upon completion.
     * We don't want that to happen during e.g. the below malloc(3) call,
-    * as the sigio handler may access the malloced memory, or while
+    * as the sigio handler may access the malloc-ed memory, or while
     * we are in the processes of initializing this iobuf.
     */
    socks_sigblock(SIGIO, &oset);
@@ -390,7 +390,7 @@ socks_freebuffer(s)
    const int s;
 {
    const char *function = "socks_freebuffer()";
-   
+
    slog(LOG_DEBUG, "%s: socket %d", function, s);
 
    if (lastfreei < iobufc
@@ -405,7 +405,7 @@ socks_freebuffer(s)
 
          if (sockscf.option.debug > 1
          && ( socks_bufferhasbytes(s, READ_BUF)
-           || socks_bufferhasbytes(s, WRITE_BUF))) 
+           || socks_bufferhasbytes(s, WRITE_BUF)))
             slog(LOG_DEBUG, "%s: freeing buffer with data (%lu/%lu, %lu/%lu)",
             function,
             (unsigned long)socks_bytesinbuffer(s, READ_BUF, 0),
@@ -528,7 +528,7 @@ socks_freeinbuffer(s, which)
    if ((iobuf = socks_getbuffer(s)) == NULL)
       return 0;
 
-   rc = sizeof(iobuf->buf[which]) 
+   rc = sizeof(iobuf->buf[which])
         - (socks_bytesinbuffer(s, which, 0) + socks_bytesinbuffer(s, which, 1));
 
    if (sockscf.option.debug > 1)

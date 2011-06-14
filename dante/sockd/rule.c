@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010
+ * Copyright (c) 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,14 +45,14 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: rule.c,v 1.61 2011/04/15 07:55:07 michaels Exp $";
+"$Id: rule.c,v 1.68 2011/06/13 08:39:27 michaels Exp $";
 
 #if HAVE_LIBWRAP
 extern jmp_buf tcpd_buf;
 int allow_severity, deny_severity;
 
 static void
-libwrapinit(int s, struct sockaddr *local, struct sockaddr *peer, 
+libwrapinit(int s, struct sockaddr *local, struct sockaddr *peer,
             struct request_info *request);
 /*
  * Initializes "request" for later usage via libwrap.
@@ -75,7 +75,7 @@ srchostisok(const struct sockaddr *peer, char *msg, size_t msgsize);
  * to srchost-settings.  If the connection/packet is not ok, "msg" is filled
  * in with the reason why not.
  *
- * This function should be called after each rulecheck for a new
+ * This function should be called after each rule check for a new
  * connection/packet.
  *
  * Returns:
@@ -112,7 +112,7 @@ void
 addclientrule(newrule)
    const struct rule_t *newrule;
 {
-   const char *function = "addclientrule()"; 
+   const char *function = "addclientrule()";
    struct rule_t *rule, ruletoadd;
 
    ruletoadd = *newrule; /* for const. */
@@ -125,13 +125,13 @@ addclientrule(newrule)
    if (rule->state.protocol.udp) {
       /*
        * Only one level of acls, so we need to autogenerate the second level
-       * ourselves as the first acl level can only handle tcp, but we 
+       * ourselves as the first acl level can only handle tcp, but we
        * need to check each udp packet against rulespermit(), and for that,
        * a second level acl (socks-rule) is needed.
        *
-       * In the tcp-case, we don't need any socks-rules, the client-rule 
+       * In the tcp-case, we don't need any socks-rules, the client-rule
        * is enough as the endpoints get fixed at session-establishment
-       * and we can just short-curcuit the process as we knows the 
+       * and we can just short-circuit the process as we knows the
        * session is allowed if it gets past the client-rule state.
        */
       struct rule_t srule;
@@ -151,12 +151,12 @@ addclientrule(newrule)
       /* udp will use the resource-limits from the client-rule. */
       SHMEM_CLEAR(&srule, 1);
 
-      /* 
+      /*
        * no socks-rules to configure for user means no auth also; if
        * the client-rule passes, socks-rule should to.
        * This remains correct as long as there are no udp-based auth methods.
        */
-      srule.state.methodc                        = 0; 
+      srule.state.methodc                        = 0;
       srule.state.methodv[srule.state.methodc++] = AUTHMETHOD_NONE;
 
       bzero(&srule.bounce_to, sizeof(srule.bounce_to));
@@ -222,7 +222,6 @@ addclientrule(newrule)
       }
    }
 #endif /* BAREFOOTD */
-
 }
 
 void
@@ -296,6 +295,7 @@ showrule(_rule, isclientrule)
 #endif /* BAREFOOTD */
 
 
+   /* only show if timeout differs from default. */
    if (memcmp(&rule.timeout, &sockscf.timeout, sizeof(rule.timeout)) != 0)
       showtimeout(&rule.timeout);
 
@@ -418,7 +418,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
    unsigned char libwrapinited = 0;
 #endif /* !HAVE_LIBWRAP */
    int *methodv, methodc, isclientrule;
-   char srcstr[MAXSOCKSHOSTSTRING], dststr[MAXSOCKSHOSTSTRING], 
+   char srcstr[MAXSOCKSHOSTSTRING], dststr[MAXSOCKSHOSTSTRING],
         lstr[MAXSOCKADDRSTRING], pstr[MAXSOCKADDRSTRING];
 
    sockd_handledsignals();
@@ -456,12 +456,12 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 #endif /* BAREFOOTD */
 
       memset(&defrule.log, 0, sizeof(defrule.log));
-      defrule.log.connect     = 1;
-      defrule.log.iooperation = 1; /* blocked iooperations. */
 
       if (sockscf.option.debug) {
-         defrule.log.disconnect = 1;
-         defrule.log.error      = 1;
+         defrule.log.connect     = 1;
+         defrule.log.disconnect  = 1;
+         defrule.log.error       = 1;
+         defrule.log.iooperation = 1;
       }
 
       memset(&defrule.state.command, UCHAR_MAX, sizeof(defrule.state.command));
@@ -535,7 +535,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
    rule = rule->next, *srcauth = oldauth) {
       int i;
 
-      slog(LOG_DEBUG, "%s: trying to match aginst %s-rule #%lu, verdict = %s", 
+      slog(LOG_DEBUG, "%s: trying to match against %s-rule #%lu, verdict = %s",
                       function,
                       isclientrule ? "client" : "socks",
                       (unsigned long)rule->number,
@@ -639,7 +639,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 #if BAREFOOTD
       /*
        * In barefootd's case, we can have several socks-rules with
-       * the same from and to address, and the differenciating factor
+       * the same from and to address, and the differentiating factor
        * will be the address the udp packet was accepted on.
        */
 
@@ -677,7 +677,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
             continue; /* don't have complete address. */
 
       /*
-       * Does this rule's authentication requirements match the current 
+       * Does this rule's authentication requirements match the current
        * authentication in use by the client?
        */
       if ((state->command == SOCKS_BINDREPLY
@@ -690,7 +690,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
           * method rfc931, or ip-only based pam), though probably
           * extremely unlikely.
           *
-          * That can make the configfile look weird though; if the
+          * That can make the configure look weird though; if the
           * user e.g. wants all access to be password-authenticated,
           * and thus specifies method "uname" on the global
           * method-line, he can not do that without also adding method
@@ -714,9 +714,9 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
           * No.  There are however some methods which it's possible to get
           * a match on, even if above check failed.
           * I.e. it's possible to "change/upgrade" the method.
-          * E.g. if the client is using method NONE (or any other), 
+          * E.g. if the client is using method NONE (or any other),
           * it might still be possible to change the authentication to
-          * RFC931, or PAM.  Likewise, if the current method is 
+          * RFC931, or PAM.  Likewise, if the current method is
           * AUTHMETHOD_NOTSET, it can be "upgraded" to AUTHMETHOD_NONE.
           *
           * We therefore look at what methods this rule requires and see
@@ -993,7 +993,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
          if (i == methodc) {
 #if COVENANT
             /*
-             * Respond to the client that it must provide proxy 
+             * Respond to the client that it must provide proxy
              * authentication, which means we can go from no authentication
              * to "any" authentication, if the client goes on to provide
              * authentication later.
@@ -1121,6 +1121,32 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
       sockd_priv(SOCKD_PRIV_LIBWRAP, PRIV_ON);
       process_options(libwrapcmd, &libwraprequest);
       sockd_priv(SOCKD_PRIV_LIBWRAP, PRIV_OFF);
+
+      if (match->verdict == VERDICT_BLOCK
+      &&  strstr(rule->libwrap, "banners ") != NULL) {
+         /*
+          * see RFC 2525 2.17 "Failure to RST on close with data pending".
+          * We don't want the kernel to RST this connection upon our 
+          * subsequent close(2) without us having sent the whole banner to
+          * the client first.  But if the kernel wants to send RST while 
+          * we have data not yet sent, it will discard the data not yet
+          * sent.  We therefor drain the data, trying to make sure the
+          * kernel does not discard the data in the outbuffer when we
+          * close(2).  Note that this changes the RST to FIN.
+          *
+          * Also note there is a race here, as the client could send us data
+          * between our last read(2) call and us closing the session later, 
+          * but not much to do about that.  Fsync(2) would be nice, but 
+          * even if it had worked on socket, this is not important enough
+          * to block for.
+          */
+          char buf[1024];
+          ssize_t p;
+
+          while ((p = read(s, buf, sizeof(buf))) > 0)
+            slog(LOG_DEBUG, "%s: read %ld bytes.  Discarding so banner is sent",
+                 function, (long)p);
+      }
    }
 #endif /* !HAVE_LIBWRAP */
 
@@ -1150,7 +1176,7 @@ srchostisok(peer, msg, msgsize)
    if (sockscf.srchost.nodnsmismatch || sockscf.srchost.nodnsunknown) {
       struct hostent *hostent;
 
-      hostent = gethostbyaddr(&(TOCIN(peer))->sin_addr, 
+      hostent = gethostbyaddr(&(TOCIN(peer))->sin_addr,
                               sizeof(TOCIN(peer)->sin_addr),
                               AF_INET);
 
@@ -1174,13 +1200,14 @@ srchostisok(peer, msg, msgsize)
 
          resolvedhost.atype = (unsigned char)SOCKS_ADDR_DOMAIN;
          if (strlen(hostent->h_name) >= sizeof(resolvedhost.addr.domain)) {
-            slog(LOG_WARNING, "%s: ipaddress %s resolved to a ""hostname (%s) " 
-                              "that is too large.  %lu is the known max.",
-                              function,
-                              sockaddr2string((struct sockaddr *)&peeraddr,
-                                              NULL, 0),
-                              hostent->h_name,
-                              (unsigned long)sizeof(resolvedhost.addr.domain));
+            swarnx("%s: ipaddress %s resolved to a ""hostname (%s) "
+                   "that is too large.  %lu is the known max.",
+                   function,
+                   sockaddr2string((struct sockaddr *)&peeraddr,
+                                   NULL, 0),
+                  hostent->h_name,
+                  (unsigned long)sizeof(resolvedhost.addr.domain));
+
             return 0;
          }
          resolvedhost.port = peeraddr.sin_port;
@@ -1209,13 +1236,13 @@ libwrapinit(s, local, peer, request)
    struct sockaddr *peer;
    struct request_info *request;
 {
-   const char *function = "libwrapinit()"; 
+   const char *function = "libwrapinit()";
    const int errno_s = errno;
    struct hostent *hostent;
 
    slog(LOG_DEBUG, "%s: initing libwrap with socket %d", function, s);
 
-   hostent = gethostbyaddr(&(TOIN(local)->sin_addr), 
+   hostent = gethostbyaddr(&(TOIN(local)->sin_addr),
                            sizeof(TOIN(local)->sin_addr),
                            AF_INET);
    request_init(request,
@@ -1223,10 +1250,10 @@ libwrapinit(s, local, peer, request)
                 RQ_DAEMON, __progname,
                 RQ_CLIENT_SIN, peer,
                 RQ_SERVER_SIN, local,
-                RQ_SERVER_NAME, hostent != NULL ? hostent->h_name : "",  
+                RQ_SERVER_NAME, hostent != NULL ? hostent->h_name : "",
                 0);
 
-   hostent = gethostbyaddr(&(TOIN(peer)->sin_addr), 
+   hostent = gethostbyaddr(&(TOIN(peer)->sin_addr),
                            sizeof(TOIN(peer)->sin_addr),
                            AF_INET);
    request_set(request,
@@ -1250,16 +1277,14 @@ libwrap_hosts_access(request, peer)
    sockd_priv(SOCKD_PRIV_LIBWRAP, PRIV_ON);
    allow = hosts_access(request) != 0;
    sockd_priv(SOCKD_PRIV_LIBWRAP, PRIV_OFF);
-   if (allow) {
-      slog(LOG_DEBUG, "%s: libwrap hosts_access(): 'allow': %s", function,
-      sockaddr2string(peer, NULL, 0));
+
+   slog(LOG_DEBUG, "%s: libwrap hosts_access(): '%s': %s",
+        function, allow ? "allow" : "deny", sockaddr2string(peer, NULL, 0));
+
+   if (allow)
       return 1;
-   }
-   else {
-      slog(LOG_DEBUG, "%s: libwrap hosts_access(): 'deny': %s", function,
-      sockaddr2string(peer, NULL, 0));
-      return 0;
-   }
+
+   return 0;
 }
 #endif /* HAVE_LIBWRAP */
 
@@ -1306,7 +1331,7 @@ addrule(newrule, rulebase, isclientrule)
       rule->src.addr.ipv4.mask = TOIN(&mask)->sin_addr;
 
       if (ifname2sockaddr(rule->src.addr.ifname, 1, &addr, &mask) != NULL)
-         yywarn("interfacenames with multiple ip addresses not yet supported "
+         yywarn("interface names with multiple ip addresses not yet supported "
                 "in rules.  Will only use first address on interface");
    }
 
@@ -1348,13 +1373,13 @@ addrule(newrule, rulebase, isclientrule)
 
 
    /*
-    * protocol and commands are two sides of the same coin.  
+    * protocol and commands are two sides of the same coin.
     * If only protocol is set, set all commands that can apply to that
     * protocol.
-    * If only command is set, set all protocols that can apply to that 
+    * If only command is set, set all protocols that can apply to that
     * command.
     * If none are set, set all protocols and commands.
-    * If both are set, don't touch; user has explictly set what he wants.
+    * If both are set, don't touch; user has explicitly set what he wants.
     */
 
    if (memcmp(&zstate.protocol, &rule->state.protocol, sizeof(zstate.protocol))
@@ -1422,8 +1447,8 @@ addrule(newrule, rulebase, isclientrule)
 
    if (sockscf.clientmethodc == 0)
       /*
-       * No methods set by user, at least so far.  Set AUTHMETHOD_NONE 
-       * ourselves in this case, so as to not always require the user 
+       * No methods set by user, at least so far.  Set AUTHMETHOD_NONE
+       * ourselves in this case, so as to not always require the user
        * having to deal with it.
        */
       sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_NONE;
@@ -1433,7 +1458,7 @@ addrule(newrule, rulebase, isclientrule)
    sockscf.clientmethodc)) {
       /*
        * GSSAPI is a socks-method, but must be set in the client-rule
-       * as the gssapi-settings must be known when establishing the 
+       * as the gssapi-settings must be known when establishing the
        * the session with the client.  Thus if the socks-method supports,
        * gssapi, make sure the client-method also does it.
        */
@@ -1442,7 +1467,7 @@ addrule(newrule, rulebase, isclientrule)
                       function, method2string(AUTHMETHOD_GSSAPI));
 
       /*
-       * make gssapi be the prefered method.  If user wants it different, 
+       * make gssapi be the preferred method.  If user wants it different,
        * he needs to configure clientmethod correctly, including gssapi.
        */
       memmove(&sockscf.clientmethodv[1],
@@ -1454,7 +1479,7 @@ addrule(newrule, rulebase, isclientrule)
    }
 
    /*
-    * If no method set, set all set from global methodline that make sense.
+    * If no method set, set all set from global method line that make sense.
     */
    if (rule->state.methodc == 0) {
       for (i = 0; i < *methodc; ++i) {
@@ -1530,7 +1555,7 @@ addrule(newrule, rulebase, isclientrule)
                  methodv == sockscf.clientmethodv ? "client" : "",
                  methods2string(*methodc, methodv, NULL, 0));
 
-   /* if no proxyprotocol set, set appropriate. */
+   /* if no proxy protocol set, set appropriate. */
    if (memcmp(&zstate.proxyprotocol, &rule->state.proxyprotocol,
    sizeof(zstate.proxyprotocol)) == 0) {
 #if SOCKS_SERVER
@@ -1656,14 +1681,14 @@ addrule(newrule, rulebase, isclientrule)
    }
    else
       rule->ldapsettingsfromuser = 1;
-   
+
    if (rule->state.ldap.port == 0) /* set to default */
-      rule->state.ldap.port = SOCKD_EXPLICIT_LDAP_PORT; 
+      rule->state.ldap.port = SOCKD_EXPLICIT_LDAP_PORT;
    else
       rule->ldapsettingsfromuser = 1;
 
    if (rule->state.ldap.portssl == 0) /* set to default */
-      rule->state.ldap.portssl = SOCKD_EXPLICIT_LDAPS_PORT; 
+      rule->state.ldap.portssl = SOCKD_EXPLICIT_LDAPS_PORT;
    else
       rule->ldapsettingsfromuser = 1;
 #endif /* HAVE_LDAP */
@@ -1737,7 +1762,7 @@ checkrule(rule, isclientrule)
 
    if (rule->user != NULL || rule->group != NULL
 #if HAVE_LDAP
-   ||  rule->ldapgroup != NULL 
+   ||  rule->ldapgroup != NULL
    ||  rule->ldapsettingsfromuser /* ldap also requires username. */
 #endif /* HAVE_LDAP */
    ) {
@@ -1797,14 +1822,13 @@ checkrule(rule, isclientrule)
    }
 
 #if BAREFOOTD
-   if (rule->bounce_to.atype                 == SOCKS_ADDR_IPV4 
+   if (rule->bounce_to.atype                 == SOCKS_ADDR_IPV4
    &&  rule->bounce_to.addr.ipv4.mask.s_addr != htonl(0xffffffff))
       yyerror("no netmask is necessary for the \"bounce to\" address, "
               "but if a mask is given, it must be %d, not %d",
               bitcount(0xffffffff),
               bitcount(rule->bounce_to.addr.ipv4.mask.s_addr));
-#endif /* BAREFOOTD */             
-
+#endif /* BAREFOOTD */
 }
 
 static void
@@ -1815,5 +1839,3 @@ showlog(log)
 
    slog(LOG_INFO, "log: %s", logs2string(log, buf, sizeof(buf)));
 }
-
-
