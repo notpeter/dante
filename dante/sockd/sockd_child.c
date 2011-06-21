@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.275 2011/06/13 08:39:27 michaels Exp $";
+"$Id: sockd_child.c,v 1.276 2011/06/19 14:33:57 michaels Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -1210,7 +1210,8 @@ send_io(s, io)
    }
 
    if (sockscf.option.debug > 1) {
-      char ctrlbuf[256], srcbuf[256], dstbuf[256];
+      char ctrlbuf[MAXSOCKADDRSTRING * 3], srcbuf[MAXSOCKADDRSTRING * 3],
+           dstbuf[MAXSOCKADDRSTRING * 3];
 
       slog(LOG_DEBUG, "%s: sending %d descriptors for command %d.  "
                       "bw_shmid: %ld, ss_shmid: %ld\n"

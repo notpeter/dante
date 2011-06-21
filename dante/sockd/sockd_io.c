@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.647 2011/06/14 07:22:24 michaels Exp $";
+"$Id: sockd_io.c,v 1.662 2011/06/20 11:11:35 michaels Exp $";
 
 /*
  * IO-child:
@@ -424,7 +424,9 @@ static const size_t ioc = ELEMENTS(iov);
  * the size of the i/o object.  Since the i/o object is passed around between
  * processes, we want it to be as small as possible, reducing the min-size
  * of the socketbuffers between mother and child.
+ * XXX is this only needed in SOCKS_SERVER case?
  */
+static struct rule_t udpfwdrulev[SOCKD_IOMAX];
 static struct rule_t replyrulev[SOCKD_IOMAX];
 
 
@@ -1799,8 +1801,11 @@ recv_io(s, io)
 
    *io = tmpio;
    if (wearechild) {
-      io->replyrule = &replyrulev[ioi];
+      io->udpfwdrule = &udpfwdrulev[ioi];
+      io->replyrule  = &replyrulev[ioi];
+
       bzero(io->replyrule, sizeof(*io->replyrule));
+      bzero(io->udpfwdrule, sizeof(*io->udpfwdrule));
    }
 
    received -= sizeof(*io);
@@ -2398,11 +2403,9 @@ doio(io, rset, wset, flags, bad)
           * if we have enough bandwidth allocated to send the packet, and
           * if not, buffer it for later, but don't bother for now.)
           */
-
 #if BAREFOOTD
          struct udpclient *udpclient;
          struct connectionstate_t clientrulestate;
-         struct rule_t *packetrule = &io->rule;
 #endif /* BAREFOOTD */
          struct sockshost_t host;
          char hosta[MAXSOCKSHOSTSTRING], hostb[MAXSOCKSHOSTSTRING];
@@ -2413,7 +2416,9 @@ doio(io, rset, wset, flags, bad)
 #if SOCKS_SERVER
          /*
           * In both Barefoot and Dante, we need to do both a rulespermit()
-          * per packet, but we also need to save the original rule.
+          * per packet, but we also need to save the original rule that
+          * allowed the session.
+          *
           * In Dante, the original rule is the socks-rule that matched the
           * control-connection, while in Barefoot, it is client-rule that
           * was used to generate the corresponding socks-rule.
@@ -2428,10 +2433,6 @@ doio(io, rset, wset, flags, bad)
           * than io.rule, while in Barefoot's case, we want to use io.rule for
           * this.
           */
-         struct rule_t packetrule_mem;
-         struct rule_t *packetrule;
-
-         packetrule = &packetrule_mem;
 #endif /* SOCKS_SERVER */
 
          /*
@@ -2441,17 +2442,23 @@ doio(io, rset, wset, flags, bad)
          &&  FD_ISSET(io->dst.s, wset)) {
             const int lflags = flags & ~MSG_OOB;
             struct sockaddr from;
+            int failed = 0;
 #if SOCKS_SERVER
             const int dst_s = io->dst.s;
+            struct rule_t *packetrule = io->udpfwdrule;
 
-            *packetrule = io->rule;
+            if (!io->use_saved_rule)
+               *packetrule = io->rule; /* default, until rulespermit(). */
+
 #else /* BAREFOOTD */
+            struct rule_t *packetrule = &io->rule;
             struct udpclient udpsrc;
             int dst_s; /* in barefootd, this will have to be set later. */
 
             bzero(&udpsrc, sizeof(udpsrc));
+#warning    "XXX need to initialize packetrule here, for cases where we "
+#warning    "iolog() before rulespermit()"
 #endif /* BAREFOOTD */
-
 
             len = sizeof(from);
             if ((r = socks_recvfrom(io->src.s,
@@ -2465,7 +2472,7 @@ doio(io, rset, wset, flags, bad)
                /*
                 * Barefoot can have many udp clients and we can't know
                 * here which one this error is for.  Hopefully it will be
-                * picked up via the raw socket also, if we have one,
+                * picked up via the raw socket also if we have one,
                 * and logged correctly there.
                 */
                io->src.host.atype            = (unsigned char)SOCKS_ADDR_IPV4;
@@ -2560,6 +2567,27 @@ doio(io, rset, wset, flags, bad)
                              sockaddr2string(&io->src.raddr, src, sizeof(src)),
                              sockaddr2string(&from, dst, sizeof(dst)));
 
+                  failed = 1;
+               }
+
+               if (!failed) {
+                  sockaddr2sockshost(&io->src.raddr, &io->src.host);
+                  if (connect(io->src.s, &io->src.raddr, sizeof(io->src.raddr))
+                  != 0) {
+                     buflen
+                     = snprintf(buf, sizeof(buf),
+                               "%s: strange ... could not connect(2) back to "
+                               "udp client who sent us a packet from %s",
+                                function,
+                                sockaddr2string(&io->src.raddr, NULL, 0));
+
+                     swarn(buf);
+
+                     failed = 1;
+                  }
+               }
+
+               if (failed) {
                   iolog(packetrule,
                         &io->state,
                         OPERATION_BLOCK,
@@ -2580,19 +2608,7 @@ doio(io, rset, wset, flags, bad)
                         buf,
                         buflen);
 
-                  break;
-               }
-
-               sockaddr2sockshost(&io->src.raddr, &io->src.host);
-               if (connect(io->src.s, &io->src.raddr, sizeof(io->src.raddr))
-               != 0) {
-                  swarn("%s: strange ... could not connect(2) back to "
-                        "udp client who sent us a packet from %s",
-                        function,
-                        sockaddr2string(&io->src.raddr, NULL, 0));
-
-                  *bad = io->src.s;
-                  return IO_ERROR;
+                  return IO_TMPERROR;
                }
             }
 
@@ -2619,9 +2635,7 @@ doio(io, rset, wset, flags, bad)
                  function,
                  dst_s == -1 ? "" : "not ",
                  sockaddr2string(&from, hosta, sizeof(hosta)),
-                 sockaddr2string(&io->src.laddr,
-                                 hostb,
-                                 sizeof(hostb)),
+                 sockaddr2string(&io->src.laddr, hostb, sizeof(hostb)),
                  (long)r);
 
             if (dst_s == -1 || !udpclient->use_saved_rule) {
@@ -2708,7 +2722,6 @@ doio(io, rset, wset, flags, bad)
                return IO_BLOCK;
             }
 
-
 #else /* SOCKS_SERVER */
 
             /* got a packet, pull out the socks UDP header. */
@@ -2720,41 +2733,31 @@ doio(io, rset, wset, flags, bad)
                           (unsigned)r,
                           sockaddr2string(&io->src.raddr, NULL, 0));
 
-               iolog(packetrule,
-                     &io->state,
-                     OPERATION_ERROR,
-                     &io->src.laddr,
-                     &io->src.host,
-                     &io->src.auth,
-                     NULL,
-                     NULL,
-                     NULL,
-                     &io->dst.laddr,
-                     NULL,
-                     &io->dst.auth,
-                     io->state.proxyprotocol
-                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
-                     io->state.proxyprotocol
-                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
-                     NULL,
-                     buf,
-                     buflen);
-
-               rawsocket_send(rawsocket,
-                              &io->src.host,
-                              sockaddr2sockshost(&io->src.laddr, &host),
-                              NULL,
-                              -1);
-
-               return IO_TMPERROR;
+               failed = 1;
             }
 
-            io->dst.host = header.host;
-
-            if (header.frag != 0) {
+            if (!failed && header.frag != 0) {
                buflen = snprintf(buf, sizeof(buf),
                                  "fragmented udp packets are not supported");
 
+               failed = 1;
+            }
+#endif /* SOCKS_SERVER */
+
+            if (!failed) {
+               sockshost2sockaddr(&header.host, &io->dst.raddr);
+               if (!ADDRISBOUND(TOIN(&io->dst.raddr))) {
+                  buflen
+                  = snprintf(buf, sizeof(buf),
+                             "can not resolve destination %s for client %s",
+                             sockshost2string(&header.host, NULL, 0),
+                             sockaddr2string(&from, NULL, 0));
+
+                  failed = 1;
+               }
+            }
+
+            if (failed) {
                iolog(packetrule,
                      &io->state,
                      OPERATION_ERROR,
@@ -2765,12 +2768,12 @@ doio(io, rset, wset, flags, bad)
                      NULL,
                      NULL,
                      &io->dst.laddr,
-                     &io->dst.host,
+                     &header.host,
                      &io->dst.auth,
-                     io->state.proxyprotocol
-                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
-                     io->state.proxyprotocol
-                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                     io->state.proxyprotocol == PROXY_DIRECT ?
+                        NULL : &io->state.proxychain.server,
+                     io->state.proxyprotocol == PROXY_DIRECT ?
+                        NULL : &io->state.proxychain.extaddr,
                      NULL,
                      buf,
                      buflen);
@@ -2778,19 +2781,19 @@ doio(io, rset, wset, flags, bad)
                rawsocket_send(rawsocket,
                               &io->src.host,
                               sockaddr2sockshost(&io->src.laddr, &host),
-                              &io->dst.host,
+                              &header.host,
                               -1);
 
                return IO_TMPERROR;
             }
-#endif /* SOCKS_SERVER */
 
             /*
-             * A slight optimization; if the client will only be
-             * sending udp packets to one address, it is much more
-             * efficient to connect the socket to that address.
-             * This is always the case in barefootd, and may also be
-             * the usual case with socks.
+             * An optimization: if the client will only be sending udp 
+             * packets to one address, it is much more efficient to connect 
+             * the socket to that address. 
+             *
+             * This is always the case in barefootd, and may also be the 
+             * usual case with socks.
              *
              * However, if we do that, we must be sure to unconnect
              * the socket before sending out on it again if the client wants
@@ -2799,60 +2802,20 @@ doio(io, rset, wset, flags, bad)
              * address we first connected to will also be received.
              */
 
+
 #if BAREFOOTD
             if (dst_s == -1 || !udpclient->use_saved_rule)
-
 #else /* SOCKS_SERVER */
-            if (!io->use_saved_rule)
+            if (!io->dst.state.connected || !io->use_saved_rule)
 #endif /* SOCKS_SERVER */
             {
-               /*
-                * first packet (or fist after sighup) from this client.
-                */
-
                slog(LOG_DEBUG,
-                    "%s: first udp packet from client %s.  "
-                    "Dst determined to be %s",
+                    "%s: udp packet #%"PRIu64" from client %s.  Destination %s",
                     function,
+                    io->src.read.packets,
                     sockaddr2string(&from, NULL, 0),
-                    sockshost2string(&io->dst.host, NULL, 0));
+                    sockshost2string(&header.host, NULL, 0));
 
-               sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
-               if (!ADDRISBOUND(TOIN(&io->dst.raddr))) {
-                  buflen
-                  = snprintf(buf, sizeof(buf),
-                             "can not resolve destination %s for client %s",
-                             sockshost2string(&io->dst.host, NULL, 0),
-                             sockaddr2string(&from, NULL, 0));
-
-                  iolog(packetrule,
-                        &io->state,
-                        OPERATION_ERROR,
-                        &io->src.laddr,
-                        &io->src.host,
-                        &io->src.auth,
-                        NULL,
-                        NULL,
-                        NULL,
-                        &io->dst.laddr,
-                        &io->dst.host,
-                        &io->dst.auth,
-                        io->state.proxyprotocol == PROXY_DIRECT ?
-                           NULL : &io->state.proxychain.server,
-                        io->state.proxyprotocol == PROXY_DIRECT ?
-                           NULL : &io->state.proxychain.extaddr,
-                        NULL,
-                        buf,
-                        buflen);
-
-                  rawsocket_send(rawsocket,
-                                 &io->src.host,
-                                 sockaddr2sockshost(&io->src.laddr, &host),
-                                 &io->dst.host,
-                                 -1);
-
-                  return IO_TMPERROR;
-               }
 #if BAREFOOTD
                /*
                 * Create a new socket and use that for sending out packets
@@ -2864,8 +2827,9 @@ doio(io, rset, wset, flags, bad)
                 * SOCKD_IOMAX tcp clients, so we don't fail on recvmsg(2)
                 * when mother sends us a new tcp client.
                 */
-
                if (dst_s == -1) {
+                  udpclient = NULL;
+
                   if (freefds <= ((SOCKD_IOMAX - 1) * FDPASS_MAX)
                   || (dst_s = udpsrc.s = socket(AF_INET, SOCK_DGRAM, 0)) == -1){
                      swarn("%s: could not create udp socket", function);
@@ -2874,6 +2838,87 @@ doio(io, rset, wset, flags, bad)
                                       "no more sockets available (%s)",
                                       errnostr(errno));
 
+                     failed = 1;
+                  }
+
+                  if (!failed) {
+                     --freefds;
+                     slog(LOG_DEBUG, "%s: free fds: %d", function, freefds);
+
+                     setsockoptions(udpsrc.s, SOCK_DGRAM, 0);
+
+                     bzero(&udpsrc.laddr, sizeof(udpsrc.laddr));
+                     TOIN(&udpsrc.laddr)->sin_family = AF_INET;
+                     TOIN(&udpsrc.laddr)->sin_port   = htons(0);
+                     TOIN(&udpsrc.laddr)->sin_addr
+                     = getoutaddr(TOIN(&from)->sin_addr, header.host.addr.ipv4);
+
+                     if (sockd_bind(udpsrc.s, &udpsrc.laddr, 0) != 0) {
+                        swarn("%s: could not bind udp address %s",
+                              function,
+                              sockaddr2string(&udpsrc.laddr, NULL, 0));
+
+                        buflen = snprintf(buf, sizeof(buf),
+                                         "could not bind udp address %s (%s)",
+                                         sockaddr2string(&udpsrc.laddr,
+                                                         NULL,
+                                                         0),
+                                         errnostr(errno));
+
+                        failed = 1;
+                     }
+                  }
+
+                  if (!failed) {
+                     len = sizeof(udpsrc.laddr);
+                     if (getsockname(udpsrc.s, &udpsrc.laddr, &len) != 0) {
+                        swarn("%s: getsockname(udpsrc.s)", function);
+                           buflen = snprintf(buf, sizeof(buf),
+                                            "getsockname() failed: %s",
+                                            errnostr(errno));
+                           failed = 1;
+                     }
+                     else {
+                        char laddr[MAXSOCKADDRSTRING], caddr[MAXSOCKADDRSTRING];
+
+                        slog(LOG_DEBUG,
+                             "%s: address bound on udp socket %d, for sending "
+                             "packets on behalf of client at %s, is %s",
+                             function,
+                             udpsrc.s,
+                             sockaddr2string(&from, caddr, sizeof(caddr)),
+                             sockaddr2string(&udpsrc.laddr,
+                                             laddr,
+                                             sizeof(laddr)));
+                     }
+                  }
+
+                  if (!failed) {
+                     udpsrc.client     = from;
+                     udpsrc.raddr      = io->dst.raddr;
+                     udpsrc.iotime     = tnow;
+                     udpsrc.firstio    = tnow;
+
+                     if ((udpclient = addudpclient(&udpsrc,
+                                                   &io->dstc,
+                                                   &io->dstcmax,
+                                                   &io->dstv)) == NULL) {
+                        swarn("%s: could not add udpclient %s",
+                              function,
+                              sockaddr2string(&udpsrc.laddr, NULL, 0));
+
+                        buflen = snprintf(buf, sizeof(buf),
+                                         "could not add udpclient %s (%s)",
+                                         sockaddr2string(&udpsrc.laddr,
+                                                         NULL,
+                                                         0),
+                                         errnostr(errno));
+
+                        failed = 1;
+                     }
+                  }
+
+                  if (failed) {
                      iolog(packetrule,
                            &io->state,
                            OPERATION_ERROR,
@@ -2884,120 +2929,7 @@ doio(io, rset, wset, flags, bad)
                            NULL,
                            NULL,
                            &io->dst.laddr,
-                           &io->dst.host,
-                           &io->dst.auth,
-                           io->state.proxyprotocol == PROXY_DIRECT ?
-                              NULL : &io->state.proxychain.server,
-                           io->state.proxyprotocol == PROXY_DIRECT ?
-                              NULL : &io->state.proxychain.extaddr,
-                           NULL,
-                           buf,
-                           buflen);
-
-                     rawsocket_send(rawsocket,
-                                    &io->src.host,
-                                    sockaddr2sockshost(&io->src.laddr, &host),
-                                    &io->dst.host,
-                                    -1);
-
-                     return IO_TMPERROR;
-                  }
-
-                  --freefds;
-                  slog(LOG_DEBUG, "%s: free fds: %d", function, freefds);
-
-                  setsockoptions(udpsrc.s, SOCK_DGRAM, 0);
-
-                  bzero(&udpsrc.laddr, sizeof(udpsrc.laddr));
-                  TOIN(&udpsrc.laddr)->sin_family = AF_INET;
-                  TOIN(&udpsrc.laddr)->sin_port   = htons(0);
-                  TOIN(&udpsrc.laddr)->sin_addr
-                  = getoutaddr(TOIN(&from)->sin_addr, header.host.addr.ipv4);
-
-                  if (sockd_bind(udpsrc.s, &udpsrc.laddr, 0) != 0) {
-                     swarn("%s: could not bind udp address %s",
-                           function,
-                           sockaddr2string(&udpsrc.laddr, NULL, 0));
-
-                     buflen = snprintf(buf, sizeof(buf),
-                                      "could not bind udp address %s (%s)",
-                                      sockaddr2string(&udpsrc.laddr, NULL, 0),
-                                      errnostr(errno));
-
-                     iolog(packetrule,
-                           &io->state,
-                           OPERATION_ERROR,
-                           &io->src.laddr,
-                           &io->src.host,
-                           &io->src.auth,
-                           NULL,
-                           NULL,
-                           NULL,
-                           &io->dst.laddr,
-                           &io->dst.host,
-                           &io->dst.auth,
-                           io->state.proxyprotocol == PROXY_DIRECT ?
-                              NULL : &io->state.proxychain.server,
-                           io->state.proxyprotocol == PROXY_DIRECT ?
-                              NULL : &io->state.proxychain.extaddr,
-                           NULL,
-                           buf,
-                           buflen);
-
-                     rawsocket_send(rawsocket,
-                                    &io->src.host,
-                                    sockaddr2sockshost(&io->src.laddr, &host),
-                                    &io->dst.host,
-                                    -1);
-
-                     return IO_TMPERROR;
-                  }
-
-                  len = sizeof(udpsrc.laddr);
-                  if (getsockname(udpsrc.s, &udpsrc.laddr, &len) != 0)
-                     /* XXX error out. */
-                     swarn("%s: getsockname(udpsrc.s)", function);
-                  else {
-                     char laddr[MAXSOCKADDRSTRING], caddr[MAXSOCKADDRSTRING];
-
-                     slog(LOG_DEBUG,
-                          "%s: address bound on udp socket %d, for sending "
-                          "packets on behalf of client at %s, is %s",
-                          function,
-                          udpsrc.s,
-                          sockaddr2string(&from, caddr, sizeof(caddr)),
-                          sockaddr2string(&udpsrc.laddr, laddr, sizeof(laddr)));
-                  }
-
-                  udpsrc.client     = from;
-                  udpsrc.raddr      = io->dst.raddr;
-                  udpsrc.iotime     = tnow;
-                  udpsrc.firstio    = tnow;
-
-                  if ((udpclient = addudpclient(&udpsrc,
-                                                &io->dstc,
-                                                &io->dstcmax,
-                                                &io->dstv)) == NULL) {
-                     swarn("%s: could not add udpclient %s",
-                           function,
-                           sockaddr2string(&udpsrc.laddr, NULL, 0));
-
-                     buflen = snprintf(buf, sizeof(buf),
-                                      "could not add udpclient %s (%s)",
-                                      sockaddr2string(&udpsrc.laddr, NULL, 0),
-                                      errnostr(errno));
-
-                     iolog(packetrule,
-                           &io->state,
-                           OPERATION_ERROR,
-                           &io->src.laddr,
-                           &io->src.host,
-                           &io->src.auth,
-                           NULL,
-                           NULL,
-                           NULL,
-                           &io->dst.laddr,
-                           &io->dst.host,
+                           &header.host,
                            &io->dst.auth,
                            io->state.proxyprotocol
                          == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
@@ -3007,8 +2939,14 @@ doio(io, rset, wset, flags, bad)
                            buf,
                            buflen);
 
-                     close(udpsrc.s);
-                     ++freefds;
+                     if (udpsrc.s != -1) {
+                        if (udpclient != NULL)
+                           removeudpclient(udpclient->s, &io->dstc, iov->dstv);
+                        else 
+                           close(udpsrc.s);
+
+                        ++freefds;
+                     }
 
                      slog(LOG_DEBUG, "%s: free fds: %d", function, freefds);
                      return IO_TMPERROR;
@@ -3016,7 +2954,6 @@ doio(io, rset, wset, flags, bad)
 
                   SYNC_UDPDST(&io->dst, udpclient);
                }
-
 #endif /* BAREFOOTD */
 
                /*
@@ -3039,36 +2976,31 @@ doio(io, rset, wset, flags, bad)
                                     packetrule,
                                     &io->state,
                                     &io->src.host,
-                                    &io->dst.host,
+                                    &header.host,
                                     NULL,
                                     0);
 
 #if BAREFOOTD
                SASSERTX(udpclient != NULL);
-               udpclient->rule           = io->rule;
+               udpclient->rule           = *packetrule;
                udpclient->crule          = io->crule;
                udpclient->use_saved_rule = 1;
-
-#else /* SOCKS_SERVER */
-               io->use_saved_rule = 1;
-#endif
 
                /* use redirected addresses, if applicable. */
                if (permit) {
                   redirect(dst_s,
-                          &io->dst.laddr,
-                          &io->dst.host,
-                          io->state.command,
-                          &packetrule->rdr_from,
-                          &packetrule->rdr_to);
+                           &io->dst.laddr,
+                           &header.host,
+                           io->state.command,
+                           &packetrule->rdr_from,
+                           &packetrule->rdr_to);
                }
 
-#if BAREFOOTD
                if (permit) {
                   sockd_shmat(&io->crule, SHMEM_ALL);
                   if (io->crule.ss_shmid != 0) {
                      if (!session_use(io->crule.ss, sockscf.shmemfd)) {
-                        permit       = 0;
+                        permit            = 0;
                         io->crule.verdict = VERDICT_BLOCK;
 
                         buflen = snprintf(buf, buflen, DENY_SESSIONLIMITs);
@@ -3089,6 +3021,7 @@ doio(io, rset, wset, flags, bad)
                   udpclient->rule       = io->rule;
                   udpclient->rule.crule = &io->crule;
                }
+#endif /* BAREFOOTD */
 
                if (!permit) {
                   iolog(packetrule,
@@ -3101,7 +3034,7 @@ doio(io, rset, wset, flags, bad)
                         NULL,
                         NULL,
                         &io->dst.laddr,
-                        &io->dst.host,
+                        &header.host,
                         &io->dst.auth,
                         io->state.proxyprotocol == PROXY_DIRECT ?
                            NULL : &io->state.proxychain.server,
@@ -3114,24 +3047,47 @@ doio(io, rset, wset, flags, bad)
                   rawsocket_send(rawsocket,
                                  &io->src.host,
                                  sockaddr2sockshost(&io->src.laddr, &host),
-                                 &io->dst.host,
+                                 &header.host,
                                  -1);
 
+#if BAREFOOTD
                   removeudpclient(udpclient->s, &io->dstc, iov->dstv);
+#endif /* BAREFOOTD */
                   return IO_BLOCK;
                }
 
-               if (sockscf.udpconnectdst) {
+               if (io->dst.state.connected && !io->use_saved_rule) {
+                  const int sametarget
+                  = sockshostareeq(&header.host, &io->dst.host);
+
+                  slog(LOG_DEBUG,
+                       "%s: socket %d is connected to dst (%s), but "
+                       "use_saved_rule is not set.   Means we got a SIGHUP. "
+                       "Target for this packet is %s (%s before)",
+                       function,
+                       dst_s,
+                       sockshost2string(&io->dst.host, hosta, sizeof(hosta)),
+                       sockshost2string(&header.host, hostb, sizeof(hostb)),
+                       sametarget ? "same as" : "different from");
+
+                 if (!sametarget) {
+                     socks_unconnect(dst_s);
+                     io->dst.state.connected = 0;
+                  }
+               }
+
+               if (sockscf.udpconnectdst
+               &&  io->dst.written.packets == 0) { /* connect once only. */ 
                   char emsg[256];
 
                   slog(LOG_DEBUG,
                        "%s: connecting udp socket to %s, for client at %s",
                        function,
-                       sockshost2string(&io->dst.host, hosta, sizeof(hosta)),
+                       sockshost2string(&header.host, hosta, sizeof(hosta)),
                        sockshost2string(&io->src.host, hostb, sizeof(hostb)));
 
                   if (socks_connecthost(dst_s,
-                                        &io->dst.host,
+                                        &header.host,
                                         NULL,
                                         -1,
                                         emsg,
@@ -3146,7 +3102,7 @@ doio(io, rset, wset, flags, bad)
                            NULL,
                            NULL,
                            &io->dst.laddr,
-                           &io->dst.host,
+                           &header.host,
                            &io->dst.auth,
                            io->state.proxyprotocol
                          == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
@@ -3156,108 +3112,180 @@ doio(io, rset, wset, flags, bad)
                            emsg,
                            strlen(emsg));
 
+#if BAREFOOTD
                      removeudpclient(udpclient->s, &io->dstc, iov->dstv);
-                     close(dst_s);
                      ++freefds;
+#endif /* BAREFOOTD */
 
                      slog(LOG_DEBUG, "%s: free fds: %d", function, freefds);
                      return IO_TMPERROR;
                   }
 
+                  io->dst.host            = header.host;
                   io->dst.state.connected = 1;
+                  io->use_saved_rule      = 1; /* only if connected. */
                }
-#endif /* BAREFOOTD */
             }
             else {
-               slog(LOG_DEBUG, "%s: not first udp packet from client %s.  "
-                               "Already set up with client-rule #%lu (%s) "
-                               "and socks-rule #%lu (%s)",
-                               function,
-                               sockaddr2string(&from, NULL, 0),
-                               (unsigned long)io->crule.number,
-                               verdict2string(io->crule.verdict),
-                               (unsigned long)packetrule->number,
-                               verdict2string(packetrule->verdict));
+               const int sametarget
+               = sockshostareeq(&header.host, &io->dst.host);
 
-               permit = packetrule->verdict == VERDICT_PASS;
+               slog(LOG_DEBUG,
+                    "%s: udp packet #%"PRIu64" from client %s.  Destination %s."
+                    "  Previously set up with client-rule #%lu (%s) and "
+                    "socks-rule #%lu (%s) for destination %s (%ssame as now)",
+                    function,
+                    io->src.read.packets,
+                    sockaddr2string(&from, NULL, 0),
+                    sockshost2string(&header.host, NULL, 0),
+                    (unsigned long)io->crule.number,
+                    verdict2string(io->crule.verdict),
+                    (unsigned long)packetrule->number,
+                    verdict2string(packetrule->verdict),
+                    sockshost2string(&io->dst.host, hosta, sizeof(hosta)),
+                    sametarget ? "" : "not ");
 
-               if (redirect(dst_s,
-                            &io->dst.laddr,
-                            &header.host,
-                            io->state.command,
-                            &packetrule->rdr_from,
-                            &packetrule->rdr_to) != 0) {
+               if (sametarget)
+                  permit = (packetrule->verdict == VERDICT_PASS);
+               else {
+                  /*
+                   * use a tmprule.  If new destination is blocked, we
+                   * might continue to use saved rule.
+                   */
+                  struct rule_t tmprule;
+                  char client[MAXSOCKADDRSTRING],
+                       dstbefore[MAXSOCKSHOSTSTRING],
+                       dstnow[MAXSOCKSHOSTSTRING];
 
-                  buflen = snprintf(buf, sizeof(buf), "redirect failed (%s)",
-                                   errnostr(errno));
+                  SASSERTX(!BAREFOOTD);
 
-                  iolog(packetrule,
-                        &io->state,
-                        OPERATION_ERROR,
-                        &io->src.laddr,
-                        &io->src.host,
-                        &io->src.auth,
-                        NULL,
-                        NULL,
-                        NULL,
-                        &io->dst.laddr,
-                        &io->dst.host,
-                        &io->dst.auth,
-                        io->state.proxyprotocol == PROXY_DIRECT ?
-                           NULL : &io->state.proxychain.server,
-                        io->state.proxyprotocol == PROXY_DIRECT ?
-                           NULL : &io->state.proxychain.extaddr,
-                        NULL,
-                        buf,
-                        buflen);
+                  permit = rulespermit(io->control.s,
+                                       &io->control.raddr,
+                                       &io->control.laddr,
+                                       &io->clientauth,
+                                       &io->src.auth,
+                                       &tmprule,
+                                       &io->state,
+                                       &io->src.host,
+                                       &header.host,
+                                       NULL,
+                                       0);
 
-                  rawsocket_send(rawsocket,
-                                 &io->src.host,
-                                 sockaddr2sockshost(&io->src.laddr, &host),
-                                 &io->dst.host,
-                                 -1);
+                  slog(LOG_DEBUG, "%s: destination host for packet from %s "
+                                  "changed from %s to %s, %s",
+                                  function,
+                                  sockaddr2string(&io->control.raddr,
+                                                  client,
+                                                  sizeof(client)),
+                                  sockshost2string(&io->dst.host,
+                                                   dstbefore,
+                                                   sizeof(dstbefore)),
+                                  sockshost2string(&header.host,
+                                                   dstnow,
+                                                   sizeof(dstnow)),
+                                  permit ?
+                                 "unconnecting from old address" 
+                               : "but packets to this address is not permited");
 
-                  return IO_TMPERROR;
+                  if (!permit) {
+                     iolog(&tmprule,
+                           &io->state,
+                           OPERATION_IO,
+                           &io->src.laddr,
+                           &io->src.host,
+                           &io->src.auth,
+                           NULL,
+                           NULL,
+                           NULL,
+                           &io->dst.laddr,
+                           &header.host,
+                           &io->dst.auth,
+                           io->state.proxyprotocol
+                         == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
+                           io->state.proxyprotocol
+                         == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
+                           NULL,
+                           buf,
+                           (size_t)r);
+
+                     rawsocket_send(rawsocket,
+                                    &io->src.host,
+                                    sockaddr2sockshost(&io->src.laddr, &host),
+                                    &io->dst.host,
+                                    -1);
+
+                     return IO_BLOCK;
+                  }
+
+                  socks_unconnect(dst_s);
+                  io->dst.host            = header.host;
+                  io->dst.state.connected = 0;
+                  io->use_saved_rule      = 0;
+
+                  *packetrule             = tmprule;
                }
 
-               if (io->dst.state.connected)  {
-                  if (!sockshostareeq(&header.host, &io->dst.host)) {
-                     char client[MAXSOCKADDRSTRING],
-                          dstbefore[MAXSOCKSHOSTSTRING],
-                          dstnow[MAXSOCKSHOSTSTRING];
+               if (permit) { /* only bother with this if permit. */
+                  if (redirect(dst_s,
+                               &io->dst.laddr,
+                               &io->dst.host,
+                               io->state.command,
+                               &packetrule->rdr_from,
+                               &packetrule->rdr_to)
+                  != 0) {
+                     buflen = snprintf(buf, sizeof(buf), "redirect failed (%s)",
+                                      errnostr(errno));
+                     permit = 0;
+                  }
+                 
+                  if (permit) {
+                     sockshost2sockaddr(&header.host, &io->dst.raddr);
+                     if (!ADDRISBOUND(TOIN(&io->dst.raddr))) {
+                        buflen
+                        = snprintf(buf, sizeof(buf),
+                                   "could not resolve destination %s for "
+                                   "client %s",
+                                   sockshost2string(&header.host, NULL, 0),
+                                   sockaddr2string(&from, NULL, 0));
 
-                     slog(LOG_DEBUG, "%s: destination host for packet from %s "
-                                     "changed, from %s to %s, unconnecting",
-                                     function,
-                                     sockaddr2string(&io->control.raddr,
-                                                     client,
-                                                     sizeof(client)),
-                                     sockshost2string(&io->dst.host,
-                                                      dstbefore,
-                                                      sizeof(dstbefore)),
-                                     sockshost2string(&header.host,
-                                                      dstnow,
-                                                      sizeof(dstnow)));
+                        permit = 0;
+                     }
 
-                     socks_unconnect(dst_s);
-                     io->dst.state.connected = 0;
+                     if (!permit) {
+                        iolog(packetrule,
+                              &io->state,
+                              OPERATION_ERROR,
+                              &io->src.laddr,
+                              &io->src.host,
+                              &io->src.auth,
+                              NULL,
+                              NULL,
+                              NULL,
+                              &io->dst.laddr,
+                              &io->dst.host,
+                              &io->dst.auth,
+                              io->state.proxyprotocol == PROXY_DIRECT ?
+                                 NULL : &io->state.proxychain.server,
+                              io->state.proxyprotocol == PROXY_DIRECT ?
+                                 NULL : &io->state.proxychain.extaddr,
+                              NULL,
+                              buf,
+                              buflen);
+
+                        rawsocket_send(rawsocket,
+                                       &io->src.host,
+                                       sockaddr2sockshost(&io->src.laddr,
+                                                          &host),
+                                       &header.host,
+                                       -1);
+#if BAREFOOTD
+                        removeudpclient(udpclient->s, &io->dstc, iov->dstv);
+#endif /* BAREFOOTD */
+
+                        return IO_TMPERROR;
+                     }
                   }
                }
-
-               io->dst.host = header.host;
-               sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
-
-#if BAREFOOTD
-               if (permit) {
-                  /*
-                   * save for next time we get a packet from this client.
-                   * Both source and destination is fixed from here on
-                   * in barefoot, except if we get a sighup.
-                   */
-                   udpclient->crule = io->crule;
-                   udpclient->rule  = io->rule;
-               }
-#endif /* BAREFOOTD */
             }
 
 #if SOCKS_SERVER
@@ -3281,7 +3309,7 @@ doio(io, rset, wset, flags, bad)
                      NULL,
                      NULL,
                      &io->dst.laddr,
-                     &io->dst.host,
+                     &header.host,
                      &io->dst.auth,
                      io->state.proxyprotocol
                         == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
@@ -3300,42 +3328,8 @@ doio(io, rset, wset, flags, bad)
                return IO_BLOCK;
             }
 
-            sockshost2sockaddr(&io->dst.host, &io->dst.raddr);
-            if (!ADDRISBOUND(TOIN(&io->dst.raddr))) {
-               buflen
-               = snprintf(buf, sizeof(buf),
-                          "could not resolve destination %s for client %s",
-                          sockshost2string(&io->dst.host, NULL, 0),
-                          sockaddr2string(&from, NULL, 0));
 
-               iolog(packetrule,
-                     &io->state,
-                     OPERATION_ERROR,
-                     &io->src.laddr,
-                     &io->src.host,
-                     &io->src.auth,
-                     NULL,
-                     NULL,
-                     NULL,
-                     &io->dst.laddr,
-                     &io->dst.host,
-                     &io->dst.auth,
-                     io->state.proxyprotocol
-                        == PROXY_DIRECT ? NULL : &io->state.proxychain.server,
-                     io->state.proxyprotocol
-                        == PROXY_DIRECT ? NULL : &io->state.proxychain.extaddr,
-                     NULL,
-                     buf,
-                     buflen);
-
-               rawsocket_send(rawsocket,
-                              &io->src.host,
-                              sockaddr2sockshost(&io->src.laddr, &host),
-                              NULL,
-                              -1);
-
-               return IO_TMPERROR;
-            }
+            io->dst.host = header.host;
 
             if ((w = socks_sendto(dst_s,
 #if BAREFOOTD
@@ -3444,8 +3438,6 @@ doio(io, rset, wset, flags, bad)
             char *newbuf;
             int redirected;
 
-            *packetrule = io->rule;
-
 #if BAREFOOTD
             udpclient = udpclientofsocket(io->dst.s, io->dstc, io->dstv);
             SASSERTX(udpclient != NULL);
@@ -3485,7 +3477,7 @@ doio(io, rset, wset, flags, bad)
                         sockaddr2sockshost(&io->dst.raddr, &io->dst.host);
 #endif /* BAREFOOTD */
 
-                     iolog(packetrule,
+                     iolog(&io->rule,
                            &io->state,
                            OPERATION_ERROR,
                            &io->dst.laddr,
@@ -3518,7 +3510,7 @@ doio(io, rset, wset, flags, bad)
             }
 
 #if SOCKS_SERVER
-            if (io->src.written.packets == 0) {
+            if (io->dst.written.packets == 0) {
                slog(LOG_DEBUG,
                     "%s: how unusual ... the client at %s has not sent any "
                     "packets yet, but already it has a %ld byte reply from %s",
@@ -3579,11 +3571,10 @@ doio(io, rset, wset, flags, bad)
             }
             else {
                /*
-                * First reply.  Is it allowed in?
+                * First reply, or not connected.  Is it allowed in?
                 */
 
-               slog(LOG_DEBUG, "%s: first udp reply (or first after sighup) "
-                               "from %s to %s, length = %ld",
+               slog(LOG_DEBUG, "%s: udp reply from %s to %s, length = %ld",
                                function,
                                sockaddr2string(&rfrom, hosta, sizeof(hosta)),
                                sockshost2string(&io->src.host, hostb, 0),
@@ -3706,6 +3697,7 @@ doio(io, rset, wset, flags, bad)
                                  sockaddr2sockshost(&io->dst.laddr, &host),
                                  &io->src.host,
                                  -1);
+
 
                   return IO_TMPERROR;
                }
@@ -5044,17 +5036,18 @@ again:
           * successfully between our getpeername(2) call above and now,
           * though very unlikely.
           */ 
-          char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING];
+          char src[MAXSOCKADDRSTRING * 3], dst[MAXSOCKADDRSTRING * 3];
 
           if (!secondtry) { 
             secondtry = 1;
             goto again;
           }
 
-          swarnx("%s: XXX busyloop bug detected regarding request from "
-                 "client %s, destination %s.  " 
+          swarnx("%s: XXX busy-loop bug detected regarding request %s "
+                 "from client %s, destination %s.  " 
                  "Please report this to \"dante-bugs@inet.no\".",
                  function,
+                 sockshost2string(&io->dst.host, NULL, 0),
                  socket2string(io->src.s, src, sizeof(src)),
                  socket2string(io->dst.s, dst, sizeof(dst)));
 

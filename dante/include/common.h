@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.589 2011/06/13 09:55:00 michaels Exp $ */
+/* $Id: common.h,v 1.591 2011/06/19 14:33:16 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -1738,11 +1738,11 @@ unsigned int socks_get_responsevalue(const struct response_t *response);
 void socks_set_responsevalue(struct response_t *response, unsigned int value);
 
 
-void
+int
 socks_addlogfile(struct logtype_t *logcf, const char *logfile);
 /*
- * Adds the file "logfile" to the list of files we log to, stored in
- * "logcf".
+ * Adds the file "logfile" to the list of files we log to, stored in "logcf".
+ * Returns 0 on sucess, -1 on error.
  */
 
 void slog(int priority, const char *fmt, ...)
@@ -1847,15 +1847,6 @@ socks_connecthost(int s, const struct sockshost_t *host,
  * Returns:
  *      On success: 0
  *      On failure: -1.  Reason for error is written to emsg.
- */
-
-int
-socks_unconnect(const int s);
-/*
- * "unconnects" a socket.  Must only be used with udp sockets.
- * Returns:
- *      On success: 0
- *      On failure: -1
  */
 
 struct route_t *

@@ -1,8 +1,8 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.528 2011/06/14 11:23:32 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.530 2011/06/16 13:25:43 michaels Exp $)
 
-version=1.3.0
+version=1.3.1
 RPMVERSION1="$version"
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="1"

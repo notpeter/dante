@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.187 2011/06/13 11:06:36 michaels Exp $";
+"$Id: log.c,v 1.188 2011/06/18 19:13:34 michaels Exp $";
 
 #include "common.h"
 #include "config_parse.h"
@@ -320,7 +320,7 @@ newprocinit(void)
 #endif /* !SOCKS_CLIENT */
 }
 
-void
+int
 socks_addlogfile(logcf, logfile)
    struct logtype_t *logcf;
    const char *logfile;
@@ -342,8 +342,10 @@ socks_addlogfile(logcf, logfile)
             if (strcmp(sl, syslogfacilityv[i].name) == 0)
                break;
 
-         if (i == ELEMENTS(syslogfacilityv))
-            serr(EXIT_FAILURE, "unknown syslog facility \"%s\"", sl);
+         if (i == ELEMENTS(syslogfacilityv)) {
+            swarnx("unknown syslog facility \"%s\"", sl);
+            return -1;
+         }
 
          logcf->facility = syslogfacilityv[i].value;
          logcf->facilityname = syslogfacilityv[i].name;
@@ -361,42 +363,42 @@ socks_addlogfile(logcf, logfile)
       if ((logcf->filenov = realloc(logcf->filenov,
       sizeof(*logcf->filenov) * (logcf->filenoc + 1))) == NULL
       || (logcf->fnamev = realloc(logcf->fnamev,
-      sizeof(*logcf->fnamev) * (logcf->filenoc + 1))) == NULL)
-         serrx(EXIT_FAILURE, NOMEM);
+      sizeof(*logcf->fnamev) * (logcf->filenoc + 1))) == NULL) {
+         swarn("failed to allocate memory for logfile names");
+         return -1;
+      }
 
       if (strcmp(logfile, "stdout") == 0)
          logcf->filenov[logcf->filenoc] = fileno(stdout);
       else if (strcmp(logfile, "stderr") == 0)
          logcf->filenov[logcf->filenoc] = fileno(stderr);
       else {
-#if !SOCKS_CLIENT
-         if (sockscf.state.inited)
-            sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
-#endif /* SERVER */
-
          logcf->filenov[logcf->filenoc]
          = open(logfile, O_WRONLY | O_APPEND | O_CREAT,
                 S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
-#if !SOCKS_CLIENT
-         if (sockscf.state.inited)
-            sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
-#endif /* SERVER */
-
-         if (logcf->filenov[logcf->filenoc] == -1)
-            serr(EXIT_FAILURE, "open(%s)", logfile);
+         if (logcf->filenov[logcf->filenoc] == -1) {
+            swarn("open(%s) failed", logfile);
+            return -1;
+         }
       }
 
       if ((flag = fcntl(logcf->filenov[logcf->filenoc], F_GETFD, 0)) == -1
       ||  fcntl(logcf->filenov[logcf->filenoc], F_SETFD, flag | FD_CLOEXEC)
-      == -1)
-         serr(EXIT_FAILURE, "fcntl(F_GETFD/F_SETFD)");
+      == -1) {
+         swarn("fcntl(F_GETFD/F_SETFD) failed");
+         return -1;
+      }
 
-      if ((logcf->fnamev[logcf->filenoc] = strdup(logfile)) == NULL)
-         serr(EXIT_FAILURE, NOMEM);
+      if ((logcf->fnamev[logcf->filenoc] = strdup(logfile)) == NULL) {
+         swarn("failed to allocate memory for logfile name");
+         return -1;
+      }
 
       ++logcf->filenoc;
    }
+
+   return 0;
 }
 
 void

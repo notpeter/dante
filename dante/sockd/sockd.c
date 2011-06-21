@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.580 2011/06/13 08:35:14 michaels Exp $";
+"$Id: sockd.c,v 1.586 2011/06/19 15:27:20 michaels Exp $";
 
 
 /*
@@ -557,6 +557,8 @@ moncontrol(1);
 #if HAVE_NEGOTIATE_PHASE
                   struct response_t response;
 
+                  slog(LOG_DEBUG, "send_req() failed: %s", errnostr(errno));
+
                   create_response(NULL,
                                   &req.clientauth,
                                   req.req.version,
@@ -572,9 +574,6 @@ moncontrol(1);
                           errnostr(errno));
                   }
 #endif /* HAVE_NEGOTIATE_PHASE */
-
-                  slog(LOG_DEBUG, "send_req() failed: %s", errnostr(errno));
-                  break;
                }
 
                close(req.s);
@@ -664,6 +663,8 @@ moncontrol(1);
 #if HAVE_NEGOTIATE_PHASE
                   struct response_t response;
 
+                  slog(LOG_DEBUG, "send_io() failed: %s", errnostr(errno));
+
                   create_response(NULL,
                                   &io.src.auth,
                                   io.state.version,
@@ -679,7 +680,6 @@ moncontrol(1);
                           errnostr(errno));
                   }
 #endif /* HAVE_NEGOTIATE_PHASE */
-                  slog(LOG_DEBUG, "send_io() failed: %s", errnostr(errno));
                }
 
                close_iodescriptors(&io);
@@ -710,17 +710,24 @@ moncontrol(1);
                }
 
                ++sockscf.stat.io.received;
-               ++recv_ioc;
+
+               slog(LOG_DEBUG, "sending client to negchild %lu",
+               (unsigned long)negchild->pid);
+
 
 #if HAVE_SENDMSG_DEADLOCK
                if (socks_lock(negchild->lock, 1, 0) != 0)
                   continue;
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
-               slog(LOG_DEBUG, "sending client to negchild %lu",
-               (unsigned long)negchild->pid);
+               p = send_client(negchild->s, &client, NULL, 0);
 
-               if ((p = send_client(negchild->s, &client, NULL, 0)) == 0) {
+#if HAVE_SENDMSG_DEADLOCK
+               if (negchild != NULL)
+                  socks_unlock(negchild->lock);
+#endif /* HAVE_SENDMSG_DEADLOCK */
+
+               if (p == 0) {
                   --negchild->freec;
                   ++negchild->sentc;
                   ++sockscf.stat.negotiate.sendt;
@@ -729,30 +736,25 @@ moncontrol(1);
 #if HAVE_NEGOTIATE_PHASE
                   struct response_t response;
 
+                  slog(LOG_DEBUG, "send_client() failed: %s", errnostr(errno));
+
                   /* XXX missing stuff here. */
                   create_response(NULL,
-                                  &io.src.auth,
-                                  io.state.version,
-                                  errno2reply(errno, req.req.version),
+                                  &client.auth,
+                                  client.request.version,
+                                  errno2reply(errno, client.request.version),
                                   &response);
 
-                  if (send_response(io.control.s, &response) != 0) {
+                  if (send_response(client.s, &response) != 0) {
                      slog(LOG_DEBUG,
                           "%s: send_response(%d) to %s failed: %s",
                           function,
-                          io.control.s,
-                          sockshost2string(&io.src.host, NULL, 0),
+                          client.s,
+                          sockshost2string(&client.request.host, NULL, 0),
                           errnostr(errno));
                   }
 #endif /* HAVE_NEGOTIATE_PHASE */
-                  slog(LOG_DEBUG, "send_client() failed with %ld: %s",
-                       (long)p, errnostr(errno));
-                  }
-
-#if HAVE_SENDMSG_DEADLOCK
-               if (negchild != NULL)
-                  socks_unlock(negchild->lock);
-#endif /* HAVE_SENDMSG_DEADLOCK */
+               }
 
                close(client.s);
 #endif /* COVENANT */
@@ -1009,36 +1011,28 @@ moncontrol(1);
                continue;
             }
 
-#if HAVE_SENDMSG_DEADLOCK
-            socks_lock(negchild->lock, 1, 1);
-#endif /* HAVE_SENDMSG_DEADLOCK */
-
             slog(LOG_DEBUG, "sending %s-client to negchild %lu",
                             protocol2string(SOCKS_TCP),
                             (unsigned long)negchild->pid);
 
-            if (send_client(negchild->s, &client, NULL, 0) == 0) {
+#if HAVE_SENDMSG_DEADLOCK
+            socks_lock(negchild->lock, 1, 1);
+#endif /* HAVE_SENDMSG_DEADLOCK */
+
+            p = send_client(negchild->s, &client, NULL, 0);
+
+#if HAVE_SENDMSG_DEADLOCK
+               socks_unlock(negchild->lock);
+#endif /* HAVE_SENDMSG_DEADLOCK */
+
+            if (p == 0) {
                --free_negc;
                --negchild->freec;
                ++negchild->sentc;
                ++sockscf.stat.negotiate.sendt;
             }
-            else {
-               switch (errno) {
-                  case EMFILE:
-                  case ENFILE:
-                     break;   /* child is ok, we are not. */
-
-                  default:
-                     removechild(negchild->pid);
-                     negchild = NULL;
-               }
-            }
-
-#if HAVE_SENDMSG_DEADLOCK
-            if (negchild != NULL)
-               socks_unlock(negchild->lock);
-#endif /* HAVE_SENDMSG_DEADLOCK */
+            else
+               slog(LOG_DEBUG, "send_client() failed: %s", errnostr(errno));
 
             close(client.s);
          }
@@ -1805,16 +1799,20 @@ checkconfig(void)
 
 #if !HAVE_DUMPCONF
 #if !HAVE_PRIVILEGES
-   if (!sockscf.uid.privileged_isset)
-      sockscf.uid.privileged = sockscf.state.euid;
+   if (!sockscf.uid.privileged_isset) {
+      sockscf.uid.privileged       = sockscf.state.euid;
+      sockscf.uid.privileged_isset = 1;
+   }
    else {
       if (socks_seteuid(&euid, sockscf.uid.privileged) != 0
       ||  socks_seteuid(NULL, euid)                    != 0)
          serr(EXIT_FAILURE, "%s: socks_seteuid() failed", function);
    }
 
-   if (!sockscf.uid.unprivileged_isset)
-      sockscf.uid.unprivileged = sockscf.state.euid;
+   if (!sockscf.uid.unprivileged_isset) {
+      sockscf.uid.unprivileged       = sockscf.state.euid;
+      sockscf.uid.unprivileged_isset = 1;
+   }
    else { /* check the euid-switching works. */
       if (socks_seteuid(&euid, sockscf.uid.unprivileged) != 0
       ||  socks_seteuid(NULL, euid)                      != 0)
@@ -1822,8 +1820,10 @@ checkconfig(void)
    }
 
 #if HAVE_LIBWRAP
-   if (!sockscf.uid.libwrap_isset)
-      sockscf.uid.libwrap = sockscf.uid.unprivileged;
+   if (!sockscf.uid.libwrap_isset) {
+      sockscf.uid.libwrap       = sockscf.uid.unprivileged;
+      sockscf.uid.libwrap_isset = 1;
+   }
    else { /* check the euid-switching works. */
       if (socks_seteuid(&euid, sockscf.uid.libwrap) != 0
       ||  socks_seteuid(NULL, euid)                 != 0)
@@ -2345,16 +2345,12 @@ getlimitinfo(void)
             "current resource limits:\n"
             "   processes: %s, file descriptors: %s\n"
             "number of %s limits max clients per phase to the following:\n"
-            "   negotiate phase: %lu\n"
-            "   request phase  : %lu\n"
-            "   io phase       : %lu\n"
+            "   negotiate phase: %lu, request phase: %lu, io phase: %lu\n"
             "note that resources are shared; actual limits will depend on "
             "phase composition",
              maxprocstr, maxfdstr,
              limiter,
-             negc_limit,
-             reqc_limit,
-             ioc_limit);
+             negc_limit, reqc_limit, ioc_limit);
 
    return buf;
 #endif /* have RLIMIT_NPROC */

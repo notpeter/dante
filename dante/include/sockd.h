@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.478 2011/06/12 12:00:55 michaels Exp $ */
+/* $Id: sockd.h,v 1.480 2011/06/19 14:33:16 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -1087,18 +1087,22 @@ struct sockd_io_t {
 
    struct rule_t      crule;           /* client rule matched.                */
    struct rule_t      rule;            /* matched rule for i/o.               */
-   struct rule_t      *replyrule;      /*
-					* matched rule for (udp)reply i/o.  Is
-					* a pointer since it's only used
-					* in the i/o processes, so we can
-					* save on the size of the i/o object
-					* when passing it around.
-					*/
+
+   struct rule_t      *udpfwdrule;     /* for packets forwarded for client. */
+   struct rule_t      *replyrule;      /* matched rule for (udp)reply i/o.  */
                                        /*
                                         * XXX should be used for bindreply
                                         * also, as bind and bindreply might
                                         * have different loglevels.
                                         */
+
+                                       /*
+                                        * These are pointers since it's only 
+                                        * usedin the i/o processes.  We can
+                                        * then save on the size of the i/o 
+                                        * object when passing it around.
+                                        */
+
    unsigned char      use_saved_rule;  /* can we use reuse last rule result?  */
    unsigned char      use_saved_replyrule; /* and last replyrule result too?  */
 
@@ -1223,6 +1227,15 @@ struct sockd_child_t {
                                      */
 #endif /* BAREFOOTD */
 };
+
+int
+socks_unconnect(const int s);
+/*
+ * "unconnects" a socket.  Must only be used with udp sockets.
+ * Returns:
+ *      On success: 0
+ *      On failure: -1
+ */
 
 
 int

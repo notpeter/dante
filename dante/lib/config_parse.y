@@ -51,7 +51,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.395 2011/06/13 08:35:14 michaels Exp $";
+"$Id: config_parse.y,v 1.396 2011/06/18 19:16:22 michaels Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -626,16 +626,48 @@ logoutput: LOGOUTPUT ':' { add_to_errorlog = 0; } logoutputdevices
    ;
 
 logoutputdevice:   LOGFILE {
+   int p;
 #if !SOCKS_CLIENT && !HAVE_PRIVILEGES
-   /*
-    * We dont enforce that userid must be set before logfiles, so make sure
-    * that the old userid, if any, is stored before (re)opening logfiles.
-    */
    const struct userid_t currentuserid = sockscf.uid;;
-   sockscf.uid = olduserid;
+   struct userid_t zuid;
+
+   bzero(&zuid, sizeof(zuid));
+   if (memcmp(&zuid, &sockscf.uid, sizeof(zuid)) == 0)
+      /*
+       * We dont enforce that userid must be set before logfiles, so make sure
+       * that the old userids, if any, are set before (re)opening logfiles.
+       */
+      sockscf.uid = olduserid;
 #endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
 
-   socks_addlogfile(add_to_errorlog ? &sockscf.errlog : &sockscf.log, $1);
+#if !SOCKS_CLIENT 
+   sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
+#endif /* !SOCKS_CLIENT */
+
+   p = socks_addlogfile(add_to_errorlog ? &sockscf.errlog : &sockscf.log, $1);
+
+#if !SOCKS_CLIENT 
+   sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
+#endif /* !SOCKS_CLIENT */
+
+#if !SOCKS_CLIENT && !HAVE_PRIVILEGES
+   if (p != 0 && sockscf.state.inited) {
+      /* try again with original euid, before giving up. */
+      sockscf.uid.privileged       = sockscf.state.euid;
+      sockscf.uid.privileged_isset = 1;
+
+      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
+      p= socks_addlogfile(add_to_errorlog ? &sockscf.errlog : &sockscf.log, $1);
+      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
+   }
+#endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
+
+   if (p != 0)
+      /*
+       * bad, but what else can we do?
+       */
+      yyerror("failed to add logfile %s", $1);
+
 
 #if !SOCKS_CLIENT && !HAVE_PRIVILEGES
    sockscf.uid = currentuserid;
@@ -2040,7 +2072,7 @@ parseconfig(filename)
 
 #if !SOCKS_CLIENT
    if (sockscf.state.inited) {
-      /* in case needed to read config-file or operations pertaining to it. */
+      /* in case needed to reopen config-file. */
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
 
       if (yyin != NULL)
@@ -2055,6 +2087,20 @@ parseconfig(filename)
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
 #endif /* SERVER */
 
+#if !SOCKS_CLIENT && !HAVE_PRIVILEGES
+   if (yyin == NULL && sockscf.state.inited) {
+      const struct userid_t currentuserid = sockscf.uid;;
+
+      sockscf.uid.privileged       = sockscf.state.euid;
+      sockscf.uid.privileged_isset = 1;
+
+      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
+      yyin = fopen(filename, "r");
+      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
+
+      sockscf.uid = currentuserid;
+   }
+#endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
 
 #if !SOCKS_CLIENT && !HAVE_PRIVILEGES
    /*
