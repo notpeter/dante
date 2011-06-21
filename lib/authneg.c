@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.93 2011/05/18 13:48:45 karls Exp $";
+"$Id: authneg.c,v 1.94 2011/06/19 14:33:57 michaels Exp $";
 
 int
 negotiate_method(s, packet, route)
@@ -67,7 +67,7 @@ negotiate_method(s, packet, route)
 
    if (sockscf.option.debug)
       slog(LOG_DEBUG, "%s: socket %d, %s",
-      function, s, socket2string(s, buf, sizeof(buf)));
+      function, s, socket2string(s, NULL, 0));
 
    SASSERTX(packet->gw.state.methodc > 0);
 

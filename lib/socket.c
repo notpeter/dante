@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.99 2011/05/27 10:24:28 michaels Exp $";
+"$Id: socket.c,v 1.100 2011/06/19 14:33:17 michaels Exp $";
 
 int
 socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
@@ -394,51 +394,6 @@ socks_socketisforlan(s)
    }
 
    return ttl == 1;
-}
-
-int
-socks_unconnect(s)
-   const int s;
-{
-   const char *function = "socks_unconnect()";
-   struct sockaddr local, remote;
-   socklen_t addrlen;
-   char remotestr[MAXSOCKADDRSTRING];
-
-   addrlen = sizeof(local);
-   if (getsockname(s, &local, &addrlen) != 0) {
-      swarn("%s: getsockname()", function);
-      return -1;
-   }
-
-   if (getpeername(s, &remote, &addrlen) != 0) {
-      swarn("%s: getpeername()", function);
-      return -1;
-   }
-
-   slog(LOG_DEBUG, "%s: unconnecting socket currently connected to %s",
-   function, sockaddr2string(&remote, remotestr, sizeof(remotestr)));
-
-   bzero(&remote, sizeof(remote));
-   remote.sa_family = AF_UNSPEC;
-
-   if (connect(s, &remote, sizeof(remote)) != 0)
-      slog(LOG_DEBUG, "%s: \"unconnect\" of socket returned %s",
-      function, strerror(errno));
-
-   /*
-    * Linux, and possible others, fail to receive on the
-    * socket until the local address has been "re-bound",
-    * e.g. by sending a packet out.  Since we are not
-    * sure the received packet will be allowed out by
-    * the rules, re-bind the socket here to be sure we
-    * don't miss replies in the meantime.
-    */
-   if (bind(s, &local, sizeof(local)) != 0)
-      slog(LOG_DEBUG, "%s: re-bind after unconnecting: %s",
-      function, strerror(errno));
-
-   return 0;
 }
 
 int

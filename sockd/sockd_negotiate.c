@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.264 2011/06/09 09:47:03 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.268 2011/06/16 13:26:35 michaels Exp $";
 
 static struct sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
 static const size_t negc = ELEMENTS(negv);
@@ -59,7 +59,8 @@ send_negotiate(const struct sockd_negotiate_t *neg);
  * Sends "neg" to "mother".
  * Returns:
  *      On success: 0
- *      On failure: -1
+ *      On error: -1.  If error was in relation to sending to mother,
+ *                     errno will be set.
  */
 
 static int
@@ -488,9 +489,11 @@ run_negotiate()
                   iolog(&neg->srule,
                         &neg->state,
                         OPERATION_CONNECT,
-                        &neg->negstate.dst,
+                        sockshost2sockaddr(&neg->negstate.dst, &sa),
                         &neg->negstate.src,
                         &neg->socksauth,
+                        NULL,
+                        NULL,
                         NULL,
                         NULL,
                         NULL,
@@ -516,14 +519,25 @@ run_negotiate()
 
             if (wset != NULL && !FD_ISSET(sockscf.state.mother.s, wset)) {
                sendfailed = 1;
-               continue; /* don't bother trying now. */
+               continue; /* don't bother trying to send to mother now. */
             }
 
-            if (send_negotiate(neg) == 0)
+            errno = 0;
+
+            if (send_negotiate(neg) == 0) {
                delete_negotiate(neg);
+               sendfailed = 0;
+            }
+            else if (ERRNOISTMP(errno))
+               sendfailed = 1; /* we will retry sending this object later. */
             else {
-               swarn("%s: could not send client to mother", function);
-               sendfailed = 1;
+               if (errno != 0)
+                  swarn("%s: could not send client to mother", function);
+
+               delete_negotiate(neg);
+
+               /* assume what failed was not related to the send. */
+               sendfailed = 0;
             }
          }
          else if (negstatus == NEGOTIATE_ERROR) {
@@ -634,14 +648,14 @@ send_negotiate(neg)
 #else /* SOCKS_SERVER */
    if ((length = socks_bytesinbuffer(neg->s, READ_BUF, 0)) != 0) {
       slog(length > sizeof(req.clientdata) ? LOG_INFO : LOG_DEBUG,
-           "%s: socks client at %s has sent us %lu bytes of payload data "
+           "%s: socks client at %s sent us %lu bytes of payload data "
            "before we have told it that it can do that.  Not permitted by "
            "the SOCKS standard and not expected.  %s",
            function,
            socket2string(neg->s, NULL, 0),
            (unsigned long)length,
            length > sizeof(req.clientdata) ?
-           "Too much data, can not handle it" : "Trying to handle it");
+           "Too much unexpected data" : "Trying to handle it");
 
       if (length > sizeof(req.clientdata))
         return -1;

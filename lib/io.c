@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.201 2011/06/08 12:50:24 michaels Exp $";
+"$Id: io.c,v 1.203 2011/06/16 07:22:10 michaels Exp $";
 
 static void
 print_selectfds(const char *preamble, const int docheck, const int nfds,
@@ -690,12 +690,10 @@ sendmsgn(s, msg, flags, timeoutseconds)
                      NULL,
                      timeoutseconds == -1 ? NULL : &timeout) == 1) {
             if (timeoutseconds == -1)
-               slog(LOG_WARNING, "%s: XXX blocked on select", function);
+               slog(LOG_DEBUG, "%s: blocked on select", function);
             else
-               slog(LOG_WARNING,
-                    "%s: XXX blocked on select, returned time is %ld.%06ld",
-                    function,
-                    (long)timeout.tv_sec, (long)timeout.tv_usec);
+               slog(LOG_DEBUG, "%s: blocked on select, time is %ld.%06ld",
+                    function, (long)timeout.tv_sec, (long)timeout.tv_usec);
 
             errno = 0;
             return sendmsgn(s, msg, 0, timeoutseconds);

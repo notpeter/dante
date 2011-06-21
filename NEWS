@@ -1,6 +1,17 @@
-@(#)$Id: NEWS,v 1.67 2011/06/14 11:13:01 karls Exp $
+@(#)$Id: NEWS,v 1.74 2011/06/20 13:34:03 michaels Exp $
 
 (NOTE: The contents of this file is not updated for pre-releases.)
+
+***
+***  Tuesday, June 21, 2011 -- Dante v1.3.1
+***
+
+ o Fixed a bug regarding handling of socks clients that do not follow the
+   spec and start sending traffic data before request has been granted.
+
+ o Fixed an error related to ACL on UDP-packets.  If a given SOCKS
+   client was allowed to send some UDP packets, in some cases packets
+   from the same SOCKS client that should have been blocked were allowed.
 
 ***
 ***  Tuesday, June 14, 2011 -- Dante v1.3.0

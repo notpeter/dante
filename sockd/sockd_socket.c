@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.75 2011/05/18 13:48:47 karls Exp $";
+"$Id: sockd_socket.c,v 1.77 2011/06/19 15:09:21 michaels Exp $";
 
 int
 sockd_bind(s, addr, retries)
@@ -97,8 +97,102 @@ sockd_bind(s, addr, retries)
       break;
    }
 
+   if (p == 0)
+      slog(LOG_DEBUG, "%s: bound address %s",
+           function, sockaddr2string(addr, NULL, 0));
+
    return p;
 }
+
+int
+socks_unconnect(s)
+   const int s;
+{
+   const char *function = "socks_unconnect()";
+   struct sockaddr local, remote;
+   socklen_t addrlen;
+   char remotestr[MAXSOCKADDRSTRING];
+
+   addrlen = sizeof(local);
+   if (getsockname(s, &local, &addrlen) != 0) {
+      swarn("%s: getsockname()", function);
+      return -1;
+   }
+
+   if (getpeername(s, &remote, &addrlen) != 0) {
+      SWARN(0); /* not bound?  Should not happen. */
+      return 0;
+   }
+
+   slog(LOG_DEBUG, "%s: unconnecting socket %d, currently connected to %s",
+   function, s, sockaddr2string(&remote, remotestr, sizeof(remotestr)));
+
+   bzero(&remote, sizeof(remote));
+   remote.sa_family = AF_UNSPEC;
+   if (connect(s, &remote, sizeof(remote)) != 0)
+      slog(LOG_DEBUG, "%s: \"unconnect\" of socket returned %s",
+      function, strerror(errno));
+
+   /*
+    * Need to re-bind the socket to make sure we get the same address
+    * as we had before; some systems only keep the portnumber if not.
+    */
+   if (sockd_bind(s, &local, 1) != 0) {
+      struct sockaddr new_local;
+      int new_s;
+
+      addrlen = sizeof(new_local);
+      if (getsockname(s, &new_local, &addrlen) != 0) {
+         swarn("%s: getsockname() after unconnect failed", function);
+         return -1;
+      }
+
+      slog(LOG_DEBUG, "%s: re-bind after unconnecting failed: %s.  "
+                      "Current address is %s.  Trying to create a new socket "
+                      "instead",
+                      function,
+                      errnostr(errno),
+                      sockaddr2string(&new_local, NULL, 0));
+
+      /*
+       * There is an unfortunate race here, as while we create the new 
+       * socket packets could come in on the old socket, and those packets
+       * will be lost.  There is probably not much else we could do though,
+       * as long as user has enabled conneting udp sockets to destination.
+       */
+
+      new_s = 1;
+      if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &new_s, sizeof(new_s)) != 0)
+         swarn("%s: setsockopt(SO_REUSEADDR)", function);
+
+
+      if ((new_s = socketoptdup(s)) == -1) {
+         swarn("%s: socketoptdup(%d) failed", function, s);
+         return -1;
+      }
+
+      if (sockd_bind(new_s, &local, 1) != 0) {
+         slog(LOG_DEBUG, "%s: bind of new socket also failed: %s", 
+              function, errnostr(errno));
+
+         close(new_s);
+         return 0;
+      }
+
+      slog(LOG_DEBUG, "%s: bind of new socket to address %s succeeded",
+           function, sockaddr2string(&local, NULL, 0));
+
+      if (dup2(new_s, s) == -1) {
+         swarn("%s: dup2() failed", function);
+
+         close(new_s);
+         return 0;
+      }
+   }
+
+   return 0;
+}
+
 
 int
 sockd_bindinrange(s, addr, first, last, op)

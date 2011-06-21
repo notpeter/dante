@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.93 2011/06/13 11:14:44 michaels Exp $";
+"$Id: tostring.c,v 1.94 2011/06/15 15:48:31 michaels Exp $";
 
 static const char *stripstring = ", \t\n";
 
@@ -835,7 +835,7 @@ socket2string(s, buf, buflen)
    snprintf(buf, buflen,
             "laddr: %s, raddr: %s, protocol: %s",
             *src     == NUL  ? "N/A" : src,
-            *dst     == NUL  ? "N/A" : src,
+            *dst     == NUL  ? "N/A" : dst,
             protocol == NULL ? "N/A" : protocol);
 
    return buf;
