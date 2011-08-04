@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.276 2011/06/19 14:33:57 michaels Exp $";
+"$Id: sockd_child.c,v 1.288 2011/07/30 14:54:40 michaels Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -245,13 +245,18 @@ addchild(type)
    if (bufset < bufval || bufset2 < bufval) {
       swarnx("%s: getsockopt(SO_RCVBUF/SO_SNDBUF) did not return "
              "requested value.  Requested: %d and %d, returned: %d and %d.\n"
-             "This probably means one of %s's SOCKD_NEGOTIATEMAX or "
-             "SOCKD_IOMAX was at compile-time set to a value too large for "
-             "your kernel.\n"
+             "This probably means %s's %s was at compile-time set to a value "
+             "too large for the current kernel settings.\n"
              "To avoid this error, you will need to either increase the "
-             "kernel max-size socket buffers somehow, or decrease the values "
+             "kernel max-size socket buffers somehow, or decrease the value "
              "in %s and recompile.",
-             function, bufval, bufval, bufset, bufset2, PACKAGE, PACKAGE);
+             function,
+             bufval, bufval, bufset, bufset2,
+             PACKAGE,
+             type == CHILD_NEGOTIATE ? "SOCKD_NEGOTIATEMAX"
+           : type == CHILD_REQUEST   ? "SOCKD_REQUESTMAX"
+           : type == CHILD_IO        ? "SOCKD_IOMAX" : "hmm, that was strange",
+             PACKAGE);
 
       closev(datapipev, ELEMENTS(datapipev));
       closev(ackpipev, ELEMENTS(ackpipev));
@@ -259,7 +264,7 @@ addchild(type)
       return NULL;
    }
 
-   if (sockscf.option.debug > 1) {
+   if (sockscf.option.debug >= DEBUG_VERBOSE) {
       slog(LOG_DEBUG, "%s: minimum rcvbuf for mother and sndbuf for %s child: "
                       "%d and %d, set: %d and %d",
       function, childtype2string(type),
@@ -320,7 +325,7 @@ addchild(type)
 
 #if HAVE_PRIVILEGES
       /* don't need this privilege any more, permanently loose it. */
-      if (!sockscf.privileges.noprivs) {
+      if (sockscf.privileges.haveprivs) {
          priv_delset(sockscf.privileges.privileged, PRIV_FILE_DAC_WRITE);
          if (setppriv(PRIV_SET, PRIV_PERMITTED, sockscf.privileges.privileged)
          != 0)
@@ -361,7 +366,7 @@ addchild(type)
 #if HAVE_PRIVILEGES
                /* doesn't need this privilege so permanently loose it. */
 
-               if (!sockscf.privileges.noprivs) {
+               if (sockscf.privileges.haveprivs) {
                   priv_delset(sockscf.privileges.privileged, PRIV_NET_PRIVADDR);
                   if (setppriv(PRIV_SET, PRIV_PERMITTED,
                   sockscf.privileges.privileged) != 0)
@@ -442,8 +447,8 @@ addchild(type)
           * Ok, all set for this process.
           */
 
-         slog(LOG_DEBUG, "created new %schild, data-pipe %d, ack-pipe %d",
-         childtype2string(type), mother.s, mother.ack);
+         slog(LOG_DEBUG, "I am new %s-child, data-pipe %d, ack-pipe %d",
+              childtype2string(type), mother.s, mother.ack);
 
          sockscf.state.mother = mother;
          time(&sockscf.stat.boot);
@@ -481,6 +486,14 @@ addchild(type)
 
          close(datapipev[CHILD]);
          close(ackpipev[CHILD]);
+
+         slog(LOG_DEBUG,
+              "%s: created new %s-child, pid %lu, data-pipe %d, ack-pipe %d",
+              function,
+              childtype2string((*childv)[*childc].type),
+              (unsigned long)(*childv)[*childc].pid,
+              (*childv)[*childc].s,
+              (*childv)[*childc].ack);
 
          switch ((*childv)[*childc].type) {
             case CHILD_NEGOTIATE:
@@ -892,12 +905,13 @@ removechild(pid)
       size_t i;
 
       for (i = 0; i < ELEMENTS(childtypev); ++i) {
-         setchildtype(childtypev[i], &childv, &childc, NULL);
+         while (1) {
+            setchildtype(childtypev[i], &childv, &childc, NULL);
+            if (*childc == 0)
+               break;
 
-         while (*childc != 0) {
             SASSERTX((*childv)[0].pid != 0);
             removechild((*childv)[0].pid);
-            setchildtype(childtypev[i], &childv, &childc, NULL);
          }
       }
 
@@ -910,8 +924,10 @@ removechild(pid)
 
    close((*childv)[child].s);
    close((*childv)[child].ack);
+
 #if HAVE_SENDMSG_DEADLOCK
-    close((*childv)[child].lock);
+    if ((*childv)[child].lock != -1) /* not all children need it. */
+       close((*childv)[child].lock);
 #endif /* HAVE_SENDMSG_DEADLOCK */
 
    /* shift all following one down */
@@ -934,12 +950,14 @@ nextchild(type, protocol)
    const char *function = "nextchild()";
    struct sockd_child_t **childv;
    size_t i, *childc;
-   int triedagain = 0;
+   int mostbusy, triedagain = 0;
 
 tryagain:
+
    setchildtype(type, &childv, &childc, NULL);
 
-   for (i = 0; i < *childc; ++i)
+   mostbusy = -1;
+   for (i = 0; i < *childc; ++i) {
       if ((*childv)[i].freec > 0) {
 #if BAREFOOTD
          if (protocol == SOCKS_UDP && (*childv)[i].hasudpsession) {
@@ -953,11 +971,33 @@ tryagain:
          }
 #endif /* BAREFOOTD */
 
-         return &(*childv)[i];
+         if ((*childv)[i].freec <= 0)
+            continue;
+
+         /*
+          * Child has at least one free slot.
+          * We want to find the child with the fewest free slots, to avoid 
+          * processes with only a few clients that can not be shut down by
+          * child.maxidle.  Trying to fit as many clients as possible
+          * into each processes allows us to reduce the process count.
+          */
+         if (mostbusy == -1
+         || (*childv)[i].freec < (*childv)[mostbusy].freec)
+            mostbusy = i;
+
+         if ((*childv)[mostbusy].freec == 1)
+            break; /* no need to look further, got the best we can get. */
       }
+   }
+
+   if (mostbusy != -1) 
+      return &(*childv)[mostbusy];
 
    slog(LOG_DEBUG, "%s: no free %s slots for protocol %s, triedagain = %d",
-   function, childtype2string(type), protocol2string(protocol), triedagain);
+        function,
+        childtype2string(type),
+        protocol2string(protocol),
+        triedagain);
 
    if (!triedagain) {
       slog(LOG_DEBUG, "%s: calling childcheck() and trying again", function);
@@ -1181,7 +1221,7 @@ send_io(s, io)
       length           += gssapistate.length;
       ++ioc;
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: gssapistate has length %lu",
          function, (long unsigned)gssapistate.length);
    }
@@ -1209,7 +1249,7 @@ send_io(s, io)
       return -1;
    }
 
-   if (sockscf.option.debug > 1) {
+   if (sockscf.option.debug >= DEBUG_VERBOSE) {
       char ctrlbuf[MAXSOCKADDRSTRING * 3], srcbuf[MAXSOCKADDRSTRING * 3],
            dstbuf[MAXSOCKADDRSTRING * 3];
 
@@ -1269,7 +1309,7 @@ send_client(s, _client, buf, buflen)
 
    CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdtosend);
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: sending socket %d (%s) ...",
       function, client.s, socket2string(client.s, NULL, 0));
 
@@ -1322,7 +1362,7 @@ send_req(s, req)
       length += iov[ioc].iov_len;
       ++ioc;
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: gssapistate has length %lu",
          function, (long unsigned)gssapistate.length);
    }
@@ -1342,7 +1382,7 @@ send_req(s, req)
 
    CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdtosend);
 
-   if (sockscf.option.debug > 1 && req->s != -1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE && req->s != -1)
       slog(LOG_DEBUG, "%s: sending socket %d (%s) ...",
       function, req->s, socket2string(req->s, NULL, 0));
 
@@ -1362,6 +1402,7 @@ sigchildbroadcast(sig, childtype)
    int sig;
    int childtype;
 {
+   const char *function = "sigchildbroadcast()";
    int childtypesv[] =  { CHILD_NEGOTIATE, CHILD_REQUEST, CHILD_IO };
    size_t *childc, childtypec;
    struct sockd_child_t **childv;
@@ -1371,9 +1412,16 @@ sigchildbroadcast(sig, childtype)
          size_t i;
 
          setchildtype(childtypesv[childtypec], &childv, &childc, NULL);
-         for (i = 0; i < *childc; ++i)
+         for (i = 0; i < *childc; ++i) {
+            slog(LOG_DEBUG, "%s: sending signal %d to %s-child %lu",
+                 function,
+                 sig,
+                 childtype2string(childtypesv[childtypec]),
+                 (unsigned long)(*childv)[i].pid);
+
             kill((*childv)[i].pid, sig);
-      }
+         }
+   }
 }
 
 size_t
@@ -1397,67 +1445,3 @@ maxfreeslots(childtype)
 
    return 0; /* NOTREACHED */
 }
-
-
-#if DEBUG
-void
-printfd(io, prefix)
-   const struct sockd_io_t *io;
-   const char *prefix;
-{
-   const char *function = "printfd()";
-   struct sockaddr name;
-   socklen_t namelen;
-   char namestring[MAXSOCKADDRSTRING];
-
-   bzero(&name, sizeof(name));
-   namelen = sizeof(name);
-   /* LINTED pointer casts may be troublesome */
-   if (getsockname(io->src.s, &name, &namelen) != 0)
-      swarn("%s: getsockname(io->src)", function);
-   else
-      slog(LOG_DEBUG, "%s: io->src (%d), name: %s", prefix,
-      io->src.s, sockaddr2string(&name, namestring, sizeof(namestring)));
-
-   bzero(&name, sizeof(name));
-   namelen = sizeof(name);
-   /* LINTED pointer casts may be troublesome */
-   if (getsockname(io->dst.s, &name, &namelen) != 0)
-      swarn("%s: getsockname(io->dst)", function);
-   else
-      slog(LOG_DEBUG, "%s: io->dst (%d), name: %s", prefix, io->dst.s,
-      sockaddr2string(&name, namestring, sizeof(namestring)));
-
-   switch (io->state.command) {
-      case SOCKS_BIND:
-      case SOCKS_BINDREPLY:
-         if (!io->state.extension.bind)
-            break;
-         /* else: */ /* FALLTHROUGH */
-
-      case SOCKS_UDPASSOCIATE:
-         bzero(&name, sizeof(name));
-         namelen = sizeof(name);
-         /* LINTED pointer casts may be troublesome */
-         if (getpeername(io->control.s, &name, &namelen)
-         != 0)
-            swarn("%s: getpeername(io->control)", function);
-         else  {
-            if (namelen == 0)
-               slog(LOG_DEBUG, "%s: io->control (%d), name: <none>",
-               prefix, io->control.s);
-            else
-               slog(LOG_DEBUG, "%s: io->control (%d), name: %s",
-               prefix, io->control.s,
-               sockaddr2string(&name, namestring, sizeof(namestring)));
-         }
-         break;
-
-      case SOCKS_CONNECT:
-         break;
-
-      default:
-         SERRX(io->state.command);
-   }
-}
-#endif /* DEBUG */

@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.167 2011/05/18 13:48:45 karls Exp $";
+"$Id: Rbind.c,v 1.169 2011/07/10 15:00:33 michaels Exp $";
 
 int
 Rbind(s, name, namelen)
@@ -159,7 +159,7 @@ Rbind(s, name, namelen)
    bzero(&packet, sizeof(packet));
    packet.req.version        = PROXY_DIRECT;
    packet.req.command        = SOCKS_BIND;
-   packet.req.host.atype     = SOCKS_ADDR_IPV4;
+   packet.req.host.atype     = (unsigned char)SOCKS_ADDR_IPV4;
    packet.req.host.addr.ipv4 = TOIN(&sockscf.state.lastconnect)->sin_addr;
    /* LINTED pointer casts may be troublesome */
    packet.req.host.port      = TOIN(&socksfd.local)->sin_port;
@@ -234,7 +234,9 @@ Rbind(s, name, namelen)
                 * XXX
                 */
 
-               SASSERTX(packet.req.host.atype == SOCKS_ADDR_IPV4);
+               SASSERTX(packet.req.host.atype
+               == (unsigned char)SOCKS_ADDR_IPV4);
+
                if (packet.req.host.addr.ipv4.s_addr == ntohl(0))
                   portisreserved = PORTISRESERVED(packet.req.host.port);
                else

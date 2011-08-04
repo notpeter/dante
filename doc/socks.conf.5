@@ -1,4 +1,4 @@
-.\" $Id: socks.conf.5,v 1.66 2011/05/18 13:48:45 karls Exp $
+.\" $Id: socks.conf.5,v 1.67 2011/07/06 07:57:44 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2008, 2009, 2010,
 .\"               2011
@@ -64,11 +64,11 @@ a combination.  The default is no logging.
 The protocol used to resolve hostnames.
 Valid values are \fBudp\fP, \fBtcp\fP and \fBfake\fP.  The default
 is \fBudp\fP.
-.IP \fBroute.maxfail\fP
-How many times a route can fail before it is marked as bad.
 .IP \fBroute.badexpire\fP
-How long the "bad" marking of a route should remain valid before
-the "bad" marking should expire.
+How long the "bad" marking of a route should remain set before
+it is removed.  Default is 300 seconds.
+.IP \fBroute.maxfail\fP
+How many times a route can fail before it is marked as bad.  Default is 1.
 .IP \fBtimeout.connect\fP
 The number of seconds the client will wait for a connect to the
 proxy server to complete.  The default is 0, indicating the client
@@ -130,6 +130,8 @@ The server supports the given commands.  Valid commands
 are \fBbind\fP, \fBbindreply\fP, \fBconnect\fP, \fBudpassociate\fP
 and \fBudpreply\fP.   The default is all commands supported by the
 protocols set for the route.
+
+Can be used instead of, or to complement, \fBprotocol\fP.
 .IP \fBgssapi.enctype\fP
 Which encryption to enforce for GSSAPI-authenticated communication.
 Possible values are \fBclear\fP, \fBintegrity\fP, or \fBconfidentiality\fP.
@@ -138,7 +140,6 @@ server offers.
 .IP \fBgssapi.servicename\fP
 Which servicename to use when involving GSSAPI.  Default is "rcmd".
 
-Can be used instead of, or to complement, \fBprotocol\fP.
 .IP \fBmethod\fP
 List of authentication methods the \fBclient\fP supports and which to
 offer the server.  Currently supported values are \fBnone\fP, \fBgssapi\fP,

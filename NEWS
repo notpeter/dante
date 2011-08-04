@@ -1,6 +1,35 @@
-@(#)$Id: NEWS,v 1.74 2011/06/20 13:34:03 michaels Exp $
+@(#)$Id: NEWS,v 1.90 2011/08/04 09:16:04 michaels Exp $
 
 (NOTE: The contents of this file is not updated for pre-releases.)
+
+***
+***  Thursday, August 4, 2011 -- Dante v1.3.2
+***
+
+ o Part of the possible resource optimization indicated in section 4.4
+   of the Dante 1.3.1 performance evaluation report
+   (http://www.inet.no/dante/doc/1.3.x/dante_performance_1.3.1.pdf)
+   has been implemented: scheduling new clients to the Dante process
+   with fewest free slots available.
+   
+ o If a proxy server (socks, http, or upnp) is configured via
+   environment variables, don't attempt to also parse any socks.conf
+   files.
+
+ o The "HTTP_PROXY" environment variable has been renamed to
+   "HTTP_CONNECT_PROXY" to avoid conflict with HTTP proxies that do not
+   support the HTTP CONNECT request.
+   
+ o Fixed an unintended change to ACL semantics regarding bind requests in
+   Dante 1.2.3.
+   Noted by Ralf Wenk <Ralf.Wenk@hs-karlsruhe.de.example.com>.  Many thanks.
+
+ o Fixed a bug regarding handling of cases where the ulimit for max number
+   of files is unlimited.  Reported and analyzed by 
+   Ralf Wenk <Ralf.Wenk@hs-karlsruhe.de.example.com>.
+
+ o Fixed a bug introduced in 1.3.1 related to privileges during startup
+   on Solaris.
 
 ***
 ***  Tuesday, June 21, 2011 -- Dante v1.3.1

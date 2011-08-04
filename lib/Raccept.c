@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.124 2011/05/18 13:48:45 karls Exp $";
+"$Id: Raccept.c,v 1.125 2011/07/07 16:47:18 michaels Exp $";
 
 static int
 addforwarded(const int local, const int remote,
@@ -240,7 +240,7 @@ Raccept(s, addr, addrlen)
                      return -1;
                   }
 
-                  if (packet.res.host.atype != SOCKS_ADDR_IPV4) {
+                  if (packet.res.host.atype != (unsigned char)SOCKS_ADDR_IPV4) {
                      swarnx("%s: unexpected atype in bindquery response: %d",
                      function, packet.res.host.atype);
                      close(remote);

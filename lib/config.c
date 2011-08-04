@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.318 2011/05/31 18:14:17 michaels Exp $";
+"$Id: config.c,v 1.320 2011/07/18 10:26:37 michaels Exp $";
 
 void
 genericinit(void)
@@ -173,25 +173,26 @@ socks_addroute(newroute, last)
          proxy.direct = 1;
 
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            serrx(1,
-            "%s: can't combine proxy protocol direct with other protocols",
-            function);
+            yyerror("%s: can't combine proxyprotocol direct with other "
+                    "proxyprotocols",
+                    function);
       }
       else if (route->gw.state.proxyprotocol.socks_v4
       ||       route->gw.state.proxyprotocol.socks_v5) {
          if (route->gw.state.proxyprotocol.http
          ||  route->gw.state.proxyprotocol.upnp)
-         serrx(1, "%s: can't combine proxy protocol socks with other protocols",
-         function);
+         yyerror("%s: can't combine proxyprotocol socks with other "
+                 "proxyprotocols",
+                 function);
       }
       else if (route->gw.state.proxyprotocol.http) {
          memset(&proxy, 0, sizeof(proxy));
          proxy.http = 1;
 
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            serrx(1,
-            "%s: can't combine proxy protocol http with other protocols",
-            function);
+            yyerror("%s: can't combine proxyprotocol http with other "
+                    "proxyprotocols",
+                    function);
       }
       else if (route->gw.state.proxyprotocol.upnp) {
 #if !HAVE_LIBMINIUPNP
@@ -201,9 +202,9 @@ socks_addroute(newroute, last)
          proxy.upnp = 1;
 
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            serrx(1, "%s: can't combine proxy protocol upnp with other "
-                     "protocols",
-                     function);
+            yyerror("%s: can't combine proxyprotocol upnp with other "
+                    "proxyprotocols",
+                    function);
       }
    }
 
@@ -275,7 +276,7 @@ socks_addroute(newroute, last)
          ||  route->gw.state.command.udpassociate
          ||  route->gw.state.command.udpreply
          ||  route->gw.state.protocol.udp)
-            yyerror("serverchaining only supported for connect command");
+            yyerror("serverchaining is only supported for the connect command");
       }
    }
 #endif /* !SOCKS_CLIENT */
@@ -374,7 +375,7 @@ socks_addroute(newroute, last)
          case AUTHMETHOD_BSDAUTH:
          case AUTHMETHOD_RFC931:
             yyerror("method %s is only valid for server rules",
-            method2string(route->gw.state.methodv[i]));
+                    method2string(route->gw.state.methodv[i]));
             break; /* NOTREACHED */
 
          default:
@@ -404,9 +405,9 @@ socks_addroute(newroute, last)
             break;
 
          default:
-            serrx(EXIT_FAILURE, "address type of gateway must be ip address or "
-                                "qualified domainname, but is a %s\n",
-                                atype2string(route->gw.addr.atype));
+            yyerror("address type of gateway must be an ipaddress "
+                    "or qualified domainname, but is a %s\n",
+                    atype2string(route->gw.addr.atype));
       }
 
    if (route->src.atype == SOCKS_ADDR_IFNAME)
@@ -1232,6 +1233,10 @@ optioninit(void)
 #if HAVE_PAM
    sockscf.state.pamservicename     = DEFAULT_PAMSERVICENAME;
 #endif /* HAVE_PAM */
+
+#if HAVE_BSDAUTH
+   sockscf.state.bsdauthstylename   = DEFAULT_BSDAUTHSTYLENAME;
+#endif /* HAVE_BSDAUTH */
 
 #if HAVE_GSSAPI
    sockscf.state.gssapiservicename  = DEFAULT_GSSAPISERVICENAME;

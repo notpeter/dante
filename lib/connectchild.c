@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.303 2011/05/25 07:07:04 michaels Exp $";
+"$Id: connectchild.c,v 1.306 2011/07/02 14:42:18 michaels Exp $";
 
 #define MOTHER  (0)   /* descriptor mother reads/writes on.  */
 #define CHILD   (1)   /* descriptor child reads/writes on.   */
@@ -187,7 +187,9 @@ socks_nbconnectroute(s, control, packet, src, dst)
        * MAXPACKETSQUEUED from mother.
        * Best way around this, lacking SOCK_SEQPACKET, is probably to make
        * the child support handling multiple simultaneous requests (connects)
-       * so it can empty the queue faster than mother can fill it.
+       * so it can empty the queue faster than mother can fill it, and
+       * make sure we never have more than MAXPACKETSQUEUED outstanding;
+       * if we do, we have to block and wait for the child to handle some.
        */
       valtoset *= MAXPACKETSQUEUED;
 
@@ -802,7 +804,7 @@ run_connectchild(mother_data, mother_ack)
                                function);
             else
                slog(LOG_DEBUG, "%s: getsockname(control) failed: %s",
-               function, errnostr(errno));
+               function, strerror(errno));
          }
 
          if (errno != 0) {
@@ -815,14 +817,15 @@ run_connectchild(mother_data, mother_ack)
          len = sizeof(remote);
          if (getpeername(control, &remote, &len) != 0) {
             if (req.packet.state.err == 0) {
-               swarn("%s: that's strange.  SO_ERROR says no error, "
-                     "but getpeername(control) failed", function);
+               slog(LOG_DEBUG, "%s: SO_ERROR says no error, but "
+                               "getpeername(control) failed",
+                               function);
 
                req.packet.state.err = errno; /* better than nothing. */
             }
-
-            slog(LOG_DEBUG, "%s: getpeername(control) failed: %s",
-            function, errnostr(errno));
+            else
+               slog(LOG_DEBUG, "%s: getpeername(control) failed: %s",
+                    function, strerror(errno));
          }
 
          slog(LOG_DEBUG, "%s: checking result ... connect %s",

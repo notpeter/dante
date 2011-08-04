@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmem.c,v 1.69 2011/05/18 13:48:46 karls Exp $";
+"$Id: shmem.c,v 1.70 2011/07/21 13:48:41 michaels Exp $";
 
 /*
  * Mother needs to create and fill in the correct contents initially.
@@ -232,7 +232,7 @@ shmem_unuse(object, lock)
    if (lock != -1)
       socks_lock(lock, 1, 1);
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: lock = %d, clients = %lu, %s-rule = %lu, "
                       "object = %p",
                       function, lock,
@@ -258,7 +258,7 @@ shmem_use(object, lock)
    if (object == NULL)
       return;
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: lock = %d, new # of clients = %lu, %s-rule = %lu, "
                       "object = %p",
                       function,

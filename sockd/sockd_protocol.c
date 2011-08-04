@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.164 2011/05/18 13:48:47 karls Exp $";
+"$Id: sockd_protocol.c,v 1.167 2011/07/08 10:11:52 michaels Exp $";
 
 #if SOCKS_SERVER
 static negotiate_result_t
@@ -289,7 +289,7 @@ send_response(s, response)
    if ((sendt = socks_sendton(s, responsemem, length, 1, 0, NULL, 0,
    response->auth)) != (ssize_t)length) {
       slog(LOG_DEBUG, "%s: socks_sendton(): %ld/%lu: %s",
-      function, (long)sendt, (long unsigned)length, errnostr(errno));
+      function, (long)sendt, (long unsigned)length, strerror(errno));
 
       return -1;
    }
@@ -546,6 +546,7 @@ recv_cmd(s, request, state)
          break;
 
       default:
+         /*  XXX should print to emsg, not swarn() here. */
          swarnx("%s: unknown command: %d", function, request->command);
    }
 
@@ -624,7 +625,8 @@ recv_address(s, request, state)
       case PROXY_SOCKS_V4: {
          INIT(sizeof(request->host.addr.ipv4));
 
-         request->host.atype = SOCKS_ADDR_IPV4; /* only one supported in v4. */
+         /* only one supported in v4. */
+         request->host.atype = (unsigned char)SOCKS_ADDR_IPV4;
 
          CHECK(&request->host.addr.ipv4, request->auth, recv_username);
          SERRX(0); /* NOTREACHED */
@@ -742,7 +744,7 @@ recv_username(s, request, state)
 
          state->mem[state->reqread - 1] = NUL;
 
-         swarnx("%s: username too long (> %ld): \"%s\"", function,
+         swarnx("%s: username too long (> %ld): \"%s...\"", function,
          (unsigned long)strlen(username),
          str2vis(username, strlen(username), visstring, sizeof(visstring)));
 

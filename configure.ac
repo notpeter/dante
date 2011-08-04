@@ -1,8 +1,8 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.530 2011/06/16 13:25:43 michaels Exp $)
+AC_REVISION($Id: configure.ac,v 1.536 2011/08/03 17:11:46 karls Exp $)
 
-version=1.3.1
+version=1.3.2
 RPMVERSION1="$version"
 #set this to enable prerelease, changes some defaults (debug enabled)
 #prerelease="1"
@@ -59,7 +59,7 @@ AM_CONDITIONAL(PRERELEASE, test x$prerelease != x)
 
 #known keywords for --enable/disable-foo(=yes/no)?
 LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77|option_checking|silent_rules"
-KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile"
+KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile|livedebug"
 for keyword in `set | egrep '^enable_' | sed -e 's/^enable_//' | \
                 sed -e 's/=.*$//'`; do
     echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
@@ -232,6 +232,14 @@ AC_ARG_ENABLE(debug,
     debug_enabled=t
  fi])
 
+unset have_livedebug
+AC_MSG_CHECKING([for live debugging])
+AC_ARG_ENABLE(livedebug,
+[  --enable-livedebug      enable low-overhead debugging mode],
+[have_livedebug=t
+ debug_enabled=t
+ AC_DEFINE(HAVE_LIVEDEBUG, 1, [low-overhead debugging enabled])])
+
 if test x$debug_enabled = xt; then
     #no optimization wanted
     if test $ac_cv_prog_cc_g = yes; then
@@ -327,7 +335,11 @@ AC_MSG_CHECKING([for compliation with DIAGNOSTIC])
 AH_TEMPLATE([DIAGNOSTIC], [for debugging])
 AC_ARG_ENABLE(diagnostic,
 [  --enable-diagnostic     enable diagnostic],
-[AC_DEFINE(DIAGNOSTIC, 1)
+[if test x"${have_livedebug}" != x; then
+    AC_MSG_WARN([--enable-livedebug cannot be used with --enable-diagnostic])
+    exit 1
+ fi
+ AC_DEFINE(DIAGNOSTIC, 1)
  AC_MSG_RESULT([yes])],
 [if test x$prerelease != x; then
     AC_DEFINE(DIAGNOSTIC, 1)
@@ -1153,10 +1165,10 @@ fi
 
 #look for modules, and check version
 servdir=sockd
-L_MODVER(bandwidth, 68, $servdir) #module name, version
+L_MODVER(bandwidth, 72, $servdir) #module name, version
 L_MODVER(redirect, 47, $servdir)
 L_MODVER(session, 30, $servdir)
-L_MODVER(ldap, 44, $servdir)
+L_MODVER(ldap, 47, $servdir)
 
 #helper files
 L_MODVER(checkmodule, 39, $servdir, nokey)
@@ -1249,7 +1261,7 @@ if test x"${no_upnp}" = xt; then
     if test x"${have_libminiupnp}" = xt; then
 	echo "UPNP:              Unsupported miniupnp library version"
     else
-	echo "UPNP:              Supported library not found"
+	echo "UPNP:              Not found/disabled"
     fi
 else
     echo "UPNP:              Enabled"

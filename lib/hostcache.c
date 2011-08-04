@@ -44,9 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.72 2011/05/23 18:57:01 michaels Exp $";
-
-#define SOCKD_CACHESTAT    (1000) /* how often to print info.     */
+"$Id: hostcache.c,v 1.74 2011/07/15 13:51:27 michaels Exp $";
 
 #define HOSTENT_MAX_ALIASES (2)   /* max h_aliases or h_addr_list */
 
@@ -222,8 +220,9 @@ hostentdup(hostent, duped, maxaliases)
          strcpy(duped->h_aliases[i], hostent->h_aliases[i]);
 
       for (i = 0; i < maxaliases && hostent->h_addr_list[i] != NULL; ++i)
-         memcpy(duped->h_addr_list[i], hostent->h_addr_list[i],
-         hostent->h_length);
+         memcpy(duped->h_addr_list[i],
+                hostent->h_addr_list[i],
+                hostent->h_length);
    }
 
    duped->h_addrtype = hostent->h_addrtype;

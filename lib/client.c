@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.100 2011/05/18 13:48:45 karls Exp $";
+"$Id: client.c,v 1.101 2011/07/02 14:42:18 michaels Exp $";
 
 
 #if HAVE_DARWIN || !HAVE_PROGNAME
@@ -88,7 +88,7 @@ clientinit(void)
    __progname = getprogname();
 #endif /* HAVE_DARWIN */
 
-/*   sleep(20);   */
+/*   sleep(20);    */
 
    /* needs to be as early as possible, before any i/o calls if possible. */
    socks_addrinit();

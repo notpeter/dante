@@ -20,7 +20,7 @@ if test x"${UPNP}" != xno; then
 	LIBS=$oLIBS
     fi
     if test x"${have_libminiupnp}" = xt; then
-        AC_MSG_CHECKING([for miniupnpc version 1.4])
+        AC_MSG_CHECKING([for miniupnpc version >= 1.4])
 	AC_TRY_COMPILE([
             #include <stdio.h>
             #include <miniupnpc/miniupnpc.h>

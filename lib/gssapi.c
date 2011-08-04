@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: gssapi.c,v 1.90 2011/05/18 13:48:46 karls Exp $";
+"$Id: gssapi.c,v 1.101 2011/07/21 13:48:41 michaels Exp $";
 
 #if HAVE_GSSAPI
 
@@ -101,7 +101,7 @@ gss_err_isset(major_status, minor_status, buf, buflen)
    } while (msg_ctx != 0 && !GSS_ERROR(maj_stat));
 
    if (sizeof(buf) > len + strlen(".  ")) {
-      w = snprintf(buf, buflen, ".  ");
+      w       = snprintf(buf, buflen, ".  ");
       buf    += w;
       buflen -= w;
    }
@@ -196,7 +196,7 @@ gssapi_encode(input, ilen, gs, output, olen)
    *olen = output_token.length;
    memcpy(output, output_token.value, output_token.length);
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: gssapi packet encoded, dec/enc length %lu/%lu, "
                       "0x%x, 0x%x, 0x%x, 0x%x",
                       function, (long unsigned)ilen, (long unsigned)*olen,
@@ -228,7 +228,7 @@ gssapi_decode(input, ilen, gs, output, olen)
    char emsg[1024];
    int req_conf_state;
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s:  0x%x, 0x%x, 0x%x, 0x%x",
       function,
       ((unsigned char *)input)[0], ((unsigned char *)input)[1],
@@ -347,11 +347,9 @@ again:
 
 #if SOCKS_CLIENT /* always flush before read. */
    socks_flushbuffer(s, -1);
-#endif /* SOCKS_CLIENT */
 
-#if SOCKS_CLIENT
    /*
-    * If we are called by the client, we have the added complexity
+    * When called by the client, we have the added complexity
     * that we can not completely drain the socket, because if the client
     * then select(2)'s on the socket to know when there is more to read,
     * select(2) can block forever, as the data has already been read and
@@ -439,7 +437,7 @@ again:
 #endif /* !SOCKS_SERVER */
    from, fromlen)) <= 0) {
       slog(LOG_DEBUG, "%s: read from socket returned %ld: %s",
-      function, (long)nread, errnostr(errno));
+      function, (long)nread, strerror(errno));
 
       return nread;
    }
@@ -865,7 +863,7 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, gs)
 
    if (socks_bytesinbuffer(s, WRITE_BUF, 1) > 0) {
       /*
-       * have data for write buffered.  Write that first, then
+       * have data for write buffered already.  Write that first, then
        * append the new data after encoding it.
        */
 
@@ -888,7 +886,7 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, gs)
       socks_getfrombuffer(s, WRITE_BUF, 1, token, towrite);
       if ((written = sendto(s, token, towrite, flags, to, tolen)) != towrite) {
          slog(LOG_DEBUG, "%s: sendt %ld/%lu: %s",
-              function, (long)written, (unsigned long)towrite, errnostr(errno));
+              function, (long)written, (unsigned long)towrite, strerror(errno));
 
          if (written == -1)
             return -1;
@@ -935,8 +933,8 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, gs)
          len = maxlen;
 
          if (gssapi_encode(msg, len, gs, token, &tokenlen) != 0) {
-            swarnx("%s: hmm, gssapi_encode() failed with shorter datalen "
-                   "also ...", function);
+            swarnx("%s: hmm, gssapi_encode() failed with shorter datalen too",
+                   function);
             return -1;
          }
       }
@@ -981,10 +979,9 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, gs)
 
    towrite = socks_getfrombuffer(s, WRITE_BUF, 1, token, towrite);
    if ((written = sendto(s, token, towrite, flags, to, tolen)) == -1) {
-      slog(LOG_DEBUG, "%s: sendto() of %lu bytes failed: %s",
-      function, (long unsigned)towrite, strerror(errno));
+      slog(LOG_DEBUG, "%s: wrote %lu/%ld (%s)",
+           function, (long unsigned)towrite, (long)written, strerror(errno));
 
-      socks_addtobuffer(s, WRITE_BUF, 1, token, towrite);
       return -1;
    }
 
@@ -1017,7 +1014,7 @@ gssapi_export_state(id, state)
 
    slog(LOG_DEBUG, "%s", function);
 
-   SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
+   SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
    major_status = gss_export_sec_context(&minor_status, id, &token);
    SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
@@ -1115,7 +1112,7 @@ gssapi_isencrypted(s)
    if (socksfd.state.auth.method != AUTHMETHOD_GSSAPI)
       return 0;
 
-   return socksfd.state.auth.mdata.gssapi.state.encryption;
+   return socksfd.state.auth.mdata.gssapi.state.wrap;
 }
 
 

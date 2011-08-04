@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: auth_password.c,v 1.29 2011/05/18 13:48:46 karls Exp $";
+"$Id: auth_password.c,v 1.32 2011/07/07 05:33:40 michaels Exp $";
 
 int
 passwordcheck(name, cleartextpw, emsg, emsglen)
@@ -59,19 +59,23 @@ passwordcheck(name, cleartextpw, emsg, emsglen)
    int rc;
 
    slog(LOG_DEBUG, "%s: name = %s, password = %s",
-   function, name, "<cleartextpw>");
+   function, name, cleartextpw == NULL ? "<empty>" : "<cleartextpw>");
 
-   if (cleartextpw != NULL) /* don't need privileges to lookup name. */
+   if (cleartextpw != NULL) /* need privileges to lookup password. */
       sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_ON);
 
    if ((pw = socks_getpwnam(name)) == NULL) {
-      sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_OFF);
-      snprintf(emsg, emsglen, "no such user on system: %s", name);
+      if (cleartextpw != NULL)
+         sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_OFF);
 
+      snprintf(emsg, emsglen, "no such user on system: %s", name);
       return -1;
    }
 
-   /* copy it before the PRIV_OFF changes it. */
+   /*
+    * copy the password before the sockd_priv() call possibly changes it.
+    * sockd_priv() may need to call getpwnam(), which uses a static buffer.
+    */
    strncpy(password, pw->pw_passwd, sizeof(password) - 1);
    password[sizeof(password) - 1] = NUL;
 

@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.212 2011/05/18 13:48:46 karls Exp $";
+"$Id: udp.c,v 1.217 2011/08/01 12:23:39 michaels Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -236,7 +236,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
          case SOCKS_BIND:
             forus = &socksfd.forus.accepted;
 
-            if (forus->atype == SOCKS_ADDR_NOTSET) {
+            if (forus->atype == (unsigned char)SOCKS_ADDR_NOTSET) {
                swarnx("%s: strange ... trying to read from socket %d, "
                       "which is for bind, but no bind-reply received yet ...",
                       function, s);
@@ -249,11 +249,13 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
       }
 
       slog(LOG_DEBUG, "%s: %s: %s -> %s (%ld: %s)",
-      function, protocol2string(SOCKS_TCP),
-      forus == NULL ?
-      "<NULL>" : sockshost2string(forus, srcstring, sizeof(srcstring)),
-      sockaddr2string(&socksfd.local, dststring, sizeof(dststring)),
-      (long)n, errnostr(errno));
+           function,
+           protocol2string(SOCKS_TCP),
+           forus == NULL ?
+               "<NULL>" : sockshost2string(forus, srcstring, sizeof(srcstring)),
+           sockaddr2string(&socksfd.local, dststring, sizeof(dststring)),
+           (long)n,
+           strerror(errno));
 
       return n;
    }
@@ -301,10 +303,10 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
    free(newbuf);
 
    slog(LOG_DEBUG, "%s: %s: %s -> %s (%ld)",
-   function, protocol2string(SOCKS_UDP),
-   sockaddr2string(&newfrom, srcstring, sizeof(srcstring)),
-   sockaddr2string(&socksfd.local, dststring, sizeof(dststring)),
-   (long)n);
+        function, protocol2string(SOCKS_UDP),
+        sockaddr2string(&newfrom, srcstring, sizeof(srcstring)),
+        sockaddr2string(&socksfd.local, dststring, sizeof(dststring)),
+        (long)n);
 
    if (from != NULL) {
       *fromlen = MIN(*fromlen, newfromlen);
@@ -352,7 +354,7 @@ udpsetup(s, to, type)
 
       default:
          slog(LOG_DEBUG, "%s: unsupported af %d",
-         function, socksfd.local.sa_family);
+              function, socksfd.local.sa_family);
 
          return &directroute;
    }
@@ -384,7 +386,7 @@ udpsetup(s, to, type)
           * should already have been bound, so socks_addrisours()
           * should have been true.
           */
-         swarnx("%s: receive on udp socket not previously sent on is "
+         swarnx("%s: receive on a udp socket not previously sent on is "
                 "not supported by the socks protocol, returning direct route",
                 function);
 
@@ -402,7 +404,7 @@ udpsetup(s, to, type)
 
                len = sizeof(val);
                if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) != 0) {
-                  slog(LOG_DEBUG, "%s: getsockopt(SO_TYPE): %s",
+                  slog(LOG_DEBUG, "%s: getsockopt(SO_TYPE) failed: %s",
                   function, strerror(errno));
 
                   return &directroute;
@@ -417,6 +419,7 @@ udpsetup(s, to, type)
                           "%s: socket %d is unknown, but has a stream "
                           "peer (%s), returning direct route",
                           function, s, sockaddr2string(&addr, NULL, 0));
+
                      return &directroute;
 
                   default:
@@ -457,8 +460,8 @@ udpsetup(s, to, type)
    packet.req.version   = packet.version;
    packet.req.command   = SOCKS_UDPASSOCIATE;
 #if 0 /*
-       * some (nec-based) socks-server misinterpret this to mean something
-       * completely different.
+       * some (nec-based) socks-servers misinterpret this to mean something
+       * completely different than what the draft says.
        */
    packet.req.flag     |= SOCKS_USECLIENTPORT;
 #endif
@@ -487,6 +490,9 @@ udpsetup(s, to, type)
             swarn("%s: failed to create control socket", function);
             return NULL;
          }
+
+         slog(LOG_DEBUG, "%s: control socket %d created for data socket %d",
+              function, socksfd.control, s);
          break;
 
       default:
@@ -527,14 +533,15 @@ udpsetup(s, to, type)
          close(socksfd.control);
          return NULL;
       }
+
+      if (getsockname(s, &socksfd.local, &len) != 0) {
+         swarn("%s: getsockname(s)", function);
+
+         close(socksfd.control);
+         return NULL;
+      }
    }
 
-   if (getsockname(s, &socksfd.local, &len) != 0) {
-      swarn("%s: getsockname(s)", function);
-
-      close(socksfd.control);
-      return NULL;
-   }
    sockaddr2sockshost(&socksfd.local, &packet.req.host);
 
    if (socks_negotiate(s, socksfd.control, &packet, socksfd.route) != 0) {

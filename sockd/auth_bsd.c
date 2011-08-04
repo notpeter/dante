@@ -46,7 +46,7 @@
 #if HAVE_BSDAUTH
 
 static const char rcsid[] =
-"$Id: auth_bsd.c,v 1.12 2011/05/18 13:48:46 karls Exp $";
+"$Id: auth_bsd.c,v 1.16 2011/07/26 18:39:59 karls Exp $";
 
 #include <login_cap.h>
 #include <bsd_auth.h>
@@ -61,7 +61,6 @@ bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 {
    const char *function = "bsdauth_passwordcheck()";
    char password[MAXPWLEN], *style;
-   size_t i;
    int rc;
 
    if (*auth->style == NUL)
@@ -73,8 +72,8 @@ bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    strncpy(password, auth->password, sizeof(password) - 1);
    password[sizeof(password) - 1] = NUL;
 
-   slog(LOG_DEBUG, "%s: bsdauth style to use for user \"%s\": %s)",
-   function, auth->name, style == NULL ? "default" : style);
+   slog(LOG_DEBUG, "%s: bsdauth style to use for user \"%s\": %s",
+        function, auth->name, style == NULL ? "default" : style);
 
    /*
     * note: NULL password would lead to libc requesting it interactively.
@@ -86,7 +85,10 @@ bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 
    if (rc == 0) {
       slog(LOG_DEBUG, "%s: bsdauth method failed for user \"%s\": (%s)",
-      function, auth->name, style == NULL ? "default" : style);
+           function, auth->name, style == NULL ? "default" : style);
+
+      snprintf(emsg, emsgsize, "%s: auth_userokay failed: %s",
+               function, strerror(errno));
 
       return -1;
    }

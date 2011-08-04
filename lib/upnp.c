@@ -42,17 +42,11 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.82 2011/05/27 08:06:48 michaels Exp $";
+"$Id: upnp.c,v 1.85 2011/07/21 14:09:19 karls Exp $";
 
 #include "common.h"
 
-#if HAVE_LIBMINIUPNP
-#include <miniupnpc/miniupnpc.h>
-#include <miniupnpc/upnpcommands.h>
-#include <miniupnpc/upnperrors.h>
-#else
 #include "upnp.h"
-#endif /* HAVE_LIBMINIUPNP */
 
 #if HAVE_LIBMINIUPNP
 #if SOCKS_CLIENT
@@ -111,7 +105,7 @@ socks_initupnp(gw, state)
 
       gwaddr2sockshost(gw, &host);
 
-      SASSERTX(host.atype == SOCKS_ADDR_IPV4);
+      SASSERTX(host.atype == (unsigned char)SOCKS_ADDR_IPV4);
       inet_ntop(AF_INET, &host.addr.ipv4, addrstring, sizeof(addrstring));
 
       slog(LOG_DEBUG, "%s: doing upnp discovery on interface of addr %s (%s)",
@@ -285,7 +279,7 @@ upnp_negotiate(s, packet, state)
           */
          const int errno_s = errno;
 
-         packet->res.host.atype              = SOCKS_ADDR_IPV4;
+         packet->res.host.atype = (unsigned char)SOCKS_ADDR_IPV4;
 
 #if SOCKS_CLIENT
          /* will be filled with real value if user ever does getsockname(2). */

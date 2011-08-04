@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.82 2011/05/18 13:48:46 karls Exp $";
+"$Id: method_uname.c,v 1.83 2011/06/25 11:58:54 michaels Exp $";
 
 static negotiate_result_t
 recv_unamever(int s, struct request_t *request,
@@ -91,33 +91,55 @@ passworddbisunique(void)
    int rc;
 
    if (methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)) {
-     if (!methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc))
-         rc = AUTHMETHOD_UNAME;
-      else
+#if HAVE_PAM
+     if (methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc))
          rc = 0;
+      else
+#endif /* HAVE_PAM */
+
+#if HAVE_BSDAUTH
+     if (methodisset(AUTHMETHOD_BSDAUTH, sockscf.methodv, sockscf.methodc))
+         rc = 0;
+      else
+#endif /* HAVE_BSDAUTH */
+         rc = AUTHMETHOD_UNAME;
    }
 
 #if HAVE_PAM
    else if (methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc)) {
-      if (!methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)
-        && sockscf.state.pamservicename != NULL)
-         rc = AUTHMETHOD_PAM;
-      else
+      if (sockscf.state.pamservicename == NULL)
+         rc = 0;    
+      else if (methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc))
          rc = 0;
+#if HAVE_BSDAUTH
+      else if (methodisset(AUTHMETHOD_BSDAUTH, sockscf.methodv,sockscf.methodc))
+         rc = 0;
+#endif /* HAVE_BSDAUTH */
+      else
+         rc = AUTHMETHOD_PAM;
    }
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
    else if (methodisset(AUTHMETHOD_BSDAUTH, sockscf.methodv, sockscf.methodc)) {
-      if (!methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc)
-      &&  sockscf.state.bsdauthstylename != NULL)
-         return AUTHMETHOD_BSDAUTH;
-      else
+      if (sockscf.state.bsdauthstylename == NULL)
          rc = 0;
+      else if (methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc))
+         rc = 0;
+#if HAVE_PAM
+      else if (methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc))
+         rc = 0;
+#endif /* HAVE_PAM */
+      else
+         rc = AUTHMETHOD_BSDAUTH;
    }
 #endif /* HAVE_BSDAUTH */
-   else /* no passworddb-based methods set.  Should not have been called. */
+   else {/* no passworddb-based methods set.  Should not have been called. */
+      slog(LOG_DEBUG, "%s: no passwroddb-based methods set.  Why called?", 
+           function);
+
       rc = -1;
+   }
 
    slog(LOG_DEBUG, "%s: returning %d", function, rc);
    return rc;

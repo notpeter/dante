@@ -46,10 +46,10 @@
 #include <math.h> /* XXX */
 
 static const char rcsid[] =
-"$Id: bandwidth.c,v 1.26 2011/05/18 13:48:47 karls Exp $";
+"$Id: bandwidth.c,v 1.27 2011/07/11 12:08:34 michaels Exp $";
 
 const char module_bandwidth_version[] =
-"$Id: bandwidth.c,v 1.26 2011/05/18 13:48:47 karls Exp $";
+"$Id: bandwidth.c,v 1.27 2011/07/11 12:08:34 michaels Exp $";
 
 
 void
@@ -93,17 +93,18 @@ bw_update(bw, bwused, bwusedtime, lock)
    (void)bwusedtime;
 }
 
-struct timeval *
-bw_isoverflow(bw, timenow, overflow, lock)
-   shmem_object_t *bw;
-   const struct timeval *timenow;
-   struct timeval *overflow;
-   const int lock;
+
+
+
+int
+bw_rulehasoverflown(rule, tnow, overflowok, controlfd, srcfd, dstfd)
+   const struct rule_t *rule;
+   const struct timeval *tnow;
+   struct timeval *overflowok;
+   const int controlfd;
+   const int srcfd;
+   const int dstfd;
 {
 
-   (void)bw;
-   (void)timenow;
-   (void)overflow;
-
-   return NULL;
+   return 0;
 }

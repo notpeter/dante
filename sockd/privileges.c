@@ -44,9 +44,9 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: privileges.c,v 1.24 2011/06/13 08:35:14 michaels Exp $";
+"$Id: privileges.c,v 1.25 2011/06/24 11:39:58 michaels Exp $";
 
-static privilege_t lastprivelege;
+static privilege_t lastprivelege = SOCKD_PRIV_NOTSET;
 
 void
 init_privs(void)
@@ -93,7 +93,7 @@ init_privs(void)
     */
    if (priv_delset(privset, PRIV_PROC_EXEC) != 0) {
       swarn("%s: can't remove %s privilege", function, PRIV_PROC_EXEC);
-      sockscf.privileges.noprivs = 1;
+      return;
    }
 #endif
 
@@ -106,7 +106,7 @@ init_privs(void)
    for (i = 0; i < ELEMENTS(extra_privs); ++i)
       if (priv_addset(privset, extra_privs[i]) != 0) {
          swarn("%s: can't add %s privilege", function, extra_privs[i]);
-         sockscf.privileges.noprivs = 1;
+         return;
       }
       else
          slog(LOG_DEBUG, "%s: added privilege %s to the privileged set",
@@ -116,33 +116,31 @@ init_privs(void)
    priv_copyset(privset, sockscf.privileges.privileged);
    priv_freeset(privset);
 
-   if (setppriv(PRIV_SET, PRIV_PERMITTED, sockscf.privileges.privileged) == -1){
+   if (setppriv(PRIV_SET, PRIV_PERMITTED, sockscf.privileges.privileged)
+   == -1) {
       swarn("%s: can't set PRIV_PERMITTED privileged", function);
-      sockscf.privileges.noprivs = 1;
+      return;
    }
 
    /* this is what we'll be running with normally. */
    if (setppriv(PRIV_SET, PRIV_EFFECTIVE, sockscf.privileges.unprivileged)
    == -1) {
       swarn("%s: can't set PRIV_EFFECTIVE to unprivileged", function);
-      sockscf.privileges.noprivs = 1;
+      return;
    }
 
    /* applied upon exec only.  Only relevant for libwrap, or pam too?  */
    if (setppriv(PRIV_SET, PRIV_INHERITABLE, sockscf.privileges.unprivileged)
    == -1) {
       swarn("%s: can't set PRIV_INHERITABLE to unprivileged", function);
-      sockscf.privileges.noprivs = 1;
+      return;
    }
 
    setreuid(getuid(), getuid());
    setregid(getgid(), getgid());
 
-   if (sockscf.privileges.noprivs)
-      swarnx("%s: disabling privilege switching due to errors", function);
-   else
-      slog(LOG_DEBUG, "%s: privileges relinquished successfully", function);
-
+   slog(LOG_DEBUG, "%s: privileges relinquished successfully", function);
+   sockscf.privileges.haveprivs = 1;
 #else /* !HAVE_SOLARIS_PRIVS */
 
    if (socks_seteuid(NULL, sockscf.uid.unprivileged) != 0)
@@ -153,8 +151,6 @@ init_privs(void)
    function, (unsigned)sockscf.uid.unprivileged);
 
 #endif /* !HAVE_SOLARIS_PRIVS */
-
-   lastprivelege = SOCKD_PRIV_NOTSET;
 }
 
 void
@@ -171,7 +167,7 @@ sockd_priv(privilege, op)
 #endif /* !HAVE_SOLARIS_PRIVS */
 
 #if HAVE_SOLARIS_PRIVS
-   if (sockscf.privileges.noprivs)
+   if (!sockscf.privileges.haveprivs)
       return;
 
    if (lastprivset == NULL)

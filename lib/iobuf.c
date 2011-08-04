@@ -44,9 +44,14 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: iobuf.c,v 1.73 2011/05/18 13:48:46 karls Exp $";
+"$Id: iobuf.c,v 1.80 2011/07/21 13:48:41 michaels Exp $";
 
-static void socks_flushallbuffers(void);
+static int socks_flushallbuffers(void);
+/*
+ * Flushes all buffers.  
+ * Returns 0 if all were flushed successfully. 
+ * Returns -1 if we failed to completly flush at least one buffer.
+ */
 
 #if !SOCKS_CLIENT
 /*
@@ -60,27 +65,36 @@ static iobuffer_t
                     (SOCKD_REQUESTMAX   * 3  /* control, src, dst */)))];
 static const size_t  iobufc = ELEMENTS(iobufv);
 
-#else /* SOCKS_CLIENT; allocate dynamically on a per-need basis. */
+#else /* SOCKS_CLIENT; allocate dynamically on per-need basis. */
 static iobuffer_t *iobufv;
 static size_t     iobufc;
 #endif /* SOCKS_CLIENT */
 
-static size_t lastfreei;          /* last buffer freed.                   */
+static size_t lastfreei;  /* last buffer freed, for quick allocation.  */
 
-#if SOCKS_CLIENT
 void
-socks_setbuffer(s, mode)
+socks_setbuffer(s, mode, size)
    const int s;
    const int mode;
+   ssize_t size;
 {
    iobuffer_t *iobuf;
 
+   SASSERTX(size <= SOCKD_BUFSIZE); 
    if ((iobuf = socks_getbuffer(s)) == NULL)
       return;
 
+   iobuf->info[READ_BUF].mode  = _IONBF; /* only one supported for read. */
    iobuf->info[WRITE_BUF].mode = mode;
+
+   if (size == -1)
+      size = sizeof(*iobuf->buf);
+   else
+      SASSERTX(size <= (ssize_t)sizeof(*iobuf->buf));
+
+   iobuf->info[READ_BUF].size  = size;
+   iobuf->info[WRITE_BUF].size = size;
 }
-#endif /* SOCKS_CLIENT */
 
 int
 socks_flushbuffer(s, len)
@@ -91,13 +105,11 @@ socks_flushbuffer(s, len)
    ssize_t written, encoded, towrite;
    unsigned char buf[SOCKD_BUFSIZE];
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: socket %d, len = %ld", function, s, (long)len);
 
-   if (s == -1) {
-      socks_flushallbuffers();
-      return 0;
-   }
+   if (s == -1)
+      return socks_flushallbuffers();
 
    if (socks_bufferhasbytes(s, WRITE_BUF) == 0)
       return 0;
@@ -129,7 +141,7 @@ socks_flushbuffer(s, len)
 
       towrite = socks_getfrombuffer(s, WRITE_BUF, 1, buf, sizeof(buf));
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: flushing %lu encoded byte%s ...",
          function, (long unsigned)towrite, towrite == 1 ? "" : "s");
 
@@ -137,9 +149,9 @@ socks_flushbuffer(s, len)
 
       if ((written = socks_sendton(s, buf, towrite, towrite, 0, NULL, 0, NULL))
       != towrite) {
-         if (sockscf.option.debug > 1)
+         if (sockscf.option.debug >= DEBUG_VERBOSE)
             slog(LOG_DEBUG, "%s: socks_sendton() flushed only %ld/%lu: %s",
-            function, (long)written, (long unsigned)towrite, errnostr(errno));
+            function, (long)written, (long unsigned)towrite, strerror(errno));
 
          if (written > 0) { /* add back what we failed to write. */
             socks_addtobuffer(s, WRITE_BUF, 1, &buf[written],
@@ -170,10 +182,14 @@ socks_flushbuffer(s, len)
       SASSERTX(p != NULL);
       SASSERTX(socksfd.state.auth.method == AUTHMETHOD_GSSAPI);
 
-      toencode = socks_getfrombuffer(s, WRITE_BUF, 0, buf,
-      MIN(sizeof(buf), socksfd.state.auth.mdata.gssapi.state.maxgssdata));
+      toencode = socks_getfrombuffer(s,
+                                     WRITE_BUF,
+                                     0,
+                                     buf,
+                                     MIN(sizeof(buf),
+                             socksfd.state.auth.mdata.gssapi.state.maxgssdata));
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: encoding %ld byte%s before flushing ...",
          function, (long)toencode, toencode == 1 ? "" : "s");
 
@@ -225,11 +241,11 @@ socks_flushbuffer(s, len)
 
       rc = sendto(s, buf, towrite, 0, NULL, 0);
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: flushed %ld/%ld %s byte%s (%s), 0x%x, 0x%x",
          function, (long)rc, (long)towrite, encoded ? "encoded" : "unencoded",
          rc == 1 ? "" : "s",
-         errnostr(errno),
+         strerror(errno),
          buf[rc - 2], buf[rc - 1]);
 
       if (rc == -1) {
@@ -351,17 +367,17 @@ socks_allocbuffer(s, stype)
       }
 
       freebuffer = &iobufv[iobufc - 1];
-      bzero(freebuffer, sizeof(*freebuffer));
    }
-
-   freebuffer->info[WRITE_BUF].mode = _IONBF; /* default; no buffering. */
 #endif /* SOCKS_CLIENT */
 
    SASSERTX(freebuffer != NULL);
 
-   freebuffer->s          = s;
-   freebuffer->stype      = stype;
-   freebuffer->allocated  = 1;
+   bzero(freebuffer, sizeof(*freebuffer));
+   freebuffer->s         = s;
+   freebuffer->stype     = stype;
+   freebuffer->allocated = 1;
+
+   socks_setbuffer(s, _IONBF, -1); /* default; no buffering. */
 
 #if SOCKS_CLIENT
    socks_sigunblock(&oset);
@@ -403,7 +419,7 @@ socks_freebuffer(s)
       if ( iobufv[lastfreei].s == s && iobufv[lastfreei].allocated) {
          slog(LOG_DEBUG, "%s: freeing buffer %d", function, s);
 
-         if (sockscf.option.debug > 1
+         if (sockscf.option.debug >= DEBUG_VERBOSE
          && ( socks_bufferhasbytes(s, READ_BUF)
            || socks_bufferhasbytes(s, WRITE_BUF)))
             slog(LOG_DEBUG, "%s: freeing buffer with data (%lu/%lu, %lu/%lu)",
@@ -413,7 +429,7 @@ socks_freebuffer(s)
             (unsigned long)socks_bytesinbuffer(s, WRITE_BUF, 0),
             (unsigned long)socks_bytesinbuffer(s, WRITE_BUF, 1));
 
-         bzero(&iobufv[lastfreei], sizeof(iobufv[lastfreei]));
+         iobufv[lastfreei].allocated = 0;
          return;
       }
 }
@@ -438,7 +454,7 @@ socks_addtobuffer(s, which, encoded, data, datalen)
 
    toadd = MIN(socks_freeinbuffer(s, which), datalen);
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: s = %lu, add %lu %s byte%s to %s buffer that "
                       "currently has %lu decoded, %lu encoded",
                       function,
@@ -528,10 +544,10 @@ socks_freeinbuffer(s, which)
    if ((iobuf = socks_getbuffer(s)) == NULL)
       return 0;
 
-   rc = sizeof(iobuf->buf[which])
+   rc = iobuf->info[which].size
         - (socks_bytesinbuffer(s, which, 0) + socks_bytesinbuffer(s, which, 1));
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: socket %d, which %d, free: %lu",
       function, s, which, (unsigned long)rc);
 
@@ -553,7 +569,7 @@ socks_getfrombuffer(s, which, encoded, data, datalen)
    if ((iobuf = socks_getbuffer(s)) == NULL)
       return 0;
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: s = %lu, get up to %lu %s byte%s from %s buffer "
                       "that currently has %lu decoded, %lu encoded",
                       function,
@@ -595,15 +611,19 @@ socks_getfrombuffer(s, which, encoded, data, datalen)
    return toget;
 }
 
-static void
+static int
 socks_flushallbuffers(void)
 {
 /*   const char *function = "socks_flushallbuffers()";  */
    size_t i;
+   int rc;
 
-   for (i = 0; i < iobufc; ++i)
+   for (i = 0, rc = 0; i < iobufc; ++i)
       if (iobufv[i].allocated)
-         socks_flushbuffer(iobufv[i].s, -1);
+         if (socks_flushbuffer(iobufv[i].s, -1) == -1)
+            rc = -1;
+
+   return rc;
 }
 
 #if 0

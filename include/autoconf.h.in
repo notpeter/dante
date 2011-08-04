@@ -337,6 +337,9 @@
 /* stdio function preloading */
 #undef HAVE_LINUX_GLIBC_WORKAROUND
 
+/* low-overhead debugging enabled */
+#undef HAVE_LIVEDEBUG
+
 /* Define to 1 if you have the <malloc.h> header file. */
 #undef HAVE_MALLOC_H
 

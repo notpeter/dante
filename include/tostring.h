@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: tostring.h,v 1.43 2011/06/13 08:55:49 michaels Exp $ */
+/* $Id: tostring.h,v 1.44 2011/08/01 09:04:36 michaels Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
@@ -206,7 +206,8 @@ string2udpheader(const char *data, size_t len, struct udpheader_t *header)
  * "data" is assumed to be in network order.
  * Returns:
  *      On success: pointer to a udpheader_t in static memory.
- *      On failure: NULL ("data" is not a complete udp packet).
+ *      On failure: NULL ("data" is not a valid udp packet).  In this case,
+ *                  udpheader is bzero(3)-ed.
  */
 
 const char *

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.100 2011/06/19 14:33:17 michaels Exp $";
+"$Id: socket.c,v 1.102 2011/07/06 06:49:12 michaels Exp $";
 
 int
 socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
@@ -80,7 +80,7 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
 
    len = sizeof(laddr);
    if (getsockname(s, &laddr, &len) == -1) {
-      snprintf(emsg, emsglen, "getsockname(2) failed: %s", errnostr(errno));
+      snprintf(emsg, emsglen, "getsockname(2) failed: %s", strerror(errno));
       return -1;
    }
    sockaddr2string(&laddr, laddrstr, sizeof(laddrstr));
@@ -107,7 +107,7 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
          if (timeout != -1) {
             if ((flags = fcntl(s, F_GETFL, 0)) == -1) {
                snprintf(emsg, emsglen, "fcntl(F_GETFL) failed: %s",
-                        errnostr(errno));
+                        strerror(errno));
 
                return -1;
             }
@@ -121,7 +121,7 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
                if (fcntl(s, F_SETFL, flags | O_NONBLOCK) == -1) {
                   snprintf(emsg, emsglen,
                            "could not change fd to nonblocking: %s",
-                           errnostr(errno));
+                           strerror(errno));
 
                   return -1;
                }
@@ -137,7 +137,7 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
          connect_errno = errno;
 
          slog(LOG_DEBUG, "%s: connect() returned %d (%s)",
-         function, rc, errnostr(errno));
+         function, rc, strerror(errno));
 
          if (changed_to_nonblocking)
             if (fcntl(s, F_SETFL, flags & ~O_NONBLOCK) == -1)
@@ -216,7 +216,7 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
             if (getsockname(s, &laddr, &len) == -1) {
                snprintf(emsg, emsglen,
                         "getsockname(2) after connect(2) failed: %s",
-                        errnostr(errno));
+                        strerror(errno));
 
                return -1;
             }
@@ -231,7 +231,7 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
                          s,
                          rc == 0 ? "ok" :
                          errno == EINPROGRESS ? "in progress" : "failed",
-                         errnostr(errno));
+                         strerror(errno));
 
          return rc;
       }
@@ -253,7 +253,6 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
 
    SASSERTX(host->atype == (unsigned char)SOCKS_ADDR_DOMAIN);
    SASSERTX(hostent != NULL && ip != NULL);
-   SASSERTX(ADDRISBOUND(TOIN(&laddr)));
 
    failed = 0;
    do { /* try all ip addresses hostname resolves to. */
@@ -264,13 +263,13 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
 
          if ((new_s = socketoptdup(s)) == -1) {
             snprintf(emsg, emsglen, "socketoptdup() failed: %s",
-                     errnostr(errno));
+                     strerror(errno));
 
             return -1;
          }
 
          if (dup2(new_s, s) == -1) {
-            snprintf(emsg, emsglen, "dup2() failed: %s", errnostr(errno));
+            snprintf(emsg, emsglen, "dup2() failed: %s", strerror(errno));
             close(new_s);
 
             return -1;
@@ -285,7 +284,7 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
          }
 #else /* SOCKS_SERVER */
          if (sockd_bind(s, &laddr, 1) != 0) {
-            snprintf(emsg, emsglen, "sockd_bind() failed: %s", errnostr(errno));
+            snprintf(emsg, emsglen, "sockd_bind() failed: %s", strerror(errno));
             return -1;
          }
 #endif /* SOCKS_SERVER */
@@ -336,7 +335,7 @@ socks_connecthost(s, host, saddr, timeout, emsg, emsglen)
       }
    } while (*(++ip) != NULL);
 
-   snprintf(emsg, emsglen, "%s", errnostr(errno));
+   snprintf(emsg, emsglen, "%s", strerror(errno));
    return -1; /* list exhausted, no successful connect. */
 }
 

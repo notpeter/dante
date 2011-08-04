@@ -43,16 +43,10 @@
 
 #include "common.h"
 
-#if HAVE_LIBMINIUPNP
-#include <miniupnpc/miniupnpc.h>
-#include <miniupnpc/upnpcommands.h>
-#include <miniupnpc/upnperrors.h>
-#else
 #include "upnp.h"
-#endif /* HAVE_LIBMINIUPNP */
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.73 2011/05/18 13:48:45 karls Exp $";
+"$Id: Rgetsockname.c,v 1.74 2011/07/21 14:09:19 karls Exp $";
 
 int
 Rgetsockname(s, name, namelen)

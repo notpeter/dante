@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.190 2011/05/19 07:59:09 karls Exp $";
+"$Id: sockd_util.c,v 1.196 2011/07/26 07:59:54 michaels Exp $";
 
 #include "common.h"
 
@@ -135,7 +135,6 @@ sockdexit(code)
    };
    struct sigaction sigact;
    size_t i;
-   int ismainmother;
 
    /*
     * Since this function can also be called on an assert-failure,
@@ -158,7 +157,7 @@ sockdexit(code)
 
    slog(LOG_DEBUG, "%s: insignal = %d", function, (int)sockscf.state.insignal);
 
-   if ((ismainmother = pidismother(sockscf.state.pid)) == 1) {
+   if (pidismother(sockscf.state.pid) == 1) { /* main mother. */
       if (sockscf.state.insignal)
          slog(LOG_ALERT, "%s: terminating on signal %d",
          function, sockscf.state.insignal);
@@ -233,23 +232,25 @@ sockdexit(code)
       }
    }
 
-   if (pidismother(sockscf.state.pid))
+   if (pidismother(sockscf.state.pid)) {
       removechild(0);
 
-   if (ismainmother) {
-      sigserverbroadcast(SIGTERM); /* let others terminate too. */
-      resetconfig(1); /* mainly for removing old shared memory stuff. */
-      exit(code);
+      if (pidismother(sockscf.state.pid) == 1) { /* main mother. */
+         sigserverbroadcast(SIGTERM); /* signal other mothers too. */
+         resetconfig(1); /* mainly for removing old shared memory stuff. */
+         exit(code);
+      }
    }
 
    /*
-    * Else; we are child.
+    * Else; we are a child.
     */
+
+   fflush(NULL);
 
 #if HAVE_PROFILING
    exit(code);
 #else
-   fflush(NULL);
    _exit(code);
 #endif /* HAVE_PROFILING */
 }
@@ -341,9 +342,7 @@ descriptorisreserved(d)
    ||  d == sockscf.ldapfd
 #endif /* HAVE_LDAP */
    ||  d == sockscf.configfd
-   /* due to external libraries/software trying to log to stdout/stderr. :-( */
-   ||  d == STDOUT_FILENO
-   ||  d == STDERR_FILENO)
+   || FD_IS_RESERVED_EXTERNAL(d))
       return 1;
 
    /* don't close log files. */
@@ -358,14 +357,19 @@ void
 sigserverbroadcast(sig)
    int sig;
 {
+   const char *function = "sigserverbroadcast()";
    size_t i;
 
    if (sockscf.state.motherpidv == NULL)
       return; /* so early we haven't forked yet. */
 
    for (i = 1; i < sockscf.option.serverc; ++i)
-      if (sockscf.state.motherpidv[i] != 0)
+      if (sockscf.state.motherpidv[i] != 0) {
+         slog(LOG_DEBUG, "%s: sending signal %d to mother %lu",
+              function, sig, (unsigned long)(sockscf.state.motherpidv[i]));
+
          kill(sockscf.state.motherpidv[i], sig);
+   }
 }
 
 
@@ -441,7 +445,7 @@ sockd_handledsignals()
    if (sockscf.state.signalc == 0)
       return 0;
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       for (i = 0, rc = 0; i < sockscf.state.signalc; ++i)
          slog(LOG_DEBUG, "%s: signal #%d on the stack is signal %d",
          function, i + 1, (int)sockscf.state.signalv[i].signal);

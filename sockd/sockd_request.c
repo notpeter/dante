@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.467 2011/06/09 09:47:03 michaels Exp $";
+"$Id: sockd_request.c,v 1.491 2011/08/02 11:21:32 michaels Exp $";
 
 /*
  * Since it only handles one client at a time there is no possibility
@@ -212,7 +212,7 @@ run_request()
       if (FD_ISSET(sockscf.state.mother.s, rset)) {
          if (recv_req(sockscf.state.mother.s, &req) == -1) {
             slog(LOG_DEBUG, "%s: recv_req() from mother failed: %s",
-            function, errnostr(errno));
+            function, strerror(errno));
 
              continue;
           }
@@ -411,7 +411,7 @@ recv_req(s, req)
       switch (r) {
          case -1:
             slog(LOG_DEBUG, "%s: recvmsg() failed: %s",
-            function, errnostr(errno));
+            function, strerror(errno));
             break;
 
          case 0:
@@ -451,7 +451,7 @@ recv_req(s, req)
       SASSERTX(fdexpect == 1);
       CMSG_GETOBJECT(req->s, cmsg, sizeof(req->s) * fdreceived++);
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: received socket %d (%s) ...",
          function, req->s, socket2string(req->s, NULL, 0));
    }
@@ -465,7 +465,7 @@ recv_req(s, req)
       r -= sizeof(*req);
       SASSERTX(r > 0);
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: read gssapistate of size %d", function, r);
 
       gssapistate.value  = gssapistatemem;
@@ -477,7 +477,7 @@ recv_req(s, req)
    }
 #endif /* HAVE_GSSAPI */
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: received %d descriptors for request with method %d, "
                       "req->s = %d",
                       function, fdreceived, req->req.auth->method, s);
@@ -579,9 +579,8 @@ dorequest(mother, request)
                break;
 
             default:
-               snprintf(msg, sizeof(msg), "%s: unrecognized v%d atype: %d",
-               sockaddr2string(&request->from, strhost, sizeof(strhost)),
-               request->req.version, request->req.host.atype);
+               snprintf(msg, sizeof(msg), "unrecognized v%d atype: %d",
+                        request->req.version, request->req.host.atype);
 
                iolog(&io.rule,
                      &io.state,
@@ -599,7 +598,7 @@ dorequest(mother, request)
                      NULL,
                      NULL,
                      msg,
-                     strlen(msg));
+                     0);
 
                send_failure(request->s, &response, SOCKS_ADDR_UNSUPP);
 
@@ -619,10 +618,8 @@ dorequest(mother, request)
                break;
 
             default:
-               snprintf(msg, sizeof(msg), "%s: unrecognized v%d command: %d",
-                      sockaddr2string(&request->from, strhost, sizeof(strhost)),
-                      request->req.version,
-                      request->req.command);
+               snprintf(msg, sizeof(msg), "unrecognized v%d command: %d",
+                        request->req.version, request->req.command);
 
                io.state.command = SOCKS_UNKNOWN;
                iolog(&io.rule,
@@ -641,7 +638,7 @@ dorequest(mother, request)
                      NULL,
                      NULL,
                      msg,
-                     strlen(msg));
+                     0);
 
                send_failure(request->s, &response, SOCKS_CMD_UNSUPP);
 
@@ -664,10 +661,8 @@ dorequest(mother, request)
                break;
 
             default:
-               snprintf(msg, sizeof(msg), "%s: unrecognized v%d atype: %d",
-                      sockaddr2string(&request->from, strhost, sizeof(strhost)),
-                      request->req.version,
-                      request->req.host.atype);
+               snprintf(msg, sizeof(msg), "unrecognized v%d atype: %d",
+                        request->req.version, request->req.host.atype);
 
                iolog(&io.rule,
                      &io.state,
@@ -709,10 +704,8 @@ dorequest(mother, request)
                break;
 
             default:
-               snprintf(msg, sizeof(msg), "%s: unrecognized v%d command: %d",
-                      sockaddr2string(&request->from, strhost, sizeof(strhost)),
-                      request->req.version,
-                      request->req.command);
+               snprintf(msg, sizeof(msg), "unrecognized v%d command: %d",
+                        request->req.version, request->req.command);
 
                io.state.command = SOCKS_UNKNOWN;
                iolog(&io.rule,
@@ -731,7 +724,7 @@ dorequest(mother, request)
                      NULL,
                      NULL,
                      msg,
-                     strlen(msg));
+                     0);
 
                send_failure(request->s, &response, SOCKS_CMD_UNSUPP);
 
@@ -750,8 +743,8 @@ dorequest(mother, request)
       case PROXY_HTTP_10:
       case PROXY_HTTP_11:
          SASSERTX(request->req.command == SOCKS_CONNECT);
-         SASSERTX (request->req.host.atype == SOCKS_ADDR_IPV4
-         ||        request->req.host.atype == SOCKS_ADDR_DOMAIN);
+         SASSERTX (request->req.host.atype == (unsigned char)SOCKS_ADDR_IPV4
+         ||        request->req.host.atype == (unsigned char)SOCKS_ADDR_DOMAIN);
 
          response.version  = request->req.version;
          io.state.protocol = SOCKS_TCP;
@@ -764,6 +757,59 @@ dorequest(mother, request)
    }
 
    /*
+    * Any command-spesific things to check?
+    */
+   switch (request->req.command) {
+      case SOCKS_CONNECT:
+#if HAVE_LINUX_BUGS
+         if (ntohs(request->req.host.port) == 0) {
+            /*
+             * What was observed was that the connect(2) would return 
+             * EINPROGRESS as expected.  Later select(2) would however 
+             * indicate the socket was writable, but getpeername(2)
+             * would fail on the socket, while getsockopt(2) for SO_ERROR
+             * would indicate there was no error.
+             * Strangly enough, this does not happen every time, just
+             * sometimes, and has only been reproduced on some very busy
+             * servers running Linux 2.6.18.
+             */
+            snprintf(msg, sizeof(msg),
+                     "connecting to port 0 leads to strange behaviour on "
+                     "Linux sometimes, so blocked");
+
+            iolog(&io.rule,
+                  &io.state,
+                  OPERATION_ERROR,
+                  &io.control.laddr,
+                  &io.control.host,
+                  &io.control.auth,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  msg,
+                  0);
+
+               send_failure(request->s, &response, SOCKS_INVALID_ADDRESS);
+
+               close(request->s);
+               SHMEM_UNUSE(&io.crule,
+                           &(TOIN(&io.control.raddr)->sin_addr),
+                           sockscf.shmemfd);
+
+               return -1;
+            }
+#endif /* HAVE_LINUX_BUGS */
+
+            break;
+   }
+
+   /*
     * packet looks ok, fill in remaining bits and check rules.
     */
 
@@ -771,23 +817,16 @@ dorequest(mother, request)
 #if SOCKS_SERVER
       case SOCKS_BIND:
          /*
-          * bind is a bit funky.  We first need to check if the bind request
-          * is allowed, and then we transform io.dst to something completely
-          * different to check if the bindreply is allowed.
-          * For the bind request, the ip address given is the host the client
-          * previously issued a connect to, more or less.  What we
-          * want to check first is whether the rules permit the client
-          * to bind some port, if it's a socks v4 request, or the port, if
-          * it's a socks v5 request.
-          *
-          * Thus the src is the client address, the dst should be the address
-          * bound for the client.
+          * Bind is a bit cumbersome.
+          * We first need to check if the bind request is allowed, and then
+          * we transform io.dst to something completely different to check
+          * if the bindreply is allowed.
           */
 
          io.src = io.control;
 
          io.dst.host = request->req.host;
-         if (io.dst.host.atype            == SOCKS_ADDR_IPV4
+         if (io.dst.host.atype            == (unsigned char)SOCKS_ADDR_IPV4
          &&  io.dst.host.addr.ipv4.s_addr == htonl(BINDEXTENSION_IPADDR))
             io.state.extension.bind = 1;
          else
@@ -826,7 +865,7 @@ dorequest(mother, request)
           * For now just set it to INADDR_ANY.
           */
 
-         io.dst.host.atype            = SOCKS_ADDR_IPV4;
+         io.dst.host.atype            = (unsigned char)SOCKS_ADDR_IPV4;
          io.dst.host.addr.ipv4.s_addr = htonl(INADDR_ANY);
          io.dst.host.port             = htons(0);
 #endif /* SOCKS_SERVER */
@@ -851,6 +890,9 @@ dorequest(mother, request)
    }
 
    if (out == -1) {
+      snprintf(msg, sizeof(msg), "could not create socket: %s",
+               strerror(errno));
+
       iolog(&io.rule,
             &io.state,
             OPERATION_ERROR,
@@ -866,7 +908,7 @@ dorequest(mother, request)
             NULL,
             NULL,
             NULL,
-            NULL,
+            msg,
             0);
 
       send_failure(request->s, &response, SOCKS_FAILURE);
@@ -911,11 +953,11 @@ dorequest(mother, request)
           *
           * Unfortunately, this is a mixmash of different interpretations.
           *
-          * The socks v5 standard is pretty strict about the meaning,
-          * and the v4 standard even more so.
+          * The socks v4 standard is pretty strict about the meaning,
+          * while the v5 is much less clear.
           * Unfortunately, the meaning given in these standard provides
-          * only limited usability, so people "interpret" the standards
-          * more loose to get a more practical functionality out of them.
+          * limited usability, so people "interpret" the standards more
+          * loose to get more practical functionality out of them.
           *
           * - If the client provided an ip address when requesting the
           *   bind, we should only return remote connections matching
@@ -929,24 +971,29 @@ dorequest(mother, request)
           */
 
          bindreplydst = io.control.host;
-         if (io.state.extension.bind) {
-            io.dst.host.addr.ipv4 = TOCIN(&request->from)->sin_addr;
-            bindreplydst      = io.dst.host;
-            bindreplydst.port = io.dst.host.port;
-         }
 
          if (io.state.extension.bind) {
-            /* LINTED pointer casts may be troublesome */
+            io.dst.host.addr.ipv4  = TOCIN(&request->from)->sin_addr;
+            bindreplydst           = io.dst.host;
+            bindreplydst.port      = io.dst.host.port;
+         
             TOIN(&bound)->sin_port = TOCIN(&request->from)->sin_port;
-            expectedbindreply.addr.ipv4.s_addr = htonl(INADDR_ANY);
+
+            bzero(&expectedbindreply, sizeof(expectedbindreply));
+            expectedbindreply.atype = (unsigned char)SOCKS_ADDR_IPV4;
          }
          else {
-            if (io.dst.host.addr.ipv4.s_addr == htonl(0))
-               expectedbindreply.addr.ipv4.s_addr = htonl(0);
+            if (io.dst.host.addr.ipv4.s_addr == htonl(0)) {
+               bzero(&expectedbindreply, sizeof(expectedbindreply));
+               expectedbindreply.atype = (unsigned char)SOCKS_ADDR_IPV4;
+            }   
             else
                expectedbindreply = io.dst.host;
 
             expectedbindreply.port = htons(0);
+
+            slog(LOG_DEBUG, "%s: expecting bindreply from %s", 
+            function, sockshost2string(&expectedbindreply, NULL, 0));
 
             switch (request->req.version) {
                case PROXY_SOCKS_V4:
@@ -1036,6 +1083,9 @@ dorequest(mother, request)
    }
 
    if (p != 0) {
+      snprintf(msg, sizeof(msg), "failed to bind address on external side: %s",
+               strerror(errno));
+
       iolog(&io.rule,
             &io.state,
             OPERATION_ERROR,
@@ -1051,7 +1101,7 @@ dorequest(mother, request)
             NULL,
             NULL,
             NULL,
-            NULL,
+            msg,
             0);
 
       send_failure(request->s, &response, errno2reply(errno, response.version));
@@ -1083,8 +1133,36 @@ dorequest(mother, request)
     * rules permit?
     */
    switch (request->req.command) {
-      case SOCKS_BIND:
+      case SOCKS_BIND: {
+         struct sockshost_t boundhost;
+
+         sockaddr2sockshost(&bound, &boundhost);
+
+         permit = rulespermit(request->s,
+                              &request->from,
+                              &request->to,
+                              &io.clientauth,
+                              &io.src.auth,
+                              &io.rule,
+                              &io.state,
+                              &io.src.host,
+                              &boundhost,
+                              msg,
+                              sizeof(msg));
+
+         /* 
+          * XXX we should check whether it's possible receive any bindreply
+          * also.  No need to stick around if no replies will be allowed.
+          */
+         break;
+      }
+
       case SOCKS_CONNECT:
+         /* 
+          * XXX if the request is bind, we should check whether it's possible
+          * receive any bindreply also.  No need to stick around if no
+          * replies will be allowed.
+          */
 #if HAVE_TWO_LEVEL_ACL
          permit = rulespermit(request->s,
                               &request->from,
@@ -1105,55 +1183,34 @@ dorequest(mother, request)
       case SOCKS_UDPASSOCIATE: {
 #if HAVE_TWO_LEVEL_ACL
          struct sockshost_t *src;
-         struct connectionstate_t replystate;
-         struct authmethod_t replyauth;
 
          /*
           * Client is allowed to send a "incomplete" address, but if it has
           * not done that, the address it sent is the fixed source address.
-          * Destination address can vary for each packet, so NULL
-          * for now.
+          * Destination address can vary for each packet, so NULL here.
           */
-         if (io.src.host.atype             == SOCKS_ADDR_IPV4
-         && ( io.src.host.addr.ipv4.s_addr == htonl(0)
+         if (io.src.host.atype            == (unsigned char)SOCKS_ADDR_IPV4
+         &&  (io.src.host.addr.ipv4.s_addr == htonl(0)
            || io.src.host.port             == htons(0)))
+            /*
+             * If ip or port is not set, we won't know what rule to use if
+             * we have multiple, so permit for now.
+             * XXX or?  At least we should close the session once we know
+             * the address if it turns out no forwarding is allowed.
+             */
             src = NULL;
          else
             src = &io.src.host;
 
-         /*
-          * make a temp to check for i/o both ways.
-          */
-         replystate         = io.state;
-         replystate.command = SOCKS_UDPREPLY;
-
-         bzero(&replyauth, sizeof(replyauth));
-         replyauth.method   = AUTHMETHOD_NOTSET;
-
-         /*
-          * if we can do i/o in only one direction that is enough, though
-          * it could also be a configuration error.
-          */
          permit = rulespermit(request->s,
                               &request->from,
                               &request->to,
                               &io.clientauth,
-                              &io.control.auth,
+                              &io.src.auth,
                               &io.rule,
                               &io.state,
                               src,
                               NULL,
-                              msg,
-                              sizeof(msg))
-         ||       rulespermit(request->s,
-                              &request->from,
-                              &request->to,
-                              &io.clientauth,
-                              &replyauth,
-                              &io.rule,
-                              &replystate,
-                              NULL,
-                              src,
                               msg,
                               sizeof(msg));
 #else /* !HAVE_TWO_LEVEL_ACL */
@@ -1193,7 +1250,7 @@ dorequest(mother, request)
    if (!permit) {
       iolog(&io.rule,
             &io.state,
-            OPERATION_CONNECT,
+            permit ? OPERATION_CONNECT : OPERATION_BLOCK,
             &io.src.laddr,
             &io.src.host,
             &io.src.auth,
@@ -1207,7 +1264,7 @@ dorequest(mother, request)
             NULL,
             NULL,
             msg,
-            strlen(msg));
+            0);
 
       SHMEM_UNUSE(&io.crule,
                   &(TOIN(&io.control.raddr)->sin_addr),
@@ -1346,7 +1403,7 @@ dorequest(mother, request)
                   sockscf.shmemfd);
 
       if (io.rule.log.error) {
-         snprintf(msg, sizeof(msg), "redirect() failed: %s", errnostr(errno));
+         snprintf(msg, sizeof(msg), "redirect() failed: %s", strerror(errno));
          iolog(&io.rule,
                 &io.state,
                 OPERATION_ERROR,
@@ -1363,7 +1420,7 @@ dorequest(mother, request)
                 NULL,
                 NULL,
                 msg,
-                strlen(msg));
+                0);
       }
 
       send_failure(request->s, &response, errno2reply(errno, response.version));
@@ -1410,7 +1467,7 @@ dorequest(mother, request)
                         NULL,
                         NULL,
                         msg,
-                        strlen(msg));
+                        0);
                }
 
                send_failure(request->s, &response, SOCKS_FAILURE);
@@ -1445,7 +1502,7 @@ dorequest(mother, request)
                      &(TOIN(&io.control.raddr)->sin_addr),
                      sockscf.shmemfd);
 
-         snprintf(msg, sizeof(msg), "serverchain failed: %s", strerror(errno));
+         snprintf(msg, sizeof(msg), "serverchain failed (%s)", strerror(errno));
          iolog(&io.rule,
                &io.state,
                OPERATION_ERROR,
@@ -1462,7 +1519,7 @@ dorequest(mother, request)
                NULL,
                NULL,
                msg,
-               strlen(msg));
+               0);
 
          send_failure(request->s,
                       &response,
@@ -1510,7 +1567,7 @@ dorequest(mother, request)
          if (listen(out, SOCKD_MAXCLIENTQUE) != 0) {
             if (io.rule.log.error) {
                snprintf(msg, sizeof(msg), "listen(out) failed: %s",
-               strerror(errno));
+                        strerror(errno));
 
                iolog(&io.rule,
                      &io.state,
@@ -1528,7 +1585,7 @@ dorequest(mother, request)
                      NULL,
                      NULL,
                      msg,
-                     strlen(msg));
+                     0);
             }
 
             send_failure(sv[client], &response, SOCKS_FAILURE);
@@ -1544,7 +1601,7 @@ dorequest(mother, request)
          ||   fcntl(out, F_SETFL, flags | O_NONBLOCK) == -1) {
             if (io.rule.log.error) {
                snprintf(msg, sizeof(msg), "fcntl() failed: %s",
-               strerror(errno));
+                        strerror(errno));
 
                iolog(&io.rule,
                      &io.state,
@@ -1562,7 +1619,7 @@ dorequest(mother, request)
                      NULL,
                      NULL,
                      msg,
-                     strlen(msg));
+                     0);
             }
 
             send_failure(sv[client], &response, SOCKS_FAILURE);
@@ -1593,7 +1650,7 @@ dorequest(mother, request)
 
             if (socketpair(AF_LOCAL, SOCK_STREAM, 0, pipev) != 0) {
                snprintf(msg, sizeof(msg), "socketpair() failed: %s",
-               strerror(errno));
+                        strerror(errno));
 
                iolog(&io.rule,
                      &io.state,
@@ -1611,7 +1668,7 @@ dorequest(mother, request)
                      NULL,
                      NULL,
                      msg,
-                     strlen(msg));
+                     0);
 
                send_failure(sv[client], &response, SOCKS_FAILURE);
                close(out);
@@ -1627,6 +1684,9 @@ dorequest(mother, request)
 
          /* let client know what address we bound to on it's behalf. */
          if (send_response(sv[client], &response) != 0) {
+            snprintf(msg, sizeof(msg), "sending response to client failed: %s",
+                     strerror(errno));
+
             iolog(&io.rule,
                   &io.state,
                   OPERATION_ERROR,
@@ -1642,7 +1702,7 @@ dorequest(mother, request)
                   NULL,
                   NULL,
                   NULL,
-                  NULL,
+                  msg,
                   0);
 
             close(out);
@@ -1673,8 +1733,8 @@ dorequest(mother, request)
          emfile = 0;
          iolist = NULL;
 
-         bindio                   = io; /* quick init of most stuff. */
-         bindio.state.command     = SOCKS_BINDREPLY;
+         bindio               = io; /* quick init of most stuff. */
+         bindio.state.command = SOCKS_BINDREPLY;
 
          bindio.dst.host = bindreplydst;
          if (bindio.state.extension.bind) {
@@ -1687,7 +1747,7 @@ dorequest(mother, request)
             TOIN(&bindio.dst.laddr)->sin_port        = htons(0);
          }
          else
-            bindio.dst.laddr           = io.src.laddr;
+            bindio.dst.laddr = io.src.laddr;
 
          bindio.dst.auth = io.src.auth;
 
@@ -1700,6 +1760,9 @@ dorequest(mother, request)
          TOIN(&bindio.src.raddr)->sin_family      = AF_INET;
          TOIN(&bindio.src.raddr)->sin_addr.s_addr = htonl(INADDR_ANY);
          TOIN(&bindio.src.raddr)->sin_port        = htons(0);
+
+         bindio.cmd.bind.host = io.dst.host;
+         bindio.cmd.bind.rule = io.rule;
 
          /*
           * if we are using the bind extension, keep accepting connections
@@ -1725,6 +1788,11 @@ dorequest(mother, request)
             FD_SET(sv[client], rset);
             fdbits = MAX(fdbits, sv[client]);
 
+            /*
+             * XXX this should select for mother ack-pipe also, to detect
+             * when mother goes away.  If mother has gone, no need to 
+             * continue waiting.
+             */
             FD_SET(mother, rset);
             fdbits = MAX(fdbits, mother);
 
@@ -1761,6 +1829,7 @@ dorequest(mother, request)
                struct response_t queryresponse;
                struct negotiate_state_t state;
                struct sockaddr queryaddr;
+               negotiate_result_t res;
 
                bzero(&state, sizeof(state));
                bzero(&query, sizeof(query));
@@ -1769,8 +1838,91 @@ dorequest(mother, request)
                query.auth         = request->req.auth;
                queryresponse.auth = query.auth;
 
-               switch (p = recv_sockspacket(sv[client], &query, &state)) {
-                  case -1:
+               if ((res = recv_sockspacket(sv[client], &query, &state))
+               == NEGOTIATE_CONTINUE) {
+                  slog(LOG_DEBUG, "%s: did not receive full request",
+                       function);
+
+                  continue;
+               }
+
+               if (res == NEGOTIATE_ERROR) {
+                  snprintf(msg, sizeof(msg),
+                           "receving request from client failed: %s",
+                           strerror(errno));
+
+                  iolog(&io.rule,
+                        &io.state,
+                        OPERATION_ERROR,
+                        &io.src.laddr,
+                        &io.src.host,
+                        &io.src.auth,
+                        NULL,
+                        NULL,
+                        NULL,
+                        &io.dst.laddr,
+                        io.state.extension.bind ? NULL : &io.dst.host,
+                        NULL,
+                        NULL,
+                        NULL,
+                        NULL,
+                        msg,
+                        0);
+
+                  p = -1; /* session ended. */
+               }
+               else {
+                  struct sockd_io_t *fio;
+
+                  SASSERTX(res == NEGOTIATE_FINISHED);
+
+                  slog(LOG_DEBUG, "received bind resolve request: %s",
+                  socks_packet2string(&query, 1));
+
+                  switch (query.version) {
+                     case PROXY_SOCKS_V4:
+                        queryresponse.version = PROXY_SOCKS_V4REPLY_VERSION;
+                        break;
+
+                     case PROXY_SOCKS_V5:
+                        queryresponse.version = query.version;
+                        break;
+
+                     default:
+                        SERRX(query.version);
+                  }
+
+                  sockshost2sockaddr(&query.host, &queryaddr);
+                  if ((fio = io_find(iolist, &queryaddr)) == NULL) {
+                     queryresponse.host.atype           
+                     = (unsigned char)SOCKS_ADDR_IPV4;
+                     queryresponse.host.addr.ipv4.s_addr = htonl(0);
+                     queryresponse.host.port             = htons(0);
+                  }
+                  else {
+                     SASSERTX(fio->state.command == SOCKS_BINDREPLY);
+                     SASSERTX(sockaddrareeq(&fio->dst.laddr, &queryaddr));
+
+                     sockaddr2sockshost(&fio->src.raddr,
+                     &queryresponse.host);
+                  }
+
+                  if ((p = send_response(sv[client], &queryresponse)) == 0) {
+                     if (fio != NULL) {
+                        fio->dst.state.connected = 1;
+
+                        flushio(mother, fio);
+
+                        emfile = MAX(0, emfile - 3); /* flushio() closes 3 */
+                        iolist = io_remove(iolist, fio);
+                     }
+                     /* else; nothing to flush yet. */
+                  }
+                  else {
+                     snprintf(msg, sizeof(msg),
+                              "sending response to client failed: %s",
+                              strerror(errno));
+
                      iolog(&io.rule,
                            &io.state,
                            OPERATION_ERROR,
@@ -1786,102 +1938,10 @@ dorequest(mother, request)
                            NULL,
                            NULL,
                            NULL,
-                           NULL,
+                           msg,
                            0);
 
                      p = -1; /* session ended. */
-                     break;
-
-                  case 0: {
-                     char *msg = "client closed before bindreply was received";
-
-                     iolog(&io.rule,
-                           &io.state,
-                           OPERATION_DISCONNECT,
-                           &io.src.laddr,
-                           &io.src.host,
-                           &io.src.auth,
-                           NULL,
-                           NULL,
-                           NULL,
-                           &io.dst.laddr,
-                           io.state.extension.bind ? NULL : &io.dst.host,
-                           NULL,
-                           NULL,
-                           NULL,
-                           NULL,
-                           msg,
-                           strlen(msg));
-
-                     p = -1; /* session ended. */
-                     break;
-                  }
-
-                  default: {
-                     struct sockd_io_t *fio;
-
-                     slog(LOG_DEBUG, "received bind resolve request: %s",
-                     socks_packet2string(&query, 1));
-
-                     switch (query.version) {
-                        case PROXY_SOCKS_V4:
-                           queryresponse.version = PROXY_SOCKS_V4REPLY_VERSION;
-                           break;
-
-                        case PROXY_SOCKS_V5:
-                           queryresponse.version = query.version;
-                           break;
-
-                        default:
-                           SERRX(query.version);
-                     }
-
-                     sockshost2sockaddr(&query.host, &queryaddr);
-                     if ((fio = io_find(iolist, &queryaddr)) == NULL) {
-                        queryresponse.host.atype            = SOCKS_ADDR_IPV4;
-                        queryresponse.host.addr.ipv4.s_addr = htonl(0);
-                        queryresponse.host.port             = htons(0);
-                     }
-                     else {
-                        SASSERTX(fio->state.command == SOCKS_BINDREPLY);
-                        SASSERTX(sockaddrareeq(&fio->dst.laddr, &queryaddr));
-
-                        sockaddr2sockshost(&fio->src.raddr,
-                        &queryresponse.host);
-                     }
-
-                     if ((p = send_response(sv[client], &queryresponse)) == 0) {
-                        if (fio != NULL) {
-                           fio->dst.state.connected = 1;
-
-                           flushio(mother, fio);
-
-                           emfile = MAX(0, emfile - 3); /* flushio() closes 3 */
-                           iolist = io_remove(iolist, fio);
-                        }
-                        /* else; nothing to flush yet. */
-                     }
-                     else {
-                        iolog(&io.rule,
-                              &io.state,
-                              OPERATION_ERROR,
-                              &io.src.laddr,
-                              &io.src.host,
-                              &io.src.auth,
-                              NULL,
-                              NULL,
-                              NULL,
-                              &io.dst.laddr,
-                              io.state.extension.bind ? NULL : &io.dst.host,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL,
-                              0);
-
-                        p = -1;
-                     }
                   }
                }
 
@@ -1990,7 +2050,7 @@ dorequest(mother, request)
             if (!permit) {
                iolog(&bindio.rule,
                      &bindio.state,
-                     OPERATION_CONNECT,
+                     OPERATION_BLOCK,
                      &bindio.src.laddr,
                      &bindio.src.host,
                      &bindio.src.auth,
@@ -2004,7 +2064,7 @@ dorequest(mother, request)
                      NULL,
                      NULL,
                      msg,
-                     strlen(msg));
+                     0);
 
                if (!bindio.state.extension.bind) {
                   /*
@@ -2015,7 +2075,10 @@ dorequest(mother, request)
                   response.host = bindio.src.host;
                   send_failure(sv[client], &response, SOCKS_NOTALLOWED);
 
-                  /* log the close of the opened bind session also. */
+                  /*
+                   * log the close of the opened bind session also.
+                   */
+                  errno = 0; /* in case send_failure() sets it. */
                   iolog(&io.rule,
                         &io.state,
                         OPERATION_DISCONNECT,
@@ -2157,7 +2220,7 @@ dorequest(mother, request)
                         NULL,
                         NULL,
                         msg,
-                        strlen(msg));
+                        0);
 
                   /* log the close of the opened bind session also. */
                   iolog(&io.rule,
@@ -2241,8 +2304,10 @@ dorequest(mother, request)
             else {
                response.host = bindio.src.host;
 
-               if (send_response(sv[client], &response) != 0)
+               if (send_response(sv[client], &response) != 0) {
                   close_iodescriptors(&io);
+                  rc = -1;
+               }
                else {
                   bindio.dst.state.connected = 1;
                   flushio(mother, &bindio);
@@ -2291,9 +2356,7 @@ dorequest(mother, request)
             p = 0;
 
          if (p != 0) {
-            snprintf(msg, sizeof(msg), "connect() to %s failed: %s",
-            sockshost2string(&io.dst.host, NULL, 0), emsg);
-
+            snprintf(msg, sizeof(msg), "connect() failed: %s", emsg);
             iolog(&io.rule,
                   &io.state,
                   OPERATION_ERROR,
@@ -2304,13 +2367,13 @@ dorequest(mother, request)
                   NULL,
                   NULL,
                   &io.dst.laddr,
-                  NULL,
+                  &io.dst.host,
                   NULL,
                   NULL,
                   NULL,
                   NULL,
                   msg,
-                  strlen(msg));
+                  0);
 
             send_failure(request->s,
                          &response, errno2reply(errno,
@@ -2340,7 +2403,8 @@ dorequest(mother, request)
 
          /* socket we will receive datagrams from client on */
          if ((clientfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
-            snprintf(msg, sizeof(msg), "socket() failed: %s", strerror(errno));
+            snprintf(msg, sizeof(msg), "could not create socket(): %s",
+                     strerror(errno));
 
             iolog(&io.rule,
                   &io.state,
@@ -2362,7 +2426,7 @@ dorequest(mother, request)
                   NULL,
                   NULL,
                   msg,
-                  strlen(msg));
+                  0);
 
             send_failure(request->s, &response, SOCKS_FAILURE);
             close(request->s);
@@ -2435,8 +2499,8 @@ dorequest(mother, request)
 
          if (rc != 0) {
             snprintf(msg, sizeof(msg), "bind(%s) failed: %s",
-            sockaddr2string(&io.src.laddr, strhost, sizeof(strhost)),
-            strerror(errno));
+                     sockaddr2string(&io.src.laddr, strhost, sizeof(strhost)),
+                     strerror(errno));
 
             iolog(&io.rule,
                   &io.state,
@@ -2458,7 +2522,7 @@ dorequest(mother, request)
                   NULL,
                   NULL,
                   msg,
-                  strlen(msg));
+                  0);
 
             send_failure(request->s, &response, SOCKS_FAILURE);
             close(request->s);
@@ -2480,7 +2544,7 @@ dorequest(mother, request)
                         "udp client said it's address is %s, but connect(2) "
                         "to that address failed: %s",
                         sockaddr2string(&io.src.raddr, NULL, 0),
-                        errnostr(errno));
+                        strerror(errno));
 
                iolog(&io.rule,
                      &io.state,
@@ -2498,7 +2562,7 @@ dorequest(mother, request)
                      NULL,
                      NULL,
                      msg,
-                     strlen(msg));
+                     0);
 
                send_failure(request->s, &response, SOCKS_FAILURE);
                close(request->s);
@@ -2537,7 +2601,7 @@ dorequest(mother, request)
                   NULL,
                   NULL,
                   msg,
-                  strlen(msg));
+                  0);
 
             send_failure(request->s, &response, SOCKS_FAILURE);
             close(request->s);
@@ -2605,7 +2669,7 @@ flushio(mother, io)
                             io->control.auth.mdata.gssapi.state.id,
                             io->control.auth.mdata.gssapi.state.protection
                             == GSSAPI_CONFIDENTIALITY ?
-                            GSS_REQ_CONF : GSS_REQ_INT,
+                              GSS_REQ_CONF : GSS_REQ_INT,
                             GSS_C_QOP_DEFAULT,
                             (OM_uint32)(MAXGSSAPITOKENLEN - GSSAPI_HLEN),
                             &maxlen);
@@ -2622,18 +2686,18 @@ flushio(mother, io)
                              function, MAXGSSAPITOKENLEN - GSSAPI_HLEN,
                              maxlen);
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: gss_wrap_size_limit() for socket %d is %lu",
-         function, io->control.s, (unsigned long)maxlen);
+              function, io->control.s, (unsigned long)maxlen);
 
       if (io->control.auth.method == AUTHMETHOD_GSSAPI)
-         io->control.maxgssdata = maxlen;
+         io->control.auth.mdata.gssapi.state.maxgssdata = maxlen;
 
       if (io->src.auth.method == AUTHMETHOD_GSSAPI)
-         io->src.maxgssdata = maxlen;
+         io->src.auth.mdata.gssapi.state.maxgssdata = maxlen;
 
       if (io->dst.auth.method == AUTHMETHOD_GSSAPI)
-         io->dst.maxgssdata = maxlen;
+         io->dst.auth.mdata.gssapi.state.maxgssdata = maxlen;
    }
 #endif /* HAVE_GSSAPI */
 
@@ -2687,12 +2751,12 @@ flushio(mother, io)
                          function,
                          io->control.s,
                          sockshost2string(&io->src.host, NULL, 0),
-                         errnostr(errno));
+                         strerror(errno));
       }
 #endif /* HAVE_NEGOTIATE_PHASE */
       slog(LOG_DEBUG,
            "%s: sending io to mother on socket %d failed: %s",
-           function, mother, errnostr(errno));
+           function, mother, strerror(errno));
    }
 
    close_iodescriptors(io);
@@ -2958,7 +3022,7 @@ create_response(host, auth, version, responsecode, response)
    if (host != NULL) 
       response->host = *host;
    else
-      response->host.atype = SOCKS_ADDR_IPV4;
+      response->host.atype = (unsigned char)SOCKS_ADDR_IPV4;
       /* rest can be 0. */
 
    socks_set_responsevalue(response,
