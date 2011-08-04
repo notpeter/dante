@@ -60,7 +60,7 @@
 #include "ifaddrs_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.263 2011/05/26 08:39:33 michaels Exp $";
+"$Id: util.c,v 1.268 2011/07/26 10:44:14 michaels Exp $";
 
 const char *
 strcheck(string)
@@ -775,7 +775,7 @@ socks_mklock(template, newname, newnamelen)
    else
       snprintf(newtemplate, len, "%s", template);
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: newtemplate = \"%s\", prefix = \"%s\" "
       "uid = %d, euid = %d, gid = %d, egid = %d",
       function, newtemplate, prefix,
@@ -817,7 +817,7 @@ socks_mklock(template, newname, newnamelen)
       return -1;
    }
    else
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: created file %s", function, newtemplate);
 
    if (newnamelen == 0) {
@@ -851,22 +851,15 @@ socks_lock(d, exclusive, wait)
    lock.l_start  = 0;
    lock.l_len    = 0;
    lock.l_whence = SEEK_SET;
-
-   if (exclusive)
-      lock.l_type = F_WRLCK;
-   else
-      lock.l_type = F_RDLCK;
+   lock.l_type   = exclusive ? F_WRLCK : F_RDLCK;
 
    do
       rc = fcntl(d, wait ? F_SETLKW : F_SETLK, &lock);
    while (rc == -1 && ERRNOISTMP(errno) && wait);
 
    if (rc == -1) {
-      if (!ERRNOISTMP(errno))
-         SERR(d);
-
-      if (wait)
-         SERR(d);
+      SASSERTX(ERRNOISTMP(errno));
+      SASSERTX(!wait);
    }
 
    return rc;
@@ -968,6 +961,7 @@ allocate_maxsize_fdset(void)
    const char *function = "allocate_maxsize_fdset()";
    fd_set *set;
 
+#if SOCKS_CLIENT
    if ((sockscf.state.maxopenfiles = getmaxofiles(hardlimit)) == RLIM_INFINITY)
       /*
        * In the client the softlimit can vary at any time, so this is not
@@ -975,16 +969,25 @@ allocate_maxsize_fdset(void)
        */
       sockscf.state.maxopenfiles = getmaxofiles(softlimit);
 
-   if (sockscf.state.maxopenfiles == RLIM_INFINITY)
-      swarnx("%s: maxopenfiles is RLIM_INFINITY (%lu)",
-      function, (unsigned long)RLIM_INFINITY);
+   if (sockscf.state.maxopenfiles == RLIM_INFINITY) {
+      sockscf.state.maxopenfiles = 64000; /* make a reasonable guess. */
+
+      slog(LOG_INFO, "%s: maxopenfiles is RLIM_INFINITY (%lu), reducing to %lu",
+                     function,
+                     (unsigned long)RLIM_INFINITY,
+                     (unsigned long)sockscf.state.maxopenfiles);
+   }
+#endif /* !SOCKS_CLIENT */
+
+   SASSERTX(sockscf.state.maxopenfiles < RLIM_INFINITY);
+   SASSERTX(sockscf.state.maxopenfiles > 0);
 
    if ((set = malloc(SOCKD_FD_SIZE())) == NULL)
       serr(EXIT_FAILURE, "%s: malloc() of %lu bytes for fd_set failed",
-      function, (unsigned long)SOCKD_FD_SIZE());
+           function, (unsigned long)SOCKD_FD_SIZE());
 
 #if DEBUG
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: allocated %lu bytes",
       function, (unsigned long)SOCKD_FD_SIZE());
 #endif /* DEBUG */

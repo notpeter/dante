@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.591 2011/06/19 14:33:16 michaels Exp $ */
+/* $Id: common.h,v 1.614 2011/07/25 13:06:11 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -75,26 +75,21 @@ extern char *__progname;
 
 #define SOCKS_IGNORE_SIGNALSAFETY   (0)
 
-#if DEBUG
-
-#if !DIAGNOSTIC
-#undef DIAGNOSTIC
-#define DIAGNOSTIC 1
-#endif /* !DIAGNOSTIC */
+#if PRERELEASE
 
 /*
  * Solaris 2.5.1 and it's stream stuff is broken and puts the processes
  * into never-never land forever on half the sendmsg() calls if they
  * involve ancillary data.  (it seems to deadlock the processes.)
  */
-/* always enable if DEBUG */
+/* always enable if PRERELEASE */
 #undef HAVE_SENDMSG_DEADLOCK
 #define HAVE_SENDMSG_DEADLOCK 1
 
 #undef HAVE_ACCEPTLOCK
 #define HAVE_ACCEPTLOCK 1
 
-#endif /* DEBUG */
+#endif /* PRERELEASE */
 
 #define TOIN(addr) ((struct sockaddr_in *)(addr))
 #define TOCIN(addr) ((const struct sockaddr_in *)(addr))
@@ -197,6 +192,18 @@ extern char *__progname;
 
 #define ROUNDFLOAT(x) ((x) >= 0 ? (long)((x) + 0.5) : (long)((x) - 0.5))
 
+#if HAVE_GSSAPI
+#define GSSAPI_OVERHEAD(gssapistate) \
+   ((MAXGSSAPITOKENLEN - GSSAPI_HLEN) - (gssapistate)->maxgssdata)
+#endif /* HAVE_GSSAPI */
+
+/*
+ * Matched against sockscf.option.debug.  If the value there is 
+ * >= to DEBUG_NORMAL, do normal debug logging.  If >= DEBUG_VERBOSE,
+ * do verbose, possibly expensive, debug logging also.
+ */
+#define DEBUG_NORMAL    (1)
+#define DEBUG_VERBOSE   (2)   
 
 /*
  * If client, it might need to call malloc(3) to expand socksfdv
@@ -219,9 +226,15 @@ do { socks_sigunblock(oldset); } while (/* CONSTCOND */ 0)
 #define SOCKS_SIGUNBLOCK_IF_CLIENT(oldset)
 #endif /* !SOCKS_CLIENT */
 
+/* due to external libraries/software trying to log to stdout/stderr. :-( */
+#define FD_IS_RESERVED_EXTERNAL(fd)    \
+   ((fd) == STDOUT_FILENO || (fd) == STDERR_FILENO)
 
 
-#define close(n)   closen(n)
+
+#define close(n)     closen(n)
+#define strerror(e)  errnostr(e)
+
 #undef snprintf
 #define snprintf   snprintfn
 
@@ -505,21 +518,40 @@ do {                                                                           \
 
 #if BAREFOOTD
 
-#define INTERNAL_ERROR \
-"an internal error was detected at %s:%d\nvalue = %ld, version = %s\n" \
-"Please report this to barefoot-bugs@inet.no"
+#define INTERNAL_ERROR                                  \
+   "an internal error was detected at %s:%d.\n"         \
+   "value %ld, expression \"%s\", version %s.\n"        \
+   "Please report this to barefoot-bugs@inet.no"
+
+#define INTERNAL_ERROR_FAD                                  \
+   "an internal error was detected at %s:%d by pid %ld.\n"  \
+   "value %ld, expression \"%s\", version %s.\n"            \
+   "Please report this to barefoot-bugs@inet.no"
+
 
 #elif COVENANT /* !BAREFOOTD */
 
-#define INTERNAL_ERROR \
-"an internal error was detected at %s:%d\nvalue = %ld, version = %s\n" \
-"Please report this to covenant-bugs@inet.no"
+#define INTERNAL_ERROR                                 \
+   "an internal error was detected at %s:%d.\n"        \
+   "value %ld, expression \"%s\", version %s.\n"       \
+   "Please report this to covenant-bugs@inet.no"
+
+#define INTERNAL_ERROR_FAD                                  \
+   "an internal error was detected at %s:%d by pid %ld.\n"  \
+   "value %ld, expression \"%s\", version %s.\n"            \
+   "Please report this to covenant-bugs@inet.no"
 
 #elif SOCKS_SERVER || SOCKS_CLIENT /* !COVENANT */
 
-#define INTERNAL_ERROR \
-"an internal error was detected at %s:%d\nvalue = %ld, version = %s\n" \
-"Please report this to dante-bugs@inet.no"
+#define INTERNAL_ERROR                                \
+   "an internal error was detected at %s:%d.\n"       \
+   "value %ld, expression \"%s\", version %s.\n"      \
+   "Please report this to dante-bugs@inet.no"
+
+#define INTERNAL_ERROR_FAD                                  \
+   "an internal error was detected at %s:%d by pid %ld.\n"  \
+   "value %ld, expression \"%s\", version %s.\n"            \
+   "Please report this to dante-bugs@inet.no"
 
 #else /* !SOCKS_SERVER || SOCKS_CLIENT */
 #error "who are we?"
@@ -527,32 +559,81 @@ do {                                                                           \
 
 #if DIAGNOSTIC
 
-#define SASSERT(expression)      \
-do {                             \
-   if (!(expression))            \
-      SERR(expression);          \
+#define SASSERT(expression)                                                    \
+do {                                                                           \
+   if (!(expression)) {                                                        \
+      swarn(INTERNAL_ERROR,                                                    \
+            __FILE__, __LINE__, (long)(expression), #expression, rcsid);       \
+      abort();                                                                 \
+   }                                                                           \
 } while (/* CONSTCOND */ 0)
 
-#define SASSERTX(expression)     \
-do {                             \
-   if (!(expression))            \
-      SERRX(expression);         \
+#define SASSERTX(expression)                                                   \
+do {                                                                           \
+   if (!(expression)) {                                                        \
+      swarnx(INTERNAL_ERROR,                                                   \
+             __FILE__, __LINE__, (long)(expression), #expression, rcsid);      \
+      abort();                                                                 \
+   }                                                                           \
 } while (/* CONSTCOND */ 0)
 
-#else /* !DIAGNOSTIC */
+#else /* !DIAGNOSTIC; try to generate a coredump, but still continue.  */
 
-#define SASSERT(expression)      \
-do {                             \
-   if (!(expression))            \
-      SWARN(expression);         \
+#if HAVE_LIVEDEBUG /* try to generate a coredump, but still continue.  */
+#define SASSERT(expression)                                                    \
+do {                                                                           \
+   if (!(expression)) {                                                        \
+      switch (fork()) {                                                        \
+         case -1:                                                              \
+            swarn(INTERNAL_ERROR,                                              \
+                  __FILE__, __LINE__, (long)(expression), #expression, rcsid); \
+            break;                                                             \
+                                                                               \
+         case 0:                                                               \
+            newprocinit();                                                     \
+            swarn(INTERNAL_ERROR_FAD,                                          \
+                  __FILE__, __LINE__, (unsigned long)getppid(),                \
+                  (long)(expression), #expression, rcsid);                     \
+            socks_flushrb();                                                   \
+            abort();                                                           \
+            break; /* NOTREACHED */                                            \
+                                                                               \
+         default:                                                              \
+            break; /* continue as best we can; diagnostics are disabled. */    \
+      }                                                                        \
+   }                                                                           \
 } while (/* CONSTCOND */ 0)
 
-#define SASSERTX(expression)     \
-do {                             \
-   if (!(expression))            \
-      SWARNX(expression);        \
+#define SASSERTX(expression)                                                   \
+do {                                                                           \
+   if (!(expression)) {                                                        \
+      switch (fork()) {                                                        \
+         case -1:                                                              \
+            swarnx(INTERNAL_ERROR,                                             \
+                  __FILE__, __LINE__, (long)(expression), #expression, rcsid); \
+            break;                                                             \
+                                                                               \
+         case 0:                                                               \
+            newprocinit();                                                     \
+            swarnx(INTERNAL_ERROR_FAD,                                         \
+                  __FILE__, __LINE__, (unsigned long)getppid(),                \
+                  (long)(expression), #expression, rcsid);                     \
+            socks_flushrb();                                                   \
+            abort();                                                           \
+            break; /* NOTREACHED */                                            \
+                                                                               \
+         default:                                                              \
+            break; /* continue as best we can; diagnostics are disabled. */    \
+      }                                                                        \
+   }                                                                           \
 } while (/* CONSTCOND */ 0)
 
+#else  /* !HAVE_LIVEDEBUG */
+
+#define SASSERT(expression) 
+#define SASSERTX(expression)
+
+#endif /* !HAVE_LIVEDEBUG */
 
 #endif /* !DIAGNOSTIC */
 
@@ -577,24 +658,13 @@ do {                                \
    abort();                         \
 } while (/* CONSTCOND */ 0)
 
-#define SWARN(failure)                                \
-   swarn(INTERNAL_ERROR,                              \
-   __FILE__, __LINE__,   (long int)(failure), rcsid)
+#define SWARN(failure)                                               \
+   swarn(INTERNAL_ERROR,                                             \
+         __FILE__, __LINE__,   (long int)(failure), #failure, rcsid)
 
-#define SWARNX(failure)                               \
-   swarnx(INTERNAL_ERROR,                             \
-   __FILE__, __LINE__,   (long int)(failure), rcsid)
-
-#define WARN(failure) \
-   warn(INTERNAL_ERROR, __FILE__, __LINE__, (long int)(failure), rcsid)
-
-#define WARNX(failure) \
-   warnx(INTERNAL_ERROR, __FILE__, __LINE__, (long int)(failure), rcsid)
-
-#define ERRORMSG(failure) \
-   error_msg(LOG_HIGH, INTERNAL_ERROR, __FILE__, __LINE__, \
-   (long int)(failure), rcsid)
-
+#define SWARNX(failure)                                                 \
+   swarnx(INTERNAL_ERROR,                                               \
+          __FILE__, __LINE__,   (long int)(failure), #failure, rcsid)
 
 /* the size of a UDP header "packet" (no padding) */
 #define PACKETSIZE_UDP(packet) (                                     \
@@ -616,7 +686,8 @@ do {                                \
  */
 #define ADDRESSIZE_V5(packet) (                                                \
   (packet)->host.atype == (unsigned char)SOCKS_ADDR_IPV4 ?                     \
-  sizeof((packet)->host.addr.ipv4) :(packet)->host.atype == SOCKS_ADDR_IPV6 ?  \
+  sizeof((packet)->host.addr.ipv4) :(packet)->host.atype                       \
+  == (unsigned char)SOCKS_ADDR_IPV6 ?                                          \
   sizeof((packet)->host.addr.ipv6) : (strlen((packet)->host.addr.domain) + 1))
 
 #define ADDRESSIZE_V4(packet) (                                                \
@@ -792,7 +863,7 @@ do {                                \
 #define ENV_SOCKS4_SERVER     "SOCKS4_SERVER"
 #define ENV_SOCKS5_SERVER     "SOCKS5_SERVER"
 #define ENV_SOCKS_SERVER      "SOCKS_SERVER"
-#define ENV_HTTP_PROXY        "HTTP_PROXY"
+#define ENV_HTTP_PROXY        "HTTP_CONNECT_PROXY"
 
 #define SOCKS_TCP         1
 #define SOCKS_UDP         2
@@ -825,8 +896,6 @@ do {                                \
 #define GSSAPI_INTEGRITY        1
 #define GSSAPI_CONFIDENTIALITY  2
 
-#define GSSAPI_ENCRYPT          1
-
 #define GSS_REQ_INT             0
 #define GSS_REQ_CONF            1
 
@@ -841,6 +910,7 @@ typedef enum { username } methodinfo_t;
 typedef enum { softlimit, hardlimit } limittype_t;
 
 
+/* make sure the standard socks-values can fit in an unsigned char. */
 typedef enum { SOCKS_ADDR_NOTSET   = 0,
                SOCKS_ADDR_IPV4     = 1,
                SOCKS_ADDR_IFNAME   = 2,
@@ -977,7 +1047,7 @@ struct gssapi_buf_t {
 };
 
 struct gssapi_state_t {
-   int                 encryption;  /* encrypted?                             */
+   int                 wrap;        /* gssapi-wrapped, or clear?              */
    gss_ctx_id_t        id;          /* gssapi context id.                     */
    OM_uint32           maxgssdata;  /* max length of gss data pre-encoding.   */
    int                 protection;  /* selected protection mechanism.         */
@@ -1139,7 +1209,9 @@ typedef struct {
    in_port_t            port;
 } gwaddr_t;
 
-#define MINIUPNPC_URL_MAXSIZE (128) /* XXX */
+#ifndef MINIUPNPC_URL_MAXSIZE 
+#define MINIUPNPC_URL_MAXSIZE (128)
+#endif
 typedef union {
    struct {
       char    controlurl[MINIUPNPC_URL_MAXSIZE];
@@ -1282,16 +1354,20 @@ typedef struct {
 #endif /* HAVE_GSSAPI */
 
    char         buf[2][SOCKD_BUFSIZE];
-   size_t       bufsize[2];
 
    struct {
-#if SOCKS_CLIENT
-      int      mode;       /* buffering mode.  Default is no buffering.       */
-      size_t   peekedbytes;/* # of bytes we last peeked at.                   */
-#endif /* SOCKS_CLIENT */
-
       size_t   len;        /* length of decoded/plain text data in buffer     */
       size_t   enclen;     /* length of encoded data in buffer.               */
+
+      int      mode;       /* buffering mode.  Default is no buffering.       */
+      ssize_t  size;       /* 
+                            * size of buffer to use.  Can not be larger than
+                            * SOCKD_BUFSIZE.  Default is SOCKD_BUFSIZE. 
+                            */
+
+#if SOCKS_CLIENT
+      size_t   peekedbytes;/* # of bytes we last peeked at.                   */
+#endif /* SOCKS_CLIENT */
    } info[2];
 
    int      stype;         /* socket type; tcp or udp                         */
@@ -2118,36 +2194,6 @@ HAVE_PROT_VFPRINTF_0 __vfprintf_chk(HAVE_PROT_VFPRINTF_1 stream,
 #endif /* HAVE___VFPRINTF_CHK */
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
-#if defined(DEBUG) || HAVE_SOLARIS_BUGS
-
-void
-slogstack(void);
-/*
- * Prints the current stack.
- */
-
-int
-freedescriptors(const char *message);
-/*
- * Returns the number on unallocated descriptors.
- */
-
-void
-printsocketopts(const int s);
-/*
- * prints socketoptions and other flags set on the socket "s".
- */
-
-#endif /* DEBUG || HAVE_SOLARIS_BUGS */
-
-#ifdef DEBUG
-
-int
-fd_isset(int fd, fd_set *fdset);
-/* function version of FD_ISSET() */
-
-#endif /* DEBUG */
-
 struct passwd *
 socks_getpwnam(const char *login);
 /*
@@ -2390,13 +2436,17 @@ int socks_flushbuffer(const int s, const ssize_t len);
  * not flush all data.
  */
 
-void socks_setbuffer(const int s, const int mode);
+void socks_setbuffer(const int s, const int mode, ssize_t bufsize);
 /*
  * Sets a flag in the iobuf belonging to "s", indicating data should
  * not be be written before a flush is done, the buffer becomes full,
  * or "another good reason" is given, according to "mode".
  * "mode" can take the same values as the corresponding argument
  * to setvbuf(3).
+ *
+ * "bufsize" is the size of buffer to use.  "bufsize" for the read buffer
+ * and "bufsize" for the writebuffer.  Can not be larger than SOCKD_BUFSIZE.  
+ * Use -1 for a default value (SOCKD_BUFSIZE).
  */
 
 size_t socks_addtobuffer(const int s, const whichbuf_t which,
@@ -2552,5 +2602,32 @@ char *socks_decode_base64(char *in, char *out, size_t outlen);
 #if HAVE_GSSAPI
 #include "socks_gssapi.h"
 #endif /* HAVE_GSSAPI */
+
+#if DEBUG 
+
+void
+slogstack(void);
+/*
+ * Prints the current stack.
+ */
+
+int
+freedescriptors(const char *message);
+/*
+ * Returns the number on unallocated descriptors.
+ */
+
+void
+printsocketopts(const int s);
+/*
+ * prints socketoptions and other flags set on the socket "s".
+ */
+
+int
+fd_isset(int fd, fd_set *fdset);
+/* function version of FD_ISSET() */
+
+#endif /* DEBUG */
+
 
 #endif /* !_COMMON_H_ */

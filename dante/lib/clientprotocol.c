@@ -55,7 +55,7 @@
 #endif /* SOCKS_CLIENT || SOCKS_SERVER */
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.148 2011/06/02 07:40:58 michaels Exp $";
+"$Id: clientprotocol.c,v 1.151 2011/07/27 14:11:32 michaels Exp $";
 
 static int
 recv_sockshost(int s, struct sockshost_t *host, int version,
@@ -136,7 +136,7 @@ socks_sendrequest(s, request)
    }
 
    slog(LOG_DEBUG, "%s: sending request: %s",
-   function, socks_packet2string(request, 1));
+        function, socks_packet2string(request, 1));
 
    /*
     * Send the request to the server.
@@ -273,7 +273,7 @@ socks_negotiate(s, control, packet, route)
    const int errno_s = errno;
 
    slog(LOG_DEBUG, "%s: initiating negotiation on socket %d, address %s",
-   function, s, socket2string(s, NULL, 0));
+        function, control, socket2string(control, NULL, 0));
 
    packet->res.auth = packet->req.auth;
    switch (packet->req.version) {
@@ -297,11 +297,12 @@ socks_negotiate(s, control, packet, route)
             if (route != NULL && route->gw.state.extension.bind)
                packet->req.host.addr.ipv4.s_addr = htonl(BINDEXTENSION_IPADDR);
 #if SOCKS_CLIENT
-            else
+            else {
                if (packet->req.version == PROXY_SOCKS_V4)
-                /* v4/v5 difference.  We always set up for v5. */
-               packet->req.host.port
-               = TOIN(&sockscf.state.lastconnect)->sin_port;
+                   /* v4/v5 difference.  We always set up for v5. */
+                  packet->req.host.port
+                  = TOIN(&sockscf.state.lastconnect)->sin_port;
+            }
 #endif /* SOCKS_CLIENT */
          }
 
@@ -1063,8 +1064,12 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
       memcpy(input_token.value, &gss_enc, input_token.length);
 
       SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
-      major_status = gss_wrap(&minor_status, auth->mdata.gssapi.state.id,
-                              0, GSS_C_QOP_DEFAULT, &input_token, &conf_state,
+      major_status = gss_wrap(&minor_status,
+                              auth->mdata.gssapi.state.id,
+                              0,
+                              GSS_C_QOP_DEFAULT,
+                              &input_token,
+                              &conf_state,
                               &output_token);
       SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
@@ -1079,14 +1084,14 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
       if ((rc = socks_sendton(s, request, GSSAPI_TOKEN, GSSAPI_TOKEN, 0, NULL,
       0, NULL)) != GSSAPI_TOKEN)  {
          swarn("%s: send of request failed, sent %ld/%ld",
-         function, (long)rc, (long)GSSAPI_TOKEN);
+               function, (long)rc, (long)GSSAPI_TOKEN);
          goto error;
       }
 
       if ((rc = socks_sendton(s, output_token.value, output_token.length,
       output_token.length, 0, NULL, 0, NULL)) != (ssize_t)output_token.length) {
          swarn("%s: send of request failed, sent %ld/%ld",
-         function, (long)rc, (long)output_token.length);
+               function, (long)rc, (long)output_token.length);
          goto error;
       }
 
@@ -1096,7 +1101,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
       if ((rc = socks_recvfromn(s, response, GSSAPI_HLEN, GSSAPI_HLEN,
       0, NULL, NULL, NULL)) != GSSAPI_HLEN) {
          swarn("%s: read of response failed, read %ld/%d",
-         function, (long)rc, GSSAPI_HLEN);
+               function, (long)rc, GSSAPI_HLEN);
          goto error;
       }
 
@@ -1189,7 +1194,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth)
 
    auth->mdata.gssapi.state.protection = gss_enc;
    if (auth->mdata.gssapi.state.protection)
-       auth->mdata.gssapi.state.encryption = GSSAPI_ENCRYPT;
+       auth->mdata.gssapi.state.wrap = 1;
 
    major_status
    = gss_wrap_size_limit(&minor_status,

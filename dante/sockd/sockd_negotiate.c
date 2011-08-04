@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.268 2011/06/16 13:26:35 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.275 2011/07/21 13:48:42 michaels Exp $";
 
 static struct sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
 static const size_t negc = ELEMENTS(negv);
@@ -258,7 +258,7 @@ run_negotiate()
 
          iolog(&neg->rule,
                &neg->state,
-               OPERATION_TIMEOUT,
+               OPERATION_ERROR,
                sockshost2sockaddr(&neg->negstate.dst, &sa),
                &neg->negstate.src,
                &neg->clientauth,
@@ -584,7 +584,7 @@ run_negotiate()
                   NULL,
                   NULL,
                   reason,
-                  strlen(reason));
+                  0);
 
 #if HAVE_GSSAPI
             if (neg->socksauth.method == AUTHMETHOD_GSSAPI
@@ -706,7 +706,7 @@ send_negotiate(neg)
       length           += iov[ioc].iov_len;
       ++ioc;
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: gssapistate has length %lu",
          function, (long unsigned)gssapistate.length);
    }
@@ -734,7 +734,7 @@ send_negotiate(neg)
    /* LINTED pointer casts may be troublesome */
    CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdsendt);
 
-   if (sockscf.option.debug > 1) {
+   if (sockscf.option.debug >= DEBUG_VERBOSE) {
       slog(LOG_DEBUG, "%s: sending request to mother, "
                       "bw_shmid = %ld, ss_shmid = %ld",
                       function,
@@ -749,7 +749,7 @@ send_negotiate(neg)
       swarn("%s: sendmsg(): %ld of %lu",
       function, (long)w, (unsigned long)length);
    else {
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: sent %ld descriptors for command %d.  "
                          "clientauth %s, socksauth %s, neg->s %d",
                          function, (unsigned long)fdsendt, req.state.command,
@@ -808,7 +808,7 @@ recv_negotiate(void)
                     "%s: recvmsg() from mother returned %ld "
                     "after having received %d packets, errno = %d (%s)",
                     function, (long)r,
-                    packetc, errno, errnostr(errno));
+                    packetc, errno, strerror(errno));
                break;
 
             default:
@@ -842,7 +842,7 @@ recv_negotiate(void)
       fdreceived = 0;
       CMSG_GETOBJECT(neg->s, cmsg, sizeof(neg->s) * fdreceived++);
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: received socket %d (%s) ...",
          function, neg->s, socket2string(neg->s, NULL, 0));
 
@@ -937,9 +937,9 @@ recv_negotiate(void)
       iolog(&neg->rule,
             &neg->state,
 #if HAVE_TWO_LEVEL_ACL
-            OPERATION_ACCEPT,
+            permit ? OPERATION_ACCEPT  : OPERATION_BLOCK,
 #else /* !HAVE_TWO_LEVEL_ACL */
-            OPERATION_CONNECT,
+            permit ? OPERATION_CONNECT : OPERATION_BLOCK,
 #endif /* !HVE_TWO_LEVEL_ACL */
 
             &dst,
@@ -968,17 +968,23 @@ recv_negotiate(void)
          return -1;
       }
 
-#if SOCKS_SERVER
-   /* only socks-server wants iobuffer in this process.  Barefoot
-    * has no negotiate-phase, and while Covenant does, it must be
-    * careful not to read past the first eof; i.e., we do not
-    * want to fill the iobuffer with "unread" data, as we only have
-    * space allocated to the first eof, which we must pass on to
-    * other processes, but we are not passing on the iobuf, so it
-    * must be empty.
-    */
+#if HAVE_NEGOTIATE_PHASE
     socks_allocbuffer(neg->s, SOCK_STREAM);
-#endif /* SOCKS_SERVER */
+
+    /* 
+     * We don't want this buffer to be bigger than MAXREQLEN, as that is 
+     * the amount of memory we have allocated to hold possible client data.
+     *
+     * Normally there is no clientdata in Dante's case, but some clients
+     * may piggy-back the payload together with the socks request, without
+     * waiting for our response.  That is not legal to do, but some clients
+     * do it anyway, so we better support it.
+     * We therefor need to make sure we never read more of the payload than 
+     * we can send on to the i/o process, which will eventually need to
+     * forward it to the destination.
+     */
+    socks_setbuffer(neg->s, _IONBF, MAXREQLEN);
+#endif /* HAVE_NEGOTIATE_PHASE */
 
 #if HAVE_PAM
       /* copy over pam-values from matched rule. */

@@ -51,7 +51,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.396 2011/06/18 19:16:22 michaels Exp $";
+"$Id: config_parse.y,v 1.401 2011/08/01 15:23:27 michaels Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -77,10 +77,21 @@ static void
 gwaddrinit(gwaddr_t *addr);
 
 #if SOCKS_CLIENT
-/* parses client environment, if any. */
-static void parseclientenv(void);
+static void parseclientenv(int *haveproxyserver);
+/*
+ * parses client environment, if any.  
+ * If a proxyserver is configured in enviroment, "haveproxyserver" is set
+ * to true upon return.  If not, it is set to false.
+ */
 
-
+static void
+addproxyserver(const char *proxyserver, 
+               const struct proxyprotocol_t *proxyprotocol);
+/*
+ * Adds a route for a proxyserver with address "proxyserver" to our
+ * routes.
+ * "proxyprotocol" is the proxyprotocols supported by the proxyserver.
+ */
 #else /* !SOCKS_CLIENT */
 
 /*
@@ -2068,7 +2079,14 @@ parseconfig(filename)
 {
    const char *function = "parseconfig()";
    struct stat statbuf;
-   int havefile;
+   int haveconfig;
+
+#if SOCKS_CLIENT /* assume server admin can set things up correctly himself. */
+   parseclientenv(&haveconfig);
+   if (haveconfig)
+      return 0;
+#endif
+
 
 #if !SOCKS_CLIENT
    if (sockscf.state.inited) {
@@ -2117,10 +2135,13 @@ parseconfig(filename)
       if (yyin == NULL)
          swarn("%s: could not open %s", function, filename);
 
-      havefile              = 0;
+      haveconfig            = 0;
       sockscf.option.debug  = 1;
    }
    else {
+      slog(LOG_DEBUG, "%s: not parsing configfile %s (%s)",
+                      function, filename,
+                      yyin == NULL ? strerror(errno) : "zero-sized file");
       socks_parseinit = 0;
 #if YYDEBUG
       yydebug         = 0;
@@ -2128,7 +2149,7 @@ parseconfig(filename)
 
       yylineno      = 1;
       errno         = 0;   /* don't report old errors in yyparse(). */
-      havefile      = 1;
+      haveconfig    = 1;
 
       parsingconfig = 1;
       yyparse();
@@ -2147,12 +2168,7 @@ parseconfig(filename)
    }
 
    errno = 0;
-
-#if SOCKS_CLIENT /* assume server admin can set things up correctly himself. */
-   parseclientenv();
-#endif
-
-   return havefile ? 0 : -1;
+   return haveconfig ? 0 : -1;
 }
 
 void
@@ -2251,7 +2267,8 @@ gwaddrinit(addr)
 
 #if SOCKS_CLIENT
 static void
-parseclientenv(void)
+parseclientenv(haveproxyserver)
+   int *haveproxyserver;
 {
    const char *function = "parseclientenv()";
    char *proxyserver, *logfile, *debug, proxyservervis[256];
@@ -2262,99 +2279,42 @@ parseclientenv(void)
    if ((debug = socks_getenv("SOCKS_DEBUG", dontcare)) != NULL)
       sockscf.option.debug = atoi(debug);
 
-   if ((proxyserver = socks_getenv(ENV_SOCKS4_SERVER, dontcare)) != NULL
-   ||  (proxyserver = socks_getenv(ENV_SOCKS5_SERVER, dontcare)) != NULL
-   ||  (proxyserver = socks_getenv(ENV_SOCKS_SERVER,  dontcare)) != NULL
-   ||  (proxyserver = socks_getenv(ENV_HTTP_PROXY,    dontcare)) != NULL) {
-      struct sockaddr_in saddr;
-      struct route_t route;
-      struct ruleaddr_t raddr;
-      char ipstring[INET_ADDRSTRLEN], *portstring;
 
-      bzero(&route, sizeof(route));
-      if (socks_getenv(ENV_SOCKS4_SERVER, dontcare)      != NULL)
-         route.gw.state.proxyprotocol.socks_v4 = 1;
-      else if (socks_getenv(ENV_SOCKS5_SERVER, dontcare) != NULL)
-         route.gw.state.proxyprotocol.socks_v5 = 1;
-      else if (socks_getenv(ENV_SOCKS_SERVER, dontcare)  != NULL) {
-         route.gw.state.proxyprotocol.socks_v5 = 1;
-         route.gw.state.proxyprotocol.socks_v4 = 1;
-      }
-      else if (socks_getenv(ENV_HTTP_PROXY, dontcare)    != NULL)
-         route.gw.state.proxyprotocol.http = 1;
-      else
-         SERRX(0); /* NOTREACHED */
+   /*
+    * Check if there is a proxyserver configured in the environment.
+    * Initially assume there is none.
+    */
+   *haveproxyserver = 0;
 
-      str2vis(proxyserver,
-              strlen(proxyserver),
-              proxyservervis,
-              sizeof(proxyservervis));
+   if ((proxyserver = socks_getenv(ENV_SOCKS4_SERVER, dontcare)) != NULL) {
+      struct proxyprotocol_t proxyprotocol = { .socks_v4 = 1 };
 
-      slog(LOG_DEBUG,
-           "%s: found %s proxyserver set in environment, value %s",
-           function,
-           proxyprotocols2string(&route.gw.state.proxyprotocol, NULL, 0),
-           proxyservervis);
-
-      if (route.gw.state.proxyprotocol.http) {
-         char emsg[256];
-
-         if (urlstring2sockaddr(proxyserver,
-                                (struct sockaddr *)&saddr,
-                                emsg,
-                                sizeof(emsg))
-         == NULL) 
-            serrx(EXIT_FAILURE,
-                  "%s: can't understand format of proxyserver %s: %s",
-                  function, proxyservervis, emsg);
-                  
-      }
-      else {
-         if ((portstring = strchr(proxyserver, ':')) == NULL)
-            serrx(EXIT_FAILURE, "%s: illegal format for port specification "
-                                "in proxyserver %s: missing ':' delimiter",
-                                function, proxyservervis);
-
-         if (atoi(portstring + 1) < 1 || atoi(portstring + 1) > 0xffff)
-            serrx(EXIT_FAILURE, "%s: illegal value (%d) for port specification "
-                                "in proxyserver %s: must be between %d and %d",
-                                function, atoi(portstring + 1),
-                                proxyservervis, 1, 0xffff);
-
-         if (portstring - proxyserver == 0
-         || (size_t)(portstring - proxyserver) > sizeof(ipstring) - 1)
-            serrx(EXIT_FAILURE,
-                  "%s: illegal format for ip address specification "
-                  "in proxyserver %s: too short/long",
-                  function, proxyservervis);
-
-         strncpy(ipstring, proxyserver, (size_t)(portstring - proxyserver));
-         ipstring[portstring - proxyserver] = NUL;
-         ++portstring;
-
-         bzero(&saddr, sizeof(saddr));
-         saddr.sin_family = AF_INET;
-         if (inet_pton(saddr.sin_family, ipstring, &saddr.sin_addr) != 1)
-            serr(EXIT_FAILURE, "%s: illegal format for ip address "
-                               "specification in proxyserver %s",
-                               function, proxyservervis);
-         saddr.sin_port = htons(atoi(portstring));
-      }
-
-      route.src.atype                           = SOCKS_ADDR_IPV4;
-      route.src.addr.ipv4.ip.s_addr             = htonl(0);
-      route.src.addr.ipv4.mask.s_addr           = htonl(0);
-      route.src.port.tcp                        = route.src.port.udp = htons(0);
-      route.src.operator                        = none;
-
-      route.dst = route.src;
-
-      ruleaddr2gwaddr(sockaddr2ruleaddr((struct sockaddr *)&saddr, &raddr),
-      &route.gw.addr);
-
-      socks_addroute(&route, 1);
+      addproxyserver(proxyserver, &proxyprotocol);
+      *haveproxyserver = 1;
    }
-   else if ((proxyserver = socks_getenv("UPNP_IGD", dontcare)) != NULL) {
+
+   if ((proxyserver = socks_getenv(ENV_SOCKS5_SERVER, dontcare)) != NULL) {
+      struct proxyprotocol_t proxyprotocol = { .socks_v5 = 1 };
+
+      addproxyserver(proxyserver, &proxyprotocol);
+      *haveproxyserver = 1;
+   }
+
+   if ((proxyserver = socks_getenv(ENV_SOCKS_SERVER, dontcare)) != NULL) {
+      struct proxyprotocol_t proxyprotocol = { .socks_v4 = 1, .socks_v5 = 1 };
+
+      addproxyserver(proxyserver, &proxyprotocol);
+      *haveproxyserver = 1;
+   }
+
+   if ((proxyserver = socks_getenv(ENV_HTTP_PROXY, dontcare)) != NULL) {
+      struct proxyprotocol_t proxyprotocol = { .http = 1 };
+      
+      addproxyserver(proxyserver, &proxyprotocol);
+      *haveproxyserver = 1;
+   }
+
+   if ((proxyserver = socks_getenv("UPNP_IGD", dontcare)) != NULL) {
       /*
        * Should be either an interface name (the interface to broadcast
        * for a response from the igd-device), "broadcast", to indicate
@@ -2404,7 +2364,7 @@ parseclientenv(void)
           */
          struct ifaddrs *ifap, *iface;
 
-         route.gw.addr.atype                 = SOCKS_ADDR_IFNAME;
+         route.gw.addr.atype = SOCKS_ADDR_IFNAME;
 
          if (getifaddrs(&ifap) == -1)
             serr(EXIT_FAILURE, "%s: getifaddrs() failed to get interface list",
@@ -2418,8 +2378,8 @@ parseclientenv(void)
             ||  iface->ifa_flags & (IFF_LOOPBACK | IFF_POINTOPOINT))
                continue;
 
-            if (strlen(iface->ifa_name)
-            > sizeof(route.gw.addr.addr.ifname) - 1) {
+            if (strlen(iface->ifa_name) > sizeof(route.gw.addr.addr.ifname) - 1)
+            {
                serr(1, "%s: ifname %s is too long, max is %lu",
                function, iface->ifa_name,
                (unsigned long)(sizeof(route.gw.addr.addr.ifname) - 1));
@@ -2453,6 +2413,8 @@ parseclientenv(void)
 
          socks_addroute(&route, 1);
       }
+
+      *haveproxyserver = 1;
    }
 
    if (socks_getenv("SOCKS_AUTOADD_LANROUTES", isfalse) == NULL) {
@@ -2478,6 +2440,90 @@ parseclientenv(void)
    }
    else
       slog(LOG_DEBUG, "%s: not auto-adding direct routes for lan", function);
+}
+
+static void
+addproxyserver(proxyserver, proxyprotocol)
+   const char *proxyserver;
+   const struct proxyprotocol_t *proxyprotocol;
+{
+   const char *function = "addproxyserver()";
+   struct sockaddr_in saddr;
+   struct route_t route;
+   struct ruleaddr_t raddr;
+   char ipstring[INET_ADDRSTRLEN], *portstring, proxyservervis[256];
+
+   bzero(&route, sizeof(route));
+   route.gw.state.proxyprotocol = *proxyprotocol;
+
+   str2vis(proxyserver,
+           strlen(proxyserver),
+           proxyservervis,
+           sizeof(proxyservervis));
+
+   slog(LOG_DEBUG,
+        "%s: have a %s proxyserver set in environment, value %s",
+        function,
+        proxyprotocols2string(&route.gw.state.proxyprotocol, NULL, 0),
+        proxyservervis);
+
+   if (route.gw.state.proxyprotocol.http) {
+      char emsg[256];
+
+      if (urlstring2sockaddr(proxyserver,
+                             (struct sockaddr *)&saddr,
+                             emsg,
+                             sizeof(emsg))
+      == NULL) 
+         serrx(EXIT_FAILURE,
+               "%s: can't understand format of proxyserver %s: %s",
+               function, proxyservervis, emsg);
+               
+   }
+   else {
+      if ((portstring = strchr(proxyserver, ':')) == NULL)
+         serrx(EXIT_FAILURE, "%s: illegal format for port specification "
+                             "in proxyserver %s: missing ':' delimiter",
+                             function, proxyservervis);
+
+      if (atoi(portstring + 1) < 1 || atoi(portstring + 1) > 0xffff)
+         serrx(EXIT_FAILURE, "%s: illegal value (%d) for port specification "
+                             "in proxyserver %s: must be between %d and %d",
+                             function, atoi(portstring + 1),
+                             proxyservervis, 1, 0xffff);
+
+      if (portstring - proxyserver == 0
+      || (size_t)(portstring - proxyserver) > sizeof(ipstring) - 1)
+         serrx(EXIT_FAILURE,
+               "%s: illegal format for ip address specification "
+               "in proxyserver %s: too short/long",
+               function, proxyservervis);
+
+      strncpy(ipstring, proxyserver, (size_t)(portstring - proxyserver));
+      ipstring[portstring - proxyserver] = NUL;
+      ++portstring;
+
+      bzero(&saddr, sizeof(saddr));
+      saddr.sin_family = AF_INET;
+      if (inet_pton(saddr.sin_family, ipstring, &saddr.sin_addr) != 1)
+         serr(EXIT_FAILURE, "%s: illegal format for ip address "
+                            "specification in proxyserver %s",
+                            function, proxyservervis);
+      saddr.sin_port = htons(atoi(portstring));
+   }
+
+   route.src.atype                           = SOCKS_ADDR_IPV4;
+   route.src.addr.ipv4.ip.s_addr             = htonl(0);
+   route.src.addr.ipv4.mask.s_addr           = htonl(0);
+   route.src.port.tcp                        = route.src.port.udp = htons(0);
+   route.src.operator                        = none;
+
+   route.dst = route.src;
+
+   ruleaddr2gwaddr(sockaddr2ruleaddr((struct sockaddr *)&saddr, &raddr),
+   &route.gw.addr);
+
+   socks_addroute(&route, 1);
 }
 
 #else /* !SOCKS_CLIENT */

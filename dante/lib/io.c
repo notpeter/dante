@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.203 2011/06/16 07:22:10 michaels Exp $";
+"$Id: io.c,v 1.216 2011/07/29 14:34:56 michaels Exp $";
 
 static void
 print_selectfds(const char *preamble, const int docheck, const int nfds,
@@ -148,6 +148,8 @@ socks_sendton(s, buf, len, minwrite, flags, to, tolen, auth)
    ssize_t p;
    size_t left = len;
 
+   SASSERTX(minwrite <= len);
+
    do {
       if ((p = socks_sendto(s, &((const char *)buf)[len - left], left, flags,
       to, tolen, auth)) == -1) {
@@ -200,9 +202,9 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
    char tmpbuf[MAX(sizeof(struct sockd_io_t), SOCKD_BUFSIZE)];
 #endif /* !SOCKS_CLIENT */
 
-   if (sockscf.option.debug > 1)
-      slog(LOG_DEBUG, "%s: socket %d, len %lu",
-      function, s, (unsigned long)len);
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
+      slog(LOG_DEBUG, "%s: socket %d, len %lu, flags %d",
+      function, s, (unsigned long)len, flags);
 
    if (auth != NULL)
       switch (auth->method) {
@@ -222,8 +224,13 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
 
 #if HAVE_GSSAPI
    if (auth != NULL
-   && auth->method == AUTHMETHOD_GSSAPI && auth->mdata.gssapi.state.encryption)
-      return gssapi_decode_read(s, buf, len, flags, from, fromlen,
+   && auth->method == AUTHMETHOD_GSSAPI && auth->mdata.gssapi.state.wrap)
+      return gssapi_decode_read(s,
+                                buf,
+                                len,
+                                flags,
+                                from,
+                                fromlen,
                                 &auth->mdata.gssapi.state);
 #endif /* HAVE_GSSAPI */
 
@@ -239,7 +246,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
    else
       r = recvfrom(s, buf, len, flags, from, fromlen);
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: read %ld byte%s, errno = %d",
       function, (long)r, r == 1 ? "" : "s", errno);
 
@@ -260,7 +267,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
     */
 
    if ((readfrombuf = socks_getfrombuffer(s, READ_BUF, 0, buf, len)) > 0) {
-      if (sockscf.option.debug > 1) {
+      if (sockscf.option.debug >= DEBUG_VERBOSE) {
          slog(LOG_DEBUG, "%s: read %lu byte%s from buf, %lu bytes left in buf",
                          function,
                          (unsigned long)readfrombuf,
@@ -269,7 +276,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
       }
 
       if (flags & MSG_PEEK) {
-         if (sockscf.option.debug > 1)
+         if (sockscf.option.debug >= DEBUG_VERBOSE)
             slog(LOG_DEBUG, "%s: put what was read back; peeking", function);
 
          socks_addtobuffer(s, READ_BUF, 0, buf, readfrombuf);
@@ -305,7 +312,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
    else 
       r = recvfrom(s, tmpbuf, toread, flags, from, fromlen);
 
-   if (sockscf.option.debug > 1)
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG,
            "%s: read %ld byte%s from socket %d, "
            "max read is %ld, errno = %d (%s)",
@@ -315,7 +322,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, auth)
            s,
            (long)toread,
            errno,
-           errnostr(errno));
+           strerror(errno));
 
    if (r != -1 && passed_fromlen >= sizeof(struct sockaddr_in)) {
       /* 
@@ -395,9 +402,9 @@ socks_sendto(s, msg, len, flags, to, tolen, auth)
    char buf[MAX(sizeof(struct sockd_io_t), SOCKD_BUFSIZE)];
 #endif /* !SOCKS_CLIENT */
 
-   if (sockscf.option.debug > 1)
-      slog(LOG_DEBUG, "%s: socket %d, len %lu",
-      function, s, (long unsigned)len);
+   if (sockscf.option.debug >= DEBUG_VERBOSE)
+      slog(LOG_DEBUG, "%s: socket %d, len %lu, flags %d",
+      function, s, (long unsigned)len, flags);
 
    if (auth != NULL)
       switch (auth->method) {
@@ -417,7 +424,7 @@ socks_sendto(s, msg, len, flags, to, tolen, auth)
 
 #if HAVE_GSSAPI
    if (auth != NULL
-   &&  auth->method == AUTHMETHOD_GSSAPI && auth->mdata.gssapi.state.encryption)
+   &&  auth->method == AUTHMETHOD_GSSAPI && auth->mdata.gssapi.state.wrap)
       return gssapi_encode_write(s, msg, len, flags, to, tolen,
                                  &auth->mdata.gssapi.state);
 #endif
@@ -446,7 +453,7 @@ socks_sendto(s, msg, len, flags, to, tolen, auth)
        * the count for new bytes added to the buffer.
        */
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: got %lu byte%s from buffer, %lu bytes in buffer",
                          function,
                          (unsigned long)towrite, towrite == 1 ? "" : "s",
@@ -516,7 +523,7 @@ socks_sendto(s, msg, len, flags, to, tolen, auth)
 
    towrite -= written;
    if (towrite > 0) {
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: %lu byte%s unwritten",
          function, (unsigned long)towrite, towrite == 1 ? "" : "s");
 
@@ -659,12 +666,13 @@ sendmsgn(s, msg, flags, timeoutseconds)
       for (p = len = 0; p < (ssize_t)msg->msg_iovlen; ++p)
          len += msg->msg_iov[p].iov_len;
 
-      swarnx("%s: sendmsg() of %ld bytes on socket %d failed:  %s.  %s",
-             function,
-             (long)len,
-             s, 
-             errnostr(errno),
-             doblock ?  "Will try blocking on the fd to become writable" : "");
+      slog(doblock ? LOG_INFO : LOG_WARNING, 
+           "%s: sendmsg() of %ld bytes on socket %d failed (%s).  %s",
+           function,
+           (long)len,
+           s,
+           strerror(errno),
+           doblock ? "Will block and retry" : ""); 
 
       if (doblock) {
          static fd_set *wset;
@@ -784,7 +792,6 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, timeout)
 #if !SOCKS_CLIENT
    int handledsignal;
 #endif /* !SOCKS_CLIENT */
-   static fd_set *new_bufrset, *new_buffwset;
 
 #if !SOCKS_CLIENT
    if ((handledsignal = sockd_handledsignals()) != 0) {
@@ -815,18 +822,7 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, timeout)
     */
 #endif /* !SOCKS_CLIENT */
 
-   if (new_bufrset == NULL) {
-      new_bufrset  = allocate_maxsize_fdset();
-      new_buffwset = allocate_maxsize_fdset();
-   }
-
-   if (bufrset != NULL)
-      FD_ZERO(new_bufrset);
-
-   if (buffwset != NULL)
-      FD_ZERO(new_buffwset);
-
-   if (sockscf.option.debug > 1) 
+   if (sockscf.option.debug >= DEBUG_VERBOSE) 
       print_selectfds("pre select:",
                       SOCKS_CLIENT ? 0 : 1,
                       nfds,
@@ -856,42 +852,49 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, timeout)
           * the buffer until the rest of the token has been read from 
           * the socket.
           */
-         if (bufrset != NULL
-         &&  FD_ISSET(i, bufrset)
-         &&  socks_bytesinbuffer(i, READ_BUF, 0) > 0) {
-            if (sockscf.option.debug > 1)
-               slog(LOG_DEBUG, "%s: marking fd %d as readable; "
-               "%lu + %lu bytes buffered for read, %lu + %lu for write",
-               function, i,
-               (long unsigned)socks_bytesinbuffer(i, READ_BUF, 0),
-               (long unsigned)socks_bytesinbuffer(i, READ_BUF, 1),
-               (long unsigned)socks_bytesinbuffer(i, WRITE_BUF, 0),
-               (long unsigned)socks_bytesinbuffer(i, WRITE_BUF, 1));
+         if (bufrset != NULL) {
+            if (FD_ISSET(i, bufrset)
+            &&  socks_bytesinbuffer(i, READ_BUF, 0) > 0) {
+               if (sockscf.option.debug >= DEBUG_VERBOSE)
+                  slog(LOG_DEBUG,
+                       "%s: marking fd %d as having data buffered for read; "
+                       "%lu + %lu bytes buffered for read, %lu + %lu for write",
+                       function, i,
+                       (long unsigned)socks_bytesinbuffer(i, READ_BUF, 0),
+                       (long unsigned)socks_bytesinbuffer(i, READ_BUF, 1),
+                       (long unsigned)socks_bytesinbuffer(i, WRITE_BUF, 0),
+                       (long unsigned)socks_bytesinbuffer(i, WRITE_BUF, 1));
 
-            FD_SET(i, new_bufrset);
-            bufset_nfds = MAX(bufset_nfds, i + 1);
-            timeout     = &zerotimeout;
+               FD_SET(i, bufrset);
+               bufset_nfds = MAX(bufset_nfds, i + 1);
+               timeout     = &zerotimeout;
+            }
+            else
+               FD_CLR(i, bufrset);
          }
 
          /*
           * does the fd has data buffered for write?
           */
-         if (buffwset != NULL
-         &&  FD_ISSET(i, buffwset)
-         && socks_bufferhasbytes(i, WRITE_BUF) > 0) {
-            if (sockscf.option.debug > 1)
-               slog(LOG_DEBUG,
-                    "%s: marking fd %d as having data buffered for write; "
-                    "%lu + %lu bytes buffered for read, %lu + %lu for write",
-                    function, i,
-                    (long unsigned)socks_bytesinbuffer(i, READ_BUF, 0),
-                    (long unsigned)socks_bytesinbuffer(i, READ_BUF, 1),
-                    (long unsigned)socks_bytesinbuffer(i, WRITE_BUF, 0),
-                    (long unsigned)socks_bytesinbuffer(i, WRITE_BUF, 1));
+         if (buffwset != NULL) {
+            if (FD_ISSET(i, buffwset)
+            && socks_bufferhasbytes(i, WRITE_BUF) > 0) {
+               if (sockscf.option.debug >= DEBUG_VERBOSE)
+                  slog(LOG_DEBUG,
+                       "%s: marking fd %d as having data buffered for write; "
+                       "%lu + %lu bytes buffered for read, %lu + %lu for write",
+                       function, i,
+                       (long unsigned)socks_bytesinbuffer(i, READ_BUF, 0),
+                       (long unsigned)socks_bytesinbuffer(i, READ_BUF, 1),
+                       (long unsigned)socks_bytesinbuffer(i, WRITE_BUF, 0),
+                       (long unsigned)socks_bytesinbuffer(i, WRITE_BUF, 1));
 
-            FD_SET(i, new_buffwset);
-            bufset_nfds = MAX(bufset_nfds, i + 1);
-            timeout     = &zerotimeout;
+               FD_SET(i, buffwset);
+               bufset_nfds = MAX(bufset_nfds, i + 1);
+               timeout     = &zerotimeout;
+            }
+            else
+               FD_CLR(i, buffwset);
          }
       }
    }
@@ -899,11 +902,11 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, timeout)
 
    rc = select(nfds, rset, wset, xset, timeout);
 
-   if (sockscf.option.debug > 1) {
+   if (sockscf.option.debug >= DEBUG_VERBOSE) {
       char pfix[256];
 
       snprintf(pfix, sizeof(pfix), "post select returned %d (%s):",
-               rc, errnostr(errno));
+               rc, strerror(errno));
 
       print_selectfds(pfix,
                       SOCKS_CLIENT ? 0 : 1,
@@ -927,12 +930,6 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, timeout)
 
    if (rc == -1)
       return rc;
-
-   if (bufrset != NULL)
-      FD_COPY(bufrset, new_bufrset);
-
-   if (buffwset != NULL)
-      FD_COPY(buffwset, new_buffwset);
 
    return MAX(rc, bufset_nfds);
 }

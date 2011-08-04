@@ -39,7 +39,7 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: ldap.c,v 1.9 2011/05/18 13:48:47 karls Exp $
+ * $Id: ldap.c,v 1.10 2011/07/26 10:58:04 karls Exp $
  */
 
  /*
@@ -50,10 +50,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: ldap.c,v 1.9 2011/05/18 13:48:47 karls Exp $";
+"$Id: ldap.c,v 1.10 2011/07/26 10:58:04 karls Exp $";
 
 const char module_checkldapgroup_version[] =
-"$Id: ldap.c,v 1.9 2011/05/18 13:48:47 karls Exp $";
+"$Id: ldap.c,v 1.10 2011/07/26 10:58:04 karls Exp $";
 
 
 #if HAVE_LDAP
@@ -132,13 +132,6 @@ typedef struct sasl_interact {
 #ifndef LDAP_X_OPT_CONNECT_TIMEOUT
 #define LDAP_X_OPT_CONNECT_TIMEOUT (0)
 #endif /* !LDAP_X_OPT_CONNECT_TIMEOUT */
-
-#if HAVE_KRB5_H
-static struct kstruct {
-   krb5_context context;
-   krb5_ccache cc;
-} kparam;
-#endif
 
 void
 ldapcachesetup(void)

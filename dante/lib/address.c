@@ -45,13 +45,15 @@
 
 #include "interposition.h"
 
+#include "upnp.h"
+
 #ifndef __USE_GNU
 #define __USE_GNU /* XXX for RTLD_NEXT on Linux */
 #endif /* !__USE_GNU */
 #include <dlfcn.h>
 
 static const char rcsid[] =
-"$Id: address.c,v 1.204 2011/05/18 13:48:45 karls Exp $";
+"$Id: address.c,v 1.208 2011/07/22 08:45:02 karls Exp $";
 
 /*
  * During init, we need to let all system calls resolve to the native
@@ -884,7 +886,7 @@ fakesockaddr2sockshost(addr, host)
 
       SASSERTX(ipname != NULL);
 
-      host->atype = SOCKS_ADDR_DOMAIN;
+      host->atype = (unsigned char)SOCKS_ADDR_DOMAIN;
       SASSERTX(strlen(ipname) < sizeof(host->addr.domain));
       strcpy(host->addr.domain, ipname);
       /* LINTED pointer casts may be troublesome */
@@ -1009,7 +1011,7 @@ fdisdup(fd1, fd2)
    errno2 = errno;
 
    if (rc1 != rc2 || errno1 != errno2) {
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: failed due to fstat() on line %d",
          function, __LINE__);
 
@@ -1019,7 +1021,7 @@ fdisdup(fd1, fd2)
    if (rc1 == -1) {
       SASSERTX(rc2 == -1 && errno1 == errno2);
 
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: failed due to rc1 on line %d",
          function, __LINE__);
 
@@ -1032,7 +1034,7 @@ fdisdup(fd1, fd2)
                       function);
    else if (sb1.st_dev != sb2.st_dev
    ||       sb1.st_ino != sb2.st_ino) {
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: failed due to inode-compare on line %d "
                          "(sb1.st_dev = %d, sb2.st_dev = %d, "
                          "sb1.st_ino = %d, sb2.st_ino = %d)",
@@ -1053,7 +1055,7 @@ fdisdup(fd1, fd2)
    errno2 = errno;
 
    if (rc1 != rc2 || errno1 != errno2 || flags1 != flags2) {
-      if (sockscf.option.debug > 1)
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: failed due to flags/errno/len-compare on line %d",
          function, __LINE__);
 
@@ -1316,15 +1318,13 @@ socks_whoami(id)
    if (pt_self != NULL) {
       id->whichid   = thread;
       id->id.thread = pt_self();
+
+      return id;
    }
-#else /* !HAVE_PTHREAD_H */
+#endif /* HAVE_PTHREAD_H */
 
    id->whichid = pid;
-   if (sockscf.state.pid == 0) /* not yet inited. */
-      id->id.pid = getpid();
-   else
-      id->id.pid = sockscf.state.pid;
-#endif /* !HAVE_PTHREAD_H */
+   id->id.pid = getpid();
 
    return id;
 }

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.37 2011/05/18 13:48:45 karls Exp $";
+"$Id: addressmatch.c,v 1.38 2011/07/15 13:51:16 michaels Exp $";
 
 static int
 addrisinlist(const struct in_addr *addr, const struct in_addr *mask,
@@ -103,6 +103,13 @@ addrmatch(rule, address, protocol, alias)
 {
    const char *function = "addrmatch()";
    struct hostent *hostent, hostentdupmem;
+   char _h_name[MAXHOSTNAMELEN];
+   char *_h_aliases[HOSTENT_MAX_ALIASES + 1];
+   char *_h_addr_list[HOSTENT_MAX_ALIASES + 1];
+   char _h_aliasesmem[HOSTENT_MAX_ALIASES][MAXHOSTNAMELEN];
+   char _h_addr_listmem[HOSTENT_MAX_ALIASES][
+      MAX(sizeof(struct in_addr), sizeof(struct in6_addr))];
+
    in_port_t ruleport;
    size_t hosti;
    int i, matched, doresolve;
@@ -194,8 +201,24 @@ addrmatch(rule, address, protocol, alias)
    /*
     * The hard work begins.
     */
-   matched = 0;
 
+
+   /*
+    * Set up the memory for hostent pointers in case we need to use
+    * them later.
+    */
+   for (hosti = 0; hosti < HOSTENT_MAX_ALIASES; ++hosti)
+      _h_aliases[hosti] = _h_aliasesmem[hosti];
+
+   for (hosti = 0; hosti < HOSTENT_MAX_ALIASES; ++hosti)
+      _h_addr_list[hosti] = _h_addr_listmem[hosti];
+
+   hostentdupmem.h_name      = _h_name;
+   hostentdupmem.h_aliases   = _h_aliases;
+   hostentdupmem.h_addr_list = _h_addr_list;
+
+
+   matched = 0;
    /*
     * if mask of rule is 0, it should match anything.  Try that first
     * so we can save ourselves lots of potentially heavy work.
@@ -257,7 +280,7 @@ addrmatch(rule, address, protocol, alias)
 
             if (hostentdup(hostent, &hostentdupmem, HOSTENT_MAX_ALIASES)
             == NULL) {
-               swarnx("%s: hostentdup()", function);
+               swarn("%s: hostentdup()", function);
                return 0;
             }
             *hostent = hostentdupmem;
@@ -315,7 +338,7 @@ addrmatch(rule, address, protocol, alias)
          }
 
          if (hostentdup(hostent, &hostentdupmem, HOSTENT_MAX_ALIASES) == NULL) {
-            swarnx("%s: hostentdup()", function);
+            swarn("%s: hostentdup()", function);
             return 0;
          }
          *hostent = hostentdupmem;
@@ -420,7 +443,7 @@ addrmatch(rule, address, protocol, alias)
          char *nexthost;
 
          if (hostentdup(hostent, &hostentdupmem, HOSTENT_MAX_ALIASES) == NULL) {
-            swarnx("%s: hostentdup()", function);
+            swarn("%s: hostentdup()", function);
             return 0;
          }
          *hostent = hostentdupmem;
@@ -430,12 +453,6 @@ addrmatch(rule, address, protocol, alias)
          do {
             struct hostent *host, hostdupmem;
             int ii;
-
-            /*
-             * memory for hostent pointers.  The contents of hostent is set to
-             * point to the corresponding area here, rather than allocating
-             * it on the stack.
-             */
             char _h_name[MAXHOSTNAMELEN];
             char *_h_aliases[HOSTENT_MAX_ALIASES + 1];
             char *_h_addr_list[HOSTENT_MAX_ALIASES + 1];
@@ -456,20 +473,20 @@ addrmatch(rule, address, protocol, alias)
             /* host; address->hostname->ipaddress */
             if ((host = gethostbyname(nexthost)) == NULL) {
                slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-               function, nexthost, hstrerror(h_errno));
+                    function, nexthost, hstrerror(h_errno));
                continue;
             }
 
             if (hostentdup(host, &hostdupmem, HOSTENT_MAX_ALIASES) == NULL) {
-               swarnx("%s: hostentdup()", function);
+               swarn("%s: hostentdup()", function);
                return 0;
             }
             *host = hostdupmem;
 
-            /* LINTED pointer casts may be troublesome */
             for (ii = 0;
-            host->h_addr_list != NULL && host->h_addr_list[ii] != NULL;
-            ++ii) {
+                 host->h_addr_list != NULL && host->h_addr_list[ii] != NULL;
+                 ++ii)
+            {
                struct hostent *ip;
 
                /* ip; address->hostname->ipaddress->hostname */

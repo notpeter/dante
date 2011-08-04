@@ -47,7 +47,7 @@
 #include "ifaddrs_compat.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.406 2011/06/09 11:12:31 michaels Exp $";
+"$Id: serverconfig.c,v 1.408 2011/07/16 11:55:15 michaels Exp $";
 
 struct config_t sockscf;
 const int socks_configtype = CONFIGTYPE_SERVER;
@@ -489,12 +489,11 @@ resetconfig(exiting)
    /* extensions, read from configfile. */
    bzero(&sockscf.extension, sizeof(sockscf.extension));
 
-   /* log; read from configfile, but keep lockfile. */
+   /* log; read from configfile, but keep lockfile (sockscf.loglock). */
    for (i = 0; i < sockscf.log.filenoc; ++i) {
       free(sockscf.log.fnamev[i]);
 
-      if (sockscf.log.filenov[i] != STDOUT_FILENO
-      &&  sockscf.log.filenov[i] != STDERR_FILENO)
+      if (!FD_IS_RESERVED_EXTERNAL(sockscf.log.filenov[i]))
          close(sockscf.log.filenov[i]);
    }
    free(sockscf.log.fnamev);
@@ -504,8 +503,7 @@ resetconfig(exiting)
    for (i = 0; i < sockscf.errlog.filenoc; ++i) {
       free(sockscf.errlog.fnamev[i]);
 
-      if (sockscf.errlog.filenov[i] != STDOUT_FILENO
-      &&  sockscf.errlog.filenov[i] != STDERR_FILENO)
+      if (!FD_IS_RESERVED_EXTERNAL(sockscf.errlog.filenov[i]))
          close(sockscf.errlog.filenov[i]);
    }
    free(sockscf.errlog.fnamev);
@@ -532,7 +530,9 @@ resetconfig(exiting)
 
    /* state; keep it. */
 
+#if HAVE_SOLARIS_PRIVS
    /* uid; need to clear, but need to reopen configfile first. */
+#endif /* HAVE_SOLARIS_PRIVS */
 
    /* methods, read from configfile. */
    bzero(sockscf.methodv, sizeof(sockscf.methodv));

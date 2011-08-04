@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.66 2011/05/18 13:48:45 karls Exp $";
+"$Id: Rcompat.c,v 1.69 2011/08/01 12:21:16 michaels Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -186,7 +186,7 @@ Rread(d, buf, nbytes)
    clientinit();
 
    slog(LOG_DEBUG, "%s: socket %d, bytes %lu",
-   function, d, (unsigned long)nbytes);
+        function, d, (unsigned long)nbytes);
 
    return Rrecv(d, buf, nbytes, 0);
 }
@@ -257,7 +257,7 @@ Rrecvmsg(s, msg, flags)
    clientinit();
 
    slog(LOG_DEBUG, "%s: socket %d, msg 0x%p, flags %d",
-   function, s, msg, flags);
+        function, s, msg, flags);
 
    if (msg == NULL)
       return recvmsg(s, msg, flags);
@@ -289,9 +289,12 @@ Rrecvmsg(s, msg, flags)
 
    for (received = ioc = rc = 0; ioc < (size_t)msg->msg_iovlen; ++ioc) {
       /* LINTED pointer casts may be troublesome */
-      if ((rc = Rrecvfrom(s, msg->msg_iov[ioc].iov_base,
-      msg->msg_iov[ioc].iov_len, flags, (struct sockaddr *)msg->msg_name,
-      &msg->msg_namelen)) == -1)
+      if ((rc = Rrecvfrom(s,
+                          msg->msg_iov[ioc].iov_base,
+                          msg->msg_iov[ioc].iov_len,
+                          flags,
+                          (struct sockaddr *)msg->msg_name,
+                          &msg->msg_namelen)) == -1)
          break;
 
       received += rc;
@@ -299,6 +302,9 @@ Rrecvmsg(s, msg, flags)
       if (rc != (ssize_t)msg->msg_iov[ioc].iov_len)
          break;
    }
+
+   slog(LOG_DEBUG, "%s: bytes received on socket %d: %ld",
+        function, s, (long)rc);
 
    if (received <= 0)
       return rc;
@@ -327,7 +333,7 @@ Rfputc(c, stream)
    if (!gssapi_isencrypted(d))
       return fputc(c, stream);
 
-   socks_setbuffer(d, _IOFBF);
+   socks_setbuffer(d, _IOFBF, -1);
 
    return Rsend(d, &c, 1, 0);
 }
@@ -347,7 +353,7 @@ Rfputs(buf, stream)
    if (!gssapi_isencrypted(d))
       return fputs(buf,stream);
 
-   socks_setbuffer(d, _IOFBF);
+   socks_setbuffer(d, _IOFBF, -1);
 
    return Rsend(d, buf, strlen(buf), 0);
 }
@@ -368,7 +374,7 @@ Rfwrite(ptr, size, nmb, stream)
    if (!gssapi_isencrypted(d))
       return fwrite(ptr, size, nmb, stream);
 
-   socks_setbuffer(d, _IOFBF);
+   socks_setbuffer(d, _IOFBF, -1);
 
    for (i = 0; i < nmb; ++i)
        if (Rwrite(d,buf+i*size,size) <= 0)
@@ -389,7 +395,7 @@ Rfprintf(FILE *stream, const char *format, ...)
 
    va_start(ap, format);
 
-   socks_setbuffer(d, _IOFBF);
+   socks_setbuffer(d, _IOFBF, -1);
 
    rc = Rvfprintf(stream, format, ap);
 
@@ -416,7 +422,7 @@ Rvfprintf(stream,  format, ap)
 
    vsnprintf(buf, 8 * BUFSIZ, format, ap);
 
-   socks_setbuffer(d, _IOFBF);
+   socks_setbuffer(d, _IOFBF, -1);
 
    rc = Rwrite(d, buf, strlen(buf));
 

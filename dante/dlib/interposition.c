@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.145 2011/05/18 13:48:45 karls Exp $";
+"$Id: interposition.c,v 1.150 2011/07/21 13:48:41 michaels Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
@@ -70,16 +70,16 @@ sendto(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
 
 HAVE_PROT_CONNECT_0
 connect$NOCANCEL(HAVE_PROT_CONNECT_1, HAVE_PROT_CONNECT_2,
-		 HAVE_PROT_CONNECT_3);
+       HAVE_PROT_CONNECT_3);
 HAVE_PROT_READ_0
 read$NOCANCEL(HAVE_PROT_READ_1, HAVE_PROT_READ_2, HAVE_PROT_READ_3);
 HAVE_PROT_RECVFROM_0
 recvfrom$NOCANCEL(HAVE_PROT_RECVFROM_1, HAVE_PROT_RECVFROM_2,
-		  HAVE_PROT_RECVFROM_3, HAVE_PROT_RECVFROM_4,
-		  HAVE_PROT_RECVFROM_5, HAVE_PROT_RECVFROM_6);
+  HAVE_PROT_RECVFROM_3, HAVE_PROT_RECVFROM_4,
+        HAVE_PROT_RECVFROM_5, HAVE_PROT_RECVFROM_6);
 HAVE_PROT_SENDTO_0
 sendto$NOCANCEL(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
-		HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6);
+      HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6);
 HAVE_PROT_WRITE_0
 write$NOCANCEL(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
 
@@ -368,11 +368,14 @@ socks_syscall_end(s)
       --(p->state.syscalldepth);
 
    if (p->state.syscalldepth <= 0) { /* all finished. */
-      if (p->state.issyscall) /* started out as a syscall. */
+      if (p->state.issyscall) /* started out as a syscall, remove now. */
          socks_rmaddr(s, 0);
+      else
+         socks_addaddr(s, &socksfd, 0); /* update. */
    }
+   else
+      socks_addaddr(s, &socksfd, 0); /* update. */
 
-   socks_addaddr(s, &socksfd, 0);
    socks_addrunlock(&opaque);
 }
 
@@ -452,7 +455,7 @@ socks_markasnative(functionname)
    const char *function = "socks_markasnative()";
    struct socks_id_t myid;
 
-   if (sockscf.option.debug > 1)
+   if (DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: marking %s as native for current id",
       function, functionname);
 
@@ -475,7 +478,7 @@ socks_markasnormal(functionname)
    const char *function = "socks_markasnormal()";
    struct socks_id_t myid;
 
-   if (sockscf.option.debug > 1)
+   if (DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: marking %s as normal for current id",
       function, functionname);
 
@@ -613,12 +616,12 @@ symbolfunction(symbol)
                                 "Failed to find \"%s\" using RTLD_NEXT: %s",
                                 function, symbol, dlerror());
       }
-      else {
 #if 0
+      else {
          if (strcmp(symbol, SYMBOL_WRITE) != 0)
             slog(LOG_DEBUG, "found symbol %s using RTLD_NEXT", lib->symbol);
-#endif
       }
+#endif
    }
 
 #else /* !HAVE_RTLD_NEXT */
@@ -858,7 +861,7 @@ sys_listen(s, backlog)
    HAVE_PROT_LISTEN_1 s;
    HAVE_PROT_LISTEN_2 backlog;
 {
-   ssize_t rc;
+   HAVE_PROT_LISTEN_0 rc;
    typedef HAVE_PROT_LISTEN_0 (*LISTEN_FUNC_T)(HAVE_PROT_LISTEN_1,
                                            HAVE_PROT_LISTEN_2);
    LISTEN_FUNC_T function = (LISTEN_FUNC_T)symbolfunction(SYMBOL_LISTEN);
@@ -962,7 +965,7 @@ sys_recvfrom(s, buf, len, flags, from, fromlen)
    HAVE_PROT_RECVFROM_5 from;
    HAVE_PROT_RECVFROM_6 fromlen;
 {
-   int rc;
+   HAVE_PROT_RECVFROM_0 rc;
    typedef HAVE_PROT_RECVFROM_0 (*RECVFROM_FUNC_T)(HAVE_PROT_RECVFROM_1,
                                                    HAVE_PROT_RECVFROM_2,
                                                    HAVE_PROT_RECVFROM_3,
@@ -1838,7 +1841,7 @@ sys_xnet_listen(s, backlog)
    HAVE_PROT_LISTEN_1 s;
    HAVE_PROT_LISTEN_2 backlog;
 {
-   ssize_t rc;
+   HAVE_PROT_LISTEN_0 rc;
    typedef HAVE_PROT_LISTEN_0 (*LISTEN_FUNC_T)(HAVE_PROT_LISTEN_1,
                                            HAVE_PROT_LISTEN_2);
    LISTEN_FUNC_T function = (LISTEN_FUNC_T)symbolfunction(SYMBOL_XNET_LISTEN);
@@ -2762,8 +2765,10 @@ connect$NOCANCEL(s, name, namelen)
    HAVE_PROT_CONNECT_2 name;
    HAVE_PROT_CONNECT_3 namelen;
 {
-   if (!sockscf.state.havegssapisockets || socks_issyscall(s, SYMBOL_CONNECT_NOCANCEL))
+   if (!sockscf.state.havegssapisockets
+   || socks_issyscall(s, SYMBOL_CONNECT_NOCANCEL))
       return sys_connect_nocancel(s, name, namelen);
+
    return Rconnect(s, name, namelen);
 }
 
@@ -2774,8 +2779,10 @@ read$NOCANCEL(d, buf, nbytes)
    HAVE_PROT_READ_2 buf;
    HAVE_PROT_READ_3 nbytes;
 {
-   if (!sockscf.state.havegssapisockets || socks_issyscall(d, SYMBOL_READ_NOCANCEL))
+   if (!sockscf.state.havegssapisockets
+   || socks_issyscall(d, SYMBOL_READ_NOCANCEL))
       return sys_read_nocancel(d, buf, nbytes);
+
    return Rread(d, buf, nbytes);
 }
 #endif
@@ -2789,8 +2796,10 @@ recvfrom$NOCANCEL(s, buf, len, flags, from, fromlen)
    HAVE_PROT_RECVFROM_5 from;
    HAVE_PROT_RECVFROM_6 fromlen;
 {
-   if (!sockscf.state.havegssapisockets || socks_issyscall(s, SYMBOL_RECVFROM_NOCANCEL))
+   if (!sockscf.state.havegssapisockets
+   || socks_issyscall(s, SYMBOL_RECVFROM_NOCANCEL))
       return sys_recvfrom_nocancel(s, buf, len, flags, from, fromlen);
+
    return Rrecvfrom(s, buf, len, flags, from, fromlen);
 }
 
@@ -2803,8 +2812,10 @@ sendto$NOCANCEL(s, msg, len, flags, to, tolen)
    HAVE_PROT_SENDTO_5 to;
    HAVE_PROT_SENDTO_6 tolen;
 {
-   if (!sockscf.state.havegssapisockets || socks_issyscall(s, SYMBOL_SENDTO_NOCANCEL))
+   if (!sockscf.state.havegssapisockets
+   || socks_issyscall(s, SYMBOL_SENDTO_NOCANCEL))
       return sys_sendto_nocancel(s, msg, len, flags, to, tolen);
+
    return Rsendto(s, msg, len, flags, to, tolen);
 }
 
@@ -2815,8 +2826,10 @@ write$NOCANCEL(d, buf, nbytes)
    HAVE_PROT_WRITE_2 buf;
    HAVE_PROT_WRITE_3 nbytes;
 {
-   if (!sockscf.state.havegssapisockets || socks_issyscall(d, SYMBOL_WRITE_NOCANCEL))
+   if (!sockscf.state.havegssapisockets
+   || socks_issyscall(d, SYMBOL_WRITE_NOCANCEL))
       return sys_write_nocancel(d, buf, nbytes);
+
    return Rwrite(d, buf, nbytes);
 }
 #endif

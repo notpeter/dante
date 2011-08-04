@@ -1,4 +1,4 @@
-# $Id: INSTALL,v 1.35 2011/06/08 09:43:16 karls Exp $
+# $Id: INSTALL,v 1.36 2011/07/20 13:39:20 karls Exp $
 
 This file describes how to install Dante.  Dante is a Socks client
 and server firewall implementation.  It can be installed on a machine
@@ -205,6 +205,11 @@ These `configure' options are also supported (run `configure' with
 
 `--enable-debug'
      Compile with extra debugging information.
+
+`--enable-livedebug'
+     For debugging of problems in production environments; provides
+     information that allows serious errors to be analyzed without
+     aborting the application or having to enable debug log output.
 
 `--enable-warnings'
      Compiles the package with '-Wall'; shows more compiler warnings.

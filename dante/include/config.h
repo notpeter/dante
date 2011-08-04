@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: config.h,v 1.112 2011/06/08 09:43:17 karls Exp $ */
+/* $Id: config.h,v 1.114 2011/07/27 08:37:42 michaels Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -324,11 +324,11 @@
  * Each client will occupy one file descriptor.
  */
 #ifndef SOCKD_NEGOTIATEMAX
-#if DEBUG
+#if PRERELEASE
 #define SOCKD_NEGOTIATEMAX         (2)
 #else
 #define SOCKD_NEGOTIATEMAX         (24)
-#endif /* DEBUG */
+#endif /* !PRERELEASE */
 #endif /* SOCKD_NEGOTIATEMAX */
 
 /*
@@ -341,16 +341,16 @@
  */
 
 #ifndef SOCKD_IOMAX
-#if DEBUG
+#if PRERELEASE
 #define SOCKD_IOMAX               (2)
 #else
 #define SOCKD_IOMAX               (8)
-#endif /* DEBUG */
+#endif /* !PRERELEASE */
 #endif /* SOCKD_IOMAX */
 
 #if SOCKD_NEGOTIATEMAX < 1 ||  SOCKD_IOMAX < 1
-#error "SOCKD_IOMAX/NEGOTIATEMAX can not be less than 1"
-#endif /* SOCKD_NEGOTIATEMAX < 1 || SOCKD_IOMAX < 1 */
+#error "SOCKD_NEGOTIATEMAX and SOCKD_IOMAX can not be less than 1"
+#endif
 
 #if BAREFOOTD
 /*

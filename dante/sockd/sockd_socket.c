@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.77 2011/06/19 15:09:21 michaels Exp $";
+"$Id: sockd_socket.c,v 1.79 2011/07/27 13:19:19 michaels Exp $";
 
 int
 sockd_bind(s, addr, retries)
@@ -80,7 +80,7 @@ sockd_bind(s, addr, retries)
        */
 
       slog(LOG_DEBUG, "%s: failed to bind %s (%s)",
-      function, sockaddr2string(addr, NULL, 0), errnostr(errno));
+      function, sockaddr2string(addr, NULL, 0), strerror(errno));
 
       switch (errno) {
          case EINTR:
@@ -151,7 +151,7 @@ socks_unconnect(s)
                       "Current address is %s.  Trying to create a new socket "
                       "instead",
                       function,
-                      errnostr(errno),
+                      strerror(errno),
                       sockaddr2string(&new_local, NULL, 0));
 
       /*
@@ -173,7 +173,7 @@ socks_unconnect(s)
 
       if (sockd_bind(new_s, &local, 1) != 0) {
          slog(LOG_DEBUG, "%s: bind of new socket also failed: %s", 
-              function, errnostr(errno));
+              function, strerror(errno));
 
          close(new_s);
          return 0;
@@ -383,7 +383,7 @@ setsockoptions(s, type, isclientside)
    socklen_t vallen;
    int val, sndbuf, rcvbuf;
 
-   slog(LOG_DEBUG, "%s: s = %d, type = %d, isclientside = %d",
+   slog(LOG_DEBUG, "%s: socket %d, type = %d, isclientside = %d",
    function, s, type, isclientside);
 
    switch (type) {

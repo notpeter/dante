@@ -43,10 +43,14 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.188 2011/06/18 19:13:34 michaels Exp $";
+"$Id: log.c,v 1.226 2011/08/04 05:25:21 michaels Exp $";
 
 #include "common.h"
 #include "config_parse.h"
+
+#ifndef SOCKS_RINGBUFLEN
+#define SOCKS_RINGBUFLEN   (1024 * 100) /* 100kB ringbuffer. */
+#endif /* SOCKS_RINGBUFLEN */
 
 #if HAVE_EXECINFO_H && DEBUG
 #include <execinfo.h>
@@ -102,7 +106,7 @@ static const struct {
 
 static size_t
 logformat(int priority, char *buf, const size_t buflen, const char *message,
-      va_list ap)
+          va_list ap)
       __attribute__((__bounded__(__string__, 2, 3)))
       __attribute__((format(printf, 4, 0)));
 /*
@@ -113,7 +117,22 @@ logformat(int priority, char *buf, const size_t buflen, const char *message,
  * Returns the number of writes written to buf, terminating NUL included.
  */
 
+
+#if HAVE_LIVEDEBUG
+
+static void 
+socks_addtorb(const char *str, const size_t strlen);
+/*
+ * Adds the NUL-terminated string "str", of length "strlen" (including NUL)
+ * to the ringbuffer.
+ */
+
+static char ringbuffer[SOCKS_RINGBUFLEN];
+static size_t ringbuf_curroff;
+#endif /* HAVE_LIVEDEBUG */
+
 #if !SOCKS_CLIENT
+
 #define DO_BUILD(srcdst_str, dst_too)                                          \
 do {                                                                           \
    char srcstr[MAX_IOLOGADDR];                                                 \
@@ -166,7 +185,14 @@ iolog(rule, state, operation,
    const char *data;
    size_t count;
 {
-   char srcdst_str[MAX_IOLOGADDR + strlen(" -> ") + MAX_IOLOGADDR],
+   const char *verdict;
+   /*
+    * Static so that it gets allocated on the heap rather than the
+    * stack, as the latter seems to cause some problems on Solaris
+    * where under stress Solaris is unable to grow the stack by 
+    * that much.
+    */
+   static char srcdst_str[MAX_IOLOGADDR + sizeof(" -> ") + MAX_IOLOGADDR],
         rulecommand[256],
         ruleinfo[SOCKD_BUFSIZE * 4 + 1 + sizeof(srcdst_str)
                  + 1024 /* misc stuff, if any. */];
@@ -177,6 +203,7 @@ iolog(rule, state, operation,
    else
       logdstinfo = 1;
 
+   verdict = NULL;
    switch (operation) {
       case OPERATION_ACCEPT:
       case OPERATION_CONNECT:
@@ -192,6 +219,46 @@ iolog(rule, state, operation,
          }
          break;
 
+      case OPERATION_BLOCK:
+         if (!(rule->log.connect || rule->log.disconnect))
+            return;
+         else {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo),
+                     "]: %s%s%s",
+                     srcdst_str,
+                     (data == NULL || *data == NUL) ? "" : ": ",
+                     (data == NULL || *data == NUL) ? "" : data);
+         }
+         
+         verdict = verdict2string(VERDICT_BLOCK);
+         break;
+
+      case OPERATION_BLOCK_IO:
+         if (!(rule->log.data || rule->log.iooperation))
+            return;
+         else {
+            if (rule->log.data && count != 0) {
+               char visdata[SOCKD_BUFSIZE * 4 + 1];
+
+               DO_BUILD(srcdst_str, logdstinfo);
+               snprintf(ruleinfo, sizeof(ruleinfo),
+                        "-: %s (%lu): %s",
+                        srcdst_str, (unsigned long)count,
+                        str2vis(data, count, visdata, sizeof(visdata)));
+            }
+            else {
+               DO_BUILD(srcdst_str, logdstinfo);
+               snprintf(ruleinfo, sizeof(ruleinfo),
+                        "-: %s (%lu)",
+                        srcdst_str, (unsigned long)count);
+            }
+         }
+
+         verdict = verdict2string(VERDICT_BLOCK);
+         break;
+
+
       case OPERATION_DISCONNECT:
          if (!rule->log.disconnect)
             return;
@@ -205,38 +272,20 @@ iolog(rule, state, operation,
          }
          break;
 
-      case OPERATION_TIMEOUT:
-         if (!(rule->log.disconnect || rule->log.error))
-            return;
-         else {
-            DO_BUILD(srcdst_str, logdstinfo);
-            snprintf(ruleinfo, sizeof(ruleinfo), "]: %s: %s", srcdst_str, data);
-         }
-         break;
-
       case OPERATION_ERROR:
+      case OPERATION_ERROR_IO:
          if (!rule->log.error)
             return;
          else {
             DO_BUILD(srcdst_str, logdstinfo);
             snprintf(ruleinfo, sizeof(ruleinfo),
-                     "]: %s: %s",
+                     "%c: %s: %s",
+                     operation == OPERATION_ERROR ? ']' : '-',
                      srcdst_str,
-                    (data == NULL || *data == NUL) ? errnostr(errno) : data);
+                    (data == NULL || *data == NUL) ? strerror(errno) : data);
          }
-         break;
 
-      case OPERATION_BLOCK:
-         if (!rule->log.disconnect)
-            return;
-         else {
-            DO_BUILD(srcdst_str, logdstinfo);
-            snprintf(ruleinfo, sizeof(ruleinfo),
-                     "]: %s%s%s",
-                     srcdst_str,
-                     (data == NULL || *data == NUL) ? "" : ": ",
-                     (data == NULL || *data == NUL) ? "" : data);
-         }
+         verdict = verdict2string(VERDICT_BLOCK);
          break;
 
       case OPERATION_IO:
@@ -252,7 +301,7 @@ iolog(rule, state, operation,
                      srcdst_str, (unsigned long)count,
                      str2vis(data, count, visdata, sizeof(visdata)));
          }
-         else if (rule->log.iooperation || rule->log.data) {
+         else  {
             DO_BUILD(srcdst_str, logdstinfo);
             snprintf(ruleinfo, sizeof(ruleinfo),
                      "-: %s (%lu)",
@@ -265,8 +314,7 @@ iolog(rule, state, operation,
    }
 
    snprintf(rulecommand, sizeof(rulecommand), "%s(%lu): %s/%s",
-            verdict2string(operation == OPERATION_BLOCK ?
-                           VERDICT_BLOCK : rule->verdict),
+            verdict == NULL ? verdict2string(rule->verdict) : verdict,
 #if BAREFOOTD
             /* always use the number from the user-created rule. */
             (state->protocol == SOCKS_UDP && rule->crule != NULL) ?
@@ -279,6 +327,7 @@ iolog(rule, state, operation,
 
    slog(LOG_INFO, "%s %s", rulecommand, ruleinfo);
 }
+
 #endif /* !SOCKS_CLIENT */
 
 void
@@ -325,7 +374,7 @@ socks_addlogfile(logcf, logfile)
    struct logtype_t *logcf;
    const char *logfile;
 {
-   const char *function = "socks_addlogfile()";
+/*   const char *function = "socks_addlogfile()"; */
    const char *syslogname = "syslog";
 
    if (strncmp(logfile, syslogname, strlen(syslogname)) == 0
@@ -428,18 +477,27 @@ vslog(priority, message, ap, apsyslog)
 {
    const int errno_s = errno;
    size_t loglen;
-   int needlock;
+   int needlock, logged = 0;
 #if SOCKS_CLIENT /* can have a small buffer. */
    char logstr[1024];
 #else /* !SOCKS_CLIENT */
    /*
     * This needs to be at least as large as SOCKD_BUFSIZE, as in
     * the worst (best?) case, that's how much we will read/write
-    * from the socket, and user wants to log it all ...
+    * from the socket, and if user wants to log it all ...
+    *
+    * Static so that it gets allocated on the heap rather than the
+    * stack, as the latter seems to cause some problems on Solaris
+    * where under stress Solaris is unable to grow the stack by 
+    * that much.
     */
-   char logstr[SOCKD_BUFSIZE + 2048 /* 2048: "context" */];
+#if HAVE_LIVEDEBUG
+   static char logstr[MAX(sizeof(ringbuffer), (SOCKD_BUFSIZE + 2048)) ];
+#else /* !HAVE_LIVEDEBUG */
+   static char logstr[SOCKD_BUFSIZE + 2048 /* 2048: "context" */];
+#endif /* !HAVE_LIVEDEBUG */
+
 #endif /* !SOCKS_CLIENT */
-   int logged = 0;
 
 #if !SOCKS_IGNORE_SIGNALSAFETY
    if (sockscf.state.insignal
@@ -453,8 +511,20 @@ vslog(priority, message, ap, apsyslog)
       return;
 #endif /* !SOCKS_IGNORE_SIGNALSAFETY */
 
-   if (priority == LOG_DEBUG && !sockscf.option.debug)
+   if (priority == LOG_DEBUG && !sockscf.option.debug) {
+#if HAVE_LIVEDEBUG 
+      const int insignal = sockscf.state.insignal;
+
+      /* don't have logformat() bother with calling localtime(3); too slow. */
+      sockscf.state.insignal = 1;
+      loglen = logformat(priority, logstr, sizeof(logstr), message, ap);
+      sockscf.state.insignal = insignal;
+
+      socks_addtorb(logstr, loglen);
+#endif /* HAVE_LIVEDEBUG */
+
       return;
+   }
 
    /*
     * Do syslog logging first ...
@@ -491,7 +561,8 @@ vslog(priority, message, ap, apsyslog)
 
    needlock = 0;
    if ((priority <= LOG_WARNING && (sockscf.errlog.type & LOGTYPE_FILE))
-   || ((sockscf.log.type & LOGTYPE_FILE))) {
+   || ((sockscf.log.type & LOGTYPE_FILE))
+   || HAVE_LIVEDEBUG) {
       loglen = logformat(priority, logstr, sizeof(logstr), message, ap);
 
       if (loglen != 0 && sockscf.loglock != -1) {
@@ -527,32 +598,37 @@ vslog(priority, message, ap, apsyslog)
    if (needlock)
       socks_unlock(sockscf.loglock);
 
+#if HAVE_LIVEDEBUG
+   /* and finaly, always save to ringbuffer if enabled for this child. */
+   if (loglen != 0)
+      socks_addtorb(logstr, loglen);
+#endif /* HAVE_LIVEDEBUG  */
+
    /*
     * If we need to log something serious, but have not inited
     * logfiles yet, try to log to stderr if that seems likly to
     * work.
     */
 
-   if (!logged
-   &&  !sockscf.state.inited
-   &&  priority != LOG_DEBUG
 #if !SOCKS_CLIENT
-   && !sockscf.option.daemon
-#endif /* !SOCKS_CLIENT */
-   ) {
-      /* may not have set-up logfiles yet. */
-#if !SOCKS_CLIENT /*
-                   * log to stderr for now.
-                   * no idea where stdout points to in client case.
-                   */
+   if (!logged) {
+      if (!sockscf.state.inited
+      &&  priority != LOG_DEBUG
+      &&  !sockscf.option.daemon) {
+         /*
+          * have not set-up logfiles yet log to stderr for now.
+          * No idea where stderr points to in client case, so can't log
+          * for client.
+          */
 
-      if (loglen == 0)
-         loglen = logformat(priority, logstr, sizeof(logstr), message, ap);
+         if (loglen == 0)
+            loglen = logformat(priority, logstr, sizeof(logstr), message, ap);
 
-      if (loglen != 0)
-         write(fileno(stderr), logstr, loglen - 1);
-#endif /* SOCKS_SERVER */
+         if (loglen != 0)
+            write(fileno(stderr), logstr, loglen - 1);
+      }
    }
+#endif /* !SOCKS_CLIENT */
 
    errno = errno_s;
 }
@@ -571,94 +647,68 @@ logformat(priority, buf, buflen, message, ap)
    size_t bufused;
    pid_t pid;
 
-   if (buflen <= 0)
+   if (buflen < sizeof("\n"))
       return 0;
 
-#if SOCKS_CLIENT /* can't trust saved state. */
-   pid = getpid();
-#else /* !SOCKS_CLIENT */
    if (sockscf.state.pid == 0)
       pid = getpid();
    else
       pid = sockscf.state.pid;
-#endif /* !SOCKS_CLIENT */
-
-   switch (priority) {
-      case LOG_DEBUG:
-         if (!sockscf.option.debug)
-            return 0;
-   }
 
    gettimeofday(&timenow, NULL);
    bufused = 0;
 
-   if (!sockscf.state.insignal) { /* very prone to hanging on some systems. */
-      secondsnow = (time_t)timenow.tv_sec;
-      bufused += strftime(&buf[bufused], buflen - bufused,
-                          "%h %e %T ",
-                          localtime(&secondsnow));
-   }
-   else
+   if (sockscf.state.insignal)
+      /*
+       * very prone to hanging on some systems, and illegal from signalhandler.
+       */
       bufused += snprintf(&buf[bufused], buflen - bufused,
-                          "<in signalhandler> ");
-
-   if (bufused >= buflen) {
-      buf[buflen - 1] = NUL;
-      return buflen;
+                          "<no localtime available> ");
+   else {
+      secondsnow = (time_t)timenow.tv_sec;
+      bufused   += strftime(&buf[bufused], buflen - bufused,
+                            "%h %e %T ",
+                            localtime(&secondsnow));
    }
 
    bufused += snprintf(&buf[bufused], buflen - bufused,
-                       "(%ld.%ld) %s[%lu]: ",
+                       "(%ld.%06ld) %s[%lu]: ",
                        (long)timenow.tv_sec,
                        (long)timenow.tv_usec,
                        __progname,
                        (unsigned long)pid);
 
-   if (bufused >= buflen) {
-      buf[buflen - 1] = NUL;
-      return buflen;
-   }
-
    bufused += snprintf(&buf[bufused], buflen - bufused,
                        "%s: ",
                        loglevel2string(priority));
 
-   if (bufused >= buflen) {
-      buf[buflen - 1] = NUL;
-      return buflen;
-   }
-
-   if ((p = vsnprintf(&buf[bufused], buflen - bufused, message, ap)) < 0
-   ||  (size_t)p >= buflen - bufused)
+   if ((p = vsnprintf(&buf[bufused], buflen - bufused, message, ap)) < 0)
       return 0;
+
+   if ((size_t)p >= buflen - bufused)
+      p = buflen - bufused;
 
    bufused += p;
 
-   if (bufused >= buflen) {
-      buf[buflen - 1] = NUL;
-      return buflen;
-   }
-
-   SASSERTX(buf[bufused] == NUL);
+   if (bufused >= buflen)
+      bufused = buflen - 1;
 
    /* make sure there always is an ending newline. */
    if (buf[bufused - 1] != '\n') {
-      if ((bufused - 1) + strlen("\n") + 1 /* NUL */ >= buflen)
+      if ((bufused - 1) + sizeof("\n") >= buflen)
          --bufused; /* silently truncate. */
 
       buf[bufused++] = '\n';
-      buf[bufused++] = NUL;
    }
-   else
-      ++bufused; /* count NUL also. */
 
+   buf[bufused++] = NUL; /* count NUL also. */
    return bufused;
 }
 
-#if DEBUG && HAVE_BACKTRACE
 void
 slogstack(void)
 {
+#if HAVE_BACKTRACE
    const char *function = "slogstack()";
    void *array[20];
    size_t i, size;
@@ -673,9 +723,64 @@ slogstack(void)
    }
 
    for (i = 1; i < size; i++)
-      slog(LOG_DEBUG, "%s: stackframe #%lu: %s\n",
-      function, (unsigned long)i, strings[i]);
+      slog(LOG_INFO, "%s: stackframe #%lu: %s\n",
+           function, (unsigned long)i, strings[i]);
 
    free(strings);
+#endif /* HAVE_BACKTRACE */
 }
-#endif /* DEBUG && HAVE_BACKTRACE */
+
+#if HAVE_LIVEDEBUG 
+
+static void
+socks_addtorb(str, lenopt)
+   const char *str;
+   const size_t lenopt;
+{
+   ssize_t overshoot;
+   size_t len;
+
+   if (lenopt <= 1)
+      return;
+
+   SASSERTX(lenopt == strlen(str) + 1);
+
+   if (lenopt >= sizeof(ringbuffer))
+      len = sizeof(ringbuffer) - 1 - 1; /* two strings, extra NUL */
+   else
+      len = lenopt - 1; /* ignore trailing NUL */
+
+   overshoot = (ringbuf_curroff + len) - (sizeof(ringbuffer) - 1);
+   if (overshoot > 0) {
+      memmove(ringbuffer + ringbuf_curroff, str, len - overshoot);
+      memmove(ringbuffer, str + len - overshoot, overshoot);
+      ringbuf_curroff = overshoot;
+   } else {
+      memmove(ringbuffer + ringbuf_curroff, str, len);
+      ringbuf_curroff += len;
+      if (ringbuf_curroff >= sizeof(ringbuffer) - 1)
+         ringbuf_curroff = 0;
+   }
+
+   ringbuffer[ringbuf_curroff] = NUL;
+   SASSERTX(ringbuffer[sizeof(ringbuffer) - 1] == NUL);
+
+   return;
+}
+
+void
+socks_flushrb(void)
+{
+   char buf[sizeof(ringbuffer)];
+
+   /* slog() will call socks_addtorb(), need to copy contents first */
+   snprintf(buf, sizeof(buf), "%s%s",
+            ringbuffer + ringbuf_curroff + 1, ringbuffer);
+
+   slog(LOG_CRIT,
+        "flushing log buffer (this should only happen upon fatal error) ...\n"
+        "%s",
+        buf);
+}
+
+#endif /* HAVE_LIVEDEBUG */

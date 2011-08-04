@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: iface.c,v 1.11 2011/06/13 08:35:14 michaels Exp $";
+"$Id: iface.c,v 1.12 2011/06/24 11:36:47 michaels Exp $";
 
 #include "common.h"
 
@@ -116,7 +116,7 @@ socks_getmacaddr(ifname, addr)
       function, ifname);
 
 #if HAVE_SOLARIS_PRIVS
-      if (sockscf.privileges.noprivs)
+      if (!sockscf.privileges.haveprivs)
          swarnx("%s: parsing ifconfig output for interface %s failed.  "
                 "Retrieving the hardware address requires the elevated "
                 "privileges on Solaris.  Please make sure %s is started "

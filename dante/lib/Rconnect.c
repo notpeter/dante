@@ -43,8 +43,10 @@
 
 #include "common.h"
 
+#include "upnp.h"
+
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.183 2011/05/18 13:48:45 karls Exp $";
+"$Id: Rconnect.c,v 1.186 2011/07/21 14:09:19 karls Exp $";
 
 int
 Rconnect(s, name, namelen)
@@ -149,7 +151,7 @@ Rconnect(s, name, namelen)
 
                slog(LOG_DEBUG, "%s: connect(2) called again on upnp socket "
                                "returned %d, errno = %d (%s)",
-                               function, val, errno, errnostr(errno));
+                               function, val, errno, strerror(errno));
 
                return val;
             }
@@ -246,7 +248,7 @@ Rconnect(s, name, namelen)
       return -1;
 
    bzero(&src, sizeof(src)); /* silence valgrind warning */
-   src.atype     = SOCKS_ADDR_IPV4;
+   src.atype     = (unsigned char)SOCKS_ADDR_IPV4;
    /* LINTED pointer casts may be troublesome */
    src.addr.ipv4 = TOIN(&socksfd.local)->sin_addr;
    /* LINTED pointer casts may be troublesome */
@@ -275,7 +277,7 @@ Rconnect(s, name, namelen)
       rc = connect(s, name, namelen);
 
       slog(LOG_DEBUG, "%s: direct connect on socket %d to %s returned %d: (%s)",
-      function, s, sockaddr2string(name, NULL, 0), rc, errnostr(errno));
+      function, s, sockaddr2string(name, NULL, 0), rc, strerror(errno));
 
       return rc;
    }

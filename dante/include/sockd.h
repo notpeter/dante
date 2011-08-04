@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.480 2011/06/19 14:33:16 michaels Exp $ */
+/* $Id: sockd.h,v 1.497 2011/08/04 08:18:17 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -56,7 +56,6 @@
 #include <sys/shm.h>
 
 #include <regex.h>
-
 
 
 /*
@@ -109,16 +108,7 @@
 
 #define SOCKD_SINGLEAUTH_LINGERTIMEOUT (60)  /* one minute */
 
-#define SOCKD_SHMEM_TIMEOUT          (60) /*
-                                           * never delete a shmem-segment
-                                           * if the last deattch is less than
-                                           * this many seconds ago.
-                                           * Used to reduce the chance of
-                                           * a shmem-segment id being
-                                           * "in transit" between two
-                                           * processes at the time we get a
-                                           * SIGHUP.
-                                           */
+#define SOCKD_CACHESTAT    (1000) /* how often to print info.     */
 
 #define SOCKD_EXPLICIT_LDAP_PORT     (389)
 #define SOCKD_EXPLICIT_LDAPS_PORT    (636)
@@ -346,9 +336,9 @@ do {                                                                           \
  * something.
  */
 #define MAX_IOLOGADDR                                                          \
-   MAXSOCKADDRSTRING + strlen(" ")                   /* local */               \
- + MAXAUTHINFOLEN + MAXSOCKSHOSTSTRING + strlen(" ") /* proxy */               \
- + MAXSOCKSHOSTSTRING + strlen(" ")                  /* proxy's ext addr. */   \
+   MAXSOCKADDRSTRING  + sizeof(" ")                  /* local */               \
+ + MAXAUTHINFOLEN + MAXSOCKSHOSTSTRING + sizeof(" ") /* proxy */               \
+ + MAXSOCKSHOSTSTRING + sizeof(" ")                  /* proxy's ext addr. */   \
  + MAXAUTHINFOLEN + MAXSOCKSHOSTSTRING               /* peer  */
 
 #define BUILD_ADDRSTR_SRC(peer, proxy_ext, proxy, local,                       \
@@ -427,12 +417,12 @@ do {                                                                           \
 #define SOCKD_REQUESTMAX   1
 
 
-/* types of children. */
+/* types of children.  Note that this are bitmasks. */
 #define CHILD_NOTOURS       0
 #define CHILD_MOTHER        1
 #define CHILD_NEGOTIATE     2
-#define CHILD_REQUEST       3
-#define CHILD_IO            4
+#define CHILD_REQUEST       4
+#define CHILD_IO            8
 
 #if SOCKS_SERVER
 #define FDPASS_MAX         3   /* max number of descriptors we send/receive. */
@@ -483,12 +473,13 @@ typedef enum { SOCKD_PRIV_NOTSET = 0,
 
 typedef enum {
    OPERATION_ACCEPT,
+   OPERATION_BLOCK,        /* session blocked. */
+   OPERATION_BLOCK_IO,     /* i/o op blocked.  */
    OPERATION_CONNECT,
    OPERATION_DISCONNECT,
+   OPERATION_ERROR,       /* session failed.  */
+   OPERATION_ERROR_IO,   /* i/o op failed.    */
    OPERATION_IO,
-   OPERATION_TIMEOUT,
-   OPERATION_ERROR,
-   OPERATION_BLOCK
 } operation_t;
 
 typedef enum { KEY_IPV4, KEY_MAC } keytype_t;
@@ -705,7 +696,7 @@ struct option_t {
 
 #if HAVE_PRIVILEGES
 typedef struct {
-   unsigned char     noprivs;       /* no privilege-switching possible? */
+   unsigned char     haveprivs;       /* is privilege-switching possible? */
    priv_set_t       *unprivileged;
    priv_set_t       *privileged;
 } privileges_t;
@@ -1036,10 +1027,6 @@ struct sockd_io_direction_t {
     * control: same as src
    */
 
-#if HAVE_GSSAPI
-   OM_uint32                  maxgssdata; /* max length of gss data pre-enc.  */
-#endif /* HAVE_GSSAPI */
-
    iocount_t                  read;
    iocount_t                  written;
 
@@ -1088,20 +1075,28 @@ struct sockd_io_t {
    struct rule_t      crule;           /* client rule matched.                */
    struct rule_t      rule;            /* matched rule for i/o.               */
 
-   struct rule_t      *udpfwdrule;     /* for packets forwarded for client. */
-   struct rule_t      *replyrule;      /* matched rule for (udp)reply i/o.  */
-                                       /*
-                                        * XXX should be used for bindreply
-                                        * also, as bind and bindreply might
-                                        * have different loglevels.
-                                        */
+   union {
+      struct {
+         struct rule_t      *fwdrule;    /* for packets forwarded for client. */
+         struct rule_t      *replyrule;  /* matched rule for (udp)reply i/o.  */
+                                         /*
+                                          * These are pointers since they are 
+                                          * only used in the i/o processes.  
+                                          * Lets us save on the size of the i/o 
+                                          * object when passing it around.
+                                          */
+      } udp;
 
-                                       /*
-                                        * These are pointers since it's only 
-                                        * usedin the i/o processes.  We can
-                                        * then save on the size of the i/o 
-                                        * object when passing it around.
-                                        */
+      struct {
+         /*
+          * the i/o-process only handles bindreplies, but may need to log
+          * information related to the bind session that initiated the
+          * bindreply session also.
+          */
+         struct sockshost_t host; 
+         struct rule_t      rule;
+      } bind;
+   } cmd; /* extra info required for certain commands. */
 
    unsigned char      use_saved_rule;  /* can we use reuse last rule result?  */
    unsigned char      use_saved_replyrule; /* and last replyrule result too?  */
@@ -1557,25 +1552,8 @@ iolog(struct rule_t *rule, const struct connectionstate_t *state,
  * to/from dst_peer,
  *
  * "data" and "count" are interpreted depending on "operation".
- *
- * If "operation" is
- *    OPERATION_ACCEPT
- *    OPERATION_CONNECT
- *       "count" is ignored.
- *       If "data" is not NULL or NUL, it is a string giving additional
- *       information about the operation.
- *
- *    OPERATION_ABORT
- *    OPERATION_ERROR
- *       "count" is ignored.
- *       If "data" is not NULL or NUL, it is a string giving the reason for
- *       abort or error.
- *       If "data" is NULL or NUL, the reason is the error message affiliated
- *       with the current errno.
- *
- *    OPERATION_IO
- *       "data" is the data that was read and written.
- *       "count" is the number of bytes that was read/written.
+ * If "count" is 0, but "data" is not NULL, it is assumed that "data"
+ * is a NUL-terminated string.
  */
 
 void
@@ -1755,7 +1733,7 @@ socks_seteuid(uid_t *old, uid_t new);
 void
 init_privs(void);
 /*
- * Initializes the basic and permitted privilege set on.
+ * Initializes things based on configured userid/privilege settings.
  */
 
 void
@@ -2061,25 +2039,19 @@ bw_update(shmem_object_t *bw, size_t bwused, const struct timeval *bwusedtime,
  * "bwusedtime".
  */
 
-struct timeval *
-bw_isoverflow(shmem_object_t *bw, const struct timeval *timenow,
-              struct timeval *overflow, const int lock);
-/*
- * Checks whether "bw" has overflowed.  I.e., used too much bandwidth.
- * "timenow" is the time now, and "overflow" is the object to store
- * the point in time when this object is no longer in overflowmode.
+int
+bw_rulehasoverflown(const struct rule_t *rule, const struct timeval *tnow,
+                    struct timeval *overflowok,
+                    const int controlfd, const int srcfd, const int dstfd);
+/* 
+ * Checks if the bandwidth limit for the bw-object in "rule" has overflown.
+ * If it has overflown, "overflowok" is set to the time when we can again do
+ * i/o over the io objects using this rule.
  *
- * If "bw" is not in overflowmode, this function resets the counters
- * related to determining whether to much bandwidth has been
- * used (bw.iotime and bw.bytes).
- *
- * Returns:
- *      If "bw" is in overflow mode: til what time we have to wait until
- *      we can again transfer data.  The memory used for this value is
- *      "overflow".
- *
- *      If "bw" is not in overflow mode: NULL.  "overflow" is not touched.
+ * Return true if bw has overflown.  In this case, "overflowok" will be set.
+ * Returns false if bw has not overflown.
  */
+
 
 int
 session_use(shmem_object_t *ss, const int lock);
@@ -2102,15 +2074,6 @@ int sockd_handledsignals(void);
  * Returns 1 if a signalhandler was called, 0 otherwise.
  */
 
-
-#ifdef DEBUG
-void
-printfd(const struct sockd_io_t *io, const char *prefix);
-/*
- * prints the contents of "io".  "prefix" is the string prepended
- * to the printing. (typically "received" or "sent".)
- */
-#endif /* DEBUG */
 
 struct in_addr
 getoutaddr(const struct in_addr src, const struct in_addr dst);
@@ -2312,5 +2275,13 @@ send_response(int s, const struct response_t *response);
 
 #endif /* !HAVE_NEGOTIATE_PHASE */
 
+#if HAVE_LIVEDEBUG 
+void 
+socks_flushrb(void);
+/*
+ * Flushes the ringbuffer to log(s).
+ */
+
+#endif /* HAVE_LIVEDEBUG */
 
 #endif /* !_SOCKD_H_ */

@@ -1,4 +1,4 @@
-.\" $Id: socksify.1,v 1.8 2011/05/30 17:35:25 michaels Exp $
+.\" $Id: socksify.1,v 1.10 2011/07/18 11:45:48 michaels Exp $
 .\"
 .\" Copyright (c) 2009
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -97,9 +97,9 @@ the corresponding socks version, v4 or v5.
 Note that if the socks server requires any form of authentication, you
 need to use \fBSOCKS5_SERVER\fP, as v4 does not support authentication.
 .TP
-\fBHTTP_PROXY\fP
+\fBHTTP_CONNECT_PROXY\fP
 This variable can be used to specify the location of a HTTP proxy supporting
-the connect command.  The format used to specify a HTTP proxy is
+the connect request.  The format used to specify a HTTP proxy is
 http://<ipaddress>:<port>.
 .TP
 \fBUPNP_IGD\fP
@@ -107,6 +107,13 @@ This variable can be used to specify the location of a UPNP enabled
 IGD router.  There are three possible value for this variable: a
 full URL, the interface name the router is reachable via, or the value
 "broadcast" to search for the IGD on all appropriate interfaces.
+
+.TP
+\fINote that if any of the above environment variables, indicating the
+\fIproxy server to use are set, the Dante client will not parse the
+\fI\fBsocks.conf\fP file.\fP
+
+.TP
 \fBSOCKS_AUTOADD_LANROUTES\fP
 If this variable is set to "no", the client will not try to auto-add
 direct routes for all addresses on the lan.  The default is to add

@@ -51,7 +51,7 @@
 #if HAVE_GSSAPI
 
 static const char rcsid[] =
-   "$Id: method_gssapi.c,v 1.52 2011/05/18 13:48:46 karls Exp $";
+   "$Id: method_gssapi.c,v 1.55 2011/06/27 13:18:05 michaels Exp $";
 
 static negotiate_result_t
 recv_gssapi_auth_ver(int s, struct request_t *request,
@@ -291,8 +291,8 @@ recv_gssapi_auth_token(s, request, state)
    sockd_priv(SOCKD_PRIV_GSSAPI, PRIV_OFF);
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
-      snprintf(state->emsg, sizeof(state->emsg),
-      "%s: gss_acquire_cred(): %s", function, emsg);
+      snprintf(state->emsg, sizeof(state->emsg), "%s: gss_acquire_cred(): %s",
+               function, emsg);
 
       CLEAN_GSS_AUTH(client_name, server_name, server_creds);
       return NEGOTIATE_ERROR;
@@ -362,7 +362,7 @@ recv_gssapi_auth_token(s, request, state)
                (long)rc,
                (unsigned long)buflen,
                buflen == 1 ? "" : "s",
-               errnostr(errno));
+               strerror(errno));
 
       CLEAN_GSS_AUTH(client_name, server_name, server_creds);
       return NEGOTIATE_ERROR;
@@ -664,7 +664,7 @@ recv_gssapi_enc_token(s, request, state)
                 (long)rc,
                 (unsigned long)buflen,
                 buflen == 1 ? "" : "s",
-                errnostr(errno));
+                strerror(errno));
 
       CLEAN_GSS_TOKEN(output_token);
       return NEGOTIATE_ERROR;
@@ -892,7 +892,7 @@ recv_gssapi_packet_token(s, request, state)
 
    /* Negotiation finished => set connection state as protected */
    if (request->auth->mdata.gssapi.state.protection)
-      request->auth->mdata.gssapi.state.encryption = GSSAPI_ENCRYPT;
+      request->auth->mdata.gssapi.state.wrap = 1;
 
    return NEGOTIATE_FINISHED;
 }

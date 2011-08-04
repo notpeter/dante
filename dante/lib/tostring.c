@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.94 2011/06/15 15:48:31 michaels Exp $";
+"$Id: tostring.c,v 1.96 2011/08/01 09:04:35 michaels Exp $";
 
 static const char *stripstring = ", \t\n";
 
@@ -739,9 +739,13 @@ string2udpheader(data, len, header)
    data += sizeof(header->frag);
    len -= sizeof(header->frag);
 
-   if (mem2sockshost(&header->host, (const unsigned char *)data, len,
-   PROXY_SOCKS_V5) == NULL)
+   if (mem2sockshost(&header->host,
+                     (const unsigned char *)data,
+                     len,
+                     PROXY_SOCKS_V5) == NULL) {
+      bzero(header, sizeof(*header));
       return NULL;
+   }
 
    return header;
 }
@@ -869,25 +873,6 @@ atype2string(atype)
    /* NOTREACHED */
 }
 
-const char *
-errnostr(err)
-   const int err;
-{
-   const int errno_s = errno;
-   char *errstr;
-
-   if (err == 0)
-      return "no system error";
-
-   errstr = strerror(err);
-
-   if (errno != errno_s
-   &&  errno != EINVAL)
-      errno  = errno_s; /* don't expect strerror(3) to change errno normally. */
-
-   return errstr;
-}
-
 #if HAVE_GSSAPI
 const char *
 gssapiprotection2string(protection)
@@ -1006,6 +991,26 @@ loglevel2string(loglevel)
          SWARNX(loglevel);
          return "uknown loglevel";
    }
+}
+
+#undef strerror
+const char *
+errnostr(err)
+   const int err;
+{
+   const int errno_s = errno;
+   char *errstr;
+
+   if (err == 0)
+      return "no system error";
+
+   errstr = strerror(err);
+
+   if (errno != errno_s
+   &&  errno != EINVAL)
+      errno  = errno_s; /* don't expect strerror(3) to change errno normally. */
+
+   return errstr;
 }
 
 
@@ -1299,6 +1304,7 @@ privop2string(op)
    /* NOTREACHED */
    SERRX(op);
 }
+
 
 #if !HAVE_PRIVILEGES
 char *

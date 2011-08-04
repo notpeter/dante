@@ -41,6 +41,22 @@
  *
  */
 
-/* $Id: upnp.h,v 1.3 2009/07/09 14:04:18 karls Exp $ */
+/* $Id: upnp.h,v 1.5 2011/07/21 14:09:19 karls Exp $ */
 
+#if HAVE_LIBMINIUPNP
+#include <miniupnpc/miniupnpc.h>
+#include <miniupnpc/upnpcommands.h>
+#include <miniupnpc/upnperrors.h>
+#endif /* HAVE_LIBMINIUPNP */
+
+void upnpcleanup(const int s);
+/*
+ * cleanup upnp-stuff related to the socket "s", mostly involving removal
+ * of port mappings.
+ * If "s" is -1, clean up for all known sockets.
+ */
+
+
+#if !HAVE_LIBMINIUPNP
 #define UPNPCOMMAND_SUCCESS 0
+#endif /* !HAVE_LIBMINIUPNP */

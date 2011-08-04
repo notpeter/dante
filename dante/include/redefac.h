@@ -436,6 +436,10 @@
 #define HAVE_LINUX_GLIBC_WORKAROUND 0
 #endif
 
+#ifndef HAVE_LIVEDEBUG
+#define HAVE_LIVEDEBUG 0
+#endif
+
 #ifndef HAVE_MALLOC_H
 #define HAVE_MALLOC_H 0
 #endif

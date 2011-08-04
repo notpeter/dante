@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: rule.c,v 1.68 2011/06/13 08:39:27 michaels Exp $";
+"$Id: rule.c,v 1.74 2011/07/27 12:16:53 michaels Exp $";
 
 #if HAVE_LIBWRAP
 extern jmp_buf tcpd_buf;
@@ -332,9 +332,8 @@ showrule(_rule, isclientrule)
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
-   if (methodisset(AUTHMETHOD_BSDAUTH, rule.state.methodv,
-       rule.state.methodc))
-      slog(LOG_INFO, "bsdauth.stylename: %s", rule.state.bsdauthstylename);
+   if (methodisset(AUTHMETHOD_BSDAUTH, rule.state.methodv, rule.state.methodc))
+      slog(LOG_DEBUG, "bsdauth.stylename: %s", rule.state.bsdauthstylename);
 #endif /* HAVE_BSDAUTH */
 
 #if HAVE_LDAP
@@ -423,7 +422,8 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
    sockd_handledsignals();
 
-   slog(LOG_DEBUG, "%s: %s -> %s, command %s, s %d (from %s, accepted on %s)",
+   slog(LOG_DEBUG,
+        "%s: %s -> %s, command %s, socket %d (from %s, accepted on %s)",
         function,
         src == NULL ? "0.0.0.0" : sockshost2string(src, srcstr, sizeof(srcstr)),
         dst == NULL ? "0.0.0.0" : sockshost2string(dst, dststr, sizeof(dststr)),
@@ -674,7 +674,11 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
       }
       else
          if (rule->verdict == VERDICT_BLOCK)
-            continue; /* don't have complete address. */
+            /*
+             * don't have complete address, so see if it's possible to find a 
+             * pass rule matching what info we have.
+             */
+            continue;
 
       /*
        * Does this rule's authentication requirements match the current
@@ -744,7 +748,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
          for (i = 0; i < methodc; ++i) {
             if (methodisset(methodv[i], rule->state.methodv,
             rule->state.methodc)) {
-               if (sockscf.option.debug > 1)
+               if (sockscf.option.debug >= DEBUG_VERBOSE)
                   slog(LOG_DEBUG,
                        "%s: no match yet for method %s, command %s ...",
                        function,
@@ -790,27 +794,26 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                         strncpy((char *)srcauth->mdata.rfc931.name,
                                 eval_user(&libwraprequest),
                                 sizeof(srcauth->mdata.rfc931.name) - 1);
-
-                        slog(LOG_DEBUG,
-                             "%s: rfc931 name gotten is \"%s\"",
-                             function, srcauth->mdata.rfc931.name);
-
-                        /* libwrap sets it to unknown if no identreply. */
+                
+                        /* libwrap sets this if no identreply. */
                         if (strcmp((char *)srcauth->mdata.rfc931.name,
                         STRING_UNKNOWN) == 0) {
                            *srcauth->mdata.rfc931.name = NUL;
                            slog(LOG_DEBUG, "%s: no rfc931 name", function);
                         }
                         else if (srcauth->mdata.rfc931.name[
-                        sizeof(srcauth->mdata.rfc931.name) - 1] != NUL) {
+                               sizeof(srcauth->mdata.rfc931.name) - 1] != NUL) {
                            srcauth->mdata.rfc931.name[
                               sizeof(srcauth->mdata.rfc931.name) - 1] = NUL;
 
-                           swarnx("%s: rfc931 name \"%s\" truncated",
-                           function, srcauth->mdata.rfc931.name);
+                           slog(LOG_INFO, "%s: rfc931 name \"%s...\" too long",
+                                function, srcauth->mdata.rfc931.name);
 
-                           *srcauth->mdata.rfc931.name = NUL; /* unusable */
+                           *srcauth->mdata.rfc931.name = NUL; /* unusable. */
                         }
+                        else
+                           slog(LOG_DEBUG, "%s: rfc931 name gotten is \"%s\"",
+                                function, srcauth->mdata.rfc931.name);
                      }
 
                      if (*srcauth->mdata.rfc931.name != NUL)
@@ -1074,13 +1077,14 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
    }
 
    if (rule == NULL) {
-      slog(LOG_DEBUG,
-           "%s: no rules matched, using default block rule", function);
-
       snprintf(msg, msgsize, "no rules matched, using default block rule");
+      slog(LOG_DEBUG, "%s: %s", function, msg);
 
       rule = &defrule;
    }
+   else 
+      slog(LOG_DEBUG, "%s: rule matched: %lu",
+           function, (unsigned long)rule->number);
 
    *match = *rule;
 
@@ -1162,7 +1166,7 @@ showlist(list, prefix)
 
    list2string(list, buf, sizeof(buf));
    if (strlen(buf) > 0)
-      slog(LOG_INFO, "%s%s", prefix, buf);
+      slog(LOG_DEBUG, "%s%s", prefix, buf);
 }
 
 static int
@@ -1503,7 +1507,7 @@ addrule(newrule, rulebase, isclientrule)
                if (isclientrule)
                   if (rule->user != NULL || rule->group != NULL) {
                      if (*methodc == 1) {
-                        if (sockscf.option.debug > 1)
+                        if (sockscf.option.debug >= DEBUG_VERBOSE)
                            slog(LOG_DEBUG, "%s: let checkrules() error out "
                                            "about username in gssapi-based "
                                            "client-rule",
@@ -1837,5 +1841,5 @@ showlog(log)
 {
    char buf[1024];
 
-   slog(LOG_INFO, "log: %s", logs2string(log, buf, sizeof(buf)));
+   slog(LOG_DEBUG, "log: %s", logs2string(log, buf, sizeof(buf)));
 }

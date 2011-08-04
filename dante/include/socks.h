@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.254 2011/05/18 13:48:45 karls Exp $ */
+/* $Id: socks.h,v 1.256 2011/07/20 14:16:08 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -423,14 +423,6 @@ clientinit(void);
 /*
  * initializes client state, reads configfile, etc.
  */
-
-void upnpcleanup(const int s);
-/*
- * cleanup upnp-stuff related to the socket "s", mostly involving removal
- * of port mappings.
- * If "s" is -1, clean up for all known sockets.
- */
-
 
 #if !HAVE_OSF_OLDSTYLE
 int Raccept(int, struct sockaddr *, socklen_t *);
@@ -867,6 +859,25 @@ HAVE_PROT_FREAD_0
 sys_fread(HAVE_PROT_FREAD_1, HAVE_PROT_FREAD_2, HAVE_PROT_FREAD_3,
       HAVE_PROT_FREAD_4);
 #endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
+
+#if HAVE_DARWIN
+
+HAVE_PROT_READ_0
+sys_read_nocancel(HAVE_PROT_READ_1, HAVE_PROT_READ_2, HAVE_PROT_READ_3);
+HAVE_PROT_CONNECT_0
+sys_connect_nocancel(HAVE_PROT_CONNECT_1, HAVE_PROT_CONNECT_2,
+   HAVE_PROT_CONNECT_3 namelen);
+HAVE_PROT_RECVFROM_0
+sys_recvfrom_nocancel(HAVE_PROT_RECVFROM_1, HAVE_PROT_RECVFROM_2,
+   HAVE_PROT_RECVFROM_3, HAVE_PROT_RECVFROM_4, HAVE_PROT_RECVFROM_5,
+   HAVE_PROT_RECVFROM_6);
+HAVE_PROT_SENDTO_0
+sys_sendto_nocancel(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
+   HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6);
+HAVE_PROT_WRITE_0
+sys_write_nocancel(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
+
+#endif /* HAVE_DARWIN */
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
 

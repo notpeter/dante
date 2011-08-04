@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.148 2011/06/20 13:15:07 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.151 2011/07/18 13:58:14 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
 .\"               2008, 2009, 2010, 2011
@@ -101,7 +101,7 @@ Normally you should not need to set this variable.
 .IP \fBcompatibility\fP
 With the \fBsameport\fP keyword, the server attempts to use the same
 port on the server's external side as the client used on the server's internal  
-side.  This is normaly the default, but when this option is given it
+side.  This is normally the default, but when this option is given it
 will be done with privileged ports also.
 
 The \fBdraft-5.05\fP keyword will enable usage of parts of the socks
@@ -246,7 +246,8 @@ The number of seconds a client can spend negotiating with the
 will close the connection to the client.  The default is 30.
 Set it to 0 for forever, though that is strongly discouraged.
 .IP \fBtimeout.tcp_fin_wait\fP
-The timeout for the equivalent of TCP's FIN-WAIT-2.
+The timeout for the equivalent of TCP's FIN-WAIT-2.  The default is 0, 
+which means use the systems default (normally, no timeout).
 .IP \fBudp.connectdst\fP
 Enables or disables whether the server should attempt connecting UDP
 sockets to the destination.  Valid values are \fByes\fP and \fBno\fP.
@@ -380,7 +381,7 @@ The list of condition keywords is:
 The list of action keywords is: \fBbandwidth\fP, \fBlibwrap\fP,
 \fBlog\fP, \fBmaxsessions\fP, \fBredirect\fP,
 \fBtimeout.connect\fP, \fBtimeout.negotiate\fP, \fBtimeout.io\fP,
-and \fBudp.portrange\fP.
+\fBtimeout.tcp_fin_wait\fP, and \fBudp.portrange\fP.
 
 The format and content of the the keyword as used in client-rules or
 socks-rules is identical, but client-rules can contain only a subset of
@@ -435,6 +436,22 @@ A portrange can also be given as "port <start #> - <end #>", which
 will match all port numbers within the range <start #> and <end #>.
 
 The default is all ports.
+
+.IP \fBredirect\fP
+The source and/or destination can be redirected using the
+\fBredirect\fP statement.
+Requires the redirect module.
+
+The syntax of the redirect statement is
+as follows:
+
+.D1
+\fBredirect\fP from: \fBADDRESS\fP
+
+\".D1
+\"\fBredirect\fP to: \fBADDRESS\fP
+
+See the redirect manual for detailed information.
 
 .IP \fBtimeout.negotiate\fP
 See the global \fBtimeout.negotiate\fP option.
@@ -492,7 +509,8 @@ The default is all ports.
 
 .IP \fBprotocol\fP
 The rule applies to the given protocols.  Valid values are
-\fBtcp\fP and \fBudp\fP.  The default is all supported protocols.
+\fBtcp\fP and \fBudp\fP.  The default is all supported protocols that
+can apply to the given \fBcommands\fP.
 .IP \fBproxyprotocol\fP
 The rule applies to requests using the given proxy protocol.
 Valid proxy protocols are \fBsocks_v4\fP and \fBsocks_v5\fP.
@@ -518,6 +536,8 @@ The semantics of \fBfrom\fP and \fBto\fP vary according to
 See the global \fBtimeout.connect\fP option.
 .IP \fBtimeout.io\fP
 See the global \fBtimeout.io\fP option.
+.IP \fBtimeout.tcp_fin_wait\fP
+See the global \fBtimeout.tcp_fin_wait\fP option.
 
 .IP \fBto\fP
 The rule applies to requests going to or using the address given as value.

@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.68 2011/05/18 13:48:46 karls Exp $";
+"$Id: protocol.c,v 1.69 2011/07/28 13:54:14 michaels Exp $";
 
 unsigned char *
 sockshost2mem(host, mem, version)
@@ -122,6 +122,7 @@ mem2sockshost(host, mem, len, version)
       case PROXY_SOCKS_V5:
          if (len < sizeof(host->atype))
             return NULL;
+
          memcpy(&host->atype, mem, sizeof(host->atype));
          mem += sizeof(host->atype);
          len -= sizeof(host->atype);
@@ -130,6 +131,7 @@ mem2sockshost(host, mem, len, version)
             case SOCKS_ADDR_IPV4:
                if (len < sizeof(host->addr.ipv4))
                   return NULL;
+
                memcpy(&host->addr.ipv4, mem, sizeof(host->addr.ipv4));
                mem += sizeof(host->addr.ipv4);
                len -= sizeof(host->addr.ipv4);
@@ -155,12 +157,12 @@ mem2sockshost(host, mem, len, version)
             }
 
             case SOCKS_ADDR_IPV6:
-               slog(LOG_INFO, "%s: IPv6 not supported", function);
+               slog(LOG_DEBUG, "%s: IPv6 not supported", function);
                return NULL;
 
             default:
-               slog(LOG_INFO, "%s: unknown atype value: %d",
-               function, host->atype);
+               slog(LOG_DEBUG, "%s: unknown atype value: %d",
+                    function, host->atype);
                return NULL;
          }
 
