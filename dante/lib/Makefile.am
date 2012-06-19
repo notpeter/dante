@@ -1,23 +1,34 @@
 lib_LTLIBRARIES = libsocks.la
-libsocks_la_SOURCES = config_parse.c config_scan.c Raccept.c Rbind.c \
-	Rgetpeername.c Rgetsockname.c Rgetsockopt.c Rrresvport.c io.c    \
-	address.c authneg.c client.c clientconfig.c clientprotocol.c \
-	udp.c userio.c connectchild.c config.c  \
-	log.c protocol.c socket.c udp_util.c util.c Rbindresvport.c  \
-	Rconnect.c Rgethostbyname.c debug.c Rcompat.c \
-	hostcache.c broken.c serr.c httpproxy.c \
-	tostring.c addressmatch.c Rlisten.c upnp.c gssapi.c iobuf.c
+libsocks_la_SOURCES = config_parse.c config_scan.c Raccept.c Rbind.c	\
+   Rbindresvport.c Rcompat.c Rconnect.c Rgethostbyname.c		\
+   Rgetpeername.c Rgetsockname.c Rgetsockopt.c Rlisten.c Rrresvport.c	\
+   address.c addressmatch.c authneg.c broken.c client.c			\
+   clientconfig.c clientprotocol.c config.c connectchild.c debug.c	\
+   gssapi.c hostcache.c hostid.c httpproxy.c io.c iobuf.c log.c		\
+   protocol.c serr.c sockaddr.c socket.c socketopt.c sockopt_gen.c	\
+   tostring.c udp.c udp_util.c upnp.c userio.c util.c
+
+EXTRA_libsocks_la_SOURCES = ../libscompat/daemon.c		\
+   ../libscompat/difftime.c ../libscompat/getifaddrs.c		\
+   ../libscompat/hstrerror.c ../libscompat/inet_aton.c		\
+   ../libscompat/inet_ntoa.c ../libscompat/inet_pton.c		\
+   ../libscompat/issetugid.c ../libscompat/memmove.c		\
+   ../libscompat/pselect.c ../libscompat/seteuid.c		\
+   ../libscompat/setproctitle.c ../libscompat/sockatmark.c	\
+   ../libscompat/strlcpy.c ../libscompat/strvis.c		\
+   ../libscompat/vsyslog.c
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info
-libsocks_la_LDFLAGS = -version-info 1:1:1
-libsocks_la_LIBADD = ../libscompat/libscompat.la @DLIBDEPS@
+libsocks_la_LDFLAGS = -version-info 1:1:1 @MAPOPT@
+libsocks_la_LIBADD = @LIBSCSRC@ @DLIBDEPS@
+libsocks_la_DEPENDENCIES = @LIBSCSRC@
 
 INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
 
 AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=0
 
-EXTRA_DIST = config_parse.y config_scan.l
+EXTRA_DIST = config_parse.y config_scan.l sockopt_tpl.c
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
 
@@ -68,13 +79,13 @@ SUFFIXES = .ln
 LINTFILESa = $(libsocks_la_SOURCES:.c=.ln)
 LINTFILESb = $(LINTFILESa:.y=.ln)
 LINTFILES = $(LINTFILESb:.l=.ln)
-libsocks_la_DEPENDENCIES = $(LINTFILES) llib-lsocks.ln
+libsocks_la_DEPENDENCIES += $(LINTFILES) llib-lsocks.ln
 
 CLEANFILES = $(LINTFILES)
 
 .c.ln:
-	$(LINT) $(LINTPASS1) $(LINTFLAGS) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(AM_CFLAGS) $< > $@.lint 2>&1
+	-$(LINT) $(LINTPASS1) $(LINTFLAGS) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(AM_CFLAGS) $< > $@.lint 2>&1
 
 llib-lsocks.ln: $(LINTFILES)
-	$(LINT) $(LINTPASS2) $(LINTFLAGS) $(LINTLIBOPT)socks $(LINTFILES) > $@.lint 2>&1
+	-$(LINT) $(LINTPASS2) $(LINTFLAGS) $(LINTLIBOPT)socks $(LINTFILES) > $@.lint 2>&1
 endif #RUNLINT

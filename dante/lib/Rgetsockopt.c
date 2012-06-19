@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockopt.c,v 1.5 2011/05/18 13:48:45 karls Exp $";
+"$Id: Rgetsockopt.c,v 1.6 2011/09/24 17:44:41 michaels Exp $";
 
 int
 Rgetsockopt(s, level, optname, optval, optlen)
@@ -55,7 +55,7 @@ Rgetsockopt(s, level, optname, optval, optlen)
    socklen_t *optlen;
 {
    const char *function = "Rgetsockopt()";
-   struct socksfd_t socksfd;
+   socksfd_t socksfd;
 
    if (optname != SO_ERROR)
       return getsockopt(s, level, optname, optval, optlen);

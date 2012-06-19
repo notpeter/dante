@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
+ *               2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +47,7 @@
 #include "upnp.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.74 2011/07/21 14:09:19 karls Exp $";
+"$Id: Rgetsockname.c,v 1.82 2012/06/01 20:23:05 karls Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -55,8 +56,8 @@ Rgetsockname(s, name, namelen)
    socklen_t *namelen;
 {
    const char *function = "Rgetsockname()";
-   struct socksfd_t socksfd;
-   struct sockaddr addr;
+   socksfd_t socksfd;
+   struct sockaddr_storage addr;
 
    clientinit();
 
@@ -72,7 +73,7 @@ Rgetsockname(s, name, namelen)
       if (ADDRISBOUND(TOIN(&socksfd.remote)))
          addr = socksfd.remote; /* already have it. */
       else {
-         struct socksfd_t *p;
+         socksfd_t *p;
          char straddr[INET_ADDRSTRLEN];
          int rc;
 
@@ -87,13 +88,13 @@ Rgetsockname(s, name, namelen)
             return -1;
          }
 
-         slog(LOG_DEBUG, "%s: upnp controlpoint's external ip address is %s",
+         slog(LOG_DEBUG, "%s: upnp control point's external ip address is %s",
          function, straddr);
 
-         if (inet_pton(socksfd.remote.sa_family,
+         if (inet_pton(TOIN(&socksfd.remote)->sin_family,
          straddr, &TOIN(&socksfd.remote)->sin_addr) != 1) {
             swarn("%s: could not convert %s, af %d, to network address",
-            function, straddr, socksfd.remote.sa_family);
+            function, straddr, TOIN(&socksfd.remote)->sin_family);
             return -1;
          }
 
@@ -170,11 +171,8 @@ Rgetsockname(s, name, namelen)
              */
 
             addr = socksfd.remote;
-            /* LINTED pointer casts may be troublesome */
-            TOIN(&addr)->sin_family      = AF_INET;
-            /* LINTED pointer casts may be troublesome */
+            SET_SOCKADDR(TOSA(&addr), AF_INET);
             TOIN(&addr)->sin_addr.s_addr = htonl(INADDR_ANY);
-            /* LINTED pointer casts may be troublesome */
             TOIN(&addr)->sin_port        = htons(0);
             break;
 
@@ -183,8 +181,8 @@ Rgetsockname(s, name, namelen)
       }
    }
 
-   *namelen = MIN(*namelen, (socklen_t)sizeof(addr));
-   memcpy(name, &addr, (size_t)*namelen);
+   *namelen = MIN(*namelen, sockaddr2salen(TOSA(&addr)));
+   sockaddrcpy(name, TOSA(&addr), (size_t)*namelen);
 
    return 0;
 }

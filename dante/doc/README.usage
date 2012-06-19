@@ -1,4 +1,4 @@
-$Id: README.usage,v 1.9 2009/08/04 17:22:20 karls Exp $
+$Id: README.usage,v 1.10 2012/06/01 19:59:26 karls Exp $
 
 The socks package can be used in two ways.
 
@@ -22,7 +22,7 @@ Static Compilation
 
 	If the source code for an application is available it can be
 changed to use socks, even if it is not linked dynamically.
-Several systemcalls and librarycalls must be changed to use the
+Several system calls and library calls must be changed to use the
 socksified versions instead of the standard ones.  The application
 is then linked with the libsocks library in the distribution (-lsocks,
 not -ldsocks).

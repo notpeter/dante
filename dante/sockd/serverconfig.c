@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011
+ *               2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,12 +44,10 @@
 
 #include "common.h"
 
-#include "ifaddrs_compat.h"
-
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.408 2011/07/16 11:55:15 michaels Exp $";
+"$Id: serverconfig.c,v 1.435 2012/06/01 20:23:06 karls Exp $";
 
-struct config_t sockscf;
+struct config sockscf;
 const int socks_configtype = CONFIGTYPE_SERVER;
 
 
@@ -64,7 +62,7 @@ do {                                                                           \
 #define NEWINTERNAL(argc, argv, ifname, sa, protocol)                          \
 do {                                                                           \
    slog(LOG_DEBUG, "%s: adding address %s on nic %s to the internal list",     \
-   function, sockaddr2string(&sa, NULL, 0), ifname);                           \
+        function, sockaddr2string(TOSA(&sa), NULL, 0), ifname);                \
                                                                                \
    if (((argv) = realloc((argv), sizeof((*argv)) * ((++argc)))) == NULL)       \
       yyerror(NOMEM);                                                          \
@@ -79,7 +77,7 @@ do {                                                                           \
 #define NEWINTERNAL(argc, argv, ifname, sa, protocol)                          \
 do {                                                                           \
    slog(LOG_DEBUG, "%s: adding address %s on nic %s to the internal list",     \
-   function, sockaddr2string(&sa, NULL, 0), ifname);                           \
+        function, sockaddr2string(TOSA(&sa), NULL, 0), ifname);                \
                                                                                \
    if (((argv) = realloc((argv), sizeof((*argv)) * ((++argc)))) == NULL)       \
       yyerror(NOMEM);                                                          \
@@ -93,58 +91,58 @@ do {                                                                           \
 
 void
 addinternal(addr, protocol)
-   const struct ruleaddr_t *addr;
+   const ruleaddr_t *addr;
    const int protocol;
 {
    const char *function = "addinternal()";
-   struct sockaddr sa;
+   struct sockaddr_storage sa;
    char ifname[MAXIFNAMELEN];
    int changesupported;
 
-   if (protocol == SOCKS_TCP
-   &&  sockscf.state.inited
-   &&  sockscf.option.serverc > 1)
-      changesupported = 0;
-   else
+   if (sockscf.option.serverc == 1
+   ||  sockscf.state.inited   == 0
+   ||  protocol               == SOCKS_UDP)
       changesupported = 1;
+   else
+      changesupported = 0;
 
-   slog(LOG_DEBUG, "%s: (%s, %s)",
-   function, ruleaddr2string(addr, NULL, 0), protocol2string(protocol));
+   slog(LOG_DEBUG, "%s: (%s, %s).  Change supported: %d",
+        function,
+        ruleaddr2string(addr, NULL, 0),
+        protocol2string(protocol),
+        changesupported);
 
    switch (addr->atype) {
        case SOCKS_ADDR_IPV4: {
-         struct sockshost_t host;
+         sockshost_t host;
 
          if (addr->addr.ipv4.mask.s_addr != htonl(0xffffffff))
             yyerror("no netmask is necessary for an internal address, "
-                    "but if a mask is given, it must be 32, not %d",
+                    "but if a mask is given it must be 32, not %d",
                     bitcount(addr->addr.ipv4.mask.s_addr));
 
-         sockshost2sockaddr(ruleaddr2sockshost(addr, &host, protocol), &sa);
+         sockshost2sockaddr(ruleaddr2sockshost(addr, &host, protocol),
+                            TOSA(&sa));
          if (!ADDRISBOUND(TOIN(&sa)))
             yyerror("%s: address %s is not a valid internal address",
-            function, sockshost2string(&host, NULL, 0));
+                    function, sockshost2string(&host, NULL, 0));
 
-         if (addrindex_on_listenlist(sockscf.internalc, sockscf.internalv, &sa,
-         protocol) == -1) {
+         if (addrindex_on_listenlist(sockscf.internalc,
+                                     sockscf.internalv,
+                                     TOSA(&sa),
+                                     protocol) == -1) {
             if (!changesupported) {
                swarnx("can't change internal addresses once running, "
                       "and %s looks like a new address.  Ignored",
-                      sockaddr2string(&sa, NULL, 0));
+                      sockaddr2string(TOSA(&sa), NULL, 0));
 
                break;
             }
          }
-         else {
-            if (changesupported)
-               slog(LOG_DEBUG, "%s: address %s is already on the internal list "
-                               "of addresses to accept clients on.  Ignored",
-                               function, sockaddr2string(&sa, NULL, 0));
-            /* else; probably sighup, just ignore it. */
+         else
             break;
-         }
 
-         sockaddr2ifname(&sa, ifname, sizeof(ifname));
+         sockaddr2ifname(TOSA(&sa), ifname, sizeof(ifname));
          NEWINTERNAL(sockscf.internalc,
                      sockscf.internalv,
                      ifname,
@@ -156,16 +154,21 @@ addinternal(addr, protocol)
       case SOCKS_ADDR_DOMAIN: {
          int i, p;
 
-         for (i = 0; hostname2sockaddr(addr->addr.domain, i, &sa) != NULL; ++i){
-            TOIN(&sa)->sin_port
-            = protocol == SOCKS_TCP ? addr->port.tcp : addr->port.udp;
+         for (i = 0;
+              hostname2sockaddr(addr->addr.domain, i, TOSA(&sa)) != NULL;
+              ++i) {
+
+            TOIN(&sa)->sin_port = (protocol == SOCKS_TCP ?
+                                       addr->port.tcp : addr->port.udp);
 
             if ((p = addrindex_on_listenlist(sockscf.internalc,
-            sockscf.internalv, &sa, protocol)) == -1) {
+                                             sockscf.internalv,
+                                             TOSA(&sa),
+                                             protocol)) == -1) {
                if (!changesupported) {
-                  swarnx("can't change internal addresses once running, "
+                  swarnx("can't change internal addresses once running "
                          "and %s looks like a new address.  Ignored",
-                         sockaddr2string(&sa, NULL, 0));
+                         sockaddr2string(TOSA(&sa), NULL, 0));
 
                   continue;
                }
@@ -176,13 +179,13 @@ addinternal(addr, protocol)
                                   "already on the internal list (#%d) for "
                                   "addresses to accept clients on.  Ignored",
                                   function,
-                                  sockaddr2string(&sa, NULL, 0),
+                                  sockaddr2string(TOSA(&sa), NULL, 0),
                                   addr->addr.domain,
                                   p);
                continue;
             }
 
-            sockaddr2ifname(&sa, ifname, sizeof(ifname));
+            sockaddr2ifname(TOSA(&sa), ifname, sizeof(ifname));
             NEWINTERNAL(sockscf.internalc,
                         sockscf.internalv,
                         ifname,
@@ -211,17 +214,18 @@ addinternal(addr, protocol)
             && iface->ifa_addr->sa_family == AF_INET) {
                isvalidif = 1;
 
-               sa = *iface->ifa_addr;
+               sockaddrcpy(TOSA(&sa), iface->ifa_addr, sizeof(sa));
                TOIN(&sa)->sin_port
                = protocol == SOCKS_TCP ? addr->port.tcp : addr->port.udp;
 
                if (addrindex_on_listenlist(sockscf.internalc,
-               sockscf.internalv, &sa, protocol) == -1) {
+               sockscf.internalv, TOSA(&sa), protocol) == -1) {
                   if (!changesupported) {
                      swarnx("can't change internal addresses once running, "
                             "and %s, expanded from the ifname \"%s\" looks "
                             "like a new address.  Ignored",
-                            sockaddr2string(&sa, NULL, 0), addr->addr.ifname);
+                            sockaddr2string(TOSA(&sa), NULL, 0),
+                            addr->addr.ifname);
 
                      continue;
                   }
@@ -232,7 +236,8 @@ addinternal(addr, protocol)
                                      "ifname \"%s\", is already on the "
                                      "internal list for addresses to accept "
                                      "clients on.  Ignored",
-                                     function, sockaddr2string(&sa, NULL, 0),
+                                     function,
+                                     sockaddr2string(TOSA(&sa), NULL, 0),
                                      addr->addr.ifname);
                   continue;
                }
@@ -242,6 +247,8 @@ addinternal(addr, protocol)
                            addr->addr.ifname,
                            sa,
                            protocol);
+
+               continue; /* XXX why not break in this loop? */
             }
          }
 
@@ -260,22 +267,22 @@ addinternal(addr, protocol)
 
 void
 addexternal(addr)
-   const struct ruleaddr_t *addr;
+   const ruleaddr_t *addr;
 {
 
    switch (addr->atype) {
          case SOCKS_ADDR_DOMAIN: {
-            struct sockaddr sa;
+            struct sockaddr_storage sa;
             int i;
 
             for (i = 0;
-                 hostname2sockaddr(addr->addr.domain, i, &sa) != NULL;
+                 hostname2sockaddr(addr->addr.domain, i, TOSA(&sa)) != NULL;
                  ++i) {
                NEWEXTERNAL(sockscf.external.addrc, sockscf.external.addrv);
 
                /* LINTED pointer casts may be troublesome */
                TOIN(&sa)->sin_port = addr->port.tcp;
-               sockaddr2ruleaddr(&sa,
+               sockaddr2ruleaddr(TOSA(&sa),
                &sockscf.external.addrv[sockscf.external.addrc - 1]);
             }
 
@@ -314,31 +321,79 @@ resetconfig(exiting)
 {
    const char *function = "resetconfig()";
    const int ismainmother = (pidismother(sockscf.state.pid) == 1);
-   struct route_t *route;
-   struct rule_t *rulev[] = { sockscf.crule, sockscf.srule };
-#if !HAVE_TWO_LEVEL_ACL
-   int isclientrulev[]    = { 1,             0             };
-#endif /* !HAVE_TWO_LEVEL_ACL */
+#if HAVE_SCHED_SETSCHEDULER || HAVE_SCHED_SETAFFINITY
+   const cpusetting_t *cpusetting;
+#endif /* HAVE_SCHED_SETSCHEDULER || HAVE_SCHED_SETAFFINITY */
+
+   route_t *route;
+   rule_t *rulev[]       = { sockscf.crule, sockscf.srule };
+#if !HAVE_SOCKS_RULES
+   int isclientrulev[]   = { 1,             0             };
+#endif /* !HAVE_SOCKS_RULES */
    size_t oldc, i;
    void *tmpmem;
+   int doreset;
 
-#if SOCKS_SERVER
-   /*
-    * internal; don't touch, only settable at start for now.
-    */
-#else /* BAREFOOTD */
-
-   if (sockscf.option.serverc == 1) { /* can not support this with more. */
+   if (sockscf.option.serverc == 1) { /* don't support changing if more. */
       free(sockscf.internalv);
       sockscf.internalv = NULL;
       sockscf.internalc = 0;
    }
-#endif
 
-   /* external addresses can be changed. */
+   /* external addresses can always be changed. */
    free(sockscf.external.addrv);
    sockscf.external.addrv = NULL;
    sockscf.external.addrc = 0;
+
+   free(sockscf.socketoptionv);
+   sockscf.socketoptionv = NULL;
+   sockscf.socketoptionc = 0;
+
+#if HAVE_SCHED_SETSCHEDULER || HAVE_SCHED_SETAFFINITY
+   switch (sockscf.state.type) {
+      case CHILD_MOTHER:
+         cpusetting = &sockscf.cpu.mother;
+         break;
+
+      case CHILD_NEGOTIATE:
+         cpusetting = &sockscf.cpu.negotiate;
+         break;
+
+      case CHILD_REQUEST:
+         cpusetting = &sockscf.cpu.request;
+         break;
+
+      case CHILD_IO:
+         cpusetting = &sockscf.cpu.io;
+         break;
+
+      default:
+         SERRX(sockscf.state.type);
+   }
+#endif /* HAVE_SCHED_SETSCHEDULER || HAVE_SCHED_SETAFFINITY */
+
+   doreset = 0;
+
+
+#if HAVE_SCHED_SETSCHEDULER
+   if (cpusetting->scheduling_isset)
+      doreset = 1;
+#endif /* HAVE_SCHED_SETSCHEDULER */
+
+#if HAVE_SCHED_SETAFFINITY
+   if (cpusetting->affinity_isset)
+      doreset = 1;
+#endif /* HAVE_SCHED_SETAFFINITY */
+
+   if (exiting)
+      doreset = 0;
+
+   if (doreset) {
+      slog(LOG_DEBUG, "%s: resetting to initial cpu settings", function);
+      sockd_setcpusettings(&sockscf.initial.cpu);
+   }
+
+   bzero(&sockscf.cpu, sizeof(sockscf.cpu));
 
    /*
     * delete all old rules, and if we are main mother, also save the list
@@ -346,20 +401,19 @@ resetconfig(exiting)
     * them on exit.
     */
    for (i = 0; i < ELEMENTS(rulev); ++i) {
-      struct rule_t *rule, *next;
+      rule_t *rule, *next;
 
       rule = rulev[i];
       while (rule != NULL) {
          /*
           * Free normal process-local memory.
           */
-         struct linkedname_t *name, *nextname;
 
-#if !HAVE_TWO_LEVEL_ACL
+#if !HAVE_SOCKS_RULES
          if (!isclientrulev[i]) {
             /*
              * All pointers are pointers to the same as in the clientrule,
-             * so it has already been freed, and only the rule itself remains
+             * so it has already been freed and only the rule itself remains
              * to be freed.
              */
 
@@ -369,21 +423,17 @@ resetconfig(exiting)
 
             continue;
          }
-#endif /* !HAVE_TWO_LEVEL_ACL */
+#endif /* !HAVE_SOCKS_RULES */
 
-         name = rule->user;
-         while (name != NULL) {
-            nextname = name->next;
-            free(name);
-            name = nextname;
-         }
+         freelinkedname(rule->user);
+         rule->user = NULL;
 
-         name = rule->group;
-         while (name != NULL) {
-            nextname = name->next;
-            free(name);
-            name = nextname;
-         }
+         freelinkedname(rule->group);
+         rule->group = NULL;
+
+         free(rule->socketoptionv);
+         rule->socketoptionv = NULL;
+         rule->socketoptionc = 0;
 
          if (ismainmother) {
             /*
@@ -414,7 +464,7 @@ resetconfig(exiting)
                                      * (sockscf.oldshmemc + moreoldshmemc)))
                == NULL)
                   swarn("%s: could not allocate memory for old shmids",
-                  function);
+                        function);
                else {
                   size_t i;
 
@@ -424,7 +474,7 @@ resetconfig(exiting)
                      sockscf.oldshmemv[sockscf.oldshmemc++] = moreoldshmemv[i];
 
                      slog(LOG_DEBUG, "%s: saving shmid %ld for later",
-                     function, moreoldshmemv[i].id);
+                          function, moreoldshmemv[i].id);
                   }
                }
             }
@@ -458,38 +508,42 @@ resetconfig(exiting)
       for (oldc = 0; oldc < sockscf.oldshmemc; ++oldc) {
          char fname[PATH_MAX];
 
-         snprintf(fname, sizeof(fname), "%s.%ld",
-         sockscf.shmem_fnamebase, sockscf.oldshmemv[oldc].id);
+         snprintf(fname, sizeof(fname), "%s",
+                  sockd_getshmemname(sockscf.oldshmemv[oldc].id));
 
-         slog(LOG_DEBUG, "%s: deleting shmem segment %ld in file %s",
-         function, sockscf.oldshmemv[oldc].id, fname);
+         slog(LOG_INFO, "%s: deleting shmem segment %ld in file %s",
+              function, sockscf.oldshmemv[oldc].id, fname);
 
          if (unlink(fname) != 0)
             swarn("%s: failed to unlink shmem segment %ld in file %s",
-            function, sockscf.oldshmemv[oldc].id, fname);
+                  function, sockscf.oldshmemv[oldc].id, fname);
       }
    }
 
    /* and routes. */
    route = sockscf.route;
    while (route != NULL) {
-      struct route_t *next = route->next;
+      route_t *next = route->next;
+
+      free(route->socketoptionv);
+      route->socketoptionv = NULL;
+      route->socketoptionc = 0;
 
       free(route);
       route = next;
    }
    sockscf.route = NULL;
 
-   /* routeoptions, read from configfile. */
+   /* routeoptions, read from config file. */
    bzero(&sockscf.routeoptions, sizeof(sockscf.routeoptions));
 
-   /* compat, read from configfile. */
+   /* compat, read from config file. */
    bzero(&sockscf.compat, sizeof(sockscf.compat));
 
-   /* extensions, read from configfile. */
+   /* extensions, read from config file. */
    bzero(&sockscf.extension, sizeof(sockscf.extension));
 
-   /* log; read from configfile, but keep lockfile (sockscf.loglock). */
+   /* log; read from config file, but keep lockfile (sockscf.loglock). */
    for (i = 0; i < sockscf.log.filenoc; ++i) {
       free(sockscf.log.fnamev[i]);
 
@@ -511,19 +565,19 @@ resetconfig(exiting)
    bzero(&sockscf.errlog, sizeof(sockscf.errlog));
 
    /*
-    * option; some only settable at commandline, some only read from configfile.
-    * Those only read from configfile will be reset to default in optioninit().
+    * option; some only settable at commandline, some only read from config file.
+    * Those only read from config file will be reset to default in optioninit().
     */
 
-   /* resolveprotocol, read from configfile. */
+   /* resolveprotocol, read from config file. */
    bzero(&sockscf.resolveprotocol, sizeof(sockscf.resolveprotocol));
 
    /*
-    * socketconfig, read from configfile, but also has defaults set by
+    * socketconfig, read from config file, but also has defaults set by
     * optioninit(), so don't need to touch it.
     */
 
-   /* srchost, read from configfile. */
+   /* srchost, read from config file. */
    bzero(&sockscf.srchost, sizeof(sockscf.srchost));
 
    /* stat: keep it. */
@@ -531,29 +585,29 @@ resetconfig(exiting)
    /* state; keep it. */
 
 #if HAVE_SOLARIS_PRIVS
-   /* uid; need to clear, but need to reopen configfile first. */
+   /* uid; need to clear, but need to reopen config file first. */
 #endif /* HAVE_SOLARIS_PRIVS */
 
-   /* methods, read from configfile. */
+   /* methods, read from config file. */
    bzero(sockscf.methodv, sizeof(sockscf.methodv));
    sockscf.methodc = 0;
 
    bzero(sockscf.clientmethodv, sizeof(sockscf.clientmethodv));
    sockscf.clientmethodc = 0;
 
-   /* timeout, read from configfile. */
+   /* timeout, read from config file. */
    bzero(&sockscf.timeout, sizeof(sockscf.timeout));
 
-   /* childstate, most read from configfile, but some not. */
+   /* childstate, most read from config file, but some not. */
    bzero(&sockscf.child.maxidle, sizeof(sockscf.child.maxidle));
 }
 
 int
 addrisbindable(addr)
-   const struct ruleaddr_t *addr;
+   const ruleaddr_t *addr;
 {
    const char *function = "addrisbindable()";
-   struct sockaddr saddr;
+   struct sockaddr_storage saddr;
    char saddrs[MAX(MAXSOCKSHOSTSTRING, MAXSOCKADDRSTRING)];
    int s;
 
@@ -564,12 +618,14 @@ addrisbindable(addr)
 
    switch (addr->atype) {
       case SOCKS_ADDR_IPV4: {
-         struct sockshost_t host;
+         sockshost_t host;
 
-         sockshost2sockaddr(ruleaddr2sockshost(addr, &host, SOCKS_TCP), &saddr);
-         if (sockd_bind(s, &saddr, 0) != 0) {
+         sockshost2sockaddr(ruleaddr2sockshost(addr, &host, SOCKS_TCP),
+                            TOSA(&saddr));
+
+         if (sockd_bind(s, TOSA(&saddr), 0) != 0) {
             swarn("%s: can't bind address: %s",
-            function, sockaddr2string(&saddr, saddrs, sizeof(saddrs)));
+            function, sockaddr2string(TOSA(&saddr), saddrs, sizeof(saddrs)));
 
             close(s);
             return 0;
@@ -578,7 +634,7 @@ addrisbindable(addr)
       }
 
       case SOCKS_ADDR_IFNAME:
-         if (ifname2sockaddr(addr->addr.ifname, 0, &saddr, NULL) == NULL) {
+         if (ifname2sockaddr(addr->addr.ifname, 0, TOSA(&saddr), NULL) == NULL) {
             swarnx("%s: can't find interface named %s with ip configured",
             function, addr->addr.ifname);
 
@@ -586,9 +642,9 @@ addrisbindable(addr)
             return 0;
          }
 
-         if (sockd_bind(s, &saddr, 0) != 0) {
+         if (sockd_bind(s, TOSA(&saddr), 0) != 0) {
             swarn("%s: can't bind address %s of interface %s",
-            function, sockaddr2string(&saddr, saddrs, sizeof(saddrs)),
+            function, sockaddr2string(TOSA(&saddr), saddrs, sizeof(saddrs)),
             addr->addr.ifname);
 
             close(s);
@@ -597,16 +653,16 @@ addrisbindable(addr)
          break;
 
       case SOCKS_ADDR_DOMAIN: {
-         struct sockshost_t host;
+         sockshost_t host;
 
-         sockshost2sockaddr(ruleaddr2sockshost(addr, &host, SOCKS_TCP), &saddr);
+         sockshost2sockaddr(ruleaddr2sockshost(addr, &host, SOCKS_TCP), TOSA(&saddr));
          if (!ADDRISBOUND(TOIN(&saddr)))
             serrx(EXIT_FAILURE, "%s can not resolve host %s",
             function, sockshost2string(&host, NULL, 0));
 
-         if (sockd_bind(s, &saddr, 0) != 0) {
+         if (sockd_bind(s, TOSA(&saddr), 0) != 0) {
             swarn("%s: can't bind address %s from hostname %s",
-            function, sockaddr2string(&saddr, saddrs, sizeof(saddrs)),
+            function, sockaddr2string(TOSA(&saddr), saddrs, sizeof(saddrs)),
             addr->addr.domain);
 
             close(s);
@@ -625,7 +681,7 @@ addrisbindable(addr)
 
 int
 isreplycommandonly(command)
-   const struct command_t *command;
+   const command_t *command;
 {
 
    if ((command->bindreply || command->udpreply)
@@ -638,7 +694,7 @@ isreplycommandonly(command)
 ssize_t
 addrindex_on_listenlist(listc, listv, addr, protocol)
    const size_t listc;
-   const struct listenaddress_t *listv;
+   const listenaddress_t *listv;
    const struct sockaddr *addr;
    const int protocol;
 {
@@ -648,7 +704,7 @@ addrindex_on_listenlist(listc, listv, addr, protocol)
       if (listv[i].protocol != protocol)
          continue;
 
-      if (sockaddrareeq(addr, &listv[i].addr))
+      if (sockaddrareeq(addr, TOCSA(&listv[i].addr)))
          return (ssize_t)i;
    }
 
@@ -657,28 +713,28 @@ addrindex_on_listenlist(listc, listv, addr, protocol)
 
 ssize_t
 addrindex_on_externallist(external, _addr)
-   const struct externaladdress_t *external;
+   const externaladdress_t *external;
    const struct in_addr _addr;
 {
    const char *function = "addrindex_on_externallist()";
    size_t i;
-   struct sockaddr sa, addr;
+   struct sockaddr_storage sa, addr;
 
    bzero(&addr, sizeof(addr));
-   TOIN(&addr)->sin_family = AF_INET;
+   SET_SOCKADDR(TOSA(&addr), AF_INET);
    TOIN(&addr)->sin_addr   = _addr;
    TOIN(&addr)->sin_port   = htons(0);
 
    for (i = 0; i < external->addrc; ++i) {
       switch (external->addrv[i].atype) {
          case SOCKS_ADDR_IPV4: {
-            struct sockshost_t host;
+            sockshost_t host;
 
             sockshost2sockaddr(ruleaddr2sockshost(&external->addrv[i], &host,
                                                  SOCKS_TCP),
-                               &sa);
+                               TOSA(&sa));
 
-            if (sockaddrareeq(&addr, &sa))
+            if (sockaddrareeq(TOSA(&addr), TOSA(&sa)))
                return (ssize_t)i;
 
             break;
@@ -687,9 +743,9 @@ addrindex_on_externallist(external, _addr)
             size_t ii;
 
             ii = 0;
-            while (hostname2sockaddr(external->addrv[i].addr.domain, ii++, &sa)
+            while (hostname2sockaddr(external->addrv[i].addr.domain, ii++, TOSA(&sa))
             != NULL)
-               if (sockaddrareeq(&addr, &sa))
+               if (sockaddrareeq(TOSA(&addr), TOSA(&sa)))
                   return (ssize_t)i;
 
             break;
@@ -699,9 +755,9 @@ addrindex_on_externallist(external, _addr)
             size_t ii;
 
             ii = 0;
-            while (ifname2sockaddr(external->addrv[i].addr.domain, ii++, &sa,
+            while (ifname2sockaddr(external->addrv[i].addr.domain, ii++, TOSA(&sa),
             NULL) != NULL)
-               if (sockaddrareeq(&addr, &sa))
+               if (sockaddrareeq(TOSA(&addr), TOSA(&sa)))
                   return (ssize_t)i;
 
             break;

@@ -46,10 +46,10 @@
 #include <math.h> /* XXX */
 
 static const char rcsid[] =
-"$Id: bandwidth.c,v 1.27 2011/07/11 12:08:34 michaels Exp $";
+"$Id: bandwidth.c,v 1.28 2011/10/10 12:54:03 karls Exp $";
 
 const char module_bandwidth_version[] =
-"$Id: bandwidth.c,v 1.27 2011/07/11 12:08:34 michaels Exp $";
+"$Id: bandwidth.c,v 1.28 2011/10/10 12:54:03 karls Exp $";
 
 
 void
@@ -92,9 +92,6 @@ bw_update(bw, bwused, bwusedtime, lock)
    (void)bwused;
    (void)bwusedtime;
 }
-
-
-
 
 int
 bw_rulehasoverflown(rule, tnow, overflowok, controlfd, srcfd, dstfd)

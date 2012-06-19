@@ -1,7 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
  *               2009, 2010, 2011
- *               2009
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,12 +45,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.62 2011/05/18 13:48:46 karls Exp $";
+"$Id: accesscheck.c,v 1.65 2011/11/13 14:14:54 karls Exp $";
 
 int
 usermatch(auth, userlist)
-   const struct authmethod_t *auth;
-   const struct linkedname_t *userlist;
+   const authmethod_t *auth;
+   const linkedname_t *userlist;
 {
 /*   const char *function = "usermatch()"; */
    const char *name;
@@ -71,8 +70,8 @@ usermatch(auth, userlist)
 
 int
 groupmatch(auth, grouplist)
-   const struct authmethod_t *auth;
-   const struct linkedname_t *grouplist;
+   const authmethod_t *auth;
+   const linkedname_t *grouplist;
 {
    const char *function = "groupmatch()";
    const char *username;
@@ -91,7 +90,7 @@ groupmatch(auth, grouplist)
     */
    if ((pw = socks_getpwnam(username))   != NULL
    &&  (groupent = getgrgid(pw->pw_gid)) != NULL) {
-      const struct linkedname_t *listent = grouplist;
+      const linkedname_t *listent = grouplist;
 
       do
          if (strcmp(groupent->gr_name, listent->name) == 0)
@@ -100,7 +99,7 @@ groupmatch(auth, grouplist)
    }
    else {
       if (pw == NULL)
-         slog(LOG_DEBUG, "%s: unknown unsername \"%s\"", function, username);
+         slog(LOG_DEBUG, "%s: unknown username \"%s\"", function, username);
       else if (groupent == NULL)
          slog(LOG_DEBUG, "%s: unknown primary groupid %ld",
          function, (long)pw->pw_gid);
@@ -134,11 +133,11 @@ groupmatch(auth, grouplist)
 #if HAVE_LDAP
 int
 ldapgroupmatch(auth, rule)
-   const struct authmethod_t *auth;
-   const struct rule_t *rule;
+   const authmethod_t *auth;
+   const rule_t *rule;
 {
    const char *function = "ldapgroupmatch()";
-   const struct linkedname_t *grouplist;
+   const linkedname_t *grouplist;
    const char *username;
    char *userdomain, *groupdomain;
    int retval;
@@ -206,7 +205,7 @@ ldapgroupmatch(auth, rule)
 int
 accesscheck(s, auth, src, dst, emsg, emsgsize)
    int s;
-   struct authmethod_t *auth;
+   authmethod_t *auth;
    const struct sockaddr *src, *dst;
    char *emsg;
    size_t emsgsize;

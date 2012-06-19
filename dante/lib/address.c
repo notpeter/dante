@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,7 +53,7 @@
 #include <dlfcn.h>
 
 static const char rcsid[] =
-"$Id: address.c,v 1.208 2011/07/22 08:45:02 karls Exp $";
+"$Id: address.c,v 1.228 2012/06/01 20:23:05 karls Exp $";
 
 /*
  * During init, we need to let all system calls resolve to the native
@@ -79,10 +79,10 @@ static char **ipv;
 static in_addr_t ipc;
 
 #define FDV_INITSIZE    64 /* on init allocate memory for first 64 fd indexes */
-static struct socksfd_t socksfdinit;
+static socksfd_t socksfdinit;
 static int *dv;
 static size_t dc;
-static struct socksfd_t *socksfdv;
+static socksfd_t *socksfdv;
 static size_t socksfdc;
 
 #if HAVE_PTHREAD_H
@@ -145,10 +145,10 @@ socks_rmfd(const int fd);
  * removes the file descriptor "fd" from our internal table.
  */
 
-struct socksfd_t *
+socksfd_t *
 socks_addaddr(clientfd, socksfd, takelock)
    const int clientfd;
-   const struct socksfd_t *socksfd;
+   const socksfd_t *socksfd;
    const int takelock;
 {
    const char *function = "socks_addaddr()";
@@ -214,20 +214,20 @@ socks_addaddr(clientfd, socksfd, takelock)
    return &socksfdv[clientfd];
 }
 
-struct socksfd_t *
+socksfd_t *
 socks_getaddr(d, socksfd, takelock)
    const int d;
-   struct socksfd_t *socksfd;
+   socksfd_t *socksfd;
    const int takelock;
 {
 #if HAVE_GSSAPI
    const char *function = "socks_getaddr()";
 #endif /* HAVE_GSSAPI */
-   struct socksfd_t *sfd;
+   socksfd_t *sfd;
    addrlockopaque_t lock;
 
    if (socksfd == NULL) {
-      static struct socksfd_t ifnullsocksfd;
+      static socksfd_t ifnullsocksfd;
 
       socksfd = &ifnullsocksfd;
    }
@@ -285,9 +285,11 @@ socks_rmaddr(d, takelock)
       socks_addrlock(F_WRLCK, &lock);
 
    socks_rmfd(d);
-   if (socksfdv[d].state.issyscall) /* syscall adds/removes all the time. */
-      slog(LOG_DEBUG, "%s: not freeing buffer for fd %d, issyscall",
-      function, d);
+   if (socksfdv[d].state.issyscall) { /* syscall adds/removes all the time. */
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
+         slog(LOG_DEBUG, "%s: not freeing buffer for fd %d, issyscall",
+              function, d);
+   }
    else
       socks_freebuffer(d);
 
@@ -307,8 +309,8 @@ socks_rmaddr(d, takelock)
                    * (accept()'ed) addresses, if so we must leave it
                    * open for the other connections.
                   */
-                  if (socks_addrcontrol(&socksfdv[d].local,
-                  &socksfdv[d].remote, -1, -1, 0)
+                  if (socks_addrcontrol(TOSA(&socksfdv[d].local),
+                  TOSA(&socksfdv[d].remote), -1, -1, 0)
                   == -1)
                      break;
 
@@ -366,10 +368,11 @@ socks_isaddr(d, takelock)
 int
 socks_addrisours(s, socksfdmatch, takelock)
    const int s;
-   struct socksfd_t *socksfdmatch;
+   socksfd_t *socksfdmatch;
    const int takelock;
 {
    const char *function = "socks_addrisours()";
+   const char *breakreason = NULL;
    const int errno_s = errno;
    addrlockopaque_t lock;
    int matched;
@@ -381,20 +384,25 @@ socks_addrisours(s, socksfdmatch, takelock)
 
    matched = 0;
    do {
-      struct sockaddr local, remote;
-      struct socksfd_t socksfd;
+      struct sockaddr_storage local, remote;
+      socksfd_t socksfd;
       socklen_t locallen, remotelen;
 
       locallen = sizeof(local);
-      if (getsockname(s, &local, &locallen) != 0)
+      if (getsockname(s, TOSA(&local), &locallen) != 0) {
+         breakreason = "getsockname()";
          break;
+      }
 
       /* only network-sockets can be proxied. */
-      if (local.sa_family != AF_INET
+      if (TOSA(&local)->sa_family != AF_INET 
 #ifdef AF_INET6
-      &&  local.sa_family != AF_INET6)
+      &&  TOSA(&local)->sa_family != AF_INET6
 #endif /* AF_INET6 */
+      ) {
+         breakreason = "not AF_INET/AF_INET6 sa_family";
          break;
+      }
 
       if (socks_getaddr(s, &socksfd, 0) != NULL) {
          if (TOCIN(&socksfd.local)->sin_addr.s_addr == htonl(0)) {
@@ -404,12 +412,13 @@ socks_addrisours(s, socksfdmatch, takelock)
              * It's also possible accept(2) was called, so check
              * for that first.
              */
-            struct socksfd_t nsocksfd, *socksfdptr;
+            socksfd_t nsocksfd, *socksfdptr;
             int duped;
 
             remotelen = sizeof(remote);
-            if (getpeername(s, &remote, &remotelen) == 0
-            && (duped = socks_addrmatch(&local, &remote, NULL, 0)) != -1) {
+            if (getpeername(s, TOSA(&remote), &remotelen) == 0
+            && (duped = socks_addrmatch(TOSA(&local), TOSA(&remote), NULL, 0))
+            != -1) {
                if ((socksfdptr = socks_addrdup(socks_getaddr(duped, NULL, 0),
                                             &nsocksfd))
                == NULL) {
@@ -417,6 +426,8 @@ socks_addrisours(s, socksfdmatch, takelock)
 
                   if (errno == EBADF)
                      socks_rmaddr(duped, 0);
+
+                  breakreason = "known fd, but unbound; socks_addrdup() failed";
                   break;
                }
 
@@ -434,18 +445,19 @@ socks_addrisours(s, socksfdmatch, takelock)
             }
          }
 
-         if (!sockaddrareeq(&local, &socksfd.local))
+         if (!sockaddrareeq(TOSA(&local), TOSA(&socksfd.local))) {
+            breakreason = "local neq socksfd.local";
             break;
+         }
 
          /* check remote endpoint too? */
-
          matched = 1;
       }
       else { /* unknown descriptor.  Try to check whether it's a dup. */
          int duped;
 
-         if ((duped = socks_addrmatch(&local, NULL, NULL, 0)) != -1) {
-            struct socksfd_t nsocksfd;
+         if ((duped = socks_addrmatch(TOSA(&local), NULL, NULL, 0)) != -1) {
+            socksfd_t nsocksfd;
 
             if (socks_addrdup(socks_getaddr(duped, NULL, 0), &nsocksfd)
             == NULL) {
@@ -453,6 +465,8 @@ socks_addrisours(s, socksfdmatch, takelock)
 
                if (errno == EBADF)
                   socks_rmaddr(duped, 0);
+
+               breakreason = "unknown fd and socks_addrdup() failed";
                break;
             }
 
@@ -463,6 +477,8 @@ socks_addrisours(s, socksfdmatch, takelock)
 
             matched = 1;
          }
+
+         breakreason = "unknown fd and no socks_addrmatch()";
          break;
       }
    } while (/* CONSTCOND */ 0);
@@ -472,6 +488,9 @@ socks_addrisours(s, socksfdmatch, takelock)
 
    if (takelock)
       socks_addrunlock(&lock);
+
+   if (!matched && breakreason != NULL)
+      slog(LOG_DEBUG, "%s: no match due to %s", function, breakreason);
 
    errno = errno_s;
    return matched;
@@ -514,7 +533,7 @@ socks_addrcontrol(local, remote, s, childsocket, takelock)
    }
 
    for (i = 0; i < socksfdc; ++i) {
-      struct sockaddr addr;
+      struct sockaddr_storage addr;
       socklen_t len;
 
       if (!socks_isaddr(i, 0))
@@ -549,15 +568,15 @@ socks_addrcontrol(local, remote, s, childsocket, takelock)
 
       if (local == NULL) {
          len = 0;
-         if (getsockname(socksfdv[i].control, &addr, &len) == 0)
+         if (getsockname(socksfdv[i].control, TOSA(&addr), &len) == 0)
             continue; /* can't be this one, our socket has no local name.  */
       }
       else  {
          len = sizeof(addr);
-         if (getsockname(socksfdv[i].control, &addr, &len) != 0)
+         if (getsockname(socksfdv[i].control, TOSA(&addr), &len) != 0)
             continue;
 
-         if (!sockaddrareeq(local, &addr))
+         if (!sockaddrareeq(local, TOSA(&addr)))
             continue;
       }
 
@@ -569,17 +588,17 @@ socks_addrcontrol(local, remote, s, childsocket, takelock)
       }
       else {
          len = sizeof(addr);
-         if (getpeername(socksfdv[i].control, &addr, &len) == -1)
+         if (getpeername(socksfdv[i].control, TOSA(&addr), &len) == -1)
             continue;
 
-         if (!sockaddrareeq(remote, &addr))
+         if (!sockaddrareeq(remote, TOSA(&addr)))
             continue;
       }
 
       if (local == NULL && remote == NULL) {
          int type_s, type_childsocket;
 
-         slog(LOG_DEBUG, "%s: hmm, this is pretty bad, no addressinfo "
+         slog(LOG_DEBUG, "%s: hmm, this is pretty bad, no address info "
                          "and nothing else to use to match descriptors",
                          function);
 
@@ -602,9 +621,9 @@ socks_addrcontrol(local, remote, s, childsocket, takelock)
          }
 
          if (type_s == type_childsocket) {
-            slog(LOG_DEBUG, "%s: no addressinfo to match socket by, but found "
+            slog(LOG_DEBUG, "%s: no address info to match socket by, but found "
                             "another socket (addrindex %lu) of the same "
-                            "type (%d) without any addressinfo either.  "
+                            "type (%d) without any address info either.  "
                             "Lets hope that's good enough",
                             function, (unsigned long)i, type_s);
 
@@ -644,7 +663,7 @@ int
 socks_addrmatch(local, remote, state, takelock)
    const struct sockaddr *local;
    const struct sockaddr *remote;
-   const struct socksstate_t *state;
+   const socksstate_t *state;
    const int takelock;
 {
    addrlockopaque_t lock;
@@ -663,11 +682,11 @@ socks_addrmatch(local, remote, state, takelock)
        */
 
       if (local != NULL)
-         if (!sockaddrareeq(local, &socksfdv[i].local))
+         if (!sockaddrareeq(local, TOSA(&socksfdv[i].local)))
             continue;
 
       if (remote != NULL)
-         if (!sockaddrareeq(remote, &socksfdv[i].remote))
+         if (!sockaddrareeq(remote, TOSA(&socksfdv[i].remote)))
             continue;
 
       if (state != NULL) {
@@ -700,10 +719,10 @@ socks_addrmatch(local, remote, state, takelock)
    return -1;
 }
 
-struct socksfd_t *
+socksfd_t *
 socks_addrdup(old, new)
-   const struct socksfd_t *old;
-   struct socksfd_t *new;
+   const socksfd_t *old;
+   socksfd_t *new;
 {
 /*   const char *function = "socks_addrdup()"; */
 
@@ -737,9 +756,9 @@ socks_addrlock(locktype, lock)
 
 #if HAVE_PTHREAD_H
    /*
-    * With the OpenBSD thread implementation, if a thread is interrupted, 
+    * With the OpenBSD thread implementation, if a thread is interrupted,
     * calling pthread_mutex_lock() seems to clear the interrupt flag, so
-    * that e.g. select(2) will restart rather than returning EINTR. 
+    * that e.g. select(2) will restart rather than returning EINTR.
     * We don't wont that to happen since we depend on select(2)/etc.
     * being interrupted by the process used to handle non-blocking connects.
     * We instead take the risk of not taking the thread-lock in this case.
@@ -863,79 +882,78 @@ socks_getfakeip(host, addr)
    return 0;
 }
 
-struct sockshost_t *
-fakesockaddr2sockshost(addr, host)
-   const struct sockaddr *addr;
-   struct sockshost_t *host;
+sockshost_t *
+fakesockaddr2sockshost(_addr, host)
+   const struct sockaddr *_addr;
+   sockshost_t *host;
 {
    const char *function = "fakesockaddr2sockshost()";
+   struct sockaddr_storage addr;
    char string[MAXSOCKADDRSTRING];
 
    clientinit(); /* may be called before normal init, log to right place. */
 
-   /* LINTED pointer casts may be troublesome */
-   slog(LOG_DEBUG, "%s: %s -> %s",
-        function, sockaddr2string(addr, string, sizeof(string)),
-        socks_getfakehost(TOCIN(addr)->sin_addr.s_addr)
-        == NULL ? string : socks_getfakehost(TOCIN(addr)->sin_addr.s_addr));
+   sockaddrcpy(TOSA(&addr), _addr, sizeof(addr));
 
    /* LINTED pointer casts may be troublesome */
-   if (socks_getfakehost(TOCIN(addr)->sin_addr.s_addr) != NULL) {
-      /* LINTED pointer casts may be troublesome */
-      const char *ipname = socks_getfakehost(TOCIN(addr)->sin_addr.s_addr);
+   slog(LOG_DEBUG, "%s: %s -> %s",
+                   function,
+                   sockaddr2string(TOSA(&addr), string, sizeof(string)),
+                   socks_getfakehost(TOIN(&addr)->sin_addr.s_addr) == NULL ?
+                        string :
+                        socks_getfakehost(TOIN(&addr)->sin_addr.s_addr));
+
+   if (socks_getfakehost(TOIN(&addr)->sin_addr.s_addr) != NULL) {
+      const char *ipname = socks_getfakehost(TOIN(&addr)->sin_addr.s_addr);
 
       SASSERTX(ipname != NULL);
 
-      host->atype = (unsigned char)SOCKS_ADDR_DOMAIN;
+      host->atype = SOCKS_ADDR_DOMAIN;
+
       SASSERTX(strlen(ipname) < sizeof(host->addr.domain));
       strcpy(host->addr.domain, ipname);
-      /* LINTED pointer casts may be troublesome */
-      host->port   = TOCIN(addr)->sin_port;
+
+      host->port = TOIN(&addr)->sin_port;
    }
    else
-      sockaddr2sockshost(addr, host);
+      sockaddr2sockshost(TOSA(&addr), host);
 
    return host;
 }
 
 struct sockaddr *
-fakesockshost2sockaddr(host, addr)
-   const struct sockshost_t *host;
-   struct sockaddr *addr;
+fakesockshost2sockaddr(host, _addr)
+   const sockshost_t *host;
+   struct sockaddr *_addr;
 {
    const char *function = "fakesockshost2sockaddr()";
+   struct sockaddr_storage addr;
    char string[MAXSOCKSHOSTSTRING];
-   uint8_t sa_length;
 
    clientinit(); /* may be called before normal init, log to right place. */
 
    slog(LOG_DEBUG, "%s: %s",
-   function, sockshost2string(host, string, sizeof(string)));
+        function, sockshost2string(host, string, sizeof(string)));
 
-   bzero(addr, sizeof(*addr));
+   bzero(&addr, sizeof(addr));
 
    switch (host->atype) {
       case SOCKS_ADDR_DOMAIN:
-         addr->sa_family = AF_INET;
-         sa_length = sizeof(struct sockaddr_in);
-
-         /* LINTED pointer casts may be troublesome */
-         if (socks_getfakeip(host->addr.domain, &TOIN(addr)->sin_addr))
+         SET_SOCKADDR(TOSA(&addr), AF_INET);
+         if (socks_getfakeip(host->addr.domain, &(TOIN(&addr)->sin_addr)))
             break;
          /* else; */ /* FALLTHROUGH */
 
       default:
-         return sockshost2sockaddr(host, addr);
+         sockshost2sockaddr(host, TOSA(&addr));
    }
 
-#if HAVE_SOCKADDR_SA_LEN
-   addr->sa_len = sa_length;
-#endif /* HAVE_SOCKADDR_SA_LEN */
+   TOIN(&addr)->sin_port = host->port;
 
-   /* LINTED pointer casts may be troublesome */
-   TOIN(addr)->sin_port = host->port;
+   bzero(_addr, sizeof(*_addr));
+   sockaddrcpy(_addr, TOSA(&addr), sizeof(*_addr));
 
-   return addr;
+   return _addr;
 }
 
 static int
@@ -1030,7 +1048,8 @@ fdisdup(fd1, fd2)
 
    if (sb1.st_ino == 0)
       slog(LOG_DEBUG, "%s: socket inode is 0.  Assuming kernel does "
-                      "not support the inode field for (this) socket",
+                      "not support the inode field for (this) socket and "
+                      "continuing with other tests",
                       function);
    else if (sb1.st_dev != sb2.st_dev
    ||       sb1.st_ino != sb2.st_ino) {
@@ -1066,7 +1085,7 @@ fdisdup(fd1, fd2)
     * Test is to set a flag on fd1, and see if the same flag then gets set on
     * fd2.  Note that this flag must be a flag we can set on a socket that
     * failed during connect(2), or where the remote end has closed it's side
-    * of the pipe, and that will be shared between descriptors that are
+    * of the session, and which will be shared between descriptors that are
     * dup(2)'s of each other.
     *
     * File status flags are shared, but descriptor flags (e.g., FD_CLOEXEC),
@@ -1086,15 +1105,29 @@ fdisdup(fd1, fd2)
     * of us changing the descriptor under their feet while they are using it.
     */
 
-   slog(LOG_DEBUG, "%s: all looks equal so far, doing final test, flags = %d",
-   function, flags1);
+   if (rc1 == -1 && rc2 == -1) {
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
+         slog(LOG_DEBUG,
+              "%s: succeeded due to getsockopt(2) failing (%s) on line %d",
+              function, strerror(errno1), __LINE__);
 
-   SASSERTX(flags1 == flags2);
+      return 1; /* assume any failed socket is as good as any other failed. */
+   }
 
    if (rc1 == -1 && errno1 == ENOTSOCK) {
       SWARNX(fd1); /* should not happen as we are only interested in sockets. */
+
+      if (sockscf.option.debug >= DEBUG_VERBOSE)
+         slog(LOG_DEBUG, "%s: failed due to errno = ENOTSOCK on line %d",
+              function, __LINE__);
+
       return 0;
    }
+
+   slog(LOG_DEBUG, "%s: all looks equal so far, doing final test, flags = %d",
+        function, flags1);
+
+   SASSERTX(flags1 == flags2);
 
    if (flags1)
       /*
@@ -1107,9 +1140,25 @@ fdisdup(fd1, fd2)
        */
       setflag = 1;
 
-   SASSERTX(setflag != flags1);
+   if (setsockopt(fd1, SOL_SOCKET, testflag, &setflag, sizeof(setflag)) != 0) {
+      if (setsockopt(fd2, SOL_SOCKET, testflag, &setflag, sizeof(setflag))
+      != 0) {
+         slog(LOG_DEBUG, "%s: succeeded due to setsockopt() failing on line %d",
+              function, __LINE__);
 
-   rc1    = setsockopt(fd1, SOL_SOCKET, testflag, &setflag, sizeof(setflag));
+         return 1;
+      }
+      else {
+         if (setsockopt(fd2, SOL_SOCKET, testflag, &flags2, sizeof(flags2))
+         != 0)
+            SWARN(errno);
+
+         slog(LOG_DEBUG, "%s: failed due to setsockopt() failing on line %d",
+              function, __LINE__);
+         return 0;
+      }
+   }
+
    len1   = sizeof(newflags1);
    rc1    = getsockopt(fd1, SOL_SOCKET, testflag, &newflags1, &len1);
    errno1 = errno;
@@ -1137,12 +1186,12 @@ fdisdup(fd1, fd2)
       isdup = 0;
 
    slog(LOG_DEBUG, "%s: final test indicates fd %d %s of fd %d",
-   function, fd1, isdup ? "is a dup" : "is not a dup", fd2);
+        function, fd1, isdup ? "is a dup" : "is not a dup", fd2);
 
    /* restore flags back to original. */
    SASSERTX(flags1 == flags2);
-   rc1 = setsockopt(fd1, SOL_SOCKET, testflag, &flags1, sizeof(flags1));
-   rc2 = setsockopt(fd2, SOL_SOCKET, testflag, &flags2, sizeof(flags2));
+   setsockopt(fd1, SOL_SOCKET, testflag, &flags1, sizeof(flags1));
+   setsockopt(fd2, SOL_SOCKET, testflag, &flags2, sizeof(flags2));
 
    return isdup;
 }
@@ -1309,9 +1358,9 @@ socks_addrinit(void)
    doing_addrinit = 0;
 }
 
-struct socks_id_t *
+socks_id_t *
 socks_whoami(id)
-   struct socks_id_t *id;
+   socks_id_t *id;
 {
 
 #if HAVE_PTHREAD_H

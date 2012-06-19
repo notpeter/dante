@@ -1,4 +1,4 @@
-/* $Id: issetugid.c,v 1.13 2011/04/24 09:26:13 karls Exp $ */
+/* $Id: issetugid.c,v 1.14 2011/12/27 21:46:19 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -50,6 +50,9 @@
 #if HAVE_LIBC_ENABLE_SECURE
 extern int __libc_enable_secure;
 #endif /* HAVE_LIBC_ENABLE_SECURE */
+
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "issetugid.h"
 

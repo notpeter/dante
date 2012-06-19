@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2002, 2004, 2008, 2009, 2010
+ * Copyright (c) 1997, 1998, 1999, 2001, 2002, 2004, 2008, 2009, 2010, 2011,
+ *               2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.69 2011/08/01 12:21:16 michaels Exp $";
+"$Id: Rcompat.c,v 1.74 2012/06/01 20:23:05 karls Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -126,24 +127,25 @@ Rsendmsg(s, msg, flags)
    const int errno_s = errno;
    size_t sent, ioc;
    ssize_t rc;
-   struct sockaddr name;
+   struct sockaddr_storage name;
    socklen_t namelen;
    const char *function = "Rsendmsg()";
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s: socket %d, msg %p, flags %d", function, s, msg, flags);
+   slog(LOG_DEBUG, "%s: socket %d, msg %p, flags %d",
+        function, s, msg, flags);
 
    if (msg == NULL)
       return write(s, NULL, 0);
 
    namelen = sizeof(name);
-   if (getsockname(s, &name, &namelen) == -1) {
+   if (getsockname(s, TOSA(&name), &namelen) == -1) {
       errno = errno_s;
       return writev(s, msg->msg_iov, (int)msg->msg_iovlen);
    }
 
-   switch (name.sa_family) {
+   switch (TOSA(&name)->sa_family) {
       case AF_INET:
          break;
 
@@ -158,9 +160,11 @@ Rsendmsg(s, msg, flags)
 
    for (sent = ioc = rc = 0; ioc < (size_t)msg->msg_iovlen; ++ioc) {
       /* LINTED pointer casts may be troublesome */
-      if ((rc = Rsendto(s, msg->msg_iov[ioc].iov_base,
-      msg->msg_iov[ioc].iov_len, flags, (struct sockaddr *)msg->msg_name,
-      msg->msg_namelen)) == -1)
+      if ((rc = Rsendto(s,
+                        msg->msg_iov[ioc].iov_base,
+                        msg->msg_iov[ioc].iov_len, flags,
+                        TOSA(msg->msg_name),
+                        msg->msg_namelen)) == -1)
          break;
 
       sent += rc;
@@ -250,27 +254,27 @@ Rrecvmsg(s, msg, flags)
    const int errno_s = errno;
    size_t received, ioc;
    ssize_t rc;
-   struct sockaddr name;
+   struct sockaddr_storage name;
    socklen_t namelen;
    const char *function = "Rrecvmsg()";
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s: socket %d, msg 0x%p, flags %d",
+   slog(LOG_DEBUG, "%s: socket %d, msg %p, flags %d",
         function, s, msg, flags);
 
    if (msg == NULL)
       return recvmsg(s, msg, flags);
 
    namelen = sizeof(name);
-   if (getsockname(s, &name, &namelen) == -1) {
+   if (getsockname(s, TOSA(&name), &namelen) == -1) {
       errno = errno_s;
 
       /* readv(2).  recvmsg(2) is only for sockets. */
       return readv(s, msg->msg_iov, (int)msg->msg_iovlen);
    }
 
-   switch (name.sa_family) {
+   switch (TOSA(&name)->sa_family) {
       case AF_INET:
          break;
 
@@ -293,7 +297,7 @@ Rrecvmsg(s, msg, flags)
                           msg->msg_iov[ioc].iov_base,
                           msg->msg_iov[ioc].iov_len,
                           flags,
-                          (struct sockaddr *)msg->msg_name,
+                          TOSA(msg->msg_name),
                           &msg->msg_namelen)) == -1)
          break;
 

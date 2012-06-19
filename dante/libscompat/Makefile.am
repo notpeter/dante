@@ -1,16 +1,17 @@
 noinst_LTLIBRARIES = libscompat.la
 libscompat_la_SOURCES =
-EXTRA_libscompat_la_SOURCES = difftime.c daemon.c hstrerror.c \
-   inet_aton.c inet_ntoa.c inet_pton.c issetugid.c memmove.c \
-   setproctitle.c sockatmark.c strlcpy.c strvis.c vsyslog.c seteuid.c \
-   getifaddrs.c
+
+EXTRA_libscompat_la_SOURCES = daemon.c difftime.c getifaddrs.c	\
+   hstrerror.c inet_aton.c inet_ntoa.c inet_pton.c issetugid.c	\
+   memmove.c pselect.c seteuid.c setproctitle.c sockatmark.c	\
+   strlcpy.c strvis.c vsyslog.c
 
 libscompat_la_LIBADD = @LIBSCSRC@
 #libscompat_la_DEPENDENCIES = @LIBSCSRC@
 LIBDEPS=@LIBSCSRC@
 
-noinst_HEADERS = daemon.h difftime.h ifaddrs_compat.h sockatmark.h strlcpy.h \
-      timers.h vis_compat.h issetugid.h
+noinst_HEADERS = daemon.h difftime.h ifaddrs.h issetugid.h	\
+   sockatmark.h strlcpy.h timers.h vis_compat.h
 
 INCLUDES = -I$(top_srcdir)/include -I.
 

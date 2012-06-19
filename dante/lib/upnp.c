@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2011
+ * Copyright (c) 2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.85 2011/07/21 14:09:19 karls Exp $";
+"$Id: upnp.c,v 1.104 2012/06/02 11:01:03 karls Exp $";
 
 #include "common.h"
 
@@ -59,17 +59,15 @@ static void atexit_upnpcleanup(void);
 
 int
 socks_initupnp(gw, state)
-   const gwaddr_t *gw;
+   const sockshost_t *gw;
    proxystate_t *state;
 {
    const char *function = "socks_initupnp()";
 #if HAVE_LIBMINIUPNP
-   struct sockshost_t host;
    struct UPNPDev *dev;
    struct UPNPUrls url;
    struct IGDdatas data;
-   char myaddr[INET_ADDRSTRLEN], gwstring[MAXGWSTRING],
-        addrstring[MAXSOCKSHOSTSTRING], emsg[256];
+   char myaddr[INET_ADDRSTRLEN], addrstring[MAXSOCKSHOSTSTRING], emsg[256];
    int devtype, rc;
 #endif /* HAVE_LIBMINIUPNP */
 
@@ -78,6 +76,7 @@ socks_initupnp(gw, state)
 #if !HAVE_LIBMINIUPNP
    return -1;
 #else
+
    if (*state->upnp.controlurl != NUL)
       return 0;
 
@@ -87,10 +86,13 @@ socks_initupnp(gw, state)
    if (gw->atype == SOCKS_ADDR_URL) {
       slog(LOG_DEBUG, "%s: using IGD at \"%s\"\n", function, gw->addr.urlname);
 
-      if (UPNP_GetIGDFromUrl(gw->addr.urlname, &url, &data, myaddr,
-      sizeof(myaddr)) != 1) {
+      if (UPNP_GetIGDFromUrl(gw->addr.urlname,
+                             &url,
+                             &data,
+                             myaddr,
+                             sizeof(myaddr)) != 1) {
          swarnx("%s: failed to get IGD from fixed url %s\n",
-         function, gw->addr.urlname);
+                function, gw->addr.urlname);
 
          if (errno == 0)
             errno = ENETUNREACH;
@@ -102,18 +104,37 @@ socks_initupnp(gw, state)
    }
    else {
       struct UPNPDev *p;
+      struct sockaddr_storage addr;
 
-      gwaddr2sockshost(gw, &host);
+      sockshost2sockaddr(gw, TOSA(&addr));
+      if (inet_ntop(AF_INET,
+                    &(TOIN(&addr)->sin_addr),
+                    addrstring,
+                    sizeof(addrstring)) == NULL) {
+         swarn("%s: failed to convert %s to an ipaddress",
+               function, sockshost2string(gw, NULL, 0));
 
-      SASSERTX(host.atype == (unsigned char)SOCKS_ADDR_IPV4);
-      inet_ntop(AF_INET, &host.addr.ipv4, addrstring, sizeof(addrstring));
+         return -1;
+      }
 
-      slog(LOG_DEBUG, "%s: doing upnp discovery on interface of addr %s (%s)",
-      function, addrstring, gwaddr2string(gw, gwstring, sizeof(gwstring)));
+      slog(LOG_DEBUG,
+           "%s: doing upnp discovery on interface of addr %s (from %s)",
+           function,
+           addrstring,
+           sockshost2string(gw, NULL, 0));
 
-      if ((dev = upnpDiscover(UPNP_DISCOVERYTIME_MS, addrstring, NULL, 0))
-      == NULL) {
-         slog(LOG_DEBUG, "no upnp devices found");
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+      socks_mark_io_as_native();
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
+
+      dev = upnpDiscover(UPNP_DISCOVERYTIME_MS, addrstring, NULL, 0);
+
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+      socks_mark_io_as_normal();
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
+
+      if (dev == NULL) {
+         slog(LOG_DEBUG, "%s: no upnp devices found", function);
 
          if (errno == 0)
             errno = ENETUNREACH;
@@ -121,26 +142,26 @@ socks_initupnp(gw, state)
          return -1;
       }
 
-      slog(LOG_DEBUG,
-      "%s: upnp devices found, adding direct routes for them", function);
+      slog(LOG_DEBUG, "%s: upnp devices found, adding direct routes for them",
+           function);
 
       for (p = dev; p != NULL; p = p->pNext) {
-         struct sockaddr saddr;
+         struct sockaddr_storage saddr;
          struct sockaddr_in smask;
 
-         if (urlstring2sockaddr(p->descURL, &saddr, emsg, sizeof(emsg))
+         if (urlstring2sockaddr(p->descURL, TOSA(&saddr), emsg, sizeof(emsg))
          == NULL) {
-            slog(LOG_DEBUG, "%s: urlstring2sockaddr() failed: %s", 
+            slog(LOG_DEBUG, "%s: urlstring2sockaddr() failed: %s",
                  function, emsg);
 
             continue;
          }
 
          bzero(&smask, sizeof(smask));
-         smask.sin_family      = AF_INET;
+         SET_SOCKADDR(TOSA(&smask), AF_INET);
          smask.sin_port        = htons(0);
          smask.sin_addr.s_addr = htonl(0xffffffff);
-         socks_autoadd_directroute((struct sockaddr_in *)&saddr, &smask);
+         socks_autoadd_directroute(TOIN(&saddr), &smask);
       }
 
       switch (devtype = UPNP_GetValidIGD(dev, &url, &data, myaddr,
@@ -191,7 +212,9 @@ socks_initupnp(gw, state)
    }
 
    if (rc == 0) {
+      SASSERTX(url.controlURL != NULL);
       SASSERTX(strlen(url.controlURL) < sizeof(state->upnp.controlurl));
+
       strcpy(state->upnp.controlurl, url.controlURL);
 
 #if HAVE_LIBMINIUPNP13
@@ -214,7 +237,7 @@ socks_initupnp(gw, state)
 int
 upnp_negotiate(s, packet, state)
    const int s;
-   struct socks_t *packet;
+   socks_t *packet;
    const proxystate_t *state;
 {
    const char *function = "upnp_negotiate()";
@@ -228,8 +251,11 @@ upnp_negotiate(s, packet, state)
    slog(LOG_DEBUG, "%s", function);
 
 #if !HAVE_LIBMINIUPNP
+
    SERRX(0);
+
 #else
+
    packet->res.version = PROXY_UPNP;
 
    switch (packet->req.command) {
@@ -279,7 +305,7 @@ upnp_negotiate(s, packet, state)
           */
          const int errno_s = errno;
 
-         packet->res.host.atype = (unsigned char)SOCKS_ADDR_IPV4;
+         packet->res.host.atype = SOCKS_ADDR_IPV4;
 
 #if SOCKS_CLIENT
          /* will be filled with real value if user ever does getsockname(2). */
@@ -297,7 +323,7 @@ upnp_negotiate(s, packet, state)
 #endif /* SOCKS_SERVER */
 
          addrlen = sizeof(addr);
-         if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0) {
+         if (getsockname(s, TOSA(&addr), &addrlen) != 0) {
             swarn("%s: getsockname()", function);
             rc = -1;
 
@@ -328,7 +354,7 @@ upnp_negotiate(s, packet, state)
          socklen_t len;
 
          addrlen = sizeof(addr);
-         if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0) {
+         if (getsockname(s, TOSA(&addr), &addrlen) != 0) {
             swarn("getsockname()");
             socks_set_responsevalue(&packet->res, UPNP_FAILURE);
             return -1;
@@ -344,7 +370,7 @@ upnp_negotiate(s, packet, state)
             struct sockaddr_in extaddr = addr;
 
             inet_pton(extaddr.sin_family, straddr, &extaddr.sin_addr);
-            sockaddr2sockshost((struct sockaddr *)&extaddr, &packet->res.host);
+            sockaddr2sockshost(TOSA(&extaddr), &packet->res.host);
          }
 
          slog(LOG_DEBUG, "%s: upnp control point's external ip address is %s",
@@ -356,12 +382,14 @@ upnp_negotiate(s, packet, state)
              * it it's good enough for caller, but we do need to tell the
              * igd what address it should forward the connection to.
              */
-             struct sockaddr tmpaddr;
+             struct sockaddr_storage tmpaddr;
 
              switch (packet->gw.addr.atype) {
                 case SOCKS_ADDR_IFNAME: {
 
-                   if (ifname2sockaddr(packet->gw.addr.addr.ifname, 0, &tmpaddr,
+                   if (ifname2sockaddr(packet->gw.addr.addr.ifname,
+                                       0,
+                                       TOSA(&tmpaddr),
                    NULL) == NULL) {
                      swarn("ifname2sockaddr(%s)", packet->gw.addr.addr.ifname);
                      socks_set_responsevalue(&packet->res, UPNP_FAILURE);
@@ -378,11 +406,11 @@ upnp_negotiate(s, packet, state)
                   int ss;
 
                   if (urlstring2sockaddr(packet->gw.addr.addr.urlname,
-                                         &tmpaddr,
+                                         TOSA(&tmpaddr),
                                          emsg,
                                          sizeof(emsg))
                   == NULL) {
-                     slog(LOG_DEBUG, "%s: urlstring2sockaddr() failed: %s", 
+                     slog(LOG_DEBUG, "%s: urlstring2sockaddr() failed: %s",
                           function, emsg);
 
                      socks_set_responsevalue(&packet->res, UPNP_FAILURE);
@@ -392,7 +420,7 @@ upnp_negotiate(s, packet, state)
 
                   /*
                    * What we need to find out now is, what is the address
-                   * this host uses to communicate with the controlpoint?
+                   * this host uses to communicate with the control point?
                    * That is the address we need to tell it to forward
                    * the connection to.  Could use getifa(), but we
                    * are not guaranteed that always works as desired,
@@ -406,9 +434,11 @@ upnp_negotiate(s, packet, state)
                      return -1;
                   }
 
-                  if (connect(ss, &tmpaddr, sizeof(tmpaddr)) != 0) {
+                  if (connect(ss,
+                              TOSA(&tmpaddr),
+                              sockaddr2salen(TOSA(&tmpaddr))) != 0) {
                      swarn("%s: connect(%s)",
-                     function, sockaddr2string(&tmpaddr, NULL, 0));
+                           function, sockaddr2string(TOSA(&tmpaddr), NULL, 0));
 
                      socks_set_responsevalue(&packet->res, UPNP_FAILURE);
                      close(ss);
@@ -417,7 +447,7 @@ upnp_negotiate(s, packet, state)
                   }
 
                   tmpaddrlen = sizeof(tmpaddr);
-                  if (getsockname(ss, &tmpaddr, &tmpaddrlen) != 0) {
+                  if (getsockname(ss, TOSA(&tmpaddr), &tmpaddrlen) != 0) {
                      swarn("%s: getsockname()", function);
 
                      socks_set_responsevalue(&packet->res, UPNP_FAILURE);
@@ -528,9 +558,9 @@ upnp_negotiate(s, packet, state)
 
    socks_set_responsevalue(&packet->res, UPNP_SUCCESS);
 
+#endif /* HAVE_LIBMINIUPNP */
+
    return 0;
-#endif /* !HAVE_LIBMINIUPNP */
-   /* NOTREACHED */
 }
 
 #if HAVE_LIBMINIUPNP
@@ -545,9 +575,9 @@ sighandler(sig)
    slog(LOG_DEBUG, function);
    upnpcleanup(-1);
 
-   /* reinstall original signalhandler. */
+   /* reinstall original signal handler. */
    if (sigaction(SIGINT, &oldsig, NULL) != 0)
-      serr(1, "%s: restoring old signalhandler failed", function);
+      serr(1, "%s: restoring old signal handler failed", function);
 
    raise(SIGINT);
 }
@@ -559,7 +589,7 @@ upnpcleanup(s)
    const int s;
 {
    const char *function = "upnpcleanup()";
-   struct socksfd_t socksfd;
+   socksfd_t socksfd;
    int rc, current, last;
 
    slog(LOG_DEBUG, "%s: socket %d", function, s);

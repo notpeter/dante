@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2011
+ * Copyright (c) 2009, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 
 #if HAVE_GSSAPI
 
-struct gssapi_state_t *
+gssapi_state_t *
 socks_get_gssapi_state(const unsigned int fd, const int havelock);
 /*
  * If "havelock" is true, it means the function has already taken
@@ -61,9 +61,12 @@ socks_get_gssapi_state(const unsigned int fd, const int havelock);
 
 ssize_t
 gssapi_decode_read(int s, void *buf, size_t len, int flags,
-      struct sockaddr *from, socklen_t *fromlen, struct gssapi_state_t *gs);
+                   struct sockaddr *from, socklen_t *fromlen,
+                   int *recv_flags, struct timeval *recv_ts,
+                   gssapi_state_t *gs);
 /*
  * Read data from socket s, assuming it is socks gssapi conforming.
+ * Arguments are similar to socks_recvfrom().
  * Returns:
  *      On success:  The number of decoded bytes read.
  *      On failure:  -1
@@ -71,7 +74,8 @@ gssapi_decode_read(int s, void *buf, size_t len, int flags,
 
 ssize_t
 gssapi_encode_write(int s, const void *msg, size_t len, int flags,
-      const struct sockaddr *to, socklen_t tolen, struct gssapi_state_t *gs);
+                    const struct sockaddr *to, socklen_t tolen,
+                    gssapi_state_t *gs);
 /*
  * Write data to socket s assuming it is socks gssapi conforming.
  * Returns:

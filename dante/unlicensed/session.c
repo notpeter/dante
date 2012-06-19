@@ -39,16 +39,16 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: session.c,v 1.12 2011/05/18 13:48:47 karls Exp $
+ * $Id: session.c,v 1.13 2011/10/10 12:54:03 karls Exp $
  */
 
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: session.c,v 1.12 2011/05/18 13:48:47 karls Exp $";
+"$Id: session.c,v 1.13 2011/10/10 12:54:03 karls Exp $";
 
 const char module_session_version[] =
-"$Id: session.c,v 1.12 2011/05/18 13:48:47 karls Exp $";
+"$Id: session.c,v 1.13 2011/10/10 12:54:03 karls Exp $";
 
 extern const char *module_session_ipaddrv[];
 extern const int module_session_ipaddrc;
@@ -61,7 +61,6 @@ session_unuse(ss, lock)
 
    (void)ss;
 }
-
 
 int
 session_use(ss, lock)

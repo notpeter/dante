@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011
+ *               2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,14 +45,14 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.320 2011/07/18 10:26:37 michaels Exp $";
+"$Id: config.c,v 1.349 2012/06/01 20:23:05 karls Exp $";
 
 void
 genericinit(void)
 {
    const char *function = "genericinit()";
 #if BAREFOOTD
-   struct rule_t *rule;
+   rule_t *rule;
 #endif /* BAREFOOTD */
 #if !SOCKS_CLIENT
    sigset_t set, oset;
@@ -65,7 +65,7 @@ genericinit(void)
       if ((sockscf.loglock = socks_mklock(SOCKS_LOCKFILE, NULL, 0)) == -1)
          serr(EXIT_FAILURE, "%s: could not create lockfile for logging",
          function);
-#endif
+#endif /* !SOCKS_CLIENT */
 
    if (!sockscf.state.inited) {
 #if !HAVE_SETPROCTITLE
@@ -93,8 +93,7 @@ genericinit(void)
 #if !SOCKS_CLIENT
    if (sigprocmask(SIG_SETMASK, &oset, NULL) != 0)
       swarn("%s: sigprocmask(SIG_SETMASK)", function);
-
-#endif /* SOCKS_SERVER */
+#endif /* !SOCKS_CLIENT */
 
 #if !HAVE_NO_RESOLVESTUFF
    if (!(_res.options & RES_INIT)) {
@@ -138,16 +137,16 @@ genericinit(void)
 #endif /* SOCKSLIBRARY_DYNAMIC */
 }
 
-struct route_t *
+route_t *
 socks_addroute(newroute, last)
-   const struct route_t *newroute;
+   const route_t *newroute;
    const int last;
 {
    const char *function = "socks_addroute()";
-   struct serverstate_t nilstate;
-   struct route_t *route, *nextroute;
-   struct sockaddr addr, mask;
-   struct ruleaddr_t dst;
+   serverstate_t nilstate;
+   route_t *route, *nextroute;
+   struct sockaddr_storage addr, mask;
+   ruleaddr_t dst;
    size_t i;
    int ifb;
 
@@ -157,16 +156,17 @@ socks_addroute(newroute, last)
    *route = *newroute;
    bzero(&nilstate, sizeof(nilstate));
 
-   /* if no proxy protocol set, set socks v5. */
+   /* if no proxy protocol set, set socks v4 and v5. */
    if (memcmp(&nilstate.proxyprotocol, &route->gw.state.proxyprotocol,
    sizeof(nilstate.proxyprotocol)) == 0) {
       memset(&route->gw.state.proxyprotocol, 0,
       sizeof(route->gw.state.proxyprotocol));
 
+      route->gw.state.proxyprotocol.socks_v4 = 1;
       route->gw.state.proxyprotocol.socks_v5 = 1;
    }
    else { /* proxy protocol set, do they make sense? */
-      struct proxyprotocol_t proxy;
+      proxyprotocol_t proxy;
 
       if (route->gw.state.proxyprotocol.direct) {
          memset(&proxy, 0, sizeof(proxy));
@@ -197,7 +197,8 @@ socks_addroute(newroute, last)
       else if (route->gw.state.proxyprotocol.upnp) {
 #if !HAVE_LIBMINIUPNP
          serrx(1, "%s: not configured for using upnp", function);
-#endif /* !HAVE_LIBMINIUPNP */
+#else /* HAVE_LIBMINIUPNP */
+
          memset(&proxy, 0, sizeof(proxy));
          proxy.upnp = 1;
 
@@ -205,6 +206,7 @@ socks_addroute(newroute, last)
             yyerror("%s: can't combine proxyprotocol upnp with other "
                     "proxyprotocols",
                     function);
+#endif /* HAVE_LIBMINIUPNP */
       }
    }
 
@@ -322,7 +324,6 @@ socks_addroute(newroute, last)
    &&  route->gw.state.gssapiencryption.integrity        == 0
    &&  route->gw.state.gssapiencryption.confidentiality  == 0
    &&  route->gw.state.gssapiencryption.permessage       == 0) {
-      route->gw.state.gssapiencryption.clear           = 1;
       route->gw.state.gssapiencryption.integrity       = 1;
       route->gw.state.gssapiencryption.confidentiality = 1;
       route->gw.state.gssapiencryption.permessage      = 0;
@@ -414,7 +415,7 @@ socks_addroute(newroute, last)
       yyerror("interface names not supported for src address");
 
    if (route->dst.atype == SOCKS_ADDR_IFNAME)
-      if (ifname2sockaddr(route->dst.addr.ifname, 0, &addr, &mask) == NULL)
+      if (ifname2sockaddr(route->dst.addr.ifname, 0, TOSA(&addr), TOSA(&mask)) == NULL)
          yyerror("can find interface named %s with ip configured",
          route->dst.addr.ifname);
 
@@ -435,7 +436,7 @@ socks_addroute(newroute, last)
          *nextroute = *route;/* stays same, but if ifname, ipaddr can change. */
 
       if (dst.atype == SOCKS_ADDR_IFNAME) {
-         sockaddr2ruleaddr(&addr, &nextroute->dst);
+         sockaddr2ruleaddr(TOSA(&addr), &nextroute->dst);
          nextroute->dst.addr.ipv4.mask = TOIN(&mask)->sin_addr;
       }
 
@@ -443,7 +444,7 @@ socks_addroute(newroute, last)
        * place rule in list.  Last or first?
        */
       if (!last || sockscf.route == NULL) { /* first */
-         struct route_t *p;
+         route_t *p;
          size_t i;
 
          nextroute->next = sockscf.route;
@@ -462,7 +463,7 @@ socks_addroute(newroute, last)
             }
       }
       else { /* last */
-         struct route_t *lastroute;
+         route_t *lastroute;
 
          lastroute = sockscf.route;
          if (nextroute->state.autoadded)
@@ -483,7 +484,7 @@ socks_addroute(newroute, last)
          nextroute->next = NULL;
       }
 
-   } while (ifname2sockaddr(dst.addr.ifname, ifb++, &addr, &mask) != NULL
+   } while (ifname2sockaddr(dst.addr.ifname, ifb++, TOSA(&addr), TOSA(&mask)) != NULL
    &&       (nextroute = malloc(sizeof(*nextroute)))              != NULL);
 
    if (!route->gw.state.proxyprotocol.direct) {
@@ -493,7 +494,7 @@ socks_addroute(newroute, last)
       struct sockaddr_in saddr, smask;
 
       bzero(&smask, sizeof(smask));
-      smask.sin_family      = AF_INET;
+      SET_SOCKADDR(TOSA(&smask), AF_INET);
       smask.sin_port        = htons(0);
       smask.sin_addr.s_addr = htonl(0xffffffff);
 
@@ -509,7 +510,7 @@ socks_addroute(newroute, last)
             struct servent *service;
 
             bzero(&saddr, sizeof(saddr));
-            saddr.sin_family      = AF_INET;
+            SET_SOCKADDR(TOSA(&saddr), AF_INET);
             saddr.sin_addr.s_addr = inet_addr(DEFAULT_SSDP_BROADCAST_ADDR);
 
             if ((service = getservbyname("ssdp", "udp")) == NULL)
@@ -522,11 +523,7 @@ socks_addroute(newroute, last)
          }
       }
       else {
-         struct sockshost_t shost;
-
-         sockshost2sockaddr(gwaddr2sockshost(&route->gw.addr, &shost),
-         (struct sockaddr *)&saddr);
-
+         sockshost2sockaddr(&route->gw.addr, TOSA(&saddr));
          socks_autoadd_directroute(&saddr, &smask);
       }
    }
@@ -534,12 +531,12 @@ socks_addroute(newroute, last)
    return route;
 }
 
-struct route_t *
+route_t *
 socks_autoadd_directroute(saddr, netmask)
    const struct sockaddr_in *saddr;
    const struct sockaddr_in *netmask;
 {
-   struct route_t route;
+   route_t route;
 
    memset(&route, 0, sizeof(route));
 
@@ -570,7 +567,7 @@ socks_autoadd_directroute(saddr, netmask)
 
 void
 showtimeout(timeout)
-   const struct timeout_t *timeout;
+   const timeout_t *timeout;
 {
 
    slog(LOG_DEBUG, "connect timeout: %lus%s",
@@ -594,10 +591,10 @@ showtimeout(timeout)
 
 void
 socks_showroute(route)
-   const struct route_t *route;
+   const route_t *route;
 {
-   char gwstring[MAXGWSTRING];
-   char addr[MAXRULEADDRSTRING];
+   char gwstring[MAXGWSTRING], addr[MAXRULEADDRSTRING];
+   size_t i;
 
    slog(LOG_DEBUG, "route #%d", route->number);
 
@@ -608,24 +605,27 @@ socks_showroute(route)
    ruleaddr2string(&route->dst, addr, sizeof(addr)));
 
    slog(LOG_DEBUG, "gateway: %s",
-   gwaddr2string(&route->gw.addr, gwstring, sizeof(gwstring)));
+   sockshost2string(&route->gw.addr, gwstring, sizeof(gwstring)));
+
+   for (i = 0; i < route->socketoptionc; ++i)
+      slog(LOG_DEBUG, "socketoption %s", route->socketoptionv[i].info->name);
 
    slog(LOG_DEBUG, "route state: autoadded: %s, failed: %lu, badtime: %ld",
                    route->state.autoadded ? "yes" : "no",
                    (long)route->state.failed,
                    (long)route->state.badtime);
 
-   showstate(&route->gw.state, 0);
+   showstate(&route->gw.state);
 }
 
-struct route_t *
+route_t *
 socks_getroute(req, src, dst)
-   const struct request_t *req;
-   const struct sockshost_t *src;
-   const struct sockshost_t *dst;
+   const request_t *req;
+   const sockshost_t *src;
+   const sockshost_t *dst;
 {
    const char *function = "socks_getroute()";
-   struct route_t *route;
+   route_t *route;
    int protocol;
    char srcbuf[MAXSOCKSHOSTSTRING], dstbuf[MAXSOCKSHOSTSTRING];
 
@@ -634,18 +634,17 @@ socks_getroute(req, src, dst)
 #endif /* SOCKS_CLIENT */
 
    slog(LOG_DEBUG,
-   "%s: searching for %s route for %s, protocol %s, src %s, dst %s, ...",
-   function, version2string(req->version),
-   command2string(req->command), protocol2string(req->protocol),
-   src == NULL ? "<NONE>" : sockshost2string(src, srcbuf, sizeof(srcbuf)),
-   dst == NULL ? "<NONE>" : sockshost2string(dst, dstbuf, sizeof(dstbuf)));
+        "%s: searching for %s route for %s, protocol %s, src %s, dst %s, ...",
+        function, version2string(req->version),
+        command2string(req->command), protocol2string(req->protocol),
+        src == NULL ? "<NONE>" : sockshost2string(src, srcbuf, sizeof(srcbuf)),
+        dst == NULL ? "<NONE>" : sockshost2string(dst, dstbuf, sizeof(dstbuf)));
 
    for (route = sockscf.route; route != NULL; route = route->next) {
       socks_showroute(route);
 
-      /* CONSTCOND */
-      if (sockscf.routeoptions.maxfail != 0 &&
-          route->state.failed >= sockscf.routeoptions.maxfail) {
+      if (sockscf.routeoptions.maxfail != 0
+      &&  route->state.failed >= sockscf.routeoptions.maxfail) {
          if (sockscf.routeoptions.badexpire == 0
          ||  difftime(time(NULL), route->state.badtime)
                       <= sockscf.routeoptions.badexpire) {
@@ -668,12 +667,6 @@ socks_getroute(req, src, dst)
                continue;
             }
 
-            if (!methodisset(AUTHMETHOD_NONE, route->gw.state.methodv,
-            route->gw.state.methodc)) {
-               slog(LOG_DEBUG, "%s: route does not match; method", function);
-               continue;
-            }
-
             switch (req->host.atype) {
                case SOCKS_ADDR_IPV4:
                   break;
@@ -691,6 +684,12 @@ socks_getroute(req, src, dst)
                default:
                   slog(LOG_DEBUG, "%s: route does not match; cmd", function);
                   continue; /* not supported by v4. */
+            }
+
+            if (!methodisset(AUTHMETHOD_NONE, route->gw.state.methodv,
+            route->gw.state.methodc)) {
+               slog(LOG_DEBUG, "%s: route does not match; method", function);
+               continue;
             }
 
             break;
@@ -846,27 +845,24 @@ socks_getroute(req, src, dst)
 
       if (!route->gw.state.proxyprotocol.direct
       &&  dst != NULL) { /* simple attempt at check for routing loop. */
-         struct sockshost_t gwhost;
-
-         gwaddr2sockshost(&route->gw.addr, &gwhost);
-         if (sockshostareeq(&gwhost, dst))
-            serrx(1, "%s: route to gw %s is self.  Route loop in config\n",
-            function, sockshost2string(&gwhost, NULL, 0));
+         if (sockshostareeq(&route->gw.addr, dst))
+            serrx(1, "%s: route to gw %s is itself.  Route loop in config\n",
+                  function, sockshost2string(&route->gw.addr, NULL, 0));
       }
    }
 
    return route;
 }
 
-struct route_t *
+route_t *
 socks_connectroute(s, packet, src, dst)
    int s;
-   struct socks_t *packet;
-   const struct sockshost_t *src;
-   const struct sockshost_t *dst;
+   socks_t *packet;
+   const sockshost_t *src;
+   const sockshost_t *dst;
 {
    const char *function = "socks_connectroute()";
-   struct route_t *route;
+   route_t *route;
    int sdup, current_s, errno_s;
 
    /*
@@ -895,7 +891,6 @@ socks_connectroute(s, packet, src, dst)
 
    while ((route = socks_getroute(&packet->req, src, dst)) != NULL) {
       char gwstring[MAXGWSTRING], dststring[MAXSOCKSHOSTSTRING], emsg[256];
-      struct sockshost_t host;
 
       slog(LOG_DEBUG, "%s: found %s route (route #%d) to %s via %s",
                       function,
@@ -905,8 +900,9 @@ socks_connectroute(s, packet, src, dst)
                       dst == NULL ?
                       "<UNKNOWN>"
                       : sockshost2string(dst, dststring, sizeof(dststring)),
-                      gwaddr2string(&route->gw.addr, gwstring,
-                                    sizeof(gwstring)));
+                      sockshost2string(&route->gw.addr,
+                                       gwstring,
+                                       sizeof(gwstring)));
 
       if (route->gw.state.proxyprotocol.direct)
          return route; /* nothing more to do. */
@@ -935,11 +931,10 @@ socks_connectroute(s, packet, src, dst)
             return NULL;
 
       if (socks_connecthost(current_s,
-                            gwaddr2sockshost(&route->gw.addr, &host),
+                            &route->gw.addr,
                             NULL,
                             sockscf.timeout.connect ?
-                            /* LINTED cast from unsigned to signed. */
-                            (long)sockscf.timeout.connect : -1,
+                              (long)sockscf.timeout.connect : -1,
                             emsg,
                             sizeof(emsg)) == 0)
          break;
@@ -961,14 +956,14 @@ socks_connectroute(s, packet, src, dst)
          else {
             slog(LOG_DEBUG, "%s: socks_connecthost(%s) failed: %s",
                  function,
-                 gwaddr2string(&route->gw.addr, gwstring, sizeof(gwstring)),
+                 sockshost2string(&route->gw.addr, gwstring, sizeof(gwstring)),
                  emsg);
 
             if (errno == EINVAL) {
                struct sockaddr_in laddr;
                socklen_t len = sizeof(laddr);
 
-               if (getsockname(s, (struct sockaddr *)&laddr, &len) == 0
+               if (getsockname(s, TOSA(&laddr), &len) == 0
                &&  laddr.sin_addr.s_addr == htonl(INADDR_LOOPBACK)) {
                   slog(LOG_DEBUG, "%s: failed to connect route, but that "
                                   "appears to be due to the socket having "
@@ -1018,7 +1013,7 @@ socks_connectroute(s, packet, src, dst)
 
 void
 socks_clearblacklist(route)
-   struct route_t *route;
+   route_t *route;
 {
 
    if (route != NULL)
@@ -1027,7 +1022,7 @@ socks_clearblacklist(route)
 
 void
 socks_blacklist(route)
-   struct route_t *route;
+   route_t *route;
 {
    const char *function = "socks_blacklist()";
 
@@ -1046,11 +1041,11 @@ socks_blacklist(route)
    time(&route->state.badtime);
 }
 
-struct request_t *
+request_t *
 socks_requestpolish(req, src, dst)
-   struct request_t *req;
-   const struct sockshost_t *src;
-   const struct sockshost_t *dst;
+   request_t *req;
+   const sockshost_t *src;
+   const sockshost_t *dst;
 {
    const char *function = "socks_requestpolish()";
    const unsigned char originalversion = req->version;
@@ -1119,22 +1114,19 @@ socks_requestpolish(req, src, dst)
 }
 
 void
-showstate(state, isclientrule)
-   const struct serverstate_t *state;
-   const int isclientrule;
+showstate(state)
+   const serverstate_t *state;
 {
    char buf[1024];
    size_t bufused;
 
-   if (!isclientrule) {
-      slog(LOG_DEBUG, "command(s): %s",
-      commands2string(&state->command, buf, sizeof(buf)));
+   slog(LOG_DEBUG, "command(s): %s",
+   commands2string(&state->command, buf, sizeof(buf)));
 
-      bufused = snprintf(buf, sizeof(buf), "extension(s): ");
-      if (state->extension.bind)
-         snprintf(&buf[bufused], sizeof(buf) - bufused, "bind");
-      slog(LOG_DEBUG, "%s", buf);
-   }
+   bufused = snprintf(buf, sizeof(buf), "extension(s): ");
+   if (state->extension.bind)
+      snprintf(&buf[bufused], sizeof(buf) - bufused, "bind");
+   slog(LOG_DEBUG, "%s", buf);
 
    bufused = snprintf(buf, sizeof(buf), "protocol(s): ");
    protocols2string(&state->protocol,
@@ -1143,9 +1135,8 @@ showstate(state, isclientrule)
 
    showmethod(state->methodc, state->methodv);
 
-   if (!isclientrule)
-      slog(LOG_DEBUG, "proxyprotocol(s): %s",
-      proxyprotocols2string(&state->proxyprotocol, buf, sizeof(buf)));
+   slog(LOG_DEBUG, "proxyprotocol(s): %s",
+   proxyprotocols2string(&state->proxyprotocol, buf, sizeof(buf)));
 
 #if HAVE_GSSAPI
    if (methodisset(AUTHMETHOD_GSSAPI, state->methodv, state->methodc)) {
@@ -1285,24 +1276,119 @@ optioninit(void)
 
 void
 showconfig(sockscf)
-   const struct config_t *sockscf;
+   const struct config *sockscf;
 {
-   char buf[1024];
+   char buf[4096];
 
 #if !SOCKS_CLIENT
    char address[MAXRULEADDRSTRING];
    size_t i, bufused;
-
+#if HAVE_SCHED_SETAFFINITY
+   size_t setsize;
+#endif /* HAVE_SCHED_SETAFFINITY */
    slog(LOG_DEBUG, "cmdline options:\n%s",
-   options2string(&sockscf->option, "", buf, sizeof(buf)));
+        options2string(&sockscf->option, "", buf, sizeof(buf)));
 
    slog(LOG_DEBUG, "internal addresses (%lu):",
    (unsigned long)sockscf->internalc);
    for (i = 0; i < sockscf->internalc; ++i)
       slog(LOG_DEBUG, "\t%s %s",
       protocol2string(sockscf->internalv[i].protocol),
-      sockaddr2string(&sockscf->internalv[i].addr, address,
+      sockaddr2string(TOSA(&sockscf->internalv[i].addr), address,
       sizeof(address)));
+
+#if HAVE_SCHED_SETSCHEDULER
+   bufused = 0;
+   if (sockscf->cpu.mother.scheduling_isset)
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+                          "%s: %s/%d, ",
+                          childtype2string(CHILD_MOTHER),
+                          numeric2cpupolicy(sockscf->cpu.mother.policy),
+                          sockscf->cpu.mother.param.sched_priority);
+
+   if (sockscf->cpu.negotiate.scheduling_isset)
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+                          "%s: %s/%d, ",
+                          childtype2string(CHILD_NEGOTIATE),
+                          numeric2cpupolicy(sockscf->cpu.negotiate.policy),
+                          sockscf->cpu.negotiate.param.sched_priority);
+
+   if (sockscf->cpu.request.scheduling_isset)
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+                          "%s: %s/%d, ",
+                          childtype2string(CHILD_REQUEST),
+                          numeric2cpupolicy(sockscf->cpu.request.policy),
+                          sockscf->cpu.request.param.sched_priority);
+
+   if (sockscf->cpu.io.scheduling_isset)
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+                          "%s: %s/%d, ",
+                          childtype2string(CHILD_IO),
+                          numeric2cpupolicy(sockscf->cpu.io.policy),
+                          sockscf->cpu.io.param.sched_priority);
+
+   if (bufused != 0)
+      slog(LOG_DEBUG, "cpu scheduling settings: %s", buf);
+#endif /* HAVE_SCHED_SETSCHEDULER */
+
+#if HAVE_SCHED_SETAFFINITY
+   bufused = 0;
+   setsize = cpu_get_setsize();
+   if (sockscf->cpu.mother.affinity_isset) {
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s: ",
+                          childtype2string(CHILD_MOTHER));
+
+      for (i = 0; i < setsize; ++i)
+         if (cpu_isset(i, &sockscf->cpu.mother.mask))
+            bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+                                "%d ", (int)i);
+   }
+
+   if (sockscf->cpu.negotiate.affinity_isset) {
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s: ",
+                          childtype2string(CHILD_NEGOTIATE));
+
+      for (i = 0; i < setsize; ++i)
+         if (cpu_isset(i, &sockscf->cpu.negotiate.mask))
+            bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+                                "%d ", (int)i);
+   }
+
+   if (sockscf->cpu.request.affinity_isset) {
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s: ",
+                          childtype2string(CHILD_REQUEST));
+
+      for (i = 0; i < setsize; ++i)
+         if (cpu_isset(i, &sockscf->cpu.request.mask))
+            bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+                                "%d ", (int)i);
+   }
+
+   if (sockscf->cpu.io.affinity_isset) {
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s: ",
+                          childtype2string(CHILD_IO));
+
+      for (i = 0; i < setsize; ++i)
+         if (cpu_isset(i, &sockscf->cpu.io.mask))
+            bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
+                                "%d ", (int)i);
+   }
+
+   if (bufused != 0)
+      slog(LOG_DEBUG, "cpu affinity settings: %s", buf);
+#endif /* HAVE_SCHED_SETAFFINITY */
+
+   slog(LOG_DEBUG, "global socket options on the internal side:");
+   for (i = 0; i < sockscf->socketoptionc; ++i)
+      if (sockscf->socketoptionv[i].isinternalside)
+         slog(LOG_DEBUG, "   option #%lu: %s, value %s\n",
+              (unsigned long)i,
+              sockopt2string(&sockscf->socketoptionv[i], NULL, 0),
+              sockoptval2string(sockscf->socketoptionv[i].optval,
+                                sockscf->socketoptionv[i].opttype,
+                                NULL,
+                                0));
+
 
    slog(LOG_DEBUG, "external addresses (%lu):",
    (unsigned long)sockscf->external.addrc);
@@ -1312,6 +1398,16 @@ showconfig(sockscf)
 
       slog(LOG_DEBUG, "\t%s", address);
    }
+
+   slog(LOG_DEBUG, "global socket options on the external side:");
+   for (i = 0; i < sockscf->socketoptionc; ++i)
+      if (!sockscf->socketoptionv[i].isinternalside)
+         slog(LOG_DEBUG, "   option #%lu: %s, value %s\n",
+              (unsigned long)i,
+              sockopt2string(&sockscf->socketoptionv[i], NULL, 0),
+              sockoptval2string(sockscf->socketoptionv[i].optval,
+                                sockscf->socketoptionv[i].opttype, NULL, 0));
+
    slog(LOG_DEBUG, "external address rotation: %s",
    rotation2string(sockscf->external.rotation));
 
@@ -1374,7 +1470,7 @@ showconfig(sockscf)
       slog(LOG_DEBUG, "libwrap.hosts_access: no");
 #endif /* HAVE_LIBWRAP */
 
-   slog(LOG_DEBUG, "euid: %d", sockscf->state.euid);
+   slog(LOG_DEBUG, "euid: %d", (int)sockscf->state.euid);
 
 #if !HAVE_PRIVILEGES
    slog(LOG_DEBUG, "userid:\n%s",
@@ -1405,22 +1501,30 @@ showconfig(sockscf)
 
 
    if (sockscf->option.debug) {
-      struct route_t *route;
+      route_t *route;
       int c;
 #if !SOCKS_CLIENT
-      struct rule_t *rule;
+      rule_t *rule;
 
       for (c = 0, rule = sockscf->crule; rule != NULL; rule = rule->next)
          ++c;
       slog(LOG_DEBUG, "client-rules (%d): ", c);
       for (rule = sockscf->crule; rule != NULL; rule = rule->next)
-         showrule(rule, 1);
+         showrule(rule, clientrule);
+
+#if HAVE_SOCKS_HOSTID
+      for (c = 0, rule = sockscf->hostidrule; rule != NULL; rule = rule->next)
+         ++c;
+      slog(LOG_DEBUG, "hostid-rules (%d): ", c);
+      for (rule = sockscf->hostidrule; rule != NULL; rule = rule->next)
+         showrule(rule, hostidrule);
+#endif /* HAVE_SOCKS_HOSTID */
 
       for (c = 0, rule = sockscf->srule; rule != NULL; rule = rule->next)
          ++c;
       slog(LOG_DEBUG, "socks-rules (%d): ", c);
       for (rule = sockscf->srule; rule != NULL; rule = rule->next)
-         showrule(rule, 0);
+         showrule(rule, socksrule);
 #endif /* !SOCKS_CLIENT */
 
       for (c = 0, route = sockscf->route; route != NULL; route = route->next)

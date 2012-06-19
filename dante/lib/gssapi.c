@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011
+ * Copyright (c) 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: gssapi.c,v 1.101 2011/07/21 13:48:41 michaels Exp $";
+"$Id: gssapi.c,v 1.105 2012/06/01 20:23:05 karls Exp $";
 
 #if HAVE_GSSAPI
 
@@ -138,7 +138,7 @@ int
 gssapi_encode(input, ilen, gs, output, olen)
    const void *input;
    size_t ilen;
-   struct gssapi_state_t *gs;
+   gssapi_state_t *gs;
    size_t *olen;
    void *output;
 {
@@ -214,7 +214,7 @@ int
 gssapi_decode(input, ilen, gs, output, olen)
    void *input;
    size_t ilen;
-   struct gssapi_state_t *gs;
+   gssapi_state_t *gs;
    void *output;
    size_t *olen;
 {
@@ -293,14 +293,16 @@ gssapi_decode(input, ilen, gs, output, olen)
  *
  */
 ssize_t
-gssapi_decode_read(s, buf, len, flags, from, fromlen, gs)
+gssapi_decode_read(s, buf, len, flags, from, fromlen, flags_recv, ts_recv, gs)
    int s;
    void *buf;
    size_t len;
    int flags;
    struct sockaddr *from;
    socklen_t *fromlen;
-   struct gssapi_state_t *gs;
+   int *flags_recv;
+   struct timeval *ts_recv;
+   gssapi_state_t *gs;
 {
    const char *function = "gssapi_decode_read()";
 #if SOCKS_SERVER
@@ -429,15 +431,21 @@ again:
    SASSERTX(socks_bytesinbuffer(s, READ_BUF, 0) == 0);
 
    toread = MIN(sizeof(token), socks_freeinbuffer(s, READ_BUF));
-   if ((nread = recvfrom(s, token, toread,
+   if ((nread = socks_recvfrom(s,
+                        token,
+                        toread,
 #if SOCKS_SERVER
-   flags,
+                        flags,
 #else /* !SOCKS_SERVER */
-   flags | MSG_PEEK,
+                        flags | MSG_PEEK,
 #endif /* !SOCKS_SERVER */
-   from, fromlen)) <= 0) {
+                        from,
+                        fromlen,
+                        NULL,
+                        flags_recv,
+                        ts_recv)) <= 0) {
       slog(LOG_DEBUG, "%s: read from socket returned %ld: %s",
-      function, (long)nread, strerror(errno));
+           function, (long)nread, strerror(errno));
 
       return nread;
    }
@@ -786,7 +794,7 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, gs)
    int flags;
    const struct sockaddr *to;
    socklen_t tolen;
-   struct gssapi_state_t *gs;
+   gssapi_state_t *gs;
 {
    const char *function = "gssapi_encode_write()";
    unsigned short token_length;
@@ -1098,7 +1106,7 @@ int
 gssapi_isencrypted(s)
    const int s;
 {
-   struct socksfd_t socksfd;
+   socksfd_t socksfd;
 
    if (!sockscf.state.havegssapisockets)
       return 0;
@@ -1114,7 +1122,6 @@ gssapi_isencrypted(s)
 
    return socksfd.state.auth.mdata.gssapi.state.wrap;
 }
-
 
 #endif /* SOCKS_CLIENT */
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011
+ *               2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,17 +45,17 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.125 2011/07/07 16:47:18 michaels Exp $";
+"$Id: Raccept.c,v 1.133 2012/06/01 20:23:05 karls Exp $";
 
 static int
 addforwarded(const int local, const int remote,
              const struct sockaddr *remoteaddr,
-             const struct sockshost_t *virtualremoteaddr);
+             const sockshost_t *virtualremoteaddr);
 /*
  * Adds a proxy-forwarded remote client to our list over proxied clients.
  * "local" gives the local socket we listen on,
  * "remote" is the socket connected to the remote client,
- * "remoteaddr" is the physical peer of "remote" (the proxyserver),
+ * "remoteaddr" is the physical peer of "remote" (the proxy server),
  * and "virtualremoteaddr" is the address the proxy claims to be
  * forwarding.
  *
@@ -69,10 +69,10 @@ Raccept(s, addr, addrlen)
 {
    const char *function = "Raccept()";
    fd_set *rset;
-   struct socksfd_t socksfd;
+   socksfd_t socksfd;
    char addrstring[MAXSOCKADDRSTRING];
-   struct sockaddr accepted;
-   struct socks_t packet;
+   struct sockaddr_storage accepted;
+   socks_t packet;
    int fdbits, p, remote;
 
    clientinit();
@@ -150,7 +150,7 @@ Raccept(s, addr, addrlen)
       switch (packet.version) {
          case PROXY_SOCKS_V4:
          case PROXY_SOCKS_V5: {
-            struct socksfd_t sfddup, *p;
+            socksfd_t sfddup, *p;
 
             packet.res.auth = &socksfd.state.auth;
             if (socks_recvresponse(socksfd.control, &packet.res,
@@ -188,10 +188,12 @@ Raccept(s, addr, addrlen)
             SERRX(packet.version);
       }
 
-      sockshost2sockaddr(&socksfd.forus.accepted, &accepted);
+      sockshost2sockaddr(&socksfd.forus.accepted, TOSA(&accepted));
 
-      slog(LOG_DEBUG, "%s: accepted: %s",
-      function, sockaddr2string(&accepted, addrstring, sizeof(addrstring)));
+      slog(LOG_DEBUG,
+           "%s: accepted: %s",
+           function,
+           sockaddr2string(TOSA(&accepted), addrstring, sizeof(addrstring)));
    }
    else { /* pending connection on datasocket. */
       socklen_t len;
@@ -201,11 +203,11 @@ Raccept(s, addr, addrlen)
       free(rset);
 
       len = sizeof(accepted);
-      if ((remote = accept(s, &accepted, &len)) == -1)
+      if ((remote = accept(s, TOSA(&accepted), &len)) == -1)
          return -1;
 
       slog(LOG_DEBUG, "%s: accepted: %s",
-      function, sockaddr2string(&accepted, addrstring, sizeof(addrstring)));
+      function, sockaddr2string(TOSA(&accepted), addrstring, sizeof(addrstring)));
 
       if (socksfd.state.acceptpending) {
          /*
@@ -221,12 +223,12 @@ Raccept(s, addr, addrlen)
             switch (socksfd.state.version) {
                case PROXY_SOCKS_V4:
                case PROXY_SOCKS_V5: {
-                  struct authmethod_t auth = socksfd.state.auth;
+                  authmethod_t auth = socksfd.state.auth;
 
                   packet.req.version   = (unsigned char)socksfd.state.version;
                   packet.req.command   = SOCKS_BIND;
                   packet.req.flag      = 0;
-                  sockaddr2sockshost(&accepted, &packet.req.host);
+                  sockaddr2sockshost(TOSA(&accepted), &packet.req.host);
                   packet.req.auth      = &auth;
 
                   if (socks_sendrequest(socksfd.control, &packet.req) != 0) {
@@ -240,7 +242,7 @@ Raccept(s, addr, addrlen)
                      return -1;
                   }
 
-                  if (packet.res.host.atype != (unsigned char)SOCKS_ADDR_IPV4) {
+                  if (packet.res.host.atype != SOCKS_ADDR_IPV4) {
                      swarnx("%s: unexpected atype in bindquery response: %d",
                      function, packet.res.host.atype);
                      close(remote);
@@ -260,7 +262,8 @@ Raccept(s, addr, addrlen)
             }
 
             if (forwarded) {
-               if (addforwarded(s, remote, &accepted, &packet.res.host) != 0)
+               if (addforwarded(s, remote, TOSA(&accepted), &packet.res.host)
+               != 0)
                   return -1;
             }
             /* else; ordinary remote connect, nothing to do. */
@@ -272,7 +275,7 @@ Raccept(s, addr, addrlen)
 
    if (addr != NULL) {
       *addrlen = MIN(*addrlen, (socklen_t)sizeof(accepted));
-      memcpy(addr, &accepted, (size_t)*addrlen);
+      sockaddrcpy(addr, TOSA(&accepted), (size_t)*addrlen);
    }
 
    return remote;
@@ -283,11 +286,11 @@ addforwarded(local, remote, remoteaddr, virtualremoteaddr)
    const int local;
    const int remote;
    const struct sockaddr *remoteaddr;
-   const struct sockshost_t *virtualremoteaddr;
+   const sockshost_t *virtualremoteaddr;
 {
    const char *function = "addforwarded()";
    socklen_t len;
-   struct socksfd_t socksfd, rfd;
+   socksfd_t socksfd, rfd;
 
    slog(LOG_DEBUG, "%s: registering socket %d as accepted from socket %d",
    function, remote, local);
@@ -307,14 +310,14 @@ addforwarded(local, remote, remoteaddr, virtualremoteaddr)
     */
 
    rfd.state.acceptpending = 0;
-   rfd.remote              = *remoteaddr;
+   sockaddrcpy(TOSA(&rfd.remote), TOSA(&remoteaddr), sizeof(rfd.remote));
    rfd.forus.accepted      = *virtualremoteaddr;
 
    /* has a local address now if unbound before. */
    /* LINTED pointer casts may be troublesome */
    if (!ADDRISBOUND(TOIN(&rfd.local))) {
       len = sizeof(rfd.local);
-      if (getsockname(remote, &rfd.local, &len) != 0)
+      if (getsockname(remote, TOSA(&rfd.local), &len) != 0)
          swarn("%s: getsockname(remote)", function);
    }
 

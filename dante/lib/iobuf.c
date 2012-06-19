@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011
+ * Copyright (c) 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,19 +44,19 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: iobuf.c,v 1.80 2011/07/21 13:48:41 michaels Exp $";
+"$Id: iobuf.c,v 1.86 2012/06/01 20:23:05 karls Exp $";
 
 static int socks_flushallbuffers(void);
 /*
- * Flushes all buffers.  
- * Returns 0 if all were flushed successfully. 
- * Returns -1 if we failed to completly flush at least one buffer.
+ * Flushes all buffers.
+ * Returns 0 if all were flushed successfully.
+ * Returns -1 if we failed to completely flush at least one buffer.
  */
 
 #if !SOCKS_CLIENT
 /*
- * - Each negotiatechild client can use one iobuffer for control.
- * - Each requestchild and iochild client can use one iobuffer for
+ * - Each negotiate child client can use one iobuffer for control.
+ * - Each request child and io child client can use one iobuffer for
  *   control, src, and st.
  */
 static iobuffer_t
@@ -80,7 +80,7 @@ socks_setbuffer(s, mode, size)
 {
    iobuffer_t *iobuf;
 
-   SASSERTX(size <= SOCKD_BUFSIZE); 
+   SASSERTX(size <= SOCKD_BUFSIZE);
    if ((iobuf = socks_getbuffer(s)) == NULL)
       return;
 
@@ -133,7 +133,7 @@ socks_flushbuffer(s, len)
        * Already have encoded data ready for write.  Must always
        * write that first, since it came first.
        */
-      struct socksfd_t socksfd, *p;
+      socksfd_t socksfd, *p;
 
       p = socks_getaddr(s, &socksfd, 1);
       SASSERTX(p != NULL);
@@ -172,7 +172,7 @@ socks_flushbuffer(s, len)
       /*
        * Unencoded data in buffer, need to encode it first.
        */
-      struct socksfd_t socksfd, *p;
+      socksfd_t socksfd, *p;
       unsigned char token[GSSAPI_HLEN + MAXGSSAPITOKENLEN];
       unsigned short tokenlen;
       size_t token_length;
@@ -474,7 +474,9 @@ socks_addtobuffer(s, which, encoded, data, datalen)
           * the end of the buffer.
           */
          memcpy(&iobuf->buf[which][socks_bytesinbuffer(s, which, 0)
-         + socks_bytesinbuffer(s, which, 1)], data, toadd);
+                                 + socks_bytesinbuffer(s, which, 1)],
+                data,
+                toadd);
 
          iobuf->info[which].enclen += toadd;
       }
@@ -498,6 +500,7 @@ socks_addtobuffer(s, which, encoded, data, datalen)
       }
 
    SASSERTX(toadd == datalen);
+
    return toadd;
 }
 
@@ -508,14 +511,18 @@ socks_bytesinbuffer(s, which, encoded)
    const int encoded;
 {
    const iobuffer_t *iobuf = socks_getbuffer(s);
+   size_t rc;
 
    if (iobuf == NULL)
       return 0;
 
    if (encoded)
-      return iobuf->info[which].enclen;
+      rc = iobuf->info[which].enclen;
    else
-      return iobuf->info[which].len;
+      rc = iobuf->info[which].len;
+
+   SASSERTX(rc <= sizeof(iobuf->buf[which]));
+   return rc;
 }
 
 int
@@ -550,6 +557,8 @@ socks_freeinbuffer(s, which)
    if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: socket %d, which %d, free: %lu",
       function, s, which, (unsigned long)rc);
+
+   SASSERTX(rc <= sizeof(iobuf->buf[which]));
 
    return rc;
 }

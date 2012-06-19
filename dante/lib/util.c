@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009, 2010, 2011
+ *               2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -57,10 +57,9 @@
 #else /* STANDALONE_UNIT_TEST */
 
 #include "vis_compat.h"
-#include "ifaddrs_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.268 2011/07/26 10:44:14 michaels Exp $";
+"$Id: util.c,v 1.308 2012/06/01 20:23:05 karls Exp $";
 
 const char *
 strcheck(string)
@@ -159,41 +158,66 @@ errno2reply(errnum, version)
 
 struct sockaddr *
 sockshost2sockaddr(host, addr)
-   const struct sockshost_t *host;
+   const sockshost_t *host;
    struct sockaddr *addr;
 {
    const char *function = "sockshost2sockaddr()";
-   uint8_t sa_length;
 
-   bzero(addr, sizeof(*addr));
+   if (addr == NULL) {
+      static struct sockaddr_storage addrmem;
+
+      addr = TOSA(&addrmem);
+   }
+
    switch (host->atype) {
-      case SOCKS_ADDR_IPV4:
-         addr->sa_family = AF_INET;
-         sa_length       = sizeof(struct sockaddr_in);
+      case SOCKS_ADDR_IPV4: {
+         struct sockaddr_storage ss;
 
-         TOIN(addr)->sin_addr = host->addr.ipv4;
-         TOIN(addr)->sin_port = host->port;
+         bzero(&ss, sizeof(ss));
+         SET_SOCKADDR(TOSA(&ss), AF_INET);
+         TOIN(&ss)->sin_addr = host->addr.ipv4;
+         TOIN(&ss)->sin_port = host->port;
+
+         sockaddrcpy(addr, TOSA(&ss), sizeof(*addr));
          break;
+      }
 
       case SOCKS_ADDR_DOMAIN: {
          struct hostent *hostent;
 
-         addr->sa_family = AF_INET;
-         sa_length       = sizeof(struct sockaddr_in);
+         bzero(addr, sizeof(*addr));
 
          if ((hostent = gethostbyname(host->addr.domain)) == NULL
          ||   hostent->h_addr_list == NULL) {
-            slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-            function, host->addr.domain, hstrerror(h_errno));
+            slog(LOG_DEBUG, "%s: gethostbyname(%s) failed: %s",
+                 function, host->addr.domain, hstrerror(h_errno));
 
-            /* LINTED pointer casts may be troublesome */
             TOIN(addr)->sin_addr.s_addr = htonl(INADDR_ANY);
          }
          else {
-            TOIN(addr)->sin_addr = *(struct in_addr *)(*hostent->h_addr_list);
+            memcpy(&TOIN(addr)->sin_addr,
+                   *hostent->h_addr_list,
+                   sizeof(TOIN(addr)->sin_addr));
+
             TOIN(addr)->sin_port = host->port;
          }
 
+         SET_SOCKADDR(addr, AF_INET);
+         break;
+      }
+
+      case SOCKS_ADDR_IFNAME:
+         ifname2sockaddr(host->addr.ifname, 0, addr, NULL);
+         TOIN(addr)->sin_port = host->port;
+         break;
+
+      case SOCKS_ADDR_URL: {
+         char emsg[256];
+
+         if (urlstring2sockaddr(host->addr.urlname, addr, emsg, sizeof(emsg))
+         == NULL)
+            serrx(1, "%s: can't convert url string %s to sockaddr: %s",
+                      function, host->addr.urlname, emsg);
          break;
       }
 
@@ -201,27 +225,32 @@ sockshost2sockaddr(host, addr)
          SERRX(host->atype);
    }
 
-#if HAVE_SOCKADDR_SA_LEN
-   addr->sa_len = sa_length;
-#endif /* HAVE_SOCKADDR_SA_LEN */
-
    return addr;
 }
 
-struct sockshost_t *
+sockshost_t *
 sockaddr2sockshost(addr, host)
    const struct sockaddr *addr;
-   struct sockshost_t *host;
+   sockshost_t *host;
 {
 
+   if (host == NULL) {
+      static sockshost_t _host;
+
+      host = &_host;
+   }
+
    switch (addr->sa_family) {
-      case AF_INET:
-         host->atype     = (unsigned char)SOCKS_ADDR_IPV4;
-         /* LINTED pointer casts may be troublesome */
-         host->addr.ipv4 = TOCIN(addr)->sin_addr;
-         /* LINTED pointer casts may be troublesome */
-         host->port      = TOCIN(addr)->sin_port;
+      case AF_INET: {
+         struct sockaddr_in a;
+
+         sockaddrcpy(TOSA(&a), addr, sizeof(a));
+
+         host->atype     = SOCKS_ADDR_IPV4;
+         host->addr.ipv4 = a.sin_addr;
+         host->port      = a.sin_port;
          break;
+      }
 
       default:
          SERRX(addr->sa_family);
@@ -232,26 +261,32 @@ sockaddr2sockshost(addr, host)
 
 struct sockaddr *
 ruleaddr2sockaddr(address, sa, protocol)
-   const struct ruleaddr_t *address;
+   const ruleaddr_t *address;
    struct sockaddr *sa;
    const int protocol;
 {
-   struct sockshost_t host;
+   sockshost_t host;
 
    ruleaddr2sockshost(address, &host, protocol);
    return sockshost2sockaddr(&host, sa);
 }
 
 
-struct sockshost_t *
+sockshost_t *
 ruleaddr2sockshost(address, host, protocol)
-   const struct ruleaddr_t *address;
-   struct sockshost_t *host;
+   const ruleaddr_t *address;
+   sockshost_t *host;
    int protocol;
 {
    const char *function = "ruleaddr2sockshost()";
 
-   switch (host->atype = (unsigned char)address->atype) {
+   if (host == NULL) {
+      static sockshost_t hostmem;
+
+      host = &hostmem;
+   }
+
+   switch (host->atype = address->atype) {
       case SOCKS_ADDR_IPV4:
          host->addr.ipv4 = address->addr.ipv4.ip;
          break;
@@ -262,11 +297,12 @@ ruleaddr2sockshost(address, host, protocol)
          break;
 
       case SOCKS_ADDR_IFNAME: {
-         struct sockaddr addr;
+         struct sockaddr_storage addr;
 
-         host->atype = (unsigned char)SOCKS_ADDR_IPV4;
+         host->atype = SOCKS_ADDR_IPV4;
 
-         if (ifname2sockaddr(address->addr.ifname, 0, &addr, NULL) == NULL) {
+         if (ifname2sockaddr(address->addr.ifname, 0, TOSA(&addr), NULL)
+         == NULL) {
             swarnx("%s: can't find interface named %s with ip configured, "
                    "using INADDR_ANY",
                    function, address->addr.ifname);
@@ -298,96 +334,19 @@ ruleaddr2sockshost(address, host, protocol)
    return host;
 }
 
-gwaddr_t *
-ruleaddr2gwaddr(address, gw)
-   const struct ruleaddr_t *address;
-   gwaddr_t *gw;
-{
-
-   switch (gw->atype = address->atype) {
-      case SOCKS_ADDR_IPV4:
-         gw->addr.ipv4 = address->addr.ipv4.ip;
-         break;
-
-      case SOCKS_ADDR_DOMAIN:
-         SASSERTX(strlen(address->addr.domain) < sizeof(gw->addr.domain));
-         strcpy(gw->addr.domain, address->addr.domain);
-         break;
-
-      case SOCKS_ADDR_IFNAME:
-         SASSERTX(strlen(address->addr.ifname) < sizeof(gw->addr.ifname));
-         strcpy(gw->addr.ifname, address->addr.ifname);
-         break;
-
-      default:
-         SERRX(address->atype);
-   }
-
-   gw->port = address->port.tcp;
-
-   return gw;
-}
-
-struct sockshost_t *
-gwaddr2sockshost(gw, host)
-   const gwaddr_t *gw;
-   struct sockshost_t *host;
-{
-   const char *function = "gwaddr2sockshost()";
-
-   switch (gw->atype) {
-      case SOCKS_ADDR_IPV4:
-         host->atype     = (unsigned char)gw->atype;
-         host->addr.ipv4 = gw->addr.ipv4;
-         break;
-
-      case SOCKS_ADDR_DOMAIN:
-         host->atype = (unsigned char)gw->atype;
-         SASSERTX(strlen(gw->addr.domain) < sizeof(gw->addr.domain));
-         strcpy(host->addr.domain, gw->addr.domain);
-         break;
-
-      case SOCKS_ADDR_IFNAME: {
-         struct sockaddr saddr;
-
-         if (ifname2sockaddr(gw->addr.ifname, 0, &saddr, NULL) == NULL)
-            serrx(1, "can't find interface named %s with ip configured",
-            gw->addr.ifname);
-
-         sockaddr2sockshost(&saddr, host);
-         host->port = gw->port;
-         break;
-      }
-
-      case SOCKS_ADDR_URL: {
-         struct sockaddr saddr;
-         char emsg[256];
-
-         if (urlstring2sockaddr(gw->addr.urlname, &saddr, emsg, sizeof(emsg))
-         == NULL)
-            serrx(1, "%s: can't convert ulrstring to sockaddr: %s",
-                      function,  
-                      emsg);
-
-         sockaddr2sockshost(&saddr, host);
-         break;
-      }
-
-      default:
-         SERRX(gw->atype);
-   }
-
-   host->port = gw->port;
-   return host;
-}
-
-struct ruleaddr_t *
+ruleaddr_t *
 sockshost2ruleaddr(host, addr)
-   const struct sockshost_t *host;
-   struct ruleaddr_t *addr;
+   const sockshost_t *host;
+   ruleaddr_t *addr;
 {
 
-   switch (addr->atype = (atype_t)host->atype) {
+   if (addr == NULL) {
+      static ruleaddr_t addrmem;
+
+      addr = &addrmem;
+   }
+
+   switch (addr->atype = host->atype) {
       case SOCKS_ADDR_IPV4:
          addr->addr.ipv4.ip            = host->addr.ipv4;
          addr->addr.ipv4.mask.s_addr   = htonl(0xffffffff);
@@ -414,12 +373,12 @@ sockshost2ruleaddr(host, addr)
    return addr;
 }
 
-struct ruleaddr_t *
+ruleaddr_t *
 sockaddr2ruleaddr(addr, ruleaddr)
    const struct sockaddr *addr;
-   struct ruleaddr_t *ruleaddr;
+   ruleaddr_t *ruleaddr;
 {
-   struct sockshost_t host;
+   sockshost_t host;
 
    sockaddr2sockshost(addr, &host);
    sockshost2ruleaddr(&host, ruleaddr);
@@ -441,22 +400,10 @@ hostname2sockaddr(name, index, addr)
 
    for (i = 0; hostent->h_addr_list[i] != NULL; ++i)
       if (i == index) {
+         SASSERTX(hostent->h_addrtype == AF_INET);
+
          bzero(addr, sizeof(*addr));
-         addr->sa_family = (uint8_t)hostent->h_addrtype;
-
-#if HAVE_SOCKADDR_SA_LEN
-         switch (addr->sa_family) {
-            case AF_INET:
-               SASSERTX(hostent->h_length == sizeof(struct in_addr));
-               addr->sa_len = sizeof(struct sockaddr_in);
-               break;
-
-            default:
-               SERRX(addr->sa_family);
-         }
-#endif /* HAVE_SOCKADDR_SA_LEN */
-
-         SASSERTX(addr->sa_family == AF_INET);
+         SET_SOCKADDR(TOSA(addr), (uint8_t)hostent->h_addrtype);
          TOIN(addr)->sin_addr = *(struct in_addr *)hostent->h_addr_list[i];
          TOIN(addr)->sin_port = htons(0);
 
@@ -493,6 +440,11 @@ ifname2sockaddr(ifname, index, addr, mask)
 
       if (iface->ifa_addr == NULL || iface->ifa_addr->sa_family != AF_INET) {
          foundbutnoipv4 = 1;
+         continue;
+      }
+
+      if (iface->ifa_netmask == NULL) {
+         swarn("interface %s missing netmask, skipping", iface->ifa_name);
          continue;
       }
 
@@ -537,8 +489,9 @@ sockaddr2ifname(_addr, ifname, iflen)
    size_t iflen;
 {
    const char *function = "sockaddr2ifname()";
-   struct sockaddr addr = *_addr;
+   struct sockaddr_storage addr;
    struct ifaddrs ifa, *ifap = &ifa, *iface;
+
 
    if (ifname == NULL || iflen == 0) {
       static char ifname_mem[MAXIFNAMELEN];
@@ -547,26 +500,42 @@ sockaddr2ifname(_addr, ifname, iflen)
       iflen  = sizeof(ifname_mem);
    }
 
-   bzero(ifname, iflen);
+   sockaddrcpy(TOSA(&addr), _addr, sizeof(addr));
+
+   /* port is irrelevant as far as an interface-address is concerned. */
    TOIN(&addr)->sin_port = htons(0);
 
    if (getifaddrs(&ifap) != 0)
       return NULL;
 
-   for (iface = ifap; iface != NULL; iface = iface->ifa_next)
-      if (iface->ifa_addr != NULL && sockaddrareeq(iface->ifa_addr, &addr)) {
+   for (iface = ifap; iface != NULL; iface = iface->ifa_next) {
+      char af[16];
+
+      if (iface->ifa_addr != NULL)
+         snprintf(af, sizeof(af), "(af %d)",
+                  TOSA(iface->ifa_addr)->sa_family);
+      else
+         *af = NUL;
+
+      if (iface->ifa_addr != NULL
+      &&  sockaddrareeq(TOSA(iface->ifa_addr), TOSA(&addr))) {
          strncpy(ifname, iface->ifa_name, iflen - 1);
          ifname[iflen - 1] = NUL;
 
-         slog(LOG_DEBUG, "%s: address %s belongs to interface %s",
-         function, sockaddr2string(&addr, NULL, 0), ifname);
+         slog(LOG_DEBUG, "%s: address %s belongs to interface %s %s",
+              function, sockaddr2string(TOSA(&addr), NULL, 0), ifname, af);
 
          freeifaddrs(ifap);
+
          return ifname;
       }
       else
-         slog(LOG_DEBUG, "%s: address %s does not belong to interface %s",
-         function, sockaddr2string(&addr, NULL, 0), iface->ifa_name);
+         slog(LOG_DEBUG, "%s: address %s does not belong to interface %s %s",
+             function,
+             sockaddr2string(TOSA(&addr), NULL, 0),
+             iface->ifa_name,
+             af);
+   }
 
    freeifaddrs(ifap);
    return NULL;
@@ -575,7 +544,7 @@ sockaddr2ifname(_addr, ifname, iflen)
 int
 socks_logmatch(d, log)
    unsigned int d;
-   const struct logtype_t *log;
+   const logtype_t *log;
 {
    size_t i;
 
@@ -587,24 +556,9 @@ socks_logmatch(d, log)
 }
 
 int
-sockaddrareeq(a, b)
-   const struct sockaddr *a;
-   const struct sockaddr *b;
-{
-
-#if HAVE_SOCKADDR_SA_LEN
-   if (a->sa_len != b->sa_len)
-      return 0;
-   return memcmp(a, b, a->sa_len) == 0;
-#else
-   return memcmp(a, b, sizeof(*a)) == 0;
-#endif /* HAVE_SOCKADDR_SA_LEN */
-}
-
-int
 sockshostareeq(a, b)
-   const struct sockshost_t *a;
-   const struct sockshost_t *b;
+   const sockshost_t *a;
+   const sockshost_t *b;
 {
 
    if (a->atype != b->atype)
@@ -752,7 +706,7 @@ socks_mklock(template, newname, newnamelen)
          prefix = NULL;
 
    if (prefix == NULL)
-      prefix = "";
+      prefix = "/tmp";
 
    len = strlen(prefix) + strlen("/") + strlen(template) + 1;
    if (len > sizeof(newtemplate))
@@ -777,13 +731,15 @@ socks_mklock(template, newname, newnamelen)
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: newtemplate = \"%s\", prefix = \"%s\" "
-      "uid = %d, euid = %d, gid = %d, egid = %d",
-      function, newtemplate, prefix,
-      (int)getuid(), (int)geteuid(),
-      (int)getgid(), (int)getegid());
+           "uid = %d, euid = %d, gid = %d, egid = %d",
+           function, newtemplate, prefix,
+           (int)getuid(), (int)geteuid(), (int)getgid(), (int)getegid());
 
    if (strstr(newtemplate, "XXXXXX") != NULL) {
-      s = mkstemp(newtemplate);
+      if ((s = mkstemp(newtemplate)) == -1)
+         swarn("%s: mkstemp(%s) using euid/egid %d/%d failed",
+               function, newtemplate, (int)geteuid(), (int)getegid());
+
 #if HAVE_SOLARIS_BUGS
       if (s == -1 && *newtemplate == NUL) {
           /*
@@ -796,8 +752,10 @@ socks_mklock(template, newname, newnamelen)
       }
 #endif /* HAVE_SOLARIS_BUGS */
    }
-   else
+   else {
       s = open(newtemplate, O_RDWR | O_CREAT | O_EXCL, 0600);
+      swarn("%s: open(%s)", function, newtemplate);
+   }
 
    if (s == -1) {
       if (*prefix == NUL) {
@@ -813,7 +771,6 @@ socks_mklock(template, newname, newnamelen)
          return socks_mklock(template, newname, newnamelen);
       }
 
-      swarn("%s: open(%s)", function, newtemplate);
       return -1;
    }
    else
@@ -890,14 +847,13 @@ freedescriptors(message)
    const int errno_s = errno;
    size_t i, freed, max;
 
-   /* LINTED expression has null effect */
    for (freed = 0, i = 0, max = sockscf.state.maxopenfiles; i < max; ++i)
       if (!fdisopen((int)i))
          ++freed;
 
    if (message != NULL)
       slog(LOG_DEBUG, "freedescriptors(%s): %ld/%ld",
-            message, (long)freed, (long)max);
+           message, (long)freed, (long)max);
 
    errno = errno_s;
    return freed;
@@ -907,8 +863,11 @@ int
 fdisopen(fd)
    const int fd;
 {
+   const int errno_s = errno;
+   const int rc = fcntl(fd, F_GETFD, 0);
 
-   return fcntl(fd, F_GETFD, 0) != -1;
+   errno = errno_s;
+   return rc != -1;
 }
 
 int
@@ -998,22 +957,44 @@ allocate_maxsize_fdset(void)
 rlim_t
 getmaxofiles(limittype_t type)
 {
+   const char *function = "getmaxofiles()";
    struct rlimit rlimit;
+   rlim_t limit;
 
    if (getrlimit(RLIMIT_OFILE, &rlimit) != 0)
          serr(EXIT_FAILURE, "getrlimit(RLIMIT_OFILE)");
 
    if (type == softlimit)
-      return rlimit.rlim_cur;
-
-   if (type == hardlimit)
+      limit = rlimit.rlim_cur;
+   else if (type == hardlimit)
 #if HAVE_DARWIN /* documented os x bug.  What on earth are they thinking? */
-      return MIN(rlimit.rlim_max, OPEN_MAX);
+      limit = MIN(rlimit.rlim_max, OPEN_MAX);
 #else /* !HAVE_DARWIN */
-      return rlimit.rlim_max;
+      limit = rlimit.rlim_max;
 #endif /* !HAVE_DARWIN */
+   else
+      SERRX(type);
+      /* NOTREACHED */
 
-   SERR(type); /* NOTREACHED */
+#if !SOCKS_CLIENT && FD_SETSIZE_LIMITS_SELECT
+   /*
+    * we don't mess with the clients limits.  Not our business whether
+    * select(2) will work or not if a fd has a index that would overflow
+    * FD_SETSIZE.
+    */
+   if (limit > FD_SETSIZE) {
+      slog(LOG_DEBUG, "%s: max open file limit is %lu, but we need to shrink "
+                      "it down to the same size as FD_SETSIZE (%lu) for "
+                      "select(2) to work",
+                      function,
+                      (unsigned long)limit,
+                      (unsigned long)FD_SETSIZE);
+
+      limit = FD_SETSIZE;
+   }
+#endif /* !SOCKS_CLIENT && FD_SETSIZE_LIMITS_SELECT */
+
+   return limit;
 }
 
 void
@@ -1113,7 +1094,7 @@ urlstring2sockaddr(string, saddr, emsg, emsglen)
    int p;
 
    if ((s = strstr(string, httpprefix)) == NULL) {
-      p = snprintf(buf, sizeof(buf), 
+      p = snprintf(buf, sizeof(buf),
                    "could not find http prefix in http address \"%.80s\"",
                    string);
       str2vis(buf, p, emsg, emsglen);
@@ -1145,15 +1126,16 @@ urlstring2sockaddr(string, saddr, emsg, emsglen)
    slog(LOG_DEBUG, "%s: address is %s", function, buf);
 
    bzero(saddr, sizeof(*saddr));
-   saddr->sa_family = AF_INET;
+   SET_SOCKADDR(TOSA(saddr), AF_INET);
+
    if (inet_pton(saddr->sa_family, buf, &(TOIN(saddr)->sin_addr)) != 1) {
       struct hostent *hostent;
-      long lval;
       char *ep, buf2[256];
 
       errno = 0;
-      lval = strtol(buf, &ep, 10);
-      if (*ep == NUL) { /* only digits, but inet_pton() failed. */
+      (void)strtol(buf, &ep, 10);
+      if (*ep == NUL || errno == ERANGE) {
+         /* only digits, but inet_pton() failed. */
          p = snprintf(buf2, sizeof(buf2),
                      "\"%.80s\" does not appear to be a valid IP address",
                      buf);
@@ -1162,7 +1144,7 @@ urlstring2sockaddr(string, saddr, emsg, emsglen)
          return NULL;
       }
 
-      if ((hostent = gethostbyname(buf)) == NULL 
+      if ((hostent = gethostbyname(buf)) == NULL
       ||   hostent->h_addr               == NULL) {
          p = snprintf(buf2, sizeof(buf2),
                       "could not resolve hostname \"%.80s\"",
@@ -1172,11 +1154,11 @@ urlstring2sockaddr(string, saddr, emsg, emsglen)
          return NULL;
       }
 
-      memcpy(&TOIN(saddr)->sin_addr, hostent->h_addr, hostent->h_length);
+      memcpy(&TOIN(saddr)->sin_addr, *hostent->h_addr_list, hostent->h_length);
    }
 
    if ((port = strrchr(string, ':')) == NULL) {
-      p = snprintf(buf, sizeof(buf), 
+      p = snprintf(buf, sizeof(buf),
                   "could not find start of port number in \"%.80s\"",
                   string);
       str2vis(buf, p, emsg, emsglen);
@@ -1221,3 +1203,20 @@ snprintfn(char *str, size_t size, const char *format, ...)
    return MIN((size_t)rc, size - 1);
 }
 #endif /* !STANDALONE_UNIT_TEST */
+
+/*
+ * NOTE: close() macro undefined; closen() function needs to be at the
+ * end of the file.
+ */
+int
+closen(d)
+   int d;
+{
+   int rc;
+
+#undef close  /* we redefine close() to closen() for convenience. */
+   while ((rc = close(d)) == -1 && errno == EINTR)
+      ; /* LINTED empty */
+
+   return rc;
+}

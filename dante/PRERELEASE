@@ -1,0 +1,47 @@
+@(#)$Id: PRERELEASE,v 1.387.2.1 2012/06/19 11:37:16 karls Exp $
+
+*
+* This is a prerelease.  Do not use this to upgrade from a previous
+* release of Dante unless you want to help testing.
+* Report any problems to: dante-bugs@inet.no
+*
+
+-------------------------------------------------------------------------------
+***
+***  Tuesday, June 19, 2012 -- Dante v1.4.0-pre1
+***
+
+ o GSSAPI "clear" is no longer enabled by default, as it is not part of the
+   SOCKS GSSAPI standard per se.
+
+ o Errors related to the machine Dante is running on not having any route
+   to a clients target destination are now reported as general errors with
+   log level "warning", in addition to as part of the normal session close.
+
+ o external.rotation was not handling non-IPv4 target addresses correctly.
+   Reported and diagnosed by Rudolf Polzer <rpolzer@one-it.de.example.com>.
+
+ o The --disable-libwrap option has been renamed --without-libwrap.
+
+ o Fixed bug that would cause the following warning to sometimes be
+   reported despite this not being a problem:
+   "warning: accept(2) failed: Resource temporarily unavailable"
+
+ o SIGINFO log information extended to include information about current
+   buffering status and UDP latency.
+
+ o Real-time scheduling priority settings and CPU affinity settings made
+   available in sockd.conf.
+
+   See https://www.inet.no/dante/files/dante_realtime_preview.pdf for
+   a performance analysis done in relation to this work.
+
+ o General API for setting socket options on TCP/UDP sockets used by Dante
+   made available in sockd.conf.
+
+ o Support for cross compilation of client library for Android
+   (system name 'arm-linux-androideabi').
+   Testing and analysis by Yoav Weiss <weiss.yoav@gmail.com.example.com>.
+
+ o Problem with sockd.init generation in dante.spec fixed.
+   Reported by Luiz Gustavo Nascimento <luizgn@gmail.com.example.com>.

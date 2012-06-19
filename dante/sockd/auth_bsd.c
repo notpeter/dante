@@ -46,7 +46,7 @@
 #if HAVE_BSDAUTH
 
 static const char rcsid[] =
-"$Id: auth_bsd.c,v 1.16 2011/07/26 18:39:59 karls Exp $";
+"$Id: auth_bsd.c,v 1.17 2011/09/24 17:44:41 michaels Exp $";
 
 #include <login_cap.h>
 #include <bsd_auth.h>
@@ -55,7 +55,7 @@ int
 bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    int s;
    const struct sockaddr *src, *dst;
-   struct authmethod_bsd_t *auth;
+   authmethod_bsd_t *auth;
    char *emsg;
    size_t emsgsize;
 {

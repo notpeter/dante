@@ -40,7 +40,7 @@
 # any improvements or extensions that they make and grant Inferno Nettverk A/S
 # the rights to redistribute these changes.
 #
-# $Id: socksify.in,v 1.39 2011/07/30 11:35:26 karls Exp $
+# $Id: socksify.in,v 1.40 2012/05/30 15:38:07 karls Exp $
 
 #On systems where a supported preloading mechanism is used, you can
 #do "socksify <program>" and <program> will use socks without having
@@ -57,12 +57,17 @@ SOCKSIFY_PRELOAD_LIBS="@SOCKSIFY_PRELOAD_LIBS@"
 
 SOCKS_LIBDIR="${SOCKS_LIBDIR:-@LIBRARY_PREFIX@}"
 
-if test x`uname` = xDarwin -o x"$SOCKS_USEFULLPATH" != x; then
-    #specify full path on darwin
+SOCKS_USEFULLPATH="${SOCKS_USEFULLPATH:-@SOFULLPATH@}"
+
+if test x"$SOCKS_USEFULLPATH" != x; then
+    #specify full path to libdsocks
     FULLPATH="${SOCKS_LIBDIR}/"
-    export DYLD_FORCE_FLAT_NAMESPACE=t
 else
     unset FULLPATH
+fi
+
+if test x`uname` = xDarwin; then
+    export DYLD_FORCE_FLAT_NAMESPACE=t
 fi
 
 #dlib/Makefile.am libtool flags should produce a predictable library name

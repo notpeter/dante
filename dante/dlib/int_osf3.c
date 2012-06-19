@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -66,7 +66,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: int_osf3.c,v 1.37 2011/06/13 08:35:14 michaels Exp $";
+"$Id: int_osf3.c,v 1.39 2012/06/01 20:23:05 karls Exp $";
 
 #undef accept
 #undef bind
@@ -102,7 +102,7 @@ struct n_msghdr {
 };
 
 ssize_t Rsendto(int, const void *, size_t, int,
-      const struct n_sockaddr *, socklen_t);
+                const struct n_sockaddr *, socklen_t);
 int Rconnect(int, const struct n_sockaddr *, socklen_t);
 ssize_t Rsendmsg(int, const struct n_msghdr *, int);
 ssize_t Rrecvfrom(int, void *, int, int, struct n_sockaddr *, socklen_t *);
@@ -138,7 +138,7 @@ sys_getpeername(s, name, namelen)
    int *namelen;
 {
    int rc;
-   int (*function)(int s, const struct sockaddr * name, socklen_t *namelen);
+   int (*function)(int s, const struct sockaddr *name, socklen_t *namelen);
 
    socks_syscall_start(s);
    function = symbolfunction(SYMBOL_GETPEERNAME);
@@ -154,7 +154,7 @@ sys_getsockname(s, name, namelen)
    int *namelen;
 {
    int rc;
-   int (*function)(int s, const struct sockaddr * name, socklen_t *namelen);
+   int (*function)(int s, const struct sockaddr *name, socklen_t *namelen);
 
    socks_syscall_start(s);
    function = symbolfunction(SYMBOL_GETSOCKNAME);
@@ -174,7 +174,7 @@ sys_recvfrom(s, buf, len, flags, from, fromlen)
 {
    int rc;
    int (*function)(int s, void *buf, size_t len, int flags,
-                   struct sockaddr * from, socklen_t *fromlen);
+                   struct sockaddr *from, socklen_t *fromlen);
 
    socks_syscall_start(s);
    function = symbolfunction(SYMBOL_RECVFROM);
@@ -254,7 +254,7 @@ sys_connect(s, name, namelen)
    int namelen;
 {
    int rc;
-   int (*function)(int s, const struct sockaddr * name, socklen_t namelen);
+   int (*function)(int s, const struct sockaddr *name, socklen_t namelen);
 
    socks_syscall_start(s);
    function = symbolfunction(SYMBOL_CONNECT);

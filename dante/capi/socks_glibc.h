@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009
+ * Copyright (c) 2009, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: socks_glibc.h,v 1.8 2011/05/18 11:27:31 karls Exp $ */
+/* $Id: socks_glibc.h,v 1.10 2012/06/01 20:23:05 karls Exp $ */
 
 /*
  * Workaround for limitations in newer glibc versions, where LD_PRELOAD
@@ -76,7 +76,7 @@
 #undef putc
 #endif
 #define putc Rfputc
-/* Some linux functions */
+/* Some Linux functions */
 #ifdef __fprintf_chk
 #undef __fprintf_chk
 #endif

@@ -51,7 +51,7 @@
 # Openldap: With a rfc2307bis schema the group membership is based on
 #                 primary or secondary group membership (e.g. like normal unix accounts)
 #
-# Active Directory: The groupmembership is determined by the memberof attribute. Any group
+# Active Directory: The group membership is determined by the memberof attribute. Any group
 #                          membership is recursively followed to the top.
 #
 #  %s = username
@@ -81,7 +81,6 @@
 # Time (in sec) to cache failed ldap server connects
 #
         ldap.deadtime: 30
-
 
 #
 # Time (in sec) an ldap search can take

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009, 2010, 2011
+ *               2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,15 +46,15 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.275 2011/07/21 13:48:42 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.326 2012/06/01 20:23:06 karls Exp $";
 
-static struct sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
+static sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
 static const size_t negc = ELEMENTS(negv);
 
 static void siginfo(int sig, siginfo_t *sip, void *scp);
 
 static int
-send_negotiate(const struct sockd_negotiate_t *neg);
+send_negotiate(sockd_negotiate_t *neg);
 /*
  * Sends "neg" to "mother".
  * Returns:
@@ -67,17 +67,18 @@ static int
 recv_negotiate(void);
 /*
  * Tries to receive a client from mother.
- * Returns:
- *      If a new negotiate object was received successfully: 0.
- *      Otherwise: -1.
+ * Returns: the number of new clients received on success, or -1 on error.
+ *
+ * Note that a return of 0 does not indicate an error, but does mean
+ * no new clients were added, most likely because none of the clients
+ * received passed the ACL-checks.
  */
 
 static void
-delete_negotiate(struct sockd_negotiate_t *neg);
+delete_negotiate(sockd_negotiate_t *neg, const int doackfreeslot);
 /*
- * Frees any state occupied by "neg", including closing any
- * descriptors and sending a ack that we have deleted a "negotiate"
- * object to "mother".
+ * Frees any state occupied by "neg", including closing any descriptors.
+ * If "doackfreeslot" is set, ack to mother that we have freed a slot.
  */
 
 static int
@@ -86,22 +87,22 @@ neg_fillset(fd_set *set, const int skipcompleted, const int skipinprogress);
  * Sets all client descriptors in our list in the set "set".
  *
  * If "skipcompleted" is set, skip those descriptors that belong to
- * clients that have completed negotation.
+ * clients that have completed negotiation.
  *
  * If "skipinprogress" is set, skip those descriptors that belong to
- * clients that have not yet completed negotation.
+ * clients that have not yet completed negotiation.
  *
  * Returns the highest descriptor in our list, or -1 if we don't
  * have any descriptors open currently.
  */
 
 static void
-neg_clearset(struct sockd_negotiate_t *neg, fd_set *set);
+neg_clearset(sockd_negotiate_t *neg, fd_set *set);
 /*
  * Clears all file descriptors in "neg" from "set".
  */
 
-static struct sockd_negotiate_t *
+static sockd_negotiate_t *
 neg_getset(fd_set *set);
 /*
  * Goes through our list until it finds a negotiate object where at least
@@ -143,7 +144,7 @@ neg_gettimeout(struct timeval *timeout);
  */
 
 #if HAVE_NEGOTIATE_PHASE
-static struct sockd_negotiate_t *
+static sockd_negotiate_t *
 neg_gettimedout(void);
 /*
  * Scans all clients for one that has timed out according to sockscf
@@ -155,12 +156,12 @@ neg_gettimedout(void);
 #endif /* HAVE_NEGOTIATE_PHASE */
 
 static void
-neg_clearset(struct sockd_negotiate_t *neg, fd_set *set);
+neg_clearset(sockd_negotiate_t *neg, fd_set *set);
 /*
  * Clears all file descriptors in "neg" from "set".
  */
 
-static struct sockd_negotiate_t *
+static sockd_negotiate_t *
 neg_getset(fd_set *set);
 /*
  * Goes through our list until it finds a negotiate object where at least
@@ -202,7 +203,7 @@ neg_gettimeout(struct timeval *timeout);
  */
 
 #if HAVE_NEGOTIATE_PHASE
-static struct sockd_negotiate_t *
+static sockd_negotiate_t *
 neg_gettimedout(void);
 /*
  * Scans all clients for one that has timed out according to sockscf
@@ -234,19 +235,22 @@ run_negotiate()
    if (sigaction(SIGUSR1, &sigact, NULL) != 0)
       serr(EXIT_FAILURE, "%s: sigaction(SIGINFO)", function);
 
-   proctitleupdate();
 
    rset        = allocate_maxsize_fdset();
    rsetbuf     = allocate_maxsize_fdset();
    tmpset      = allocate_maxsize_fdset();
    wsetmem     = allocate_maxsize_fdset();
-   sendfailed  = 0;
 
+   proctitleupdate();
+
+   sockd_print_child_ready_message((size_t)freedescriptors(NULL));
+
+   sendfailed  = 0;
    while (1 /* CONSTCOND */) {
       negotiate_result_t negstatus;
       fd_set *wset;
       int fdbits;
-      struct sockd_negotiate_t *neg;
+      sockd_negotiate_t *neg;
       struct timeval *timeout, timeoutmem;
 
       errno = 0; /* reset for each iteration. */
@@ -254,38 +258,39 @@ run_negotiate()
 
 #if HAVE_NEGOTIATE_PHASE
       while ((neg = neg_gettimedout()) != NULL) {
-         struct sockaddr sa;
+         iologaddr_t src;
+
+         init_iologaddr(&src,
+                        SOCKSHOST_OBJECT,
+                        &neg->negstate.dst,
+                        SOCKSHOST_OBJECT,
+                        &neg->negstate.src,
+                        &neg->clientauth,
+                        GET_HOSTIDV(&neg->state),
+                        GET_HOSTIDC(&neg->state));
 
          iolog(&neg->rule,
                &neg->state,
                OPERATION_ERROR,
-               sockshost2sockaddr(&neg->negstate.dst, &sa),
-               &neg->negstate.src,
-               &neg->clientauth,
-               NULL,
-               NULL,
-               NULL,
-               NULL,
-               NULL,
-               NULL,
+               &src,
                NULL,
                NULL,
                NULL,
                "negotiation timed out",
                0);
 
-         delete_negotiate(neg);
+         delete_negotiate(neg, 1);
       }
 
       fdbits = neg_fillset(rset,
-                           sendfailed, /* 
+                           sendfailed, /*
                                         * If we've previously failed sending
                                         * the completed clients back to mother,
                                         * don't bother select(2)ing o them
                                         * for readability; can't send them
                                         * until we know mother is writable.
                                         */
-                           0);         /* 
+                           0);         /*
                                         * clients where negotiation is not
                                         * yet completed we want to continue
                                         * negotiating with.
@@ -295,7 +300,7 @@ run_negotiate()
       /*
        * don't bother checking here.  All, if any, should be completed.
        * Meaning, completed(1) will be true and no timeout will be set
-       * on select(2), unless sending to mother failed. 
+       * on select(2), unless sending to mother failed.
        */
       fdbits = -1;
       FD_ZERO(rset);
@@ -365,7 +370,7 @@ run_negotiate()
 
       fdsetop(fdbits, '|', rset, rsetbuf, rset);
 
-      /* 
+      /*
        * Those descriptors that have completed negotiation we want to
        * consider readable/ready, so we know to call recv_clientrequest()
        * on them.
@@ -383,8 +388,13 @@ run_negotiate()
       }
 
       if (FD_ISSET(sockscf.state.mother.s, rset)) {
-         if (recv_negotiate() != 0)
+         if (recv_negotiate() == -1) {
+            slog(LOG_DEBUG, "%s: not expecting recv_negotiate() to fail (%s) "
+                            "unless mother is exiting ... restarting loop to "
+                            "find out more before continuing",
+                            function, strerror(errno));
             continue;
+         }
 
          FD_CLR(sockscf.state.mother.s, rset);
       }
@@ -408,6 +418,28 @@ run_negotiate()
          if (negstatus == NEGOTIATE_CONTINUE)
             continue;
          else if (negstatus == NEGOTIATE_FINISHED) {
+#if HAVE_SOCKS_RULES
+            /*
+             * Barefoot uses the ss-limits in the client-rule for all phases,
+             * while Dante has separate limits for client and
+             * socks-phases, so Dante can unuse the session now, making
+             * it possible to accept new ones.  Safer and easier do it
+             * here, since negotiation has indeed finished.
+             */
+            if (neg->rule.ss_shmid != 0)
+               sockd_shmat(&neg->rule, SHMEM_SS);
+
+            if (neg->rule.ss_shmid != 0) {
+               session_unuse(neg->rule.ss, sockscf.shmemfd);
+               sockd_shmdt(&neg->rule, SHMEM_SS);
+               neg->rule.ss_shmid = 0;
+               neg->rule.ss_fd    = -1;
+            }
+#endif /* HAVE_SOCKS_RULES */
+
+            if (!timerisset(&neg->state.time.negotiateend))
+               gettimeofday(&neg->state.time.negotiateend, NULL);
+
 #if COVENANT
             if (neg->negstate.havedonerulespermit)
                slog(LOG_DEBUG, "%s: must have failed to send client %s to "
@@ -422,7 +454,7 @@ run_negotiate()
                 * negotiation (i.e., wait for the client to repeat the
                 * request, but this time with proxy authentication).
                 */
-               struct sockaddr src, dst;
+               struct sockaddr_storage src, dst;
                char srchost[MAXSOCKSHOSTSTRING], dsthost[MAXSOCKSHOSTSTRING];
                int permit;
 
@@ -437,7 +469,6 @@ run_negotiate()
                     function,
                     sockaddr2string(&src, srchost, sizeof(srchost)),
                     sockshost2string(&neg->req.host, dsthost, sizeof(dsthost)));
-
                permit = rulespermit(neg->s,
                                     &src,
                                     &dst,
@@ -453,8 +484,8 @@ run_negotiate()
                if (permit)
                   neg->negstate.havedonerulespermit = 1;
                else {
-                  struct sockaddr sa;
-                  struct response_t response;
+                  iologaddr_t src;
+                  response_t response;
 
                   if (neg->srule.whyblock.missingproxyauth) {
                      if (!neg->negstate.haverequestedproxyauth) {
@@ -485,19 +516,23 @@ run_negotiate()
                                      function,  sockaddr2string(&src, NULL, 0));
                   }
 
-                  /* only log on deny.  Pass will be logged as usual later. */
+                  /*
+                   * only log on deny.  Pass will be logged as usual later.
+                   */
+
+                  init_iologaddr(&src,
+                                 SOCKSHOST_OBJECT,
+                                 &neg->negstate.dst,
+                                 SOCKSHOST_OBJECT,
+                                 &neg->negstate.src,
+                                 &neg->clientauth,
+                                 GET_HOSTIDV(&neg->state),
+                                 GET_HOSTIDC(&neg->state));
+
                   iolog(&neg->srule,
                         &neg->state,
                         OPERATION_CONNECT,
-                        sockshost2sockaddr(&neg->negstate.dst, &sa),
-                        &neg->negstate.src,
-                        &neg->socksauth,
-                        NULL,
-                        NULL,
-                        NULL,
-                        NULL,
-                        NULL,
-                        NULL,
+                        &src,
                         NULL,
                         NULL,
                         NULL,
@@ -510,7 +545,7 @@ run_negotiate()
                   response.reply.http = HTTP_FORBIDDEN;
 
                   send_response(neg->s, &response);
-                  delete_negotiate(neg);
+                  delete_negotiate(neg, 1);
 
                   continue;
                }
@@ -523,31 +558,40 @@ run_negotiate()
             }
 
             errno = 0;
-
             if (send_negotiate(neg) == 0) {
-               delete_negotiate(neg);
+               delete_negotiate(neg, 0);
                sendfailed = 0;
             }
             else if (ERRNOISTMP(errno))
                sendfailed = 1; /* we will retry sending this object later. */
             else {
                if (errno != 0)
-                  swarn("%s: could not send client to mother", function);
+                  slog(LOG_INFO,
+                       "%s: could not send client %s to mother: %s",
+                       function,
+                       sockshost2string(&neg->negstate.src, NULL, 0),
+                       strerror(errno));
 
-               delete_negotiate(neg);
+               delete_negotiate(neg, 1);
 
-               /* assume what failed was not related to the send. */
+               /*
+                * assume what failed was not related to the send to mother,
+                * but some (network) error related to the connection between
+                * us and the client.  If the error is between us and mother,
+                * it will be picked up on the control-pipe.
+                */
                sendfailed = 0;
             }
          }
          else if (negstatus == NEGOTIATE_ERROR) {
             const char *error;
+            iologaddr_t src;
             char reason[256];
-            struct sockaddr sa;
 #if HAVE_GSSAPI
             gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
             OM_uint32 minor_status;
 #endif /* HAVE_GSSAPI */
+
             if (ERRNOISTMP(errno))
                continue;
 
@@ -568,18 +612,19 @@ run_negotiate()
                     "error after having read %lu bytes: %s",
                     (unsigned long)neg->negstate.reqread, error);
 
+            init_iologaddr(&src,
+                           SOCKSHOST_OBJECT,
+                           &neg->negstate.dst,
+                           SOCKSHOST_OBJECT,
+                           &neg->negstate.src,
+                           &neg->clientauth,
+                           GET_HOSTIDV(&neg->state),
+                           GET_HOSTIDC(&neg->state));
+
             iolog(&neg->rule,
                   &neg->state,
                   OPERATION_ERROR,
-                  sockshost2sockaddr(&neg->negstate.dst, &sa),
-                  &neg->negstate.src,
-                  &neg->clientauth,
-                  NULL,
-                  NULL,
-                  NULL,
-                  NULL,
-                  NULL,
-                  NULL,
+                  &src,
                   NULL,
                   NULL,
                   NULL,
@@ -595,7 +640,7 @@ run_negotiate()
                      swarn("%s: gss_delete_sec_context failed", function);
 #endif /* HAVE_GSSAPI */
 
-            delete_negotiate(neg);
+            delete_negotiate(neg, 1);
          }
       }
    }
@@ -603,7 +648,7 @@ run_negotiate()
 
 static int
 send_negotiate(neg)
-   const struct sockd_negotiate_t *neg;
+   sockd_negotiate_t *neg;
 {
    const char *function = "send_negotiate()";
 #if HAVE_GSSAPI
@@ -611,24 +656,22 @@ send_negotiate(neg)
    char gssapistatemem[MAXGSSAPITOKENLEN];
 #endif /* HAVE_GSSAPI */
    struct iovec iov[2];
-   struct sockd_request_t req;
+   sockd_request_t req;
    struct msghdr msg;
    ssize_t w;
    size_t length, ioc, fdsendt;
    CMSG_AALLOC(cmsg, sizeof(int));
 
-#if HAVE_SENDMSG_DEADLOCK
-   socks_lock(sockscf.state.mother.lock, 1, 1);
-#endif /* HAVE_SENDMSG_DEADLOCK */
-
-
    /*
     * copy needed fields from negotiate.
     */
    bzero(&req, sizeof(req)); /* silence valgrind warning */
-   sockshost2sockaddr(&neg->negstate.src, (struct sockaddr *)&req.from);
-   sockshost2sockaddr(&neg->negstate.dst, (struct sockaddr *)&req.to);
-   req.req           = neg->req;
+   sockshost2sockaddr(&neg->negstate.src, TOSA(&req.from));
+   sockshost2sockaddr(&neg->negstate.dst, TOSA(&req.to));
+   req.req             = neg->req;
+
+   req.reqinfo.command = (neg->state.protocol == SOCKS_TCP ?
+                              SOCKD_FREESLOT_TCP : SOCKD_FREESLOT_UDP);
 
 #if HAVE_NEGOTIATE_PHASE
    /*
@@ -648,14 +691,14 @@ send_negotiate(neg)
 #else /* SOCKS_SERVER */
    if ((length = socks_bytesinbuffer(neg->s, READ_BUF, 0)) != 0) {
       slog(length > sizeof(req.clientdata) ? LOG_INFO : LOG_DEBUG,
-           "%s: socks client at %s sent us %lu bytes of payload data "
-           "before we have told it that it can do that.  Not permitted by "
-           "the SOCKS standard and not expected.  %s",
+           "%s: socks client at %s sent us %lu bytes of payload before we told "
+           "it it can do that.  Not permitted by the SOCKS standard.  %s",
            function,
            socket2string(neg->s, NULL, 0),
            (unsigned long)length,
            length > sizeof(req.clientdata) ?
-           "Too much unexpected data" : "Trying to handle it");
+                 "Too much unexpected data for us to handle"
+               : "Trying to handle it however");
 
       if (length > sizeof(req.clientdata))
         return -1;
@@ -672,7 +715,13 @@ send_negotiate(neg)
             function, (unsigned long)req.clientdatalen);
 #endif /* HAVE_NEGOTIATE_PHASE */
 
-   req.rule          = neg->rule;
+   req.rule             = neg->rule;
+
+#if HAVE_SOCKS_HOSTID
+   req.hostidrule       = neg->hostidrule;
+   req.hostidrule_isset = neg->hostidrule_isset;
+#endif /* HAVE_SOCKS_HOSTID */
+
 #if COVENANT
    req.srule         = neg->srule;
 #endif /* COVENANT */
@@ -742,12 +791,12 @@ send_negotiate(neg)
 
       if (neg->s != -1)
          slog(LOG_DEBUG, "%s: sending socket %d (%s) ...",
-         function, neg->s, socket2string(neg->s, NULL, 0));
+              function, neg->s, socket2string(neg->s, NULL, 0));
    }
 
-   if ((w = sendmsgn(sockscf.state.mother.s, &msg, 0, 1)) != (ssize_t)length)
-      swarn("%s: sendmsg(): %ld of %lu",
-      function, (long)w, (unsigned long)length);
+   if ((w = sendmsgn(sockscf.state.mother.s, &msg, 0, 100)) != (ssize_t)length)
+      slog(LOG_INFO, "%s: sendmsg() failed: sent %ld/%lu: %s",
+                     function, (long)w, (unsigned long)length, strerror(errno));
    else {
       if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: sent %ld descriptors for command %d.  "
@@ -757,9 +806,6 @@ send_negotiate(neg)
                          method2string(req.socksauth.method),
                          neg->s);
    }
-#if HAVE_SENDMSG_DEADLOCK
-   socks_unlock(sockscf.state.mother.lock);
-#endif /* HAVE_SENDMSG_DEADLOCK */
 
    return (size_t)w == length ? 0 : -1;
 }
@@ -768,20 +814,15 @@ static int
 recv_negotiate(void)
 {
    const char *function = "recv_negotiate()";
-   struct sockd_client_t client;
-   struct sockd_negotiate_t *neg;
+   sockd_client_t client;
+   sockd_negotiate_t *neg;
    struct iovec iov[1];
    struct msghdr msg;
-#if BAREFOOTD
-    struct sockshost_t host;
-#endif /* BAREFOOTD */
-   struct sockaddr src, dst;
-   socklen_t len;
    ssize_t r;
-   size_t i;
+   size_t i, newc, failedc;
    CMSG_AALLOC(cmsg, sizeof(int));
    char ruleinfo[256];
-   int permit, fdreceived, packetc;
+   int permit, fdreceived;
 
    bzero(iov, sizeof(iov));
    iov[0].iov_base = &client;
@@ -796,33 +837,45 @@ recv_negotiate(void)
    /* LINTED pointer casts may be troublesome */
    CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
 
-   packetc = 0;
-   while (1) { /* until it would block. */
+   newc = failedc = 0;
+   while (1) { /* until it blocks. */
       const size_t fdexpect = 1;
+      iologaddr_t src, dst;
 
       if ((r = recvmsgn(sockscf.state.mother.s, &msg, 0)) != sizeof(client)) {
          switch (r) {
             case -1:
             case 0:
                slog(LOG_DEBUG,
-                    "%s: recvmsg() from mother returned %ld "
-                    "after having received %d packets, errno = %d (%s)",
+                    "%s: recvmsg() from mother returned %ld after having "
+                    "received %lu new clients and %lu failed/blocked clients.  "
+                    "errno = %d (%s)",
                     function, (long)r,
-                    packetc, errno, strerror(errno));
+                    (unsigned long)newc, (unsigned long)failedc,
+                    errno, strerror(errno));
                break;
 
             default:
-               swarnx("%s: recvmsg(): unexpected short read from mother "
-                      "after %d packets.  Got %ld/%lu bytes",
+               swarnx("%s: recvmsg(): unexpected short read from mother after "
+                      "having received %lu new clients.  Got %ld/%lu bytes",
                       function,
-                      packetc, (long)r, (unsigned long)sizeof(client));
+                      (unsigned long)newc,
+                      (long)r,
+                      (unsigned long)sizeof(client));
          }
 
-         return -1;
+         if (newc > 0 || ERRNOISTMP(errno)) {
+            errno = 0;
+            return newc;
+         }
+         else
+            return -1;
       }
 
-      if (socks_msghaserrors(function, &msg))
+      if (socks_msghaserrors(function, &msg)) {
+         ++failedc;
          continue;
+      }
 
       /*
        * Got packet of expected size, now find a free slot for it.
@@ -837,47 +890,51 @@ recv_negotiate(void)
       if (neg == NULL)
          SERRX(allocated());
 
-      CMSG_VERIFY_RCPTLEN(msg, sizeof(int) * fdexpect);
+      if (!CMSG_RCPTLEN_ISOK(msg, sizeof(int) * fdexpect)) {
+         swarnx("%s: received control message has the invalid len of %d",
+                 function, (int)CMSG_TOTLEN(msg));
+
+         ++failedc;
+         continue;
+      }
+
+      SASSERTX(cmsg->cmsg_level == SOL_SOCKET);
+      SASSERTX(cmsg->cmsg_type  == SCM_RIGHTS);
 
       fdreceived = 0;
       CMSG_GETOBJECT(neg->s, cmsg, sizeof(neg->s) * fdreceived++);
 
       if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: received socket %d (%s) ...",
-         function, neg->s, socket2string(neg->s, NULL, 0));
+              function, neg->s, socket2string(neg->s, NULL, 0));
+
+      neg->state.time.accepted = client.accepted;
+      gettimeofday(&neg->state.time.negotiatestart, NULL);
+
+      sockd_isoverloaded("client object received from mother",
+                         &neg->state.time.accepted,
+                         &neg->state.time.negotiatestart,
+                         &neg->state.time.negotiatestart);
 
       /*
-       * get local and remote address.
+       * init state correctly for checking a connection to us.
        */
 
-      len = sizeof(src);
-      if (getpeername(neg->s, &src, &len) != 0) {
-         slog(LOG_DEBUG, "%s: getpeername(): %s", function, strerror(errno));
+      sockaddr2sockshost(TOSA(&client.from), &neg->negstate.src);
+      sockaddr2sockshost(TOSA(&client.to), &neg->negstate.dst);
 
-         delete_negotiate(neg);
-         return -1;
-      }
-      sockaddr2sockshost(&src, &neg->negstate.src);
-
-      len = sizeof(dst);
-      if (getsockname(neg->s, &dst, &len) != 0) {
-         slog(LOG_DEBUG, "%s: getsockname(): %s", function, strerror(errno));
-
-         delete_negotiate(neg);
-         return -1;
-      }
-      sockaddr2sockshost(&dst, &neg->negstate.dst);
-
-      /* init state correctly for checking a connection to us. */
-      neg->state.clientcommand = neg->state.command        = SOCKS_ACCEPT;
+      neg->state.command       = SOCKS_ACCEPT;
       neg->state.protocol      = neg->state.clientprotocol = SOCKS_TCP;
 
-      neg->req.auth                  = &neg->socksauth;   /* pointer fixup    */
-      neg->clientauth.method         = AUTHMETHOD_NOTSET; /* nothing so far   */
+      neg->req.auth            = &neg->socksauth;   /* pointer fixup    */
+      neg->clientauth.method   = AUTHMETHOD_NOTSET; /* nothing so far   */
 
       permit = rulespermit(neg->s,
-                           &src,
-                           &dst,
+                           TOSA(&client.from),
+                           TOSA(&client.to),
+#if BAREFOOTD
+                           &neg->negstate.dst,
+#endif /* BAREFOOTD */
                            NULL,
                            &neg->clientauth,
                            &neg->rule,
@@ -887,6 +944,15 @@ recv_negotiate(void)
                            ruleinfo,
                            sizeof(ruleinfo));
 
+      setconfsockoptions(neg->s,
+                         -1,
+                         SOCKS_TCP,
+                         1,
+                         neg->rule.socketoptionc,
+                         neg->rule.socketoptionv,
+                         SOCKETOPT_ANYTIME | SOCKETOPT_POST,
+                         SOCKETOPT_ANYTIME | SOCKETOPT_POST);
+
       /*
        * Might need to use some values from clientauth when negotiating,
        * i.e. gssapi or pam-values.  Also, in some cases (gssapi), the
@@ -894,7 +960,7 @@ recv_negotiate(void)
        * set at the client acl pass, so start by copying the current
        * clientauth into what will become the socksauth proper.
        */
-      neg->socksauth        = neg->clientauth;
+      neg->socksauth = neg->clientauth;
 
       /* but don't actually set the authmethod.  rulespermit() will do that. */
       neg->socksauth.method = AUTHMETHOD_NOTSET;
@@ -922,64 +988,89 @@ recv_negotiate(void)
       }
 
 
-#if !HAVE_TWO_LEVEL_ACL
+#if !HAVE_SOCKS_RULES
       /*
-       * don't have separate client-rules and socks-rules, so only log
-       * socks-rule normally, unless it's a block, in which case this is
-       * the only logging that will be done.
+       * don't have separate client-rules and socks-rules as far as the user
+       * is concerned so only log socks-rule normally, unless it's a block.
+       * If it's a block, this is the only logging that will be done, so
+       * do it now.
        */
 
       if (!permit) /* really SOCKS_ACCEPT, but user does not know about that. */
          neg->state.command = SOCKS_CONNECT;
 
-      if (sockscf.option.debug || !permit)
-#endif /* !HAVE_TWO_LEVEL_ACL */
+      if (sockscf.option.debug || !permit) {
+#endif /* !HAVE_SOCKS_RULES */
+
+      init_iologaddr(&src,
+                     SOCKADDR_OBJECT,
+                     &client.to,
+                     SOCKSHOST_OBJECT,
+                     &neg->negstate.src,
+                     &neg->clientauth,
+                     GET_HOSTIDV(&neg->state),
+                     GET_HOSTIDC(&neg->state));
+
+      init_iologaddr(&dst,
+                     NOOBJECT,
+                     NULL,
+                     SOCKSHOST_OBJECT,
+#if BAREFOOTD
+                     ruleaddr2sockshost(&neg->rule.extra.bounceto,
+                                        NULL,
+                                        SOCKS_TCP),
+#else /* !BAREFOOTD */
+                     NULL,
+#endif /* !BAREFOOTD */
+                     NULL,
+                     NULL,
+                     0);
+
       iolog(&neg->rule,
             &neg->state,
-#if HAVE_TWO_LEVEL_ACL
-            permit ? OPERATION_ACCEPT  : OPERATION_BLOCK,
-#else /* !HAVE_TWO_LEVEL_ACL */
-            permit ? OPERATION_CONNECT : OPERATION_BLOCK,
-#endif /* !HVE_TWO_LEVEL_ACL */
 
-            &dst,
-            &neg->negstate.src,
-            &neg->clientauth,
-            NULL,
-            NULL,
-            NULL,
-            NULL,
+#if HAVE_SOCKS_RULES
+            permit ? OPERATION_ACCEPT  : OPERATION_BLOCK,
+#else /* !HAVE_SOCKS_RULES */
+            permit ? OPERATION_CONNECT : OPERATION_BLOCK,
+#endif /* !HAVE_SOCKS_RULES */
+
+            &src,
 
 #if BAREFOOTD
-            ruleaddr2sockshost(&neg->rule.bounce_to, &host, SOCKS_TCP),
-#else /* !BAREFOOTD */
+            &dst,
+#else /* !HAVE_SOCKS_RULES */
             NULL,
-#endif /* !BAREFOOTD */
+#endif /* !HAVE_SOCKS_RULES */
 
-            NULL,
-            NULL,
             NULL,
             NULL,
             ruleinfo,
             0);
 
+#if !HAVE_SOCKS_RULES
+      }
+#endif /* !HAVE_SOCKS_RULES */
+
       if (!permit) {
-         delete_negotiate(neg);
-         return -1;
+         ++failedc;
+         delete_negotiate(neg, 1);
+
+         continue;
       }
 
 #if HAVE_NEGOTIATE_PHASE
     socks_allocbuffer(neg->s, SOCK_STREAM);
 
-    /* 
-     * We don't want this buffer to be bigger than MAXREQLEN, as that is 
+    /*
+     * We don't want this buffer to be bigger than MAXREQLEN, as that is
      * the amount of memory we have allocated to hold possible client data.
      *
-     * Normally there is no clientdata in Dante's case, but some clients
+     * Normally there is no client data in Dante's case, but some clients
      * may piggy-back the payload together with the socks request, without
      * waiting for our response.  That is not legal to do, but some clients
      * do it anyway, so we better support it.
-     * We therefor need to make sure we never read more of the payload than 
+     * We therefor need to make sure we never read more of the payload than
      * we can send on to the i/o process, which will eventually need to
      * forward it to the destination.
      */
@@ -1007,11 +1098,110 @@ recv_negotiate(void)
       neg->socksauth.mdata.gssapi.encryption = neg->rule.state.gssapiencryption;
 #endif /* HAVE_GSSAPI */
 
+#if HAVE_SOCKS_HOSTID
+      if (sockscf.hostidrule != NULL) {
+         /*
+          * Unlike the client- and socks-rules, we assume that if no
+          * hostid-rules are configured, we should simply skip/pass
+          * that step.  The reason for this is that hostid may not be
+          * available or in use on the network, or the user may not
+          * want to care about it.  So unless the user explicitly enables
+          * hostid-usage by providing at least one hostid-rule, the most
+          * sensible default is to not require that we have a matching
+          * hostid-rule.
+          */
+
+         slog(LOG_DEBUG, "%s: checking for access through hostid rules",
+              function);
+
+         neg->state.command = SOCKS_HOSTID;
+         permit = rulespermit(neg->s,
+                              TOSA(&client.from),
+                              TOSA(&client.to),
+#if BAREFOOTD
+                              &neg->negstate.dst,
+#endif /* BAREFOOTD */
+                              &neg->clientauth,
+                              &neg->clientauth,
+                              &neg->hostidrule,
+                              &neg->state,
+                              &neg->negstate.src,
+                              &neg->negstate.dst,
+                              ruleinfo,
+                              sizeof(ruleinfo));
+
+         /*
+          * if no hostids, no rules will have been checked, so only log
+          * if rules have been checked.
+          */
+         if (!permit || (permit && neg->state.hostidc > 0)) {
+            neg->hostidrule_isset = 1;
+
+            setconfsockoptions(neg->s,
+                               -1,
+                               SOCKS_TCP,
+                               1,
+                               neg->hostidrule.socketoptionc,
+                               neg->hostidrule.socketoptionv,
+                               SOCKETOPT_PRE | SOCKETOPT_ANYTIME,
+                               0 /* should already be set. */);
+
+            memcpy(src.hostidv,
+                   neg->state.hostidv,
+                   sizeof(*neg->state.hostidv) * neg->state.hostidc);
+            src.hostidc = neg->state.hostidc;
+
+            iolog(&neg->hostidrule,
+                  &neg->state,
+                  permit ? OPERATION_HOSTID  : OPERATION_BLOCK,
+                  &src,
+#if BAREFOOTD
+                  &dst,
+#else /* !HAVE_SOCKS_RULES */
+                  NULL,
+#endif /* !HAVE_SOCKS_RULES */
+
+                  NULL,
+                  NULL,
+                  ruleinfo,
+                  0);
+
+            if (!permit) { /* log the clientrule close too. */
+               neg->state.command
+               = HAVE_SOCKS_RULES ? SOCKS_ACCEPT : SOCKS_CONNECT;
+
+               iolog(&neg->rule,
+                     &neg->state,
+                     OPERATION_DISCONNECT,
+                     &src,
+
+#if BAREFOOTD
+                     &dst,
+#else /* !HAVE_SOCKS_RULES */
+                     NULL,
+#endif /* !HAVE_SOCKS_RULES */
+
+                     NULL,
+                     NULL,
+                     ruleinfo,
+                     0);
+            }
+         }
+
+         if (!permit) {
+            ++failedc;
+            delete_negotiate(neg, 1);
+
+            continue;
+         }
+      }
+#endif /* HAVE_SOCKS_HOSTID */
+
 #if BAREFOOTD
       neg->req.version       = PROXY_SOCKS_V5;
       neg->req.command       = SOCKS_CONNECT;
       neg->req.flag          = 0;
-      ruleaddr2sockshost(&neg->rule.bounce_to, &neg->req.host, SOCKS_TCP);
+      ruleaddr2sockshost(&neg->rule.extra.bounceto, &neg->req.host, SOCKS_TCP);
       neg->req.protocol      = SOCKS_TCP;
 
       neg->negstate.complete = 1; /* nothing to do in barefoot's case. */
@@ -1034,48 +1224,40 @@ recv_negotiate(void)
       }
 #endif /* COVENANT */
 
-      gettimeofday(&neg->state.time.negotiate, NULL);
-      neg->state.time.accepted = client.accepted;
-      neg->allocated           = 1;
-
-      ++packetc;
+      neg->allocated = 1;
+      ++newc;
    }
 
    /* NOTREACHED */
 }
 
 static void
-delete_negotiate(neg)
-   struct sockd_negotiate_t *neg;
+delete_negotiate(neg, doackfreeslot)
+   sockd_negotiate_t *neg;
+   const int doackfreeslot;
 {
    const char *function = "delete_negotiate()";
-   const char command = SOCKD_FREESLOT_TCP;
 
-#if !BAREFOOTD
-   /*
-    * barefootd needs to let socks-rule inherit ss, dante never lets ss
-    * be inherited, so dante needs to unuse it now.
-    */
-   if (neg->rule.ss_shmid != 0) {
-      sockd_shmat(&neg->rule, SHMEM_SS);
-      session_unuse(neg->rule.ss, sockscf.shmemfd);
-      sockd_shmdt(&neg->rule, SHMEM_SS);
+   slog(LOG_DEBUG, "%s: doackfreeslot: %d", function, doackfreeslot);
+
+   if (doackfreeslot) {
+      const unsigned char command = (neg->state.protocol == SOCKS_TCP ?
+                                       SOCKD_FREESLOT_TCP : SOCKD_FREESLOT_UDP);
+
+      if (socks_sendton(sockscf.state.mother.ack,
+                        &command,
+                        sizeof(command),
+                        sizeof(command),
+                        0,
+                        NULL,
+                        0,
+                        NULL) != sizeof(command))
+         swarn("%s: socks_sendton()", function);
    }
-#endif /* !BAREFOOTD */
 
 #if SOCKS_SERVER
    socks_freebuffer(neg->s);
 #endif /* SOCKS_SERVER */
-
-   if (socks_sendton(sockscf.state.mother.ack,
-                     &command,
-                     sizeof(command),
-                     sizeof(command),
-                     0,
-                     NULL,
-                     0,
-                     NULL) != sizeof(command))
-      swarn("%s: socks_sendton()", function);
 
    close(neg->s);
 
@@ -1116,14 +1298,14 @@ neg_fillset(set, skipcompleted, skipinprogress)
 
 static void
 neg_clearset(neg, set)
-   struct sockd_negotiate_t *neg;
+   sockd_negotiate_t *neg;
    fd_set *set;
 {
 
    FD_CLR(neg->s, set);
 }
 
-static struct sockd_negotiate_t *
+static sockd_negotiate_t *
 neg_getset(set)
    fd_set *set;
 {
@@ -1201,13 +1383,14 @@ neg_gettimeout(timeout)
 
       if (timeout->tv_sec != -1)
          timeout->tv_sec = MAX(0, MIN(timeout->tv_sec,
-         difftime(negv[i].rule.timeout.negotiate,
-                  difftime(timenow, negv[i].state.time.negotiate.tv_sec))));
+                                      difftime(negv[i].rule.timeout.negotiate,
+                                               difftime(timenow,
+                                   negv[i].state.time.negotiatestart.tv_sec))));
       else
          timeout->tv_sec
          = MAX(0, difftime(negv[i].rule.timeout.negotiate,
                            difftime(timenow,
-                                    negv[i].state.time.negotiate.tv_sec)));
+                                    negv[i].state.time.negotiatestart.tv_sec)));
    }
 
 
@@ -1230,6 +1413,7 @@ siginfo(sig, sip, scp)
    void *scp;
 {
    const char *function = "siginfo()";
+   const int debug_s = sockscf.option.debug;
    unsigned long seconds, days, hours, minutes;
    time_t timenow;
    size_t i;
@@ -1247,34 +1431,38 @@ siginfo(sig, sip, scp)
    seconds = ROUNDFLOAT(difftime(time(&timenow), sockscf.stat.boot));
    seconds2days(&seconds, &days, &hours, &minutes);
 
-   slog(LOG_INFO, "negotiate-child up %lu day%s, %lu:%.2lu:%.2lu",
-                  days, days == 1 ? "" : "s", hours, minutes, seconds);
+   sockscf.option.debug = 1;
+   slog(LOG_DEBUG, "negotiate-child up %lu day%s, %lu:%.2lu:%.2lu",
+                   days, days == 1 ? "" : "s", hours, minutes, seconds);
 
-   for (i = 0; i < negc; ++i)
+   for (i = 0; i < negc; ++i) {
       if (!negv[i].allocated)
          continue;
       else {
-         struct sockaddr sa;
          char srcstring[MAX_IOLOGADDR];
 
-         BUILD_ADDRSTR_SRC(&negv[i].negstate.src,
+         build_addrstr_src(GET_HOSTIDV(&negv[i].state),
+                           GET_HOSTIDC(&negv[i].state),
+                           &negv[i].negstate.src,
                            NULL,
                            NULL,
-                           sockshost2sockaddr(&negv[i].negstate.dst, &sa),
+                           &negv[i].negstate.dst,
                            &negv[i].clientauth,
                            NULL,
                            srcstring,
                            sizeof(srcstring));
 
-         slog(LOG_INFO,
-              "%s: negotiating for %.0fs",
+         slog(LOG_DEBUG, "%s: negotiating for %.0fs",
               srcstring,
-              difftime(timenow, negv[i].state.time.negotiate.tv_sec));
+              difftime(timenow, negv[i].state.time.negotiatestart.tv_sec));
       }
+   }
+
+   sockscf.option.debug = debug_s;
 }
 
 #if HAVE_NEGOTIATE_PHASE
-static struct sockd_negotiate_t *
+static sockd_negotiate_t *
 neg_gettimedout(void)
 {
    size_t i;
@@ -1286,7 +1474,7 @@ neg_gettimedout(void)
          continue;
 
       if (negv[i].rule.timeout.negotiate != 0)
-         if (difftime(timenow, negv[i].state.time.negotiate.tv_sec)
+         if (difftime(timenow, negv[i].state.time.negotiatestart.tv_sec)
          >= negv[i].rule.timeout.negotiate)
             return &negv[i];
    }

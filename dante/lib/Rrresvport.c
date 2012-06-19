@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2001, 2008, 2009, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rrresvport.c,v 1.29 2009/10/22 17:32:59 karls Exp $";
+"$Id: Rrresvport.c,v 1.32 2012/06/01 20:23:05 karls Exp $";
 
 /*
  * Note that for this function to work the remote socks server is required
@@ -55,9 +55,10 @@ int
 Rrresvport(port)
    int *port;
 {
+#if HAVE_RRESVPORT
    const char *function = "Rrresvport()";
    int s;
-   struct sockaddr name;
+   struct sockaddr_storage name;
    socklen_t namelen;
 
    clientinit();
@@ -68,16 +69,19 @@ Rrresvport(port)
       return -1;
 
    namelen = sizeof(name);
-   if (getsockname(s, &name, &namelen) != 0) {
+   if (getsockname(s, TOSA(&name), &namelen) != 0) {
       close(s);
       return -1;
    }
 
    /* Rbind() will accept failure at binding socket that is already bound. */
-   if (Rbind(s, &name, namelen) != 0) {
+   if (Rbind(s, TOSA(&name), namelen) != 0) {
       close(s);
       return -1;
    }
 
    return s;
+#else
+   return -1;
+#endif /* HAVE_RRESVPORT */
 }

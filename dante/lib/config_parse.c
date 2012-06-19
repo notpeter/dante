@@ -41,11 +41,10 @@
 #if 0 /* XXX automatically added at head of generated .c file */
 #include "common.h"
 #endif
-#include "ifaddrs_compat.h"
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.401 2011/08/01 15:23:27 michaels Exp $";
+"$Id: config_parse.y,v 1.471 2012/06/01 20:23:05 karls Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -53,9 +52,10 @@ static const char rcsid[] =
 
 #define CHECKNUMBER(number, op, checkagainst)                                  \
 do {                                                                           \
-   if (!(atol((number)) op (checkagainst)))                                    \
-      yyerror("number must be " #op " " #checkagainst ".  It can not be %ld",  \
-              atol((number)));                                                 \
+   if (!((number) op (checkagainst)))                                          \
+      yyerror("number must be " #op " " #checkagainst " (%ld).  "              \
+              "It can not be %ld",                                             \
+              (long)(checkagainst), (long)(number));                           \
 } while (0)
 
 #define CHECKPORTNUMBER(portnumber)                                            \
@@ -65,26 +65,29 @@ do {                                                                           \
 } while (0)
 
 static void
-addrinit(struct ruleaddr_t *addr, const int netmask_required);
+addnumber(size_t *numberc, ssize_t *numberv[], const ssize_t number);
 
 static void
-gwaddrinit(gwaddr_t *addr);
+addrinit(ruleaddr_t *addr, const int netmask_required);
+
+static void
+gwaddrinit(sockshost_t *addr);
 
 #if SOCKS_CLIENT
 static void parseclientenv(int *haveproxyserver);
 /*
- * parses client environment, if any.  
- * If a proxyserver is configured in enviroment, "haveproxyserver" is set
+ * parses client environment, if any.
+ * If a proxy server is configured in environment, "haveproxyserver" is set
  * to true upon return.  If not, it is set to false.
  */
 
 static void
-addproxyserver(const char *proxyserver, 
-               const struct proxyprotocol_t *proxyprotocol);
+addproxyserver(const char *proxyserver,
+               const proxyprotocol_t *proxyprotocol);
 /*
- * Adds a route for a proxyserver with address "proxyserver" to our
+ * Adds a route for a proxy server with address "proxyserver" to our
  * routes.
- * "proxyprotocol" is the proxyprotocols supported by the proxyserver.
+ * "proxyprotocol" is the proxy protocols supported by the proxy server.
  */
 #else /* !SOCKS_CLIENT */
 
@@ -97,70 +100,77 @@ static void rulereset(void);
 /*
  * Prepare pointers to point to the correct memory for adding a new rule.
  */
-static void ruleinit(struct rule_t *rule);
+static void ruleinit(rule_t *rule);
 
 #endif /* !SOCKS_CLIENT */
 
 extern int yylineno;
 extern char *yytext;
 
-static int parsingconfig;
-
-static unsigned char          add_to_errorlog; /* adding logfile to errorlog? */
-static struct timeout_t       *timeout = &sockscf.timeout;
+static int             parsingconfig;   /* currently parsing config?          */
+static unsigned char   add_to_errorlog; /* adding logfile to errorlog?        */
 
 #if !SOCKS_CLIENT
-static struct rule_t          rule;          /* new rule.                     */
-static struct protocol_t      protocolmem;   /* new protocolmem.              */
+static rule_t          rule;          /* new rule.                     */
+static protocol_t      protocolmem;   /* new protocolmem.              */
 #if !HAVE_PRIVILEGES
-static struct userid_t        olduserid;
+static userid_t        olduserid;
 #endif /* !HAVE_PRIVILEGES */
 #endif /* !SOCKS_CLIENT */
 
-static struct serverstate_t   state;
-static struct route_t         route;         /* new route.                    */
-static gwaddr_t               gw;            /* new gateway.                  */
+static ssize_t         *numberv;
+static size_t          numberc;
 
-static struct ruleaddr_t      src;            /* new src.                     */
-static struct ruleaddr_t      dst;            /* new dst.                     */
-static struct ruleaddr_t      rdr_from;
-static struct ruleaddr_t      rdr_to;
+static timeout_t       *timeout = &sockscf.timeout;           /* default. */
+
+static socketoption_t  socketopt;
+size_t                 socketoptid;
+
+static serverstate_t   state;
+static route_t         route;         /* new route.                    */
+static sockshost_t     gw;            /* new gateway.                  */
+
+static ruleaddr_t      src;            /* new src.                     */
+static ruleaddr_t      dst;            /* new dst.                     */
+static ruleaddr_t      hostid;         /* new hostid.                  */
+static ruleaddr_t      rdr_from;       /* new redirect from.           */
+static ruleaddr_t      rdr_to;         /* new redirect to.             */
 
 #if BAREFOOTD
-static struct ruleaddr_t      bounce_to;
+static ruleaddr_t      bounceto;
 #endif /* BAREFOOTD */
 
-static struct ruleaddr_t      *ruleaddr;      /* current ruleaddr             */
-static struct extension_t     *extension;     /* new extensions               */
-static struct proxyprotocol_t *proxyprotocol; /* proxy protocol.              */
+static ruleaddr_t      *ruleaddr;      /* current ruleaddr             */
+static extension_t     *extension;     /* new extensions               */
+static proxyprotocol_t *proxyprotocol; /* proxy protocol.              */
 
-static atype_t                *atype;         /* atype of new address.        */
-static struct in_addr         *ipaddr;        /* new ip address               */
-static struct in_addr         *netmask;       /* new netmask                  */
-static int                    netmask_required;/*
+static unsigned char   *atype;         /* atype of new address.        */
+static struct in_addr  *ipaddr;        /* new ip address               */
+static struct in_addr  *netmask;       /* new netmask                  */
+static int             netmask_required;/*
                                                 * netmask required for this
                                                 * address?
                                                 */
-static char                   *domain;        /* new domain.                  */
-static char                   *ifname;        /* new ifname.                  */
-static char                   *url;           /* new url.                     */
+static char            *domain;        /* new domain.                  */
+static char            *ifname;        /* new ifname.                  */
+static char            *url;           /* new url.                     */
 
-static in_port_t              *port_tcp;      /* new TCP port number.         */
-static in_port_t              *port_udp;      /* new UDP port number.         */
-static int                    *methodv;       /* new authmethods.             */
-static size_t                 *methodc;       /* number of them.              */
-static struct protocol_t      *protocol;      /* new protocol.                */
-static struct command_t       *command;       /* new command.                 */
-static enum operator_t        *operator;      /* new operator.                */
+static in_port_t       *port_tcp;      /* new TCP port number.         */
+static in_port_t       *port_udp;      /* new UDP port number.         */
+static int             *methodv;       /* new authmethods.             */
+static size_t          *methodc;       /* number of them.              */
+static protocol_t      *protocol;      /* new protocol.                */
+static command_t       *command;       /* new command.                 */
+static enum operator_t *operator;      /* new operator.                */
 
 #if HAVE_GSSAPI
-static char                  *gssapiservicename; /* new gssapiservice.        */
-static char                  *gssapikeytab;      /* new gssapikeytab.         */
-static struct gssapi_enc_t   *gssapiencryption;  /* new encryption status.    */
+static char            *gssapiservicename; /* new gssapiservice.        */
+static char            *gssapikeytab;      /* new gssapikeytab.         */
+static gssapi_enc_t    *gssapiencryption;  /* new encryption status.    */
 #endif /* HAVE_GSSAPI */
 
 #if HAVE_LDAP
-static struct ldap_t         *ldap;        /* new ldap server details.        */
+static ldap_t          *ldap;        /* new ldap server details.        */
 #endif
 
 #if DEBUG
@@ -174,184 +184,200 @@ do {                                                                           \
    else {                                                                      \
       if (*methodc >= MAXMETHOD)                                               \
          yyerror("internal error, too many authmethods (%ld >= %ld)",          \
-         (long)*methodc, (long)MAXMETHOD);                                     \
+                 (long)*methodc, (long)MAXMETHOD);                             \
       methodv[(*methodc)++] = method;                                          \
    }                                                                           \
 } while (0)
 
-#line 190 "config_parse.y"
+#line 200 "config_parse.y"
 #ifndef YYSTYPE_DEFINED
 #define YYSTYPE_DEFINED
 typedef union {
-   char   *string;
+   char    *string;
    uid_t   uid;
+   ssize_t number;
 } YYSTYPE;
 #endif /* YYSTYPE_DEFINED */
-#line 190 "config_parse.c"
-#define SERVERCONFIG 257
-#define CLIENTCONFIG 258
-#define DEPRECATED 259
-#define CLIENTRULE 260
-#define INTERNAL 261
-#define EXTERNAL 262
-#define REALM 263
-#define REALNAME 264
-#define EXTERNAL_ROTATION 265
-#define SAMESAME 266
-#define DEBUGGING 267
-#define RESOLVEPROTOCOL 268
-#define SOCKET 269
-#define CLIENTSIDE_SOCKET 270
-#define SNDBUF 271
-#define RCVBUF 272
-#define SRCHOST 273
-#define NODNSMISMATCH 274
-#define NODNSUNKNOWN 275
-#define CHECKREPLYAUTH 276
-#define EXTENSION 277
-#define BIND 278
-#define PRIVILEGED 279
-#define IOTIMEOUT 280
-#define IOTIMEOUT_TCP 281
-#define IOTIMEOUT_UDP 282
-#define NEGOTIATETIMEOUT 283
-#define CONNECTTIMEOUT 284
-#define TCP_FIN_WAIT 285
-#define METHOD 286
-#define CLIENTMETHOD 287
-#define NONE 288
-#define GSSAPI 289
-#define UNAME 290
-#define RFC931 291
-#define PAM 292
-#define BSDAUTH 293
-#define COMPATIBILITY 294
-#define SAMEPORT 295
-#define DRAFT_5_05 296
-#define CLIENTCOMPATIBILITY 297
-#define NECGSSAPI 298
-#define USERNAME 299
-#define GROUPNAME 300
-#define USER_PRIVILEGED 301
-#define USER_UNPRIVILEGED 302
-#define USER_LIBWRAP 303
-#define LIBWRAP_FILE 304
-#define ERRORLOG 305
-#define LOGOUTPUT 306
-#define LOGFILE 307
-#define CHILD_MAXIDLE 308
-#define CHILD_MAXREQUESTS 309
-#define ROUTE 310
-#define VIA 311
-#define BADROUTE_EXPIRE 312
-#define MAXFAIL 313
-#define VERDICT_BLOCK 314
-#define VERDICT_PASS 315
-#define PAMSERVICENAME 316
-#define BSDAUTHSTYLENAME 317
-#define BSDAUTHSTYLE 318
-#define GSSAPISERVICE 319
-#define GSSAPIKEYTAB 320
-#define GSSAPIENCTYPE 321
-#define GSSAPIENC_ANY 322
-#define GSSAPIENC_CLEAR 323
-#define GSSAPIENC_INTEGRITY 324
-#define GSSAPIENC_CONFIDENTIALITY 325
-#define GSSAPIENC_PERMESSAGE 326
-#define GSSAPISERVICENAME 327
-#define GSSAPIKEYTABNAME 328
-#define PROTOCOL 329
-#define PROTOCOL_TCP 330
-#define PROTOCOL_UDP 331
-#define PROTOCOL_FAKE 332
-#define PROXYPROTOCOL 333
-#define PROXYPROTOCOL_SOCKS_V4 334
-#define PROXYPROTOCOL_SOCKS_V5 335
-#define PROXYPROTOCOL_HTTP 336
-#define PROXYPROTOCOL_UPNP 337
-#define USER 338
-#define GROUP 339
-#define COMMAND 340
-#define COMMAND_BIND 341
-#define COMMAND_CONNECT 342
-#define COMMAND_UDPASSOCIATE 343
-#define COMMAND_BINDREPLY 344
-#define COMMAND_UDPREPLY 345
-#define ACTION 346
-#define LINE 347
-#define LIBWRAPSTART 348
-#define LIBWRAP_ALLOW 349
-#define LIBWRAP_DENY 350
-#define LIBWRAP_HOSTS_ACCESS 351
-#define OPERATOR 352
-#define SOCKS_LOG 353
-#define SOCKS_LOG_CONNECT 354
-#define SOCKS_LOG_DATA 355
-#define SOCKS_LOG_DISCONNECT 356
-#define SOCKS_LOG_ERROR 357
-#define SOCKS_LOG_IOOPERATION 358
-#define IPADDRESS 359
-#define DOMAINNAME 360
-#define DIRECT 361
-#define IFNAME 362
-#define URL 363
-#define PORT 364
-#define SERVICENAME 365
-#define NUMBER 366
-#define FROM 367
-#define TO 368
-#define REDIRECT 369
-#define BANDWIDTH 370
-#define MAXSESSIONS 371
-#define UDPPORTRANGE 372
-#define UDPCONNECTDST 373
-#define YES 374
-#define NO 375
-#define BOUNCE 376
-#define LDAPURL 377
-#define LDAP_URL 378
-#define LDAPSSL 379
-#define LDAPCERTCHECK 380
-#define LDAPKEEPREALM 381
-#define LDAPBASEDN 382
-#define LDAP_BASEDN 383
-#define LDAPBASEDN_HEX 384
-#define LDAPBASEDN_HEX_ALL 385
-#define LDAPSERVER 386
-#define LDAPSERVER_NAME 387
-#define LDAPGROUP 388
-#define LDAPGROUP_NAME 389
-#define LDAPGROUP_HEX 390
-#define LDAPGROUP_HEX_ALL 391
-#define LDAPFILTER 392
-#define LDAPFILTER_AD 393
-#define LDAPFILTER_HEX 394
-#define LDAPFILTER_AD_HEX 395
-#define LDAPATTRIBUTE 396
-#define LDAPATTRIBUTE_AD 397
-#define LDAPATTRIBUTE_HEX 398
-#define LDAPATTRIBUTE_AD_HEX 399
-#define LDAPCERTFILE 400
-#define LDAPCERTPATH 401
-#define LDAPPORT 402
-#define LDAPPORTSSL 403
-#define LDAP_FILTER 404
-#define LDAP_ATTRIBUTE 405
-#define LDAP_CERTFILE 406
-#define LDAP_CERTPATH 407
-#define LDAPDOMAIN 408
-#define LDAP_DOMAIN 409
-#define LDAPTIMEOUT 410
-#define LDAPCACHE 411
-#define LDAPCACHEPOS 412
-#define LDAPCACHENEG 413
-#define LDAPKEYTAB 414
-#define LDAPKEYTABNAME 415
-#define LDAPDEADTIME 416
-#define LDAPDEBUG 417
-#define LDAPDEPTH 418
-#define LDAPAUTO 419
-#define LDAPSEARCHTIME 420
+#line 201 "config_parse.c"
+#define CPU 257
+#define MASK 258
+#define SCHEDULE 259
+#define CPUMASK_ANYCPU 260
+#define PROCESSTYPE 261
+#define SCHEDULEPOLICY 262
+#define SERVERCONFIG 263
+#define CLIENTCONFIG 264
+#define DEPRECATED 265
+#define INTERFACE 266
+#define SOCKETOPTION_SYMBOLICVALUE 267
+#define SOCKETPROTOCOL 268
+#define SOCKETOPTION_OPTID 269
+#define CLIENTRULE 270
+#define HOSTID 271
+#define HOSTINDEX 272
+#define REQUIRED 273
+#define INTERNAL 274
+#define EXTERNAL 275
+#define INTERNALSOCKET 276
+#define EXTERNALSOCKET 277
+#define REALM 278
+#define REALNAME 279
+#define EXTERNAL_ROTATION 280
+#define SAMESAME 281
+#define DEBUGGING 282
+#define RESOLVEPROTOCOL 283
+#define SOCKET 284
+#define CLIENTSIDE_SOCKET 285
+#define SNDBUF 286
+#define RCVBUF 287
+#define SRCHOST 288
+#define NODNSMISMATCH 289
+#define NODNSUNKNOWN 290
+#define CHECKREPLYAUTH 291
+#define EXTENSION 292
+#define BIND 293
+#define PRIVILEGED 294
+#define IOTIMEOUT 295
+#define IOTIMEOUT_TCP 296
+#define IOTIMEOUT_UDP 297
+#define NEGOTIATETIMEOUT 298
+#define CONNECTTIMEOUT 299
+#define TCP_FIN_WAIT 300
+#define METHOD 301
+#define CLIENTMETHOD 302
+#define NONE 303
+#define GSSAPI 304
+#define UNAME 305
+#define RFC931 306
+#define PAM 307
+#define BSDAUTH 308
+#define COMPATIBILITY 309
+#define SAMEPORT 310
+#define DRAFT_5_05 311
+#define CLIENTCOMPATIBILITY 312
+#define NECGSSAPI 313
+#define USERNAME 314
+#define GROUPNAME 315
+#define USER_PRIVILEGED 316
+#define USER_UNPRIVILEGED 317
+#define USER_LIBWRAP 318
+#define LIBWRAP_FILE 319
+#define ERRORLOG 320
+#define LOGOUTPUT 321
+#define LOGFILE 322
+#define CHILD_MAXIDLE 323
+#define CHILD_MAXREQUESTS 324
+#define ROUTE 325
+#define VIA 326
+#define BADROUTE_EXPIRE 327
+#define MAXFAIL 328
+#define VERDICT_BLOCK 329
+#define VERDICT_PASS 330
+#define PAMSERVICENAME 331
+#define BSDAUTHSTYLENAME 332
+#define BSDAUTHSTYLE 333
+#define GSSAPISERVICE 334
+#define GSSAPIKEYTAB 335
+#define GSSAPIENCTYPE 336
+#define GSSAPIENC_ANY 337
+#define GSSAPIENC_CLEAR 338
+#define GSSAPIENC_INTEGRITY 339
+#define GSSAPIENC_CONFIDENTIALITY 340
+#define GSSAPIENC_PERMESSAGE 341
+#define GSSAPISERVICENAME 342
+#define GSSAPIKEYTABNAME 343
+#define PROTOCOL 344
+#define PROTOCOL_TCP 345
+#define PROTOCOL_UDP 346
+#define PROTOCOL_FAKE 347
+#define PROXYPROTOCOL 348
+#define PROXYPROTOCOL_SOCKS_V4 349
+#define PROXYPROTOCOL_SOCKS_V5 350
+#define PROXYPROTOCOL_HTTP 351
+#define PROXYPROTOCOL_UPNP 352
+#define USER 353
+#define GROUP 354
+#define COMMAND 355
+#define COMMAND_BIND 356
+#define COMMAND_CONNECT 357
+#define COMMAND_UDPASSOCIATE 358
+#define COMMAND_BINDREPLY 359
+#define COMMAND_UDPREPLY 360
+#define ACTION 361
+#define LINE 362
+#define LIBWRAPSTART 363
+#define LIBWRAP_ALLOW 364
+#define LIBWRAP_DENY 365
+#define LIBWRAP_HOSTS_ACCESS 366
+#define OPERATOR 367
+#define SOCKS_LOG 368
+#define SOCKS_LOG_CONNECT 369
+#define SOCKS_LOG_DATA 370
+#define SOCKS_LOG_DISCONNECT 371
+#define SOCKS_LOG_ERROR 372
+#define SOCKS_LOG_IOOPERATION 373
+#define IPADDRESS 374
+#define DOMAINNAME 375
+#define DIRECT 376
+#define IFNAME 377
+#define URL 378
+#define SERVICENAME 379
+#define PORT 380
+#define NUMBER 381
+#define FROM 382
+#define TO 383
+#define REDIRECT 384
+#define BANDWIDTH 385
+#define MAXSESSIONS 386
+#define UDPPORTRANGE 387
+#define UDPCONNECTDST 388
+#define YES 389
+#define NO 390
+#define BOUNCE 391
+#define LDAPURL 392
+#define LDAP_URL 393
+#define LDAPSSL 394
+#define LDAPCERTCHECK 395
+#define LDAPKEEPREALM 396
+#define LDAPBASEDN 397
+#define LDAP_BASEDN 398
+#define LDAPBASEDN_HEX 399
+#define LDAPBASEDN_HEX_ALL 400
+#define LDAPSERVER 401
+#define LDAPSERVER_NAME 402
+#define LDAPGROUP 403
+#define LDAPGROUP_NAME 404
+#define LDAPGROUP_HEX 405
+#define LDAPGROUP_HEX_ALL 406
+#define LDAPFILTER 407
+#define LDAPFILTER_AD 408
+#define LDAPFILTER_HEX 409
+#define LDAPFILTER_AD_HEX 410
+#define LDAPATTRIBUTE 411
+#define LDAPATTRIBUTE_AD 412
+#define LDAPATTRIBUTE_HEX 413
+#define LDAPATTRIBUTE_AD_HEX 414
+#define LDAPCERTFILE 415
+#define LDAPCERTPATH 416
+#define LDAPPORT 417
+#define LDAPPORTSSL 418
+#define LDAP_FILTER 419
+#define LDAP_ATTRIBUTE 420
+#define LDAP_CERTFILE 421
+#define LDAP_CERTPATH 422
+#define LDAPDOMAIN 423
+#define LDAP_DOMAIN 424
+#define LDAPTIMEOUT 425
+#define LDAPCACHE 426
+#define LDAPCACHEPOS 427
+#define LDAPCACHENEG 428
+#define LDAPKEYTAB 429
+#define LDAPKEYTABNAME 430
+#define LDAPDEADTIME 431
+#define LDAPDEBUG 432
+#define LDAPDEPTH 433
+#define LDAPAUTO 434
+#define LDAPSEARCHTIME 435
 #define YYERRCODE 256
 #if defined(__cplusplus) || defined(__STDC__)
 const short socks_yylhs[] =
@@ -359,41 +385,44 @@ const short socks_yylhs[] =
 short socks_yylhs[] =
 #endif
 	{                                        -1,
-    0,    0,   68,    1,   71,   71,   72,   72,   72,    2,
-    2,    2,    2,   36,   37,   37,   70,   70,   69,   69,
-   69,   69,   69,   69,   69,   69,   69,   69,   69,   69,
-   69,   69,   69,   67,   67,   67,   67,   67,   67,   67,
-   67,   39,   39,   39,   39,    3,  117,   30,    7,    8,
-    8,    8,    8,    8,    9,    9,   10,   11,   12,   12,
-   13,   14,   15,   15,   44,   45,   46,   46,   47,   48,
-   49,   50,   51,   51,   51,   38,   38,   38,   38,   38,
-  116,  116,  157,   52,  158,   53,   54,   55,   55,   78,
-   78,   78,   73,   73,   73,   74,   75,   76,   77,   40,
-   40,   40,   41,   42,   43,   34,   83,   83,   84,   85,
-   86,   86,   87,   87,   56,   57,   57,   58,   58,   21,
-   22,   22,   22,   23,   23,   23,   23,   23,   23,   24,
-   25,   25,   25,   26,   26,   35,   61,   62,   62,  159,
-   59,  160,   60,   63,   63,   63,   63,   63,   63,  125,
-  126,  126,  126,  126,  127,  127,  122,  123,  123,  123,
-  123,  123,  123,  123,  124,  124,  128,  128,  128,  128,
-  128,  128,  128,  128,  128,  128,  128,  128,  128,  128,
-  128,  128,  128,  128,  128,  128,  128,  128,  128,  128,
-  128,  128,  128,  128,  128,  128,  128,  128,  128,  128,
-  128,  128,  128,  128,  128,  128,  128,  128,  112,  112,
-  103,  113,  108,  109,   88,   92,   93,   94,  114,  115,
-   89,   89,  111,  111,   90,   90,   91,   91,   99,  100,
-  101,  102,  104,  105,  106,  107,   97,   98,   96,   95,
-  110,   64,   65,   66,   66,  129,  129,   27,   28,   28,
-   29,   29,   29,   29,   29,    4,    5,    5,    6,    6,
-  130,   79,   79,   79,   81,   82,   80,  131,  133,  133,
-  133,  133,  133,  132,  132,   16,   17,   18,   19,   20,
-  164,  164,  164,  164,  164,  163,  163,  155,  134,  135,
-  136,  161,  162,  119,  120,  120,  120,  120,  120,  120,
-  120,  120,  120,  121,  121,  145,  146,  165,  166,  156,
-  118,  137,  137,  137,  138,  167,  138,  138,  138,  140,
-  140,  140,  140,  140,  139,  147,  147,  141,  142,  143,
-  144,  148,  148,  148,  148,  149,  149,  153,  153,  150,
-  151,  168,  154,  152,   31,   32,   33,
+    0,    0,   75,    5,   78,   78,   79,   79,   79,   79,
+    6,    6,    6,    6,   40,   41,   41,   77,   77,   76,
+   76,   76,   76,   76,   76,   76,   76,   76,   76,   76,
+   76,   76,   76,   76,   76,   74,   74,   74,   74,   74,
+   74,   74,   74,   74,   46,   46,   46,   46,    7,  126,
+   26,   20,   21,   21,   21,   21,   21,   22,   22,   37,
+   38,   39,   39,    9,   10,   11,   11,   51,   52,   53,
+   53,   54,   55,   56,   57,   58,   58,   58,   42,   42,
+   42,   42,   42,   42,  125,  125,  170,   59,  171,   60,
+   61,   62,   62,   85,   85,   85,   80,   80,   80,   81,
+   82,   83,   84,   47,   47,   47,   48,   49,   50,    8,
+   90,   90,   91,   92,   93,   93,   94,   94,   63,   64,
+   64,   65,   65,   24,   25,   25,   25,   43,   43,   44,
+   45,  172,   28,   29,   29,   30,   30,   27,   27,   15,
+   15,   15,   15,   15,   15,   31,   32,   32,   32,   33,
+   33,   23,   68,   69,   69,  173,   66,  174,   67,   70,
+   70,   70,   70,   70,   70,  131,  132,  132,  133,  133,
+  134,  135,  135,  175,  137,  136,  138,  139,  139,  139,
+  139,  139,  140,  140,  141,  141,  141,  141,  141,  141,
+  141,  141,  141,  141,  141,  141,  141,  141,  141,  141,
+  141,  141,  141,  141,  141,  141,  141,  141,  141,  141,
+  141,  141,  141,  141,  141,  141,  141,  141,  141,  141,
+  141,  141,  141,  141,  141,  141,  141,  141,  141,  141,
+  119,  119,  110,  120,  115,  116,   95,   99,  100,  101,
+  121,  122,   96,   96,  118,  118,   97,   97,   98,   98,
+  106,  107,  108,  109,  111,  112,  113,  114,  104,  105,
+  103,  102,  117,   71,   72,   73,   73,  142,  142,    2,
+    3,    3,    4,    4,    4,    4,    4,   17,   18,   18,
+   19,   19,  143,   86,   86,   86,   88,   89,   87,  144,
+  146,  146,  146,  146,  146,  145,  145,   16,    1,   14,
+   13,   12,  179,  179,  179,  179,  179,  178,  178,  168,
+  147,  148,  149,  176,  177,  128,  129,  129,  129,  129,
+  129,  129,  129,  129,  129,  129,  130,  130,  158,  159,
+  180,  181,  169,  127,  150,  150,  150,  151,  182,  151,
+  151,  151,  153,  153,  153,  153,  153,  152,  160,  160,
+  154,  155,  156,  157,  162,  162,  162,  162,  163,  163,
+  166,  166,  164,  165,  183,  167,  161,   34,   35,   36,
+  123,  124,  124,
 };
 #if defined(__cplusplus) || defined(__STDC__)
 const short socks_yylen[] =
@@ -401,41 +430,44 @@ const short socks_yylen[] =
 short socks_yylen[] =
 #endif
 	{                                         2,
-    2,    2,    1,    2,    0,    2,    1,    1,    1,    0,
-    2,    2,    2,    1,    1,    1,    1,    2,    1,    1,
+    2,    2,    1,    2,    0,    2,    1,    1,    1,    1,
+    0,    2,    2,    2,    1,    1,    1,    1,    2,    1,
     1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
     1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
-    1,    1,    1,    1,    1,    1,    8,    0,    3,    1,
-    1,    1,    1,    1,    1,    2,    3,    1,    1,    2,
-    3,    1,    1,    2,    3,    1,    1,    2,    4,    0,
-    4,    0,    3,    3,    3,    1,    1,    1,    1,    1,
-    5,    5,    0,    4,    0,    4,    1,    1,    2,    3,
-    3,    3,    1,    1,    1,    3,    3,    3,    1,    3,
-    3,    3,    3,    3,    3,    3,    1,    1,    3,    3,
-    3,    3,    3,    3,    3,    1,    1,    1,    2,    3,
-    1,    1,    1,    7,    7,    7,    7,    7,    7,    3,
-    1,    1,    1,    1,    2,    3,    3,    1,    2,    0,
-    4,    0,    4,    1,    1,    1,    1,    1,    1,    7,
-    1,    1,    1,    1,    0,    2,    6,    1,    1,    1,
-    1,    1,    1,    1,    0,    2,    1,    1,    1,    1,
+    1,    1,    1,    1,    1,    1,    1,    1,    1,    8,
+    0,    3,    1,    1,    1,    1,    1,    1,    2,    3,
+    1,    1,    2,    3,    1,    1,    2,    3,    1,    1,
+    2,    4,    0,    4,    0,    3,    3,    3,    1,    1,
+    1,    1,    1,    1,    5,    5,    0,    4,    0,    4,
+    1,    1,    2,    3,    3,    3,    1,    1,    1,    3,
+    3,    3,    1,    3,    3,    3,    3,    3,    3,    3,
+    1,    1,    3,    3,    3,    3,    3,    3,    3,    1,
+    1,    1,    2,    3,    1,    1,    1,    1,    1,    9,
+    7,    0,    7,    1,    1,    1,    1,    1,    1,    7,
+    7,    7,    7,    7,    7,    3,    1,    1,    1,    1,
+    2,    3,    3,    1,    2,    0,    4,    0,    4,    1,
+    1,    1,    1,    1,    1,    7,    1,    1,    0,    2,
+    7,    1,    1,    0,    4,    3,    6,    1,    1,    1,
+    1,    1,    0,    2,    1,    1,    1,    1,    1,    1,
     1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
     1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
     1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
-    1,    1,    1,    1,    1,    1,    1,    1,    3,    4,
+    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
+    3,    4,    3,    3,    3,    3,    3,    3,    3,    3,
     3,    3,    3,    3,    3,    3,    3,    3,    3,    3,
     3,    3,    3,    3,    3,    3,    3,    3,    3,    3,
-    3,    3,    3,    3,    3,    3,    3,    3,    3,    3,
-    3,    3,    1,    1,    2,    1,    1,    3,    1,    2,
-    1,    1,    1,    1,    1,    3,    1,    2,    1,    1,
-    2,    3,    2,    2,    1,    3,    3,    3,    1,    1,
-    1,    1,    1,    1,    2,    3,    3,    3,    3,    3,
-    1,    1,    1,    1,    1,    1,    2,    4,    3,    3,
-    3,    3,    3,    3,    1,    1,    1,    1,    1,    1,
-    1,    1,    1,    0,    2,    1,    1,    1,    1,    1,
-    1,    1,    1,    1,    4,    0,    3,    2,    2,    2,
-    2,    2,    1,    1,    1,    1,    1,    1,    1,    1,
-    1,    0,    3,    3,    2,    0,    3,    1,    1,    3,
-    1,    1,    1,    1,    5,    1,    1,
+    3,    3,    3,    3,    1,    1,    2,    1,    1,    3,
+    1,    2,    1,    1,    1,    1,    1,    3,    1,    2,
+    1,    1,    2,    3,    2,    2,    1,    3,    3,    3,
+    1,    1,    1,    1,    1,    1,    2,    3,    3,    3,
+    3,    3,    1,    1,    1,    1,    1,    1,    2,    4,
+    3,    3,    3,    3,    3,    3,    1,    1,    1,    1,
+    1,    1,    1,    1,    1,    1,    0,    2,    1,    1,
+    1,    1,    1,    1,    1,    1,    1,    4,    0,    3,
+    2,    2,    2,    2,    2,    1,    1,    1,    1,    1,
+    1,    1,    1,    1,    0,    3,    3,    2,    0,    3,
+    1,    1,    3,    1,    1,    1,    1,    5,    1,    1,
+    1,    1,    2,
 };
 #if defined(__cplusplus) || defined(__STDC__)
 const short socks_yydefred[] =
@@ -443,64 +475,69 @@ const short socks_yydefred[] =
 short socks_yydefred[] =
 #endif
 	{                                      0,
-    3,   14,    0,   10,    0,    0,   46,   70,   72,    0,
+    3,   15,    0,   11,    0,    0,    0,   49,   73,   75,
+  138,  139,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    1,   21,
-   37,   39,   40,   30,   38,   41,   43,   44,   42,   45,
-   35,   22,   23,   24,   25,   26,   34,   19,   20,   27,
-   17,    0,   28,   93,   94,   95,   29,   31,  107,  108,
-   32,   33,   36,    0,   11,   16,   79,   76,   12,   15,
-   80,   78,   77,   13,    0,    0,    0,    0,    0,    0,
+    0,    1,   23,   22,   40,   41,   42,    0,   33,   43,
+   37,  128,  129,   44,   46,   47,   45,   48,   38,   28,
+   25,   26,   24,   31,   36,   20,   27,   32,   18,    0,
+   35,   97,   98,   99,   21,   30,  111,  112,   29,   34,
+   39,    0,   12,   17,   79,   83,   13,   16,   84,   81,
+   82,   80,   14,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  140,  142,    0,    0,    0,    0,   83,   85,    0,    0,
-    0,    0,    0,    0,    0,    0,  246,  247,   18,    4,
-    0,    9,    8,    7,    0,    0,    0,    0,  136,   74,
-   73,   75,  106,  122,  123,  121,  120,    0,    0,    0,
-    0,  131,  132,  133,    0,  130,   66,    0,   65,  100,
-  101,  102,  103,  104,  105,    0,    0,  116,  117,    0,
-  115,   99,   96,   97,   98,    0,    0,   90,   91,   92,
-    0,    0,  109,  110,  111,  112,  113,  114,    0,   48,
-    6,    0,    0,  325,  328,  329,   69,    0,    0,    0,
-   71,  312,  313,  314,    0,    0,    0,    0,  135,   68,
-  144,  145,  146,  147,  148,  149,  141,    0,  143,  119,
-   87,    0,   84,   86,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,  162,  163,  204,  205,  171,  172,
-  173,  174,  175,  160,  161,  206,  167,  168,  164,  159,
-  208,  265,  176,  186,  187,  188,  181,  182,  183,  202,
-  199,  200,  201,  189,  191,  193,  195,  178,  190,  192,
-  194,  196,  197,  198,  203,  177,  179,  180,  184,  185,
-    0,    0,  158,  170,  169,  207,  298,  302,  299,  300,
-  301,  295,  297,  303,  296,    0,    0,    0,    0,    0,
-  318,  319,    0,    0,    0,    0,    0,    0,  139,   89,
-   82,   81,  153,  154,  152,    0,    0,  151,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,  308,  309,    0,  264,    0,    0,    0,    0,
-    0,  310,    0,    0,    0,    0,    0,    0,    0,    0,
+  156,  158,    0,    0,    0,    0,   87,   89,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,  268,  269,
+   19,    4,    0,   10,    7,    8,    9,    0,    0,    0,
+    0,    0,    0,  152,   77,   76,   78,  110,  126,  127,
+  125,  124,    0,    0,    0,    0,  147,  148,  149,    0,
+  146,   69,    0,   68,  104,  105,  106,  107,  108,  109,
+    0,    0,  120,  121,    0,  119,  103,  100,  101,  102,
+    0,    0,   94,   95,   96,    0,    0,  113,  114,  115,
+  116,  117,  118,  132,    0,    0,   51,    6,    0,    0,
+    0,    0,  348,  351,  352,   72,    0,    0,    0,   74,
+  335,  336,  337,    0,    0,    0,    0,  151,   71,  160,
+  161,  162,  163,  164,  165,  157,    0,  159,  123,   91,
+    0,   88,   90,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,  166,  306,    0,    0,    0,  305,    0,  327,  326,
-    0,  317,  344,  341,    0,  335,    0,    0,    0,    0,
-    0,    0,    0,    0,  156,    0,  137,  243,    0,  242,
-  276,  277,  278,  279,  281,  282,  283,  284,  285,  280,
-    0,  259,  260,  256,    0,   50,   51,   52,   53,   54,
-    0,   49,   58,    0,   57,   62,    0,   61,  251,  252,
-  253,  254,  255,  248,    0,  289,  269,  270,  271,  272,
-  273,  268,    0,  262,    0,    0,  267,  266,  346,    0,
-    0,  215,  221,  222,  225,  226,  227,  228,  216,  217,
-  218,  240,  239,  237,  238,  229,  230,  231,  232,  233,
-  234,  235,  236,  213,  214,  219,  220,  211,  241,  209,
-    0,  212,  223,  224,    0,  307,  261,    0,    0,  311,
-    0,    0,  315,  343,  339,  333,  338,    0,  334,  126,
-  124,  127,  125,  128,  129,    0,  245,  287,  258,   56,
-   60,   64,  250,  275,  292,  293,    0,  288,  210,  157,
-    0,  290,    0,    0,  342,  340,  150,  347,  345,  291,
-  330,  331,    0,  294,    0,    0,  324,  323,   47,    0,
-  320,  321,  322,    0,  337,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,  188,  179,  190,
+  191,  192,  193,  225,  181,  182,  227,  180,  230,  229,
+  185,  189,  226,  186,  228,  287,  224,  217,  203,  213,
+  195,  196,  197,  223,  218,  219,  220,  209,  210,  212,
+  211,  208,  198,  199,  201,  200,  204,  205,  214,  202,
+  206,  207,  215,  216,  194,  173,  172,    0,    0,  178,
+  222,  221,  187,  318,  324,  323,  322,  321,  325,  326,
+  320,  317,  319,    0,    0,    0,    0,    0,    0,    0,
+  341,  342,    0,    0,    0,    0,    0,    0,  155,   93,
+   86,   85,  135,  134,    0,  168,    0,    0,  167,    0,
+  174,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,  331,  332,    0,  286,
+    0,    0,    0,    0,    0,  333,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,  184,  329,    0,    0,    0,
+  328,    0,    0,    0,  350,  349,    0,  340,  367,  364,
+    0,    0,  358,    0,    0,    0,    0,    0,    0,    0,
+    0,  170,    0,    0,    0,  176,  153,  265,    0,  264,
+  298,  299,  300,  301,  303,  304,  305,  306,  307,  302,
+    0,  281,  282,  278,    0,   53,   54,   55,   56,   57,
+    0,   52,   61,    0,   60,   65,    0,   64,  273,  274,
+  275,  276,  277,  270,    0,  311,  291,  292,  293,  294,
+  295,  290,    0,  284,    0,    0,  289,  288,  369,    0,
+    0,  237,  243,  244,  247,  248,  249,  250,  238,  239,
+  240,  262,  261,  259,  260,  251,  252,  253,  254,  255,
+  256,  257,  258,  235,  236,  241,  242,  233,  263,  231,
+    0,  234,  245,  246,    0,  330,  283,    0,    0,  334,
+    0,    0,  371,    0,  131,    0,  338,  366,  362,  356,
+  361,  357,    0,  142,  140,  143,  141,  144,  145,  137,
+  136,  133,    0,    0,  175,  267,  309,  280,   59,   63,
+   67,  272,  297,  314,  315,    0,  310,  232,  177,    0,
+  312,    0,    0,  373,    0,  365,  363,  166,  171,  370,
+  368,  313,  353,  354,    0,  316,    0,    0,  347,  346,
+   50,  130,    0,  343,  344,  345,    0,  360,
 };
 #if defined(__cplusplus) || defined(__STDC__)
 const short socks_yydgoto[] =
@@ -508,744 +545,828 @@ const short socks_yydgoto[] =
 short socks_yydgoto[] =
 #endif
 	{                                       3,
-   39,    6,   40,  265,  444,  445,  266,  451,  452,  267,
-  454,  455,  268,  457,  458,  269,  270,  271,  272,  273,
-   41,  137,   42,   43,  145,  146,  274,  464,  465,  126,
-  275,  480,  559,   44,   45,    4,   79,   80,  276,   47,
-   48,   49,   50,  323,  148,  149,   52,   85,   53,   86,
-   54,   55,   56,  212,  213,   57,  160,  161,   58,   59,
-  277,  207,  208,  278,  429,  430,   60,    5,   61,   62,
-  120,  121,   63,   64,   65,   66,  163,   67,  279,  280,
-  281,  282,   68,   69,   70,   71,   72,  283,  284,  285,
-  286,  287,  288,  289,  290,  291,  292,  293,  294,  295,
-  296,  297,  298,  299,  300,  301,  302,  303,  304,  305,
-  306,  307,  308,  309,  310,   73,  122,  521,  522,  326,
-  327,  123,  311,  312,  124,  346,  347,  313,  125,  404,
-  314,  472,  473,  315,  405,  517,  191,  187,  188,  564,
-  189,  190,  567,  568,  406,  518,  411,  331,  571,  416,
-  525,  418,  526,  527,  316,  373,  166,  167,  156,  157,
-  365,  366,  440,  441,  367,  368,  329,  556,
+  288,  289,  504,  505,   42,    6,   43,   44,  290,  497,
+  498,  291,  292,  293,   45,  294,  376,  484,  485,  296,
+  491,  492,   46,   47,  152,  139,   48,  297,  375,  582,
+   50,  160,  161,  298,  520,  611,  299,  494,  495,    4,
+   87,   88,   51,   52,   53,  300,   55,   56,   57,   58,
+  351,  163,  164,   60,   95,   61,   96,   62,   63,   64,
+  231,  232,   65,  175,  176,   66,   67,  301,  226,  227,
+  302,  469,  470,   68,    5,   69,   70,  132,  133,   71,
+   72,   73,   74,  178,   75,  303,  304,  305,  306,   76,
+   77,   78,   79,   80,  307,  308,  309,  310,  311,  312,
+  313,  314,  315,  316,  317,  318,  319,  320,  321,  322,
+  323,  324,  325,  326,  327,  328,  329,  330,  331,  332,
+  333,  334,  564,  565,   81,  134,  561,  562,  354,  355,
+  135,  377,  378,  136,  335,  336,  337,  137,  338,  339,
+  379,  138,  438,  341,  512,  513,  342,  439,  557,  210,
+  206,  207,  616,  208,  209,  619,  620,  440,  558,  447,
+  452,  361,  624,  453,  569,  570,  571,  343,  407,  181,
+  182,  236,  171,  172,  465,  399,  400,  480,  481,  401,
+  402,  359,  607,
 };
 #if defined(__cplusplus) || defined(__STDC__)
 const short socks_yysindex[] =
 #else
 short socks_yysindex[] =
 #endif
-	{                                   -162,
-    0,    0,    0,    0, 2365,  247,    0,    0,    0,  -23,
-  -19,  -17,   -3,   11,   13,    3,   20,   41,   44,   53,
-   57,   64,   73,   82,   88,   90,  103,  108,  110,  125,
-  140,  150,  154,  172,  158,  164,  166,  168,    0,    0,
+	{                                   -208,
+    0,    0,    0,    0, 2700,  948,   21,    0,    0,    0,
+    0,    0,  -17,   12,   24,   26,   41,   43,   38,   52,
+   56,   74,   83,   90,   92,  104,  118,  123,  130,  131,
+  133,  134,  135,  136,  139,  140,  155,  144,  145,  146,
+  147,    0,    0,    0,    0,    0,    0,  -62,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0, 2625,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,  155,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0, -164,  149,  150,  -70, -237, -170, -273,
+ -223, -174, -213,  -81, -168, -167, -166, -165, -163, -162,
+    0,    0, -191,  -97,  -97,  -97,    0,    0, -287, -161,
+ -206,  -98,  -96, -265, -263,  176, -200, -200,    0,    0,
+    0,    0, -232,    0,    0,    0,    0,  101,  102,  180,
+  181, -332, -332,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,  182,  183,  184,  190,    0,    0,    0, -213,
+    0,    0,  -81,    0,    0,    0,    0,    0,    0,    0,
+ -254, -254,    0,    0, -191,    0,    0,    0,    0,    0,
+  -85,  -85,    0,    0,    0,  185,  186,    0,    0,    0,
+    0,    0,    0,    0,  115,  116,    0,    0, 2312, -244,
+  -21,  -20,    0,    0,    0,    0,  198, -130, -130,    0,
+    0,    0,    0, -207, -194,  -94,  -92,    0,    0,    0,
+    0,    0,    0,    0,    0,    0, -254,    0,    0,    0,
+  -85,    0,    0, -126, -125, -239, 2460, 2460,  199,  200,
+  201,  203,  204,  206,  209,  210,  212,  214,  215,  216,
+  217,  221,  227,  229, -229,  234,  235,  237,  -87,  239,
+  241,  242,  251,  252,  253,  254,  255,  256,  258,  259,
+  261,  262,  267,  270,  276,  280,  286,  287,  288,  290,
+  293,  294,  295,  297,  298,  299,  300,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0, -217,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,  172,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,  182,  184, -193, -230, -276, -249,
- -171, -158, -132,  -35, -122, -121, -120, -119, -118, -116,
-    0,    0, -186,  -48,  -48,  -48,    0,    0, -255, -114,
- -155,  -51,  -46, -203, -200, -136,    0,    0,    0,    0,
- -198,    0,    0,    0,  136,  137, -287, -287,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,  215,  216,  222,
-  224,    0,    0,    0, -132,    0,    0,  -35,    0,    0,
-    0,    0,    0,    0,    0, -165, -165,    0,    0, -186,
-    0,    0,    0,    0,    0,  -32,  -32,    0,    0,    0,
-  218,  220,    0,    0,    0,    0,    0,    0,  156,    0,
-    0, 2064, -156,    0,    0,    0,    0,  233,  -82,  -82,
-    0,    0,    0,    0, -149, -145,  -39,  -38,    0,    0,
-    0,    0,    0,    0,    0,    0,    0, -165,    0,    0,
-    0,  -32,    0,    0,  -83,  -72, 2204,  238,  239,  241,
-  242,  244,  245,  246,  250,  253,  259,  263,  269,  270,
-  271, -163,  273,  274,  277,  -30,  278,  281,  282,  283,
-  301,  302,  303,  304,  305,  306,  307,  308,  309,  311,
-  312,  320,  321,  324,  329,  333,  335,  350,  351,  352,
-  353,  355,  356,  357,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0, 2312,  -19,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0, -244,  -19,  304,  306, -334, -130,  -34,
+    0,    0,  307,  308,  310,  324,  325,  326,    0,    0,
+    0,    0,    0,    0,  327,    0, 2460,  -19,    0,  -19,
+    0,   14, -254,   86,   17,   72,   66,   67, -279, -190,
+ -234,  111,  112, -251,   64, -236,    0,    0,   45,    0,
+  372,  373,   51,   53,   55,    0,  379,   40, -212, -210,
+ -205,   44,   46,   47,   48,   37,   50,   54,   27,   28,
+   30,   32,   23,   35,   36,   49,   61,   63,   71,   76,
+   59,   18,  -38,   78, -203,    0,    0, 2312,   81,  407,
+    0,  151,   94,  224,    0,    0, -130,    0,    0,    0,
+ -298, -298,    0,  444,  109,  120,  121,  122,  125,  126,
+ -241,    0, 2460, 2460, -332,    0,    0,    0,   86,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+ -279,    0,    0,    0, -190,    0,    0,    0,    0,    0,
+ -234,    0,    0,  111,    0,    0,  112,    0,    0,    0,
+    0,    0,    0,    0, -251,    0,    0,    0,    0,    0,
+    0,    0, -236,    0, -332, -332,    0,    0,    0,  454,
+ -332,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
- 2064,   49,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0, -156,   49, -312,  -82,  -36,
-    0,    0,  359,  361,  362,  366,  367,  376,    0,    0,
-    0,    0,    0,    0,    0, 2204,   49,    0, -165,  138,
-   76,  127,  115,  118, -187, -124, -231,  149,  160, -153,
-  102, -161,    0,    0,   93,    0,  400,  404,   97,   99,
-  100,    0,  410,   91, -154, -146, -143,   87,   94,  104,
-   95,   85,  105,  106,   79,   89,   92,   96,  107,  111,
-  112,  117,   86,   98,  132,  135,  116,  109,  -40,  141,
- -141,    0,    0, 2064,  134,  446,    0,  200,    0,    0,
-  -82,    0,    0,    0, -152,    0,  468, -152,  167,  169,
-  178,  179,  193,  208,    0, 2204,    0,    0,  138,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
- -187,    0,    0,    0, -124,    0,    0,    0,    0,    0,
- -231,    0,    0,  149,    0,    0,  160,    0,    0,    0,
-    0,    0,    0,    0, -153,    0,    0,    0,    0,    0,
-    0,    0, -161,    0, -287, -287,    0,    0,    0,  481,
- -287,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  209,    0,    0,    0,  409,    0,    0,  478, -287,    0,
-  490, -156,    0,    0,    0,    0,    0,  210,    0,    0,
-    0,    0,    0,    0,    0,  452,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,  213,    0,    0,    0,
- -287,    0, -160,  455,    0,    0,    0,    0,    0,    0,
-    0,    0,  217,    0,  217,  217,    0,    0,    0,  230,
-    0,    0,    0, -152,    0,};
+  128,    0,    0,    0,  385,    0,    0,  446, -332,    0,
+  453, -244,    0,   94,    0,  468,    0,    0,    0,    0,
+    0,    0,  137,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,  398,  399,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,  152,    0,    0,    0, -332,
+    0, -231,  403,    0,  153,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,  156,    0,  156,  156,    0,    0,
+    0,    0,  168,    0,    0,    0, -298,    0,};
 #if defined(__cplusplus) || defined(__STDC__)
 const short socks_yyrindex[] =
 #else
 short socks_yyrindex[] =
 #endif
 	{                                      0,
-    0,    0,    0,    0,    0,  583,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,  537,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,  585,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,  463,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,  538,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,  416,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  585,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,  538,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,  658,    0,    0,  497,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,  755,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,  744,
+    0,    0,  553,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,  819,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,  159,  160,
+    0,    0,    0,    0,    0,    0,    6,  196,  196,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,  223,  225,    0,    0,    0,    0,    4,  170,  170,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,  334,    0,    0,
-    0,  598,    0,    0,    0,    0,  243,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,  375,    0,    0,    0,
+  669,    0,    0,    0,    0,    0,  161,  161,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
- -113,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0, -112,    0,    0,  170,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0, -111,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0, 1504,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,  466,    0,    0,    0,    0,    0,    0,
-  170,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,  475,    0,    0,  791,    0,
+    0,    0,    0,    0,    0,    0,    0, -117,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  934,    0,    0,    0, 1077,    0,    0,    0,    0,    0,
- 1220,    0,    0, 1644,    0,    0, 1784,    0,    0,    0,
-    0,    0,    0,    0, 1363,    0,    0,    0,    0,    0,
-    0,    0, 1924,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0, -116,    0,    0,    0,    0,  196,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0, -113,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0, 1720,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,  480,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,  420,    0,    0,
+    0,    0,    0,    0,    0,    0,  196,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,  421,  421,    0,    0,    0,    0,  980,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+ 1128,    0,    0,    0, 1276,    0,    0,    0,    0,    0,
+ 1424,    0,    0, 1868,    0,    0, 2016,    0,    0,    0,
+    0,    0,    0,    0, 1572,    0,    0,    0,    0,    0,
+    0,    0, 2164,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0, -110,    0, -110, -110,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,};
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,  422,    0,  894,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0, -102,    0, -102, -102,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,};
 #if defined(__cplusplus) || defined(__STDC__)
 const short socks_yygindex[] =
 #else
 short socks_yygindex[] =
 #endif
 	{                                      0,
-    0,    0,   -6, -177,  161,    0, -176,    0,  162,    0,
-    0,  155,    0,    0,  173,    0,    0, -175, -174, -173,
-  606,    0,    0,    0,    0,  479, -172,  176,    0,    0,
-    0,    0,    0,  617,    0,    0,    0,    0,   25,    0,
-    0,    0,    0,   32,    0,  477,    0,    0,    0,    0,
-    0,    0,  620,    0, -133,    0,    0,  467,    0,    0,
- -166, -134,    0, -164,    0,  203,    0,    0,  567,    0,
-  512,    0,    0,    0,    0,    0,  131,    0, -201, -199,
+    0, -195,   58,    0,    0,    0,   -4,  542,    0,    0,
+   57, -186, -185, -184,    0,    0, -189,   70,    0, -183,
+    0,   65,    0,  546,    0,    0,    0,   -5,    0,    0,
+    0,    0,  405,    0,    0,    0,    0,    0,   73,    0,
+    0,    0,    0,    0,    0,   29,    0,    0,    0,    0,
+   31,    0,  395,    0,    0,    0,    0,    0,  560,  562,
+    0, -145,    0,    0,  394,    0,    0, -182, -152,    0,
+ -181,    0,  103,    0,    0,  500,    0,  438,    0,    0,
+    0,    0,    0,   42,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,  628,  632,    0,    0,    0,
- -305,    0,    0, -286,    0,    0, -319, -191,  529, -298,
-    0,  174,    0,    0,    0,    0,    0, -443, -127,    0,
- -126, -125,    0,    0,    0,    0,    0, -170, -327,    0,
-  316,   81, -394,    0,    0,    0,    0,    0,    0,    0,
-    0,  291,  219,    0,    0,    0,    0,    0,
+    0,    0,    0,    9,  568,  569,    0,    0,    0, -327,
+    0,    0, -216,    0,    0,    0,    0,    0,    0, -310,
+ -178,   39, -309,    0,   85,    0,    0,    0,    0,    0,
+ -436, -142,    0, -140, -139,    0,    0,    0,    0,    0,
+  -47, -196, -435,    0,  225, -427,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,  178,  105,    0,    0,
+    0,    0,    0,
 };
-#define YYTABLESIZE 2738
+#define YYTABLESIZE 3088
 #if defined(__cplusplus) || defined(__STDC__)
 const short socks_yytable[] =
 #else
 short socks_yytable[] =
 #endif
-	{                                      76,
-  192,  193,  194,  316,  511,  317,  318,  319,  320,  321,
-  322,  165,  304,  155,  336,  344,  324,  345,  325,  332,
-  407,  415,  209,  529,  402,  348,  425,    7,  408,   46,
-   81,  545,  546,  214,   87,  130,   51,  548,   88,  343,
-   89,    7,  116,    8,    9,   10,  409,   11,  426,   12,
-   13,   14,   15,  410,   90,   16,   91,  131,   92,   17,
-   93,  116,   18,   19,   20,   21,   22,   23,   24,   25,
-  129,  184,  185,  339,  186,  552,   26,   94,  340,  132,
-  134,  135,  136,   27,   28,   29,   46,   30,   31,  133,
-   32,   33,   74,   51,    1,    2,  117,  118,   95,  138,
-  139,   96,  446,  447,  448,  449,  536,  560,  158,  159,
-   97,  180,  140,  141,   98,  117,  118,  515,  168,  169,
-   17,   99,  201,  202,  203,  204,  205,  206,  316,  218,
-  100,   35,   36,   37,  435,  436,  437,  438,  439,  101,
-  219,  142,  143,  144,  344,  102,  345,  103,  317,  318,
-  319,  320,  321,  322,  348,   38,  171,  172,  412,  324,
-  104,  325,  222,  223,  224,  105,  336,  106,  343,  332,
-  175,  176,  225,  177,  178,  336,  226,  117,  118,  575,
-  333,  334,  107,  229,  335,  336,  336,  459,  460,  461,
-  462,  463,  467,  468,  469,  470,  471,  108,  184,  185,
-  561,  186,  562,  363,  364,  442,  443,  109,  336,  336,
-  336,  110,  524,  414,  427,  112,  554,  111,  336,  483,
-  484,  113,  336,  114,  344,  115,  345,  485,  486,  336,
-  487,  488,  513,  514,  348,  164,  165,  572,  573,  127,
-  523,  128,  147,  150,  151,  152,  153,  154,  343,  155,
-  162,  170,  173,  165,  304,  155,   75,  174,  182,  183,
-  195,  196,  316,  316,  316,  316,  316,  197,  316,  198,
-  316,  316,  316,  316,  211,  215,  316,  216,  217,  328,
-  316,  330,  341,  316,  316,  316,  316,  316,  316,  316,
-  316,  337,  338,  342,  332,  349,  350,  316,  351,  352,
-  316,  353,  354,  355,  316,  316,  316,  356,  316,  316,
-  357,  316,  316,  316,  316,  413,  358,  316,  316,  316,
-  359,  316,  316,  316,  316,  510,  360,  361,  362,  414,
-  369,  370,  316,  138,  371,  374,  316,  372,  375,  376,
-  377,  316,  316,  316,  317,  318,  319,  320,  321,  322,
-  450,  316,  316,  316,  316,  324,  316,  325,  378,  379,
-  380,  381,  382,  383,  384,  385,  386,  316,  387,  388,
-  316,  316,  316,  316,  316,  316,  316,  389,  390,  316,
-  316,  391,  316,  316,  316,  316,  392,  316,  316,  316,
-  393,  316,  394,  316,  316,  316,  316,  316,  316,  316,
-  316,  316,  316,  316,  316,  316,  316,  395,  396,  397,
-  398,  316,  399,  400,  401,  403,  419,  316,  420,  421,
-  316,  316,  316,  422,  423,  563,  565,  566,  332,  332,
-  332,  332,  332,  424,  332,  428,  332,  332,  332,  332,
-  431,  433,  332,  432,  450,  434,  332,  453,  466,  332,
-  332,  332,  332,  332,  332,  332,  332,  475,  138,  456,
-  364,  476,  477,  332,  478,  479,  332,  481,  482,  489,
-  332,  332,  332,  493,  332,  332,  490,  332,  332,  332,
-  332,  492,  496,  332,  332,  332,  491,  332,  332,  332,
-  332,  504,  497,  494,  495,  498,   67,  506,  332,  499,
-  507,  516,  332,  519,  505,    7,  512,  332,  332,  332,
-  520,  500,  528,   12,   13,  501,  502,  332,  332,  332,
-  332,  503,  332,  509,  508,  547,   18,   19,   20,   21,
-   22,   23,  530,  550,  531,  551,  332,  332,  332,  332,
-  332,  332,  332,  532,  533,  332,  332,  553,  332,  332,
-  332,  332,   31,  332,  332,  332,   74,  332,  534,  332,
-  332,  332,  332,  332,  332,  332,  332,  332,  332,  332,
-  332,  332,  332,  535,  549,  555,  557,  332,  558,  569,
-  570,  413,    2,  332,    5,   48,  332,  332,  332,  165,
-  165,  304,  138,  138,  138,  138,  138,   88,  138,  155,
-  138,  138,  138,  138,  304,  539,  138,   88,  541,  155,
-  138,   77,  540,  138,  138,  138,  138,  138,  138,  138,
-  138,   67,   78,  199,  200,   82,  210,  138,  119,  542,
-  138,  537,  181,   83,  138,  138,  138,   84,  138,  138,
-  543,  138,  138,  138,  179,  417,  544,  138,  138,  138,
-  574,  138,  138,  138,  138,  474,    0,  134,    0,  538,
-    0,    0,  138,    0,    0,    0,  138,    0,    0,    0,
-    0,  138,  138,  138,    0,    0,    0,    0,    0,    0,
-    0,  138,  138,  138,  138,    0,  138,    0,    0,    0,
+	{                                      49,
+  211,   84,  212,  213,  344,  339,  551,  183,  327,  295,
+  348,  169,  362,  345,  346,  347,  349,  352,  353,  228,
+  340,  380,  359,  451,  572,  580,  441,  436,  585,  373,
+    8,   11,   12,   54,   89,   59,  233,  127,  128,  445,
+   97,  203,  204,  145,  205,  442,  446,   20,  220,  221,
+  222,  223,  224,  225,    1,    2,  241,  475,  476,  477,
+  478,  479,  153,  154,   49,  146,   94,  242,  463,   98,
+  464,  149,  150,  151,  369,  157,  158,  159,  594,  595,
+  568,   99,  450,  100,  597,  370,  101,  147,  102,  245,
+  246,  247,  197,  140,  141,  103,  129,  130,   54,  248,
+   59,  183,  184,  249,  499,  500,  501,  502,  503,  104,
+  252,  155,  156,  105,  486,  487,  488,  489,  173,  174,
+  186,  187,  601,  190,  191,  192,  193,  555,  129,  130,
+  339,  106,  507,  508,  509,  510,  511,  363,  364,  581,
+  107,  374,  203,  204,  613,  205,  614,  108,  295,  109,
+  365,  366,  397,  398,  482,  483,  179,  180,  344,  340,
+  462,  110,  448,  612,  348,  195,  196,  345,  346,  347,
+  349,  352,  353,  359,  359,  111,  523,  524,  525,  526,
+  112,  625,  626,  527,  528,  553,  554,  113,  114,  359,
+  115,  116,  117,  118,  350,  355,  119,  120,  359,  628,
+  121,  122,  123,  124,  125,  126,  142,  143,  144,  359,
+  148,  162,  165,  166,  167,  168,  177,  169,  170,  185,
+  188,  194,  189,  199,  200,  201,  202,  214,  215,  216,
+  467,  359,  359,  359,  603,  217,  230,  237,  238,  356,
+  357,  359,  234,  235,  358,  359,  583,  584,  295,  360,
+  567,  367,  359,  368,  371,  372,  381,  382,  383,  340,
+  384,  385,  339,  386,  183,  327,  387,  388,  169,  389,
+  339,  390,  391,  392,  393,  339,  339,  339,  394,  339,
+  339,  339,  339,  339,  395,  339,  396,  339,  339,  339,
+  339,  403,  404,  339,  405,  406,  408,  339,  409,  410,
+  339,  339,  339,  339,  339,  339,  339,  339,  411,  412,
+  413,  414,  415,  416,  339,  417,  418,  339,  419,  420,
+  355,  339,  339,  339,  421,  339,  339,  422,  339,  339,
+  339,  339,  449,  423,  339,  339,  339,  424,  339,  339,
+  339,  339,  550,  425,  426,  427,  450,  428,  350,  339,
+  429,  430,  431,  339,  432,  433,  434,  435,  339,  339,
+  339,  443,  437,  444,  455,  456,  344,  457,  339,  339,
+  339,  339,  348,  339,  154,  345,  346,  347,  349,  352,
+  353,  458,  459,  460,  461,  339,  490,  339,  339,  339,
+  339,  339,  339,  339,  466,  471,  339,  339,  468,  339,
+  339,  339,  339,  472,  339,  339,  339,  473,  339,  474,
+  339,  339,  339,  339,  339,  339,  339,  339,  339,  339,
+  339,  339,  339,  339,  493,  506,  496,  398,  339,  515,
+  516,  517,  522,  518,  339,  519,  521,  339,  339,  339,
+  533,  529,  540,  530,  531,  536,  537,  549,  538,  532,
+  539,  546,  355,  534,  541,  542,  547,  535,  552,  615,
+  355,  617,  618,  556,  559,  355,  355,  355,  543,  355,
+  355,  355,  355,  355,  563,  355,  560,  355,  355,  355,
+  355,  544,  548,  355,  545,  566,  490,  355,  573,  574,
+  355,  355,  355,  355,  355,  355,  355,  355,  596,  154,
+  575,  576,  577,  600,  355,  578,  579,  355,  598,  599,
+  602,  355,  355,  355,  605,  355,  355,  606,  355,  355,
+  355,  355,  608,  609,  355,  355,  355,  621,  355,  355,
+  355,  355,  610,  622,  449,  623,    2,    5,   51,  355,
+  183,  327,  169,  355,  183,  169,  327,   85,  355,  355,
+  355,   86,   70,  591,  588,  589,  350,  219,  355,  355,
+  355,  355,  592,  355,  218,   90,  590,   91,  229,  131,
+  198,  586,  604,   92,   93,  627,  514,  355,  355,  355,
+  355,  355,  355,  355,  454,  587,  355,  355,    0,  355,
+  355,  355,  355,    0,  355,  355,  355,  593,  355,    0,
+  355,  355,  355,  355,  355,  355,  355,  355,  355,  355,
+  355,  355,  355,  355,    0,    0,    0,    0,  355,    0,
+    0,    0,    0,    0,  355,    0,    0,  355,  355,  355,
+    0,  154,    0,    0,    0,    0,    0,    0,    0,  154,
+    0,    0,    0,    0,  154,  154,  154,    0,  154,  154,
+  154,  154,  154,    0,  154,    0,  154,  154,  154,  154,
+    0,    0,  154,    0,    0,    0,  154,    0,   92,  154,
+  154,  154,  154,  154,  154,  154,  154,   70,   92,    0,
+    0,    0,    0,  154,    0,    0,  154,    0,    0,    0,
+  154,  154,  154,    0,  154,  154,    0,  154,  154,  154,
+    0,    0,    0,  154,  154,  154,    0,  154,  154,  154,
+  154,    0,    0,    0,    0,    0,    0,    0,  154,    0,
+    0,    0,  154,    0,    0,    0,    0,  154,  154,  154,
+    0,    0,    0,    0,    0,    0,    0,  154,  154,  154,
+  154,    0,  154,  150,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,  154,    0,  154,  154,
+  154,  154,  154,    0,    0,  154,  154,    0,  154,  154,
+  154,  154,    0,  154,  154,  154,    0,  154,    0,  154,
+  154,  154,  154,  154,  154,  154,  154,  154,  154,  154,
+  154,  154,  154,    0,    0,    0,    0,  154,    0,    0,
+    0,    0,    0,  154,    0,    0,  154,  154,  154,   70,
+    0,    0,    0,    0,    0,    0,    0,   70,  122,    0,
+    0,    0,   70,   70,    0,    0,   70,   70,   70,   70,
+   70,    0,   70,    0,   70,   70,   70,   70,    0,    0,
+   70,    0,    0,    0,   70,    0,    0,   70,   70,   70,
+   70,   70,   70,   70,   70,    0,    0,    0,    0,    0,
+    0,   70,    0,    0,   70,    0,    0,    0,   70,   70,
+   70,    0,   70,   70,    0,   70,   70,   70,    0,    0,
+    0,   70,   70,    0,    0,    0,   70,   70,   70,    0,
+    0,    0,    0,  372,    0,    0,   70,    0,    0,    0,
+   70,    0,    0,    0,    0,    0,    0,   70,    0,    0,
+    0,    0,    0,    0,    0,    0,   70,   70,   70,    0,
+    0,    0,    0,    0,    0,   92,    0,    0,    0,    0,
+    0,    0,    0,   92,   70,    0,    0,    0,   92,   92,
+   70,    0,   92,   92,   92,   92,   92,    0,   92,    0,
+   92,   92,   92,   92,    0,    0,   92,   83,    0,    0,
+   92,    0,    0,   92,   92,   92,   92,   92,   92,   92,
+   92,    0,    0,    0,    0,    0,    0,   92,    0,    0,
+    0,    0,    0,    0,   92,   92,   92,    0,   92,   92,
+    0,   92,   92,   92,    0,    0,    0,   92,   92,    0,
+  150,    0,    0,    0,    0,    0,    0,    0,  150,    0,
+    0,    0,    0,  150,  150,    0,    0,  150,  150,  150,
+  150,  150,    0,  150,    0,  150,  150,  150,  150,    0,
+    0,  150,   92,   92,   92,  150,    0,    0,  150,  150,
+  150,  150,  150,  150,  150,  150,    0,    0,    0,    0,
+    0,    0,  150,    0,    0,    0,   92,    0,    0,  150,
+  150,  150,    0,  150,  150,    0,  150,  150,  150,    0,
+    0,    0,  150,  150,    0,  122,    0,    0,    0,    0,
+    0,    0,    0,  122,    0,    0,    0,    0,  122,  122,
+    0,    0,  122,  122,  122,  122,  122,    0,  122,    0,
+  122,  122,  122,  122,  266,    0,  122,  150,  150,  150,
+  122,    0,    0,  122,  122,  122,  122,  122,  122,  122,
+  122,    0,    0,    0,    0,    0,    0,  122,    0,    0,
+    0,  150,    0,    0,  122,  122,  122,    0,  122,  122,
+    0,  122,  122,  122,    0,    0,    0,  122,  122,    0,
+  372,    0,    0,    0,    0,    0,    0,    0,  372,    0,
+    0,    0,    0,  372,  372,    0,    0,  372,  372,  372,
+  372,  372,    0,  372,    0,  372,  372,  372,  372,    0,
+    0,  372,  122,  122,  122,  372,    0,    0,  372,  372,
+  372,  372,  372,  372,  372,  372,    0,    0,    0,    0,
+    0,    0,  372,    0,    0,    0,  122,    0,    0,  372,
+  372,  372,    8,  372,  372,    0,  372,  372,  372,    0,
+    0,    0,  372,  372,    0,    0,    0,    0,    0,   15,
+   16,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,   21,   22,   23,   24,   25,   26,    0,    0,
+  266,  266,  308,    0,    0,  266,  266,  372,  372,  372,
+    0,    0,    0,    0,    0,    0,    0,   33,   34,    0,
+    0,  266,   82,    0,  266,  266,  266,  266,  266,  266,
+  266,  372,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,  266,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  138,    0,  138,  138,  138,  138,  138,    0,    0,  138,
-  138,    0,  138,  138,  138,  138,    0,  138,  138,  138,
-    0,  138,    0,  138,  138,  138,  138,  138,  138,  138,
-  138,  138,  138,  138,  138,  138,  138,    0,    0,    0,
-    0,  138,    0,    0,    0,    0,    0,  138,    0,    0,
-  138,  138,  138,    0,  118,   67,   67,   67,   67,   67,
-    0,   67,    0,   67,   67,   67,   67,    0,    0,   67,
-    0,    0,    0,   67,    0,    0,   67,   67,   67,   67,
-   67,   67,   67,   67,    0,    0,    0,    0,    0,    0,
-   67,    0,    0,   67,    0,    0,    0,   67,   67,   67,
-    0,   67,   67,    0,   67,   67,   67,    0,    0,    0,
-   67,   67,    0,    0,    0,   67,   67,   67,    0,    0,
-    0,    0,    0,    0,    0,   67,    0,    0,    0,   67,
-    0,    0,    0,    0,    0,    0,   67,    0,    0,    0,
-    0,    0,    0,    0,    0,   67,   67,   67,    0,    0,
-    0,    0,    0,    0,    0,    0,   88,   88,   88,   88,
-   88,    0,   88,   67,   88,   88,   88,   88,    0,   67,
-   88,    0,    0,    0,   88,    0,    0,   88,   88,   88,
-   88,   88,   88,   88,   88,    0,    0,    0,    0,    0,
-    0,   88,    0,    0,    0,    0,    0,    0,   88,   88,
-   88,    0,   88,   88,    0,   88,   88,   88,    0,    0,
-    0,   88,   88,    0,    0,  244,  134,  134,  134,  134,
-  134,    0,  134,    0,  134,  134,  134,  134,    0,    0,
-  134,    0,    0,    0,  134,    0,    0,  134,  134,  134,
-  134,  134,  134,  134,  134,    0,   88,   88,   88,    0,
-    0,  134,    0,    0,    0,    0,    0,    0,  134,  134,
-  134,    0,  134,  134,    0,  134,  134,  134,    0,    0,
-   88,  134,  134,    0,    0,    0,    0,    0,    0,    0,
+  266,    0,  266,  266,  266,  266,    0,    0,    0,    0,
+    0,    0,    0,  266,    0,    0,    0,  266,    0,    0,
+    0,    0,  266,  266,  266,    0,    0,    0,    0,    0,
+    0,    0,  266,    0,    0,    0,    0,  266,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,  266,    0,  266,  266,  266,  266,    0,    0,    0,
+  266,  266,    0,  266,  266,  266,  266,    0,  266,  266,
+  266,    0,  266,    0,  266,  266,  266,  266,  266,  266,
+  266,  266,  266,  266,  266,  266,  266,  266,  308,  308,
+  279,    0,  266,  308,  308,    0,    0,    0,  266,    0,
+    0,  266,  266,  266,    0,    0,    0,    0,    0,  308,
+    0,    0,  308,  308,  308,  308,  308,  308,  308,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,  308,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,  134,  134,  134,    0,
-    0,    0,    0,  118,  118,  118,  118,  118,    0,  118,
-    0,  118,  118,  118,  118,    0,    0,  118,    0,    0,
-  134,  118,    0,    0,  118,  118,  118,  118,  118,  118,
-  118,  118,    0,    0,    0,    0,    0,    0,  118,    0,
-    0,    0,    0,    0,    0,  118,  118,  118,  286,  118,
-  118,    0,  118,  118,  118,    0,    0,  244,  118,  118,
-  244,  244,  244,  244,  244,  244,  244,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,  244,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,  308,    0,
+  308,  308,  308,  308,    0,    0,    0,    0,    0,    0,
+    0,  308,    0,    0,    0,  308,    0,    0,    0,    0,
+  308,  308,  308,    0,    0,    0,    0,    0,    0,    0,
+  308,    0,    0,    0,    0,  308,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,  308,
+    0,  308,  308,  308,  308,    0,    0,    0,  308,  308,
+    0,  308,  308,  308,  308,    0,  308,  308,  308,    0,
+  308,    0,  308,  308,  308,  308,  308,  308,  308,  308,
+  308,  308,  308,  308,  308,  308,  279,  279,   58,    0,
+  308,  279,  279,    0,    0,    0,  308,    0,    0,  308,
+  308,  308,    0,    0,    0,    0,    0,  279,    0,    0,
+  279,  279,  279,  279,  279,  279,  279,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,  279,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,  118,  118,  118,  244,    0,  244,  244,
-  244,  244,    0,    0,    0,    0,    0,    0,    0,  244,
-    0,    0,    0,  244,    0,    0,    0,  118,  244,  244,
-  244,    0,    0,    0,    0,    0,    0,    0,  244,    0,
-    0,    0,    0,  244,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,  244,    0,  244,
-  244,  244,  244,    0,    0,    0,  244,  244,    0,  244,
-  244,  244,  244,    0,  244,  244,  244,    0,  244,    0,
-  244,  244,  244,  244,  244,  244,  244,  244,  244,  244,
-  244,  244,  244,  244,    0,    0,    0,    0,  244,    0,
-    0,  257,    0,    0,  244,    0,    0,  244,  244,  244,
-  286,    0,    0,  286,  286,  286,  286,  286,  286,  286,
+    0,    0,    0,    0,    0,    0,  279,    0,  279,  279,
+  279,  279,    0,    0,    0,    0,    0,    0,    0,  279,
+    0,    0,    0,  279,    0,    0,    0,    0,  279,  279,
+  279,    0,    0,    0,    0,    0,    0,    0,  279,    0,
+    0,    0,    0,  279,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,  279,    0,  279,
+  279,  279,  279,    0,    0,    0,  279,  279,    0,  279,
+  279,  279,  279,    0,  279,  279,  279,    0,  279,    0,
+  279,  279,  279,  279,  279,  279,  279,  279,  279,  279,
+  279,  279,  279,  279,   58,   58,  271,    0,  279,   58,
+   58,    0,    0,    0,  279,    0,    0,  279,  279,  279,
+    0,    0,    0,    0,    0,   58,    0,    0,   58,   58,
+   58,   58,   58,   58,   58,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,   58,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  286,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,  286,
-    0,  286,  286,  286,  286,    0,    0,    0,    0,    0,
-    0,    0,  286,    0,    0,    0,  286,    0,    0,    0,
-    0,  286,  286,  286,    0,    0,    0,    0,    0,    0,
-    0,  286,    0,    0,    0,    0,  286,    0,    0,    0,
+    0,    0,    0,    0,   58,    0,   58,   58,   58,   58,
+    0,    0,    0,    0,    0,    0,    0,   58,    0,    0,
+    0,   58,    0,    0,    0,    0,   58,   58,   58,    0,
+    0,    0,    0,    0,    0,    0,   58,    0,    0,    0,
+    0,   58,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,   58,    0,   58,   58,   58,
+   58,    0,    0,    0,   58,   58,    0,   58,   58,   58,
+   58,    0,   58,   58,   58,    0,   58,    0,   58,   58,
+   58,   58,   58,   58,   58,   58,   58,   58,   58,   58,
+   58,   58,  271,  271,  285,    0,   58,  271,  271,    0,
+    0,    0,   58,    0,    0,   58,   58,   58,    0,    0,
+    0,    0,    0,  271,    0,    0,  271,  271,  271,  271,
+  271,  271,  271,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,  271,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  286,    0,  286,  286,  286,  286,    0,    0,    0,  286,
-  286,    0,  286,  286,  286,  286,    0,  286,  286,  286,
-    0,  286,    0,  286,  286,  286,  286,  286,  286,  286,
-  286,  286,  286,  286,  286,  286,  286,    0,    0,    0,
-    0,  286,    0,    0,   55,    0,    0,  286,    0,    0,
-  286,  286,  286,  257,    0,    0,  257,  257,  257,  257,
-  257,  257,  257,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,  257,    0,    0,    0,    0,    0,    0,
+    0,    0,  271,    0,  271,  271,  271,  271,    0,    0,
+    0,    0,    0,    0,    0,  271,    0,    0,    0,  271,
+    0,    0,    0,    0,  271,  271,  271,    0,    0,    0,
+    0,    0,    0,    0,  271,    0,    0,    0,    0,  271,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,  257,    0,  257,  257,  257,  257,    0,    0,
-    0,    0,    0,    0,    0,  257,    0,    0,    0,  257,
-    0,    0,    0,    0,  257,  257,  257,    0,    0,    0,
-    0,    0,    0,    0,  257,    0,    0,    0,    0,  257,
+    0,    0,    0,  271,    0,  271,  271,  271,  271,    0,
+    0,    0,  271,  271,    0,  271,  271,  271,  271,    0,
+  271,  271,  271,    0,  271,    0,  271,  271,  271,  271,
+  271,  271,  271,  271,  271,  271,  271,  271,  271,  271,
+  285,  285,   62,    0,  271,  285,  285,    0,    0,    0,
+  271,    0,    0,  271,  271,  271,    0,    0,    0,    0,
+    0,    0,    0,    0,  285,  285,  285,  285,  285,  285,
+  285,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,  285,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,  257,    0,  257,  257,  257,  257,    0,
-    0,    0,  257,  257,    0,  257,  257,  257,  257,    0,
-  257,  257,  257,    0,  257,    0,  257,  257,  257,  257,
-  257,  257,  257,  257,  257,  257,  257,  257,  257,  257,
-    0,    0,    0,    0,  257,    0,    0,  249,    0,    0,
-  257,    0,    0,  257,  257,  257,   55,    0,    0,   55,
-   55,   55,   55,   55,   55,   55,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,   55,    0,    0,    0,
+  285,    0,  285,  285,  285,  285,    0,    0,    0,    0,
+    0,    0,    0,  285,    0,    0,    0,  285,    0,    0,
+    0,    0,  285,  285,  285,    0,    0,    0,    0,    0,
+    0,    0,  285,    0,    0,    0,    0,  285,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,   55,    0,   55,   55,   55,
-   55,    0,    0,    0,    0,    0,    0,    0,   55,    0,
-    0,    0,   55,    0,    0,    0,    0,   55,   55,   55,
-    0,    0,    0,    0,    0,    0,    0,   55,    0,    0,
-    0,    0,   55,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,   55,    0,   55,   55,
-   55,   55,    0,    0,    0,   55,   55,    0,   55,   55,
-   55,   55,    0,   55,   55,   55,    0,   55,    0,   55,
-   55,   55,   55,   55,   55,   55,   55,   55,   55,   55,
-   55,   55,   55,    0,    0,    0,    0,   55,  263,    0,
-    0,    0,    0,   55,    0,    0,   55,   55,   55,  249,
-    0,    0,  249,  249,  249,  249,  249,  249,  249,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,  249,
+    0,  285,    0,  285,  285,  285,  285,    0,    0,    0,
+  285,  285,    0,  285,  285,  285,  285,    0,  285,  285,
+  285,    0,  285,    0,  285,  285,  285,  285,  285,  285,
+  285,  285,  285,  285,  285,  285,  285,  285,   62,   62,
+   66,    0,  285,   62,   62,    0,    0,    0,  285,    0,
+    0,  285,  285,  285,    0,    0,    0,    0,    0,    0,
+    0,    0,   62,   62,   62,   62,   62,   62,   62,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,   62,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,  249,    0,
-  249,  249,  249,  249,    0,    0,    0,    0,    0,    0,
-    0,  249,    0,    0,    0,  249,    0,    0,    0,    0,
-  249,  249,  249,    0,    0,    0,    0,    0,    0,    0,
-  249,    0,    0,    0,    0,  249,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,  249,
-    0,  249,  249,  249,  249,    0,    0,    0,  249,  249,
-    0,  249,  249,  249,  249,    0,  249,  249,  249,    0,
-  249,    0,  249,  249,  249,  249,  249,  249,  249,  249,
-  249,  249,  249,  249,  249,  249,    0,    0,   59,    0,
-  249,    0,    0,    0,    0,    0,  249,    0,    0,  249,
-  249,  249,    0,  263,  263,  263,  263,  263,  263,  263,
+    0,    0,    0,    0,    0,    0,    0,    0,   62,    0,
+   62,   62,   62,   62,    0,    0,    0,    0,    0,    0,
+    0,   62,    0,    0,    0,   62,    0,    0,    0,    0,
+   62,   62,   62,    0,    0,    0,    0,    0,    0,    0,
+   62,    0,    0,    0,    0,   62,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,   62,
+    0,   62,   62,   62,   62,    0,    0,    0,   62,   62,
+    0,   62,   62,   62,   62,    0,   62,   62,   62,    0,
+   62,    0,   62,   62,   62,   62,   62,   62,   62,   62,
+   62,   62,   62,   62,   62,   62,   66,   66,  296,    0,
+   62,   66,   66,    0,    0,    0,   62,    0,    0,   62,
+   62,   62,    0,    0,    0,    0,    0,    0,    0,    0,
+   66,   66,   66,   66,   66,   66,   66,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,   66,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  263,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,  263,
-    0,  263,  263,  263,  263,    0,    0,    0,    0,    0,
-    0,    0,  263,    0,    0,    0,  263,    0,    0,    0,
-    0,  263,  263,  263,    0,    0,    0,    0,    0,    0,
-    0,  263,    0,    0,    0,    0,  263,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,   66,    0,   66,   66,
+   66,   66,    0,    0,    0,    0,    0,    0,    0,   66,
+    0,    0,    0,   66,    0,    0,    0,    0,   66,   66,
+   66,    0,    0,    0,    0,    0,    0,    0,   66,    0,
+    0,    0,    0,   66,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,   66,    0,   66,
+   66,   66,   66,    0,    0,    0,   66,   66,    0,   66,
+   66,   66,   66,    0,   66,   66,   66,    0,   66,    0,
+   66,   66,   66,   66,   66,   66,   66,   66,   66,   66,
+   66,   66,   66,   66,  296,  296,    0,    0,   66,  296,
+  296,    0,    0,    0,   66,    0,    0,   66,   66,   66,
+    0,    0,    0,    0,    0,    0,    0,    0,  296,  296,
+  296,  296,  296,  296,  296,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,  296,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  263,    0,  263,  263,  263,  263,    0,    0,    0,  263,
-  263,    0,  263,  263,  263,  263,    0,  263,  263,  263,
-    0,  263,    0,  263,  263,  263,  263,  263,  263,  263,
-  263,  263,  263,  263,  263,  263,  263,    0,   63,    0,
-    0,  263,    0,    0,    0,    0,    0,  263,    0,    0,
-  263,  263,  263,   59,   59,   59,   59,   59,   59,   59,
+    0,    0,    0,    0,  296,    0,  296,  296,  296,  296,
+    0,    0,    0,    0,    0,    0,    0,  296,    0,    0,
+    0,  296,    0,    0,    0,    0,  296,  296,  296,    0,
+    0,    0,    0,    0,    0,    0,  296,    0,    0,    0,
+    0,  296,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,  296,    0,  296,  296,  296,
+  296,    0,    0,    0,  296,  296,    0,  296,  296,  296,
+  296,    0,  296,  296,  296,    0,  296,    0,  296,  296,
+  296,  296,  296,  296,  296,  296,  296,  296,  296,  296,
+  296,  296,  239,  240,    0,    0,  296,   11,   12,    0,
+    0,    0,  296,    0,    0,  296,  296,  296,    0,    0,
+    0,    0,    0,    0,    0,    0,   21,   22,   23,   24,
+   25,   26,  241,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,  242,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-   59,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,   59,
-    0,   59,   59,   59,   59,    0,    0,    0,    0,    0,
-    0,    0,   59,    0,    0,    0,   59,    0,    0,    0,
-    0,   59,   59,   59,    0,    0,    0,    0,    0,    0,
-    0,   59,    0,    0,    0,    0,   59,    0,    0,    0,
+    0,    0,  243,    0,  244,  245,  246,  247,    0,    0,
+    0,    0,    0,    0,    0,  248,    0,    0,    0,  249,
+    0,    0,    0,    0,  250,  251,  252,    0,    0,    0,
+    0,    0,    0,    0,  253,    0,    0,    0,    0,  254,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-   59,    0,   59,   59,   59,   59,    0,    0,    0,   59,
-   59,    0,   59,   59,   59,   59,    0,   59,   59,   59,
-    0,   59,    0,   59,   59,   59,   59,   59,   59,   59,
-   59,   59,   59,   59,   59,   59,   59,    0,  274,    0,
-    0,   59,    0,    0,    0,    0,    0,   59,    0,    0,
-   59,   59,   59,   63,   63,   63,   63,   63,   63,   63,
+    0,    0,    0,    0,    0,  255,  256,  257,  258,    0,
+    0,    0,  259,  260,    0,  261,  262,  263,  264,    0,
+  265,  266,  267,    0,  268,    0,  269,  270,  271,  272,
+  273,  274,  275,  276,  277,  278,  279,  280,  281,  282,
+  239,  240,    0,    0,  283,   11,   12,    0,    0,    0,
+  284,    0,    0,  285,  286,  287,    0,    0,    0,    0,
+    0,    0,    0,    0,   21,   22,   23,   24,   25,   26,
+  241,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,  242,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-   63,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,   63,
-    0,   63,   63,   63,   63,    0,    0,    0,    0,    0,
-    0,    0,   63,    0,    0,    0,   63,    0,    0,    0,
-    0,   63,   63,   63,    0,    0,    0,    0,    0,    0,
-    0,   63,    0,    0,    0,    0,   63,    0,    0,    0,
+  243,    0,  244,  245,  246,  247,    0,    0,    0,    0,
+    0,    0,    0,  248,    0,    0,    0,    0,    0,    0,
+    0,    0,  250,  251,    0,    0,    0,    0,    0,    0,
+    0,    0,  253,    0,    0,    0,    0,  254,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-   63,    0,   63,   63,   63,   63,    0,    0,    0,   63,
-   63,    0,   63,   63,   63,   63,    0,   63,   63,   63,
-    0,   63,    0,   63,   63,   63,   63,   63,   63,   63,
-   63,   63,   63,   63,   63,   63,   63,    0,    0,    0,
-    0,   63,    0,    0,    0,    0,    0,   63,    0,    0,
-   63,   63,   63,  274,  274,  274,  274,  274,  274,  274,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  274,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,  274,
-    0,  274,  274,  274,  274,    0,    0,    0,    0,    0,
-    0,    0,  274,    0,    0,    0,  274,    0,    0,    0,
-    0,  274,  274,  274,    0,    0,    0,    0,    0,    0,
-    0,  274,    0,    0,    0,    0,  274,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  274,    0,  274,  274,  274,  274,    0,    0,    0,  274,
-  274,    0,  274,  274,  274,  274,    0,  274,  274,  274,
-    0,  274,    0,  274,  274,  274,  274,  274,  274,  274,
-  274,  274,  274,  274,  274,  274,  274,    0,    0,    0,
-    0,  274,    0,    0,    0,    0,    0,  274,    0,    0,
-  274,  274,  274,   18,   19,   20,   21,   22,   23,  218,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  219,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,  220,
-    0,  221,  222,  223,  224,    0,    0,    0,    0,    0,
-    0,    0,  225,    0,    0,    0,  226,    0,    0,    0,
-    0,  227,  228,  229,    0,    0,    0,    0,    0,    0,
-    0,  230,    0,    0,    0,    0,  231,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,  232,  233,  234,  235,    0,    0,    0,  236,
-  237,    0,  238,  239,  240,  241,    0,  242,  243,  244,
-    0,  245,    0,  246,  247,  248,  249,  250,  251,  252,
-  253,  254,  255,  256,  257,  258,  259,    0,    0,    0,
-    0,  260,    0,    0,    0,    0,    0,  261,    0,    0,
-  262,  263,  264,   18,   19,   20,   21,   22,   23,  218,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-  219,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,  220,
-    0,  221,  222,  223,  224,    0,    0,    0,    0,    0,
-    0,    0,  225,    0,    0,    0,    0,    0,    0,    0,
-    0,  227,  228,    0,    0,    0,    0,    0,    0,    0,
-    0,  230,    0,    0,    0,    0,  231,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,  232,  233,  234,    0,    0,    0,    0,  236,
-  237,    0,  238,  239,  240,  241,    0,  242,  243,  244,
-    0,  245,    0,  246,  247,  248,  249,  250,  251,  252,
-  253,  254,  255,  256,  257,  258,  259,    0,    0,    0,
-    0,  260,    0,    0,    0,    0,    0,  261,    0,    0,
-  262,  263,  264,    7,    0,    8,    9,   10,    0,   11,
-    0,   12,   13,   14,   15,    0,    0,   16,    0,    0,
-    0,   17,    0,    0,   18,   19,   20,   21,   22,   23,
-   24,   25,    0,    0,    0,    0,    0,    0,   26,    0,
-    0,    0,    0,    0,    0,   27,   28,   29,    0,   30,
-   31,    0,   32,   33,   34,    0,    0,    0,    0,    0,
+    0,    0,    0,  255,  256,  257,    0,    0,    0,    0,
+  259,  260,    0,  261,  262,  263,  264,    0,  265,  266,
+  267,    0,  268,    0,  269,  270,  271,  272,  273,  274,
+  275,  276,  277,  278,  279,  280,  281,  282,    0,    0,
+    0,    7,  283,    0,    0,    0,    0,    0,  284,    8,
+    0,  285,  286,  287,  127,  128,    0,    0,    9,   10,
+   11,   12,   13,    0,   14,    0,   15,   16,   17,   18,
+    0,    0,   19,    0,    0,    0,   20,    0,    0,   21,
+   22,   23,   24,   25,   26,   27,   28,    0,    0,    0,
+    0,    0,    0,   29,    0,    0,    0,    0,    0,    0,
+   30,   31,   32,    0,   33,   34,    0,   35,   36,   82,
+    0,    0,    0,  129,  130,    0,    7,    0,    0,    0,
+    0,    0,    0,    0,    8,    0,    0,    0,    0,    0,
+    0,    0,    0,    9,   10,   11,   12,   13,    0,   14,
+    0,   15,   16,   17,   18,    0,    0,   19,   38,   39,
+   40,   20,    0,    0,   21,   22,   23,   24,   25,   26,
+   27,   28,    0,    0,    0,    0,    0,    0,   29,    0,
+    0,    0,   41,    0,    0,   30,   31,   32,    0,   33,
+   34,    0,   35,   36,   37,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,   35,   36,   37,    0,    0,    0,    0,
+    0,    0,    0,   38,   39,   40,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,   38,
+    0,    0,    0,    0,    0,    0,    0,   41,
 };
 #if defined(__cplusplus) || defined(__STDC__)
 const short socks_yycheck[] =
 #else
 short socks_yycheck[] =
 #endif
-	{                                       6,
-  128,  128,  128,    0,   45,  183,  183,  183,  183,  183,
-  183,  125,  125,  125,  125,  217,  183,  217,  183,  190,
-  326,   58,  157,  418,  311,  217,  346,  259,  327,    5,
-    6,  475,  476,  167,   58,  266,    5,  481,   58,  217,
-   58,  259,  260,  261,  262,  263,  359,  265,  347,  267,
-  268,  269,  270,  366,   58,  273,   46,  288,   46,  277,
-   58,  260,  280,  281,  282,  283,  284,  285,  286,  287,
-  264,  359,  360,  208,  362,  519,  294,   58,  212,  310,
-  330,  331,  332,  301,  302,  303,   62,  305,  306,  366,
-  308,  309,  310,   62,  257,  258,  314,  315,   58,  271,
-  272,   58,  334,  335,  336,  337,  426,  551,  295,  296,
-   58,  310,  271,  272,   58,  314,  315,  404,  374,  375,
-  277,   58,  288,  289,  290,  291,  292,  293,  125,  286,
-   58,  349,  350,  351,  322,  323,  324,  325,  326,   58,
-  297,  274,  275,  276,  346,   58,  346,   58,  326,  326,
-  326,  326,  326,  326,  346,  373,  312,  313,  329,  326,
-   58,  326,  319,  320,  321,   58,  277,   58,  346,    0,
-  374,  375,  329,  374,  375,  286,  333,  314,  315,  574,
-  330,  331,   58,  340,  330,  331,  297,  341,  342,  343,
-  344,  345,  354,  355,  356,  357,  358,   58,  359,  360,
-  361,  362,  363,  367,  368,  330,  331,   58,  319,  320,
-  321,   58,  365,  366,  349,   58,  522,   46,  329,  374,
-  375,   58,  333,   58,  426,   58,  426,  374,  375,  340,
-  374,  375,  374,  375,  426,  105,  106,  565,  566,   58,
-  411,   58,  278,  366,  366,  366,  366,  366,  426,  366,
-  299,  366,  304,  367,  367,  367,   10,  304,  123,  123,
-   46,   46,  259,  260,  261,  262,  263,   46,  265,   46,
-  267,  268,  269,  270,  307,   58,  273,   58,  123,   47,
-  277,  364,  366,  280,  281,  282,  283,  284,  285,  286,
-  287,  331,  331,  366,  125,   58,   58,  294,   58,   58,
-  297,   58,   58,   58,  301,  302,  303,   58,  305,  306,
-   58,  308,  309,  310,  311,  352,   58,  314,  315,  316,
-   58,  318,  319,  320,  321,  366,   58,   58,   58,  366,
-   58,   58,  329,    0,   58,   58,  333,  368,   58,   58,
-   58,  338,  339,  340,  522,  522,  522,  522,  522,  522,
-  357,  348,  349,  350,  351,  522,  353,  522,   58,   58,
-   58,   58,   58,   58,   58,   58,   58,  364,   58,   58,
-  367,  368,  369,  370,  371,  372,  373,   58,   58,  376,
-  377,   58,  379,  380,  381,  382,   58,  384,  385,  386,
-   58,  388,   58,  390,  391,  392,  393,  394,  395,  396,
-  397,  398,  399,  400,  401,  402,  403,   58,   58,   58,
-   58,  408,   58,   58,   58,  367,   58,  414,   58,   58,
-  417,  418,  419,   58,   58,  553,  553,  553,  259,  260,
-  261,  262,  263,   58,  265,  298,  267,  268,  269,  270,
-  365,  327,  273,  317,  451,  328,  277,  299,  347,  280,
-  281,  282,  283,  284,  285,  286,  287,   58,  125,  300,
-  368,   58,  366,  294,  366,  366,  297,   58,  378,  383,
-  301,  302,  303,  389,  305,  306,  383,  308,  309,  310,
-  311,  387,  404,  314,  315,  316,  383,  318,  319,  320,
-  321,  406,  404,  389,  389,  404,    0,  366,  329,  404,
-  366,  368,  333,   58,  407,  259,  366,  338,  339,  340,
-  311,  405,   45,  267,  268,  405,  405,  348,  349,  350,
-  351,  405,  353,  415,  409,   45,  280,  281,  282,  283,
-  284,  285,  366,  125,  366,   58,  367,  368,  369,  370,
-  371,  372,  373,  366,  366,  376,  377,   58,  379,  380,
-  381,  382,  306,  384,  385,  386,  310,  388,  366,  390,
-  391,  392,  393,  394,  395,  396,  397,  398,  399,  400,
-  401,  402,  403,  366,  366,  366,  125,  408,  366,  125,
-  364,  352,    0,  414,    0,  123,  417,  418,  419,  367,
-  125,  367,  259,  260,  261,  262,  263,    0,  265,  125,
-  267,  268,  269,  270,  125,  445,  273,   10,  454,  367,
-  277,    6,  451,  280,  281,  282,  283,  284,  285,  286,
-  287,  125,    6,  145,  148,    6,  160,  294,   62,  457,
-  297,  429,  121,    6,  301,  302,  303,    6,  305,  306,
-  465,  308,  309,  310,  116,  330,  473,  314,  315,  316,
-  570,  318,  319,  320,  321,  365,   -1,    0,   -1,  441,
-   -1,   -1,  329,   -1,   -1,   -1,  333,   -1,   -1,   -1,
-   -1,  338,  339,  340,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  348,  349,  350,  351,   -1,  353,   -1,   -1,   -1,
+	{                                       5,
+  143,    6,  143,  143,  200,    0,   45,  125,  125,  199,
+  200,  125,  209,  200,  200,  200,  200,  200,  200,  172,
+  199,  238,  125,   58,  452,  267,  354,  338,  465,  269,
+  265,  276,  277,    5,    6,    5,  182,  270,  271,  374,
+   58,  374,  375,  281,  377,  355,  381,  292,  303,  304,
+  305,  306,  307,  308,  263,  264,  301,  337,  338,  339,
+  340,  341,  286,  287,   70,  303,   46,  312,  378,   58,
+  380,  345,  346,  347,  227,  289,  290,  291,  515,  516,
+  379,   58,  381,   58,  521,  231,   46,  325,   46,  334,
+  335,  336,  325,  258,  259,   58,  329,  330,   70,  344,
+   70,  389,  390,  348,  356,  357,  358,  359,  360,   58,
+  355,  286,  287,   58,  349,  350,  351,  352,  310,  311,
+  327,  328,  559,  389,  390,  389,  390,  438,  329,  330,
+  125,   58,  369,  370,  371,  372,  373,  345,  346,  381,
+   58,  381,  374,  375,  376,  377,  378,   58,  338,   58,
+  345,  346,  382,  383,  345,  346,  115,  116,  354,  338,
+  377,   58,  359,  600,  354,  127,  128,  354,  354,  354,
+  354,  354,  354,  276,  277,   58,  389,  390,  389,  390,
+   58,  617,  618,  389,  390,  389,  390,   58,   58,  292,
+   58,   58,   58,   58,  200,    0,   58,   58,  301,  627,
+   46,   58,   58,   58,   58,  268,   58,   58,  279,  312,
+  381,  293,  381,  381,  381,  381,  314,  381,  381,  381,
+  319,   46,  319,  123,  123,   46,   46,   46,   46,   46,
+  383,  334,  335,  336,  562,   46,  322,  123,  123,  261,
+  261,  344,   58,   58,   47,  348,  463,  464,  438,  380,
+  447,  346,  355,  346,  381,  381,   58,   58,   58,  438,
+   58,   58,  257,   58,  382,  382,   58,   58,  382,   58,
+  265,   58,   58,   58,   58,  270,  271,  272,   58,  274,
+  275,  276,  277,  278,   58,  280,   58,  282,  283,  284,
+  285,   58,   58,  288,   58,  383,   58,  292,   58,   58,
+  295,  296,  297,  298,  299,  300,  301,  302,   58,   58,
+   58,   58,   58,   58,  309,   58,   58,  312,   58,   58,
+  125,  316,  317,  318,   58,  320,  321,   58,  323,  324,
+  325,  326,  367,   58,  329,  330,  331,   58,  333,  334,
+  335,  336,  381,   58,   58,   58,  381,   58,  354,  344,
+   58,   58,   58,  348,   58,   58,   58,   58,  353,  354,
+  355,   58,  382,   58,   58,   58,  562,   58,  363,  364,
+  365,  366,  562,  368,    0,  562,  562,  562,  562,  562,
+  562,   58,   58,   58,   58,  380,  391,  382,  383,  384,
+  385,  386,  387,  388,  381,  379,  391,  392,  313,  394,
+  395,  396,  397,  332,  399,  400,  401,  342,  403,  343,
+  405,  406,  407,  408,  409,  410,  411,  412,  413,  414,
+  415,  416,  417,  418,  314,  362,  315,  383,  423,   58,
+   58,  381,  393,  381,  429,  381,   58,  432,  433,  434,
+  404,  398,  420,  398,  398,  419,  419,  430,  419,  402,
+  419,  381,  257,  404,  420,  420,  381,  404,  381,  602,
+  265,  602,  602,  383,   58,  270,  271,  272,  420,  274,
+  275,  276,  277,  278,  381,  280,  326,  282,  283,  284,
+  285,  421,  424,  288,  422,  262,  491,  292,   45,  381,
+  295,  296,  297,  298,  299,  300,  301,  302,   45,  125,
+  381,  381,  381,   58,  309,  381,  381,  312,  381,  125,
+   58,  316,  317,  318,   47,  320,  321,  381,  323,  324,
+  325,  326,  125,  125,  329,  330,  331,  125,  333,  334,
+  335,  336,  381,  381,  367,  380,    0,    0,  123,  344,
+  382,  382,  382,  348,  125,  125,  125,    6,  353,  354,
+  355,    6,    0,  497,  485,  491,  562,  163,  363,  364,
+  365,  366,  505,  368,  160,    6,  494,    6,  175,   70,
+  133,  469,  564,    6,    6,  623,  399,  382,  383,  384,
+  385,  386,  387,  388,  360,  481,  391,  392,   -1,  394,
+  395,  396,  397,   -1,  399,  400,  401,  513,  403,   -1,
+  405,  406,  407,  408,  409,  410,  411,  412,  413,  414,
+  415,  416,  417,  418,   -1,   -1,   -1,   -1,  423,   -1,
+   -1,   -1,   -1,   -1,  429,   -1,   -1,  432,  433,  434,
+   -1,  257,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  265,
+   -1,   -1,   -1,   -1,  270,  271,  272,   -1,  274,  275,
+  276,  277,  278,   -1,  280,   -1,  282,  283,  284,  285,
+   -1,   -1,  288,   -1,   -1,   -1,  292,   -1,    0,  295,
+  296,  297,  298,  299,  300,  301,  302,  125,   10,   -1,
+   -1,   -1,   -1,  309,   -1,   -1,  312,   -1,   -1,   -1,
+  316,  317,  318,   -1,  320,  321,   -1,  323,  324,  325,
+   -1,   -1,   -1,  329,  330,  331,   -1,  333,  334,  335,
+  336,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  344,   -1,
+   -1,   -1,  348,   -1,   -1,   -1,   -1,  353,  354,  355,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  363,  364,  365,
+  366,   -1,  368,    0,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,  382,   -1,  384,  385,
+  386,  387,  388,   -1,   -1,  391,  392,   -1,  394,  395,
+  396,  397,   -1,  399,  400,  401,   -1,  403,   -1,  405,
+  406,  407,  408,  409,  410,  411,  412,  413,  414,  415,
+  416,  417,  418,   -1,   -1,   -1,   -1,  423,   -1,   -1,
+   -1,   -1,   -1,  429,   -1,   -1,  432,  433,  434,  257,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  265,    0,   -1,
+   -1,   -1,  270,  271,   -1,   -1,  274,  275,  276,  277,
+  278,   -1,  280,   -1,  282,  283,  284,  285,   -1,   -1,
+  288,   -1,   -1,   -1,  292,   -1,   -1,  295,  296,  297,
+  298,  299,  300,  301,  302,   -1,   -1,   -1,   -1,   -1,
+   -1,  309,   -1,   -1,  312,   -1,   -1,   -1,  316,  317,
+  318,   -1,  320,  321,   -1,  323,  324,  325,   -1,   -1,
+   -1,  329,  330,   -1,   -1,   -1,  334,  335,  336,   -1,
+   -1,   -1,   -1,    0,   -1,   -1,  344,   -1,   -1,   -1,
+  348,   -1,   -1,   -1,   -1,   -1,   -1,  355,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,  364,  365,  366,   -1,
+   -1,   -1,   -1,   -1,   -1,  257,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  265,  382,   -1,   -1,   -1,  270,  271,
+  388,   -1,  274,  275,  276,  277,  278,   -1,  280,   -1,
+  282,  283,  284,  285,   -1,   -1,  288,   10,   -1,   -1,
+  292,   -1,   -1,  295,  296,  297,  298,  299,  300,  301,
+  302,   -1,   -1,   -1,   -1,   -1,   -1,  309,   -1,   -1,
+   -1,   -1,   -1,   -1,  316,  317,  318,   -1,  320,  321,
+   -1,  323,  324,  325,   -1,   -1,   -1,  329,  330,   -1,
+  257,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  265,   -1,
+   -1,   -1,   -1,  270,  271,   -1,   -1,  274,  275,  276,
+  277,  278,   -1,  280,   -1,  282,  283,  284,  285,   -1,
+   -1,  288,  364,  365,  366,  292,   -1,   -1,  295,  296,
+  297,  298,  299,  300,  301,  302,   -1,   -1,   -1,   -1,
+   -1,   -1,  309,   -1,   -1,   -1,  388,   -1,   -1,  316,
+  317,  318,   -1,  320,  321,   -1,  323,  324,  325,   -1,
+   -1,   -1,  329,  330,   -1,  257,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  265,   -1,   -1,   -1,   -1,  270,  271,
+   -1,   -1,  274,  275,  276,  277,  278,   -1,  280,   -1,
+  282,  283,  284,  285,  125,   -1,  288,  364,  365,  366,
+  292,   -1,   -1,  295,  296,  297,  298,  299,  300,  301,
+  302,   -1,   -1,   -1,   -1,   -1,   -1,  309,   -1,   -1,
+   -1,  388,   -1,   -1,  316,  317,  318,   -1,  320,  321,
+   -1,  323,  324,  325,   -1,   -1,   -1,  329,  330,   -1,
+  257,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  265,   -1,
+   -1,   -1,   -1,  270,  271,   -1,   -1,  274,  275,  276,
+  277,  278,   -1,  280,   -1,  282,  283,  284,  285,   -1,
+   -1,  288,  364,  365,  366,  292,   -1,   -1,  295,  296,
+  297,  298,  299,  300,  301,  302,   -1,   -1,   -1,   -1,
+   -1,   -1,  309,   -1,   -1,   -1,  388,   -1,   -1,  316,
+  317,  318,  265,  320,  321,   -1,  323,  324,  325,   -1,
+   -1,   -1,  329,  330,   -1,   -1,   -1,   -1,   -1,  282,
+  283,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,  295,  296,  297,  298,  299,  300,   -1,   -1,
+  271,  272,  125,   -1,   -1,  276,  277,  364,  365,  366,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  320,  321,   -1,
+   -1,  292,  325,   -1,  295,  296,  297,  298,  299,  300,
+  301,  388,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,  312,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  367,   -1,  369,  370,  371,  372,  373,   -1,   -1,  376,
-  377,   -1,  379,  380,  381,  382,   -1,  384,  385,  386,
-   -1,  388,   -1,  390,  391,  392,  393,  394,  395,  396,
-  397,  398,  399,  400,  401,  402,  403,   -1,   -1,   -1,
-   -1,  408,   -1,   -1,   -1,   -1,   -1,  414,   -1,   -1,
-  417,  418,  419,   -1,    0,  259,  260,  261,  262,  263,
-   -1,  265,   -1,  267,  268,  269,  270,   -1,   -1,  273,
-   -1,   -1,   -1,  277,   -1,   -1,  280,  281,  282,  283,
-  284,  285,  286,  287,   -1,   -1,   -1,   -1,   -1,   -1,
-  294,   -1,   -1,  297,   -1,   -1,   -1,  301,  302,  303,
-   -1,  305,  306,   -1,  308,  309,  310,   -1,   -1,   -1,
-  314,  315,   -1,   -1,   -1,  319,  320,  321,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,  329,   -1,   -1,   -1,  333,
-   -1,   -1,   -1,   -1,   -1,   -1,  340,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,  349,  350,  351,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,  259,  260,  261,  262,
-  263,   -1,  265,  367,  267,  268,  269,  270,   -1,  373,
-  273,   -1,   -1,   -1,  277,   -1,   -1,  280,  281,  282,
-  283,  284,  285,  286,  287,   -1,   -1,   -1,   -1,   -1,
-   -1,  294,   -1,   -1,   -1,   -1,   -1,   -1,  301,  302,
-  303,   -1,  305,  306,   -1,  308,  309,  310,   -1,   -1,
-   -1,  314,  315,   -1,   -1,  125,  259,  260,  261,  262,
-  263,   -1,  265,   -1,  267,  268,  269,  270,   -1,   -1,
-  273,   -1,   -1,   -1,  277,   -1,   -1,  280,  281,  282,
-  283,  284,  285,  286,  287,   -1,  349,  350,  351,   -1,
-   -1,  294,   -1,   -1,   -1,   -1,   -1,   -1,  301,  302,
-  303,   -1,  305,  306,   -1,  308,  309,  310,   -1,   -1,
-  373,  314,  315,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+  331,   -1,  333,  334,  335,  336,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  344,   -1,   -1,   -1,  348,   -1,   -1,
+   -1,   -1,  353,  354,  355,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,  363,   -1,   -1,   -1,   -1,  368,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,  382,   -1,  384,  385,  386,  387,   -1,   -1,   -1,
+  391,  392,   -1,  394,  395,  396,  397,   -1,  399,  400,
+  401,   -1,  403,   -1,  405,  406,  407,  408,  409,  410,
+  411,  412,  413,  414,  415,  416,  417,  418,  271,  272,
+  125,   -1,  423,  276,  277,   -1,   -1,   -1,  429,   -1,
+   -1,  432,  433,  434,   -1,   -1,   -1,   -1,   -1,  292,
+   -1,   -1,  295,  296,  297,  298,  299,  300,  301,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  312,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,  349,  350,  351,   -1,
-   -1,   -1,   -1,  259,  260,  261,  262,  263,   -1,  265,
-   -1,  267,  268,  269,  270,   -1,   -1,  273,   -1,   -1,
-  373,  277,   -1,   -1,  280,  281,  282,  283,  284,  285,
-  286,  287,   -1,   -1,   -1,   -1,   -1,   -1,  294,   -1,
-   -1,   -1,   -1,   -1,   -1,  301,  302,  303,  125,  305,
-  306,   -1,  308,  309,  310,   -1,   -1,  277,  314,  315,
-  280,  281,  282,  283,  284,  285,  286,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,  297,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  331,   -1,
+  333,  334,  335,  336,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,  344,   -1,   -1,   -1,  348,   -1,   -1,   -1,   -1,
+  353,  354,  355,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+  363,   -1,   -1,   -1,   -1,  368,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  382,
+   -1,  384,  385,  386,  387,   -1,   -1,   -1,  391,  392,
+   -1,  394,  395,  396,  397,   -1,  399,  400,  401,   -1,
+  403,   -1,  405,  406,  407,  408,  409,  410,  411,  412,
+  413,  414,  415,  416,  417,  418,  271,  272,  125,   -1,
+  423,  276,  277,   -1,   -1,   -1,  429,   -1,   -1,  432,
+  433,  434,   -1,   -1,   -1,   -1,   -1,  292,   -1,   -1,
+  295,  296,  297,  298,  299,  300,  301,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  312,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,  349,  350,  351,  316,   -1,  318,  319,
-  320,  321,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  329,
-   -1,   -1,   -1,  333,   -1,   -1,   -1,  373,  338,  339,
-  340,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  348,   -1,
-   -1,   -1,   -1,  353,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,  367,   -1,  369,
-  370,  371,  372,   -1,   -1,   -1,  376,  377,   -1,  379,
-  380,  381,  382,   -1,  384,  385,  386,   -1,  388,   -1,
-  390,  391,  392,  393,  394,  395,  396,  397,  398,  399,
-  400,  401,  402,  403,   -1,   -1,   -1,   -1,  408,   -1,
-   -1,  125,   -1,   -1,  414,   -1,   -1,  417,  418,  419,
-  277,   -1,   -1,  280,  281,  282,  283,  284,  285,  286,
+   -1,   -1,   -1,   -1,   -1,   -1,  331,   -1,  333,  334,
+  335,  336,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  344,
+   -1,   -1,   -1,  348,   -1,   -1,   -1,   -1,  353,  354,
+  355,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  363,   -1,
+   -1,   -1,   -1,  368,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  382,   -1,  384,
+  385,  386,  387,   -1,   -1,   -1,  391,  392,   -1,  394,
+  395,  396,  397,   -1,  399,  400,  401,   -1,  403,   -1,
+  405,  406,  407,  408,  409,  410,  411,  412,  413,  414,
+  415,  416,  417,  418,  271,  272,  125,   -1,  423,  276,
+  277,   -1,   -1,   -1,  429,   -1,   -1,  432,  433,  434,
+   -1,   -1,   -1,   -1,   -1,  292,   -1,   -1,  295,  296,
+  297,  298,  299,  300,  301,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,  312,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  297,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  316,
-   -1,  318,  319,  320,  321,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  329,   -1,   -1,   -1,  333,   -1,   -1,   -1,
-   -1,  338,  339,  340,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  348,   -1,   -1,   -1,   -1,  353,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,  331,   -1,  333,  334,  335,  336,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  344,   -1,   -1,
+   -1,  348,   -1,   -1,   -1,   -1,  353,  354,  355,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,  363,   -1,   -1,   -1,
+   -1,  368,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,  382,   -1,  384,  385,  386,
+  387,   -1,   -1,   -1,  391,  392,   -1,  394,  395,  396,
+  397,   -1,  399,  400,  401,   -1,  403,   -1,  405,  406,
+  407,  408,  409,  410,  411,  412,  413,  414,  415,  416,
+  417,  418,  271,  272,  125,   -1,  423,  276,  277,   -1,
+   -1,   -1,  429,   -1,   -1,  432,  433,  434,   -1,   -1,
+   -1,   -1,   -1,  292,   -1,   -1,  295,  296,  297,  298,
+  299,  300,  301,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  312,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  367,   -1,  369,  370,  371,  372,   -1,   -1,   -1,  376,
-  377,   -1,  379,  380,  381,  382,   -1,  384,  385,  386,
-   -1,  388,   -1,  390,  391,  392,  393,  394,  395,  396,
-  397,  398,  399,  400,  401,  402,  403,   -1,   -1,   -1,
-   -1,  408,   -1,   -1,  125,   -1,   -1,  414,   -1,   -1,
-  417,  418,  419,  277,   -1,   -1,  280,  281,  282,  283,
-  284,  285,  286,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,  297,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,  331,   -1,  333,  334,  335,  336,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,  344,   -1,   -1,   -1,  348,
+   -1,   -1,   -1,   -1,  353,  354,  355,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,  363,   -1,   -1,   -1,   -1,  368,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  316,   -1,  318,  319,  320,  321,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,  329,   -1,   -1,   -1,  333,
-   -1,   -1,   -1,   -1,  338,  339,  340,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,  348,   -1,   -1,   -1,   -1,  353,
+   -1,   -1,   -1,  382,   -1,  384,  385,  386,  387,   -1,
+   -1,   -1,  391,  392,   -1,  394,  395,  396,  397,   -1,
+  399,  400,  401,   -1,  403,   -1,  405,  406,  407,  408,
+  409,  410,  411,  412,  413,  414,  415,  416,  417,  418,
+  271,  272,  125,   -1,  423,  276,  277,   -1,   -1,   -1,
+  429,   -1,   -1,  432,  433,  434,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,  295,  296,  297,  298,  299,  300,
+  301,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,  312,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,  367,   -1,  369,  370,  371,  372,   -1,
-   -1,   -1,  376,  377,   -1,  379,  380,  381,  382,   -1,
-  384,  385,  386,   -1,  388,   -1,  390,  391,  392,  393,
-  394,  395,  396,  397,  398,  399,  400,  401,  402,  403,
-   -1,   -1,   -1,   -1,  408,   -1,   -1,  125,   -1,   -1,
-  414,   -1,   -1,  417,  418,  419,  277,   -1,   -1,  280,
-  281,  282,  283,  284,  285,  286,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,  297,   -1,   -1,   -1,
+  331,   -1,  333,  334,  335,  336,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  344,   -1,   -1,   -1,  348,   -1,   -1,
+   -1,   -1,  353,  354,  355,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,  363,   -1,   -1,   -1,   -1,  368,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,  316,   -1,  318,  319,  320,
-  321,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  329,   -1,
-   -1,   -1,  333,   -1,   -1,   -1,   -1,  338,  339,  340,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,  348,   -1,   -1,
-   -1,   -1,  353,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,  367,   -1,  369,  370,
-  371,  372,   -1,   -1,   -1,  376,  377,   -1,  379,  380,
-  381,  382,   -1,  384,  385,  386,   -1,  388,   -1,  390,
-  391,  392,  393,  394,  395,  396,  397,  398,  399,  400,
-  401,  402,  403,   -1,   -1,   -1,   -1,  408,  125,   -1,
-   -1,   -1,   -1,  414,   -1,   -1,  417,  418,  419,  277,
-   -1,   -1,  280,  281,  282,  283,  284,  285,  286,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  297,
+   -1,  382,   -1,  384,  385,  386,  387,   -1,   -1,   -1,
+  391,  392,   -1,  394,  395,  396,  397,   -1,  399,  400,
+  401,   -1,  403,   -1,  405,  406,  407,  408,  409,  410,
+  411,  412,  413,  414,  415,  416,  417,  418,  271,  272,
+  125,   -1,  423,  276,  277,   -1,   -1,   -1,  429,   -1,
+   -1,  432,  433,  434,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,  295,  296,  297,  298,  299,  300,  301,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  312,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  316,   -1,
-  318,  319,  320,  321,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  329,   -1,   -1,   -1,  333,   -1,   -1,   -1,   -1,
-  338,  339,  340,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  348,   -1,   -1,   -1,   -1,  353,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  367,
-   -1,  369,  370,  371,  372,   -1,   -1,   -1,  376,  377,
-   -1,  379,  380,  381,  382,   -1,  384,  385,  386,   -1,
-  388,   -1,  390,  391,  392,  393,  394,  395,  396,  397,
-  398,  399,  400,  401,  402,  403,   -1,   -1,  125,   -1,
-  408,   -1,   -1,   -1,   -1,   -1,  414,   -1,   -1,  417,
-  418,  419,   -1,  280,  281,  282,  283,  284,  285,  286,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  331,   -1,
+  333,  334,  335,  336,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,  344,   -1,   -1,   -1,  348,   -1,   -1,   -1,   -1,
+  353,  354,  355,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+  363,   -1,   -1,   -1,   -1,  368,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  382,
+   -1,  384,  385,  386,  387,   -1,   -1,   -1,  391,  392,
+   -1,  394,  395,  396,  397,   -1,  399,  400,  401,   -1,
+  403,   -1,  405,  406,  407,  408,  409,  410,  411,  412,
+  413,  414,  415,  416,  417,  418,  271,  272,  125,   -1,
+  423,  276,  277,   -1,   -1,   -1,  429,   -1,   -1,  432,
+  433,  434,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+  295,  296,  297,  298,  299,  300,  301,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  312,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  297,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  316,
-   -1,  318,  319,  320,  321,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  329,   -1,   -1,   -1,  333,   -1,   -1,   -1,
-   -1,  338,  339,  340,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  348,   -1,   -1,   -1,   -1,  353,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,  331,   -1,  333,  334,
+  335,  336,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  344,
+   -1,   -1,   -1,  348,   -1,   -1,   -1,   -1,  353,  354,
+  355,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  363,   -1,
+   -1,   -1,   -1,  368,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  382,   -1,  384,
+  385,  386,  387,   -1,   -1,   -1,  391,  392,   -1,  394,
+  395,  396,  397,   -1,  399,  400,  401,   -1,  403,   -1,
+  405,  406,  407,  408,  409,  410,  411,  412,  413,  414,
+  415,  416,  417,  418,  271,  272,   -1,   -1,  423,  276,
+  277,   -1,   -1,   -1,  429,   -1,   -1,  432,  433,  434,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  295,  296,
+  297,  298,  299,  300,  301,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,  312,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  367,   -1,  369,  370,  371,  372,   -1,   -1,   -1,  376,
-  377,   -1,  379,  380,  381,  382,   -1,  384,  385,  386,
-   -1,  388,   -1,  390,  391,  392,  393,  394,  395,  396,
-  397,  398,  399,  400,  401,  402,  403,   -1,  125,   -1,
-   -1,  408,   -1,   -1,   -1,   -1,   -1,  414,   -1,   -1,
-  417,  418,  419,  280,  281,  282,  283,  284,  285,  286,
+   -1,   -1,   -1,   -1,  331,   -1,  333,  334,  335,  336,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  344,   -1,   -1,
+   -1,  348,   -1,   -1,   -1,   -1,  353,  354,  355,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,  363,   -1,   -1,   -1,
+   -1,  368,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,  382,   -1,  384,  385,  386,
+  387,   -1,   -1,   -1,  391,  392,   -1,  394,  395,  396,
+  397,   -1,  399,  400,  401,   -1,  403,   -1,  405,  406,
+  407,  408,  409,  410,  411,  412,  413,  414,  415,  416,
+  417,  418,  271,  272,   -1,   -1,  423,  276,  277,   -1,
+   -1,   -1,  429,   -1,   -1,  432,  433,  434,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,  295,  296,  297,  298,
+  299,  300,  301,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  312,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  297,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  316,
-   -1,  318,  319,  320,  321,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  329,   -1,   -1,   -1,  333,   -1,   -1,   -1,
-   -1,  338,  339,  340,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  348,   -1,   -1,   -1,   -1,  353,   -1,   -1,   -1,
+   -1,   -1,  331,   -1,  333,  334,  335,  336,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,  344,   -1,   -1,   -1,  348,
+   -1,   -1,   -1,   -1,  353,  354,  355,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,  363,   -1,   -1,   -1,   -1,  368,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  367,   -1,  369,  370,  371,  372,   -1,   -1,   -1,  376,
-  377,   -1,  379,  380,  381,  382,   -1,  384,  385,  386,
-   -1,  388,   -1,  390,  391,  392,  393,  394,  395,  396,
-  397,  398,  399,  400,  401,  402,  403,   -1,  125,   -1,
-   -1,  408,   -1,   -1,   -1,   -1,   -1,  414,   -1,   -1,
-  417,  418,  419,  280,  281,  282,  283,  284,  285,  286,
+   -1,   -1,   -1,   -1,   -1,  384,  385,  386,  387,   -1,
+   -1,   -1,  391,  392,   -1,  394,  395,  396,  397,   -1,
+  399,  400,  401,   -1,  403,   -1,  405,  406,  407,  408,
+  409,  410,  411,  412,  413,  414,  415,  416,  417,  418,
+  271,  272,   -1,   -1,  423,  276,  277,   -1,   -1,   -1,
+  429,   -1,   -1,  432,  433,  434,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,  295,  296,  297,  298,  299,  300,
+  301,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,  312,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  297,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  316,
-   -1,  318,  319,  320,  321,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  329,   -1,   -1,   -1,  333,   -1,   -1,   -1,
-   -1,  338,  339,  340,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  348,   -1,   -1,   -1,   -1,  353,   -1,   -1,   -1,
+  331,   -1,  333,  334,  335,  336,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  344,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,  353,  354,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,  363,   -1,   -1,   -1,   -1,  368,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  367,   -1,  369,  370,  371,  372,   -1,   -1,   -1,  376,
-  377,   -1,  379,  380,  381,  382,   -1,  384,  385,  386,
-   -1,  388,   -1,  390,  391,  392,  393,  394,  395,  396,
-  397,  398,  399,  400,  401,  402,  403,   -1,   -1,   -1,
-   -1,  408,   -1,   -1,   -1,   -1,   -1,  414,   -1,   -1,
-  417,  418,  419,  280,  281,  282,  283,  284,  285,  286,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  297,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  316,
-   -1,  318,  319,  320,  321,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  329,   -1,   -1,   -1,  333,   -1,   -1,   -1,
-   -1,  338,  339,  340,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  348,   -1,   -1,   -1,   -1,  353,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  367,   -1,  369,  370,  371,  372,   -1,   -1,   -1,  376,
-  377,   -1,  379,  380,  381,  382,   -1,  384,  385,  386,
-   -1,  388,   -1,  390,  391,  392,  393,  394,  395,  396,
-  397,  398,  399,  400,  401,  402,  403,   -1,   -1,   -1,
-   -1,  408,   -1,   -1,   -1,   -1,   -1,  414,   -1,   -1,
-  417,  418,  419,  280,  281,  282,  283,  284,  285,  286,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  297,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  316,
-   -1,  318,  319,  320,  321,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  329,   -1,   -1,   -1,  333,   -1,   -1,   -1,
-   -1,  338,  339,  340,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  348,   -1,   -1,   -1,   -1,  353,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  369,  370,  371,  372,   -1,   -1,   -1,  376,
-  377,   -1,  379,  380,  381,  382,   -1,  384,  385,  386,
-   -1,  388,   -1,  390,  391,  392,  393,  394,  395,  396,
-  397,  398,  399,  400,  401,  402,  403,   -1,   -1,   -1,
-   -1,  408,   -1,   -1,   -1,   -1,   -1,  414,   -1,   -1,
-  417,  418,  419,  280,  281,  282,  283,  284,  285,  286,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-  297,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  316,
-   -1,  318,  319,  320,  321,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  329,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  338,  339,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,  348,   -1,   -1,   -1,   -1,  353,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,  369,  370,  371,   -1,   -1,   -1,   -1,  376,
-  377,   -1,  379,  380,  381,  382,   -1,  384,  385,  386,
-   -1,  388,   -1,  390,  391,  392,  393,  394,  395,  396,
-  397,  398,  399,  400,  401,  402,  403,   -1,   -1,   -1,
-   -1,  408,   -1,   -1,   -1,   -1,   -1,  414,   -1,   -1,
-  417,  418,  419,  259,   -1,  261,  262,  263,   -1,  265,
-   -1,  267,  268,  269,  270,   -1,   -1,  273,   -1,   -1,
-   -1,  277,   -1,   -1,  280,  281,  282,  283,  284,  285,
-  286,  287,   -1,   -1,   -1,   -1,   -1,   -1,  294,   -1,
-   -1,   -1,   -1,   -1,   -1,  301,  302,  303,   -1,  305,
-  306,   -1,  308,  309,  310,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  384,  385,  386,   -1,   -1,   -1,   -1,
+  391,  392,   -1,  394,  395,  396,  397,   -1,  399,  400,
+  401,   -1,  403,   -1,  405,  406,  407,  408,  409,  410,
+  411,  412,  413,  414,  415,  416,  417,  418,   -1,   -1,
+   -1,  257,  423,   -1,   -1,   -1,   -1,   -1,  429,  265,
+   -1,  432,  433,  434,  270,  271,   -1,   -1,  274,  275,
+  276,  277,  278,   -1,  280,   -1,  282,  283,  284,  285,
+   -1,   -1,  288,   -1,   -1,   -1,  292,   -1,   -1,  295,
+  296,  297,  298,  299,  300,  301,  302,   -1,   -1,   -1,
+   -1,   -1,   -1,  309,   -1,   -1,   -1,   -1,   -1,   -1,
+  316,  317,  318,   -1,  320,  321,   -1,  323,  324,  325,
+   -1,   -1,   -1,  329,  330,   -1,  257,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,  265,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  274,  275,  276,  277,  278,   -1,  280,
+   -1,  282,  283,  284,  285,   -1,   -1,  288,  364,  365,
+  366,  292,   -1,   -1,  295,  296,  297,  298,  299,  300,
+  301,  302,   -1,   -1,   -1,   -1,   -1,   -1,  309,   -1,
+   -1,   -1,  388,   -1,   -1,  316,  317,  318,   -1,  320,
+  321,   -1,  323,  324,  325,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,  349,  350,  351,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,  364,  365,  366,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,  373,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,  388,
 };
 #define YYFINAL 3
 #ifndef YYDEBUG
 #define YYDEBUG 0
 #endif
-#define YYMAXTOKEN 420
+#define YYMAXTOKEN 435
 #if YYDEBUG
 #if defined(__cplusplus) || defined(__STDC__)
 const char * const socks_yyname[] =
@@ -1260,11 +1381,14 @@ char *socks_yyname[] =
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-"SERVERCONFIG","CLIENTCONFIG","DEPRECATED","CLIENTRULE","INTERNAL","EXTERNAL",
-"REALM","REALNAME","EXTERNAL_ROTATION","SAMESAME","DEBUGGING","RESOLVEPROTOCOL",
-"SOCKET","CLIENTSIDE_SOCKET","SNDBUF","RCVBUF","SRCHOST","NODNSMISMATCH",
-"NODNSUNKNOWN","CHECKREPLYAUTH","EXTENSION","BIND","PRIVILEGED","IOTIMEOUT",
-"IOTIMEOUT_TCP","IOTIMEOUT_UDP","NEGOTIATETIMEOUT","CONNECTTIMEOUT",
+"CPU","MASK","SCHEDULE","CPUMASK_ANYCPU","PROCESSTYPE","SCHEDULEPOLICY",
+"SERVERCONFIG","CLIENTCONFIG","DEPRECATED","INTERFACE",
+"SOCKETOPTION_SYMBOLICVALUE","SOCKETPROTOCOL","SOCKETOPTION_OPTID","CLIENTRULE",
+"HOSTID","HOSTINDEX","REQUIRED","INTERNAL","EXTERNAL","INTERNALSOCKET",
+"EXTERNALSOCKET","REALM","REALNAME","EXTERNAL_ROTATION","SAMESAME","DEBUGGING",
+"RESOLVEPROTOCOL","SOCKET","CLIENTSIDE_SOCKET","SNDBUF","RCVBUF","SRCHOST",
+"NODNSMISMATCH","NODNSUNKNOWN","CHECKREPLYAUTH","EXTENSION","BIND","PRIVILEGED",
+"IOTIMEOUT","IOTIMEOUT_TCP","IOTIMEOUT_UDP","NEGOTIATETIMEOUT","CONNECTTIMEOUT",
 "TCP_FIN_WAIT","METHOD","CLIENTMETHOD","NONE","GSSAPI","UNAME","RFC931","PAM",
 "BSDAUTH","COMPATIBILITY","SAMEPORT","DRAFT_5_05","CLIENTCOMPATIBILITY",
 "NECGSSAPI","USERNAME","GROUPNAME","USER_PRIVILEGED","USER_UNPRIVILEGED",
@@ -1281,7 +1405,7 @@ char *socks_yyname[] =
 "LIBWRAPSTART","LIBWRAP_ALLOW","LIBWRAP_DENY","LIBWRAP_HOSTS_ACCESS","OPERATOR",
 "SOCKS_LOG","SOCKS_LOG_CONNECT","SOCKS_LOG_DATA","SOCKS_LOG_DISCONNECT",
 "SOCKS_LOG_ERROR","SOCKS_LOG_IOOPERATION","IPADDRESS","DOMAINNAME","DIRECT",
-"IFNAME","URL","PORT","SERVICENAME","NUMBER","FROM","TO","REDIRECT","BANDWIDTH",
+"IFNAME","URL","SERVICENAME","PORT","NUMBER","FROM","TO","REDIRECT","BANDWIDTH",
 "MAXSESSIONS","UDPPORTRANGE","UDPCONNECTDST","YES","NO","BOUNCE","LDAPURL",
 "LDAP_URL","LDAPSSL","LDAPCERTCHECK","LDAPKEEPREALM","LDAPBASEDN","LDAP_BASEDN",
 "LDAPBASEDN_HEX","LDAPBASEDN_HEX_ALL","LDAPSERVER","LDAPSERVER_NAME",
@@ -1306,6 +1430,7 @@ char *socks_yyrule[] =
 "rulesorroutes :",
 "rulesorroutes : ruleorroute rulesorroutes",
 "ruleorroute : clientrule",
+"ruleorroute : hostidrule",
 "ruleorroute : rule",
 "ruleorroute : route",
 "clientline :",
@@ -1318,26 +1443,28 @@ char *socks_yyrule[] =
 "serverconfigs : serverconfig",
 "serverconfigs : serverconfigs serverconfig",
 "serverconfig : global_authmethod",
-"serverconfig : global_clientauthmethod",
-"serverconfig : deprecated",
-"serverconfig : internal",
-"serverconfig : external",
-"serverconfig : external_rotation",
-"serverconfig : errorlog",
-"serverconfig : logoutput",
-"serverconfig : serveroption",
-"serverconfig : userids",
 "serverconfig : childstate",
 "serverconfig : debuging",
-"serverconfig : libwrapfiles",
+"serverconfig : deprecated",
+"serverconfig : errorlog",
+"serverconfig : external",
+"serverconfig : external_rotation",
+"serverconfig : global_clientauthmethod",
+"serverconfig : internal",
 "serverconfig : libwrap_hosts_access",
+"serverconfig : libwrapfiles",
+"serverconfig : logoutput",
+"serverconfig : serveroption",
+"serverconfig : socketoption",
 "serverconfig : udpconnectdst",
+"serverconfig : userids",
 "serveroption : compatibility",
+"serveroption : cpu",
 "serveroption : extension",
 "serveroption : global_routeoption",
-"serveroption : resolveprotocol",
+"serveroption : oldsocketoption",
 "serveroption : realm",
-"serveroption : socket",
+"serveroption : resolveprotocol",
 "serveroption : srchost",
 "serveroption : timeout",
 "timeout : connecttimeout",
@@ -1376,6 +1503,7 @@ char *socks_yyrule[] =
 "external_rotation : EXTERNAL_ROTATION ':' ROUTE",
 "clientoption : debuging",
 "clientoption : global_routeoption",
+"clientoption : errorlog",
 "clientoption : logoutput",
 "clientoption : resolveprotocol",
 "clientoption : timeout",
@@ -1422,12 +1550,24 @@ char *socks_yyrule[] =
 "resolveprotocolname : PROTOCOL_FAKE",
 "resolveprotocolname : PROTOCOL_TCP",
 "resolveprotocolname : PROTOCOL_UDP",
-"socket : SOCKET '.' SNDBUF '.' PROTOCOL_UDP ':' NUMBER",
-"socket : SOCKET '.' RCVBUF '.' PROTOCOL_UDP ':' NUMBER",
-"socket : SOCKET '.' SNDBUF '.' PROTOCOL_TCP ':' NUMBER",
-"socket : SOCKET '.' RCVBUF '.' PROTOCOL_TCP ':' NUMBER",
-"socket : CLIENTSIDE_SOCKET '.' SNDBUF '.' PROTOCOL_UDP ':' NUMBER",
-"socket : CLIENTSIDE_SOCKET '.' RCVBUF '.' PROTOCOL_UDP ':' NUMBER",
+"cpu : cpuschedule",
+"cpu : cpuaffinity",
+"cpuschedule : CPU '.' SCHEDULE '.' PROCESSTYPE ':' SCHEDULEPOLICY '/' NUMBER",
+"cpuaffinity : CPU '.' MASK '.' PROCESSTYPE ':' numbers",
+"$$3 :",
+"socketoption : socketside SOCKETPROTOCOL '.' $$3 socketoptionname ':' socketoptionvalue",
+"socketoptionname : NUMBER",
+"socketoptionname : SOCKETOPTION_OPTID",
+"socketoptionvalue : NUMBER",
+"socketoptionvalue : SOCKETOPTION_SYMBOLICVALUE",
+"socketside : INTERNALSOCKET",
+"socketside : EXTERNALSOCKET",
+"oldsocketoption : SOCKET '.' SNDBUF '.' PROTOCOL_UDP ':' NUMBER",
+"oldsocketoption : SOCKET '.' RCVBUF '.' PROTOCOL_UDP ':' NUMBER",
+"oldsocketoption : SOCKET '.' SNDBUF '.' PROTOCOL_TCP ':' NUMBER",
+"oldsocketoption : SOCKET '.' RCVBUF '.' PROTOCOL_TCP ':' NUMBER",
+"oldsocketoption : CLIENTSIDE_SOCKET '.' SNDBUF '.' PROTOCOL_UDP ':' NUMBER",
+"oldsocketoption : CLIENTSIDE_SOCKET '.' RCVBUF '.' PROTOCOL_UDP ':' NUMBER",
 "srchost : SRCHOST ':' srchostoptions",
 "srchostoption : NODNSMISMATCH",
 "srchostoption : NODNSUNKNOWN",
@@ -1438,10 +1578,10 @@ char *socks_yyrule[] =
 "authmethod : METHOD ':' authmethods",
 "authmethods : authmethodname",
 "authmethods : authmethodname authmethods",
-"$$3 :",
-"global_authmethod : METHOD ':' $$3 authmethods",
 "$$4 :",
-"global_clientauthmethod : CLIENTMETHOD ':' $$4 authmethods",
+"global_authmethod : METHOD ':' $$4 authmethods",
+"$$5 :",
+"global_clientauthmethod : CLIENTMETHOD ':' $$5 authmethods",
 "authmethodname : NONE",
 "authmethodname : GSSAPI",
 "authmethodname : UNAME",
@@ -1450,63 +1590,69 @@ char *socks_yyrule[] =
 "authmethodname : BSDAUTH",
 "clientrule : CLIENTRULE verdict '{' clientruleoptions fromto clientruleoptions '}'",
 "clientruleoption : option",
-"clientruleoption : bandwidth",
 "clientruleoption : protocol",
-"clientruleoption : redirect",
 "clientruleoptions :",
 "clientruleoptions : clientruleoption clientruleoptions",
+"hostidrule : HOSTID verdict '{' clientruleoptions fromto clientruleoptions '}'",
+"hostidoption : hostid",
+"hostidoption : hostindex",
+"$$6 :",
+"hostid : HOSTID ':' $$6 address",
+"hostindex : HOSTINDEX ':' NUMBER",
 "rule : verdict '{' ruleoptions fromto ruleoptions '}'",
 "ruleoption : option",
-"ruleoption : bandwidth",
 "ruleoption : command",
 "ruleoption : udpportrange",
 "ruleoption : protocol",
 "ruleoption : proxyprotocol",
-"ruleoption : redirect",
 "ruleoptions :",
 "ruleoptions : ruleoption ruleoptions",
 "option : authmethod",
-"option : clientcompatibility",
-"option : libwrap",
-"option : log",
-"option : pamservicename",
+"option : bandwidth",
+"option : bounce",
 "option : bsdauthstylename",
-"option : gssapiservicename",
-"option : gssapikeytab",
+"option : clientcompatibility",
+"option : group",
 "option : gssapienctype",
-"option : lurl",
-"option : ldapauto",
-"option : ldapdomain",
-"option : ldapdebug",
-"option : ldapdepth",
+"option : gssapikeytab",
+"option : gssapiservicename",
+"option : hostidoption",
 "option : lbasedn",
 "option : lbasedn_hex",
 "option : lbasedn_hex_all",
+"option : ldapattribute",
+"option : ldapattribute_ad",
+"option : ldapattribute_ad_hex",
+"option : ldapattribute_hex",
+"option : ldapauto",
+"option : ldapcertcheck",
+"option : ldapcertfile",
+"option : ldapcertpath",
+"option : ldapdebug",
+"option : ldapdepth",
+"option : ldapdomain",
+"option : ldapfilter",
+"option : ldapfilter_ad",
+"option : ldapfilter_ad_hex",
+"option : ldapfilter_hex",
+"option : ldapkeeprealm",
+"option : ldapkeytab",
 "option : ldapport",
 "option : ldapportssl",
 "option : ldapssl",
-"option : ldapcertcheck",
-"option : ldapkeeprealm",
-"option : ldapfilter",
-"option : ldapattribute",
-"option : ldapfilter_ad",
-"option : ldapattribute_ad",
-"option : ldapfilter_hex",
-"option : ldapattribute_hex",
-"option : ldapfilter_ad_hex",
-"option : ldapattribute_ad_hex",
-"option : ldapcertfile",
-"option : ldapcertpath",
 "option : lgroup",
 "option : lgroup_hex",
 "option : lgroup_hex_all",
+"option : libwrap",
+"option : log",
 "option : lserver",
-"option : ldapkeytab",
-"option : user",
-"option : group",
-"option : timeout",
-"option : bounce",
+"option : lurl",
+"option : pamservicename",
+"option : redirect",
+"option : socketoption",
 "option : session",
+"option : timeout",
+"option : user",
 "ldapdebug : LDAPDEBUG ':' NUMBER",
 "ldapdebug : LDAPDEBUG ':' '-' NUMBER",
 "ldapdomain : LDAPDOMAIN ':' LDAP_DOMAIN",
@@ -1586,13 +1732,14 @@ char *socks_yyrule[] =
 "gssapienctypename : GSSAPIENC_PERMESSAGE",
 "gssapienctypes : gssapienctypename",
 "gssapienctypes : gssapienctypename gssapienctypes",
-"bounce : BOUNCE bounce_to ':' address",
+"bounce : BOUNCE bounceto ':' address",
 "libwrap : LIBWRAPSTART ':' LINE",
 "srcaddress : from ':' address",
 "dstaddress : to ':' address",
 "rdr_fromaddress : rdr_from ':' address",
 "rdr_toaddress : rdr_to ':' address",
 "gateway : via ':' gwaddress",
+"routeoption : authmethod",
 "routeoption : command",
 "routeoption : clientcompatibility",
 "routeoption : extension",
@@ -1601,21 +1748,21 @@ char *socks_yyrule[] =
 "routeoption : gssapikeytab",
 "routeoption : gssapienctype",
 "routeoption : proxyprotocol",
-"routeoption : authmethod",
+"routeoption : socketoption",
 "routeoptions :",
 "routeoptions : routeoption routeoptions",
 "from : FROM",
 "to : TO",
 "rdr_from : FROM",
 "rdr_to : TO",
-"bounce_to : TO",
+"bounceto : TO",
 "via : VIA",
 "externaladdress : ipaddress",
 "externaladdress : domain",
 "externaladdress : ifname",
 "address : ipaddress '/' netmask port",
-"$$5 :",
-"address : ipaddress $$5 port",
+"$$7 :",
+"address : ipaddress $$7 port",
 "address : domain port",
 "address : ifname port",
 "gwaddress : ipaddress gwport",
@@ -1646,6 +1793,9 @@ char *socks_yyrule[] =
 "udpportrange : UDPPORTRANGE ':' udpportrange_start '-' udpportrange_end",
 "udpportrange_start : NUMBER",
 "udpportrange_end : NUMBER",
+"number : NUMBER",
+"numbers : number",
+"numbers : number numbers",
 };
 #endif
 #ifdef YYSTACKSIZE
@@ -1673,7 +1823,7 @@ short *yyss;
 short *yysslim;
 YYSTYPE *yyvs;
 int yystacksize;
-#line 2069 "config_parse.y"
+#line 2362 "config_parse.y"
 
 #define INTERACTIVE      0
 
@@ -1698,11 +1848,11 @@ parseconfig(filename)
 
 #if !SOCKS_CLIENT
    if (sockscf.state.inited) {
-      /* in case needed to reopen config-file. */
-      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
-
       if (yyin != NULL)
          fclose(yyin);
+
+      /* in case needed to reopen config-file. */
+      sockd_priv(SOCKD_PRIV_INITIAL, PRIV_ON);
    }
 #endif /* SERVER */
 
@@ -1710,47 +1860,22 @@ parseconfig(filename)
 
 #if !SOCKS_CLIENT
    if (sockscf.state.inited)
-      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
+      sockd_priv(SOCKD_PRIV_INITIAL, PRIV_OFF);
 #endif /* SERVER */
-
-#if !SOCKS_CLIENT && !HAVE_PRIVILEGES
-   if (yyin == NULL && sockscf.state.inited) {
-      const struct userid_t currentuserid = sockscf.uid;;
-
-      sockscf.uid.privileged       = sockscf.state.euid;
-      sockscf.uid.privileged_isset = 1;
-
-      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
-      yyin = fopen(filename, "r");
-      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
-
-      sockscf.uid = currentuserid;
-   }
-#endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
-
-#if !SOCKS_CLIENT && !HAVE_PRIVILEGES
-   /*
-    * uid, read from configfile.  But save old one first, in case we
-    * need them to reopen logfiles.
-    */
-
-   olduserid = sockscf.uid;
-   bzero(&sockscf.uid, sizeof(sockscf.uid));
-#endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
 
    if (yyin == NULL
    ||  (stat(filename, &statbuf) == 0 && statbuf.st_size == 0)) {
       if (yyin == NULL)
-         swarn("%s: could not open %s", function, filename);
+         swarn("%s: could not open config file %s", function, filename);
+      else
+         swarnx("%s: not parsing empty config file %s", function, filename);
 
       haveconfig            = 0;
       sockscf.option.debug  = 1;
    }
    else {
-      slog(LOG_DEBUG, "%s: not parsing configfile %s (%s)",
-                      function, filename,
-                      yyin == NULL ? strerror(errno) : "zero-sized file");
       socks_parseinit = 0;
+
 #if YYDEBUG
       yydebug         = 0;
 #endif /* YYDEBUG */
@@ -1769,7 +1894,7 @@ parseconfig(filename)
       /*
        * Leave it open so that if we get a sighup later, we are
        * always guaranteed to have a descriptor we can close/reopen
-       * to parse the configfile.
+       * to parse the config file.
        */
       sockscf.configfd = fileno(yyin);
 #endif
@@ -1826,7 +1951,7 @@ yywarn(const char *fmt, ...)
                          (yytext == NULL || *yytext == NUL) ?
                          "'start of line'" : yytext);
    else
-      bufused = snprintfn(buf, sizeof(buf), "error: ");
+      bufused = 0;
 
    vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
 
@@ -1835,12 +1960,32 @@ yywarn(const char *fmt, ...)
 
    if (errno)
       swarn("%s", buf);
-   swarnx("%s", buf);
+   else
+      swarnx("%s", buf);
 }
 
 static void
+addnumber(numberc, numberv, number)
+   size_t *numberc;
+   ssize_t *numberv[];
+   const ssize_t number;
+{
+   const char *function = "addnumber()";
+
+   if ((*numberv = realloc(*numberv, sizeof(**numberv) * (*numberc) + 1))
+   == NULL)
+      yyerror("%s: could not allocate %lu bytes of memory for adding "
+              "number %ld",
+              function, (unsigned long)(sizeof(**numberv) * (*numberc) + 1),
+              (long)number);
+
+   (*numberv)[(*numberc)++] = number;
+}
+
+
+static void
 addrinit(addr, _netmask_required)
-   struct ruleaddr_t *addr;
+   ruleaddr_t *addr;
    const int _netmask_required;
 {
 
@@ -1859,7 +2004,7 @@ addrinit(addr, _netmask_required)
 
 static void
 gwaddrinit(addr)
-   gwaddr_t *addr;
+   sockshost_t *addr;
 {
    static enum operator_t operatormem;
 
@@ -1889,35 +2034,35 @@ parseclientenv(haveproxyserver)
 
 
    /*
-    * Check if there is a proxyserver configured in the environment.
+    * Check if there is a proxy server configured in the environment.
     * Initially assume there is none.
     */
    *haveproxyserver = 0;
 
    if ((proxyserver = socks_getenv(ENV_SOCKS4_SERVER, dontcare)) != NULL) {
-      struct proxyprotocol_t proxyprotocol = { .socks_v4 = 1 };
+      proxyprotocol_t proxyprotocol = { .socks_v4 = 1 };
 
       addproxyserver(proxyserver, &proxyprotocol);
       *haveproxyserver = 1;
    }
 
    if ((proxyserver = socks_getenv(ENV_SOCKS5_SERVER, dontcare)) != NULL) {
-      struct proxyprotocol_t proxyprotocol = { .socks_v5 = 1 };
+      proxyprotocol_t proxyprotocol = { .socks_v5 = 1 };
 
       addproxyserver(proxyserver, &proxyprotocol);
       *haveproxyserver = 1;
    }
 
    if ((proxyserver = socks_getenv(ENV_SOCKS_SERVER, dontcare)) != NULL) {
-      struct proxyprotocol_t proxyprotocol = { .socks_v4 = 1, .socks_v5 = 1 };
+      proxyprotocol_t proxyprotocol = { .socks_v4 = 1, .socks_v5 = 1 };
 
       addproxyserver(proxyserver, &proxyprotocol);
       *haveproxyserver = 1;
    }
 
    if ((proxyserver = socks_getenv(ENV_HTTP_PROXY, dontcare)) != NULL) {
-      struct proxyprotocol_t proxyprotocol = { .http = 1 };
-      
+      proxyprotocol_t proxyprotocol = { .http = 1 };
+
       addproxyserver(proxyserver, &proxyprotocol);
       *haveproxyserver = 1;
    }
@@ -1928,7 +2073,7 @@ parseclientenv(haveproxyserver)
        * for a response from the igd-device), "broadcast", to indicate
        * all interfaces, or a full url to the igd.
        */
-      struct route_t route;
+      route_t route;
 
       bzero(&route, sizeof(route));
       route.gw.state.proxyprotocol.upnp = 1;
@@ -2003,9 +2148,9 @@ parseclientenv(haveproxyserver)
          /*
           * check that the given interface exists and has an address
           */
-         struct sockaddr addr, mask;
+         struct sockaddr_storage addr, mask;
 
-         if (ifname2sockaddr(proxyserver, 0, &addr, &mask) == NULL)
+         if (ifname2sockaddr(proxyserver, 0, TOSA(&addr), TOSA(&mask)) == NULL)
             serr(1, "%s: can't find interface named %s with ip configured",
             function, proxyservervis);
 
@@ -2038,10 +2183,16 @@ parseclientenv(haveproxyserver)
 
          for (iface = ifap; iface != NULL; iface = iface->ifa_next)
             if (iface->ifa_addr            != NULL
-            &&  iface->ifa_addr->sa_family == AF_INET)
+            &&  iface->ifa_addr->sa_family == AF_INET) {
+               if (iface->ifa_netmask == NULL) {
+                  swarn("interface %s missing netmask, skipping",
+                        iface->ifa_name);
+                  continue;
+               }
                socks_autoadd_directroute(
-               (const struct sockaddr_in *)iface->ifa_addr,
-               (const struct sockaddr_in *)iface->ifa_netmask);
+               TOCIN(iface->ifa_addr),
+               TOCIN(iface->ifa_netmask));
+            }
 
          freeifaddrs(ifap);
       }
@@ -2053,12 +2204,12 @@ parseclientenv(haveproxyserver)
 static void
 addproxyserver(proxyserver, proxyprotocol)
    const char *proxyserver;
-   const struct proxyprotocol_t *proxyprotocol;
+   const proxyprotocol_t *proxyprotocol;
 {
    const char *function = "addproxyserver()";
-   struct sockaddr_in saddr;
-   struct route_t route;
-   struct ruleaddr_t raddr;
+   struct sockaddr_storage ss;
+   route_t route;
+   ruleaddr_t raddr;
    char ipstring[INET_ADDRSTRLEN], *portstring, proxyservervis[256];
 
    bzero(&route, sizeof(route));
@@ -2070,7 +2221,7 @@ addproxyserver(proxyserver, proxyprotocol)
            sizeof(proxyservervis));
 
    slog(LOG_DEBUG,
-        "%s: have a %s proxyserver set in environment, value %s",
+        "%s: have a %s proxy server set in environment, value %s",
         function,
         proxyprotocols2string(&route.gw.state.proxyprotocol, NULL, 0),
         proxyservervis);
@@ -2078,25 +2229,22 @@ addproxyserver(proxyserver, proxyprotocol)
    if (route.gw.state.proxyprotocol.http) {
       char emsg[256];
 
-      if (urlstring2sockaddr(proxyserver,
-                             (struct sockaddr *)&saddr,
-                             emsg,
-                             sizeof(emsg))
-      == NULL) 
+      if (urlstring2sockaddr(proxyserver, TOSA(&ss), emsg, sizeof(emsg))
+      == NULL)
          serrx(EXIT_FAILURE,
-               "%s: can't understand format of proxyserver %s: %s",
+               "%s: can't resolve/parse proxy server in string \"%s\": %s",
                function, proxyservervis, emsg);
-               
+
    }
    else {
       if ((portstring = strchr(proxyserver, ':')) == NULL)
          serrx(EXIT_FAILURE, "%s: illegal format for port specification "
-                             "in proxyserver %s: missing ':' delimiter",
+                             "in proxy server %s: missing ':' delimiter",
                              function, proxyservervis);
 
       if (atoi(portstring + 1) < 1 || atoi(portstring + 1) > 0xffff)
          serrx(EXIT_FAILURE, "%s: illegal value (%d) for port specification "
-                             "in proxyserver %s: must be between %d and %d",
+                             "in proxy server %s: must be between %d and %d",
                              function, atoi(portstring + 1),
                              proxyservervis, 1, 0xffff);
 
@@ -2104,20 +2252,21 @@ addproxyserver(proxyserver, proxyprotocol)
       || (size_t)(portstring - proxyserver) > sizeof(ipstring) - 1)
          serrx(EXIT_FAILURE,
                "%s: illegal format for ip address specification "
-               "in proxyserver %s: too short/long",
+               "in proxy server %s: too short/long",
                function, proxyservervis);
 
       strncpy(ipstring, proxyserver, (size_t)(portstring - proxyserver));
       ipstring[portstring - proxyserver] = NUL;
       ++portstring;
 
-      bzero(&saddr, sizeof(saddr));
-      saddr.sin_family = AF_INET;
-      if (inet_pton(saddr.sin_family, ipstring, &saddr.sin_addr) != 1)
+      bzero(&ss, sizeof(ss));
+      SET_SOCKADDR(TOSA(&ss), AF_INET);
+
+      if (inet_pton(TOIN(&ss)->sin_family, ipstring, &TOIN(&ss)->sin_addr) != 1)
          serr(EXIT_FAILURE, "%s: illegal format for ip address "
-                            "specification in proxyserver %s",
+                            "specification in proxy server %s",
                             function, proxyservervis);
-      saddr.sin_port = htons(atoi(portstring));
+      TOIN(&ss)->sin_port = htons(atoi(portstring));
    }
 
    route.src.atype                           = SOCKS_ADDR_IPV4;
@@ -2128,8 +2277,9 @@ addproxyserver(proxyserver, proxyprotocol)
 
    route.dst = route.src;
 
-   ruleaddr2gwaddr(sockaddr2ruleaddr((struct sockaddr *)&saddr, &raddr),
-   &route.gw.addr);
+   ruleaddr2sockshost(sockaddr2ruleaddr(TOSA(&ss), &raddr),
+                      &route.gw.addr,
+                      SOCKS_TCP);
 
    socks_addroute(&route, 1);
 }
@@ -2145,20 +2295,29 @@ rulereset(void)
 
 static void
 ruleinit(rule)
-   struct rule_t *rule;
+   rule_t *rule;
 {
 
    bzero(rule, sizeof(*rule));
 
-   rule->linenumber        = yylineno;
+   rule->linenumber  = yylineno;
 
-   command                 = &rule->state.command;
-   methodv                 = rule->state.methodv;
-   methodc                 = &rule->state.methodc;
-   protocol                = &rule->state.protocol;
-   proxyprotocol           = &rule->state.proxyprotocol;
-   timeout                 = &rule->timeout;
-   *timeout                = sockscf.timeout; /* default values: as global. */
+#if HAVE_SOCKS_HOSTID
+   rule->hostindex   = 1;
+#endif /* HAVE_SOCKS_HOSTID */
+
+   command       = &rule->state.command;
+   methodv       = rule->state.methodv;
+   methodc       = &rule->state.methodc;
+   protocol      = &rule->state.protocol;
+   proxyprotocol = &rule->state.proxyprotocol;
+
+   /*
+    * default values: same as global.
+    */
+
+   timeout       = &rule->timeout;
+   *timeout      = sockscf.timeout;
 
 #if HAVE_GSSAPI
    gssapiservicename = rule->state.gssapiservicename;
@@ -2173,12 +2332,15 @@ ruleinit(rule)
    bzero(&src, sizeof(src));
    src.atype = SOCKS_ADDR_NOTSET;
 
-   dst = rdr_from = rdr_to = src;
+   dst = hostid = rdr_from = rdr_to = src;
 
+#if BAREFOOTD
+   bounceto = src;
+#endif /* BAREFOOTD */
 }
 
 #endif /* !SOCKS_CLIENT */
-#line 2129 "config_parse.c"
+#line 2291 "config_parse.c"
 /* allocate initial stack or double stack size, up to YYMAXDEPTH */
 #if defined(__cplusplus) || defined(__STDC__)
 static int yygrowstack(void)
@@ -2384,7 +2546,7 @@ yyreduce:
     switch (yyn)
     {
 case 3:
-#line 358 "config_parse.y"
+#line 381 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       protocol  = &protocolmem;
@@ -2393,36 +2555,35 @@ case 3:
    }
 break;
 case 5:
-#line 370 "config_parse.y"
+#line 392 "config_parse.y"
 { yyval.string = NULL; }
 break;
-case 10:
-#line 379 "config_parse.y"
+case 11:
+#line 402 "config_parse.y"
 { yyval.string = NULL; }
 break;
-case 14:
-#line 386 "config_parse.y"
+case 15:
+#line 409 "config_parse.y"
 {
    }
 break;
-case 41:
-#line 421 "config_parse.y"
+case 33:
+#line 433 "config_parse.y"
 {
-#if !SOCKS_CLIENT
-                  if (timeout->tcp_fin_wait == 0
-                  ||  timeout->tcp_fin_wait >  timeout->tcpio)
-                     timeout->tcp_fin_wait = timeout->tcpio;
-#endif /* !SOCKS_CLIENT */
-      }
+         if (!addedsocketoption(&sockscf.socketoptionc,
+                                &sockscf.socketoptionv,
+                                &socketopt))
+            yywarn("could not add socket option");
+   }
 break;
-case 46:
-#line 436 "config_parse.y"
+case 49:
+#line 460 "config_parse.y"
 {
       yyerror("given keyword, \"%s\", is deprecated", yyvsp[0].string);
    }
 break;
-case 47:
-#line 441 "config_parse.y"
+case 50:
+#line 465 "config_parse.y"
 {
       route.src       = src;
       route.dst       = dst;
@@ -2432,8 +2593,8 @@ case 47:
       socks_addroute(&route, 1);
    }
 break;
-case 48:
-#line 451 "config_parse.y"
+case 51:
+#line 475 "config_parse.y"
 {
       command             = &state.command;
       extension           = &state.extension;
@@ -2456,36 +2617,39 @@ case 48:
       bzero(&gw, sizeof(gw));
       bzero(&src, sizeof(src));
       bzero(&dst, sizeof(dst));
-      src.atype = SOCKS_ADDR_IPV4;
-      dst.atype = SOCKS_ADDR_IPV4;
+      bzero(&hostid, sizeof(hostid));
+
+      src.atype    = SOCKS_ADDR_IPV4;
+      dst.atype    = SOCKS_ADDR_IPV4;
+      hostid.atype = SOCKS_ADDR_NOTSET;
    }
 break;
-case 50:
-#line 482 "config_parse.y"
+case 53:
+#line 509 "config_parse.y"
 {
          proxyprotocol->socks_v4    = 1;
    }
 break;
-case 51:
-#line 485 "config_parse.y"
+case 54:
+#line 512 "config_parse.y"
 {
          proxyprotocol->socks_v5    = 1;
    }
 break;
-case 52:
-#line 488 "config_parse.y"
+case 55:
+#line 515 "config_parse.y"
 {
          proxyprotocol->http        = 1;
    }
 break;
-case 53:
-#line 491 "config_parse.y"
+case 56:
+#line 518 "config_parse.y"
 {
          proxyprotocol->upnp        = 1;
    }
 break;
-case 58:
-#line 504 "config_parse.y"
+case 61:
+#line 531 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       if (addlinkedname(&rule.user, yyvsp[0].string) == NULL)
@@ -2493,8 +2657,8 @@ case 58:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 62:
-#line 519 "config_parse.y"
+case 65:
+#line 546 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       if (addlinkedname(&rule.group, yyvsp[0].string) == NULL)
@@ -2502,14 +2666,14 @@ case 62:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 66:
-#line 534 "config_parse.y"
+case 69:
+#line 561 "config_parse.y"
 {
          extension->bind = 1;
    }
 break;
-case 69:
-#line 543 "config_parse.y"
+case 72:
+#line 570 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if BAREFOOTD
@@ -2520,11 +2684,11 @@ case 69:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 70:
-#line 554 "config_parse.y"
+case 73:
+#line 581 "config_parse.y"
 {
 #if !SOCKS_CLIENT
-   static struct ruleaddr_t mem;
+   static ruleaddr_t mem;
    struct servent   *service;
 
    addrinit(&mem, 0);
@@ -2538,39 +2702,39 @@ case 70:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 71:
-#line 571 "config_parse.y"
+case 74:
+#line 598 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       addexternal(ruleaddr);
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 72:
-#line 578 "config_parse.y"
+case 75:
+#line 605 "config_parse.y"
 {
 #if !SOCKS_CLIENT
-      static struct ruleaddr_t mem;
+      static ruleaddr_t mem;
 
       addrinit(&mem, 0);
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 73:
-#line 587 "config_parse.y"
+case 76:
+#line 614 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       sockscf.external.rotation = ROTATION_NONE;
    }
 break;
-case 74:
-#line 591 "config_parse.y"
+case 77:
+#line 618 "config_parse.y"
 {
       sockscf.external.rotation = ROTATION_SAMESAME;
    }
 break;
-case 75:
-#line 594 "config_parse.y"
+case 78:
+#line 621 "config_parse.y"
 {
 #if !HAVE_ROUTE_SOURCE
       yyerror("don't have code to discover route/address source on platform");
@@ -2580,69 +2744,65 @@ case 75:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 81:
-#line 611 "config_parse.y"
-{
-      const int value = atoi(yyvsp[0].string);
-
-      if (value < 0)
-         yyerror("max route fails can not be negative (%d)  Use \"0\" to "
-                 "indicate routes should never be marked as bad",
-                 value);
-
-      sockscf.routeoptions.maxfail = value;
-   }
-break;
-case 82:
-#line 621 "config_parse.y"
-{
-      const int value = atoi(yyvsp[0].string);
-
-      if (value < 0)
-         yyerror("route failure expiry time can not be negative (%d).  "
-                 "Use \"0\" to indicate bad route marking should never expire",
-                 value);
-
-      sockscf.routeoptions.badexpire = value;
-   }
-break;
-case 83:
-#line 633 "config_parse.y"
-{ add_to_errorlog = 1; }
-break;
 case 85:
-#line 636 "config_parse.y"
-{ add_to_errorlog = 0; }
+#line 639 "config_parse.y"
+{
+      if (yyvsp[0].number < 0)
+         yyerror("max route fails can not be negative (%ld)  Use \"0\" to "
+                 "indicate routes should never be marked as bad",
+                 (long)yyvsp[0].number);
+
+      sockscf.routeoptions.maxfail = yyvsp[0].number;
+   }
+break;
+case 86:
+#line 647 "config_parse.y"
+{
+      if (yyvsp[0].number < 0)
+         yyerror("route failure expiry time can not be negative (%ld).  "
+                 "Use \"0\" to indicate bad route marking should never expire",
+                 (long)yyvsp[0].number);
+
+      sockscf.routeoptions.badexpire = yyvsp[0].number;
+   }
 break;
 case 87:
-#line 639 "config_parse.y"
+#line 657 "config_parse.y"
+{ add_to_errorlog = 1; }
+break;
+case 89:
+#line 660 "config_parse.y"
+{ add_to_errorlog = 0; }
+break;
+case 91:
+#line 663 "config_parse.y"
 {
    int p;
 #if !SOCKS_CLIENT && !HAVE_PRIVILEGES
-   const struct userid_t currentuserid = sockscf.uid;;
-   struct userid_t zuid;
+   const userid_t currentuserid = sockscf.uid;;
+   userid_t zuid;
 
    bzero(&zuid, sizeof(zuid));
    if (memcmp(&zuid, &sockscf.uid, sizeof(zuid)) == 0)
       /*
-       * We dont enforce that userid must be set before logfiles, so make sure
+       * We do not enforce that userid must be set before logfiles, so make sure
        * that the old userids, if any, are set before (re)opening logfiles.
        */
       sockscf.uid = olduserid;
 #endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
 
-#if !SOCKS_CLIENT 
-   sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
+#if !SOCKS_CLIENT
+   sockd_priv(SOCKD_PRIV_INITIAL, PRIV_ON);
 #endif /* !SOCKS_CLIENT */
 
    p = socks_addlogfile(add_to_errorlog ? &sockscf.errlog : &sockscf.log, yyvsp[0].string);
 
-#if !SOCKS_CLIENT 
-   sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
+#if !SOCKS_CLIENT
+   sockd_priv(SOCKD_PRIV_INITIAL, PRIV_OFF);
 #endif /* !SOCKS_CLIENT */
 
 #if !SOCKS_CLIENT && !HAVE_PRIVILEGES
-   if (p != 0 && sockscf.state.inited) {
+   if (p != 0 && ERRNOISACCES(errno) && sockscf.state.inited) {
       /* try again with original euid, before giving up. */
       sockscf.uid.privileged       = sockscf.state.euid;
       sockscf.uid.privileged_isset = 1;
@@ -2665,8 +2825,8 @@ case 87:
 #endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
 }
 break;
-case 90:
-#line 692 "config_parse.y"
+case 94:
+#line 716 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       sockscf.child.maxidle.negotiate = SOCKD_FREESLOTS_NEGOTIATE * 2;
@@ -2674,22 +2834,22 @@ case 90:
       sockscf.child.maxidle.io        = SOCKD_FREESLOTS_IO        * 2;
    }
 break;
-case 91:
-#line 698 "config_parse.y"
+case 95:
+#line 722 "config_parse.y"
 {
       bzero(&sockscf.child.maxidle, sizeof(sockscf.child.maxidle));
    }
 break;
-case 92:
-#line 701 "config_parse.y"
+case 96:
+#line 725 "config_parse.y"
 {
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      sockscf.child.maxrequests = (size_t)atol(yyvsp[0].string);
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      sockscf.child.maxrequests = yyvsp[0].number;
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 96:
-#line 713 "config_parse.y"
+case 100:
+#line 737 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_PRIVILEGES
@@ -2701,8 +2861,8 @@ case 96:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 97:
-#line 725 "config_parse.y"
+case 101:
+#line 749 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_PRIVILEGES
@@ -2714,8 +2874,8 @@ case 97:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 98:
-#line 737 "config_parse.y"
+case 102:
+#line 761 "config_parse.y"
 {
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
 #if HAVE_PRIVILEGES
@@ -2729,8 +2889,8 @@ case 98:
 #endif /* !HAVE_LIBWRAP (!SOCKS_CLIENT)*/
    }
 break;
-case 99:
-#line 752 "config_parse.y"
+case 103:
+#line 776 "config_parse.y"
 {
       struct passwd *pw;
 
@@ -2740,66 +2900,66 @@ case 99:
          yyval.uid = pw->pw_uid;
    }
 break;
-case 100:
-#line 762 "config_parse.y"
+case 104:
+#line 786 "config_parse.y"
 {
 #if !SOCKS_CLIENT
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      timeout->tcpio = (size_t)atol(yyvsp[0].string);
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      timeout->tcpio = yyvsp[0].number;
       timeout->udpio = timeout->tcpio;
    }
 break;
-case 101:
-#line 768 "config_parse.y"
-{
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      timeout->tcpio = (size_t)atol(yyvsp[0].string);
-   }
-break;
-case 102:
-#line 772 "config_parse.y"
-{
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      timeout->udpio = (size_t)atol(yyvsp[0].string);
-#endif /* !SOCKS_CLIENT */
-   }
-break;
-case 103:
-#line 779 "config_parse.y"
-{
-#if !SOCKS_CLIENT
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      timeout->negotiate = (size_t)atol(yyvsp[0].string);
-#endif /* !SOCKS_CLIENT */
-   }
-break;
-case 104:
-#line 787 "config_parse.y"
-{
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      timeout->connect = (size_t)atol(yyvsp[0].string);
-   }
-break;
 case 105:
-#line 793 "config_parse.y"
+#line 792 "config_parse.y"
 {
-#if !SOCKS_CLIENT
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      timeout->tcp_fin_wait = (size_t)atol(yyvsp[0].string);
-#endif /* !SOCKS_CLIENT */
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      timeout->tcpio = yyvsp[0].number;
    }
 break;
 case 106:
-#line 802 "config_parse.y"
+#line 796 "config_parse.y"
+{
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      timeout->udpio = yyvsp[0].number;
+#endif /* !SOCKS_CLIENT */
+   }
+break;
+case 107:
+#line 803 "config_parse.y"
+{
+#if !SOCKS_CLIENT
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      timeout->negotiate = yyvsp[0].number;
+#endif /* !SOCKS_CLIENT */
+   }
+break;
+case 108:
+#line 811 "config_parse.y"
+{
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      timeout->connect = yyvsp[0].number;
+   }
+break;
+case 109:
+#line 817 "config_parse.y"
+{
+#if !SOCKS_CLIENT
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      timeout->tcp_fin_wait = yyvsp[0].number;
+#endif /* !SOCKS_CLIENT */
+   }
+break;
+case 110:
+#line 826 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       if (sockscf.option.debugrunopt == -1)
 #endif /* !SOCKS_CLIENT */
-          sockscf.option.debug = atoi(yyvsp[0].string);
+          sockscf.option.debug = yyvsp[0].number;
    }
 break;
-case 109:
-#line 814 "config_parse.y"
+case 113:
+#line 838 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_LIBWRAP
@@ -2812,8 +2972,8 @@ case 109:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 110:
-#line 827 "config_parse.y"
+case 114:
+#line 851 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_LIBWRAP
@@ -2826,8 +2986,8 @@ case 110:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 111:
-#line 840 "config_parse.y"
+case 115:
+#line 864 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_LIBWRAP
@@ -2837,8 +2997,8 @@ case 111:
 #endif /* HAVE_LIBWRAP */
    }
 break;
-case 112:
-#line 848 "config_parse.y"
+case 116:
+#line 872 "config_parse.y"
 {
 #if HAVE_LIBWRAP
       sockscf.option.hosts_access = 0;
@@ -2848,42 +3008,42 @@ case 112:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 113:
-#line 858 "config_parse.y"
+case 117:
+#line 882 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       sockscf.udpconnectdst = 1;
    }
 break;
-case 114:
-#line 862 "config_parse.y"
+case 118:
+#line 886 "config_parse.y"
 {
       sockscf.udpconnectdst = 0;
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 116:
-#line 872 "config_parse.y"
+case 120:
+#line 896 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       sockscf.compat.sameport = 1;
    }
 break;
-case 117:
-#line 876 "config_parse.y"
+case 121:
+#line 900 "config_parse.y"
 {
       sockscf.compat.draft_5_05 = 1;
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 121:
-#line 889 "config_parse.y"
+case 125:
+#line 913 "config_parse.y"
 {
          sockscf.resolveprotocol = RESOLVEPROTOCOL_FAKE;
    }
 break;
-case 122:
-#line 892 "config_parse.y"
+case 126:
+#line 916 "config_parse.y"
 {
 #if HAVE_NO_RESOLVESTUFF
          yyerror("resolveprotocol keyword not supported on this installation");
@@ -2892,81 +3052,249 @@ case 122:
 #endif /* !HAVE_NO_RESOLVESTUFF */
    }
 break;
-case 123:
-#line 899 "config_parse.y"
+case 127:
+#line 923 "config_parse.y"
 {
          sockscf.resolveprotocol = RESOLVEPROTOCOL_UDP;
    }
 break;
-case 124:
-#line 904 "config_parse.y"
+case 130:
+#line 932 "config_parse.y"
 {
 #if !SOCKS_CLIENT
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      sockscf.socket.udp.sndbuf = (size_t)atol(yyvsp[0].string);
+#if !HAVE_SCHED_SETSCHEDULER
+      yyerror("setting cpu scheduling policy is not supported on this "
+               "platform");
+#else /* HAVE_SCHED_SETSCHEDULER */
+      cpusetting_t *cpusetting;
+
+      switch (yyvsp[-4].number) {
+         case CHILD_MOTHER:
+            cpusetting = &sockscf.cpu.mother;
+            break;
+
+         case CHILD_NEGOTIATE:
+            cpusetting = &sockscf.cpu.negotiate;
+            break;
+
+         case CHILD_REQUEST:
+            cpusetting = &sockscf.cpu.request;
+            break;
+
+         case CHILD_IO:
+            cpusetting = &sockscf.cpu.io;
+            break;
+
+         default:
+            SERRX(yyvsp[-4].number);
+      }
+
+      cpusetting->scheduling_isset  = 1;
+      cpusetting->policy = yyvsp[-2].number;
+      bzero(&cpusetting->param, sizeof(cpusetting->param));
+      cpusetting->param.sched_priority = (int)yyvsp[0].number;
+#endif /* HAVE_SCHED_SETSCHEDULER */
+#endif /* !SOCKS_CLIENT */
    }
 break;
-case 125:
-#line 909 "config_parse.y"
+case 131:
+#line 970 "config_parse.y"
 {
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      sockscf.socket.udp.rcvbuf = (size_t)atol(yyvsp[0].string);
+#if !SOCKS_CLIENT
+#if !HAVE_SCHED_SETAFFINITY
+      yyerror("setting cpu scheduling affinity is not supported on this "
+              "platform");
+#else /* HAVE_SCHED_SETAFFINITY */
+      cpusetting_t *cpusetting;
+
+      switch (yyvsp[-2].number) {
+         case CHILD_MOTHER:
+            cpusetting = &sockscf.cpu.mother;
+            break;
+
+         case CHILD_NEGOTIATE:
+            cpusetting = &sockscf.cpu.negotiate;
+            break;
+
+         case CHILD_REQUEST:
+            cpusetting = &sockscf.cpu.request;
+            break;
+
+         case CHILD_IO:
+            cpusetting = &sockscf.cpu.io;
+            break;
+
+         default:
+            SERRX(yyvsp[-2].number);
+      }
+
+      cpu_zero(&cpusetting->mask);
+      while (numberc-- > 0)
+         if (numberv[numberc] == CPUMASK_ANYCPU) {
+            const long cpus = sysconf(_SC_NPROCESSORS_ONLN);
+            long i;
+
+            if (cpus == -1)
+               yyerror("sysconf(_SC_NPROCESSORS_ONLN) failed");
+
+            for (i = 0; i < cpus; ++i)
+               cpu_set((int)i, &cpusetting->mask);
+         }
+         else if (numberv[numberc] < 0)
+            yyerror("invalid CPU number: %ld.  The CPU number can not be "
+                    "negative", (long)numberv[numberc]);
+         else
+            cpu_set(numberv[numberc], &cpusetting->mask);
+
+      free(numberv);
+      numberv = NULL;
+      numberc = 0;
+
+      cpusetting->affinity_isset = 1;
+
+#endif /* HAVE_SCHED_SETAFFINITY */
+#endif /* !SOCKS_CLIENT */
    }
 break;
-case 126:
-#line 913 "config_parse.y"
+case 132:
+#line 1028 "config_parse.y"
 {
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      sockscf.socket.tcp.sndbuf = (size_t)atol(yyvsp[0].string);
+#if !SOCKS_CLIENT
+      socketopt.level = yyvsp[-1].number;
+#endif /* !SOCKS_CLIENT */
    }
 break;
-case 127:
-#line 917 "config_parse.y"
+case 134:
+#line 1035 "config_parse.y"
 {
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      sockscf.socket.tcp.rcvbuf = (size_t)atol(yyvsp[0].string);
+#if !SOCKS_CLIENT
+   socketopt.optname = yyvsp[0].number;
+   socketopt.info    = optval2sockopt(socketopt.level, socketopt.optname);
+
+   if (socketopt.info == NULL)
+      slog(LOG_DEBUG, "unknown/unsupported socket option: level %d, value %d",
+                      socketopt.level, socketopt.optname);
+   else
+      socketoptioncheck(&socketopt);
+   }
+break;
+case 135:
+#line 1046 "config_parse.y"
+{
+      socketopt.info           = optid2sockopt(yyvsp[0].number);
+      SASSERTX(socketopt.info != NULL);
+
+      socketopt.optname        = socketopt.info->value;
+
+      socketoptioncheck(&socketopt);
+#endif /* !SOCKS_CLIENT */
+   }
+break;
+case 136:
+#line 1057 "config_parse.y"
+{
+      socketopt.optval.int_val = (int)yyvsp[0].number;
+      socketopt.opttype        = int_val;
+   }
+break;
+case 137:
+#line 1061 "config_parse.y"
+{
+      const sockoptvalsym_t *p;
+
+      if (socketopt.info == NULL)
+         yyerror("the given socket option is unknown, so can not lookup "
+                 "symbolic option value");
+
+      if ((p = optval2valsym(socketopt.info->optid, yyvsp[0].string)) == NULL)
+         yyerror("symbolic value \"%s\" is unknown for socket option %s",
+                 yyvsp[0].string, sockopt2string(&socketopt, NULL, 0));
+
+      socketopt.optval  = p->symval;
+      socketopt.opttype = socketopt.info->argtype;
+   }
+break;
+case 138:
+#line 1078 "config_parse.y"
+{ bzero(&socketopt, sizeof(socketopt));
+                             socketopt.isinternalside = 1;
+   }
+break;
+case 139:
+#line 1081 "config_parse.y"
+{ bzero(&socketopt, sizeof(socketopt));
+                             socketopt.isinternalside = 0;
+   }
+break;
+case 140:
+#line 1087 "config_parse.y"
+{
+#if !SOCKS_CLIENT
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      sockscf.socket.udp.sndbuf = yyvsp[0].number;
+   }
+break;
+case 141:
+#line 1092 "config_parse.y"
+{
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      sockscf.socket.udp.rcvbuf = yyvsp[0].number;
+   }
+break;
+case 142:
+#line 1096 "config_parse.y"
+{
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      sockscf.socket.tcp.sndbuf = yyvsp[0].number;
+   }
+break;
+case 143:
+#line 1100 "config_parse.y"
+{
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      sockscf.socket.tcp.rcvbuf = yyvsp[0].number;
 #if BAREFOOTD
    }
 break;
-case 128:
-#line 922 "config_parse.y"
+case 144:
+#line 1105 "config_parse.y"
 {
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      sockscf.socket.clientside_udp.sndbuf = (size_t)atol(yyvsp[0].string);
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      sockscf.socket.clientside_udp.sndbuf = yyvsp[0].number;
    }
 break;
-case 129:
-#line 926 "config_parse.y"
+case 145:
+#line 1109 "config_parse.y"
 {
-      CHECKNUMBER(yyvsp[0].string, >=, 0);
-      sockscf.socket.clientside_udp.rcvbuf = (size_t)atol(yyvsp[0].string);
+      CHECKNUMBER(yyvsp[0].number, >=, 0);
+      sockscf.socket.clientside_udp.rcvbuf = yyvsp[0].number;
 #endif /* BAREFOOTD */
 
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 131:
-#line 939 "config_parse.y"
+case 147:
+#line 1122 "config_parse.y"
 {
 #if !SOCKS_CLIENT
          sockscf.srchost.nodnsmismatch = 1;
    }
 break;
-case 132:
-#line 943 "config_parse.y"
+case 148:
+#line 1126 "config_parse.y"
 {
          sockscf.srchost.nodnsunknown = 1;
    }
 break;
-case 133:
-#line 946 "config_parse.y"
+case 149:
+#line 1129 "config_parse.y"
 {
          sockscf.srchost.checkreplyauth = 1;
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 136:
-#line 956 "config_parse.y"
+case 152:
+#line 1139 "config_parse.y"
 {
 #if COVENANT
    if (strlen(yyvsp[0].string) >= sizeof(sockscf.realmname))
@@ -2981,8 +3309,8 @@ case 136:
 #endif /* !COVENANT */
 }
 break;
-case 140:
-#line 978 "config_parse.y"
+case 156:
+#line 1161 "config_parse.y"
 {
 #if SOCKS_SERVER
       methodv  = sockscf.methodv;
@@ -2995,8 +3323,8 @@ case 140:
 #endif /* !SOCKS_SERVER */
    }
 break;
-case 142:
-#line 991 "config_parse.y"
+case 158:
+#line 1174 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    methodv  = sockscf.clientmethodv;
@@ -3005,14 +3333,14 @@ case 142:
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 144:
-#line 1000 "config_parse.y"
+case 160:
+#line 1183 "config_parse.y"
 {
       ADDMETHOD(AUTHMETHOD_NONE);
    }
 break;
-case 145:
-#line 1003 "config_parse.y"
+case 161:
+#line 1186 "config_parse.y"
 {
 #if !HAVE_GSSAPI
       yyerror("method %s requires gssapi library", AUTHMETHOD_GSSAPIs);
@@ -3021,14 +3349,14 @@ case 145:
 #endif /* !HAVE_GSSAPI */
    }
 break;
-case 146:
-#line 1010 "config_parse.y"
+case 162:
+#line 1193 "config_parse.y"
 {
       ADDMETHOD(AUTHMETHOD_UNAME);
    }
 break;
-case 147:
-#line 1013 "config_parse.y"
+case 163:
+#line 1196 "config_parse.y"
 {
 #if HAVE_LIBWRAP
       ADDMETHOD(AUTHMETHOD_RFC931);
@@ -3037,8 +3365,8 @@ case 147:
 #endif /* HAVE_LIBWRAP */
    }
 break;
-case 148:
-#line 1020 "config_parse.y"
+case 164:
+#line 1203 "config_parse.y"
 {
 #if HAVE_PAM
       ADDMETHOD(AUTHMETHOD_PAM);
@@ -3047,8 +3375,8 @@ case 148:
 #endif /* HAVE_PAM */
    }
 break;
-case 149:
-#line 1027 "config_parse.y"
+case 165:
+#line 1210 "config_parse.y"
 {
 #if HAVE_BSDAUTH
       ADDMETHOD(AUTHMETHOD_BSDAUTH);
@@ -3057,18 +3385,23 @@ case 149:
 #endif /* HAVE_PAM */
    }
 break;
-case 150:
-#line 1040 "config_parse.y"
+case 166:
+#line 1225 "config_parse.y"
 {
 
 #if !SOCKS_CLIENT
       rule.src         = src;
       rule.dst         = dst;
+
+#if HAVE_SOCKS_HOSTID
+      rule.hostid      = hostid;
+#endif /* HAVE_SOCKS_HOSTID */
+
       rule.rdr_from    = rdr_from;
       rule.rdr_to      = rdr_to;
 
 #if BAREFOOTD
-      if (bounce_to.atype == SOCKS_ADDR_NOTSET) {
+      if (bounceto.atype == SOCKS_ADDR_NOTSET) {
          if (rule.verdict == VERDICT_PASS)
             yyerror("no address traffic should bounce to has been given");
          else {
@@ -3076,125 +3409,183 @@ case 150:
              * allow no bounce-to if it is a block, as the bounce-to address
              * will not be used in any case then.
              */
-            bounce_to.atype                 = SOCKS_ADDR_IPV4;
-            bounce_to.addr.ipv4.ip.s_addr   = htonl(INADDR_ANY);
-            bounce_to.addr.ipv4.mask.s_addr = htonl(0xffffffff);
-            bounce_to.port.tcp              = bounce_to.port.udp = htons(0);
-            bounce_to.operator              = none;
+            bounceto.atype                 = SOCKS_ADDR_IPV4;
+            bounceto.addr.ipv4.ip.s_addr   = htonl(INADDR_ANY);
+            bounceto.addr.ipv4.mask.s_addr = htonl(0xffffffff);
+            bounceto.port.tcp              = bounceto.port.udp = htons(0);
+            bounceto.operator              = none;
          }
       }
 
-      rule.bounce_to = bounce_to;
+      rule.extra.bounceto = bounceto;
 #endif /* BAREFOOTD */
 
       addclientrule(&rule);
-
       rulereset();
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 152:
-#line 1076 "config_parse.y"
-{
-#if !SOCKS_CLIENT
-         checkmodule("bandwidth");
-#endif /* !SOCKS_CLIENT */
-   }
-break;
-case 153:
-#line 1081 "config_parse.y"
+case 168:
+#line 1265 "config_parse.y"
 {
 #if !BAREFOOTD
          yyerror("unsupported option");
 #endif /* !BAREFOOTD */
    }
 break;
-case 154:
-#line 1086 "config_parse.y"
+case 169:
+#line 1272 "config_parse.y"
+{ yyval.string = NULL; }
+break;
+case 171:
+#line 1277 "config_parse.y"
 {
+
 #if !SOCKS_CLIENT
-         checkmodule("redirect");
+#if !HAVE_SOCKS_HOSTID
+      yyerror("hostid rules are not supported on this system");
+#else
+      rule.src         = src;
+      rule.dst         = dst;
+
+
+      if (hostid.atype != SOCKS_ADDR_NOTSET)
+         yyerror("it does not make sense to set the hostid address in a "
+                 "hostid-rule.  Use the \"from\" address to match the hostid "
+                 "of the client");
+
+      rule.rdr_from    = rdr_from;
+      rule.rdr_to      = rdr_to;
+
+      addhostidrule(&rule);
+      rulereset();
+#endif /* HAVE_SOCKS_HOSTID */
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 155:
-#line 1093 "config_parse.y"
-{ yyval.string = NULL; }
+case 174:
+#line 1306 "config_parse.y"
+{
+#if !HAVE_SOCKS_HOSTID
+      yyerror("hostid is not supported on this system");
+#else /* HAVE_SOCKS_HOSTID */
+      addrinit(&hostid, 1);
+#endif /* HAVE_SOCKS_HOSTID */
+   }
 break;
-case 157:
-#line 1097 "config_parse.y"
+case 176:
+#line 1315 "config_parse.y"
+{
+#if !SOCKS_CLIENT && HAVE_SOCKS_HOSTID
+   rule.hostindex = yyvsp[0].number;
+#endif /* !SOCKS_CLIENT && HAVE_SOCKS_HOSTID */
+}
+break;
+case 177:
+#line 1323 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       rule.src         = src;
       rule.dst         = dst;
+
+#if HAVE_SOCKS_HOSTID
+      rule.hostid      = hostid;
+#endif /* HAVE_SOCKS_HOSTID */
+
       rule.rdr_from    = rdr_from;
       rule.rdr_to      = rdr_to;
 
-#if !SOCKS_SERVER
+#if !HAVE_SOCKS_RULES
    yyerror("socks-rules are not used in %s", PACKAGE);
-#endif /* !SOCKS_SERVER */
+#endif /* !HAVE_SOCKS_RULES */
 
       addsocksrule(&rule);
       rulereset();
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 159:
-#line 1116 "config_parse.y"
+case 183:
+#line 1353 "config_parse.y"
+{ yyval.string = NULL; }
+break;
+case 186:
+#line 1358 "config_parse.y"
 {
 #if !SOCKS_CLIENT
          checkmodule("bandwidth");
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 164:
-#line 1125 "config_parse.y"
-{
-#if !SOCKS_CLIENT
-         checkmodule("redirect");
-#endif /* !SOCKS_CLIENT */
-   }
-break;
-case 165:
-#line 1132 "config_parse.y"
-{ yyval.string = NULL; }
-break;
-case 207:
-#line 1176 "config_parse.y"
+case 187:
+#line 1363 "config_parse.y"
 {
 #if !BAREFOOTD
          yyerror("unsupported option");
 #endif /* !BAREFOOTD */
    }
 break;
-case 208:
-#line 1181 "config_parse.y"
+case 226:
+#line 1410 "config_parse.y"
+{
+#if !SOCKS_CLIENT
+         checkmodule("redirect");
+#endif /* !SOCKS_CLIENT */
+   }
+break;
+case 227:
+#line 1415 "config_parse.y"
+{
+#if !SOCKS_CLIENT
+         if (rule.verdict == VERDICT_BLOCK && !socketopt.isinternalside)
+            yyerror("it does not make sense to set a socket option for the "
+                    "external side in a rule that blocks access; the external "
+                    "side will never be accessed as the rule blocks access "
+                    "to it");
+
+         if (socketopt.isinternalside)
+            if (socketopt.info != NULL && socketopt.info->calltype == preonly)
+               yywarn("To our knowledge the socket option \"%s\" can only be "
+                      "correctly applied at pre-connection establishment "
+                      "time, but by the time this rule is matched, the "
+                      "connection will already have been established",
+                      socketopt.info == NULL ? "unknown" :
+                                               socketopt.info->name);
+
+         if (!addedsocketoption(&rule.socketoptionc,
+                                &rule.socketoptionv,
+                                &socketopt))
+            yywarn("could not add socketoption");
+#endif /* !SOCKS_CLIENT */
+   }
+break;
+case 228:
+#line 1438 "config_parse.y"
 {
 #if !SOCKS_CLIENT
          checkmodule("session");
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 209:
-#line 1188 "config_parse.y"
+case 231:
+#line 1447 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP && HAVE_OPENLDAP
-      ldap->debug = atoi(yyvsp[0].string);
+      ldap->debug = (int)yyvsp[0].number;
    }
 break;
-case 210:
-#line 1193 "config_parse.y"
+case 232:
+#line 1452 "config_parse.y"
 {
-      ldap->debug = -atoi(yyvsp[0].string);
+      ldap->debug = (int)-yyvsp[0].number;
  #else /* !HAVE_LDAP */
       yyerror("ldap debug support requires openldap support");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
 break;
-case 211:
-#line 1202 "config_parse.y"
+case 233:
+#line 1461 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3207,20 +3598,20 @@ case 211:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 212:
-#line 1215 "config_parse.y"
+case 234:
+#line 1474 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP && HAVE_OPENLDAP
-      ldap->mdepth = atoi(yyvsp[0].string);
+      ldap->mdepth = (int)yyvsp[0].number;
 #else /* !HAVE_LDAP */
       yyerror("ldap debug support requires openldap support");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
 break;
-case 213:
-#line 1226 "config_parse.y"
+case 235:
+#line 1485 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3233,8 +3624,8 @@ case 213:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 214:
-#line 1239 "config_parse.y"
+case 236:
+#line 1498 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3247,8 +3638,8 @@ case 214:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 215:
-#line 1252 "config_parse.y"
+case 237:
+#line 1511 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3260,8 +3651,8 @@ case 215:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 216:
-#line 1264 "config_parse.y"
+case 238:
+#line 1523 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3273,8 +3664,8 @@ case 216:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 217:
-#line 1276 "config_parse.y"
+case 239:
+#line 1535 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3286,8 +3677,8 @@ case 217:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 218:
-#line 1288 "config_parse.y"
+case 240:
+#line 1547 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3299,40 +3690,40 @@ case 218:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 219:
-#line 1300 "config_parse.y"
+case 241:
+#line 1559 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-   ldap->port = atoi(yyvsp[0].string);
+   ldap->port = (int)yyvsp[0].number;
 #else /* !HAVE_LDAP */
    yyerror("no LDAP support configured for %s/server", PACKAGE);
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
 break;
-case 220:
-#line 1311 "config_parse.y"
+case 242:
+#line 1570 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-   ldap->portssl = atoi(yyvsp[0].string);
+   ldap->portssl = (int)yyvsp[0].number;
 #else /* !HAVE_LDAP */
    yyerror("no LDAP support configured for %s/server", PACKAGE);
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
 break;
-case 221:
-#line 1322 "config_parse.y"
+case 243:
+#line 1581 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
       ldap->ssl = 1;
    }
 break;
-case 222:
-#line 1327 "config_parse.y"
+case 244:
+#line 1586 "config_parse.y"
 {
       ldap->ssl = 0;
 #else /* !HAVE_LDAP */
@@ -3341,16 +3732,16 @@ case 222:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 223:
-#line 1336 "config_parse.y"
+case 245:
+#line 1595 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
       ldap->auto_off = 1;
    }
 break;
-case 224:
-#line 1341 "config_parse.y"
+case 246:
+#line 1600 "config_parse.y"
 {
       ldap->auto_off = 0;
 #else /* !HAVE_LDAP */
@@ -3359,16 +3750,16 @@ case 224:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 225:
-#line 1350 "config_parse.y"
+case 247:
+#line 1609 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
       ldap->certcheck = 1;
    }
 break;
-case 226:
-#line 1355 "config_parse.y"
+case 248:
+#line 1614 "config_parse.y"
 {
       ldap->certcheck = 0;
 #else /* !HAVE_LDAP */
@@ -3377,16 +3768,16 @@ case 226:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 227:
-#line 1364 "config_parse.y"
+case 249:
+#line 1623 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
       ldap->keeprealm = 1;
    }
 break;
-case 228:
-#line 1369 "config_parse.y"
+case 250:
+#line 1628 "config_parse.y"
 {
       ldap->keeprealm = 0;
 #else /* !HAVE_LDAP */
@@ -3395,8 +3786,8 @@ case 228:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 229:
-#line 1378 "config_parse.y"
+case 251:
+#line 1637 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3409,8 +3800,8 @@ case 229:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 230:
-#line 1391 "config_parse.y"
+case 252:
+#line 1650 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3423,8 +3814,8 @@ case 230:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 231:
-#line 1404 "config_parse.y"
+case 253:
+#line 1663 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3437,8 +3828,8 @@ case 231:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 232:
-#line 1417 "config_parse.y"
+case 254:
+#line 1676 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3451,8 +3842,8 @@ case 232:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 233:
-#line 1430 "config_parse.y"
+case 255:
+#line 1689 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3465,8 +3856,8 @@ case 233:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 234:
-#line 1443 "config_parse.y"
+case 256:
+#line 1702 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3479,8 +3870,8 @@ case 234:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 235:
-#line 1456 "config_parse.y"
+case 257:
+#line 1715 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3493,8 +3884,8 @@ case 235:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 236:
-#line 1469 "config_parse.y"
+case 258:
+#line 1728 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3507,8 +3898,8 @@ case 236:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 237:
-#line 1482 "config_parse.y"
+case 259:
+#line 1741 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3520,11 +3911,13 @@ case 237:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 238:
-#line 1494 "config_parse.y"
+case 260:
+#line 1753 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
+      checkmodule("ldap");
+
       if (addlinkedname(&rule.ldapgroup, hextoutf8(yyvsp[0].string, 1)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
@@ -3533,11 +3926,13 @@ case 238:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 239:
-#line 1506 "config_parse.y"
+case 261:
+#line 1767 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
+      checkmodule("ldap");
+
       if (addlinkedname(&rule.ldapgroup, asciitoutf8(yyvsp[0].string)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
@@ -3546,8 +3941,8 @@ case 239:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 240:
-#line 1518 "config_parse.y"
+case 262:
+#line 1781 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -3559,8 +3954,8 @@ case 240:
 #endif /* SOCKS_SERVER */
    }
 break;
-case 241:
-#line 1530 "config_parse.y"
+case 263:
+#line 1793 "config_parse.y"
 {
 #if HAVE_LDAP
 #if SOCKS_SERVER
@@ -3575,8 +3970,8 @@ case 241:
 #endif /* HAVE_LDAP */
    }
 break;
-case 243:
-#line 1548 "config_parse.y"
+case 265:
+#line 1811 "config_parse.y"
 {
 #if HAVE_GSSAPI
       gssapiencryption->nec = 1;
@@ -3585,71 +3980,71 @@ case 243:
 #endif /* HAVE_GSSAPI */
    }
 break;
-case 246:
-#line 1562 "config_parse.y"
+case 268:
+#line 1825 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ruleinit(&rule);
       rule.verdict   = VERDICT_BLOCK;
    }
 break;
-case 247:
-#line 1567 "config_parse.y"
+case 269:
+#line 1830 "config_parse.y"
 {
       ruleinit(&rule);
       rule.verdict   = VERDICT_PASS;
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 251:
-#line 1581 "config_parse.y"
+case 273:
+#line 1844 "config_parse.y"
 {
          command->bind = 1;
    }
 break;
-case 252:
-#line 1584 "config_parse.y"
+case 274:
+#line 1847 "config_parse.y"
 {
          command->connect = 1;
    }
 break;
-case 253:
-#line 1587 "config_parse.y"
+case 275:
+#line 1850 "config_parse.y"
 {
          command->udpassociate = 1;
    }
 break;
-case 254:
-#line 1593 "config_parse.y"
+case 276:
+#line 1856 "config_parse.y"
 {
          command->bindreply = 1;
    }
 break;
-case 255:
-#line 1597 "config_parse.y"
+case 277:
+#line 1860 "config_parse.y"
 {
          command->udpreply = 1;
    }
 break;
-case 259:
-#line 1610 "config_parse.y"
+case 281:
+#line 1873 "config_parse.y"
 {
       protocol->tcp = 1;
    }
 break;
-case 260:
-#line 1613 "config_parse.y"
+case 282:
+#line 1876 "config_parse.y"
 {
       protocol->udp = 1;
    }
 break;
-case 266:
-#line 1630 "config_parse.y"
+case 288:
+#line 1893 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    static shmem_object_t ssinit;
 
-   CHECKNUMBER(yyvsp[0].string, >=, 0);
+   CHECKNUMBER(yyvsp[0].number, >=, 0);
 
    if (pidismother(sockscf.state.pid) == 1) {
       if ((rule.ss = malloc(sizeof(*rule.ss))) == NULL)
@@ -3657,7 +4052,7 @@ case 266:
          (unsigned long)sizeof(*rule.ss));
 
       *rule.ss                       = ssinit;
-      rule.ss->object.ss.maxsessions = (size_t)atol(yyvsp[0].string);
+      rule.ss->object.ss.maxsessions = yyvsp[0].number;
    }
    else
       rule.ss = &ssinit;
@@ -3666,13 +4061,13 @@ case 266:
 #endif /* !SOCKS_CLIENT */
 }
 break;
-case 267:
-#line 1652 "config_parse.y"
+case 289:
+#line 1915 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    static shmem_object_t bwmeminit;
 
-   CHECKNUMBER(yyvsp[0].string, >=, 0);
+   CHECKNUMBER(yyvsp[0].number, >=, 0);
 
    if (pidismother(sockscf.state.pid) == 1) {
       if ((rule.bw = malloc(sizeof(*rule.bw))) == NULL)
@@ -3680,7 +4075,7 @@ case 267:
          (unsigned long)sizeof(*rule.bw));
 
       *rule.bw                  = bwmeminit;
-      rule.bw->object.bw.maxbps = (size_t)atol(yyvsp[0].string);
+      rule.bw->object.bw.maxbps = yyvsp[0].number;
    }
    else
       rule.bw = &bwmeminit;
@@ -3689,40 +4084,40 @@ case 267:
 #endif /* !SOCKS_CLIENT */
 }
 break;
-case 269:
-#line 1678 "config_parse.y"
+case 291:
+#line 1941 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    rule.log.connect = 1;
    }
 break;
-case 270:
-#line 1682 "config_parse.y"
+case 292:
+#line 1945 "config_parse.y"
 {
          rule.log.data = 1;
    }
 break;
-case 271:
-#line 1685 "config_parse.y"
+case 293:
+#line 1948 "config_parse.y"
 {
          rule.log.disconnect = 1;
    }
 break;
-case 272:
-#line 1688 "config_parse.y"
+case 294:
+#line 1951 "config_parse.y"
 {
          rule.log.error = 1;
    }
 break;
-case 273:
-#line 1691 "config_parse.y"
+case 295:
+#line 1954 "config_parse.y"
 {
          rule.log.iooperation = 1;
 #endif /* !SOCKS_CLIENT */
    }
 break;
-case 276:
-#line 1702 "config_parse.y"
+case 298:
+#line 1965 "config_parse.y"
 {
 #if HAVE_PAM && (!SOCKS_CLIENT)
       if (strlen(yyvsp[0].string) >= sizeof(rule.state.pamservicename))
@@ -3733,8 +4128,8 @@ case 276:
 #endif /* HAVE_PAM && (!SOCKS_CLIENT) */
    }
 break;
-case 277:
-#line 1713 "config_parse.y"
+case 299:
+#line 1976 "config_parse.y"
 {
 #if HAVE_BSDAUTH && SOCKS_SERVER
       if (strlen(yyvsp[0].string) >= sizeof(rule.state.bsdauthstylename))
@@ -3745,8 +4140,8 @@ case 277:
 #endif /* HAVE_BSDAUTH && SOCKS_SERVER */
    }
 break;
-case 278:
-#line 1725 "config_parse.y"
+case 300:
+#line 1988 "config_parse.y"
 {
 #if HAVE_GSSAPI
       if (strlen(yyvsp[0].string) >= sizeof(state.gssapiservicename))
@@ -3757,8 +4152,8 @@ case 278:
 #endif /* HAVE_GSSAPI */
    }
 break;
-case 279:
-#line 1736 "config_parse.y"
+case 301:
+#line 1999 "config_parse.y"
 {
 #if HAVE_GSSAPI
 #if SOCKS_SERVER
@@ -3773,8 +4168,8 @@ case 279:
 #endif /* HAVE_GSSAPI */
    }
 break;
-case 281:
-#line 1754 "config_parse.y"
+case 303:
+#line 2017 "config_parse.y"
 {
 #if HAVE_GSSAPI
       gssapiencryption->clear           = 1;
@@ -3782,26 +4177,26 @@ case 281:
       gssapiencryption->confidentiality = 1;
    }
 break;
-case 282:
-#line 1760 "config_parse.y"
+case 304:
+#line 2023 "config_parse.y"
 {
       gssapiencryption->clear = 1;
    }
 break;
-case 283:
-#line 1763 "config_parse.y"
+case 305:
+#line 2026 "config_parse.y"
 {
       gssapiencryption->integrity = 1;
    }
 break;
-case 284:
-#line 1766 "config_parse.y"
+case 306:
+#line 2029 "config_parse.y"
 {
       gssapiencryption->confidentiality = 1;
    }
 break;
-case 285:
-#line 1769 "config_parse.y"
+case 307:
+#line 2032 "config_parse.y"
 {
       yyerror("gssapi per-message encryption not supported");
 #else
@@ -3809,12 +4204,13 @@ case 285:
 #endif /* HAVE_GSSAPI */
    }
 break;
-case 289:
-#line 1784 "config_parse.y"
+case 311:
+#line 2047 "config_parse.y"
 {
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
       struct request_info request;
       char libwrap[LIBWRAPBUF];
+      int errno_s, devnull;
 
       if (strlen(yyvsp[0].string) >= sizeof(rule.libwrap))
          yyerror("libwrapline too long, make LIBWRAPBUF bigger");
@@ -3824,68 +4220,89 @@ case 289:
       SASSERTX(strlen(rule.libwrap) < sizeof(libwrap));
       strcpy(libwrap, rule.libwrap);
 
+      devnull = open("/dev/null", O_RDWR, 0);
       ++dry_run;
-      request_init(&request, RQ_FILE, -1, RQ_DAEMON, __progname, 0);
+      errno_s = errno;
+
+      errno = 0;
+
+      request_init(&request, RQ_FILE, devnull, RQ_DAEMON, __progname, 0);
       if (setjmp(tcpd_buf) != 0)
          yyerror("bad libwrap line");
       process_options(libwrap, &request);
+
+      if (errno != 0)
+         yywarn("possible libwrap/tcp-wrappers related configuration error "
+                "detected here:");
       --dry_run;
+      close(devnull);
+      errno = errno_s;
 
 #else
       yyerror("libwrap support not compiled in");
 #endif /* HAVE_LIBWRAP && (!SOCKS_CLIENT) */
+
    }
 break;
-case 304:
-#line 1838 "config_parse.y"
+case 326:
+#line 2112 "config_parse.y"
+{
+         if (!addedsocketoption(&route.socketoptionc,
+                                &route.socketoptionv,
+                                &socketopt))
+            yywarn("could not add socketoption");
+   }
+break;
+case 327:
+#line 2120 "config_parse.y"
 { yyval.string = NULL; }
 break;
-case 306:
-#line 1842 "config_parse.y"
+case 329:
+#line 2124 "config_parse.y"
 {
       addrinit(&src, 1);
    }
 break;
-case 307:
-#line 1847 "config_parse.y"
+case 330:
+#line 2129 "config_parse.y"
 {
       addrinit(&dst,
 #if SOCKS_SERVER
                1
-#else /* BAREFOOT || COVENANT */
+#else /* BAREFOOTD || COVENANT */
                0 /* the address the server should bind, so must be /32. */
-#endif /*  BAREFOOT || COVENANT */
+#endif /*  BAREFOOTD || COVENANT */
       );
    }
 break;
-case 308:
-#line 1858 "config_parse.y"
+case 331:
+#line 2140 "config_parse.y"
 {
       addrinit(&rdr_from, 1);
    }
 break;
-case 309:
-#line 1863 "config_parse.y"
+case 332:
+#line 2145 "config_parse.y"
 {
       addrinit(&rdr_to, 1);
    }
 break;
-case 310:
-#line 1868 "config_parse.y"
+case 333:
+#line 2150 "config_parse.y"
 {
 #if BAREFOOTD
-      addrinit(&bounce_to, 0);
+      addrinit(&bounceto, 0);
 #endif /* BAREFOOTD */
    }
 break;
-case 311:
-#line 1876 "config_parse.y"
+case 334:
+#line 2158 "config_parse.y"
 {
       gwaddrinit(&gw);
    }
 break;
-case 316:
-#line 1888 "config_parse.y"
+case 339:
+#line 2170 "config_parse.y"
 {
          if (netmask_required)
             yyerror("no netmask given");
@@ -3893,8 +4310,8 @@ case 316:
             netmask->s_addr = htonl(0xffffffff);
        }
 break;
-case 325:
-#line 1906 "config_parse.y"
+case 348:
+#line 2188 "config_parse.y"
 {
       *atype = SOCKS_ADDR_IPV4;
 
@@ -3902,25 +4319,24 @@ case 325:
          yyerror("bad address: %s", yyvsp[0].string);
    }
 break;
-case 326:
-#line 1915 "config_parse.y"
+case 349:
+#line 2197 "config_parse.y"
 {
-      if (atoi(yyvsp[0].string) < 0 || atoi(yyvsp[0].string) > 32)
-         yyerror("bad netmask: %s", yyvsp[0].string);
+      if (yyvsp[0].number < 0 || yyvsp[0].number > 32)
+         yyerror("bad netmask: %ld", (long)yyvsp[0].number);
 
-      netmask->s_addr
-      = atoi(yyvsp[0].string) == 0 ? 0 : htonl(0xffffffff << (32 - atoi(yyvsp[0].string)));
+      netmask->s_addr = yyvsp[0].number == 0 ? 0 : htonl(0xffffffff << (32 - yyvsp[0].number));
    }
 break;
-case 327:
-#line 1922 "config_parse.y"
+case 350:
+#line 2203 "config_parse.y"
 {
          if (!inet_aton(yyvsp[0].string, netmask))
             yyerror("bad netmask: %s", yyvsp[0].string);
    }
 break;
-case 328:
-#line 1928 "config_parse.y"
+case 351:
+#line 2209 "config_parse.y"
 {
       *atype = SOCKS_ADDR_DOMAIN;
 
@@ -3930,8 +4346,8 @@ case 328:
       strcpy(domain, yyvsp[0].string);
    }
 break;
-case 329:
-#line 1938 "config_parse.y"
+case 352:
+#line 2219 "config_parse.y"
 {
       *atype = SOCKS_ADDR_IFNAME;
 
@@ -3941,8 +4357,8 @@ case 329:
       strcpy(ifname, yyvsp[0].string);
    }
 break;
-case 330:
-#line 1949 "config_parse.y"
+case 353:
+#line 2230 "config_parse.y"
 {
       *atype = SOCKS_ADDR_DOMAIN;
 
@@ -3953,8 +4369,8 @@ case 330:
       proxyprotocol->direct = 1;
    }
 break;
-case 331:
-#line 1960 "config_parse.y"
+case 354:
+#line 2241 "config_parse.y"
 {
       *atype = SOCKS_ADDR_URL;
 
@@ -3964,40 +4380,40 @@ case 331:
       strcpy(url, yyvsp[0].string);
    }
 break;
-case 332:
-#line 1971 "config_parse.y"
-{ yyval.string = NULL; }
+case 355:
+#line 2252 "config_parse.y"
+{ yyval.number = 0; }
 break;
-case 336:
-#line 1977 "config_parse.y"
-{ yyval.string = NULL; }
+case 359:
+#line 2258 "config_parse.y"
+{ yyval.number = 0; }
 break;
-case 340:
-#line 1985 "config_parse.y"
+case 363:
+#line 2266 "config_parse.y"
 {
    if (ntohs(*port_tcp) > ntohs(ruleaddr->portend))
       yyerror("end port (%u) can not be less than start port (%u)",
       ntohs(*port_tcp), ntohs(ruleaddr->portend));
    }
 break;
-case 341:
-#line 1993 "config_parse.y"
+case 364:
+#line 2274 "config_parse.y"
 {
-      CHECKPORTNUMBER(yyvsp[0].string);
-      *port_tcp   = htons((in_port_t)atoi(yyvsp[0].string));
-      *port_udp   = htons((in_port_t)atoi(yyvsp[0].string));
+      CHECKPORTNUMBER(yyvsp[0].number);
+      *port_tcp   = htons((in_port_t)yyvsp[0].number);
+      *port_udp   = htons((in_port_t)yyvsp[0].number);
    }
 break;
-case 342:
-#line 2000 "config_parse.y"
+case 365:
+#line 2281 "config_parse.y"
 {
-      CHECKPORTNUMBER(yyvsp[0].string);
-      ruleaddr->portend    = htons((in_port_t)atoi(yyvsp[0].string));
+      CHECKPORTNUMBER(yyvsp[0].number);
+      ruleaddr->portend    = htons((in_port_t)yyvsp[0].number);
       ruleaddr->operator   = range;
    }
 break;
-case 343:
-#line 2007 "config_parse.y"
+case 366:
+#line 2288 "config_parse.y"
 {
       struct servent   *service;
 
@@ -4025,38 +4441,46 @@ case 343:
          *port_tcp = *port_udp;
       else if (*port_udp == htons(0))
          *port_udp = *port_tcp;
+
+      yyval.number = (size_t)*port_udp;
    }
 break;
-case 344:
-#line 2038 "config_parse.y"
+case 367:
+#line 2321 "config_parse.y"
 {
       *operator = string2operator(yyvsp[0].string);
    }
 break;
-case 346:
-#line 2046 "config_parse.y"
+case 369:
+#line 2330 "config_parse.y"
 {
 #if SOCKS_SERVER
-   CHECKPORTNUMBER(yyvsp[0].string);
-   rule.udprange.start = htons((in_port_t)atoi(yyvsp[0].string));
+   CHECKPORTNUMBER(yyvsp[0].number);
+   rule.udprange.start = htons((in_port_t)yyvsp[0].number);
 #endif /* SOCKS_SERVER */
    }
 break;
-case 347:
-#line 2054 "config_parse.y"
+case 370:
+#line 2338 "config_parse.y"
 {
 #if SOCKS_SERVER
-   CHECKPORTNUMBER(yyvsp[0].string);
-   rule.udprange.end = htons((in_port_t)atoi(yyvsp[0].string));
+   CHECKPORTNUMBER(yyvsp[0].number);
+   rule.udprange.end = htons((in_port_t)yyvsp[0].number);
    rule.udprange.op  = range;
 
    if (ntohs(rule.udprange.start) > ntohs(rule.udprange.end))
-      yyerror("udp end port (%s) can not be less than udp start port (%u)",
-      yyvsp[0].string, ntohs(rule.udprange.start));
+      yyerror("end port (%d) can not be less than start port (%u)",
+              (int)yyvsp[0].number, ntohs(rule.udprange.start));
 #endif /* SOCKS_SERVER */
    }
 break;
-#line 4007 "config_parse.c"
+case 371:
+#line 2351 "config_parse.y"
+{
+      addnumber(&numberc, &numberv, yyvsp[0].number);
+   }
+break;
+#line 4431 "config_parse.c"
     }
     yyssp -= yym;
     yystate = *yyssp;

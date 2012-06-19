@@ -1,11 +1,11 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.536 2011/08/03 17:11:46 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.603 2012/06/01 19:59:26 karls Exp $)
 
-version=1.3.2
+version=1.4.0
 RPMVERSION1="$version"
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="1"
+prerelease="1"
 if test x$prerelease != x; then
     prename="pre$prerelease"
     version="${version}-$prename"
@@ -15,11 +15,49 @@ else
     RPMVERSION2="1"
 fi
 
-echo "Configuring Dante ${version}:"
+unset initCC initCPP initCFLAGS initCPPFLAGS initLDFLAGS initLIBS
+if test x"$CC" != x; then
+    initCC="($CC)"
+fi
+if test x"$CPP" != x; then
+    initCPP="($CPP)"
+fi
+if test x"$CFLAGS" != x; then
+    initCFLAGS="($CFLAGS)"
+fi
+if test x"$CPPFLAGS" != x; then
+    initCPPFLAGS="($CPPFLAGS)"
+fi
+if test x"$LDFLAGS" != x; then
+    initLDFLAGS="($LDFLAGS)"
+fi
+if test x"$LIBS" != x; then
+    initLIBS="($LIBS)"
+fi
+
+APP=dante
+UCAPP=Dante
+SERVNAME=sockd
+echo "Configuring $UCAPP ${version}:"
 
 AM_INIT_AUTOMAKE(dante, ${version})
 AC_CONFIG_SRCDIR(include/common.h)
 AM_CONFIG_HEADER(include/autoconf.h)
+
+AC_CONFIG_MACRO_DIR([m4])
+
+if test x`uname` = xDarwin; then
+   #XXX problem with -MD and -arch values
+   enable_dependency_tracking=no
+   AC_MSG_WARN([disabling dependency tracking on this platform])
+fi
+
+#NOTE: save CFLAGS; wish to compile without -O2 when debugging
+oCFLAGS="$CFLAGS"
+unset CFLAGS
+LT_INIT
+autoconf_compflags="$CFLAGS"
+CFLAGS=$oCFLAGS
 
 AC_SUBST(RPMVERSION1)
 AC_SUBST(RPMVERSION2)
@@ -27,21 +65,20 @@ AC_SUBST(RPMVERSION2)
 #compile silently, if possible
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
+AH_TOP([/* avoid warnings on Android */
+#ifdef HAVE_ANDROID_OS
+# undef /*XXX protect against redefinition */ HAVE_SCHED_SETSCHEDULER
+# undef /*XXX protect against redefinition */ HAVE_MALLOC_H
+#endif /* HAVE_ANDROID_OS */
+])
+
 AC_DEFINE(BAREFOOTD, 0, [we are Dante])
 AC_DEFINE(COVENANT, 0, [we are Dante])
 m4_define(dantebuild, yes)
 
-if test x`uname` = xDarwin; then
-   #XXX problem with -MD and -arch values
-   enable_dependency_tracking=no
-fi
-
-#NOTE: save CFLAGS; wish to compile without -O2 when debugging
-oCFLAGS=$CFLAGS
-unset CFLAGS
-AC_PROG_LIBTOOL
-autoconf_compflags=$CFLAGS
-CFLAGS=$oCFLAGS
+ucase () {
+      tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'
+}
 
 AC_ARG_ENABLE(release,
 [  --enable-release        build prerelease as full release],
@@ -52,14 +89,11 @@ if test x$prerelease != x; then
 else
     AC_DEFINE(PRERELEASE, 0, [software prerelease])
 fi
-
-AC_PROG_CPP
-
 AM_CONDITIONAL(PRERELEASE, test x$prerelease != x)
 
 #known keywords for --enable/disable-foo(=yes/no)?
 LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77|option_checking|silent_rules"
-KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile|livedebug"
+KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|coverage|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile|livedebug|clientbuild|serverbuild|client|server"
 for keyword in `set | egrep '^enable_' | sed -e 's/^enable_//' | \
                 sed -e 's/=.*$//'`; do
     echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
@@ -73,8 +107,8 @@ for keyword in `set | egrep '^enable_' | sed -e 's/^enable_//' | \
 done
 
 #known keywords for --with/without-foo?
-LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx"
-KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|ldap|ldap_path|sasl|sasl_path|glibc_secure"
+LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx|sysroot"
+KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|ldap|ldap_path|sasl|sasl_path|glibc_secure|libwrap"
 for keyword in `set | egrep '^with_' | sed -e 's/^with_//' | \
                 sed -e 's/=.*$//'`; do
     echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
@@ -86,6 +120,9 @@ for keyword in `set | egrep '^with_' | sed -e 's/^with_//' | \
 	fi
     fi
 done
+
+dnl compiler tests, sets 'warn' with warnings, added to CFLAGS below
+m4_include(compiler.m4)
 
 case $host in
     *-*-osf*)
@@ -103,308 +140,47 @@ case $host in
 	;;
 esac
 
-case $host in
-    *-*-darwin*)
-	AC_DEFINE(HAVE_DARWIN, 1, [enable darwin/osx workarounds])
-	;;
-
-    alpha*-dec-osf*)
-	CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE_EXTENDED -DBYTE_ORDER=LITTLE_ENDIAN -D_POSIX_SOURCE -D_POSIX_C_SOURCE=199309L -D_OSF_SOURCE"
-	;;
-
-    *-*-hpux*)
-	#HPUX needs _PROTOTYPES to include prototypes
-	#for configure (for gcc and cc)
-	CPPFLAGS="${CPPFLAGS} -D_PROTOTYPES"
-	;;
-
-    *-*-openbsd*)
-	AC_DEFINE(HAVE_OPENBSD_BUGS, 1, [bug workaround])
-	;;
-
-    *-*-solaris*)
-	AC_DEFINE(HAVE_SENDMSG_DEADLOCK, 1, [bug workaround])
-	AC_DEFINE(HAVE_SOLARIS_BUGS, 1, [bug workaround])
-	CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE=600 -D_XOPEN_SOURCE_EXTENDED"
-	CPPFLAGS="${CPPFLAGS} -D__EXTENSIONS__ -DBSD_COMP"
-	;;
-
-    *-*-linux-*)
-	AC_DEFINE(HAVE_LINUX_BUGS, 1, [bug workaround])
-	CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE=600 -D_XOPEN_SOURCE_EXTENDED"
-#	CPPFLAGS="${CPPFLAGS} -D_FORTIFY_SOURCE=2"
-	CPPFLAGS="${CPPFLAGS} -D_BSD_SOURCE"
-	if test x"$GCC" != x; then
-		#XXX want to avoid extension used in struct cmsghdr
-		CPPFLAGS="${CPPFLAGS} -U__GNUC__ -D__GNUC__=0"
-	fi
-	AC_DEFINE(SPT_TYPE, SPT_REUSEARGV, [setproctitle replacement type])
-	;;
-
-    *-*-aix*)
-	OSPIDFILE="/etc/sockd.pid"
-	AC_DEFINE(HAVE_SYSTEM_XMSG_MAGIC, 1, [platform workaround])
-	AC_DEFINE(_ALL_SOURCE, 1, [contents from old AC_AIX test])
-	CPPFLAGS="${CPPFLAGS}${CPPFLAGS+ } -DXOPEN_SOURCE_EXTENDED=1"
-	;;
-esac
-
 #XXX add proper test for this?
 if test x$no_acceptlock != xt; then
     AC_DEFINE(NEED_ACCEPTLOCK, 1, [platform workaround])
 fi
 
-AC_MSG_CHECKING([for compiler flags])
-case $host in
-    #XXX check for compiler type, not architecture
-    *-*-solaris*)
-	if test "x$GCC" = x; then
-	    #-xs provides allows easier debugging with gdb
-	    comp_flags="-Xt -xs" #XXX -Xt needed to compile?
-	    have_suncc=t
-	fi
-	AC_MSG_RESULT([$comp_flags])
-    ;;
-
-    alphaev6-dec-osf*)
-	if test "x$GCC" = x; then
-	    comp_flags="-std1"
-	fi
-	AC_MSG_RESULT([$comp_flags])
-    ;;
-
-    alpha*-dec-osf*) #XXX is it possible to get it to work with -newc?
-	if test "x$GCC" = x; then
-	    comp_flags="-std1 -oldc"
-	fi
-	AC_MSG_RESULT([$comp_flags])
-    ;;
-
-    *-*-hpux*)
-	if test "x$GCC" = x; then
-	    CPPFLAGS="${CPPFLAGS} -D_XOPEN_SOURCE"
-	    #XXX when cc is used as CPP it needs -Ae to work
-	    #    for L_SOCKPROTO; add -Ae to CPPFLAGS.
-	    #    This won't work if CPP is specified by hand
-	    #    and is something else than cc (when CC is hp cc)
-#	    comp_flags="-Ae"
-	    CPPFLAGS="${CPPFLAGS} -Ae"
-	fi
-	AC_MSG_RESULT([$comp_flags])
-	;;
-
-    *)
-	AC_MSG_RESULT([none])
-    ;;
-    #XXX make sure compiling with compiler options works
-esac
-
-AC_MSG_CHECKING([for support for -pipe compiler flag])
-oCFLAGS=$CFLAGS
-CFLAGS="$CFLAGS -pipe"
-AC_TRY_RUN([
-int main()
-{
-	return 0;
-}], [AC_MSG_RESULT([yes])
-     comp_flags="${comp_flags} -pipe"],
-    AC_MSG_RESULT([no]))
-CFLAGS="$oCFLAGS"
-
-AC_MSG_CHECKING([for support for -Wbounded compiler flag])
-oCFLAGS=$CFLAGS
-CFLAGS="$CFLAGS -Wbounded"
-AC_TRY_RUN([
-int main()
-{
-        return 0;
-}], [AC_MSG_RESULT([yes])
-     comp_flags="${comp_flags} -Wbounded"],
-    [AC_MSG_RESULT([no])
-     AC_DEFINE(__bounded__(a,b,c), , [empty __bounded__ macro])])
-CFLAGS="$oCFLAGS"
-
-AC_MSG_CHECKING([for compilation with debugging])
-AC_ARG_ENABLE(debug,
-[  --enable-debug          compile with debugging support],
-[debug_enabled=t],
-[if test x$prerelease != x; then
-    debug_enabled=t
- fi])
-
-unset have_livedebug
-AC_MSG_CHECKING([for live debugging])
-AC_ARG_ENABLE(livedebug,
-[  --enable-livedebug      enable low-overhead debugging mode],
-[have_livedebug=t
- debug_enabled=t
- AC_DEFINE(HAVE_LIVEDEBUG, 1, [low-overhead debugging enabled])])
-
-if test x$debug_enabled = xt; then
-    #no optimization wanted
-    if test $ac_cv_prog_cc_g = yes; then
-	CFLAGS="$CFLAGS -g"
-    fi
-    CPPFLAGS="$CPPFLAGS${CPPFLAGS:+ }-DDEBUG=1"
+AC_MSG_CHECKING([whether client compilation should be disabled])
+AC_ARG_ENABLE(client,
+[  --disable-client        disable compilation of client library],
+[if test x$enableval = xno; then
+    no_clientbuild=t
     AC_MSG_RESULT([yes])
 else
     AC_MSG_RESULT([no])
-    #autoconf_compflags is set to "-g -O2" with GCC
-    #override CFLAGS when running configure to avoid this
-    CPPFLAGS="$CPPFLAGS${CPPFLAGS:+ }-DDEBUG=0"
-    CFLAGS="$CFLAGS $autoconf_compflags"
-fi
-
-#-Wall ?
-AC_MSG_CHECKING([for warning flags])
-AC_ARG_ENABLE(warnings,
-[  --enable-warnings       show compilation warnings],
-[enable_warnings=t],
-[if test x$prerelease != x; then
-    enable_warnings=t
- fi])
-
-#construct warning flags in $warn
-if test x$enable_warnings != x; then
-    #try to enable compiler specific warning flags
-    if test "x$GCC" = x; then
-	case $host in
-	    alpha*-dec-osf*) #osf cc
-#		warn="-w0 -check -portable -warnprotos"
-		true
-	    ;;
-
-	    *-*-hpux*)
-		warn="-v"
-	    ;;
-
-	    *-*-solaris*)
-		warn="-v"
-		true
-	    ;;
-
-	    *-*-irix*) #sgi cc
-		warn="-fullwarn"
-	    ;;
-
-	    *) #try -Wall (gcc)
-		warn="-Wall"
-	    ;;
-	esac
-    else
-	#gcc warnings
-	warn="-Wall -Wformat -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
-	#warn="$warn -Wold-style-cast -Winline -Waggregate-return -Wconversion -Wwrite-strings -Wtraditional -Wshadow"
+fi],
+[AC_MSG_RESULT([no])])
+AC_MSG_CHECKING([whether server compilation should be disabled])
+AC_ARG_ENABLE(server,
+[  --disable-server        disable compilation of server],
+[if test x$enableval = xno; then
+    if test x"${no_clientbuild}" = xt; then
+       AC_MSG_WARN(cannot disable both client and server compilation)
+       exit 1
     fi
-
-    oCFLAGS=$CFLAGS
-    CFLAGS="$CFLAGS $warn"
-    #make sure compilation is still possible
-    AC_TRY_COMPILE([], [],
-		   [AC_MSG_RESULT([$warn])],
-		   [AC_MSG_RESULT([none])
-		    unset warn])
-    CFLAGS=$oCFLAGS
-else
-    AC_MSG_RESULT([none])
-fi
-
-#for solaris, generate 64-bit binaries if running in 64-bit mode.
-#building 32-bit binaries (the default) causes problems with
-#LD_PRELOAD if running in a 64-bit environment.
-#XXX more general solution would be to build and install both
-unset sol64
-case $host in
-     *-*-solaris*)
-	if test x`isainfo -b` = x64; then
-		ISA64DIR=`isainfo -n`
-		if test x"$ISA64DIR" != x; then
-			sol64=t
-			AC_SUBST(ISA64DIR)
-			AC_MSG_WARN([building for 64-bit addressing model])
-		fi
-	fi
-     ;;
-esac
-
-#NOTE: set warnings at the bottom; might interfere with tests
-CFLAGS="$CFLAGS $comp_flags"
-
-#-DDIAGNOSTICS?
-AC_MSG_CHECKING([for compliation with DIAGNOSTIC])
-AH_TEMPLATE([DIAGNOSTIC], [for debugging])
-AC_ARG_ENABLE(diagnostic,
-[  --enable-diagnostic     enable diagnostic],
-[if test x"${have_livedebug}" != x; then
-    AC_MSG_WARN([--enable-livedebug cannot be used with --enable-diagnostic])
-    exit 1
- fi
- AC_DEFINE(DIAGNOSTIC, 1)
- AC_MSG_RESULT([yes])],
-[if test x$prerelease != x; then
-    AC_DEFINE(DIAGNOSTIC, 1)
+    no_serverbuild=t
     AC_MSG_RESULT([yes])
- else
-    AC_DEFINE(DIAGNOSTIC, 0)
+else
     AC_MSG_RESULT([no])
- fi])
-
-AC_MSG_CHECKING([for profiled compilation])
-AC_ARG_ENABLE(profiling,
-[  --enable-profiling      compile with profiling support in server],
-[AC_DEFINE(HAVE_PROFILING, 1, [for profiling])
- LDFLAGS="$LDFLAGS${LDFLAGS:+ } -pg"
- CFLAGS="$CFLAGS${CFLAGS:+ } -pg -DPROFILING"
- AC_MSG_RESULT([yes])
-
- case $host in
-     *-*-openbsd* | *-*-freebsd*)
-	#static linking, disable server preloading
-	no_preload_server=t
-	#openbsd and freebsd appear to be happier if -lc is included
-	#when profiling is enabled
-	LIBS="$LIBS${LIBS:+ }-lc"
-	;;
- esac],
+fi],
 [AC_MSG_RESULT([no])])
 
-AC_ARG_ENABLE(linting,
-[  --enable-linting        enable lint],
-[AC_CHECK_PROG(LINT, lint, lint)
- if test x"$LINT" = x; then
-     AC_MSG_WARN([linting requested, but lint not found])
- else
-     s_linting=t
-     case $host in
-	 *-*-openbsd*)
-	     LINTFLAGS="-abcebprxz"
-	     LINTPASS1="-i"
-	     LINTPASS2=""
-	     LINTLIBOPT="-C"
-	     ;;
-	 *-*-solaris*)
-#	     LINTFLAGS=-c -errchk=%all -errsecurity=extended -fd -Ncheck=%all -Nlevel=3 -p -s
-#	     SUPPRESS="-x -erroff=E_FUNC_DECL_VAR_ARG2"
-	     LINTLIBS="-lnsl -lsocket -lwrap"
-	     LINTWARN="-errsecurity=extended -errchk=%all -errhdr -Ncheck=%all -Nlevel=3"
-	     LINTFLAGS="-fd -s -errfmt=simple $SUPPRESS $LINTWARN"
-	     LINTPASS1="-c"
-	     LINTPASS2="$LINTFLAGS $LINTLIBS"
-	     LINTLIBOPT="-o"
-	     ;;
-     esac
- fi])
-AM_CONDITIONAL(RUNLINT, test x$s_linting = xt)
-AC_SUBST(LINT)
-AC_SUBST(LINTFLAGS)
-AC_SUBST(LINTPASS1)
-AC_SUBST(LINTPASS2)
-AC_SUBST(LINTLIBOPT)
-
-AC_MSG_CHECKING([whether libwrap should be disabled])
+#XXX for backwards compatibility
 AC_ARG_ENABLE(libwrap,
-[  --disable-libwrap       never use libwrap, even if it is available],
+[  --disable-libwrap       deprecated, use --without-libwrap],
 [if test x$enableval = xno; then
+    no_libwrap=t
+ fi])
+
+AC_MSG_CHECKING([whether to build with libwrap])
+AC_ARG_WITH(libwrap,
+[  --without-libwrap       never use libwrap, even if it is available],
+[if test x$withval = xno; then
     no_libwrap=t
     AC_MSG_RESULT([yes])
 else
@@ -426,11 +202,25 @@ dnl Checks for header files.
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS(fcntl.h limits.h malloc.h paths.h strings.h syslog.h)
 AC_CHECK_HEADERS(unistd.h crypt.h sys/file.h sys/ioctl.h sys/time.h)
-AC_CHECK_HEADERS(tcpd.h shadow.h ifaddrs.h sys/sem.h netinet/in.h)
+AC_CHECK_HEADERS(tcpd.h shadow.h ifaddrs.h sys/sem.h netinet/in.h rpc/rpc.h)
 AC_CHECK_HEADERS(sys/ipc.h arpa/nameser.h net/if_dl.h execinfo.h sys/pstat.h)
+AC_CHECK_HEADERS(sys/shm.h)
+
+#some header dependencies for netinet/ip.h, use compilation test
+AC_MSG_CHECKING([for netinet/ip.h])
+AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/socket.h>
+
+#include <netinet/in.h>
+#include <netinet/in_systm.h>
+#include <netinet/ip.h>
+], [], [AC_MSG_RESULT(yes)
+    AC_DEFINE(HAVE_NETINET_IP_H, 1, [netinet/ip.h header found])],
+   [AC_MSG_RESULT(no)])
 
 case $host in
-    #XXX only check for priv.h support on solaris for now
+    #XXX only check for priv.h support on Solaris for now
     *-*-solaris*)
 	AC_CHECK_HEADERS(priv.h,
 	    [AC_DEFINE(HAVE_PRIVILEGES, 1, [Some privilege type supported])
@@ -458,14 +248,6 @@ AC_CHECK_HEADERS([resolv.h], [], [], [
 #include <arpa/nameser.h>
 #endif
 ])
-
-case $host in
-    alpha*-dec-osf*)
-	AC_CHECK_HEADERS(netinet/ip.h)
-	;;
-
-    *) ;;
-esac
 
 #allow default file locations to be overridden
 AC_MSG_CHECKING([for config file location])
@@ -513,14 +295,16 @@ AC_MSG_CHECKING([for SOCKD_IOMAX value])
 AC_ARG_WITH(iomax,
 [  --with-iomax=NUMBER     change number of clients per io process],
 [AC_MSG_RESULT($withval)
- CPPFLAGS="${CPPFLAGS} -DSOCKD_IOMAX=$withval"],
+ FEAT="$FEAT${FEAT:+ }iomax-$withval"
+ CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-DSOCKD_IOMAX=$withval"],
 [AC_MSG_RESULT(default)])
 
 AC_MSG_CHECKING([for SOCKD_NEGOTIATEMAX value])
 AC_ARG_WITH(negmax,
 [  --with-negmax=NUMBER    change number of clients per negotiate process],
 [AC_MSG_RESULT($withval)
- CPPFLAGS="${CPPFLAGS} -DSOCKD_NEGOTIATEMAX=$withval"],
+ FEAT="$FEAT${FEAT:+ }negmax-$withval"
+ CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-DSOCKD_NEGOTIATEMAX=$withval"],
 [AC_MSG_RESULT(default)])
 
 AC_CHECK_HEADER(sys/sockio.h,
@@ -541,7 +325,7 @@ if test x$check_const = xyes; then
     AC_C_CONST
 fi
 
-#looks for linux + systems with RTAX_GATEWAY defined in net/route.h
+#looks for Linux + systems with RTAX_GATEWAY defined in net/route.h
 AC_MSG_CHECKING([for supported routing socket communication])
 AH_TEMPLATE([HAVE_ROUTE_SOURCE], [routing socket communication supported])
 unset no_routeinfo
@@ -645,7 +429,7 @@ AC_EGREP_CPP(yes, [
 yes
 #endif
 #endif
-], [AC_DEFINE(NEED_AF_LOCAL, 1, [use AF_LOCATL, not AF_UNIX])
+], [AC_DEFINE(NEED_AF_LOCAL, 1, [need AF_LOCAL definition])
     AC_MSG_RESULT(yes)],
     AC_MSG_RESULT(no))
 
@@ -685,6 +469,9 @@ int main()
 		return 0;
 }], [AC_MSG_RESULT(yes)],
     [AC_DEFINE(HAVE_NOMALLOC_REALLOC, 1, [realloc never calls malloc])
+     AC_MSG_RESULT(no)],
+    [dnl assume malloc is not called when cross-compiling
+     AC_DEFINE(HAVE_NOMALLOC_REALLOC, 1, [realloc never calls malloc])
      AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([whether free can be called with NULL])
@@ -701,27 +488,15 @@ int main()
 	return 0;
 }], [AC_MSG_RESULT(yes)],
     [AC_DEFINE(HAVE_NONULL_FREE, 1, [free does not accept NULL parameter])
+     AC_MSG_RESULT(no)],
+    [dnl assume NULL is not accepted when cross-compiling
+     AC_DEFINE(HAVE_NONULL_FREE, 1, [free does not accept NULL parameter])
      AC_MSG_RESULT(no)])
 
 #A good time to save the cache (preload code might fail)
 AC_CACHE_SAVE
 
 m4_include(preload.m4)
-
-#construct SUBDIRS variable
-SUBDIRS="sockd unlicensed example doc bin SPECS capi contrib"
-if test "x${no_preload_client}" = x; then
-    SUBDIRS="dlib $SUBDIRS"
-    if test "x$sol64" != x; then
-       SUBDIRS="dlib64 $SUBDIRS"
-    fi
-fi
-
-#include should be done before compilation to ensure that
-#redefac is executed first
-#lib handles yacc/lex generation for dlib/sockd
-TOPSUBDIRS="$subdirs include libscompat lib $SUBDIRS"
-AC_SUBST(TOPSUBDIRS)
 
 AC_MSG_CHECKING([if getsockopt needs cast])
 AC_TRY_COMPILE([
@@ -765,7 +540,7 @@ yes
     AC_MSG_RESULT(yes)],
     AC_MSG_RESULT(no))
 
-#XXXseems to be supported on Solaris2.6, but there might be some
+#XXX seems to be supported on Solaris2.6, but there might be some
 #defines that need to be set (should _XOPEN_SOURCE be defined on all
 #platforms?)
 AC_MSG_CHECKING([if cmsghdr exists in <sys/socket.h>])
@@ -787,28 +562,22 @@ case $host in
 esac
 
 AC_MSG_CHECKING([for CMSG_SPACE in sys/socket.h])
-AC_TRY_RUN([
+AC_TRY_LINK([
 #include <sys/types.h>
 #include <sys/socket.h>
-int main()
-{
-   int d = CMSG_SPACE(4);
+], [int d = CMSG_SPACE(4);
    return 0;
-}
 ], [AC_MSG_RESULT(yes)
     AC_DEFINE(HAVE_CMSG_SPACE, 1, CMSG_SPACE exists)],
    [AC_MSG_RESULT(no)])
 
 AC_MSG_CHECKING([for CMSG_LEN in sys/socket.h])
-AC_TRY_RUN([
+AC_TRY_LINK([
 #include <sys/types.h>
 #include <sys/socket.h>
-
-int main()
-{
-   int d = CMSG_LEN(4);
-   return 0;
-}], [AC_MSG_RESULT(yes)
+], [int d = CMSG_LEN(4);
+    return 0;
+], [AC_MSG_RESULT(yes)
     AC_DEFINE(HAVE_CMSG_LEN, 1, [CMSG_LEN exists])],
    [AC_MSG_RESULT(no)])
 
@@ -823,7 +592,7 @@ foo.sa_len = 0;
    [AC_MSG_RESULT(no)])
 
 #AIX 6.1 needs sys/select.h, but can be problematic on other platforms
-AC_MSG_CHECKING([is sys/select.h is needed])
+AC_MSG_CHECKING([if sys/select.h is needed])
 AC_TRY_COMPILE([
 #include <sys/types.h>
 #include <sys/time.h>
@@ -846,7 +615,8 @@ AC_TRY_COMPILE([
     fdp = NULL;
     p = NFDBITS * sizeof(fd_mask);],
     [AC_DEFINE(HAVE_SYS_SELECT_H, 1, [sys/select.h needed])
-     AC_MSG_RESULT(yes)])])
+     AC_MSG_RESULT(yes)],
+    [AC_MSG_RESULT(no)])])
 
 AC_MSG_CHECKING([to see if malloc_options exists])
 AC_TRY_LINK([extern char *malloc_options;],
@@ -868,26 +638,29 @@ AC_SEARCH_LIBS(crypt, crypt)
 #HP-UX 11.00
 AC_SEARCH_LIBS(getspnam, sec)
 
-#FreeBSD has setproctitle in -lutil (Per Hedeland <per@erix.ericsson.se>)
+#FreeBSD has setproctitle in -lutil
 AC_SEARCH_LIBS(setproctitle, util)
 
 #miniupnpc tests
 m4_include(miniupnpc.m4)
+if test x"${no_upnp}" = x; then
+    FEAT="$FEAT${FEAT:+ }upnp"
+fi
 
 dnl #XXX include header in compilation test?
 dnl normal library testing doesn't work for libwrap (doesn't link
 dnl without allow/deny_severity)
-if test "x${ac_cv_header_tcpd_h}" = "xyes"; then
+if test x"${ac_cv_header_tcpd_h}" = xyes; then
     case $host in
 	*-*-linux-*)
-	    #XXX needed on atleast redhat
+	    #XXX needed on at least RedHat
 	    AC_SEARCH_LIBS(yp_get_default_domain, nsl)
 	;;
     esac
     oLIBS=$LIBS
     AC_MSG_CHECKING([for libwrap])
     if test x$no_libwrap = xt; then
-	echo "disabled"
+        AC_MSG_RESULT(disabled)
     else
 	LIBS="$LIBS -lwrap"
 	AC_TRY_LINK([
@@ -895,15 +668,16 @@ int allow_severity;
 int deny_severity;
 ], [hosts_access(0);],
         [AC_MSG_RESULT(yes)
-         AC_DEFINE(HAVE_LIBWRAP, 1, [use tcpwrappers])
-         want_libwrap=t],
+         AC_DEFINE(HAVE_COND_LIBWRAP, 1, [use tcpwrappers])
+         want_libwrap=t
+         FEAT="$FEAT${FEAT:+ }libwrap"],
         [AC_MSG_RESULT(no)])
     fi
     LIBS="$oLIBS"
 fi
 #programs wanting libwrap should test for this Makefile.am conditional
 #(programs which don't use it probably won't enjoy being linked with it)
-AM_CONDITIONAL(WANT_LIBWRAP, test "x${want_libwrap}" != "x")
+AM_CONDITIONAL(WANT_LIBWRAP, test x"${want_libwrap}" != x)
 
 AC_ARG_WITH(pam,
 [  --without-pam           disable pam support @<:@default=detect@:>@],
@@ -915,7 +689,8 @@ if test "${PAM}" != no; then
     AC_SEARCH_LIBS(pam_start, pam, [have_libpam=t])
 
     if test x"${have_pam_header}" != x -a x"${have_libpam}" != x; then
-	AC_DEFINE(HAVE_PAM, 1, [PAM support])
+	AC_DEFINE(HAVE_COND_PAM, 1, [PAM support])
+	FEAT="$FEAT${FEAT:+ }pam"
     fi
 fi
 
@@ -929,6 +704,7 @@ if test "${BSDAUTH}" != no; then
 
     if test x"${have_bsdauth_header}" != x -a x"${have_bsdauth}" != x; then
 	AC_DEFINE(HAVE_BSDAUTH, 1, [BSD Authentication support])
+	FEAT="$FEAT${FEAT:+ }bsdauth"
     fi
 fi
 
@@ -950,15 +726,42 @@ no_krb5=t
 no_ldap=t
 no_sasl=t
 
+unset noldap
+unset LDAPLIBS
 m4_include(gssapi.m4)
 if test x"${no_gssapi}" != xt; then
+   FEAT="$FEAT${FEAT:+ }gssapi"
+
+   LIBScpy="$LIBS"
    m4_include(kerberos.m4)
-   m4_include(ldap.m4)
-   m4_include(sasl.m4)
+   if test x"${no_krb5}" != xt; then
+       m4_include(sasl.m4)
+   else
+       noldap="KerberosV required"
+   fi
+   if test x"${no_sasl}" != xt; then
+       m4_include(ldap.m4)
+   else
+       noldap="SASL required"
+   fi
+   if test x"$LIBS" != x -a x"$noldap" = x; then
+       LDAPLIBS=${LIBS##$LIBScpy} #ensure only new libraries are added
+   fi
+   if test x"$LIBScpy" != x; then
+      LIBS="$LIBScpy"
+   fi
+else
+   noldap="GSSAPI required"
+fi
+if test x"$noldap" != x; then
+   AC_MSG_WARN([ldap disabled: $noldap])
 fi
 
 dnl compatibility library tests
 m4_include(libscompat.m4)
+
+dnl generate socket option code
+m4_include(sockopt.m4)
 
 dnl workaround for newer glibc versions (and opensolaris)
 unset stdio_preload
@@ -979,72 +782,9 @@ if test x"$stdio_preload" = xt; then
     cat capi/socks_glibc.h >> capi/socks.h
 fi
 
-dnl generate mapfile (XXX suncc)
+dnl preparation for library mapfile usage to control symbol export
 unset MAPOPT
-if test x"$GCC" != x -a x"${no_preload}" != xt; then
-   MAPFILE=dlib/socks.map
-
-   cp /dev/null $MAPFILE
-   if test x`uname` != xDarwin; then
-       echo "{
-global:
-" >> $MAPFILE
-       cat include/symbols_common.txt >> $MAPFILE
-   else
-       #only symbol names with Darwin linker (strip ';' characters)
-       sed -e 's/;//g' < include/symbols_common.txt >> $MAPFILE
-       cat include/symbols_darwin.txt >> $MAPFILE
-   fi
-
-   #platform dependent symbols
-   case $host in
-       *-*-linux-*)
-	   if test x"$stdio_preload" = xt; then
-	       cat include/symbols_glibc.txt >> $MAPFILE
-	   fi
-	   ;;
-       *-*-solaris*)
-	   cat include/symbols_osol.txt >> $MAPFILE
-	   if test x"$stdio_preload" = xt; then
-	       cat include/symbols_osol_stdio.txt >> $MAPFILE
-	   fi
-	   ;;
-       *-*-freebsd*)
-	   cat include/symbols_freebsd.txt >> $MAPFILE
-	   ;;
-   esac
-   if test x`uname` != xDarwin; then
-      echo "local:
-*;
-};" >> $MAPFILE
-       #if gcc+sun ld, option in -Wl,-Msocks.map, otherwise --version-script
-       gcc -Wl,-v 2>&1 | grep '/usr/ccs/bin/ld' > /dev/null
-       if test $? -eq 0; then
-		  MAPOPT="-Wl,-Msocks.map"
-       else
-	  MAPOPT="-Wl,--version-script=socks.map"
-       fi
-   else
-        #XXX skip symbol flags for now
-#       MAPOPT="-Wl,-exported_symbols_list -Wl,socks.map"
-	HW=`uname -m`
-	case $HW in
-	     ppc*)
-		CFLAGS="$CFLAGS${CFLAGS:+ }-arch ppc -arch ppc64"
-		LDFLAGS="$LDLAGS${LDLAGS:+ }-arch ppc -arch ppc64"
-		;;
-	     *)
-		CFLAGS="$CFLAGS${CFLAGS:+ }-arch i386 -arch x86_64"
-		LDFLAGS="$LDLAGS${LDLAGS:+ }-arch i386 -arch x86_64"
-		;;
-	esac
-   fi
-
-   if test x"$sol64" = xt; then
-       cp $MAPFILE dlib64/
-   fi
-fi
-AC_SUBST(MAPOPT)
+m4_include(mapfile.m4)
 
 #expected select behavior?
 unset nb_select_err
@@ -1082,7 +822,7 @@ else
     AC_MSG_RESULT([no])
 fi
 
-#Linux (redhat 5.2) defines socklen_t in <socketbits.h>, which is
+#Linux (RedHat 5.2) defines socklen_t in <socketbits.h>, which is
 #included by <sys/socket.h>.  check for this first.
 AC_MSG_CHECKING([for socklen_t])
 AC_TRY_COMPILE([
@@ -1130,7 +870,6 @@ AC_CHECK_TYPES([int8_t, int16_t, int32_t, uint8_t, uint16_t, uint32_t,
 AC_CHECK_TYPE(ssize_t, int)
 
 dnl Checks for library functions.
-AC_PROG_GCC_TRADITIONAL
 AC_FUNC_MEMCMP
 AC_FUNC_SETVBUF_REVERSED
 AC_TYPE_SIGNAL
@@ -1140,6 +879,7 @@ AC_FUNC_VPRINTF
 
 AC_CHECK_FUNCS(gethostbyname2 getaddrinfo getipnodebyname)
 AC_CHECK_FUNCS(getprpwnam getspnam bindresvport)
+AC_CHECK_FUNCS(getpass)
 
 AC_MSG_CHECKING([for system V getpwnam])
 unset getpwnam_alt
@@ -1159,19 +899,65 @@ else
     AC_MSG_RESULT(yes)
 fi
 
+#construct SUBDIRS variable
+SUBDIRS="unlicensed example doc bin SPECS capi contrib"
+DISTSUBDIRS="$SUBDIRS"
+if test x"${no_serverbuild}" = x; then
+   SUBDIRS="sockd ${SUBDIRS}"
+fi
+DISTSUBDIRS="$DISTSUBDIRS sockd"
+if test x"${no_clientbuild}" = x; then
+   if test x"${no_preload_client}" = x; then
+       SUBDIRS="dlib $SUBDIRS"
+       if test x"$sol64" != x; then
+           SUBDIRS="dlib64 $SUBDIRS"
+       fi
+       FEAT="$FEAT${FEAT:+ }preload"
+   fi
+   #lib handles yacc/lex generation for dlib/sockd, should be before these
+   SUBDIRS="lib $SUBDIRS"
+fi
+DISTSUBDIRS="include libscompat $DISTSUBDIRS lib dlib dlib64"
+
+#include should be done before compilation to ensure that
+#redefac is executed first
+TOPSUBDIRS="$subdirs include"
+if test x"$LIBSCSRC" != x; then
+   TOPSUBDIRS="$TOPSUBDIRS libscompat"
+fi
+TOPSUBDIRS="$TOPSUBDIRS $SUBDIRS"
+AC_SUBST(TOPSUBDIRS)
+AC_SUBST(DISTSUBDIRS)
+
 if false; then
    AC_DEFINE(HAVE_DUMPCONF, 1, [GUI tool])
 fi
 
 #look for modules, and check version
 servdir=sockd
-L_MODVER(bandwidth, 72, $servdir) #module name, version
-L_MODVER(redirect, 47, $servdir)
-L_MODVER(session, 30, $servdir)
-L_MODVER(ldap, 47, $servdir)
+unset MOD_BANDWIDTH MOD_REDIRECT MOD_SESSION MOD_LDAP
+L_MODVER(bandwidth,   72, $servdir, [MOD_BANDWIDTH=t])
+L_MODVER(redirect,    47, $servdir, [MOD_REDIRECT=t])
+L_MODVER(session,     30, $servdir, [MOD_SESSION=t])
+L_MODVER(ldap,        47, $servdir, [MOD_LDAP=t])
+L_MODVER(checkmodule, 39, $servdir, [], nokey) #helper file
 
-#helper files
-L_MODVER(checkmodule, 39, $servdir, nokey)
+if test x"$MOD_BANDWIDTH" != x; then
+   FEAT="$FEAT${FEAT:+ }mod-bandwidth"
+fi
+if test x"$MOD_LDAP" != x; then
+   FEAT="$FEAT${FEAT:+ }mod-ldap"
+   SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$LDAPLIBS"
+fi
+if test x"$MOD_REDIRECT" != x; then
+   FEAT="$FEAT${FEAT:+ }mod-redirect"
+fi
+if test x"$MOD_SESSION" != x; then
+   FEAT="$FEAT${FEAT:+ }mod-session"
+fi
+
+FEATURES=`echo $FEAT | xargs -n 1 echo | sort | xargs echo`
+AC_DEFINE_UNQUOTED(DANTE_BUILD, "$FEATURES", [Features enabled in build])
 
 #change all #undef's to #define foo 0
 AH_BOTTOM([
@@ -1181,16 +967,32 @@ AH_BOTTOM([
 #add any warning flags (value set above)
 CFLAGS="$CFLAGS $warn"
 
-#if test "x${prerelease}" != "x"; then
-    echo "warning flags: $warn"
-    echo "compiler flags: $comp_flags"
-    echo "CFLAGS: $CFLAGS"
-    echo "LIBS: $LIBS"
-    echo "CPPFLAGS: $CPPFLAGS"
-    echo "LDFLAGS: $LDFLAGS"
-    echo "DLIBDEPS: $DLIBDEPS"
-    echo "SOCKDDEPS: $SOCKDDEPS"
-#fi
+#store build environment
+cp /dev/null buildenv.txt
+echo "flags: ${ac_configure_args}" >> buildenv.txt
+echo "CC: $CC $initCC" >> buildenv.txt
+echo "CFLAGS: $CFLAGS $initCFLAGS" >> buildenv.txt
+echo "CPP: $CPP $initCPP" >> buildenv.txt
+echo "CPPFLAGS: $CPPFLAGS $initCPPFLAGS" >> buildenv.txt
+echo "LDFLAGS: $LDFLAGS $initLDFLAGS" >> buildenv.txt
+echo "LIBS: $LIBS $initLIBS" >> buildenv.txt
+echo "DLIBDEPS: $DLIBDEPS" >> buildenv.txt
+echo "SOCKDDEPS: $SOCKDDEPS" >> buildenv.txt
+echo "compiler flags: $comp_flags" >> buildenv.txt
+echo "warning flags: $warn" >> buildenv.txt
+echo "FEATURES: $FEAT" >> buildenv.txt
+echo "socket options: `echo $OKSOCKOPTS | ucase`" >> buildenv.txt
+echo "socket option arguments: `echo $OKSOCKOPTVALSYMS | ucase`" >> buildenv.txt
+
+cat buildenv.txt
+
+echo "#build environment
+export CC=\"$CC\"
+export CFLAGS=\"$CFLAGS\"
+export CPP=\"$CPP\"
+export CPPFLAGS=\"CPPFLAGS\"
+export LDFLAGS=\"$LDFLAGS\"
+export LIBS=\"$LIBS\"" > buildenvrc
 
 AC_SUBST(TOPEXTRADIST)
 AC_SUBST(DLIBDEPS)
@@ -1207,31 +1009,62 @@ AC_OUTPUT
 echo ""
 echo "                     Configure status:"
 echo ""
+
+unset CONFVAR
+if test x"${no_clientbuild}" = xt; then
+    echo "Client:            Disabled"
+    CONFVAR="${CONFVAR}${CONFVAR:+ }noclient"
+else
+    echo "Client:            Enabled"
+    CONFVAR="${CONFVAR}${CONFVAR:+ }client"
+fi
+if test x"${no_serverbuild}" = xt; then
+    echo "Server:            Disabled"
+    CONFVAR="${CONFVAR}${CONFVAR:+ }noserver"
+else
+    echo "Server:            Enabled"
+    CONFVAR="${CONFVAR}${CONFVAR:+ }server"
+fi
 if test x"${no_acceptlock}" = xt; then
 #    echo "Acceptlock:        Disabled"
-#else
+    CONFVAR="${CONFVAR}${CONFVAR:+ }noacceptlock"
+else
     echo "Acceptlock:        Enabled"
+    CONFVAR="${CONFVAR}${CONFVAR:+ }acceptlock"
 fi
 if test x"${no_preload}" = xt; then
    if test x"${blocked_preload}" = xt; then
 	echo "Preloading:        Client preloading might not be reliable on this platform"
+	CONFVAR="${CONFVAR}${CONFVAR:+ }badpreload"
    else
 	echo "Preloading:        Disabled"
+	CONFVAR="${CONFVAR}${CONFVAR:+ }nopreload"
    fi
 else
     echo "Preloading:        Enabled"
+    CONFVAR="${CONFVAR}${CONFVAR:+ }preload"
 fi
 if test x"${nb_select_err}" = xt; then
     echo "select:            Unexpected select behaviour on unconnected sockets,"
     echo "                   operations on nonblocking sockets might fail "
     echo "                   on this platform when using socksify"
+    CONFVAR="${CONFVAR}${CONFVAR:+ }selecterr"
 #else
 #    echo "select:            OK"
 fi
 if test x"${no_routeinfo}" = xt; then
     echo "Routeinfo:         Not supported on this platform"
-#else
+    CONFVAR="${CONFVAR}${CONFVAR:+ }norouteinfo"
+else
 #    echo "Routeinfo:         OK"
+    CONFVAR="${CONFVAR}${CONFVAR:+ }routeinfo"
+fi
+if test x"${no_libwrap}" = xt; then
+	echo "Libwrap:           Disabled"
+elif test x"${want_libwrap}"; then
+	echo "Libwrap:           Enabled"
+else
+	echo "Libwrap:           Not found"
 fi
 if test x"${no_gssapi}" = xt; then
    if test x"${bad_gssapi}" = xt; then
@@ -1243,19 +1076,19 @@ else
 	echo "GSSAPI:            Enabled"
 fi
 if test x"${no_krb5}" = xt; then
-        echo "KRB5:              Not found/disabled"
+	echo "KRB5:              Not found/disabled"
 else
-        echo "KRB5:              Enabled"
-fi
-if test x"${no_ldap}" = xt; then
-        echo "LDAP:              Not found/disabled"
-else
-        echo "LDAP:              Enabled"
+	echo "KRB5:              Enabled"
 fi
 if test x"${no_sasl}" = xt; then
-        echo "SASL:              Not found/disabled"
+	echo "SASL:              Not found/disabled"
 else
-        echo "SASL:              Enabled"
+	echo "SASL:              Enabled"
+fi
+if test x"${no_ldap}" = xt; then
+	echo "LDAP:              Not found/disabled ($noldap)"
+else
+	echo "LDAP:              Enabled"
 fi
 if test x"${no_upnp}" = xt; then
     if test x"${have_libminiupnp}" = xt; then
@@ -1270,27 +1103,33 @@ fi
 echo ""
 echo "                     Modules:"
 echo ""
-if test x"$MOD_REDIRECT" = x; then
+if test x"$MOD_REDIRECT" != x; then
     echo "redirect:          Enabled"
 else
     echo "redirect:          Not found"
 fi
-if test x"$MOD_BANDWIDTH" = x; then
+if test x"$MOD_BANDWIDTH" != x; then
     echo "bandwidth:         Enabled"
 else
     echo "bandwidth:         Not found"
 fi
-if test x"$MOD_SESSION" = x; then
+if test x"$MOD_SESSION" != x; then
     echo "session:           Enabled"
 else
     echo "session:           Not found"
 fi
-if test x"$MOD_LDAP" = x; then
-    echo "ldap:              Enabled"
+if test x"$MOD_LDAP" != x; then
+    if test x"${no_ldap}" = xt; then
+	echo "ldap:              Disabled ($noldap)"
+    else
+	echo "ldap:              Enabled"
+    fi
 else
     echo "ldap:              Not found"
 fi
 echo ""
+
+echo "CONFRES: $CONFVAR" >> buildenv.txt
 
 if test x$prerelease != x; then
    echo "

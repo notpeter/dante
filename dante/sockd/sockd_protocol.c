@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011
+ *               2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,58 +45,56 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.167 2011/07/08 10:11:52 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.173 2012/06/01 20:23:06 karls Exp $";
 
 #if SOCKS_SERVER
 static negotiate_result_t
-recv_v4req(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_v4req(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_v5req(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_v5req(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_methods(int s, struct request_t *request,
-             struct negotiate_state_t *state);
+recv_methods(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_ver(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_ver(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_cmd(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_cmd(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_flag(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_flag(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_sockshost(int s, struct request_t *request,
-      struct negotiate_state_t *state);
+recv_sockshost(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_atyp(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_atyp(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_port(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_port(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_address(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_address(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_domain(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_domain(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_username(int s, struct request_t *request,
-              struct negotiate_state_t *state);
+recv_username(int s, request_t *request,
+              negotiate_state_t *state);
 
 static negotiate_result_t
-methodnegotiate(int s, struct request_t *request,
-      struct negotiate_state_t *state);
+methodnegotiate(int s, request_t *request,
+      negotiate_state_t *state);
 #endif /* SOCKS_SERVER */
 
 negotiate_result_t
 recv_clientrequest(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
    const char *function = "recv_clientrequest()";
 #if HAVE_NEGOTIATE_PHASE
@@ -132,7 +130,7 @@ recv_clientrequest(s, request, state)
 
          default:
             snprintf(state->emsg, sizeof(state->emsg),
-                     "unknown socks version %d in clientrequest",
+                     "unknown socks version %d in client request",
                      request->version);
             return NEGOTIATE_ERROR;
       }
@@ -149,7 +147,6 @@ recv_clientrequest(s, request, state)
                       sockshost2string(&state->src, src, sizeof(src)),
                       sockshost2string(&state->dst, dst, sizeof(dst)));
 
-
       rc = state->rcurrent(s, request, state);
    }
 
@@ -158,6 +155,7 @@ recv_clientrequest(s, request, state)
 #else /* !HAVE_NEGOTIATE_PHASE */
 
    SASSERTX(state->complete);
+   return NEGOTIATE_FINISHED;
    /* NOTREACHED */
 
 #endif /* !HAVE_NEGOTIATE_PHASE */
@@ -167,7 +165,7 @@ recv_clientrequest(s, request, state)
 void
 send_failure(s, response, failure)
    int s;
-   struct response_t *response;
+   response_t *response;
    int failure;
 {
 #if HAVE_GSSAPI
@@ -194,7 +192,7 @@ send_failure(s, response, failure)
 int
 send_response(s, response)
    int s;
-   const struct response_t *response;
+   const response_t *response;
 {
    const char *function = "send_response()";
    ssize_t sendt;
@@ -301,8 +299,8 @@ send_response(s, response)
 negotiate_result_t
 recv_sockspacket(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    return recv_ver(s, request, state);
@@ -311,8 +309,8 @@ recv_sockspacket(s, request, state)
 static negotiate_result_t
 recv_v4req (s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    /*
@@ -332,8 +330,8 @@ recv_v4req (s, request, state)
 static negotiate_result_t
 recv_v5req (s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    /*
@@ -377,8 +375,8 @@ recv_v5req (s, request, state)
 static negotiate_result_t
 recv_methods(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 
 {
    const char *function = "recv_methods()";
@@ -470,8 +468,8 @@ recv_methods(s, request, state)
 static negotiate_result_t
 methodnegotiate(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    /* authentication method dependent negotiation */
@@ -500,8 +498,8 @@ methodnegotiate(s, request, state)
 static negotiate_result_t
 recv_ver(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    /* VER */
@@ -527,8 +525,8 @@ recv_ver(s, request, state)
 static negotiate_result_t
 recv_cmd(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
    const char *function = "recv_cmd()";
 
@@ -569,8 +567,8 @@ recv_cmd(s, request, state)
 static negotiate_result_t
 recv_flag(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    INIT(sizeof(request->flag));
@@ -582,8 +580,8 @@ recv_flag(s, request, state)
 static negotiate_result_t
 recv_sockshost(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
    switch (request->version) {
       case PROXY_SOCKS_V4:
@@ -604,8 +602,8 @@ recv_sockshost(s, request, state)
 static negotiate_result_t
 recv_atyp(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    INIT(sizeof(request->host.atype));
@@ -617,8 +615,8 @@ recv_atyp(s, request, state)
 static negotiate_result_t
 recv_address(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    switch (request->version) {
@@ -626,7 +624,7 @@ recv_address(s, request, state)
          INIT(sizeof(request->host.addr.ipv4));
 
          /* only one supported in v4. */
-         request->host.atype = (unsigned char)SOCKS_ADDR_IPV4;
+         request->host.atype = SOCKS_ADDR_IPV4;
 
          CHECK(&request->host.addr.ipv4, request->auth, recv_username);
          SERRX(0); /* NOTREACHED */
@@ -673,8 +671,8 @@ recv_address(s, request, state)
 static negotiate_result_t
 recv_domain(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
    unsigned char alen;
    /* first byte gives length. */
@@ -695,8 +693,8 @@ recv_domain(s, request, state)
 static negotiate_result_t
 recv_port(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    INIT(sizeof(request->host.port));
@@ -720,8 +718,8 @@ recv_port(s, request, state)
 static negotiate_result_t
 recv_username(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
    const char *function = "recv_username()";
    char *username = (char *)&state->mem[sizeof(request->version)

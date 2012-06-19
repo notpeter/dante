@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011
+ * Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011,
+ *               2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmem.c,v 1.70 2011/07/21 13:48:41 michaels Exp $";
+"$Id: shmem.c,v 1.86 2012/06/01 20:23:06 karls Exp $";
 
 /*
  * Mother needs to create and fill in the correct contents initially.
@@ -96,12 +97,15 @@ do {                                                                           \
    const char *fname = sockd_getshmemname((rule)->idfield);                    \
    int rc;                                                                     \
                                                                                \
+   SASSERTX((rule)->memfield == NULL);                                         \
+                                                                               \
    if (((rule)->fdfield = open(fname, O_RDWR)) == -1) {                        \
-      swarn("%s: failed to open %s for attaching to shmem segment %ld",        \
+      swarn("%s: failed to open %s for attaching to " #idfield " %ld",         \
       function, fname, (rule)->idfield);                                       \
                                                                                \
       (rule)->memfield = NULL;                                                 \
       (rule)->idfield  = 0;                                                    \
+      break;                                                                   \
    }                                                                           \
                                                                                \
    if (((rule)->memfield                                                       \
@@ -109,16 +113,18 @@ do {                                                                           \
       swarn("%s: failed to mmap " #idfield " shmem segment %ld from file %s",  \
       function, (rule)->idfield, fname);                                       \
                                                                                \
+      close((rule)->fdfield);                                                  \
       (rule)->memfield = NULL;                                                 \
       (rule)->idfield  = 0;                                                    \
+      break;                                                                   \
    }                                                                           \
-   else                                                                        \
-      slog(LOG_DEBUG, "%s: attached to " #idfield " %ld at %p, "               \
-                      "%lu clients, file %s",                                  \
-                      function,                                                \
-                      (rule)->idfield,                                         \
-                      (rule)->memfield,                                        \
-                      (unsigned long)(rule)->memfield->mstate.clients, fname); \
+                                                                               \
+   slog(LOG_DEBUG, "%s: attached to " #idfield " %ld at %p, "                  \
+                   "%lu clients, filename %s",                                 \
+                   function,                                                   \
+                   (rule)->idfield,                                            \
+                   (rule)->memfield,                                           \
+                   (unsigned long)(rule)->memfield->mstate.clients, fname);    \
                                                                                \
    rc = close((rule)->fdfield);                                                \
    SASSERTX(rc == 0);                                                          \
@@ -127,9 +133,10 @@ do {                                                                           \
 #define HANDLE_SHMDT(rule, memfield, idfield, fdfield)                         \
 do {                                                                           \
    SASSERTX((rule)->idfield != 0);                                             \
+   SASSERTX((rule)->memfield != NULL);                                         \
                                                                                \
    slog(LOG_DEBUG,                                                             \
-        "%s: detaching from " #idfield " %ld at %p, %lu clients",              \
+        "%s: detaching from " #idfield " %ld at %p with %lu clients",          \
         function,                                                              \
         (rule)->idfield,                                                       \
         (rule)->memfield,                                                      \
@@ -145,7 +152,7 @@ do {                                                                           \
 
 void
 sockd_shmdt(rule, objects)
-   struct rule_t *rule;
+   rule_t *rule;
    const int objects;
 {
    const char *function = "sockd_shmdt()";
@@ -159,16 +166,32 @@ sockd_shmdt(rule, objects)
 
 void
 sockd_shmat(rule, objects)
-   struct rule_t *rule;
+   rule_t *rule;
    const int objects;
 {
    const char *function = "sockd_shmat()";
 
-   if ((objects & SHMEM_BW) && rule->bw_shmid)
-      HANDLE_SHMAT(rule, bw, bw_shmid, bw_fd);
+   if (objects & SHMEM_BW) {
+      if (rule->bw_shmid)
+         HANDLE_SHMAT(rule, bw, bw_shmid, bw_fd);
+#if DEBUG
+      else
+         slog(LOG_DEBUG,
+              "%s: no bw_shmid we need to (re)attach to for rule #%lu",
+              function, (unsigned long)rule->number);
+#endif /* DEBUG */
+   }
 
-   if ((objects & SHMEM_SS) && rule->ss_shmid)
-      HANDLE_SHMAT(rule, ss, ss_shmid, ss_fd);
+   if (objects & SHMEM_SS) {
+      if (rule->ss_shmid)
+         HANDLE_SHMAT(rule, ss, ss_shmid, ss_fd);
+#if DEBUG
+      else
+         slog(LOG_DEBUG,
+              "%s: no ss_shmid we need to (re)attach to for rule #%lu",
+               function, (unsigned long)rule->number);
+#endif /* DEBUG */
+   }
 }
 
 char *
@@ -197,24 +220,29 @@ sockd_mmap(size, fd, docreate)
       return NULL;
 
    if (docreate) {
-      if (lseek(fd, size - 1, SEEK_SET) == -1)
-         serr(EXIT_FAILURE, "%s: lseek()", function);
+      if (lseek(fd, size - 1, SEEK_SET) == -1) {
+         swarn("%s: lseek()", function);
+         return NULL;
+      }
 
-      if (write(fd, "", sizeof("")) != sizeof(""))
-         serr(EXIT_FAILURE, "%s: write()", function);
+      if (write(fd, "", sizeof("")) != sizeof("")) {
+         swarn("%s: write()", function);
+         return NULL;
+      }
    }
 
    slog(LOG_DEBUG, "%s: mmap(2)'ing %lu bytes in fd %d",
-   function, (unsigned long)size, fd);
+        function, (unsigned long)size, fd);
 
    if ((mem = mmap(NULL,
                    size,
                    PROT_READ | PROT_WRITE,
                    MAP_SHARED,
                    fd,
-                   0)) == MAP_FAILED)
-      serr(EXIT_FAILURE, "%s: mmap() of %lu bytes failed",
-      function, (unsigned long)size);
+                   0)) == MAP_FAILED) {
+      swarn("%s: mmap() of %lu bytes failed", function, (unsigned long)size);
+      return NULL;
+   }
 
    return mem;
 }
@@ -233,12 +261,10 @@ shmem_unuse(object, lock)
       socks_lock(lock, 1, 1);
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
-      slog(LOG_DEBUG, "%s: lock = %d, clients = %lu, %s-rule = %lu, "
-                      "object = %p",
-                      function, lock,
+      slog(LOG_DEBUG, "%s: lock = %d, clients = %lu, object = %p",
+                      function,
+                      lock,
                       (unsigned long)object->mstate.clients,
-                      object->mstate.isclientrule ? "client" : "socks",
-                      (unsigned long)object->mstate.rulenumber,
                       object);
 
    SASSERTX(object->mstate.clients > 0);
@@ -259,12 +285,11 @@ shmem_use(object, lock)
       return;
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
-      slog(LOG_DEBUG, "%s: lock = %d, new # of clients = %lu, %s-rule = %lu, "
-                      "object = %p",
+      slog(LOG_DEBUG, "%s: lock = %d, new # of clients = %lu, "
+                      "rule = %lu, object = %p",
                       function,
                       lock,
                       (unsigned long)object->mstate.clients + 1,
-                      object->mstate.isclientrule ? "client" : "socks",
                       (unsigned long)object->mstate.rulenumber,
                       object);
 
@@ -307,6 +332,12 @@ shmem_setup(void)
        * First check that this works ok.  If e.g., user has changed some
        * config-files and made strings too long, it might fail.
        */
+      if ((sockscf.shmemfd = socks_mklock(sockscf.shmem_fnamebase,
+                                          sockscf.shmem_fnamebase,
+                                          sizeof(sockscf.shmem_fnamebase)))
+      == -1)
+         serr(EXIT_FAILURE, "%s: socks_mklock(%s)",
+              function, sockscf.shmem_fnamebase);
 
       if ((p = sockd_getshmemname(lastkey)) == NULL)
          serrx(EXIT_FAILURE, "%s: failed to generate shmem filename based on "
@@ -319,12 +350,6 @@ shmem_setup(void)
                              function,
                              (unsigned long)(strlen(p) + 1)
                                              - sizeof(sockscf.shmem_fnamebase));
-
-      if ((sockscf.shmemfd = socks_mklock(sockscf.shmem_fnamebase,
-                                          sockscf.shmem_fnamebase,
-                                          sizeof(sockscf.shmem_fnamebase)))
-      == -1)
-         serr(EXIT_FAILURE, "%s: socks_mklock(%s)", function, p);
 
       if ((sockscf.shmeminfo
       = sockd_mmap(sizeof(*sockscf.shmeminfo), sockscf.shmemfd, 1)) == NULL)
@@ -356,11 +381,11 @@ mem2shmem(firstkey)
    const unsigned long firstkey;
 {
    const char *function = "mem2shmem()";
-   struct rule_t *rule;
-   struct rule_t *rulev[]    = { sockscf.crule,
-#if HAVE_TWO_LEVEL_ACL
-                                 sockscf.srule
-#endif /* HAVE_TWO_LEVEL_ACL */
+   rule_t *rule;
+   rule_t *rulev[]    = { sockscf.crule,
+#if HAVE_SOCKS_RULES
+                          sockscf.srule
+#endif /* HAVE_SOCKS_RULES */
                                };
    int ismother;
    unsigned long nextkey;

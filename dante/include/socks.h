@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009,
- *               2010, 2011
+ *               2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.256 2011/07/20 14:16:08 karls Exp $ */
+/* $Id: socks.h,v 1.262 2012/06/01 20:23:05 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -221,10 +221,12 @@
 #define recvmsg(s, msg, flags)          sys_recvmsg(s, msg, flags)
 #endif
 
+#if HAVE_RRESVPORT
 #ifdef rresvport
 #undef rresvport
 #endif /* rresvport */
 #define rresvport(port)                  sys_rresvport(port)
+#endif /* HAVE_RRESVPORT */
 
 #ifdef sendto
 #undef sendto
@@ -365,7 +367,7 @@
 
 #define FDPASS_MAX         2   /* max number of descriptors we send/receive.  */
 
-struct configstate_t {
+typedef struct {
    unsigned char      inited;
    sig_atomic_t       insignal;         /* executing in signalhandler?        */
    sig_atomic_t       signalforus;      /*
@@ -374,43 +376,47 @@ struct configstate_t {
                                         * handle a signal?
                                         */
 
-   struct sockshost_t lastconnect;      /* address we last connected to.      */
+   sockshost_t        lastconnect;      /* address we last connected to.      */
    pid_t              pid;              /* our pid.                           */
    int                havegssapisockets;/* have gssapi-sockets?               */
    rlim_t             maxopenfiles;
-};
+} configstate_t;
 
-struct option_t {
+typedef struct {
    int               debug;
    int               directfallback; /* fallback to direct connections        */
    char              *configfile;    /* name of current configfile.           */
-};
+} option_t;
 
-struct config_t {
+struct config {
    pid_t                    connectchild;            /* connect process.      */
-   int                      child_data;              /* data socket to child.  */
+   int                      child_data;              /* data socket to child. */
    int                      child_ack;               /* ack to child.         */
 
    char                     domain[MAXHOSTNAMELEN];  /* localdomain.          */
 
-   struct logtype_t         errlog;                  /* for errors only.      */
-   struct logtype_t         log;                     /* where to log.         */
+   logtype_t                errlog;                  /* for errors only.      */
+   logtype_t                log;                     /* where to log.         */
    int                      loglock;                 /* lockfile for logging. */
 
-   struct option_t          option;                  /* misc. options.        */
+   option_t                 option;                  /* misc. options.        */
    int                      resolveprotocol;         /* resolveprotocol.      */
 
    routeoptions_t           routeoptions;            /* global route flags.   */
-   struct route_t           *route;                  /* linked list of routes */
+   route_t                  *route;                  /* linked list of routes */
 
-   struct configstate_t     state;
-   struct timeout_t         timeout;
+   /* XXX not supported in client yet. */
+   socketoption_t           *socketoptionv;          /* global socket options.*/
+   size_t                   socketoptionc;
+
+   configstate_t            state;
+   timeout_t                timeout;
 };
 
-struct childpacket_t {
-   int                  s;         /* socket used for control-connection.     */
-   struct socks_t       packet;    /* socks packet exchanged with server.     */
-};
+typedef struct {
+   int           s;         /* socket used for control-connection.     */
+   socks_t       packet;    /* socks packet exchanged with server.     */
+} childpacket_t;
 
 typedef sigset_t addrlockopaque_t;
 
@@ -421,7 +427,7 @@ typedef sigset_t addrlockopaque_t;
 void
 clientinit(void);
 /*
- * initializes client state, reads configfile, etc.
+ * initializes client state, reads config file, etc.
  */
 
 #if !HAVE_OSF_OLDSTYLE
@@ -431,11 +437,11 @@ int Rgetsockname(int, struct sockaddr *, socklen_t *);
 int Rgetsockopt(int, int, int, void *, socklen_t *);
 int Rgetpeername(int, struct sockaddr *, socklen_t *);
 ssize_t Rsendto(int s, const void *msg, size_t len, int flags,
-      const struct sockaddr *to, socklen_t tolen)
-      __attribute__((__bounded__(__buffer__, 2, 3)));
+                const struct sockaddr *to, socklen_t tolen)
+      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
 ssize_t Rrecvfrom(int s, void *buf, size_t len, int flags,
-      struct sockaddr * from, socklen_t *fromlen)
-      __attribute__((__bounded__(__buffer__, 2, 3)));
+                  struct sockaddr * from, socklen_t *fromlen)
+      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
 ssize_t Rsendmsg(int s, const struct msghdr *msg, int flags);
 ssize_t Rrecvmsg(int s, struct msghdr *msg, int flags);
 int Rbind(int, const struct sockaddr *, socklen_t);
@@ -454,15 +460,15 @@ struct hostent *Rgetipnodebyname(const char *, int, int, int *);
 void Rfreehostent(struct hostent *);
 #endif /* HAVE_GETIPNODEBYNAME */
 ssize_t Rwrite(int d, const void *buf, size_t nbytes)
-      __attribute__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
 ssize_t Rwritev(int d, const struct iovec *iov, int iovcnt);
 ssize_t Rsend(int s, const void *msg, size_t len, int flags)
-      __attribute__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
 ssize_t Rread(int d, void *buf, size_t nbytes)
-      __attribute__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
 ssize_t Rreadv(int d, const struct iovec *iov, int iovcnt);
 ssize_t Rrecv(int s, void *msg, size_t len, int flags)
-      __attribute__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
 
 #if HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND
 int Rfgetc(FILE *fp);
@@ -486,7 +492,7 @@ int Rselect(int, fd_set *, fd_set *, fd_set *, struct timeval *);
  * socks implementations.
  */
 
-struct route_t *
+route_t *
 udpsetup(int s, const struct sockaddr *to, int type);
 /*
  * sets up udp relaying between address of "s" and "to" by connecting
@@ -515,8 +521,8 @@ void socks_addrunlock(const addrlockopaque_t *opaque);
  * the same pointer needs to be passed to socks_addrunlock();
  */
 
-struct socksfd_t *
-socks_addrdup(const struct socksfd_t *old, struct socksfd_t *new);
+socksfd_t *
+socks_addrdup(const socksfd_t *old, socksfd_t *new);
 /*
  * Duplicates "old", in "new".
  * Returns:
@@ -524,8 +530,8 @@ socks_addrdup(const struct socksfd_t *old, struct socksfd_t *new);
  *    On failure: NULL (resource shortage).
  */
 
-struct socksfd_t *
-socks_addaddr(const int clientfd, const struct socksfd_t *socksaddress,
+socksfd_t *
+socks_addaddr(const int clientfd, const socksfd_t *socksaddress,
               const int takelock);
 /*
  * "clientfd" is associated with the structure "socksfd".
@@ -544,8 +550,8 @@ socks_addaddr(const int clientfd, const struct socksfd_t *socksaddress,
  *
  */
 
-struct socksfd_t *
-socks_getaddr(const int fd, struct socksfd_t *socksfd, const int takelock);
+socksfd_t *
+socks_getaddr(const int fd, socksfd_t *socksfd, const int takelock);
 /*
  * Returns a copy of the socksfd corresponding to "fd".
  * If "socksfd" is not NULL, the contents of the socksfd is also stored in
@@ -592,7 +598,7 @@ socks_addrcontrol(const struct sockaddr *local, const struct sockaddr *remote,
 
 int
 socks_addrmatch(const struct sockaddr *local, const struct sockaddr *remote,
-      const struct socksstate_t *state, const int takelock);
+                const socksstate_t *state, const int takelock);
 /*
  * If "takelock" is true, it means the function should take the
  * socksfdv/addrlock.
@@ -617,7 +623,7 @@ socks_isaddr(const int fd, const int takelock);
  */
 
 int
-socks_addrisours(const int s, struct socksfd_t *socksfd, const int takelock);
+socks_addrisours(const int s, socksfd_t *socksfd, const int takelock);
 /*
  * Compares the current address of "s" to the registered address.
  * If there is a mismatch, the function will try to correct it if possible.
@@ -751,7 +757,7 @@ int sys_Egetpeername(int, struct sockaddr *, socklen_t *);
 int sys_Egetsockname(int, struct sockaddr *, socklen_t *);
 ssize_t sys_Ereadv(int, const struct iovec *, int);
 int sys_Erecvfrom(int, void *, size_t, int, struct sockaddr *, size_t *)
-      __attribute__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
 ssize_t sys_Erecvmsg(int, struct msghdr *, int);
 ssize_t sys_Esendmsg(int, const struct msghdr *, int);
 ssize_t sys_Ewritev(int, const struct iovec *, int);
@@ -760,7 +766,7 @@ int sys_naccept(int, struct sockaddr *, socklen_t *);
 int sys_ngetpeername(int, struct sockaddr *, socklen_t *);
 int sys_ngetsockname(int, struct sockaddr *, socklen_t *);
 int sys_nrecvfrom(int, void *, size_t, int, struct sockaddr *, size_t *)
-      __attribute__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
 ssize_t sys_nrecvmsg(int, struct msghdr *, int);
 ssize_t sys_nsendmsg(int, const struct msghdr *, int);
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
