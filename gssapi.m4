@@ -17,7 +17,7 @@ case $host in
     #openbsd libthread is buggy; disable gssapi by default (needs pthreads)
     *-*-openbsd*)
 	gssapi_default=no
-        AC_DEFINE(HAVE_THREADS_EINTR_PROBLEMS, 1, [threads unstable platform])
+	AC_DEFINE(HAVE_THREADS_EINTR_PROBLEMS, 1, [threads unstable platform])
 	;;
 esac
 
@@ -95,18 +95,18 @@ if test x"$GSSAPI" != xno; then
    dnl nothing from krb5-config, but gssdir specified?
    if test x"${ac_gssapi_cflags}" = x -a x"${ac_gssapi_libs}" = x -a \
            x"$gssdir" != x; then
-       dnl attempt to construct environment manuelly
+       dnl attempt to construct environment manually
        CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I$gssdir/include"
        LDFLAGS="${LDFLAGS}${LDFLAGS:+ }-L$gssdir/lib"
        #includes under kerberosV dir on OpenBSD
        if test -d "$gssdir/include/kerberosV"; then
-       	  CPPFLAGS="${CPPFLAGS} -I${gssdir}/include/kerberosV"
+		  CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I${gssdir}/include/kerberosV"
        fi
    fi
 
    dnl any cflags values obtained from krb5-config?
    if test x"$ac_gssapi_cflags" != x; then
-       CPPFLAGS="${CPPFLAGS} $ac_gssapi_cflags"
+       CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_gssapi_cflags"
    fi
 
    dnl any libs obtained from krb5-config?
@@ -131,9 +131,8 @@ if test x"$GSSAPI" != xno; then
    if test x"$ac_gssapi_libs" != x; then
        _libsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep '^-l' | xargs echo`
        _optsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
-       
-       LIBS="${LIBS} ${_libsonly}"
-       LDFLAGS="${LDFLAGS} ${_optsonly}"
+       LIBS="${LIBS}${LIBS:+ }${_libsonly}"
+       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }${_optsonly}"
    else
        oLIBS=$LIBS
        LIBS=""
@@ -185,7 +184,7 @@ if test x"$GSSAPI" != xno; then
 	       if test x"$have_gssapi_krb5" = x; then
 		   AC_CHECK_LIB(gssapi_krb5,
 		       gsskrb5_register_acceptor_identity,
-		       LIBS="${LIBS} -lgssapi_krb5",)
+		       LIBS="${LIBS}${LIBS:+ }-lgssapi_krb5",)
 	       fi
 	       ;;
        esac
@@ -224,7 +223,9 @@ main(void)
 }
 ], [unset no_gssapi
     AC_MSG_RESULT(yes)],
-   [AC_MSG_RESULT(no)])
+   [AC_MSG_RESULT(no)],
+   [dnl assume no when cross-compiling
+    AC_MSG_RESULT(assuming no)])
 
    for file in gssapi.h gssapi/gssapi.h gssapi/gssapi_generic.h; do
        AC_EGREP_HEADER(gss_nt_service_name, [$file],
@@ -248,7 +249,7 @@ if test x"$no_gssapi" = xt; then
     LIBS=$nogssLIBS
 else
     #include libs as dependencies as needed in subdirs
-    LIBS="${LIBS} $nogssLIBS"
+    LIBS="${LIBS}${LIBS:+ }$nogssLIBS"
 
     AC_DEFINE(HAVE_GSSAPI, 1, [GSSAPI support])
 fi

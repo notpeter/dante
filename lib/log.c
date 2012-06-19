@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011
+ *               2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.226 2011/08/04 05:25:21 michaels Exp $";
+"$Id: log.c,v 1.259 2012/06/01 20:23:05 karls Exp $";
 
 #include "common.h"
 #include "config_parse.h"
@@ -52,9 +52,9 @@ static const char rcsid[] =
 #define SOCKS_RINGBUFLEN   (1024 * 100) /* 100kB ringbuffer. */
 #endif /* SOCKS_RINGBUFLEN */
 
-#if HAVE_EXECINFO_H && DEBUG
+#if HAVE_EXECINFO_H && HAVE_BACKTRACE
 #include <execinfo.h>
-#endif /* HAVE_EXECINFO_H && DEBUG */
+#endif /* HAVE_EXECINFO_H && HAVE_BACKTRACE */
 
 #if DEBUG
 #undef SOCKS_IGNORE_SIGNALSAFETY
@@ -107,8 +107,8 @@ static const struct {
 static size_t
 logformat(int priority, char *buf, const size_t buflen, const char *message,
           va_list ap)
-      __attribute__((__bounded__(__string__, 2, 3)))
-      __attribute__((format(printf, 4, 0)));
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)))
+      __ATTRIBUTE__((FORMAT(printf, 4, 0)));
 /*
  * formats "message" as appropriate.  The formatted message is stored
  * in the buffer "buf", which is of size "buflen".
@@ -120,7 +120,7 @@ logformat(int priority, char *buf, const size_t buflen, const char *message,
 
 #if HAVE_LIVEDEBUG
 
-static void 
+static void
 socks_addtorb(const char *str, const size_t strlen);
 /*
  * Adds the NUL-terminated string "str", of length "strlen" (including NUL)
@@ -137,24 +137,40 @@ static size_t ringbuf_curroff;
 do {                                                                           \
    char srcstr[MAX_IOLOGADDR];                                                 \
                                                                                \
-   BUILD_ADDRSTR_SRC(src_peer,                                                 \
-                     src_proxy_ext,                                            \
-                     src_proxy,                                                \
-                     src_local,                                                \
-                     src_auth,                                                 \
-                     src_proxyauth,                                            \
-                     (dst_too) ? srcstr : srcdst_str,                          \
+   build_addrstr_src(GET_HOSTIDV(src),                                         \
+                     GET_HOSTIDC(src),                                         \
+                     src != NULL && src->peer_isset ?                          \
+                        &src->peer : NULL,                                     \
+                     tosrc_proxy != NULL && tosrc_proxy->peer_isset ?          \
+                        &tosrc_proxy->peer : NULL,                             \
+                     tosrc_proxy != NULL && tosrc_proxy->local_isset ?         \
+                        &tosrc_proxy->local : NULL,                            \
+                     src != NULL && src->local_isset ?                         \
+                        &src->local : NULL,                                    \
+                     src != NULL && src->auth_isset ?                          \
+                        &src->auth : NULL,                                     \
+                     tosrc_proxy != NULL && tosrc_proxy->auth_isset ?          \
+                        &tosrc_proxy->auth  : NULL,                            \
+                     (dst_too) ? srcstr         : srcdst_str,                  \
                      (dst_too) ? sizeof(srcstr) : sizeof(srcdst_str));         \
                                                                                \
    if (dst_too) {                                                              \
       char dststr[MAX_IOLOGADDR];                                              \
                                                                                \
-      BUILD_ADDRSTR_DST(dst_local,                                             \
-                        dst_proxy,                                             \
-                        dst_proxy_ext,                                         \
-                        dst_peer,                                              \
-                        dst_auth,                                              \
-                        dst_proxyauth,                                         \
+      build_addrstr_dst(dst != NULL && dst->local_isset ?                      \
+                           &dst->local : NULL,                                 \
+                        todst_proxy != NULL && todst_proxy->local_isset ?      \
+                           &todst_proxy->local : NULL,                         \
+                        todst_proxy != NULL && todst_proxy->peer_isset  ?      \
+                           &todst_proxy->peer  : NULL,                         \
+                        dst != NULL && dst->peer_isset ?                       \
+                           &dst->peer : NULL,                                  \
+                        dst != NULL && dst->auth_isset ?                       \
+                           &dst->auth : NULL,                                  \
+                        todst_proxy != NULL && todst_proxy->auth_isset ?       \
+                           &todst_proxy->auth  : NULL,                         \
+                        GET_HOSTIDV(dst),                                      \
+                        GET_HOSTIDC(dst),                                      \
                         dststr,                                                \
                         sizeof(dststr));                                       \
                                                                                \
@@ -162,35 +178,94 @@ do {                                                                           \
    }                                                                           \
 } while (/* CONSTCOND */ 0)
 
+
+iologaddr_t *
+init_iologaddr(addr, local_type, local, peer_type, peer, auth, hostidv, hostidc)
+   iologaddr_t *addr;
+   const objecttype_t local_type;
+   const void *local;
+   const objecttype_t peer_type;
+   const void *peer;
+   const authmethod_t *auth;
+   const struct in_addr *hostidv;
+   const unsigned char hostidc;
+{
+
+   if (local == NULL || local_type == NOOBJECT)
+      addr->local_isset = 0;
+   else {
+      switch (local_type) {
+         case SOCKADDR_OBJECT:
+            sockaddr2sockshost(local, &addr->local);
+            break;
+
+         case SOCKSHOST_OBJECT:
+            addr->local = *(const sockshost_t *)local;
+            break;
+
+         default:
+            SERRX(local_type);
+      }
+
+      addr->local_isset = 1;
+   }
+
+   if (peer == NULL || peer_type == NOOBJECT)
+      addr->peer_isset  = 0;
+   else {
+      switch (peer_type) {
+         case SOCKADDR_OBJECT:
+            sockaddr2sockshost(peer, &addr->peer);
+            break;
+
+         case SOCKSHOST_OBJECT:
+            addr->peer = *(const sockshost_t *)peer;
+            break;
+
+         default:
+            SERRX(peer_type);
+      }
+
+      addr->peer_isset = 1;
+   }
+
+   if (auth == NULL)
+      addr->auth_isset = 0;
+   else {
+      addr->auth       = *auth;
+      addr->auth_isset = 1;
+   }
+
+#if HAVE_SOCKS_HOSTID
+   if (hostidv == NULL || hostidc == 0)
+      addr->hostidc = 0;
+   else {
+      memcpy(addr->hostidv, hostidv, sizeof(*hostidv) * hostidc);
+      addr->hostidc = hostidc;
+   }
+#endif /* HAVE_SOCKS_HOSTID */
+
+   return addr;
+}
+
 void
-iolog(rule, state, operation,
-      src_local, src_peer, src_auth, src_proxy, src_proxy_ext, src_proxyauth,
-      dst_local, dst_peer, dst_auth, dst_proxy, dst_proxy_ext, dst_proxyauth,
-      data, count)
-   struct rule_t *rule;
-   const struct connectionstate_t *state;
-   const operation_t operation;
-   const struct sockaddr *src_local;
-   const struct sockshost_t *src_peer;
-   const struct authmethod_t *src_auth;
-   const gwaddr_t *src_proxy;
-   const struct sockshost_t *src_proxy_ext;
-   const struct authmethod_t *src_proxyauth;
-   const struct sockaddr *dst_local;
-   const struct sockshost_t *dst_peer;
-   const struct authmethod_t *dst_auth;
-   const gwaddr_t *dst_proxy;
-   const struct sockshost_t *dst_proxy_ext;
-   const struct authmethod_t *dst_proxyauth;
+iolog(rule, state, op, src, dst, tosrc_proxy, todst_proxy, data, count)
+   const rule_t *rule;
+   const connectionstate_t *state;
+   const operation_t op;
+   const iologaddr_t *src;
+   const iologaddr_t *dst;
+   const iologaddr_t *tosrc_proxy;
+   const iologaddr_t *todst_proxy;
    const char *data;
    size_t count;
 {
    const char *verdict;
    /*
     * Static so that it gets allocated on the heap rather than the
-    * stack, as the latter seems to cause some problems on Solaris
-    * where under stress Solaris is unable to grow the stack by 
-    * that much.
+    * stack, as the latter seems to cause some problems on (a memory
+    * constrained?) Solaris where under stress Solaris is unable to grow
+    * the stack by that much.
     */
    static char srcdst_str[MAX_IOLOGADDR + sizeof(" -> ") + MAX_IOLOGADDR],
         rulecommand[256],
@@ -198,18 +273,17 @@ iolog(rule, state, operation,
                  + 1024 /* misc stuff, if any. */];
    int logdstinfo;
 
-   if (state->command == SOCKS_ACCEPT)
-      logdstinfo = 0; /* no dst (yet); connect is from client to us. */
-   else
+   if (dst != NULL)
       logdstinfo = 1;
+   else
+      logdstinfo = 0; /* no dst (yet); connect is from client to us. */
 
    verdict = NULL;
-   switch (operation) {
+   switch (op) {
       case OPERATION_ACCEPT:
+      case OPERATION_HOSTID:
       case OPERATION_CONNECT:
-         if (!rule->log.connect)
-            return;
-         else {
+         if (rule->log.connect) {
             DO_BUILD(srcdst_str, logdstinfo);
             snprintf(ruleinfo, sizeof(ruleinfo),
                      "[: %s%s%s",
@@ -217,12 +291,31 @@ iolog(rule, state, operation,
                      (data == NULL || *data == NUL) ? "" : ": ",
                      (data == NULL || *data == NUL) ? "" : data);
          }
+         else
+            return;
+
          break;
 
       case OPERATION_BLOCK:
-         if (!(rule->log.connect || rule->log.disconnect))
+      case OPERATION_BLOCK_PACKET:
+         if (rule->log.connect || rule->log.disconnect
+         ||  rule->log.data    || rule->log.iooperation) {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo),
+                     "%c: %s%s%s",
+                     op == OPERATION_BLOCK ? ']' : '-',
+                     srcdst_str,
+                     (data == NULL || *data == NUL) ? "" : ": ",
+                     (data == NULL || *data == NUL) ? "" : data);
+         }
+         else
             return;
-         else {
+
+         verdict = verdict2string(VERDICT_BLOCK);
+         break;
+
+      case OPERATION_DISCONNECT:
+         if (rule->log.disconnect) {
             DO_BUILD(srcdst_str, logdstinfo);
             snprintf(ruleinfo, sizeof(ruleinfo),
                      "]: %s%s%s",
@@ -230,14 +323,29 @@ iolog(rule, state, operation,
                      (data == NULL || *data == NUL) ? "" : ": ",
                      (data == NULL || *data == NUL) ? "" : data);
          }
-         
+         else
+            return;
+
+         break;
+
+      case OPERATION_ERROR:
+      case OPERATION_ERROR_PACKET:
+         if (rule->log.error) {
+            DO_BUILD(srcdst_str, logdstinfo);
+            snprintf(ruleinfo, sizeof(ruleinfo),
+                     "%c: %s: %s",
+                     op == OPERATION_ERROR ? ']' : '-',
+                     srcdst_str,
+                     (data == NULL || *data == NUL) ? strerror(errno) : data);
+         }
+         else
+            return;
+
          verdict = verdict2string(VERDICT_BLOCK);
          break;
 
-      case OPERATION_BLOCK_IO:
-         if (!(rule->log.data || rule->log.iooperation))
-            return;
-         else {
+      case OPERATION_IO:
+         if (rule->log.data || rule->log.iooperation) {
             if (rule->log.data && count != 0) {
                char visdata[SOCKD_BUFSIZE * 4 + 1];
 
@@ -254,63 +362,13 @@ iolog(rule, state, operation,
                         srcdst_str, (unsigned long)count);
             }
          }
-
-         verdict = verdict2string(VERDICT_BLOCK);
-         break;
-
-
-      case OPERATION_DISCONNECT:
-         if (!rule->log.disconnect)
-            return;
-         else {
-            DO_BUILD(srcdst_str, logdstinfo);
-            snprintf(ruleinfo, sizeof(ruleinfo),
-                     "]: %s%s%s",
-                     srcdst_str,
-                     (data == NULL || *data == NUL) ? "" : ": ",
-                     (data == NULL || *data == NUL) ? "" : data);
-         }
-         break;
-
-      case OPERATION_ERROR:
-      case OPERATION_ERROR_IO:
-         if (!rule->log.error)
-            return;
-         else {
-            DO_BUILD(srcdst_str, logdstinfo);
-            snprintf(ruleinfo, sizeof(ruleinfo),
-                     "%c: %s: %s",
-                     operation == OPERATION_ERROR ? ']' : '-',
-                     srcdst_str,
-                    (data == NULL || *data == NUL) ? strerror(errno) : data);
-         }
-
-         verdict = verdict2string(VERDICT_BLOCK);
-         break;
-
-      case OPERATION_IO:
-         if (!(rule->log.data || rule->log.iooperation))
+         else
             return;
 
-         if (rule->log.data && count != 0) {
-            char visdata[SOCKD_BUFSIZE * 4 + 1];
-
-            DO_BUILD(srcdst_str, logdstinfo);
-            snprintf(ruleinfo, sizeof(ruleinfo),
-                     "-: %s (%lu): %s",
-                     srcdst_str, (unsigned long)count,
-                     str2vis(data, count, visdata, sizeof(visdata)));
-         }
-         else  {
-            DO_BUILD(srcdst_str, logdstinfo);
-            snprintf(ruleinfo, sizeof(ruleinfo),
-                     "-: %s (%lu)",
-                     srcdst_str, (unsigned long)count);
-         }
          break;
 
       default:
-         SERRX(operation);
+         SERRX(op);
    }
 
    snprintf(rulecommand, sizeof(rulecommand), "%s(%lu): %s/%s",
@@ -333,7 +391,10 @@ iolog(rule, state, operation,
 void
 newprocinit(void)
 {
-#if !SOCKS_CLIENT
+
+#if SOCKS_CLIENT
+   return;
+#else /* !SOCKS_CLIENT */
    const char *function = "newprocinit()";
 
    /*
@@ -358,6 +419,8 @@ newprocinit(void)
               | LOG_NOWAIT
 #endif /* LOG_NOWAIT */
               , 0);
+
+      errno = 0; /* syslog() stuff might set errno on some platforms. */
    }
 
    /*
@@ -365,13 +428,39 @@ newprocinit(void)
     */
    sockscf.state.signalc = 0;
 
-   srandom(sockscf.state.pid);
+   srandom((unsigned int)sockscf.state.pid);
+
+   /* don't want children to inherit mother's cpu settings. */
+   if (sockscf.state.type != CHILD_MOTHER)
+      sockd_setcpusettings(&sockscf.initial.cpu);
+
+   switch (sockscf.state.type) {
+      case CHILD_MOTHER:
+         sockd_setcpusettings(&sockscf.cpu.mother);
+         break;
+
+      case CHILD_NEGOTIATE:
+         sockd_setcpusettings(&sockscf.cpu.negotiate);
+         break;
+
+      case CHILD_REQUEST:
+         sockd_setcpusettings(&sockscf.cpu.request);
+         break;
+
+      case CHILD_IO:
+         sockd_setcpusettings(&sockscf.cpu.io);
+         break;
+
+      default:
+         SERRX(sockscf.state.type);
+   }
+
 #endif /* !SOCKS_CLIENT */
 }
 
 int
 socks_addlogfile(logcf, logfile)
-   struct logtype_t *logcf;
+   logtype_t *logcf;
    const char *logfile;
 {
 /*   const char *function = "socks_addlogfile()"; */
@@ -403,6 +492,9 @@ socks_addlogfile(logcf, logfile)
          logcf->facility = LOG_DAEMON; /* default. */
          logcf->facilityname = "daemon";
       }
+
+      if (!sockscf.state.inited)
+         newprocinit(); /* to setup syslog correctly asap. */
    }
    else { /* filename. */
       int flag;
@@ -410,10 +502,12 @@ socks_addlogfile(logcf, logfile)
       logcf->type |= LOGTYPE_FILE;
 
       if ((logcf->filenov = realloc(logcf->filenov,
-      sizeof(*logcf->filenov) * (logcf->filenoc + 1))) == NULL
+                                sizeof(*logcf->filenov) * (logcf->filenoc + 1)))
+      == NULL
       || (logcf->fnamev = realloc(logcf->fnamev,
-      sizeof(*logcf->fnamev) * (logcf->filenoc + 1))) == NULL) {
-         swarn("failed to allocate memory for logfile names");
+                                 sizeof(*logcf->fnamev) * (logcf->filenoc + 1)))
+      == NULL) {
+         swarn("failed to allocate memory for log filenames");
          return -1;
       }
 
@@ -488,7 +582,7 @@ vslog(priority, message, ap, apsyslog)
     *
     * Static so that it gets allocated on the heap rather than the
     * stack, as the latter seems to cause some problems on Solaris
-    * where under stress Solaris is unable to grow the stack by 
+    * where under stress Solaris is unable to grow the stack by
     * that much.
     */
 #if HAVE_LIVEDEBUG
@@ -505,14 +599,14 @@ vslog(priority, message, ap, apsyslog)
       /*
        * Note that this can be the case even if insignal is not set.
        * This can happen in the client if the application has
-       * installed a signalhandler, and that signalhandler ends
+       * installed a signal handler, and that signal handler ends
        * up making calls that involve us.
        */
       return;
 #endif /* !SOCKS_IGNORE_SIGNALSAFETY */
 
    if (priority == LOG_DEBUG && !sockscf.option.debug) {
-#if HAVE_LIVEDEBUG 
+#if HAVE_LIVEDEBUG
       const int insignal = sockscf.state.insignal;
 
       /* don't have logformat() bother with calling localtime(3); too slow. */
@@ -523,6 +617,7 @@ vslog(priority, message, ap, apsyslog)
       socks_addtorb(logstr, loglen);
 #endif /* HAVE_LIVEDEBUG */
 
+      errno = errno_s;
       return;
    }
 
@@ -533,9 +628,11 @@ vslog(priority, message, ap, apsyslog)
    ||  (sockscf.log.type    & LOGTYPE_SYSLOG)) {
       int p;
 
-      if ((p = vsnprintf(logstr, sizeof(logstr), message, apsyslog)) < 0 
-      ||  p >= (int)sizeof(logstr))
+      if ((p = vsnprintf(logstr, sizeof(logstr), message, apsyslog)) < 0
+      ||  p >= (int)sizeof(logstr)) {
+         errno = errno_s;
          return;
+      }
 
       if (priority <= LOG_WARNING) /* lower pri value means more serious */
          if (sockscf.errlog.type & LOGTYPE_SYSLOG) {
@@ -562,7 +659,7 @@ vslog(priority, message, ap, apsyslog)
    needlock = 0;
    if ((priority <= LOG_WARNING && (sockscf.errlog.type & LOGTYPE_FILE))
    || ((sockscf.log.type & LOGTYPE_FILE))
-   || HAVE_LIVEDEBUG) {
+   || (HAVE_LIVEDEBUG)) {
       loglen = logformat(priority, logstr, sizeof(logstr), message, ap);
 
       if (loglen != 0 && sockscf.loglock != -1) {
@@ -579,7 +676,7 @@ vslog(priority, message, ap, apsyslog)
          size_t i;
 
          for (i = 0; i < sockscf.errlog.filenoc; ++i) {
-            write(sockscf.errlog.filenov[i], logstr, loglen - 1);
+            (void)write(sockscf.errlog.filenov[i], logstr, loglen - 1);
             logged = 1;
          }
       }
@@ -590,7 +687,7 @@ vslog(priority, message, ap, apsyslog)
       size_t i;
 
       for (i = 0; i < sockscf.log.filenoc; ++i) {
-         write(sockscf.log.filenov[i], logstr, loglen - 1);
+         (void)write(sockscf.log.filenov[i], logstr, loglen - 1);
          logged = 1;
       }
    }
@@ -599,14 +696,14 @@ vslog(priority, message, ap, apsyslog)
       socks_unlock(sockscf.loglock);
 
 #if HAVE_LIVEDEBUG
-   /* and finaly, always save to ringbuffer if enabled for this child. */
+   /* and finally, always save to ring buffer if enabled for this child. */
    if (loglen != 0)
       socks_addtorb(logstr, loglen);
 #endif /* HAVE_LIVEDEBUG  */
 
    /*
     * If we need to log something serious, but have not inited
-    * logfiles yet, try to log to stderr if that seems likly to
+    * logfiles yet, try to log to stderr if that seems likely to
     * work.
     */
 
@@ -625,7 +722,7 @@ vslog(priority, message, ap, apsyslog)
             loglen = logformat(priority, logstr, sizeof(logstr), message, ap);
 
          if (loglen != 0)
-            write(fileno(stderr), logstr, loglen - 1);
+            (void)write(fileno(stderr), logstr, loglen - 1);
       }
    }
 #endif /* !SOCKS_CLIENT */
@@ -660,7 +757,7 @@ logformat(priority, buf, buflen, message, ap)
 
    if (sockscf.state.insignal)
       /*
-       * very prone to hanging on some systems, and illegal from signalhandler.
+       * very prone to hanging on some systems, and illegal from signal handler.
        */
       bufused += snprintf(&buf[bufused], buflen - bufused,
                           "<no localtime available> ");
@@ -730,7 +827,141 @@ slogstack(void)
 #endif /* HAVE_BACKTRACE */
 }
 
-#if HAVE_LIVEDEBUG 
+#if !SOCKS_CLIENT
+
+char *
+build_addrstr_src(hostidv, hostidc, peer, proxy_ext, proxy, local,
+                  peerauth, proxyauth, str, strsize)
+   const struct in_addr *hostidv;
+   const unsigned char hostidc;
+   const sockshost_t *peer;
+   const sockshost_t *proxy_ext;
+   const sockshost_t *proxy;
+   const sockshost_t *local;
+   const authmethod_t *peerauth;
+   const authmethod_t *proxyauth;
+   char *str;
+   size_t strsize;
+{
+   size_t strused;
+   char peerstr[MAXSOCKSHOSTSTRING], peerauthstr[MAXAUTHINFOLEN],
+        proxyauthstr[MAXAUTHINFOLEN], pstr[MAXSOCKSHOSTSTRING],
+        pe_str[MAXSOCKSHOSTSTRING + sizeof("[]")], lstr[MAXSOCKSHOSTSTRING];
+
+   strused = 0;
+   if (hostidv != NULL && hostidc > 0) {
+      size_t i;
+
+      for (i = 0; i < hostidc; ++i)
+         strused += snprintf(&str[strused], strsize - strused,
+                             "%s[%s]",
+                             i > 0 ? " " : "", inet_ntoa(hostidv[i]));
+
+      if ((strused + 1) < strsize) {
+         str[strused]      = ' ';
+         str[strused + 1]  = NUL;
+         strused           += 1;
+      }
+   }
+
+   if ((proxy_ext) == NULL)
+      *pe_str = NUL;
+   else
+      snprintf(pe_str, sizeof(pe_str),
+               "[%s] ", sockshost2string(proxy_ext, NULL, 0));
+
+   snprintf(&str[strused], strsize - strused,
+            "%s%s "
+            "%s"
+            "%s%s%s"
+            "%s",
+
+            authinfo((peerauth), peerauthstr, sizeof(peerauthstr)),
+            (peer) == NULL ?
+              "0.0.0.0.0" : sockshost2string((peer), peerstr, sizeof(peerstr)),
+
+            pe_str,
+
+            authinfo((proxyauth), proxyauthstr, sizeof(proxyauthstr)),
+            (proxy) == NULL ?
+               "" : sockshost2string((proxy), pstr, sizeof(pstr)),
+            (proxy) == NULL ? "" : " ",
+
+            (local) == NULL ?
+               "0.0.0.0.0" : sockshost2string((local), lstr, sizeof(lstr)));
+
+   return str;
+}
+
+char *
+build_addrstr_dst(local, proxy, proxy_ext, peer,
+                  peerauth, proxyauth, hostidv, hostidc, str, strsize)
+   const sockshost_t *local;
+   const sockshost_t *proxy;
+   const sockshost_t *proxy_ext;
+   const sockshost_t *peer;
+   const authmethod_t *peerauth;
+   const authmethod_t *proxyauth;
+   const struct in_addr *hostidv;
+   const unsigned char hostidc;
+   char *str;
+   size_t strsize;
+{
+   size_t strused;
+   char peerstr[MAXSOCKSHOSTSTRING], peerauthstr[MAXAUTHINFOLEN],
+        proxyauthstr[MAXAUTHINFOLEN], pstr[MAXSOCKSHOSTSTRING],
+        pe_str[MAXSOCKSHOSTSTRING + sizeof("[]")], lstr[MAXSOCKSHOSTSTRING];
+
+   if ((proxy_ext) == NULL)
+      *pe_str = NUL;
+   else
+      snprintf(pe_str, sizeof(pe_str),
+               "[%s] ", sockshost2string(proxy_ext, NULL, 0));
+
+   strused =
+   snprintf((str), (strsize),
+            "%s "
+            "%s%s%s"
+            "%s"
+            "%s%s",
+
+            local == NULL ?
+               "0.0.0.0.0" : sockshost2string(local, lstr, sizeof(lstr)),
+
+            authinfo(proxyauth, proxyauthstr, sizeof(proxyauthstr)),
+            proxy == NULL ?
+               "" : sockshost2string(proxy, pstr, sizeof(pstr)),
+            proxy == NULL ? "" : " ",
+
+            pe_str,
+
+            authinfo(peerauth, peerauthstr, sizeof(peerauthstr)),
+            peer == NULL ?
+             "0.0.0.0.0" : sockshost2string(peer, peerstr, sizeof(peerstr)));
+
+   if (hostidv != NULL && hostidc > 0) {
+      ssize_t i;
+
+      if ((strused + 1) < strsize) {
+         str[strused]      = ' ';
+         str[strused + 1]  = NUL;
+         strused          += 1;
+      }
+
+      for (i = hostidc - 1; i >= 0; --i)
+         strused += snprintf(&str[strused], strsize - strused,
+                             "%s[%s]",
+                              (i == ((ssize_t)hostidc) - 1) ? "" : " ",
+                              inet_ntoa(hostidv[i]));
+   }
+
+   return str;
+}
+
+
+#endif /* !SOCKS_CLIENT */
+
+#if HAVE_LIVEDEBUG
 
 static void
 socks_addtorb(str, lenopt)

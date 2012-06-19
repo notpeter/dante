@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011
+ *               2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,11 +47,10 @@
 #if 0 /* XXX automatically added at head of generated .c file */
 #include "common.h"
 #endif
-#include "ifaddrs_compat.h"
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.401 2011/08/01 15:23:27 michaels Exp $";
+"$Id: config_parse.y,v 1.471 2012/06/01 20:23:05 karls Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -59,9 +58,10 @@ static const char rcsid[] =
 
 #define CHECKNUMBER(number, op, checkagainst)                                  \
 do {                                                                           \
-   if (!(atol((number)) op (checkagainst)))                                    \
-      yyerror("number must be " #op " " #checkagainst ".  It can not be %ld",  \
-              atol((number)));                                                 \
+   if (!((number) op (checkagainst)))                                          \
+      yyerror("number must be " #op " " #checkagainst " (%ld).  "              \
+              "It can not be %ld",                                             \
+              (long)(checkagainst), (long)(number));                           \
 } while (0)
 
 #define CHECKPORTNUMBER(portnumber)                                            \
@@ -71,26 +71,29 @@ do {                                                                           \
 } while (0)
 
 static void
-addrinit(struct ruleaddr_t *addr, const int netmask_required);
+addnumber(size_t *numberc, ssize_t *numberv[], const ssize_t number);
 
 static void
-gwaddrinit(gwaddr_t *addr);
+addrinit(ruleaddr_t *addr, const int netmask_required);
+
+static void
+gwaddrinit(sockshost_t *addr);
 
 #if SOCKS_CLIENT
 static void parseclientenv(int *haveproxyserver);
 /*
- * parses client environment, if any.  
- * If a proxyserver is configured in enviroment, "haveproxyserver" is set
+ * parses client environment, if any.
+ * If a proxy server is configured in environment, "haveproxyserver" is set
  * to true upon return.  If not, it is set to false.
  */
 
 static void
-addproxyserver(const char *proxyserver, 
-               const struct proxyprotocol_t *proxyprotocol);
+addproxyserver(const char *proxyserver,
+               const proxyprotocol_t *proxyprotocol);
 /*
- * Adds a route for a proxyserver with address "proxyserver" to our
+ * Adds a route for a proxy server with address "proxyserver" to our
  * routes.
- * "proxyprotocol" is the proxyprotocols supported by the proxyserver.
+ * "proxyprotocol" is the proxy protocols supported by the proxy server.
  */
 #else /* !SOCKS_CLIENT */
 
@@ -103,70 +106,77 @@ static void rulereset(void);
 /*
  * Prepare pointers to point to the correct memory for adding a new rule.
  */
-static void ruleinit(struct rule_t *rule);
+static void ruleinit(rule_t *rule);
 
 #endif /* !SOCKS_CLIENT */
 
 extern int yylineno;
 extern char *yytext;
 
-static int parsingconfig;
-
-static unsigned char          add_to_errorlog; /* adding logfile to errorlog? */
-static struct timeout_t       *timeout = &sockscf.timeout;
+static int             parsingconfig;   /* currently parsing config?          */
+static unsigned char   add_to_errorlog; /* adding logfile to errorlog?        */
 
 #if !SOCKS_CLIENT
-static struct rule_t          rule;          /* new rule.                     */
-static struct protocol_t      protocolmem;   /* new protocolmem.              */
+static rule_t          rule;          /* new rule.                     */
+static protocol_t      protocolmem;   /* new protocolmem.              */
 #if !HAVE_PRIVILEGES
-static struct userid_t        olduserid;
+static userid_t        olduserid;
 #endif /* !HAVE_PRIVILEGES */
 #endif /* !SOCKS_CLIENT */
 
-static struct serverstate_t   state;
-static struct route_t         route;         /* new route.                    */
-static gwaddr_t               gw;            /* new gateway.                  */
+static ssize_t         *numberv;
+static size_t          numberc;
 
-static struct ruleaddr_t      src;            /* new src.                     */
-static struct ruleaddr_t      dst;            /* new dst.                     */
-static struct ruleaddr_t      rdr_from;
-static struct ruleaddr_t      rdr_to;
+static timeout_t       *timeout = &sockscf.timeout;           /* default. */
+
+static socketoption_t  socketopt;
+size_t                 socketoptid;
+
+static serverstate_t   state;
+static route_t         route;         /* new route.                    */
+static sockshost_t     gw;            /* new gateway.                  */
+
+static ruleaddr_t      src;            /* new src.                     */
+static ruleaddr_t      dst;            /* new dst.                     */
+static ruleaddr_t      hostid;         /* new hostid.                  */
+static ruleaddr_t      rdr_from;       /* new redirect from.           */
+static ruleaddr_t      rdr_to;         /* new redirect to.             */
 
 #if BAREFOOTD
-static struct ruleaddr_t      bounce_to;
+static ruleaddr_t      bounceto;
 #endif /* BAREFOOTD */
 
-static struct ruleaddr_t      *ruleaddr;      /* current ruleaddr             */
-static struct extension_t     *extension;     /* new extensions               */
-static struct proxyprotocol_t *proxyprotocol; /* proxy protocol.              */
+static ruleaddr_t      *ruleaddr;      /* current ruleaddr             */
+static extension_t     *extension;     /* new extensions               */
+static proxyprotocol_t *proxyprotocol; /* proxy protocol.              */
 
-static atype_t                *atype;         /* atype of new address.        */
-static struct in_addr         *ipaddr;        /* new ip address               */
-static struct in_addr         *netmask;       /* new netmask                  */
-static int                    netmask_required;/*
+static unsigned char   *atype;         /* atype of new address.        */
+static struct in_addr  *ipaddr;        /* new ip address               */
+static struct in_addr  *netmask;       /* new netmask                  */
+static int             netmask_required;/*
                                                 * netmask required for this
                                                 * address?
                                                 */
-static char                   *domain;        /* new domain.                  */
-static char                   *ifname;        /* new ifname.                  */
-static char                   *url;           /* new url.                     */
+static char            *domain;        /* new domain.                  */
+static char            *ifname;        /* new ifname.                  */
+static char            *url;           /* new url.                     */
 
-static in_port_t              *port_tcp;      /* new TCP port number.         */
-static in_port_t              *port_udp;      /* new UDP port number.         */
-static int                    *methodv;       /* new authmethods.             */
-static size_t                 *methodc;       /* number of them.              */
-static struct protocol_t      *protocol;      /* new protocol.                */
-static struct command_t       *command;       /* new command.                 */
-static enum operator_t        *operator;      /* new operator.                */
+static in_port_t       *port_tcp;      /* new TCP port number.         */
+static in_port_t       *port_udp;      /* new UDP port number.         */
+static int             *methodv;       /* new authmethods.             */
+static size_t          *methodc;       /* number of them.              */
+static protocol_t      *protocol;      /* new protocol.                */
+static command_t       *command;       /* new command.                 */
+static enum operator_t *operator;      /* new operator.                */
 
 #if HAVE_GSSAPI
-static char                  *gssapiservicename; /* new gssapiservice.        */
-static char                  *gssapikeytab;      /* new gssapikeytab.         */
-static struct gssapi_enc_t   *gssapiencryption;  /* new encryption status.    */
+static char            *gssapiservicename; /* new gssapiservice.        */
+static char            *gssapikeytab;      /* new gssapikeytab.         */
+static gssapi_enc_t    *gssapiencryption;  /* new encryption status.    */
 #endif /* HAVE_GSSAPI */
 
 #if HAVE_LDAP
-static struct ldap_t         *ldap;        /* new ldap server details.        */
+static ldap_t          *ldap;        /* new ldap server details.        */
 #endif
 
 #if DEBUG
@@ -180,7 +190,7 @@ do {                                                                           \
    else {                                                                      \
       if (*methodc >= MAXMETHOD)                                               \
          yyerror("internal error, too many authmethods (%ld >= %ld)",          \
-         (long)*methodc, (long)MAXMETHOD);                                     \
+                 (long)*methodc, (long)MAXMETHOD);                             \
       methodv[(*methodc)++] = method;                                          \
    }                                                                           \
 } while (0)
@@ -188,31 +198,31 @@ do {                                                                           \
 %}
 
 %union {
-   char   *string;
+   char    *string;
    uid_t   uid;
+   ssize_t number;
 };
 
 
-%type <string> configtype serverline clientline deprecated
-%token <string> SERVERCONFIG CLIENTCONFIG DEPRECATED
-
+%type   <string> bsdauthstylename
+%type   <string> command commands commandname
+%type   <string> configtype serverline clientline deprecated
+%type   <string> debuging
+%type   <string> group groupname groupnames
+%type   <string> gssapienctype
+%type   <string> gssapikeytab
+%type   <string> gssapiservicename
+%type   <string> oldsocketoption
+%type   <string> pamservicename
 %type   <string> protocol protocols protocolname
 %type   <string> proxyprotocol proxyprotocolname proxyprotocols
-%type   <string> user username usernames
-%type   <string> group groupname groupnames
-%type   <string> pamservicename
-%type   <string> bsdauthstylename
-%type   <string> gssapiservicename
-%type   <string> gssapikeytab
-%type   <string> gssapienctype
-%type   <string> resolveprotocol resolveprotocolname
-%type   <string> socket
-%type   <string> srchost srchostoption srchostoptions
-%type   <string> command commands commandname
-%type   <string> routeinit
-%type   <string> udpportrange udpportrange_start udpportrange_end
-%type   <string> debuging
 %type   <string> realm
+%type   <string> resolveprotocol resolveprotocolname
+%type   <string> routeinit
+%type   <string> socketside socketoption socketoptionname socketoptionvalue
+%type   <string> srchost srchostoption srchostoptions
+%type   <string> udpportrange udpportrange_start udpportrange_end
+%type   <string> user username usernames
 
    /* clientconfig exclusive. */
 %type   <string> clientinit clientconfig
@@ -220,6 +230,7 @@ do {                                                                           \
 
 
    /* serverconfig exclusive */
+%type   <string> cpu cpuschedule cpuaffinity
 %type   <string> timeout iotimeout negotiatetimeout connecttimeout
                  tcp_fin_timeout
 %type   <string> extension extensionname extensions
@@ -251,10 +262,20 @@ do {                                                                           \
 %type   <string> ldapattribute ldapattribute_ad ldapattribute_hex ldapattribute_ad_hex
 %type   <string> ldapcertfile ldapcertpath ldapkeytab
 %type   <string> ldapauto ldapdebug ldapdepth ldapport ldapportssl
+%type   <number> number numbers
 
 
+%token   <string> CPU MASK SCHEDULE CPUMASK_ANYCPU
+%token   <number> PROCESSTYPE
+%token   <number> SCHEDULEPOLICY
+%token   <string> SERVERCONFIG CLIENTCONFIG DEPRECATED
+%token   <string> INTERFACE SOCKETOPTION_SYMBOLICVALUE
+%token   <number>SOCKETPROTOCOL SOCKETOPTION_OPTID
 %token   <string> CLIENTRULE
+%token   <string> HOSTID HOSTINDEX
+%token   <string> REQUIRED
 %token   <string> INTERNAL EXTERNAL
+%token   <string> INTERNALSOCKET EXTERNALSOCKET
 %token   <string> REALM REALNAME
 %token   <string> EXTERNAL_ROTATION SAMESAME
 %token   <string> DEBUGGING RESOLVEPROTOCOL
@@ -280,8 +301,9 @@ do {                                                                           \
 %token   <string> ROUTE VIA BADROUTE_EXPIRE MAXFAIL
 
    /* rulelines */
-%type   <string> rule ruleoption ruleoptions
 %type   <string> clientrule clientruleoption clientruleoptions
+%type   <string> hostidrule hostidoption hostindex hostid
+%type   <string> rule ruleoption ruleoptions
 %type   <string> option
 %type   <string> verdict
 %type   <string> fromto
@@ -292,9 +314,9 @@ do {                                                                           \
 %type   <string> address ipaddress gwaddress domain ifname direct url
 %type   <string> from to
 %type   <string> netmask
-%type   <string> port gwport portrange portstart portoperator portnumber
-                 portservice
-%type   <string> bounce bounce_to
+%type   <string> portoperator
+%type   <number> port gwport portrange portstart portnumber portservice
+%type   <string> bounce bounceto
 
 %token <string> VERDICT_BLOCK VERDICT_PASS
 %token <string> PAMSERVICENAME
@@ -317,8 +339,8 @@ do {                                                                           \
 %token <string> SOCKS_LOG SOCKS_LOG_CONNECT SOCKS_LOG_DATA
                 SOCKS_LOG_DISCONNECT SOCKS_LOG_ERROR SOCKS_LOG_IOOPERATION
 %token <string> IPADDRESS DOMAINNAME DIRECT IFNAME URL
-%token <string> PORT SERVICENAME
-%token <string> NUMBER
+%token <string> SERVICENAME
+%token <number> PORT NUMBER
 %token <string> FROM TO
 %token <string> REDIRECT
 %token <string> BANDWIDTH
@@ -355,6 +377,7 @@ configtype:   serverinit serverline
    |   clientinit clientline
    ;
 
+
 serverinit:   SERVERCONFIG {
 #if !SOCKS_CLIENT
       protocol  = &protocolmem;
@@ -362,7 +385,6 @@ serverinit:   SERVERCONFIG {
 #endif /* !SOCKS_CLIENT*/
    }
    ;
-
 
 serverline: serverconfigs rulesorroutes
    ;
@@ -372,6 +394,7 @@ rulesorroutes: { $$ = NULL; }
    ;
 
 ruleorroute: clientrule
+   | hostidrule
    | rule
    | route
    ;
@@ -395,36 +418,37 @@ serverconfigs:  serverconfig
    | serverconfigs serverconfig;
 
 serverconfig: global_authmethod
-   |   global_clientauthmethod
-   |   deprecated
-   |   internal
-   |   external
-   |   external_rotation
-   |   errorlog
-   |   logoutput
-   |   serveroption
-   |   userids
    |   childstate
    |   debuging
-   |   libwrapfiles
+   |   deprecated
+   |   errorlog
+   |   external
+   |   external_rotation
+   |   global_clientauthmethod
+   |   internal
    |   libwrap_hosts_access
+   |   libwrapfiles
+   |   logoutput
+   |   serveroption
+   |   socketoption {
+         if (!addedsocketoption(&sockscf.socketoptionc,
+                                &sockscf.socketoptionv,
+                                &socketopt))
+            yywarn("could not add socket option");
+   }
    |   udpconnectdst
+   |   userids
    ;
 
-serveroption:  compatibility
+serveroption: compatibility
+   |   cpu
    |   extension
    |   global_routeoption
-   |   resolveprotocol
+   |   oldsocketoption
    |   realm
-   |   socket
+   |   resolveprotocol
    |   srchost
-   |   timeout {
-#if !SOCKS_CLIENT
-                  if (timeout->tcp_fin_wait == 0
-                  ||  timeout->tcp_fin_wait >  timeout->tcpio)
-                     timeout->tcp_fin_wait = timeout->tcpio;
-#endif /* !SOCKS_CLIENT */
-      }
+   |   timeout
    ;
 
 timeout: connecttimeout
@@ -470,8 +494,11 @@ routeinit: {
       bzero(&gw, sizeof(gw));
       bzero(&src, sizeof(src));
       bzero(&dst, sizeof(dst));
-      src.atype = SOCKS_ADDR_IPV4;
-      dst.atype = SOCKS_ADDR_IPV4;
+      bzero(&hostid, sizeof(hostid));
+
+      src.atype    = SOCKS_ADDR_IPV4;
+      dst.atype    = SOCKS_ADDR_IPV4;
+      hostid.atype = SOCKS_ADDR_NOTSET;
    }
    ;
 
@@ -553,7 +580,7 @@ internal:   INTERNAL internalinit ':' address {
 
 internalinit: {
 #if !SOCKS_CLIENT
-   static struct ruleaddr_t mem;
+   static ruleaddr_t mem;
    struct servent   *service;
 
    addrinit(&mem, 0);
@@ -577,7 +604,7 @@ external:   EXTERNAL externalinit ':' externaladdress {
 
 externalinit: {
 #if !SOCKS_CLIENT
-      static struct ruleaddr_t mem;
+      static ruleaddr_t mem;
 
       addrinit(&mem, 0);
 #endif /* !SOCKS_CLIENT */
@@ -603,30 +630,27 @@ external_rotation:   EXTERNAL_ROTATION ':' NONE {
 
 clientoption: debuging
    |   global_routeoption
+   |   errorlog
    |   logoutput
    |   resolveprotocol
    |   timeout;
    ;
 
 global_routeoption: ROUTE '.' MAXFAIL ':' NUMBER {
-      const int value = atoi($5);
-
-      if (value < 0)
-         yyerror("max route fails can not be negative (%d)  Use \"0\" to "
+      if ($5 < 0)
+         yyerror("max route fails can not be negative (%ld)  Use \"0\" to "
                  "indicate routes should never be marked as bad",
-                 value);
+                 (long)$5);
 
-      sockscf.routeoptions.maxfail = value;
+      sockscf.routeoptions.maxfail = $5;
    }
    | ROUTE '.' BADROUTE_EXPIRE  ':' NUMBER {
-      const int value = atoi($5);
-
-      if (value < 0)
-         yyerror("route failure expiry time can not be negative (%d).  "
+      if ($5 < 0)
+         yyerror("route failure expiry time can not be negative (%ld).  "
                  "Use \"0\" to indicate bad route marking should never expire",
-                 value);
+                 (long)$5);
 
-      sockscf.routeoptions.badexpire = value;
+      sockscf.routeoptions.badexpire = $5;
    }
    ;
 
@@ -639,30 +663,30 @@ logoutput: LOGOUTPUT ':' { add_to_errorlog = 0; } logoutputdevices
 logoutputdevice:   LOGFILE {
    int p;
 #if !SOCKS_CLIENT && !HAVE_PRIVILEGES
-   const struct userid_t currentuserid = sockscf.uid;;
-   struct userid_t zuid;
+   const userid_t currentuserid = sockscf.uid;;
+   userid_t zuid;
 
    bzero(&zuid, sizeof(zuid));
    if (memcmp(&zuid, &sockscf.uid, sizeof(zuid)) == 0)
       /*
-       * We dont enforce that userid must be set before logfiles, so make sure
+       * We do not enforce that userid must be set before logfiles, so make sure
        * that the old userids, if any, are set before (re)opening logfiles.
        */
       sockscf.uid = olduserid;
 #endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
 
-#if !SOCKS_CLIENT 
-   sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
+#if !SOCKS_CLIENT
+   sockd_priv(SOCKD_PRIV_INITIAL, PRIV_ON);
 #endif /* !SOCKS_CLIENT */
 
    p = socks_addlogfile(add_to_errorlog ? &sockscf.errlog : &sockscf.log, $1);
 
-#if !SOCKS_CLIENT 
-   sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
+#if !SOCKS_CLIENT
+   sockd_priv(SOCKD_PRIV_INITIAL, PRIV_OFF);
 #endif /* !SOCKS_CLIENT */
 
 #if !SOCKS_CLIENT && !HAVE_PRIVILEGES
-   if (p != 0 && sockscf.state.inited) {
+   if (p != 0 && ERRNOISACCES(errno) && sockscf.state.inited) {
       /* try again with original euid, before giving up. */
       sockscf.uid.privileged       = sockscf.state.euid;
       sockscf.uid.privileged_isset = 1;
@@ -700,7 +724,7 @@ childstate: CHILD_MAXIDLE ':' YES {
    }
    | CHILD_MAXREQUESTS ':' NUMBER {
       CHECKNUMBER($3, >=, 0);
-      sockscf.child.maxrequests = (size_t)atol($3);
+      sockscf.child.maxrequests = $3;
 #endif /* !SOCKS_CLIENT */
    }
    ;
@@ -762,16 +786,16 @@ userid:   USERNAME {
 iotimeout:   IOTIMEOUT ':' NUMBER {
 #if !SOCKS_CLIENT
       CHECKNUMBER($3, >=, 0);
-      timeout->tcpio = (size_t)atol($3);
+      timeout->tcpio = $3;
       timeout->udpio = timeout->tcpio;
    }
    | IOTIMEOUT_TCP ':' NUMBER  {
       CHECKNUMBER($3, >=, 0);
-      timeout->tcpio = (size_t)atol($3);
+      timeout->tcpio = $3;
    }
    | IOTIMEOUT_UDP ':' NUMBER  {
       CHECKNUMBER($3, >=, 0);
-      timeout->udpio = (size_t)atol($3);
+      timeout->udpio = $3;
 #endif /* !SOCKS_CLIENT */
    }
    ;
@@ -779,21 +803,21 @@ iotimeout:   IOTIMEOUT ':' NUMBER {
 negotiatetimeout:   NEGOTIATETIMEOUT ':' NUMBER {
 #if !SOCKS_CLIENT
       CHECKNUMBER($3, >=, 0);
-      timeout->negotiate = (size_t)atol($3);
+      timeout->negotiate = $3;
 #endif /* !SOCKS_CLIENT */
    }
    ;
 
 connecttimeout:   CONNECTTIMEOUT ':' NUMBER {
       CHECKNUMBER($3, >=, 0);
-      timeout->connect = (size_t)atol($3);
+      timeout->connect = $3;
    }
    ;
 
 tcp_fin_timeout:   TCP_FIN_WAIT ':' NUMBER {
 #if !SOCKS_CLIENT
       CHECKNUMBER($3, >=, 0);
-      timeout->tcp_fin_wait = (size_t)atol($3);
+      timeout->tcp_fin_wait = $3;
 #endif /* !SOCKS_CLIENT */
    }
    ;
@@ -803,7 +827,7 @@ debuging: DEBUGGING ':' NUMBER {
 #if !SOCKS_CLIENT
       if (sockscf.option.debugrunopt == -1)
 #endif /* !SOCKS_CLIENT */
-          sockscf.option.debug = atoi($3);
+          sockscf.option.debug = $3;
    }
    ;
 
@@ -901,31 +925,190 @@ resolveprotocolname:   PROTOCOL_FAKE {
    }
    ;
 
-socket: SOCKET '.' SNDBUF '.' PROTOCOL_UDP ':' NUMBER {
+cpu: cpuschedule
+   | cpuaffinity
+   ;
+
+cpuschedule: CPU '.' SCHEDULE '.' PROCESSTYPE ':' SCHEDULEPOLICY '/' NUMBER {
+#if !SOCKS_CLIENT
+#if !HAVE_SCHED_SETSCHEDULER
+      yyerror("setting cpu scheduling policy is not supported on this "
+               "platform");
+#else /* HAVE_SCHED_SETSCHEDULER */
+      cpusetting_t *cpusetting;
+
+      switch ($5) {
+         case CHILD_MOTHER:
+            cpusetting = &sockscf.cpu.mother;
+            break;
+
+         case CHILD_NEGOTIATE:
+            cpusetting = &sockscf.cpu.negotiate;
+            break;
+
+         case CHILD_REQUEST:
+            cpusetting = &sockscf.cpu.request;
+            break;
+
+         case CHILD_IO:
+            cpusetting = &sockscf.cpu.io;
+            break;
+
+         default:
+            SERRX($5);
+      }
+
+      cpusetting->scheduling_isset  = 1;
+      cpusetting->policy = $7;
+      bzero(&cpusetting->param, sizeof(cpusetting->param));
+      cpusetting->param.sched_priority = (int)$9;
+#endif /* HAVE_SCHED_SETSCHEDULER */
+#endif /* !SOCKS_CLIENT */
+   }
+   ;
+
+cpuaffinity: CPU '.' MASK '.' PROCESSTYPE ':' numbers {
+#if !SOCKS_CLIENT
+#if !HAVE_SCHED_SETAFFINITY
+      yyerror("setting cpu scheduling affinity is not supported on this "
+              "platform");
+#else /* HAVE_SCHED_SETAFFINITY */
+      cpusetting_t *cpusetting;
+
+      switch ($5) {
+         case CHILD_MOTHER:
+            cpusetting = &sockscf.cpu.mother;
+            break;
+
+         case CHILD_NEGOTIATE:
+            cpusetting = &sockscf.cpu.negotiate;
+            break;
+
+         case CHILD_REQUEST:
+            cpusetting = &sockscf.cpu.request;
+            break;
+
+         case CHILD_IO:
+            cpusetting = &sockscf.cpu.io;
+            break;
+
+         default:
+            SERRX($5);
+      }
+
+      cpu_zero(&cpusetting->mask);
+      while (numberc-- > 0)
+         if (numberv[numberc] == CPUMASK_ANYCPU) {
+            const long cpus = sysconf(_SC_NPROCESSORS_ONLN);
+            long i;
+
+            if (cpus == -1)
+               yyerror("sysconf(_SC_NPROCESSORS_ONLN) failed");
+
+            for (i = 0; i < cpus; ++i)
+               cpu_set((int)i, &cpusetting->mask);
+         }
+         else if (numberv[numberc] < 0)
+            yyerror("invalid CPU number: %ld.  The CPU number can not be "
+                    "negative", (long)numberv[numberc]);
+         else
+            cpu_set(numberv[numberc], &cpusetting->mask);
+
+      free(numberv);
+      numberv = NULL;
+      numberc = 0;
+
+      cpusetting->affinity_isset = 1;
+
+#endif /* HAVE_SCHED_SETAFFINITY */
+#endif /* !SOCKS_CLIENT */
+   }
+   ;
+
+socketoption: socketside SOCKETPROTOCOL '.' {
+#if !SOCKS_CLIENT
+      socketopt.level = $2;
+#endif /* !SOCKS_CLIENT */
+   } socketoptionname ':' socketoptionvalue
+   ;
+
+socketoptionname: NUMBER {
+#if !SOCKS_CLIENT
+   socketopt.optname = $1;
+   socketopt.info    = optval2sockopt(socketopt.level, socketopt.optname);
+
+   if (socketopt.info == NULL)
+      slog(LOG_DEBUG, "unknown/unsupported socket option: level %d, value %d",
+                      socketopt.level, socketopt.optname);
+   else
+      socketoptioncheck(&socketopt);
+   }
+   | SOCKETOPTION_OPTID {
+      socketopt.info           = optid2sockopt($1);
+      SASSERTX(socketopt.info != NULL);
+
+      socketopt.optname        = socketopt.info->value;
+
+      socketoptioncheck(&socketopt);
+#endif /* !SOCKS_CLIENT */
+   }
+   ;
+
+socketoptionvalue: NUMBER {
+      socketopt.optval.int_val = (int)$1;
+      socketopt.opttype        = int_val;
+   }
+   | SOCKETOPTION_SYMBOLICVALUE {
+      const sockoptvalsym_t *p;
+
+      if (socketopt.info == NULL)
+         yyerror("the given socket option is unknown, so can not lookup "
+                 "symbolic option value");
+
+      if ((p = optval2valsym(socketopt.info->optid, $1)) == NULL)
+         yyerror("symbolic value \"%s\" is unknown for socket option %s",
+                 $1, sockopt2string(&socketopt, NULL, 0));
+
+      socketopt.optval  = p->symval;
+      socketopt.opttype = socketopt.info->argtype;
+   }
+   ;
+
+
+socketside: INTERNALSOCKET { bzero(&socketopt, sizeof(socketopt));
+                             socketopt.isinternalside = 1;
+   }
+   |        EXTERNALSOCKET { bzero(&socketopt, sizeof(socketopt));
+                             socketopt.isinternalside = 0;
+   }
+   ;
+
+
+oldsocketoption: SOCKET '.' SNDBUF '.' PROTOCOL_UDP ':' NUMBER {
 #if !SOCKS_CLIENT
       CHECKNUMBER($7, >=, 0);
-      sockscf.socket.udp.sndbuf = (size_t)atol($7);
+      sockscf.socket.udp.sndbuf = $7;
    }
    | SOCKET '.' RCVBUF '.' PROTOCOL_UDP ':' NUMBER {
       CHECKNUMBER($7, >=, 0);
-      sockscf.socket.udp.rcvbuf = (size_t)atol($7);
+      sockscf.socket.udp.rcvbuf = $7;
    }
    | SOCKET '.' SNDBUF '.' PROTOCOL_TCP ':' NUMBER {
       CHECKNUMBER($7, >=, 0);
-      sockscf.socket.tcp.sndbuf = (size_t)atol($7);
+      sockscf.socket.tcp.sndbuf = $7;
    }
    | SOCKET '.' RCVBUF '.' PROTOCOL_TCP ':' NUMBER {
       CHECKNUMBER($7, >=, 0);
-      sockscf.socket.tcp.rcvbuf = (size_t)atol($7);
+      sockscf.socket.tcp.rcvbuf = $7;
 #if BAREFOOTD
    }
    | CLIENTSIDE_SOCKET '.' SNDBUF '.' PROTOCOL_UDP ':' NUMBER {
       CHECKNUMBER($7, >=, 0);
-      sockscf.socket.clientside_udp.sndbuf = (size_t)atol($7);
+      sockscf.socket.clientside_udp.sndbuf = $7;
    }
    | CLIENTSIDE_SOCKET '.' RCVBUF '.' PROTOCOL_UDP ':' NUMBER {
       CHECKNUMBER($7, >=, 0);
-      sockscf.socket.clientside_udp.rcvbuf = (size_t)atol($7);
+      sockscf.socket.clientside_udp.rcvbuf = $7;
 #endif /* BAREFOOTD */
 
 #endif /* !SOCKS_CLIENT */
@@ -1034,7 +1217,9 @@ authmethodname:   NONE {
    ;
 
 
-   /* filter rules */
+   /*
+    * filter rules
+    */
 
 clientrule: CLIENTRULE verdict
    '{' clientruleoptions fromto clientruleoptions '}' {
@@ -1042,11 +1227,16 @@ clientrule: CLIENTRULE verdict
 #if !SOCKS_CLIENT
       rule.src         = src;
       rule.dst         = dst;
+
+#if HAVE_SOCKS_HOSTID
+      rule.hostid      = hostid;
+#endif /* HAVE_SOCKS_HOSTID */
+
       rule.rdr_from    = rdr_from;
       rule.rdr_to      = rdr_to;
 
 #if BAREFOOTD
-      if (bounce_to.atype == SOCKS_ADDR_NOTSET) {
+      if (bounceto.atype == SOCKS_ADDR_NOTSET) {
          if (rule.verdict == VERDICT_PASS)
             yyerror("no address traffic should bounce to has been given");
          else {
@@ -1054,39 +1244,28 @@ clientrule: CLIENTRULE verdict
              * allow no bounce-to if it is a block, as the bounce-to address
              * will not be used in any case then.
              */
-            bounce_to.atype                 = SOCKS_ADDR_IPV4;
-            bounce_to.addr.ipv4.ip.s_addr   = htonl(INADDR_ANY);
-            bounce_to.addr.ipv4.mask.s_addr = htonl(0xffffffff);
-            bounce_to.port.tcp              = bounce_to.port.udp = htons(0);
-            bounce_to.operator              = none;
+            bounceto.atype                 = SOCKS_ADDR_IPV4;
+            bounceto.addr.ipv4.ip.s_addr   = htonl(INADDR_ANY);
+            bounceto.addr.ipv4.mask.s_addr = htonl(0xffffffff);
+            bounceto.port.tcp              = bounceto.port.udp = htons(0);
+            bounceto.operator              = none;
          }
       }
 
-      rule.bounce_to = bounce_to;
+      rule.extra.bounceto = bounceto;
 #endif /* BAREFOOTD */
 
       addclientrule(&rule);
-
       rulereset();
 #endif /* !SOCKS_CLIENT */
    }
    ;
 
-clientruleoption:   option
-   |   bandwidth {
-#if !SOCKS_CLIENT
-         checkmodule("bandwidth");
-#endif /* !SOCKS_CLIENT */
-   }
+clientruleoption: option
    |   protocol {
 #if !BAREFOOTD
          yyerror("unsupported option");
 #endif /* !BAREFOOTD */
-   }
-   |   redirect   {
-#if !SOCKS_CLIENT
-         checkmodule("redirect");
-#endif /* !SOCKS_CLIENT */
    }
    ;
 
@@ -1094,16 +1273,68 @@ clientruleoptions:   { $$ = NULL; }
    |   clientruleoption clientruleoptions
    ;
 
+hostidrule: HOSTID verdict
+   '{' clientruleoptions fromto clientruleoptions '}' {
+
+#if !SOCKS_CLIENT
+#if !HAVE_SOCKS_HOSTID
+      yyerror("hostid rules are not supported on this system");
+#else
+      rule.src         = src;
+      rule.dst         = dst;
+
+
+      if (hostid.atype != SOCKS_ADDR_NOTSET)
+         yyerror("it does not make sense to set the hostid address in a "
+                 "hostid-rule.  Use the \"from\" address to match the hostid "
+                 "of the client");
+
+      rule.rdr_from    = rdr_from;
+      rule.rdr_to      = rdr_to;
+
+      addhostidrule(&rule);
+      rulereset();
+#endif /* HAVE_SOCKS_HOSTID */
+#endif /* !SOCKS_CLIENT */
+   }
+   ;
+
+hostidoption:   hostid
+   | hostindex;
+   ;
+
+hostid: HOSTID ':' {
+#if !HAVE_SOCKS_HOSTID
+      yyerror("hostid is not supported on this system");
+#else /* HAVE_SOCKS_HOSTID */
+      addrinit(&hostid, 1);
+#endif /* HAVE_SOCKS_HOSTID */
+   } address
+   ;
+
+hostindex: HOSTINDEX ':' NUMBER {
+#if !SOCKS_CLIENT && HAVE_SOCKS_HOSTID
+   rule.hostindex = $3;
+#endif /* !SOCKS_CLIENT && HAVE_SOCKS_HOSTID */
+}
+   ;
+
+
 rule:   verdict '{' ruleoptions fromto ruleoptions '}' {
 #if !SOCKS_CLIENT
       rule.src         = src;
       rule.dst         = dst;
+
+#if HAVE_SOCKS_HOSTID
+      rule.hostid      = hostid;
+#endif /* HAVE_SOCKS_HOSTID */
+
       rule.rdr_from    = rdr_from;
       rule.rdr_to      = rdr_to;
 
-#if !SOCKS_SERVER
+#if !HAVE_SOCKS_RULES
    yyerror("socks-rules are not used in %s", PACKAGE);
-#endif /* !SOCKS_SERVER */
+#endif /* !HAVE_SOCKS_RULES */
 
       addsocksrule(&rule);
       rulereset();
@@ -1113,20 +1344,10 @@ rule:   verdict '{' ruleoptions fromto ruleoptions '}' {
 
 
 ruleoption:   option
-   |   bandwidth {
-#if !SOCKS_CLIENT
-         checkmodule("bandwidth");
-#endif /* !SOCKS_CLIENT */
-   }
    |   command
    |   udpportrange
    |   protocol
    |   proxyprotocol
-   |   redirect   {
-#if !SOCKS_CLIENT
-         checkmodule("redirect");
-#endif /* !SOCKS_CLIENT */
-   }
    ;
 
 ruleoptions:   { $$ = NULL; }
@@ -1134,64 +1355,102 @@ ruleoptions:   { $$ = NULL; }
    ;
 
 option: authmethod
-   |   clientcompatibility
-   |   libwrap
-   |   log
-   |   pamservicename
-   |   bsdauthstylename
-   |   gssapiservicename
-   |   gssapikeytab
-   |   gssapienctype
-   |   lurl
-   |   ldapauto
-   |   ldapdomain
-   |   ldapdebug
-   |   ldapdepth
-   |   lbasedn
-   |   lbasedn_hex
-   |   lbasedn_hex_all
-   |   ldapport
-   |   ldapportssl
-   |   ldapssl
-   |   ldapcertcheck
-   |   ldapkeeprealm
-   |   ldapfilter
-   |   ldapattribute
-   |   ldapfilter_ad
-   |   ldapattribute_ad
-   |   ldapfilter_hex
-   |   ldapattribute_hex
-   |   ldapfilter_ad_hex
-   |   ldapattribute_ad_hex
-   |   ldapcertfile
-   |   ldapcertpath
-   |   lgroup
-   |   lgroup_hex
-   |   lgroup_hex_all
-   |   lserver
-   |   ldapkeytab
-   |   user
-   |   group
-   |   timeout
+   |   bandwidth {
+#if !SOCKS_CLIENT
+         checkmodule("bandwidth");
+#endif /* !SOCKS_CLIENT */
+   }
    |   bounce  {
 #if !BAREFOOTD
          yyerror("unsupported option");
 #endif /* !BAREFOOTD */
+   }
+   |   bsdauthstylename
+   |   clientcompatibility
+   |   group
+
+   |   gssapienctype
+   |   gssapikeytab
+   |   gssapiservicename
+
+   |   hostidoption
+
+   |   lbasedn
+   |   lbasedn_hex
+   |   lbasedn_hex_all
+   |   ldapattribute
+   |   ldapattribute_ad
+   |   ldapattribute_ad_hex
+   |   ldapattribute_hex
+   |   ldapauto
+   |   ldapcertcheck
+   |   ldapcertfile
+   |   ldapcertpath
+   |   ldapdebug
+   |   ldapdepth
+   |   ldapdomain
+   |   ldapfilter
+   |   ldapfilter_ad
+   |   ldapfilter_ad_hex
+   |   ldapfilter_hex
+   |   ldapkeeprealm
+   |   ldapkeytab
+   |   ldapport
+   |   ldapportssl
+   |   ldapssl
+   |   lgroup
+   |   lgroup_hex
+   |   lgroup_hex_all
+
+   |   libwrap
+   |   log
+   |   lserver
+   |   lurl
+   |   pamservicename
+   |   redirect   {
+#if !SOCKS_CLIENT
+         checkmodule("redirect");
+#endif /* !SOCKS_CLIENT */
+   }
+   |   socketoption {
+#if !SOCKS_CLIENT
+         if (rule.verdict == VERDICT_BLOCK && !socketopt.isinternalside)
+            yyerror("it does not make sense to set a socket option for the "
+                    "external side in a rule that blocks access; the external "
+                    "side will never be accessed as the rule blocks access "
+                    "to it");
+
+         if (socketopt.isinternalside)
+            if (socketopt.info != NULL && socketopt.info->calltype == preonly)
+               yywarn("To our knowledge the socket option \"%s\" can only be "
+                      "correctly applied at pre-connection establishment "
+                      "time, but by the time this rule is matched, the "
+                      "connection will already have been established",
+                      socketopt.info == NULL ? "unknown" :
+                                               socketopt.info->name);
+
+         if (!addedsocketoption(&rule.socketoptionc,
+                                &rule.socketoptionv,
+                                &socketopt))
+            yywarn("could not add socketoption");
+#endif /* !SOCKS_CLIENT */
    }
    |   session   {
 #if !SOCKS_CLIENT
          checkmodule("session");
 #endif /* !SOCKS_CLIENT */
    }
+   |   timeout
+   |   user
    ;
 
 ldapdebug: LDAPDEBUG ':' NUMBER {
 #if SOCKS_SERVER
 #if HAVE_LDAP && HAVE_OPENLDAP
-      ldap->debug = atoi($3);
+      ldap->debug = (int)$3;
    }
    | LDAPDEBUG ':' '-'NUMBER {
-      ldap->debug = -atoi($4);
+      ldap->debug = (int)-$4;
  #else /* !HAVE_LDAP */
       yyerror("ldap debug support requires openldap support");
 #endif /* !HAVE_LDAP */
@@ -1215,7 +1474,7 @@ ldapdomain: LDAPDOMAIN ':' LDAP_DOMAIN {
 ldapdepth: LDAPDEPTH ':' NUMBER {
 #if SOCKS_SERVER
 #if HAVE_LDAP && HAVE_OPENLDAP
-      ldap->mdepth = atoi($3);
+      ldap->mdepth = (int)$3;
 #else /* !HAVE_LDAP */
       yyerror("ldap debug support requires openldap support");
 #endif /* !HAVE_LDAP */
@@ -1300,7 +1559,7 @@ lbasedn_hex_all: LDAPBASEDN_HEX_ALL ':' LDAP_BASEDN {
 ldapport: LDAPPORT ':' NUMBER {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-   ldap->port = atoi($3);
+   ldap->port = (int)$3;
 #else /* !HAVE_LDAP */
    yyerror("no LDAP support configured for %s/server", PACKAGE);
 #endif /* !HAVE_LDAP */
@@ -1311,7 +1570,7 @@ ldapport: LDAPPORT ':' NUMBER {
 ldapportssl: LDAPPORTSSL ':' NUMBER {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-   ldap->portssl = atoi($3);
+   ldap->portssl = (int)$3;
 #else /* !HAVE_LDAP */
    yyerror("no LDAP support configured for %s/server", PACKAGE);
 #endif /* !HAVE_LDAP */
@@ -1494,6 +1753,8 @@ lgroup_hex: LDAPGROUP_HEX ':' LDAPGROUP_NAME {
 lgroup_hex_all: LDAPGROUP_HEX_ALL ':' LDAPGROUP_NAME {
 #if SOCKS_SERVER
 #if HAVE_LDAP
+      checkmodule("ldap");
+
       if (addlinkedname(&rule.ldapgroup, hextoutf8($3, 1)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
@@ -1506,6 +1767,8 @@ lgroup_hex_all: LDAPGROUP_HEX_ALL ':' LDAPGROUP_NAME {
 lgroup: LDAPGROUP ':' LDAPGROUP_NAME {
 #if SOCKS_SERVER
 #if HAVE_LDAP
+      checkmodule("ldap");
+
       if (addlinkedname(&rule.ldapgroup, asciitoutf8($3)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
@@ -1639,7 +1902,7 @@ maxsessions: MAXSESSIONS ':' NUMBER {
          (unsigned long)sizeof(*rule.ss));
 
       *rule.ss                       = ssinit;
-      rule.ss->object.ss.maxsessions = (size_t)atol($3);
+      rule.ss->object.ss.maxsessions = $3;
    }
    else
       rule.ss = &ssinit;
@@ -1661,7 +1924,7 @@ bandwidth:   BANDWIDTH ':' NUMBER {
          (unsigned long)sizeof(*rule.bw));
 
       *rule.bw                  = bwmeminit;
-      rule.bw->object.bw.maxbps = (size_t)atol($3);
+      rule.bw->object.bw.maxbps = $3;
    }
    else
       rule.bw = &bwmeminit;
@@ -1778,13 +2041,14 @@ gssapienctypes: gssapienctypename
    |  gssapienctypename gssapienctypes
    ;
 
-bounce: BOUNCE bounce_to ':' address
+bounce: BOUNCE bounceto ':' address
    ;
 
 libwrap:   LIBWRAPSTART ':' LINE {
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
       struct request_info request;
       char libwrap[LIBWRAPBUF];
+      int errno_s, devnull;
 
       if (strlen($3) >= sizeof(rule.libwrap))
          yyerror("libwrapline too long, make LIBWRAPBUF bigger");
@@ -1794,16 +2058,28 @@ libwrap:   LIBWRAPSTART ':' LINE {
       SASSERTX(strlen(rule.libwrap) < sizeof(libwrap));
       strcpy(libwrap, rule.libwrap);
 
+      devnull = open("/dev/null", O_RDWR, 0);
       ++dry_run;
-      request_init(&request, RQ_FILE, -1, RQ_DAEMON, __progname, 0);
+      errno_s = errno;
+
+      errno = 0;
+
+      request_init(&request, RQ_FILE, devnull, RQ_DAEMON, __progname, 0);
       if (setjmp(tcpd_buf) != 0)
          yyerror("bad libwrap line");
       process_options(libwrap, &request);
+
+      if (errno != 0)
+         yywarn("possible libwrap/tcp-wrappers related configuration error "
+                "detected here:");
       --dry_run;
+      close(devnull);
+      errno = errno_s;
 
 #else
       yyerror("libwrap support not compiled in");
 #endif /* HAVE_LIBWRAP && (!SOCKS_CLIENT) */
+
    }
    ;
 
@@ -1824,7 +2100,8 @@ rdr_toaddress: rdr_to ':' address
 gateway:   via ':' gwaddress
    ;
 
-routeoption:   command
+routeoption: authmethod
+   |   command
    |   clientcompatibility
    |   extension
    |   protocol
@@ -1832,7 +2109,12 @@ routeoption:   command
    |   gssapikeytab
    |   gssapienctype
    |   proxyprotocol
-   |   authmethod
+   |   socketoption {
+         if (!addedsocketoption(&route.socketoptionc,
+                                &route.socketoptionv,
+                                &socketopt))
+            yywarn("could not add socketoption");
+   }
    ;
 
 routeoptions:   { $$ = NULL; }
@@ -1848,9 +2130,9 @@ to:   TO {
       addrinit(&dst,
 #if SOCKS_SERVER
                1
-#else /* BAREFOOT || COVENANT */
+#else /* BAREFOOTD || COVENANT */
                0 /* the address the server should bind, so must be /32. */
-#endif /*  BAREFOOT || COVENANT */
+#endif /*  BAREFOOTD || COVENANT */
       );
    }
    ;
@@ -1865,9 +2147,9 @@ rdr_to:   TO {
    }
    ;
 
-bounce_to:   TO {
+bounceto:   TO {
 #if BAREFOOTD
-      addrinit(&bounce_to, 0);
+      addrinit(&bounceto, 0);
 #endif /* BAREFOOTD */
    }
    ;
@@ -1913,11 +2195,10 @@ ipaddress:   IPADDRESS {
 
 
 netmask:   NUMBER {
-      if (atoi($1) < 0 || atoi($1) > 32)
-         yyerror("bad netmask: %s", $1);
+      if ($1 < 0 || $1 > 32)
+         yyerror("bad netmask: %ld", (long)$1);
 
-      netmask->s_addr
-      = atoi($1) == 0 ? 0 : htonl(0xffffffff << (32 - atoi($1)));
+      netmask->s_addr = $1 == 0 ? 0 : htonl(0xffffffff << (32 - $1));
    }
    |   IPADDRESS {
          if (!inet_aton($1, netmask))
@@ -1968,13 +2249,13 @@ url:   URL {
    ;
 
 
-port: { $$ = NULL; }
+port: { $$ = 0; }
    |   PORT ':' portnumber
    |   PORT portoperator portnumber
    |   PORT portrange
    ;
 
-gwport: { $$ = NULL; }
+gwport: { $$ = 0; }
    |      PORT portoperator portnumber
    ;
 
@@ -1992,14 +2273,14 @@ portrange:   portstart '-' portend {
 
 portstart:   NUMBER {
       CHECKPORTNUMBER($1);
-      *port_tcp   = htons((in_port_t)atoi($1));
-      *port_udp   = htons((in_port_t)atoi($1));
+      *port_tcp   = htons((in_port_t)$1);
+      *port_udp   = htons((in_port_t)$1);
    }
    ;
 
 portend:   NUMBER {
       CHECKPORTNUMBER($1);
-      ruleaddr->portend    = htons((in_port_t)atoi($1));
+      ruleaddr->portend    = htons((in_port_t)$1);
       ruleaddr->operator   = range;
    }
    ;
@@ -2031,6 +2312,8 @@ portservice:   SERVICENAME {
          *port_tcp = *port_udp;
       else if (*port_udp == htons(0))
          *port_udp = *port_tcp;
+
+      $$ = (size_t)*port_udp;
    }
    ;
 
@@ -2040,13 +2323,14 @@ portoperator:   OPERATOR {
    }
    ;
 
+	/* XXX should support <operator> <range end> also. */
 udpportrange: UDPPORTRANGE ':' udpportrange_start '-' udpportrange_end
    ;
 
 udpportrange_start: NUMBER {
 #if SOCKS_SERVER
    CHECKPORTNUMBER($1);
-   rule.udprange.start = htons((in_port_t)atoi($1));
+   rule.udprange.start = htons((in_port_t)$1);
 #endif /* SOCKS_SERVER */
    }
    ;
@@ -2054,14 +2338,23 @@ udpportrange_start: NUMBER {
 udpportrange_end: NUMBER {
 #if SOCKS_SERVER
    CHECKPORTNUMBER($1);
-   rule.udprange.end = htons((in_port_t)atoi($1));
+   rule.udprange.end = htons((in_port_t)$1);
    rule.udprange.op  = range;
 
    if (ntohs(rule.udprange.start) > ntohs(rule.udprange.end))
-      yyerror("udp end port (%s) can not be less than udp start port (%u)",
-      $1, ntohs(rule.udprange.start));
+      yyerror("end port (%d) can not be less than start port (%u)",
+              (int)$1, ntohs(rule.udprange.start));
 #endif /* SOCKS_SERVER */
    }
+   ;
+
+number: NUMBER {
+      addnumber(&numberc, &numberv, $1);
+   }
+   ;
+
+numbers: number
+   | number numbers
    ;
 
 
@@ -2090,11 +2383,11 @@ parseconfig(filename)
 
 #if !SOCKS_CLIENT
    if (sockscf.state.inited) {
-      /* in case needed to reopen config-file. */
-      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
-
       if (yyin != NULL)
          fclose(yyin);
+
+      /* in case needed to reopen config-file. */
+      sockd_priv(SOCKD_PRIV_INITIAL, PRIV_ON);
    }
 #endif /* SERVER */
 
@@ -2102,47 +2395,22 @@ parseconfig(filename)
 
 #if !SOCKS_CLIENT
    if (sockscf.state.inited)
-      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
+      sockd_priv(SOCKD_PRIV_INITIAL, PRIV_OFF);
 #endif /* SERVER */
-
-#if !SOCKS_CLIENT && !HAVE_PRIVILEGES
-   if (yyin == NULL && sockscf.state.inited) {
-      const struct userid_t currentuserid = sockscf.uid;;
-
-      sockscf.uid.privileged       = sockscf.state.euid;
-      sockscf.uid.privileged_isset = 1;
-
-      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
-      yyin = fopen(filename, "r");
-      sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
-
-      sockscf.uid = currentuserid;
-   }
-#endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
-
-#if !SOCKS_CLIENT && !HAVE_PRIVILEGES
-   /*
-    * uid, read from configfile.  But save old one first, in case we
-    * need them to reopen logfiles.
-    */
-
-   olduserid = sockscf.uid;
-   bzero(&sockscf.uid, sizeof(sockscf.uid));
-#endif /* !SOCKS_CLIENT && !HAVE_PRIVILEGES */
 
    if (yyin == NULL
    ||  (stat(filename, &statbuf) == 0 && statbuf.st_size == 0)) {
       if (yyin == NULL)
-         swarn("%s: could not open %s", function, filename);
+         swarn("%s: could not open config file %s", function, filename);
+      else
+         swarnx("%s: not parsing empty config file %s", function, filename);
 
       haveconfig            = 0;
       sockscf.option.debug  = 1;
    }
    else {
-      slog(LOG_DEBUG, "%s: not parsing configfile %s (%s)",
-                      function, filename,
-                      yyin == NULL ? strerror(errno) : "zero-sized file");
       socks_parseinit = 0;
+
 #if YYDEBUG
       yydebug         = 0;
 #endif /* YYDEBUG */
@@ -2161,7 +2429,7 @@ parseconfig(filename)
       /*
        * Leave it open so that if we get a sighup later, we are
        * always guaranteed to have a descriptor we can close/reopen
-       * to parse the configfile.
+       * to parse the config file.
        */
       sockscf.configfd = fileno(yyin);
 #endif
@@ -2218,7 +2486,7 @@ yywarn(const char *fmt, ...)
                          (yytext == NULL || *yytext == NUL) ?
                          "'start of line'" : yytext);
    else
-      bufused = snprintfn(buf, sizeof(buf), "error: ");
+      bufused = 0;
 
    vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
 
@@ -2227,12 +2495,32 @@ yywarn(const char *fmt, ...)
 
    if (errno)
       swarn("%s", buf);
-   swarnx("%s", buf);
+   else
+      swarnx("%s", buf);
 }
 
 static void
+addnumber(numberc, numberv, number)
+   size_t *numberc;
+   ssize_t *numberv[];
+   const ssize_t number;
+{
+   const char *function = "addnumber()";
+
+   if ((*numberv = realloc(*numberv, sizeof(**numberv) * (*numberc) + 1))
+   == NULL)
+      yyerror("%s: could not allocate %lu bytes of memory for adding "
+              "number %ld",
+              function, (unsigned long)(sizeof(**numberv) * (*numberc) + 1),
+              (long)number);
+
+   (*numberv)[(*numberc)++] = number;
+}
+
+
+static void
 addrinit(addr, _netmask_required)
-   struct ruleaddr_t *addr;
+   ruleaddr_t *addr;
    const int _netmask_required;
 {
 
@@ -2251,7 +2539,7 @@ addrinit(addr, _netmask_required)
 
 static void
 gwaddrinit(addr)
-   gwaddr_t *addr;
+   sockshost_t *addr;
 {
    static enum operator_t operatormem;
 
@@ -2281,35 +2569,35 @@ parseclientenv(haveproxyserver)
 
 
    /*
-    * Check if there is a proxyserver configured in the environment.
+    * Check if there is a proxy server configured in the environment.
     * Initially assume there is none.
     */
    *haveproxyserver = 0;
 
    if ((proxyserver = socks_getenv(ENV_SOCKS4_SERVER, dontcare)) != NULL) {
-      struct proxyprotocol_t proxyprotocol = { .socks_v4 = 1 };
+      proxyprotocol_t proxyprotocol = { .socks_v4 = 1 };
 
       addproxyserver(proxyserver, &proxyprotocol);
       *haveproxyserver = 1;
    }
 
    if ((proxyserver = socks_getenv(ENV_SOCKS5_SERVER, dontcare)) != NULL) {
-      struct proxyprotocol_t proxyprotocol = { .socks_v5 = 1 };
+      proxyprotocol_t proxyprotocol = { .socks_v5 = 1 };
 
       addproxyserver(proxyserver, &proxyprotocol);
       *haveproxyserver = 1;
    }
 
    if ((proxyserver = socks_getenv(ENV_SOCKS_SERVER, dontcare)) != NULL) {
-      struct proxyprotocol_t proxyprotocol = { .socks_v4 = 1, .socks_v5 = 1 };
+      proxyprotocol_t proxyprotocol = { .socks_v4 = 1, .socks_v5 = 1 };
 
       addproxyserver(proxyserver, &proxyprotocol);
       *haveproxyserver = 1;
    }
 
    if ((proxyserver = socks_getenv(ENV_HTTP_PROXY, dontcare)) != NULL) {
-      struct proxyprotocol_t proxyprotocol = { .http = 1 };
-      
+      proxyprotocol_t proxyprotocol = { .http = 1 };
+
       addproxyserver(proxyserver, &proxyprotocol);
       *haveproxyserver = 1;
    }
@@ -2320,7 +2608,7 @@ parseclientenv(haveproxyserver)
        * for a response from the igd-device), "broadcast", to indicate
        * all interfaces, or a full url to the igd.
        */
-      struct route_t route;
+      route_t route;
 
       bzero(&route, sizeof(route));
       route.gw.state.proxyprotocol.upnp = 1;
@@ -2395,9 +2683,9 @@ parseclientenv(haveproxyserver)
          /*
           * check that the given interface exists and has an address
           */
-         struct sockaddr addr, mask;
+         struct sockaddr_storage addr, mask;
 
-         if (ifname2sockaddr(proxyserver, 0, &addr, &mask) == NULL)
+         if (ifname2sockaddr(proxyserver, 0, TOSA(&addr), TOSA(&mask)) == NULL)
             serr(1, "%s: can't find interface named %s with ip configured",
             function, proxyservervis);
 
@@ -2430,10 +2718,16 @@ parseclientenv(haveproxyserver)
 
          for (iface = ifap; iface != NULL; iface = iface->ifa_next)
             if (iface->ifa_addr            != NULL
-            &&  iface->ifa_addr->sa_family == AF_INET)
+            &&  iface->ifa_addr->sa_family == AF_INET) {
+               if (iface->ifa_netmask == NULL) {
+                  swarn("interface %s missing netmask, skipping",
+                        iface->ifa_name);
+                  continue;
+               }
                socks_autoadd_directroute(
-               (const struct sockaddr_in *)iface->ifa_addr,
-               (const struct sockaddr_in *)iface->ifa_netmask);
+               TOCIN(iface->ifa_addr),
+               TOCIN(iface->ifa_netmask));
+            }
 
          freeifaddrs(ifap);
       }
@@ -2445,12 +2739,12 @@ parseclientenv(haveproxyserver)
 static void
 addproxyserver(proxyserver, proxyprotocol)
    const char *proxyserver;
-   const struct proxyprotocol_t *proxyprotocol;
+   const proxyprotocol_t *proxyprotocol;
 {
    const char *function = "addproxyserver()";
-   struct sockaddr_in saddr;
-   struct route_t route;
-   struct ruleaddr_t raddr;
+   struct sockaddr_storage ss;
+   route_t route;
+   ruleaddr_t raddr;
    char ipstring[INET_ADDRSTRLEN], *portstring, proxyservervis[256];
 
    bzero(&route, sizeof(route));
@@ -2462,7 +2756,7 @@ addproxyserver(proxyserver, proxyprotocol)
            sizeof(proxyservervis));
 
    slog(LOG_DEBUG,
-        "%s: have a %s proxyserver set in environment, value %s",
+        "%s: have a %s proxy server set in environment, value %s",
         function,
         proxyprotocols2string(&route.gw.state.proxyprotocol, NULL, 0),
         proxyservervis);
@@ -2470,25 +2764,22 @@ addproxyserver(proxyserver, proxyprotocol)
    if (route.gw.state.proxyprotocol.http) {
       char emsg[256];
 
-      if (urlstring2sockaddr(proxyserver,
-                             (struct sockaddr *)&saddr,
-                             emsg,
-                             sizeof(emsg))
-      == NULL) 
+      if (urlstring2sockaddr(proxyserver, TOSA(&ss), emsg, sizeof(emsg))
+      == NULL)
          serrx(EXIT_FAILURE,
-               "%s: can't understand format of proxyserver %s: %s",
+               "%s: can't resolve/parse proxy server in string \"%s\": %s",
                function, proxyservervis, emsg);
-               
+
    }
    else {
       if ((portstring = strchr(proxyserver, ':')) == NULL)
          serrx(EXIT_FAILURE, "%s: illegal format for port specification "
-                             "in proxyserver %s: missing ':' delimiter",
+                             "in proxy server %s: missing ':' delimiter",
                              function, proxyservervis);
 
       if (atoi(portstring + 1) < 1 || atoi(portstring + 1) > 0xffff)
          serrx(EXIT_FAILURE, "%s: illegal value (%d) for port specification "
-                             "in proxyserver %s: must be between %d and %d",
+                             "in proxy server %s: must be between %d and %d",
                              function, atoi(portstring + 1),
                              proxyservervis, 1, 0xffff);
 
@@ -2496,20 +2787,21 @@ addproxyserver(proxyserver, proxyprotocol)
       || (size_t)(portstring - proxyserver) > sizeof(ipstring) - 1)
          serrx(EXIT_FAILURE,
                "%s: illegal format for ip address specification "
-               "in proxyserver %s: too short/long",
+               "in proxy server %s: too short/long",
                function, proxyservervis);
 
       strncpy(ipstring, proxyserver, (size_t)(portstring - proxyserver));
       ipstring[portstring - proxyserver] = NUL;
       ++portstring;
 
-      bzero(&saddr, sizeof(saddr));
-      saddr.sin_family = AF_INET;
-      if (inet_pton(saddr.sin_family, ipstring, &saddr.sin_addr) != 1)
+      bzero(&ss, sizeof(ss));
+      SET_SOCKADDR(TOSA(&ss), AF_INET);
+
+      if (inet_pton(TOIN(&ss)->sin_family, ipstring, &TOIN(&ss)->sin_addr) != 1)
          serr(EXIT_FAILURE, "%s: illegal format for ip address "
-                            "specification in proxyserver %s",
+                            "specification in proxy server %s",
                             function, proxyservervis);
-      saddr.sin_port = htons(atoi(portstring));
+      TOIN(&ss)->sin_port = htons(atoi(portstring));
    }
 
    route.src.atype                           = SOCKS_ADDR_IPV4;
@@ -2520,8 +2812,9 @@ addproxyserver(proxyserver, proxyprotocol)
 
    route.dst = route.src;
 
-   ruleaddr2gwaddr(sockaddr2ruleaddr((struct sockaddr *)&saddr, &raddr),
-   &route.gw.addr);
+   ruleaddr2sockshost(sockaddr2ruleaddr(TOSA(&ss), &raddr),
+                      &route.gw.addr,
+                      SOCKS_TCP);
 
    socks_addroute(&route, 1);
 }
@@ -2537,20 +2830,29 @@ rulereset(void)
 
 static void
 ruleinit(rule)
-   struct rule_t *rule;
+   rule_t *rule;
 {
 
    bzero(rule, sizeof(*rule));
 
-   rule->linenumber        = yylineno;
+   rule->linenumber  = yylineno;
 
-   command                 = &rule->state.command;
-   methodv                 = rule->state.methodv;
-   methodc                 = &rule->state.methodc;
-   protocol                = &rule->state.protocol;
-   proxyprotocol           = &rule->state.proxyprotocol;
-   timeout                 = &rule->timeout;
-   *timeout                = sockscf.timeout; /* default values: as global. */
+#if HAVE_SOCKS_HOSTID
+   rule->hostindex   = 1;
+#endif /* HAVE_SOCKS_HOSTID */
+
+   command       = &rule->state.command;
+   methodv       = rule->state.methodv;
+   methodc       = &rule->state.methodc;
+   protocol      = &rule->state.protocol;
+   proxyprotocol = &rule->state.proxyprotocol;
+
+   /*
+    * default values: same as global.
+    */
+
+   timeout       = &rule->timeout;
+   *timeout      = sockscf.timeout;
 
 #if HAVE_GSSAPI
    gssapiservicename = rule->state.gssapiservicename;
@@ -2565,8 +2867,11 @@ ruleinit(rule)
    bzero(&src, sizeof(src));
    src.atype = SOCKS_ADDR_NOTSET;
 
-   dst = rdr_from = rdr_to = src;
+   dst = hostid = rdr_from = rdr_to = src;
 
+#if BAREFOOTD
+   bounceto = src;
+#endif /* BAREFOOTD */
 }
 
 #endif /* !SOCKS_CLIENT */

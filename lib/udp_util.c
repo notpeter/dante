@@ -44,12 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.61 2011/05/18 13:48:46 karls Exp $";
+"$Id: udp_util.c,v 1.62 2011/09/24 17:44:41 michaels Exp $";
 
-struct udpheader_t *
+udpheader_t *
 sockaddr2udpheader(to, header)
    const struct sockaddr *to;
-   struct udpheader_t *header;
+   udpheader_t *header;
 {
 
    SASSERTX(to->sa_family == AF_INET);
@@ -63,13 +63,13 @@ sockaddr2udpheader(to, header)
 
 void *
 udpheader_add(host, msg, len, msgsize)
-   const struct sockshost_t *host;
+   const sockshost_t *host;
    void *msg;
    size_t *len;
    const size_t msgsize;
 {
    const char *function = "udpheader_add()";
-   struct udpheader_t header;
+   udpheader_t header;
    unsigned char *offset;
 
    bzero(&header, sizeof(header));

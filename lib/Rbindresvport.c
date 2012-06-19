@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2008, 2009
+ * Copyright (c) 1997, 1998, 1999, 2001, 2008, 2009, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbindresvport.c,v 1.36 2009/10/23 11:43:34 karls Exp $";
+"$Id: Rbindresvport.c,v 1.39 2012/06/01 20:23:05 karls Exp $";
 
 /*
  * Note that for this function to work correctly the remote socks server
@@ -52,14 +52,15 @@ static const char rcsid[] =
  */
 
 int
-Rbindresvport(s, sin)
+Rbindresvport(s, _sin)
    int s;
-   struct sockaddr_in *sin;
-
+   struct sockaddr_in *_sin;
 {
    const char *function = "Rbindresvport()";
-   struct sockaddr name;
-   socklen_t namelen;
+   struct sockaddr_storage sinmem;
+   struct sockaddr *sin = TOSA(&sinmem);
+   socklen_t sinlen;
+   int rc;
 
    clientinit();
 
@@ -70,20 +71,38 @@ Rbindresvport(s, sin)
     */
    socks_rmaddr(s, 1);
 
-   if (bindresvport(s, sin) != 0) {
-      slog(LOG_DEBUG, "%s: bindresvport(%d) failed: %s",
-      function, s, strerror(errno));
+   if (_sin == NULL)
+      sin = NULL;
+   else
+      usrsockaddrcpy(sin, TOSA(_sin), sizeof(*sin));
+
+   if (bindresvport(s, TOIN(sin)) != 0) {
+      slog(LOG_DEBUG, "%s: bindresvport(%d, %s) failed: %s",
+           function,
+           s,
+           sin == NULL ? "NULL" : sockaddr2string(TOSA(sin), NULL, 0),
+           strerror(errno));
 
       return -1;
    }
 
-   namelen = sizeof(name);
-   if (getsockname(s, &name, &namelen) != 0)
+
+   sinlen = sizeof(*sin);
+   if (getsockname(s, TOSA(sin), &sinlen) != 0)
       return -1;
 
    /*
     * Rbind() will accept failure at binding socket that is already bound
-    * and will try a remote server binding too if appropriate.
+    * (assuming it has been bound already in some way) and will continue to
+    * try a remote server binding too if appropriate.
     */
-   return Rbind(s, &name, namelen);
+   if ((rc = Rbind(s, TOSA(sin), sinlen)) == -1)
+      return -1;
+
+   if (_sin != NULL) {
+      SASSERTX(sin != NULL);
+      sockaddrcpy(TOSA(_sin), TOSA(sin), sizeof(*_sin));
+   }
+
+   return rc;
 }

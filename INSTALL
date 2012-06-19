@@ -1,4 +1,4 @@
-# $Id: INSTALL,v 1.36 2011/07/20 13:39:20 karls Exp $
+# $Id: INSTALL,v 1.42 2012/06/01 19:59:26 karls Exp $
 
 This file describes how to install Dante.  Dante is a Socks client
 and server firewall implementation.  It can be installed on a machine
@@ -220,8 +220,18 @@ These `configure' options are also supported (run `configure' with
 `--enable-profiling'
      Build the libraries and the server with profiling.
 
+`--enable-coverage'
+     Build with code coverage. Recommended used with --enable-debug and
+     --enable-profiling.
+
 `--enable-linting'
-     Run (BSD) lint when compiling the source-code.
+     Run lint when compiling the source-code.
+
+`--disable-client'
+     Disable SOCKS client compilation (only SOCKS server will be built).
+
+`--disable-server'
+     Disable SOCKS server compilation (only SOCKS client will be built).
 
 `--disable-libwrap'
      Disable test for libwrap.  Makes no difference if libwrap does
@@ -235,7 +245,7 @@ These `configure' options are also supported (run `configure' with
      Disable support for large files.
 
 `--disable-preload'
-     Do not build libdsocks.  The dynamic sockslibrary might not work
+     Do not build libdsocks.  The dynamic socks library might not work
      properly on all architectures.  This option disables building of
      the library. Also disables it's use in the server.
 
@@ -367,7 +377,7 @@ The Dante server expects it's configuration file to be in /etc/sockd.conf.
 The client library uses the file /etc/socks.conf.
 
 The file bin/socksify.sh contains a shell script that allows one
-to dynamically socksify a dynamicly linked application at runtime.
+to dynamically socksify a dynamically linked application at runtime.
 The program can be installed as /usr/local/bin/socksify on platforms
 where it works, but is not installed by default.
 
@@ -377,4 +387,4 @@ Please report any bugs, problems or enhancements to dante-bugs@inet.no
 
 The WWW home page for Dante is located at: http://www.inet.no/dante/
 
-Copyright (c) 1998, 1999, 2000, 2009 Inferno Nettverk A/S, Norway.
+Copyright (c) 1998, 1999, 2000, 2009, 2011, 2012 Inferno Nettverk A/S, Norway.

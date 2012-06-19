@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011
+ *               2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,19 +47,44 @@
 #if 0 /* XXX automatically added at head of generated .c file */
 #include "common.h"
 #endif
+
+static const char rcsid[] =
+"$Id: config_scan.l,v 1.184 2012/06/01 20:23:05 karls Exp $";
+
 #include "yacconfig.h"
 #include "config_parse.h"
+
+static int shouldresetstate(const int current_state, const int next_token);
+/*
+ * If in state "current_state", and the next token is "next_token",
+ * should we reset the current state?
+ * Returns true if yes, false if not.
+ */
+
 
 extern int socks_parseinit;
 extern const int socks_configtype;
 
-static const char rcsid[] =
-"$Id: config_scan.l,v 1.155 2011/06/13 08:57:38 michaels Exp $";
+static unsigned char ismask;
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
 #define YY_NEVER_INTERACTIVE 1
 #define YY_MAIN 0
+
+#if SOCKS_CLIENT
+/*
+ * stuff that is only defined in the server case, but which I don't know
+ * how #ifdef out in the lex pattern matching code instead.  Is it possible?
+ */
+#define CHILD_MOTHER    0
+#define CHILD_NEGOTIATE 0
+#define CHILD_REQUEST   0
+#define CHILD_IO        0
+
+#endif /* SOCKS_CLIENT */
+
+static int inrule, inroute;
 
 %}
 
@@ -71,7 +96,7 @@ static const char rcsid[] =
 %option noyywrap
 %option nounput
 
-/*%option debug               */
+/*%option debug                           */
 
    /* non-exclusive start conditions. */
 %s start_address
@@ -90,6 +115,10 @@ static const char rcsid[] =
 %x start_username
 %x start_groupname
 %x start_libwrapfile
+%x start_cpuoption
+%x start_hostindex
+
+   /* ldap-stuff. */
 %x start_ldapdomain
 %x start_ldapbasedn
 %x start_ldapurl
@@ -100,6 +129,8 @@ static const char rcsid[] =
 %x start_ldapkeytabname
 %x start_ldapcertfile
 %x start_ldapcertpath
+
+
 %x start_srchost
 %x start_protocol
 %x start_servicename
@@ -109,45 +140,43 @@ static const char rcsid[] =
 %x start_gssapikeytabname
 %x start_encryption
 %x start_realmname
+
+%x start_socketprotocol
+%x start_socketoption
+%x start_socketoptionvalue
+
+%x start_processtype
+%x start_schedulepolicy
+%x start_schedulemask
 %%
 
-
-   /*
-    * we can operate in more than one mode, find out which it is and
-    * let the parser know.
-    */
-
 %{
+
    if (!socks_parseinit) {
       socks_parseinit = 1;
 
       switch (socks_configtype) {
-    case CONFIGTYPE_SERVER:
-       return SERVERCONFIG;
+         case CONFIGTYPE_SERVER:
+            return SERVERCONFIG;
 
-    case CONFIGTYPE_CLIENT:
-       return CLIENTCONFIG;
+         case CONFIGTYPE_CLIENT:
+            return CLIENTCONFIG;
 
-    default:
-       SERRX(socks_configtype);
+         default:
+            SERRX(socks_configtype);
       }
    }
 %}
 
+
+
    /* start-condition dependent stuff. */
 
-<start_servicename,start_portnumber>[a-zA-Z]+[^: /\t\n]* {
-	BEGIN(0);
+<start_servicename>[a-zA-Z]+[^: /\t\n]* {
+   BEGIN(0);
 
    yylval.string = yytext;
    return SERVICENAME;
-}
-
-<start_portnumber>[0-9]{1,5} {
-	BEGIN(0);
-
-   yylval.string = yytext;
-   return NUMBER;
 }
 
 <start_proxyprotocol>socks_v4 {
@@ -214,7 +243,7 @@ static const char rcsid[] =
 }
 
 <start_address>[^: \t\n][^/ \t\n]+ {
-   struct sockaddr addr;
+   struct sockaddr_storage addr;
    struct in_addr ipv4;
 
    BEGIN(start_port);
@@ -233,7 +262,7 @@ static const char rcsid[] =
    if (inet_pton(AF_INET, yytext, &ipv4) == 1)
       return IPADDRESS;
 
-   if (ifname2sockaddr(yytext, 0, &addr, NULL) != NULL)
+   if (ifname2sockaddr(yytext, 0, TOSA(&addr), NULL) != NULL)
       return IFNAME;
 
    return DOMAINNAME;
@@ -242,6 +271,143 @@ static const char rcsid[] =
 <start_port>port {
    yylval.string = yytext;
    return PORT;
+}
+
+   /*
+    * cpu options.
+    */
+
+cpu {
+   BEGIN(start_cpuoption);
+
+   yylval.string = yytext;
+   return CPU;
+}
+
+<start_cpuoption>schedule {
+   BEGIN(start_processtype);
+
+   ismask = 0;
+
+   yylval.string = yytext;
+   return SCHEDULE;
+}
+
+<start_cpuoption>mask {
+   BEGIN(start_processtype);
+
+   ismask = 1;
+
+   yylval.string = yytext;
+   return MASK;
+}
+
+<start_processtype>mother {
+   BEGIN(ismask ? start_schedulemask : start_schedulepolicy);
+
+   yylval.number = CHILD_MOTHER;
+   return PROCESSTYPE;
+}
+
+<start_processtype>negotiate {
+   BEGIN(ismask ? start_schedulemask : start_schedulepolicy);
+
+   yylval.number = CHILD_NEGOTIATE;
+   return PROCESSTYPE;
+}
+
+<start_processtype>request {
+   BEGIN(ismask ? start_schedulemask : start_schedulepolicy);
+
+   yylval.number = CHILD_REQUEST;
+   return PROCESSTYPE;
+}
+
+<start_processtype>io {
+   BEGIN(ismask ? start_schedulemask : start_schedulepolicy);
+
+   yylval.number = CHILD_IO;
+   return PROCESSTYPE;
+}
+
+<start_schedulemask>any {
+   BEGIN(0);
+
+   yylval.number = CPUMASK_ANYCPU;
+   return NUMBER;
+}
+
+<start_schedulepolicy>[^: 0-9\t/]+ {
+#if SOCKS_CLIENT
+   SERRX(0);
+
+#else /* !SOCKS_CLIENT */
+#if HAVE_SCHED_SETAFFINITY
+
+   BEGIN(0);
+
+   if ((yylval.number = cpupolicy2numeric(yytext)) == -1)
+      yyerror("unknown scheduling policy \"%s\"", yytext);
+
+   return SCHEDULEPOLICY;
+#else /* !HAVE_SCHED_SETAFFINITY */
+	yyerror("setting the cpu scheduling policy is not supported on this platform");
+#endif /* !HAVE_SCHED_SETAFFINITY */
+
+#endif /* SOCKS_CLIENT */
+}
+
+
+   /*
+     * socket option stuff.
+     */
+
+<start_socketprotocol>ip {
+   BEGIN(start_socketoption);
+
+   yylval.number = IPPROTO_IP;
+   return SOCKETPROTOCOL;
+}
+
+<start_socketprotocol>socket {
+   BEGIN(start_socketoption);
+
+   yylval.number = SOL_SOCKET;
+   return SOCKETPROTOCOL;
+}
+
+<start_socketprotocol>tcp {
+   BEGIN(start_socketoption);
+
+   yylval.number = IPPROTO_TCP;
+   return SOCKETPROTOCOL;
+}
+
+<start_socketprotocol>udp {
+   BEGIN(start_socketoption);
+
+   yylval.number = IPPROTO_UDP;
+   return SOCKETPROTOCOL;
+}
+
+
+<start_socketoption>[-a-zA-Z_][-a-zA-Z_\.]+ {
+   const sockopt_t *sockopt;
+
+   BEGIN(start_socketoptionvalue);
+
+   if ((sockopt = optname2sockopt(yytext)) == NULL)
+      yyerror("unknown socket option \"%s\"", yytext);
+
+   yylval.number = (ssize_t)sockopt->optid;
+   return SOCKETOPTION_OPTID;
+}
+
+<start_socketoptionvalue>[^: \t\n0-9][^ \t\n]+ {
+   BEGIN(0);
+
+   yylval.string = yytext;
+   return SOCKETOPTION_SYMBOLICVALUE;
 }
 
 <start_log>connect {
@@ -264,7 +430,7 @@ static const char rcsid[] =
    return SOCKS_LOG_ERROR;
 }
 
-<start_log>iooperation {
+<start_log>iooperation|ioop {
    yylval.string = yytext;
    return SOCKS_LOG_IOOPERATION;
 }
@@ -471,7 +637,7 @@ static const char rcsid[] =
    /* non-start condition dependents. */
 
 eq|=|ne|!=|ge|>=|le|<=|gt|>|lt|< {
-   BEGIN(start_portnumber);
+   BEGIN(start_servicename);
 
    yylval.string = yytext;
    return OPERATOR;
@@ -629,6 +795,12 @@ no {
    return NO;
 }
 
+internal\. {
+   BEGIN(start_socketprotocol);
+
+   yylval.string = yytext;
+   return INTERNALSOCKET;
+}
 
 internal {
    BEGIN(start_address);
@@ -637,9 +809,24 @@ internal {
    return INTERNAL;
 }
 
-external.rotation {
+external\.rotation {
    yylval.string = yytext;
    return EXTERNAL_ROTATION;
+}
+
+external\. {
+   BEGIN(start_socketprotocol);
+
+   yylval.string = yytext;
+   return EXTERNALSOCKET;
+}
+
+
+external {
+   BEGIN(start_address);
+
+   yylval.string = yytext;
+   return EXTERNAL;
 }
 
 none {
@@ -652,12 +839,6 @@ same-same {
    return SAMESAME;
 }
 
-external {
-   BEGIN(start_address);
-
-   yylval.string = yytext;
-   return EXTERNAL;
-}
 
 child\.maxidle {
    yylval.string = yytext;
@@ -777,6 +958,29 @@ client {
    return CLIENTRULE;
 }
 
+hostid {
+	if (inrule || inroute)
+		BEGIN(start_address);
+
+   yylval.string = yytext;
+   return HOSTID;
+}
+
+hostindex {
+   BEGIN(start_hostindex);
+
+   yylval.string = yytext;
+   return HOSTINDEX;
+}
+
+<start_hostindex>any {
+   BEGIN(0);
+
+   yylval.number = 0;
+   return NUMBER;
+}
+
+
 method {
    BEGIN(start_method);
 
@@ -798,11 +1002,15 @@ clientmethod {
     */
 
 block {
+	inrule = 1;
+
    yylval.string = yytext;
    return VERDICT_BLOCK;
 }
 
 pass {
+	inrule = 1;
+
    yylval.string = yytext;
    return VERDICT_PASS;
 }
@@ -1083,11 +1291,30 @@ localdomain.*:.*|connecttimeout|iotimeout {
 }
 
 
-
    /* misc. generic stuff. */
 
-<*>[0-9]+ {
-   yylval.string = yytext;
+	/*
+	 * note that to support negative numbers we need to handle number ranges
+	 * like port 1-65535 correctly also.
+	 */
+
+<*>([0-9]|0x[a-fA-F0-9])+ {
+   char *ep;
+   long lval;
+
+   errno = 0;
+   lval  = strtol(yytext, &ep, 0);
+   if (*yytext == NUL || *ep != NUL)
+      yyerror("confusing.  Thought we would have a number here");
+
+   if (errno == ERANGE && (lval == LONG_MAX || lval == LONG_MIN))
+      yyerror("number given is out of range");
+
+   yylval.number = (ssize_t)lval;
+
+   if (shouldresetstate(YYSTATE, NUMBER))
+      BEGIN(0);
+
    return NUMBER;
 }
 
@@ -1097,21 +1324,50 @@ localdomain.*:.*|connecttimeout|iotimeout {
 }
 
    /* shell style comment */
-<*>[[:blank:]]*#.* {
+<*>#.* {
+   BEGIN(0);
    ;
 }
 
-   /* state always ends at eol. */
+   /* state always ends at eol ... */
 <*>\n {
    BEGIN(0);
 }
 
-   /* unless it's escaped. */
+   /* ... unless it's escaped. */
 <*>\\\n {
    ;
+}
+
+<*>\} {
+	inrule = inroute = 0;
+
+   yylval.string = yytext;
+   return *yytext;
 }
 
 <*>. {
    yylval.string = yytext;
    return *yytext;
+}
+
+%%
+
+static int
+shouldresetstate(current_state, next_token)
+   const int current_state;
+   const int next_token;
+{
+   switch (current_state) {
+      case start_hostindex:
+      case start_schedulemask:
+      case start_servicename:
+         switch (next_token) {
+            case NUMBER:
+               return 1;
+         }
+         break;
+   }
+
+   return 0;
 }

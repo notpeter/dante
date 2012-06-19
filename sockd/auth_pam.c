@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009, 2010, 2011
+ * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.78 2011/05/18 13:48:46 karls Exp $";
+"$Id: auth_pam.c,v 1.81 2012/06/01 20:23:05 karls Exp $";
 
 static int
 pam_conversation(int msgc, const struct pam_message **msgv,
@@ -65,12 +65,12 @@ int
 pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    int s;
    const struct sockaddr *src, *dst;
-   const struct authmethod_pam_t *auth;
+   const authmethod_pam_t *auth;
    char *emsg;
    size_t emsgsize;
 {
    const char *function = "pam_passwordcheck()";
-   struct authmethod_pam_t authdata = *auth;
+   authmethod_pam_t authdata = *auth;
    struct pam_conv pamconv;
    pam_handle_t *pamh;
    size_t i;
@@ -79,7 +79,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    /*
     * unfortunately we can not set password here, that needs to be set
     * "from a module", i.e. in the conversion function, at least with
-    * one linux pam implementation.
+    * one Linux pam implementation.
     */
    struct {
       int         item;
@@ -189,7 +189,7 @@ pam_conversation(msgc, msgv, rspv, authdata)
    struct pam_response **rspv;
    void *authdata;
 {
-   const struct authmethod_pam_t *auth = authdata;
+   const authmethod_pam_t *auth = authdata;
    const char *function = "pam_conversation()";
    int i, rc;
 

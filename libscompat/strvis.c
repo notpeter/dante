@@ -1,4 +1,4 @@
-/* $Id: strvis.c,v 1.15 2011/05/18 13:11:07 karls Exp $ */
+/* $Id: strvis.c,v 1.16 2012/05/04 20:19:09 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -34,11 +34,15 @@
  * SUCH DAMAGE.
  */
 
+#if 0
 #include <sys/types.h>
 #include <limits.h>
 #include <ctype.h>
-#include <string.h>
-#include <vis_compat.h>
+#include <vis.h>
+#else
+#include "osdep.h"
+#include "vis_compat.h"
+#endif
 
 #define	isoctal(c)                                                          \
 	(((unsigned char)(c)) >= '0' && ((unsigned char)(c)) <= '7')

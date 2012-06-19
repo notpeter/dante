@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2003, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2001, 2003, 2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,33 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.79 2011/07/27 13:19:19 michaels Exp $";
+"$Id: sockd_socket.c,v 1.116 2012/06/03 15:15:03 michaels Exp $";
+
+#define MAXSOCKETOPTIONS ( 1 /* TCP_NODELAY || SO_BROADCAST */    \
+                         + 1 /* SO_TIMESTAMP                */    \
+                         + 1 /* SO_OOBINLINE                */    \
+                         + 1 /* SO_KEEPALIVE                */    \
+                         + 1 /* SO_SNDBUF                   */    \
+                         + 1 /* SO_RCVBUF                   */)
+#define MAXOPTIONNAME   (16) /* max length of any of the option names above. */
+typedef struct {
+   int    level;
+   int    optname;
+   int    optval;
+   size_t optlen;
+   char   textname[MAXOPTIONNAME];
+} socketoptions_t;
+
+static size_t
+getoptions(const int type, const int isclientside,
+           socketoptions_t *optionsv, const size_t optionsc);
+/*
+ * Fills in "optionsv" with the correct values for a socket of type "type".
+ * "isclientside" indicates if the socket is to be used on the client side
+ * or not.
+ *
+ * Returns the number of options set, <= MAXSOCKETOPTIONS.
+ */
 
 int
 sockd_bind(s, addr, retries)
@@ -56,11 +82,10 @@ sockd_bind(s, addr, retries)
    int p;
 
    slog(LOG_DEBUG, "%s: trying to bind address %s, retries is %lu",
-   function, sockaddr2string(addr, NULL, 0), (unsigned long)retries);
+        function, sockaddr2string(addr, NULL, 0), (unsigned long)retries);
 
    errno = 0;
    while (1) { /* CONSTCOND */
-      /* LINTED pointer casts may be troublesome */
       if (PORTISRESERVED(TOIN(addr)->sin_port)) {
          sockd_priv(SOCKD_PRIV_NET_ADDR, PRIV_ON);
          p = bind(s, addr, sizeof(*addr));
@@ -80,7 +105,7 @@ sockd_bind(s, addr, retries)
        */
 
       slog(LOG_DEBUG, "%s: failed to bind %s (%s)",
-      function, sockaddr2string(addr, NULL, 0), strerror(errno));
+           function, sockaddr2string(addr, NULL, 0), strerror(errno));
 
       switch (errno) {
          case EINTR:
@@ -98,8 +123,8 @@ sockd_bind(s, addr, retries)
    }
 
    if (p == 0)
-      slog(LOG_DEBUG, "%s: bound address %s",
-           function, sockaddr2string(addr, NULL, 0));
+      slog(LOG_DEBUG, "%s: bound address %s on socket %d",
+           function, sockaddr2string(addr, NULL, 0), s);
 
    return p;
 }
@@ -109,70 +134,79 @@ socks_unconnect(s)
    const int s;
 {
    const char *function = "socks_unconnect()";
-   struct sockaddr local, remote;
+   struct sockaddr_storage local, remote, newlocal;
    socklen_t addrlen;
-   char remotestr[MAXSOCKADDRSTRING];
+   char buf[MAXSOCKADDRSTRING];
 
    addrlen = sizeof(local);
-   if (getsockname(s, &local, &addrlen) != 0) {
+   if (getsockname(s, TOSA(&local), &addrlen) != 0) {
       swarn("%s: getsockname()", function);
       return -1;
    }
 
-   if (getpeername(s, &remote, &addrlen) != 0) {
+   if (getpeername(s, TOSA(&remote), &addrlen) != 0) {
       SWARN(0); /* not bound?  Should not happen. */
       return 0;
    }
 
    slog(LOG_DEBUG, "%s: unconnecting socket %d, currently connected to %s",
-   function, s, sockaddr2string(&remote, remotestr, sizeof(remotestr)));
+        function, s, sockaddr2string(TOSA(&remote), buf, sizeof(buf)));
 
    bzero(&remote, sizeof(remote));
-   remote.sa_family = AF_UNSPEC;
-   if (connect(s, &remote, sizeof(remote)) != 0)
+   SET_SOCKADDR(TOSA(&remote), AF_UNSPEC);
+   if (connect(s, TOSA(&remote), sockaddr2salen(TOSA(&remote))) != 0)
       slog(LOG_DEBUG, "%s: \"unconnect\" of socket returned %s",
-      function, strerror(errno));
+           function, strerror(errno));
 
    /*
-    * Need to re-bind the socket to make sure we get the same address
-    * as we had before; some systems only keep the portnumber if not.
+    * May need to re-bind the socket after unconnect to make sure we get the
+    * same address as we had before, as some systems only keep the portnumber
+    * if not. :-/  Check first.
     */
-   if (sockd_bind(s, &local, 1) != 0) {
-      struct sockaddr new_local;
+   addrlen = sizeof(newlocal);
+   if (getsockname(s, TOSA(&newlocal), &addrlen) != 0) {
+      swarn("%s: getsockname() failed the second time", function);
+      return -1;
+   }
+
+   if (sockaddrareeq(TOSA(&local), TOSA(&newlocal)))
+      return 0; /* ok, no problem on this system. */
+
+   /*
+    * Ack, need to try to rebind the socket. :-/
+    */
+
+   if (sockd_bind(s, TOSA(&local), 1) != 0) {
+      char a[MAXSOCKADDRSTRING], b[MAXSOCKADDRSTRING];
       int new_s;
 
-      addrlen = sizeof(new_local);
-      if (getsockname(s, &new_local, &addrlen) != 0) {
-         swarn("%s: getsockname() after unconnect failed", function);
-         return -1;
-      }
-
-      slog(LOG_DEBUG, "%s: re-bind after unconnecting failed: %s.  "
-                      "Current address is %s.  Trying to create a new socket "
-                      "instead",
+      slog(LOG_DEBUG, "%s: re-bind(2) after unconnecting failed: %s.  "
+                      "Current address is %s (was %s).  Trying to create a "
+                      "new socket instead, though we might loose some packets "
+                      "doing so",
                       function,
                       strerror(errno),
-                      sockaddr2string(&new_local, NULL, 0));
+                      sockaddr2string(TOSA(&newlocal), a, sizeof(a)),
+                      sockaddr2string(TOSA(&local), b, sizeof(b)));
 
       /*
-       * There is an unfortunate race here, as while we create the new 
+       * There is an unfortunate race here, as while we create the new
        * socket packets could come in on the old socket, and those packets
        * will be lost.  There is probably not much else we could do though,
-       * as long as user has enabled conneting udp sockets to destination.
+       * as long as user has enabled connecting udp sockets to destination.
        */
 
       new_s = 1;
       if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &new_s, sizeof(new_s)) != 0)
          swarn("%s: setsockopt(SO_REUSEADDR)", function);
 
-
       if ((new_s = socketoptdup(s)) == -1) {
          swarn("%s: socketoptdup(%d) failed", function, s);
          return -1;
       }
 
-      if (sockd_bind(new_s, &local, 1) != 0) {
-         slog(LOG_DEBUG, "%s: bind of new socket also failed: %s", 
+      if (sockd_bind(new_s, TOSA(&local), 1) != 0) {
+         slog(LOG_DEBUG, "%s: bind of new socket also failed: %s",
               function, strerror(errno));
 
          close(new_s);
@@ -180,7 +214,7 @@ socks_unconnect(s)
       }
 
       slog(LOG_DEBUG, "%s: bind of new socket to address %s succeeded",
-           function, sockaddr2string(&local, NULL, 0));
+           function, sockaddr2string(TOSA(&local), NULL, 0));
 
       if (dup2(new_s, s) == -1) {
          swarn("%s: dup2() failed", function);
@@ -192,7 +226,6 @@ socks_unconnect(s)
 
    return 0;
 }
-
 
 int
 sockd_bindinrange(s, addr, first, last, op)
@@ -286,7 +319,7 @@ sockd_bindinrange(s, addr, first, last, op)
 
       if (errno == EACCES) {
          if  (op == gt || op == ge || op == range)
-            port = 1023; /* short-circut to first possibility - 1. */
+            port = 1023; /* short-circuit to first possibility - 1. */
          else if (op == lt || op == le)
             exhausted = 1; /* going down, will get same error for all. */
       }
@@ -306,17 +339,32 @@ bindinternal(protocol)
    size_t i;
 
    for (i = 0; i < sockscf.internalc; ++i) {
-      struct listenaddress_t *l = &sockscf.internalv[i];
+      listenaddress_t *l = &sockscf.internalv[i];
       int val;
 
       if (l->protocol != protocol)
          continue;
 
+
       if (l->s != -1) {
          slog(LOG_DEBUG, "%s: address %s should be bound to socket %d already",
-         function, sockaddr2string(&l->addr, NULL, 0), l->s);
+         function, sockaddr2string(TOSA(&l->addr), NULL, 0), l->s);
 
          SASSERTX(fdisopen(l->s));
+
+         /*
+          * config-based socket options need to be (re)set though.
+          * XXX missing code to unset any previously set options.
+          */
+         setconfsockoptions(l->s,
+                            -1,
+                            SOCKS_TCP,
+                            1,
+                            0,
+                            NULL,
+                            0,
+                            SOCKETOPT_PRE | SOCKETOPT_ANYTIME);
+
          continue;
       }
 
@@ -327,17 +375,36 @@ bindinternal(protocol)
 
       setsockoptions(l->s, SOCK_STREAM, 1);
 
+      /*
+       * This breaks the principle that we should only set socket options
+       * on sockets used for data (rather than sockets used for the control
+       * messages), but some options can only be set at pre-connect time,
+       * so if we do not set them here, we will never be able to set them.
+       * Possibly we should limit the settings here to the options that
+       * can _only_ be set at pre-connect time, so that at least other
+       * options are not set unnecessarily.
+       */
+
+       /* XXX missing code to unset any previously set options. */
+      setconfsockoptions(l->s,
+                         -1,
+                         SOCKS_TCP,
+                         1,
+                         0,
+                         NULL,
+                         0,
+                         SOCKETOPT_PRE | SOCKETOPT_ANYTIME);
+
       val = 1;
       if (setsockopt(l->s, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val)) != 0)
          swarn("%s: setsockopt(SO_REUSEADDR)", function);
 
-      if (sockd_bind(l->s, (struct sockaddr *)&l->addr, 1) != 0) {
+      if (sockd_bind(l->s, TOSA(&l->addr), 1) != 0) {
          char badbind[MAXSOCKADDRSTRING];
 
-         /* LINTED pointer casts may be troublesome */
          swarn("%s: bind of address %s failed",
                function,
-               sockaddr2string((struct sockaddr *)&l->addr,
+               sockaddr2string(TOSA(&l->addr),
                badbind, sizeof(badbind)));
 
          return -1;
@@ -380,33 +447,136 @@ setsockoptions(s, type, isclientside)
    const int isclientside;
 {
    const char *function = "setsockoptions()";
-   socklen_t vallen;
-   int val, sndbuf, rcvbuf;
+   socketoptions_t optionsv[MAXSOCKETOPTIONS];
+   size_t optc, i;
+   int val;
 
    slog(LOG_DEBUG, "%s: socket %d, type = %d, isclientside = %d",
-   function, s, type, isclientside);
+        function, s, type, isclientside);
 
+   /*
+    * Our default builtin options.
+    */
+   optc = getoptions(type, isclientside, optionsv, ELEMENTS(optionsv));
+   for (i = 0; i < optc; ++i) {
+      SASSERTX(optionsv[i].textname != NULL);
+
+      if (setsockopt(s,
+                     optionsv[i].level,
+                     optionsv[i].optname,
+                     &optionsv[i].optval,
+                     optionsv[i].optlen) != 0) {
+         if (optionsv[i].optname == SO_BROADCAST
+         &&  type                == SOCK_DGRAM
+         &&  errno               == EPROTO)
+            ; /* SO_BROADCAST is not always supported. */
+         else
+            swarn("%s: setsockopt(%s) to value %d on socket %d failed",
+                  function,
+                  optionsv[i].textname,
+                  optionsv[i].optval,
+                  s);
+      }
+   }
+
+   if ((val = fcntl(s, F_GETFL, 0))         == -1
+   ||   fcntl(s, F_SETFL, val | O_NONBLOCK) == -1)
+      swarn("%s: fcntl() failed to set descriptor to non-blocking", function);
+
+   if (sockscf.option.debug) {
+      socklen_t len;
+      int sndbuf, rcvbuf;
+
+      len = sizeof(sndbuf);
+      if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, &sndbuf, &len) != 0) {
+         swarn("%s: could not get the size of SO_SNDBUF for socket %d",
+               function, s);
+
+         return;
+      }
+
+      len = sizeof(rcvbuf);
+      if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, &rcvbuf, &len) != 0) {
+         swarn("%s: could not get the size of SO_RCVBUF for socket %d",
+               function, s);
+
+         return;
+      }
+
+      slog(LOG_DEBUG,
+           "%s: buffer sizes for socket %d are: SO_SNDBUF: %d, SO_RCVBUF: %d",
+           function, s, sndbuf, rcvbuf);
+   }
+
+#if DIAGNOSTIC
+   checksockoptions(s, type, isclientside);
+#endif /* DIAGNOSTIC */
+}
+
+
+static size_t
+getoptions(type, isclientside, optionsv, optionsc)
+   const int type;
+   const int isclientside;
+   socketoptions_t *optionsv;
+   const size_t optionsc;
+{
+   int sndbuf, rcvbuf;
+   size_t optc;
+
+   optc = 0;
    switch (type) {
       case SOCK_STREAM:
-         rcvbuf = sockscf.socket.tcp.rcvbuf;
-         sndbuf = sockscf.socket.tcp.sndbuf;
+         optionsv[optc].level   = IPPROTO_TCP;
+         optionsv[optc].optname = TCP_NODELAY;
+         optionsv[optc].optval  = 1;
+         optionsv[optc].optlen  = sizeof(optionsv[optc].optval);
+         strcpy(optionsv[optc].textname, "TCP_NODELAY");
+         ++optc;
+         SASSERTX(optc <= optionsc);
 
-         val = 1;
-         if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) != 0)
-            swarn("%s: setsockopt(TCP_NODELAY)", function);
-
-         val = 1;
-         if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE, &val, sizeof(val)) != 0)
-            swarn("%s: setsockopt(SO_OOBINLINE)", function);
+         optionsv[optc].level   = SOL_SOCKET;
+         optionsv[optc].optname = SO_OOBINLINE;
+         optionsv[optc].optval  = 1;
+         optionsv[optc].optlen  = sizeof(optionsv[optc].optval);
+         strcpy(optionsv[optc].textname, "SO_OOBINLINE");
+         ++optc;
+         SASSERTX(optc <= optionsc);
 
          if (sockscf.option.keepalive) {
-            val = 1;
-            if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) != 0)
-               swarn("%s: setsockopt(SO_KEEPALIVE)", function);
+            optionsv[optc].level   = SOL_SOCKET;
+            optionsv[optc].optname = SO_KEEPALIVE;
+            optionsv[optc].optval  = 1;
+            optionsv[optc].optlen  = sizeof(optionsv[optc].optval);
+            strcpy(optionsv[optc].textname, "SO_KEEPALIVE");
+            ++optc;
+            SASSERTX(optc <= optionsc);
          }
+
+         sndbuf = sockscf.socket.tcp.sndbuf;
+         rcvbuf = sockscf.socket.tcp.rcvbuf;
+
          break;
 
       case SOCK_DGRAM:
+         optionsv[optc].level   = SOL_SOCKET;
+         optionsv[optc].optname = SO_BROADCAST;
+         optionsv[optc].optval  = 1;
+         optionsv[optc].optlen  = sizeof(optionsv[optc].optval);
+         strcpy(optionsv[optc].textname, "SO_BROADCAST");
+         ++optc;
+         SASSERTX(optc <= optionsc);
+
+#if HAVE_SO_TIMESTAMP
+         optionsv[optc].level   = SOL_SOCKET;
+         optionsv[optc].optname = SO_TIMESTAMP;
+         optionsv[optc].optval  = 1;
+         optionsv[optc].optlen  = sizeof(optionsv[optc].optval);
+         strcpy(optionsv[optc].textname, "SO_TIMESTAMP");
+         ++optc;
+         SASSERTX(optc <= optionsc);
+#endif /* HAVE_SO_TIMESTAMP */
+
 #if BAREFOOTD
          if (isclientside) {
             sndbuf = sockscf.socket.clientside_udp.sndbuf;
@@ -418,53 +588,109 @@ setsockoptions(s, type, isclientside)
          }
 
 #else /* !BAREFOOTD */
-
          sndbuf = sockscf.socket.udp.sndbuf;
          rcvbuf = sockscf.socket.udp.rcvbuf;
 #endif /* !BAREFOOTD */
 
-         val = 1;
-         if (setsockopt(s, SOL_SOCKET, SO_BROADCAST, &val, sizeof(val)) != 0)
-            if (errno != ENOPROTOOPT)
-               swarn("%s: setsockopt(SO_BROADCAST)", function);
          break;
 
       default:
          SERRX(type);
    }
 
-   if ((val = sndbuf) != 0)
-      if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val)) != 0)
-         swarn("%s: setsockopt(SO_SNDBUF, %lu) failed",
-         function, (unsigned long)val);
-
-   if ((val = rcvbuf) != 0)
-      if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val)) != 0)
-         swarn("%s: setsockopt(SO_RCVBUF, %lu) failed",
-         function, (unsigned long)val);
-
-   if (sockscf.option.debug > 0) {
-      vallen = sizeof(val);
-      if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, &val, &vallen) != 0)
-         swarn("%s: getsockopt(SO_SNDBUF)", function);
-      else
-         slog(LOG_DEBUG, "%s: SO_SNDBUF of socket %d: %d",
-         function, s, val);
-
-      if (getsockopt(s, SOL_SOCKET, SO_RCVBUF, &val, &vallen) != 0)
-         swarn("%s: getsockopt(SO_RCVBUF)", function);
-      else
-         slog(LOG_DEBUG, "%s: SO_RCVBUF of socket %d: %d",
-         function, s, val);
+   if (sndbuf != 0) {
+      optionsv[optc].level   = SOL_SOCKET;
+      optionsv[optc].optname = SO_SNDBUF;
+      optionsv[optc].optval  = sndbuf;
+      optionsv[optc].optlen  = sizeof(optionsv[optc].optval);
+      strcpy(optionsv[optc].textname, "SO_SNDBUF");
+      ++optc;
+      SASSERTX(optc <= optionsc);
    }
 
-   if ((val = fcntl(s, F_GETFL, 0))         == -1
-   ||   fcntl(s, F_SETFL, val | O_NONBLOCK) == -1)
-      swarn("%s: fcntl() failed to set descriptor to non-blocking", function);
+   if (rcvbuf != 0) {
+      optionsv[optc].level   = SOL_SOCKET;
+      optionsv[optc].optname = SO_RCVBUF;
+      optionsv[optc].optval  = rcvbuf;
+      optionsv[optc].optlen  = sizeof(optionsv[optc].optval);
+      strcpy(optionsv[optc].textname, "SO_RCVBUF");
+      ++optc;
+      SASSERTX(optc <= optionsc);
+   }
 
-#if HAVE_LIBWRAP
-   if ((val = fcntl(s, F_GETFD, 0))       == -1
-   || fcntl(s, F_SETFD, val | FD_CLOEXEC) == -1)
-      swarn("%s: fcntl(F_GETFD/F_SETFD)", function);
-#endif /* HAVE_LIBWRAP */
+   SASSERTX(optc <= optionsc);
+   return optc;
 }
+
+#if DIAGNOSTIC
+void
+checksockoptions(s, type, isclientside)
+   const int s;
+   const int type;
+   const int isclientside;
+{
+   const char *function = "checksockoptions()";
+   socketoptions_t optionsv[MAXSOCKETOPTIONS];
+   size_t optc, i;
+   int val;
+
+   slog(LOG_DEBUG, "%s: socket %d, type = %d, isclientside = %d",
+        function, s, type, isclientside);
+
+   optc = getoptions(type, isclientside, optionsv, ELEMENTS(optionsv));
+   for (i = 0; i < optc; ++i) {
+      socklen_t vallen = sizeof(val);
+
+      if (getsockopt(s,
+                     optionsv[i].level,
+                     optionsv[i].optname,
+                     &val,
+                     &vallen) != 0) {
+         if (type == SOCK_STREAM && errno == ECONNRESET)
+            continue;  /* presumably failed while transferring the descriptor. */
+
+         if (optionsv[i].optname == SO_BROADCAST
+         &&  type                == SOCK_DGRAM
+         &&  errno               == EPROTO)
+            continue; /* SO_BROADCAST is not always supported. */
+
+         swarn("%s: could not get socket option %s on socket %d",
+               function, optionsv[i].textname, s);
+      }
+
+      if (val != optionsv[i].optval) {
+         if ((optionsv[i].optval == 1) && val)
+            ; /* assume it's a boolean; true, but not necessarily 1. */
+         else if ((   optionsv[i].optname == SO_SNDBUF
+                   || optionsv[i].optname == SO_RCVBUF)) {
+            if (val < optionsv[i].optval)
+               slog(LOG_INFO,
+                    "%s: socketoption %s on socket %d should be %d, but is %d",
+                    function,
+                    optionsv[i].textname,
+                    s,
+                    optionsv[i].optval,
+                    val);
+         }
+         else
+            slog((type == SOCK_DGRAM && optionsv[i].optname == SO_BROADCAST) ?
+                 LOG_DEBUG : LOG_WARNING,
+                 "%s: socket option %s on socket %d should be %d, but is %d",
+                 function,
+                 optionsv[i].textname,
+                 s,
+                 optionsv[i].optval,
+                 val);
+      }
+   }
+
+   if ((val = fcntl(s, F_GETFL, 0)) == -1)
+      swarn("%s: fcntl() failed to get descriptor flags of socket %d",
+            function, s);
+   else {
+      if (! (val & O_NONBLOCK))
+         swarn("%s: socket %d is blocking", function, s);
+   }
+}
+
+#endif /* DIAGNOSTIC */

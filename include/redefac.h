@@ -64,8 +64,24 @@
 #define HAVE_COM_ERR_IN_KRB5 0
 #endif
 
+#ifndef HAVE_COND_LIBWRAP
+#define HAVE_COND_LIBWRAP 0
+#endif
+
+#ifndef HAVE_COND_LIVEDEBUG
+#define HAVE_COND_LIVEDEBUG 0
+#endif
+
+#ifndef HAVE_COND_PAM
+#define HAVE_COND_PAM 0
+#endif
+
 #ifndef HAVE_CONFENV_DISABLE
 #define HAVE_CONFENV_DISABLE 0
+#endif
+
+#ifndef HAVE_CPU_EQUAL
+#define HAVE_CPU_EQUAL 0
 #endif
 
 #ifndef HAVE_CRYPT_H
@@ -80,8 +96,20 @@
 #define HAVE_DARWIN 0
 #endif
 
+#ifndef HAVE_DECL_ATTRIBUTE
+#define HAVE_DECL_ATTRIBUTE 0
+#endif
+
+#ifndef HAVE_DECL_FORMAT
+#define HAVE_DECL_FORMAT 0
+#endif
+
 #ifndef HAVE_DECL_KRB5_KT_FREE_ENTRY
 #define HAVE_DECL_KRB5_KT_FREE_ENTRY 0
+#endif
+
+#ifndef HAVE_DECL_NONNULL
+#define HAVE_DECL_NONNULL 0
 #endif
 
 #ifndef HAVE_DEC_PROTO
@@ -108,6 +136,10 @@
 #define HAVE_DUMPCONF 0
 #endif
 
+#ifndef HAVE_DUPSOCKOPT_MAX
+#define HAVE_DUPSOCKOPT_MAX 0
+#endif
+
 #ifndef HAVE_ERROR_MESSAGE
 #define HAVE_ERROR_MESSAGE 0
 #endif
@@ -128,6 +160,10 @@
 #define HAVE_FCNTL_H 0
 #endif
 
+#ifndef HAVE_FDMASK
+#define HAVE_FDMASK 0
+#endif
+
 #ifndef HAVE_FREEIFADDRS
 #define HAVE_FREEIFADDRS 0
 #endif
@@ -146,6 +182,10 @@
 
 #ifndef HAVE_GETIPNODEBYNAME
 #define HAVE_GETIPNODEBYNAME 0
+#endif
+
+#ifndef HAVE_GETPASS
+#define HAVE_GETPASS 0
 #endif
 
 #ifndef HAVE_GETPRPWNAM
@@ -246,6 +286,82 @@
 
 #ifndef HAVE_IPV6_SUPPORT
 #define HAVE_IPV6_SUPPORT 0
+#endif
+
+#ifndef HAVE_IP_AUTH_LEVEL
+#define HAVE_IP_AUTH_LEVEL 0
+#endif
+
+#ifndef HAVE_IP_DONTFRAG
+#define HAVE_IP_DONTFRAG 0
+#endif
+
+#ifndef HAVE_IP_ESP_NETWORK_LEVEL
+#define HAVE_IP_ESP_NETWORK_LEVEL 0
+#endif
+
+#ifndef HAVE_IP_ESP_TRANS_LEVEL
+#define HAVE_IP_ESP_TRANS_LEVEL 0
+#endif
+
+#ifndef HAVE_IP_FREEBIND
+#define HAVE_IP_FREEBIND 0
+#endif
+
+#ifndef HAVE_IP_HDRINCL
+#define HAVE_IP_HDRINCL 0
+#endif
+
+#ifndef HAVE_IP_IPCOMP_LEVEL
+#define HAVE_IP_IPCOMP_LEVEL 0
+#endif
+
+#ifndef HAVE_IP_MINTTL
+#define HAVE_IP_MINTTL 0
+#endif
+
+#ifndef HAVE_IP_MTU_DISCOVER
+#define HAVE_IP_MTU_DISCOVER 0
+#endif
+
+#ifndef HAVE_IP_MULTICAST_IF
+#define HAVE_IP_MULTICAST_IF 0
+#endif
+
+#ifndef HAVE_IP_MULTICAST_LOOP
+#define HAVE_IP_MULTICAST_LOOP 0
+#endif
+
+#ifndef HAVE_IP_MULTICAST_TTL
+#define HAVE_IP_MULTICAST_TTL 0
+#endif
+
+#ifndef HAVE_IP_OPTIONS
+#define HAVE_IP_OPTIONS 0
+#endif
+
+#ifndef HAVE_IP_PORTRANGE
+#define HAVE_IP_PORTRANGE 0
+#endif
+
+#ifndef HAVE_IP_RECVDSTADDR
+#define HAVE_IP_RECVDSTADDR 0
+#endif
+
+#ifndef HAVE_IP_RECVIF
+#define HAVE_IP_RECVIF 0
+#endif
+
+#ifndef HAVE_IP_RECVTOS
+#define HAVE_IP_RECVTOS 0
+#endif
+
+#ifndef HAVE_IP_TOS
+#define HAVE_IP_TOS 0
+#endif
+
+#ifndef HAVE_IP_TTL
+#define HAVE_IP_TTL 0
 #endif
 
 #ifndef HAVE_ISSETUGID
@@ -408,6 +524,10 @@
 #define HAVE_LIBPTHREAD 0
 #endif
 
+#ifndef HAVE_LIBRESOLV
+#define HAVE_LIBRESOLV 0
+#endif
+
 #ifndef HAVE_LIBROKEN
 #define HAVE_LIBROKEN 0
 #endif
@@ -418,10 +538,6 @@
 
 #ifndef HAVE_LIBSSLDAP60
 #define HAVE_LIBSSLDAP60 0
-#endif
-
-#ifndef HAVE_LIBWRAP
-#define HAVE_LIBWRAP 0
 #endif
 
 #ifndef HAVE_LIMITS_H
@@ -436,16 +552,16 @@
 #define HAVE_LINUX_GLIBC_WORKAROUND 0
 #endif
 
-#ifndef HAVE_LIVEDEBUG
-#define HAVE_LIVEDEBUG 0
-#endif
-
 #ifndef HAVE_MALLOC_H
 #define HAVE_MALLOC_H 0
 #endif
 
 #ifndef HAVE_MALLOC_OPTIONS
 #define HAVE_MALLOC_OPTIONS 0
+#endif
+
+#ifndef HAVE_MAX_HOSTIDS
+#define HAVE_MAX_HOSTIDS 0
 #endif
 
 #ifndef HAVE_MEMMOVE
@@ -474,6 +590,10 @@
 
 #ifndef HAVE_MODULE_SESSION
 #define HAVE_MODULE_SESSION 0
+#endif
+
+#ifndef HAVE_MONCONTROL
+#define HAVE_MONCONTROL 0
 #endif
 
 #ifndef HAVE_MOZILLA_LDAP_SDK
@@ -532,12 +652,20 @@
 #define HAVE_OPENLOG_LOG_PERROR 0
 #endif
 
-#ifndef HAVE_PAM
-#define HAVE_PAM 0
-#endif
-
 #ifndef HAVE_PATHS_H
 #define HAVE_PATHS_H 0
+#endif
+
+#ifndef HAVE_PIPEBUFFER_RECV_BASED
+#define HAVE_PIPEBUFFER_RECV_BASED 0
+#endif
+
+#ifndef HAVE_PIPEBUFFER_SEND_BASED
+#define HAVE_PIPEBUFFER_SEND_BASED 0
+#endif
+
+#ifndef HAVE_PIPEBUFFER_UNKNOWN
+#define HAVE_PIPEBUFFER_UNKNOWN 0
 #endif
 
 #ifndef HAVE_PRIVILEGES
@@ -546,6 +674,10 @@
 
 #ifndef HAVE_PRIV_H
 #define HAVE_PRIV_H 0
+#endif
+
+#ifndef HAVE_PROCESSOR_BIND
+#define HAVE_PROCESSOR_BIND 0
 #endif
 
 #ifndef HAVE_PROFILING
@@ -1096,8 +1228,36 @@
 #define HAVE_PROT__IO_PUTC_2 0
 #endif
 
+#ifndef HAVE_PROT__READ_CHK_0
+#define HAVE_PROT__READ_CHK_0 0
+#endif
+
+#ifndef HAVE_PROT__READ_CHK_1
+#define HAVE_PROT__READ_CHK_1 0
+#endif
+
+#ifndef HAVE_PROT__READ_CHK_2
+#define HAVE_PROT__READ_CHK_2 0
+#endif
+
+#ifndef HAVE_PROT__READ_CHK_3
+#define HAVE_PROT__READ_CHK_3 0
+#endif
+
+#ifndef HAVE_PROT__READ_CHK_4
+#define HAVE_PROT__READ_CHK_4 0
+#endif
+
+#ifndef HAVE_PSELECT
+#define HAVE_PSELECT 0
+#endif
+
 #ifndef HAVE_PTHREAD_H
 #define HAVE_PTHREAD_H 0
+#endif
+
+#ifndef HAVE_RECVBUF_IOCTL
+#define HAVE_RECVBUF_IOCTL 0
 #endif
 
 #ifndef HAVE_RESOLV_H
@@ -1116,8 +1276,20 @@
 #define HAVE_ROUTE_SOURCE 0
 #endif
 
+#ifndef HAVE_RPC_RPC_H
+#define HAVE_RPC_RPC_H 0
+#endif
+
+#ifndef HAVE_RRESVPORT
+#define HAVE_RRESVPORT 0
+#endif
+
 #ifndef HAVE_RTLD_NEXT
 #define HAVE_RTLD_NEXT 0
+#endif
+
+#ifndef HAVE_SASL
+#define HAVE_SASL 0
 #endif
 
 #ifndef HAVE_SASL_DARWIN
@@ -1132,8 +1304,24 @@
 #define HAVE_SASL_SASL_H 0
 #endif
 
+#ifndef HAVE_SCHED_H
+#define HAVE_SCHED_H 0
+#endif
+
+#ifndef HAVE_SCHED_SETAFFINITY
+#define HAVE_SCHED_SETAFFINITY 0
+#endif
+
+#ifndef HAVE_SCHED_SETSCHEDULER
+#define HAVE_SCHED_SETSCHEDULER 0
+#endif
+
 #ifndef HAVE_SECURITY_PAM_APPL_H
 #define HAVE_SECURITY_PAM_APPL_H 0
+#endif
+
+#ifndef HAVE_SENDBUF_IOCTL
+#define HAVE_SENDBUF_IOCTL 0
 #endif
 
 #ifndef HAVE_SENDMSG_DEADLOCK
@@ -1184,6 +1372,14 @@
 #define HAVE_SOCKD_PIDFILE 0
 #endif
 
+#ifndef HAVE_SOCKOPTVALSYM_MAX
+#define HAVE_SOCKOPTVALSYM_MAX 0
+#endif
+
+#ifndef HAVE_SOCKOPTVAL_MAX
+#define HAVE_SOCKOPTVAL_MAX 0
+#endif
+
 #ifndef HAVE_SOCKS_CONFIGFILE
 #define HAVE_SOCKS_CONFIGFILE 0
 #endif
@@ -1194,6 +1390,90 @@
 
 #ifndef HAVE_SOLARIS_PRIVS
 #define HAVE_SOLARIS_PRIVS 0
+#endif
+
+#ifndef HAVE_SO_BINDANY
+#define HAVE_SO_BINDANY 0
+#endif
+
+#ifndef HAVE_SO_BROADCAST
+#define HAVE_SO_BROADCAST 0
+#endif
+
+#ifndef HAVE_SO_DEBUG
+#define HAVE_SO_DEBUG 0
+#endif
+
+#ifndef HAVE_SO_DONTROUTE
+#define HAVE_SO_DONTROUTE 0
+#endif
+
+#ifndef HAVE_SO_JUMBO
+#define HAVE_SO_JUMBO 0
+#endif
+
+#ifndef HAVE_SO_KEEPALIVE
+#define HAVE_SO_KEEPALIVE 0
+#endif
+
+#ifndef HAVE_SO_LINGER
+#define HAVE_SO_LINGER 0
+#endif
+
+#ifndef HAVE_SO_OOBINLINE
+#define HAVE_SO_OOBINLINE 0
+#endif
+
+#ifndef HAVE_SO_PRIORITY
+#define HAVE_SO_PRIORITY 0
+#endif
+
+#ifndef HAVE_SO_RCVBUF
+#define HAVE_SO_RCVBUF 0
+#endif
+
+#ifndef HAVE_SO_RCVBUFFORCE
+#define HAVE_SO_RCVBUFFORCE 0
+#endif
+
+#ifndef HAVE_SO_RCVLOWAT
+#define HAVE_SO_RCVLOWAT 0
+#endif
+
+#ifndef HAVE_SO_RCVTIMEO
+#define HAVE_SO_RCVTIMEO 0
+#endif
+
+#ifndef HAVE_SO_REUSEADDR
+#define HAVE_SO_REUSEADDR 0
+#endif
+
+#ifndef HAVE_SO_REUSEPORT
+#define HAVE_SO_REUSEPORT 0
+#endif
+
+#ifndef HAVE_SO_SNDBUF
+#define HAVE_SO_SNDBUF 0
+#endif
+
+#ifndef HAVE_SO_SNDBUFFORCE
+#define HAVE_SO_SNDBUFFORCE 0
+#endif
+
+#ifndef HAVE_SO_SNDLOWAT
+#define HAVE_SO_SNDLOWAT 0
+#endif
+
+#ifndef HAVE_SO_SNDTIMEO
+#define HAVE_SO_SNDTIMEO 0
+#endif
+
+#ifndef HAVE_SO_TIMESTAMP
+#define HAVE_SO_TIMESTAMP 0
+#endif
+
+#ifndef HAVE_SO_USELOOPBACK
+#define HAVE_SO_USELOOPBACK 0
 #endif
 
 #ifndef HAVE_STDINT_H
@@ -1264,6 +1544,10 @@
 #define HAVE_SYS_SEM_H 0
 #endif
 
+#ifndef HAVE_SYS_SHM_H
+#define HAVE_SYS_SHM_H 0
+#endif
+
 #ifndef HAVE_SYS_SOCKIO_H
 #define HAVE_SYS_SOCKIO_H 0
 #endif
@@ -1288,12 +1572,88 @@
 #define HAVE_TCPD_H 0
 #endif
 
+#ifndef HAVE_TCP_CORK
+#define HAVE_TCP_CORK 0
+#endif
+
+#ifndef HAVE_TCP_CWND
+#define HAVE_TCP_CWND 0
+#endif
+
+#ifndef HAVE_TCP_INIT_CWND
+#define HAVE_TCP_INIT_CWND 0
+#endif
+
+#ifndef HAVE_TCP_IPA
+#define HAVE_TCP_IPA 0
+#endif
+
+#ifndef HAVE_TCP_KEEPCNT
+#define HAVE_TCP_KEEPCNT 0
+#endif
+
+#ifndef HAVE_TCP_KEEPIDLE
+#define HAVE_TCP_KEEPIDLE 0
+#endif
+
+#ifndef HAVE_TCP_KEEPINTVL
+#define HAVE_TCP_KEEPINTVL 0
+#endif
+
+#ifndef HAVE_TCP_LINGER2
+#define HAVE_TCP_LINGER2 0
+#endif
+
+#ifndef HAVE_TCP_MAXRT
+#define HAVE_TCP_MAXRT 0
+#endif
+
+#ifndef HAVE_TCP_MAXSEG
+#define HAVE_TCP_MAXSEG 0
+#endif
+
+#ifndef HAVE_TCP_MD5SIG
+#define HAVE_TCP_MD5SIG 0
+#endif
+
+#ifndef HAVE_TCP_NODELAY
+#define HAVE_TCP_NODELAY 0
+#endif
+
+#ifndef HAVE_TCP_NOOPT
+#define HAVE_TCP_NOOPT 0
+#endif
+
+#ifndef HAVE_TCP_NOPUSH
+#define HAVE_TCP_NOPUSH 0
+#endif
+
+#ifndef HAVE_TCP_SACK_ENABLE
+#define HAVE_TCP_SACK_ENABLE 0
+#endif
+
+#ifndef HAVE_TCP_STDURG
+#define HAVE_TCP_STDURG 0
+#endif
+
+#ifndef HAVE_TCP_SYNCNT
+#define HAVE_TCP_SYNCNT 0
+#endif
+
+#ifndef HAVE_TCP_WINDOW_CLAMP
+#define HAVE_TCP_WINDOW_CLAMP 0
+#endif
+
 #ifndef HAVE_THREADS_EINTR_PROBLEMS
 #define HAVE_THREADS_EINTR_PROBLEMS 0
 #endif
 
 #ifndef HAVE_TIMER_MACROS
 #define HAVE_TIMER_MACROS 0
+#endif
+
+#ifndef HAVE_UDP_CORK
+#define HAVE_UDP_CORK 0
 #endif
 
 #ifndef HAVE_UINT16_T
@@ -1346,6 +1706,10 @@
 
 #ifndef HAVE___FPRINTF_CHK
 #define HAVE___FPRINTF_CHK 0
+#endif
+
+#ifndef HAVE___READ_CHK
+#define HAVE___READ_CHK 0
 #endif
 
 #ifndef HAVE___VFPRINTF_CHK

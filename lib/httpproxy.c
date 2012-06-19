@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
+ *               2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,12 +45,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.46 2011/05/18 13:48:46 karls Exp $";
+"$Id: httpproxy.c,v 1.51 2012/06/01 20:23:05 karls Exp $";
 
 int
 httpproxy_negotiate(s, packet)
    int s;
-   struct socks_t *packet;
+   socks_t *packet;
 {
    const char *function = "httpproxy_negotiate()";
    char buf[MAXHOSTNAMELEN + 512] /* The + 512 is for http babble. */,
@@ -58,7 +59,7 @@ httpproxy_negotiate(s, packet)
    int checked, eof;
    ssize_t len, rc;
    size_t readsofar;
-   struct sockaddr addr;
+   struct sockaddr_storage addr;
    socklen_t addrlen;
 
    slog(LOG_DEBUG, "%s", function);
@@ -184,9 +185,9 @@ httpproxy_negotiate(s, packet)
                    * nothing, perhaps. :-/
                    */
                   addrlen = sizeof(addr);
-                  if (getsockname(s, &addr, &addrlen) != 0)
+                  if (getsockname(s, TOSA(&addr), &addrlen) != 0)
                      SWARN(s);
-                  sockaddr2sockshost(&addr, &packet->res.host);
+                  sockaddr2sockshost(TOSA(&addr), &packet->res.host);
 
                   checked = 1;
                   break;
@@ -198,7 +199,7 @@ httpproxy_negotiate(s, packet)
 
             if (error) {
                swarnx("%s: unknown response: \"%s\"",
-               function, str2vis(bufp, linelen, visbuf, sizeof(visbuf)));
+                      function, str2vis(bufp, linelen, visbuf, sizeof(visbuf)));
 
                errno = ECONNREFUSED;
                return -1;
@@ -213,6 +214,6 @@ httpproxy_negotiate(s, packet)
    if (checked)
       return socks_get_responsevalue(&packet->res) == HTTP_SUCCESS ? 0 : -1;
 
-   slog(LOG_DEBUG, "%s: didn't get status code from proxy", function);
-   return -1;   /* proxyserver doing something strange/unknown. */
+   slog(LOG_INFO, "%s: didn't get status code from proxy", function);
+   return -1;
 }

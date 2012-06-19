@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011
+ *               2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,23 +45,22 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.83 2011/06/25 11:58:54 michaels Exp $";
+"$Id: method_uname.c,v 1.88 2012/06/01 20:23:06 karls Exp $";
 
 static negotiate_result_t
-recv_unamever(int s, struct request_t *request,
-      struct negotiate_state_t *state);
+recv_unamever(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_ulen(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_ulen(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_uname(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_uname(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_plen(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_plen(int s, request_t *request, negotiate_state_t *state);
 
 static negotiate_result_t
-recv_passwd(int s, struct request_t *request, struct negotiate_state_t *state);
+recv_passwd(int s, request_t *request, negotiate_state_t *state);
 
 static int
 passworddbisunique(void);
@@ -75,8 +74,8 @@ passworddbisunique(void);
 negotiate_result_t
 method_uname(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 
 {
 
@@ -108,7 +107,7 @@ passworddbisunique(void)
 #if HAVE_PAM
    else if (methodisset(AUTHMETHOD_PAM, sockscf.methodv, sockscf.methodc)) {
       if (sockscf.state.pamservicename == NULL)
-         rc = 0;    
+         rc = 0;
       else if (methodisset(AUTHMETHOD_UNAME, sockscf.methodv, sockscf.methodc))
          rc = 0;
 #if HAVE_BSDAUTH
@@ -135,7 +134,7 @@ passworddbisunique(void)
    }
 #endif /* HAVE_BSDAUTH */
    else {/* no passworddb-based methods set.  Should not have been called. */
-      slog(LOG_DEBUG, "%s: no passwroddb-based methods set.  Why called?", 
+      slog(LOG_DEBUG, "%s: no passwroddb-based methods set.  Why called?",
            function);
 
       rc = -1;
@@ -145,12 +144,11 @@ passworddbisunique(void)
    return rc;
 }
 
-
 static negotiate_result_t
 recv_unamever(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    INIT(sizeof(request->auth->mdata.uname.version));
@@ -173,8 +171,8 @@ recv_unamever(s, request, state)
 static negotiate_result_t
 recv_ulen(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    INIT(sizeof(*request->auth->mdata.uname.name));
@@ -190,8 +188,8 @@ recv_ulen(s, request, state)
 static negotiate_result_t
 recv_uname(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
    const size_t ulen = (size_t)*request->auth->mdata.uname.name;
 
@@ -211,8 +209,8 @@ recv_uname(s, request, state)
 static negotiate_result_t
 recv_plen(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 
    INIT(sizeof(*request->auth->mdata.uname.password));
@@ -228,8 +226,8 @@ recv_plen(s, request, state)
 static negotiate_result_t
 recv_passwd(s, request, state)
    int s;
-   struct request_t *request;
-   struct negotiate_state_t *state;
+   request_t *request;
+   negotiate_state_t *state;
 {
 /*   const char *function = "recv_passwd()"; */
    const size_t plen = (size_t)*request->auth->mdata.uname.password;
@@ -280,8 +278,7 @@ recv_passwd(s, request, state)
          /*
           * it's a union, make a copy before moving into pam object.
           */
-         const struct authmethod_uname_t uname
-         = request->auth->mdata.uname;
+         const authmethod_uname_t uname = request->auth->mdata.uname;
 
          request->auth->method = AUTHMETHOD_PAM;
 
@@ -302,8 +299,7 @@ recv_passwd(s, request, state)
          /*
           * it's a union, make a copy before moving into bsd object.
           */
-         const struct authmethod_uname_t uname
-         = request->auth->mdata.uname;
+         const authmethod_uname_t uname = request->auth->mdata.uname;
 
          request->auth->method = AUTHMETHOD_BSDAUTH;
          if (sockscf.state.bsdauthstylename != NULL)
@@ -322,12 +318,12 @@ recv_passwd(s, request, state)
 #endif /* HAVE_BSDAUTH */
 
       case AUTHMETHOD_UNAME: {
-         struct sockaddr src, dst;
+         struct sockaddr_storage src, dst;
 
-         sockshost2sockaddr(&state->src, &src);
+         sockshost2sockaddr(&state->src, TOSA(&src));
          dst = src;
 
-         if (accesscheck(s, request->auth, &src, &dst, state->emsg,
+         if (accesscheck(s, request->auth, TOSA(&src), TOSA(&dst), state->emsg,
          sizeof(state->emsg)))
             response[UNAME_STATUS] = (unsigned char)0; /* OK. */
          else

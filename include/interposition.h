@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.82 2011/05/18 13:48:45 karls Exp $ */
+/* $Id: interposition.h,v 1.83 2011/09/24 17:44:40 michaels Exp $ */
 
 #ifndef _INTERPOSITION_H_
 #define _INTERPOSITION_H_
@@ -51,7 +51,7 @@
 #endif /* !BAREFOOTD */
 
 typedef enum { pid = 0, thread } which_id_t;
-struct socks_id_t {
+typedef struct socks_id_t {
    which_id_t        whichid;
    union {
       pid_t          pid;
@@ -61,24 +61,24 @@ struct socks_id_t {
    } id;
 
    struct socks_id_t *next;
-};
+} socks_id_t;
 
-struct libsymbol_t {
+typedef struct {
    char  *symbol;         /* name of the symbol.         */
    char  *library;        /* library symbol is in.       */
    void  *handle;         /* handle to the library.      */
    void  *function;       /* the bound symbol.           */
 
-   struct socks_id_t *dosyscall; /*
-                                  * if this value is not set, the corresponding
-                                  * syscall should be used for the given id.
-                                  * This is for cases where we are unable to
-                                  * base the decision concerning whether the
-                                  * function should resolve to a R*() function
-                                  * or a syscall in other ways.
-                                  */
+   socks_id_t *dosyscall; /*
+                           * if this value is not set, the corresponding
+                           * syscall should be used for the given id.
+                           * This is for cases where we are unable to
+                           * base the decision concerning whether the
+                           * function should resolve to a R*() function
+                           * or a syscall in other ways.
+                           */
 
-};
+} libsymbol_t;
 
 #if SOCKS_CLIENT
 
@@ -118,8 +118,7 @@ socks_issyscall(const int s, const char *name);
 
 #if SOCKS_CLIENT
 
-struct socks_id_t *
-socks_whoami(struct socks_id_t *id);
+socks_id_t *socks_whoami(socks_id_t *id);
 /*
  * Returns a unique id identifying the calling thread or process,
  * depending on whether the process is threaded or not.

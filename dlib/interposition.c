@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
+ *               2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +47,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.150 2011/07/21 13:48:41 michaels Exp $";
+"$Id: interposition.c,v 1.157 2012/06/01 20:23:05 karls Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
@@ -145,9 +146,12 @@ write$NOCANCEL(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
 #if HAVE___VFPRINTF_CHK
 #undef __vfprintf_chk
 #endif /* HAVE___VFPRINTF_CHK */
+#if HAVE___READ_CHK
+#undef __read_chk
+#endif /* HAVE___READ_CHK */
 #endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
 
-static struct libsymbol_t libsymbolv[] = {
+static libsymbol_t libsymbolv[] = {
 #if SOCKS_CLIENT
 { SYMBOL_ACCEPT,               LIBRARY_ACCEPT,         NULL,   NULL, NULL },
 { SYMBOL_BIND,                 LIBRARY_BIND,           NULL,   NULL, NULL },
@@ -162,7 +166,9 @@ static struct libsymbol_t libsymbolv[] = {
 { SYMBOL_RECV,                 LIBRARY_RECV,           NULL,   NULL, NULL },
 { SYMBOL_RECVMSG,              LIBRARY_RECVMSG,        NULL,   NULL, NULL },
 { SYMBOL_RECVFROM,             LIBRARY_RECVFROM,       NULL,   NULL, NULL },
+#if HAVE_RRESVPORT
 { SYMBOL_RRESVPORT,            LIBRARY_RRESVPORT,      NULL,   NULL, NULL },
+#endif /* HAVE_RRESVPORT */
 { SYMBOL_SEND,                 LIBRARY_SEND,           NULL,   NULL, NULL },
 { SYMBOL_SENDMSG,              LIBRARY_SENDMSG,        NULL,   NULL, NULL },
 { SYMBOL_SENDTO,               LIBRARY_SENDTO,         NULL,   NULL, NULL },
@@ -257,6 +263,9 @@ static struct libsymbol_t libsymbolv[] = {
 #if HAVE___VFPRINTF_CHK
 { SYMBOL___VFPRINTF_CHK,       LIBRARY___VFPRINTF_CHK, NULL,   NULL, NULL },
 #endif /* HAVE___VFPRINTF_CHK */
+#if HAVE___READ_CHK
+{ SYMBOL___READ_CHK,       LIBRARY___READ_CHK, NULL,   NULL, NULL },
+#endif /* HAVE___READ_CHK */
 #endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
 #endif /* SOCKS_CLIENT */
 };
@@ -264,14 +273,14 @@ static struct libsymbol_t libsymbolv[] = {
 #if SOCKS_CLIENT
 
 static void
-addtolist(const char *functionname, const struct socks_id_t *id);
+addtolist(const char *functionname, const socks_id_t *id);
 /*
  * Add "id" to the list of id's for which function name should resolve
  * to the native system call directly.
  */
 
 static void
-removefromlist(const char *functionname, const struct socks_id_t *id);
+removefromlist(const char *functionname, const socks_id_t *id);
 /*
  * Add "id" to the list of id's for which function name should resolve
  * to the native system call directly.
@@ -279,7 +288,7 @@ removefromlist(const char *functionname, const struct socks_id_t *id);
 
 
 static int
-idsareequal(const struct socks_id_t *a, const struct socks_id_t *b);
+idsareequal(const socks_id_t *a, const socks_id_t *b);
 /*
  * If "a" and "b" refer to the same thread/pid, return true.  Else, false.
  */
@@ -287,10 +296,10 @@ idsareequal(const struct socks_id_t *a, const struct socks_id_t *b);
 
 #endif /* SOCKS_CLIENT */
 
-static struct libsymbol_t *
+static libsymbol_t *
 libsymbol(const char *symbol);
 /*
- * Finds the libsymbol_t that "symbol" is defined in.
+ * Finds the libsymbol that "symbol" is defined in.
  */
 
 
@@ -300,7 +309,7 @@ socks_issyscall(s, name)
    const int s;
    const char *name;
 {
-   struct socksfd_t socksfd;
+   socksfd_t socksfd;
 
    if (socks_shouldcallasnative(name))
       return 1;
@@ -316,7 +325,7 @@ void
 socks_syscall_start(s)
    const int s;
 {
-   struct socksfd_t *p;
+   socksfd_t *p;
    addrlockopaque_t opaque;
 
    if (socks_logmatch(s, &sockscf.log)
@@ -326,7 +335,7 @@ socks_syscall_start(s)
    socks_addrlock(F_WRLCK, &opaque);
 
    if ((p = socks_getaddr(s, NULL, 0)) == NULL) {
-      struct socksfd_t socksfd;
+      socksfd_t socksfd;
 
       bzero(&socksfd, sizeof(socksfd));
       socksfd.state.command   = -1;
@@ -347,7 +356,7 @@ socks_syscall_end(s)
    const int s;
 {
    addrlockopaque_t opaque;
-   struct socksfd_t socksfd, *p;
+   socksfd_t socksfd, *p;
 
    if (socks_logmatch(s, &sockscf.log)
    ||  socks_logmatch(s, &sockscf.errlog))
@@ -410,8 +419,8 @@ int
 socks_shouldcallasnative(functionname)
    const char *functionname;
 {
-   struct socks_id_t myid, *fid;
-   struct libsymbol_t *lib;
+   socks_id_t myid, *fid;
+   libsymbol_t *lib;
 
    if (doing_addrinit)
       return 1;
@@ -453,11 +462,11 @@ socks_markasnative(functionname)
    const char *functionname;
 {
    const char *function = "socks_markasnative()";
-   struct socks_id_t myid;
+   socks_id_t myid;
 
-   if (DEBUG_VERBOSE)
+   if (sockscf.option.debug > DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: marking %s as native for current id",
-      function, functionname);
+           function, functionname);
 
    if (strcmp(functionname, "*") == 0) {
       size_t i;
@@ -476,11 +485,11 @@ socks_markasnormal(functionname)
    const char *functionname;
 {
    const char *function = "socks_markasnormal()";
-   struct socks_id_t myid;
+   socks_id_t myid;
 
-   if (DEBUG_VERBOSE)
+   if (sockscf.option.debug > DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: marking %s as normal for current id",
-      function, functionname);
+           function, functionname);
 
    if (strcmp(functionname, "*") == 0) {
       size_t i;
@@ -497,8 +506,8 @@ socks_markasnormal(functionname)
 
 static int
 idsareequal(a, b)
-   const struct socks_id_t *a;
-   const struct socks_id_t *b;
+   const socks_id_t *a;
+   const socks_id_t *b;
 {
 
    switch (a->whichid) {
@@ -524,11 +533,11 @@ idsareequal(a, b)
 static void
 addtolist(functionname, id)
    const char *functionname;
-   const struct socks_id_t *id;
+   const socks_id_t *id;
 {
    const char *function = "addtolist()";
-   struct libsymbol_t *lib;
-   struct socks_id_t *newid;
+   libsymbol_t *lib;
+   socks_id_t *newid;
    addrlockopaque_t opaque;
 
    lib = libsymbol(functionname);
@@ -556,11 +565,11 @@ addtolist(functionname, id)
 static void
 removefromlist(functionname, removeid)
    const char *functionname;
-   const struct socks_id_t *removeid;
+   const socks_id_t *removeid;
 {
 /*   const char *function = "removefromlist()"; */
-   struct libsymbol_t *lib;
-   struct socks_id_t *id, *previous;
+   libsymbol_t *lib;
+   socks_id_t *id, *previous;
    addrlockopaque_t opaque;
 
    lib = libsymbol(functionname);
@@ -600,7 +609,7 @@ symbolfunction(symbol)
    const char *symbol;
 {
    const char *function = "symbolfunction()";
-   struct libsymbol_t *lib;
+   libsymbol_t *lib;
 
    lib = libsymbol(symbol);
 
@@ -647,7 +656,7 @@ symbolfunction(symbol)
    return lib->function;
 }
 
-static struct libsymbol_t *
+static libsymbol_t *
 libsymbol(symbol)
    const char *symbol;
 {
@@ -1013,6 +1022,7 @@ sys_recvmsg(s, msg, flags)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
+#if HAVE_RRESVPORT
 int
 sys_rresvport(port)
    int *port;
@@ -1023,6 +1033,7 @@ sys_rresvport(port)
    function = (RRESVPORT_FUNC_T)symbolfunction(SYMBOL_RRESVPORT);
    return function(port);
 }
+#endif /* HAVE_RRESVPORT */
 
 HAVE_PROT_SEND_0
 sys_send(s, msg, len, flags)
@@ -1690,12 +1701,14 @@ recvmsg(s, msg, flags)
 }
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 
+#if HAVE_RRESVPORT
 int
 rresvport(port)
    int *port;
 {
    return Rrresvport(port);
 }
+#endif /* HAVE_RRESVPORT */
 
 HAVE_PROT_WRITE_0
 write(d, buf, nbytes)
@@ -2619,6 +2632,24 @@ fread(ptr, size, nmb, stream)
       return sys_fread(ptr, size, nmb, stream);
    return Rfread(ptr, size, nmb, stream);
 }
+
+#if HAVE___READ_CHK
+HAVE_PROT__READ_CHK_0
+__read_chk(d, buf, nbytes, buflen)
+   HAVE_PROT__READ_CHK_1 d;
+   HAVE_PROT__READ_CHK_2 buf;
+   HAVE_PROT__READ_CHK_3 nbytes;
+   HAVE_PROT__READ_CHK_4 buflen;
+{
+   SASSERTX(nbytes <= buflen);
+
+   if (!sockscf.state.havegssapisockets ||
+       socks_issyscall(d, SYMBOL___READ_CHK))
+      return sys_read(d, buf, nbytes);
+
+   return Rread(d, buf, nbytes);
+}
+#endif /* HAVE___READ_CHK */
 
 #endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
 

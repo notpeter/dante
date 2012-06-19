@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001
+ * Copyright (c) 1997, 1998, 1999, 2001, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: clientconfig.c,v 1.18 2009/07/09 14:04:20 karls Exp $";
+"$Id: clientconfig.c,v 1.20 2012/06/01 20:23:05 karls Exp $";
 
-struct config_t sockscf;
+struct config sockscf;
 const int socks_configtype = CONFIGTYPE_CLIENT;

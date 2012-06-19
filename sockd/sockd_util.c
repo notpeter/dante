@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011
+ *               2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.196 2011/07/26 07:59:54 michaels Exp $";
+"$Id: sockd_util.c,v 1.211 2012/06/01 20:23:06 karls Exp $";
 
 #include "common.h"
 
@@ -121,29 +121,12 @@ selectmethod(methodv, methodc, offeredv, offeredc)
    return AUTHMETHOD_NOACCEPT;
 }
 
-
 void
 sockdexit(code)
    const int code;
 {
    const char *function = "sockdexit()";
-   static int exiting;
-   struct rule_t *rulev[] = { sockscf.crule,
-#if HAVE_TWO_LEVEL_ACL
-                              sockscf.srule
-#endif /* HAVE_TWO_LEVEL_ACL */
-   };
    struct sigaction sigact;
-   size_t i;
-
-   /*
-    * Since this function can also be called on an assert-failure,
-    * try to guard against repeated calls.
-    */
-   if (exiting)
-      return;
-
-   exiting = 1;
 
    /*
     * we are terminating, don't want to receive SIGTERM or SIGCHLD
@@ -157,23 +140,25 @@ sockdexit(code)
 
    slog(LOG_DEBUG, "%s: insignal = %d", function, (int)sockscf.state.insignal);
 
-   if (pidismother(sockscf.state.pid) == 1) { /* main mother. */
+   if (pidismother(sockscf.state.pid)) {
       if (sockscf.state.insignal)
-         slog(LOG_ALERT, "%s: terminating on signal %d",
-         function, sockscf.state.insignal);
+         slog(LOG_ALERT, "%s: mother[%d/%d] terminating on signal %d",
+              function,
+              pidismother(sockscf.state.pid),
+              sockscf.state.insignal, sockscf.option.serverc);
       else
-         slog(LOG_ALERT, "%s: terminating", function);
+         slog(LOG_ALERT, "%s: mother[%d/%d] terminating",
+              function,
+              pidismother(sockscf.state.pid),
+              sockscf.option.serverc);
 
 #if !HAVE_DISABLED_PIDFILE
-      if (sockscf.state.inited)
+      if (sockscf.option.pidfilewritten) {
          sockd_priv(SOCKD_PRIV_FILE_WRITE, PRIV_ON);
-
-      if (sockscf.option.pidfile              != NULL
-      &&  truncate(sockscf.option.pidfile, 0) != 0)
-         swarn("%s: truncate(%s)", function, sockscf.option.pidfile);
-
-      if (sockscf.state.inited)
+         if (truncate(sockscf.option.pidfile, 0) != 0)
+            swarn("%s: truncate(%s)", function, sockscf.option.pidfile);
          sockd_priv(SOCKD_PRIV_FILE_WRITE, PRIV_OFF);
+      }
 #endif /* !HAVE_DISABLED_PIDFILE */
    }
 
@@ -190,7 +175,7 @@ sockdexit(code)
       char dir[80];
 
       snprintf(dir, sizeof(dir), "%s.%d",
-      childtype2string(sockscf.state.type), (int)getpid());
+              childtype2string(sockscf.state.type), (int)getpid());
 
       if (mkdir(dir, S_IRWXU) != 0)
          swarn("%s: mkdir(%s)", function, dir);
@@ -199,38 +184,6 @@ sockdexit(code)
             swarn("%s: chdir(%s)", function, dir);
    }
 #endif /* HAVE_PROFILING */
-
-   /*
-    * For some reason, valgrind complains that the pointer to "name" is
-    * lost:
-    *
-    * #  13 bytes in 1 blocks are definitely lost in loss record 3 of 9
-    * #     at 0x4A0763E: malloc (vg_replace_malloc.c:207)
-    * #     by 0x3FC387F681: strdup (in /lib64/libc-2.10.2.so)
-    * #     by 0x43CE90: addlinkedname (rule.c:257)
-    * #     by 0x403E3E: socks_yyparse (config_parse.y:470)
-    * #     by 0x405B55: parseconfig (config_parse.y:2016)
-    * #     by 0x41DE29: genericinit (config.c:80)
-    * #     by 0x40AA22: serverinit (sockd.c:1157)
-    * #     by 0x408EF8: main (sockd.c:193)
-    *
-    * Don't understand why valgrind complains, as it's not lost afaik,
-    * and adding this code to make the (on unix unnecessary) free(3) call
-    * seems to prove that.
-    */
-   for (i = 0; i < ELEMENTS(rulev); ++i) {
-      struct rule_t *rule;
-
-      for (rule = rulev[i]; rule != NULL; rule = rule->next) {
-         struct linkedname_t *link;
-
-         for (link = rule->user; link != NULL; link = link->next)
-            free(link->name);
-
-         for (link = rule->group; link != NULL; link = link->next)
-            free(link->name);
-      }
-   }
 
    if (pidismother(sockscf.state.pid)) {
       removechild(0);
@@ -272,7 +225,7 @@ socks_seteuid(old, new)
    *old = geteuid();
 
    slog(LOG_DEBUG, "%s: old: %lu, new: %lu",
-   function, (unsigned long)*old, (unsigned long)new);
+        function, (unsigned long)*old, (unsigned long)new);
 
    if (*old == new)
       return 0;
@@ -281,7 +234,7 @@ socks_seteuid(old, new)
       /* need to revert back to original (presumably 0) euid before changing. */
       if (seteuid(sockscf.state.euid) != 0) {
          swarn("%s: failed revering to original euid %u",
-         function, (int)sockscf.state.euid);
+               function, (int)sockscf.state.euid);
 
          SERR(sockscf.state.euid);
       }
@@ -289,29 +242,30 @@ socks_seteuid(old, new)
 #if HAVE_LINUX_BUGS
    errno_s = errno;
 #endif /* HAVE_LINUX_BUGS */
+
    if ((pw = getpwuid(new)) == NULL) {
-      swarn("%s: getpwuid(%d)", function, new);
+      swarn("%s: getpwuid(%d)", function, (int)new);
       return -1;
    }
+
 #if HAVE_LINUX_BUGS
    errno = errno_s;
 #endif /* HAVE_LINUX_BUGS */
 
    /* groupid ... */
    if (setegid(pw->pw_gid) != 0) {
-      swarn("%s: setegid(%d)", function, pw->pw_gid);
+      swarn("%s: setegid(%d)", function, (int)pw->pw_gid);
       return -1;
    }
 
    /* ... and uid. */
    if (seteuid(new) != 0) {
-      swarn("%s: seteuid(%d)", function, new);
+      swarn("%s: seteuid(%d)", function, (int)new);
       return -1;
    }
 
    return 0;
 }
-
 
 int
 pidismother(pid)
@@ -368,11 +322,13 @@ sigserverbroadcast(sig)
          slog(LOG_DEBUG, "%s: sending signal %d to mother %lu",
               function, sig, (unsigned long)(sockscf.state.motherpidv[i]));
 
-         kill(sockscf.state.motherpidv[i], sig);
+         if (kill(sockscf.state.motherpidv[i], sig) != 0)
+            swarn("%s: could not send signal %d to mother process %lu",
+                  function,
+                  sig,
+                  (unsigned long)sockscf.state.motherpidv[i]);
    }
 }
-
-
 
 void
 sockd_pushsignal(sig, siginfo)
@@ -389,7 +345,7 @@ sockd_pushsignal(sig, siginfo)
    if (sigprocmask(SIG_SETMASK, &all, &oldmask) != 0)
       swarn("%s: sigprocmask(SIG_SETMASK)", function);
 
-   /* if already there, don't add. */
+   /* go through currently pending signals.  If already there, don't add. */
    for (i = alreadythere = 0; i < (size_t)sockscf.state.signalc; ++i)
       if (sockscf.state.signalv[i].signal == sig) {
          alreadythere = 1;
@@ -399,11 +355,11 @@ sockd_pushsignal(sig, siginfo)
    if (!alreadythere) {
       if (i < ELEMENTS(sockscf.state.signalv)) {
          sockscf.state.signalv[sockscf.state.signalc].signal    = sig;
-         sockscf.state.signalv[sockscf.state.signalc].siginfo = *siginfo;
+         sockscf.state.signalv[sockscf.state.signalc].siginfo   = *siginfo;
          ++sockscf.state.signalc;
       }
       else
-         SERRX(sig);
+         SWARNX(i);
    }
 
    if (sigprocmask(SIG_SETMASK, &oldmask, NULL) != 0)

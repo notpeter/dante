@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
+ *               2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.38 2011/07/15 13:51:16 michaels Exp $";
+"$Id: addressmatch.c,v 1.46 2012/06/01 20:23:05 karls Exp $";
 
 static int
 addrisinlist(const struct in_addr *addr, const struct in_addr *mask,
@@ -96,33 +97,33 @@ hostareeq(const char *domain, const char *remotedomain);
 
 int
 addrmatch(rule, address, protocol, alias)
-   const struct ruleaddr_t *rule;
-   const struct sockshost_t *address;
+   const ruleaddr_t *rule;
+   const sockshost_t *address;
    int protocol;
    int alias;
 {
    const char *function = "addrmatch()";
    struct hostent *hostent, hostentdupmem;
+   in_port_t ruleport;
+   size_t hosti;
    char _h_name[MAXHOSTNAMELEN];
    char *_h_aliases[HOSTENT_MAX_ALIASES + 1];
    char *_h_addr_list[HOSTENT_MAX_ALIASES + 1];
    char _h_aliasesmem[HOSTENT_MAX_ALIASES][MAXHOSTNAMELEN];
-   char _h_addr_listmem[HOSTENT_MAX_ALIASES][
-      MAX(sizeof(struct in_addr), sizeof(struct in6_addr))];
-
-   in_port_t ruleport;
-   size_t hosti;
+   char _h_addr_listmem[HOSTENT_MAX_ALIASES][MAX(sizeof(struct in_addr),
+                                             sizeof(struct in6_addr))];
    int i, matched, doresolve;
 
    if (sockscf.option.debug) {
       char rstring[MAXRULEADDRSTRING], astring[MAXSOCKSHOSTSTRING];
 
-      slog(LOG_DEBUG, "%s: matching %s against %s, for protocol %s, %s alias",
-      function,
-      ruleaddr2string(rule, rstring, sizeof(rstring)),
-      sockshost2string(address, astring, sizeof(astring)),
-      protocol2string(protocol),
-      alias ? "with" : "without");
+      slog(LOG_DEBUG,
+           "%s: matching ruleaddress %s against %s for protocol %s, %s alias",
+           function,
+           ruleaddr2string(rule, rstring, sizeof(rstring)),
+           sockshost2string(address, astring, sizeof(astring)),
+           protocol2string(protocol),
+           alias ? "with" : "without");
    }
 
    /* test port first since we always have all info needed for that locally. */
@@ -223,10 +224,11 @@ addrmatch(rule, address, protocol, alias)
     * if mask of rule is 0, it should match anything.  Try that first
     * so we can save ourselves lots of potentially heavy work.
     */
-   if (rule->atype == SOCKS_ADDR_IPV4 && (rule->addr.ipv4.mask.s_addr == 0))
+   if (rule->atype == SOCKS_ADDR_IPV4
+   &&  rule->addr.ipv4.mask.s_addr == htonl(0))
       matched = 1;
-   else if (rule->atype             == SOCKS_ADDR_IPV4
-   &&       (atype_t)address->atype == SOCKS_ADDR_DOMAIN) {
+   else if (rule->atype    == SOCKS_ADDR_IPV4
+   &&       address->atype == SOCKS_ADDR_DOMAIN) {
       /*
        * match(rule.ipaddress, address.hostname)
        * resolve address to ipaddress(es) and try to match each
@@ -245,17 +247,21 @@ addrmatch(rule, address, protocol, alias)
          return 0;
       }
 
-      matched = addrisinlist(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
-      (const struct in_addr **)hostent->h_addr_list);
+      matched = addrisinlist(&rule->addr.ipv4.ip,
+                             &rule->addr.ipv4.mask,
+                             (const struct in_addr **)hostent->h_addr_list);
    }
-   else if (rule->atype             == SOCKS_ADDR_IPV4
-   &&       (atype_t)address->atype == SOCKS_ADDR_IPV4) {
+   else if (rule->atype    == SOCKS_ADDR_IPV4
+   &&       address->atype == SOCKS_ADDR_IPV4) {
       /*
        * match(rule.ipaddress, address.ipaddress)
        * try first a simple comparison, address against rule.
        */
-      if (!(matched = addrareeq(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
-      &address->addr.ipv4))) {
+
+      matched = addrareeq(&rule->addr.ipv4.ip,
+                          &rule->addr.ipv4.mask,
+                          &address->addr.ipv4);
+      if (!matched) {
          /*
           * Didn't match.  If alias is set, try to resolve address
           * to hostname(s), the hostname back to IP address(es) and
@@ -298,8 +304,9 @@ addrmatch(rule, address, protocol, alias)
                }
 
                /* rule isin address->hostname(s)->ipaddress(es) */
-               if (addrisinlist(&rule->addr.ipv4.ip, &rule->addr.ipv4.mask,
-               (const struct in_addr **)iphostent->h_addr_list)) {
+               if (addrisinlist(&rule->addr.ipv4.ip,
+                                &rule->addr.ipv4.mask,
+                             (const struct in_addr **)iphostent->h_addr_list)) {
                   matched = 1;
                   break;
                }
@@ -311,8 +318,8 @@ addrmatch(rule, address, protocol, alias)
             return 0;
       }
    }
-   else if (rule->atype             == SOCKS_ADDR_DOMAIN
-   &&       (atype_t)address->atype == SOCKS_ADDR_DOMAIN) {
+   else if (rule->atype    == SOCKS_ADDR_DOMAIN
+   &&       address->atype == SOCKS_ADDR_DOMAIN) {
       /*
        * match(rule.hostname, address.hostname)
        * Try simple match first.
@@ -359,17 +366,17 @@ addrmatch(rule, address, protocol, alias)
 
          mask.s_addr = htonl(0xffffffff);
          for (i = 0; !matched && hostent->h_addr_list[i] != NULL; ++i)
-            /* LINTED pointer casts may be troublesome */
             matched
             = addrisinlist((const struct in_addr *)hostent->h_addr_list[i],
-            &mask, (const struct in_addr **)addresshostent->h_addr_list);
+                           &mask,
+                          (const struct in_addr **)addresshostent->h_addr_list);
       }
 
       if (!matched)
          return 0;
    }
-   else if (rule->atype             == SOCKS_ADDR_DOMAIN
-   &&       (atype_t)address->atype == SOCKS_ADDR_IPV4) {
+   else if (rule->atype    == SOCKS_ADDR_DOMAIN
+   &&       address->atype == SOCKS_ADDR_IPV4) {
       /*
        * match(rule.hostname, address.ipaddress)
        * If rule is not a domain but a hostname, try resolving rule to
@@ -403,8 +410,9 @@ addrmatch(rule, address, protocol, alias)
          }
 
          mask.s_addr = htonl(0xffffffff);
-         matched = addrisinlist(&address->addr.ipv4, &mask,
-         (const struct in_addr **)hostent->h_addr_list);
+         matched = addrisinlist(&address->addr.ipv4,
+                                &mask,
+                                (const struct in_addr **)hostent->h_addr_list);
       }
 
       if (!matched) {
@@ -491,10 +499,13 @@ addrmatch(rule, address, protocol, alias)
 
                /* ip; address->hostname->ipaddress->hostname */
                if ((ip = gethostbyaddr(host->h_addr_list[ii],
-               sizeof(struct in_addr), AF_INET)) == NULL) {
+                                       sizeof(struct in_addr),
+                                       AF_INET)) == NULL) {
                   slog(LOG_DEBUG, "%s: gethostbyaddr(%s): %s",
-                  function, inet_ntoa(*(struct in_addr *)host->h_addr_list[ii]),
-                  hstrerror(h_errno));
+                       function,
+                       inet_ntoa(*(struct in_addr *)host->h_addr_list[ii]),
+                       hstrerror(h_errno));
+
                   continue;
                }
 
@@ -531,18 +542,18 @@ addrmatch(rule, address, protocol, alias)
        *
        * match(rule.ifname2ipaddress, address)
        */
-       struct sockaddr sa;
+       struct sockaddr_storage ss;
 
        i = 0;
-       while (!matched && ifname2sockaddr(rule->addr.ifname, i++, &sa, NULL)
+       while (!matched && ifname2sockaddr(rule->addr.ifname, i++, TOSA(&ss), NULL)
        != NULL) {
-         struct ruleaddr_t ruleaddr;
+         ruleaddr_t ruleaddr;
 
          /* identical except addr field. */
          ruleaddr                       = *rule;
 
          ruleaddr.atype                 = SOCKS_ADDR_IPV4;
-         ruleaddr.addr.ipv4.ip          = TOIN(&sa)->sin_addr;
+         ruleaddr.addr.ipv4.ip          = TOIN(&ss)->sin_addr;
          ruleaddr.addr.ipv4.mask.s_addr = htonl(0xffffffff);
 
          matched = addrmatch(&ruleaddr, address, protocol, alias);
@@ -579,9 +590,7 @@ addrareeq(addr, mask, against)
    const struct in_addr *against;
 {
 
-   if ((addr->s_addr & mask->s_addr) == (against->s_addr & mask->s_addr))
-      return 1;
-   return 0;
+   return (addr->s_addr & mask->s_addr) == (against->s_addr & mask->s_addr);
 }
 
 static int

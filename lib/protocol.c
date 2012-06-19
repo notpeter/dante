@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,11 +44,11 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.69 2011/07/28 13:54:14 michaels Exp $";
+"$Id: protocol.c,v 1.74 2012/06/01 20:23:05 karls Exp $";
 
 unsigned char *
 sockshost2mem(host, mem, version)
-   const struct sockshost_t *host;
+   const sockshost_t *host;
    unsigned char *mem;
    int version;
 {
@@ -56,7 +56,7 @@ sockshost2mem(host, mem, version)
    switch (version) {
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V4REPLY_VERSION:
-         SASSERTX((atype_t)host->atype == SOCKS_ADDR_IPV4);
+         SASSERTX(host->atype == SOCKS_ADDR_IPV4);
 
          /* DSTPORT */
          memcpy(mem, &host->port, sizeof(host->port));
@@ -111,7 +111,7 @@ sockshost2mem(host, mem, version)
 
 const unsigned char *
 mem2sockshost(host, mem, len, version)
-   struct sockshost_t *host;
+   sockshost_t *host;
    const unsigned char *mem;
    size_t len;
    int version;
@@ -184,7 +184,7 @@ mem2sockshost(host, mem, len, version)
 
 void
 socks_set_responsevalue(response, value)
-    struct response_t *response;
+    response_t *response;
     unsigned int value;
 {
 
@@ -210,7 +210,7 @@ socks_set_responsevalue(response, value)
 
 unsigned int
 socks_get_responsevalue(response)
-    const struct response_t *response;
+    const response_t *response;
 {
 
     switch (response->version) {
@@ -230,4 +230,22 @@ socks_get_responsevalue(response)
    }
 
    /* NOTREACHED */
+}
+
+int
+proxyversionisknown(version)
+   const int version;
+{
+
+   switch (version) {
+      case PROXY_SOCKS_V4REPLY_VERSION:
+      case PROXY_SOCKS_V5:
+      case PROXY_UPNP:
+      case PROXY_HTTP_10:
+      case PROXY_HTTP_11:
+         return 1;
+
+      default:
+         return 0;
+   }
 }

@@ -1,16 +1,29 @@
 /* include/autoconf.h.in.  Generated from configure.ac by autoheader.  */
 
+/* avoid warnings on Android */
+#ifdef HAVE_ANDROID_OS
+# undef /*XXX protect against redefinition */ HAVE_SCHED_SETSCHEDULER
+# undef /*XXX protect against redefinition */ HAVE_MALLOC_H
+#endif /* HAVE_ANDROID_OS */
+
+
 /* we are Dante */
 #undef BAREFOOTD
 
 /* we are Dante */
 #undef COVENANT
 
+/* Features enabled in build */
+#undef DANTE_BUILD
+
 /* for debugging */
 #undef DIAGNOSTIC
 
 /* dlopen has RTLD_ prefix */
 #undef DL_LAZY
+
+/* ignore FD_SETSIZE */
+#undef FD_SETSIZE_LIMITS_SELECT
 
 /* alternate location */
 #undef HAVE_ALT_SOCKD_CONFIGFILE
@@ -57,8 +70,20 @@
 /* Define to 1 if you have com_err in krb5.h */
 #undef HAVE_COM_ERR_IN_KRB5
 
+/* use tcpwrappers */
+#undef HAVE_COND_LIBWRAP
+
+/* low-overhead debugging enabled */
+#undef HAVE_COND_LIVEDEBUG
+
+/* PAM support */
+#undef HAVE_COND_PAM
+
 /* Disable environment variables */
 #undef HAVE_CONFENV_DISABLE
+
+/* CPU_EQUAL exists in sched.h */
+#undef HAVE_CPU_EQUAL
 
 /* Define to 1 if you have the <crypt.h> header file. */
 #undef HAVE_CRYPT_H
@@ -69,9 +94,18 @@
 /* enable darwin/osx workarounds */
 #undef HAVE_DARWIN
 
+/* __attribute__ macro support */
+#undef HAVE_DECL_ATTRIBUTE
+
+/* format attribute support */
+#undef HAVE_DECL_FORMAT
+
 /* Define to 1 if you have the declaration of `krb5_kt_free_entry', and to 0
    if you don't. */
 #undef HAVE_DECL_KRB5_KT_FREE_ENTRY
+
+/* __nunnull__ attribute support */
+#undef HAVE_DECL_NONNULL
 
 /* DEC workarounds */
 #undef HAVE_DEC_PROTO
@@ -91,6 +125,9 @@
 /* GUI tool */
 #undef HAVE_DUMPCONF
 
+/* option count */
+#undef HAVE_DUPSOCKOPT_MAX
+
 /* Define to 1 if you have error_message */
 #undef HAVE_ERROR_MESSAGE
 
@@ -106,6 +143,9 @@
 /* Define to 1 if you have the <fcntl.h> header file. */
 #undef HAVE_FCNTL_H
 
+/* no fd_mask definition */
+#undef HAVE_FDMASK
+
 /* Define to 1 if you have the `freeifaddrs' function. */
 #undef HAVE_FREEIFADDRS
 
@@ -120,6 +160,9 @@
 
 /* Define to 1 if you have the `getipnodebyname' function. */
 #undef HAVE_GETIPNODEBYNAME
+
+/* Define to 1 if you have the `getpass' function. */
+#undef HAVE_GETPASS
 
 /* Define to 1 if you have the `getprpwnam' function. */
 #undef HAVE_GETPRPWNAM
@@ -196,6 +239,63 @@
 /* ipv6 not supported currently */
 #undef HAVE_IPV6_SUPPORT
 
+/* IP_AUTH_LEVEL socket option */
+#undef HAVE_IP_AUTH_LEVEL
+
+/* IP_DONTFRAG socket option */
+#undef HAVE_IP_DONTFRAG
+
+/* IP_ESP_NETWORK_LEVEL socket option */
+#undef HAVE_IP_ESP_NETWORK_LEVEL
+
+/* IP_ESP_TRANS_LEVEL socket option */
+#undef HAVE_IP_ESP_TRANS_LEVEL
+
+/* IP_FREEBIND socket option */
+#undef HAVE_IP_FREEBIND
+
+/* IP_HDRINCL socket option */
+#undef HAVE_IP_HDRINCL
+
+/* IP_IPCOMP_LEVEL socket option */
+#undef HAVE_IP_IPCOMP_LEVEL
+
+/* IP_MINTTL socket option */
+#undef HAVE_IP_MINTTL
+
+/* IP_MTU_DISCOVER socket option */
+#undef HAVE_IP_MTU_DISCOVER
+
+/* IP_MULTICAST_IF socket option */
+#undef HAVE_IP_MULTICAST_IF
+
+/* IP_MULTICAST_LOOP socket option */
+#undef HAVE_IP_MULTICAST_LOOP
+
+/* IP_MULTICAST_TTL socket option */
+#undef HAVE_IP_MULTICAST_TTL
+
+/* IP_OPTIONS socket option */
+#undef HAVE_IP_OPTIONS
+
+/* IP_PORTRANGE socket option */
+#undef HAVE_IP_PORTRANGE
+
+/* IP_RECVDSTADDR socket option */
+#undef HAVE_IP_RECVDSTADDR
+
+/* IP_RECVIF socket option */
+#undef HAVE_IP_RECVIF
+
+/* IP_RECVTOS socket option */
+#undef HAVE_IP_RECVTOS
+
+/* IP_TOS socket option */
+#undef HAVE_IP_TOS
+
+/* IP_TTL socket option */
+#undef HAVE_IP_TTL
+
 /* Define to 1 if you have the `issetugid' function. */
 #undef HAVE_ISSETUGID
 
@@ -262,7 +362,7 @@
 /* Define to 1 if you have the `crypto' library (-lcrypto). */
 #undef HAVE_LIBCRYPTO
 
-/* linux version of issetugid() */
+/* Linux version of issetugid() */
 #undef HAVE_LIBC_ENABLE_SECURE
 
 /* glibc variable disable */
@@ -316,6 +416,9 @@
 /* Define to 1 if you have the `pthread' library (-lpthread). */
 #undef HAVE_LIBPTHREAD
 
+/* Define to 1 if you have the `resolv' library (-lresolv). */
+#undef HAVE_LIBRESOLV
+
 /* Define to 1 if you have the `roken' library (-lroken). */
 #undef HAVE_LIBROKEN
 
@@ -324,9 +427,6 @@
 
 /* Define to 1 if you have the `ssldap60' library (-lssldap60). */
 #undef HAVE_LIBSSLDAP60
-
-/* use tcpwrappers */
-#undef HAVE_LIBWRAP
 
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
@@ -337,14 +437,14 @@
 /* stdio function preloading */
 #undef HAVE_LINUX_GLIBC_WORKAROUND
 
-/* low-overhead debugging enabled */
-#undef HAVE_LIVEDEBUG
-
 /* Define to 1 if you have the <malloc.h> header file. */
 #undef HAVE_MALLOC_H
 
 /* support for malloc debugging */
 #undef HAVE_MALLOC_OPTIONS
+
+/* hostid size */
+#undef HAVE_MAX_HOSTIDS
 
 /* Define to 1 if you have the `memmove' function. */
 #undef HAVE_MEMMOVE
@@ -367,6 +467,9 @@
 /* module session installed */
 #undef HAVE_MODULE_SESSION
 
+/* Define to 1 if you have the `moncontrol' function. */
+#undef HAVE_MONCONTROL
+
 /* Mozilla LDAP SDK support */
 #undef HAVE_MOZILLA_LDAP_SDK
 
@@ -379,7 +482,7 @@
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
 
-/* Define to 1 if you have the <netinet/ip.h> header file. */
+/* netinet/ip.h header found */
 #undef HAVE_NETINET_IP_H
 
 /* Define to 1 if you have the <netinet/ip_var.h> header file. */
@@ -409,17 +512,26 @@
 /* openlog supports LOG_PERROR */
 #undef HAVE_OPENLOG_LOG_PERROR
 
-/* PAM support */
-#undef HAVE_PAM
-
 /* Define to 1 if you have the <paths.h> header file. */
 #undef HAVE_PATHS_H
+
+/* platform pipe behavior */
+#undef HAVE_PIPEBUFFER_RECV_BASED
+
+/* platform pipe behavior */
+#undef HAVE_PIPEBUFFER_SEND_BASED
+
+/* platform pipe behavior */
+#undef HAVE_PIPEBUFFER_UNKNOWN
 
 /* Some privilege type supported */
 #undef HAVE_PRIVILEGES
 
 /* Define to 1 if you have the <priv.h> header file. */
 #undef HAVE_PRIV_H
+
+/* Define to 1 if you have the `processor_bind' function. */
+#undef HAVE_PROCESSOR_BIND
 
 /* for profiling */
 #undef HAVE_PROFILING
@@ -832,8 +944,29 @@
 /* proto */
 #undef HAVE_PROT__IO_PUTC_2
 
-/* no pthread header */
+/* proto */
+#undef HAVE_PROT__READ_CHK_0
+
+/* proto */
+#undef HAVE_PROT__READ_CHK_1
+
+/* proto */
+#undef HAVE_PROT__READ_CHK_2
+
+/* proto */
+#undef HAVE_PROT__READ_CHK_3
+
+/* proto */
+#undef HAVE_PROT__READ_CHK_4
+
+/* Define to 1 if you have the `pselect' function. */
+#undef HAVE_PSELECT
+
+/* have pthread header */
 #undef HAVE_PTHREAD_H
+
+/* readable buffer data */
+#undef HAVE_RECVBUF_IOCTL
 
 /* Define to 1 if you have the <resolv.h> header file. */
 #undef HAVE_RESOLV_H
@@ -847,8 +980,17 @@
 /* routing socket communication supported */
 #undef HAVE_ROUTE_SOURCE
 
+/* Define to 1 if you have the <rpc/rpc.h> header file. */
+#undef HAVE_RPC_RPC_H
+
+/* Define to 1 if you have the `rresvport' function. */
+#undef HAVE_RRESVPORT
+
 /* no working dlsym RTLD_NEXT */
 #undef HAVE_RTLD_NEXT
+
+/* Have SASL support */
+#undef HAVE_SASL
 
 /* Define to 1 if Mac Darwin without sasl.h */
 #undef HAVE_SASL_DARWIN
@@ -859,8 +1001,20 @@
 /* Define to 1 if you have the <sasl/sasl.h> header file. */
 #undef HAVE_SASL_SASL_H
 
+/* Define to 1 if you have the <sched.h> header file. */
+#undef HAVE_SCHED_H
+
+/* have sched_setaffinity */
+#undef HAVE_SCHED_SETAFFINITY
+
+/* Define to 1 if you have the `sched_setscheduler' function. */
+#undef HAVE_SCHED_SETSCHEDULER
+
 /* Define to 1 if you have the <security/pam_appl.h> header file. */
 #undef HAVE_SECURITY_PAM_APPL_H
+
+/* send buffer data */
+#undef HAVE_SENDBUF_IOCTL
 
 /* bug workaround */
 #undef HAVE_SENDMSG_DEADLOCK
@@ -898,6 +1052,12 @@
 /* alternate location */
 #undef HAVE_SOCKD_PIDFILE
 
+/* symbol count */
+#undef HAVE_SOCKOPTVALSYM_MAX
+
+/* socket option count */
+#undef HAVE_SOCKOPTVAL_MAX
+
 /* alternate location */
 #undef HAVE_SOCKS_CONFIGFILE
 
@@ -906,6 +1066,69 @@
 
 /* Solaris priv.h support */
 #undef HAVE_SOLARIS_PRIVS
+
+/* SO_BINDANY socket option */
+#undef HAVE_SO_BINDANY
+
+/* SO_BROADCAST socket option */
+#undef HAVE_SO_BROADCAST
+
+/* SO_DEBUG socket option */
+#undef HAVE_SO_DEBUG
+
+/* SO_DONTROUTE socket option */
+#undef HAVE_SO_DONTROUTE
+
+/* SO_JUMBO socket option */
+#undef HAVE_SO_JUMBO
+
+/* SO_KEEPALIVE socket option */
+#undef HAVE_SO_KEEPALIVE
+
+/* SO_LINGER socket option */
+#undef HAVE_SO_LINGER
+
+/* SO_OOBINLINE socket option */
+#undef HAVE_SO_OOBINLINE
+
+/* SO_PRIORITY socket option */
+#undef HAVE_SO_PRIORITY
+
+/* SO_RCVBUF socket option */
+#undef HAVE_SO_RCVBUF
+
+/* SO_RCVBUFFORCE socket option */
+#undef HAVE_SO_RCVBUFFORCE
+
+/* SO_RCVLOWAT socket option */
+#undef HAVE_SO_RCVLOWAT
+
+/* SO_RCVTIMEO socket option */
+#undef HAVE_SO_RCVTIMEO
+
+/* SO_REUSEADDR socket option */
+#undef HAVE_SO_REUSEADDR
+
+/* SO_REUSEPORT socket option */
+#undef HAVE_SO_REUSEPORT
+
+/* SO_SNDBUF socket option */
+#undef HAVE_SO_SNDBUF
+
+/* SO_SNDBUFFORCE socket option */
+#undef HAVE_SO_SNDBUFFORCE
+
+/* SO_SNDLOWAT socket option */
+#undef HAVE_SO_SNDLOWAT
+
+/* SO_SNDTIMEO socket option */
+#undef HAVE_SO_SNDTIMEO
+
+/* SO_TIMESTAMP socket option */
+#undef HAVE_SO_TIMESTAMP
+
+/* SO_USELOOPBACK socket option */
+#undef HAVE_SO_USELOOPBACK
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
@@ -958,6 +1181,9 @@
 /* Define to 1 if you have the <sys/sem.h> header file. */
 #undef HAVE_SYS_SEM_H
 
+/* Define to 1 if you have the <sys/shm.h> header file. */
+#undef HAVE_SYS_SHM_H
+
 /* sys/sockio.h exists */
 #undef HAVE_SYS_SOCKIO_H
 
@@ -976,11 +1202,68 @@
 /* Define to 1 if you have the <tcpd.h> header file. */
 #undef HAVE_TCPD_H
 
+/* TCP_CORK socket option */
+#undef HAVE_TCP_CORK
+
+/* TCP_CWND socket option */
+#undef HAVE_TCP_CWND
+
+/* TCP_INIT_CWND socket option */
+#undef HAVE_TCP_INIT_CWND
+
+/* TCP_IPA socket option */
+#undef HAVE_TCP_IPA
+
+/* TCP_KEEPCNT socket option */
+#undef HAVE_TCP_KEEPCNT
+
+/* TCP_KEEPIDLE socket option */
+#undef HAVE_TCP_KEEPIDLE
+
+/* TCP_KEEPINTVL socket option */
+#undef HAVE_TCP_KEEPINTVL
+
+/* TCP_LINGER2 socket option */
+#undef HAVE_TCP_LINGER2
+
+/* TCP_MAXRT socket option */
+#undef HAVE_TCP_MAXRT
+
+/* TCP_MAXSEG socket option */
+#undef HAVE_TCP_MAXSEG
+
+/* TCP_MD5SIG socket option */
+#undef HAVE_TCP_MD5SIG
+
+/* TCP_NODELAY socket option */
+#undef HAVE_TCP_NODELAY
+
+/* TCP_NOOPT socket option */
+#undef HAVE_TCP_NOOPT
+
+/* TCP_NOPUSH socket option */
+#undef HAVE_TCP_NOPUSH
+
+/* TCP_SACK_ENABLE socket option */
+#undef HAVE_TCP_SACK_ENABLE
+
+/* TCP_STDURG socket option */
+#undef HAVE_TCP_STDURG
+
+/* TCP_SYNCNT socket option */
+#undef HAVE_TCP_SYNCNT
+
+/* TCP_WINDOW_CLAMP socket option */
+#undef HAVE_TCP_WINDOW_CLAMP
+
 /* threads unstable platform */
 #undef HAVE_THREADS_EINTR_PROBLEMS
 
 /* timeradd(), timersub etc. exist in sys/time.h */
 #undef HAVE_TIMER_MACROS
+
+/* UDP_CORK socket option */
+#undef HAVE_UDP_CORK
 
 /* Define to 1 if the system has the type `uint16_t'. */
 #undef HAVE_UINT16_T
@@ -1020,6 +1303,9 @@
 
 /* Define to 1 if you have the `__fprintf_chk' function. */
 #undef HAVE___FPRINTF_CHK
+
+/* Define to 1 if you have the `__read_chk' function. */
+#undef HAVE___READ_CHK
 
 /* Define to 1 if you have the `__vfprintf_chk' function. */
 #undef HAVE___VFPRINTF_CHK
@@ -1102,10 +1388,14 @@
 /* function loc */
 #undef LIBRARY_SENDTO
 
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
+
 /* platform workaround */
 #undef NEED_ACCEPTLOCK
 
-/* use AF_LOCATL, not AF_UNIX */
+/* need AF_LOCAL definition */
 #undef NEED_AF_LOCAL
 
 /* EXIT_FAILURE not defined in stdlib.h */
@@ -1135,22 +1425,23 @@
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
 
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
 /* software prerelease */
 #undef PRERELEASE
 
-/* Define to 1 if the C compiler supports function prototypes. */
-#undef PROTOTYPES
+/* readable buffer ioctl */
+#undef RECVBUF_IOCTLVAL
 
 /* Define as the return type of signal handlers (`int' or `void'). */
 #undef RETSIGTYPE
 
-/* Define to 1 if the `setvbuf' function takes the buffering type as its
-   second argument and the buffer pointer as the third, as on System V before
-   release 3. */
-#undef SETVBUF_REVERSED
+/* send buffer ioctl */
+#undef SENDBUF_IOCTLVAL
 
 /* The size of `char', as computed by sizeof. */
 #undef SIZEOF_CHAR
@@ -1166,6 +1457,384 @@
 
 /* do not use fallback */
 #undef SOCKS_DIRECTROUTE_FALLBACK
+
+/* hostid option type */
+#undef SOCKS_HOSTID_NAME
+
+/* no hostid support */
+#undef SOCKS_HOSTID_TYPE
+
+/* IP_AUTH_LEVEL protocol level */
+#undef SOCKS_IP_AUTH_LEVEL_LVL
+
+/* IP_AUTH_LEVEL value */
+#undef SOCKS_IP_AUTH_LEVEL_NAME
+
+/* IP_DONTFRAG protocol level */
+#undef SOCKS_IP_DONTFRAG_LVL
+
+/* IP_DONTFRAG value */
+#undef SOCKS_IP_DONTFRAG_NAME
+
+/* IP_ESP_NETWORK_LEVEL protocol level */
+#undef SOCKS_IP_ESP_NETWORK_LEVEL_LVL
+
+/* IP_ESP_NETWORK_LEVEL value */
+#undef SOCKS_IP_ESP_NETWORK_LEVEL_NAME
+
+/* IP_ESP_TRANS_LEVEL protocol level */
+#undef SOCKS_IP_ESP_TRANS_LEVEL_LVL
+
+/* IP_ESP_TRANS_LEVEL value */
+#undef SOCKS_IP_ESP_TRANS_LEVEL_NAME
+
+/* IP_FREEBIND protocol level */
+#undef SOCKS_IP_FREEBIND_LVL
+
+/* IP_FREEBIND value */
+#undef SOCKS_IP_FREEBIND_NAME
+
+/* IP_HDRINCL protocol level */
+#undef SOCKS_IP_HDRINCL_LVL
+
+/* IP_HDRINCL value */
+#undef SOCKS_IP_HDRINCL_NAME
+
+/* IP_IPCOMP_LEVEL protocol level */
+#undef SOCKS_IP_IPCOMP_LEVEL_LVL
+
+/* IP_IPCOMP_LEVEL value */
+#undef SOCKS_IP_IPCOMP_LEVEL_NAME
+
+/* IP_MINTTL protocol level */
+#undef SOCKS_IP_MINTTL_LVL
+
+/* IP_MINTTL value */
+#undef SOCKS_IP_MINTTL_NAME
+
+/* IP_MTU_DISCOVER protocol level */
+#undef SOCKS_IP_MTU_DISCOVER_LVL
+
+/* IP_MTU_DISCOVER value */
+#undef SOCKS_IP_MTU_DISCOVER_NAME
+
+/* IP_MULTICAST_IF protocol level */
+#undef SOCKS_IP_MULTICAST_IF_LVL
+
+/* IP_MULTICAST_IF value */
+#undef SOCKS_IP_MULTICAST_IF_NAME
+
+/* IP_MULTICAST_LOOP protocol level */
+#undef SOCKS_IP_MULTICAST_LOOP_LVL
+
+/* IP_MULTICAST_LOOP value */
+#undef SOCKS_IP_MULTICAST_LOOP_NAME
+
+/* IP_MULTICAST_TTL protocol level */
+#undef SOCKS_IP_MULTICAST_TTL_LVL
+
+/* IP_MULTICAST_TTL value */
+#undef SOCKS_IP_MULTICAST_TTL_NAME
+
+/* IP_OPTIONS protocol level */
+#undef SOCKS_IP_OPTIONS_LVL
+
+/* IP_OPTIONS value */
+#undef SOCKS_IP_OPTIONS_NAME
+
+/* IP_PORTRANGE_DEFAULT value */
+#undef SOCKS_IP_PORTRANGE_DEFAULT_SYMNAME
+
+/* IP_PORTRANGE_HIGH value */
+#undef SOCKS_IP_PORTRANGE_HIGH_SYMNAME
+
+/* IP_PORTRANGE_LOW value */
+#undef SOCKS_IP_PORTRANGE_LOW_SYMNAME
+
+/* IP_PORTRANGE protocol level */
+#undef SOCKS_IP_PORTRANGE_LVL
+
+/* IP_PORTRANGE value */
+#undef SOCKS_IP_PORTRANGE_NAME
+
+/* IP_RECVDSTADDR protocol level */
+#undef SOCKS_IP_RECVDSTADDR_LVL
+
+/* IP_RECVDSTADDR value */
+#undef SOCKS_IP_RECVDSTADDR_NAME
+
+/* IP_RECVIF protocol level */
+#undef SOCKS_IP_RECVIF_LVL
+
+/* IP_RECVIF value */
+#undef SOCKS_IP_RECVIF_NAME
+
+/* IP_RECVTOS protocol level */
+#undef SOCKS_IP_RECVTOS_LVL
+
+/* IP_RECVTOS value */
+#undef SOCKS_IP_RECVTOS_NAME
+
+/* IP_TOS subfield */
+#undef SOCKS_IP_TOS_DSCP_NAME
+
+/* IP_TOS protocol level */
+#undef SOCKS_IP_TOS_LVL
+
+/* IP_TOS value */
+#undef SOCKS_IP_TOS_NAME
+
+/* IP_TOS subfield */
+#undef SOCKS_IP_TOS_PREC_NAME
+
+/* IP_TOS subfield */
+#undef SOCKS_IP_TOS_TOS_NAME
+
+/* IP_TTL protocol level */
+#undef SOCKS_IP_TTL_LVL
+
+/* IP_TTL value */
+#undef SOCKS_IP_TTL_NAME
+
+/* SO_BINDANY protocol level */
+#undef SOCKS_SO_BINDANY_LVL
+
+/* SO_BINDANY value */
+#undef SOCKS_SO_BINDANY_NAME
+
+/* SO_BROADCAST protocol level */
+#undef SOCKS_SO_BROADCAST_LVL
+
+/* SO_BROADCAST value */
+#undef SOCKS_SO_BROADCAST_NAME
+
+/* SO_DEBUG protocol level */
+#undef SOCKS_SO_DEBUG_LVL
+
+/* SO_DEBUG value */
+#undef SOCKS_SO_DEBUG_NAME
+
+/* SO_DONTROUTE protocol level */
+#undef SOCKS_SO_DONTROUTE_LVL
+
+/* SO_DONTROUTE value */
+#undef SOCKS_SO_DONTROUTE_NAME
+
+/* SO_JUMBO protocol level */
+#undef SOCKS_SO_JUMBO_LVL
+
+/* SO_JUMBO value */
+#undef SOCKS_SO_JUMBO_NAME
+
+/* SO_KEEPALIVE protocol level */
+#undef SOCKS_SO_KEEPALIVE_LVL
+
+/* SO_KEEPALIVE value */
+#undef SOCKS_SO_KEEPALIVE_NAME
+
+/* SO_LINGER protocol level */
+#undef SOCKS_SO_LINGER_LVL
+
+/* SO_LINGER value */
+#undef SOCKS_SO_LINGER_NAME
+
+/* SO_OOBINLINE protocol level */
+#undef SOCKS_SO_OOBINLINE_LVL
+
+/* SO_OOBINLINE value */
+#undef SOCKS_SO_OOBINLINE_NAME
+
+/* SO_PRIORITY protocol level */
+#undef SOCKS_SO_PRIORITY_LVL
+
+/* SO_PRIORITY value */
+#undef SOCKS_SO_PRIORITY_NAME
+
+/* SO_RCVBUFFORCE protocol level */
+#undef SOCKS_SO_RCVBUFFORCE_LVL
+
+/* SO_RCVBUFFORCE value */
+#undef SOCKS_SO_RCVBUFFORCE_NAME
+
+/* SO_RCVBUF protocol level */
+#undef SOCKS_SO_RCVBUF_LVL
+
+/* SO_RCVBUF value */
+#undef SOCKS_SO_RCVBUF_NAME
+
+/* SO_RCVLOWAT protocol level */
+#undef SOCKS_SO_RCVLOWAT_LVL
+
+/* SO_RCVLOWAT value */
+#undef SOCKS_SO_RCVLOWAT_NAME
+
+/* SO_RCVTIMEO protocol level */
+#undef SOCKS_SO_RCVTIMEO_LVL
+
+/* SO_RCVTIMEO value */
+#undef SOCKS_SO_RCVTIMEO_NAME
+
+/* SO_REUSEADDR protocol level */
+#undef SOCKS_SO_REUSEADDR_LVL
+
+/* SO_REUSEADDR value */
+#undef SOCKS_SO_REUSEADDR_NAME
+
+/* SO_REUSEPORT protocol level */
+#undef SOCKS_SO_REUSEPORT_LVL
+
+/* SO_REUSEPORT value */
+#undef SOCKS_SO_REUSEPORT_NAME
+
+/* SO_SNDBUFFORCE protocol level */
+#undef SOCKS_SO_SNDBUFFORCE_LVL
+
+/* SO_SNDBUFFORCE value */
+#undef SOCKS_SO_SNDBUFFORCE_NAME
+
+/* SO_SNDBUF protocol level */
+#undef SOCKS_SO_SNDBUF_LVL
+
+/* SO_SNDBUF value */
+#undef SOCKS_SO_SNDBUF_NAME
+
+/* SO_SNDLOWAT protocol level */
+#undef SOCKS_SO_SNDLOWAT_LVL
+
+/* SO_SNDLOWAT value */
+#undef SOCKS_SO_SNDLOWAT_NAME
+
+/* SO_SNDTIMEO protocol level */
+#undef SOCKS_SO_SNDTIMEO_LVL
+
+/* SO_SNDTIMEO value */
+#undef SOCKS_SO_SNDTIMEO_NAME
+
+/* SO_TIMESTAMP protocol level */
+#undef SOCKS_SO_TIMESTAMP_LVL
+
+/* SO_TIMESTAMP value */
+#undef SOCKS_SO_TIMESTAMP_NAME
+
+/* SO_USELOOPBACK protocol level */
+#undef SOCKS_SO_USELOOPBACK_LVL
+
+/* SO_USELOOPBACK value */
+#undef SOCKS_SO_USELOOPBACK_NAME
+
+/* TCP_CORK protocol level */
+#undef SOCKS_TCP_CORK_LVL
+
+/* TCP_CORK value */
+#undef SOCKS_TCP_CORK_NAME
+
+/* TCP_CWND protocol level */
+#undef SOCKS_TCP_CWND_LVL
+
+/* TCP_CWND value */
+#undef SOCKS_TCP_CWND_NAME
+
+/* TCP_INIT_CWND protocol level */
+#undef SOCKS_TCP_INIT_CWND_LVL
+
+/* TCP_INIT_CWND value */
+#undef SOCKS_TCP_INIT_CWND_NAME
+
+/* TCP_IPA protocol level */
+#undef SOCKS_TCP_IPA_LVL
+
+/* TCP_IPA value */
+#undef SOCKS_TCP_IPA_NAME
+
+/* TCP_KEEPCNT protocol level */
+#undef SOCKS_TCP_KEEPCNT_LVL
+
+/* TCP_KEEPCNT value */
+#undef SOCKS_TCP_KEEPCNT_NAME
+
+/* TCP_KEEPIDLE protocol level */
+#undef SOCKS_TCP_KEEPIDLE_LVL
+
+/* TCP_KEEPIDLE value */
+#undef SOCKS_TCP_KEEPIDLE_NAME
+
+/* TCP_KEEPINTVL protocol level */
+#undef SOCKS_TCP_KEEPINTVL_LVL
+
+/* TCP_KEEPINTVL value */
+#undef SOCKS_TCP_KEEPINTVL_NAME
+
+/* TCP_LINGER2 protocol level */
+#undef SOCKS_TCP_LINGER2_LVL
+
+/* TCP_LINGER2 value */
+#undef SOCKS_TCP_LINGER2_NAME
+
+/* TCP_MAXRT protocol level */
+#undef SOCKS_TCP_MAXRT_LVL
+
+/* TCP_MAXRT value */
+#undef SOCKS_TCP_MAXRT_NAME
+
+/* TCP_MAXSEG protocol level */
+#undef SOCKS_TCP_MAXSEG_LVL
+
+/* TCP_MAXSEG value */
+#undef SOCKS_TCP_MAXSEG_NAME
+
+/* TCP_MD5SIG protocol level */
+#undef SOCKS_TCP_MD5SIG_LVL
+
+/* TCP_MD5SIG value */
+#undef SOCKS_TCP_MD5SIG_NAME
+
+/* TCP_NODELAY protocol level */
+#undef SOCKS_TCP_NODELAY_LVL
+
+/* TCP_NODELAY value */
+#undef SOCKS_TCP_NODELAY_NAME
+
+/* TCP_NOOPT protocol level */
+#undef SOCKS_TCP_NOOPT_LVL
+
+/* TCP_NOOPT value */
+#undef SOCKS_TCP_NOOPT_NAME
+
+/* TCP_NOPUSH protocol level */
+#undef SOCKS_TCP_NOPUSH_LVL
+
+/* TCP_NOPUSH value */
+#undef SOCKS_TCP_NOPUSH_NAME
+
+/* TCP_SACK_ENABLE protocol level */
+#undef SOCKS_TCP_SACK_ENABLE_LVL
+
+/* TCP_SACK_ENABLE value */
+#undef SOCKS_TCP_SACK_ENABLE_NAME
+
+/* TCP_STDURG protocol level */
+#undef SOCKS_TCP_STDURG_LVL
+
+/* TCP_STDURG value */
+#undef SOCKS_TCP_STDURG_NAME
+
+/* TCP_SYNCNT protocol level */
+#undef SOCKS_TCP_SYNCNT_LVL
+
+/* TCP_SYNCNT value */
+#undef SOCKS_TCP_SYNCNT_NAME
+
+/* TCP_WINDOW_CLAMP protocol level */
+#undef SOCKS_TCP_WINDOW_CLAMP_LVL
+
+/* TCP_WINDOW_CLAMP value */
+#undef SOCKS_TCP_WINDOW_CLAMP_NAME
+
+/* UDP_CORK protocol level */
+#undef SOCKS_UDP_CORK_LVL
+
+/* UDP_CORK value */
+#undef SOCKS_UDP_CORK_NAME
 
 /* setproctitle replacement type */
 #undef SPT_TYPE
@@ -1192,12 +1861,6 @@
 /* Define for large files, on AIX-style hosts. */
 #undef _LARGE_FILES
 
-/* Define like PROTOTYPES; this can be used by system headers. */
-#undef __PROTOTYPES
-
-/* empty __attribute__ macro */
-#undef __attribute__
-
 /* empty __bounded__ macro */
 #undef __bounded__
 
@@ -1206,9 +1869,6 @@
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
-
-/* empty format attribute macro */
-#undef format
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef gid_t

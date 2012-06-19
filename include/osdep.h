@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011
+ *               2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,26 @@
  *
  */
 
-/* $Id: osdep.h,v 1.64 2011/05/19 07:59:08 karls Exp $ */
+/* $Id: osdep.h,v 1.74 2012/06/01 20:23:05 karls Exp $ */
+
+/* ensure pam/livedebug/libwrap defines are only set when compiling server */
+#if HAVE_COND_PAM && !SOCKS_CLIENT
+#define HAVE_PAM (1)
+#else
+#define HAVE_PAM (0)
+#endif /* HAVE_COND_PAM && !SOCKS_CLIENT */
+
+#if HAVE_COND_LIVEDEBUG && !SOCKS_CLIENT
+#define HAVE_LIVEDEBUG (1)
+#else
+#define HAVE_LIVEDEBUG (0)
+#endif /* HAVE_COND_LIVEDEBUG && !SOCKS_CLIENT */
+
+#if HAVE_COND_LIBWRAP && !SOCKS_CLIENT
+#define HAVE_LIBWRAP (1)
+#else
+#define HAVE_LIBWRAP (0)
+#endif /* HAVE_COND_LIBWRAP && !SOCKS_CLIENT */
 
 #include <sys/types.h>
 #if HAVE_SYS_TIME_H
@@ -88,6 +107,7 @@
 #include <sys/select.h>
 #endif /* HAVE_SYS_SELECT_H */
 #include <netinet/in.h>
+#include <netinet/in_systm.h>
 #if HAVE_NETINET_IP_H
 #include <netinet/ip.h>
 #endif /* HAVE_NETINET_IP_H */
@@ -101,12 +121,14 @@
 
 #include <netinet/tcp.h>
 
+#if HAVE_RPC_RPC_H
+#include <rpc/rpc.h>
+#endif /* HAVE_RPC_RPC_H */
+
 #if !HAVE_TIMER_MACROS
 #include "timers.h"
 #endif /* !HAVE_TIMER_MACROS */
 
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #include <netinet/udp.h>
 
@@ -161,10 +183,10 @@
 
 #if HAVE_GSSAPI
 
-#if HAVE_GSSAPI_H
-#include <gssapi.h>
-#elif HAVE_GSSAPI_GSSAPI_H
+#if HAVE_GSSAPI_GSSAPI_H
 #include <gssapi/gssapi.h>
+#elif HAVE_GSSAPI_H
+#include <gssapi.h>
 #endif /* HAVE_GSSAPI_H */
 
 #if !HAVE_HEIMDAL_KERBEROS
@@ -184,6 +206,30 @@
 #include <pthread.h>
 #endif /* HAVE_PTHREAD_H */
 
+#if HAVE_GETIFADDRS && HAVE_IFADDRS_H
+#include <ifaddrs.h>
+#else
+#include "ifaddrs.h"
+#endif /* HAVE_IFADDRS_H */
+
+#if HAVE_DECL_ATTRIBUTE && !defined lint
+#define __ATTRIBUTE__(x) __attribute__(x)
+#else
+#define __ATTRIBUTE__(x)
+#endif /* HAVE_DECL_ATTRIBUTE */
+
+#if HAVE_DECL_NONNULL
+#define __NONNULL__(x) __nonnull__(x)
+#else
+#define __NONNULL__(x)
+#endif /* HAVE_DECL_NONNULL */
+
+#if HAVE_DECL_FORMAT
+#define FORMAT(x) format(x)
+#else
+#define FORMAT(x)
+#endif /* HAVE_DECL_FORMAT */
+
 #if HAVE_LINUX_BUGS
 #if (defined __bswap_16) && (!defined __bswap_32)
 #undef ntohl
@@ -201,16 +247,11 @@
 #define WAIT_ANY -1
 #endif /* !WAIT_ANY */
 
-#if (defined lint)
-#undef __attribute__
-#define __attribute__(a)
-#endif
-
 /* libscompat replacement function prototypes */
 
 #if !HAVE_SETPROCTITLE
 void setproctitle(const char *fmt, ...)
-   __attribute__((format(__printf__, 1, 2)));
+   __ATTRIBUTE__((FORMAT(__printf__, 1, 2)));
 void initsetproctitle(int, char **);
 #endif /* !HAVE_SETPROCTITLE */
 
@@ -240,6 +281,11 @@ int inet_pton(int af, const char *src, void *dst);
 
 #if !HAVE_ISSETUGID
 #include "issetugid.h"
+#endif /* !HAVE_ISSETUGID */
+
+#if !HAVE_PSELECT
+int pselect(int nfds, fd_set *rset, fd_set *wset, fd_set *xset,
+    const struct timespec *ts, const sigset_t *sigmask);
 #endif /* !HAVE_ISSETUGID */
 
 #if !HAVE_VSYSLOG
@@ -365,6 +411,16 @@ typedef int sig_atomic_t;
 #define __CONCAT3(x,y,z) x ## y ## z
 #endif /* !__CONCAT3 */
 
+#ifndef ROUNDDOWN
+#define ROUNDDOWN(x, size)  (((x) / (size) ) * (size))
+#endif
+
+#ifndef ROUNDUP
+#define ROUNDUP(x, size)    ((((x) + (size) - 1) / (size)) * (size))
+#endif
+
+#define ROUNDFLOAT(x) ((x) >= 0 ? (long)((x) + 0.5) : (long)((x) - 0.5))
+
 #ifndef EPROTO
 #define EPROTO EPROTOTYPE
 #endif /* !EPROTO */
@@ -380,6 +436,10 @@ struct ipoption {
    sbits_8   ipopt_list[MAX_IPOPTLEN];
 };
 #endif /* !HAVE_STRUCT_IPOPTS */
+
+#if !HAVE_FDMASK
+typedef unsigned long fd_mask;
+#endif /* !HAVE_FDMASK */
 
 #if !HAVE_IN6_ADDR
 /* from OpenBSD netinet6/in6.h */

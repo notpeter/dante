@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,12 +44,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.51 2011/05/18 13:48:46 karls Exp $";
+"$Id: userio.c,v 1.54 2012/06/01 20:23:05 karls Exp $";
 
 /* ARGSUSED */
 char *
 socks_getusername(host, buf, buflen)
-   const struct sockshost_t *host;
+   const sockshost_t *host;
    char *buf;
    size_t buflen;
 {
@@ -87,7 +87,7 @@ socks_getusername(host, buf, buflen)
 
 char *
 socks_getpassword(host, user, buf, buflen)
-   const struct sockshost_t *host;
+   const sockshost_t *host;
    const char *user;
    char *buf;
    size_t buflen;
@@ -100,7 +100,7 @@ socks_getpassword(host, user, buf, buflen)
    ||  (password = socks_getenv("SOCKS_PASSWD",   dontcare)) != NULL
    ||  (password = socks_getenv("SOCKS5_PASSWD",  dontcare)) != NULL)
       password_is_from_env = 1;
-#if SOCKS_CLIENT
+#if SOCKS_CLIENT && HAVE_GETPASS
    else {
       char prompt[256 + MAXSOCKSHOSTSTRING];
       char hstring[MAXSOCKSHOSTSTRING];
@@ -110,7 +110,7 @@ socks_getpassword(host, user, buf, buflen)
       password = getpass(prompt);
       password_is_from_env = 0;
    }
-#endif /* SOCKS_CLIENT */
+#endif /* SOCKS_CLIENT && HAVE_GETPASS */
 
    if (password == NULL)
       return NULL;

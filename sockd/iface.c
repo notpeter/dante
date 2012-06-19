@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011
+ * Copyright (c) 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: iface.c,v 1.12 2011/06/24 11:36:47 michaels Exp $";
+"$Id: iface.c,v 1.14 2012/06/01 20:23:05 karls Exp $";
 
 #include "common.h"
 
@@ -57,7 +57,7 @@ get_ifconfig_output(const char *ifname, char *output, size_t outputlen);
 
 /*
  * Parses the ifconfig output present in the string "output" for
- * the macaddress.  If found, the macaddress is stored in "addr", 
+ * the macaddress.  If found, the macaddress is stored in "addr",
  * which must be at least ETHER_ADDR_LEN.
  * Returns 0 if the output was parsed ok, -1 on error.
  */

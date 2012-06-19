@@ -1,10 +1,10 @@
 Summary: A free SOCKS v4/v5 client implementation
 Name: dante
-%define fullversion 1.3.2
+%define fullversion 1.4.0-pre1
 %define prefix /usr
 Prefix: %{prefix}
-Version: 1.3.2
-Release: 1%{?dist}
+Version: 1.4.0
+Release: 0.pre1%{?dist}
 License: BSD-type
 Group: Networking/Utilities
 URL: http://www.inet.no/dante/
@@ -46,11 +46,11 @@ Requires: dante
 Additional libraries required to compile programs that use SOCKS.
 
 %prep
-%setup -n dante-1.3.2
+%setup -n dante-1.4.0-pre1
 
 # This file is embedded here instead of being another source in order
 # to the prefix directory
-cat >sockd.init <<EOF
+%{__cat} >sockd.init <<'EOF'
 #!/bin/sh
 #
 # Init file for the Dante Socks server
@@ -189,7 +189,7 @@ fi
 
 %changelog
 * Tue May 10 2011 Karl-Andre' Skevik <karls@inet.no>
--Integrate some changes from Dat Wieers spec file at:
+-Integrate some changes from Dag Wieers spec file at:
  http://svn.rpmforge.net/svn/trunk/rpms/dante/dante.spec
 
 * Sat Dec 19 2009 Karl-Andre' Skevik <karls@inet.no>

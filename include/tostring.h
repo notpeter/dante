@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2006, 2008, 2009, 2010,
- *               2011
+ *               2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: tostring.h,v 1.44 2011/08/01 09:04:36 michaels Exp $ */
+/* $Id: tostring.h,v 1.62 2012/06/01 20:23:05 karls Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
@@ -70,8 +70,8 @@ operator2string(enum operator_t operator);
  */
 
 const char *
-ruleaddr2string(const struct ruleaddr_t *rule, char *string, size_t len)
-      __attribute__((__bounded__(__string__, 2, 3)));
+ruleaddr2string(const ruleaddr_t *rule, char *string, size_t len)
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Writes "rule" out as a string.  The string is written to "string",
  * which is of length "len", including NUL termination.
@@ -90,9 +90,9 @@ command2string(int command);
  */
 
 char *
-commands2string(const struct command_t *command, char *str, size_t strsize)
-      __attribute__((__nonnull__(2)))
-      __attribute__((__bounded__(__string__, 2, 3)));
+commands2string(const command_t *command, char *str, size_t strsize)
+      __ATTRIBUTE__((__NONNULL__(2)))
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Returns a printable representation of "commands".
  * "str" is the memory to write the printable representation into,
@@ -103,7 +103,7 @@ commands2string(const struct command_t *command, char *str, size_t strsize)
 
 char *
 methods2string(size_t methodc, const int *methodv, char *str, size_t strsize)
-      __attribute__((__bounded__(__string__, 3, 4)));
+      __ATTRIBUTE__((__bounded__(__string__, 3, 4)));
 /*
  * Returns a printable representation of the methods "methodv", of
  * length "methodc".
@@ -121,10 +121,9 @@ protocol2string(int protocol);
  */
 
 char *
-protocols2string(const struct protocol_t *protocols, char *str,
-		 size_t strsize)
-      __attribute__((__nonnull__(2)))
-      __attribute__((__bounded__(__string__, 2, 3)));
+protocols2string(const protocol_t *protocols, char *str, size_t strsize)
+      __ATTRIBUTE__((__NONNULL__(2)))
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Returns a printable representation of "protocols".
  * "str" is the memory to write the printable representation into,
@@ -134,9 +133,9 @@ protocols2string(const struct protocol_t *protocols, char *str,
  */
 
 char *
-proxyprotocols2string(const struct proxyprotocol_t *proxyprotocols, char *str,
-      size_t strsize)
-      __attribute__((__bounded__(__string__, 2, 3)));
+proxyprotocols2string(const proxyprotocol_t *proxyprotocols, char *str,
+                      size_t strsize)
+                      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Returns a printable representation of "protocols".
  * "str" is the memory to write the printable representation into,
@@ -169,8 +168,8 @@ string2method(const char *methodname);
  */
 
 char *
-sockshost2string(const struct sockshost_t *host, char *string, size_t len)
-      __attribute__((__bounded__(__string__, 2, 3)));
+sockshost2string(const sockshost_t *host, char *string, size_t len)
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Writes "host" out as a string.  The string is written to "string",
  * which is of length "len", including NUL termination.
@@ -183,7 +182,7 @@ sockshost2string(const struct sockshost_t *host, char *string, size_t len)
 
 char *
 sockaddr2string(const struct sockaddr *addr, char *string, size_t len)
-      __attribute__((__bounded__(__string__, 2, 3)));
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Returns the IP addr and port in "addr" on string form.
  * "addr" is assumed to be on network form and it will be
@@ -196,10 +195,10 @@ sockaddr2string(const struct sockaddr *addr, char *string, size_t len)
  * Returns: "string".
  */
 
-struct udpheader_t *
-string2udpheader(const char *data, size_t len, struct udpheader_t *header)
-      __attribute__((__nonnull__(1)))
-      __attribute__((__bounded__(__string__, 1, 2)));
+udpheader_t *
+string2udpheader(const char *data, size_t len, udpheader_t *header)
+      __ATTRIBUTE__((__NONNULL__(1)))
+      __ATTRIBUTE__((__bounded__(__string__, 1, 2)));
 /*
  * Converts "data" to udpheader_t representation.
  * "len" is length of "data".
@@ -223,10 +222,10 @@ socks_packet2string(const void *packet, int isrequest);
  */
 
 char *
-extensions2string(const struct extension_t *extensions, char *str,
+extensions2string(const extension_t *extensions, char *str,
       size_t strsize)
-      __attribute__((__nonnull__(2)))
-      __attribute__((__bounded__(__string__, 2, 3)));
+      __ATTRIBUTE__((__NONNULL__(2)))
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Returns a printable representation of "extensions".
  * "str" is the memory to write the printable representation into,
@@ -242,15 +241,6 @@ resolveprotocol2string(int resolveprotocol);
  */
 
 char *
-gwaddr2string(const gwaddr_t *gw, char *string, size_t len)
-      __attribute__((__nonnull__(2)))
-      __attribute__((__bounded__(__string__, 2, 3)));
-/*
- * Writes a printable representation of "gw" to "string" and
- * returns a pointer to it.
- */
-
-char *
 str2upper(char *string);
 /*
  * converts all characters in "string" to uppercase.
@@ -259,7 +249,7 @@ str2upper(char *string);
 
 char *
 socket2string(const int s, char *buf, size_t buflen)
-      __attribute__((__bounded__(__string__, 2, 3)));
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Prints out address info for the socket "s".
  * "buf" gives the buffer to write the address info to, "buflen" the
@@ -276,7 +266,7 @@ version2string(int version);
  */
 
 const char *
-atype2string(const atype_t atype);
+atype2string(const unsigned char atype);
 /*
  * Returns a printable representation of the atype "atype".
  */
@@ -296,9 +286,9 @@ const char *loglevel2string(const int loglevel);
  */
 
 char *
-logtypes2string(const struct logtype_t *logtypes, char *str, size_t strsize)
-      __attribute__((__nonnull__(2)))
-      __attribute__((__bounded__(__string__, 2, 3)));
+logtypes2string(const logtype_t *logtypes, char *str, size_t strsize)
+      __ATTRIBUTE__((__NONNULL__(2)))
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Returns a printable representation of "logtypes".
  * "str" is the memory to write the printable representation into,
@@ -307,13 +297,44 @@ logtypes2string(const struct logtype_t *logtypes, char *str, size_t strsize)
  * Returns: "str", NUL terminated.
  */
 
+const char *
+sockoptval2string(socketoptvalue_t value, socketoptvalue_type_t type,
+                  char *str, size_t strsize);
+/*
+ * Returns a printable representation of socket option value "value",
+ * type "type".
+ */
+
+const char *
+sockoptlevel2string(int level);
+/*
+ * Returns a printable representation of the socket option "level" value.
+ */
+
+const char *
+sockoptvaltype2string(socketoptvalue_type_t type);
+/*
+ * Returns a printable representation of the socket option "level" value.
+ */
+
+const char *
+sockopt2string(const socketoption_t *opt, char *str, size_t strsize);
+/*
+ * Returns a printable representation of the socketoption_t "opt".
+ */
+
 #if !SOCKS_CLIENT
+const char *
+ruletype2string(const ruletype_t ruletype);
+/*
+ * returns a printable representation of "ruletype".
+ */
 
 char *
-timeouts2string(const struct timeout_t *timeouts, const char *prefix,
+timeouts2string(const timeout_t *timeouts, const char *prefix,
       char *str, size_t strsize)
-      __attribute__((__nonnull__(3)))
-      __attribute__((__bounded__(__string__, 3, 4)));
+      __ATTRIBUTE__((__NONNULL__(3)))
+      __ATTRIBUTE__((__bounded__(__string__, 3, 4)));
 /*
  * Returns a printable representation of "timeouts".
  * "prefix" is prefixed to every line written to "str".
@@ -324,9 +345,8 @@ timeouts2string(const struct timeout_t *timeouts, const char *prefix,
  */
 
 char *
-logs2string(const struct log_t *logs, char *str, size_t strsize)
-      __attribute__((__nonnull__(2)))
-      __attribute__((__bounded__(__string__, 2, 3)));
+logs2string(const log_t *logs, char *str, size_t strsize)
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Returns a printable representation of "logs".
  * "str" is the memory to write the printable representation into,
@@ -337,10 +357,10 @@ logs2string(const struct log_t *logs, char *str, size_t strsize)
 
 #if !HAVE_PRIVILEGES
 char *
-userids2string(const struct userid_t *userids, const char *prefix, char *str,
+userids2string(const userid_t *userids, const char *prefix, char *str,
       size_t strsize)
-      __attribute__((__nonnull__(3)))
-      __attribute__((__bounded__(__string__, 3, 4)));
+      __ATTRIBUTE__((__NONNULL__(3)))
+      __ATTRIBUTE__((__bounded__(__string__, 3, 4)));
 /*
  * Returns a printable representation of "userids".
  * "prefix" is prefixed to every line written to "str".
@@ -352,10 +372,10 @@ userids2string(const struct userid_t *userids, const char *prefix, char *str,
 #endif /* !HAVE_PRIVILEGES */
 
 char *
-options2string(const struct option_t *options, const char *prefix,
-      char *str, size_t strsize)
-      __attribute__((__nonnull__(3)))
-      __attribute__((__bounded__(__string__, 3, 4)));
+options2string(const option_t *options, const char *prefix,
+               char *str, size_t strsize)
+      __ATTRIBUTE__((__NONNULL__(3)))
+      __ATTRIBUTE__((__bounded__(__string__, 3, 4)));
 /*
  * Returns a printable representation of "options".
  * "prefix" is prefixed to every line written to "str".
@@ -365,9 +385,9 @@ options2string(const struct option_t *options, const char *prefix,
  */
 
 char *
-compats2string(const struct compat_t *compats, char *str, size_t strsize)
-      __attribute__((__nonnull__(2)))
-      __attribute__((__bounded__(__string__, 2, 3)));
+compats2string(const compat_t *compats, char *str, size_t strsize)
+      __ATTRIBUTE__((__NONNULL__(2)))
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Returns a printable representation of "compats".
  * "str" is the memory to write the printable representation into,
@@ -377,9 +397,9 @@ compats2string(const struct compat_t *compats, char *str, size_t strsize)
  */
 
 char *
-list2string(const struct linkedname_t *list, char *str, size_t strsize)
-      __attribute__((__nonnull__(2)))
-      __attribute__((__bounded__(__string__, 2, 3)));
+list2string(const linkedname_t *list, char *str, size_t strsize)
+      __ATTRIBUTE__((__NONNULL__(2)))
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Returns a printable representation of "list".
  * "str" is the memory to write the printable representation into,
@@ -401,10 +421,10 @@ verdict2string(int verdict);
  */
 
 char *
-srchosts2string(const struct srchost_t *srchosts, const char *prefix,
+srchosts2string(const srchost_t *srchosts, const char *prefix,
       char *str, size_t strsize)
-      __attribute__((__nonnull__(3)))
-      __attribute__((__bounded__(__string__, 3, 4)));
+      __ATTRIBUTE__((__NONNULL__(3)))
+      __ATTRIBUTE__((__bounded__(__string__, 3, 4)));
 /*
  * Returns a printable representation of "srchosts".
  * "prefix" is prefixed to every line written to "str".
@@ -432,6 +452,19 @@ privop2string(const priv_op_t op);
 /*
  * Returns a printable representation of "op".
  */
+
+#if HAVE_SCHED_SETAFFINITY
+
+char *
+cpuset2string(const cpu_set_t *set, char *str, size_t strsize)
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
+/*
+ * returns a printable representation of the cpu_set_t "set".
+ */
+
+
+
+#endif /* HAVE_SCHED_SETAFFINITY */
 
 #if COVENANT
 const char *httpcode2string(const int version, const int code);

@@ -40,7 +40,7 @@ if test x"$KRB5" != xno; then
          fi
       else
          AC_CHECK_PROG(ac_krb5_config, krb5-config, yes, no)
-         if test "x$ac_krb5_config" = xyes; then
+         if test x"$ac_krb5_config" = xyes; then
            ac_krb5_cflags=`krb5-config --cflags krb5 2>/dev/null`
            if test $? != 0; then
                krb5fail=t
@@ -61,48 +61,39 @@ if test x"$KRB5" != xno; then
 
    dnl any cflags values obtained from krb5-config?
    if test x"$ac_krb5_cflags" != x; then
-      CPPFLAGS="${CPPFLAGS} $ac_krb5_cflags"
+      CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_krb5_cflags"
    else
       dnl add cppflags values needed for default compilation (openbsd)
       if test -d $krb5dir/include/kerberosV; then
-         CPPFLAGS="${CPPFLAGS} -I${krb5dir}/include/kerberosV"
+         CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I${krb5dir}/include/kerberosV"
       fi
-   fi
-
-   dnl any libs obtained from krb5-config?
-   if test x"$ac_krb5_libs" != x; then
-      dnl XXX assumes required libs start with -l prefix
-      NDEPS=`echo $ac_krb5_libs | xargs -n1 | egrep  '^-l' | xargs echo`
-
-      dnl add as dependency for libdsocks
-      DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$NDEPS"
    fi
 
    dnl look for krb5 headers
    AC_CHECK_HEADERS(krb5.h com_err.h et/com_err.h)
 
    ac_com_error_message=no
-   AC_EGREP_HEADER(com_err.h,krb5.h,ac_com_err_krb5=yes)
-   if test "x$ac_com_err_krb5" = xyes ; then
-      AC_DEFINE(HAVE_COM_ERR_IN_KRB5,1,[Define to 1 if you have com_err in krb5.h])
+   AC_EGREP_HEADER(com_err.h, krb5.h, ac_com_err_krb5=yes)
+   if test x"$ac_com_err_krb5" = xyes; then
+      AC_DEFINE(HAVE_COM_ERR_IN_KRB5, 1, [Define to 1 if you have com_err in krb5.h])
    fi
-   if test "x$ac_cv_header_com_err_h" = xyes ; then
-      AC_EGREP_HEADER(error_message,com_err.h,ac_com_error_message=yes)
-   elif test "x$ac_cv_header_et_com_err_h" = xyes ; then
-      AC_EGREP_HEADER(error_message,et/com_err.h,ac_com_error_message=yes)
+   if test x"$ac_cv_header_com_err_h" = xyes; then
+      AC_EGREP_HEADER(error_message, com_err.h, ac_com_error_message=yes)
+   elif test x"$ac_cv_header_et_com_err_h" = xyes; then
+      AC_EGREP_HEADER(error_message, et/com_err.h, ac_com_error_message=yes)
    fi
+
+   dnl might be used by libkrb5, but not returned by krb5-config
+   AC_CHECK_LIB(pthread, main)
 
    dnl look for libs
    if test x"$ac_krb5_libs" != x; then
       _libsonly=`echo $ac_krb5_libs | xargs -n1 | egrep '^-l' | xargs echo`
       _optsonly=`echo $ac_krb5_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
-       
-      LIBS="${LIBS} ${_libsonly}"
-      LDFLAGS="${LDFLAGS} ${_optsonly}"
-   else
-      oLIBS=$LIBS
-      LIBS=""
 
+      LIBS="${LIBS}${LIBS:+ }${_libsonly}"
+      LDFLAGS="${LDFLAGS}${LDFLAGS:+ }${_optsonly}"
+   else
       AC_CHECK_LIB(crypto, main)
       AC_CHECK_LIB(des, main)
       AC_CHECK_LIB(crypt, main)
@@ -116,27 +107,20 @@ if test x"$KRB5" != xno; then
       AC_CHECK_LIB(krb5, main)
 
       AC_CHECK_LIB(ksvc, main)
-
-      dnl add as dependency for libdsocks
-      if test x"${LIBS}" != x; then
-        DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$LIBS"
-      fi
-
-      LIBS="${oLIBS}${oLIBS:+ }$LIBS"
    fi
 
-   if test `echo $LIBS | grep -c com_err` -ne 0 -a "x$ac_com_error_message" = xyes ; then
-      AC_CHECK_LIB(com_err,error_message,
-         AC_DEFINE(HAVE_ERROR_MESSAGE,1,[Define to 1 if you have error_message]),)
-   elif test  "x$ac_com_error_message" = xyes ; then
-      AC_CHECK_LIB(krb5,error_message,
-         AC_DEFINE(HAVE_ERROR_MESSAGE,1,[Define to 1 if you have error_message]),)
+   if test `echo $LIBS | grep -c com_err` -ne 0 -a x"$ac_com_error_message" = xyes; then
+      AC_CHECK_LIB(com_err, error_message,
+         AC_DEFINE(HAVE_ERROR_MESSAGE, 1, [Define to 1 if you have error_message]),)
+   elif test x"$ac_com_error_message" = xyes; then
+      AC_CHECK_LIB(krb5, error_message,
+         AC_DEFINE(HAVE_ERROR_MESSAGE, 1, [Define to 1 if you have error_message]),)
    fi
 
-   AC_CHECK_LIB(krb5,krb5_get_err_text,
-      AC_DEFINE(HAVE_KRB5_GET_ERR_TEXT,1,[Define to 1 if you have krb5_get_err_text]),)
-   AC_CHECK_LIB(krb5,krb5_get_error_message,
-      AC_DEFINE(HAVE_KRB5_GET_ERROR_MESSAGE,1,[Define to 1 if you have krb5_get_error_message]),)
+   AC_CHECK_LIB(krb5, krb5_get_err_text,
+      AC_DEFINE(HAVE_KRB5_GET_ERR_TEXT, 1, [Define to 1 if you have krb5_get_err_text]),)
+   AC_CHECK_LIB(krb5, krb5_get_error_message,
+      AC_DEFINE(HAVE_KRB5_GET_ERROR_MESSAGE, 1, [Define to 1 if you have krb5_get_error_message]),)
 
    dnl do compile check
    AC_MSG_CHECKING([for working krb5])
@@ -157,25 +141,19 @@ main(void)
 ], [unset no_krb5
     AC_DEFINE(HAVE_KRB5, 1, [KRB5 support])
     AC_MSG_RESULT(yes)],
-   AC_MSG_RESULT(no))
+   [AC_MSG_RESULT(no)],
+   [dnl assume it works when cross-compiling
+    unset no_krb5
+    AC_DEFINE(HAVE_KRB5, 1, [KRB5 support])
+    AC_MSG_RESULT(assuming yes)])
 
-#XXX duplicate check in gssapi.m4
-#   AC_MSG_CHECKING([for heimdal])
-#   if test "x$ac_krb5_heimdal" != x ; then
-#       AC_DEFINE(HAVE_HEIMDAL_KERBEROS,1,[Heimdal Kerberos implementation])
-#       AC_MSG_RESULT(yes)
-#   else
-#       AC_MSG_RESULT(no)
-#   fi
-
-   AC_CHECK_DECLS(krb5_kt_free_entry,,,[#include <krb5.h>])
-   LIBS_sav=$LIBS
-   AC_CHECK_LIB(krb5,krb5_kt_free_entry,
-      AC_DEFINE(HAVE_KRB5_KT_FREE_ENTRY,1,[Define to 1 if you have krb5_kt_free_entry]),)
-   AC_CHECK_LIB(krb5,krb5_get_init_creds_keytab,
-      AC_DEFINE(HAVE_GET_INIT_CREDS_KEYTAB,1,[Define to 1 if you have krb5_get_init_creds_keytab]),)
-   AC_CHECK_LIB(krb5,krb5_get_init_creds_opt_alloc,
-      AC_DEFINE(HAVE_GET_INIT_CREDS_OPT_ALLOC,1,[Define to 1 if you have krb5_get_init_creds_opt_alloc]),)
+   AC_CHECK_DECLS(krb5_kt_free_entry,,, [#include <krb5.h>])
+   AC_CHECK_LIB(krb5, krb5_kt_free_entry,
+      AC_DEFINE(HAVE_KRB5_KT_FREE_ENTRY, 1, [Define to 1 if you have krb5_kt_free_entry]),)
+   AC_CHECK_LIB(krb5, krb5_get_init_creds_keytab,
+      AC_DEFINE(HAVE_GET_INIT_CREDS_KEYTAB, 1, [Define to 1 if you have krb5_get_init_creds_keytab]),)
+   AC_CHECK_LIB(krb5, krb5_get_init_creds_opt_alloc,
+      AC_DEFINE(HAVE_GET_INIT_CREDS_OPT_ALLOC, 1, [Define to 1 if you have krb5_get_init_creds_opt_alloc]),)
 
    AC_MSG_CHECKING([for krb5_get_init_creds_opt_free with krb5 context ])
 AC_TRY_COMPILE([
@@ -185,7 +163,7 @@ krb5_context context;
 krb5_get_init_creds_opt options;
 krb5_get_init_creds_opt_free(context, &options);
 ], [AC_MSG_RESULT(yes)
-    AC_DEFINE(HAVE_GET_INIT_CREDS_OPT_FREE_CTX,1,[Define to 1 if you have krb5_get_init_creds_opt_free with krb5 context])],
+    AC_DEFINE(HAVE_GET_INIT_CREDS_OPT_FREE_CTX, 1, [Define to 1 if you have krb5_get_init_creds_opt_free with krb5 context])],
    [AC_MSG_RESULT(no)])
 
    case $host in
@@ -204,8 +182,10 @@ main()
     krb5_init_context(&context);
     return krb5_cc_resolve(context, "MEMORY:test_cache", &cc);
 }],
-	AC_DEFINE(HAVE_KRB5_MEMORY_CACHE,1, [Define to 1 if you have MEMORY: cache support]),)
+	[AC_DEFINE(HAVE_KRB5_MEMORY_CACHE, 1, [Define to 1 if you have MEMORY: cache support])],
+	[],
+	[dnl cross-compiling assume non-working
+	 true])
 	;;
    esac
-   LIBS=$LIBS_sav
 fi

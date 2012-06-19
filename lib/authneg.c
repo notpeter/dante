@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,13 +44,13 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.94 2011/06/19 14:33:57 michaels Exp $";
+"$Id: authneg.c,v 1.99 2012/06/01 20:23:05 karls Exp $";
 
 int
 negotiate_method(s, packet, route)
    int s;
-   struct socks_t *packet;
-   struct route_t *route;
+   socks_t *packet;
+   route_t *route;
 {
    const char *function = "negotiate_method()";
    size_t requestlen;
@@ -92,8 +92,13 @@ negotiate_method(s, packet, route)
 
    CM2IM(request[AUTH_NMETHODS], &request[AUTH_METHODS], intmethodv);
    slog(LOG_DEBUG, "%s: offering proxy server %d method%s: %s",
-   function, request[AUTH_NMETHODS], request[AUTH_NMETHODS] == 1 ? "" : "s",
-   methods2string(request[AUTH_NMETHODS], intmethodv, buf, sizeof(buf)));
+                   function,
+                   request[AUTH_NMETHODS],
+                   request[AUTH_NMETHODS] == 1 ? "" : "s",
+                   methods2string(request[AUTH_NMETHODS],
+                                  intmethodv,
+                                  buf,
+                                  sizeof(buf)));
 
    if (socks_sendton(s, request, requestlen, requestlen, 0, NULL, 0,
    packet->req.auth) != (ssize_t)requestlen) {
@@ -101,8 +106,16 @@ negotiate_method(s, packet, route)
       return -1;
    }
 
-   if ((rc = socks_recvfromn(s, response, sizeof(response), sizeof(response),
-   0, NULL, NULL, packet->req.auth)) != sizeof(response)) {
+   if ((rc = socks_recvfromn(s,
+                             response,
+                             sizeof(response),
+                             sizeof(response),
+                             0,
+                             NULL,
+                             NULL,
+                             packet->req.auth,
+                             NULL,
+                             NULL)) != sizeof(response)) {
       swarn("%s: could not read server response for method to use, read %d/%lu",
       function, rc, (unsigned long)sizeof(response));
 
@@ -136,8 +149,8 @@ negotiate_method(s, packet, route)
                          "authentication method",
               function);
       else
-         swarnx("%s: proxy server selected method 0x%x, but that is not among "
-                "the methods we offered it",
+         swarnx("%s: proxy server selected method 0x%x, but that is not "
+                "among the methods we offered",
                 function, response[AUTH_METHOD]);
 
       errno = ECONNREFUSED;
@@ -164,17 +177,16 @@ negotiate_method(s, packet, route)
          break;
 #endif /* HAVE_GSSAPI */
 
-      case AUTHMETHOD_UNAME: {
-         struct sockshost_t host;
-
-         gwaddr2sockshost(&packet->gw.addr, &host);
-         if (clientmethod_uname(s, &host, packet->req.version, name, password)
-         == 0)
+      case AUTHMETHOD_UNAME:
+         if (clientmethod_uname(s,
+                                &packet->gw.addr,
+                                packet->req.version,
+                                name,
+                                password) == 0)
             rc = 0;
          else
             rc = -1;
          break;
-      }
 
       case AUTHMETHOD_NOACCEPT:
 #if SOCKS_SERVER

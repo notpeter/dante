@@ -1,1 +1,1 @@
-bin_SCRIPTS	= socksify
+bin_SCRIPTS = socksify

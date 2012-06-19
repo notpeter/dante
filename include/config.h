@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011
+ *               2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: config.h,v 1.114 2011/07/27 08:37:42 michaels Exp $ */
+/* $Id: config.h,v 1.119 2012/06/01 20:23:05 karls Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -73,7 +73,7 @@
  * Put this on a fast, low-latency fs.  Under /tmp is usually good.
  * Note that if set, $TMPDIR is prefixed to this path.
  */
-#define SOCKD_SHMEMFILE           ".sockdshmemXXXXXXXXXX"
+#define SOCKD_SHMEMFILE             ".sockdshmemXXXXXXXXXX"
 
 /* default client config file. */
 #if !HAVE_SOCKS_CONFIGFILE
@@ -142,7 +142,7 @@
  * one libwrap uses internally, but we don't have access to that size.
  */
 #if HAVE_LIBWRAP
-#define LIBWRAPBUF         (150)
+#define LIBWRAPBUF         (200)
 #endif /* HAVE_LIBWRAP */
 
 /*

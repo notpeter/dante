@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,13 +44,13 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.74 2011/07/15 13:51:27 michaels Exp $";
+"$Id: hostcache.c,v 1.83 2012/06/01 20:23:05 karls Exp $";
 
 #define HOSTENT_MAX_ALIASES (2)   /* max h_aliases or h_addr_list */
 
 #if !SOCKS_CLIENT
 
-struct hostentry_t {
+typedef struct {
    unsigned       allocated:1;      /* entry allocated?                       */
    unsigned       notfound:1;       /* looked up address/name was not found.  */
    time_t         written;          /* time this entry was created.           */
@@ -81,12 +81,12 @@ struct hostentry_t {
    char _h_aliasesmem[HOSTENT_MAX_ALIASES][MAXHOSTNAMELEN];
    char _h_addr_listmem[HOSTENT_MAX_ALIASES][MAX(sizeof(struct in_addr),
                                                  sizeof(struct in6_addr))];
-};
+} hostentry_t;
 
 /*
  * hostname/ipaddress cache.  Shared among all processes.
  */
-static struct hostentry_t *hostcache;
+static hostentry_t *hostcache;
 
 static int dnsfd = -1; /*
                         * Try to reserve one fd for dns-resolving.
@@ -100,7 +100,7 @@ static int dnsfd = -1; /*
                         * Only works for the main process, as the children
                         * won't know about this descriptor and will close it.
                         * Main process may need to use it when parsing the
-                        * configfile however.
+                        * config file however.
                         */
 
 
@@ -115,8 +115,8 @@ static int dnsfd = -1; /*
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
 
-static struct hostentry_t *
-hostentcopy(struct hostentry_t *to, const struct hostent *from,
+static hostentry_t *
+hostentcopy(hostentry_t *to, const struct hostent *from,
             const size_t maxaliases);
 /*
  * Copies the values in "from" into to, which must have enough memory
@@ -159,16 +159,13 @@ hostentistoobig(const struct hostent *hostent, const size_t maxaliases);
  */
 
 static char **
-listrealloc(char ***old, char ***new, int length, ssize_t maxlistlength);
+listrealloc(char ***old, char ***new, int length);
 /*
  * Reallocates "old" and copies in the contents of "new".
  * The last element of both "old" and "new" must be NULL.
  * If "length" is less than 0, each element is assumed to
  * be NUL terminated, otherwise "length" gives the total length
  * of every string.
- *
- * "maxlistlength", if not -1, gives the maximum number of "old".  No
- * more than maxlistlength will be copied.
  *
  * Returns:
  *      On success: "**old", with the contents of "new".
@@ -195,13 +192,14 @@ hostentdup(hostent, duped, maxaliases)
          return NULL;
       }
 
-      if (listrealloc(&duped->h_aliases, &hostent->h_aliases, -1, -1) == NULL) {
+      if (listrealloc(&duped->h_aliases, &hostent->h_aliases, -1) == NULL) {
          hostentfree(duped);
          return NULL;
       }
 
-      if (listrealloc(&duped->h_addr_list, &hostent->h_addr_list,
-      hostent->h_length, -1) == NULL) {
+      if (listrealloc(&duped->h_addr_list,
+                      &hostent->h_addr_list,
+                      hostent->h_length) == NULL) {
          hostentfree(duped);
          return NULL;
       }
@@ -218,11 +216,13 @@ hostentdup(hostent, duped, maxaliases)
 
       for (i = 0; i < maxaliases && hostent->h_aliases[i] != NULL; ++i)
          strcpy(duped->h_aliases[i], hostent->h_aliases[i]);
+      duped->h_aliases[MIN(i, maxaliases - 1)] = NULL;
 
       for (i = 0; i < maxaliases && hostent->h_addr_list[i] != NULL; ++i)
          memcpy(duped->h_addr_list[i],
                 hostent->h_addr_list[i],
                 hostent->h_length);
+      duped->h_addr_list[MIN(i, maxaliases - 1)] = NULL;
    }
 
    duped->h_addrtype = hostent->h_addrtype;
@@ -259,11 +259,10 @@ hostentfree(hostent)
 }
 
 static char **
-listrealloc(old, new, length, maxlistlength)
+listrealloc(old, new, length)
    char ***old;
    char ***new;
    int length;
-   ssize_t maxlistlength;
 {
    int i, oldi, newi;
 
@@ -277,9 +276,6 @@ listrealloc(old, new, length, maxlistlength)
    while ((*new)[newi] != NULL)
       ++newi;
 
-   if (maxlistlength != -1)
-      newi = MIN(newi, maxlistlength);
-
    for (i = newi; i < oldi; ++i)
       free((*old)[i]);
 
@@ -288,7 +284,9 @@ listrealloc(old, new, length, maxlistlength)
 
    for (newi = 0; (*new)[newi] != NULL; ++newi, --oldi) {
       if (((*old)[newi] = realloc(oldi > 0 ? (*old)[newi] : NULL,
-      length < 0 ? ((size_t)strlen((*new)[newi]) + 1) : (size_t)length))== NULL)
+                                  length < 0 ?
+                                      ((size_t)strlen((*new)[newi]) + 1)
+                                    : (size_t)length))== NULL)
          return NULL;
 
       if (length < 0)
@@ -353,8 +351,11 @@ hostcachesetup(void)
    if ((sockscf.hostfd = socks_mklock(SOCKD_SHMEMFILE, NULL, 0)) == -1)
       serr(EXIT_FAILURE, "%s: socks_mklock(%s)", function, SOCKD_SHMEMFILE);
 
-   hostcache
-   = sockd_mmap(sizeof(*hostcache) * SOCKD_HOSTCACHE, sockscf.hostfd, 1);
+   if ((hostcache = sockd_mmap(sizeof(*hostcache) * SOCKD_HOSTCACHE,
+                               sockscf.hostfd,
+                               1)) == NULL)
+      serr(EXIT_FAILURE, "%s: failed to create hostcache", function);
+
 
    if (dnsfd == -1)
       dnsfd = socket(AF_LOCAL, SOCK_DGRAM, 0);
@@ -366,21 +367,18 @@ cgethostbyname(name)
    const char *name;
 {
    const char *function = "cgethostbyname()";
-   static struct hostentry_t hostentrymem;
+   static hostentry_t hostentrymem;
    static size_t i;
    static unsigned long hit, miss;
    static int count;
    const time_t timenow = time(NULL);
-   struct hostentry_t *freehost;
+   hostentry_t *freehost;
    struct hostent *hostent;
    int hashi;
 
-   if (sockscf.option.debug)
-      if (count++ % SOCKD_CACHESTAT == 0)
-         slog(LOG_DEBUG, "%s: hit: %lu, miss: %lu", function, hit, miss);
-
-   if (sockscf.option.debug)
-      slog(LOG_DEBUG, "%s: %s", function, name);
+   if (count++ % SOCKD_CACHESTAT == 0)
+      slog(LOG_DEBUG, "%s, name: %s: hit: %lu, miss: %lu",
+           function, name, hit, miss);
 
    if (strlen(name) >= sizeof(freehost->name)) {
       swarnx("%s: hostname \"%s\" is too long.  Max length is %lu",
@@ -411,15 +409,20 @@ cgethostbyname(name)
    hashi = hosthash(name, SOCKD_HOSTCACHE);
    for (i = hashi, freehost = NULL; i < SOCKD_HOSTCACHE; ++i) {
       if (!hostcache[i].allocated) {
-         freehost = &hostcache[i];
+         if (freehost == NULL)
+            freehost = &hostcache[i];
+
          continue;
       }
 
       if (strcasecmp(hostcache[i].name, name) == 0) {
          if (difftime(timenow, hostcache[i].written) >= SOCKD_CACHETIMEOUT) {
             freehost = &hostcache[i];
+            ++miss;
+
             break;
          }
+
          ++hit;
 
          if (hostcache[i].notfound) {
@@ -427,6 +430,10 @@ cgethostbyname(name)
             return NULL;
          }
 
+         /*
+          * Need to copy since another process could overwrite the entry
+          * the hostcache.
+          */
          hostentcopy(&hostentrymem, &hostcache[i].hostent, HOSTENT_MAX_ALIASES);
 
          socks_unlock(sockscf.hostfd);
@@ -434,7 +441,9 @@ cgethostbyname(name)
       }
    }
 
-   ++miss;
+   if (i >= SOCKD_HOSTCACHE)
+      ++miss;
+
    socks_unlock(sockscf.hostfd);
 
    if ((hostent = gethostbyname(name)) == NULL)
@@ -497,7 +506,7 @@ cgethostbyname(name)
       return NULL;
 
    return hostent; /*
-                    * since it may contain more than HOSTENT_MAX_ALIASES. 
+                    * since it may contain more than HOSTENT_MAX_ALIASES.
                     * If user later retrieves our cached version, he will
                     * only get up to HOSTENT_MAX_ALIASES though.
                     */
@@ -511,25 +520,23 @@ cgethostbyaddr(_addr, len, type)
 {
    const char *function = "cgethostbyaddr()";
    static struct hostent *hostent;
-   static struct hostentry_t hostentrymem;
+   static hostentry_t hostentrymem;
    static unsigned long hit, miss;
    static size_t i;
    static int count;
    const time_t timenow = time(NULL);
-   struct hostentry_t *freehost;
+   hostentry_t *freehost;
    char addr[sizeof(struct in_addr)];
    int hashi;
 
-   if (sockscf.option.debug)
-      if (count++ % SOCKD_CACHESTAT == 0)
-         slog(LOG_DEBUG, "%s: hit: %lu, miss: %lu", function, hit, miss);
+   if (count++ % SOCKD_CACHESTAT == 0)
+      slog(LOG_DEBUG, "%s: addr: %s, hit: %lu, miss: %lu",
+           function, inet_ntoa(*((const struct in_addr *)_addr)), hit, miss);
+
 
    SASSERTX(type == AF_INET);
    SASSERTX(len <= sizeof(addr));
    memcpy(addr, _addr, len); /* _addr is const */
-
-   if (sockscf.option.debug)
-      slog(LOG_DEBUG, "%s: %s", function, inet_ntoa(*((struct in_addr *)addr)));
 
    socks_lock(sockscf.hostfd, 0, 1);
 
@@ -553,13 +560,17 @@ cgethostbyaddr(_addr, len, type)
    hashi = addrhash(((const struct in_addr *)addr)->s_addr, SOCKD_HOSTCACHE);
    for (i = hashi, freehost = NULL; i < SOCKD_HOSTCACHE; ++i) {
       if (!hostcache[i].allocated) {
-         freehost = &hostcache[i];
+         if (freehost == NULL)
+            freehost = &hostcache[i];
+
          continue;
       }
 
       if (hostcache[i].ipv4.s_addr == ((const struct in_addr *)addr)->s_addr) {
          if (difftime(timenow, hostcache[i].written) >= SOCKD_CACHETIMEOUT) {
             freehost = &hostcache[i];
+            ++miss;
+
             break;
          }
 
@@ -570,6 +581,10 @@ cgethostbyaddr(_addr, len, type)
             return NULL;
          }
 
+         /*
+          * Need to copy since another process could overwrite the entry
+          * the hostcache.
+          */
          hostentcopy(&hostentrymem, &hostcache[i].hostent, HOSTENT_MAX_ALIASES);
 
          socks_unlock(sockscf.hostfd);
@@ -577,7 +592,8 @@ cgethostbyaddr(_addr, len, type)
       }
    }
 
-   ++miss;
+   if (i >= SOCKD_HOSTCACHE)
+      ++miss;
 
    socks_unlock(sockscf.hostfd);
    if ((hostent = gethostbyaddr(addr, len, type)) == NULL)
@@ -652,16 +668,18 @@ hosthash(name, size)
    char *end;
    unsigned int value;
 
-   /* end at second dot. */
+   /* don't bother scanning past second dot. */
    if ((end = strchr(name, '.')) != NULL)
-      end = strchr(end, '.');
-   if (end == NULL)
+      end = strchr(end + 1, '.');
+   if (end == NULL) /* <= one dots in name. */
       end = strchr(name, NUL);
 
    SASSERTX(name <= end);
    value = 0;
-   while (name != end)
-      value = (value << 5) + *name++;   /* MAW - DS&A: Horner's rule. */
+   while (name != end) {
+      value = (value << 5) + *name;   /* MAW - DS&A: Horner's rule. */
+      ++name;
+   }
 
    return value % size;
 }
@@ -675,13 +693,13 @@ addrhash(addr, size)
    return addr % size;
 }
 
-
-static struct hostentry_t *
+static hostentry_t *
 hostentcopy(to, from, maxaliases)
-   struct hostentry_t *to;
+   hostentry_t *to;
    const struct hostent *from;
    const size_t maxaliases;
 {
+   const char *function = "hostentcopy()";
    size_t i;
 
    if (hostentistoobig(from, HOSTENT_MAX_ALIASES))
@@ -697,15 +715,15 @@ hostentcopy(to, from, maxaliases)
       to->_h_aliases[i] = to->_h_aliasesmem[i];
       strcpy(to->_h_aliases[i], from->h_aliases[i]);
    }
+   to->_h_aliases[MIN(i, maxaliases - 1)] = NULL;
+   to->hostent.h_aliases                  = to->_h_aliases;
 
    for (i = 0; i < maxaliases && from->h_addr_list[i] != NULL; ++i) {
       to->_h_addr_list[i] = to->_h_addr_listmem[i];
       memcpy(to->_h_addr_list[i], from->h_addr_list[i], from->h_length);
    }
-
-   to->hostent.h_name      = to->_h_name;
-   to->hostent.h_aliases   = to->_h_aliases;
-   to->hostent.h_addr_list = to->_h_addr_list;
+   to->_h_addr_list[MIN(i, maxaliases - 1)] = NULL;
+   to->hostent.h_addr_list                  = to->_h_addr_list;
 
    return to;
 }

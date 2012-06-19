@@ -43,7 +43,7 @@ if test x"${UPNP}" != xno; then
           AC_DEFINE(HAVE_LIBMINIUPNP, 1, [UPNP support library])
           AC_DEFINE(HAVE_LIBMINIUPNP14, 1, [UPNP support library 1.4])
           unset no_upnp
-	  SOCKDDEPS="${DLIBDEPS}${DLIBDEPS:+ }$UPNPLIB"
+	  SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$UPNPLIB"
 	  DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$UPNPLIB"],
          [AC_MSG_RESULT(no)])
 
@@ -71,9 +71,9 @@ if test x"${UPNP}" != xno; then
 		  AC_DEFINE(HAVE_LIBMINIUPNP, 1, [UPNP support library])
 		  AC_DEFINE(HAVE_LIBMINIUPNP13, 1, [UPNP support library 1.3])
 		  unset no_upnp
-		  SOCKDDEPS="${DLIBDEPS}${DLIBDEPS:+ }$UPNPLIB"
+		  SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$UPNPLIB"
 		  DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$UPNPLIB"],
-	         [AC_MSG_RESULT(no)])
+		 [AC_MSG_RESULT(no)])
 	 fi
     fi
 fi

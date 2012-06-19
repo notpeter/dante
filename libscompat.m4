@@ -1,55 +1,9 @@
 dnl libscompat.m4 - tests related to replacement code in libscompat directory
 
-AC_MSG_CHECKING([for __attribute__ support])
-AC_TRY_RUN([
-#include <stdlib.h>
-
-void errfunc(void) __attribute((noreturn));
-
-void errfunc(void)
-{
-    exit(0);
-}
-
-int main()
-{
-    errfunc();
-}], [AC_MSG_RESULT([yes])],
-    [AC_MSG_RESULT([no])
-     AC_DEFINE(__attribute__(a), , [empty __attribute__ macro])])
-
-AC_MSG_CHECKING([for __printf__ attribute support])
-if test x"$have_suncc" = xt; then
-    AC_MSG_RESULT([disabled for sun cc])
-    AC_DEFINE(format(a,b,c), , [empty format attribute macro])
-else
-    AC_TRY_RUN([
-#include <stdlib.h>
-
-void func(const char *fmt, ...)
-   __attribute__((format(__printf__, 1, 2)));
-
-void func(const char *fmt, ...) {
-     (void)fmt;
-     return;
-}
-
-int main()
-{
-    func("foo");
-    return 0;
-}], [AC_MSG_RESULT([yes])],
-    [AC_MSG_RESULT([no])
-     AC_DEFINE(format(a,b,c), , [empty format attribute macro])])
-fi
-
 AC_MSG_CHECKING([for timer macros])
-AC_TRY_RUN([
-#include <sys/time.h>
-
-int main()
-{
-    struct timeval tv, tv2, tv3;
+AC_TRY_LINK([
+#include <sys/time.h>],
+[struct timeval tv, tv2, tv3;
 
     tv.tv_sec = 0;
     tv.tv_usec = 0;
@@ -59,9 +13,7 @@ int main()
     tv3.tv_usec = 0;
 
     timeradd(&tv, &tv2, &tv3);
-    timersub(&tv3, &tv2, &tv);
-
-    return 0; }],
+    timersub(&tv3, &tv2, &tv);],
 [AC_MSG_RESULT(yes)
  AC_DEFINE(HAVE_TIMER_MACROS, 1, [timeradd(), timersub etc. exist in sys/time.h])],
 [AC_MSG_RESULT(no)])
@@ -87,8 +39,53 @@ memcpy(c, ifr.ifr_hwaddr.sa_data, 1);],
  [AC_MSG_RESULT(no)
   AC_DEFINE(HAVE_SIOCGIFHWADDR, 0, [missing MAC retrieval interface])])
 
+AC_MSG_CHECKING([for fd_mask])
+AC_TRY_COMPILE([
+#if HAVE_SYS_SELECT_H
+#include <sys/select.h>
+#endif /* HAVE_SYS_SELECT_H */
+#include <sys/types.h>
+#include <sys/time.h>
+#include <string.h>
+#include <unistd.h>
+], [fd_mask foo;],
+ [AC_MSG_RESULT(yes)
+  AC_DEFINE(HAVE_FDMASK, 1, [have fd_mask definition])],
+ [AC_MSG_RESULT(no)
+  AC_DEFINE(HAVE_FDMASK, 0, [no fd_mask definition])])
+
+AC_MSG_CHECKING([for CPU_EQUAL])
+AC_TRY_LINK([
+#define _GNU_SOURCE
+#include <sched.h>],
+[   cpu_set_t set1, set2;
+    if (CPU_EQUAL(&set1, &set2))
+       return 0;
+],
+[AC_MSG_RESULT(yes)
+ AC_DEFINE(HAVE_CPU_EQUAL, 1, [CPU_EQUAL exists in sched.h])],
+[AC_MSG_RESULT(no)])
+
+#no replacements for these
+AC_CHECK_FUNCS(processor_bind sched_setscheduler)
+AC_CHECK_HEADERS(sched.h)
+
+AC_MSG_CHECKING([for sched_setaffinity])
+AC_TRY_COMPILE([
+#include <sched.h>
+],
+[   cpu_set_t set1;
+    sched_getaffinity(0, 1, &set1);
+    sched_setaffinity(0, 1, &set1);
+],
+ [AC_MSG_RESULT(yes)
+  AC_DEFINE(HAVE_SCHED_SETAFFINITY, 1, [have sched_setaffinity])],
+ [AC_MSG_RESULT(no)])
+
+AC_CHECK_HEADERS(ifaddrs.h)
+
 AC_CHECK_FUNCS(daemon difftime getifaddrs freeifaddrs hstrerror inet_aton)
-AC_CHECK_FUNCS(inet_pton issetugid memmove seteuid setegid)
+AC_CHECK_FUNCS(inet_pton issetugid memmove pselect seteuid setegid)
 AC_CHECK_FUNCS(setproctitle sockatmark strvis vsyslog)
 AC_CHECK_FUNCS(bzero strlcpy backtrace)
 #inet_ntoa - only checked for incorrect behavior
@@ -114,7 +111,9 @@ int main(void)
 ], [AC_DEFINE(HAVE_BROKEN_INET_NTOA, 1, [platform bug])
     AC_MSG_RESULT(yes)
     ac_cv_func_inet_ntoa=no],
-    AC_MSG_RESULT(no))
+    [AC_MSG_RESULT(no)],
+    [dnl assume working when cross-compiling (rare bug)
+     AC_MSG_RESULT(assuming no)])
 
 if test x${ac_cv_func_sockatmark} = xyes; then
    AC_MSG_CHECKING([for working sockatmark])
@@ -135,14 +134,23 @@ main()
     return 0;
 }], [AC_MSG_RESULT(yes)],
     [AC_MSG_RESULT(no)
+     ac_cv_func_sockatmark=no],
+    [AC_MSG_RESULT(assuming no)
      ac_cv_func_sockatmark=no])
 fi
 
+#XXX
+#if `uname` != OpenBSD; then
+#   ac_cv_func_getifaddrs=no
+#   AC_MSG_WARN([notice: using libscompat getifaddrs() function])
+#fi
+
 #only compile files that are needed
 unset LIBSCSRC
+unset LIBDSCSRC
 for func in daemon difftime getifaddrs hstrerror inet_aton inet_ntoa    \
-            inet_pton issetugid memmove seteuid setproctitle sockatmark \
-            strlcpy strvis vsyslog; do
+            inet_pton issetugid memmove pselect seteuid setproctitle    \
+	    sockatmark strlcpy strvis vsyslog; do
     var=ac_cv_func_${func}
     if test ! -s "libscompat/${func}.c"; then
 	AC_MSG_WARN([error: libscompat file for $func missing])
@@ -150,9 +158,17 @@ for func in daemon difftime getifaddrs hstrerror inet_aton inet_ntoa    \
     fi
     if eval "test x\"\$${var}\" = xno"; then
 	LIBSCSRC="${LIBSCSRC}${LIBSCSRC:+ }${func}.lo"
+	LIBDSCSRC="${LIBDSCSRC}${LIBDSCSRC:+ }libdsocks_la-${func}.lo"
     fi
 done
 AC_SUBST([LIBSCSRC])
+AC_SUBST([LIBDSCSRC])
+if test x"$LIBSCSRC" != x; then
+   SCCOMPATLIB="../libscompat/libscompat.la"
+   LINTSCCOMPATLIB="-lscompat"
+fi
+AC_SUBST([SCCOMPATLIB])
+AC_SUBST([LINTSCCOMPATLIB])
 
 if test x${ac_cv_func_bzero} = xno; then
     AC_DEFINE(bzero(b, len), memset((b), 0, (len)), [bzero replacement])
@@ -176,11 +192,122 @@ int main()
 
 	return 1;
 }],[AC_MSG_RESULT([yes])
-    AC_DEFINE(HAVE_LIBC_ENABLE_SECURE, 1, [linux version of issetugid()])],
-    AC_MSG_RESULT([no]))
+    AC_DEFINE(HAVE_LIBC_ENABLE_SECURE, 1, [Linux version of issetugid()])],
+   [AC_MSG_RESULT([no])],
+   [dnl assume no when cross-compiling
+    AC_MSG_RESULT([assuming no])])
 fi
 ],
 [AC_DEFINE(HAVE_LIBC_ENABLE_SECURE, 0, [not used])])
 if test x"$GLIBCSEC" = xno; then
    AC_DEFINE(HAVE_LIBC_ENABLE_SECURE_DISABLED, 1, [glibc variable disable])
 fi
+
+L_PIPETYPE()
+
+AC_MSG_CHECKING([for FIONREAD socket support])
+AC_TRY_RUN([
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+
+int
+main(void)
+{
+	int bufdat, s;
+
+	if ((s = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+	   perror("socket");
+	   return -1;
+	}
+
+	if (ioctl(s, FIONREAD, &bufdat) == -1) {
+	   perror("ioctl");
+	   return -1;
+	}
+
+	return 0;
+}], [AC_MSG_RESULT(yes)
+     AC_DEFINE(HAVE_RECVBUF_IOCTL, 1, [readable buffer data])
+     AC_DEFINE(RECVBUF_IOCTLVAL, FIONREAD, [readable buffer ioctl])],
+    [AC_MSG_RESULT(no)],
+    [dnl assume no when cross-compiling
+     AC_MSG_RESULT(assuming no)])
+
+AC_MSG_CHECKING([for FIONWRITE socket support])
+AC_TRY_RUN([
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+
+int
+main(void)
+{
+	int bufdat, s;
+
+	if ((s = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+	   perror("socket");
+	   return -1;
+	}
+
+	if (ioctl(s, FIONWRITE, &bufdat) == -1) {
+	   perror("ioctl");
+	   return -1;
+	}
+
+	return 0;
+}], [AC_MSG_RESULT(yes)
+     AC_DEFINE(HAVE_SENDBUF_IOCTL, 1, [send buffer data])
+     AC_DEFINE(SENDBUF_IOCTLVAL, FIONWRITE, [send buffer ioctl])],
+    [AC_MSG_RESULT(no)
+
+     AC_MSG_CHECKING([for TIOCOUTQ socket support])
+     AC_TRY_RUN([
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+
+int
+main(void)
+{
+	int bufdat, s;
+
+	if ((s = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+	   perror("socket");
+	   return -1;
+	}
+
+	if (ioctl(s, TIOCOUTQ, &bufdat) == -1) {
+	   perror("ioctl");
+	   return -1;
+	}
+
+	return 0;
+}], [AC_MSG_RESULT(yes)
+     AC_DEFINE(HAVE_SENDBUF_IOCTL, TIOCOUTQ, [send buffer data])
+     AC_DEFINE(SENDBUF_IOCTLVAL, TIOCOUTQ, [send buffer ioctl])],
+    [AC_MSG_RESULT(no)])],
+    [dnl assume no when cross-compiling
+     AC_MSG_RESULT(no)])
+
+#set to a high value for systems where this is possible
+case $host in
+    *-*-linux-* | *-*-aix*)
+	#nada
+	;;
+
+    *)
+	CPPFLAGS="$CPPFLAGS${CPPFLAGS:+ }-DFD_SETSIZE=65536"
+	;;
+esac
+
+#on most platforms FD_SETSIZE can be ignored
+case $host in
+    *-*-solaris*)
+	AC_DEFINE(FD_SETSIZE_LIMITS_SELECT, 1, [limit to FD_SETSIZE])
+	
+	;;
+    *)
+	AC_DEFINE(FD_SETSIZE_LIMITS_SELECT, 0, [ignore FD_SETSIZE])
+	;;
+esac

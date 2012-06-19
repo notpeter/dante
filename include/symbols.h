@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
+ *               2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +42,7 @@
  *
  */
 
-/* $Id: symbols.h,v 1.9 2011/05/18 13:48:45 karls Exp $ */
+/* $Id: symbols.h,v 1.12 2012/06/01 20:23:05 karls Exp $ */
 
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""
@@ -279,6 +280,10 @@
 #define SYMBOL___VFPRINTF_CHK  SYMBOLPREFIX "__vfprintf_chk"
 #endif /* HAVE___VFPRINTF_CHK */
 
+#if HAVE___READ_CHK
+#define SYMBOL___READ_CHK  SYMBOLPREFIX "__read_chk"
+#endif /* HAVE___READ_CHK */
+
 #if HAVE__IO_GETC
 #define SYMBOL__IO_GETC        SYMBOLPREFIX "_IO_getc"
 #endif /* HAVE__IO_GETC */
@@ -298,6 +303,12 @@
 #define LIBRARY___VFPRINTF_CHK              LIBRARY_LIBC
 #endif /* !LIBRARY___VFPRINTF_CHK */
 #endif /* HAVE___VFPRINTF_CHK */
+
+#if HAVE___READ_CHK
+#ifndef LIBRARY___READ_CHK
+#define LIBRARY___READ_CHK              LIBRARY_LIBC
+#endif /* !LIBRARY___ReAD_CHK */
+#endif /* HAVE___READ_CHK */
 
 #if HAVE__IO_GETC
 #ifndef LIBRARY__IO_GETC
@@ -398,7 +409,7 @@
 
 
 /*
- * additional solaris functions
+ * additional Solaris functions
  */
 
 #ifdef __sun
@@ -412,7 +423,7 @@
 
 
 /*
- * additional darwin symbols
+ * additional Darwin symbols
  */
 
 #if HAVE_DARWIN

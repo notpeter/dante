@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method.c,v 1.9 2011/05/18 13:48:46 karls Exp $";
+"$Id: method.c,v 1.10 2011/09/24 17:44:41 michaels Exp $";
 
 int
 methodisvalid(method, forclientrules)
@@ -144,7 +144,7 @@ methodcanprovide(method, what)
 
 const char *
 authname(auth)
-   const struct authmethod_t *auth;
+   const authmethod_t *auth;
 {
 
    if (auth == NULL)
@@ -188,7 +188,7 @@ authname(auth)
 
 const char *
 authinfo(auth, info, infolen)
-   const struct authmethod_t *auth;
+   const authmethod_t *auth;
    char *info;
    size_t infolen;
 {

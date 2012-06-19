@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008
+ * Copyright (c) 2008, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: upnp.h,v 1.5 2011/07/21 14:09:19 karls Exp $ */
+/* $Id: upnp.h,v 1.6 2012/06/01 20:23:05 karls Exp $ */
 
 #if HAVE_LIBMINIUPNP
 #include <miniupnpc/miniupnpc.h>

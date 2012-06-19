@@ -50,7 +50,7 @@ Additional libraries required to compile programs that use SOCKS.
 
 # This file is embedded here instead of being another source in order
 # to the prefix directory
-cat >sockd.init <<EOF
+%{__cat} >sockd.init <<'EOF'
 #!/bin/sh
 #
 # Init file for the Dante Socks server
@@ -189,7 +189,7 @@ fi
 
 %changelog
 * Tue May 10 2011 Karl-Andre' Skevik <karls@inet.no>
--Integrate some changes from Dat Wieers spec file at:
+-Integrate some changes from Dag Wieers spec file at:
  http://svn.rpmforge.net/svn/trunk/rpms/dante/dante.spec
 
 * Sat Dec 19 2009 Karl-Andre' Skevik <karls@inet.no>

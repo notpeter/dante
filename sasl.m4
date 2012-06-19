@@ -24,49 +24,34 @@ if test x"$SASL" != xno; then
 
    dnl any cflags values obtained from krb5-config?
    if test x"$ac_sasl_cflags" != x; then
-      CPPFLAGS="${CPPFLAGS} $ac_sasl_cflags"
+      CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_sasl_cflags"
    fi
 
-   dnl any libs obtained from krb5-config?
+   dnl extract -L flags
    if test x"$ac_sasl_libs" != x; then
-      dnl XXX assumes required libs start with -l prefix
-      NDEPS=`echo $ac_sasl_libs | xargs -n1 | egrep  '^-l' | xargs echo`
-
-      dnl add as dependency for libdsocks
-      DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$NDEPS"
-
-      NPATH=`echo $ac_sasl_libs | xargs -n1 | egrep  '^-L' | xargs echo`
+      NPATH=`echo $ac_sasl_libs | xargs -n1 | egrep '^-L' | xargs echo`
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }$NPATH"
    fi
 
    dnl look for gssapi headers
    AC_CHECK_HEADERS(sasl.h sasl/sasl.h)
 
-   dnl look for libs
-   oLIBS=$LIBS
-   LIBS=""
-
-   sys=`uname`
-   case $sys in
-      Darwin) ac_lib_sav=$LIBS
-              AC_CHECK_LIB(sasl2,main)
-              LIBS=$ac_lib_sav
-              if test "$ac_cv_lib_sasl2_main" = "yes" ; then
-                 AC_DEFINE(HAVE_SASL_DARWIN,1,[Define to 1 if Mac Darwin without sasl.h])
+   case `uname` in
+      Darwin) ac_lib_sav="$LIBS"
+              AC_CHECK_LIB(sasl2, main)
+	      if test x"$LIBS" != x; then
+                 LIBS="$ac_lib_sav"
+              fi
+              if test x"$ac_cv_lib_sasl2_main" = yes; then
+                 AC_DEFINE(HAVE_SASL_DARWIN, 1, [Define to 1 if Mac Darwin without sasl.h])
               fi
               ;;
    esac
 
    if test x"$ac_cv_header_sasl_h" = xyes ||
       test x"$ac_cv_header_sasl_sasl_h" = xyes ||
-      test x"$ac_cv_lib_sasl2_main" = xyes ; then
+      test x"$ac_cv_lib_sasl2_main" = xyes; then
       unset no_sasl
+      AC_DEFINE(HAVE_SASL, 1, [Have SASL support])
    fi
-
-   dnl add as dependency for libdsocks
-   if test x"${LIBS}" != x; then
-      DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$LIBS"
-   fi
-
-   LIBS="${oLIBS}${oLIBS:+ }$LIBS"
 fi

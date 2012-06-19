@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2006, 2008, 2009,
- *               2010, 2011
+ *               2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,37 +45,41 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.169 2011/07/10 15:00:33 michaels Exp $";
+"$Id: Rbind.c,v 1.177 2012/06/01 20:23:05 karls Exp $";
 
 int
-Rbind(s, name, namelen)
+Rbind(s, _name, namelen)
    int s;
-   const struct sockaddr *name;
+   const struct sockaddr *_name;
    socklen_t namelen;
 {
    const char *function = "Rbind()";
-   struct authmethod_t auth;
-   struct socks_t packet;
-   struct socksfd_t socksfd;
+   authmethod_t auth;
+   socks_t packet;
+   socksfd_t socksfd;
    socklen_t len;
+   struct sockaddr_storage namemem;
+   struct sockaddr *name = TOSA(&namemem);
    int val, rc, flags;
 
    clientinit();
 
+   usrsockaddrcpy(name, _name, sizeof(*name));
+
    slog(LOG_DEBUG, "%s, socket %d, address %s",
-   function, s, sockaddr2string(name, NULL, 0));
+        function, s, sockaddr2string(TOSA(name), NULL, 0));
 
    /*
     * Nothing can be called before Rbind(), delete any old cruft.
     */
    socks_rmaddr(s, 1);
 
-   rc = bind(s, name, namelen);
+   rc = bind(s, TOSA(name), namelen);
    slog(LOG_DEBUG, "%s: local bind returned %d", function, rc);
 
-   if (name->sa_family != AF_INET) {
+   if (TOSA(name)->sa_family != AF_INET) {
       slog(LOG_DEBUG, "%s: socket %d, unsupported af '%d', system fallback",
-      function, s, name->sa_family);
+      function, s, TOSA(name)->sa_family);
 
       return rc;
    }
@@ -93,7 +97,7 @@ Rbind(s, name, namelen)
       switch (errno) {
          case EADDRNOTAVAIL: {
             /* LINTED pointer casts may be troublesome */
-            struct sockaddr_in newname = *TOCIN(name);
+            struct sockaddr_in newname = *TOIN(name);
 
             /*
              * We try to make the client think it's address is the address
@@ -106,7 +110,7 @@ Rbind(s, name, namelen)
 
             newname.sin_addr.s_addr = htonl(INADDR_ANY);
             /* LINTED pointer casts may be troublesome */
-            if (bind(s, (struct sockaddr *)&newname, sizeof(newname)) != 0)
+            if (bind(s, TOSA(&newname), sockaddr2salen(TOSA(&newname))) != 0)
                return -1;
             break;
          }
@@ -122,7 +126,7 @@ Rbind(s, name, namelen)
 
             addrlen = sizeof(addr);
             /* LINTED pointer casts may be troublesome */
-            if (getsockname(s, (struct sockaddr *)&addr, &addrlen) != 0
+            if (getsockname(s, TOSA(&addr), &addrlen) != 0
             ||  addr.sin_port == htons(0)) {
                errno = errno_s;
                return -1;
@@ -132,7 +136,7 @@ Rbind(s, name, namelen)
              * Somehow the socket has been bound locally already,
              * perhaps due to bindresvport(3).
              * Best guess is probably to keep that and attempt a
-             * remote server binding aswell.
+             * remote server binding as well.
              */
             break;
          }
@@ -148,7 +152,7 @@ Rbind(s, name, namelen)
 
    bzero(&socksfd, sizeof(socksfd));
    len = sizeof(socksfd.local);
-   if (getsockname(s, &socksfd.local, &len) != 0) {
+   if (getsockname(s, TOSA(&socksfd.local), &len) != 0) {
       close(socksfd.control);
       return -1;
    }
@@ -159,7 +163,7 @@ Rbind(s, name, namelen)
    bzero(&packet, sizeof(packet));
    packet.req.version        = PROXY_DIRECT;
    packet.req.command        = SOCKS_BIND;
-   packet.req.host.atype     = (unsigned char)SOCKS_ADDR_IPV4;
+   packet.req.host.atype     = SOCKS_ADDR_IPV4;
    packet.req.host.addr.ipv4 = TOIN(&sockscf.state.lastconnect)->sin_addr;
    /* LINTED pointer casts may be troublesome */
    packet.req.host.port      = TOIN(&socksfd.local)->sin_port;
@@ -222,7 +226,7 @@ Rbind(s, name, namelen)
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V5: {
          int portisreserved, haveboundaddr;
-         struct sockaddr saddr;
+         struct sockaddr_storage saddr;
 
          if ((socksfd.control = socketoptdup(s)) == -1)
             return -1;
@@ -234,8 +238,7 @@ Rbind(s, name, namelen)
                 * XXX
                 */
 
-               SASSERTX(packet.req.host.atype
-               == (unsigned char)SOCKS_ADDR_IPV4);
+               SASSERTX(packet.req.host.atype == SOCKS_ADDR_IPV4);
 
                if (packet.req.host.addr.ipv4.s_addr == ntohl(0))
                   portisreserved = PORTISRESERVED(packet.req.host.port);
@@ -273,7 +276,7 @@ Rbind(s, name, namelen)
                             "port locally",
                             function);
 
-            if (bindresvport(socksfd.control, (struct sockaddr_in *)&saddr)
+            if (bindresvport(socksfd.control, TOIN(&saddr))
             == 0)
                haveboundaddr = 1;
             else
@@ -281,13 +284,15 @@ Rbind(s, name, namelen)
                     "%s: failed to locally bind a privileged port "
                     "using address %s.  Errno = %d (%s)",
                     function,
-                    sockaddr2string(&saddr, NULL, 0),
+                    sockaddr2string(TOSA(&saddr), NULL, 0),
                     errno,
                     strerror(errno));
          }
 
          if (!haveboundaddr)
-            if (bind(socksfd.control, &saddr, sizeof(saddr)) != 0) {
+            if (bind(socksfd.control,
+                     TOSA(&saddr),
+                     sockaddr2salen(TOSA(&saddr))) != 0) {
                swarn("%s: failed to bind address for control-socket", function);
                close(socksfd.control);
 
@@ -342,7 +347,7 @@ Rbind(s, name, namelen)
       socksfd.state.protocol.udp = 1;
 
    socksfd.state.version = packet.req.version;
-   sockshost2sockaddr(&packet.res.host, &socksfd.remote);
+   sockshost2sockaddr(&packet.res.host, TOSA(&socksfd.remote));
 
    switch (packet.req.version) {
       case PROXY_SOCKS_V4:
@@ -356,7 +361,7 @@ Rbind(s, name, namelen)
 
             len = sizeof(addr);
             /* LINTED pointer casts may be troublesome */
-            if (getpeername(socksfd.control, (struct sockaddr *)&addr, &len)
+            if (getpeername(socksfd.control, TOSA(&addr), &len)
             != 0)
                SERR(-1);
 
@@ -381,8 +386,8 @@ Rbind(s, name, namelen)
 
    /* did we get the requested port? */
    /* LINTED pointer casts may be troublesome */
-   if (TOCIN(name)->sin_port != htons(0)
-   &&  TOCIN(name)->sin_port != TOIN(&socksfd.remote)->sin_port) { /* no. */
+   if (TOIN(name)->sin_port != htons(0)
+   &&  TOIN(name)->sin_port != TOIN(&socksfd.remote)->sin_port) { /* no. */
       int new_s;
 
       socks_freebuffer(socksfd.control);
@@ -394,7 +399,7 @@ Rbind(s, name, namelen)
           */
          slog(LOG_DEBUG,
          "%s: failed to bind requested port %u on gateway, \"unbinding\"",
-         function, ntohs(TOCIN(name)->sin_port));
+         function, ntohs(TOIN(name)->sin_port));
 
          close(socksfd.control);
       }
@@ -411,7 +416,7 @@ Rbind(s, name, namelen)
 
    if (socksfd.control != s) {
       len = sizeof(socksfd.server);
-      if (getpeername(socksfd.control, &socksfd.server, &len) != 0) {
+      if (getpeername(socksfd.control, TOSA(&socksfd.server), &len) != 0) {
          if (socksfd.control != s)
             close(socksfd.control);
          return -1;
@@ -441,7 +446,7 @@ Rbind(s, name, namelen)
       socksfd.control = s;
 
       len = sizeof(socksfd.local);
-      if (getsockname(s, &socksfd.local, &len) != 0) {
+      if (getsockname(s, TOSA(&socksfd.local), &len) != 0) {
          swarn("getsockname(s) failed");
          close(socksfd.control);
          socks_freebuffer(socksfd.control);

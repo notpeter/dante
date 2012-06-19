@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011
+ *               2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,21 +45,23 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.217 2011/08/01 12:23:39 michaels Exp $";
+"$Id: udp.c,v 1.232 2012/06/01 20:23:05 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
-Rsendto(s, msg, len, flags, to, tolen)
+Rsendto(s, msg, len, flags, _to, tolen)
    int s;
    const void *msg;
    size_t len;
    int flags;
-   const struct sockaddr *to;
+   const struct sockaddr *_to;
    socklen_t tolen;
 {
    const char *function = "Rsendto()";
-   struct socksfd_t socksfd, *p;
-   struct sockshost_t tohost;
+   struct sockaddr_storage tomem;
+   struct sockaddr *to;
+   socksfd_t socksfd, *p;
+   sockshost_t tohost;
    size_t nlen;
    ssize_t n;
    char srcstring[MAXSOCKADDRSTRING], dststring[sizeof(srcstring)];
@@ -67,9 +69,18 @@ Rsendto(s, msg, len, flags, to, tolen)
 
    clientinit();
 
+   if (_to == NULL)
+      to = NULL;
+   else {
+      to = TOSA(&tomem);
+      usrsockaddrcpy(TOSA(to), _to, sizeof(*to));
+   }
+
    slog(LOG_DEBUG, "%s: socket %d, len %lu, address %s",
-   function, s, (long unsigned)len,
-   to == NULL ? "NULL" : sockaddr2string(to, NULL, 0));
+                    function,
+                    s,
+                    (long unsigned)len,
+                    to == NULL ? "NULL" : sockaddr2string(to, NULL, 0));
 
    if (to != NULL && to->sa_family != AF_INET) {
       slog(LOG_DEBUG, "%s: unsupported address family '%d', system fallback",
@@ -118,8 +129,8 @@ Rsendto(s, msg, len, flags, to, tolen)
 
          slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)",
          function, protocol2string(SOCKS_TCP),
-         sockaddr2string(&socksfd.local, dststring, sizeof(dststring)),
-         sockaddr2string(&socksfd.server, srcstring, sizeof(srcstring)),
+         sockaddr2string(TOSA(&socksfd.local), dststring, sizeof(dststring)),
+         sockaddr2string(TOSA(&socksfd.server), srcstring, sizeof(srcstring)),
          (long)n);
 
          return n;
@@ -143,18 +154,21 @@ Rsendto(s, msg, len, flags, to, tolen)
       return -1;
 
    n = socks_sendto(s, nmsg, nlen, flags,
-                    socksfd.state.udpconnect ? NULL : &socksfd.reply,
+                    socksfd.state.udpconnect ? NULL :
+                        TOSA(&socksfd.reply),
                     socksfd.state.udpconnect ?
-                        (socklen_t)0 : sizeof(socksfd.reply),
+                        (socklen_t)0 : sockaddr2salen(TOSA(&socksfd.reply)),
                     &socksfd.state.auth);
 
    n -= (ssize_t)(nlen - len);
 
    slog(LOG_DEBUG, "%s: %s: %s -> %s (%lu)",
                    function, protocol2string(SOCKS_UDP),
-                   sockaddr2string(&socksfd.local, dststring,
+                   sockaddr2string(TOSA(&socksfd.local),
+                                   dststring,
                                    sizeof(dststring)),
-                   sockaddr2string(&socksfd.reply, srcstring,
+                   sockaddr2string(TOSA(&socksfd.reply),
+                                   srcstring,
                                    sizeof(srcstring)),
                    (unsigned long)n);
 
@@ -171,10 +185,10 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
    socklen_t *fromlen;
 {
    const char *function = "Rrecvfrom()";
-   struct socksfd_t socksfd;
-   struct udpheader_t header;
-   struct route_t *route;
-   struct sockaddr newfrom;
+   socksfd_t socksfd;
+   udpheader_t header;
+   route_t *route;
+   struct sockaddr_storage newfrom;
    socklen_t newfromlen;
    char srcstring[MAXSOCKADDRSTRING], dststring[sizeof(srcstring)], *newbuf;
    size_t newlen;
@@ -212,7 +226,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
    }
 
    if (socksfd.state.protocol.tcp) {
-      const struct sockshost_t *forus;
+      const sockshost_t *forus;
 
       if (socksfd.state.err != 0) {
          errno = socksfd.state.err;
@@ -225,8 +239,16 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
          }
       }
 
-      n = socks_recvfromn(s, buf, len, 0, flags, from, fromlen,
-      &socksfd.state.auth);
+      n = socks_recvfromn(s,
+                          buf,
+                          len,
+                          0,
+                          flags,
+                          from,
+                          fromlen,
+                          &socksfd.state.auth,
+                          NULL,
+                          NULL);
 
       switch (socksfd.state.command) {
          case SOCKS_CONNECT:
@@ -236,7 +258,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
          case SOCKS_BIND:
             forus = &socksfd.forus.accepted;
 
-            if (forus->atype == (unsigned char)SOCKS_ADDR_NOTSET) {
+            if (forus->atype == SOCKS_ADDR_NOTSET) {
                swarnx("%s: strange ... trying to read from socket %d, "
                       "which is for bind, but no bind-reply received yet ...",
                       function, s);
@@ -253,7 +275,7 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
            protocol2string(SOCKS_TCP),
            forus == NULL ?
                "<NULL>" : sockshost2string(forus, srcstring, sizeof(srcstring)),
-           sockaddr2string(&socksfd.local, dststring, sizeof(dststring)),
+           sockaddr2string(TOSA(&socksfd.local), dststring, sizeof(dststring)),
            (long)n,
            strerror(errno));
 
@@ -262,7 +284,10 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 
    SASSERTX(socksfd.state.protocol.udp);
 
-   /* udp.  If packet is from socks server it will be prefixed with a header. */
+   /*
+    * udp.  If packet is from socks server it will be prefixed with a header,
+    * so make sure we have room for it.
+    */
    newlen = len + sizeof(header);
    if ((newbuf = malloc(sizeof(*newbuf) * newlen)) == NULL) {
       errno = ENOBUFS;
@@ -270,65 +295,87 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
    }
 
    newfromlen = sizeof(newfrom);
-   if ((n = socks_recvfrom(s, newbuf, newlen, flags, &newfrom, &newfromlen,
-   &socksfd.state.auth)) == -1) {
+   if ((n = socks_recvfrom(s,
+                           newbuf,
+                           newlen,
+                           flags,
+                           TOSA(&newfrom),
+                           &newfromlen,
+                           &socksfd.state.auth,
+                           NULL,
+                           NULL)) == -1) {
       free(newbuf);
       return n;
    }
    SASSERTX(newfromlen > 0);
 
-   if (sockaddrareeq(&newfrom, &socksfd.reply)) { /* from socks server. */
+   if (sockaddrareeq(TOSA(&newfrom), TOSA(&socksfd.reply))) {
+      /*
+       * from socks server.
+       */
+
       if (string2udpheader(newbuf, (size_t)n, &header) == NULL) {
          char badfrom[MAXSOCKADDRSTRING];
 
          swarnx("%s: unrecognized socks udp packet from %s",
-         function, sockaddr2string(&newfrom, badfrom, sizeof(badfrom)));
+         function, sockaddr2string(TOSA(&newfrom), badfrom, sizeof(badfrom)));
 
          errno = EAGAIN;
          free(newbuf);
          return -1;
       }
 
+      slog(LOG_DEBUG, "%s: server says udp packet is from %s",
+           function, sockshost2string(&header.host, NULL, 0));
+
       /* replace "newfrom" with the address socks server says packet is from. */
-      fakesockshost2sockaddr(&header.host, &newfrom);
+      fakesockshost2sockaddr(&header.host, TOSA(&newfrom));
 
       /* callee doesn't want socks header. */
       n -= (ssize_t)PACKETSIZE_UDP(&header);
       SASSERTX(n >= 0);
       memcpy(buf, &newbuf[PACKETSIZE_UDP(&header)], MIN(len, (size_t)n));
    }
-   else /* ordinary udp packet, not from socks server. */
+   else {
+      char p[MAXSOCKADDRSTRING];
+
+      slog(LOG_DEBUG, "%s: packet is from %s, not from the proxy server (%s)",
+           function,
+           sockaddr2string(TOSA(&newfrom), NULL, 0),
+           sockaddr2string(TOSA(&socksfd.reply), p, sizeof(p)));
+
       memcpy(buf, newbuf, MIN(len, (size_t)n));
+   }
 
    free(newbuf);
 
    slog(LOG_DEBUG, "%s: %s: %s -> %s (%ld)",
         function, protocol2string(SOCKS_UDP),
-        sockaddr2string(&newfrom, srcstring, sizeof(srcstring)),
-        sockaddr2string(&socksfd.local, dststring, sizeof(dststring)),
+        sockaddr2string(TOSA(&newfrom), srcstring, sizeof(srcstring)),
+        sockaddr2string(TOSA(&socksfd.local), dststring, sizeof(dststring)),
         (long)n);
 
    if (from != NULL) {
       *fromlen = MIN(*fromlen, newfromlen);
-      memcpy(from, &newfrom, (size_t)*fromlen);
+      sockaddrcpy(from, TOSA(&newfrom), (size_t)*fromlen);
    }
 
    return MIN(len, (size_t)n);
 }
 
-struct route_t *
+route_t *
 udpsetup(s, to, type)
    int s;
    const struct sockaddr *to;
    int type;
 {
    const char *function = "udpsetup()";
-   static struct route_t directroute;
-   struct socksfd_t socksfd;
-   struct authmethod_t auth;
-   struct socks_t packet;
-   struct sockshost_t src, dst;
-   struct sockaddr addr;
+   static route_t directroute;
+   socksfd_t socksfd;
+   authmethod_t auth;
+   socks_t packet;
+   sockshost_t src, dst;
+   struct sockaddr_storage addr;
    socklen_t len;
    int shouldconnect = 0;
 
@@ -341,27 +388,32 @@ udpsetup(s, to, type)
    /*
     * we need to send the socks server our address.
     * First check if the socket already has a name, if so
-    * use that, otherwise assign the name ourselves.
+    * use that, otherwise assign the name ourselves before informing the
+    * socks server.
     */
    bzero(&socksfd, sizeof(socksfd));
    len = sizeof(socksfd.local);
-   if (getsockname(s, &socksfd.local, &len) != 0)
+   if (getsockname(s, TOSA(&socksfd.local), &len) != 0)
       return &directroute;
 
-   switch (socksfd.local.sa_family) {
+   switch (TOSA(&socksfd.local)->sa_family) {
       case AF_INET:
          break;
 
       default:
-         slog(LOG_DEBUG, "%s: unsupported af %d",
-              function, socksfd.local.sa_family);
+         slog(LOG_DEBUG, "%s: unsupported af %d, going direct",
+              function, TOSA(&socksfd.local)->sa_family);
 
          return &directroute;
    }
-   sockaddr2sockshost(&socksfd.local, &src);
+   sockaddr2sockshost(TOSA(&socksfd.local), &src);
 
-   slog(LOG_DEBUG, "%s: socket %d, type = %s",
-   function, s, type == SOCKS_RECV ? "receive" : "send");
+   slog(LOG_DEBUG, "%s: socket %d, type = %s, to = %s",
+                   function,
+                   s,
+                   type == SOCKS_RECV ? "receive" : "send",
+                   (to == NULL || type == SOCKS_RECV) ?
+                        "N/A" : sockaddr2string(to, NULL, 0));
 
    if (socks_addrisours(s, &socksfd, 1)) {
       slog(LOG_DEBUG, "%s: route already setup for socket %d", function, s);
@@ -399,7 +451,7 @@ udpsetup(s, to, type)
              * but not been caught by us?
              */
             socklen_t addrlen = sizeof(addr);
-            if (getpeername(s, &addr, &addrlen) == 0) {
+            if (getpeername(s, TOSA(&addr), &addrlen) == 0) {
                int val;
 
                len = sizeof(val);
@@ -415,10 +467,11 @@ udpsetup(s, to, type)
                      break;
 
                   case SOCK_STREAM:
-                     slog(LOG_INFO,
-                          "%s: socket %d is unknown, but has a stream "
-                          "peer (%s), returning direct route",
-                          function, s, sockaddr2string(&addr, NULL, 0));
+                     slog(LOG_INFO, "%s: socket %d is unknown, but has a "
+                                    "stream peer (%s).  Returning direct route",
+                                    function,
+                                    s,
+                                    sockaddr2string(TOSA(&addr), NULL, 0));
 
                      return &directroute;
 
@@ -430,9 +483,9 @@ udpsetup(s, to, type)
                slog(LOG_DEBUG,
                     "%s: socket %d is unknown, but has a datagram peer (%s).  "
                     "Trying to accommodate ... ",
-                    function, s, sockaddr2string(&addr, NULL, 0));
+                    function, s, sockaddr2string(TOSA(&addr), NULL, 0));
 
-               to            = &addr;
+               to            = TOSA(&addr);
                shouldconnect = 1;
             }
             else {
@@ -474,13 +527,13 @@ udpsetup(s, to, type)
 
    if (packet.req.version == PROXY_DIRECT) {
       slog(LOG_DEBUG, "%s: using direct system calls for socket %d",
-      function, s);
+           function, s);
 
       return &directroute;
    }
 
    slog(LOG_DEBUG, "%s: socket %d, need to set up a new session for send",
-   function, s);
+        function, s);
 
    /* only ones we support udp via. */
    switch (packet.version = packet.req.version) {
@@ -499,8 +552,10 @@ udpsetup(s, to, type)
          SERRX(packet.version);
    }
 
-   if ((socksfd.route
-   = socks_connectroute(socksfd.control, &packet, &src, &dst)) == NULL) {
+   if ((socksfd.route = socks_connectroute(socksfd.control,
+                                           &packet,
+                                           &src,
+                                           &dst)) == NULL) {
       close(socksfd.control);
       return NULL;
    }
@@ -509,15 +564,16 @@ udpsetup(s, to, type)
    &&  !PORTISBOUND(TOIN(&socksfd.local))) {
       /*
        * local addr not fixed, so set it.  Port may remain unbound, but
-       * we would like to bind the ip so we can tell it to the socks-server.
+       * we would like to at least bind the ip so we can tell it to the
+       * socks-server.  If binding, might as well bind both.
        */
 
       /*
-       * don't have much of an idea on what IP address to use so might as
-       * well use same as tcp connection to socks server uses.
+       * don't have much of an idea on what IP address to use so
+       * use the same address as the tcp connection to socks server uses.
        */
       len = sizeof(socksfd.local);
-      if (getsockname(socksfd.control, &socksfd.local, &len) != 0) {
+      if (getsockname(socksfd.control, TOSA(&socksfd.local), &len) != 0) {
          swarn("%s: getsockname(socksfd.control)", function);
 
          close(socksfd.control);
@@ -526,15 +582,16 @@ udpsetup(s, to, type)
       /* LINTED  pointer casts may be troublesome */
       TOIN(&socksfd.local)->sin_port = htons(0);
 
-      if (bind(s, &socksfd.local, sizeof(socksfd.local)) != 0) {
-         swarn("%s: bind(%s)", function,
-         sockaddr2string(&socksfd.local, NULL, 0));
+      if (bind(s, TOSA(&socksfd.local), sockaddr2salen(TOSA(&socksfd.local)))
+      != 0) {
+         swarn("%s: bind(%d, %s)",
+                function, s, sockaddr2string(TOSA(&socksfd.local), NULL, 0));
 
          close(socksfd.control);
          return NULL;
       }
 
-      if (getsockname(s, &socksfd.local, &len) != 0) {
+      if (getsockname(s, TOSA(&socksfd.local), &len) != 0) {
          swarn("%s: getsockname(s)", function);
 
          close(socksfd.control);
@@ -542,7 +599,7 @@ udpsetup(s, to, type)
       }
    }
 
-   sockaddr2sockshost(&socksfd.local, &packet.req.host);
+   sockaddr2sockshost(TOSA(&socksfd.local), &packet.req.host);
 
    if (socks_negotiate(s, socksfd.control, &packet, socksfd.route) != 0) {
       close(socksfd.control);
@@ -555,12 +612,12 @@ udpsetup(s, to, type)
    socksfd.state.protocol.udp    = 1;
 
    if (socksfd.state.version == PROXY_UPNP)
-      sockshost2sockaddr(&packet.res.host, &socksfd.remote);
+      sockshost2sockaddr(&packet.res.host, TOSA(&socksfd.remote));
    else {
-      sockshost2sockaddr(&packet.res.host, &socksfd.reply);
+      sockshost2sockaddr(&packet.res.host, TOSA(&socksfd.reply));
 
       len = sizeof(socksfd.server);
-      if (getpeername(socksfd.control, &socksfd.server, &len) != 0) {
+      if (getpeername(socksfd.control, TOSA(&socksfd.server), &len) != 0) {
          swarn("%s: getpeername()", function);
          close(socksfd.control);
          return NULL;
@@ -573,10 +630,12 @@ udpsetup(s, to, type)
    }
 
    if (socksfd.state.version == PROXY_UPNP) {
-      close(socksfd.control); /* is a one-time thing, nothing more expected.  */
+      /*
+       * is a one-time thing, nothing more expected on the control socket
+       * and no need to keep it open any longer.
+       */
+      close(socksfd.control);
       socksfd.control = s;
-
-      return socksfd.route;
    }
 
    if (socks_addaddr(s, &socksfd, 1) == NULL) {

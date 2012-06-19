@@ -1,7 +1,7 @@
-.\" $Id: socks.conf.5,v 1.67 2011/07/06 07:57:44 michaels Exp $
+.\" $Id: socks.conf.5,v 1.70 2012/06/01 20:23:05 karls Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2008, 2009, 2010,
-.\"               2011
+.\"               2011, 2012
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,7 @@
 .\"  Software Distribution Coordinator  or  sdc@inet.no
 .\"  Inferno Nettverk A/S
 .\"  Oslo Research Park
-.\"  Gaustadalléen 21
+.\"  Gaustadalleen 21
 .\"  NO-0349 Oslo
 .\"  Norway
 .\"
@@ -136,7 +136,8 @@ Can be used instead of, or to complement, \fBprotocol\fP.
 Which encryption to enforce for GSSAPI-authenticated communication.
 Possible values are \fBclear\fP, \fBintegrity\fP, or \fBconfidentiality\fP.
 The default is to try for confidentially, but accept whatever the
-server offers.
+server offers except \fBclear\fP, as \fBclear\fP is not part of the
+SOCKS GSSAPI standard.
 .IP \fBgssapi.servicename\fP
 Which servicename to use when involving GSSAPI.  Default is "rcmd".
 

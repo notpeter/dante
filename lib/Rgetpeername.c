@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
+ *               2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetpeername.c,v 1.48 2011/05/18 13:48:45 karls Exp $";
+"$Id: Rgetpeername.c,v 1.53 2012/06/01 20:23:05 karls Exp $";
 
 int
 Rgetpeername(s, name, namelen)
@@ -53,8 +54,8 @@ Rgetpeername(s, name, namelen)
    socklen_t *namelen;
 {
    const char *function = "Rgetpeername()";
-   struct socksfd_t socksfd;
-   struct sockaddr addr;
+   socksfd_t socksfd;
+   struct sockaddr_storage addr;
 
    clientinit();
 
@@ -68,7 +69,7 @@ Rgetpeername(s, name, namelen)
 
    switch (socksfd.state.command) {
       case SOCKS_BIND:
-         fakesockshost2sockaddr(&socksfd.forus.accepted, &addr);
+         fakesockshost2sockaddr(&socksfd.forus.accepted, TOSA(&addr));
          break;
 
       case SOCKS_CONNECT:
@@ -77,7 +78,7 @@ Rgetpeername(s, name, namelen)
             return -1;
          }
 
-         fakesockshost2sockaddr(&socksfd.forus.connected, &addr);
+         fakesockshost2sockaddr(&socksfd.forus.connected, TOSA(&addr));
          break;
 
       case SOCKS_UDPASSOCIATE:
@@ -86,16 +87,15 @@ Rgetpeername(s, name, namelen)
             return -1;
          }
 
-         fakesockshost2sockaddr(&socksfd.forus.connected, &addr);
+         fakesockshost2sockaddr(&socksfd.forus.connected, TOSA(&addr));
          break;
 
       default:
          SERRX(socksfd.state.command);
    }
 
-
-   *namelen = MIN(*namelen, (socklen_t)sizeof(addr));
-   memcpy(name, &addr, (size_t)*namelen);
+   *namelen = MIN(*namelen, sockaddr2salen(TOSA(&addr)));
+   sockaddrcpy(name, TOSA(&addr), (size_t)*namelen);
 
    return 0;
 }

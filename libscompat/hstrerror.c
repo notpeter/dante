@@ -1,4 +1,4 @@
-/* $Id: hstrerror.c,v 1.11 2009/10/28 09:33:23 karls Exp $ */
+/* $Id: hstrerror.c,v 1.12 2011/08/16 11:50:14 karls Exp $ */
 
 /*
  * Copyright (c) 2009
@@ -42,10 +42,6 @@
  * the rights to redistribute these changes.
  *
  */
-
-#ifdef HAVE_CONFIG_H
-#include "autoconf.h"
-#endif /* HAVE_CONFIG_H */
 
 #include <netdb.h>
 

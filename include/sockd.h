@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011
+ *               2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,10 +42,14 @@
  *
  */
 
-/* $Id: sockd.h,v 1.497 2011/08/04 08:18:17 michaels Exp $ */
+/* $Id: sockd.h,v 1.601 2012/06/01 20:23:05 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
+
+#if HAVE_SCHED_H
+#include <sched.h>
+#endif /* HAVE_SCHED_H */
 
 #if HAVE_SOLARIS_PRIVS
 #include <priv.h>
@@ -53,27 +57,29 @@
 
 #include <sys/types.h>
 #include <sys/ipc.h>
+#if HAVE_SYS_SHM_H
 #include <sys/shm.h>
+#endif /* HAVE_SYS_SHM_H */
 
 #include <regex.h>
 
 
 /*
  * number of seconds a to wait for a connect initiated on behalf of a
- * client to complete.  Can be changed in configfile.
+ * client to complete.  Can be changed in the config file.
  */
 #define SOCKD_CONNECTTIMEOUT   (30)
 
 
 /*
  * number of seconds a client can negotiate with server.
- * Can be changed in configfile.
+ * Can be changed in the config file.
  */
 #define SOCKD_NEGOTIATETIMEOUT   (30)
 
 /*
  * number of seconds a client can be connected after negotiation is completed
- * without sending/receiving any data.  Can be changed in configfile.
+ * without sending/receiving any data.  Can be changed in the config file.
  */
 #define SOCKD_IOTIMEOUT_TCP          (86400) /* 24h */
 
@@ -84,7 +90,7 @@
 #endif
 
 /*
- * This is to handle a potentioal resource issue that can occur
+ * This is to handle a potential resource issue that can occur
  * in TCP when side 'A' of the TCP session closes it's end, but
  * the other end, side 'B', does not close it's end.  In this
  * situation, TCP will be forced to keep state for the TCP session
@@ -101,7 +107,7 @@
  * keep state for these sessions, which in 99.999% of the cases could
  * probably be closed as B will not send anything more.
  *
- * The default therfor is to not enable this "feature".
+ * The default therefor is to not enable this "feature".
  */
 #define SOCKD_FIN_WAIT_2_TIMEOUT  (0) /* Seconds.  Set to 0 to disable. */
 
@@ -123,9 +129,9 @@
  * Depending on what kind of server we are, we will have different
  * phases to go through before we get to the i/o part.  This is
  * where we try to define the name of some generic phases, to reduce
- * the number of product-spesific defines in the code.
+ * the number of product-specific defines in the code.
  *
- * Also we provivide wrappers to avoid linkage errors for functions that
+ * Also we provide wrappers to avoid linkage errors for functions that
  * are not used in different servers, to limit the amount of #ifdef's
  * in the code itself.
  */
@@ -134,19 +140,19 @@
 
 #define HAVE_NEGOTIATE_PHASE              (0)
 #define HAVE_UDP_SUPPORT                  (1)
-#define HAVE_TWO_LEVEL_ACL                (0)
+#define HAVE_SOCKS_RULES                  (0)
 
 #elif SOCKS_SERVER
 
 #define HAVE_NEGOTIATE_PHASE              (1)
 #define HAVE_UDP_SUPPORT                  (1)
-#define HAVE_TWO_LEVEL_ACL                (1)
+#define HAVE_SOCKS_RULES                  (1)
 
 #elif COVENANT
 
 #define HAVE_NEGOTIATE_PHASE              (1)
 #define HAVE_UDP_SUPPORT                  (0)
-#define HAVE_TWO_LEVEL_ACL                (0)
+#define HAVE_SOCKS_RULES                  (1)
 
 #else
 
@@ -155,7 +161,7 @@
 #endif
 
 
-/* if state is mainained per address, memory for for client addresses. */
+/* if state is maintained per address, memory for for client addresses. */
 #define STATEADDRESSES_PER_RULE        64
 
 
@@ -172,10 +178,12 @@
 #endif /* BAREFOOTD */
 
 /* use caching versions directly, avoid overhead. */
+#ifndef DISABLE_GETHOSTBYNAME_CACHE
 #undef gethostbyname
 #define gethostbyname(name)            cgethostbyname(name)
 #undef gethostbyaddr
 #define gethostbyaddr(addr, len, type) cgethostbyaddr(addr, len, type)
+#endif /* DISABLE_GETHOSTBYNAME_CACHE */
 
 /* Search for POSIX groups */
 #define DEFAULT_LDAP_FILTER_GROUP "(&(memberuid=%s)(objectclass=posixgroup))"
@@ -204,9 +212,17 @@
  * Returns the number of bytes left to read.
  */
 
-#define READ(s, length, auth)   \
-   (socks_recvfromn((s), &state->mem[state->reqread], (length), 0, \
-                    0, NULL, NULL, (auth)))
+#define READ(s, length, auth)                    \
+   (socks_recvfromn((s),                         \
+                    &state->mem[state->reqread], \
+                    (length),                    \
+                    0,                           \
+                    0,                           \
+                    NULL,                        \
+                    NULL,                        \
+                    (auth),                      \
+                    NULL,                        \
+                    NULL))
 /*
  * "s" is the descriptor to read from.
  * "length" is how much to read.
@@ -290,32 +306,48 @@ do {                                                           \
 
 /*
  * Unuses (decrements by one) any shared memory in use by "rule",
- * indicating one client-session has been closed, and then detaches from it.
+ * indicating one client-session has been closed, and if necessary,
+ * temporarily attaches and detaches from the shmem segments to do it.
+ *
+ * If "detachfrom" is set, it will permanently detach from "detachfrom"
+ * segments.
  */
-#define SHMEM_UNUSE(rule, addr, lock)                                          \
+#define SHMEM_UNUSE(rule, addr, lock, detachfrom)                              \
 do {                                                                           \
-   int need_attach = 0, need_detach = 0;                                       \
+   int need_attach = 0;                                                        \
                                                                                \
-   if ((rule)->bw_shmid != 0) {                                                \
-      need_detach |= SHMEM_BW;                                                 \
+   if ((rule)->bw_shmid != 0 && (rule)->bw == NULL)                            \
+      need_attach |= SHMEM_BW;                                                 \
                                                                                \
-      if ((rule)->bw == NULL)                                                  \
-         need_attach |= SHMEM_BW;                                              \
+   if ((rule)->ss_shmid != 0  && (rule)->ss == NULL)                           \
+      need_attach |= SHMEM_SS;                                                 \
+                                                                               \
+   if (need_attach != 0)                                                       \
+      sockd_shmat((rule), need_attach);                                        \
+                                                                               \
+   if ((rule)->bw != NULL) {                                                   \
+      slog(LOG_DEBUG, "%s: unusing bw_shmid %ld at %p, addr %s, clients %ld",  \
+           function,                                                           \
+           (long)(rule)->bw_shmid,                                             \
+           (rule)->bw,                                                         \
+           sockaddr2string((addr), NULL, 0),                                   \
+           (long)(rule)->bw->mstate.clients);                                  \
+                                                                               \
+      bw_unuse((rule)->bw, lock);                                              \
    }                                                                           \
                                                                                \
-   if ((rule)->ss_shmid != 0) {                                                \
-      need_detach |= SHMEM_SS;                                                 \
+   if ((rule)->ss != NULL) {                                                   \
+      slog(LOG_DEBUG, "%s: unusing ss_shmid %ld, addr %s, clients %ld",        \
+           function,                                                           \
+           (long)(rule)->ss_shmid,                                             \
+           sockaddr2string((addr), NULL, 0),                                   \
+           (long)(rule)->ss->mstate.clients);                                  \
                                                                                \
-      if ((rule)->ss == NULL)                                                  \
-         need_attach |= SHMEM_SS;                                              \
+      session_unuse((rule)->ss, lock);                                         \
    }                                                                           \
                                                                                \
-   sockd_shmat((rule), need_attach);                                           \
-                                                                               \
-   bw_unuse((rule)->bw, lock);                                                 \
-   session_unuse((rule)->ss, lock);                                            \
-                                                                               \
-   sockd_shmdt((rule), need_detach);                                           \
+   if ((need_attach | (detachfrom)) != 0)                                      \
+      sockd_shmdt((rule), need_attach | (detachfrom));                         \
 } while (/*CONSTCOND*/0)
 
 /*
@@ -324,7 +356,7 @@ do {                                                                           \
 #define SHMEM_CLEAR(rule, idtoo)                                               \
 do {                                                                           \
    (rule)->bw    = (rule)->ss    = NULL;                                       \
-   (rule)->bw_fd = (rule)->ss_fd = 0;                                          \
+   (rule)->bw_fd = (rule)->ss_fd = -1;                                         \
                                                                                \
    if (idtoo)                                                                  \
       (rule)->bw_shmid = (rule)->ss_shmid = 0;                                 \
@@ -336,88 +368,46 @@ do {                                                                           \
  * something.
  */
 #define MAX_IOLOGADDR                                                          \
-   MAXSOCKADDRSTRING  + sizeof(" ")                  /* local */               \
+  (MAXSOCKADDRSTRING  + sizeof(" ")                  /* local */               \
  + MAXAUTHINFOLEN + MAXSOCKSHOSTSTRING + sizeof(" ") /* proxy */               \
  + MAXSOCKSHOSTSTRING + sizeof(" ")                  /* proxy's ext addr. */   \
- + MAXAUTHINFOLEN + MAXSOCKSHOSTSTRING               /* peer  */
+ + MAXAUTHINFOLEN + MAXSOCKSHOSTSTRING + sizeof(" ") /* peer  */               \
+ + (MAXSOCKADDRSTRING + sizeof(" ") * HAVE_MAX_HOSTIDS))
 
-#define BUILD_ADDRSTR_SRC(peer, proxy_ext, proxy, local,                       \
-                          peerauth, proxyauth, str, len)                       \
-do {                                                                           \
-   struct sockshost_t p;                                                       \
-   char peerstr[MAXSOCKSHOSTSTRING], peerauthstr[MAXAUTHINFOLEN],              \
-        proxyauthstr[MAXAUTHINFOLEN], pstr[MAXSOCKSHOSTSTRING],                \
-        pe_str[MAXSOCKSHOSTSTRING], lstr[MAXSOCKSHOSTSTRING];                  \
-                                                                               \
-   snprintf((str), (len),                                                      \
-            "%s%s "                                                            \
-            "%s%s"                                                             \
-            "%s%s%s"                                                           \
-            "%s",                                                              \
-                                                                               \
-            authinfo((peerauth), peerauthstr, sizeof(peerauthstr)),            \
-            (peer) == NULL ?                                                   \
-            "0.0.0.0.0" : sockshost2string((peer), peerstr, sizeof(peerstr)),  \
-                                                                               \
-            (proxy_ext) == NULL ?                                              \
-               "" : sockshost2string((proxy_ext), pe_str, sizeof(pe_str)),     \
-            (proxy_ext) == NULL ? "" : " ",                                    \
-                                                                               \
-            authinfo((proxyauth), proxyauthstr, sizeof(proxyauthstr)),         \
-            (proxy) == NULL ?                                                  \
-             "" : sockshost2string(gwaddr2sockshost((proxy), &p),              \
-                                   pstr,                                       \
-                                   sizeof(pstr)),                              \
-            (proxy) == NULL ? "" : " ",                                        \
-                                                                               \
-            (local) == NULL ?                                                  \
-            "0.0.0.0.0" : sockaddr2string((local), lstr, sizeof(lstr)));       \
-} while (/* CONSTCOND */ 0)
+#if HAVE_SOCKS_HOSTID
 
-#define BUILD_ADDRSTR_DST(local, proxy, proxy_ext, peer,                       \
-                          peerauth, proxyauth, str, len)                       \
-do {                                                                           \
-   struct sockshost_t p;                                                       \
-   char peerstr[MAXSOCKSHOSTSTRING], peerauthstr[MAXAUTHINFOLEN],              \
-        proxyauthstr[MAXAUTHINFOLEN], pstr[MAXSOCKSHOSTSTRING],                \
-        pe_str[MAXSOCKSHOSTSTRING], lstr[MAXSOCKSHOSTSTRING];                  \
-                                                                               \
-   snprintf((str), (len),                                                      \
-            "%s "                                                              \
-            "%s%s%s"                                                           \
-            "%s%s"                                                             \
-            "%s%s",                                                            \
-                                                                               \
-            (local) == NULL ?                                                  \
-            "0.0.0.0.0" : sockaddr2string((local), lstr, sizeof(lstr)),        \
-                                                                               \
-            authinfo((proxyauth), proxyauthstr, sizeof(proxyauthstr)),         \
-            (proxy) == NULL ?                                                  \
-             "" : sockshost2string(gwaddr2sockshost((proxy), &p),              \
-                                   pstr,                                       \
-                                   sizeof(pstr)),                              \
-            (proxy) == NULL ? "" : " ",                                        \
-                                                                               \
-            (proxy_ext) == NULL ?                                              \
-               "" : sockshost2string((proxy_ext), pe_str, sizeof(pe_str)),     \
-            (proxy_ext) == NULL ? "" : " ",                                    \
-                                                                               \
-            authinfo((peerauth), peerauthstr, sizeof(peerauthstr)),            \
-            (peer) == NULL ?                                                   \
-            "0.0.0.0.0" : sockshost2string((peer), peerstr, sizeof(peerstr))); \
-} while (/* CONSTCOND */ 0)
+#if HAVE_MAX_HOSTIDS == 0
+#error "HAVE_MAX_HOSTIDS is zero"
+#endif /* HAVE_MAX_HOSTIDS == 0 */
+
+#define GET_HOSTIDV(object)                                                    \
+   (((object) == NULL || (object)->hostidv == NULL || (object)->hostidc == 0) ?\
+      NULL : (object)->hostidv)
+
+#define GET_HOSTIDC(object)                                                    \
+   (((object) == NULL || (object)->hostidv == NULL) ? 0 : (object)->hostidc)
+
+#else /* !HAVE_SOCKS_HOSTID */
+
+#define GET_HOSTIDV(object) ((struct in_addr *)NULL)
+#define GET_HOSTIDC(object) (0)
+
+#endif /* !HAVE_SOCKS_HOSTID */
 
 /* info sent by sockd children to mother. */
-#define SOCKD_FREESLOT_TCP    (1)   /* free'd a tcp slot.                   */
-#define SOCKD_FREESLOT_UDP    (2)   /* free'd a udp slot.                   */
 
+#define SOCKD_NOP                (unsigned char)(0)   /* No command/op.       */
+#define SOCKD_FREESLOT_TCP       (unsigned char)(1)   /* free'd a tcp slot.   */
+#define SOCKD_FREESLOT_UDP       (unsigned char)(2)   /* free'd a udp slot.   */
 
-
-/* a request child can currently only handle a maximum of one client. */
+/*
+ * a request child can currently handle a maximum of one client, so can't
+ * be changed and is therefor #defined here rather than in config.h.
+ */
 #define SOCKD_REQUESTMAX   1
 
 
-/* types of children.  Note that this are bitmasks. */
+/* types of children.  Note that these are bitmasks. */
 #define CHILD_NOTOURS       0
 #define CHILD_MOTHER        1
 #define CHILD_NEGOTIATE     2
@@ -457,6 +447,7 @@ typedef enum { PRIV_ON, PRIV_OFF } priv_op_t;
 #endif /* !HAVE_PRIVILEGES */
 
 typedef enum { SOCKD_PRIV_NOTSET = 0,
+               SOCKD_PRIV_INITIAL,
                SOCKD_PRIV_FILE_READ,
                SOCKD_PRIV_FILE_WRITE,
                SOCKD_PRIV_NET_ADDR,
@@ -470,25 +461,41 @@ typedef enum { SOCKD_PRIV_NOTSET = 0,
                SOCKD_PRIV_GSSAPI
 } privilege_t;
 
+typedef enum { IO_NOERROR,
+               IO_TMPERROR,          /* some error occurred, but not fatal.   */
+               IO_ERROR,             /* some error, including no resources.   */
+               IO_EAGAIN,            /* no data available to read currently.  */
+               IO_TIMEOUT,
+               IO_CLOSE,
+               IO_BLOCK,
+               IO_ADMINTERMINATION
+} iostatus_t;
+
 
 typedef enum {
    OPERATION_ACCEPT,
    OPERATION_BLOCK,        /* session blocked. */
-   OPERATION_BLOCK_IO,     /* i/o op blocked.  */
+   OPERATION_BLOCK_PACKET, /* i/o op blocked.  */
    OPERATION_CONNECT,
    OPERATION_DISCONNECT,
-   OPERATION_ERROR,       /* session failed.  */
-   OPERATION_ERROR_IO,   /* i/o op failed.    */
-   OPERATION_IO,
+   OPERATION_ERROR,        /* session failed.  */
+   OPERATION_ERROR_PACKET, /* i/o op failed.    */
+   OPERATION_HOSTID,
+   OPERATION_IO
 } operation_t;
 
 typedef enum { KEY_IPV4, KEY_MAC } keytype_t;
 typedef enum { ACKPIPE, DATAPIPE } whichpipe_t;
 typedef enum { NEGOTIATE_ERROR,     /* fatal error.                           */
                NEGOTIATE_CONTINUE,  /* have not finished, do continue.        */
-               NEGOTIATE_FINISHED   /* have finshed, read request ok.         */
+               NEGOTIATE_FINISHED   /* have fin shed, read request ok.        */
 } negotiate_result_t;
 
+typedef enum { clientrule = 1, 
+#if HAVE_SOCKS_HOSTID
+               hostidrule,
+#endif /* HAVE_SOCKS_HOSTID */
+               socksrule } ruletype_t;
 
 #define fakesockaddr2sockshost sockaddr2sockshost/* no fakes in server. */
 #define DENY_SESSIONLIMITs    "session-limit reached"
@@ -513,31 +520,22 @@ typedef enum { NEGOTIATE_ERROR,     /* fatal error.                           */
    || (sig) == SIGHUP)
 #endif
 
-
-
-
-struct compat_t {
+typedef struct {
    unsigned char sameport;     /* always try to use same port as client?   */
    unsigned char draft_5_05;   /* try to support parts of socks 5.05 draft */
-};
+} compat_t;
 
-struct log_t {
+typedef struct {
    unsigned char connect;
    unsigned char disconnect;
    unsigned char data;
    unsigned char error;
    unsigned char iooperation;
-};
+} log_t;
 
-
-struct linkedname_t {
-   char                  *name;
-   struct linkedname_t   *next;   /* next name in list.                       */
-};
 
 typedef struct {
    ssize_t            clients;          /* # of clients using this object.    */
-   unsigned char      isclientrule;     /* rule is a clientrule.              */
    size_t             rulenumber;       /* rule # this object is for.         */
    struct timeval     allocatedts;      /* when was it allocated.             */
 } shmem_header_t;
@@ -545,10 +543,10 @@ typedef struct {
 typedef struct {
    struct in_addr       addr;             /*
                                            * address of client, if state
-                                           * is maintainted per address.
+                                           * is maintained per address.
                                            */
 
-   size_t               bytes;            /* bytes transfered since iotime.   */
+   size_t               bytes;            /* bytes transferred since iotime.  */
    struct timeval       iotime;
    size_t               maxbps;           /* maximal b/s allowed.  Const.     */
 } bw_t;
@@ -556,7 +554,7 @@ typedef struct {
 typedef struct {
    struct in_addr       addr;             /*
                                            * address of client, if state
-                                           * is maintainted per address.
+                                           * is maintained per address.
                                            */
    size_t               maxsessions;      /* max number of sessions allowed.  */
 } session_t;
@@ -580,43 +578,80 @@ typedef struct {
 } licensekey_t;
 
 /* linked list over current rules. */
-struct rule_t {
+typedef struct rule_t {
    int                     verdict;      /* verdict for this rule.            */
 
+   socketoption_t          *socketoptionv;
+   size_t                  socketoptionc;
+
 #if COVENANT
-   /* if block, why.  XXX why not a more general textstring? */
+   /* if block, why.  XXX why not a more general text string? */
    struct {
       unsigned char        missingproxyauth;
    } whyblock;
 #endif /* COVENANT */
 
 
-   struct ruleaddr_t       src;          /* src.                              */
-   struct ruleaddr_t       dst;          /* dst.                              */
-   struct ruleaddr_t       rdr_from;
-   struct ruleaddr_t       rdr_to;
+   ruleaddr_t       src;
+   ruleaddr_t       dst;
 
+
+   ruleaddr_t       rdr_from;
+   ruleaddr_t       rdr_to;
+
+#if HAVE_SOCKS_HOSTID
+   ruleaddr_t       hostid;         /*
+                                     * if atype is not SOCKS_ADDR_NOTSET,
+                                     * this rule requires a matching hostid.
+                                     */
+
+   unsigned char    hostindex; /*
+                                * address index to match hostid against.
+                                * 0 means any, 1 means first index, etc.
+                                */
+#endif /* HAVE_SOCKS_HOSTID */
+
+   /*
+    * Extra options only present in certain kind of rules.
+    */
 #if BAREFOOTD
    unsigned char           bounced;      /*
                                           * have we faked a request for the addr
                                           * "dst" already?  Only used for udp.
                                           */
 
-   struct ruleaddr_t      internal;      /*
-                                          * address packet from src to dst is
-                                          * accepted on.
+   union {
+      /* XXX why not sockshost? */
+
+      /*
+       * address packet from src to dst is accepted on.  laddr for client
+       * in practice.
+       * Only used if the rule is a socks-rule.
+       */
+      ruleaddr_t             internal;
+
+      /*
+       * address packet from src to dst is bounced to.
+       * Only used if the rule is a client-rule.
+       */
+      ruleaddr_t              bounceto;
+   } extra;
+
+   struct rule_t           *crule;       /*
+                                          * if srule, crule that was used to
+                                          * generate it.
                                           */
 #endif /* BAREFOOTD */
 
-   struct log_t            log;          /* type of logging to do.            */
+   log_t                   log;          /* type of logging to do.            */
    size_t                  number;       /* rulenumber.                       */
    size_t                  linenumber;   /* linenumber; info/debugging only.  */
 
-   struct serverstate_t    state;
-   struct timeout_t        timeout;      /* default or specific for this one. */
+   serverstate_t           state;
+   timeout_t               timeout;      /* default or specific for this one. */
 
-   struct linkedname_t     *user;        /* name of users allowed.            */
-   struct linkedname_t     *group;       /* name of groups allowed.           */
+   linkedname_t            *user;        /* name of users allowed.            */
+   linkedname_t            *group;       /* name of groups allowed.           */
 
    struct {
       in_port_t            start;
@@ -625,9 +660,9 @@ struct rule_t {
    } udprange;                           /* udprange, if limited.             */ 
 
 #if HAVE_LDAP
-   struct linkedname_t     *ldapgroup;   /* name of ldap groups allowed.      */
-   struct linkedname_t     *ldapserver;  /* name of predefined ldap servers.  */
-   unsigned char            ldapsettingsfromuser;
+   linkedname_t            *ldapgroup;   /* name of ldap groups allowed.      */
+   linkedname_t            *ldapserver;  /* name of predefined ldap servers.  */
+   unsigned char           ldapsettingsfromuser;
 #endif /* HAVE_LDAP */
 
 #if HAVE_LIBWRAP
@@ -642,20 +677,10 @@ struct rule_t {
    long                    ss_shmid;       /* shmid of ss.                    */
    int                     ss_fd;
 
-#if BAREFOOTD
-   struct ruleaddr_t       bounce_to; /* XXX why ruleaddr and not sockshost? */
-
-   struct rule_t           *crule;     /*
-                                        * if srule, crule that was used to
-                                        * generate it.
-                                        */
-#endif /* BAREFOOTD */
-
-
    struct rule_t           *next;      /* next rule in list.                  */
-};
+} rule_t;
 
-struct socketconfig_t {
+typedef struct {
    struct {
       size_t   rcvbuf;
       size_t   sndbuf;
@@ -672,17 +697,47 @@ struct socketconfig_t {
       size_t   sndbuf;
    } clientside_udp;
 #endif /* BAREFOOTD */
+} socketconfig_t ;
 
-};
+typedef struct {
+   int value;                     /* value of SCHED_foo define                */
+   char *name;                    /* textual representation of scheduler name */
+} cpupolicy_t;
 
-struct srchost_t {
+typedef struct {
+
+   /* scheduling configured for this process? */
+   unsigned char        scheduling_isset;
+
+#if HAVE_SCHED_SETSCHEDULER
+   int                  policy;
+   struct sched_param   param;
+#endif /* HAVE_SCHED_SETSCHEDULER */
+
+   /* affinity configured for this process? */
+   unsigned char        affinity_isset;
+
+#if HAVE_SCHED_SETAFFINITY
+   cpu_set_t            mask;
+#endif /* HAVE_SCHED_SETAFFINITY */
+
+} cpusetting_t;
+
+typedef struct {
+   cpusetting_t mother;
+   cpusetting_t negotiate;
+   cpusetting_t request;
+   cpusetting_t io;
+} cpuvals_t;
+
+typedef struct {
    unsigned char nodnsmismatch;  /* deny if mismatch between dns claim/fact?  */
    unsigned char nodnsunknown;   /* deny if no dns record?                    */
    unsigned char checkreplyauth; /* check that method matches for replies?    */
-};
+} srchost_t;
 
-struct option_t {
-   char              *configfile;     /* name of configfile.                  */
+typedef struct {
+   char              *configfile;     /* name of config file.                 */
    unsigned char     daemon;          /* run as a daemon?                     */
    int               debugrunopt;     /* debug value set on command line.     */
    int               debug;           /* debug level.                         */
@@ -690,8 +745,9 @@ struct option_t {
    int               directfallback;  /* fallback to direct connections       */
    unsigned char     keepalive;       /* set SO_KEEPALIVE?                    */
    char              *pidfile;        /* name of pidfile.                     */
+   unsigned char     pidfilewritten;  /* did we successfully write pidfile?   */
    size_t            serverc;         /* number of servers.                   */
-};
+} option_t;
 
 
 #if HAVE_PRIVILEGES
@@ -702,7 +758,7 @@ typedef struct {
 } privileges_t;
 
 #else /* !HAVE_PRIVILEGES */
-struct userid_t {
+typedef struct {
    uid_t            privileged;
    unsigned char    privileged_isset;
    uid_t            unprivileged;
@@ -710,23 +766,19 @@ struct userid_t {
    uid_t            libwrap;
    unsigned char    libwrap_isset;
    unsigned :0;
-};
+} userid_t;
 #endif /* !HAVE_PRIVILEGES */
 
-struct sockd_mother_t {
+typedef struct {
    int                  ack;            /* connection for misc acks.          */
    int                  s;              /* connection to child for data.      */
-
-#if HAVE_SENDMSG_DEADLOCK
-   int                  lock;           /* lock on request connection.        */
-#endif /* HAVE_SENDMSG_DEADLOCK */
-};
+} sockd_mother_t;
 
 
-struct configstate_t {
+typedef struct {
    unsigned char       inited;
 
-   sig_atomic_t        insignal;          /* executing in signalhandler?      */
+   sig_atomic_t        insignal;          /* executing in signal handler?     */
    struct {
       sig_atomic_t     signal;
       siginfo_t        siginfo;
@@ -771,44 +823,44 @@ struct configstate_t {
    const char          *ldapkeytab;           /* ...   with ldap keytab.      */
 #endif /* HAVE_LDAP */
 
-   uid_t          euid;                         /* original euid.             */
-   pid_t          *motherpidv;                  /* pid of mothers.            */
-   pid_t          pid;                          /* pid of current process.    */
+   cpusetting_t   cpu;                  /* current cpusettings, if set.       */
+   uid_t          euid;                 /* original euid.                     */
+   pid_t          *motherpidv;          /* pid of mothers.                    */
+   pid_t          pid;                  /* pid of current process.            */
 
-   int            type;                         /* process type we are.       */
+   int            type;                 /* process type we are.               */
 
-   struct sockd_mother_t mother;                 /* if child, mother info.    */
+   sockd_mother_t mother;               /* if child, mother info.             */
 
    rlim_t         maxopenfiles;
 
 #if BAREFOOTD
-   unsigned char  alludpbounced;                /* bounced all udp addresses? */
+   unsigned char  alludpbounced;        /* bounced all udp addresses?         */
 #endif /* BAREFOOTD */
-};
+} configstate_t;
 
-struct listenaddress_t {
-   struct sockaddr      addr;                     /* bound address.           */
+typedef struct {
+   struct sockaddr_storage addr;        /* bound address.                     */
 
 #if NEED_ACCEPTLOCK
-   int                  lock;                     /* lock on structure.       */
+   int                  lock;           /* lock on structure.                 */
 #endif /* NEED_ACCEPTLOCK */
 
-   int                  protocol;                 /*
-                                                   * SOCKS_TCP or SOCKS_UDP?
-                                                   * UDP only applicable to
-                                                   * barefoot.
-                                                   */
+   int                  protocol;         /*
+                                           * SOCKS_TCP or SOCKS_UDP?
+                                           * UDP only applicable to barefoot.
+                                           */
 
-   int                  s;                        /* bound socket.            */
-};
+   int                  s;                /* bound socket.                    */
+} listenaddress_t;
 
-struct externaladdress_t {
-   struct ruleaddr_t       *addrv;           /* addresses.                    */
+typedef struct {
+   ruleaddr_t              *addrv;           /* addresses.                    */
    size_t                  addrc;
    int                     rotation;         /* how to rotate, if at all.     */
-};
+} externaladdress_t;
 
-struct statistic_t {
+typedef struct {
    size_t                  accepted;         /* accepts done.                 */
    time_t                  boot;             /* time of server start.         */
    time_t                  configload;       /* time config was last loaded.  */
@@ -827,13 +879,15 @@ struct statistic_t {
       size_t               sendt;            /* clients sent to children.     */
       size_t               received;         /* acks received back.           */
    } io;
-};
+} statistic_t;
 
-struct childstate_t {
+typedef struct {
 #ifdef HAVE_VOLATILE_SIG_ATOMIC_T
    sig_atomic_t            addchild;            /* okay to do a addchild()?   */
+   sig_atomic_t            addchild_errno;      /* if not, why not.           */
 #else
    volatile sig_atomic_t   addchild;            /* okay to do a addchild()?   */
+   volatile sig_atomic_t   addchild_errno;      /* if not, why not.           */
 #endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
 
    struct {
@@ -846,7 +900,7 @@ struct childstate_t {
                                                  * max # of requests to handle
                                                  * before quiting.
                                                  */
-};
+} childstate_t;
 
 typedef struct {
    long    id;
@@ -854,17 +908,28 @@ typedef struct {
 
 
 /* Make sure to keep in sync with resetconfig(). */
-struct config_t {
-   struct listenaddress_t     *internalv;          /* internal addresses      */
+struct config {
+   struct {
+      cpusetting_t cpu;
+   } initial;            /* initial/pre-config settings that we want to save. */
+
+
+   listenaddress_t            *internalv;          /* internal addresses      */
    size_t                     internalc;
 
-   struct externaladdress_t   external;            /* external addresses.     */
+   externaladdress_t          external;            /* external addresses.     */
 
-   struct rule_t              *crule;              /* clientrules, list.      */
-   struct rule_t              *srule;              /* socksrules, list.       */
+   cpuvals_t                  cpu;
+
+   rule_t                     *crule;              /* clientrules, list.      */
+   rule_t                     *hostidrule;         /* hostidrules, list.      */
+   rule_t                     *srule;              /* socksrules, list.       */
 
    routeoptions_t             routeoptions;        /* global route flags.     */
-   struct route_t             *route;
+   route_t                    *route;
+
+   socketoption_t             *socketoptionv;      /* global socket options.  */
+   size_t                     socketoptionc;
 
    int                        hostfd;              /*
                                                     * shmem file/lock for
@@ -895,7 +960,7 @@ struct config_t {
                                          */
 
       unsigned long           firstkey; /*
-                                         * Each time main monther is about to
+                                         * Each time main mother is about to
                                          * parse the config-file, we need to
                                          * set this value.  All children
                                          * then know what the starting point
@@ -920,27 +985,27 @@ struct config_t {
    oldshmeminfo_t             *oldshmemv; /* old shmem, not yet deleted.      */
    size_t                     oldshmemc;
 
-   struct compat_t            compat;               /* compatibility options. */
-   struct extension_t         extension;            /* extensions set.        */
+   compat_t                   compat;               /* compatibility options. */
+   extension_t                extension;            /* extensions set.        */
 
-   struct logtype_t           errlog;               /* for errors only.       */
-   struct logtype_t           log;                  /* where to log.          */
+   logtype_t                  errlog;               /* for errors only.       */
+   logtype_t                  log;                  /* where to log.          */
    int                        loglock;              /* lockfile for logging.  */
 
-   struct option_t            option;               /* commandline options.   */
+   option_t                   option;               /* commandline options.   */
    int                        resolveprotocol;      /* resolve protocol.      */
-   struct socketconfig_t      socket;               /* socket options.        */
-   struct srchost_t           srchost;              /* relevant to srchost.   */
-   struct statistic_t         stat;                 /* some statistics.       */
-   struct configstate_t       state;
-   struct timeout_t           timeout;
+   socketconfig_t             socket;               /* socket options.        */
+   srchost_t                  srchost;              /* relevant to srchost.   */
+   statistic_t                stat;                 /* some statistics.       */
+   configstate_t              state;
+   timeout_t                  timeout;
 #if HAVE_PRIVILEGES
     privileges_t              privileges;
 #else /* !HAVE_PRIVILEGES */
-   struct userid_t            uid;
+   userid_t                   uid;
 #endif /* !HAVE_PRIVILEGES */
 
-   struct childstate_t        child;                /* childstate.            */
+   childstate_t               child;                /* childstate.            */
 
    int                        clientmethodv[MAXMETHOD]; /* clientmethods.     */
    size_t                     clientmethodc;        /* methods in list.       */
@@ -956,30 +1021,38 @@ struct config_t {
 };
 
 typedef struct {
-   gwaddr_t             server;
-   struct sockshost_t   extaddr;
+   sockshost_t          extaddr; /* external address proxyserver may be using */
 } proxychaininfo_t;
 
 
-struct connectionstate_t {
+typedef struct {
    int                  command;
-   int                  clientcommand;
    int                  protocol;
    int                  proxyprotocol;
    int                  clientprotocol;
 
+#if HAVE_SOCKS_HOSTID
+   /*
+    * The hostids on the control connection.
+    * Assumes hostids can only be set on TCP sessions, which
+    * is currently the case.
+    */
+   struct in_addr hostidv[HAVE_MAX_HOSTIDS];
+   unsigned char  hostidc; /* how many hostids are present/set. */
+#endif /* HAVE_SOCKS_HOSTID */
 
    proxychaininfo_t     proxychain;   /* only if proxyprotocol is not direct. */
-   struct extension_t   extension;     /* extensions set.                     */
+   extension_t          extension;     /* extensions set.                     */
 
    struct {
       struct timeval    accepted;      /* time connection accepted.           */
-      struct timeval    negotiate;     /* time negotiation started.           */
+      struct timeval    negotiatestart;/* time negotiation started.           */
+      struct timeval    negotiateend;  /* time negotiation ended.             */
       struct timeval    established;   /* time session was fully established. */
       struct timeval    firstio;       /* time of first i/o operation.        */
    } time;
    int                  version;
-};
+} connectionstate_t;
 
 typedef struct {
    uint64_t         bytes;        /* bytes in addition to count <metric>.     */
@@ -987,127 +1060,188 @@ typedef struct {
 } iocount_t;
 
 
+/* common header for data packets to/from child. */
+typedef struct {
+   unsigned char command;     /*
+                               * Command from child.  Same as command
+                               * read over ack-pipe, but if sent here,
+                               * will not be sent over ack-pipe.
+                               */
+} reqinfo_t;
+
 #if BAREFOOTD
 struct udpclient {
-   int             s;
+   int             s;             /* socket we use to send/receive to remote. */
+   struct sockaddr_storage laddr; /* address we receive remote replies on.    */
+   sockshost_t     host;          /* raddr as given by client or config.      */
+   struct sockaddr_storage client;/* address of our client.                   */
 
-   /* XXX can we change some of these to pointers? */
-   struct rule_t   crule;      /* client-rule matched for this client.        */
-   struct rule_t   rule;       /* socks-rule matched for this client.         */
-   struct rule_t   replyrule;  /* replyrule matched for this client.          */
-   unsigned char   use_saved_rule; /* can we use reuse last rule result?      */
+   /*
+    * client-rule matched for this client.  Normally this is always
+    * rule->crule, but since several clients can use the same client-rule,
+    * and it's the client-rule that contains the resource limits which we
+    * attach and detach from, we need separate memory for each client.
+    */
+   rule_t          crule;
+   rule_t          rule;       /* socks-rule matched for this client.         */
+   rule_t          replyrule;  /* replyrule matched for this client.          */
+
+   unsigned char   use_saved_rule; /* should we try to reuse last rule result?*/
    unsigned char   use_saved_replyrule; /* and last replyrule result too?     */
 
-   struct sockaddr laddr;      /* address we receive remote replies on.       */
-   struct sockaddr raddr;      /* address of clients destination.             */
-   struct sockaddr client;     /* address of our client.                      */
+   unsigned char connected;    /* socket is connected?                        */
 
-   iocount_t       src_read;
-   iocount_t       src_written;
-   iocount_t       dst_read;
-   iocount_t       dst_written;
+   iocount_t       src_read;    /* read from client.  */
+   iocount_t       src_written; /* written to client. */
+
+   iocount_t       dst_read;	/* read from target.  */
+   iocount_t       dst_written; /* written to dst.    */
 
    struct timeval  firstio;  /* time of first i/o operation.                  */
-   struct timeval  iotime;   /* time of last i/o operation.                   */
+   struct timeval  lastio;   /* time of last i/o operation.                   */
 };
 #endif /* BAREFOOTD */
 
 
-struct sockd_io_direction_t {
-   int                        s;          /* socket connection.               */
-   struct sockaddr            laddr;      /* local address of s.              */
-   struct sockaddr            raddr;      /* address of s's peer.             */
+typedef struct {
+   int                 s;          /* socket connection.               */
+   struct sockaddr_storage laddr;  /* local address of s.              */
+   struct sockaddr_storage raddr;  /* address of s's (last) peer.      */
 
-   struct authmethod_t        auth;        /* authentication in use on s.     */
-   struct sockshost_t         host;
+   authmethod_t        auth;        /* authentication in use on s.     */
+   sockshost_t         host;
    /*
     * Varies according to context.
-    * src    : as raddr but on sockshost_t form.
-    * dst    : name as given by client.
+    * src    : same as raddr.
+    *
+    * dst    : raddr as given by client.  Note that if a serverchain is used,
+    *          raddr is the remote proxy's address, while dst is still the
+    *          raddr as given by client.  (Don't know what the resolved raddr
+    *          was).
+    *
     * control: same as src
    */
 
-   iocount_t                  read;
-   iocount_t                  written;
+   iocount_t                  read;         /* read from socket s.  */
+   iocount_t                  written;	    /* written to socket s. */
 
-   int                        flags;      /* misc. flags                      */
+   int                        flags;        /* misc. flags                    */
+   unsigned char              isclientside; /* is this the clientside?        */
 
    struct {
-      int      err;           /* errno.                                       */
-
-#if COVENANT
-      unsigned char isclientside;/* is this side the clientside? */
-#endif /* COVENANT */
-
-      unsigned char fin;            /* received FIN on this socket.           */
-      unsigned char shutdown_wr;    /* shutdown for writing.                  */
-      unsigned char connected;      /* socket has finnished connecting?       */
+      unsigned char connected;      /* socket is connected?                   */
+      int           err;            /* errno.                                 */
+      unsigned char fin;            /* received FIN on this socket?           */
+      unsigned char shutdown_wr;    /* shutdown for writing?                  */
+      unsigned char use_saved_rule; /*
+                                     * should we try to reuse last rule result
+                                     * for udp packets _received_ on this
+                                     * socket?
+                                     */
    } state;
-};
-
-
-struct sockd_io_t {
-   unsigned char                 allocated; /* object currently allocated?    */
-   struct connectionstate_t      state;
-   struct authmethod_t           clientauth;/* client authentication in use.  */
-   requestflags_t                reqflags;  /* original client request flags. */
-
-   struct sockd_io_direction_t   control;  /* clients controlconnection.      */
-   struct sockd_io_direction_t   src;      /* client we receive data from.    */
-   struct sockd_io_direction_t   dst;      /* remote peer.                    */
 
 #if BAREFOOTD
+   /* only used on the destination side, NULL otherwise. */
    struct udpclient              *dstv;
    size_t                        dstcmax;  /* number of slots in dstv array.  */
    size_t                        dstc;     /* # of slots currently in use.    */
 #endif /* BAREFOOTD */
+} sockd_io_direction_t;
+
+/*
+ * part of objects received between processes, but where the size is not
+ * fixed.  Not used yet.
+ */
+typedef struct {
+   void   *gssapidata;
+   size_t gssapidatalen;
+
+   void   *socketoptiondata;
+   size_t socketoptdatalen;
+} dynamicdata_t;
+
+#define MAX_DYNAMICDATA()                                                      \
+   (                                                                           \
+      MAX_GSS_STATE                                                            \
+    + sizeof(socketoption_t) * MAX_EXTERNAL_SOCKETOPTIONS                      \
+   )
+
+
+typedef struct sockd_io_t {
+   unsigned char          allocated; /* object currently allocated?           */
+
+   reqinfo_t              reqinfo;   /* info from child about this request.   */
+
+   connectionstate_t      state;
+   authmethod_t           clientauth;/* client authentication in use.         */
+   requestflags_t         reqflags;  /* original client request flags.        */
+
+   sockd_io_direction_t   control;  /* clients controlconnection.             */
+   sockd_io_direction_t   src;      /* client we receive data from.           */
+   sockd_io_direction_t   dst;      /* remote peer.                           */
+
+   dynamicdata_t          data;
 
    /*
     * data received from the client that should be sent to the remote server,
     * but has not yet.
     */
 #if HAVE_NEGOTIATE_PHASE
-   char                          clientdata[MAXREQLEN];
-   size_t                        clientdatalen;
+   char        clientdata[MAXREQLEN];
+   size_t      clientdatalen;
 #endif /* HAVE_NEGOTIATE_PHASE */
 
 
-   struct rule_t      crule;           /* client rule matched.                */
-   struct rule_t      rule;            /* matched rule for i/o.               */
+   rule_t      crule;           /* client rule matched.                       */
 
+#if HAVE_SOCKS_HOSTID
+   rule_t              hostidrule;  /* rule matched for hostid().      */
+   unsigned char       hostidrule_isset;
+#endif /* HAVE_SOCKS_HOSTID */
+
+   rule_t      rule;            /* matched rule for i/o.                      */
+
+   socketoption_t          extsocketoptionv[MAX_EXTERNAL_SOCKETOPTIONS];
+   size_t                  extsocketoptionc;
+
+#if SOCKS_SERVER
    union {
       struct {
-         struct rule_t      *fwdrule;    /* for packets forwarded for client. */
-         struct rule_t      *replyrule;  /* matched rule for (udp)reply i/o.  */
-                                         /*
-                                          * These are pointers since they are 
-                                          * only used in the i/o processes.  
-                                          * Lets us save on the size of the i/o 
-                                          * object when passing it around.
-                                          */
+         /*
+          * These are pointers since they are only used in the i/o processes.
+          * Making them pointers lets us save on the size of the i/o object
+          * when passing it around.
+          */
+         rule_t      *fwdrule;    /* for packets forwarded for client. */
+         rule_t      *replyrule;  /* matched rule for (udp)reply i/o.  */
       } udp;
 
       struct {
          /*
-          * the i/o-process only handles bindreplies, but may need to log
+          * the i/o-process only handles bind replies, but may need to log
           * information related to the bind session that initiated the
-          * bindreply session also.
+          * bind reply session also.
           */
-         struct sockshost_t host; 
-         struct rule_t      rule;
+         sockshost_t host;
+         rule_t      rule;
       } bind;
    } cmd; /* extra info required for certain commands. */
+#endif /* SOCKS_SERVER */
 
-   unsigned char      use_saved_rule;  /* can we use reuse last rule result?  */
-   unsigned char      use_saved_replyrule; /* and last replyrule result too?  */
+   struct timeval     lastio;          /* time of last i/o operation.         */
 
-   struct timeval     iotime;          /* time of last i/o operation.         */
-   struct sockd_io_t  *next;           /* for some special cases.             */
-};
+   struct sockd_io_t  *next;           /* for bind-extension.                 */
+} sockd_io_t;
 
-struct sockd_client_t {
-   int            s;          /* socket client was accepted on. */
-   struct timeval accepted;   /* time client was accepted.      */
+
+typedef struct {
+   reqinfo_t         reqinfo;    /* info from child about this request. */
+   struct timeval    accepted;   /* time client was accepted.           */
+
+   int               s;          /* socket client was accepted on.      */
+   struct sockaddr_storage from;       /* client's control address.           */
+   struct sockaddr_storage to;         /* address we accepted client on.      */
+
 
 #if COVENANT
    /*
@@ -1117,18 +1251,15 @@ struct sockd_client_t {
     * "clientdata" contains the request received from the client,
     * already parsed into "request".
     */
-   char                       clientdata[MAXREQLEN];
-   size_t                     clientdatalen;
+   char                   clientdata[MAXREQLEN];
+   size_t                 clientdatalen;
 
-   struct authmethod_t        auth;
-   struct request_t           request;
+   authmethod_t           auth;
+   request_t              request;
 #endif /* COVENANT */
-};
+} sockd_client_t;
 
-
-
-
-struct negotiate_state_t {
+typedef struct negotiate_state_t {
    unsigned char        complete;                    /* completed?            */
 
 #if SOCKS_SERVER
@@ -1138,7 +1269,7 @@ struct negotiate_state_t {
 #if HAVE_GSSAPI
                            + MAXGSSAPITOKENLEN
 #endif /* HAVE_GSSAPI */
-                           + sizeof(struct request_t)
+                           + sizeof(request_t)
                            + 1                       /* NUL                   */
                            ];
 #elif COVENANT
@@ -1153,60 +1284,72 @@ struct negotiate_state_t {
    size_t               start;                       /* start of current req  */
    char                 emsg[512];                   /* error message, if any.*/
    negotiate_result_t   (*rcurrent)(int s,
-                                    struct request_t *request,
+                                    request_t *request,
                                     struct negotiate_state_t *state);
 
-   struct sockshost_t   src;          /* client's address.                    */
-   struct sockshost_t   dst;          /* our address.                         */
+   sockshost_t          src;          /* client's address.                    */
+   sockshost_t          dst;          /* our address.                         */
 
 #if HAVE_GSSAPI
    unsigned short       gssapitoken_len; /* length of token we're working on. */
 #endif /* HAVE_GSSAPI */
-};
+} negotiate_state_t;
 
-struct sockd_negotiate_t {
-   unsigned char              allocated;
+typedef struct {
+   unsigned char       allocated;
 
-   struct authmethod_t        clientauth;  /* authentication for clientrule.  */
-   struct authmethod_t        socksauth;   /* authentication for socks-rule.  */
+   authmethod_t        clientauth;  /* authentication for clientrule.  */
+   authmethod_t        socksauth;   /* authentication for socks-rule.  */
 
-   struct request_t           req;
-   struct negotiate_state_t   negstate;
+   request_t           req;
+   negotiate_state_t   negstate;
 
-   struct rule_t              rule;        /* rule matched for accept().      */
+   rule_t              rule;        /* rule matched for accept().      */
+
+#if HAVE_SOCKS_HOSTID
+   rule_t              hostidrule;  /* rule matched for hostid().      */
+   unsigned char       hostidrule_isset;
+#endif /* HAVE_SOCKS_HOSTID */
+
 #if COVENANT
-   struct rule_t              srule;       /* rule matched at socks-level.    */
+   rule_t              srule;       /* rule matched at socks-level.    */
 #endif /* COVENANT */
 
-   int                        s;           /* client connection.              */
-   struct connectionstate_t   state;       /* state of connection.            */
-};
+   int                 s;           /* client connection.              */
+   connectionstate_t   state;       /* state of connection.            */
+} sockd_negotiate_t;
 
+typedef struct sockd_request_t {
+   struct sockaddr_storage from;      /* client's control address.           */
+   reqinfo_t           reqinfo;   /* info from child about this request. */
 
-struct sockd_request_t {
-   struct sockaddr            from;      /* client's control address.         */
-   struct sockaddr            to;        /* address client was accepted on.   */
-   struct authmethod_t        clientauth;/* client authentication in use.     */
-   struct authmethod_t        socksauth; /* socks authentication in use.      */
-   struct request_t           req;       /* request to perform.               */
-   struct rule_t              rule;      /* rule matched for accept().        */
+   struct sockaddr_storage to;        /* address client was accepted on.     */
+   authmethod_t        clientauth;/* client authentication in use.       */
+   authmethod_t        socksauth; /* socks authentication in use.        */
+   request_t           req;       /* request to perform.                 */
+
+   /* XXX rename to clientrule. */
+   rule_t              rule;      /* client-rule matched.                */
+#if HAVE_SOCKS_HOSTID
+   rule_t              hostidrule;/* hostid-rule matched, if any.        */
+   unsigned char       hostidrule_isset;
+#endif /* HAVE_SOCKS_HOSTID */
+
 #if COVENANT
-   struct rule_t              srule;       /* rule matched at socks-level.    */
+   rule_t              srule;       /* rule matched at socks-level.      */
 #endif /* COVENANT */
-   int                        s;         /* clients control connection.       */
-   struct connectionstate_t   state;     /* state of connection.              */
 
-#if HAVE_NEGOTIATE_PHASE /* the initial request from the client. */
+   int                 s;         /* clients control connection.         */
+   connectionstate_t   state;     /* state of connection.                */
+
+#if HAVE_NEGOTIATE_PHASE          /* initial request from client.        */
    char                       clientdata[MAXREQLEN];
    size_t                     clientdatalen;
 #endif /* HAVE_NEGOTIATE_PHASE */
-};
+} sockd_request_t;
 
 
-struct sockd_child_t {
-#if HAVE_SENDMSG_DEADLOCK
-   int              lock;           /* lock on request connection.            */
-#endif /* HAVE_SENDMSG_DEADLOCK */
+typedef struct {
    int              ack;            /* connection for ack's.                  */
    int              s;              /* connection to mother for data.         */
 
@@ -1221,7 +1364,39 @@ struct sockd_child_t {
                                      * session at the moment?
                                      */
 #endif /* BAREFOOTD */
-};
+} sockd_child_t;
+
+typedef struct {
+   /*
+    * Note that these are not necessarily the physical endpoints.  It could
+    * be this object refers to a connection via a proxy server, in which
+    * case "local" will be the address of the proxy server we connected to,
+    * while "peer" will be the address (we believe) the proxy server is
+    * using on our behalf.
+    */
+   sockshost_t    local;  /* local endpoint if known.  */
+   unsigned char  local_isset;
+
+   sockshost_t    peer;   /* remote endpoint if known. */
+   unsigned char  peer_isset;
+
+   /*
+    * auth used on the connection between local and peer, if set.
+    */
+   authmethod_t   auth;
+   unsigned char  auth_isset;
+
+#if HAVE_SOCKS_HOSTID
+   /*
+    * if set, the hostids of servers between local and peer.
+    * Not to be confused with a possible proxy server used by us to
+    * establish a session with peer.
+    */
+   struct in_addr hostidv[HAVE_MAX_HOSTIDS];
+   unsigned char  hostidc; /* how many hostids are actually present/set. */
+#endif /* HAVE_SOCKS_HOSTID */
+} iologaddr_t;
+
 
 int
 socks_unconnect(const int s);
@@ -1281,7 +1456,7 @@ descriptorisreserved(int d);
  * Otherwise, false.
  */
 
-int
+size_t
 childcheck(int type);
 /*
  * Calculates the number of free slots every child of type "type" has,
@@ -1307,33 +1482,40 @@ removechild(pid_t childpid);
  */
 
 void
-addclientrule(const struct rule_t *rule);
+addclientrule(const rule_t *rule);
 /*
  * Appends a copy of "rule" to our list of client rules.
  */
 
 void
-addsocksrule(const struct rule_t *rule);
+addhostidrule(const rule_t *rule);
+/*
+ * Appends a copy of "rule" to our list of hostid rules.
+ */
+
+
+void
+addsocksrule(const rule_t *rule);
 /*
  * Appends a copy of "rule" to our list of socks rules.
  * Returns a pointer to the added rule (not "rule").
  */
 
 void
-addinternal(const struct ruleaddr_t *addr, const int protocol);
+addinternal(const ruleaddr_t *addr, const int protocol);
 /*
  * Adds "addr" to the list of external addresses.
  * "protocol" gives the protocol to add, SOCKS_TCP or SOCKS_UDP.
  */
 
 void
-addexternal(const struct ruleaddr_t *addr);
+addexternal(const ruleaddr_t *addr);
 /*
  * Adds "addr" to the list of internal addresses (to listen on).
  */
 
 int
-addrisbindable(const struct ruleaddr_t *addr);
+addrisbindable(const ruleaddr_t *addr);
 /*
  * Checks whether "addr" is bindable.
  * Returns:
@@ -1341,15 +1523,15 @@ addrisbindable(const struct ruleaddr_t *addr);
  *      On failure: false.
  */
 
-int isreplycommandonly(const struct command_t *command);
+int isreplycommandonly(const command_t *command);
 /*
  * Returns true if "command" specifies reply-commands only (bind/udp-replies),
  * false otherwise.
  */
 
 
-struct linkedname_t *
-addlinkedname(struct linkedname_t **linkedname, const char *name);
+linkedname_t *
+addlinkedname(linkedname_t **linkedname, const char *name);
 /*
  * Adds a link with the name "name" to the list hanging of "linkedname".
  * Returns:
@@ -1358,29 +1540,34 @@ addlinkedname(struct linkedname_t **linkedname, const char *name);
  */
 
 void
-showrule(const struct rule_t *rule, const int isclientrule);
+freelinkedname(linkedname_t *name);
 /*
- * Prints the rule "rule" to logfile.  "isclientrule" says whether
- * the rule is a client-rule or a socks-rule.
+ * free(3)s all entries in the link starting at "name".
+ */
+void
+showrule(const rule_t *rule, const ruletype_t ruletype);
+/*
+ * Prints the rule "rule" to logfile.  "ruletype" says what kind of rule
+ * "rule" refers to.
  */
 
 
 void
-showlist(const struct linkedname_t *list, const char *prefix);
+showlist(const linkedname_t *list, const char *prefix);
 /*
  * shows user names in "list".
  */
 
 
 const char *
-authname(const struct authmethod_t *auth);
+authname(const authmethod_t *auth);
 /*
  * Returns a pointer to the name contained in "auth", or NULL if none.
  */
 
 const char *
-authinfo(const struct authmethod_t *auth, char *info, size_t infolen)
-      __attribute__((__bounded__(__string__, 2, 3)));
+authinfo(const authmethod_t *auth, char *info, size_t infolen)
+      __ATTRIBUTE__((__bounded__(__string__, 2, 3)));
 /*
  * Fills in "info" with a printable representation of the "auth".
  * Returns a pointer to "info".
@@ -1388,11 +1575,14 @@ authinfo(const struct authmethod_t *auth, char *info, size_t infolen)
 
 int
 rulespermit(int s, const struct sockaddr *peer, const struct sockaddr *local,
-            const struct authmethod_t *clientauth, struct authmethod_t *srcauth,
-            struct rule_t *rule, const struct connectionstate_t *state,
-            const struct sockshost_t *src, const struct sockshost_t *dst,
+#if BAREFOOTD
+            const sockshost_t *client_laddr,
+#endif /* BAREFOOTD */
+            const authmethod_t *clientauth, authmethod_t *srcauth,
+            rule_t *rule, connectionstate_t *state,
+            const sockshost_t *src, const sockshost_t *dst,
             char *msg, size_t msgsize)
-      __attribute__((__bounded__(__buffer__, 10, 11)));
+      __ATTRIBUTE__((__bounded__(__buffer__, 10, 11)));
 /*
  * Checks whether the rules permit data from "src" to "dst".
  *
@@ -1401,7 +1591,8 @@ rulespermit(int s, const struct sockaddr *peer, const struct sockaddr *local,
 
  * In Barefoots case, these arguments refer to socket the connection
  * or udp packet was received on, with "local" and "peer" being the local
- * and remote endpoints, respectivly.
+ * and remote endpoints, respectively.  "client_laddr" refers to the address
+ * the Barefoot client sends it packets to.
  *
  * "clientauth" is the authentication established for the client-rule, or
  * NULL if no authentication has yet been established for the client rule.
@@ -1427,7 +1618,7 @@ rulespermit(int s, const struct sockaddr *peer, const struct sockaddr *local,
  */
 
 int
-sockd_connect(int s, const struct sockshost_t *dst);
+sockd_connect(int s, const sockshost_t *dst);
 /*
  * Tries to connect socket "s" to the host given in "dst".
  * Returns:
@@ -1438,7 +1629,7 @@ sockd_connect(int s, const struct sockshost_t *dst);
 void
 resetconfig(const int exiting);
 /*
- * resets the current config back to default, freeing memory aswell.
+ * resets the current config back to default, freeing memory as well.
  * If "exiting" is true, we are exiting and don't need to save
  * anything.
  */
@@ -1446,7 +1637,7 @@ resetconfig(const int exiting);
 
 
 int
-send_req(int s, struct sockd_request_t *req);
+send_req(int s, sockd_request_t *req);
 /*
  * Sends "req" to "s".
  * Returns:
@@ -1455,7 +1646,7 @@ send_req(int s, struct sockd_request_t *req);
  */
 
 int
-send_client(int s, const struct sockd_client_t *client,
+send_client(int s, const sockd_client_t *client,
             const char *req, const size_t reqlen);
 /*
  * Sends the client "client" to the process connected to "s".
@@ -1485,10 +1676,9 @@ selectmethod(const int *methodv, size_t methodc,
  */
 
 negotiate_result_t
-method_uname(int s, struct request_t *request,
-      struct negotiate_state_t *state);
+method_uname(int s, request_t *request, negotiate_state_t *state);
 /*
- * Enters username/password subnegotiation.  If successful,
+ * Enters username/password sub negotiation.  If successful,
  * "request->auth.mdata.uname" is filled in with values read from client.
  * If unsuccessful, the contents of "uname" is indeterminate.
  * After negotiation has finished and the response to client has been sent
@@ -1501,10 +1691,9 @@ method_uname(int s, struct request_t *request,
 
 #if HAVE_GSSAPI
 negotiate_result_t
-method_gssapi(int s, struct request_t *request,
-      struct negotiate_state_t *state);
+method_gssapi(int s, request_t *request, negotiate_state_t *state);
 /*
- * Enters gssapi subnegotiation.  If successful, "request->auth.mdata.gssapi"
+ * Enters gssapi sub negotiation.  If successful, "request->auth.mdata.gssapi"
  * is filled in with values read from client.
  * If unsuccessful, the contents of "gssapi" is indeterminate.
  *
@@ -1518,46 +1707,62 @@ method_gssapi(int s, struct request_t *request,
  */
 #endif /* HAVE_GSSAPI */
 
+iologaddr_t *
+init_iologaddr(iologaddr_t *addr,
+               const objecttype_t local_type, const void *local,
+               const objecttype_t peer_type, const void *peer,
+               const authmethod_t *auth,
+               const struct in_addr *hostidv, const unsigned char hostidc);
+/*
+ * Inits "addr" based on the passed arguments.  If "local" or "peer" is not
+ * NULL, "local_type" or "peer_type" indicates what kind of object "local"
+ * or "peer" is.
+ *
+ * Returns a pointer to "addr".
+ */
+
+
 void
-iolog(struct rule_t *rule, const struct connectionstate_t *state,
-      const operation_t operation,
-      const struct sockaddr *src_local, const struct sockshost_t *src_peer,
-      const struct authmethod_t *src_auth,
-      const gwaddr_t *src_proxy, const struct sockshost_t *src_proxyext,
-      const struct authmethod_t *src_proxyauth,
-      const struct sockaddr *dst_local, const struct sockshost_t *dst_peer,
-      const struct authmethod_t *dst_auth,
-      const gwaddr_t *dst_proxy, const struct sockshost_t *dst_proxyext,
-      const struct authmethod_t *dst_proxyauth,
+iolog(const rule_t *rule, const connectionstate_t *state, const operation_t op,
+      const iologaddr_t *src, const iologaddr_t *dst,
+      const iologaddr_t *tosrc_proxy, const iologaddr_t *todst_proxy,
       const char *data, size_t count);
+
 /*
  * Called after each each complete io operation
  * (read then write, or read then block).
- * Does misc. logging based on the logoptions set in "log".
- * "rule" is the rule that matched the iooperation, not "const" due to
- * possible libwrap interaction.
- * "state" is the state of the connection.
- * "operation" is the operation that was performed.
- * "src_peer" is where data was received from, on the local endpoint
- *  "src_local".
- * "dst_peer" is where data was written to, on the local endpoint
- * "dst_local".
- *
- * "{src,dst}_proxy", if not NULL, is the proxyserver used in this
- * serverchain, for data to/from src_peer or to/from dst_peer,
- * with auth {src,dst}_proxyauth.
- *
- * "{src,dst}_proxyext", if not NULL, is the external address used by the
- * proxyserver in this serverchain, for data to/from src_peer or
- * to/from dst_peer,
- *
- * "data" and "count" are interpreted depending on "operation".
+ * Does misc. logging based on the log options set in "log".
+ * - "rule" is the rule that matched the iooperation, not "const" due to
+ *    possible libwrap interaction.
+ * - "state" is the state of the connection.
+ * - "op" is the operation that was performed.
+ * - "src" is where data was received from.
+ * - "dst" is where data was written to.
+ * - "tosrc_proxy", if not NULL, is the proxy used in the serverchain to
+ *    reach "src.host".
+ * - "todst_proxy", if not NULL, is the proxy used in the serverchain to
+ *    reach "dst.host".
+ * - "data" and "count" are interpreted depending on "operation".
  * If "count" is 0, but "data" is not NULL, it is assumed that "data"
  * is a NUL-terminated string.
  */
 
+char *
+build_addrstr_src(const struct in_addr *hostidv, const unsigned char hostidc,
+                  const sockshost_t *peer, const sockshost_t *proxy_ext,
+                  const sockshost_t *proxy, const sockshost_t *local,
+                  const authmethod_t *peerauth, const authmethod_t *proxyauth,
+                  char *str, size_t strsize);
+
+char *
+build_addrstr_dst(const sockshost_t *local, const sockshost_t *proxy,
+                  const sockshost_t *proxy_ext, const sockshost_t *peer,
+                  const authmethod_t *peerauth, const authmethod_t *proxyauth,
+                  const struct in_addr *hostidv, const unsigned char hostidc,
+                  char *str, size_t strsize);
+
 void
-close_iodescriptors(const struct sockd_io_t *io);
+close_iodescriptors(const sockd_io_t *io);
 /*
  * A subset of delete_io().  Will just close all descriptors in
  * "io".
@@ -1598,7 +1803,7 @@ run_request(void);
  */
 
 int
-send_io(int s, struct sockd_io_t *io);
+send_io(int s, sockd_io_t *io);
 /*
  * Sends the io-object "io" to "s".
  * Returns
@@ -1608,7 +1813,7 @@ send_io(int s, struct sockd_io_t *io);
 
 
 int
-recv_io(int mother, struct sockd_io_t *io);
+recv_io(int mother, sockd_io_t *io);
 /*
  * Attempts to read a new io object from "mother".
  * If a io is received it is either copied into "io", or it's copied
@@ -1618,7 +1823,7 @@ recv_io(int mother, struct sockd_io_t *io);
  */
 
 int
-recv_req(int s, struct sockd_request_t *req);
+recv_req(int s, sockd_request_t *req);
 /*
  * Receives a request from the socket "s" and stores it in "req".
  * Returns:
@@ -1627,8 +1832,7 @@ recv_req(int s, struct sockd_request_t *req);
  */
 
 negotiate_result_t
-recv_clientrequest(int s, struct request_t *request,
-                   struct negotiate_state_t *state);
+recv_clientrequest(int s, request_t *request, negotiate_state_t *state);
 /*
  * Reads a request from the socket "s", which can be set to non-blocking.
  * "request" will be filled in as reading progresses but it should
@@ -1638,14 +1842,13 @@ recv_clientrequest(int s, struct request_t *request,
  */
 
 negotiate_result_t
-recv_sockspacket(int s, struct request_t *request,
-      struct negotiate_state_t *state);
+recv_sockspacket(int s, request_t *request, negotiate_state_t *state);
 /*
  * When method negotiation has finished (if appropriate) this function
  * is called to receive the actual packet.
  */
 
-struct sockd_child_t *
+sockd_child_t *
 getchild(pid_t pid);
 /*
  * Attempts to find a child with pid "pid".
@@ -1663,21 +1866,21 @@ sigchildbroadcast(int sig, int childtype);
 int
 fillset(fd_set *set, int *negc, int *reqc, int *ioc);
 /*
- * Sets every child's descriptor in "set", aswell as sockets we listen on.
+ * Sets every child's descriptor in "set", as well as sockets we listen on.
  * "negc", "reqc", and "ioc" is upon return filled in with the number of
- * currently free negotiate slots, request slots, and io slots, respectivly.
+ * currently free negotiate slots, request slots, and io slots, respectively.
  *
  * Returns the number of the highest descriptor set, or -1 if none was set.
  */
 
 void
-clearset(whichpipe_t type, const struct sockd_child_t *child, fd_set *set);
+clearset(whichpipe_t type, const sockd_child_t *child, fd_set *set);
 /*
  * Clears every descriptor of type "type" in "child" from "set".
  * "type" gives the type of pipe that must be set.
  */
 
-struct sockd_child_t *
+sockd_child_t *
 getset(whichpipe_t type, fd_set *set);
 /*
  * If there is a child with a descriptor set in "set", a pointer to
@@ -1687,13 +1890,69 @@ getset(whichpipe_t type, fd_set *set);
  * If no child is found, NULL is returned.
  */
 
-struct sockd_child_t *
+sockd_child_t *
 nextchild(const int type, const int protocol);
 /*
  * Returns:
  *      On success: pointer to a child of correct type with at least one free
  *      slot of protocol type "protocol".
  *      On failure: NULL.
+ */
+
+#if HAVE_SCHED_SETAFFINITY
+/*
+ * Modeled after the CPU_SET() macros.
+ */
+
+size_t
+cpu_get_setsize(void);
+
+void
+cpu_set(const int cpu, cpu_set_t *set);
+
+void
+cpu_zero(cpu_set_t *set);
+
+int
+cpu_isset(const int cpu, const cpu_set_t *set);
+
+int
+cpu_equal(const cpu_set_t *set1, const cpu_set_t *set2);
+
+int
+cpu_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *mask);
+
+int
+cpu_setaffinity(pid_t pid, size_t cpusetsize, const cpu_set_t *mask);
+
+int
+sockd_cpuset_isok(const cpu_set_t *set);
+/*
+ * Returns false if one or more of the cpus set in "set" is not valid
+ * on the current system.  True otherwise.
+ */
+#endif /* HAVE_SCHED_SETAFFINITY */
+
+#if HAVE_SCHED_SETSCHEDULER
+
+int
+cpupolicy2numeric(char *name);
+/*
+ * return cpupolicy id value for given policy name, or -1 if not found.
+ */
+
+char *
+numeric2cpupolicy(int value);
+/*
+ * return pointer to name for given policy id value, or NULL if not found.
+ */
+
+#endif /* HAVE_SCHED_SETSCHEDULER */
+
+void
+sockd_setcpusettings(const cpusetting_t *cpu);
+/*
+ * Applies the cpusettings in "cpu" to the current process.
  */
 
 void
@@ -1706,7 +1965,8 @@ setsockoptions(const int s, const int type, const int isclientside);
  */
 
 void
-sockdexit(const int exitcode);
+sockdexit(const int exitcode)
+   __ATTRIBUTE__((noreturn));
 /*
  * Exits with the value of "exitcode".
  */
@@ -1730,10 +1990,11 @@ socks_seteuid(uid_t *old, uid_t new);
  * Returns 0 on success, -1 on failure.
  */
 
-void
-init_privs(void);
+int
+sockd_initprivs(void);
 /*
  * Initializes things based on configured userid/privilege settings.
+ * Returns 0 if inited ok, -1 if not.
  */
 
 void
@@ -1746,8 +2007,7 @@ sockd_priv(const privilege_t privilege, const priv_op_t op);
  */
 
 int
-usermatch(const struct authmethod_t *auth,
-      const struct linkedname_t *userlist);
+usermatch(const authmethod_t *auth, const linkedname_t *userlist);
 /*
  * Checks whether the username in "auth" matches a name in the
  * list "userlist".
@@ -1757,8 +2017,7 @@ usermatch(const struct authmethod_t *auth,
  */
 
 int
-groupmatch(const struct authmethod_t *auth,
-      const struct linkedname_t *grouplist);
+groupmatch(const authmethod_t *auth, const linkedname_t *grouplist);
 /*
  * Checks whether the username in "auth" matches groupname listed in "userlist".
  * Returns:
@@ -1768,7 +2027,7 @@ groupmatch(const struct authmethod_t *auth,
 
 #if HAVE_LDAP
 int
-ldapgroupmatch(const struct authmethod_t *auth, const struct rule_t *rule);
+ldapgroupmatch(const authmethod_t *auth, const rule_t *rule);
 /*
  * Checks whether the username in "auth" matches ldap groupname listed
  * in "userlist".
@@ -1780,7 +2039,7 @@ ldapgroupmatch(const struct authmethod_t *auth, const struct rule_t *rule);
 int
 ldapgroupmatches(const char *username, const char *userdomain,
                  const char *group, const char *groupdomain,
-                 const struct rule_t *rule);
+                 const rule_t *rule);
 /*
  * Checks if user "username" in Kerberos domain "userdomain" is member of
  * ldap group "group" in Kerberos domain "groupdomain".
@@ -1822,10 +2081,36 @@ char
 
 #endif /* HAVE_LDAP */
 
+unsigned long
+medtv(struct timeval *tvarr, size_t tvsize);
+/*
+ * Return median time in microseconds from sorted timeval array with
+ * tvsize entries.
+ */
+
+unsigned long
+avgtv(struct timeval *tvarr, size_t tvsize);
+/*
+ * Return average time in microseconds from sorted timeval array with
+ * tvsize entries.
+ */
+
+unsigned long
+stddevtv(struct timeval *tvarr, size_t tvsize, unsigned long avg);
+/*
+ * Return standard deviation in microseconds for sorted timeval array with
+ * tvsize entries and an average of avg.
+ */
+
+#define tv2usec(tv) ((unsigned long) (tv)->tv_sec * 1000000 + (tv)->tv_usec)
+/*
+ * convert struct timeval to microseconds
+ */
+
 int
-accesscheck(int s, struct authmethod_t *auth, const struct sockaddr *src,
+accesscheck(int s, authmethod_t *auth, const struct sockaddr *src,
       const struct sockaddr *dst, char *emsg, size_t emsgsize)
-      __attribute__((__bounded__(__buffer__, 5, 6)));
+      __ATTRIBUTE__((__bounded__(__buffer__, 5, 6)));
 /*
  * Checks whether access matches according to supplied arguments.
  * "auth" is the authentication to be matched against,
@@ -1843,9 +2128,9 @@ accesscheck(int s, struct authmethod_t *auth, const struct sockaddr *src,
 int
 passwordcheck(const char *name, const char *cleartextpassword,
       char *emsg, size_t emsglen)
-      __attribute__((__bounded__(__buffer__, 3, 4)));
+      __ATTRIBUTE__((__bounded__(__buffer__, 3, 4)));
 /*
- * Checks whether "name" is in the passwordfile.
+ * Checks whether "name" is in the password file.
  * If "cleartextpassword" is not NULL, also checks if "name"'s
  * password is "cleartextpassword".
  *
@@ -1857,8 +2142,8 @@ passwordcheck(const char *name, const char *cleartextpassword,
 int
 pam_passwordcheck(int s,
       const struct sockaddr *src, const struct sockaddr *dst,
-      const struct authmethod_pam_t *auth, char *emsg, size_t emsglen)
-      __attribute__((__bounded__(__buffer__, 5, 6)));
+      const authmethod_pam_t *auth, char *emsg, size_t emsglen)
+      __ATTRIBUTE__((__bounded__(__buffer__, 5, 6)));
 /*
  * Checks whether pam grants access to the client connected to the socket "s".
  * "src" is the clients source address, "dst" is address we accepted the
@@ -1872,8 +2157,8 @@ pam_passwordcheck(int s,
 int
 bsdauth_passwordcheck(int s,
       const struct sockaddr *src, const struct sockaddr *dst,
-      struct authmethod_bsd_t *auth, char *emsg, size_t emsgsize)
-      __attribute__((__bounded__(__buffer__, 5, 6)));
+      authmethod_bsd_t *auth, char *emsg, size_t emsgsize)
+      __ATTRIBUTE__((__bounded__(__buffer__, 5, 6)));
 /*
  * Checks whether bsd authentication grants access to the client
  * connected to the socket "s".  "src" is the clients source address,
@@ -1892,11 +2177,13 @@ redirectsetup(void);
  */
 
 int
-redirect(int s, struct sockaddr *addr, struct sockshost_t *host,
-      int command, const struct ruleaddr_t *from, const struct ruleaddr_t *to);
+redirect(int s, struct sockaddr *addr, sockshost_t *host,
+         int command, const ruleaddr_t *from, const ruleaddr_t *to);
 /*
  * "s" is the socket to use for performing "command".
+ *
  * The meaning of "addr" and "host" varies depending on what "command" is:
+ *
  *      SOCKS_BIND:
  *         "addr" is local address of "s", to accept remote connection on.
  *         "host" is ignored.
@@ -1910,7 +2197,7 @@ redirect(int s, struct sockaddr *addr, struct sockshost_t *host,
  *         "host" is host to connect to.
  *
  *      case SOCKS_UDPASSOCIATE:
- *         "addr" is the address to tell the client the udp packet is from.
+ *         "addr" is the address to send the udp packet from.
  *         "host" is the address to send packet to.
  *
  *      case SOCKS_UDPREPLY:
@@ -1926,37 +2213,43 @@ redirect(int s, struct sockaddr *addr, struct sockshost_t *host,
 void
 hostcachesetup(void);
 /*
- * Initalizes the hostcache.  Must be called before any calls to
+ * Initializes the hostcache.  Must be called before any calls to
  * cgethostby*().
  */
 
 void
 ldapcachesetup(void);
 /*
- * Initalizes the ldapcache.  Must be called before any calls to
+ * Initializes the ldapcache.  Must be called before any calls to
  * ldap functions.
  */
 
 char *
 sockd_getshmemname(const long id);
 /*
- * Returns the shmemname coresponding to the id "id".
+ * Returns the shmemname corresponding to the id "id".
  */
 
 void
-sockd_shmdt(struct rule_t *rule, const int which);
+sockd_shmdt(rule_t *rule, const int which);
 /*
  * Detaches shared memory segments in rule "rule" as indicated by which,
  * and sets the value of the detached objects to not in use.
  */
 
 void
-sockd_shmat(struct rule_t *rule, const int which);
+sockd_shmat(rule_t *rule, const int which);
 /*
  * Attaches shared memory segments in "rule" as indicated by which.
+
  * Warnings are printed if the attach fails, but the error is
  * not considered to be fatal.  The attachments that fail are
  * set to NULL/-1.
+ *
+ * Note that it therefore important to check for the shmid/object
+ * twice.  Once before calling sockd_shmat(), and once after, as the
+ * first sockd_shmat() call may have failed on some or all the
+ * shmem segments, and NULL-ed them if so.
  */
 
 void shmem_setup(void);
@@ -1975,7 +2268,7 @@ unsigned long
 mem2shmem(const unsigned long firstid);
 /*
  * Deallocates from all rules starting with "firstrule" ordinary memory for
- * objects that should be in shared memory and alloacates shared memory
+ * objects that should be in shared memory and allocates shared memory
  * for it instead.
  * "firstid" is the d to use for the first allocation.  The id of
  * subsequent allocations is incremented by one.
@@ -2004,7 +2297,7 @@ sockd_mmap(size_t size, const int fd, const int docreate);
  * and mmap()s it.
  * If "docreate" is set, this is a call to create the memory, and the
  * function will make sure to extend the file referenced by fd to
- * atleast "size" bytes.
+ * at least "size" bytes.
  * If "docreate" is not set, this is a remap of a previously created
  * shmem segment.
  *
@@ -2040,10 +2333,10 @@ bw_update(shmem_object_t *bw, size_t bwused, const struct timeval *bwusedtime,
  */
 
 int
-bw_rulehasoverflown(const struct rule_t *rule, const struct timeval *tnow,
+bw_rulehasoverflown(const rule_t *rule, const struct timeval *tnow,
                     struct timeval *overflowok,
                     const int controlfd, const int srcfd, const int dstfd);
-/* 
+/*
  * Checks if the bandwidth limit for the bw-object in "rule" has overflown.
  * If it has overflown, "overflowok" is set to the time when we can again do
  * i/o over the io objects using this rule.
@@ -2069,9 +2362,9 @@ session_unuse(shmem_object_t *ss, const int lock);
 int sockd_handledsignals(void);
 /*
  * Check if we have received any signal, and calls the appropriate
- * signalhandler if so.
+ * signal handler if so.
  *
- * Returns 1 if a signalhandler was called, 0 otherwise.
+ * Returns 1 if a signal handler was called, 0 otherwise.
  */
 
 
@@ -2103,7 +2396,7 @@ int
 sockd_popsignal(siginfo_t *siginfo);
 /*
  * Pops the first signal on the internal signal stack.
- * Returns the signalnumber, and stores the siginfo in "siginfo".
+ * Returns the signal number, and stores the siginfo in "siginfo".
  */
 
 
@@ -2118,7 +2411,7 @@ socks_getmacaddr(const char *ifname, unsigned char *macaddr);
  */
 
 ssize_t
-addrindex_on_listenlist(const size_t listc, const struct listenaddress_t *listv,
+addrindex_on_listenlist(const size_t listc, const listenaddress_t *listv,
                         const struct sockaddr *addr, const int protocol);
 /*
  * Checks if "addr" is on the list of internal addresses, as
@@ -2129,7 +2422,7 @@ addrindex_on_listenlist(const size_t listc, const struct listenaddress_t *listv,
  */
 
 ssize_t
-addrindex_on_externallist(const struct externaladdress_t *external,
+addrindex_on_externallist(const externaladdress_t *external,
                           const struct in_addr addr);
 /*
  * Checks if "addr" is on the list of external addresses, as
@@ -2139,10 +2432,19 @@ addrindex_on_externallist(const struct externaladdress_t *external,
  */
 
 
-size_t maxfreeslots(const int childtype);
+size_t
+maxfreeslots(const int childtype);
 /*
  * Returns the maximum number of free slots a child of type "childtype"
  * can have.
+ */
+
+void
+sockd_print_child_ready_message(const size_t freefds);
+/*
+ * Prints the appropriate startup message for the child calling this
+ * function.
+ * "freefds" is the number of free fd's.
  */
 
 int
@@ -2167,29 +2469,63 @@ io_handlesighup(void);
  * upon receiving a sighup.
  */
 
+int sockd_isoverloaded(const char *description,
+                       const struct timeval *tsent,
+                       const struct timeval *treceived,
+                       const struct timeval *tnow);
+/*
+ * checks whether the delay between a packet sent by process N (e.g.,
+ * the negotiate-process) at time "tsent", and received by process
+ * N + 1 (e.g., the request-process) at time "treceived" indicates
+ * we are overloaded.
+ *
+ * "tnow" is the current time, and is used to avoid printing warnings
+ * too frequently.  It is included in the API for this function in order
+ * to avoid an unnecessary system call since "treceived" and "tnow" will
+ * usually be the same.
+ *
+ * Returns true, and possibly prints a warning if we are overloaded.
+ * Returns false if no overload condition is detected.
+ */
+
 
 #if BAREFOOTD
 int
-io_remove_session(const struct sockaddr *laddr, const int protocol);
+io_remove_session(const struct sockaddr *laddr, const int protocol,
+                  const iostatus_t reason);
 /*
  * This function tries to find a session where the local address is "addr",
  * using protocol "protocol".  If found, the session is removed.
- *
  * If "addr" is NULL, all sessions using protocol "protocol" are removed.
+ *
+ * "reason" gives the reason why the session should be removed.
  *
  * Returns:
  *    If a matching session was found: 0.
- *    If no matching sessionwas found: -1.
+ *    If no matching session was found: -1.
  */
+
+in_port_t
+udphdr_dport(struct udphdr *udp);
+/*
+ * Returns the uh_dport value from the udp header.
+ */
+
+in_port_t
+udphdr_sport(struct udphdr *udp);
+/*
+ * Returns the uh_sport value from the udp header.
+ */
+
 #endif /* BAREFOOTD */
 
 
 #if COVENANT
 
 int
-resend_client(struct sockd_io_t *io);
+resend_client(sockd_io_t *io);
 /*
- * Resends the client using "io" to mother, for renogotiation.
+ * Resends the client using "io" to mother, for renegotiation.
  * This happens when a http client wants to connect to a different
  * remote server.
  *
@@ -2197,7 +2533,7 @@ resend_client(struct sockd_io_t *io);
  */
 
 int
-recv_resentclient(int s, struct sockd_client_t *client);
+recv_resentclient(int s, sockd_client_t *client);
 /*
  * Receives the resent client from "s".  The resent client
  * stored in "client".
@@ -2206,8 +2542,8 @@ recv_resentclient(int s, struct sockd_client_t *client);
  */
 
 negotiate_result_t
-recv_httprequest(int s, struct request_t *request,
-                 struct negotiate_state_t *state);
+recv_httprequest(int s, request_t *request,
+                 negotiate_state_t *state);
 /*
  * Reads a http request from the socket "s", which can be set to
  * non-blocking.
@@ -2221,7 +2557,7 @@ recv_httprequest(int s, struct request_t *request,
  */
 
 int
-parse_httprequest(struct request_t *reqinfo, const char *req,
+parse_httprequest(request_t *reqinfo, const char *req,
                   char *emsg, size_t emsglen);
 /*
  * Parses the http request present in the NUL-terminated string "req".
@@ -2232,16 +2568,16 @@ parse_httprequest(struct request_t *reqinfo, const char *req,
  */
 
 size_t
-httpresponse2mem(const int s, const struct response_t *response,
+httpresponse2mem(const int s, const response_t *response,
                  char *buf, const size_t buflen);
 
 #endif /* COVENANT */
 
 #if HAVE_NEGOTIATE_PHASE
-struct response_t *
-create_response(const struct sockshost_t *host, struct authmethod_t *auth,
+response_t *
+create_response(const sockshost_t *host, authmethod_t *auth,
                 const int version, const int responsecode,
-                struct response_t *response);
+                response_t *response);
 /*
  * Fills in the responseobject "response" based on data the passed data.
  * "responsecode" is the proxy version "version" code to set the reply to.
@@ -2250,7 +2586,7 @@ create_response(const struct sockshost_t *host, struct authmethod_t *auth,
  */
 
 void
-send_failure(int s, struct response_t *response, int failure);
+send_failure(int s, response_t *response, int failure);
 /*
  * Wrapper around send_response() that sends a failure message to the
  * client connected to "s" and deletes gss state if in use.
@@ -2261,7 +2597,7 @@ send_failure(int s, struct response_t *response, int failure);
  */
 
 int
-send_response(int s, const struct response_t *response);
+send_response(int s, const response_t *response);
 /*
  * Sends "response" to "s".
  *      On success: 0
@@ -2275,8 +2611,19 @@ send_response(int s, const struct response_t *response);
 
 #endif /* !HAVE_NEGOTIATE_PHASE */
 
-#if HAVE_LIVEDEBUG 
-void 
+#if DIAGNOSTIC
+void
+checksockoptions(const int s, const int type, const int isclientside);
+/*
+ * checks that the expected options are set on the socket and prints
+ * warnings if not.
+ */
+#endif /* DIAGNOSTIC */
+
+
+#if HAVE_LIVEDEBUG
+
+void
 socks_flushrb(void);
 /*
  * Flushes the ringbuffer to log(s).

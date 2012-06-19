@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #if SOCKSLIBRARY_DYNAMIC
 
 static const char rcsid[] =
-"$Id: int_osf1.c,v 1.22 2011/05/18 13:48:45 karls Exp $";
+"$Id: int_osf1.c,v 1.24 2012/06/01 20:23:05 karls Exp $";
 
 #undef accept
 #undef getpeername
@@ -68,7 +68,7 @@ sys_Eaccept(s, addr, addrlen)
    socklen_t *addrlen;
 {
    int rc;
-   int (*function)(int s, struct sockaddr * addr, socklen_t *addrlen);
+   int (*function)(int s, struct sockaddr *addr, socklen_t *addrlen);
 
    socks_syscall_start(s);
    function = symbolfunction(SYMBOL_EACCEPT);
@@ -84,7 +84,7 @@ sys_Egetpeername(s, name, namelen)
    socklen_t *namelen;
 {
    int rc;
-   int (*function)(int s, const struct sockaddr * name, socklen_t *namelen);
+   int (*function)(int s, const struct sockaddr *name, socklen_t *namelen);
 
    socks_syscall_start(s);
    function = symbolfunction(SYMBOL_EGETPEERNAME);
@@ -100,7 +100,7 @@ sys_Egetsockname(s, name, namelen)
    socklen_t *namelen;
 {
    int rc;
-   int (*function)(int s, const struct sockaddr * name, socklen_t *namelen);
+   int (*function)(int s, const struct sockaddr *name, socklen_t *namelen);
 
    socks_syscall_start(s);
    function = symbolfunction(SYMBOL_EGETSOCKNAME);
@@ -136,7 +136,7 @@ sys_Erecvfrom(s, buf, len, flags, from, fromlen)
 {
    int rc;
    int (*function)(int s, void *buf, size_t len, int flags,
-                   struct sockaddr * from, socklen_t *fromlen);
+                   struct sockaddr *from, socklen_t *fromlen);
 
    socks_syscall_start(s);
    function = symbolfunction(SYMBOL_ERECVFROM);
