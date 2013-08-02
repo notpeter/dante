@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2006, 2008, 2009, 2010, 2011
+ * Copyright (c) 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,36 +39,65 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: session.c,v 1.13 2011/10/10 12:54:03 karls Exp $
  */
 
-#include "common.h"
+#ifdef HAVE_CONFIG_H
+#include "autoconf.h"
+#endif /* HAVE_CONFIG_H */
+
+/*
+ * The uh_dport/uh_sport values are only available on Linux when
+ * _BSD_SOURCE is set and _XOPEN_SOURCE/_XOPEN_SOURCE_EXTENDED
+ * is not set.
+ *
+ * Functions to access these fields are placed in this file,
+ * making this the only file where _XOPEN_SOURCE/_XOPEN_SOURCE_EXTENDED
+ * are not set.
+ */
+
+#if HAVE_LINUX_BUGS
+#undef _XOPEN_SOURCE
+#undef _XOPEN_SOURCE_EXTENDED
+#endif /* HAVE_LINUX_BUGS */
+
+#include <sys/types.h>
+#include <netinet/in_systm.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/udp.h>
 
 static const char rcsid[] =
-"$Id: session.c,v 1.13 2011/10/10 12:54:03 karls Exp $";
+"$Id: udp_port.c,v 1.3 2012/08/08 13:17:05 michaels Exp $";
 
-const char module_session_version[] =
-"$Id: session.c,v 1.13 2011/10/10 12:54:03 karls Exp $";
+in_port_t *udphdr_uh_dport(struct udphdr *udp);
+in_port_t *udphdr_uh_sport(struct udphdr *udp);
+uint16_t *udphdr_uh_ulen(struct udphdr *udp);
+uint16_t *udphdr_uh_sum(struct udphdr *udp);
 
-extern const char *module_session_ipaddrv[];
-extern const int module_session_ipaddrc;
-
-void
-session_unuse(ss, lock)
-   shmem_object_t *ss;
-   const int lock;
+in_port_t *
+udphdr_uh_dport(struct udphdr *udp)
 {
 
-   (void)ss;
+   return &udp->uh_dport;
 }
 
-int
-session_use(ss, lock)
-   shmem_object_t *ss;
-   const int lock;
+in_port_t *
+udphdr_uh_sport(struct udphdr *udp)
 {
 
-   (void)ss;
+   return &udp->uh_sport;
+}
 
-   return 1;
+uint16_t *
+udphdr_uh_ulen(struct udphdr *udp)
+{
+
+   return &udp->uh_ulen;
+}
+
+uint16_t *
+udphdr_uh_sum(struct udphdr *udp)
+{
+
+   return &udp->uh_sum;
 }

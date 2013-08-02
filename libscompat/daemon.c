@@ -1,8 +1,10 @@
-/* $Id: daemon.c,v 1.8 2009/07/02 19:08:22 karls Exp $ */
+/* $Id: daemon.c,v 1.9 2012/10/22 15:15:58 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
+
+#include "osdep.h"
 
 /*      $OpenBSD: daemon.c,v 1.6 2005/08/08 08:05:33 espie Exp $ */
 /*-
@@ -33,15 +35,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-#include <fcntl.h>
-/*#include <paths.h>*/
-#if HAVE_UNISTD_H
-#include <unistd.h>
-#endif /* HAVE_UNISTD_H */
-#include <stdlib.h>
-
-#include "daemon.h"
 
 int
 daemon(int nochdir, int noclose)

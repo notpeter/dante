@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.74 2012/06/01 20:23:05 karls Exp $";
+"$Id: protocol.c,v 1.86 2013/06/11 09:51:58 michaels Exp $";
 
 unsigned char *
 sockshost2mem(host, mem, version)
@@ -81,13 +81,14 @@ sockshost2mem(host, mem, version)
                break;
 
             case SOCKS_ADDR_IPV6:
-               memcpy(mem, &host->addr.ipv6, sizeof(host->addr.ipv6));
-               mem += sizeof(host->addr.ipv6);
+               memcpy(mem, &host->addr.ipv6.ip, sizeof(host->addr.ipv6.ip));
+               mem += sizeof(host->addr.ipv6.ip);
                break;
 
             case SOCKS_ADDR_DOMAIN:
                /* first byte gives length of rest. */
                *mem = (unsigned char)strlen(host->addr.domain);
+
                memcpy(mem + 1, host->addr.domain, (size_t)*mem);
                mem += *mem + 1;
                break;
@@ -120,6 +121,9 @@ mem2sockshost(host, mem, len, version)
 
    switch (version) {
       case PROXY_SOCKS_V5:
+         if (len < MINSOCKSHOSTLEN)
+            return NULL;
+
          if (len < sizeof(host->atype))
             return NULL;
 
@@ -157,11 +161,19 @@ mem2sockshost(host, mem, len, version)
             }
 
             case SOCKS_ADDR_IPV6:
-               slog(LOG_DEBUG, "%s: IPv6 not supported", function);
-               return NULL;
+               if (len < sizeof(host->addr.ipv6.ip))
+                  return NULL;
+
+               memcpy(&host->addr.ipv6.ip, mem, sizeof(host->addr.ipv6.ip));
+               mem += sizeof(host->addr.ipv6.ip);
+               len -= sizeof(host->addr.ipv6.ip);
+
+               host->addr.ipv6.scopeid = 0;
+
+               break;
 
             default:
-               slog(LOG_DEBUG, "%s: unknown atype value: %d",
+               slog(LOG_NEGOTIATE, "%s: unknown atype value: %d",
                     function, host->atype);
                return NULL;
          }
@@ -233,12 +245,13 @@ socks_get_responsevalue(response)
 }
 
 int
-proxyversionisknown(version)
+proxyprotocolisknown(version)
    const int version;
 {
 
    switch (version) {
-      case PROXY_SOCKS_V4REPLY_VERSION:
+      /* don't inclue PROXY_SOCKS_V4REPLY_VERSION.  Stupid thing set to 0. */
+      case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V5:
       case PROXY_UPNP:
       case PROXY_HTTP_10:
@@ -248,4 +261,41 @@ proxyversionisknown(version)
       default:
          return 0;
    }
+}
+
+int
+authmethodisknown(method)
+   const int method;
+{
+
+   switch (method) {
+      case AUTHMETHOD_NOTSET:
+      case AUTHMETHOD_NONE:
+      case AUTHMETHOD_GSSAPI:
+      case AUTHMETHOD_UNAME:
+      case AUTHMETHOD_NOACCEPT:
+      case AUTHMETHOD_RFC931:
+      case AUTHMETHOD_PAM_ANY:
+      case AUTHMETHOD_PAM_ADDRESS:
+      case AUTHMETHOD_PAM_USERNAME:
+      case AUTHMETHOD_BSDAUTH:
+         return 1;
+
+      default:
+         return 0;
+   }
+}
+
+int *
+charmethod2intmethod(methodc, charmethodv, intmethodv)
+   const size_t methodc;
+   const unsigned char charmethodv[];
+   int intmethodv[];
+{
+   size_t i;
+
+   for (i = 0; i < methodc; ++i)
+      intmethodv[i] = (int)charmethodv[i];
+
+   return intmethodv;
 }

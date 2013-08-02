@@ -1,7 +1,13 @@
+#ifdef HAVE_CONFIG_H
+#include "autoconf.h"
+#endif /* HAVE_CONFIG_H */
+
+#include "osdep.h"
+
 /*
- * $Id: pselect.c,v 1.5 2012/05/21 21:39:17 karls Exp $
+ * $Id: pselect.c,v 1.12 2013/01/31 23:01:47 karls Exp $
  *
- * Copyright (c) 2011
+ * Copyright (c) 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,37 +50,39 @@
  */
 
 static const char rcsid[] =
-"$Id: pselect.c,v 1.5 2012/05/21 21:39:17 karls Exp $";
+"$Id: pselect.c,v 1.12 2013/01/31 23:01:47 karls Exp $";
 
+int sockd_handledsignals(void); /* no sockd.h here. */
 
-#ifdef HAVE_CONFIG_H
-#include "autoconf.h"
-#endif /* HAVE_CONFIG_H */
-
-#include "osdep.h"
-
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <signal.h>
 
 /* inspired by Stevens 'incorrect' implementation; best effort if no pselect */
 
-int pselect(int nfds, fd_set *rset, fd_set *wset, fd_set *xset,
+inline int
+pselect(int nfds, fd_set *rset, fd_set *wset, fd_set *xset,
     const struct timespec *ts, const sigset_t *sigmask)
 {
     struct timeval tv;
     sigset_t sm;
     int n;
 
+    if (sigprocmask(SIG_SETMASK, sigmask, &sm) == -1)
+       return -1;
+
     if (ts != NULL) {
         tv.tv_sec  = ts->tv_sec;
         tv.tv_usec = ts->tv_nsec / 1000;
     }
 
-    if (sigmask != NULL && sigprocmask(SIG_SETMASK, sigmask, &sm) == -1)
-       return -1;
+#if SOCKS_SERVER || BAREFOOTD || COVENANT
+    if (sockd_handledsignals() != 0) {
+      if (sigmask != NULL)
+         (void)sigprocmask(SIG_SETMASK, &sm, NULL);
+
+      errno = EINTR;
+      return -1;
+   }
+#endif /* SOCKS_SERVER || BAREFOOTD || COVENANT */
+
 
     n = select(nfds, rset, wset, xset, (ts == NULL) ? NULL : &tv);
 

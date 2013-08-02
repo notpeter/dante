@@ -1,4 +1,4 @@
-/* $Id: setproctitle.c,v 1.19 2011/05/18 13:11:07 karls Exp $ */
+/* $Id: setproctitle.c,v 1.21 2012/10/22 15:15:58 karls Exp $ */
 /* Based on conf.c from UCB sendmail 8.8.8 */
 
 #ifdef HAVE_CONFIG_H
@@ -40,8 +40,6 @@
  * SUCH DAMAGE.
  */
 
-#if !HAVE_SETPROCTITLE
-
 #if 0
 #include <stdarg.h>
 #include <stdlib.h>
@@ -66,8 +64,6 @@ static size_t argv_env_len = 0;
 #endif /* defined(SPT_TYPE) && SPT_TYPE == SPT_REUSEARGV */
 
 extern char *__progname;
-
-#endif /* HAVE_SETPROCTITLE */
 
 void
 initsetproctitle(int argc, char *argv[])
@@ -99,7 +95,6 @@ initsetproctitle(int argc, char *argv[])
 #endif /* defined(SPT_TYPE) && SPT_TYPE == SPT_REUSEARGV */
 }
 
-#if !HAVE_SETPROCTITLE
 void
 setproctitle(const char *fmt, ...)
 {
@@ -108,7 +103,7 @@ setproctitle(const char *fmt, ...)
 	char buf[1024];
 	size_t len;
 
-	if (argv_env_len <= 0)
+	if (argv_env_len == 0)
 		return;
 
 	strlcpy(buf, __progname, sizeof(buf));
@@ -128,5 +123,3 @@ setproctitle(const char *fmt, ...)
 		argv_start[len] = SPT_PADCHAR;
 #endif /* defined(SPT_TYPE) && SPT_TYPE == SPT_REUSEARGV */
 }
-
-#endif /* HAVE_SETPROCTITLE */

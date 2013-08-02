@@ -1,4 +1,4 @@
-# $Id: BUGS,v 1.77 2012/06/01 19:59:26 karls Exp $
+# $Id: BUGS,v 1.80 2012/12/31 20:51:30 karls Exp $
 
 To report a new bug, mail dante-bugs@inet.no.
 Make sure you read the FAQ (http://www.inet.no/dante/FAQ/) first.
@@ -57,14 +57,14 @@ Client part:
       when socksifying applications that use C's stdio for network i/o
       instead of the standard unix network system calls.
 
-    - Applications with symbols that collide with kerberos/gssapi
+    - Applications with symbols that collide with Kerberos/gssapi
       library functions can result in segmentation fault if these
       applications are the first applications run after getting a
-      kerberos ticket.  Some examples are dig, host, and nslookup,
+      Kerberos ticket.  Some examples are dig, host, and nslookup,
       which share common code with a variable that has the same name
-      as the MIT kerberos error_message() function.
+      as the MIT Kerberos error_message() function.
 
-      Debugging code in MIT kerberos can result in this function being
+      Debugging code in MIT Kerberos can result in this function being
       called even if the application would normally work.
 
       A workaround is to run a different application before using any
@@ -75,20 +75,25 @@ Client part:
       seems to be related to the host command doing something that
       conflicts with the Heimdal gssapi-related libraries.
 
-    - On FreeBSD 7.2 there is at least one bug that prevents socksify
-      from working with gssapi-authentication unless there is a direct
-      DNS route.  The problem is not so easy to diagnose. but involves
-      an error message similar to this found in socks.log:
-      "Rconnect(): connecting socket 4 to a.b.c.d.e failed: Bad file
-      descriptor (errno = X)".
+    - On FreeBSD, at least versions 7.2 - 8.2,  there is at least one bug
+      that prevents socksify from working with gssapi-authentication
+      unless there is a direct DNS route.  The problem is not so easy to
+      diagnose. but involves an error message similar to this found in
+      socks.log:
+      """
+
+      "Rconnect(): connecting socket A to a.b.c.d.e failed:
+      Bad file descriptor (errno = X)".
+
+      """
 
       This occurs because the Dante library needs to call getnameinfo(3)
       during establishment of a gssapi-based socks-session, but
       sometimes the reason it needs to establish a socks-session is
-      because getnameinfo(3) was called by the client.  That means
-      there are two instances of getnameinfo(3) on the stack, and
-      Dante's getnameinfo(3) call ends up closing the socket the
-      clients getnameinfo(3) call created.
+      because getnameinfo(3) was called by the client.  That means there
+      are two instances of getnameinfo(3) on the stack, and Dante's
+      getnameinfo(3) call ends up closing the socket the clients
+      getnameinfo(3) call created.
 
       See http://www.freebsd.org/cgi/query-pr.cgi?pr=139734 for more
       information.

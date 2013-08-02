@@ -1,5 +1,16 @@
 dnl libscompat.m4 - tests related to replacement code in libscompat directory
 
+unset build_libscompat
+#if test x"$prerelease" != x; then
+#    #build libscompat for increased testing during prereleases, but
+#    #only on platforms without complicated library systems
+#    case $host in
+#	 *-*-linux*)
+#	    build_libscompat=t
+#	    ;;
+#    esac
+#fi
+
 AC_MSG_CHECKING([for timer macros])
 AC_TRY_LINK([
 #include <sys/time.h>],
@@ -67,8 +78,25 @@ AC_TRY_LINK([
 [AC_MSG_RESULT(no)])
 
 #no replacements for these
-AC_CHECK_FUNCS(processor_bind sched_setscheduler)
+AC_CHECK_FUNCS(processor_bind)
+
+case $host in
+changequote(<<, >>)dnl
+#    *-*-freebsd[1-8]\.*)
+changequote([, ])dnl
+    *-*-freebsd*) #XXX disable on all versions for now
+	AC_MSG_WARN([disabling sched_setscheduler code on this platform])
+	;;
+    *)
+	AC_CHECK_FUNCS(sched_setscheduler)
+	;;
+esac
+
 AC_CHECK_HEADERS(sched.h)
+
+#getpassphrase() is not limited to 9 character passwords on SunOS
+AC_CHECK_FUNC(getpassphrase,
+[AC_DEFINE(getpass(p), getpassphrase(p), [use getpassphrase])])
 
 AC_MSG_CHECKING([for sched_setaffinity])
 AC_TRY_COMPILE([
@@ -84,7 +112,7 @@ AC_TRY_COMPILE([
 
 AC_CHECK_HEADERS(ifaddrs.h)
 
-AC_CHECK_FUNCS(daemon difftime getifaddrs freeifaddrs hstrerror inet_aton)
+AC_CHECK_FUNCS(daemon difftime getifaddrs freeifaddrs hstrerror)
 AC_CHECK_FUNCS(inet_pton issetugid memmove pselect seteuid setegid)
 AC_CHECK_FUNCS(setproctitle sockatmark strvis vsyslog)
 AC_CHECK_FUNCS(bzero strlcpy backtrace)
@@ -115,7 +143,7 @@ int main(void)
     [dnl assume working when cross-compiling (rare bug)
      AC_MSG_RESULT(assuming no)])
 
-if test x${ac_cv_func_sockatmark} = xyes; then
+if test x"${ac_cv_func_sockatmark}" = xyes; then
    AC_MSG_CHECKING([for working sockatmark])
    AC_TRY_RUN([
 #include <sys/types.h>
@@ -145,12 +173,13 @@ fi
 #   AC_MSG_WARN([notice: using libscompat getifaddrs() function])
 #fi
 
-#only compile files that are needed
-unset LIBSCSRC
-unset LIBDSCSRC
-for func in daemon difftime getifaddrs hstrerror inet_aton inet_ntoa    \
-            inet_pton issetugid memmove pselect seteuid setproctitle    \
-	    sockatmark strlcpy strvis vsyslog; do
+#only compile files that are needed, client
+unset LIBSCSRC LIBDSCSRC
+CLIENTONLY="issetugid"
+SERVERONLY="daemon seteuid sockatmark"
+SHAREDFUNCS="getifaddrs hstrerror inet_ntoa inet_pton memmove pselect setproctitle strlcpy strvis vsyslog"
+#XXXold?: difftime
+for func in $CLIENTONLY $SHAREDFUNCS; do
     var=ac_cv_func_${func}
     if test ! -s "libscompat/${func}.c"; then
 	AC_MSG_WARN([error: libscompat file for $func missing])
@@ -159,18 +188,44 @@ for func in daemon difftime getifaddrs hstrerror inet_aton inet_ntoa    \
     if eval "test x\"\$${var}\" = xno"; then
 	LIBSCSRC="${LIBSCSRC}${LIBSCSRC:+ }${func}.lo"
 	LIBDSCSRC="${LIBDSCSRC}${LIBDSCSRC:+ }libdsocks_la-${func}.lo"
+	COMPATFUNCS="$COMPATFUNCS${COMPATFUNCS:+ }$func"
     fi
 done
+if test x"${build_libscompat}" != x; then
+   unset LIBSCSRC LIBDSCSRC #link directly with libscompat i prerelease
+fi
 AC_SUBST([LIBSCSRC])
 AC_SUBST([LIBDSCSRC])
+
+#server
+unset SOCKDCOMPAT
+for func in $SERVERONLY $SHAREDFUNCS; do
+    var=ac_cv_func_${func}
+    if test ! -s "libscompat/${func}.c"; then
+	AC_MSG_WARN([error: libscompat file for $func missing])
+	exit 1
+    fi
+    if eval "test x\"\$${var}\" = xno"; then
+	SOCKDCOMPAT="${SOCKDCOMPAT}${SOCKDCOMPAT:+ }${func}.${OBJEXT}"
+	COMPATFUNCS="$COMPATFUNCS${COMPATFUNCS:+ }$func"
+    fi
+done
+if test x"${build_libscompat}" != x; then
+   unset SOCKDCOMPAT #link directly with libscompat i prerelease
+   COMPATFUNCS="$CLIENTONLY $SERVERONLY $SHAREDFUNCS"
+fi
+COMPATFUNCS=`echo $COMPATFUNCS | xargs -n1 | sort | uniq | xargs`
+AC_SUBST([SOCKDCOMPAT])
+
 if test x"$LIBSCSRC" != x; then
-   SCCOMPATLIB="../libscompat/libscompat.la"
    LINTSCCOMPATLIB="-lscompat"
 fi
 AC_SUBST([SCCOMPATLIB])
 AC_SUBST([LINTSCCOMPATLIB])
 
-if test x${ac_cv_func_bzero} = xno; then
+AC_DEFINE_UNQUOTED(DANTE_COMPATFILES, "$COMPATFUNCS", [Compat functions enabled in build])
+
+if test x"${ac_cv_func_bzero}" = xno; then
     AC_DEFINE(bzero(b, len), memset((b), 0, (len)), [bzero replacement])
 fi
 
@@ -305,9 +360,35 @@ esac
 case $host in
     *-*-solaris*)
 	AC_DEFINE(FD_SETSIZE_LIMITS_SELECT, 1, [limit to FD_SETSIZE])
-	
 	;;
     *)
 	AC_DEFINE(FD_SETSIZE_LIMITS_SELECT, 0, [ignore FD_SETSIZE])
 	;;
 esac
+
+#lack of unified buffers result in less optimal shmem.c performance
+L_UNIBUF()
+
+#XXX should be in osdep.m4
+AC_SEARCH_LIBS(clock_gettime, rt)
+AC_MSG_CHECKING([for CLOCK_MONOTONIC clock_gettime() support])
+AC_TRY_RUN([
+#include <sys/time.h>
+#include <time.h>
+
+int
+main(void)
+{
+	struct timespec ts;
+
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+	   perror("clock_gettime");
+	   return -1;
+	}
+
+	return 0;
+}], [AC_MSG_RESULT(yes)
+     AC_DEFINE(HAVE_CLOCK_GETTIME_MONOTONIC, 1, [monotonic clock_gettime()])],
+    [AC_MSG_RESULT(no)],
+    [dnl assume no when cross-compiling
+     AC_MSG_RESULT(assuming no)])

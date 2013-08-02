@@ -1,3 +1,8 @@
+#library checks for preloading code
+
+#A good time to save the cache (preload code might fail)
+AC_CACHE_SAVE
+
 SOLIB_POSTFIX=so
 unset SOFULLPATH
 
@@ -98,11 +103,11 @@ AC_CHECK_HEADER(dlfcn.h,
  no_preload_server=t
  no_preload=t])
 
-if test x"$no_preload" = x; then
+if test x"${no_preload}" = x; then
     AC_MSG_CHECKING([whether all interposition usage should be disabled])
     AC_ARG_ENABLE(preload,
 	[  --disable-preload       disable preloading in server and client],
-	[if test x$enableval = xno; then
+	[if test x"$enableval" = xno; then
 	     no_preload_client=t
 	     no_preload_server=t
 	     no_preload=t
@@ -112,7 +117,7 @@ if test x"$no_preload" = x; then
 	 fi],[AC_MSG_RESULT([no])])
 fi
 
-if test x"$no_preload" = x; then
+if test x"${no_preload}" = x; then
     AC_MSG_CHECKING([whether interposition in the client should be disabled])
     AC_ARG_ENABLE(clientdl,
 	[  --disable-clientdl      disable support for preloading in the client],
@@ -157,7 +162,7 @@ yes
     have_dlflag=t],
    [AC_MSG_RESULT(no)])
 
-if test x"$have_dlflag" = x; then
+if test x"${have_dlflag}" = x; then
     AC_MSG_CHECKING([for RTLD_MEMBER])
     AC_EGREP_CPP(yes, [
 #include <dlfcn.h>
@@ -172,7 +177,7 @@ yes
        [AC_MSG_RESULT(no)])
 fi
 
-if test x"$have_dlflag" = x; then
+if test x"${have_dlflag}" = x; then
     AC_MSG_CHECKING([to see if dlopen param has DL_ and not RTLD_ prefix])
     AC_EGREP_CPP(yes, [
 #include <dlfcn.h>
@@ -194,8 +199,13 @@ AC_CHECK_FUNCS(__fprintf_chk __vfprintf_chk __read_chk)
 dnl XXX Some Linux glibc getc,putc replacements
 AC_CHECK_FUNCS(_IO_getc _IO_putc)
 
+AC_SEARCH_LIBS(getaddrinfo, socket)
+AC_SEARCH_LIBS(getnameinfo, socket)
+AC_CHECK_FUNCS(gethostbyname2 getaddrinfo getnameinfo freeaddrinfo)
+AC_CHECK_FUNCS(getipnodebyname)
+
 #find prototypes from dlib/interposition.c
-if test x"$preload_enabled" = xt; then
+if test x"${preload_enabled}" = xt; then
 
     unset failproto
     preprotoCFLAGS="$CFLAGS"
@@ -226,6 +236,11 @@ if test x"$preload_enabled" = xt; then
 	[struct hostent *, const void *, socklen_t, int],
 	[struct hostent *, const void *, int, int],
 	[struct hostent *, const void *, size_t, int])
+
+     L_NSOCKPROTO(getnameinfo, [failproto=t],
+        [int, const struct sockaddr *, socklen_t, char *, socklen_t, char *, socklen_t, int],
+        [int, const struct sockaddr *, socklen_t, char *, socklen_t, char *, socklen_t,  unsigned int],
+        [int, const struct sockaddr *, socklen_t, char *, size_t, char *, size_t,    int])
 
     L_NSOCKPROTO(getpeername, [failproto=t],
 	[int, int, struct sockaddr *, socklen_t *],
@@ -329,24 +344,24 @@ if test x"$preload_enabled" = xt; then
     L_NSTDIOPROTO(fread, [failproto=t],
 	[size_t, void *, size_t, size_t, FILE *])
 
-    if test x$ac_cv_func__IO_getc = xyes; then
+    if test x"${ac_cv_func__IO_getc}" = xyes; then
 	L_NSTDIOPROTO(_IO_getc, [failproto=t],
 	    [int, FILE *])
     fi
 
-    if test x$ac_cv_func__IO_putc = xyes; then
+    if test x"${ac_cv_func__IO_putc}" = xyes; then
 	L_NSTDIOPROTO(_IO_putc, [failproto=t],
 	    [int, int, FILE *])
     fi
 
-    if test x$ac_cv_func___read_chk = xyes; then
+    if test x"${ac_cv_func___read_chk}" = xyes; then
 	L_NSTDIOPROTO(_read_chk, [failproto=t],
 	    [ssize_t, int, void *, size_t, size_t])
     fi
 
     #XXX add vprintf_chk/fprintf_chk?
 
-    if test x$failproto != x; then
+    if test x"$failproto" != x; then
 	AC_MSG_WARN([attempt to determine function prototypes
 failed, and will probably mean that building of libdsocks, which
 allows on-the-fly socksification of dynamic binaries, will not work.
@@ -373,6 +388,11 @@ fi
 SOCKSIFY_PRELOAD_LIBS=""
 oLIBS=$LIBS
 
+#clock_gettime()
+if test x"${ac_cv_search_clock_gettime}" = x"-lrt"; then
+    SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}librt.${SOLIB_POSTFIX}"
+fi
+
 #HP-UX 11.00
 LIBS=""
 AC_SEARCH_LIBS(bindresvport, rpcsoc)
@@ -381,7 +401,7 @@ NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
 LIBS=""
 
 #ignore when preloading is disabled (only the AC_SEARCH_LIBS test is needed)
-if test x"$preload_enabled" = xt -a x"${ac_cv_search_bindresvport}" = x"-lrpcsoc"; then
+if test x"${preload_enabled}" = xt -a x"${ac_cv_search_bindresvport}" = x"-lrpcsoc"; then
     AC_DEFINE_UNQUOTED(LIBRARY_LIBRPCSOC, "${base_library_path}librpcsoc.sl", [libname])
     SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}librpcsoc.sl"
 
@@ -462,6 +482,10 @@ if test x"$preload_enabled" = xt -a x"${ac_cv_search_connect}" = x"-lsocket"; th
 	AC_DEFINE(LIBRARY_LISTEN, LIBRARY_LIBSOCKET, [function loc]))
     AC_CHECK_LIB(socket, getaddrinfo,
 	AC_DEFINE(LIBRARY_GETADDRINFO, LIBRARY_LIBSOCKET, [function loc]))
+    AC_CHECK_LIB(socket, getnameinfo,
+        AC_DEFINE(LIBRARY_GETNAMEINFO, LIBRARY_LIBSOCKET, [function loc]))
+    AC_CHECK_LIB(socket, freeaddrinfo,
+	AC_DEFINE(LIBRARY_FREEADDRINFO, LIBRARY_LIBSOCKET, [function loc]))
     AC_CHECK_LIB(socket, freehostent,
 	AC_DEFINE(LIBRARY_FREEHOSTENT, LIBRARY_LIBSOCKET, [function loc]))
     AC_CHECK_LIB(socket, recvfrom,
@@ -479,9 +503,6 @@ if test x"$preload_enabled" = xt -a x"${ac_cv_search_connect}" = x"-lsocket"; th
     AC_CHECK_LIB(socket, sendto,
 	AC_DEFINE(LIBRARY_SENDTO, LIBRARY_LIBSOCKET, [function loc]))
 fi
-
-#doesn't work if test links with -lsocket (Solaris)
-AC_SEARCH_LIBS(inet_addr, nsl)
 
 NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
 LIBS=""
@@ -501,11 +522,8 @@ if test x"$preload_enabled" = xt -a x"${ac_cv_search_inet_addr}" = x"-lnsl"; the
 	[AC_DEFINE(LIBRARY_GETIPNODEBYNAME, LIBRARY_LIBNSL, [function loc])])
 fi
 
-#XXX used for anything but gethostbyname2? consider testing for it
-# on Solaris (at least 2.6, gcc)
 #linking with -lresolv results in error unless -shared is included
-#since gcc insists on linking statically with libresolv for which
-#no static version exists
+#since no static version exists for libresolv on SunOS
 AC_SEARCH_LIBS(inet_aton, resolv)
 
 AC_SEARCH_LIBS(res_9_init, resolv)
@@ -513,7 +531,7 @@ AC_SEARCH_LIBS(res_9_init, resolv)
 NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
 LIBS=""
 
-if test x"$preload_enabled" = xt -a x"${ac_cv_search_inet_aton}" = x"-lresolv"; then
+if test x"${preload_enabled}" = xt -a x"${ac_cv_search_inet_aton}" = x"-lresolv"; then
     AC_DEFINE_UNQUOTED(LIBRARY_LIBRESOLV, "${base_library_path}libresolv.${SOLIB_POSTFIX}", [libloc])
 
     SOCKSIFY_PRELOAD_LIBS="${SOCKSIFY_PRELOAD_LIBS}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${base_library_path}libresolv.${SOLIB_POSTFIX}"
@@ -526,7 +544,7 @@ fi
 #with libdl in this test, which means that libdl will not be included
 #in socksify.
 
-if test x"$preload_enabled" = xt; then
+if test x"${preload_enabled}" = xt; then
     AC_SEARCH_LIBS(dlopen, dl)
 
     NLIBS="${NLIBS}${NLIBS:+ }$LIBS"
@@ -535,7 +553,7 @@ if test x"$preload_enabled" = xt; then
 	case $host in
 	    *-*-sunos4*) #XXX attempt to get libdl name
 		libdl=`ls ${base_library_path}libdl.${SOLIB_POSTFIX}* | sed -e 's/.*\///' | sort -nr | head -n 1`
-		if test x$libdl = x; then
+		if test x"$libdl" = x; then
 		    AC_MSG_WARN([unable to locate libdl])
 		else
 		    LIBRARY_DLOPEN=${base_library_path}${libdl}
@@ -560,10 +578,10 @@ AC_CHECK_FUNCS(rresvport) #not found on android
 #NOTE: exec_prefix and prefix have the value NONE here if they are unset
 o_exec_prefix=${exec_prefix}
 o_prefix=${prefix}
-if test x${prefix} = xNONE; then
+if test x"${prefix}" = xNONE; then
     prefix=$ac_default_prefix
 fi
-if test x${exec_prefix} = xNONE; then
+if test x"${exec_prefix}" = xNONE; then
     exec_prefix=$prefix
 fi
 LIBRARY_PREFIX=`eval echo \$libdir`
@@ -692,7 +710,7 @@ int main()
      AC_MSG_RESULT(yes)
      AC_DEFINE(HAVE_RTLD_NEXT, 1, [have working dlsym RTLD_NEXT])])
 
-if test x"$preload_enabled" = xt; then
+if test x"${preload_enabled}" = xt; then
     #Solaris might block preloading
     AC_MSG_CHECKING([libc preload blocking])
     AC_TRY_RUN([
@@ -736,6 +754,7 @@ fi
 unset NOPRELOAD
 if test x"${no_preload}" != x -o x"${no_preload_client}" != x; then
    NOPRELOAD=t
+   FEAT="$FEAT${FEAT:+ }nopreload"
 fi
 AC_SUBST(NOPRELOAD)
 

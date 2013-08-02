@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostid.c,v 1.9 2012/05/21 21:39:17 karls Exp $";
+"$Id: hostid.c,v 1.17 2013/03/30 15:03:57 michaels Exp $";
 
 #if SOCKS_HOSTID_TYPE != SOCKS_HOSTID_TYPE_NONE
 unsigned char
@@ -59,26 +59,39 @@ getsockethostid(s, addrc, addrv)
    size_t i;
    socklen_t len;
 
-   SASSERTX(sizeof(*addrv) == sizeof(*hostid.ipa_ipaddress));
-
    len = sizeof(hostid);
    if (getsockopt(s, IPPROTO_TCP, TCP_IPA, &hostid, &len) != 0) {
-      slog(LOG_DEBUG, "%s: no hostid retrieved via TCP_IPA on socket %d (%s)",
+      slog(LOG_DEBUG, "%s: no hostid retrieved via TCP_IPA on fd %d (%s)",
            function, s, strerror(errno));
 
+      errno = 0;
       return 0;
    }
 
-   slog(LOG_DEBUG, "%s: hostid of length %lu (max: %lu) retrieved via TCP_IPA "
-                   "on socket %d",
-                   function, (unsigned long)len, (unsigned long)sizeof(hostid),
-                   s);
+   slog(LOG_DEBUG,
+        "%s: hostids of length %lu (max: %lu) retrieved via TCP_IPA on fd %d",
+        function, (unsigned long)len, (unsigned long)sizeof(hostid), s);
 
-   for (i = 0; i < len / sizeof(*addrv); ++i) {
-      memcpy(&addrv[i], &hostid.ipa_ipaddress[i], sizeof(addrv[i]));
+   CTASSERT(sizeof(*addrv) == sizeof(*hostid.ipa_ipaddress));
 
-      slog(LOG_DEBUG, "%s: hostid at index #%lu: %s",
-           function, (unsigned long)i, inet_ntoa(addrv[i]));
+   if (len == 0)
+      return 0; /* no hostids. */
+
+   SASSERTX(len >= sizeof(*addrv));
+
+   for (i = 0; i < addrc && i < (len / sizeof(*hostid.ipa_ipaddress)); ++i) {
+      addrv[i].s_addr = hostid.ipa_ipaddress[i];
+
+      if (sockscf.option.debug) {
+         char ntop[MAXSOCKADDRSTRING];
+
+         if (inet_ntop(AF_INET, &addrv[i], ntop, sizeof(ntop)) == NULL)
+            swarn("%s: inet_ntop(3) failed on %s %x",
+                 function, safamily2string(AF_INET), addrv[i].s_addr);
+         else
+            slog(LOG_DEBUG, "%s: hostid at index #%lu: %s",
+                 function, (unsigned long)i, ntop);
+      }
    }
 
    return i;
@@ -100,17 +113,27 @@ setsockethostid(s, addrc, addrv)
    size_t i;
    socklen_t len;
 
-   SASSERTX(sizeof(*addrv) == sizeof(*hostid.ipa_ipaddress));
-   for (i = 0; i < addrc; ++i) {
-      memcpy(&hostid.ipa_ipaddress[i], &addrv[i], sizeof(addrv[i]));
+   CTASSERT(sizeof(*addrv) == sizeof(*hostid.ipa_ipaddress));
 
-      slog(LOG_DEBUG, "%s: hostid at index #%lu: %s",
-           function, (unsigned long)i, inet_ntoa(addrv[i]));
+   if (addrc == 0)
+      return 0;
+
+   for (i = 0; i < addrc; ++i) {
+      char ntop[MAXSOCKADDRSTRING];
+
+      if (inet_ntop(AF_INET, &addrv[i], ntop, sizeof(ntop)) == NULL)
+         swarn("%s: inet_ntop(3) failed on %s %x",
+              function, safamily2string(AF_INET), addrv[i].s_addr);
+      else
+         slog(LOG_DEBUG, "%s: hostid at index #%lu: %s",
+              function, (unsigned long)i, ntop);
+
+      memcpy(&hostid.ipa_ipaddress[i], &addrv[i], sizeof(addrv[i]));
    }
 
    len = sizeof(*hostid.ipa_ipaddress) * addrc;
    if (setsockopt(s, IPPROTO_TCP, TCP_IPA, &hostid, len) != 0) {
-      swarn("%s: could not set hostid via TCP_IPA on socket %d (%s)",
+      swarn("%s: could not set hostid via TCP_IPA on fd %d (%s)",
            function, s, strerror(errno));
 
       return -1;

@@ -1,10 +1,10 @@
 Summary: A free SOCKS v4/v5 client implementation
 Name: dante
-%define fullversion 1.4.0-pre1
+%define fullversion 1.4.0-pre2
 %define prefix /usr
 Prefix: %{prefix}
 Version: 1.4.0
-Release: 0.pre1%{?dist}
+Release: 0.pre2%{?dist}
 License: BSD-type
 Group: Networking/Utilities
 URL: http://www.inet.no/dante/
@@ -46,7 +46,7 @@ Requires: dante
 Additional libraries required to compile programs that use SOCKS.
 
 %prep
-%setup -n dante-1.4.0-pre1
+%setup -n dante-1.4.0-pre2
 
 # This file is embedded here instead of being another source in order
 # to the prefix directory
@@ -62,7 +62,10 @@ Additional libraries required to compile programs that use SOCKS.
 #
 # processname: sockd
 # config: %{_sysconfdir}/sockd.conf
-# pidfile: %{_localstatedir}/run/sockd
+# pidfile: %{_localstatedir}/run/sockd.pid
+# # NOTE: if running with user.privileged as non-root, manually create
+# #       pidfile owned by the user.privileged user before starting sockd.
+# #       e.g., 'touch /var/run/sockd.pid; chown sockd /var/run/sockd.pid'
 
 source %{_initrddir}/functions
 source %{_sysconfdir}/sysconfig/network
@@ -101,6 +104,13 @@ restart() {
     start
 }
 
+reload() {
+    echo -n $"Reloading $desc ($prog): "
+    killproc $prog -HUP
+    RETVAL=$?
+    echo
+}
+
 case "$1" in
   start)
     start
@@ -108,8 +118,12 @@ case "$1" in
   stop)
     stop
     ;;
-  restart|reload)
-    restart
+  reload)
+    reload
+    ;;
+  restart)
+    stop
+    start
     ;;
   condrestart)
     [ -e %{_localstatedir}/lock/subsys/$prog ] && restart
@@ -120,7 +134,7 @@ case "$1" in
     RETVAL=$?
     ;;
   *)
-    echo $"Usage: $0 {start|stop|restart|condrestart|status}"
+    echo $"Usage: $0 {start|stop|restart|reload|condrestart|status}"
     RETVAL=1
 esac
 
@@ -188,6 +202,9 @@ fi
 %{_includedir}/socks.h
 
 %changelog
+* Sun Feb  3 2013 Karl-Andre' Skevik <karls@inet.no>
+-Add reload() and comment about pidfile creation when starting as non-root.
+
 * Tue May 10 2011 Karl-Andre' Skevik <karls@inet.no>
 -Integrate some changes from Dag Wieers spec file at:
  http://svn.rpmforge.net/svn/trunk/rpms/dante/dante.spec

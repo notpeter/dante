@@ -1,4 +1,4 @@
-/* $Id: vis_compat.h,v 1.8 2012/05/04 20:19:09 karls Exp $ */
+/* $Id: vis_compat.h,v 1.9 2013/04/24 21:44:44 karls Exp $ */
 #if HAVE_STRVIS
 #include <vis.h>
 #else
@@ -83,14 +83,14 @@ __BEGIN_DECLS
 char	*vis(char *, int, int, int);
 int	strvis(char *, const char *, int);
 int	strnvis(char *, const char *, size_t, int)
-		__ATTRIBUTE__ ((__bounded__(__string__,1,3)));
+		__ATTRIBUTE__ ((__BOUNDED__(__string__,1,3)));
 int	strvisx(char *, const char *, size_t, int)
-		__ATTRIBUTE__ ((__bounded__(__string__,1,3)));
+		__ATTRIBUTE__ ((__BOUNDED__(__string__,1,3)));
 int	strunvis(char *, const char *);
 #if 0 /* only vis and strvis,strvisx included */
 int	unvis(char *, char, int *, int);
 ssize_t strnunvis(char *, const char *, size_t)
-		__ATTRIBUTE__ ((__bounded__(__string__,1,3)));
+		__ATTRIBUTE__ ((__BOUNDED__(__string__,1,3)));
 #endif
 
 #if 0

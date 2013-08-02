@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2008, 2009, 2010, 2011,
+ *               2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,45 +45,44 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serr.c,v 1.37 2012/06/01 20:23:05 karls Exp $";
-
-#if SOCKS_CLIENT
-/* for errors, we want it logged. */
-#undef SOCKS_IGNORE_SIGNALSAFETY
-#define SOCKS_IGNORE_SIGNALSAFETY (1)
-#endif /* SOCKS_CLIENT */
+"$Id: serr.c,v 1.42 2013/02/04 11:52:57 michaels Exp $";
 
 void
-serr(int eval, const char *fmt, ...)
+serr(const char *fmt, ...)
 {
 
    if (fmt != NULL) {
       va_list ap;
+      ssize_t bufused;
       char buf[2048];
-      int bufused;
 
       va_start(ap, fmt);
-
       bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
       va_end(ap);
 
+      if (bufused >= (ssize_t)sizeof(buf)) {
+         bufused = sizeof(buf) - 1;
+         buf[bufused] = NUL;
+      }
+
+      SASSERTX(buf[bufused] == NUL);
+
       if (errno != 0)
          snprintf(&buf[bufused], sizeof(buf) - bufused,
-                  ": %s (errno = %d)",
-                  strerror(errno), errno);
+                  ": %s", strerror(errno));
 
       slog(LOG_ERR, "%s", buf);
    }
 
 #if SOCKS_CLIENT
-   exit(eval);
+   exit(EXIT_FAILURE);
 #else
-   sockdexit(eval);
+   sockdexit(EXIT_FAILURE);
 #endif /* SOCKS_CLIENT */
 }
 
 void
-serrx(int eval, const char *fmt, ...)
+serrx(const char *fmt, ...)
 {
 
    if (fmt != NULL) {
@@ -99,9 +99,9 @@ serrx(int eval, const char *fmt, ...)
    }
 
 #if SOCKS_CLIENT
-   exit(eval);
+   exit(EXIT_FAILURE);
 #else
-   sockdexit(eval);
+   sockdexit(EXIT_FAILURE);
 #endif /* SOCKS_CLIENT */
 }
 
@@ -112,22 +112,23 @@ swarn(const char *fmt, ...)
    if (fmt != NULL) {
       va_list ap;
       char buf[2048];
-      int bufused;
+      ssize_t bufused;
 
-   /* LINTED pointer casts may be troublesome */
       va_start(ap, fmt);
-
       bufused = vsnprintf(buf, sizeof(buf), fmt, ap);
+      va_end(ap);
+
+      if (bufused >= (ssize_t)sizeof(buf)) {
+         bufused = sizeof(buf) - 1;
+         buf[bufused] = NUL;
+      }
 
       if (errno != 0)
          snprintf(&buf[bufused], sizeof(buf) - bufused,
-                  ": %s (errno = %d)",
-                  strerror(errno), errno);
+                  ": %s", strerror(errno));
 
       slog(LOG_WARNING, "%s", buf);
 
-      /* LINTED expression has null effect */
-      va_end(ap);
    }
 }
 

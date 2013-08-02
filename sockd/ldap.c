@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011
+ * Copyright (c) 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: ldap.c,v 1.12 2011/12/21 23:38:24 karls Exp $
+ * $Id: ldap.c,v 1.14 2013/01/02 13:22:40 karls Exp $
  */
 
  /*
@@ -50,10 +50,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: ldap.c,v 1.12 2011/12/21 23:38:24 karls Exp $";
+"$Id: ldap.c,v 1.14 2013/01/02 13:22:40 karls Exp $";
 
 const char module_ldap_version[] =
-"$Id: ldap.c,v 1.12 2011/12/21 23:38:24 karls Exp $";
+"$Id: ldap.c,v 1.14 2013/01/02 13:22:40 karls Exp $";
 
 #if HAVE_LDAP
 
@@ -135,7 +135,6 @@ typedef struct sasl_interact {
 void
 ldapcachesetup(void)
 {
-
 }
 
 int

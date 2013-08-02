@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012,
+ *               2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,7 +54,7 @@
 #include <dlfcn.h>
 
 static const char rcsid[] =
-"$Id: address.c,v 1.228 2012/06/01 20:23:05 karls Exp $";
+"$Id: address.c,v 1.285 2013/07/10 13:47:46 michaels Exp $";
 
 /*
  * During init, we need to let all system calls resolve to the native
@@ -116,12 +117,16 @@ static PT_SELF_FUNC_T pt_self;
 static pthread_mutex_t addrmutex;
 #endif /* HAVE_PTHREAD_H */
 
-static int
-fdisdup(const int fd1, const int fd2);
+int
+socks_isaddr(const int fd, const int takelock);
 /*
- * Tries to determine if file descriptor fd1 is a dup of fd2.
- * Returns true if yes, false if not.
+ * If "takelock" is true, it means the function should take the
+ * socksfdv/addrlock.
+ *
+ * Returns true if there is a address registered for the socket "fd", false
+ * otherwise.
  */
+
 
 static int
 socks_addfd(const int d);
@@ -156,6 +161,9 @@ socks_addaddr(clientfd, socksfd, takelock)
 
    clientinit();
 
+   SASSERTX(clientfd >= 0);
+   SASSERTX(!(socksfd->state.protocol.tcp && socksfd->state.protocol.udp));
+
 #if 0 /* DEBUG */
    if (socksfd->state.command != -1 && !socksfd->state.system)
       slog(LOG_DEBUG, "%s: %d", function, clientfd);
@@ -170,23 +178,48 @@ socks_addaddr(clientfd, socksfd, takelock)
       socks_addrlock(F_WRLCK, &lock);
 
    if (socks_addfd(clientfd) != 0)
-      serrx(EXIT_FAILURE, "%s: error adding descriptor %d", function, clientfd);
+      serrx("%s: error adding descriptor %d", function, clientfd);
 
    if (socksfdc < dc) { /* init/reallocate */
+#if HAVE_GSSAPI
+      size_t i;
+#endif /* HAVE_GSSAPI */
+
       if (socksfdinit.control == 0) { /* not initialized */
          socksfdinit.control = -1;
          /* other members have ok default value. */
       }
 
       if ((socksfdv = realloc(socksfdv, sizeof(*socksfdv) * dc)) == NULL)
-         serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
+         serr("%s: could not allocate %lu bytes",
+              function, (unsigned long)(sizeof(*socksfdv) * dc));
+
+#if HAVE_GSSAPI
+      /* update internal pointers in previously existing objects. */
+      for (i = 0; i < socksfdc; ++i) {
+         socksfd_t *sfd = &socksfdv[i];
+
+         if (!socks_isaddr(i, 0))
+            continue;
+
+         sfd->state.gssapistate.value = sfd->state.gssapistatemem;
+      }
+#endif /* HAVE_GSSAPI */
 
       /* init new objects */
       while (socksfdc < dc)
          socksfdv[socksfdc++] = socksfdinit;
    }
 
-   socksfdv[clientfd]           = *socksfd;
+   /*
+    * One one machine gcc 4.1.2 expands the below to a memcpy() call with 
+    * overlapping destinations, according to valgrind:
+    *    socksfdv[clientfd]           = *socksfd;
+    *
+    * Obviously a gcc bug, but what can we do ... :-/
+    */
+   memmove(&socksfdv[clientfd], socksfd, sizeof(*socksfd));
+
 #if HAVE_GSSAPI
    socksfdv[clientfd].state.gssapistate.value
    = socksfdv[clientfd].state.gssapistatemem;
@@ -200,9 +233,8 @@ socks_addaddr(clientfd, socksfd, takelock)
    if (sockscf.log.fpv != NULL) {
       char buf[80];
 
-      snprintf(buf, sizeof(buf),
-      "%s: allocating fd %d for command %d\n",
-      function, clientfd, socksfdv[clientfd].state.command);
+      snprintf(buf, sizeof(buf), "%s: allocating fd %d for command %d\n",
+               function, clientfd, socksfdv[clientfd].state.command);
 
       syssys_write(fileno(sockscf.log.fpv[0]), buf, strlen(buf) + 1);
    }
@@ -240,20 +272,22 @@ socks_getaddr(d, socksfd, takelock)
 
 #if HAVE_GSSAPI
       if (sfd->state.gssimportneeded && !sockscf.state.insignal) {
-         slog(LOG_DEBUG, "%s: importing gssapistate for socket %d",
-         function, d);
+         slog(LOG_DEBUG, "%s: importing gssapistate for fd %d", function, d);
 
          if (gssapi_import_state(&sfd->state.auth.mdata.gssapi.state.id,
-         &sfd->state.gssapistate) != 0) {
-            swarnx("%s: failed to import gssapi context of length %lu "
-                   "for socket %d",
+                                 &sfd->state.gssapistate) != 0) {
+            swarnx("%s: failed to import gssapi context of length %lu, fd %d",
                    function, (unsigned long)sfd->state.gssapistate.length, d);
 
             socks_rmaddr(d, 0);
             sfd = NULL;
          }
-         else
+         else {
             sfd->state.gssimportneeded = 0;
+            slog(LOG_DEBUG,
+                 "%s: imported gssapistate for fd %d using ctxid %ld",
+                 function, d, (long)sfd->state.auth.mdata.gssapi.state.id);
+         }
       }
 #endif /* HAVE_GSSAPI */
    }
@@ -285,52 +319,80 @@ socks_rmaddr(d, takelock)
       socks_addrlock(F_WRLCK, &lock);
 
    socks_rmfd(d);
-   if (socksfdv[d].state.issyscall) { /* syscall adds/removes all the time. */
-      if (sockscf.option.debug >= DEBUG_VERBOSE)
-         slog(LOG_DEBUG, "%s: not freeing buffer for fd %d, issyscall",
-              function, d);
-   }
-   else
+
+   if (!socksfdv[d].state.issyscall) /* syscall adds/removes all the time. */
       socks_freebuffer(d);
 
    switch (socksfdv[d].state.version) {
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V5:
-         if (!socksfdv[d].state.issyscall)
-            switch (socksfdv[d].state.command) {
-               case SOCKS_BIND:
-                  if (socksfdv[d].control == -1
-                  ||  socksfdv[d].control == d)
-                     break;
+         if (socksfdv[d].state.issyscall)
+            break;
 
-                  /*
-                   * If we are using the bind extension it's possible
-                   * that this control connection is shared with other
-                   * (accept()'ed) addresses, if so we must leave it
-                   * open for the other connections.
-                  */
-                  if (socks_addrcontrol(TOSA(&socksfdv[d].local),
-                  TOSA(&socksfdv[d].remote), -1, -1, 0)
-                  == -1)
-                     break;
+#if HAVE_GSSAPI
+         if (socksfdv[d].state.auth.method == AUTHMETHOD_GSSAPI
+         &&  socksfdv[d].state.auth.mdata.gssapi.state.id != GSS_C_NO_CONTEXT) {
+            OM_uint32 major_status, minor_status;
+            char buf[512];
 
-                  close(socksfdv[d].control);
-                  break;
+            if ((major_status
+            = gss_delete_sec_context(&minor_status,
+                                  &socksfdv[d].state.auth.mdata.gssapi.state.id,
+                                     GSS_C_NO_BUFFER)) != GSS_S_COMPLETE) {
+               if (!gss_err_isset(major_status, minor_status, buf, sizeof(buf)))
+                  *buf = NUL;
 
-               case SOCKS_CONNECT:
-                  break; /* no separate control connection. */
-
-               case SOCKS_UDPASSOCIATE:
-                  if (socksfdv[d].control != -1)
-                     close(socksfdv[d].control);
-                  break;
-
-               default:
-                  SERRX(socksfdv[d].state.command);
+               swarnx("%s: gss_delete_sec_context() for fd %d failed%s%s",
+                      function,
+                      d,
+                      *buf == NUL ? "" : ": ",
+                      *buf == NUL ? "" : buf);
             }
+            else {
+               slog(LOG_DEBUG, "%s: deleted GSSAPI context for fd %d",
+                    function, d);
+
+               SASSERTX(socksfdv[d].state.auth.mdata.gssapi.state.id 
+               == GSS_C_NO_CONTEXT);
+            }
+         }
+#endif /* HAVE_GSSAPI */
+
+         switch (socksfdv[d].state.command) {
+            case SOCKS_BIND:
+               if (socksfdv[d].control == -1
+               ||  socksfdv[d].control == d)
+                  break;
+
+               /*
+                * If we are using the bind extension it's possible
+                * that this control connection is shared with other
+                * (accept()'ed) addresses, if so we must leave it
+                * open for the other connections.
+               */
+               if (socks_addrcontrol(-1, d, 0) != -1)
+                  break;
+
+               close(socksfdv[d].control);
+               break;
+
+            case SOCKS_CONNECT:
+               break; /* no separate control connection. */
+
+            case SOCKS_UDPASSOCIATE:
+               if (socksfdv[d].control != -1)
+                  close(socksfdv[d].control);
+               break;
+
+            default:
+               SERRX(socksfdv[d].state.command);
+         }
          break;
 
       case PROXY_UPNP:
+         if (socksfdv[d].state.issyscall)
+            break;
+
          upnpcleanup(d);
          break;
    }
@@ -340,14 +402,19 @@ socks_rmaddr(d, takelock)
       char buf[80];
 
       snprintf(buf, sizeof(buf),
-      "%s: deallocating fd %d, was allocated for command %d\n",
-      function, d, socksfdv[d].state.command);
+               "%s: deallocating fd %d, was allocated for command %d\n",
+               function, d, socksfdv[d].state.command);
 
       syssys_write(fileno(sockscf.log.fpv[0]), buf, strlen(buf) + 1);
    }
 #endif /* THREAD_DEBUG */
 
    socksfdv[d] = socksfdinit;
+   
+#if DIAGNOSTIC
+   SASSERTX(socks_isaddr(d, 0) == 0);
+   SASSERTX(socks_getaddr(d, NULL, 0) == NULL);
+#endif /* DIAGNOSTIC */
 
    if (takelock)
       socks_addrunlock(&lock);
@@ -375,36 +442,88 @@ socks_addrisours(s, socksfdmatch, takelock)
    const char *breakreason = NULL;
    const int errno_s = errno;
    addrlockopaque_t lock;
-   int matched;
+   struct sockaddr_storage local, remote;
+   socklen_t locallen, remotelen;
+   int matched, type;
 
-   errno = 0;
+   slog(LOG_DEBUG, "%s: fd %d", function, s);
 
    if (takelock)
       socks_addrlock(F_RDLCK, &lock);
 
-   matched = 0;
-   do {
-      struct sockaddr_storage local, remote;
-      socksfd_t socksfd;
-      socklen_t locallen, remotelen;
+   locallen = sizeof(local);
+   if (getsockname(s, TOSA(&local), &locallen) != 0) {
+      slog(LOG_DEBUG,
+           "%s: no match due to fd %d not having a local addr (errno = %d, %s)",
+           function, s, errno, strerror(errno));
 
-      locallen = sizeof(local);
-      if (getsockname(s, TOSA(&local), &locallen) != 0) {
-         breakreason = "getsockname()";
-         break;
-      }
+      if (takelock)
+         socks_addrunlock(&lock);
 
-      /* only network-sockets can be proxied. */
-      if (TOSA(&local)->sa_family != AF_INET 
+      errno = errno_s;
+      return 0;
+   }
+   else
+      slog(LOG_DEBUG, "%s: local address of fd %d is %s",
+           function, s, sockaddr2string(&local, NULL, 0));
+
+   /* only network-sockets can be proxied. */
+   if (local.ss_family != AF_INET
 #ifdef AF_INET6
-      &&  TOSA(&local)->sa_family != AF_INET6
+   &&  local.ss_family != AF_INET6
 #endif /* AF_INET6 */
-      ) {
-         breakreason = "not AF_INET/AF_INET6 sa_family";
-         break;
-      }
+   ) {
+      slog(LOG_DEBUG,
+           "%s: no match due to fd %d not being an AF_INET/AF_INET6 socket",
+           function, s);
+
+      if (takelock)
+         socks_addrunlock(&lock);
+
+      errno = errno_s;
+      return 0;
+   }
+
+   locallen = sizeof(type);
+   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &locallen) != 0) {
+      slog(LOG_DEBUG,
+           "%s: no match due to getsockopt(SO_TYPE) failing on fd %d "
+           "(errno = %d, %s)",
+           function, s, errno, strerror(errno));
+
+      if (takelock)
+         socks_addrunlock(&lock);
+
+      errno = errno_s;
+      return 0;
+   }
+
+   if (type != SOCK_DGRAM && type != SOCK_STREAM) {
+      slog(LOG_DEBUG,
+           "%s: no match due to fd %d being neither SOCK_DGRAM nor SOCK_STREAM",
+           function, s);
+
+      if (takelock)
+         socks_addrunlock(&lock);
+
+      errno = errno_s;
+      return 0;
+   }
+
+   errno   = 0;
+   matched = 0;
+
+   do {
+      socksfd_t socksfd;
+
 
       if (socks_getaddr(s, &socksfd, 0) != NULL) {
+         if ((socksfd.state.protocol.udp && type != SOCK_DGRAM)
+         ||  (socksfd.state.protocol.tcp && type != SOCK_STREAM)) {
+            breakreason = "protocol mismatch between registered and current";
+            break;
+         }
+
          if (TOCIN(&socksfd.local)->sin_addr.s_addr == htonl(0)) {
             /*
              * if address was not bound before, it might have become
@@ -417,11 +536,9 @@ socks_addrisours(s, socksfdmatch, takelock)
 
             remotelen = sizeof(remote);
             if (getpeername(s, TOSA(&remote), &remotelen) == 0
-            && (duped = socks_addrmatch(TOSA(&local), TOSA(&remote), NULL, 0))
-            != -1) {
+            && (duped = socks_addrmatch(&local, &remote, NULL, 0)) != -1) {
                if ((socksfdptr = socks_addrdup(socks_getaddr(duped, NULL, 0),
-                                            &nsocksfd))
-               == NULL) {
+                                               &nsocksfd)) == NULL) {
                   swarn("%s: socks_addrdup()", function);
 
                   if (errno == EBADF)
@@ -445,7 +562,7 @@ socks_addrisours(s, socksfdmatch, takelock)
             }
          }
 
-         if (!sockaddrareeq(TOSA(&local), TOSA(&socksfd.local))) {
+         if (!sockaddrareeq(&local, &socksfd.local, 0)) {
             breakreason = "local neq socksfd.local";
             break;
          }
@@ -456,8 +573,17 @@ socks_addrisours(s, socksfdmatch, takelock)
       else { /* unknown descriptor.  Try to check whether it's a dup. */
          int duped;
 
-         if ((duped = socks_addrmatch(TOSA(&local), NULL, NULL, 0)) != -1) {
+         /* XXX check remote endpoint also. */
+         if ((duped = socks_addrmatch(&local, NULL, NULL, 0)) != -1
+         && ((socksfdv[duped].state.protocol.udp && type == SOCK_DGRAM)
+          || (socksfdv[duped].state.protocol.tcp && type == SOCK_STREAM))) {
             socksfd_t nsocksfd;
+
+            slog(LOG_DEBUG, "%s: fd %d appears to be a dup of fd %d (%s)",
+                 function, 
+                 s, 
+                 duped, 
+                 socket2string(duped, NULL, 0));
 
             if (socks_addrdup(socks_getaddr(duped, NULL, 0), &nsocksfd)
             == NULL) {
@@ -483,8 +609,22 @@ socks_addrisours(s, socksfdmatch, takelock)
       }
    } while (/* CONSTCOND */ 0);
 
-   if (matched && socksfdmatch != NULL)
-      socks_getaddr(s, socksfdmatch, 0);
+   if (matched) {
+      socksfd_t socksfd;
+
+      socks_getaddr(s, &socksfd, 0);
+      SASSERTX(!(socksfd.state.protocol.tcp && socksfd.state.protocol.udp));
+
+      if ((socksfd.state.protocol.udp && type != SOCK_DGRAM)
+      ||  (socksfd.state.protocol.tcp && type != SOCK_STREAM)) {
+         breakreason = "protocol mismatch between registered and current";
+         matched = 0;
+      }
+      else {
+         if (socksfdmatch != NULL)
+            *socksfdmatch = socksfd;
+      }
+   }
 
    if (takelock)
       socks_addrunlock(&lock);
@@ -497,177 +637,81 @@ socks_addrisours(s, socksfdmatch, takelock)
 }
 
 int
-socks_addrcontrol(local, remote, s, childsocket, takelock)
-   const struct sockaddr *local;
-   const struct sockaddr *remote;
-   const int s;
-   const int childsocket;
+socks_addrcontrol(controlsent, controlinuse, takelock)
+   const int controlsent;
+   const int controlinuse;
    const int takelock;
 {
    const char *function = "socks_addrcontrol()";
    addrlockopaque_t lock;
-   size_t i;
-   char a[MAXSOCKADDRSTRING], b[MAXSOCKADDRSTRING];
-#if DIAGNOSTIC
-   int matched = -1;
-#endif /* DIAGNOSTIC */
+   char fdsentstr[1024], fdinusestr[sizeof(fdsentstr)];
+   int i;
+
+   slog(LOG_DEBUG, "%s: sent fd %d (%s), in use fd %d (%s)",
+        function, 
+        controlsent, 
+        socket2string(controlsent, fdsentstr, sizeof(fdsentstr)),
+        controlinuse,
+        socket2string(controlinuse, fdinusestr, sizeof(fdinusestr)));
+
+   SASSERTX(controlinuse >= 0);
 
    if (takelock)
       socks_addrlock(F_RDLCK, &lock);
 
-   if (socks_isaddr(s, 0)) {
+   if (socks_isaddr(controlsent, 0)) {
       /*
        * First check the index corresponding to what the descriptor should
        * be, if nothing tricky (dup(2) or similar) happened between the time
        * we sent the descriptor to the connect-process, and now.
        * If it doesn't match, we will have to go through all of the indexes.
        */
-      if (fdisdup(childsocket, socksfdv[s].control))
-#if !DIAGNOSTIC
-         return s;
-#else /* DIAGNOSTIC */
-         slog(LOG_DEBUG, "%s: descriptor %d is a dup of %d, but going through "
-                         "the whole array anyway for diagnostic reasons",
-                         function, childsocket, socksfdv[s].control);
-#endif /* DIAGNOSTIC */
+      if (fdisdup(controlsent, socksfdv[controlsent].control)) {
+         if (takelock)
+            socks_addrunlock(&lock);
+
+         return controlsent;
+      }
    }
 
-   for (i = 0; i < socksfdc; ++i) {
-      struct sockaddr_storage addr;
-      socklen_t len;
-
+   for (i = 0; i < (int)socksfdc; ++i) {
       if (!socks_isaddr(i, 0))
          continue;
 
       if (socksfdv[i].state.command == -1)
          continue;
 
-      if (childsocket != -1) {
-         if (fdisdup(childsocket, socksfdv[i].control)) {
-#if !DIAGNOSTIC
-            break;
-#else /* DIAGNOSTIC; go through the rest.  Should be no more matches though. */
-         if (matched == -1)
-            matched = i;
-         else
-            SASSERTX(i);
-#endif /* DIAGNOSTIC */
-         }
-
-         continue;
-      }
-
-      slog(LOG_DEBUG, "%s: no descriptor to check against, "
-                      "need to check addresses (%s and %s)",
-                      function,
-                      local == NULL
-                        ? "N/A" : sockaddr2string(local, a, sizeof(a)),
-                      remote == NULL
-                        ? "N/A" : sockaddr2string(remote, b, sizeof(b)));
-
-
-      if (local == NULL) {
-         len = 0;
-         if (getsockname(socksfdv[i].control, TOSA(&addr), &len) == 0)
-            continue; /* can't be this one, our socket has no local name.  */
-      }
-      else  {
-         len = sizeof(addr);
-         if (getsockname(socksfdv[i].control, TOSA(&addr), &len) != 0)
-            continue;
-
-         if (!sockaddrareeq(local, TOSA(&addr)))
-            continue;
-      }
-
-      if (remote == NULL) {
-         len = 0;
-         if (getpeername(socksfdv[i].control, (struct sockaddr *)&len, &len)
-         == 0)
-            continue;  /* can't be this one, our socket has no peer. */
-      }
-      else {
-         len = sizeof(addr);
-         if (getpeername(socksfdv[i].control, TOSA(&addr), &len) == -1)
-            continue;
-
-         if (!sockaddrareeq(remote, TOSA(&addr)))
-            continue;
-      }
-
-      if (local == NULL && remote == NULL) {
-         int type_s, type_childsocket;
-
-         slog(LOG_DEBUG, "%s: hmm, this is pretty bad, no address info "
-                         "and nothing else to use to match descriptors",
-                         function);
-
-         if (fdisopen(s) != fdisopen(childsocket))
-            continue;
-
-         len = sizeof(type_s);
-         if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type_s, &len) != 0) {
-            slog(LOG_DEBUG, "%s: getsockopt(SO_TYPE) on socket %d failed: %s",
-            function, s, strerror(errno));
-            continue;
-         }
-
-         len = sizeof(type_s);
-         if (getsockopt(childsocket, SOL_SOCKET, SO_TYPE, &type_childsocket,
-         &len) != 0) {
-            slog(LOG_DEBUG, "%s: getsockopt(SO_TYPE) on socket %d failed: %s",
-            function, childsocket, strerror(errno));
-            continue;
-         }
-
-         if (type_s == type_childsocket) {
-            slog(LOG_DEBUG, "%s: no address info to match socket by, but found "
-                            "another socket (addrindex %lu) of the same "
-                            "type (%d) without any address info either.  "
-                            "Lets hope that's good enough",
-                            function, (unsigned long)i, type_s);
-
-#if DIAGNOSTIC
-            matched = i;
-#endif /* DIAGNOSTIC */
-            break; /* no diagnostic of interest in this case. */
-         }
-         else
-            continue;
-      }
-
-#if !DIAGNOSTIC
-      break;
-#else /* DIAGNOSTIC */
-      if (matched == -1)
-         matched = i;
-      else
-         SASSERTX(i);
-#endif /* DIAGNOSTIC */
+      if (fdisdup(controlinuse, socksfdv[i].control))
+         break;
    }
 
    if (takelock)
       socks_addrunlock(&lock);
 
-#if DIAGNOSTIC
-   i = matched;
-#endif /* DIAGNOSTIC */
-
-   if (i < socksfdc)
-      return (int)i;
+   if (i < (int)socksfdc)
+      return i;
 
    return -1;
 }
 
 int
 socks_addrmatch(local, remote, state, takelock)
-   const struct sockaddr *local;
-   const struct sockaddr *remote;
+   const struct sockaddr_storage *local;
+   const struct sockaddr_storage *remote;
    const socksstate_t *state;
    const int takelock;
 {
+   const char *function = "socks_addrmatch()";
    addrlockopaque_t lock;
+   char lstr[MAXSOCKADDRSTRING], rstr[MAXSOCKADDRSTRING];
    int i;
+
+   slog(LOG_DEBUG, "%s: local = %s, remote = %s",
+        function,
+        local  == NULL ? 
+           "NULL" : sockaddr2string(local, lstr, sizeof(lstr)),
+        remote == NULL ? 
+           "NULL" : sockaddr2string(remote, rstr, sizeof(rstr)));
 
    if (takelock)
       socks_addrlock(F_RDLCK, &lock);
@@ -682,11 +726,11 @@ socks_addrmatch(local, remote, state, takelock)
        */
 
       if (local != NULL)
-         if (!sockaddrareeq(local, TOSA(&socksfdv[i].local)))
+         if (!sockaddrareeq(local, &socksfdv[i].local, 0))
             continue;
 
       if (remote != NULL)
-         if (!sockaddrareeq(remote, TOSA(&socksfdv[i].remote)))
+         if (!sockaddrareeq(remote, &socksfdv[i].remote, 0))
             continue;
 
       if (state != NULL) {
@@ -731,7 +775,7 @@ socks_addrdup(old, new)
    switch (old->state.command) {
       case SOCKS_BIND:
       case SOCKS_UDPASSOCIATE:
-         if ((new->control = socketoptdup(old->control)) == -1)
+         if ((new->control = socketoptdup(old->control, -1)) == -1)
             return NULL;
          break;
 
@@ -800,7 +844,7 @@ socks_addfakeip(host)
    }
 
 #if FAKEIP_END < FAKEIP_START
-error "\"FAKEIP_END\" can't be smaller than \"FAKEIP_START\""
+error "\"FAKEIP_END\" cannot be smaller than \"FAKEIP_START\""
 #endif
 
    if (ipc >= FAKEIP_END - FAKEIP_START) {
@@ -811,9 +855,12 @@ error "\"FAKEIP_END\" can't be smaller than \"FAKEIP_START\""
       return INADDR_NONE;
    }
 
-   if ((tmpmem = realloc(ipv, sizeof(*ipv) * (ipc + 1))) == NULL
-   || (tmpmem[ipc] = malloc(sizeof(*tmpmem) * (strlen(host) + 1))) == NULL) {
-      swarnx("%s: %s", function, NOMEM);
+   if ((tmpmem      = realloc(ipv, sizeof(*ipv) * (ipc + 1)))        == NULL
+   ||  (tmpmem[ipc] = malloc(sizeof(**tmpmem) * (strlen(host) + 1))) == NULL) {
+      swarn("%s: could not allocate %lu bytes",
+           function,
+           (unsigned long)((sizeof(*ipv) * (ipc + 1))
+                         + (sizeof(**tmpmem) * (strlen(host) + 1))));
 
       if (tmpmem != NULL)
          free(tmpmem);
@@ -849,8 +896,8 @@ socks_getfakehost(addr)
          swarnx("%s: looks like ip address %s might be a \"fake\" ip address, "
                 "but we have no knowledge of that address in this process.  "
                 "Possibly this client is forking of a \"dns-helper\"-style "
-                "program for dns stuff.  We unfortunately do not support "
-                "using fake ip addresses in that case.",
+                "program for resolving hostnames.  We unfortunately do not "
+                "support using fake ip addresses in that case.",
                 function, inet_ntoa(*(struct in_addr *)&addr));
 
       host = NULL;
@@ -884,7 +931,7 @@ socks_getfakeip(host, addr)
 
 sockshost_t *
 fakesockaddr2sockshost(_addr, host)
-   const struct sockaddr *_addr;
+   const struct sockaddr_storage *_addr;
    sockshost_t *host;
 {
    const char *function = "fakesockaddr2sockshost()";
@@ -893,15 +940,13 @@ fakesockaddr2sockshost(_addr, host)
 
    clientinit(); /* may be called before normal init, log to right place. */
 
-   sockaddrcpy(TOSA(&addr), _addr, sizeof(addr));
+   sockaddrcpy(&addr, _addr, salen(_addr->ss_family));
 
-   /* LINTED pointer casts may be troublesome */
    slog(LOG_DEBUG, "%s: %s -> %s",
-                   function,
-                   sockaddr2string(TOSA(&addr), string, sizeof(string)),
-                   socks_getfakehost(TOIN(&addr)->sin_addr.s_addr) == NULL ?
-                        string :
-                        socks_getfakehost(TOIN(&addr)->sin_addr.s_addr));
+        function,
+        sockaddr2string(&addr, string, sizeof(string)),
+        socks_getfakehost(TOIN(&addr)->sin_addr.s_addr) == NULL ?
+            string : socks_getfakehost(TOIN(&addr)->sin_addr.s_addr));
 
    if (socks_getfakehost(TOIN(&addr)->sin_addr.s_addr) != NULL) {
       const char *ipname = socks_getfakehost(TOIN(&addr)->sin_addr.s_addr);
@@ -910,23 +955,23 @@ fakesockaddr2sockshost(_addr, host)
 
       host->atype = SOCKS_ADDR_DOMAIN;
 
-      SASSERTX(strlen(ipname) < sizeof(host->addr.domain));
-      strcpy(host->addr.domain, ipname);
+      STRCPY_ASSERTLEN(host->addr.domain, ipname);
 
       host->port = TOIN(&addr)->sin_port;
    }
    else
-      sockaddr2sockshost(TOSA(&addr), host);
+      sockaddr2sockshost(&addr, host);
 
    return host;
 }
 
-struct sockaddr *
-fakesockshost2sockaddr(host, _addr)
+struct sockaddr_storage *
+int_fakesockshost2sockaddr(host, _addr, _addrlen)
    const sockshost_t *host;
-   struct sockaddr *_addr;
+   struct sockaddr_storage *_addr;
+   size_t _addrlen;
 {
-   const char *function = "fakesockshost2sockaddr()";
+   const char *function = "int_fakesockshost2sockaddr()";
    struct sockaddr_storage addr;
    char string[MAXSOCKSHOSTSTRING];
 
@@ -939,19 +984,19 @@ fakesockshost2sockaddr(host, _addr)
 
    switch (host->atype) {
       case SOCKS_ADDR_DOMAIN:
-         SET_SOCKADDR(TOSA(&addr), AF_INET);
+         SET_SOCKADDR(&addr, AF_INET);
          if (socks_getfakeip(host->addr.domain, &(TOIN(&addr)->sin_addr)))
             break;
          /* else; */ /* FALLTHROUGH */
 
       default:
-         sockshost2sockaddr(host, TOSA(&addr));
+         sockshost2sockaddr(host, &addr);
    }
 
    TOIN(&addr)->sin_port = host->port;
 
-   bzero(_addr, sizeof(*_addr));
-   sockaddrcpy(_addr, TOSA(&addr), sizeof(*_addr));
+   bzero(_addr, _addrlen);
+   sockaddrcpy(_addr, &addr, MIN(salen(addr.ss_family), _addrlen));
 
    return _addr;
 }
@@ -964,16 +1009,17 @@ socks_addfd(d)
 
    clientinit();
 
-   if (d + 1 < d) /* integer overflow. */
-      return -1;
+   SASSERTX(d >= 0);
 
    if ((unsigned int)d >= dc) { /* init/reallocate */
+      size_t newfdc;
       int *newfdv;
-      unsigned int newfdc;
 
       newfdc = (d + 1) * 2; /* add some extra at the same time. */
       if ((newfdv = realloc(dv, sizeof(*dv) * newfdc)) == NULL)
-         serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
+         serr("%s: could not allocate %lu bytes",
+              function, (unsigned long)(sizeof(*dv) * newfdc));
+
       dv = newfdv;
 
       /* init all to -1, a illegal value for a descriptor. */
@@ -1001,199 +1047,6 @@ socks_rmfd(d)
 {
    if (socks_isfd(d))
       dv[d] = -1;
-}
-
-static int
-fdisdup(fd1, fd2)
-   const int fd1;
-   const int fd2;
-{
-   const char *function = "fdisdup()";
-#if HAVE_UNIQUE_SOCKET_INODES
-   struct stat sb1, sb2;
-#endif /* HAVE_UNIQUE_SOCKET_INODES */
-   socklen_t len1, len2;
-   int isdup, rc1, rc2, errno1, errno2, flags1, flags2,  newflags1, newflags2,
-       testflag = SO_REUSEADDR, setflag;
-
-   slog(LOG_DEBUG, "%s: %d, %d", function, fd1, fd2);
-
-   if (fd1 == fd2)
-      return 1;
-
-#if HAVE_UNIQUE_SOCKET_INODES
-   rc1    = fstat(fd1, &sb1);
-   errno1 = errno;
-
-   rc2    = fstat(fd2, &sb2);
-   errno2 = errno;
-
-   if (rc1 != rc2 || errno1 != errno2) {
-      if (sockscf.option.debug >= DEBUG_VERBOSE)
-         slog(LOG_DEBUG, "%s: failed due to fstat() on line %d",
-         function, __LINE__);
-
-      return 0;
-   }
-
-   if (rc1 == -1) {
-      SASSERTX(rc2 == -1 && errno1 == errno2);
-
-      if (sockscf.option.debug >= DEBUG_VERBOSE)
-         slog(LOG_DEBUG, "%s: failed due to rc1 on line %d",
-         function, __LINE__);
-
-      return 1; /* assume any failed socket is as good as any other. */
-   }
-
-   if (sb1.st_ino == 0)
-      slog(LOG_DEBUG, "%s: socket inode is 0.  Assuming kernel does "
-                      "not support the inode field for (this) socket and "
-                      "continuing with other tests",
-                      function);
-   else if (sb1.st_dev != sb2.st_dev
-   ||       sb1.st_ino != sb2.st_ino) {
-      if (sockscf.option.debug >= DEBUG_VERBOSE)
-         slog(LOG_DEBUG, "%s: failed due to inode-compare on line %d "
-                         "(sb1.st_dev = %d, sb2.st_dev = %d, "
-                         "sb1.st_ino = %d, sb2.st_ino = %d)",
-                         function, __LINE__,
-                         (int)sb1.st_dev, (int)sb2.st_dev,
-                         (int)sb1.st_ino, (int)sb2.st_ino);
-
-      return 0;
-   }
-#endif /* HAVE_UNIQUE_SOCKET_INODES */
-
-   len1   = sizeof(flags1);
-   rc1    = getsockopt(fd1, SOL_SOCKET, testflag, &flags1, &len1);
-   errno1 = errno;
-
-   len2   = sizeof(flags2);
-   rc2    = getsockopt(fd1, SOL_SOCKET, testflag, &flags2, &len2);
-   errno2 = errno;
-
-   if (rc1 != rc2 || errno1 != errno2 || flags1 != flags2) {
-      if (sockscf.option.debug >= DEBUG_VERBOSE)
-         slog(LOG_DEBUG, "%s: failed due to flags/errno/len-compare on line %d",
-         function, __LINE__);
-
-      return 0;
-   }
-
-   /*
-    * Test is to set a flag on fd1, and see if the same flag then gets set on
-    * fd2.  Note that this flag must be a flag we can set on a socket that
-    * failed during connect(2), or where the remote end has closed it's side
-    * of the session, and which will be shared between descriptors that are
-    * dup(2)'s of each other.
-    *
-    * File status flags are shared, but descriptor flags (e.g., FD_CLOEXEC),
-    * are of course not.  Also note that not all platforms let all F_SETFL
-    * commands change the same flags, and not all platforms let us set
-    * the flag on a "failed" socket (a socket where the connect(2) failed).
-    * We however assume that if the socket failed, and we are getting the
-    * same errno from the socket we are checking against, it is either the
-    * socket, or any failed socket is as good as any other failed socket.
-    *
-    * XXX this does not work on OpenBSD if one of the descriptors were passed
-    * us by another process (e.g., passed us by the connect child).
-    * Need to sendbug this.
-    *
-    * The reason we do not do this test first is that if there are multiple
-    * processes/threads using the same fd, we want to minimize the chance
-    * of us changing the descriptor under their feet while they are using it.
-    */
-
-   if (rc1 == -1 && rc2 == -1) {
-      if (sockscf.option.debug >= DEBUG_VERBOSE)
-         slog(LOG_DEBUG,
-              "%s: succeeded due to getsockopt(2) failing (%s) on line %d",
-              function, strerror(errno1), __LINE__);
-
-      return 1; /* assume any failed socket is as good as any other failed. */
-   }
-
-   if (rc1 == -1 && errno1 == ENOTSOCK) {
-      SWARNX(fd1); /* should not happen as we are only interested in sockets. */
-
-      if (sockscf.option.debug >= DEBUG_VERBOSE)
-         slog(LOG_DEBUG, "%s: failed due to errno = ENOTSOCK on line %d",
-              function, __LINE__);
-
-      return 0;
-   }
-
-   slog(LOG_DEBUG, "%s: all looks equal so far, doing final test, flags = %d",
-        function, flags1);
-
-   SASSERTX(flags1 == flags2);
-
-   if (flags1)
-      /*
-       * remove testflag from fd1 and see if it gets removed from fd2 too.
-       */
-      setflag = 0;
-   else
-      /*
-       * add testflag to fd1 and see if it gets added to fd2 too.
-       */
-      setflag = 1;
-
-   if (setsockopt(fd1, SOL_SOCKET, testflag, &setflag, sizeof(setflag)) != 0) {
-      if (setsockopt(fd2, SOL_SOCKET, testflag, &setflag, sizeof(setflag))
-      != 0) {
-         slog(LOG_DEBUG, "%s: succeeded due to setsockopt() failing on line %d",
-              function, __LINE__);
-
-         return 1;
-      }
-      else {
-         if (setsockopt(fd2, SOL_SOCKET, testflag, &flags2, sizeof(flags2))
-         != 0)
-            SWARN(errno);
-
-         slog(LOG_DEBUG, "%s: failed due to setsockopt() failing on line %d",
-              function, __LINE__);
-         return 0;
-      }
-   }
-
-   len1   = sizeof(newflags1);
-   rc1    = getsockopt(fd1, SOL_SOCKET, testflag, &newflags1, &len1);
-   errno1 = errno;
-
-   len2   = sizeof(newflags2);
-   rc2    = getsockopt(fd2, SOL_SOCKET, testflag, &newflags2, &len2);
-   errno2 = errno;
-
-   if (newflags1 == newflags2) {
-      slog(LOG_DEBUG, "%s: newflags1 = newflags2 -> %d is a dup of %d",
-      function, fd1, fd2);
-
-      isdup = 1;
-   }
-   else if (rc1 == -1 && rc2 == rc1
-   &&       errno1 == errno2) {
-      slog(LOG_DEBUG, "%s: flagcheck failed, but rc (%d) and errno (%d) is "
-                      "the same, so assuming %d is a dup of %d, or that "
-                      "any failed socket is as good as any other failed "
-                      "socket.  Not many other choices",
-                      function, rc1, errno1, fd1, fd2);
-      isdup = 1;
-   }
-   else
-      isdup = 0;
-
-   slog(LOG_DEBUG, "%s: final test indicates fd %d %s of fd %d",
-        function, fd1, isdup ? "is a dup" : "is not a dup", fd2);
-
-   /* restore flags back to original. */
-   SASSERTX(flags1 == flags2);
-   setsockopt(fd1, SOL_SOCKET, testflag, &flags1, sizeof(flags1));
-   setsockopt(fd2, SOL_SOCKET, testflag, &flags2, sizeof(flags2));
-
-   return isdup;
 }
 
 
@@ -1231,13 +1084,11 @@ socks_addrinit(void)
    SASSERTX(socksfdv == NULL && dv == NULL);
 
    if ((socksfdv = malloc(sizeof(*socksfdv) * FDV_INITSIZE)) == NULL)
-      serr(EXIT_FAILURE,
-           "%s: failed to alloc %lu bytes for socksify socksfd memory",
+      serr("%s: failed to alloc %lu bytes for socksify socksfd memory",
            function, (unsigned long)(sizeof(*socksfdv) * 64));
 
    if ((dv = malloc(sizeof(*dv) * FDV_INITSIZE)) == NULL)
-      serr(EXIT_FAILURE,
-           "%s: failed to alloc %lu bytes for socksify dv memory",
+      serr("%s: failed to alloc %lu bytes for socksify dv memory",
            function, (unsigned long)(sizeof(*dv) * 64));
 
    /* init new objects */
@@ -1250,7 +1101,7 @@ socks_addrinit(void)
 
 
 #if HAVE_PTHREAD_H
-   if (socks_getenv("SOCKS_DISABLE_THREADLOCK", istrue) != NULL)
+   if (socks_getenv(ENV_SOCKS_DISABLE_THREADLOCK, istrue) != NULL)
       slog(LOG_DEBUG, "pthread locking off, manually disabled in environment");
    else {
 #if HAVE_RTLD_NEXT
@@ -1266,19 +1117,21 @@ socks_addrinit(void)
 
          lpt = RTLD_NEXT;
          slog(LOG_DEBUG,
-              "pthread locking desired, threaded application (rtld)");
+              "%s: pthread locking desired: threaded program (rtld)", function);
       }
       else {
          slog(LOG_DEBUG,
-              "pthread locking off, non-threaded application (rtld)");
+              "%s: pthread locking off: non-threaded program (rtld)", function);
+
          lpt = NULL;
       }
 
 #else
       /* load libpthread */
       if ((lpt = dlopen(LIBRARY_PTHREAD, RTLD_LAZY)) == NULL) {
-         swarn("%s: compile time configuration error?  "
-         "Failed to open \"%s\": %s", function, LIBRARY_PTHREAD, dlerror());
+         swarn("%s: compile time configuration error?  Failed to open "
+               "\"%s\": %s",
+               function, LIBRARY_PTHREAD, dlerror());
       }
 #endif /* !HAVE_RTLD_NEXT */
 
@@ -1289,36 +1142,36 @@ socks_addrinit(void)
 
          if ((pt_init = (PT_INIT_FUNC_T)dlsym(lpt, SYMBOL_PT_INIT)) == NULL)
             swarn("%s: compile time configuration error?  "
-            "Failed to find \"%s\" in \"%s\": %s",
-            function, SYMBOL_PT_INIT, LIBRARY_PTHREAD, dlerror());
+                  "Failed to find \"%s\" in \"%s\": %s",
+                  function, SYMBOL_PT_INIT, LIBRARY_PTHREAD, dlerror());
 
          if ((pt_attrinit = (PT_ATTRINIT_FUNC_T)dlsym(lpt, SYMBOL_PT_ATTRINIT))
          == NULL)
             swarn("%s: compile time configuration error?  "
-            "Failed to find \"%s\" in \"%s\": %s",
-            function, SYMBOL_PT_ATTRINIT, LIBRARY_PTHREAD, dlerror());
+                  "Failed to find \"%s\" in \"%s\": %s",
+                  function, SYMBOL_PT_ATTRINIT, LIBRARY_PTHREAD, dlerror());
 
          if ((pt_settype = (PT_SETTYPE_FUNC_T)dlsym(lpt, SYMBOL_PT_SETTYPE))
          == NULL)
             swarn("%s: compile time configuration error?  "
-            "Failed to find \"%s\" in \"%s\": %s",
-            function, SYMBOL_PT_SETTYPE, LIBRARY_PTHREAD, dlerror());
+                  "Failed to find \"%s\" in \"%s\": %s",
+                  function, SYMBOL_PT_SETTYPE, LIBRARY_PTHREAD, dlerror());
 
          if ((pt_lock = (PT_LOCK_FUNC_T)dlsym(lpt, SYMBOL_PT_LOCK)) == NULL)
             swarn("%s: compile time configuration error?  "
-            "Failed to find \"%s\" in \"%s\": %s",
-            function, SYMBOL_PT_LOCK, LIBRARY_PTHREAD, dlerror());
+                  "Failed to find \"%s\" in \"%s\": %s",
+                  function, SYMBOL_PT_LOCK, LIBRARY_PTHREAD, dlerror());
 
          if ((pt_unlock = (PT_UNLOCK_FUNC_T)dlsym(lpt, SYMBOL_PT_UNLOCK))
          == NULL)
             swarn("%s: compile time configuration error?  "
-            "Failed to find \"%s\" in \"%s\": %s",
-            function, SYMBOL_PT_UNLOCK, LIBRARY_PTHREAD, dlerror());
+                  "Failed to find \"%s\" in \"%s\": %s",
+                  function, SYMBOL_PT_UNLOCK, LIBRARY_PTHREAD, dlerror());
 
          if ((pt_self = (PT_SELF_FUNC_T)dlsym(lpt, SYMBOL_PT_SELF)) == NULL)
             swarn("%s: compile time configuration error?  "
-            "Failed to find \"%s\" in \"%s\": %s",
-            function, SYMBOL_PT_SELF, LIBRARY_PTHREAD, dlerror());
+                  "Failed to find \"%s\" in \"%s\": %s",
+                  function, SYMBOL_PT_SELF, LIBRARY_PTHREAD, dlerror());
       }
 
       if (pt_init == NULL || pt_attrinit == NULL || pt_settype == NULL
@@ -1331,24 +1184,27 @@ socks_addrinit(void)
          pt_self     = NULL;
       }
 
-      if (pt_init == NULL)
-         slog(LOG_DEBUG, "pthread locking disabled");
+      if (pt_init == NULL) {
+         slog(LOG_INFO, "%s: pthread locking disabled", function);
+         sockscf.state.threadlockenabled = 0;
+      }
       else {
-         slog(LOG_DEBUG, "pthread locking enabled");
+         slog(LOG_INFO, "%s: pthread locking enabled", function);
+         sockscf.state.threadlockenabled = 1;
 
          if (socks_pthread_mutexattr_init(&attr) != 0)
-            serr(EXIT_FAILURE, "%s: mutexattr_init() failed", function);
+            serr("%s: mutexattr_init() failed", function);
 
          if (socks_pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK)
          != 0)
             swarn("%s: mutex_settype(PTHREAD_MUTEX_ERRORCHECK) failed",
-            function);
+                  function);
 
          if (socks_pthread_mutex_init(&addrmutex, &attr) != 0) {
             swarn("%s: mutex_init() failed", function);
 
             if (socks_pthread_mutex_init(&addrmutex, NULL) != 0)
-               serr(EXIT_FAILURE, "%s: mutex_init() failed", function);
+               serr("%s: mutex_init() failed", function);
          }
       }
 #endif /* HAVE_PTHREAD_H */

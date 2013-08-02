@@ -35,7 +35,6 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-@RUNLINT_TRUE@am__append_1 = $(LINTFILES) llib-lscompat.ln
 subdir = libscompat
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
@@ -44,11 +43,13 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
 	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
 	$(top_srcdir)/acinclude.m4 $(top_srcdir)/compiler.m4 \
-	$(top_srcdir)/preload.m4 $(top_srcdir)/miniupnpc.m4 \
+	$(top_srcdir)/osdep.m4 $(top_srcdir)/libscompat.m4 \
+	$(top_srcdir)/danteopt.m4 $(top_srcdir)/preload.m4 \
 	$(top_srcdir)/gssapi.m4 $(top_srcdir)/kerberos.m4 \
 	$(top_srcdir)/sasl.m4 $(top_srcdir)/ldap.m4 \
-	$(top_srcdir)/libscompat.m4 $(top_srcdir)/sockopt.m4 \
-	$(top_srcdir)/mapfile.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/mapfile.m4 $(top_srcdir)/miniupnpc.m4 \
+	$(top_srcdir)/sharedopt.m4 $(top_srcdir)/sockopt.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(install_sh) -d
@@ -56,7 +57,11 @@ CONFIG_HEADER = $(top_builddir)/include/autoconf.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
-am_libscompat_la_OBJECTS =
+libscompat_la_LIBADD =
+am_libscompat_la_OBJECTS = daemon.lo difftime.lo getifaddrs.lo \
+	hstrerror.lo inet_ntoa.lo inet_pton.lo issetugid.lo memmove.lo \
+	pselect.lo seteuid.lo setproctitle.lo sockatmark.lo strlcpy.lo \
+	strvis.lo vsyslog.lo
 libscompat_la_OBJECTS = $(am_libscompat_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -87,8 +92,8 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = $(libscompat_la_SOURCES) $(EXTRA_libscompat_la_SOURCES)
-DIST_SOURCES = $(libscompat_la_SOURCES) $(EXTRA_libscompat_la_SOURCES)
+SOURCES = $(libscompat_la_SOURCES)
+DIST_SOURCES = $(libscompat_la_SOURCES)
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
@@ -136,6 +141,7 @@ LIBDSCSRC = @LIBDSCSRC@
 LIBOBJS = @LIBOBJS@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBS = @LIBS@
+LIBSCOMPAT = @LIBSCOMPAT@
 LIBSCSRC = @LIBSCSRC@
 LIBTOOL = @LIBTOOL@
 
@@ -178,6 +184,7 @@ SCCOMPATLIB = @SCCOMPATLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SOCKDCOMPAT = @SOCKDCOMPAT@
 SOCKDDEPS = @SOCKDDEPS@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 SOFULLPATH = @SOFULLPATH@
@@ -185,6 +192,7 @@ SOLIB_POSTFIX = @SOLIB_POSTFIX@
 STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
+UNITSUBDIRS = @UNITSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 YFLAGS = @YFLAGS@
@@ -241,23 +249,25 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+
+#NOTE: This makefile is now only used for unit tests, the other
+#      source dirs include the source files directly when building.
 noinst_LTLIBRARIES = libscompat.la
-libscompat_la_SOURCES = 
-EXTRA_libscompat_la_SOURCES = daemon.c difftime.c getifaddrs.c	\
-   hstrerror.c inet_aton.c inet_ntoa.c inet_pton.c issetugid.c	\
+libscompat_la_SOURCES = daemon.c difftime.c getifaddrs.c	\
+   hstrerror.c inet_ntoa.c inet_pton.c issetugid.c	        \
    memmove.c pselect.c seteuid.c setproctitle.c sockatmark.c	\
    strlcpy.c strvis.c vsyslog.c
 
-libscompat_la_LIBADD = @LIBSCSRC@
-#libscompat_la_DEPENDENCIES = @LIBSCSRC@
-LIBDEPS = @LIBSCSRC@ $(am__append_1)
-noinst_HEADERS = daemon.h difftime.h ifaddrs.h issetugid.h	\
-   sockatmark.h strlcpy.h timers.h vis_compat.h
+noinst_HEADERS = ifaddrs.h timers.h vis_compat.h
 
+#in_cksum; not used in libscompat, only placed here for license reasons
+EXTRA_DIST = in_cksum.h in_cksum.c
 INCLUDES = -I$(top_srcdir)/include -I.
 AM_CFLAGS = -DSOCKS_CLIENT=0 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=0
 @RUNLINT_TRUE@SUFFIXES = .ln
-@RUNLINT_TRUE@LINTFILES = $(LIBSCSRC:.lo=.ln)
+#XXX add in_cksum directly, not built in this dir, but linting simplest here
+@RUNLINT_TRUE@LINTFILES = $(LIBSCSRC:.lo=.ln) in_cksum.ln
+@RUNLINT_TRUE@LIBDEPS = $(LINTFILES) llib-lscompat.ln
 @RUNLINT_TRUE@CLEANFILES = $(LINTFILES)
 libscompat_la_DEPENDENCIES = $(LIBDEPS)
 all: all-am
@@ -316,7 +326,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/difftime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getifaddrs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hstrerror.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/inet_aton.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/inet_ntoa.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/inet_pton.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/issetugid.Plo@am__quote@

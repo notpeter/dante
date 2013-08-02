@@ -44,33 +44,34 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socketopt.c,v 1.41 2012/06/01 19:59:27 karls Exp $";
+"$Id: socketopt.c,v 1.57 2013/07/21 11:42:11 michaels Exp $";
 
 static void
-setconfsockoption(const int in, const int out, const int protocol,
-                  const int isclientside,
+setconfsockoption(const int in, const int out, const sa_family_t safamily,
+                  const int protocol, const int isclientside,
                   const int whichtime, const socketoption_t *opt);
 
 
 void
 socketoptioncheck(const socketoption_t *option)
 {
-   /*
-    * Check if the option is valid in general first, and then if it's valid
-    * in this specific context.
-    */
 
-   if (option->info->level != option->level)
-      yywarn("To our knowledge socket option \"%s\" is not valid at the "
-             "protocol level given (%d)", option->info->name, option->level);
+   if (option->info->level != option->level
+   && !(   (option->level == IPPROTO_UDP || option->level == IPPROTO_TCP)
+        &&  option->info->level == SOL_SOCKET))
+      yywarnx("to our knowledge socket option \"%s\" is not valid at the "
+              "protocol level given (%s/%d)", 
+              option->info->name, 
+              sockoptlevel2string(option->level),
+              option->level);
 
    if (option->info->mask != 0) {
-      SASSERTX(option->info->argtype == int_val
-      ||       option->info->argtype == uchar_val);
+      SASSERTX(option->info->opttype == int_val
+      ||       option->info->opttype == uchar_val);
 
       if ((~option->info->mask & option->optval.int_val) != 0)
-         yywarn("To our knowledge socket option %s can not have "
-                "the value %d", option->info->name, option->optval.int_val);
+         yywarnx("to our knowledge socket option %s can not have the value %d", 
+                 option->info->name, option->optval.int_val);
    }
 }
 
@@ -87,8 +88,8 @@ addedsocketoption(optc, optv, newoption)
         function, sockopt2string(newoption, NULL, 0), (unsigned long)*optc);
 
    if (newoption->info != NULL && newoption->info->calltype == invalid) {
-      yywarn("option \"%s\" not user settable, ignoring",
-             newoption->info->name);
+      yywarnx("option \"%s\" not user settable, ignoring",
+              newoption->info->name);
 
       return 0;
    }
@@ -101,7 +102,7 @@ addedsocketoption(optc, optv, newoption)
       return 0;
    }
 
-   *optv = newoptv;
+   *optv              = newoptv;
    (*optv)[(*optc)++] = *newoption;
 
    return 1;
@@ -120,31 +121,45 @@ setconfsockoptions(target, in, protocol, isclientside, optc, optv,
    const int whichglobals;
 {
    const char *function = "setconfsockoptions()";
+   struct sockaddr addr;
+   socklen_t len;
    size_t i;
 
-   slog(LOG_DEBUG, "%s: going through options, looking for %s socket options "
-                   "for socket %d (in: %d) on the %s side",
-                   function,
-                   protocol2string(protocol),
-                   target,
-                   in,
-                   isclientside ? "internal" : "external");
+   slog(LOG_DEBUG,
+        "%s: going through options, looking for %s socket options for fd %d "
+        "(in: %d) on the %s side",
+        function,
+        protocol2string(protocol),
+        target,
+        in,
+        isclientside ? "internal" : "external");
+
+   len = sizeof(addr);
+   if (getsockname(target, &addr, &len) != 0) {
+      slog(LOG_DEBUG, "%s: getsockname(2) on target-fd %d failed: %s",
+           function, target, strerror(errno));
+
+      return;
+   }
 
    if (whichglobals) {
       /*
        * Set the globals first so that it is possible for the user to
-       * override them in a rule/route.
+       * override them locally in a rule/route.
        */
 
-      slog(LOG_DEBUG, "%s: going through global array with %lu options, "
-                      "looking for globals matching %d",
-                      function,
-                      (unsigned long)sockscf.socketoptionc,
-                      whichglobals);
+      slog(LOG_DEBUG,
+           "%s: going through global array with %lu options, looking for "
+           "globals matching %d (%s)",
+           function, 
+           (unsigned long)sockscf.socketoptionc, 
+           whichglobals,
+           socketsettime2string(whichglobals));
 
       for (i = 0; i < sockscf.socketoptionc; ++i)
          setconfsockoption(target,
                            in,
+                           addr.sa_family,
                            protocol,
                            isclientside,
                            whichglobals,
@@ -152,15 +167,15 @@ setconfsockoptions(target, in, protocol, isclientside, optc, optv,
    }
 
    if (whichlocals) {
-      slog(LOG_DEBUG, "%s: going through local array with %lu options, "
-                      "looking for locals matching %d",
-                      function,
-                      (unsigned long)optc,
-                      whichlocals);
+      slog(LOG_DEBUG,
+           "%s: going through local array with %lu options, looking for "
+           "locals matching %d",
+           function, (unsigned long)optc, whichlocals);
 
       for (i = 0; i < optc; ++i)
          setconfsockoption(target,
                            in,
+                           addr.sa_family,
                            protocol,
                            isclientside,
                            whichlocals,
@@ -169,9 +184,10 @@ setconfsockoptions(target, in, protocol, isclientside, optc, optv,
 }
 
 static void
-setconfsockoption(target, in, protocol, isclientside, whichtime, opt)
+setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
    const int target;
    const int in;
+   const sa_family_t safamily;
    const int protocol;
    const int isclientside;
    const int whichtime;
@@ -180,33 +196,33 @@ setconfsockoption(target, in, protocol, isclientside, whichtime, opt)
    const char *function = "setconfsockoption()";
    socketoptvalue_t newvalue;
    socklen_t len;
-   int rc, whichtime_matches;
+   int rc;
 
-   slog(LOG_DEBUG, "%s: checking protocol %s on the %s-side for whether "
-                   "socket option %s should be set at time %d",
-                   function,
-                   protocol2string(protocol),
-                   isclientside ? "internal" : "external",
-                   sockopt2string(opt, NULL, 0),
-                   whichtime);
+   slog(LOG_DEBUG,
+        "%s: checking protocol %s on the %s-side for whether socket option "
+        "%s should be set at %s (%d) on %s target socket",
+        function,
+        protocol2string(protocol),
+        isclientside ? "internal" : "external",
+        sockopt2string(opt, NULL, 0),
+        socketsettime2string(whichtime),
+        whichtime,
+        safamily2string(safamily));
 
-   if (opt->info == NULL)
-      whichtime_matches = 1; /* don't know, have to try. */
-   else {
-      SASSERTX(opt->info != NULL);
+   if (opt->info != NULL) {
+      if (safamily == AF_INET  && !opt->info->ipv4_on)
+         return;
 
-      if ((whichtime & SOCKETOPT_ANYTIME) && opt->info->calltype == anytime)
-         whichtime_matches = 1;
-      else if ((whichtime & SOCKETOPT_PRE) && opt->info->calltype == preonly)
-         whichtime_matches = 1;
-      else if ((whichtime & SOCKETOPT_POST) && opt->info->calltype == postonly)
-         whichtime_matches = 1;
+      if (safamily == AF_INET6 && !opt->info->ipv6_on)
+         return;
+
+      if (((whichtime & SOCKETOPT_ANYTIME) && opt->info->calltype == anytime)
+      ||  ((whichtime & SOCKETOPT_PRE)     && opt->info->calltype == preonly)
+      ||  ((whichtime & SOCKETOPT_POST)    && opt->info->calltype == postonly))
+         ;
       else
-         whichtime_matches = 0;
+         return;
    }
-
-   if (!whichtime_matches)
-      return;
 
    if (opt->isinternalside && !isclientside)
       return;
@@ -214,38 +230,32 @@ setconfsockoption(target, in, protocol, isclientside, whichtime, opt)
    if (!opt->isinternalside && isclientside)
       return;
 
-   if (protocol == SOCKS_TCP && opt->level == IPPROTO_UDP)
+/*
+ * Does socketlevel "socketleve" work with any l4 protocol?
+ */
+#define ANY_L4_PROTOCOL(socketlevel)                                           \
+   ((socketlevel) == SOL_SOCKET || (socketlevel) == IPPROTO_IP)
+
+   if (protocol    == SOCKS_TCP 
+   && !(ANY_L4_PROTOCOL(opt->level) || opt->level == IPPROTO_TCP))
       return;
 
-   if (protocol == SOCKS_UDP && opt->level == IPPROTO_TCP)
+   if (protocol    == SOCKS_UDP 
+   && !(ANY_L4_PROTOCOL(opt->level) || opt->level == IPPROTO_UDP))
       return;
+
+   slog(LOG_DEBUG, "%s: setting %s", function, sockopt2string(opt, NULL, 0));
 
    if (opt->info != NULL) {
       if (opt->info->shift) {
          socketoptvalue_t oldvalue;
-         int mask;
+         const int mask = opt->info->mask << opt->info->shift;
 
-         SASSERTX(opt->info->argtype == int_val
-         ||       opt->info->argtype == uchar_val);
+         SASSERTX(opt->info->opttype == int_val
+         ||       opt->info->opttype == uchar_val);
 
-         len = SOCKETOPTVALUETYPE2SIZE(opt->opttype);
-#if 0 /*XXX*/
-         if (getsockopt(out,
-                        opt->level,
-                        opt->optname,
-                        opt->opttype == int_val ?
-                     (void *)&oldvalue.int_val : (void *)&oldvalue.uchar_val,
-                        &len) == -1) {
-            swarn("%s: could not get oldvalue for socket option \"%s\"",
-                  function, opt->info->name);
-
-            return;
-         }
-#else
          bzero(&oldvalue, sizeof(oldvalue));
-#endif
 
-         mask = opt->info->mask << opt->info->shift;
          switch (opt->opttype) {
             case int_val:
                newvalue.int_val = opt->optval.int_val << opt->info->shift;
@@ -312,9 +322,10 @@ setconfsockoption(target, in, protocol, isclientside, whichtime, opt)
          if (getraddr) {
             len = sizeof(raddr);
             if (getpeername(in, TOSA(&raddr), &len) == -1) {
-               slog(LOG_DEBUG, "%s: getpeername(2) on socket %d failed (%s).  "
-                               "Presumably the connection has timed out",
-                               function, in, strerror(errno));
+               slog(LOG_DEBUG,
+                    "%s: getpeername(2) on fd %d failed (%s).  Presumably "
+                    "the connection has timed out",
+                    function, in, strerror(errno));
                return;
             }
          }
@@ -323,12 +334,11 @@ setconfsockoption(target, in, protocol, isclientside, whichtime, opt)
             SASSERTX(getraddr);
 
             hostidc = getsockethostid(in, ELEMENTS(hostidv), hostidv);
-            slog(LOG_DEBUG,
-                 "%s: retrieved %u hostids on socket %d from client %s",
+            slog(LOG_DEBUG, "%s: retrieved %u hostids on fd %d from client %s",
                  function,
                  (unsigned)hostidc,
                  in,
-                 sockaddr2string(TOSA(&raddr), NULL, 0));
+                 sockaddr2string(&raddr, NULL, 0));
          }
 
          switch (newvalue.int_val) {
@@ -348,17 +358,30 @@ setconfsockoption(target, in, protocol, isclientside, whichtime, opt)
             case SOCKS_HOSTID_ADDCLIENT:
                SASSERTX(gethostid);
                if ((size_t)(hostidc) + 1 > ELEMENTS(hostidv)) {
+                  char ntop[MAXSOCKADDRSTRING];
+
                   SASSERTX(getraddr);
+
+                  if (inet_ntop(AF_INET,
+                                &hostidv[hostidc - 1],
+                                ntop,
+                                sizeof(ntop)) == NULL) {
+                     swarn("%s: inet_ntop(3) failed on %s %x",
+                          function,
+                          atype2string(SOCKS_ADDR_IPV4),
+                          hostidv[hostidc - 1].s_addr);
+
+                     snprintf(ntop, sizeof(ntop), "<unknown>");
+                  }
 
                   slog(LOG_WARNING,
                        "%s: connection from %s has already reached the maximum "
-                       "number of hostids (%u), so can not add one more.  "
-                       "Discarding the last hostid (%s) before adding the new "
-                       "one",
+                       "number of hostids (%u); can not add more.  Discarding "
+                       "the last hostid (%s) before adding the new one",
                        function,
-                       sockaddr2string(TOSA(&raddr), NULL, 0),
+                       sockaddr2string(&raddr, NULL, 0),
                        (unsigned)hostidc,
-                       inet_ntoa(hostidv[hostidc - 1]));
+                       ntop);
 
                   hostidc = (unsigned char)ELEMENTS(hostidv) - 1;
                }
@@ -373,7 +396,7 @@ setconfsockoption(target, in, protocol, isclientside, whichtime, opt)
 
          len = sizeof(*hostidv) * hostidc;
          if ((rc = setsockethostid(target, hostidc, hostidv)) != 0)
-            swarn("%s: setsockethostid() on socket %d failed",
+            swarn("%s: setsockethostid() on fd %d failed",
                   function, target);
          break;
       }
@@ -386,16 +409,18 @@ setconfsockoption(target, in, protocol, isclientside, whichtime, opt)
 
       default:
          len = SOCKETOPTVALUETYPE2SIZE(opt->opttype);
-         rc  = setsockopt(target, opt->level, opt->optname, &newvalue, len);
+         rc  = setsockopt(target, 
+                          opt->info == NULL ? opt->level : opt->info->level, 
+                          opt->optname, 
+                          &newvalue, 
+                          len);
    }
 
    if (rc != 0)
       swarn("%s: failed to set socket option %s of size %lu",
-            function,
-            sockopt2string(opt, NULL, 0),
-            (unsigned long)len);
+            function, sockopt2string(opt, NULL, 0), (unsigned long)len);
    else
-      slog(LOG_DEBUG, "%s: set option %s, to %s (len %d)",
+      slog(LOG_DEBUG, "%s: set option %s to %s (len %d)",
            function,
            sockopt2string(opt, NULL, 0),
            sockoptval2string(newvalue, opt->opttype, NULL, 0),

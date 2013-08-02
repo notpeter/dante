@@ -23,12 +23,12 @@ if test x"$SASL" != xno; then
    fi
 
    dnl any cflags values obtained from krb5-config?
-   if test x"$ac_sasl_cflags" != x; then
+   if test x"${ac_sasl_cflags}" != x; then
       CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_sasl_cflags"
    fi
 
    dnl extract -L flags
-   if test x"$ac_sasl_libs" != x; then
+   if test x"${ac_sasl_libs}" != x; then
       NPATH=`echo $ac_sasl_libs | xargs -n1 | egrep '^-L' | xargs echo`
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }$NPATH"
    fi
@@ -42,15 +42,15 @@ if test x"$SASL" != xno; then
 	      if test x"$LIBS" != x; then
                  LIBS="$ac_lib_sav"
               fi
-              if test x"$ac_cv_lib_sasl2_main" = yes; then
+              if test x"${ac_cv_lib_sasl2_main}" = yes; then
                  AC_DEFINE(HAVE_SASL_DARWIN, 1, [Define to 1 if Mac Darwin without sasl.h])
               fi
               ;;
    esac
 
-   if test x"$ac_cv_header_sasl_h" = xyes ||
-      test x"$ac_cv_header_sasl_sasl_h" = xyes ||
-      test x"$ac_cv_lib_sasl2_main" = xyes; then
+   if test x"${ac_cv_header_sasl_h}" = xyes ||
+      test x"${ac_cv_header_sasl_sasl_h}" = xyes ||
+      test x"${ac_cv_lib_sasl2_main}" = xyes; then
       unset no_sasl
       AC_DEFINE(HAVE_SASL, 1, [Have SASL support])
    fi

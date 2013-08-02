@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011
+ * Copyright (c) 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockopt.c,v 1.6 2011/09/24 17:44:41 michaels Exp $";
+"$Id: Rgetsockopt.c,v 1.9 2013/01/02 13:22:39 karls Exp $";
 
 int
 Rgetsockopt(s, level, optname, optval, optlen)
@@ -61,12 +61,13 @@ Rgetsockopt(s, level, optname, optval, optlen)
       return getsockopt(s, level, optname, optval, optlen);
 
    clientinit();
-   slog(LOG_DEBUG, "%s, socket %d", function, s);
+
+   slog(LOG_DEBUG, "%s, fd %d", function, s);
 
    if (!socks_addrisours(s, &socksfd, 1))
       return getsockopt(s, level, optname, optval, optlen);
 
-   slog(LOG_DEBUG, "%s, socket %d, err = %d", function, s, socksfd.state.err);
+   slog(LOG_DEBUG, "%s, fd %d, err = %d", function, s, socksfd.state.err);
    memcpy(optval, &socksfd.state.err, *optlen);
 
    /*

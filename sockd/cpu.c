@@ -44,84 +44,115 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: cpu.c,v 1.12 2012/05/21 21:39:17 karls Exp $";
+"$Id: cpu.c,v 1.24 2013/05/13 09:20:08 michaels Exp $";
 
-void
-sockd_setcpusettings(cpu)
-   const cpusetting_t *cpu;
+int
+sockd_setcpusettings(old, new)
+   const cpusetting_t *old;
+   const cpusetting_t *new;
 {
 #if HAVE_SCHED_SETSCHEDULER || HAVE_SCHED_SETAFFINITY
    const char *function = "sockd_setcpusettings()";
    int rc;
 
 #if HAVE_SCHED_SETSCHEDULER
-   if (cpu->scheduling_isset
-    &&  (sockscf.state.cpu.policy != cpu->policy
-      || sockscf.state.cpu.param.sched_priority  != cpu->param.sched_priority)){
-      slog(LOG_DEBUG, "%s: setting cpu scheduling policy/priority to %s/%d",
-           function, numeric2cpupolicy(cpu->policy), cpu->param.sched_priority);
+   SASSERTX(old->scheduling_isset);
+   SASSERTX(new->scheduling_isset);
 
-      SASSERTX(sockscf.state.cpu.scheduling_isset);
+   slog(LOG_DEBUG, "%s: old cpu scheduling policy/priority: %s/%d, new: %s/%d",
+        function,
+        numeric2cpupolicy(old->policy),
+        old->param.sched_priority,
+        numeric2cpupolicy(new->policy),
+        new->param.sched_priority);
 
+   if (old->policy                != new->policy
+   ||  old->param.sched_priority  != new->param.sched_priority) {
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
-      rc = sched_setscheduler(0, cpu->policy, &cpu->param);
+      rc = sched_setscheduler(0, new->policy, &new->param);
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
 
-      if (rc == 0) {
-         sockscf.state.cpu.policy = cpu->policy;
-         sockscf.state.cpu.param  = cpu->param;
-      }
-      else
-         swarn("%s: failed to set cpu scheduling policy/priority to %s/%d",
+      if (rc != 0) {
+         swarn("%s: could not change cpu scheduling policy/priority from "
+               "%s/%d to %s/%d%s",
                function,
-               numeric2cpupolicy(cpu->policy),
-               cpu->param.sched_priority);
+               numeric2cpupolicy(old->policy),
+               old->param.sched_priority,
+               numeric2cpupolicy(new->policy),
+               new->param.sched_priority,
+               sockscf.state.haveprivs ? "" : " (normally special privileges "
+                                              "are required for this)");
+
+         return -1;
+      }
+
+      sockscf.state.cpu.policy = new->policy;
+      sockscf.state.cpu.param  = new->param;
    }
 #endif /* HAVE_SCHED_SETSCHEDULER */
 
 #if HAVE_SCHED_SETAFFINITY
-   if (cpu->affinity_isset && !cpu_equal(&sockscf.state.cpu.mask, &cpu->mask)) {
-      SASSERTX(sockscf.state.cpu.affinity_isset);
+   if (new->affinity_isset && (cpu_equal(&old->mask, &new->mask) == 0)) {
+      const size_t setsize = cpu_get_setsize();
+      const long cpuc      = sysconf(_SC_NPROCESSORS_ONLN);
+      size_t i, cpus_used, oldcpus_used, errcpus_used;
+      char cpus[2048], oldcpus[sizeof(cpus)], errcpus[sizeof(cpus)];
+
+      if (cpuc == -1)
+         serr("sysconf(_SC_NPROCESSORS_ONLN) failed");
+
+      *cpus     = *oldcpus     = *errcpus     = NUL;
+      cpus_used = oldcpus_used = errcpus_used = 0;
+      for (i = 0; i < setsize; ++i) {
+         if (cpu_isset(i, &old->mask)) {
+            oldcpus_used += snprintf(&oldcpus[oldcpus_used],
+                                 sizeof(oldcpus) - oldcpus_used,
+                                 "%ld ", (long)i);
+         }
+
+         if (cpu_isset(i, &new->mask)) {
+            cpus_used += snprintf(&cpus[cpus_used],
+                                 sizeof(cpus) - cpus_used,
+                                 "%ld ", (long)i);
+
+            if (i + 1 >= (size_t)cpuc)
+               errcpus_used += snprintf(&errcpus[errcpus_used],
+                                    sizeof(errcpus) - errcpus_used,
+                                    "%ld ", (long)i);
+         }
+      }
+
+      slog(LOG_DEBUG, "%s: old cpu affinity: %s, new: %s",
+           function,
+           *oldcpus == NUL ? "<none set>" : oldcpus,
+           *cpus    == NUL ? "<none set>" : cpus);
 
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
-      rc = cpu_setaffinity(0, sizeof(cpu->mask), &cpu->mask);
+      rc = cpu_setaffinity(0, sizeof(new->mask), &new->mask);
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
 
-      if (rc == 0)
-         sockscf.state.cpu.mask = cpu->mask;
-      else {
-         size_t i;
-         size_t errcpus_used  = 0;
-         const size_t setsize = cpu_get_setsize();
-         const long cpus      = sysconf(_SC_NPROCESSORS_ONLN);
-         char errcpus[2048]   = { NUL };
-
-         if (cpus == -1)
-            serr(EXIT_FAILURE, "sysconf(_SC_NPROCESSORS_ONLN) failed");
-
-         for (i = 0; i < setsize; ++i)
-            if (cpu_isset(i, &cpu->mask) && i + 1 > (size_t)cpus)
-               errcpus_used += snprintf(&errcpus[errcpus_used],
-                                        sizeof(errcpus) - errcpus_used,
-                                        "%ld ",
-                                        (long)i);
-
+      if (rc != 0) {
          if (*errcpus != NUL)
-            serr(EXIT_FAILURE, "%s: failed to set cpu affinity.  Probably "
-                               "because the configured cpu mask contains the "
-                               "following cpus which do not appear to be "
-                               "present on this system (which has a total of "
-                               "%ld cpus): %s",
-                               function, cpus, errcpus);
+            swarn("%s: failed to set new cpu affinity.  Probably because the "
+                  "configured new mask contains the following cpus which do "
+                  "not appear to be present on this system (which as far as we "
+                  "can see, has a total of %ld cpus): %s",
+                  function, cpuc, errcpus);
+         else
+            swarn("%s: failed to set new cpu affinity using mask %s",
+                  function, cpuset2string(&new->mask, NULL, 0));
 
-         serr(EXIT_FAILURE, "%s: failed to set cpu affinity using mask %s",
-                             function, cpuset2string(&cpu->mask, NULL, 0));
+         return -1;
       }
+
+      sockscf.state.cpu.mask = new->mask;
    }
+
 #endif /* HAVE_SCHED_SETAFFINITY */
 #endif /* HAVE_SCHED_SETSCHEDULER || HAVE_SCHED_SETAFFINITY */
 
 #if HAVE_PROCESSOR_BIND
 #endif /* HAVE_PROCESSOR_BIND */
 
+   return 0;
 }

@@ -1,4 +1,4 @@
-# $Id: CREDITS,v 1.44 2012/06/01 19:59:26 karls Exp $
+# $Id: CREDITS,v 1.45 2012/11/08 21:01:29 michaels Exp $
 
 This software was developed for Inferno Nettverk A/S, Norway, by
    - Michael Shuldman
@@ -71,11 +71,12 @@ At least the following additional people should be credited:
   to limit the range of udp-ports used between the socks-client and the
   Dante server.
 
-- Markus Moeller (markus_moeller at compuserve.com) contributed
-  support for the GSSAPI (RFC 1961) to both the server and the client.
+- Markus Moeller (markus_moeller at compuserve.com) contributed the
+  SOCKS GSSAPI (RFC 1961) implementation in Dante, server and client.
   Many thanks to Markus for this.
 
 - Lysenko Konstantin <gshaud@gmail.com.example.com> contributed support for
   "external.rotation: same-same".
 
-- Also thanks to everyone who reported bugs and other problems.
+- Also thanks to everyone who reported bugs, wrote articles about how to
+  use Dante, or provided other constructive feedback.

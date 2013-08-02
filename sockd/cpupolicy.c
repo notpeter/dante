@@ -48,7 +48,7 @@
 #include <sched.h>
 
 static const char rcsid[] =
-"$Id: cpupolicy.c,v 1.4 2012/05/16 10:45:35 karls Exp $";
+"$Id: cpupolicy.c,v 1.5 2013/01/26 12:38:59 michaels Exp $";
 
 #if HAVE_SCHED_SETSCHEDULER
 
@@ -103,7 +103,7 @@ numeric2cpupolicy(int value)
          return cpupolicies[i].name;
    }
 
-   return NULL;
+   return "<unknown>";
 }
 
 #endif /* HAVE_SCHED_SETSCHEDULER */

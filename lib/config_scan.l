@@ -49,23 +49,10 @@
 #endif
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.184 2012/06/01 20:23:05 karls Exp $";
+"$Id: config_scan.l,v 1.236 2013/07/27 22:22:18 michaels Exp $";
 
 #include "yacconfig.h"
 #include "config_parse.h"
-
-static int shouldresetstate(const int current_state, const int next_token);
-/*
- * If in state "current_state", and the next token is "next_token",
- * should we reset the current state?
- * Returns true if yes, false if not.
- */
-
-
-extern int socks_parseinit;
-extern const int socks_configtype;
-
-static unsigned char ismask;
 
 #define YY_STACK_USED 0
 #define YY_ALWAYS_INTERACTIVE 0
@@ -77,14 +64,29 @@ static unsigned char ismask;
  * stuff that is only defined in the server case, but which I don't know
  * how #ifdef out in the lex pattern matching code instead.  Is it possible?
  */
-#define CHILD_MOTHER    0
-#define CHILD_NEGOTIATE 0
-#define CHILD_REQUEST   0
-#define CHILD_IO        0
+#define PROC_MOTHER    0
+#define PROC_NEGOTIATE 0
+#define PROC_REQUEST   0
+#define PROC_IO        0
+#define PROC_MONITOR   0
 
 #endif /* SOCKS_CLIENT */
 
-static int inrule, inroute;
+static int shouldresetstate(const int current_state, const int next_token);
+/*
+ * If in state "current_state", and the next token is "next_token",
+ * should we reset the current state?
+ * Returns true if yes, false if not.
+ */
+
+
+extern const int      socks_configtype;
+extern int            lex_dorestart;
+
+char   currentlexline[100];   /* just to have some context. */
+char   previouslexline[100];  /* just to have some context. */
+static unsigned char ismask;
+static int inroute, inclientrule;
 
 %}
 
@@ -96,7 +98,14 @@ static int inrule, inroute;
 %option noyywrap
 %option nounput
 
-/*%option debug                           */
+/*%option debug                                             */
+
+WORDCHAR       [[:alpha:]]
+NOT_WORDCHAR   [[^:alpha:]]
+LS               ^[[:blank:]]*    
+
+SOCKETLEVEL    (ip|socket|tcp|udp)
+
 
    /* non-exclusive start conditions. */
 %s start_address
@@ -108,7 +117,10 @@ static int inrule, inroute;
 %x start_compatibility
 %x start_line
 %x start_log
+%x start_loglevel
 %x start_logoutput
+%x start_logtype
+%x start_errorsymbol
 %x start_method
 %x start_option
 %x start_proxyprotocol
@@ -117,6 +129,7 @@ static int inrule, inroute;
 %x start_libwrapfile
 %x start_cpuoption
 %x start_hostindex
+%x start_statekey
 
    /* ldap-stuff. */
 %x start_ldapdomain
@@ -152,8 +165,9 @@ static int inrule, inroute;
 
 %{
 
-   if (!socks_parseinit) {
-      socks_parseinit = 1;
+   if (lex_dorestart) {
+      lex_dorestart = 0;
+      inclientrule = inroute = 0;
 
       switch (socks_configtype) {
          case CONFIGTYPE_SERVER:
@@ -166,11 +180,39 @@ static int inrule, inroute;
             SERRX(socks_configtype);
       }
    }
+
+
+#if 0 /* does not work for some reason. */
+\n.* {
+   const char *strip = " \n\t";
+   const char *p = currentlexline;
+
+   SKIPLEADING(p, strip);
+   if (strlen(p) > 0)
+      strcpy(previouslexline, currentlexline);
+   /* else; blank line. */
+
+   strncpy(currentlexline, yytext, sizeof(currentlexline) - 1);
+   currentlexline[sizeof(currentlexline) - 1] = NUL;
+
+   ++yylineno;
+   yyless(1);
+}
+#endif
+
 %}
 
+   /*
+    * start-condition dependent stuff. 
+    */
 
 
-   /* start-condition dependent stuff. */
+<start_statekey>from|hostid[^: /\t\n]* {
+   BEGIN(0);
+
+   yylval.string = yytext;
+   return STATEKEY;
+}
 
 <start_servicename>[a-zA-Z]+[^: /\t\n]* {
    BEGIN(0);
@@ -225,11 +267,6 @@ static int inrule, inroute;
 }
 
 
-<start_address>direct {
-   yylval.string = yytext;
-   return DIRECT;
-}
-
 <start_address>(http|ftp)\:\/\/.* {
    yylval.string = yytext;
    return URL;
@@ -242,9 +279,23 @@ static int inrule, inroute;
    return DOMAINNAME;
 }
 
-<start_address>[^: \t\n][^/ \t\n]+ {
-   struct sockaddr_storage addr;
+<start_address>0/\/ {
+   /* 
+    * For some reason can't get the above "0/\/" included in the 
+    * address regexp below: "unrecognized rule" flex says.
+    */
+
+   BEGIN(start_port);
+
+   yylval.string = yytext;
+   return IPVANY;
+}
+
+<start_address>([^ \t\n][^/ \t\n]+)|(::) {
+   struct sockaddr_storage addr, mask;
+   struct in6_addr ipv6;
    struct in_addr ipv4;
+   char visbuf[256];
 
    BEGIN(start_port);
 
@@ -259,11 +310,30 @@ static int inrule, inroute;
     * check to see what the text represents.
     */
 
-   if (inet_pton(AF_INET, yytext, &ipv4) == 1)
-      return IPADDRESS;
+   if (socks_inet_pton(AF_INET, yytext, &ipv4, NULL) == 1)
+      return IPV4;
 
-   if (ifname2sockaddr(yytext, 0, TOSA(&addr), NULL) != NULL)
+   if (socks_inet_pton(AF_INET6, yytext, &ipv6, NULL) == 1) {
+      if (IN6_IS_ADDR_V4MAPPED(&ipv6))
+         yyerrorx("we do not use IPv4-mapped IPv6 addresses.  Please specify "
+                  "a regular IPv4 address instead if you want use IPv4");
+      else
+         return IPV6;
+   }
+
+   errno = 0;
+   if (ifname2sockaddr(yytext, 0, &addr, &mask) != NULL)
       return IFNAME;
+   else {
+      if (ERRNOISNOFILE(errno))
+         yyerror("no free filedescriptors: can not access information on "
+                 "whether \"%s\" is a local NIC or not",
+                 str2vis(yytext, strlen(yytext), visbuf, sizeof(visbuf)));
+   }
+
+   slog(LOG_DEBUG,
+        "\"%s\" appears to be neither ipaddress nor ifname; assuming hostname ",
+        yytext);
 
    return DOMAINNAME;
 }
@@ -305,28 +375,35 @@ cpu {
 <start_processtype>mother {
    BEGIN(ismask ? start_schedulemask : start_schedulepolicy);
 
-   yylval.number = CHILD_MOTHER;
+   yylval.number = PROC_MOTHER;
+   return PROCESSTYPE;
+}
+
+<start_processtype>monitor {
+   BEGIN(ismask ? start_schedulemask : start_schedulepolicy);
+
+   yylval.number = PROC_MONITOR;
    return PROCESSTYPE;
 }
 
 <start_processtype>negotiate {
    BEGIN(ismask ? start_schedulemask : start_schedulepolicy);
 
-   yylval.number = CHILD_NEGOTIATE;
+   yylval.number = PROC_NEGOTIATE;
    return PROCESSTYPE;
 }
 
 <start_processtype>request {
    BEGIN(ismask ? start_schedulemask : start_schedulepolicy);
 
-   yylval.number = CHILD_REQUEST;
+   yylval.number = PROC_REQUEST;
    return PROCESSTYPE;
 }
 
 <start_processtype>io {
    BEGIN(ismask ? start_schedulemask : start_schedulepolicy);
 
-   yylval.number = CHILD_IO;
+   yylval.number = PROC_IO;
    return PROCESSTYPE;
 }
 
@@ -347,11 +424,11 @@ cpu {
    BEGIN(0);
 
    if ((yylval.number = cpupolicy2numeric(yytext)) == -1)
-      yyerror("unknown scheduling policy \"%s\"", yytext);
+      yyerrorx("unknown scheduling policy \"%s\"", yytext);
 
    return SCHEDULEPOLICY;
 #else /* !HAVE_SCHED_SETAFFINITY */
-	yyerror("setting the cpu scheduling policy is not supported on this platform");
+   yyerrorx("setting cpu scheduling policy is not supported on this platform");
 #endif /* !HAVE_SCHED_SETAFFINITY */
 
 #endif /* SOCKS_CLIENT */
@@ -391,13 +468,13 @@ cpu {
 }
 
 
-<start_socketoption>[-a-zA-Z_][-a-zA-Z_\.]+ {
+<start_socketoption>[-a-zA-Z_][-a-zA-Z_\.0-9]+ {
    const sockopt_t *sockopt;
 
    BEGIN(start_socketoptionvalue);
 
    if ((sockopt = optname2sockopt(yytext)) == NULL)
-      yyerror("unknown socket option \"%s\"", yytext);
+      yyerrorx("unknown socket option \"%s\"", yytext);
 
    yylval.number = (ssize_t)sockopt->optid;
    return SOCKETOPTION_OPTID;
@@ -412,27 +489,75 @@ cpu {
 
 <start_log>connect {
    yylval.string = yytext;
-   return SOCKS_LOG_CONNECT;
+   return RULE_LOG_CONNECT;
 }
 
 <start_log>data {
    yylval.string = yytext;
-   return SOCKS_LOG_DATA;
+   return RULE_LOG_DATA;
 }
 
 <start_log>disconnect {
    yylval.string = yytext;
-   return SOCKS_LOG_DISCONNECT;
+   return RULE_LOG_DISCONNECT;
 }
 
 <start_log>error {
    yylval.string = yytext;
-   return SOCKS_LOG_ERROR;
+   return RULE_LOG_ERROR;
 }
 
 <start_log>iooperation|ioop {
    yylval.string = yytext;
-   return SOCKS_LOG_IOOPERATION;
+   return RULE_LOG_IOOPERATION;
+}
+
+<start_log>tcpinfo {
+   yylval.string = yytext;
+   return RULE_LOG_TCPINFO;
+}
+
+<start_loglevel>[a-zA-Z]+/\. {
+   const loglevel_t *l;
+   char visbuf[256];
+
+   BEGIN(start_logtype);
+
+   if ((l = loglevel(yytext)) == NULL)
+      yyerror("unknown loglevel: \"%s\"", 
+              str2vis(yytext, strlen(yytext), visbuf, sizeof(visbuf)));
+
+   yylval.number = l->value;
+   return LOGLEVEL;
+}
+
+<start_logtype>error {
+   BEGIN(start_errorsymbol);
+
+   yylval.string = yytext;
+   return LOGTYPE_ERROR;
+}
+
+<start_errorsymbol>[a-zA-Z][^:[:space:]]+ {
+#if !SOCKS_CLIENT
+
+   /*
+    * Figure out what kind of error-symbol we are dealing with.
+    * Since we do not force the user to specify what kind of symbol
+    * he specifies, we have to try all variants.
+    */
+   if ((yylval.error.valuev = errnovalue(yytext)) != NULL)
+      yylval.error.valuetype = VALUETYPE_ERRNO;
+    else if ((yylval.error.valuev = gaivalue(yytext)) != NULL)
+      yylval.error.valuetype = VALUETYPE_GAIERR;
+
+#else /* SOCKS_CLIENT */
+
+   yylval.error.valuev = NULL;
+
+#endif /* SOCKS_CLIENT */
+
+   return ERRORVALUE;
 }
 
 <start_bsdauthstylename>[a-zA-Z]+[^: /\t\n]* {
@@ -605,33 +730,51 @@ cpu {
 }
 
 <start_method>none {
-   yylval.string = yytext;
-   return NONE;
+   yylval.method = AUTHMETHOD_NONE;
+   return METHODNAME;
 }
 
 <start_method>gssapi {
-   yylval.string = yytext;
-   return GSSAPI;
+   yylval.method = AUTHMETHOD_GSSAPI;
+   return METHODNAME;
 }
 
 <start_method>username {
-   yylval.string = yytext;
-   return UNAME;
+   yylval.method = AUTHMETHOD_UNAME;
+   return METHODNAME;
 }
 
 <start_method>rfc931 {
-   yylval.string = yytext;
-   return RFC931;
+   yylval.method = AUTHMETHOD_RFC931;
+   return METHODNAME;
+}
+
+<start_method>pam.any {
+   yylval.number = AUTHMETHOD_PAM_ANY;
+   return METHODNAME;
+}
+
+<start_method>pam.address {
+   yylval.method = AUTHMETHOD_PAM_ADDRESS;
+   return METHODNAME;
+}
+
+<start_method>pam.username {
+   yylval.method = AUTHMETHOD_PAM_USERNAME;
+   return METHODNAME;
 }
 
 <start_method>pam {
-   yylval.string = yytext;
-   return PAM;
+   yywarnx_deprecated(yytext, "pam.*");
+
+   yylval.method = AUTHMETHOD_PAM_USERNAME;
+   return METHODNAME;
 }
 
+
 <start_method>bsdauth {
-   yylval.string = yytext;
-   return BSDAUTH;
+   yylval.method = AUTHMETHOD_BSDAUTH;
+   return METHODNAME;
 }
 
    /* non-start condition dependents. */
@@ -643,16 +786,89 @@ eq|=|ne|!=|ge|>=|le|<=|gt|>|lt|< {
    return OPERATOR;
 }
 
+{LS}client/[ ]+(pass|block) {
+   inclientrule = 1;
+
+   yylval.string = yytext;
+   return CLIENTRULE;
+}
+
+{LS}hostid/[ ]+(pass|block) {
+   yylval.string = yytext;
+   return HOSTIDRULE;
+}
+
+{LS}socks/[ ]+(pass|block) {
+   yylval.string = yytext;
+   return SOCKSRULE;
+}
+
+{LS}(pass|block) { /* deprecated socks rule  syntax, without "socks "-prefix. */
+#if SOCKS_CLIENT
+
+   yyerrorx("pass/block rules are not used in the client");
+
+#else /* server */
+   char old[256], new[256];
+
+   snprintf(old, sizeof(old), "%s", yytext);
+   STRIPTRAILING(old, strlen(old), " \t");
+
+   snprintf(new, sizeof(new), "socks %s", old);
+
+   yywarnx_deprecated(old, new);
+
+   yyless(0);
+
+   return SOCKSRULE;
+
+#endif /* server */
+}
+
+
+alarm.data {
+   yylval.string = yytext;
+   return ALARMTYPE_DATA;
+}
+
+alarm.disconnect {
+   yylval.string = yytext;
+   return ALARMTYPE_DISCONNECT;
+}
+
+\.recv/[[:space:]]*: {
+   yylval.string = yytext;
+   return RECVSIDE;
+}
+
+\.send/[[:space:]]*: {
+   yylval.string = yytext;
+   return SENDSIDE;
+}
 
 debug {
    yylval.string = yytext;
    return DEBUGGING;
 }
 
+{LS}route {
+   inroute = 1;
+
+   yylval.string = yytext;
+   return ROUTE;
+}
+
 route {
    yylval.string = yytext;
    return ROUTE;
 }
+
+
+route\. {
+   yylval.string = yytext;
+   return GLOBALROUTEOPTION;
+}
+
 
 maxfail {
    yylval.string = yytext;
@@ -678,31 +894,6 @@ srchost {
    return SRCHOST;
 }
 
-socket {
-   yylval.string = yytext;
-   return SOCKET;
-}
-
-clientsocket {
-   yylval.string = yytext;
-   return CLIENTSIDE_SOCKET;
-}
-
-sendbuf {
-   BEGIN(start_protocol);
-
-   yylval.string = yytext;
-   return SNDBUF;
-}
-
-recvbuf {
-   BEGIN(start_protocol);
-
-   yylval.string = yytext;
-   return RCVBUF;
-}
-
-
 proxyprotocol {
    BEGIN(start_proxyprotocol);
 
@@ -717,13 +908,13 @@ errorlog {
    return ERRORLOG;
 }
 
-
 logoutput {
    BEGIN(start_logoutput);
 
    yylval.string = yytext;
    return LOGOUTPUT;
 }
+
 
 protocol {
    BEGIN(start_protocol);
@@ -759,9 +950,42 @@ bandwidth {
    return BANDWIDTH;
 }
 
-maxsessions {
+session\.max {
    yylval.string = yytext;
-   return MAXSESSIONS;
+   return SESSIONMAX;
+}
+
+session\.inheritable {
+   yylval.string = yytext;
+   return SESSION_INHERITABLE;
+}
+
+session\.throttle {
+   yylval.string = yytext;
+   return SESSIONTHROTTLE;
+}
+
+session\.state.key {
+   BEGIN(start_statekey);
+
+   yylval.string = yytext;
+   return SESSIONSTATE_KEY;
+}
+
+session\.state.throttle {
+   yylval.string = yytext;
+   return SESSIONSTATE_THROTTLE;
+}
+
+session\.state.max {
+   yylval.string = yytext;
+   return SESSIONSTATE_MAX;
+}
+
+
+in {
+   yylval.string = yytext;
+   return WORD__IN;
 }
 
 from {
@@ -795,18 +1019,44 @@ no {
    return NO;
 }
 
-internal\. {
+internal\./{SOCKETLEVEL}\. {
    BEGIN(start_socketprotocol);
 
    yylval.string = yytext;
    return INTERNALSOCKET;
 }
 
-internal {
+internal\./alarm\. {
+   yylval.string = yytext;
+   return ALARMIF_INTERNAL;
+}
+
+internal\.log/\. {
+   BEGIN(start_loglevel);
+
+   yylval.string = yytext;
+   return LOGIF_INTERNAL;
+}
+
+
+internal/[[:space:]]*: {
    BEGIN(start_address);
 
    yylval.string = yytext;
    return INTERNAL;
+}
+
+
+external\./{SOCKETLEVEL}\. {
+   BEGIN(start_socketprotocol);
+
+   yylval.string = yytext;
+   return EXTERNALSOCKET;
+}
+
+external\./alarm\. {
+   yylval.string = yytext;
+   return ALARMIF_EXTERNAL;
 }
 
 external\.rotation {
@@ -814,15 +1064,14 @@ external\.rotation {
    return EXTERNAL_ROTATION;
 }
 
-external\. {
-   BEGIN(start_socketprotocol);
+external\.log/\. {
+   BEGIN(start_loglevel);
 
    yylval.string = yytext;
-   return EXTERNALSOCKET;
+   return LOGIF_EXTERNAL;
 }
 
-
-external {
+external/[[:space:]]*: {
    BEGIN(start_address);
 
    yylval.string = yytext;
@@ -840,14 +1089,13 @@ same-same {
 }
 
 
-child\.maxidle {
-   yylval.string = yytext;
-   return CHILD_MAXIDLE;
+child\.maxidle.*:.* {
+   yywarnx_deprecated(yytext, NULL);
 }
 
 child\.maxrequests {
    yylval.string = yytext;
-   return CHILD_MAXREQUESTS;
+   return PROC_MAXREQUESTS;
 }
 
 
@@ -953,20 +1201,19 @@ bind {
    return BIND;
 }
 
-client {
-   yylval.string = yytext;
-   return CLIENTRULE;
-}
-
 hostid {
-	if (inrule || inroute)
-		BEGIN(start_address);
+   BEGIN(start_address);
 
    yylval.string = yytext;
    return HOSTID;
 }
 
-hostindex {
+monitor {
+   yylval.string = yytext;
+   return MONITOR;
+}
+
+<start_statekey,INITIAL>hostindex {
    BEGIN(start_hostindex);
 
    yylval.string = yytext;
@@ -981,11 +1228,11 @@ hostindex {
 }
 
 
-method {
+socksmethod {
    BEGIN(start_method);
 
    yylval.string = yytext;
-   return METHOD;
+   return SOCKSMETHOD;
 }
 
 clientmethod {
@@ -995,6 +1242,24 @@ clientmethod {
    return CLIENTMETHOD;
 }
 
+method {
+   BEGIN(start_method);
+
+   yylval.string = yytext;
+
+   if (inroute)
+      return METHOD;
+   else if (inclientrule) {
+      yywarnx_deprecated(yytext, "clientmethod");
+      return CLIENTMETHOD;
+   }
+   else /* anywhere else; must be socksmethod. */
+      yywarnx_deprecated(yytext, "socksmethod");
+
+   return SOCKSMETHOD;
+}
+
+
    /* filterrules */
 
    /*
@@ -1002,31 +1267,22 @@ clientmethod {
     */
 
 block {
-	inrule = 1;
-
    yylval.string = yytext;
    return VERDICT_BLOCK;
 }
 
 pass {
-	inrule = 1;
-
    yylval.string = yytext;
    return VERDICT_PASS;
 }
 
-
-
-   /*
-    * logging
-    */
-
-log {
+log/: {
    BEGIN(start_log);
 
    yylval.string = yytext;
-   return SOCKS_LOG;
+   return RULE_LOG;
 }
+
 
 libwrap {
    BEGIN(lineprefix);
@@ -1285,32 +1541,56 @@ realm {
   * global keywords that are no longer used.
   */
 
-localdomain.*:.*|connecttimeout|iotimeout {
+localdomain.*:.* {
+   yywarnx_deprecated(yytext, NULL);
+}
+
+connecttimeout {
+   yywarnx_deprecated(yytext, "timeout.connect");
+
    yylval.string = yytext;
+   return CONNECTTIMEOUT;
+}
+
+iotimeout {
+   yywarnx_deprecated(yytext, "timeout.io");
+
+   yylval.string = yytext;
+   return IOTIMEOUT;
+}
+
+socket.(recvbuf|sendbuf).(tcp|udp) {
+   yylval.deprecated.oldname = yytext;
+
+   yylval.deprecated.newname = 
+   "a general socket api.  E.g. \"internal.tcp.so_rcvbuf\" for setting "
+   "the socket receive buffer size on the internal interface side, or "
+   "\"external.tcp.so_sndbuf\" for setting the socket send buffer size on "
+   "the external interface side.  Please see manual for more information";
+
    return DEPRECATED;
 }
 
 
    /* misc. generic stuff. */
 
-	/*
-	 * note that to support negative numbers we need to handle number ranges
-	 * like port 1-65535 correctly also.
-	 */
-
+   /*
+    * note that to support negative numbers we need to handle number ranges
+    * like port 1-65535 correctly also.
+    */
 <*>([0-9]|0x[a-fA-F0-9])+ {
    char *ep;
-   long lval;
+   long long llval;
 
-   errno = 0;
-   lval  = strtol(yytext, &ep, 0);
+   errno  = 0;
+   llval  = strtoll(yytext, &ep, 0);
    if (*yytext == NUL || *ep != NUL)
       yyerror("confusing.  Thought we would have a number here");
 
-   if (errno == ERANGE && (lval == LONG_MAX || lval == LONG_MIN))
+   if (errno == ERANGE)
       yyerror("number given is out of range");
 
-   yylval.number = (ssize_t)lval;
+   yylval.number = llval;
 
    if (shouldresetstate(YYSTATE, NUMBER))
       BEGIN(0);
@@ -1340,7 +1620,7 @@ localdomain.*:.*|connecttimeout|iotimeout {
 }
 
 <*>\} {
-	inrule = inroute = 0;
+   inclientrule = inroute = 0;
 
    yylval.string = yytext;
    return *yytext;

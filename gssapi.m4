@@ -54,7 +54,14 @@ if test x"$GSSAPI" != xno; then
       fi
    else
       #set /usr as default gssdir
-      gssdir=/usr
+      case $host in
+          *-*-aix*)
+	      gssdir=/usr/krb5
+	      ;;
+	  *)
+	      gssdir=/usr
+	      ;;
+      esac
    fi
 
    unset krb5fail
@@ -74,7 +81,7 @@ if test x"$GSSAPI" != xno; then
            fi
        else
            AC_CHECK_PROG(ac_krb5_config, krb5-config, yes, no)
-           if test x"$ac_krb5_config" = xyes; then
+           if test x"${ac_krb5_config}" = xyes; then
 	       ac_gssapi_cflags=`krb5-config --cflags gssapi 2>/dev/null`
 	       if test $? != 0; then
 		   krb5fail=t
@@ -96,7 +103,15 @@ if test x"$GSSAPI" != xno; then
    if test x"${ac_gssapi_cflags}" = x -a x"${ac_gssapi_libs}" = x -a \
            x"$gssdir" != x; then
        dnl attempt to construct environment manually
-       CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I$gssdir/include"
+       case $host in
+           *-*-aix*)
+	       CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I/usr/include"
+	       ;;
+	   *)
+	       CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I$gssdir/include"
+	       ;;
+       esac
+
        LDFLAGS="${LDFLAGS}${LDFLAGS:+ }-L$gssdir/lib"
        #includes under kerberosV dir on OpenBSD
        if test -d "$gssdir/include/kerberosV"; then
@@ -105,12 +120,12 @@ if test x"$GSSAPI" != xno; then
    fi
 
    dnl any cflags values obtained from krb5-config?
-   if test x"$ac_gssapi_cflags" != x; then
+   if test x"${ac_gssapi_cflags}" != x; then
        CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_gssapi_cflags"
    fi
 
    dnl any libs obtained from krb5-config?
-   if test x"$ac_gssapi_libs" != x; then
+   if test x"${ac_gssapi_libs}" != x; then
        dnl add as dependency for sockd
        SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$ac_gssapi_libs"
 
@@ -125,10 +140,18 @@ if test x"$GSSAPI" != xno; then
 
    dnl look for gssapi headers
    AC_CHECK_HEADERS(gssapi.h gssapi/gssapi.h gssapi/gssapi_ext.h)
-   AC_CHECK_HEADERS(gssapi/gssapi_krb5.h gssapi/gssapi_generic.h)
+   dnl gssapi_krb5.h might depend on gssapi.h
+   AC_CHECK_HEADERS([gssapi/gssapi_krb5.h], [], [], [
+#if HAVE_GSSAPI_H
+#include <gssapi.h>
+#elif HAVE_GSSAPI_GSSAPI_H
+#include <gssapi/gssapi.h>
+#endif /* HAVE_GSSAPI_H */
+])
+   AC_CHECK_HEADERS(gssapi/gssapi_generic.h)
 
    dnl look for libs
-   if test x"$ac_gssapi_libs" != x; then
+   if test x"${ac_gssapi_libs}" != x; then
        _libsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep '^-l' | xargs echo`
        _optsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
        LIBS="${LIBS}${LIBS:+ }${_libsonly}"
@@ -174,14 +197,14 @@ if test x"$GSSAPI" != xno; then
     have_heimdal=t],
    [AC_MSG_RESULT(no)])
 
-   if test x"$ac_gssapi_libs" != x; then
+   if test x"${ac_gssapi_libs}" != x; then
        case $host in
 	   *-*-freebsd7*)
 	       #skip check, causes problems
 	       ;;
 	   *)
 	       have_gssapi_krb5="`echo ${LIBS} | grep gssapi_krb5`"
-	       if test x"$have_gssapi_krb5" = x; then
+	       if test x"${have_gssapi_krb5}" = x; then
 		   AC_CHECK_LIB(gssapi_krb5,
 		       gsskrb5_register_acceptor_identity,
 		       LIBS="${LIBS}${LIBS:+ }-lgssapi_krb5",)
@@ -240,7 +263,7 @@ main(void)
 fi
 
 #restore build environment if not using gssapi
-if test x"$no_gssapi" = xt; then
+if test x"${no_gssapi}" = xt; then
     DLIBDEPS=$nogssDLIBDEPS
     SOCKDDEPS=$nogssSOCKDDEPS
     CPPFLAGS=$nogssCPPFLAGS

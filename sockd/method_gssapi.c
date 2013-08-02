@@ -51,7 +51,7 @@
 #if HAVE_GSSAPI
 
 static const char rcsid[] =
-   "$Id: method_gssapi.c,v 1.64 2012/06/01 20:23:06 karls Exp $";
+   "$Id: method_gssapi.c,v 1.71 2013/05/04 13:37:06 michaels Exp $";
 
 static negotiate_result_t
 recv_gssapi_auth_ver(int s, request_t *request, negotiate_state_t *state);
@@ -139,8 +139,10 @@ recv_gssapi_auth_ver(s, request, state)
 
       default:
          snprintf(state->emsg, sizeof(state->emsg),
-         "%s: unknown version on gssapi packet from client: %d",
-         function, gssapi_auth_version);
+                  "%s: unknown %s version on gssapi packet from client: %d",
+                  function,
+                  proxyprotocol2string(request->version),
+                  gssapi_auth_version);
 
          return NEGOTIATE_ERROR;
    }
@@ -209,6 +211,7 @@ recv_gssapi_auth_token(s, request, state)
    negotiate_state_t *state;
 {
    const char *function = "recv_gssapi_auth_token()";
+   sendto_info_t sendtoflags;
    gss_name_t            client_name   = GSS_C_NO_NAME;
    gss_name_t            server_name   = GSS_C_NO_NAME;
    gss_cred_id_t         server_creds  = GSS_C_NO_CREDENTIAL;
@@ -229,8 +232,7 @@ recv_gssapi_auth_token(s, request, state)
 
    CHECK(input_token.value, request->auth, NULL);
 
-   SASSERTX(strlen(request->auth->mdata.gssapi.keytab) < sizeof(env));
-   strcpy(env, request->auth->mdata.gssapi.keytab);
+   STRCPY_ASSERTLEN(env, request->auth->mdata.gssapi.keytab);
    setenv("KRB5_KTNAME", env, 1);
 
 #if HAVE_HEIMDAL_KERBEROS
@@ -300,11 +302,11 @@ recv_gssapi_auth_token(s, request, state)
    sockd_priv(SOCKD_PRIV_GSSAPI, PRIV_OFF);
 
    slog(LOG_DEBUG, "%s: length of output_token is %lu",
-   function, (unsigned long)output_token.length);
+        function, (unsigned long)output_token.length);
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
       snprintf(state->emsg, sizeof(state->emsg),
-      "%s: gss_accept_sec_context() failed: %s", function, emsg);
+               "%s: gss_accept_sec_context() failed: %s", function, emsg);
 
       CLEAN_GSS_AUTH(client_name, server_name, server_creds);
       return NEGOTIATE_ERROR;
@@ -341,8 +343,18 @@ recv_gssapi_auth_token(s, request, state)
 
    CLEAN_GSS_TOKEN(output_token);
 
-   if ((rc = socks_sendton(s, buf, buflen, 0, 0, NULL, 0, request->auth))
-   != (ssize_t)buflen)  {
+   bzero(&sendtoflags, sizeof(sendtoflags));
+   sendtoflags.side = INTERNALIF;
+
+   if ((rc = socks_sendton(s,
+                           buf,
+                           buflen, 
+                           0,
+                           0,
+                           NULL, 
+                           0,
+                           NULL, 
+                           request->auth)) != (ssize_t)buflen)  {
       snprintf(state->emsg, sizeof(state->emsg),
               "socks_sendton() token: wrote %ld out of %lu byte%s: %s",
                (long)rc,
@@ -361,7 +373,7 @@ recv_gssapi_auth_token(s, request, state)
 
       if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
          snprintf(state->emsg, sizeof(state->emsg),
-         "%s: gss_display_name(): %s", function, emsg);
+                  "%s: gss_display_name(): %s", function, emsg);
 
          CLEAN_GSS_AUTH(client_name, server_name, server_creds);
          return NEGOTIATE_ERROR;
@@ -382,11 +394,13 @@ recv_gssapi_auth_token(s, request, state)
 
       /* expect a new token, with the version, length, etc. header. */
       state->rcurrent = recv_gssapi_auth_ver;
-      return state->rcurrent(s, request, state);
+
+      /* presumably client is awaiting our response. */
+      return NEGOTIATE_CONTINUE; 
    }
    else {
       snprintf(state->emsg, sizeof(state->emsg),
-      "%s: unknown gss major_status %d", function, major_status);
+               "%s: unknown gss major_status %d", function, major_status);
 
       CLEAN_GSS_AUTH(client_name, server_name, server_creds);
       return NEGOTIATE_ERROR;
@@ -494,14 +508,13 @@ recv_gssapi_enc_token(s, request, state)
 {
    const char *function = "recv_gssapi_enc_token()";
    OM_uint32  minor_status, major_status;
-   gss_buffer_desc          input_token, output_token = GSS_C_EMPTY_BUFFER;
-   unsigned short           unsigned_short;
-   ssize_t                  rc;
-   size_t                   buflen;
-   int                      conf_state, do_rfc1961;
-   char                     emsg[1024];
-   unsigned char            buf[GSSAPI_HLEN + MAXGSSAPITOKENLEN], 
-                            gss_enc, gss_server_enc;
+   gss_buffer_desc input_token, output_token = GSS_C_EMPTY_BUFFER;
+   unsigned short  unsigned_short;
+   ssize_t rc;
+   size_t buflen;
+   unsigned char buf[GSSAPI_HLEN + MAXGSSAPITOKENLEN], gss_enc, gss_server_enc;
+   int conf_state, do_rfc1961;
+   char emsg[1024];
 
    INIT(state->gssapitoken_len);
 
@@ -513,7 +526,7 @@ recv_gssapi_enc_token(s, request, state)
    if (state->gssapitoken_len == 1 /* clear text encryption selection packet */
    &&  request->auth->mdata.gssapi.encryption.nec)
       do_rfc1961 = 0; /*
-                       * It seems the NEC reference implementation does not do 
+                       * It seems the NEC reference implementation does not do
                        * this right.  Try to support it if configured as such.
                        */
    else
@@ -640,7 +653,7 @@ recv_gssapi_enc_token(s, request, state)
    memcpy(&buf[buflen], output_token.value, output_token.length);
    buflen += (output_token.length);
 
-   if ((rc = socks_sendton(s, buf, buflen, 0, 0, NULL, 0, request->auth))
+   if ((rc = socks_sendton(s, buf, buflen, 0, 0, NULL, 0, NULL, request->auth))
    != (ssize_t)buflen) {
       snprintf(state->emsg, sizeof(state->emsg),
                "socks_sendton() buf: wrote %ld out of %lu bytes: %s",
@@ -666,7 +679,7 @@ recv_gssapi_enc_token(s, request, state)
        */
       state->rcurrent = recv_sockspacket;
 
-   return state->rcurrent(s, request, state);
+   return NEGOTIATE_CONTINUE; /* presumably client is awaiting our response. */
 }
 
 /*

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011
+ *               2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: client.c,v 1.101 2011/07/02 14:42:18 michaels Exp $";
+"$Id: client.c,v 1.108 2013/01/02 13:22:39 karls Exp $";
 
 
 #if HAVE_DARWIN || !HAVE_PROGNAME
@@ -65,7 +65,7 @@ void
 clientinit(void)
 {
 #ifdef HAVE_VOLATILE_SIG_ATOMIC_T
-   static sig_atomic_t still_initing;
+   static sig_atomic_t initing; /* XXX should be our threadid. */
 #else
    static volatile sig_atomic_t initing;
 #endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
@@ -77,10 +77,10 @@ clientinit(void)
        * the thread initing is ours.  If the thread initing is ours,
        * we can just return, to handle recursive problems during init.
        */
-   ||  still_initing)
+   ||  initing)
       return;
 
-   still_initing = 1; /* XXX should be our threadid. */
+   initing = 1;
 
    sockscf.loglock = -1;
 
@@ -93,18 +93,21 @@ clientinit(void)
    /* needs to be as early as possible, before any i/o calls if possible. */
    socks_addrinit();
 
-   if ((sockscf.option.configfile = socks_getenv("SOCKS_CONF", dontcare))
+   if ((sockscf.option.configfile = socks_getenv(ENV_SOCKS_CONF, dontcare))
    == NULL)
       sockscf.option.configfile = SOCKS_CONFIGFILE;
 
    genericinit();
    newprocinit();
 
+   /* no writing to stderr in client, so need to delay until here. */
+   runenvcheck();
+
    showconfig(&sockscf);
 
-   slog(LOG_INFO, "%s/client v%s running", PACKAGE, VERSION);
+   slog(LOG_INFO, "%s/client v%s running", PRODUCT, VERSION);
 /*   sleep(20);                           */
 
    sockscf.state.inited = 1;
-   still_initing = 0;
+   initing = 0;
 }

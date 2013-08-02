@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.54 2012/06/01 20:23:05 karls Exp $";
+"$Id: userio.c,v 1.60 2012/11/01 23:57:57 michaels Exp $";
 
 /* ARGSUSED */
 char *
@@ -56,11 +56,11 @@ socks_getusername(host, buf, buflen)
    const char *function = "socks_getusername()";
    char *name;
 
-   if ((name = socks_getenv("SOCKS_USERNAME", dontcare)) != NULL
-   ||  (name = socks_getenv("SOCKS_USER",     dontcare)) != NULL
-   ||  (name = socks_getenv("SOCKS5_USER",    dontcare)) != NULL)
-      slog(LOG_DEBUG, "%s: using socks username from environment: \"%s\"",
-      function, name);
+   if ((name = socks_getenv(ENV_SOCKS_USERNAME, dontcare)) != NULL
+   ||  (name = socks_getenv(ENV_SOCKS_USER,     dontcare)) != NULL
+   ||  (name = socks_getenv(ENV_SOCKS5_USER,    dontcare)) != NULL)
+      slog(LOG_NEGOTIATE,
+           "%s: using socks username from environment: \"%s\"", function, name);
 #if SOCKS_CLIENT
    else {
       struct passwd *pw;
@@ -93,31 +93,38 @@ socks_getpassword(host, user, buf, buflen)
    size_t buflen;
 {
    const char *function = "socks_getpassword()";
-   int  password_is_from_env;
    char *password;
+   int password_is_from_env;
 
-   if ((password = socks_getenv("SOCKS_PASSWORD", dontcare)) != NULL
-   ||  (password = socks_getenv("SOCKS_PASSWD",   dontcare)) != NULL
-   ||  (password = socks_getenv("SOCKS5_PASSWD",  dontcare)) != NULL)
+   if ((password = socks_getenv(ENV_SOCKS_PASSWORD, dontcare)) != NULL
+   ||  (password = socks_getenv(ENV_SOCKS_PASSWD,   dontcare)) != NULL
+   ||  (password = socks_getenv(ENV_SOCKS5_PASSWD,  dontcare)) != NULL)
       password_is_from_env = 1;
-#if SOCKS_CLIENT && HAVE_GETPASS
    else {
+#if SOCKS_CLIENT && HAVE_GETPASS
       char prompt[256 + MAXSOCKSHOSTSTRING];
       char hstring[MAXSOCKSHOSTSTRING];
 
       snprintf(prompt, sizeof(prompt), "%s@%s socks password: ",
-      user, sockshost2string(host, hstring, sizeof(hstring)));
+               user, sockshost2string(host, hstring, sizeof(hstring)));
+
       password = getpass(prompt);
+
+#else /* !SOCKS_CLIENT && HAVE_GETPASS */
+
+      password = NULL;
+#endif /* !SOCKS_CLIENT && HAVE_GETPASS */
+
       password_is_from_env = 0;
    }
-#endif /* SOCKS_CLIENT && HAVE_GETPASS */
 
    if (password == NULL)
       return NULL;
 
    if (strlen(password) >= buflen) {
-      swarnx("%s: socks password %lu characters too long, truncated",
-      function, (unsigned long)((strlen(password) + 1) - buflen));
+      swarnx("%s: socks password is %lu characters too long; truncated",
+             function, (unsigned long)((strlen(password) + 1) - buflen));
+
       password[buflen - 1] = NUL;
    }
 
@@ -138,23 +145,24 @@ socks_getenv(name, value)
 
 #if SOCKS_CLIENT
 #if HAVE_CONFENV_DISABLE
-   const char *safenames[] = { "SOCKS_BINDLOCALONLY",
-                               "SOCKS_DEBUG",
-                               "SOCKS_DISABLE_THREADLOCK",
-                               "SOCKS_DIRECTROUTE_FALLBACK",
-                               "SOCKS_PASSWORD",
-                               "SOCKS_PASSWD",
-                               "SOCKS5_PASSWD",
-                               "SOCKS_USERNAME",
-                               "SOCKS_USER",
-                               "SOCKS5_USER",
+   const char *safenames[] = { ENV_SOCKS_BINDLOCALONLY,
+                               ENV_SOCKS_DEBUG,
+                               ENV_SOCKS_DISABLE_THREADLOCK,
+                               ENV_SOCKS_DIRECTROUTE_FALLBACK,
+                               ENV_SOCKS_PASSWORD,
+                               ENV_SOCKS_PASSWD,
+                               ENV_SOCKS5_PASSWD,
+                               ENV_SOCKS_USERNAME,
+                               ENV_SOCKS_USER,
+                               ENV_SOCKS5_USER,
    };
    size_t i;
 #endif /* HAVE_CONFENV_DISABLE */
 
-   if (strcmp(name, "SOCKS_CONF")      == 0
-   ||  strcmp(name, "SOCKS_LOGOUTPUT") == 0
-   ||  strcmp(name, "TMPDIR")          == 0) {
+   if (strcmp(name, ENV_SOCKS_CONF)         == 0
+   ||  strcmp(name, ENV_SOCKS_LOGOUTPUT)    == 0
+   ||  strcmp(name, ENV_SOCKS_ERRLOGOUTPUT) == 0
+   ||  strcmp(name, ENV_TMPDIR)             == 0) {
       /*
        * Even if getenv() is not disabled, we don't want to return
        * anything for this if the program may be running setuid,
@@ -188,7 +196,7 @@ socks_getenv(name, value)
       /*
        * Some variables have a default based on configure/define.
        */
-      if (strcmp(name, "SOCKS_DIRECTROUTE_FALLBACK") == 0)
+      if (strcmp(name, ENV_SOCKS_DIRECTROUTE_FALLBACK) == 0)
          p = (SOCKS_DIRECTROUTE_FALLBACK ? "yes" : "no");
       else
          return p;

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009,
- *               2010, 2011, 2012
+ *               2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,16 +42,52 @@
  *
  */
 
-/* $Id: socks.h,v 1.262 2012/06/01 20:23:05 karls Exp $ */
+/* $Id: socks.h,v 1.285 2013/07/20 12:12:29 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
+
+#define HAVE_SOCKS_RULES                  (0)
 
 #ifndef HAVE_OSF_OLDSTYLE
 #define HAVE_OSF_OLDSTYLE 0
 #endif /* !HAVE_OSF_OLDSTYLE */
 
 #if SOCKSLIBRARY_DYNAMIC
+
+#ifdef __COVERITY__
+/*
+ * Coverity naturally has no idea what the function sys_foo calls does,
+ * so let it pretend sys_foo is the same as foo.
+ * Means Coverity can't catch errors in the code around the call to
+ * sys_foo(), but avoids dozens of false positives because Coverity has no
+ * idea what the dlopen(3)-ed functions do.
+ */
+#define sys_accept accept
+#define sys_bind bind
+#define sys_bindresvport bindresvport
+#define sys_connect connect
+#define sys_gethostbyname gethostbyname
+#define sys_gethostbyname2 gethostbyname2
+#define sys_getaddrinfo getaddrinfo
+#define sys_getipnodebyname getipnodebyname
+#define sys_getpeername getpeername
+#define sys_getsockname getsockname
+#define sys_getsockopt getsockopt
+#define sys_listen listen
+#define sys_read read
+#define sys_readv readv
+#define sys_recv recv
+#define sys_recvfrom recvfrom
+#define sys_recvfrom recvfrom
+#define sys_recvmsg recvmsg
+#define sys_rresvport rresvport
+#define sys_send send
+#define sys_sendmsg sendmsg
+#define sys_sendto sendto
+#define sys_write write
+#define sys_writev writev
+#endif /* __COVERITY__ */
 
 
 #if 0 /* XXX disable until testing on AIX/other can be done */
@@ -110,9 +146,11 @@
 #define connect(s, name, namelen)      sys_connect(s, name, namelen)
 #endif
 
+
 #ifdef gethostbyname
 #undef gethostbyname
 #endif /* gethostbyname */
+
 #if HAVE_GETHOSTBYNAME2
 /*
  * a little tricky ... we need it to be at the bottom of the stack,
@@ -126,7 +164,7 @@
 #ifdef gethostbyname2
 #undef gethostbyname2
 #endif /* gethostbyname2 */
-#define gethostbyname2(name, af)         sys_gethostbyname2(name, af)
+#define gethostbyname2(name, af)       sys_gethostbyname2(name, af)
 
 #ifdef getaddrinfo
 #undef getaddrinfo
@@ -145,9 +183,12 @@
 #endif /* freehostent */
 #define freehostent(ptr)            sys_freehostent(ptr)
 
+
+
 #ifdef getpeername
 #undef getpeername
 #endif /* getpeername */
+
 #if HAVE_EXTRA_OSF_SYMBOLS
 #define getpeername(s, name, namelen)   sys_Egetpeername(s, name, namelen)
 #else
@@ -365,12 +406,22 @@
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
+/* not used in client. */
+#define loglevel_errno(e,  side) (LOG_DEBUG)
+#define loglevel_gaierr(e, side) (LOG_DEBUG)
+
 #define FDPASS_MAX         2   /* max number of descriptors we send/receive.  */
 
 typedef struct {
    unsigned char      inited;
+
+   unsigned char      havegssapisockets;/* have any gssapi-sockets?           */
+   unsigned char      threadlockenabled;/* is threadlocking enabled?          */
+
+   ssize_t            executingdnscode; /* exec. gethost*()/getname*()/etc.   */
+   unsigned char      internalerrordetected;
    sig_atomic_t       insignal;         /* executing in signalhandler?        */
-   sig_atomic_t       signalforus;      /*
+   sig_atomic_t       handledsignal;   /*
                                         * between now and the time this
                                         * variable was last cleared, did we
                                         * handle a signal?
@@ -378,7 +429,6 @@ typedef struct {
 
    sockshost_t        lastconnect;      /* address we last connected to.      */
    pid_t              pid;              /* our pid.                           */
-   int                havegssapisockets;/* have gssapi-sockets?               */
    rlim_t             maxopenfiles;
 } configstate_t;
 
@@ -438,10 +488,10 @@ int Rgetsockopt(int, int, int, void *, socklen_t *);
 int Rgetpeername(int, struct sockaddr *, socklen_t *);
 ssize_t Rsendto(int s, const void *msg, size_t len, int flags,
                 const struct sockaddr *to, socklen_t tolen)
-      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__BOUNDED__(__buffer__, 2, 3)));
 ssize_t Rrecvfrom(int s, void *buf, size_t len, int flags,
                   struct sockaddr * from, socklen_t *fromlen)
-      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__BOUNDED__(__buffer__, 2, 3)));
 ssize_t Rsendmsg(int s, const struct msghdr *msg, int flags);
 ssize_t Rrecvmsg(int s, struct msghdr *msg, int flags);
 int Rbind(int, const struct sockaddr *, socklen_t);
@@ -451,24 +501,27 @@ int Rbindresvport(int, struct sockaddr_in *);
 int Rrresvport(int *);
 struct hostent *Rgethostbyname(const char *);
 struct hostent *Rgethostbyname2(const char *, int af);
+
 #if HAVE_GETADDRINFO
 int Rgetaddrinfo(const char *nodename, const char *servname,
-      const struct addrinfo *hints, struct addrinfo **res);
+                 const struct addrinfo *hints, struct addrinfo **res);
 #endif /* HAVE_GETADDRINFO */
+
 #if HAVE_GETIPNODEBYNAME
 struct hostent *Rgetipnodebyname(const char *, int, int, int *);
 void Rfreehostent(struct hostent *);
 #endif /* HAVE_GETIPNODEBYNAME */
+
 ssize_t Rwrite(int d, const void *buf, size_t nbytes)
-      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__BOUNDED__(__buffer__, 2, 3)));
 ssize_t Rwritev(int d, const struct iovec *iov, int iovcnt);
 ssize_t Rsend(int s, const void *msg, size_t len, int flags)
-      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__BOUNDED__(__buffer__, 2, 3)));
 ssize_t Rread(int d, void *buf, size_t nbytes)
-      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__BOUNDED__(__buffer__, 2, 3)));
 ssize_t Rreadv(int d, const struct iovec *iov, int iovcnt);
 ssize_t Rrecv(int s, void *msg, size_t len, int flags)
-      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__BOUNDED__(__buffer__, 2, 3)));
 
 #if HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND
 int Rfgetc(FILE *fp);
@@ -484,6 +537,7 @@ size_t Rfread(void *ptr, size_t size, size_t nmemb, FILE *s);
 size_t Rfwrite(const void *ptr, size_t size, size_t nmemb, FILE *s);
 #endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
 
+
 int SOCKSinit(char *);
 int Rlisten(int, int);
 int Rselect(int, fd_set *, fd_set *, fd_set *, struct timeval *);
@@ -492,16 +546,34 @@ int Rselect(int, fd_set *, fd_set *, fd_set *, struct timeval *);
  * socks implementations.
  */
 
+
+
+
+int
+cgetaddrinfo(const char *name, const char *service, 
+             const struct addrinfo *hints, struct addrinfo **res,
+             dnsinfo_t *resmem);
+/*
+ * Like getaddrinfo(3), but "resmem" is used to hold the contents of "res", 
+ * rather than allocating the memory for "res" dynamically and then
+ * having to call freeaddrinfo(3).
+ */
+
 route_t *
-udpsetup(int s, const struct sockaddr *to, int type);
+udpsetup(int s, const struct sockaddr_storage *to, int type, int shouldconnect,
+         char *emsg, const size_t emsglen);
 /*
  * sets up udp relaying between address of "s" and "to" by connecting
  * to a proxy server.
  * If relaying is already set up the function returns with success.
- * Type is the type of connection to set up, SOCKS_SEND or SOCKS_RECV.
+ * "type" is the type of connection to set up, SOCKS_SEND or SOCKS_RECV.
+ * "shouldconnect" indicates whether the socket should be connected or not.
  *
- * Returns the route that was used, or NULL on error.
+ * Returns the route that was used (possibly a direct route), or NULL if no 
+ * route could be set up.  In the latter case, errno and emsg will be set.
  */
+
+
 
    /*
     *  Misc. functions to help keep track of our connection(s) to the server.
@@ -576,28 +648,28 @@ socks_rmaddr(const int s, const int takelock);
  */
 
 int
-socks_addrcontrol(const struct sockaddr *local, const struct sockaddr *remote,
-                  const int s, const int child_s, const int takelock);
+socks_addrcontrol(const int controlsent, const int controlreceived,
+                  const int takelock);
 /*
- * If "takelock" is true, it means the function should take the
- * socksfdv/addrlock.
- *
  * Goes through all addresses registered and tries to find one where
  * the control socket has a local address of "local" and peer address
  * of "remote".
- * If "local" is NULL, that endpoint needs not match.
- * If "remote" is NULL, it is assumed the socket we are looking for
- * is not connected.
- * "s" gives the expected socket index, if not -1.
- * "inode" gives the fixed inode number, if not -1.
- * "device" gives the fixed device number of the inode, if not -1.
+ *
+ * "controlsent" gives the expected fd index for control, if not -1.
+ * That is the fd index control had when we sent the request to
+ * our connect-child, and may belong to another fd now.
+ *
+ * "controlreceived" is the actual fd we sent to the connectchild, and
+ * which we now receive back from it.
+ *
  *   Returns:
  *      On success: the descriptor the socksfd struct was registered with.
  *      On failure: -1
  */
 
 int
-socks_addrmatch(const struct sockaddr *local, const struct sockaddr *remote,
+socks_addrmatch(const struct sockaddr_storage *local, 
+                const struct sockaddr_storage *remote,
                 const socksstate_t *state, const int takelock);
 /*
  * If "takelock" is true, it means the function should take the
@@ -610,16 +682,6 @@ socks_addrmatch(const struct sockaddr *local, const struct sockaddr *remote,
  *      On success: the descriptor the socksfd with matching arguments was
  *                registered with (>= 0).
  *      On failure: -1.
- */
-
-int
-socks_isaddr(const int fd, const int takelock);
-/*
- * If "takelock" is true, it means the function should take the
- * socksfdv/addrlock.
- *
- * Returns true if there is a address registered for the socket "fd", false
- * otherwise.
  */
 
 int
@@ -637,6 +699,13 @@ socks_addrisours(const int s, socksfd_t *socksfd, const int takelock);
  * Returns:
  *      If current address found to match registered: true.
  *      Else: false.
+ */
+
+void
+update_after_negotiate(const socks_t *packet, socksfd_t *socksfd);
+/*
+ * Updates "socksfd" after a successful socks_negotiate() using
+ * that used "packet".
  */
 
 int
@@ -757,7 +826,7 @@ int sys_Egetpeername(int, struct sockaddr *, socklen_t *);
 int sys_Egetsockname(int, struct sockaddr *, socklen_t *);
 ssize_t sys_Ereadv(int, const struct iovec *, int);
 int sys_Erecvfrom(int, void *, size_t, int, struct sockaddr *, size_t *)
-      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__BOUNDED__(__buffer__, 2, 3)));
 ssize_t sys_Erecvmsg(int, struct msghdr *, int);
 ssize_t sys_Esendmsg(int, const struct msghdr *, int);
 ssize_t sys_Ewritev(int, const struct iovec *, int);
@@ -766,7 +835,7 @@ int sys_naccept(int, struct sockaddr *, socklen_t *);
 int sys_ngetpeername(int, struct sockaddr *, socklen_t *);
 int sys_ngetsockname(int, struct sockaddr *, socklen_t *);
 int sys_nrecvfrom(int, void *, size_t, int, struct sockaddr *, size_t *)
-      __ATTRIBUTE__((__bounded__(__buffer__, 2, 3)));
+      __ATTRIBUTE__((__BOUNDED__(__buffer__, 2, 3)));
 ssize_t sys_nrecvmsg(int, struct msghdr *, int);
 ssize_t sys_nsendmsg(int, const struct msghdr *, int);
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */

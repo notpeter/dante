@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1998, 2008, 2009, 2010, 2011
+ * Copyright (c) 1998, 2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rlisten.c,v 1.31 2012/06/01 20:23:05 karls Exp $";
+"$Id: Rlisten.c,v 1.35 2013/07/20 10:01:37 michaels Exp $";
 
 int
 Rlisten(s, backlog)
@@ -53,30 +53,36 @@ Rlisten(s, backlog)
 {
    const char *function = "Rlisten()";
    socksfd_t socksfd;
+   int rc;
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, s);
+   slog(LOG_DEBUG, "%s, fd %d, backlog %d", function, s, backlog);
 
    if (!socks_addrisours(s, &socksfd, 1))
-      return listen(s, backlog);
-
-   if (socksfd.state.command != SOCKS_BIND) {
+      rc = listen(s, backlog);
+   else if (socksfd.state.command != SOCKS_BIND) {
       swarnx("%s: doing listen on socket, but command state is %d",
-      function, socksfd.state.command);
+             function, socksfd.state.command);
+
       socks_rmaddr(s, 1);
 
-      return listen(s, backlog);
+      rc = listen(s, backlog);
+   }
+   else if (socksfd.state.acceptpending)
+      rc = listen(s, backlog);
+   else {
+      /*
+       * If it's using the bind extension, we do a standard listen(2), if
+       * not, we need to drop the listen(2), as doing listen(2) on a socket
+       * we have previously done connect(2) on (for connect(2) to the socks
+       * server) does not necessarily work so well on all (any?) systems.
+       */
+
+      slog(LOG_DEBUG, "%s: no system listen(2) to do on fd %d", function, s);
+      return 0;
    }
 
-   /*
-    * find out if it's bound using the bind extension or not.
-    * If it's using the bind extension, we do a standard listen(2), if
-    * not, we need to drop the listen(2), as doing listen(2) on a socket
-    * we have previously done connect(2) on (for connect to the socks
-    * server) does not necessarily work so well on all (any?) systems.
-    */
-   if (socksfd.state.acceptpending)
-      return listen(s, backlog);
-   return 0;
+   slog(LOG_DEBUG, "%s: listen(2) on fd %d returned %d", function, s, rc);
+   return rc;
 }

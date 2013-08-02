@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009, 2010, 2011
+ *               2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.65 2011/11/13 14:14:54 karls Exp $";
+"$Id: accesscheck.c,v 1.86 2013/07/29 10:09:33 michaels Exp $";
 
 int
 usermatch(auth, userlist)
@@ -88,7 +88,7 @@ groupmatch(auth, grouplist)
     * If the groupname given there matches, we don't need to go through
     * all users in the list of group.
     */
-   if ((pw = socks_getpwnam(username))   != NULL
+   if ((pw = getpwnam(username))         != NULL
    &&  (groupent = getgrgid(pw->pw_gid)) != NULL) {
       const linkedname_t *listent = grouplist;
 
@@ -102,7 +102,7 @@ groupmatch(auth, grouplist)
          slog(LOG_DEBUG, "%s: unknown username \"%s\"", function, username);
       else if (groupent == NULL)
          slog(LOG_DEBUG, "%s: unknown primary groupid %ld",
-         function, (long)pw->pw_gid);
+              function, (long)pw->pw_gid);
    }
 
    /*
@@ -154,7 +154,7 @@ ldapgroupmatch(auth, rule)
       ++userdomain;
 
    if (userdomain == NULL && *rule->state.ldap.domain == NUL && rule->state.ldap.ldapurl == NULL) {
-      slog(LOG_DEBUG, "%s: can not check ldap group membership for user %s: "
+      slog(LOG_DEBUG, "%s: cannot check ldap group membership for user %s: "
                       "user has no domain postfix and no ldap url is defined",
                       function, username);
       return 0;
@@ -171,8 +171,7 @@ ldapgroupmatch(auth, rule)
       slog(LOG_DEBUG, "%s: checking if user %s is member of ldap group %s",
                       function, username, grouplist->name);
 
-      SASSERTX(sizeof(groupname) > strlen(grouplist->name));
-      strcpy(groupname, grouplist->name);
+      STRCPY_ASSERTLEN(groupname, grouplist->name);
 
       if ((groupdomain = strchr(groupname, '@')) != NULL) {
          *groupdomain = NUL; /* separates groupname from groupdomain. */
@@ -201,12 +200,11 @@ ldapgroupmatch(auth, rule)
 }
 #endif /* HAVE_LDAP */
 
-/* ARGSUSED */
 int
 accesscheck(s, auth, src, dst, emsg, emsgsize)
    int s;
    authmethod_t *auth;
-   const struct sockaddr *src, *dst;
+   const struct sockaddr_storage *src, *dst;
    char *emsg;
    size_t emsgsize;
 {
@@ -214,27 +212,27 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
    char srcstr[MAXSOCKADDRSTRING], dststr[sizeof(srcstr)];
    int match, authresultisfixed;
 
-   if (emsgsize > 0)
-      *emsg = NUL;
-
    if (sockscf.option.debug)
       slog(LOG_DEBUG, "%s: method: %s, %s -> %s ",
-      function, method2string(auth->method),
-      src == NULL ? "<unknown>" : sockaddr2string(src, srcstr, sizeof(srcstr)),
-      dst == NULL ? "<unknown>" : sockaddr2string(dst, dststr, sizeof(dststr)));
+           function,
+           method2string(auth->method),
+           src == NULL ?
+                  "<unknown>" : sockaddr2string(src, srcstr, sizeof(srcstr)),
+            dst == NULL ?
+                 "<unknown>"  : sockaddr2string(dst, dststr, sizeof(dststr)));
 
    /*
     * We don't want to re-check the same method.  This could
     * happen in several cases:
     *  - was checked as client-rule, is now checked as socks-rule.
     *  - a different rule with the same method.  The client is however
-    *    the same, so if the auth failed on the method before, it will
-    *    fail next time also.
+    *    the same, so if the auth for method 'k' failed in previous rule, 
+    *    it will fail the next time also.
    */
 
    if (methodisset(auth->method, auth->methodv, (size_t)auth->methodc)) {
       slog(LOG_DEBUG, "%s: method %s already checked, matches",
-      function, method2string(auth->method));
+           function, method2string(auth->method));
 
       return 1; /* already checked, matches. */
    }
@@ -246,12 +244,13 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
               method2string(auth->method));
 
       slog(LOG_DEBUG, "%s: method %s already checked, does not match",
-      function, method2string(auth->method));
+           function, method2string(auth->method));
 
       return 0; /* already checked, won't match. */
    }
 
    match = 0;
+
    switch (auth->method) {
       /*
        * Methods where no further checking is done at this point, either
@@ -266,35 +265,49 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 
       case AUTHMETHOD_UNAME:
          if (passwordcheck((const char *)auth->mdata.uname.name,
-         (const char *)auth->mdata.uname.password, emsg, emsgsize) == 0)
+                           (const char *)auth->mdata.uname.password,
+                           emsg,
+                           emsgsize) == 0)
             match = 1;
+
          break;
 
 #if HAVE_LIBWRAP
       case AUTHMETHOD_RFC931:
-         if (passwordcheck((const char *)auth->mdata.rfc931.name, NULL, emsg,
-         emsgsize) == 0)
+         if (passwordcheck((const char *)auth->mdata.rfc931.name,
+                           NULL,
+                           emsg,
+                           emsgsize) == 0)
             match = 1;
          break;
 #endif /* HAVE_LIBWRAP */
 
 #if HAVE_PAM
-      case AUTHMETHOD_PAM: {
+      case AUTHMETHOD_PAM_ANY: 
+      case AUTHMETHOD_PAM_ADDRESS: 
+      case AUTHMETHOD_PAM_USERNAME: {
 #if DIAGNOSTIC
-         const int freec = freedescriptors(sockscf.option.debug ?
-         "start" : NULL);
+         const int freec
+         = freedescriptors(sockscf.option.debug ?  "start" : NULL, NULL);
 #endif /* DIAGNOSTIC */
 
-         if (pam_passwordcheck(s, src, dst, &auth->mdata.pam, emsg, emsgsize)
-         == 0)
+         if (pam_passwordcheck(s,
+                               src,
+                               dst,
+                               &auth->mdata.pam,
+                               emsg,
+                               emsgsize) == 0)
             match = 1;
 
 #if DIAGNOSTIC
-         if (freec != freedescriptors(sockscf.option.debug ?  "end" : NULL))
+         if (freec
+         != freedescriptors(sockscf.option.debug ? "end" : NULL, NULL))
             swarnx("%s: lost %d file descriptor%s in pam_passwordcheck()",
-                   function, freec - freedescriptors(NULL),
-                   (freec - freedescriptors(NULL)) == 1 ? "" : "s");
+                   function,
+                   freec - freedescriptors(NULL, NULL),
+                   freec - freedescriptors(NULL, NULL) == 1 ? "" : "s");
 #endif /* DIAGNOSTIC */
+
          break;
       }
 #endif /* HAVE_PAM */
@@ -302,19 +315,25 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 #if HAVE_BSDAUTH
       case AUTHMETHOD_BSDAUTH: {
 #if DIAGNOSTIC
-         const int freec = freedescriptors(sockscf.option.debug ?
-         "start" : NULL);
+         const int freec
+         = freedescriptors(sockscf.option.debug ?  "start" : NULL, NULL);
 #endif /* DIAGNOSTIC */
 
-         if (bsdauth_passwordcheck(s, src, dst, &auth->mdata.bsd, emsg,
-         emsgsize) == 0)
+         if (bsdauth_passwordcheck(s,
+                                   src,
+                                   dst,
+                                   &auth->mdata.bsd,
+                                   emsg,
+                                   emsgsize) == 0)
             match = 1;
 
 #if DIAGNOSTIC
-         if (freec != freedescriptors(sockscf.option.debug ?  "end" : NULL))
+         if (freec
+         != freedescriptors(sockscf.option.debug ?  "end" : NULL, NULL))
             swarnx("%s: lost %d file descriptor%s in bsdauth_passwordcheck()",
-                   function, freec - freedescriptors(NULL),
-                   (freec - freedescriptors(NULL)) == 1 ? "" : "s");
+                   function,
+                   freec - freedescriptors(NULL, NULL),
+                   freec - freedescriptors(NULL, NULL) == 1 ? "" : "s");
 #endif /* DIAGNOSTIC */
          break;
       }
@@ -327,13 +346,15 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
    /*
     * Some methods can be called with different values for the
     * same client, based on values configured in the rules.
-    * Others can not and we want to mark those who can not as
+    * Others cannot and we want to mark those that cannot as
     * "tried", so we don't waste time on re-trying them.
     */
    switch (auth->method) {
 #if HAVE_PAM
-      case AUTHMETHOD_PAM:
-         if (sockscf.state.pamservicename == NULL)
+      case AUTHMETHOD_PAM_ANY: 
+      case AUTHMETHOD_PAM_ADDRESS: 
+      case AUTHMETHOD_PAM_USERNAME:
+         if (*sockscf.state.pamservicename == NUL)
             authresultisfixed = 0;
          else
             authresultisfixed = 1;
@@ -351,8 +372,8 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 
 #if HAVE_GSSAPI
       case AUTHMETHOD_GSSAPI:
-         if (sockscf.state.gssapiservicename == NULL
-         ||  sockscf.state.gssapikeytab      == NULL)
+         if (*sockscf.state.gssapiservicename == NUL
+         ||  *sockscf.state.gssapikeytab      == NUL)
             authresultisfixed = 0;
          else
             authresultisfixed = 1;
@@ -371,25 +392,33 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 
    if (authresultisfixed) {
       if (match) {
-         SASSERTX(auth->methodc + 1 <= sizeof(auth->methodv));
+         SASSERTX(auth->methodc + 1 <= ELEMENTS(auth->methodv));
          auth->methodv[auth->methodc++] = auth->method;
       }
       else {
-         SASSERTX(auth->badmethodc + 1 <= sizeof(auth->badmethodv));
+         SASSERTX(auth->badmethodc + 1 <= ELEMENTS(auth->badmethodv));
          auth->badmethodv[auth->badmethodc++] = auth->method;
       }
 
       /*
-       * We might have wanted to bzero() the password here, but
-       * then we wouldn't be able to use the password if we
-       * at a later point needed to check for access against
-       * a different method.  (For instance, PAM on setup,
-       * UNAME on UDP packet.  Strange, but in theory possible.)
+       * Unfortunately we can not bzero() the password for several reasons:
+       * 1) If UDP, perhaps packets to different targes will require different
+       *    authentication.  E.g. username was used when establishing the 
+       *    control-connection, while pam is used when sending packets to
+       *    certain targets.  Unlikely, but not impossible.
+       *
+       * 2) If we are forwarding to an upstream proxy that we are  
+       *    configured to offer the username/password from the user.
        */
    }
 
-   if (!match && emsgsize > 0)
-      slog(LOG_DEBUG, "%s: no match: %s", function, emsg);
+   if (match)
+      slog(LOG_DEBUG, "%s: authentication matched", function);
+   else
+      slog(LOG_DEBUG, "%s: no match for autentication%s %s",
+           function, 
+           emsgsize > 0 ? ":"  : "",
+           emsgsize > 0 ? emsg : "");
 
    return match;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2011
+ * Copyright (c) 2008, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: upnp.h,v 1.6 2012/06/01 20:23:05 karls Exp $ */
+/* $Id: upnp.h,v 1.8 2013/01/02 13:22:39 karls Exp $ */
 
 #if HAVE_LIBMINIUPNP
 #include <miniupnpc/miniupnpc.h>
@@ -55,7 +55,6 @@ void upnpcleanup(const int s);
  * of port mappings.
  * If "s" is -1, clean up for all known sockets.
  */
-
 
 #if !HAVE_LIBMINIUPNP
 #define UPNPCOMMAND_SUCCESS 0

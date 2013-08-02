@@ -47,7 +47,7 @@
 #include "upnp.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.202 2012/06/01 20:23:05 karls Exp $";
+"$Id: Rconnect.c,v 1.240 2013/07/27 19:03:46 michaels Exp $";
 
 int
 Rconnect(s, _name, namelen)
@@ -56,49 +56,62 @@ Rconnect(s, _name, namelen)
    socklen_t namelen;
 {
    const char *function = "Rconnect()";
-   struct sockaddr_storage namemem;
-   struct sockaddr *name = TOSA(&namemem);
-   socksfd_t socksfd, *p;
+   struct sockaddr_storage name;
+   socksfd_t socksfd;
    sockshost_t src, dst;
    authmethod_t auth;
    socks_t packet;
    socklen_t len;
-   char namestr[MAXSOCKADDRSTRING];
-   int val, nbconnect, savederrno;
+   char namestr[MAXSOCKADDRSTRING], emsg[256];
+   int type, rc, nbconnect, savederrno;
 
    clientinit();
 
    if (_name == NULL) {
-      slog(LOG_DEBUG,
-           "%s: sockaddr argument NULL, fallback to system connect()",
-           function);
+      rc = connect(s, _name, namelen);
 
-      return connect(s, _name, namelen);
+      slog(LOG_DEBUG, 
+           "%s: dst is NULL, fallback to system connect(2) returned %d",
+           function, rc);
+
+      return rc;
    }
 
    if (_name->sa_family != AF_INET) {
-      slog(LOG_DEBUG,
-           "%s: unsupported address family '%d', fallback to system connect()",
-            function, _name->sa_family);
+      rc = connect(s, _name, namelen);
 
-      return connect(s, _name, namelen);
+      slog(LOG_DEBUG,
+           "%s: unsupported address family '%d' for dst %s, "
+           "fallback to system connect(2) returned %d",
+           function, 
+           _name->sa_family, 
+           sockaddr2string(TOCSS(_name), NULL, 0), 
+           rc);
+
+      return rc;
    }
+
+   usrsockaddrcpy(&name, TOCSS(_name), MIN(sizeof(name), namelen));
 
    if (socks_socketisforlan(s)) {
-      slog(LOG_DEBUG, "%s: socket is for lan only, system connect fallback",
-           function);
+      slog(LOG_DEBUG, "%s: fd %d wanting to connect to %s is a lan-only "
+                      "socket.  Falling back to system connect",
+                      function,
+                      s,
+                      sockaddr2string(&name, namestr, sizeof(namestr)));
 
       return connect(s, _name, namelen);
    }
 
-   usrsockaddrcpy(name, _name, sizeof(*name));
 
-   slog(LOG_DEBUG, "%s: socket %d, address %s",
-        function, s, sockaddr2string(name, namestr, sizeof(namestr)));
+   slog(LOG_INFO, "%s: fd %d, address %s",
+        function, 
+        s,
+        sockaddr2string(&name, namestr, sizeof(namestr)));
 
    if (socks_addrisours(s, &socksfd, 1)) {
       slog(LOG_DEBUG, "%s: socket is a %s socket, err = %d, inprogress = %d",
-                      function, version2string(socksfd.state.version),
+                      function, proxyprotocol2string(socksfd.state.version),
                       socksfd.state.err, socksfd.state.inprogress);
 
       switch (socksfd.state.command) {
@@ -121,9 +134,9 @@ Rconnect(s, _name, namelen)
                 */
                int tmp_s;
 
-               slog(LOG_DEBUG, "%s: continuing with Rconnect() after Rbind() "
-                               "on socket %d",
-                               function, s);
+               slog(LOG_DEBUG,
+                    "%s: continuing with Rconnect() after Rbind() on fd %d",
+                    function, s);
 
                if (socksfd.state.version == PROXY_UPNP)
                   upnpcleanup(s);
@@ -132,10 +145,15 @@ Rconnect(s, _name, namelen)
                    * socket must have connected to proxy before for Rbind().
                    * Need a new one.
                    */
-                  if ((tmp_s = socketoptdup(s)) == -1)
+
+                  if ((tmp_s = socketoptdup(s, -1)) == -1)
                      break;
-                  if (dup2(tmp_s, s) == -1)
+
+                  if (dup2(tmp_s, s) == -1) {
+                     close(tmp_s);
                      break;
+                  }
+
                   close(tmp_s);
                   socks_rmaddr(s, 1);
                }
@@ -156,13 +174,13 @@ Rconnect(s, _name, namelen)
 
          case SOCKS_CONNECT:
             if (socksfd.state.version == PROXY_UPNP) {
-               val = connect(s, name, namelen);
+               rc = connect(s, TOSA(&name), namelen);
 
                slog(LOG_DEBUG, "%s: connect(2) called again on upnp socket "
                                "returned %d, errno = %d (%s)",
-                               function, val, errno, strerror(errno));
+                               function, rc, errno, strerror(errno));
 
-               return val;
+               return rc;
             }
 
             if (socksfd.state.err != 0)
@@ -190,70 +208,58 @@ Rconnect(s, _name, namelen)
    }
    else {
       slog(LOG_DEBUG,
-           "%s: unknown socket.  Doing socks_rmaddr(%d) before continuing ...",
+           "%s: unknown fd %d.  Doing socks_rmaddr() before continuing ...",
            function, s);
 
       socks_rmaddr(s, 1);
    }
 
-   bzero(&packet, sizeof(packet));
-
-   len = sizeof(val);
-   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) != 0) {
+   len = sizeof(type);
+   if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &len) != 0) {
       swarn("%s: getsockopt(SO_TYPE)", function);
       return -1;
    }
 
-   switch (val) {
-      case SOCK_DGRAM: {
-         route_t *route;
+   bzero(&packet, sizeof(packet));
 
-         /*
-          * connect to the original destination first, and later
-          * to the socks-server if successful.
-          * XXX why?
-          */
-         if (connect(s, name, namelen) != 0)
+   switch (type) {
+      case SOCK_DGRAM:
+         socksfd.route = udpsetup(s, &name, SOCKS_SEND, 1, emsg, sizeof(emsg));
+         if (socksfd.route == NULL) {
+            slog(LOG_INFO,
+                 "%s: udpsetup() returned no route to %s for fd %d: %s",
+                 function,
+                 sockaddr2string(&name, NULL, 0),
+                 s,
+                 emsg);
+
+            errno = ENETUNREACH;
             return -1;
-
-         if ((route = udpsetup(s, name, SOCKS_SEND)) == NULL)
-            return -1;
-
-         slog(LOG_DEBUG, "%s: route setup for socket %d is a %s route",
-                         function,
-                         s,
-                         proxyprotocols2string(&route->gw.state.proxyprotocol,
-                                               NULL,
-                                               0));
-
-         if (route->gw.state.proxyprotocol.direct)
-            return connect(s, name, namelen);
-
-         p = socks_getaddr(s, &socksfd, 1);
-         SASSERTX(p != NULL);
-
-         if (socksfd.state.version == PROXY_SOCKS_V5) {
-            if (connect(s,
-                        TOSA(&socksfd.reply),
-                        sockaddr2salen(TOSA(&socksfd.reply))) != 0) {
-               swarn("%s: connecting socket %d to %s failed",
-                     function,
-                     s,
-                     sockaddr2string(TOSA(&socksfd.reply),
-                                     namestr,
-                                     sizeof(namestr)));
-
-               socks_rmaddr(s, 1);
-               return -1;
-            }
          }
 
-         socksfd.state.udpconnect = 1;
-         sockaddr2sockshost(name, &socksfd.forus.connected);
-         socks_addaddr(s, &socksfd, 1);
+         slog(LOG_INFO, "%s: route set up for fd %d to %s is a %s route",
+              function,
+              s,
+              sockaddr2string(&name, NULL, 0),
+              proxyprotocols2string(&socksfd.route->gw.state.proxyprotocol,
+                                    NULL,
+                                    0));
 
-         return 0;
-      }
+          if (socksfd.route->gw.state.proxyprotocol.direct) {
+             const ssize_t rc = connect(s, TOSA(&name), namelen);
+
+             slog(LOG_DEBUG,
+                  "%s: direct connect on fd %d to %s returned %ld: (%s)",
+                  function,
+                  s,
+                  sockaddr2string(&name, NULL, 0),
+                  (long)rc,
+                  strerror(errno));
+
+             return (int)rc;
+          }
+          else
+             return 0;
 
       case SOCK_STREAM:
          packet.req.protocol = SOCKS_TCP;
@@ -261,8 +267,8 @@ Rconnect(s, _name, namelen)
 
       default:
          swarnx("%s: unknown protocol type %d, falling back to system connect",
-         function, val);
-         return connect(s, name, namelen);
+                function, type);
+         return connect(s, TOSA(&name), namelen);
    }
 
    bzero(&socksfd, sizeof(socksfd));
@@ -270,13 +276,16 @@ Rconnect(s, _name, namelen)
    if (getsockname(s, TOSA(&socksfd.local), &len) != 0)
       return -1;
 
+   slog(LOG_DEBUG, "%s: local address of fd %d is %s",
+        function, s, sockaddr2string(&socksfd.local, NULL, 0));
+
    bzero(&src, sizeof(src)); /* silence valgrind warning */
    src.atype     = SOCKS_ADDR_IPV4;
    src.addr.ipv4 = TOIN(&socksfd.local)->sin_addr;
    src.port      = TOIN(&socksfd.local)->sin_port;
 
    bzero(&dst, sizeof(dst)); /* silence valgrind warning */
-   fakesockaddr2sockshost(name, &dst);
+   fakesockaddr2sockshost(&name, &dst);
 
    bzero(&auth, sizeof(auth));
    auth.method        = AUTHMETHOD_NOTSET;
@@ -286,19 +295,40 @@ Rconnect(s, _name, namelen)
    packet.req.host    = dst;
    packet.req.auth    = &auth;
 
-   if (socks_requestpolish(&packet.req, &src, &dst) == NULL)
+   if ((socksfd.route = socks_requestpolish(&packet.req, &src, &dst)) == NULL)
       return -1;
 
-   slog(LOG_DEBUG, "%s: route prepared for socket %d is a %s route",
-        function, s, version2string(packet.req.version));
+   if (socksfd.route->gw.state.proxyprotocol.direct)
+      return connect(s, _name, namelen);
+
+   if (socks_routesetup(s, s, socksfd.route, emsg, sizeof(emsg)) != 0) {
+      swarnx("%s: socks_routesetup() failed: %s", function, emsg);
+      return -1;
+   }
+
+   /* again in case routesetup() changed local address. */
+   len = sizeof(socksfd.local);
+   if (getsockname(s, TOSA(&socksfd.local), &len) != 0)
+      return -1;
+
+   slog(LOG_DEBUG, "%s: local address of fd %d is %s",
+        function, s, sockaddr2string(&socksfd.local, NULL, 0));
+
+   src.addr.ipv4 = TOIN(&socksfd.local)->sin_addr;
+   src.port      = TOIN(&socksfd.local)->sin_port;
+
+   slog(LOG_DEBUG, "%s: route prepared for fd %d is a %s route",
+        function, s, proxyprotocol2string(packet.req.version));
 
    if (packet.req.version == PROXY_DIRECT) {
-      int rc;
+      const int rc = connect(s, TOSA(&name), namelen);
 
-      rc = connect(s, name, namelen);
-
-      slog(LOG_DEBUG, "%s: direct connect on socket %d to %s returned %d: (%s)",
-      function, s, sockaddr2string(name, NULL, 0), rc, strerror(errno));
+      slog(LOG_DEBUG, "%s: direct connect on fd %d to %s returned %d: (%s)",
+           function,
+           s,
+           sockaddr2string(&name, NULL, 0),
+           rc,
+           strerror(errno));
 
       return rc;
    }
@@ -320,9 +350,6 @@ Rconnect(s, _name, namelen)
       /*
        * no negotiation to do before the connect, so we don't need
        * to care here whether the socket is blocking or not.
-       * We need to care about the return value from this function
-       * though, as if non-blocking, after socks_negotiate(), the socket may
-       * still not be connected.
        */
       nbconnect = 0;
    else
@@ -335,19 +362,32 @@ Rconnect(s, _name, namelen)
       nbconnect = !fdisblocking(s);
 
    errno = 0;
-   if (nbconnect)
-      socksfd.route
-      = socks_nbconnectroute(s, socksfd.control, &packet, &src, &dst);
-   else
-      socksfd.route = socks_connectroute(socksfd.control, &packet, &src, &dst);
+   if (nbconnect) {
+      socksfd.route = socks_nbconnectroute(s, 
+                                           socksfd.control,
+                                           &packet,
+                                           &src, 
+                                           &dst, 
+                                           emsg, 
+                                           sizeof(emsg));
 
-   slog(LOG_DEBUG, "%s: %s a %s route for socket %d, errno = %d",
-                   function,
-                   socksfd.route == NULL ?
-                     "could not establish" : "established",
-                   version2string(packet.req.version),
-                   s,
-                   errno);
+      if (socksfd.route == NULL)
+         SASSERTX(errno != 0);
+   }
+   else
+      socksfd.route = socks_connectroute(socksfd.control,
+                                         &packet,
+                                         &src,
+                                         &dst,
+                                         emsg,
+                                         sizeof(emsg));
+
+   slog(LOG_INFO, "%s: %s a %s route for fd %d, errno = %d",
+        function,
+        socksfd.route == NULL ?  "could not establish" : "established",
+        proxyprotocol2string(packet.req.version),
+        s,
+        errno);
 
    if (socksfd.route == NULL) {
       if (s != socksfd.control)
@@ -373,9 +413,9 @@ Rconnect(s, _name, namelen)
             int tmp_s;
 
             swarn("%s: server socksified?  trying to work around problem...",
-            function);
+                  function);
 
-            if ((tmp_s = socketoptdup(s)) == -1)
+            if ((tmp_s = socketoptdup(s, -1)) == -1)
                break;
             if (dup2(tmp_s, s) == -1)
                break;
@@ -394,18 +434,17 @@ Rconnect(s, _name, namelen)
                bindresvport(s, TOIN(&socksfd.local));
             }
 
-            return Rconnect(s, name, namelen);
+            return Rconnect(s, TOSA(&name), namelen);
          }
-
-         default:
-            return -1;
       }
+
+      swarnx("%s: could not connect route: %s", function, emsg);
+      return -1;
    }
 
    if (nbconnect) {
       if (!socks_addrisours(s, &socksfd, 1)) {
-         swarnx("%s: something went wrong when setting up the non-blocking "
-                "connect",
+         swarn("%s: something went wrong when setting up non-blocking connect",
                 function);
 
          return -1;
@@ -420,34 +459,49 @@ Rconnect(s, _name, namelen)
       }
       else {
          if (socksfd.state.err != 0) {
-            slog(LOG_DEBUG, "%s: non-blocking connect failed with errno %d",
-            function, socksfd.state.err);
+            slog(LOG_INFO,
+                 "%s: non-blocking connect to %s failed with errno %d (%s)",
+                 function,
+                 sockaddr2string(&name, NULL, 0),
+                 socksfd.state.err,
+                 strerror(socksfd.state.err));
 
             errno = socksfd.state.err;
             return -1;
          }
          else {
-            slog(LOG_DEBUG, "%s: got route, non-blocking connect finished ok",
-                             function);
+            slog(LOG_INFO,
+                 "%s: got route, non-blocking connect to %s finished ok",
+                 function, sockaddr2string(&name, NULL, 0));
 
             return 0;
          }
       }
    }
 
-   if (socks_negotiate(s, socksfd.control, &packet, socksfd.route) != 0)
+   if (socks_negotiate(s,
+                       socksfd.control,
+                       &packet,
+                       socksfd.route,
+                       emsg,
+                       sizeof(emsg)) != 0) {
+      swarnx("%s: socks_negotiate() failed: %s", function, emsg);
       return -1;
+   }
 
    savederrno = errno;
-   slog(LOG_DEBUG, "%s: errno after successful socks_negotiate() is %d",
-        function, savederrno);
 
-   socksfd.state.auth            = auth;
-   socksfd.state.command         = packet.req.command;
-   socksfd.state.version         = packet.res.version;
+   update_after_negotiate(&packet, &socksfd);
+
+   slog(LOG_DEBUG,
+        "%s: errno after successful socks_negotiate() is %d, version is %d",
+        function, savederrno, socksfd.state.version);
+
+   SASSERTX(type == SOCK_STREAM);
    socksfd.state.protocol.tcp    = 1;
-   sockshost2sockaddr(&packet.res.host, TOSA(&socksfd.remote));
-   sockaddr2sockshost(name, &socksfd.forus.connected);
+
+   sockshost2sockaddr(&packet.res.host, &socksfd.remote);
+   sockaddr2sockshost(&name, &socksfd.forus.connected);
 
    /* LINTED pointer casts may be troublesome */
    if (TOIN(&socksfd.local)->sin_port != htons(0)
@@ -459,30 +513,35 @@ Rconnect(s, _name, namelen)
        */
 
       /* LINTED pointer casts may be troublesome */
-      slog(LOG_DEBUG, "failed to get wanted port %d, but got %d and continuing",
-      ntohs(TOIN(&socksfd.local)->sin_port),
-      ntohs(TOIN(&socksfd.remote)->sin_port));
+      slog(LOG_DEBUG,
+           "%s: wanted port %u, but got %u.  Continuing anyway",
+           function,
+           ntohs(TOIN(&socksfd.local)->sin_port),
+           ntohs(TOIN(&socksfd.remote)->sin_port));
    }
 
    len = sizeof(socksfd.server);
-   if (getpeername(s, TOSA(&socksfd.server), &len) != 0)
-      if (packet.version != PROXY_UPNP || fdisblocking(s))
-         slog(LOG_DEBUG, "%s: getpeername(s): %s", function, strerror(errno));
+   if (getpeername(s, TOSA(&socksfd.server), &len) == 0)
+      slog(LOG_DEBUG, "%s: getpeername(fd %d) = %s",
+           function, s, sockaddr2string(&socksfd.server, NULL, 0));
+   else
+      slog(LOG_DEBUG, "%s: getpeername(fd %d): %s",
+           function, s, strerror(errno));
 
    len = sizeof(socksfd.local);
    if (getsockname(s, TOSA(&socksfd.local), &len) != 0)
       slog(LOG_DEBUG, "%s: getsockname(s): %s", function, strerror(errno));
 
-
    socks_addaddr(s, &socksfd, 1);
 
-   sockaddr2sockshost(name, &sockscf.state.lastconnect);/* for std socks bind */
+   sockaddr2sockshost(&name, &sockscf.state.lastconnect); /* for socks bind. */
 
-   slog(LOG_DEBUG, "%s: returning ... errno is %d", function, savederrno);
+   slog(LOG_DEBUG, "%s: returning.  Current errno is %d (%s), saved is %d",
+        function, errno, strerror(errno), savederrno);
 
    errno = savederrno;
 
-   if (errno != 0) /* something happened, but could just be EINPROGRESS. */
+   if (errno != 0)
       return -1;
 
    return 0;

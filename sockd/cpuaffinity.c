@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: cpuaffinity.c,v 1.14 2012/05/21 21:39:17 karls Exp $";
+"$Id: cpuaffinity.c,v 1.15 2012/12/05 10:46:12 michaels Exp $";
 
 /*
  * Access to the CPU_foo() macros on Linux requires _GNU_SOURCE to be
@@ -145,7 +145,7 @@ sockd_cpuset_isok(set)
    int i;
 
    if (cpus == -1)
-      serr(EXIT_FAILURE, "%s: sysconf(_SC_NPROCESSORS_ONLN) failed", function);
+      serr("%s: sysconf(_SC_NPROCESSORS_ONLN) failed", function);
 
    for (i = 0; i < (int)setsize; ++i)
       if (cpu_isset(i, set) && i + 1 > cpus)

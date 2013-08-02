@@ -51,7 +51,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.81 2012/06/01 20:23:05 karls Exp $";
+"$Id: auth_pam.c,v 1.95 2013/04/22 08:43:32 michaels Exp $";
 
 static int
 pam_conversation(int msgc, const struct pam_message **msgv,
@@ -64,7 +64,7 @@ pam_conversation(int msgc, const struct pam_message **msgv,
 int
 pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    int s;
-   const struct sockaddr *src, *dst;
+   const struct sockaddr_storage *src, *dst;
    const authmethod_pam_t *auth;
    char *emsg;
    size_t emsgsize;
@@ -74,6 +74,7 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    struct pam_conv pamconv;
    pam_handle_t *pamh;
    size_t i;
+   char srcstr[MAXSOCKADDRSTRING], visbuf[MAXNAMELEN * 4];
    int rc;
 
    /*
@@ -86,16 +87,29 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
       const char *itemname;
       const void *value;
    } pamval[] = {
-      { PAM_CONV,  "PAM_CONV",  &pamconv },
-      { PAM_RHOST, "PAM_RHOST", inet_ntoa(TOCIN(src)->sin_addr) },
-      { PAM_USER,  "PAM_USER",  (*auth->name == NUL) ?
-                                DEFAULT_PAM_USER : (const char *)auth->name},
-      { PAM_RUSER, "PAM_RUSER", DEFAULT_PAM_RUSER },
+      { (int)PAM_CONV,  "PAM_CONV",  &pamconv },
+      { (int)PAM_RHOST, "PAM_RHOST", 
+                  src == NULL ?
+                        "" : sockaddr2string2(src, 0, srcstr, sizeof(srcstr)) },
+      { (int)PAM_USER,  "PAM_USER",  (*auth->name == NUL) ?
+                                DEFAULT_PAM_USER : (const char *)auth->name   },
+      { (int)PAM_RUSER, "PAM_RUSER", DEFAULT_PAM_RUSER },
    };
 
-   slog(LOG_DEBUG, "%s: user \"%s\", servicename \"%s\", emsgsize %ld",
-   function, auth->name, auth->servicename, (long)emsgsize);
+   slog(LOG_DEBUG, "%s: src %s, user \"%s\", servicename \"%s\", emsgsize %ld",
+        function, 
+        src == NULL ? "N/A" : sockaddr2string(src, NULL, 0),
+        str2vis((const char *)auth->name,
+                strlen((const char *)auth->name),
+                visbuf,
+                sizeof(visbuf)),
+        auth->servicename,
+        (long)emsgsize);
 
+   if (src == NULL) {
+      snprintf(emsg, emsgsize, "%s: NULL src address: not supported", function);
+      return  -1;
+   }
    /*
     * Note: we can not save the state of pam after pam_start(3), as
     * e.g. Solaris 5.11 pam does not allow setting PAM_SERVICE
@@ -116,29 +130,27 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    rc = pam_start(auth->servicename, NULL, &pamconv, &pamh);
    sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
 
-   if (rc != PAM_SUCCESS) {
+   if (rc != (int)PAM_SUCCESS) {
       snprintf(emsg, emsgsize, "pam_start() failed: %s",
-      pam_strerror(pamh, rc));
+               pam_strerror(pamh, rc));
 
       return -1;
    }
 
    for (i = 0; i < ELEMENTS(pamval); ++i) {
-      char value[256];
-
       str2vis((const char *)pamval[i].value,
               strlen((const char *)pamval[i].value),
-              value,
-              sizeof(value));
+              visbuf,
+              sizeof(visbuf));
 
       slog(LOG_DEBUG, "%s: setting item \"%s\" to value \"%s\"",
-      function, pamval[i].itemname, value);
+           function, pamval[i].itemname, visbuf);
 
       if ((rc = pam_set_item(pamh, pamval[i].item, pamval[i].value))
-      != PAM_SUCCESS) {
-         snprintf(emsg, emsgsize, "pam_set_item(%s) to %s failed: %s",
+      != (int)PAM_SUCCESS) {
+         snprintf(emsg, emsgsize, "pam_set_item(%s) to \"%s\" failed: %s",
                                   pamval[i].itemname,
-                                  value,
+                                  visbuf,
                                   pam_strerror(pamh, rc));
 
          pam_end(pamh, rc);
@@ -147,14 +159,20 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    }
 
    sockd_priv(SOCKD_PRIV_PAM, PRIV_ON);
-   if ((rc = pam_authenticate(pamh, 0)) != PAM_SUCCESS) {
+
+   if ((rc = pam_authenticate(pamh, 0)) != (int)PAM_SUCCESS) {
       sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
 
       slog(LOG_DEBUG, "%s: pam_authenticate() failed: %s",
-      function, pam_strerror(pamh, rc));
+           function, pam_strerror(pamh, rc));
 
-      snprintf(emsg, emsgsize, "pam_authenticate(): %s",
-      pam_strerror(pamh, rc));
+      snprintf(emsg, emsgsize, "pam_authenticate() for user \"%s\" failed: %s",
+               *auth->name == NUL ?
+                  "<no user specified>" : str2vis((const char *)auth->name,
+                                               strlen((const char *)auth->name),
+                                                  visbuf,
+                                                  sizeof(visbuf)),
+               pam_strerror(pamh, rc));
 
       pam_end(pamh, rc);
       return -1;
@@ -162,11 +180,12 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 
    /* LINTED passing const, expecting non-const (PAM_SILENT) */
    rc = pam_acct_mgmt(pamh, PAM_SILENT);
+
    sockd_priv(SOCKD_PRIV_PAM, PRIV_OFF);
 
    if (rc != PAM_SUCCESS) {
       slog(LOG_DEBUG, "%s: pam_acct_mgmt() failed: %s",
-      function, pam_strerror(pamh, rc));
+           function, pam_strerror(pamh, rc));
 
       snprintf(emsg, emsgsize, "pam_acct_mgmt(): %s", pam_strerror(pamh, rc));
 
@@ -174,9 +193,9 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
       return -1;
    }
 
-   if ((rc = pam_end(pamh, rc)) != PAM_SUCCESS)
+   if ((rc = pam_end(pamh, rc)) != (int)PAM_SUCCESS)
       swarnx("%s: strange ... pam_end() failed: %s",
-      function, pam_strerror(pamh, rc));
+             function, pam_strerror(pamh, rc));
 
    slog(LOG_DEBUG, "%s: pam authentication succeeded", function);
    return 0;
@@ -195,14 +214,14 @@ pam_conversation(msgc, msgv, rspv, authdata)
 
    if (rspv == NULL || msgv == NULL || auth == NULL || msgc < 1) {
       swarnx("%s: called with invalid/unexpected input", function);
-      return PAM_CONV_ERR;
+      return (int)PAM_CONV_ERR;
    }
 
    if (((*rspv) = malloc(msgc * sizeof(struct pam_response))) == NULL) {
       swarn("%s: malloc(%d * %lu)",
-      function, msgc, (unsigned long)sizeof(struct pam_response));
+            function, msgc, (unsigned long)sizeof(struct pam_response));
 
-      return PAM_CONV_ERR;
+      return (int)PAM_CONV_ERR;
    }
 
    /* initialize all to NULL so we can easily free on error. */
@@ -211,7 +230,7 @@ pam_conversation(msgc, msgv, rspv, authdata)
       (*rspv)[i].resp         = NULL;
    }
 
-   rc = PAM_SUCCESS;
+   rc = (int)PAM_SUCCESS;
    for (i = 0; i < msgc; ++i) {
       slog(LOG_DEBUG, "%s: msg_style = %d", function, msgv[i]->msg_style);
 
@@ -220,36 +239,39 @@ pam_conversation(msgc, msgv, rspv, authdata)
             if (((*rspv)[i].resp = strdup((const char *)auth->password))
             == NULL) {
                swarn("%s: strdup() of password, length %lu, failed",
-               function, (unsigned long)strlen((const char *)auth->password));
+                     function,
+                     (unsigned long)strlen((const char *)auth->password));
 
-               rc = PAM_CONV_ERR;
+               rc = (int)PAM_CONV_ERR;
             }
             break;
 
          case PAM_ERROR_MSG:
             slog(LOG_INFO, "%s: got a pam error msg: %s",
-            function, msgv[i]->msg);
+                 function, msgv[i]->msg);
             break;
 
          case PAM_TEXT_INFO:
             /*
              * not expecting this, and where it has been seen (some versions
              * of FreeBSD), the string has been empty.
+             * Seen it on Linux also.  Don't know what it's for.
              */
-            slog(LOG_DEBUG, "%s: got PAM_TEXT_INFO: \"%s\"",
-            function, msgv[i]->msg);
+            slog(LOG_DEBUG, "%s: got unexpected PAM_TEXT_INFO: \"%s\"",
+                 function, msgv[i]->msg);
             break;
 
          default:
             swarnx("%s: unknown msg_style %d, ignored ...",
-            function, msgv[i]->msg_style);
+                   function, msgv[i]->msg_style);
             break;
       }
    }
 
-   if (rc != PAM_SUCCESS) { /* failed; will have to free the memory ourselves */
+   if (rc != (int)PAM_SUCCESS) { /* failed; free the memory ourselves */
       for (i = 0; i < msgc; ++i)
          free((*rspv)[i].resp);
+
       free(*rspv);
    }
 

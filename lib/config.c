@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.349 2012/06/01 20:23:05 karls Exp $";
+"$Id: config.c,v 1.455 2013/07/30 13:26:21 michaels Exp $";
 
 void
 genericinit(void)
@@ -61,17 +61,18 @@ genericinit(void)
 #if SOCKS_CLIENT
    SASSERTX(sockscf.loglock == -1);
 #else /* !SOCKS_CLIENT */
-   if (sockscf.loglock == -1)
+   if (sockscf.loglock == -1) {
       if ((sockscf.loglock = socks_mklock(SOCKS_LOCKFILE, NULL, 0)) == -1)
-         serr(EXIT_FAILURE, "%s: could not create lockfile for logging",
-         function);
+         serr("%s: socks_mklock() failed to create lockfile using base %s",
+              function, SOCKS_LOCKFILE);
+   }
 #endif /* !SOCKS_CLIENT */
 
    if (!sockscf.state.inited) {
 #if !HAVE_SETPROCTITLE
       /* create a backup to avoid setproctitle replacement overwriting it. */
       if ((__progname = strdup(__progname)) == NULL)
-         serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
+         serrx("%s: %s", function, NOMEM);
 #endif /* !HAVE_SETPROCTITLE */
    }
 
@@ -81,8 +82,6 @@ genericinit(void)
    sigaddset(&set, SIGTERM);
    if (sigprocmask(SIG_BLOCK, &set, &oset) != 0)
       swarn("%s: sigprocmask(SIG_BLOCK)", function);
-
-   resetconfig(0);
 #endif /* !SOCKS_CLIENT */
 
    optioninit();
@@ -95,32 +94,9 @@ genericinit(void)
       swarn("%s: sigprocmask(SIG_SETMASK)", function);
 #endif /* !SOCKS_CLIENT */
 
-#if !HAVE_NO_RESOLVESTUFF
-   if (!(_res.options & RES_INIT)) {
-      res_init();
-      _res.options = RES_DEFAULT;
-   }
-#endif /* !HAVE_NO_RESOLVSTUFF */
-
-   switch (sockscf.resolveprotocol) {
-      case RESOLVEPROTOCOL_TCP:
-#if !HAVE_NO_RESOLVESTUFF
-         _res.options |= RES_USEVC;
-#else /* HAVE_NO_RESOLVESTUFF */
-         SERRX(sockscf.resolveprotocol);
-#endif /* HAVE_NO_RESOLVESTUFF */
-         break;
-
-      case RESOLVEPROTOCOL_UDP:
-      case RESOLVEPROTOCOL_FAKE:
-         break;
-
-      default:
-         SERRX(sockscf.resolveprotocol);
-   }
+   postconfigloadinit();
 
 #if BAREFOOTD
-   sockscf.state.alludpbounced = 1; /* default.  Change later if bouncing udp */
    rule = sockscf.crule;
    while (rule != NULL) {
       if (rule->state.protocol.udp) {
@@ -137,6 +113,133 @@ genericinit(void)
 #endif /* SOCKSLIBRARY_DYNAMIC */
 }
 
+void
+postconfigloadinit(void)
+{
+   const char *function = "postconfigloadinit()";
+#if !SOCKS_CLIENT
+   cpusetting_t newcpu;
+   void (*procfunc)(void);
+#endif /* !SOCKS_CLIENT */
+
+   slog(LOG_DEBUG, "%s: I am a %s",
+        function, 
+#if SOCKS_CLIENT
+        "client"
+#else /* !SOCKS_CLIENT */
+        childtype2string(sockscf.state.type)
+#endif /* !SOCKS_CLIENT */
+        );
+
+#if !HAVE_NO_RESOLVESTUFF
+   if (!(_res.options & RES_INIT)) {
+      res_init();
+
+#if !SOCKS_CLIENT
+      sockscf.initial.res_options = _res.options;
+#endif /* !SOCKS_CLIENT */
+   }
+#endif /* !HAVE_NO_RESOLVSTUFF */
+
+   switch (sockscf.resolveprotocol) {
+      case RESOLVEPROTOCOL_TCP:
+#if HAVE_NO_RESOLVESTUFF
+         SERRX(sockscf.resolveprotocol);
+
+#else /* !HAVE_NO_RESOLVESTUFF */
+         _res.options |= RES_USEVC;
+         slog(LOG_DEBUG,
+              "%s: configured resolver for resolving over tcp", function);
+#endif /* HAVE_NO_RESOLVESTUFF */
+
+         break;
+
+      case RESOLVEPROTOCOL_UDP:
+      case RESOLVEPROTOCOL_FAKE:
+         break;
+
+      default:
+         SERRX(sockscf.resolveprotocol);
+   }
+
+#if !HAVE_NO_RESOLVESTUFF && 0
+   _res.options |= RES_DEBUG;
+   slog(LOG_DEBUG, "%s: configured resolver for debugging", function);
+#endif /* !HAVE_NO_RESOLVESTUFF && 0 */
+
+#if !SOCKS_CLIENT
+
+   switch (sockscf.state.type) {
+      case PROC_MOTHER:
+         newcpu   = sockscf.cpu.mother;
+         procfunc = mother_postconfigload;
+         break;
+
+      case PROC_MONITOR:
+         newcpu   = sockscf.cpu.monitor;
+         procfunc = monitor_postconfigload;
+         break;
+
+      case PROC_NEGOTIATE:
+         newcpu   = sockscf.cpu.negotiate;
+         procfunc = negotiate_postconfigload;
+         break;
+
+      case PROC_REQUEST:
+         newcpu   = sockscf.cpu.request;
+         procfunc = request_postconfigload;
+         break;
+
+      case PROC_IO:
+         newcpu   = sockscf.cpu.io;
+         procfunc = io_postconfigload;
+         break;
+
+      default:
+         SERRX(sockscf.state.type);
+   }
+
+#if HAVE_SCHED_SETSCHEDULER
+   if (!newcpu.scheduling_isset) {
+      newcpu.policy           = sockscf.initial.cpu.policy; 
+      newcpu.param            = sockscf.initial.cpu.param; 
+      newcpu.scheduling_isset = sockscf.initial.cpu.scheduling_isset;
+   }
+#endif /* HAVE_SCHED_SETSCHEDULER */
+
+#if HAVE_SCHED_SETAFFINITY
+   if (!newcpu.affinity_isset) {
+      newcpu.mask           = sockscf.initial.cpu.mask;
+      newcpu.affinity_isset = sockscf.initial.cpu.affinity_isset;
+   }
+#endif /* HAVE_SCHED_SETAFFINITY */
+
+   if (!sockscf.option.verifyonly)
+      sockd_setcpusettings(&sockscf.state.cpu, &newcpu);
+
+#if HAVE_SCHED_SETSCHEDULER
+   /* 
+    * does not work on FreeBSD version 8.2 (only one checked).  
+    * For some reason the sched_priority, as returned by sched_getparam(2),
+    * after we receive a signal (e.g. SIGHUP) is not the same it was before
+    * the signal, as well as other weirdness.  There are some bug-reports
+    * related to what looks similar e.g.: kern/157657.  That bug has apparently 
+    * been fixed in in a commit in June 2011, after the FreeBSD 8.2 release 
+    * running on our testmachine.
+    */
+   struct sched_param param;
+
+   SASSERTX(sockscf.state.cpu.policy               == sched_getscheduler(0));
+   SASSERTX(sched_getparam(0, &param)              == 0);
+   SASSERTX(sockscf.state.cpu.param.sched_priority == param.sched_priority);
+#endif /* HAVE_SCHED_SETSCHEDULER */
+
+   if (procfunc != NULL)
+      procfunc();
+#endif /* !SOCKS_CLIENT */
+}
+
+
 route_t *
 socks_addroute(newroute, last)
    const route_t *newroute;
@@ -145,16 +248,67 @@ socks_addroute(newroute, last)
    const char *function = "socks_addroute()";
    serverstate_t nilstate;
    route_t *route, *nextroute;
-   struct sockaddr_storage addr, mask;
-   ruleaddr_t dst;
-   size_t i;
-   int ifb;
+   size_t i, ifb, isoneshot;
 
    if ((route = malloc(sizeof(*route))) == NULL)
-      yyerror("%s: %s", function, NOMEM);
+      yyerrorx("could not allocate %lu bytes for route",
+               (unsigned long)sizeof(*nextroute));
 
    *route = *newroute;
    bzero(&nilstate, sizeof(nilstate));
+
+   if (route->gw.state.proxyprotocol.upnp) {
+      if (route->gw.addr.atype == SOCKS_ADDR_DOMAIN
+      &&  strcmp(route->gw.addr.addr.domain, PROXY_BROADCASTs) == 0)
+         ;
+      else {
+         if (route->gw.addr.atype != SOCKS_ADDR_IFNAME
+         &&  route->gw.addr.atype != SOCKS_ADDR_URL)
+            yyerrorx("gateway for upnp proxy has to be an interface or url.  "
+                     "The %s %s is not a valid gateway",
+                     atype2string(route->gw.addr.atype),
+                     sockshost2string(&route->gw.addr, NULL, 0));
+
+         if (route->gw.addr.port == htons(0)) {
+            if (route->gw.addr.atype != SOCKS_ADDR_URL) {
+               slog(LOG_DEBUG, "%s: upnp gw port not set, using default (%d)",
+                    function, DEFAULT_SSDP_PORT);
+
+               route->gw.addr.port = htons(DEFAULT_SSDP_PORT);
+            }
+         }
+         else if (route->gw.addr.port != htons(DEFAULT_SSDP_PORT))
+            yyerrorx("sorry, the upnp library %s is tested with does"
+                     "not support setting the upnp/ssdp port",
+                     PRODUCT);
+      }
+   }
+   else
+      switch (route->gw.addr.atype) {
+         case SOCKS_ADDR_IPV4:
+#if !SOCKS_CLIENT
+         case SOCKS_ADDR_IPV6:
+#endif /* !SOCKS_CLIENT */
+            break;
+
+         case SOCKS_ADDR_DOMAIN:
+            if (memcmp(&nilstate.proxyprotocol,
+                       &route->gw.state.proxyprotocol,
+                       sizeof(nilstate.proxyprotocol)) == 0) {
+               if (strcmp(route->gw.addr.addr.domain, PROXY_DIRECTs) == 0)
+                  route->gw.state.proxyprotocol.direct = 1;
+               else if (strcmp(route->gw.addr.addr.domain, PROXY_BROADCASTs)
+               == 0)
+                  route->gw.state.proxyprotocol.upnp = 1;
+            }
+            break;
+
+         default:
+            yyerrorx("gateway must be an IP-address or qualified domainname, "
+                     "but type of %s is %s",
+                     sockshost2string(&route->gw.addr, NULL, 0),
+                     atype2string(route->gw.addr.atype));
+      }
 
    /* if no proxy protocol set, set socks v4 and v5. */
    if (memcmp(&nilstate.proxyprotocol, &route->gw.state.proxyprotocol,
@@ -168,46 +322,46 @@ socks_addroute(newroute, last)
    else { /* proxy protocol set, do they make sense? */
       proxyprotocol_t proxy;
 
-      if (route->gw.state.proxyprotocol.direct) {
-         memset(&proxy, 0, sizeof(proxy));
-         proxy.direct = 1;
-
-         if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            yyerror("%s: can't combine proxyprotocol direct with other "
-                    "proxyprotocols",
-                    function);
-      }
-      else if (route->gw.state.proxyprotocol.socks_v4
-      ||       route->gw.state.proxyprotocol.socks_v5) {
+      if (route->gw.state.proxyprotocol.socks_v4
+      ||  route->gw.state.proxyprotocol.socks_v5) {
          if (route->gw.state.proxyprotocol.http
          ||  route->gw.state.proxyprotocol.upnp)
-         yyerror("%s: can't combine proxyprotocol socks with other "
-                 "proxyprotocols",
-                 function);
+         yyerrorx("%s: cannot combine proxyprotocol socks with other "
+                  "proxyprotocols",
+                  function);
       }
       else if (route->gw.state.proxyprotocol.http) {
          memset(&proxy, 0, sizeof(proxy));
          proxy.http = 1;
 
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            yyerror("%s: can't combine proxyprotocol http with other "
-                    "proxyprotocols",
-                    function);
+            yyerrorx("%s: cannot combine proxyprotocol http with other "
+                     "proxyprotocols",
+                     function);
       }
       else if (route->gw.state.proxyprotocol.upnp) {
 #if !HAVE_LIBMINIUPNP
-         serrx(1, "%s: not configured for using upnp", function);
+         serrx("%s: not configured for using upnp", function);
 #else /* HAVE_LIBMINIUPNP */
 
          memset(&proxy, 0, sizeof(proxy));
          proxy.upnp = 1;
 
          if (memcmp(&proxy, &route->gw.state.proxyprotocol, sizeof(proxy)) != 0)
-            yyerror("%s: can't combine proxyprotocol upnp with other "
-                    "proxyprotocols",
-                    function);
+            yyerrorx("%s: cannot combine proxyprotocol upnp with other "
+                     "proxyprotocols",
+                     function);
 #endif /* HAVE_LIBMINIUPNP */
       }
+   }
+
+   if (route->gw.addr.port == htons(0)) { /* no port, set default if known. */
+      if (route->gw.state.proxyprotocol.socks_v4
+      ||  route->gw.state.proxyprotocol.socks_v5)
+         route->gw.addr.port = htons((in_port_t)SOCKD_PORT);
+
+      else if (route->gw.state.proxyprotocol.http)
+         route->gw.addr.port = htons((in_port_t)SOCKD_HTTP_PORT);
    }
 
    if (memcmp(&nilstate.command, &route->gw.state.command,
@@ -278,7 +432,7 @@ socks_addroute(newroute, last)
          ||  route->gw.state.command.udpassociate
          ||  route->gw.state.command.udpreply
          ||  route->gw.state.protocol.udp)
-            yyerror("serverchaining is only supported for the connect command");
+            yyerrorx("serverchaining only supported for the connect command");
       }
    }
 #endif /* !SOCKS_CLIENT */
@@ -286,9 +440,7 @@ socks_addroute(newroute, last)
    if (memcmp(&nilstate.protocol, &route->gw.state.protocol,
    sizeof(nilstate.protocol)) == 0) {
       if (route->gw.state.proxyprotocol.direct) {
-#if SOCKS_CLIENT
          route->gw.state.protocol.udp = 1;
-#endif /* SOCKS_CLIENT */
          route->gw.state.protocol.tcp = 1;
       }
 
@@ -332,128 +484,206 @@ socks_addroute(newroute, last)
    /* if no gssapiservicename set, set to default. */
    if (strcmp((char *)&nilstate.gssapiservicename,
    (char *)&route->gw.state.gssapiservicename) == 0)
-      strcpy(route->gw.state.gssapiservicename, DEFAULT_GSSAPISERVICENAME);
+      STRCPY_ASSERTSIZE(route->gw.state.gssapiservicename,   
+                       DEFAULT_GSSAPISERVICENAME);
 
    /* if no gssapiservicename set, set to default. */
    if (strcmp((char *)&nilstate.gssapikeytab,
    (char *)&route->gw.state.gssapikeytab) == 0)
-      strcpy(route->gw.state.gssapikeytab, DEFAULT_GSSAPIKEYTAB);
+      STRCPY_ASSERTSIZE(route->gw.state.gssapikeytab, DEFAULT_GSSAPIKEYTAB);
 #endif /* HAVE_GSSAPI */
 
-   /* if no method set, set all we support for the set proxy protocols. */
-   if (route->gw.state.methodc == 0) {
-      int *methodv    =  route->gw.state.methodv;
-      size_t *methodc = &route->gw.state.methodc;
+   /* if no method is set, set all we support for the proxyprotocols. */
+   if (route->gw.state.smethodc == 0) {
+      int *methodv    =  route->gw.state.smethodv;
+      size_t *methodc = &route->gw.state.smethodc;
 
+      /* all proxyprotocols support this. */
       methodv[(*methodc)++] = AUTHMETHOD_NONE;
 
-#if HAVE_GSSAPI
+#if 0 && HAVE_GSSAPI
+      /* currently disabled as not supported. */
       if (route->gw.state.proxyprotocol.socks_v5)
          methodv[(*methodc)++] = AUTHMETHOD_GSSAPI;
 #endif /* HAVE_GSSAPI */
 
+#if SOCKS_CLIENT
+      /*
+       * If it's a socks_v5 route, we could set AUTMHETHOD_UNAME in the 
+       * server case also, but that means we forward the clients password 
+       * to an upstream proxy.
+       * Don't do that by default, but insist the operator configures
+       * this route as such if he really wants us to do that.
+       */
       if (route->gw.state.proxyprotocol.socks_v5)
-         methodv[(*methodc)++] = AUTHMETHOD_UNAME;
+         methodv[(*methodc)++] = AUTHMETHOD_GSSAPI;
+#endif
    }
 
    /* Checks the methods set make sense for the given proxy protocols. */
-   for (i = 0; i < route->gw.state.methodc; ++i)
-      switch (route->gw.state.methodv[i]) {
+   for (i = 0; i < route->gw.state.smethodc; ++i)
+      switch (route->gw.state.smethodv[i]) {
          case AUTHMETHOD_NONE:
             break;
 
+#if !SOCKS_CLIENT
+
          case AUTHMETHOD_GSSAPI:
+            yyerrorx("sorry, %s authentication is not supported for "
+                     "serverchaining",
+                     method2string(route->gw.state.smethodv[i]));
+
+#else /* SOCKS_CLIENT */
+
+         case AUTHMETHOD_GSSAPI:
+
+#endif /* SOCKS_CLIENT */
+
          case AUTHMETHOD_UNAME:
             if (!route->gw.state.proxyprotocol.socks_v5)
-               yyerror("rule specifies method %s, but that is not supported "
-                       "by given proxy protocol(s) %s",
-                       method2string(route->gw.state.methodv[i]),
-                       proxyprotocols2string(&route->gw.state.proxyprotocol,
-                                             NULL, 0));
+               yyerrorx("rule specifies method %s, but that is not supported "
+                        "by the specified proxy protocol(s): %s",
+                        method2string(route->gw.state.smethodv[i]),
+                        proxyprotocols2string(&route->gw.state.proxyprotocol,
+                                              NULL,
+                                              0));
+
+#if !SOCKS_CLIENT
+            if (route->gw.state.smethodv[i] == AUTHMETHOD_UNAME) {
+               size_t j, have_username_methods;
+
+
+               have_username_methods = 0;
+               for (j = 0; j < sockscf.smethodc; ++j) {
+                  if (methodcanprovide(sockscf.smethodv[j], username)) {
+                     have_username_methods = 1;
+                     break;
+                  }
+               }
+
+               if (!have_username_methods)
+                  yyerrorx("route specifies method %s in the proxychain "
+                           "route, but that can't work because no methods "
+                           "that can provide a username are set in the "
+                           "global socksmethod list; no client using "
+                           "username/pasword authentication will ever be "
+                           "accepted by us",
+                           method2string(route->gw.state.smethodv[i])); 
+
+               yylog(LOG_NOTICE,
+                     "this serverchain route specifies authmethod %s, "
+                     "indicating that we should forward username/password-"
+                     "credentials received by our own user to an upstream "
+                     "proxy.  Unless the upstream proxy is also under your "
+                     "control, this may not be what you want to do",
+                     method2string(route->gw.state.smethodv[i])); 
+            }
+#endif /* !SOCKS_CLIENT */
+
             break;
 
-         case AUTHMETHOD_PAM:
          case AUTHMETHOD_BSDAUTH:
+         case AUTHMETHOD_PAM_ANY:
+         case AUTHMETHOD_PAM_ADDRESS:
+         case AUTHMETHOD_PAM_USERNAME:
          case AUTHMETHOD_RFC931:
-            yyerror("method %s is only valid for server rules",
-                    method2string(route->gw.state.methodv[i]));
+            yyerrorx("method %s is only valid for ACL rules",
+                     method2string(route->gw.state.smethodv[i]));
             break; /* NOTREACHED */
 
          default:
-            SERRX(route->gw.state.methodv[i]);
-      }
-
-   if (route->gw.state.proxyprotocol.upnp) {
-      if (route->gw.addr.atype != SOCKS_ADDR_IFNAME
-      &&  route->gw.addr.atype != SOCKS_ADDR_URL)
-         yyerror("gateway for upnp proxy has to be an interface or url.  "
-                 "A %s is not a valid address type",
-                 atype2string(route->gw.addr.atype));
-
-      if (route->gw.addr.port == htons(0)) {
-         slog(LOG_DEBUG, "%s: port for upnp gw not set, using default (%d)",
-         function, DEFAULT_SSDP_PORT);
-         route->gw.addr.port = htons(DEFAULT_SSDP_PORT);
-      }
-      else if (route->gw.addr.port != htons(DEFAULT_SSDP_PORT))
-         yyerror("sorry, the upnp library Dante currently uses does "
-                 "not support setting the upnp/ssdp port");
-   }
-   else
-      switch (route->gw.addr.atype) {
-         case SOCKS_ADDR_IPV4:
-         case SOCKS_ADDR_DOMAIN:
-            break;
-
-         default:
-            yyerror("address type of gateway must be an ipaddress "
-                    "or qualified domainname, but is a %s\n",
-                    atype2string(route->gw.addr.atype));
+            SERRX(route->gw.state.smethodv[i]);
       }
 
    if (route->src.atype == SOCKS_ADDR_IFNAME)
-      yyerror("interface names not supported for src address");
+      yyerrorx("interface names not supported for src address");
 
-   if (route->dst.atype == SOCKS_ADDR_IFNAME)
-      if (ifname2sockaddr(route->dst.addr.ifname, 0, TOSA(&addr), TOSA(&mask)) == NULL)
-         yyerror("can find interface named %s with ip configured",
-         route->dst.addr.ifname);
+#if SOCKS_CLIENT
+   if (route->rdr_from.atype == SOCKS_ADDR_IPV4) {
+      if (route->rdr_from.addr.ipv4.mask.s_addr != htonl(IPV4_FULLNETMASK))
+         yyerror("netmask for redirect from address must be 32, not %d",
+                bitcount((unsigned long)route->rdr_from.addr.ipv4.mask.s_addr));
+   }
+#endif /* SOCKS_CLIENT */
 
-   ifb = 1;
+   isoneshot = (route->dst.atype == SOCKS_ADDR_IFNAME ? 0 : 1);
+   ifb       = 0;
    nextroute = NULL;
-   dst = route->dst;
-   do {
+   while (1) {
       /*
        * This needs to be a loop to handle the case where route->dst
-       * (now saved in dst) expands to multiple ip addresses, which can
-       * happen when it is e.g. a ifname with several addresses configured
-       * on it.
+       * expands to multiple ip addresses, which can happen when it is 
+       * e.g. a ifname with several addresses configured on it.  In that
+       * case want to add almost identical routes for all the addresses
+       * configured on the interface, with the only difference beeing
+       * the "dst" field (one dst for each address/mask on the interface).
        */
+      struct sockaddr_storage addr, mask;
+
+      if (route->dst.atype == SOCKS_ADDR_IFNAME) {
+         if (ifname2sockaddr(route->dst.addr.ifname, ifb, &addr, &mask)
+         == NULL) {
+            if (ifb == 0) {
+               char visbuf[MAXIFNAMELEN * 4];
+
+               yyerrorx("could not create route with destination interface %s: "
+                        "no addresses found on interface",
+                        str2vis(route->dst.addr.ifname,
+                                strlen(route->dst.addr.ifname),
+                                visbuf,
+                                sizeof(visbuf)));
+            }
+
+            break; /* no more addresses on this interface. */
+         }
+      }
 
       if (nextroute == NULL)
          nextroute = route; /* first iteration. */
-      else
-         *nextroute = *route;/* stays same, but if ifname, ipaddr can change. */
+      else {
+         if ((nextroute = malloc(sizeof(*nextroute))) == NULL)
+            yyerrorx("could not allocate %lu bytes for route",
+                     (unsigned long)sizeof(*nextroute));
 
-      if (dst.atype == SOCKS_ADDR_IFNAME) {
-         sockaddr2ruleaddr(TOSA(&addr), &nextroute->dst);
-         nextroute->dst.addr.ipv4.mask = TOIN(&mask)->sin_addr;
+         *nextroute = *route;/* stays identical to original except dst addr. */
+      }
+
+      if (route->dst.atype == SOCKS_ADDR_IFNAME) {
+         SASSERTX(nextroute->dst.atype == SOCKS_ADDR_IFNAME);
+
+         sockaddr2ruleaddr(&addr, &nextroute->dst);
+
+         SASSERTX(nextroute->dst.atype != SOCKS_ADDR_IFNAME);
+
+         switch (addr.ss_family) {
+            case AF_INET:
+               nextroute->dst.addr.ipv4.mask = TOIN(&mask)->sin_addr;
+               break;
+
+            case AF_INET6:
+               nextroute->dst.addr.ipv6.maskbits
+               = bitcount_in6addr(&TOIN6(&mask)->sin6_addr);
+               break;
+
+            default:
+               SERRX(addr.ss_family);
+         }
       }
 
       /*
-       * place rule in list.  Last or first?
+       * place next route in list.  Last or first?
        */
       if (!last || sockscf.route == NULL) { /* first */
          route_t *p;
          size_t i;
 
          nextroute->next = sockscf.route;
-         sockscf.route = nextroute;
+         sockscf.route   = nextroute;
 
          if (nextroute->state.autoadded)
             nextroute->number = 0;
          else
-            if (ifb == 1) {
+            if (ifb == 0) {
                /*
                 * only update following route numbers for first
                 * ip-block on interface.
@@ -472,7 +702,7 @@ socks_addroute(newroute, last)
             while (lastroute->next != NULL)
                lastroute = lastroute->next;
 
-            if (ifb == 1)
+            if (ifb == 0)
                /*
                 * only update route numbers for first
                 * ip-block on interface.
@@ -484,19 +714,30 @@ socks_addroute(newroute, last)
          nextroute->next = NULL;
       }
 
-   } while (ifname2sockaddr(dst.addr.ifname, ifb++, TOSA(&addr), TOSA(&mask)) != NULL
-   &&       (nextroute = malloc(sizeof(*nextroute)))              != NULL);
+      if (isoneshot)
+         break;
 
-   if (!route->gw.state.proxyprotocol.direct) {
+      ++ifb;
+   }
+
+   if (!route->gw.state.proxyprotocol.direct
+   && !(    route->gw.state.proxyprotocol.upnp
+         && route->gw.addr.atype == SOCKS_ADDR_DOMAIN
+         &&  strcmp(route->gw.addr.addr.domain, PROXY_BROADCASTs) == 0)) {
       /*
-       * A proxy, so make sure we add a direct route to it also.
+       * A proxyserver, so make sure we add a direct route to it also.
        */
-      struct sockaddr_in saddr, smask;
+      struct sockaddr_storage saddr, smask;
+      command_t commands;
+      protocol_t protocols;
+
+      bzero(&commands, sizeof(commands));
+      bzero(&protocols, sizeof(protocols));
 
       bzero(&smask, sizeof(smask));
-      SET_SOCKADDR(TOSA(&smask), AF_INET);
-      smask.sin_port        = htons(0);
-      smask.sin_addr.s_addr = htonl(0xffffffff);
+      SET_SOCKADDR(&smask, AF_INET);
+      TOIN(&smask)->sin_port        = htons(0);
+      TOIN(&smask)->sin_addr.s_addr = htonl(IPV4_FULLNETMASK);
 
       if (route->gw.state.proxyprotocol.upnp
       &&  route->gw.addr.atype == SOCKS_ADDR_IFNAME) {
@@ -510,21 +751,35 @@ socks_addroute(newroute, last)
             struct servent *service;
 
             bzero(&saddr, sizeof(saddr));
-            SET_SOCKADDR(TOSA(&saddr), AF_INET);
-            saddr.sin_addr.s_addr = inet_addr(DEFAULT_SSDP_BROADCAST_ADDR);
+            SET_SOCKADDR(&saddr, AF_INET);
+            if (socks_inet_pton(AF_INET, 
+                                DEFAULT_SSDP_BROADCAST_IPV4ADDR,
+                                &TOIN(&saddr)->sin_addr.s_addr,
+                                NULL) != 1)
+               serr("%s: inet_pton(3): could not convert %s to IPv4 address",
+                    function, DEFAULT_SSDP_BROADCAST_IPV4ADDR);
 
             if ((service = getservbyname("ssdp", "udp")) == NULL)
-               saddr.sin_port = htons(DEFAULT_SSDP_PORT);
+               TOIN(&saddr)->sin_port = htons(DEFAULT_SSDP_PORT);
             else
-               saddr.sin_port = service->s_port;
+               TOIN(&saddr)->sin_port = service->s_port;
 
-            socks_autoadd_directroute(&saddr, &smask);
+
+            protocols.udp = 1;
+
+            socks_autoadd_directroute(&commands, &protocols, &saddr, &smask);
+
             already_done = 1;
          }
       }
       else {
-         sockshost2sockaddr(&route->gw.addr, TOSA(&saddr));
-         socks_autoadd_directroute(&saddr, &smask);
+         sockshost2sockaddr(&route->gw.addr, &saddr);
+
+         commands.connect = 1;
+
+         protocols.tcp    = 1;
+
+         socks_autoadd_directroute(&commands, &protocols, &saddr, &smask);
       }
    }
 
@@ -532,90 +787,37 @@ socks_addroute(newroute, last)
 }
 
 route_t *
-socks_autoadd_directroute(saddr, netmask)
-   const struct sockaddr_in *saddr;
-   const struct sockaddr_in *netmask;
+socks_autoadd_directroute(command, protocol, saddr, netmask)
+   const command_t *command;
+   const protocol_t *protocol;
+   const struct sockaddr_storage *saddr;
+   const struct sockaddr_storage *netmask;
 {
    route_t route;
 
    memset(&route, 0, sizeof(route));
 
    route.src.atype                            = SOCKS_ADDR_IPV4;
-   route.src.addr.ipv4.ip.s_addr              = htonl(0);
-   route.src.addr.ipv4.mask.s_addr            = htonl(0);
-   route.src.port.tcp                         = route.src.port.udp = htons(0);
    route.src.operator                         = none;
 
    route.dst.atype                            = SOCKS_ADDR_IPV4;
-   route.dst.addr.ipv4.ip                     = saddr->sin_addr;
-   route.dst.addr.ipv4.mask.s_addr            = netmask->sin_addr.s_addr;
-   route.dst.port.tcp = route.dst.port.udp    = saddr->sin_port;
-   route.dst.operator                         = htons(saddr->sin_port)
+   route.dst.addr.ipv4.ip                     = TOCIN(saddr)->sin_addr;
+   route.dst.addr.ipv4.mask.s_addr            = TOCIN(netmask)->sin_addr.s_addr;
+   route.dst.port.tcp = route.dst.port.udp    = TOCIN(saddr)->sin_port;
+   route.dst.operator                         = htons(TOCIN(saddr)->sin_port)
                                                 == 0 ? none : eq;
 
    route.gw.addr.atype                        = SOCKS_ADDR_DOMAIN;
-   SASSERTX(sizeof(route.gw.addr.addr.domain) >= sizeof("direct"));
-   strcpy(route.gw.addr.addr.domain, "direct");
-   route.gw.state.command.connect             = 1;
-   route.gw.state.command.udpassociate        = 1;
+   STRCPY_ASSERTSIZE(route.gw.addr.addr.domain, "direct");
+
+   route.gw.state.command                     = *command;
+   route.gw.state.protocol                    = *protocol;
+
    route.gw.state.proxyprotocol.direct        = 1;
 
    route.state.autoadded                      = 1;
 
    return socks_addroute(&route, 0);
-}
-
-void
-showtimeout(timeout)
-   const timeout_t *timeout;
-{
-
-   slog(LOG_DEBUG, "connect timeout: %lus%s",
-        timeout->connect,
-        timeout->connect == 0 ? " (use kernel default)": "");
-
-#if !SOCKS_CLIENT
-   slog(LOG_DEBUG, "negotiate timeout: %lus%s",
-        timeout->negotiate,
-        timeout->negotiate == 0 ? " (use kernel default)" : "");
-
-   slog(LOG_DEBUG, "i/o timeout: tcp: %lus, udp: %lus",
-                   timeout->tcpio, timeout->udpio);
-   slog(LOG_DEBUG, "tcp fin-wait-2 timeout: %lus%s",
-        timeout->tcp_fin_wait,
-        timeout->tcp_fin_wait == 0 ? " (use kernel default)" : "");
-#endif /* !SOCKS_CLIENT */
-
-}
-
-
-void
-socks_showroute(route)
-   const route_t *route;
-{
-   char gwstring[MAXGWSTRING], addr[MAXRULEADDRSTRING];
-   size_t i;
-
-   slog(LOG_DEBUG, "route #%d", route->number);
-
-   slog(LOG_DEBUG, "src: %s",
-   ruleaddr2string(&route->src, addr, sizeof(addr)));
-
-   slog(LOG_DEBUG, "dst: %s",
-   ruleaddr2string(&route->dst, addr, sizeof(addr)));
-
-   slog(LOG_DEBUG, "gateway: %s",
-   sockshost2string(&route->gw.addr, gwstring, sizeof(gwstring)));
-
-   for (i = 0; i < route->socketoptionc; ++i)
-      slog(LOG_DEBUG, "socketoption %s", route->socketoptionv[i].info->name);
-
-   slog(LOG_DEBUG, "route state: autoadded: %s, failed: %lu, badtime: %ld",
-                   route->state.autoadded ? "yes" : "no",
-                   (long)route->state.failed,
-                   (long)route->state.badtime);
-
-   showstate(&route->gw.state);
 }
 
 route_t *
@@ -626,7 +828,6 @@ socks_getroute(req, src, dst)
 {
    const char *function = "socks_getroute()";
    route_t *route;
-   int protocol;
    char srcbuf[MAXSOCKSHOSTSTRING], dstbuf[MAXSOCKSHOSTSTRING];
 
 #if SOCKS_CLIENT
@@ -635,7 +836,8 @@ socks_getroute(req, src, dst)
 
    slog(LOG_DEBUG,
         "%s: searching for %s route for %s, protocol %s, src %s, dst %s, ...",
-        function, version2string(req->version),
+        function, 
+        proxyprotocol2string(req->version),
         command2string(req->command), protocol2string(req->protocol),
         src == NULL ? "<NONE>" : sockshost2string(src, srcbuf, sizeof(srcbuf)),
         dst == NULL ? "<NONE>" : sockshost2string(dst, dstbuf, sizeof(dstbuf)));
@@ -646,8 +848,8 @@ socks_getroute(req, src, dst)
       if (sockscf.routeoptions.maxfail != 0
       &&  route->state.failed >= sockscf.routeoptions.maxfail) {
          if (sockscf.routeoptions.badexpire == 0
-         ||  difftime(time(NULL), route->state.badtime)
-                      <= sockscf.routeoptions.badexpire) {
+         ||  socks_difftime(time_monotonic(NULL), route->state.badtime)
+             <= sockscf.routeoptions.badexpire) {
             slog(LOG_DEBUG, "%s: route does not match; badtime", function);
             continue;
          }
@@ -686,12 +888,6 @@ socks_getroute(req, src, dst)
                   continue; /* not supported by v4. */
             }
 
-            if (!methodisset(AUTHMETHOD_NONE, route->gw.state.methodv,
-            route->gw.state.methodc)) {
-               slog(LOG_DEBUG, "%s: route does not match; method", function);
-               continue;
-            }
-
             break;
 
          case PROXY_SOCKS_V5:
@@ -715,12 +911,6 @@ socks_getroute(req, src, dst)
          case PROXY_HTTP_11:
             if (!route->gw.state.proxyprotocol.http) {
                slog(LOG_DEBUG, "%s: route does not match; version", function);
-               continue;
-            }
-
-            if (!methodisset(AUTHMETHOD_NONE, route->gw.state.methodv,
-            route->gw.state.methodc)) {
-               slog(LOG_DEBUG, "%s: route does not match; method", function);
                continue;
             }
 
@@ -759,6 +949,39 @@ socks_getroute(req, src, dst)
                slog(LOG_DEBUG, "%s: route does not match; cmd", function);
                continue;
             }
+
+            /*
+             * Need to check protocol and proxyprotocol also.  Even if 
+             * bind is supported for one protocol (e.g., tcp) it does
+             * not mean it is supported for another protocol (e.g., udp).
+             */
+            switch (req->version) {
+               case PROXY_SOCKS_V4:
+               case PROXY_SOCKS_V5:
+                  if (req->protocol == SOCKS_TCP)
+                     break; /* yes, supported. */
+                  else {
+                     SASSERTX(req->protocol == SOCKS_UDP);
+                     /* and fallthrough.  Not supported. */
+                  }
+
+               case PROXY_HTTP_10:
+               case PROXY_HTTP_11:
+                  slog(LOG_DEBUG,
+                       "%s: route does not match; bind command is not "
+                       "supported by proxyprotocol", 
+                       function);
+
+                  continue;
+
+               case PROXY_UPNP:
+               case PROXY_DIRECT:
+                  break;
+
+               default:
+                  SERRX(req->version);
+            }
+
             break;
 
          case SOCKS_CONNECT:
@@ -779,47 +1002,82 @@ socks_getroute(req, src, dst)
             SERRX(req->command);
       }
 
-      /* server supports protocol? */
-      switch (req->command) {
-         case SOCKS_BIND:
-         case SOCKS_CONNECT:
-            if (!route->gw.state.protocol.tcp) {
-               slog(LOG_DEBUG, "%s: route does not match; protocol", function);
+      /* 
+       * server supports protocol? 
+       */
+      if ((req->protocol == SOCKS_TCP && !route->gw.state.protocol.tcp)
+      ||  (req->protocol == SOCKS_UDP && !route->gw.state.protocol.udp)) {
+         slog(LOG_DEBUG, "%s: route does not match; protocol", function);
+         continue;
+      }
+
+      /*
+       * server supports method?
+       */
+      switch (req->version) {
+         /*
+          * These proxyprotocols do not support authentication, or
+          * we do not support the authentication part of them.
+          * So if the requested proxyprotocol is one of the below, the 
+          * the route must not require authentication if we should be
+          * able to use it.  If it does not, there is no point in
+          * checking what auth we have set for the client (if any).
+          */
+         case PROXY_DIRECT: 
+         case PROXY_HTTP_10:  
+         case PROXY_HTTP_11:
+         case PROXY_SOCKS_V4:
+         case PROXY_UPNP: 
+            if (!methodisset(AUTHMETHOD_NONE, 
+                             route->gw.state.smethodv,
+                             route->gw.state.smethodc)) {
+               slog(LOG_DEBUG, "%s: route does not match; method", function);
                continue;
             }
 
-            protocol = SOCKS_TCP;
             break;
 
-         case SOCKS_UDPASSOCIATE:
-            if (!route->gw.state.protocol.udp) {
-               slog(LOG_DEBUG, "%s: route does not match; protocol", function);
-               continue;
-            }
-
-            protocol = SOCKS_UDP;
+         case PROXY_SOCKS_V5: /* v5 supports all methods we can support. */
             break;
 
          default:
-            SERRX(req->command);
+            SERRX(req->version);
       }
 
-      if (req->auth != NULL) /* find server that supports method in use. */
-         switch (req->auth->method) {
-            case AUTHMETHOD_NOTSET:
-               break;
+      if (req->auth != NULL && req->auth->method != AUTHMETHOD_NOTSET) {
+         /*
+          * authmethod is alrady set.  Must be serverchaining.
+          */
+         SASSERTX(!SOCKS_CLIENT); 
 
-            default:
-               if (!methodisset(req->auth->method, route->gw.state.methodv,
-               route->gw.state.methodc)) {
-                  slog(LOG_DEBUG, "%s: route does not match; method", function);
-                  continue; /* does not support the method in use. */
-               }
+         slog(LOG_DEBUG, 
+              "%s: authmethod already set to %s.  Checking route for support",
+              function, method2string(req->auth->method));
+
+         if (!methodisset(req->auth->method, 
+                          route->gw.state.smethodv,
+                          route->gw.state.smethodc)) {
+            if (methodisset(AUTHMETHOD_NONE, 
+                             route->gw.state.smethodv,
+                             route->gw.state.smethodc)) {
+               slog(LOG_DEBUG,
+                    "%s: route #%lu supports authmethod %s, meaning it "
+                    "should work regardless of the authinfo we have "
+                    "received from the client",
+                    function, 
+                    (unsigned long)route->number, 
+                    method2string(AUTHMETHOD_NONE));
+            }
+            else {
+               slog(LOG_DEBUG, "%s: route does not match; method", function);
+               continue;
+            }
          }
+      }
 
       if (src != NULL) {
          slog(LOG_DEBUG, "%s: checking for src match ...", function);
-         if (!addrmatch(&route->src, src, protocol, 0)) {
+         if (!addrmatch(&route->src, src, NULL, req->protocol, 0)) {
             slog(LOG_DEBUG, "%s: route does not match; src addr", function);
             continue;
          }
@@ -827,7 +1085,7 @@ socks_getroute(req, src, dst)
 
       if (dst != NULL) {
          slog(LOG_DEBUG, "%s: checking for dst match ...", function);
-         if (!addrmatch(&route->dst, dst, protocol, 0)) {
+         if (!addrmatch(&route->dst, dst, NULL, req->protocol, 0)) {
             slog(LOG_DEBUG, "%s: route does not match; dst addr", function);
             continue;
          }
@@ -838,15 +1096,16 @@ socks_getroute(req, src, dst)
 
    if (route == NULL)
       slog(LOG_DEBUG, "%s: no %s route found",
-      function, version2string(req->version));
+           function, proxyprotocol2string(req->version));
    else {
       slog(LOG_DEBUG, "%s: %s route found, route #%d",
-      function, version2string(req->version), route->number);
+           function, proxyprotocol2string(req->version), route->number);
 
       if (!route->gw.state.proxyprotocol.direct
-      &&  dst != NULL) { /* simple attempt at check for routing loop. */
+      &&  dst != NULL) {
+         /* simple but non-robust attempt at check for routing loop. */
          if (sockshostareeq(&route->gw.addr, dst))
-            serrx(1, "%s: route to gw %s is itself.  Route loop in config\n",
+            serrx("%s: route to gw %s is itself.  Route loop in config\n",
                   function, sockshost2string(&route->gw.addr, NULL, 0));
       }
    }
@@ -854,161 +1113,279 @@ socks_getroute(req, src, dst)
    return route;
 }
 
+int
+socks_routesetup(control, data, route, emsg, emsglen)
+   int control;
+   int data;
+   const route_t *route;
+   char *emsg;
+   const size_t emsglen;
+{
+   const char *function = "socks_routesetup()";
+   struct sockaddr_storage controladdr, dataaddr;
+   socklen_t len;
+   int control_type, data_type;
+
+   if (route->rdr_from.atype == SOCKS_ADDR_NOTSET)
+      return 0;
+
+   if (control == -1)
+      control = data;
+   else if (data == -1)
+      data = control;
+
+   SASSERTX(control != -1);
+   SASSERTX(data    != -1);
+
+   len = sizeof(controladdr);
+   if (getsockname(control, TOSA(&controladdr), &len) != 0) {
+      snprintf(emsg, emsglen, "getsockname(2) on fd %d (control) failed: %s",
+               control, strerror(errno));
+
+      swarnx("%s: %s", function, emsg);
+      return -1;
+   }
+
+   if (data == control)
+      dataaddr = controladdr;
+   else {
+      len = sizeof(dataaddr);
+      if (getsockname(data, TOSA(&dataaddr), &len) != 0) {
+         snprintf(emsg, emsglen, "getsockname(2) on fd %d (data) failed: %s",
+                  data, strerror(errno));
+
+         swarnx("%s: %s", function, emsg);
+         return -1;
+      }
+   }
+
+   len = sizeof(control_type);
+   if (getsockopt(control, SOL_SOCKET, SO_TYPE, &control_type, &len) != 0) {
+      snprintf(emsg, emsglen, "getsockopt(2) on fd %d (control) failed: %s",
+               control, strerror(errno));
+
+      swarnx("%s: %s", function, emsg);
+      return -1;
+   }
+
+   if (data == control)
+      data_type = control_type;
+   else {
+      len = sizeof(data_type);
+      if (getsockopt(data, SOL_SOCKET, SO_TYPE, &data_type, &len) != 0) {
+         snprintf(emsg, emsglen, "getsockopt(2) on fd %d (data) failed: %s",
+                  data, strerror(errno));
+
+         swarnx("%s: %s", function, emsg);
+         return -1;
+      }
+   }
+
+   slog(LOG_DEBUG,
+        "%s: control-fd: %d (%s), data-fd: %d (%s), proxyprotocols: %s, "
+        "redirect from: %s",
+        function,
+        control,
+        control_type == SOCK_STREAM ? "stream" : "dgram",
+        data,
+        data_type    == SOCK_STREAM ? "stream" : "dgram",
+        proxyprotocols2string(&route->gw.state.proxyprotocol, NULL, 0),
+        ruleaddr2string(&route->rdr_from, ADDRINFO_PORT, NULL, 0));
+
+   if (control_type == SOCK_DGRAM) { /* only support udp now. */
+      if (socks_rebind(control,
+                       control_type == SOCK_STREAM ? SOCKS_TCP : SOCK_DGRAM,
+                       &controladdr,
+                       &route->rdr_from,
+                       emsg,
+                       emsglen) != 0) {
+         snprintf(emsg, emsglen, "socks_rebind() of control-fd %d failed: %s",
+                  control, strerror(errno));
+
+         swarnx("%s: %s", emsg, function);
+         return -1;
+      }
+   }
+
+   if (control == data)
+      return 0;
+
+   if (data_type == SOCK_DGRAM) { /* only support udp now. */
+      if (socks_rebind(data,
+                       data_type == SOCK_STREAM ? SOCKS_TCP : SOCK_DGRAM,
+                       &dataaddr,
+                       &route->rdr_from,
+                       emsg,
+                       emsglen) != 0) {
+         snprintf(emsg, emsglen, "rebind() of data-fd %d failed: %s",
+                  data, strerror(errno));
+
+         swarnx("%s: %s", emsg, function);
+         return -1;
+      }
+   }
+
+   return 0;
+}
+
 route_t *
-socks_connectroute(s, packet, src, dst)
-   int s;
+socks_connectroute(s, packet, src, dst, emsg, emsglen)
+   const int s;
    socks_t *packet;
    const sockshost_t *src;
    const sockshost_t *dst;
+   char *emsg;
+   const size_t emsglen;
 {
    const char *function = "socks_connectroute()";
    route_t *route;
-   int sdup, current_s, errno_s;
+   char dststring[MAXSOCKSHOSTSTRING], gwstring[MAXSOCKSHOSTSTRING];
+   int rc;
 
-   /*
-    * This is a little tricky since we attempt to support trying
-    * more than one socks server.  If the first one fails, we try
-    * the next, etc.  Of course, if connect() on one socket fails,
-    * that socket can no longer be used, so we need to be able to
-    * copy/dup the original socket as much as possible.  Later,
-    * if it turned out a connection failed and we had to use a
-    * different socket than the original 's', we try to dup the
-    * differently numbered socket to 's' and hope the best.
-    *
-    * sdup:         copy of the original socket.  Need to create this
-    *               before the first connect attempt since the connect attempt
-    *               could prevent us from doing it later, depending on failure
-    *               reason.
-    *
-    * current_s:    socket to use for next connection attempt.  For the
-    *               first attempt this is the same as 's'.
-    */
+   slog(LOG_DEBUG, "%s: fd %d, command %s",
+        function, s, command2string(packet->req.command));
 
-   slog(LOG_DEBUG, "%s: socket %d", function, s);
+   if ((route = socks_getroute(&packet->req, src, dst)) == NULL)
+      SERRX(0); /* should only be called if there is a route. */
 
-   current_s   = s;
-   sdup        = -1;
+   slog(LOG_NEGOTIATE, "%s: have %s route (route #%d) to %s via %s",
+        function,
+        proxyprotocols2string(&route->gw.state.proxyprotocol, NULL, 0),
+        route->number,
+        dst == NULL ?
+            "<UNKNOWN>" : sockshost2string(dst, dststring, sizeof(dststring)),
+        sockshost2string(&route->gw.addr, gwstring, sizeof(gwstring)));
 
-   while ((route = socks_getroute(&packet->req, src, dst)) != NULL) {
-      char gwstring[MAXGWSTRING], dststring[MAXSOCKSHOSTSTRING], emsg[256];
-
-      slog(LOG_DEBUG, "%s: found %s route (route #%d) to %s via %s",
-                      function,
-                      proxyprotocols2string(&route->gw.state.proxyprotocol,
-                                            NULL, 0),
-                      route->number,
-                      dst == NULL ?
-                      "<UNKNOWN>"
-                      : sockshost2string(dst, dststring, sizeof(dststring)),
-                      sockshost2string(&route->gw.addr,
-                                       gwstring,
-                                       sizeof(gwstring)));
-
-      if (route->gw.state.proxyprotocol.direct)
-         return route; /* nothing more to do. */
+   if (route->gw.state.proxyprotocol.direct)
+      return route; /* nothing to do. */
 
 #if HAVE_LIBMINIUPNP
-      if (route->gw.state.proxyprotocol.upnp) {
-         if (socks_initupnp(&route->gw.addr, &route->gw.state.data) == 0)
-            /*
-             * nothing more to do for now.  Once we get the actual request
-             * (connect(2), bind(2), etc.) we will need to setup the rest.
-             */
-            break;
-         else {
-            socks_blacklist(route);
-            continue;
-         }
-      }
-#endif /* HAVE_LIBMINIUPNP */
-
-      /* inside loop since if no route, no need for it. */
-      if (sdup == -1)
-         sdup = socketoptdup(s);
-
-      if (current_s == -1)
-         if ((current_s = socketoptdup(sdup == -1 ? s : sdup)) == -1)
-            return NULL;
-
-      if (socks_connecthost(current_s,
-                            &route->gw.addr,
-                            NULL,
-                            sockscf.timeout.connect ?
-                              (long)sockscf.timeout.connect : -1,
-                            emsg,
-                            sizeof(emsg)) == 0)
-         break;
-      else {
+   if (route->gw.state.proxyprotocol.upnp) {
+      if (route->gw.addr.atype == SOCKS_ADDR_DOMAIN
+      &&  strcmp(route->gw.addr.addr.domain, PROXY_BROADCASTs) == 0) {
          /*
-          * Check whether the error indicates bad socks server or
-          * something else.
+          * Interface igd is reachable on was not specified, so need to
+          * try all interfaces to see which one we can use.
           */
-         if (errno == EINPROGRESS) {
-            SASSERTX(current_s == s);
-            break;
+         struct ifaddrs *ifap, *iface;
+         gateway_t gw;
+
+         if (getifaddrs(&ifap) == -1) {
+            swarn("%s: getifaddrs() failed to get interface list.  Necessary "
+                 "for supporting setting of \"%s\" to the value \"%s\"",
+                 function, ENV_UPNP_IGD, route->gw.addr.addr.domain);
+
+            socks_blacklist(route);
+            return NULL;
          }
-         else if (errno == EADDRINUSE) {
-            /* see Rbind() for explanation. */
-            SASSERTX(current_s == s);
-            route = NULL;
-            break;
-         }
-         else {
-            slog(LOG_DEBUG, "%s: socks_connecthost(%s) failed: %s",
-                 function,
-                 sockshost2string(&route->gw.addr, gwstring, sizeof(gwstring)),
-                 emsg);
 
-            if (errno == EINVAL) {
-               struct sockaddr_in laddr;
-               socklen_t len = sizeof(laddr);
+         gw            = route->gw;
+         gw.addr.atype = SOCKS_ADDR_IFNAME;
 
-               if (getsockname(s, TOSA(&laddr), &len) == 0
-               &&  laddr.sin_addr.s_addr == htonl(INADDR_LOOPBACK)) {
-                  slog(LOG_DEBUG, "%s: failed to connect route, but that "
-                                  "appears to be due to the socket having "
-                                  "been bound to the loopback interface, so "
-                                  "presumably this socket should not proxied",
-                                  function);
+         for (iface = ifap; iface != NULL; iface = iface->ifa_next) {
+            if (iface->ifa_addr                          == NULL
+            ||  iface->ifa_addr->sa_family               != AF_INET
+            ||  TOIN(iface->ifa_addr)->sin_addr.s_addr   == htonl(0)
+            ||  !(iface->ifa_flags & (IFF_UP | IFF_MULTICAST))
+            ||  iface->ifa_flags & (IFF_LOOPBACK | IFF_POINTOPOINT))
+               continue;
 
-                  SASSERTX(current_s == s);
-                  route = NULL;
-                  break;
-               }
+            if (strlen(iface->ifa_name) >= sizeof(gw.addr.addr.ifname)) {
+               swarn("%s: ifname \"%s\" is too long according to our "
+                     "compile-time limit and will be skipped.  "
+                     "Max length is %lu",
+                     function,
+                     iface->ifa_name,
+                     (unsigned long)sizeof(gw.addr.addr.ifname));
+
+               continue;
             }
 
-            if (errno != EINTR)
-               socks_blacklist(route);
+            STRCPY_ASSERTLEN(gw.addr.addr.ifname, iface->ifa_name);
 
-            /*
-             * can't have client select() or wait for this, as no
-             * socks negotiation has been done.
-             */
-            close(current_s);
-            current_s = -1;
+            if (socks_initupnp(&gw, emsg, emsglen) == 0) {
+               slog(LOG_NEGOTIATE, "%s: socks_initupnp() succeeded on iface %s",
+                    function, gw.addr.addr.ifname);
+
+               /*
+                * nothing more to do for now.  Once we get the actual request
+                * (connect(2), bind(2), etc.) we can set up the rest.
+                * XXX cache this somehow, so we don't need to broadcast again
+                * next time.
+                */
+               packet->gw      = gw;
+               return route;
+            }
+            else
+               slog(LOG_NEGOTIATE,
+                    "%s: socks_initupnp() failed on ifname %s: %s",
+                    function, gw.addr.addr.ifname, emsg);
          }
-      }
-   }
 
-   errno_s = errno;
+         snprintf(emsg, emsglen, "could not find an UPNP igd on any interface");
+         swarnx("%s: %s", function, emsg);
 
-   if (sdup != -1)
-      close(sdup);
+         if (errno == 0)
+            errno = ENETUNREACH;
 
-   if (current_s != s && current_s != -1)   {
-      /* created a new socket for connect, need to make it same descriptor #. */
-      if (dup2(current_s, s) == -1) {
-         close(current_s);
+         socks_blacklist(route);
          return NULL;
       }
-      close(current_s);
+      else {
+         /*
+          * nothing more to do for now.  Once we get the actual request
+          * (connect(2), bind(2), etc.) we can try connecting to the
+          * igd and set up the rest.
+          */
+         packet->gw = route->gw;
+         return route;
+      }
+
+   }
+#endif /* HAVE_LIBMINIUPNP */
+
+   if ((rc = socks_connecthost(s,
+#if !SOCKS_CLIENT
+                               EXTERNALIF,
+#endif /* !SOCKS_CLIENT */
+                               &route->gw.addr,
+                               NULL,
+                               NULL,
+                               sockscf.timeout.connect ?
+                                 (long)sockscf.timeout.connect : (long)-1,
+                               emsg,
+                               emsglen)) == 0
+   || (rc == -1 && errno == EINPROGRESS)) {
+      packet->gw = route->gw;
+      return route;
    }
 
-   if (route != NULL)
-      packet->gw = route->gw;
+   slog(LOG_NEGOTIATE, "%s: socks_connecthost(%s) failed on fd %d: %s",
+        function, sockshost2string(&route->gw.addr, NULL, 0), s, emsg);
 
-   errno = errno_s;
-   return route;
+   if (errno == EINVAL) {
+      struct sockaddr_in laddr;
+      socklen_t len = sizeof(laddr);
+
+      if (getsockname(s, TOSA(&laddr), &len) == 0
+      &&  laddr.sin_addr.s_addr              == htonl(INADDR_LOOPBACK)) {
+         static route_t directroute;
+
+         slog(LOG_NEGOTIATE,
+              "%s: failed to connect route, but that appears to be due to the "
+              "socket (fd %d) having been bound to the loopback interface.  "
+              "Assuming this socket should not proxied, but a direct "
+              "connection connection should be made instead",
+              function, s);
+
+         directroute.gw.state.proxyprotocol.direct = 1;
+         return &directroute;
+      }
+   }
+   else
+      socks_blacklist(route);
+
+   return NULL;
 }
 
 void
@@ -1029,19 +1406,21 @@ socks_blacklist(route)
    if (route == NULL || sockscf.routeoptions.maxfail == 0)
       return;
 
-   slog(LOG_DEBUG, "%s: blacklisting %sroute #%d, blacklisted %lu times before",
-   function, route->state.autoadded ? "autoadded " : "",
-   route->number, (long unsigned)route->state.failed);
+   slog(LOG_INFO, "%s: blacklisting %sroute #%d, blacklisted %lu times before",
+        function,
+        route->state.autoadded ? "autoadded " : "",
+        route->number,
+        (long unsigned)route->state.failed);
 
 #if HAVE_LIBMINIUPNP
    bzero(&route->gw.state.data, sizeof(route->gw.state.data));
 #endif /* HAVE_LIBMINIUPNP */
 
    ++route->state.failed;
-   time(&route->state.badtime);
+   time_monotonic(&route->state.badtime);
 }
 
-request_t *
+route_t *
 socks_requestpolish(req, src, dst)
    request_t *req;
    const sockshost_t *src;
@@ -1049,20 +1428,34 @@ socks_requestpolish(req, src, dst)
 {
    const char *function = "socks_requestpolish()";
    const unsigned char originalversion = req->version;
+   static route_t directroute;
+   route_t *route;
+   char srcbuf[MAXSOCKSHOSTSTRING], dstbuf[MAXSOCKSHOSTSTRING];
+   int blacklistcleared;
 
-#if !SOCKS_CLIENT
-   switch (req->command) {
-      case SOCKS_CONNECT: /* only one supported for serverchaining. */
-         break;
+   if (sockscf.route == NULL) {
+      static route_t directroute;
 
-      default:
-         req->version = PROXY_DIRECT;
-         return req;
+      slog(LOG_DEBUG, 
+           "%s: no routes configured.  Going direct for all", function);
+
+      directroute.gw.state.proxyprotocol.direct = 1;
+      return &directroute;
    }
-#endif /* !SOCKS_CLIENT */
 
-   if (socks_getroute(req, src, dst) != NULL)
-      return req;
+   slog(LOG_NEGOTIATE,
+        "%s: searching for %s route for %s, protocol %s, src %s, dst %s, ...",
+        function, 
+        proxyprotocol2string(req->version),
+        command2string(req->command), protocol2string(req->protocol),
+        src == NULL ? "<NONE>" : sockshost2string(src, srcbuf, sizeof(srcbuf)),
+        dst == NULL ? "<NONE>" : sockshost2string(dst, dstbuf, sizeof(dstbuf)));
+
+
+   directroute.gw.state.proxyprotocol.direct = 1;
+
+   if ((route = socks_getroute(req, src, dst)) != NULL)
+      return route;
 
    /*
     * no route found.  Can we "polish" the request and then find a route?
@@ -1076,101 +1469,67 @@ socks_requestpolish(req, src, dst)
    SASSERTX(req->version == PROXY_DIRECT);
 
    req->version = PROXY_SOCKS_V4;
-   if (socks_getroute(req, src, dst) != NULL)
-      return req;
+   if ((route = socks_getroute(req, src, dst)) != NULL)
+      return route;
 
    req->version = PROXY_SOCKS_V5;
-   if (socks_getroute(req, src, dst) != NULL)
-      return req;
+   if ((route = socks_getroute(req, src, dst)) != NULL)
+      return route;
 
    req->version = PROXY_HTTP_10;
-   if (socks_getroute(req, src, dst) != NULL)
-      return req;
+   if ((route = socks_getroute(req, src, dst)) != NULL)
+      return route;
 
    req->version = PROXY_HTTP_11;
-   if (socks_getroute(req, src, dst) != NULL)
-      return req;
+   if ((route = socks_getroute(req, src, dst)) != NULL)
+      return route;
 
    req->version = PROXY_UPNP;
-   if (socks_getroute(req, src, dst) != NULL)
-      return req;
+   if ((route = socks_getroute(req, src, dst)) != NULL)
+      return route;
 
    req->version = originalversion;
 
    if (sockscf.option.directfallback) {
-      slog(LOG_DEBUG, "%s: no route found, assuming direct fallback is ok",
-      function);
+      slog(LOG_NEGOTIATE,
+           "%s: no route found for request %s, but direct fallback is enabled",
+           function, command2string(req->command));
 
       req->version = PROXY_DIRECT;
-      return req;
+      return &directroute;
    }
 
-   slog(LOG_DEBUG, "%s: no route found to handle request and "
-                   "direct route fallback disabled.  Nothing we can do.",
-                   function);
-
-   errno = ENETUNREACH;
-   return NULL;
-}
-
-void
-showstate(state)
-   const serverstate_t *state;
-{
-   char buf[1024];
-   size_t bufused;
-
-   slog(LOG_DEBUG, "command(s): %s",
-   commands2string(&state->command, buf, sizeof(buf)));
-
-   bufused = snprintf(buf, sizeof(buf), "extension(s): ");
-   if (state->extension.bind)
-      snprintf(&buf[bufused], sizeof(buf) - bufused, "bind");
-   slog(LOG_DEBUG, "%s", buf);
-
-   bufused = snprintf(buf, sizeof(buf), "protocol(s): ");
-   protocols2string(&state->protocol,
-   &buf[bufused], sizeof(buf) - bufused);
-   slog(LOG_DEBUG, "%s", buf);
-
-   showmethod(state->methodc, state->methodv);
-
-   slog(LOG_DEBUG, "proxyprotocol(s): %s",
-   proxyprotocols2string(&state->proxyprotocol, buf, sizeof(buf)));
-
-#if HAVE_GSSAPI
-   if (methodisset(AUTHMETHOD_GSSAPI, state->methodv, state->methodc)) {
-      if (*state->gssapiservicename != NUL)
-         slog(LOG_DEBUG, "gssapi.servicename: %s", state->gssapiservicename);
-
-      if (*state->gssapikeytab != NUL)
-         slog(LOG_DEBUG, "gssapi.keytab: %s", state->gssapikeytab);
-
-      if (state->gssapiencryption.clear
-      ||  state->gssapiencryption.integrity
-      ||  state->gssapiencryption.confidentiality
-      || state->gssapiencryption.permessage)
-         slog(LOG_DEBUG, "gssapi.encryption:%s%s%s%s",
-         state->gssapiencryption.clear?           " clear"           :"",
-         state->gssapiencryption.integrity?       " integrity"       :"",
-         state->gssapiencryption.confidentiality? " confidentiality" :"",
-         state->gssapiencryption.permessage?      " permessage"      :"");
-
-      if (state->gssapiencryption.nec)
-         slog(LOG_DEBUG, "clientcompatibility: necgssapi enabled");
+   /*
+    * No routes found.  If this may be due to existing routes having 
+    * been blacklisted by us due to previous failures, whitelist
+    * them again and retry; better to retry than failing permanently.
+    */
+   blacklistcleared = 0;
+   for (route = sockscf.route; route != NULL; route = route->next) {
+      if (route->state.failed) {
+         socks_clearblacklist(route);
+         ++blacklistcleared;
+      }
    }
-#endif /* HAVE_GSSAPI */
-}
 
-void
-showmethod(methodc, methodv)
-   size_t methodc;
-   const int *methodv;
-{
-   char buf[1024];
+   if (blacklistcleared) {
+      slog(LOG_INFO, 
+           "%s: retrying route search after clearing %d blacklisted route%s",
+           function, 
+           blacklistcleared,
+           blacklistcleared == 1 ? "" : "s");
 
-   slog(LOG_DEBUG, "method(s): %s",
-   methods2string(methodc, methodv, buf, sizeof(buf)));
+      return socks_requestpolish(req, src, dst);
+   }
+   else {
+      slog(LOG_NEGOTIATE,
+           "%s: no route found to handle request %s and direct route fallback "
+           "disabled.  Nothing we can do.",
+           function, command2string(req->command));
+
+      errno = ENETUNREACH;
+      return NULL;
+   }
 }
 
 void
@@ -1181,25 +1540,27 @@ optioninit(void)
     * overridden later by user in the sockd.conf.
     */
 
-   sockscf.resolveprotocol       = RESOLVEPROTOCOL_UDP;
+   sockscf.resolveprotocol          = RESOLVEPROTOCOL_UDP;
 
 #if SOCKS_DIRECTROUTE_FALLBACK
-   if (socks_getenv("SOCKS_DIRECTROUTE_FALLBACK", isfalse) != NULL)
+   if (socks_getenv(ENV_SOCKS_DIRECTROUTE_FALLBACK, isfalse) != NULL)
       sockscf.option.directfallback = 0;
    else
       sockscf.option.directfallback = 1;
 #else /* !SOCKS_DIRECTROUTE_FALLBACK */
-   if (socks_getenv("SOCKS_DIRECTROUTE_FALLBACK", istrue) != NULL)
+   if (socks_getenv(ENV_SOCKS_DIRECTROUTE_FALLBACK, istrue) != NULL)
       sockscf.option.directfallback = 1;
    else
       sockscf.option.directfallback = 0;
 #endif /* SOCKS_DIRECTROUTE_FALLBACK */
 
    sockscf.routeoptions.maxfail   = 1;
-   sockscf.routeoptions.badexpire = 60 * 5;
+   sockscf.routeoptions.badexpire = (time_t)(ROUTEBLACKLIST_SECONDS);
 
 #if !SOCKS_CLIENT
+   sockscf.option.debug          = 0;
    sockscf.option.keepalive      = 1;
+   sockscf.option.hosts_access   = 0;
 
    sockscf.udpconnectdst         = 1;
 
@@ -1209,328 +1570,38 @@ optioninit(void)
    sockscf.timeout.udpio         = SOCKD_IOTIMEOUT_UDP;
    sockscf.timeout.tcp_fin_wait  = SOCKD_FIN_WAIT_2_TIMEOUT;
 
-   sockscf.socket.tcp.rcvbuf     = SOCKS_SOCKET_RCVBUF_TCP;
-   sockscf.socket.tcp.sndbuf     = SOCKS_SOCKET_SNDBUF_TCP;
-   sockscf.socket.udp.rcvbuf     = SOCKS_SOCKET_RCVBUF_UDP;
-   sockscf.socket.udp.sndbuf     = SOCKS_SOCKET_SNDBUF_UDP;
-
-#if BAREFOOTD
-   sockscf.socket.clientside_udp.rcvbuf = SOCKS_SOCKET_RCVBUF_UDP_CLIENTSIDE;
-   sockscf.socket.clientside_udp.sndbuf = SOCKS_SOCKET_SNDBUF_UDP_CLIENTSIDE;
-#endif /* BAREFOOTD */
-
    sockscf.external.rotation     = ROTATION_NONE;
 
 #if HAVE_PAM
-   sockscf.state.pamservicename     = DEFAULT_PAMSERVICENAME;
+   STRCPY_ASSERTSIZE(sockscf.state.pamservicename, DEFAULT_PAMSERVICENAME);
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
-   sockscf.state.bsdauthstylename   = DEFAULT_BSDAUTHSTYLENAME;
+   STRCPY_ASSERTSIZE(sockscf.state.bsdauthstylename, DEFAULT_BSDAUTHSTYLENAME);
 #endif /* HAVE_BSDAUTH */
 
 #if HAVE_GSSAPI
-   sockscf.state.gssapiservicename  = DEFAULT_GSSAPISERVICENAME;
-   sockscf.state.gssapikeytab       = DEFAULT_GSSAPIKEYTAB;
+   STRCPY_ASSERTSIZE(sockscf.state.gssapiservicename, DEFAULT_GSSAPISERVICENAME);
+   STRCPY_ASSERTSIZE(sockscf.state.gssapikeytab, DEFAULT_GSSAPIKEYTAB);
 #endif /* HAVE_GSSAPI */
 
 #if HAVE_LDAP
-   sockscf.state.ldapkeytab        = DEFAULT_GSSAPIKEYTAB;
-   sockscf.state.ldapfilter        = DEFAULT_LDAP_FILTER;
-   sockscf.state.ldapfilter_AD     = DEFAULT_LDAP_FILTER_AD;
-   sockscf.state.ldapattribute     = DEFAULT_LDAP_ATTRIBUTE;
-   sockscf.state.ldapattribute_AD  = DEFAULT_LDAP_ATTRIBUTE_AD;
-   sockscf.state.ldapcertfile      = DEFAULT_LDAP_CACERTFILE;
-   sockscf.state.ldapcertpath      = DEFAULT_LDAP_CERTDBPATH;
+   STRCPY_ASSERTSIZE(sockscf.state.ldapkeytab, DEFAULT_GSSAPIKEYTAB);
+   STRCPY_ASSERTSIZE(sockscf.state.ldapfilter, DEFAULT_LDAP_FILTER);
+   STRCPY_ASSERTSIZE(sockscf.state.ldapfilter_AD, DEFAULT_LDAP_FILTER_AD);
+   STRCPY_ASSERTSIZE(sockscf.state.ldapattribute, DEFAULT_LDAP_ATTRIBUTE);
+   STRCPY_ASSERTSIZE(sockscf.state.ldapattribute_AD, DEFAULT_LDAP_ATTRIBUTE_AD);
+   STRCPY_ASSERTSIZE(sockscf.state.ldapcertfile, DEFAULT_LDAP_CACERTFILE);
+   STRCPY_ASSERTSIZE(sockscf.state.ldapcertpath, DEFAULT_LDAP_CERTDBPATH);
 #endif /* HAVE_LDAP */
 
-#if !SOCKS_SERVER
-   /*
-    * Enable all methods that are not socks-dependent, so that regardless
-    * of what method user sets in clientmethod (the only one supported in
-    * barefoot), the socks-rules will also allow it.
-    */
-   sockscf.methodc = 0;
-   sockscf.methodv[sockscf.methodc++] = AUTHMETHOD_NONE;
-   sockscf.methodv[sockscf.methodc++] = AUTHMETHOD_PAM;
-   sockscf.methodv[sockscf.methodc++] = AUTHMETHOD_RFC931;
-
-   /* also enable all methods in client-rules. */
-   sockscf.clientmethodc = 0;
-   sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_NONE;
-   sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_PAM;
-   sockscf.clientmethodv[sockscf.clientmethodc++] = AUTHMETHOD_RFC931;
-#endif /* !SOCKS_SERVER */
-
 #if BAREFOOTD
-   /* initially there is no udp traffic to bounce. */
+   /*
+    * initially there is no udp traffic to bounce. 
+    * Changed later if we discover there are udp rules configured also.
+    */
    sockscf.state.alludpbounced = 1;
 #endif /* BAREFOOTD */
 
-   sockscf.child.maxidle.negotiate  = SOCKD_FREESLOTS_NEGOTIATE * 2;
-   sockscf.child.maxidle.request    = SOCKD_FREESLOTS_REQUEST * 2;
-   sockscf.child.maxidle.io         = SOCKD_FREESLOTS_IO * 2;
-
 #endif /* !SOCKS_CLIENT */
-}
-
-void
-showconfig(sockscf)
-   const struct config *sockscf;
-{
-   char buf[4096];
-
-#if !SOCKS_CLIENT
-   char address[MAXRULEADDRSTRING];
-   size_t i, bufused;
-#if HAVE_SCHED_SETAFFINITY
-   size_t setsize;
-#endif /* HAVE_SCHED_SETAFFINITY */
-   slog(LOG_DEBUG, "cmdline options:\n%s",
-        options2string(&sockscf->option, "", buf, sizeof(buf)));
-
-   slog(LOG_DEBUG, "internal addresses (%lu):",
-   (unsigned long)sockscf->internalc);
-   for (i = 0; i < sockscf->internalc; ++i)
-      slog(LOG_DEBUG, "\t%s %s",
-      protocol2string(sockscf->internalv[i].protocol),
-      sockaddr2string(TOSA(&sockscf->internalv[i].addr), address,
-      sizeof(address)));
-
-#if HAVE_SCHED_SETSCHEDULER
-   bufused = 0;
-   if (sockscf->cpu.mother.scheduling_isset)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-                          "%s: %s/%d, ",
-                          childtype2string(CHILD_MOTHER),
-                          numeric2cpupolicy(sockscf->cpu.mother.policy),
-                          sockscf->cpu.mother.param.sched_priority);
-
-   if (sockscf->cpu.negotiate.scheduling_isset)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-                          "%s: %s/%d, ",
-                          childtype2string(CHILD_NEGOTIATE),
-                          numeric2cpupolicy(sockscf->cpu.negotiate.policy),
-                          sockscf->cpu.negotiate.param.sched_priority);
-
-   if (sockscf->cpu.request.scheduling_isset)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-                          "%s: %s/%d, ",
-                          childtype2string(CHILD_REQUEST),
-                          numeric2cpupolicy(sockscf->cpu.request.policy),
-                          sockscf->cpu.request.param.sched_priority);
-
-   if (sockscf->cpu.io.scheduling_isset)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-                          "%s: %s/%d, ",
-                          childtype2string(CHILD_IO),
-                          numeric2cpupolicy(sockscf->cpu.io.policy),
-                          sockscf->cpu.io.param.sched_priority);
-
-   if (bufused != 0)
-      slog(LOG_DEBUG, "cpu scheduling settings: %s", buf);
-#endif /* HAVE_SCHED_SETSCHEDULER */
-
-#if HAVE_SCHED_SETAFFINITY
-   bufused = 0;
-   setsize = cpu_get_setsize();
-   if (sockscf->cpu.mother.affinity_isset) {
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s: ",
-                          childtype2string(CHILD_MOTHER));
-
-      for (i = 0; i < setsize; ++i)
-         if (cpu_isset(i, &sockscf->cpu.mother.mask))
-            bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-                                "%d ", (int)i);
-   }
-
-   if (sockscf->cpu.negotiate.affinity_isset) {
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s: ",
-                          childtype2string(CHILD_NEGOTIATE));
-
-      for (i = 0; i < setsize; ++i)
-         if (cpu_isset(i, &sockscf->cpu.negotiate.mask))
-            bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-                                "%d ", (int)i);
-   }
-
-   if (sockscf->cpu.request.affinity_isset) {
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s: ",
-                          childtype2string(CHILD_REQUEST));
-
-      for (i = 0; i < setsize; ++i)
-         if (cpu_isset(i, &sockscf->cpu.request.mask))
-            bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-                                "%d ", (int)i);
-   }
-
-   if (sockscf->cpu.io.affinity_isset) {
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s: ",
-                          childtype2string(CHILD_IO));
-
-      for (i = 0; i < setsize; ++i)
-         if (cpu_isset(i, &sockscf->cpu.io.mask))
-            bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
-                                "%d ", (int)i);
-   }
-
-   if (bufused != 0)
-      slog(LOG_DEBUG, "cpu affinity settings: %s", buf);
-#endif /* HAVE_SCHED_SETAFFINITY */
-
-   slog(LOG_DEBUG, "global socket options on the internal side:");
-   for (i = 0; i < sockscf->socketoptionc; ++i)
-      if (sockscf->socketoptionv[i].isinternalside)
-         slog(LOG_DEBUG, "   option #%lu: %s, value %s\n",
-              (unsigned long)i,
-              sockopt2string(&sockscf->socketoptionv[i], NULL, 0),
-              sockoptval2string(sockscf->socketoptionv[i].optval,
-                                sockscf->socketoptionv[i].opttype,
-                                NULL,
-                                0));
-
-
-   slog(LOG_DEBUG, "external addresses (%lu):",
-   (unsigned long)sockscf->external.addrc);
-   for (i = 0; i < sockscf->external.addrc; ++i) {
-      ruleaddr2string(&sockscf->external.addrv[i], address,
-      sizeof(address));
-
-      slog(LOG_DEBUG, "\t%s", address);
-   }
-
-   slog(LOG_DEBUG, "global socket options on the external side:");
-   for (i = 0; i < sockscf->socketoptionc; ++i)
-      if (!sockscf->socketoptionv[i].isinternalside)
-         slog(LOG_DEBUG, "   option #%lu: %s, value %s\n",
-              (unsigned long)i,
-              sockopt2string(&sockscf->socketoptionv[i], NULL, 0),
-              sockoptval2string(sockscf->socketoptionv[i].optval,
-                                sockscf->socketoptionv[i].opttype, NULL, 0));
-
-   slog(LOG_DEBUG, "external address rotation: %s",
-   rotation2string(sockscf->external.rotation));
-
-   slog(LOG_DEBUG, "compatibility options: %s",
-   compats2string(&sockscf->compat, buf, sizeof(buf)));
-
-   slog(LOG_DEBUG, "extensions enabled: %s",
-   extensions2string(&sockscf->extension, buf, sizeof(buf)));
-
-   slog(LOG_DEBUG, "connect udp sockets to destination: %s",
-   sockscf->udpconnectdst ? "yes" : "no");
-#endif /* !SOCKS_CLIENT */
-
-   slog(LOG_DEBUG, "logoutput goes to: %s",
-   logtypes2string(&sockscf->log, buf, sizeof(buf)));
-
-   slog(LOG_DEBUG, "resolveprotocol: %s",
-   resolveprotocol2string(sockscf->resolveprotocol));
-
-   showtimeout(&sockscf->timeout);
-
-#if !SOCKS_CLIENT
-   slog(LOG_DEBUG, "global route options: %s",
-   routeoptions2string(&sockscf->routeoptions, buf, sizeof(buf)));
-
-   slog(LOG_DEBUG, "direct route fallback: %s",
-   sockscf->option.directfallback ? "enabled" : "disabled");
-
-   srchosts2string(&sockscf->srchost, "", buf, sizeof(buf));
-   if (*buf != NUL)
-      slog(LOG_DEBUG, "srchost:\n%s", buf);
-
-   slog(LOG_DEBUG, "socket options:\n"
-                   "\ttcp.rcvbuf: %lu, tcp.sndbuf: %lu\n"
-                   "\tudp.rcvbuf: %lu, udp.sndbuf: %lu\n"
-#if BAREFOOTD
-                   "\tclientsideudp.rcvbuf: %lu, clientsideudp.sndbuf: %lu\n"
-#endif /* BAREFOOTD */
-                   ,
-                   (unsigned long)sockscf->socket.tcp.rcvbuf,
-                   (unsigned long)sockscf->socket.tcp.sndbuf,
-                   (unsigned long)sockscf->socket.udp.rcvbuf,
-                   (unsigned long)sockscf->socket.udp.sndbuf
-#if BAREFOOTD
-                   ,
-                   (unsigned long)sockscf->socket.clientside_udp.rcvbuf,
-                   (unsigned long)sockscf->socket.clientside_udp.sndbuf
-#endif /* BAREFOOTD */
-                  );
-
-
-#if COVENANT
-   slog(LOG_DEBUG, "proxy realm: %s", sockscf->realmname);
-#endif /* COVENANT */
-
-#if HAVE_LIBWRAP
-   if (sockscf->option.hosts_access)
-      slog(LOG_DEBUG, "libwrap.hosts_access: yes");
-   else
-      slog(LOG_DEBUG, "libwrap.hosts_access: no");
-#endif /* HAVE_LIBWRAP */
-
-   slog(LOG_DEBUG, "euid: %d", (int)sockscf->state.euid);
-
-#if !HAVE_PRIVILEGES
-   slog(LOG_DEBUG, "userid:\n%s",
-   userids2string(&sockscf->uid, "", buf, sizeof(buf)));
-#endif /* !HAVE_PRIVILEGES */
-
-   slog(LOG_DEBUG, "child.maxidle.negotiate: %lu",
-       (unsigned long)sockscf->child.maxidle.negotiate);
-   slog(LOG_DEBUG, "child.maxidle.request: %lu",
-       (unsigned long)sockscf->child.maxidle.request);
-   slog(LOG_DEBUG, "child.maxidle.io: %lu",
-       (unsigned long)sockscf->child.maxidle.io);
-
-   bufused = snprintf(buf, sizeof(buf), "method(s): ");
-   for (i = 0; (size_t)i < sockscf->methodc; ++i)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s%s",
-      i > 0 ? ", " : "", method2string(sockscf->methodv[i]));
-
-   slog(LOG_DEBUG, "%s", buf);
-
-   bufused = snprintf(buf, sizeof(buf), "clientmethod(s): ");
-   for (i = 0; (size_t)i < sockscf->clientmethodc; ++i)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, "%s%s",
-      i > 0 ? ", " : "", method2string(sockscf->clientmethodv[i]));
-
-   slog(LOG_DEBUG, "%s", buf);
-#endif /* !SOCKS_CLIENT */
-
-
-   if (sockscf->option.debug) {
-      route_t *route;
-      int c;
-#if !SOCKS_CLIENT
-      rule_t *rule;
-
-      for (c = 0, rule = sockscf->crule; rule != NULL; rule = rule->next)
-         ++c;
-      slog(LOG_DEBUG, "client-rules (%d): ", c);
-      for (rule = sockscf->crule; rule != NULL; rule = rule->next)
-         showrule(rule, clientrule);
-
-#if HAVE_SOCKS_HOSTID
-      for (c = 0, rule = sockscf->hostidrule; rule != NULL; rule = rule->next)
-         ++c;
-      slog(LOG_DEBUG, "hostid-rules (%d): ", c);
-      for (rule = sockscf->hostidrule; rule != NULL; rule = rule->next)
-         showrule(rule, hostidrule);
-#endif /* HAVE_SOCKS_HOSTID */
-
-      for (c = 0, rule = sockscf->srule; rule != NULL; rule = rule->next)
-         ++c;
-      slog(LOG_DEBUG, "socks-rules (%d): ", c);
-      for (rule = sockscf->srule; rule != NULL; rule = rule->next)
-         showrule(rule, socksrule);
-#endif /* !SOCKS_CLIENT */
-
-      for (c = 0, route = sockscf->route; route != NULL; route = route->next)
-         ++c;
-      slog(LOG_DEBUG, "routes (%d): ", c);
-      for (route = sockscf->route; route != NULL; route = route->next)
-         socks_showroute(route);
-   }
 }

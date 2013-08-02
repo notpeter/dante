@@ -41,14 +41,12 @@
  *
  */
 
-/* $Id: interposition.h,v 1.83 2011/09/24 17:44:40 michaels Exp $ */
+/* $Id: interposition.h,v 1.85 2013/05/27 21:34:43 karls Exp $ */
 
 #ifndef _INTERPOSITION_H_
 #define _INTERPOSITION_H_
 
-#if !BAREFOOTD
 #include "symbols.h"
-#endif /* !BAREFOOTD */
 
 typedef enum { pid = 0, thread } which_id_t;
 typedef struct socks_id_t {
@@ -110,21 +108,30 @@ socks_issyscall(const int s, const char *name);
  * Returns true if so, false otherwise.
  */
 
-
-#else /* !SOCKS_CLIENT */
-#define socks_syscall_start(s)
-#define socks_syscall_end(s)
-#endif /* !SOCKS_CLIENT */
-
-#if SOCKS_CLIENT
-
-socks_id_t *socks_whoami(socks_id_t *id);
+socks_id_t *
+socks_whoami(socks_id_t *id);
 /*
  * Returns a unique id identifying the calling thread or process,
  * depending on whether the process is threaded or not.
  * The id is stored in the object "id".
  * Returns "id".
  */
+
+
+#else /* !SOCKS_CLIENT */
+
+#define socks_syscall_start(s)
+#define socks_syscall_end(s)
+
+#define socks_whoami(_id)                                                      \
+do {                                                                           \
+   (_id)->whichid = pid;                                                       \
+   (_id)->id.pid  = sockscf.state.pid;                                         \
+   (_id)->next    = NULL;                                                      \
+} while (/* CONSTCOND */ 0)
+
+#endif /* !SOCKS_CLIENT */
+
 
 int
 socks_shouldcallasnative(const char *functionname);
@@ -151,12 +158,6 @@ socks_markasnormal(const char *functionname);
  * the native system call or the corresponding R*() function should be
  * used when resolving "functionname".
  */
-
-#else /* ! SOCKS_CLIENT */
-
-#define socks_shouldcallasnative(name)  (0) /* not needed in the server. */
-
-#endif /* !SOCKS_CLIENT */
 
 void *
 symbolfunction(const char *symbol);

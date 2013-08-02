@@ -42,26 +42,31 @@
  *
  */
 
-/* $Id: osdep.h,v 1.74 2012/06/01 20:23:05 karls Exp $ */
+/* $Id: osdep.h,v 1.97 2013/05/07 12:34:06 karls Exp $ */
 
-/* ensure pam/livedebug/libwrap defines are only set when compiling server */
+/*
+ * ensure pam/libwrap defines are only set when compiling server
+ */
+
 #if HAVE_COND_PAM && !SOCKS_CLIENT
 #define HAVE_PAM (1)
 #else
 #define HAVE_PAM (0)
 #endif /* HAVE_COND_PAM && !SOCKS_CLIENT */
 
-#if HAVE_COND_LIVEDEBUG && !SOCKS_CLIENT
-#define HAVE_LIVEDEBUG (1)
-#else
-#define HAVE_LIVEDEBUG (0)
-#endif /* HAVE_COND_LIVEDEBUG && !SOCKS_CLIENT */
-
 #if HAVE_COND_LIBWRAP && !SOCKS_CLIENT
 #define HAVE_LIBWRAP (1)
 #else
 #define HAVE_LIBWRAP (0)
 #endif /* HAVE_COND_LIBWRAP && !SOCKS_CLIENT */
+
+
+#if HAVE_COND_LIVEDEBUG
+#define HAVE_LIVEDEBUG (1)
+#else
+#define HAVE_LIVEDEBUG (0)
+#endif /* HAVE_COND_LIVEDEBUG */
+
 
 #include <sys/types.h>
 #if HAVE_SYS_TIME_H
@@ -138,6 +143,7 @@
 #if HAVE_CRYPT_H
 #include <crypt.h>
 #endif /* HAVE_CRYPT_H */
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -202,6 +208,10 @@
 #endif /* !HAVE_HEIMDAL_KERBEROS */
 #endif /* HAVE_GSSAPI */
 
+#if HAVE_STDDEF_H
+#include <stddef.h>
+#endif /* HAVE_STDDEF_H */
+
 #if HAVE_PTHREAD_H
 #include <pthread.h>
 #endif /* HAVE_PTHREAD_H */
@@ -211,6 +221,25 @@
 #else
 #include "ifaddrs.h"
 #endif /* HAVE_IFADDRS_H */
+
+#if HAVE_VALGRIND_VALGRIND_H
+#include <valgrind/valgrind.h>
+#endif /* HAVE_VALGRIND_VALGRIND_H */
+
+/*
+ *  End of system headers
+ */
+
+/* XXX should have way to control use on client/server */
+#if HAVE_LIBCFAIL && !SOCKS_CLIENT
+#include "cfail.h"
+#endif /* HAVE_LIBCFAIL && !SOCKS_CLIENT*/
+
+#if HAVE_PRAGMA_SUPPORT
+#define NOWARN_ADDRESS_PRAGMA() _Pragma("GCC diagnostic ignored \"-Waddress\"")
+#else
+#define NOWARN_ADDRESS_PRAGMA()
+#endif /* HAVE_PRAGMA_SUPPORT */
 
 #if HAVE_DECL_ATTRIBUTE && !defined lint
 #define __ATTRIBUTE__(x) __attribute__(x)
@@ -225,10 +254,16 @@
 #endif /* HAVE_DECL_NONNULL */
 
 #if HAVE_DECL_FORMAT
-#define FORMAT(x) format(x)
+#define FORMAT(x, y, z) format(x, y, z)
 #else
-#define FORMAT(x)
+#define FORMAT(x, y, z)
 #endif /* HAVE_DECL_FORMAT */
+
+#if HAVE_DECL_BOUNDED
+#define __BOUNDED__(x, y, z) __bounded__(x, y, z)
+#else
+#define __BOUNDED__(x, y, z)
+#endif /* HAVE_DECL_BOUNDED */
 
 #if HAVE_LINUX_BUGS
 #if (defined __bswap_16) && (!defined __bswap_32)
@@ -256,16 +291,13 @@ void initsetproctitle(int, char **);
 #endif /* !HAVE_SETPROCTITLE */
 
 #if !HAVE_SOCKATMARK
-#include "sockatmark.h"
+int sockatmark(int);
 #endif /* !HAVE_SOCKATMARK */
 
 #if !HAVE_STRLCPY
-#include "strlcpy.h"
+size_t strlcpy(char *dst, const char *src, size_t size);
+size_t strlcat(char *dst, const char *src, size_t size);
 #endif /* !HAVE_STRLCPY */
-
-#if !HAVE_INET_ATON
-int inet_aton(register const char *cp, struct in_addr *addr);
-#endif /* !HAVE_ATON */
 
 #if !HAVE_HSTRERROR
 const char *hstrerror(int);
@@ -280,11 +312,11 @@ int inet_pton(int af, const char *src, void *dst);
 #endif /* !HAVE_INET_PTON */
 
 #if !HAVE_ISSETUGID
-#include "issetugid.h"
+int issetugid(void);
 #endif /* !HAVE_ISSETUGID */
 
 #if !HAVE_PSELECT
-int pselect(int nfds, fd_set *rset, fd_set *wset, fd_set *xset,
+inline int pselect(int nfds, fd_set *rset, fd_set *wset, fd_set *xset,
     const struct timespec *ts, const sigset_t *sigmask);
 #endif /* !HAVE_ISSETUGID */
 
@@ -301,41 +333,45 @@ void vsyslog(int, const char *, va_list);
 typedef int sig_atomic_t;
 #endif /* !HAVE_SIG_ATOMIC_T */
 
-#if SIZEOF_CHAR == 1
+#define BYTEWIDTH_8BITS 1
+#define BYTEWIDTH_16BITS 2
+#define BYTEWIDTH_32BITS 4
+
+#if SIZEOF_CHAR == BYTEWIDTH_8BITS
  typedef unsigned char ubits_8;
  typedef          char sbits_8;
 #else
 #error "no known 8 bits wide data type"
-#endif
+#endif /* SIZEOF_CHAR == BYTEWIDTH_8BITS */
 
-#if SIZEOF_SHORT == 2
+#if SIZEOF_SHORT == BYTEWIDTH_16BITS
  typedef unsigned short ubits_16;
  typedef          short sbits_16;
 #else
-# if SIZEOF_INT == 2
+# if SIZEOF_INT == BYTEWIDTH_16BITS
   typedef unsigned int ubits_16;
   typedef          int sbits_16;
 # else
 #error "no known 16 bits wide data type"
-# endif
+# endif /* SIZEOF_INT == BYTEWIDTH_16BITS */
 #endif
 
-#if SIZEOF_INT == 4
+#if SIZEOF_INT == BYTEWIDTH_32BITS
  typedef unsigned int ubits_32;
  typedef          int sbits_32;
 #else
-# if SIZEOF_SHORT == 4
+# if SIZEOF_SHORT == BYTEWIDTH_32BITS
    typedef unsigned short ubits_32;
    typedef          short sbits_32;
 # else
-#  if SIZEOF_LONG == 4
+#  if SIZEOF_LONG == BYTEWIDTH_32BITS
     typedef unsigned long ubits_32;
     typedef          long sbits_32;
 #  else
 #error "no known 32 bits wide data type"
-#  endif /* SIZEOF_LONG == 4 */
-# endif /* SIZEOF_SHORT == 4 */
-#endif /* SIZEOF_INT == 4 */
+#  endif /* SIZEOF_LONG == BYTEWIDTH_32BITS */
+# endif /* SIZEOF_SHORT == BYTEWIDTH_32BITS */
+#endif /* SIZEOF_INT == BYTEWIDTH_32BITS */
 
 #if !HAVE_INT8_T
 #define int8_t sbits_8
@@ -400,7 +436,11 @@ typedef int sig_atomic_t;
 #endif /* HAVE_NOMALLOC_REALLOC */
 
 #if HAVE_NONULL_FREE
-#define free(p)   (((p) == NULL) ? ((void)(p)) : (free(p)))
+#define free(p)                                                                \
+do {                                                                           \
+   if ((p) != NULL)                                                            \
+      free((p));                                                               \
+} while (/* CONSTCOND */ 0)
 #endif /* HAVE_NONULL_FREE */
 
 #ifndef __CONCAT
@@ -453,22 +493,17 @@ struct in6_addr {
 #define s6_addr   __u6_addr.__u6_addr8
 #endif /* !HAVE_IN6_ADDR */
 
-#if !HAVE_H_ERRNO
-extern int h_errno;
-#endif /* !HAVE_H_ERRNO */
-
-#ifndef _NSIG
-#define _NSIG  (32)  /* number of signals. */
-#endif /* !_NSIG */
 
 /*
  * libscompat functions
  */
 
 #if !HAVE_DAEMON
-#include "daemon.h"
+int daemon(int, int);
 #endif /* !HAVE_DAEMON */
 
 #if !HAVE_DIFFTIME
-#include "difftime.h"
+double difftime(const time_t time1, const time_t time0);
 #endif /* !HAVE_DIFFTIME */
+
+#include "in_cksum.h"

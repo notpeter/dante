@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011
+ * Copyright (c) 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #if HAVE_BSDAUTH
 
 static const char rcsid[] =
-"$Id: auth_bsd.c,v 1.17 2011/09/24 17:44:41 michaels Exp $";
+"$Id: auth_bsd.c,v 1.21 2013/03/06 11:39:09 karls Exp $";
 
 #include <login_cap.h>
 #include <bsd_auth.h>
@@ -54,7 +54,7 @@ static const char rcsid[] =
 int
 bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    int s;
-   const struct sockaddr *src, *dst;
+   const struct sockaddr_storage *src, *dst;
    authmethod_bsd_t *auth;
    char *emsg;
    size_t emsgsize;
@@ -69,7 +69,7 @@ bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
       style = auth->style;
 
    /* auth_userokay clears password parameter, pass a copy */
-   strncpy(password, auth->password, sizeof(password) - 1);
+   strncpy(password, (char *)auth->password, sizeof(password) - 1);
    password[sizeof(password) - 1] = NUL;
 
    slog(LOG_DEBUG, "%s: bsdauth style to use for user \"%s\": %s",
@@ -80,7 +80,7 @@ bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
     * if NULL, user can specify in username, e.g., uname:radius
     */
    sockd_priv(SOCKD_PRIV_BSDAUTH, PRIV_ON);
-   rc = auth_userokay(auth->name, style, "auth-sockd", password);
+   rc = auth_userokay((char *)auth->name, style, "auth-sockd", password);
    sockd_priv(SOCKD_PRIV_BSDAUTH, PRIV_OFF);
 
    if (rc == 0) {

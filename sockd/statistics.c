@@ -44,42 +44,92 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: statistics.c,v 1.7 2012/06/01 20:23:06 karls Exp $";
+"$Id: statistics.c,v 1.28 2013/05/11 17:35:43 michaels Exp $";
 
-/*
- * If it takes longer than this from the time the request child sends the
- * client to mother til we receive the client from mother we are probably
- * overloaded.
- */
-static const struct timeval maxdelay = { 0, 100000 };
 
-int sockd_isoverloaded(description, tsent, treceived, tnow)
+int
+sockd_check_ipclatency(description, tsent, treceived, tnow)
    const char *description;
    const struct timeval *tsent;
    const struct timeval *treceived;
    const struct timeval *tnow;
 {
-   const char *function = "sockd_isoverloaded()";
+   const char *function = "sockd_check_ipclatency()";
+   const size_t samplesneeded             = 1000,
+                minoccurences             = 10;
+   const time_t tseconds_between_warnings = 60;
+   static struct timeval tmaxdelay, tmaxdelay_so_far;
+   static size_t samplec;
    struct timeval tdiff;
 
    timersub(treceived, tsent, &tdiff);
-   if (timercmp(&tdiff, &maxdelay, >)) {
-      static struct timeval tlastwarn;
-      struct timeval tsincelastwarn;
 
-      timersub(tnow, &tlastwarn, &tsincelastwarn);
-      if (tsincelastwarn.tv_sec >= 1) {
-         slog(LOG_INFO, "%s: overload condition detected regarding %s.  "
-                        "Used %ld.%06lds to receive a new client object, but "
-                        "the maximum expected delay is %ld.%06lds.",
-                        function, description,
-                        (long)tdiff.tv_sec, (long)tdiff.tv_usec,
-                        (long)maxdelay.tv_sec, (long)maxdelay.tv_usec);
+   if (tdiff.tv_sec < 0) {
+      swarnx("%s: strange ... received ts (%ld.%06ld) is earlier than "
+             "sent ts (%ld.%06ld) .  Did the clock step backwards?",
+             function,
+             (long)treceived->tv_sec,
+             (long)treceived->tv_usec,
+             (long)tsent->tv_sec,
+             (long)tsent->tv_usec);
 
-         tlastwarn = *tnow;
+      return 0;
+   }
+   else
+      slog(LOG_DEBUG, "%s: %s: used %luus to receive object",
+           function, description, tv2us(&tdiff));
+
+   if (timerisset(&tmaxdelay)) {
+      if (timercmp(&tdiff, &tmaxdelay, >)) {
+         static time_t tlastwarn, tlongest;
+         static size_t overloadc;
+
+         ++overloadc;
+
+         if ((time_t)tv2us(&tdiff) > tlongest)
+            tlongest = (time_t)tv2us(&tdiff);
+
+         if (socks_difftime(tnow->tv_sec, tlastwarn)
+         >= tseconds_between_warnings) {
+            if (overloadc >= minoccurences)
+               slog(LOG_NOTICE, 
+                    "server overload condition detected %lu time%s regarding "
+                    "%s.  Used up to %ldus to receive new client objects "
+                    "during the last %lds, but expected maximum was "
+                    "caliberated to %luus",
+                    (unsigned long)overloadc,
+                    (unsigned long)overloadc == 1 ? "" : "s",
+                    description,
+                    (long)tlongest,
+                    (long)socks_difftime(tnow->tv_sec, tlastwarn),
+                    tv2us(&tmaxdelay));
+
+            tlastwarn = tnow->tv_sec;
+            overloadc = 0;
+            tlongest  = 0;
+         }
+
          return 1;
       }
+
+      return 0;
    }
+
+   if (timercmp(&tdiff, &tmaxdelay_so_far, >))
+      tmaxdelay_so_far = tdiff;
+
+   if (samplec == samplesneeded) {
+      tmaxdelay = tmaxdelay_so_far;
+
+      slog(DEBUG ? LOG_INFO : LOG_DEBUG,
+           "%s: max IPC delay for this %s process calibrated to be %ld.%06lds",
+           function,
+           childtype2string(sockscf.state.type), 
+           (long)tmaxdelay.tv_sec,
+           (long)tmaxdelay.tv_usec);
+   }
+   else
+      ++samplec;
 
    return 0;
 }

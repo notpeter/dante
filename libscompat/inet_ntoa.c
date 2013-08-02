@@ -1,8 +1,10 @@
-/* $Id: inet_ntoa.c,v 1.6 2009/07/07 09:09:17 karls Exp $ */
+/* $Id: inet_ntoa.c,v 1.7 2012/10/22 15:15:58 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
+
+#include "osdep.h"
 
 /*	$OpenBSD: inet_ntoa.c,v 1.6 2005/08/06 20:30:03 espie Exp $ */
 /*
@@ -38,10 +40,6 @@
  * Convert network-format internet address
  * to base 256 d.d.d.d representation.
  */
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <stdio.h>
 
 char *
 inet_ntoa(struct in_addr in)

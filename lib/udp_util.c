@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,22 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp_util.c,v 1.62 2011/09/24 17:44:41 michaels Exp $";
-
-udpheader_t *
-sockaddr2udpheader(to, header)
-   const struct sockaddr *to;
-   udpheader_t *header;
-{
-
-   SASSERTX(to->sa_family == AF_INET);
-
-   bzero(header, sizeof(*header));
-
-   fakesockaddr2sockshost(to, &header->host);
-
-   return header;
-}
+"$Id: udp_util.c,v 1.68 2013/01/02 13:22:39 karls Exp $";
 
 void *
 udpheader_add(host, msg, len, msgsize)
@@ -75,18 +60,27 @@ udpheader_add(host, msg, len, msgsize)
    bzero(&header, sizeof(header));
    header.host = *host;
 
-   if (msgsize < (size_t)(*len + PACKETSIZE_UDP(&header))) {
+   if (msgsize < (size_t)(*len + HEADERSIZE_UDP(&header))) {
       swarnx("%s: could not prefix socks udp header of size %lu to udp "
-             "payload of size %lu",
-             function, (unsigned long)PACKETSIZE_UDP(&header),
+             "payload of length %lu: msgsize (%lu) is too short",
+             function,
+             (unsigned long)HEADERSIZE_UDP(&header),
+             (unsigned long)*len,
              (unsigned long)msgsize);
 
       errno = EMSGSIZE;
       return NULL;
    }
 
+   slog(LOG_DEBUG,
+        "%s: prefixing udp header with addr %s to buffer of len %lu, size %lu",
+        function,
+        sockshost2string(&header.host, NULL, 0),
+        (unsigned long)*len,
+        (unsigned long)msgsize);
+
    /* offset old contents by size of header we are about to prefix. */
-   memmove((char *)msg + PACKETSIZE_UDP(&header), msg, *len);
+   memmove((char *)msg + HEADERSIZE_UDP(&header), msg, *len);
    offset = msg;
 
    memcpy(offset, &header.flag, sizeof(header.flag));
