@@ -44,11 +44,13 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
 	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
 	$(top_srcdir)/acinclude.m4 $(top_srcdir)/compiler.m4 \
-	$(top_srcdir)/preload.m4 $(top_srcdir)/miniupnpc.m4 \
+	$(top_srcdir)/osdep.m4 $(top_srcdir)/libscompat.m4 \
+	$(top_srcdir)/danteopt.m4 $(top_srcdir)/preload.m4 \
 	$(top_srcdir)/gssapi.m4 $(top_srcdir)/kerberos.m4 \
 	$(top_srcdir)/sasl.m4 $(top_srcdir)/ldap.m4 \
-	$(top_srcdir)/libscompat.m4 $(top_srcdir)/sockopt.m4 \
-	$(top_srcdir)/mapfile.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/mapfile.m4 $(top_srcdir)/miniupnpc.m4 \
+	$(top_srcdir)/sharedopt.m4 $(top_srcdir)/sockopt.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(install_sh) -d
@@ -83,11 +85,12 @@ am_libsocks_la_OBJECTS = config_parse.lo config_scan.lo Raccept.lo \
 	Rgethostbyname.lo Rgetpeername.lo Rgetsockname.lo \
 	Rgetsockopt.lo Rlisten.lo Rrresvport.lo address.lo \
 	addressmatch.lo authneg.lo broken.lo client.lo clientconfig.lo \
-	clientprotocol.lo config.lo connectchild.lo debug.lo gssapi.lo \
-	hostcache.lo hostid.lo httpproxy.lo io.lo iobuf.lo log.lo \
-	protocol.lo serr.lo sockaddr.lo socket.lo socketopt.lo \
-	sockopt_gen.lo tostring.lo udp.lo udp_util.lo upnp.lo \
-	userio.lo util.lo
+	clientprotocol.lo config.lo connectchild.lo debug.lo fmt.lo \
+	fmt_customer.lo fmt_protocol.lo gssapi.lo hostcache.lo \
+	hostid.lo httpproxy.lo io.lo iobuf.lo ipv6.lo log.lo method.lo \
+	parse_util.lo protocol.lo serr.lo showconfig.lo sockaddr.lo \
+	socket.lo socketopt.lo sockopt.lo tostring.lo udp.lo \
+	udp_util.lo upnp.lo userio.lo util.lo hw.lo time.lo
 libsocks_la_OBJECTS = $(am_libsocks_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -170,6 +173,7 @@ LIBDSCSRC = @LIBDSCSRC@
 LIBOBJS = @LIBOBJS@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBS = @LIBS@
+LIBSCOMPAT = @LIBSCOMPAT@
 LIBSCSRC = @LIBSCSRC@
 LIBTOOL = @LIBTOOL@
 
@@ -212,6 +216,7 @@ SCCOMPATLIB = @SCCOMPATLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SOCKDCOMPAT = @SOCKDCOMPAT@
 SOCKDDEPS = @SOCKDDEPS@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 SOFULLPATH = @SOFULLPATH@
@@ -219,6 +224,7 @@ SOLIB_POSTFIX = @SOLIB_POSTFIX@
 STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
+UNITSUBDIRS = @UNITSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 YFLAGS = @YFLAGS@
@@ -279,19 +285,21 @@ lib_LTLIBRARIES = libsocks.la
 libsocks_la_SOURCES = config_parse.c config_scan.c Raccept.c Rbind.c	\
    Rbindresvport.c Rcompat.c Rconnect.c Rgethostbyname.c		\
    Rgetpeername.c Rgetsockname.c Rgetsockopt.c Rlisten.c Rrresvport.c	\
-   address.c addressmatch.c authneg.c broken.c client.c			\
-   clientconfig.c clientprotocol.c config.c connectchild.c debug.c	\
-   gssapi.c hostcache.c hostid.c httpproxy.c io.c iobuf.c log.c		\
-   protocol.c serr.c sockaddr.c socket.c socketopt.c sockopt_gen.c	\
-   tostring.c udp.c udp_util.c upnp.c userio.c util.c
+   address.c addressmatch.c authneg.c broken.c client.c clientconfig.c	\
+   clientprotocol.c config.c connectchild.c debug.c 			\
+   fmt.c fmt_customer.c fmt_protocol.c					\
+   gssapi.c hostcache.c hostid.c httpproxy.c io.c iobuf.c ipv6.c log.c  \
+   method.c parse_util.c protocol.c serr.c showconfig.c sockaddr.c      \
+   socket.c socketopt.c	sockopt.c tostring.c udp.c udp_util.c upnp.c 	\
+   userio.c util.c hw.c time.c
 
-EXTRA_libsocks_la_SOURCES = ../libscompat/daemon.c		\
+EXTRA_libsocks_la_SOURCES = \
    ../libscompat/difftime.c ../libscompat/getifaddrs.c		\
-   ../libscompat/hstrerror.c ../libscompat/inet_aton.c		\
+   ../libscompat/hstrerror.c                          		\
    ../libscompat/inet_ntoa.c ../libscompat/inet_pton.c		\
    ../libscompat/issetugid.c ../libscompat/memmove.c		\
-   ../libscompat/pselect.c ../libscompat/seteuid.c		\
-   ../libscompat/setproctitle.c ../libscompat/sockatmark.c	\
+   ../libscompat/pselect.c                        		\
+   ../libscompat/setproctitle.c                           	\
    ../libscompat/strlcpy.c ../libscompat/strvis.c		\
    ../libscompat/vsyslog.c
 
@@ -299,11 +307,13 @@ EXTRA_libsocks_la_SOURCES = ../libscompat/daemon.c		\
 #libsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info
 libsocks_la_LDFLAGS = -version-info 1:1:1 @MAPOPT@
-libsocks_la_LIBADD = @LIBSCSRC@ @DLIBDEPS@
-libsocks_la_DEPENDENCIES = @LIBSCSRC@ $(am__append_1)
+libsocks_la_LIBADD = @LIBSCSRC@ @DLIBDEPS@ @LIBSCOMPAT@
+libsocks_la_DEPENDENCIES = Makefile.am _reconf @LIBSCSRC@ \
+	$(am__append_1)
 INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
-AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=0
-EXTRA_DIST = config_parse.y config_scan.l sockopt_tpl.c
+CFLAGVALS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=0
+AM_CFLAGS = $(CFLAGVALS) -DSTANDALONE_UNIT_TEST=0
+EXTRA_DIST = config_parse.y config_scan.l
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
 PREFIX = socks_yy
@@ -410,35 +420,40 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/config_parse.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/config_scan.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/connectchild.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemon.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/difftime.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fmt.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fmt_customer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fmt_protocol.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getifaddrs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gssapi.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostcache.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostid.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hstrerror.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/httpproxy.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/inet_aton.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hw.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/inet_ntoa.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/inet_pton.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/iobuf.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ipv6.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/issetugid.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memmove.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/method.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parse_util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/protocol.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pselect.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serr.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/seteuid.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/setproctitle.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/showconfig.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sockaddr.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sockatmark.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/socket.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/socketopt.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sockopt_gen.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sockopt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strlcpy.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strvis.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/time.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tostring.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/udp.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/udp_util.Plo@am__quote@
@@ -471,14 +486,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-daemon.lo: ../libscompat/daemon.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT daemon.lo -MD -MP -MF $(DEPDIR)/daemon.Tpo -c -o daemon.lo `test -f '../libscompat/daemon.c' || echo '$(srcdir)/'`../libscompat/daemon.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/daemon.Tpo $(DEPDIR)/daemon.Plo
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/daemon.c' object='daemon.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o daemon.lo `test -f '../libscompat/daemon.c' || echo '$(srcdir)/'`../libscompat/daemon.c
-
 difftime.lo: ../libscompat/difftime.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT difftime.lo -MD -MP -MF $(DEPDIR)/difftime.Tpo -c -o difftime.lo `test -f '../libscompat/difftime.c' || echo '$(srcdir)/'`../libscompat/difftime.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/difftime.Tpo $(DEPDIR)/difftime.Plo
@@ -502,14 +509,6 @@ hstrerror.lo: ../libscompat/hstrerror.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/hstrerror.c' object='hstrerror.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o hstrerror.lo `test -f '../libscompat/hstrerror.c' || echo '$(srcdir)/'`../libscompat/hstrerror.c
-
-inet_aton.lo: ../libscompat/inet_aton.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT inet_aton.lo -MD -MP -MF $(DEPDIR)/inet_aton.Tpo -c -o inet_aton.lo `test -f '../libscompat/inet_aton.c' || echo '$(srcdir)/'`../libscompat/inet_aton.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/inet_aton.Tpo $(DEPDIR)/inet_aton.Plo
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/inet_aton.c' object='inet_aton.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o inet_aton.lo `test -f '../libscompat/inet_aton.c' || echo '$(srcdir)/'`../libscompat/inet_aton.c
 
 inet_ntoa.lo: ../libscompat/inet_ntoa.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT inet_ntoa.lo -MD -MP -MF $(DEPDIR)/inet_ntoa.Tpo -c -o inet_ntoa.lo `test -f '../libscompat/inet_ntoa.c' || echo '$(srcdir)/'`../libscompat/inet_ntoa.c
@@ -551,14 +550,6 @@ pselect.lo: ../libscompat/pselect.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o pselect.lo `test -f '../libscompat/pselect.c' || echo '$(srcdir)/'`../libscompat/pselect.c
 
-seteuid.lo: ../libscompat/seteuid.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT seteuid.lo -MD -MP -MF $(DEPDIR)/seteuid.Tpo -c -o seteuid.lo `test -f '../libscompat/seteuid.c' || echo '$(srcdir)/'`../libscompat/seteuid.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/seteuid.Tpo $(DEPDIR)/seteuid.Plo
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/seteuid.c' object='seteuid.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o seteuid.lo `test -f '../libscompat/seteuid.c' || echo '$(srcdir)/'`../libscompat/seteuid.c
-
 setproctitle.lo: ../libscompat/setproctitle.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT setproctitle.lo -MD -MP -MF $(DEPDIR)/setproctitle.Tpo -c -o setproctitle.lo `test -f '../libscompat/setproctitle.c' || echo '$(srcdir)/'`../libscompat/setproctitle.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/setproctitle.Tpo $(DEPDIR)/setproctitle.Plo
@@ -566,14 +557,6 @@ setproctitle.lo: ../libscompat/setproctitle.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/setproctitle.c' object='setproctitle.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o setproctitle.lo `test -f '../libscompat/setproctitle.c' || echo '$(srcdir)/'`../libscompat/setproctitle.c
-
-sockatmark.lo: ../libscompat/sockatmark.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT sockatmark.lo -MD -MP -MF $(DEPDIR)/sockatmark.Tpo -c -o sockatmark.lo `test -f '../libscompat/sockatmark.c' || echo '$(srcdir)/'`../libscompat/sockatmark.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/sockatmark.Tpo $(DEPDIR)/sockatmark.Plo
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/sockatmark.c' object='sockatmark.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sockatmark.lo `test -f '../libscompat/sockatmark.c' || echo '$(srcdir)/'`../libscompat/sockatmark.c
 
 strlcpy.lo: ../libscompat/strlcpy.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT strlcpy.lo -MD -MP -MF $(DEPDIR)/strlcpy.Tpo -c -o strlcpy.lo `test -f '../libscompat/strlcpy.c' || echo '$(srcdir)/'`../libscompat/strlcpy.c
@@ -808,6 +791,25 @@ uninstall-am: uninstall-libLTLIBRARIES
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags uninstall uninstall-am uninstall-libLTLIBRARIES
 
+
+#XXX hack used to ensure depcomp is rerun when Makefile.am files are changed
+_reconf: ../_reconf Makefile.am
+	@(cd ..; make _reconf)
+	@echo "notice: autoconf regeneration complete, rerun make"
+	@false
+
+#unit test framework source file listing
+dumpunitenv:
+	@echo CC=\"$(CC)\"
+	@echo CFLAGS=\"$(CFLAGS) $(CFLAGVALS) -DSTANDALONE_UNIT_TEST=1\"
+	@echo CPP=\"$(CPP)\"
+	@echo CPPFLAGS=\"$(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS)\"
+	@echo LDFLAGS=\"$(LDFLAGS)\"
+	@echo LIBS=\"$(LIBS) $(DLIBDEPS)\"
+	@echo AMSRC=\"$(libsocks_la_SOURCES)\"
+#	@echo AMOBJ=\"$(libsocks_la_OBJECTS)\"
+	@echo AMOPTSRC=\"$(EXTRA_libsocks_la_SOURCES)\"
+	@echo AMOPTOBJ=\"@LIBSCSRC@\"
 #LFLAGS = @LFLAGS@
 
 #XXX ensure common.h is included before any other headers for lex/yacc;

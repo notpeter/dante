@@ -47,24 +47,31 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.157 2012/06/01 20:23:05 karls Exp $";
+"$Id: interposition.c,v 1.181 2013/05/31 16:17:41 karls Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
 #if (defined __sun) && (defined _XPG4_2)
+
 HAVE_PROT_BIND_0
 bind(HAVE_PROT_BIND_1, HAVE_PROT_BIND_2, HAVE_PROT_BIND_3);
+
 HAVE_PROT_CONNECT_0
 connect(HAVE_PROT_CONNECT_1, HAVE_PROT_CONNECT_2, HAVE_PROT_CONNECT_3);
+
 HAVE_PROT_LISTEN_0
 listen(HAVE_PROT_LISTEN_1, HAVE_PROT_LISTEN_2);
+
 HAVE_PROT_RECVMSG_0
 recvmsg(HAVE_PROT_RECVMSG_1, HAVE_PROT_RECVMSG_2, HAVE_PROT_RECVMSG_3);
+
 HAVE_PROT_SENDMSG_0
 sendmsg(HAVE_PROT_SENDMSG_1, HAVE_PROT_SENDMSG_2, HAVE_PROT_SENDMSG_3);
+
 HAVE_PROT_SENDTO_0
 sendto(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
     HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6);
+
 #endif
 
 #if HAVE_DARWIN
@@ -90,6 +97,41 @@ write$NOCANCEL(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
 #define __USE_GNU /* XXX for RTLD_NEXT on Linux */
 #endif /* !__USE_GNU */
 #include <dlfcn.h>
+
+#ifdef __COVERITY__
+/*
+ * Coverity naturally has no idea what the function sys_foo calls does,
+ * so let it pretend sys_foo is the same as foo.
+ * Means Coverity can't catch errors in the code around the call to
+ * sys_foo(), but avoids dozens of false positives because Coverity has no
+ * idea what the dlopen(3)-ed functions do.
+ */
+#undef sys_accept
+#undef sys_bind
+#undef sys_bindresvport
+#undef sys_connect
+#undef sys_gethostbyname
+#undef sys_gethostbyname2 gethostbyname2
+#undef sys_getaddrinfo
+#undef sys_getnameinfo
+#undef sys_getipnodebyname
+#undef sys_getpeername
+#undef sys_getsockname
+#undef sys_getsockopt
+#undef sys_listen
+#undef sys_read
+#undef sys_readv
+#undef sys_recv
+#undef sys_recvfrom
+#undef sys_recvfrom
+#undef sys_recvmsg
+#undef sys_rresvport
+#undef sys_send
+#undef sys_sendmsg
+#undef sys_sendto
+#undef sys_write
+#undef sys_writev
+#endif /* __COVERITY__ */
 
 #undef accept
 #undef bind
@@ -166,24 +208,35 @@ static libsymbol_t libsymbolv[] = {
 { SYMBOL_RECV,                 LIBRARY_RECV,           NULL,   NULL, NULL },
 { SYMBOL_RECVMSG,              LIBRARY_RECVMSG,        NULL,   NULL, NULL },
 { SYMBOL_RECVFROM,             LIBRARY_RECVFROM,       NULL,   NULL, NULL },
+
 #if HAVE_RRESVPORT
 { SYMBOL_RRESVPORT,            LIBRARY_RRESVPORT,      NULL,   NULL, NULL },
 #endif /* HAVE_RRESVPORT */
+
 { SYMBOL_SEND,                 LIBRARY_SEND,           NULL,   NULL, NULL },
 { SYMBOL_SENDMSG,              LIBRARY_SENDMSG,        NULL,   NULL, NULL },
 { SYMBOL_SENDTO,               LIBRARY_SENDTO,         NULL,   NULL, NULL },
 { SYMBOL_WRITE,                LIBRARY_WRITE,          NULL,   NULL, NULL },
 { SYMBOL_WRITEV,               LIBRARY_WRITEV,         NULL,   NULL, NULL },
+
+{ SYMBOL_GETHOSTBYNAME,        LIBRARY_GETHOSTBYNAME,  NULL,   NULL, NULL },
+
 #if HAVE_GETHOSTBYNAME2
 { SYMBOL_GETHOSTBYNAME2,       LIBRARY_GETHOSTBYNAME2, NULL,   NULL, NULL },
 #endif /* HAVE_GETHOSTBYNAME2 */
-#if HAVE_GETADDRINFO
-{ SYMBOL_GETADDRINFO,          LIBRARY_GETADDRINFO,    NULL,   NULL, NULL },
-#endif /* HAVE_GETADDRINFO */
+
 #if HAVE_GETIPNODEBYNAME
 { SYMBOL_GETIPNODEBYNAME,      LIBRARY_GETIPNODEBYNAME,NULL,   NULL, NULL },
 { SYMBOL_FREEHOSTENT,          LIBRARY_FREEHOSTENT,    NULL,   NULL, NULL },
 #endif /* HAVE_GETIPNODEBYNAME */
+
+#if HAVE_GETADDRINFO
+{ SYMBOL_GETADDRINFO,          LIBRARY_GETADDRINFO,    NULL,   NULL, NULL },
+#endif /* HAVE_GETADDRINFO */
+
+#if HAVE_GETNAMEINFO && !SOCKS_CLIENT
+{ SYMBOL_GETNAMEINFO,          LIBRARY_GETNAMEINFO,    NULL,   NULL, NULL },
+#endif /* HAVE_GETNAMEINFO && !SOCKS_CLIENT */
 
 #ifdef __sun
 { SYMBOL_XNET_BIND,            LIBRARY_BIND,           NULL,   NULL, NULL },
@@ -202,21 +255,6 @@ static libsymbol_t libsymbolv[] = {
 { SYMBOL_WRITE_NOCANCEL,       LIBRARY_WRITE,          NULL,   NULL, NULL },
 #endif /* HAVE_DARWIN */
 
-#endif /* SOCKS_CLIENT */
-
-/*
- * symbols we want to interpose in the server also, for library functions
- * that might call them (e.g. pam/ldap/gssapi).  Lets them use our superior
- * caching versions.
- */
-
-{ SYMBOL_GETHOSTBYNAME,        LIBRARY_GETHOSTBYNAME,  NULL,   NULL, NULL },
-
-#if SOCKS_SERVER
-{ SYMBOL_GETHOSTBYADDR,        LIBRARY_GETHOSTBYADDR,  NULL,   NULL, NULL },
-#endif /* SOCKS_SERVER */
-
-#if SOCKS_CLIENT
 #if HAVE_EXTRA_OSF_SYMBOLS
 { SYMBOL_EACCEPT,              LIBRARY_EACCEPT,        NULL,   NULL, NULL },
 { SYMBOL_EGETPEERNAME,         LIBRARY_EGETPEERNAME,   NULL,   NULL, NULL },
@@ -251,26 +289,81 @@ static libsymbol_t libsymbolv[] = {
 { SYMBOL_FREAD,                LIBRARY_FREAD,          NULL,   NULL, NULL },
 { SYMBOL_FFLUSH,               LIBRARY_FFLUSH,         NULL,   NULL, NULL },
 { SYMBOL_FCLOSE,               LIBRARY_FCLOSE,         NULL,   NULL, NULL },
+
 #if HAVE__IO_GETC
 { SYMBOL__IO_GETC,             LIBRARY__IO_GETC,       NULL,   NULL, NULL },
 #endif /* HAVE__IO_GETC */
+
 #if HAVE__IO_PUTC
 { SYMBOL__IO_PUTC,             LIBRARY__IO_PUTC,       NULL,   NULL, NULL },
 #endif /* HAVE__IO_PUTC */
+
 #if HAVE___FPRINTF_CHK
 { SYMBOL___FPRINTF_CHK,        LIBRARY___FPRINTF_CHK,  NULL,   NULL, NULL },
 #endif /* HAVE___FPRINTF_CHK */
+
 #if HAVE___VFPRINTF_CHK
 { SYMBOL___VFPRINTF_CHK,       LIBRARY___VFPRINTF_CHK, NULL,   NULL, NULL },
 #endif /* HAVE___VFPRINTF_CHK */
+
 #if HAVE___READ_CHK
 { SYMBOL___READ_CHK,       LIBRARY___READ_CHK, NULL,   NULL, NULL },
 #endif /* HAVE___READ_CHK */
+
 #endif /* HAVE_GSSAPI && HAVE_LINUX_GLIBC_WORKAROUND */
-#endif /* SOCKS_CLIENT */
+
+#else /* SERVER */
+
+/*
+ * symbols we want to interpose in the server for library functions
+ * that might call them (e.g. pam/ldap/gssapi).  Lets them use our 
+ * superior caching versions.  Unfortunately, getaddrinfo(3) does
+ * lend itself easily to that, so even if we would have liked to
+ * let that also use our cached data, the only solutions I can 
+ * think of seem to fragile to be usable.  So regarding that newer api,
+ * only getnameinfo(3) uses our cached version.
+ */
+
+
+/* 
+ * No point in having it in the client as either the system-calls used by 
+ * gethostbyaddr(3) gets socksified, in which case there is nothing special 
+ * for us to do related to gethostbyaddr(3), or they do not get socksified, 
+ * in which case we have no idea what hostname the address resolves to and
+ * there is nothing we can reasonably fake anyway.
+ */
+{ SYMBOL_GETHOSTBYADDR,        LIBRARY_GETHOSTBYADDR,  NULL,   NULL, NULL },
+{ SYMBOL_GETHOSTBYNAME,        LIBRARY_GETHOSTBYNAME,  NULL,   NULL, NULL },
+
+#endif /* SERVER */
 };
 
 #if SOCKS_CLIENT
+
+/*
+ * During init, we need to let all system calls resolve to the native
+ * version.  I.e., socks_shouldcallasnative() need to always return
+ * true as long as we are initing. Use this object for holding that
+ * knowledge.
+ */
+#ifdef HAVE_VOLATILE_SIG_ATOMIC_T
+extern sig_atomic_t doing_addrinit;
+#else
+extern volatile sig_atomic_t doing_addrinit;
+#endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
+
+#define DNSCODE_START() \
+do { ++sockscf.state.executingdnscode; } while (/* CONSTCOND */ 0)
+
+#define DNSCODE_END() \
+do { --sockscf.state.executingdnscode; } while (/* CONSTCOND */ 0)
+
+#else /* !SOCKS_CLIENT */
+
+#define DNSCODE_START()
+#define DNSCODE_END()
+
+#endif /* !SOCKS_CLIENT */
 
 static void
 addtolist(const char *functionname, const socks_id_t *id);
@@ -294,8 +387,6 @@ idsareequal(const socks_id_t *a, const socks_id_t *b);
  */
 
 
-#endif /* SOCKS_CLIENT */
-
 static libsymbol_t *
 libsymbol(const char *symbol);
 /*
@@ -310,6 +401,9 @@ socks_issyscall(s, name)
    const char *name;
 {
    socksfd_t socksfd;
+
+   if (s < 0)
+      return 1;
 
    if (socks_shouldcallasnative(name))
       return 1;
@@ -328,9 +422,12 @@ socks_syscall_start(s)
    socksfd_t *p;
    addrlockopaque_t opaque;
 
+   if (s < 0)
+      return;
+
    if (socks_logmatch(s, &sockscf.log)
    ||  socks_logmatch(s, &sockscf.errlog))
-      return; /* don't set up things for our logging fd's, creates problems. */
+      return; /* don't set up things for our logging fd's - creates problems. */
 
    socks_addrlock(F_WRLCK, &opaque);
 
@@ -357,6 +454,9 @@ socks_syscall_end(s)
 {
    addrlockopaque_t opaque;
    socksfd_t socksfd, *p;
+
+   if (s < 0)
+      return;
 
    if (socks_logmatch(s, &sockscf.log)
    ||  socks_logmatch(s, &sockscf.errlog))
@@ -401,31 +501,21 @@ symbolcheck(void)
       symbolfunction(libsymbolv[i].symbol);
 }
 
-#if SOCKS_CLIENT
-
-/*
- * During init, we need to let all system calls resolve to the native
- * version.  I.e., socks_shouldcallasnative() need to always return
- * true as long as we are initing. Use this object for holding that
- * knowledge.
- */
-#ifdef HAVE_VOLATILE_SIG_ATOMIC_T
-extern sig_atomic_t doing_addrinit;
-#else
-extern volatile sig_atomic_t doing_addrinit;
-#endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
 
 int
-socks_shouldcallasnative(functionname)
-   const char *functionname;
+socks_shouldcallasnative(symbol)
+   const char *symbol;
 {
    socks_id_t myid, *fid;
    libsymbol_t *lib;
 
+#if SOCKS_CLIENT
    if (doing_addrinit)
       return 1;
+#endif /* SOCKS_CLIENT */
 
-   lib = libsymbol(functionname);
+   lib = libsymbol(symbol);
+   SASSERTX(lib != NULL);
 
    if ((fid = lib->dosyscall) == NULL)
       return 0;
@@ -438,6 +528,109 @@ socks_shouldcallasnative(functionname)
 
    return 0;
 }
+
+void
+socks_markasnative(symbol)
+   const char *symbol;
+{
+   const char *function = "socks_markasnative()";
+   socks_id_t myid;
+
+   if (sockscf.option.debug > DEBUG_VERBOSE)
+      slog(LOG_DEBUG, "%s: marking %s as native for current id",
+           function, symbol);
+
+   if (strcmp(symbol, "*") == 0) {
+      size_t i;
+
+      for (i = 0; i < ELEMENTS(libsymbolv); ++i)
+         socks_markasnative(libsymbolv[i].symbol);
+
+      return;
+   }
+
+   socks_whoami(&myid);
+   addtolist(symbol, &myid);
+}
+
+void
+socks_markasnormal(symbol)
+   const char *symbol;
+{
+   const char *function = "socks_markasnormal()";
+   socks_id_t myid;
+
+   if (sockscf.option.debug > DEBUG_VERBOSE)
+      slog(LOG_DEBUG, "%s: marking %s as normal for current id",
+           function, symbol);
+
+   if (strcmp(symbol, "*") == 0) {
+      size_t i;
+
+      for (i = 0; i < ELEMENTS(libsymbolv); ++i)
+         socks_markasnormal(libsymbolv[i].symbol);
+
+      return;
+   }
+
+   socks_whoami(&myid);
+   removefromlist(symbol, &myid);
+}
+
+
+void *
+symbolfunction(symbol)
+   const char *symbol;
+{
+   const char *function = "symbolfunction()";
+   libsymbol_t *lib;
+
+   lib = libsymbol(symbol);
+
+   SASSERTX(lib != NULL);
+   SASSERTX(lib->library != NULL);
+   SASSERTX(strcmp(lib->symbol, symbol) == 0);
+
+#if HAVE_RTLD_NEXT
+   if (lib->function == NULL) {
+      if ((lib->function = dlsym(RTLD_NEXT, symbol)) == NULL) {
+         if (strcmp(symbol, SYMBOL_WRITE) != 0)
+            serrx("%s: compile time configuration error?  "
+                  "Failed to find \"%s\" using RTLD_NEXT: %s",
+                  function, symbol, dlerror());
+      }
+#if 0
+      else {
+         if (strcmp(symbol, SYMBOL_WRITE) != 0)
+            slog(LOG_DEBUG, "found symbol %s using RTLD_NEXT", lib->symbol);
+      }
+#endif
+   }
+
+#else /* !HAVE_RTLD_NEXT */
+   if (lib->handle == NULL)
+      if ((lib->handle = dlopen(lib->library, DL_LAZY)) == NULL)
+         serrx("%s: compile time configuration error?  "
+               "Failed to open library \"%s\": %s",
+               function, lib->library, dlerror());
+
+   if (lib->function == NULL)
+      if ((lib->function = dlsym(lib->handle, symbol)) == NULL)
+         serrx("%s: compile time configuration error?  "
+               "Failed to find \"%s\" in \"%s\": %s",
+               function, symbol, lib->library, dlerror());
+
+#if 0
+   if (strcmp(symbol, SYMBOL_WRITE) != 0)
+      slog(LOG_DEBUG, "found symbol %s in library %s",
+      lib->symbol, lib->library);
+#endif
+#endif /* !HAVE_RLTD_NEXT */
+
+   return lib->function;
+}
+
+#if SOCKS_CLIENT
 
 void
 socks_mark_io_as_native()
@@ -457,226 +650,9 @@ socks_mark_io_as_normal()
    socks_markasnormal("*");
 }
 
-void
-socks_markasnative(functionname)
-   const char *functionname;
-{
-   const char *function = "socks_markasnative()";
-   socks_id_t myid;
-
-   if (sockscf.option.debug > DEBUG_VERBOSE)
-      slog(LOG_DEBUG, "%s: marking %s as native for current id",
-           function, functionname);
-
-   if (strcmp(functionname, "*") == 0) {
-      size_t i;
-
-      for (i = 0; i < ELEMENTS(libsymbolv); ++i)
-         socks_markasnative(libsymbolv[i].symbol);
-
-      return;
-   }
-
-   addtolist(functionname, socks_whoami(&myid));
-}
-
-void
-socks_markasnormal(functionname)
-   const char *functionname;
-{
-   const char *function = "socks_markasnormal()";
-   socks_id_t myid;
-
-   if (sockscf.option.debug > DEBUG_VERBOSE)
-      slog(LOG_DEBUG, "%s: marking %s as normal for current id",
-           function, functionname);
-
-   if (strcmp(functionname, "*") == 0) {
-      size_t i;
-
-      for (i = 0; i < ELEMENTS(libsymbolv); ++i)
-         socks_markasnormal(libsymbolv[i].symbol);
-
-      return;
-   }
-
-   removefromlist(functionname, socks_whoami(&myid));
-}
-
-
-static int
-idsareequal(a, b)
-   const socks_id_t *a;
-   const socks_id_t *b;
-{
-
-   switch (a->whichid) {
-      case pid:
-         if (a->id.pid == b->id.pid)
-            return 1;
-         return 0;
-
-      case thread:
-         /* pthread_equal() is more correct, but this should also work. */
-         if (memcmp(&a->id.thread, &b->id.thread, sizeof(a->id.thread)) == 0)
-            return 1;
-         return 0;
-
-      default:
-         SERRX(a->whichid);
-   }
-
-   /* NOTREACHED */
-}
-
-
-static void
-addtolist(functionname, id)
-   const char *functionname;
-   const socks_id_t *id;
-{
-   const char *function = "addtolist()";
-   libsymbol_t *lib;
-   socks_id_t *newid;
-   addrlockopaque_t opaque;
-
-   lib = libsymbol(functionname);
-   SASSERTX(lib != NULL);
-
-   if ((newid = malloc(sizeof(*lib->dosyscall))) == NULL)
-      serr(EXIT_FAILURE, "%s: failed to malloc %lu bytes",
-      function, (unsigned long)sizeof(*lib->dosyscall));
-   *newid = *id;
-
-   socks_addrlock(F_WRLCK, &opaque);
-
-   if (lib->dosyscall == NULL) {
-      lib->dosyscall       = newid;
-      lib->dosyscall->next = NULL;
-   }
-   else {
-      newid->next          = lib->dosyscall->next;
-      lib->dosyscall->next = newid;
-   }
-
-   socks_addrunlock(&opaque);
-}
-
-static void
-removefromlist(functionname, removeid)
-   const char *functionname;
-   const socks_id_t *removeid;
-{
-/*   const char *function = "removefromlist()"; */
-   libsymbol_t *lib;
-   socks_id_t *id, *previous;
-   addrlockopaque_t opaque;
-
-   lib = libsymbol(functionname);
-   SASSERTX(lib != NULL);
-   SASSERTX(lib->dosyscall != NULL);
-
-   socks_addrlock(F_WRLCK, &opaque);
-
-   previous = lib->dosyscall;
-
-   if (idsareequal(lib->dosyscall, removeid)) {
-      lib->dosyscall = lib->dosyscall->next;
-      free(previous);
-   }
-   else {
-      for (id = previous->next; id != NULL; previous = id, id = id->next) {
-         if (idsareequal(id, removeid)) {
-            previous->next = id->next;
-            free(id);
-
-            break;
-         }
-      }
-
-      SASSERTX(id != NULL);
-   }
-
-   socks_addrunlock(&opaque);
-}
-
-
-
-#endif /* SOCKS_CLIENT */
-
-void *
-symbolfunction(symbol)
-   const char *symbol;
-{
-   const char *function = "symbolfunction()";
-   libsymbol_t *lib;
-
-   lib = libsymbol(symbol);
-
-   SASSERTX(lib != NULL);
-   SASSERTX(lib->library != NULL);
-   SASSERTX(strcmp(lib->symbol, symbol) == 0);
-
-#if HAVE_RTLD_NEXT
-   if (lib->function == NULL) {
-      if ((lib->function = dlsym(RTLD_NEXT, symbol)) == NULL) {
-         if (strcmp(symbol, SYMBOL_WRITE) != 0)
-            serrx(EXIT_FAILURE, "%s: compile time configuration error?  "
-                                "Failed to find \"%s\" using RTLD_NEXT: %s",
-                                function, symbol, dlerror());
-      }
-#if 0
-      else {
-         if (strcmp(symbol, SYMBOL_WRITE) != 0)
-            slog(LOG_DEBUG, "found symbol %s using RTLD_NEXT", lib->symbol);
-      }
-#endif
-   }
-
-#else /* !HAVE_RTLD_NEXT */
-   if (lib->handle == NULL)
-      if ((lib->handle = dlopen(lib->library, DL_LAZY)) == NULL)
-         serrx(EXIT_FAILURE, "%s: compile time configuration error?  "
-                             "Failed to open library \"%s\": %s",
-                             function, lib->library, dlerror());
-
-   if (lib->function == NULL)
-      if ((lib->function = dlsym(lib->handle, symbol)) == NULL)
-         serrx(EXIT_FAILURE, "%s: compile time configuration error?  "
-                             "Failed to find \"%s\" in \"%s\": %s",
-                             function, symbol, lib->library, dlerror());
-
-#if 0
-   if (strcmp(symbol, SYMBOL_WRITE) != 0)
-      slog(LOG_DEBUG, "found symbol %s in library %s",
-      lib->symbol, lib->library);
-#endif
-#endif /* !HAVE_RLTD_NEXT */
-
-   return lib->function;
-}
-
-static libsymbol_t *
-libsymbol(symbol)
-   const char *symbol;
-{
-/*   const char *function = "libsymbol()"; */
-   size_t i;
-
-   for (i = 0; i < ELEMENTS(libsymbolv); ++i)
-      if (strcmp(libsymbolv[i].symbol, symbol) == 0)
-         return &libsymbolv[i];
-
-   /* CONSTCOND */
-   SASSERTX(0);   /* should never happen. */
-
-   /* NOTREACHED */
-   return NULL; /* please compiler. */
-}
 
    /* the real system calls. */
 
-#if SOCKS_CLIENT
 
 #if !HAVE_EXTRA_OSF_SYMBOLS
 HAVE_PROT_ACCEPT_0
@@ -2186,7 +2162,12 @@ _sendto(s, msg, len, flags, to, tolen)
 
 #endif /* SOCKS_CLIENT */
 
-#if SOCKS_SERVER
+#if !SOCKS_CLIENT
+
+/*
+ * For functions interposed into external libraries (libwrap, ldap, etc.)
+ * used by the server.
+ */
 
 struct hostent *
 sys_gethostbyaddr(addr, len, af)
@@ -2213,60 +2194,49 @@ gethostbyaddr(addr, len, af)
    return cgethostbyaddr(addr, len, af);
 }
 
-#endif /* SOCKS_SERVER */
+#endif /* !SOCKS_CLIENT */
 
 struct hostent *
 sys_gethostbyname(name)
    const char *name;
 {
+   struct hostent *rc;
    typedef struct hostent *(*GETHOSTBYNAME_FUNC_T)(const char *);
    GETHOSTBYNAME_FUNC_T function
    = (GETHOSTBYNAME_FUNC_T)symbolfunction(SYMBOL_GETHOSTBYNAME);
 
-   return function(name);
+   DNSCODE_START();
+   rc = function(name);
+   DNSCODE_END();
+
+   return rc;
 }
 
 struct hostent *
 gethostbyname(name)
    const char *name;
 {
-#if SOCKS_SERVER
+#if !SOCKS_CLIENT
    return cgethostbyname(name);
 
-#else /* !SOCKS_SERVER */
-   if (socks_shouldcallasnative(SYMBOL_GETHOSTBYNAME))
-      return sys_gethostbyname(name);
+#else /* SOCKS_CLIENT */
+   if (socks_shouldcallasnative(SYMBOL_GETHOSTBYNAME)) {
+      struct hostent *rc;
+
+      DNSCODE_START();
+      rc = sys_gethostbyname(name);
+      DNSCODE_END();
+
+      return rc;
+   }
 
    return Rgethostbyname(name);
-#endif /* !SOCKS_SERVER */
+#endif /* SOCKS_CLIENT */
 }
 
 #if SOCKS_CLIENT
 
-struct hostent *
-sys_gethostbyname2(name, af)
-   const char *name;
-   int af;
-{
-   typedef struct hostent *(*GETHOSTBYNAME2_FUNC_T)(const char *, int);
-   GETHOSTBYNAME2_FUNC_T function
-   = (GETHOSTBYNAME2_FUNC_T)symbolfunction(SYMBOL_GETHOSTBYNAME2);
-
-   return function(name, af);
-}
-
-struct hostent *
-gethostbyname2(name, af)
-   const char *name;
-   int af;
-{
-   if (socks_shouldcallasnative(SYMBOL_GETHOSTBYNAME2))
-      return sys_gethostbyname2(name, af);
-   return Rgethostbyname2(name, af);
-}
-
 #if HAVE_GETADDRINFO
-
 int
 sys_getaddrinfo(nodename, servname, hints, res)
    const char *nodename;
@@ -2279,8 +2249,13 @@ sys_getaddrinfo(nodename, servname, hints, res)
                  struct addrinfo **);
    GETADDRINFO_FUNC_T function
    = (GETADDRINFO_FUNC_T)symbolfunction(SYMBOL_GETADDRINFO);
+   int rc;
 
-   return function(nodename, servname, hints, res);
+   DNSCODE_START();
+   rc = function(nodename, servname, hints, res);
+   DNSCODE_END();
+
+   return rc;
 }
 
 int
@@ -2290,12 +2265,111 @@ getaddrinfo(nodename, servname, hints, res)
    const struct addrinfo *hints;
    struct addrinfo **res;
 {
-   if (socks_shouldcallasnative(SYMBOL_GETADDRINFO))
-      return sys_getaddrinfo(nodename, servname, hints, res);
+   int rc;
+
+   if (socks_shouldcallasnative(SYMBOL_GETADDRINFO)) {
+      DNSCODE_START();
+      rc = sys_getaddrinfo(nodename, servname, hints, res);
+      DNSCODE_END();
+
+      return rc;
+   }
+
    return Rgetaddrinfo(nodename, servname, hints, res);
 }
 
 #endif /* HAVE_GETADDRINFO */
+
+#if HAVE_GETNAMEINFO && !SOCKS_CLIENT
+HAVE_PROT_GETNAMEINFO_0
+sys_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+   HAVE_PROT_GETNAMEINFO_1 sa;
+   HAVE_PROT_GETNAMEINFO_2 salen;
+   HAVE_PROT_GETNAMEINFO_3 host;
+   HAVE_PROT_GETNAMEINFO_4 hostlen;
+   HAVE_PROT_GETNAMEINFO_5 serv;
+   HAVE_PROT_GETNAMEINFO_6 servlen;
+   HAVE_PROT_GETNAMEINFO_7 flags;
+{
+   typedef HAVE_PROT_GETNAMEINFO_0 (*GETNAMEINFO_FUNC_T)(
+                                    HAVE_PROT_GETNAMEINFO_1,
+                                    HAVE_PROT_GETNAMEINFO_2,
+                                    HAVE_PROT_GETNAMEINFO_3,
+                                    HAVE_PROT_GETNAMEINFO_4,
+                                    HAVE_PROT_GETNAMEINFO_5,
+                                    HAVE_PROT_GETNAMEINFO_6,
+                                    HAVE_PROT_GETNAMEINFO_7);
+   GETNAMEINFO_FUNC_T function
+      = (GETNAMEINFO_FUNC_T)symbolfunction(SYMBOL_GETNAMEINFO);
+   int rc;
+
+   DNSCODE_START();
+   rc = function(sa, salen, host, hostlen, serv, servlen, flags);
+   DNSCODE_END();
+
+   return rc;
+}
+
+HAVE_PROT_GETNAMEINFO_0
+getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+   HAVE_PROT_GETNAMEINFO_1 sa;
+   HAVE_PROT_GETNAMEINFO_2 salen;
+   HAVE_PROT_GETNAMEINFO_3 host;
+   HAVE_PROT_GETNAMEINFO_4 hostlen;
+   HAVE_PROT_GETNAMEINFO_5 serv;
+   HAVE_PROT_GETNAMEINFO_6 servlen;
+   HAVE_PROT_GETNAMEINFO_7 flags;
+{
+   if (socks_shouldcallasnative(SYMBOL_GETNAMEINFO)) {
+      int rc;
+
+      DNSCODE_START();
+      rc = sys_getnameinfo(sa, salen, host, hostlen, serv, servlen,
+			     flags);
+      DNSCODE_END();
+
+      return rc;
+   }
+
+   return Rgetnameinfo(sa, salen, host, hostlen, serv, servlen, flags);
+}
+#endif /* HAVE_GETNAMEINFO && !SOCKS_CLIENT */
+
+
+struct hostent *
+sys_gethostbyname2(name, af)
+   const char *name;
+   int af;
+{
+   struct hostent *rc;
+   typedef struct hostent *(*GETHOSTBYNAME2_FUNC_T)(const char *, int);
+   GETHOSTBYNAME2_FUNC_T function
+   = (GETHOSTBYNAME2_FUNC_T)symbolfunction(SYMBOL_GETHOSTBYNAME2);
+
+   DNSCODE_START();
+   rc = function(name, af);
+   DNSCODE_END();
+
+   return rc;
+}
+
+struct hostent *
+gethostbyname2(name, af)
+   const char *name;
+   int af;
+{
+   if (socks_shouldcallasnative(SYMBOL_GETHOSTBYNAME2)) {
+      struct hostent *rc;
+
+      DNSCODE_START();
+      rc = sys_gethostbyname2(name, af);
+      DNSCODE_END();
+
+      return rc;
+   }
+
+   return Rgethostbyname2(name, af);
+}
 
 #if HAVE_GETIPNODEBYNAME
 
@@ -2306,12 +2380,18 @@ sys_getipnodebyname(name, af, flags, error_num)
    int flags;
    int *error_num;
 {
+   struct hostent *rc;
    typedef struct hostent *(*GETIPNODEBYNAME_FUNC_T)(const char *, int, int,
                                                      int *);
    GETIPNODEBYNAME_FUNC_T function
    = (GETIPNODEBYNAME_FUNC_T)symbolfunction(SYMBOL_GETIPNODEBYNAME);
 
-   return function(name, af, flags, error_num);
+   DNSCODE_START();
+   rc = function(name, af, flags, error_num);
+   DNSCODE_END();
+
+   return rc;
+
 }
 
 struct hostent *
@@ -2322,8 +2402,16 @@ getipnodebyname(name, af, flags, error_num)
    int *error_num;
 {
 
-   if (socks_shouldcallasnative(SYMBOL_GETIPNODEBYNAME))
-      return sys_getipnodebyname(name, af, flags, error_num);
+   if (socks_shouldcallasnative(SYMBOL_GETIPNODEBYNAME)) {
+      struct hostent *rc;
+
+      DNSCODE_START();
+      rc = sys_getipnodebyname(name, af, flags, error_num);
+      DNSCODE_END();
+
+      return rc;
+   }
+
    return Rgetipnodebyname(name, af, flags, error_num);
 }
 
@@ -2341,7 +2429,7 @@ sys_freehostent(ptr)
 
 void
 freehostent(ptr)
-        struct hostent *ptr;
+   struct hostent *ptr;
 {
 
    if (socks_shouldcallasnative(SYMBOL_FREEHOSTENT))
@@ -2483,7 +2571,8 @@ fflush(stream)
 {
 
    if (!sockscf.state.havegssapisockets
-   || (stream != NULL && socks_issyscall(fileno(stream), SYMBOL_FFLUSH)))
+   ||  stream == NULL
+   ||  socks_issyscall(fileno(stream), SYMBOL_FFLUSH))
       return sys_fflush(stream);
    return Rfflush(stream);
 }
@@ -2551,7 +2640,8 @@ __fprintf_chk(HAVE_PROT_FPRINTF_1 stream, int dummy,
 
    va_start(ap, format);
 
-   if (!sockscf.state.havegssapisockets || socks_issyscall(d, SYMBOL___FPRINTF_CHK)) {
+   if (!sockscf.state.havegssapisockets
+   || socks_issyscall(d, SYMBOL___FPRINTF_CHK)) {
       rc = sys_vfprintf(stream, format, ap);
       va_end(ap);
       return rc;
@@ -2868,4 +2958,170 @@ write$NOCANCEL(d, buf, nbytes)
 #endif /* HAVE_DARWIN */
 
 #endif /* SOCKS_CLIENT */
+
+static libsymbol_t *
+libsymbol(symbol)
+   const char *symbol;
+{
+/*   const char *function = "libsymbol()"; */
+   size_t i;
+
+   for (i = 0; i < ELEMENTS(libsymbolv); ++i)
+      if (strcmp(libsymbolv[i].symbol, symbol) == 0)
+         return &libsymbolv[i];
+
+   SERRX(0);   /* should never happen. */
+
+   /* NOTREACHED */
+   return NULL; /* please compiler. */
+}
+
+static int
+idsareequal(a, b)
+   const socks_id_t *a;
+   const socks_id_t *b;
+{
+
+   switch (a->whichid) {
+      case pid:
+         if (a->id.pid == b->id.pid)
+            return 1;
+
+         return 0;
+
+#if SOCKS_CLIENT
+      case thread:
+         /* pthread_equal() is more correct, but this should also work. */
+         if (memcmp(&a->id.thread, &b->id.thread, sizeof(a->id.thread)) == 0)
+            return 1;
+         return 0;
+#endif /* SOCKS_CLIENT */
+
+      default:
+         SERRX(a->whichid);
+   }
+
+   /* NOTREACHED */
+}
+
+
+static void
+addtolist(functionname, id)
+   const char *functionname;
+   const socks_id_t *id;
+{
+   const char *function = "addtolist()";
+   libsymbol_t *lib;
+   socks_id_t *newid;
+
+#if SOCKS_CLIENT 
+   addrlockopaque_t opaque;
+
+#else /* !SOCKS_CLIENT */
+   static socks_id_t newidmem;
+
+#endif  /* !SOCKS_CLIENT */
+
+   lib = libsymbol(functionname);
+   SASSERTX(lib != NULL);
+
+#if SOCKS_CLIENT 
+
+   if ((newid = malloc(sizeof(*newid))) == NULL)
+      serr("%s: failed to malloc %lu bytes",
+           function, (unsigned long)sizeof(*newid));
+
+
+#else /* !SOCKS_CLIENT */
+
+   newid = &newidmem;
+
+#endif  /* !SOCKS_CLIENT */
+
+   *newid = *id;
+
+#if SOCKS_CLIENT 
+
+   socks_addrlock(F_WRLCK, &opaque);
+
+#else /* !SOCKS_CLIENT */
+
+   SASSERTX(lib->dosyscall == NULL);
+
+#endif  /* !SOCKS_CLIENT */
+
+   if (lib->dosyscall == NULL) {
+      lib->dosyscall       = newid;
+      lib->dosyscall->next = NULL;
+   }
+   else {
+      newid->next          = lib->dosyscall->next;
+      lib->dosyscall->next = newid;
+   }
+
+#if SOCKS_CLIENT 
+   socks_addrunlock(&opaque);
+#endif  /* SOCKS_CLIENT */
+}
+
+static void
+removefromlist(functionname, removeid)
+   const char *functionname;
+   const socks_id_t *removeid;
+{
+/*   const char *function = "removefromlist()"; */
+   libsymbol_t *lib;
+   socks_id_t *id, *previous;
+#if SOCKS_CLIENT 
+   addrlockopaque_t opaque;
+#endif  /* SOCKS_CLIENT */
+
+   lib = libsymbol(functionname);
+   SASSERTX(lib != NULL);
+   SASSERTX(lib->dosyscall != NULL);
+
+#if SOCKS_CLIENT 
+
+   socks_addrlock(F_WRLCK, &opaque);
+
+#else /* !SOCKS_CLIENT */
+
+   SASSERTX(idsareequal(lib->dosyscall, removeid));
+
+#endif  /* !SOCKS_CLIENT */
+
+   previous = lib->dosyscall;
+
+   if (idsareequal(lib->dosyscall, removeid)) {
+      lib->dosyscall = lib->dosyscall->next;
+
+#if SOCKS_CLIENT 
+      free(previous);
+#endif  /* SOCKS_CLIENT */
+   }
+   else {
+      SASSERTX(SOCKS_CLIENT);
+
+      for (id = previous->next; id != NULL; previous = id, id = id->next) {
+         if (idsareequal(id, removeid)) {
+            previous->next = id->next;
+
+#if SOCKS_CLIENT 
+            free(id);
+#endif  /* SOCKS_CLIENT */
+
+            break;
+         }
+      }
+
+      SASSERTX(id != NULL);
+   }
+
+#if SOCKS_CLIENT 
+   socks_addrunlock(&opaque);
+#endif  /* SOCKS_CLIENT */
+}
+
+
 #endif /* SOCKSLIBRARY_DYNAMIC */
+

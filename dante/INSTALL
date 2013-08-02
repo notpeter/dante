@@ -1,4 +1,4 @@
-# $Id: INSTALL,v 1.42 2012/06/01 19:59:26 karls Exp $
+# $Id: INSTALL,v 1.45 2013/03/19 22:37:19 karls Exp $
 
 This file describes how to install Dante.  Dante is a Socks client
 and server firewall implementation.  It can be installed on a machine
@@ -37,6 +37,10 @@ called `autoconf'.  You only need `configure.in' if you want to change
 it or regenerate `configure' using a newer version of `autoconf'.
 
 The simplest way to compile this package is:
+
+  0. If compiling for use with a commercial module, first extract the
+     `INSTALL' file from the module archive and follow the
+     instructions there.
 
   1. `cd' to the directory containing the package's source code and type
      `./configure' to configure the package for your system.  If you're
@@ -280,6 +284,10 @@ These `configure' options are also supported (run `configure' with
      Manually set the name of libc. Should never be needed, but can be
      use if configure is unable to correctly find the name.
 
+`--with-bufsize=NUMBER'
+     Override the default SOCKD_BUFSIZE value. This can be done to tune
+     the Dante server. See include/config.h for details.
+
 `--with-iomax=NUMBER'
      Override the default SOCKD_IOMAX value. This can be done to tune
      the Dante server, by changing the number of clients that each
@@ -367,7 +375,7 @@ These `configure' options are also supported (run `configure' with
 FURTHER CONFIGURATION
 
 The file include/config.h contains defines you might wish to
-change, but usually they are ok as they come.
+change, but generally this should not be needed.
 
 RUNTIME CONFIGURATION FILES
 

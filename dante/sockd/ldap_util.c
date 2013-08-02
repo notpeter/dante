@@ -49,7 +49,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: ldap_util.c,v 1.10 2012/06/01 20:23:06 karls Exp $";
+"$Id: ldap_util.c,v 1.13 2013/04/02 10:52:13 michaels Exp $";
 
 #if HAVE_LDAP
 char
@@ -75,8 +75,8 @@ char
       a = strlen(input) - 1;
 
    if (c != 0) {
-      if ((p = malloc(strlen(input) + c)) == NULL)
-         serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
+      if ((p = malloc(strlen(input) + 1 + c)) == NULL)
+         serrx("%s: %s", function, NOMEM);
 
       utf8 = p;
       for (n = 0; n < strlen(input); ++n) {
@@ -114,7 +114,7 @@ char
 
 char
 *hextoutf8(input, flag)
-   char *input;
+   const char *input;
    int flag;
 {
 /*
@@ -145,8 +145,8 @@ char
    else
       a = strlen(input) ;
 
-   if ((utf8 = malloc(strlen(input))) == NULL)
-      serrx(EXIT_FAILURE, "%s: %s", function, NOMEM);
+   if ((utf8 = malloc(strlen(input) + 1)) == NULL)
+      serrx("%s: %s", function, NOMEM);
 
    i     = 0;
    iUTF2 = 0;
@@ -352,7 +352,7 @@ char
    utf8[i] = NUL;
    if (iUTF2 || iUTF3 || iUTF4) {
       slog(LOG_DEBUG, "%s: invalid UTF-8 sequence for Unicode \"%s\"",
-      function, utf8);
+           function, utf8);
 
       SASSERTX(!iUTF2 && !iUTF3 && !iUTF4);
    }

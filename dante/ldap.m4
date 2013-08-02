@@ -23,12 +23,12 @@ if test x"$LDAP" != xno; then
    fi
 
    dnl any cflags values obtained from krb5-config?
-   if test x"$ac_ldap_cflags" != x; then
+   if test x"${ac_ldap_cflags}" != x; then
       CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_ldap_cflags"
    fi
 
    dnl extract -L flags
-   if test x"$ac_ldap_libs" != x; then
+   if test x"${ac_ldap_libs}" != x; then
       NPATH=`echo $ac_ldap_libs | xargs -n1 | egrep '^-L' | xargs echo`
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }$NPATH"
    fi
@@ -42,7 +42,7 @@ if test x"$LDAP" != xno; then
 
    AC_CHECK_LIB(lber, main)
    AC_CHECK_LIB(ldap, main)
-   if test x"$ac_cv_lib_ldap_main" != xyes; then
+   if test x"${ac_cv_lib_ldap_main}" != xyes; then
      AC_CHECK_LIB(pthread, main)
      AC_CHECK_LIB(ldap60, main)
      AC_CHECK_LIB(prldap60, main)
@@ -123,10 +123,10 @@ main(void)
 dnl
 dnl Check for LDAP_REBINDPROC_CALLBACK
 dnl
-   if test x"$ac_cv_header_ldap_h" = xyes; then
+   if test x"${ac_cv_header_ldap_h}" = xyes; then
       AC_EGREP_HEADER(LDAP_REBINDPROC_CALLBACK, ldap.h,
          AC_DEFINE(HAVE_LDAP_REBINDPROC_CALLBACK, 1, [Define to 1 if you have LDAP_REBINDPROC_CALLBACK]))
-   elif test x"$ac_cv_header_mozldap_ldap_h" = xyes; then
+   elif test x"${ac_cv_header_mozldap_ldap_h}" = xyes; then
       AC_EGREP_HEADER(LDAP_REBINDPROC_CALLBACK, mozldap/ldap.h,
          AC_DEFINE(HAVE_LDAP_REBINDPROC_CALLBACK, 1, [Define to 1 if you have LDAP_REBINDPROC_CALLBACK]))
    else
@@ -137,10 +137,10 @@ dnl
 dnl
 dnl Check for LDAP_REBIND_PROC
 dnl
-   if test x"$ac_cv_header_ldap_h" = xyes; then
+   if test x"${ac_cv_header_ldap_h}" = xyes; then
       AC_EGREP_HEADER(LDAP_REBIND_PROC, ldap.h,
          AC_DEFINE(HAVE_LDAP_REBIND_PROC, 1, [Define to 1 if you have LDAP_REBIND_PROC]))
-   elif test x"$ac_cv_header_mozldap_ldap_h" = xyes; then
+   elif test x"${ac_cv_header_mozldap_ldap_h}" = xyes; then
       AC_EGREP_HEADER(LDAP_REBIND_PROC, mozldap/ldap.h,
          AC_DEFINE(HAVE_LDAP_REBIND_PROC, 1, [Define to 1 if you have LDAP_REBIND_PROC]))
    else
@@ -198,10 +198,10 @@ dnl
 dnl
 dnl Check for ldapssl_client_init
 dnl
-   if test x"$ac_cv_lib_ldap_main" = xyes; then
+   if test x"${ac_cv_lib_ldap_main}" = xyes; then
       AC_CHECK_LIB(ldap, ldapssl_client_init,
          AC_DEFINE(HAVE_LDAPSSL_CLIENT_INIT, 1, [Define to 1 if you have ldapssl_client_init]),)
-   elif test x"$ac_cv_lib_ssldap60_main" = xyes; then
+   elif test x"${ac_cv_lib_ssldap60_main}" = xyes; then
       AC_CHECK_LIB(ssldap60, ldapssl_client_init,
          AC_DEFINE(HAVE_LDAPSSL_CLIENT_INIT, 1, [Define to 1 if you have ldapssl_client_init]),)
    else
@@ -212,10 +212,10 @@ dnl
 dnl
 dnl Check for ldap_url_desc2str
 dnl
-   if test x"$ac_cv_lib_ldap_main" = xyes; then
+   if test x"${ac_cv_lib_ldap_main}" = xyes; then
       AC_CHECK_LIB(ldap, ldap_url_desc2str,
          AC_DEFINE(HAVE_LDAP_URL_DESC2STR, 1, [Define to 1 if you have ldap_url_desc2str]),)
-   elif test x"$ac_cv_lib_ldap60_main" = xyes; then
+   elif test x"${ac_cv_lib_ldap60_main}" = xyes; then
       AC_CHECK_LIB(ldap60, ldap_url_desc2str,
          AC_DEFINE(HAVE_LDAP_URL_DESC2STR, 1, [Define to 1 if you have ldap_url_desc2str]),)
    else
@@ -227,10 +227,10 @@ dnl
 dnl
 dnl Check for ldap_url_parse
 dnl
-   if test x"$ac_cv_lib_ldap_main" = xyes; then
+   if test x"${ac_cv_lib_ldap_main}" = xyes; then
       AC_CHECK_LIB(ldap, ldap_url_parse,
          AC_DEFINE(HAVE_LDAP_URL_PARSE, 1, [Define to 1 if you have ldap_url_parse]),)
-   elif test x"$ac_cv_lib_ldap60_main" = xyes; then
+   elif test x"${ac_cv_lib_ldap60_main}" = xyes; then
       AC_CHECK_LIB(ldap60, ldap_url_parse,
          AC_DEFINE(HAVE_LDAP_URL_PARSE, 1, [Define to 1 if you have ldap_url_parse]),)
    else

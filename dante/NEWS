@@ -1,4 +1,4 @@
-@(#)$Id: NEWS,v 1.93 2012/06/01 19:59:26 karls Exp $
+@(#)$Id: NEWS,v 1.94 2012/12/31 17:09:50 karls Exp $
 
 (NOTE: The contents of this file is not updated for pre-releases.)
 
@@ -671,7 +671,7 @@
 ***
 
  o Don't mark the rule as good either if sockscf.state.unfixedpamdata,
-   fixes bug reported by Jerry Murdock" <jmurdock@itraktech.com.example.com>.
+   fixes bug reported by Jerry Murdock <jmurdock@itraktech.com.example.com>.
 
  o fix a bug preventing the list given in a 'user:' keyword from being checked
    correctly. Reported by Oleg Bulavsky <bulch@ftc.ru.example.com>.

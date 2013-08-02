@@ -1,8 +1,10 @@
-/* $Id: strlcpy.c,v 1.2 2010/09/26 12:52:05 karls Exp $ */
+/* $Id: strlcpy.c,v 1.3 2012/10/22 15:15:59 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
+
+#include "osdep.h"
 
 /*$OpenBSD: strlcpy.c,v 1.10 2005/08/08 08:05:37 espie Exp $*/
 
@@ -23,13 +25,6 @@
  */
 
 /* OPENBSD ORIGINAL: lib/libc/string/strlcpy.c */
-
-#if !HAVE_STRLCPY
-
-#include <sys/types.h>
-#include <string.h>
-
-#include "strlcpy.h"
 
 /*
  * Copy src to string dst of size siz.  At most siz-1 characters
@@ -116,5 +111,3 @@ strlcat(char *dst, const char *src, size_t siz)
 
 	return(dlen + (s - src));	/* count does not include NUL */
 }
-
-#endif /* !HAVE_STRLCPY */

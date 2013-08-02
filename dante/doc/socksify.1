@@ -1,6 +1,6 @@
-.\" $Id: socksify.1,v 1.11 2012/06/01 20:23:05 karls Exp $
+.\" $Id: socksify.1,v 1.14 2013/07/06 23:12:27 michaels Exp $
 .\"
-.\" Copyright (c) 2009, 2011
+.\" Copyright (c) 2009, 2011, 2012
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -70,7 +70,7 @@ environment variables.
 .TP
 \fBSOCKS_DEBUG\fP
 Enables debug loging.  The value given should be a number, one or up,
-indicating the level of debuging provided.
+indicating the level of debugging provided.
 .TP
 \fBSOCKS_LOGOUTPUT\fP
 This value controls where the client library sends logoutput.  It can
@@ -116,13 +116,18 @@ full URL, the interface name the router is reachable via, or the value
 .TP
 \fBSOCKS_AUTOADD_LANROUTES\fP
 If this variable is set to "no", the client will not try to auto-add
-direct routes for all addresses on the lan.  The default is to add
+direct routes for all addresses on the LAN.  The default is to add
 them.
 .TP
 \fBSOCKS_DISABLE_THREADLOCK\fP
 If this variable is set, the client will not perform threadlocking.
 The default is for the client to attempt to figure out for itself
 whether the application to socksify needs threadlocking or not.
+.TP
+\fBSOCKS_DIRECTROUTE_FALLBACK\fP
+If this is set to "yes", the client will fallback to attempting
+a direct connection if the proxy route fails.  The default is
+is "no".
 .SH FILES
 .I /etc/socks.conf
 .SH AUTHORS

@@ -1,28 +1,14 @@
 #compiler related checks, updates CFLAGS and CPPFLAGS and sets
 # 'warn' with flags for warnings
 
+dnl Checks for programs.
+AC_PROG_YACC
+AC_PROG_AWK
+AM_PROG_LEX
 AC_PROG_CPP
 AC_PROG_GCC_TRADITIONAL
 
 case $host in
-    *-*-darwin*)
-	AC_DEFINE(HAVE_DARWIN, 1, [enable darwin/osx workarounds])
-
-	#XXX only needed for libraries (dante-only)?
-	HW=`uname -m`
-	case $HW in
-	    ppc*)
-		CFLAGS="$CFLAGS${CFLAGS:+ }-arch ppc -arch ppc64"
-		LDFLAGS="$LDLAGS${LDLAGS:+ }-arch ppc -arch ppc64"
-		;;
-	    *)
-		CFLAGS="$CFLAGS${CFLAGS:+ }-arch i386 -arch x86_64"
-		LDFLAGS="$LDLAGS${LDLAGS:+ }-arch i386 -arch x86_64"
-		;;
-	esac
-
-	;;
-
     alpha*-dec-osf*)
 	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_XOPEN_SOURCE_EXTENDED -DBYTE_ORDER=LITTLE_ENDIAN -D_POSIX_SOURCE -D_POSIX_C_SOURCE=199309L -D_OSF_SOURCE"
 	;;
@@ -33,33 +19,18 @@ case $host in
 	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_PROTOTYPES"
 	;;
 
-    *-*-openbsd*)
-	AC_DEFINE(HAVE_OPENBSD_BUGS, 1, [bug workaround])
-	;;
-
     *-*-solaris*)
-	AC_DEFINE(HAVE_SENDMSG_DEADLOCK, 1, [bug workaround])
-	AC_DEFINE(HAVE_SOLARIS_BUGS, 1, [bug workaround])
 	#for msghdr msg_flags
 	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_XOPEN_SOURCE=500 -D_XOPEN_SOURCE_EXTENDED"
 	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D__EXTENSIONS__ -DBSD_COMP"
 	;;
 
     *-*-linux-*)
-	AC_DEFINE(HAVE_LINUX_BUGS, 1, [bug workaround])
 	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_XOPEN_SOURCE=600 -D_XOPEN_SOURCE_EXTENDED"
-	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_FORTIFY_SOURCE=2"
 	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_BSD_SOURCE"
-#	if test x"$GCC" != x; then
-#		#XXX want to avoid extension used in struct cmsghdr
-#		CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-U__GNUC__ -D__GNUC__=0"
-#	fi
-	AC_DEFINE(SPT_TYPE, SPT_REUSEARGV, [setproctitle replacement type])
 	;;
 
     *-*-aix*)
-	OSPIDFILE="/etc/${SERVNAME}.pid"
-	AC_DEFINE(HAVE_SYSTEM_XMSG_MAGIC, 1, [platform workaround])
 	AC_DEFINE(_ALL_SOURCE, 1, [contents from old AC_AIX test])
 	CPPFLAGS="${CPPFLAGS}${CPPFLAGS+ }-DXOPEN_SOURCE_EXTENDED=1"
 	;;
@@ -72,15 +43,33 @@ case $host_alias in
 	;;
 esac
 
+#XXX only needed for libraries
+case $host in
+    *-*-darwin*)
+	if test x"${enable_dependency_tracking}" = xno; then
+	    HW=`uname -m`
+	    case $HW in
+		ppc*)
+		    CFLAGS="$CFLAGS${CFLAGS:+ }-arch ppc -arch ppc64"
+		    LDFLAGS="$LDLAGS${LDLAGS:+ }-arch ppc -arch ppc64"
+		    ;;
+		*)
+		    CFLAGS="$CFLAGS${CFLAGS:+ }-arch i386 -arch x86_64"
+		    LDFLAGS="$LDLAGS${LDLAGS:+ }-arch i386 -arch x86_64"
+		    ;;
+	    esac
+	fi
+esac
+
 unset COMPTYPE
 unset FAILWARN
 AC_MSG_CHECKING([for compiler type])
 if $CC -v 2>&1 | tail -1 | egrep '^gcc ' >/dev/null; then
     COMPTYPE=gcc
-    FAILWARN="-Werror"
+    FAILWARN="-Wall -Werror"
 elif $CC -V 2>&1 | grep 'Sun C ' >/dev/null; then
     COMPTYPE=suncc
-    FAILWARN="-errwarn=%all"
+    FAILWARN="-v -errwarn=%all"
 elif $CC -v 2>&1 | egrep '^pcc ' >/dev/null; then
     COMPTYPE=pcc
 elif $CC -qversion 2>&1 | egrep '^IBM XL C' >/dev/null; then
@@ -162,19 +151,26 @@ else
     AC_MSG_RESULT([none])
 fi
 
-AC_MSG_CHECKING([for support for -pipe compiler flag])
-oCFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN -pipe"
-AC_TRY_RUN([
+case $COMPTYPE in
+    suncc)
+	true #skip on this platform, gives warning but does not fail
+	;;
+    *)
+	AC_MSG_CHECKING([for support for -pipe compiler flag])
+	oCFLAGS="$CFLAGS"
+	CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN -pipe"
+	AC_TRY_RUN([
 int main()
 {
 	return 0;
-}], [AC_MSG_RESULT([yes])
-     comp_flags="${comp_flags}${comp_flags:+ }-pipe"],
-    [AC_MSG_RESULT([no])],
-    [dnl do not set when cross-compiling
-     AC_MSG_RESULT([no])])
-CFLAGS="$oCFLAGS"
+	}], [AC_MSG_RESULT([yes])
+	     comp_flags="${comp_flags}${comp_flags:+ }-pipe"],
+	    [AC_MSG_RESULT([no])],
+	    [dnl do not set when cross-compiling
+	     AC_MSG_RESULT([no])])
+	CFLAGS="$oCFLAGS"
+	;;
+esac
 
 AC_MSG_CHECKING([for support for -Wbounded compiler flag])
 oCFLAGS="$CFLAGS"
@@ -184,11 +180,26 @@ int main()
 {
         return 0;
 }], [AC_MSG_RESULT([yes])
-     comp_flags="${comp_flags}${comp_flags:+ }-Wbounded"],
-    [AC_MSG_RESULT([no])
-     AC_DEFINE(__bounded__(a,b,c), , [empty __bounded__ macro])],
-    [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling
-     AC_DEFINE(__bounded__(a,b,c), , [empty __bounded__ macro])])
+     comp_flags="${comp_flags}${comp_flags:+ }-Wbounded"
+     AC_DEFINE(HAVE_DECL_BOUNDED, 1, [__bounded__ macro support])],
+    [AC_MSG_RESULT([no])],
+    [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
+CFLAGS="$oCFLAGS"
+
+AC_MSG_CHECKING([whether compiler supports _Pragma()])
+oCFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN"
+AC_TRY_COMPILE([
+#include <stdlib.h>
+
+#define foo(x)                                            \
+do {                                                      \
+ _Pragma("GCC diagnostic ignored \"-Waddress\"");         \
+} while (x > 1)
+], [foo(0)],
+    [AC_MSG_RESULT([yes])
+     AC_DEFINE(HAVE_PRAGMA_SUPPORT, 1, [_Pragma() supported by compiler])],
+    [AC_MSG_RESULT([no])])
 CFLAGS="$oCFLAGS"
 
 AC_MSG_CHECKING([for __attribute__ support])
@@ -207,9 +218,9 @@ void errfunc(void)
 int main()
 {
     errfunc();
-}], [AC_MSG_RESULT([yes])],
-    [AC_MSG_RESULT([no])
+}], [AC_MSG_RESULT([yes])
      AC_DEFINE(HAVE_DECL_ATTRIBUTE, 1, [__attribute__ macro support])],
+    [AC_MSG_RESULT([no])],
     [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
 CFLAGS="$oCFLAGS"
 
@@ -230,9 +241,9 @@ void func(char *f)
 int main()
 {
     func(NULL);
-}], [AC_MSG_RESULT([yes])],
-    [AC_MSG_RESULT([no])
+}], [AC_MSG_RESULT([yes])
      AC_DEFINE(HAVE_DECL_NONNULL, 1, [__nunnull__ attribute support])],
+    [AC_MSG_RESULT([no])],
     [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
 CFLAGS="$oCFLAGS"
 
@@ -254,56 +265,127 @@ int main()
 {
     func("foo");
     return 0;
-}], [AC_MSG_RESULT([yes])],
-    [AC_MSG_RESULT([no])
+}], [AC_MSG_RESULT([yes])
      AC_DEFINE(HAVE_DECL_FORMAT, 1, [format attribute support])],
+    [AC_MSG_RESULT([no])],
     [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
 CFLAGS="$oCFLAGS"
 
+#check whether to enable debugging
+unset NODEBUG
+unset debug_enabled
 AC_MSG_CHECKING([for compilation with debugging])
 AC_ARG_ENABLE(debug,
 [  --enable-debug          compile with debugging support],
-[AC_MSG_RESULT([yes])
- debug_enabled=t
- FEAT="$FEAT${FEAT:+ }debug"],
-[if test x$prerelease != x; then
-    debug_enabled=t
-    AC_MSG_RESULT([yes])
- else
-    AC_MSG_RESULT([no])
+[if test x"$enableval" = xno; then
+    NODEBUG="Disabled, using --disable-debug"
+ fi],
+[#off by default for full release, enabled by default for prerelease
+ if test x"$prerelease" = x; then
+    NODEBUG="Disabled (default)"
  fi])
+if test x"$NODEBUG" != x; then
+    AC_MSG_RESULT([disabled])
+else
+    AC_MSG_RESULT([yes])
+    debug_enabled=t
+    FEAT="$FEAT${FEAT:+ }debug"
+fi
 
-unset have_livedebug
+#check whether to enable livedebug
+unset NOLIVEDEBUG
 AC_MSG_CHECKING([for live debugging])
 AC_ARG_ENABLE(livedebug,
 [  --enable-livedebug      enable low-overhead debugging mode],
-[have_livedebug=t
- debug_enabled=t
- FEAT="$FEAT${FEAT:+ }livedebug"
- AC_DEFINE(HAVE_COND_LIVEDEBUG, 1, [low-overhead debugging enabled])])
+[if test x"$enableval" = xno; then
+    NOLIVEDEBUG="Disabled, using --disable-livedebug"
+ fi],
+[#off by default for full release, enabled by default for prerelease
+ if test x"$prerelease" = x; then
+    NOLIVEDEBUG="Disabled (default)"
+ fi])
+if test x"$NOLIVEDEBUG" != x; then
+    AC_MSG_RESULT([disabled])
+else
+    AC_MSG_RESULT([yes])
+    debug_enabled=t
+    FEAT="$FEAT${FEAT:+ }livedebug"
+    AC_DEFINE(HAVE_COND_LIVEDEBUG, 1, [low-overhead debugging enabled])
+fi
 
-if test x$debug_enabled = xt; then
-    #no optimization wanted
-    if test $ac_cv_prog_cc_g = yes; then
+#check for problem with linker/gcc on AIX
+unset aixldbug
+case $COMPTYPE in
+    gcc)
+	oCFLAGS="$CFLAGS"
 	CFLAGS="$CFLAGS${CFLAGS:+ }-g"
+	AC_MSG_CHECKING([whether compiling using -g works with gcc])
+	AC_TRY_LINK([int foo;], [foo++;],
+	    [AC_MSG_RESULT(yes)],
+	    [AC_MSG_RESULT(no)
+             AC_MSG_WARN([building with -g0])
+	     aixldbug=t])
+        CFLAGS="$oCFLAGS"
+        ;;
+esac
+
+#set compilation debugging flags
+if test x"${debug_enabled}" = xt; then
+    #no optimization wanted
+    if test x"${ac_cv_prog_cc_g}" = xyes; then
+	case $COMPTYPE in
+	    gcc)
+		if test x"$aixldbug" != x; then
+		    #disable debug info
+		    CFLAGS="$CFLAGS${CFLAGS:+ }-g0"
+		else
+		    CFLAGS="$CFLAGS${CFLAGS:+ }-ggdb"
+		fi
+		;;
+	    *)
+		CFLAGS="$CFLAGS${CFLAGS:+ }-g"
+		;;
+	esac
     fi
     CPPFLAGS="$CPPFLAGS${CPPFLAGS:+ }-DDEBUG=1"
-    AC_MSG_RESULT([yes])
 else
-    AC_MSG_RESULT([no])
     #autoconf_compflags is set to "-g -O2" with GCC
     #override CFLAGS when running configure to avoid this
     CPPFLAGS="$CPPFLAGS${CPPFLAGS:+ }-DDEBUG=0"
     CFLAGS="$CFLAGS${CFLAGS:+ }$autoconf_compflags"
+
+    case $COMPTYPE in
+	gcc)
+	    if test x"$aixldbug" != x; then
+	        #disable debug info
+		if echo $CFLAGS | grep -- "-g" >/dev/null; then
+		    CFLAGS="`echo $CFLAGS | sed -e 's/-g//g'`"
+		fi
+		CFLAGS="$CFLAGS${CFLAGS:+ }-g0"
+	    else
+		#use -ggdb also when not debugging
+		if echo $CFLAGS | grep -- "-g" >/dev/null; then
+		    CFLAGS="`echo $CFLAGS | sed -e 's/-g//g'`"
+		fi
+		CFLAGS="$CFLAGS${CFLAGS:+ }-ggdb"
+	    fi
+	    ;;
+    esac
 fi
 
+#check whether to compilation warnings
+unset NOWARN
 AC_MSG_CHECKING([for warning flags])
 AC_ARG_ENABLE(warnings,
 [  --enable-warnings       show compilation warnings],
-[enable_warnings=t], [])
+[if test x"$enableval" = xno; then
+    NOWARN="Disabled, using --disable-warnings"
+ fi],
+[#off by default
+ NOWARN="Disabled (default)"])
 
 #place warning flags in $warn
-if test x$enable_warnings != x; then
+if test x"$NOWARN" = x; then
     #try to enable compiler specific warning flags
     case $COMPTYPE in
 	gcc)
@@ -359,6 +441,18 @@ else
     AC_MSG_RESULT([none])
 fi
 
+#check if compilation with FORTIFY_SOURCE gives error/warning
+AC_MSG_CHECKING([whether compilation with FORTIFY_SOURCE works])
+oCFLAGS="$CFLAGS"
+oCPPFLAGS="$CPPFLAGS"
+CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN"
+CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_FORTIFY_SOURCE=2"
+AC_TRY_COMPILE([#include <stdio.h>], [],
+		   [AC_MSG_RESULT([yes])],
+		   [AC_MSG_RESULT([no])
+		    CPPFLAGS="$oCPPFLAGS"])
+CFLAGS="$oCFLAGS"
+
 #for Solaris, generate 64-bit binaries if running in 64-bit mode.
 #building 32-bit binaries (the default) causes problems with
 #LD_PRELOAD if running in a 64-bit environment.
@@ -388,42 +482,51 @@ esac
 #NOTE: set warnings at the bottom; might interfere with tests
 CFLAGS="$CFLAGS${CFLAGS:+ }$comp_flags"
 
-#-DDIAGNOSTICS?
+#check whether to compile with extra DIAGNOSTICS
+unset NODIAG
 AC_MSG_CHECKING([for compliation with DIAGNOSTIC])
 AH_TEMPLATE([DIAGNOSTIC], [for debugging])
 AC_ARG_ENABLE(diagnostic,
 [  --enable-diagnostic     enable diagnostic],
-[if test x"${have_livedebug}" != x; then
-    AC_MSG_WARN([--enable-livedebug cannot be used with --enable-diagnostic])
-    exit 1
- fi
- FEAT="$FEAT${FEAT:+ }diagnostic"
- AC_DEFINE(DIAGNOSTIC, 1)
- AC_MSG_RESULT([yes])],
-[if test x$prerelease != x; then
+[if test x"$enableval" = xno; then
+    NODIAG="Disabled, using --disable-diagnostics"
+ fi],
+[#off by default for full release, enabled by default for prerelease
+ if test x"$prerelease" = x; then
+    NODIAG="Disabled (default)"
+ fi])
+if test x"$NODIAG" = x; then
     FEAT="$FEAT${FEAT:+ }diagnostic"
     AC_DEFINE(DIAGNOSTIC, 1)
     AC_MSG_RESULT([yes])
- else
+else
     AC_DEFINE(DIAGNOSTIC, 0)
     AC_MSG_RESULT([no])
- fi])
+fi
 
+#check whether to build with profiling
+unset NOPROFIL
+AC_CHECK_FUNCS(moncontrol)
 AC_MSG_CHECKING([whether profiled compilation requested])
 AC_ARG_ENABLE(profiling,
 [  --enable-profiling      compile with profiling support in server],
-[AC_MSG_RESULT([yes])
- AC_MSG_CHECKING([if compiling profiled binaries works])
- oLDFLAGS="$LDFLAGS"
- oCFLAGS="$CFLAGS"
- LDFLAGS="$LDFLAGS${LDFLAGS:+ }-pg"
- CFLAGS="$CFLAGS${CFLAGS:+ }-pg -DPROFILING"
- AC_TRY_RUN([
+[if test x"$enableval" = xno; then
+    NOPROFIL="Disabled, using --disable-profiling"
+ fi],
+[#off by default
+ NOPROFIL="Disabled (default)"])
+if test x"$NOPROFIL" = x; then
+    AC_MSG_RESULT([yes])
+
+    oLDFLAGS="$LDFLAGS"
+    oCFLAGS="$CFLAGS"
+    LDFLAGS="$LDFLAGS${LDFLAGS:+ }-pg"
+    CFLAGS="$CFLAGS${CFLAGS:+ }-pg -DPROFILING"
+    AC_TRY_RUN([
 int main()
 {
 	return 0;
-}], [AC_MSG_RESULT([yes])
-     FEAT="$FEAT${FEAT:+ }profiling"
+}], [FEAT="$FEAT${FEAT:+ }profiling"
      AC_DEFINE(HAVE_PROFILING, 1, [for profiling])
 
      case $host in
@@ -435,24 +538,31 @@ int main()
 	     LIBS="$LIBS${LIBS:+ }-lc"
 	     ;;
      esac],
-   [AC_MSG_RESULT([no])
-    AC_MSG_WARN([profiling requested, but compilation with profiling fails])
+   [AC_MSG_WARN([profiling requested, but compilation with profiling fails])
+    NOPROFIL="Disabled, profiled compilation fails"
     CFLAGS="$oCFLAGS"
-    LDFLAGS="$oLDFLAGS"])],
-[AC_MSG_RESULT([no])])
+    LDFLAGS="$oLDFLAGS"])
+else
+    AC_MSG_RESULT([no])
+fi
 
-AC_CHECK_FUNCS(moncontrol)
-
+#check whether to build with coverage
+unset NOCOVERAGE
 AC_MSG_CHECKING([whether coverage requested])
 AC_ARG_ENABLE(coverage,
 [  --enable-coverage       compile with coverage],
-[AC_MSG_RESULT([yes])
- AC_MSG_CHECKING([if compiling with coverage works])
- oLDFLAGS="$LDFLAGS"
- oCFLAGS="$CFLAGS"
- LDFLAGS="$LDFLAGS${LDFLAGS:+ }--coverage"
- CFLAGS="$CFLAGS${CFLAGS:+ }--coverage"
-AC_TRY_RUN([
+[if test x"$enableval" = xno; then
+    NOCOVER="Disabled, using --disable-coverage"
+ fi],
+[#disabled by default
+ NOCOVER="Disabled (default)"])
+if test x"$NOCOVER" = x; then
+    AC_MSG_RESULT([yes])
+    oLDFLAGS="$LDFLAGS"
+    oCFLAGS="$CFLAGS"
+    LDFLAGS="$LDFLAGS${LDFLAGS:+ }--coverage"
+    CFLAGS="$CFLAGS${CFLAGS:+ }--coverage"
+    AC_TRY_RUN([
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -473,41 +583,63 @@ int main()
 	    else
 		exit(1);
 	}
-}], [AC_MSG_RESULT([yes])
-     FEAT="$FEAT${FEAT:+ }coverage"],
-    [AC_MSG_RESULT([no])
-     AC_MSG_WARN([coverage requested, but compilation with --coverage fails])
+}], [FEAT="$FEAT${FEAT:+ }coverage"],
+    [AC_MSG_WARN([coverage requested, but compilation with --coverage fails])
+     NOCOVER="Disabled, --coverage compilation fails"
      CFLAGS="$oCFLAGS"
-     LDFLAGS="$oLDFLAGS"])],
-[AC_MSG_RESULT([no])])
+     LDFLAGS="$oLDFLAGS"])
+else
+    AC_MSG_RESULT([no])
+fi
 
+#check whether to run lint
+unset NOLINT
+AC_MSG_CHECKING([whether linting requested])
 AC_ARG_ENABLE(linting,
 [  --enable-linting        enable lint],
-[AC_CHECK_PROG(LINT, lint, lint)
- if test x"$LINT" = x; then
-     AC_MSG_WARN([linting requested, but lint not found])
- else
-     s_linting=t
-     case $host in
-	 *-*-openbsd* | *-*-freebsd*)
-	     LINTFLAGS="-abcebprxz"
-	     LINTPASS1="-i"
-	     LINTPASS2=""
-	     LINTLIBOPT="-C"
-	     ;;
-	 *-*-solaris*)
-#	     LINTFLAGS=-c -errchk=%all -errsecurity=extended -fd -Ncheck=%all -Nlevel=3 -p -s
-#	     SUPPRESS="-x -erroff=E_FUNC_DECL_VAR_ARG2"
-	     LINTLIBS="-lnsl -lsocket -lwrap"
-	     LINTWARN="-errsecurity=extended -errchk=%all -errhdr -Ncheck=%all -Nlevel=3"
-	     LINTFLAGS="-fd -s -errfmt=simple $SUPPRESS $LINTWARN"
-	     LINTPASS1="-c"
-	     LINTPASS2="$LINTFLAGS $LINTLIBS"
-	     LINTLIBOPT="-o"
-	     ;;
-     esac
- fi])
-AM_CONDITIONAL(RUNLINT, test x$s_linting = xt)
+[if test x"$enableval" = xno; then
+    NOLINT="Disabled, using --disable-linting"
+ fi],
+[#off by default
+ NOLINT="Disabled (default)"])
+if test x"$NOLINT" = x; then
+    AC_MSG_RESULT([yes])
+
+    AC_CHECK_PROG(LINT, lint, lint)
+    if test x"$LINT" = x; then
+	AC_MSG_WARN([linting requested, but lint not found])
+	NOLINT="Disabled, lint not found"
+    else
+	s_linting=t
+	case $host in
+	    *-*-aix*)
+		LINTFLAGS="-abcbpx -Nn8000 -Nd8000"
+		LINTPASS1=""
+		LINTPASS2=""
+		LINTLIBOPT="-C"
+		;;
+	    *-*-openbsd* | *-*-freebsd*)
+		LINTFLAGS="-abcebprxz"
+		LINTPASS1="-i"
+		LINTPASS2=""
+		LINTLIBOPT="-C"
+		;;
+	    *-*-solaris*)
+#		LINTFLAGS=-c -errchk=%all -errsecurity=extended -fd -Ncheck=%all -Nlevel=3 -p -s
+#		SUPPRESS="-x -erroff=E_FUNC_DECL_VAR_ARG2"
+		LINTLIBS="-lnsl -lsocket -lwrap"
+		LINTWARN="-errsecurity=extended -errchk=%all -errhdr -Ncheck=%all -Nlevel=3"
+		LINTFLAGS="-fd -s -errfmt=simple $SUPPRESS $LINTWARN"
+		LINTPASS1="-c"
+		LINTPASS2="$LINTFLAGS $LINTLIBS"
+		LINTLIBOPT="-o"
+		;;
+	esac
+    fi
+else
+    AC_MSG_RESULT([no])
+fi
+AM_CONDITIONAL(RUNLINT, test x"$NOLINT" = x)
 AC_SUBST(LINT)
 AC_SUBST(LINTFLAGS)
 AC_SUBST(LINTPASS1)

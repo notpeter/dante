@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgetpeername.c,v 1.53 2012/06/01 20:23:05 karls Exp $";
+"$Id: Rgetpeername.c,v 1.57 2013/03/05 20:04:06 michaels Exp $";
 
 int
 Rgetpeername(s, name, namelen)
@@ -59,17 +59,16 @@ Rgetpeername(s, name, namelen)
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, s);
+   slog(LOG_DEBUG, "%s, fd %d", function, s);
 
    if (!socks_addrisours(s, &socksfd, 1)) {
       socks_rmaddr(s, 1);
       return getpeername(s, name, namelen);
    }
 
-
    switch (socksfd.state.command) {
       case SOCKS_BIND:
-         fakesockshost2sockaddr(&socksfd.forus.accepted, TOSA(&addr));
+         fakesockshost2sockaddr(&socksfd.forus.accepted, &addr);
          break;
 
       case SOCKS_CONNECT:
@@ -78,7 +77,7 @@ Rgetpeername(s, name, namelen)
             return -1;
          }
 
-         fakesockshost2sockaddr(&socksfd.forus.connected, TOSA(&addr));
+         fakesockshost2sockaddr(&socksfd.forus.connected, &addr);
          break;
 
       case SOCKS_UDPASSOCIATE:
@@ -87,15 +86,15 @@ Rgetpeername(s, name, namelen)
             return -1;
          }
 
-         fakesockshost2sockaddr(&socksfd.forus.connected, TOSA(&addr));
+         fakesockshost2sockaddr(&socksfd.forus.connected, &addr);
          break;
 
       default:
          SERRX(socksfd.state.command);
    }
 
-   *namelen = MIN(*namelen, sockaddr2salen(TOSA(&addr)));
-   sockaddrcpy(name, TOSA(&addr), (size_t)*namelen);
+   *namelen = MIN(*namelen, salen(addr.ss_family));
+   sockaddrcpy(TOSS(name), &addr, (size_t)*namelen);
 
    return 0;
 }

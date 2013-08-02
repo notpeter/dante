@@ -1,4 +1,4 @@
-/* $Id: memmove.c,v 1.9 2011/11/08 15:36:39 karls Exp $ */
+/* $Id: memmove.c,v 1.10 2012/10/22 15:15:58 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -6,7 +6,6 @@
 
 #include "osdep.h"
 
-#define MEMMOVE
 /*-
  * Copyright (c) 1990 The Regents of the University of California.
  * All rights reserved.
@@ -43,10 +42,6 @@
 static char *rcsid = "$OpenBSD: bcopy.c,v 1.2 1996/08/19 08:33:58 tholo Exp $";
 #endif /* LIBC_SCCS and not lint */
 
-#if 0
-#include <string.h>
-#endif
-
 /*
  * sizeof(word) MUST BE A POWER OF TWO
  * SO THAT wmask BELOW IS ALL ONES
@@ -56,23 +51,15 @@ typedef   long word;      /* "word" used for optimal copy speed */
 #define   wsize   sizeof(word)
 #define   wmask   (wsize - 1)
 
+#undef memmove
+
 /*
  * Copy a block of memory, handling overlap.
  * This is the routine that actually implements
  * (the portable versions of) bcopy, memcpy, and memmove.
  */
-#ifdef MEMCOPY
-void *
-memcpy(dst0, src0, length)
-#else
-#ifdef MEMMOVE
 void *
 memmove(dst0, src0, length)
-#else
-void
-bcopy(src0, dst0, length)
-#endif
-#endif
    void *dst0;
    const void *src0;
    register size_t length;
@@ -137,10 +124,5 @@ bcopy(src0, dst0, length)
       TLOOP(*--dst = *--src);
    }
 done:
-#if defined(MEMCOPY) || defined(MEMMOVE)
    return (dst0);
-#else
-   return;
-#endif
 }
-#undef MEMMOVE

@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: iface.c,v 1.14 2012/06/01 20:23:05 karls Exp $";
+"$Id: iface.c,v 1.18 2012/10/05 18:33:11 karls Exp $";
 
 #include "common.h"
 
@@ -75,22 +75,24 @@ socks_getmacaddr(ifname, addr)
 
 #if HAVE_SIOCGIFHWADDR
    struct ifreq ifr;
-   int s;
+   int rc, s;
 
    slog(LOG_DEBUG, "%s: HAVE_SIOCGIFHWADDR.  Ifname %s", function, ifname);
+
+   strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
+   ifr.ifr_name[sizeof(ifr.ifr_name) - 1] = NUL;
 
    if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
       swarn("%s: socket()", function);
       return NULL;
    }
 
-   strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
-   ifr.ifr_name[sizeof(ifr.ifr_name) - 1] = NUL;
+   rc = ioctl(s, SIOCGIFHWADDR, &ifr);
 
-   if (ioctl(s, SIOCGIFHWADDR, &ifr) != 0) {
+   close(s);
+
+   if (rc != 0) {
       swarn("%s: ioctl(SIOCGIFHWADDR)", function);
-
-      close(s);
       return NULL;
    }
 
@@ -115,14 +117,14 @@ socks_getmacaddr(ifname, addr)
       slog(LOG_DEBUG, "%s: parsing ifconfig output for interface %s failed",
       function, ifname);
 
-#if HAVE_SOLARIS_PRIVS
-      if (!sockscf.privileges.haveprivs)
+#if HAVE_SOLARIS_BUGS
+      if (!sockscf.state.haveprivs)
          swarnx("%s: parsing ifconfig output for interface %s failed.  "
                 "Retrieving the hardware address requires the elevated "
                 "privileges on Solaris.  Please make sure %s is started "
                 "by root",
-                function, ifname, PACKAGE);
-#endif /* HAVE_SOLARIS_PRIVS */
+                function, ifname, PRODUCT);
+#endif /* HAVE_SOLARIS_BUGS */
 
       return NULL;
    }
@@ -229,12 +231,12 @@ parse_ifconfig_output(input, addr)
 
       /* last byte will not have a ':' after it. */
       if (i != 5  && *endptr != ':') {
-         swarnx("%s: missing ':' separator in string: %s\n", function, input);
+         swarnx("%s: missing ':' separator in string: %s", function, input);
          return -1;
       }
 
       if (errno == ERANGE) {
-         swarn("%s: out of range in string: %s\n", function, input);
+         swarn("%s: out of range in string: %s", function, input);
          return -1;
       }
    }

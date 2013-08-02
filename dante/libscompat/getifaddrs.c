@@ -1,8 +1,10 @@
-/* $Id: getifaddrs.c,v 1.28 2012/05/21 21:39:17 karls Exp $ */
+/* $Id: getifaddrs.c,v 1.33 2012/12/30 16:11:40 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
+
+#include "osdep.h"
 
 /*
  * Copyright (c) 2012
@@ -47,8 +49,6 @@
  *
  */
 
-#include "osdep.h"
-
 #if PRERELEASE
 #define IFCONF_STARTENT 4
 #else
@@ -87,10 +87,10 @@ getifaddrs(struct ifaddrs **ifap)
    struct ifconf ifconf;
    struct ifreq *ifreq;
    struct ifreq ifreq2;
+   size_t addrlen;
    unsigned int flags;
    int addrskip;
    int prevlen;
-   int addrlen;
    int badname;
    char *nbuf;
    char *buf;
@@ -237,7 +237,9 @@ getifaddrs(struct ifaddrs **ifap)
          continue;
       }
 
-      memcpy(&i_addr, &ifreq->ifr_addr, addrlen);
+      bzero(&i_addr, sizeof(i_addr));
+      memcpy(&i_addr, &ifreq->ifr_addr,
+             MIN(sizeof(ifreq->ifr_addr), sizeof(i_addr)));
       p_addr = (struct sockaddr *)&i_addr;
 
 #ifdef SIOCGIFNETMASK
@@ -281,7 +283,6 @@ getifval(int s, int flag, struct ifreq *ifreq, struct sockaddr *addr,
 {
    char hbuf[NI_MAXHOST];
    struct ifreq ifreq2;
-   int n;
 
    ifreq2 = *ifreq;
    if (ioctl(s, flag, &ifreq2) == -1)
@@ -296,7 +297,7 @@ getifval(int s, int flag, struct ifreq *ifreq, struct sockaddr *addr,
    /* XXX verify address correctness for now */
    if ((ifreq2.ifr_addr.sa_family == AF_INET
    ||  ifreq2.ifr_addr.sa_family == AF_INET6)
-      && (n = getnameinfo((struct sockaddr *)&ifreq2.ifr_addr, addrlen,
+      && (getnameinfo((struct sockaddr *)&ifreq2.ifr_addr, addrlen,
                           hbuf, sizeof(hbuf),
                           NULL,
                           0,
@@ -313,7 +314,10 @@ ifaddrs_add(struct ifawrap *ifawrap, char *name, unsigned int flags,
             struct sockaddr *addr, struct sockaddr *netmask,
             struct sockaddr *dstaddr, struct sockaddr *data, size_t addrlen)
 {
-   size_t nameoff, addroff, maskoff, dstoff, dataoff;
+   size_t nameoff, addroff, maskoff, dstoff;
+#if 0
+   size_t dataoff;
+#endif
    struct ifaddrs *new;
    size_t addrskip;
    size_t namelen;
@@ -343,7 +347,9 @@ ifaddrs_add(struct ifawrap *ifawrap, char *name, unsigned int flags,
 
    if (dstaddr != NULL)
       nsize += addrskip;
+#if 0
    dataoff = nsize;
+#endif
 
    if (data != NULL) /*XXX*/
       nsize += addrskip; /*XXX*/

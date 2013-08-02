@@ -1,4 +1,4 @@
-.\" $Id: sockd.conf.5,v 1.162 2012/06/01 20:23:05 karls Exp $
+.\" $Id: sockd.conf.5,v 1.182 2013/07/29 11:46:41 michaels Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
 .\"               2008, 2009, 2010, 2011, 2012
@@ -41,7 +41,7 @@
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.TH SOCKD.CONF 5 "November 1 2009"
+.TH SOCKD.CONF 5 "May 8 2013"
 .SH NAME
 sockd.conf \- \fBDante\fP server configuration file syntax
 .SH DESCRIPTION
@@ -55,19 +55,9 @@ A line can be commented out using the standard comment character \fB#\fP.
 
 .SH SERVER SETTINGS
 The server settings control the generic behaviour of the server.  Each
-keyword is separated from it's value by a \fB':'\fP character.
-.IP \fBchild.maxidle\fP
-Maintains a rough maximum on how many children of each type can remain
-idle waiting for clients.  This is used to reduce the amount of idle
-processes after a "client burst" has passed.
-The default is \fByes\fP (maintain a maximum on how many processes can be
-idle), which is the recommended value for optimal resource usage.
+keyword is separated from its value by a \fB':'\fP character.
 
-It can be set to \fBno\fP if it is desirable to never shut down idle
-processes.  This can be used if client bursts are frequent and it is
-important to serve them as fast as possible, with no delay waiting for
-new server processes to be created, or to see how many processes were
-used to handle the peak load.
+The following keywords are available:
 
 .\" .IP \fBchild.maxrequests\fP
 .\" Maintains a max on the total number of clients a child process will
@@ -80,42 +70,47 @@ used to handle the peak load.
 .\" run to long.  The default value is \fB0\fP, meaning no limit.
 .\"
 .IP \fBclientmethod\fP
-A list of acceptable authentication methods for client-rules,
-in order of preference.  It is thus important that you specify these
-in the correct order, normally with the more secure methods first.
+A list of acceptable authentication methods for client-rules, listed
+in order of preference.  These are authentication methods that are 
+to be checked immediately after the SOCKS client has connected to \fBDante,
+and \fBbefore\fP any socks-negotiation has started.
 
-These are the authentication methods that can be checked before the
-socks-negotiation has completed.
+Supported values are \fBpam.address\fP, \fBpam.any\fP, \fBnone\fP, 
+and \fBrfc931\fP .
 
-Supported values are \fBnone\fP, \fBgssapi\fP, \fBrfc931\fP and \fBpam\fP.
-For all methods, except \fBgssapi\fP, that means the authentication will
-be based on solely on the IP-address of the client, possibly in combination
-with a \fBrfc931\fP ("ident") lookup.
+For all methods the authentication will be based on solely on the
+IP-address of the client, possibly in combination with a \fBrfc931\fP
+("ident") lookup towards the host the client is running on.
 
 Any credentials provided during this pass will also be available for use
 in later socks-rules, when the socks-request from the client is evaluated.
 
-The default value is all methods that may be necessary for the later
-socks-based authentication, as specified in the socks-method line.
-Normally you should not need to set this variable.
+The default value for this keyword is all methods that may be necessary
+for the later socks-based authentication methods, as specified as
+values to the global socksmethod keyword.  Normally you should not need
+to set this keyword, as \fBDante\fP will set it to the correct value by it self.
 
 .IP \fBcompatibility\fP
 With the \fBsameport\fP keyword, the server attempts to use the same
-port on the server's external side as the client used on the server's internal
-side.  This is normally the default, but when this option is given it
-will be done with privileged ports also.
+port on the server's external side as the client used on the server's
+internal side.  This is normally the default, but when this option is
+given it will be done with privileged ports also, meaning if a
+client connects to \fBDante\fP from a privileged port, \fBDante\fP will attempt
+to connect to the target destination from a privileged port too.
+There can be security issues involved with this, so normally this
+option should not be set.  
 
 The \fBdraft-5.05\fP keyword will enable usage of parts of the socks
 v5-05 draft.  The only feature from this draft that \fBDante\fP supports
 is the "USECLIENTSPORT" extension.  Note that there is a conflicting
 interpretation of this extension, so enabling it might prevent
 clients using the conflicting interpretation from working correctly.
-This only affects UDP.
+Only affects UDP.
 
 .IP \fBcpu\fP
-The CPU settings for the various type of Dante processes.
+The CPU settings for the various type of \fBDante\fP processes.
 Note that the possibility for configuring these settings depend on
-the platform Dante is running on.  Not all platforms may provide support
+the platform \fBDante\fP is running on.  Not all platforms may provide support
 for these type of CPU settings.
 
 There are four process types: \fBmother, negotiate, request\fP, and \fBio\fP.
@@ -129,6 +124,27 @@ The above requests that the kernel schedules the mother process(s)
 using a first-in, first-out policy, at priority 20.
 
 The default is to not request any specific scheduling.
+
+\fBmask\fP.<process type>: <cpu id 1> [cpu id 1 ...]/any.
+
+Example: \fBcpu.mask.mother: any\fP
+Example: \fBcpu.mask.io: 0 1\fP
+
+The mask gives control over the CPU/cores on which the different
+process types will run. Specifying the default (\fBall\fP) allows the
+process type to run on any CPU id. Specifying one or more numeric CPU
+id limits the process to that set of CPUs.
+
+The cpu keywords (\fBschedule\fP and \fBmask\fP) should in most cases
+not be necessary. If they are to be used, the \fBio\fP processes are
+where most of the work is done and adjusting the priority or CPU usage
+is what is likely to have the most significant performance effect
+client performance and overhead from the server. The other processes
+are primarily used during connection/session establishment and changes
+to settings for the non-io process types will primarily affect these
+operations.
+
+The default is to not limit processes to any specific cpu.
 
 .IP \fBdebug\fP
 Print debug info to the logs.  The value sets the debug level.
@@ -147,6 +163,12 @@ place to log errors.
 The address to be used for outgoing connections.
 The address given may be either a IP address or an interface name.
 Can be given multiple times for different addresses.
+
+.IP \fBexternal.log.<loglevel>.error\fP
+See \fBinternal.log.<loglevel>.error\fP.  This option has an identical
+syntax and semantics, but applies to error related to the external
+interface side.
+
 .IP \fBexternal.rotation\fP
 If more than one external address is given, this governs which
 of the given addresses is selected as the source address for
@@ -174,6 +196,28 @@ connection on.
 The internal addresses.  Connections will only be accepted on these addresses.
 The address given may be either a IP address or an interface name.
 
+.IP \fBinternal.log.<loglevel>.error\fP
+Specifies that certain system call failures, listed as symbolic errno
+values, or certain dns failures, listed as symbolic libresolv
+failure-codes, should be logged, possibly an extra time, at the log-level
+\fBlog-level\fP.
+
+Note that this only applies to errors on the internal interface
+side only.  A corresponding keyword exists for the external side (see
+\fBexternal.log\fP).
+
+In addition to the standard errno and getaddrinfo(3) error symbols,
+the following special symbols are accepted: 
+
+.RS
+.IP \fBno-route\fP
+Any error related to no route.
+.IP \fBdns-any\fP
+Any error related to DNS/hostname-resolving.
+.IP \fBsystem-any\fP
+Any system error.  I.e., any errno value.
+.RE
+
 .IP \fBlibwrap.hosts_access\fP
 If the server is compiled with libwrap support, determines whether the
 \fBhosts_access()\fP function should be used for access control. When
@@ -191,42 +235,21 @@ a filename, or a combination.  The default is nowhere.  Note that
 if \fBerrorlog\fP is also set, there will be a overlap between
 what is logged there (errors only), and what will be logged here
 (errors, and everything else).
-.IP \fBmethod\fP
-A list of acceptable authentication methods for socks-rules,
-in order of preference.  It is thus important that you specify these
-in the correct order, normally with the more secure methods first.
 
-Supported values are \fBbsdauth\fP, \fBgssapi\fP, \fBnone\fP, \fBpam\fP,
-\fBrfc931\fP, and \fBusername\fP,
+.IP \fBsocksmethod\fP
+A list of acceptable authentication methods for socks-rules, listed in
+order of preference.  It is thus important that you specify these in
+the desired order, normally with the more secure methods first.
 
-The default is no methods, which means all socks-requests will be blocked.
+Supported values are \fBbsdauth\fP, \fBgssapi\fP, \fBnone\fP, 
+\fBpam.any\fP, \fBpam.address\fP, \fBpam.username\fP, \fBrfc931\fP,
+and \fBusername\fP,
+
 If a method is not set in this list it will never be selected.
+The default is no methods, which means all socks-requests will be blocked.
 
-See the section on methods for an explanation of the different methods
-and their meaning.
-.IP \fBsocket\fP
-This keyword allows you to configure a few low-level socket options
-that relate to the socket buffers the \fBDante\fP server will use when
-communicating with clients and target hosts.  Note that these buffers
-will normally use kernel memory and the kernel may or may not honour
-the \fBDante\fP server's request.
-
-Normally there should be no need to set these values, and the default
-values should suffice.
-
-The keywords you can set are
-\fBsocket.recvbuf.udp\fP, \fBsocket.sendbuf.udp\fP,
-\fBsocket.recvbuf.tcp\fP, \fBsocket.sendbuf.tcp\fP.
-
-These control what socket buffersize the \fBDante\fP server will ask the
-kernel to use for the sockets.  The numeric argument given to the keyword
-indicates the size of the socket buffer in bytes.  You can set different
-values depending on the protocol (\fBtcp\fP or \fBudp\fP), and on whether
-it is for receiving (\fBrecvbuf\fP) or sending (\fBsendbuf\fP) data.
-
-Note: The \fBsocket\fP keyword is deprecated. A more generic way of
-setting socket options via the \fBinternal\fP and \fBexternal\fP
-keywords
+See the section on \fBAUTHENTICATION METHODS\fP for an explanation of
+the different methods and their meaning.
 
 .IP \fBsrchost\fP
 This keyword allows you to configure a few options that relate to the
@@ -241,13 +264,16 @@ With the \fBnodnsunknown\fP keyword, the server will not accept connections
 from addresses without a DNS record.  Default is to accept them.
 
 With the \fBcheckreplyauth\fP keyword, the server will check that
-the authentication on bind-replies and udp-replies matches that
-which is set in the rule and global method.  Normally, authentication
-is not desired on these replies, as they are replies sent to
-the socks-clients, from non-socks clients, and thus only a limited
-set of authentication methods are possible.  These methods are
-the methods not involving the socks protocol; \fBrfc931\fP and
-\fBpam\fP (using only the ipaddress and portnumber).
+the authentication on bind-replies and udp-replies matches that which is
+set in the rule and global socksmethod.  Normally, authentication is
+not desired on replies, as they are replies sent to the socks-clients
+from non-socks clients, and thus only a limited set of authentication
+methods are possible.
+
+The methods possible for TCP are the the methods not involving the socks
+protocol in any way, and are listed in the \fBclientmethod\fP section
+previously mentioned.  For UDP-replies, no methods can be used.
+
 Default is not to check the authentication on replies.
 
 .IP \fBtimeout.connect\fP
@@ -281,6 +307,11 @@ The default is \fByes\fP, which improves UDP performance, but may not
 be compatible with some UDP-based application protocols as it means
 the server can only receive packets from the destination address.
 
+The socket will only remain connected as long as the client only sends
+UDP packets to one destination address. If packets are sent to
+multiple destinations the socket will no longer remain connected and
+replies can be received from any destination.
+
 .IP \fBUserids\fP
 On platforms providing a privilege-model supported by \fBDante\fP,
 the \fBDante\fP server does not use userid-switching via the
@@ -305,17 +336,38 @@ that a separate userid is created for this purpose.
 User used to execute libwrap commands.  Normally this should be the same
 as \fBuser.unprivileged\fP
 
+.SH MODULES
+The following modules are supported by \fBDante\fP.  Modules are purchased
+separately from Inferno Nettverk A/S and may add extra functionality that
+is not needed by most users.  See the \fBDante\fP homepage
+for more information.
+
+.IP \fBbandwidth\fP
+The \fBbandwidth\fP module gives control over how much bandwidth the
+\fBDante\fP server uses on behalf of different clients or to different
+targets.
+
+.IP \fBredirect\fP
+The \fBredirect\fP module gives you control over what addresses the
+server will use on behalf of the clients, as well as allowing you to
+redirect client requests to a different addresses.
+
 .SH SOCKET OPTIONS
 
-The server has flexible support for setting a large number of socket
-options on both incoming and outgoing traffic. Options can be set both
-globally as defaults for all traffic, or be integrated in the access
-control rules to only be set for certain types of traffic.
+The server has support for setting a large number of low-level socket
+options on both incoming and outgoing traffic.  
+.I Most users will not need to set any of these options, but some might want 
+.I to do it, to enable special network features, or to perform various
+.I experiments.
 
-The socket options that are available vary between platforms, so
-during configuration and building of the server the options that are
-available will be determined. Currently, the following options should
-be detected, when available, for the specified protocol levels:
+Options can be set globally as defaults for all traffic, or be set in
+the access control rules to only affect clients and targets matching
+the given rule.
+
+The socket options that are available vary between platforms, so during
+configuration and building of the server the options that are available
+will be determined. Currently, the following options should be detected,
+when available, for the specified protocol levels:
 
 .RS
 .IP \fBSOCKET\fP
@@ -445,75 +497,86 @@ socket options, but represents a simple way of setting socket options
 that are not directly supported by the server, such as local kernel
 extensions.
 
-.SH MODULES
-The following modules are supported by \fBDante\fP.  Modules are purchased
-separately from Inferno Nettverk A/S and may add extra functionality that
-is not needed by most users.  See the \fBDante\fP homepage
-for more information.
-
-.IP \fBbandwidth\fP
-The \fBbandwidth\fP module gives control over how much
-bandwidth the \fBDante\fP server uses on behalf of different clients.
-
-.IP \fBredirect\fP
-The \fBredirect\fP module gives you control over what addresses the
-server will use on behalf of the clients, as well as allowing you to
-redirect client requests to a different addresses.
-
-.IP \fBsession\fP
-The \fBsession\fP module gives control over the number of
-sessions that can be created by different clients.
-
 .SH AUTHENTICATION METHODS
-The \fBDante\fP server supports the following authentication methods.  Some
-installations of \fBDante\fP may support only a subset of these.
+The \fBDante\fP server supports the following authentication methods.
+Some installations of \fBDante\fP may support only a subset of these,
+depending on platform support.
 
 .IP \fBnone\fP
 This method requires no form of authentication.
 .IP \fBusername\fP
 This method requires the client to provide a username and password.
-This must match the username and password given in the system password file.
+This information must match the username and password given in the system 
+password file.
 .IP \fBgssapi\fP
 This method requires the setup of a Kerberos environment and can
-provide strong encryption and authentication.
+provide strong encryption and authentication, depending on the 
+gssapi settings you choose.
 .IP \fBrfc931\fP
-This method requires the client host to provide a rfc931 ("ident")
-reply for the connecting client.
-This must match a username given in the system password file.
-.IP \fBpam\fP
-This method requires the available client data to match against the
-pam database.
+This method requires the host the socks client runs on to provide a
+rfc931 ("ident") username for the client.
+This username match a username given in the system password file.
+.IP \fBpam.address\fP
+IP-based (rhosts) PAM authentication.
+.IP \fBpam.any\fP
+Will try to match against any type of PAM authentication, depending
+on the information that is currently available.  Normally of limited
+use, and you should instead set the pam-based method(s) you 
+actually want.
+.IP \fBpam.username\fP
+Username/password-based PAM authentication.  Similar to the method
+\fBusername\fP, but the information is passed to the PAM subsystem
+for authentication, rather than \fBDante\fP using the system password
+file directly.  When using PAM, be wary of memory leakages and
+other bugs in the external PAM library \fBDante\fP will have to use on
+your platform.
 .IP \fBbsdauth\fP
 This method requires the available client data to be verified by
-the BSD Authentication system.
-
+the BSD Authentication system.  Similar to the method \fBusername\fP,
+but passed to the BSD authentication system instead.
 
 .SH ADDRESSES
 Each address field can consist of an IP address (and where required,
 a netmask, separated from the IP address by a '\fB/\fP' sign), a hostname,
-a domainname (designated so by the leading '\fB.\fP'), or an
-interface name.
-Each address can be followed by an optional \fBport\fP specifier.
+a domainname (designated so by the leading '\fB.\fP'), or an interface name.
+
+An IP address can be given on on IPv4 form, IPv6 form, or as the
+special value \fB0/0\fP, which matches all IP addresses, be they
+IPv4 or IPv6.  The latter is intended for use in \fBrules\fP
+that should match both IPv4 and IPv6 clients or targets.
+
+Each address, except the \fBexternal\fP address, can include an optional
+\fBport\fP specifier.
 
 .SH RULES
 There are two sets of rules and they work at different levels.
 Rules prefixed with \fBclient\fP are checked first and are used to
 see if the client is allowed to connect to the \fBDante\fP server.
-We call them "client-rules".
+We call them "client-rules".  
+These rules will start with \fBclient pass\fP for a rule that allows
+the client, or \fBclient block\fP for a rule that blocks the client.
 
-It is recommended that these rules do not use hostnames but only IP addresses,
-both for security and performance reasons.  These rules work at the
-TCP level.
+It is recommended that the client-rules do not use hostnames but only
+IP-addresses, both for security and performance reasons.  These rules
+operate at the TCP level.
 
-The other rules, which we call "socks-rules" are a level higher
-and are checked after the client connection has been accepted by the
-client-rules.  The socks-rules are used to evaluate the socks request
-that the client sends.
+The other rules, which we call "socks-rules", are prefixed with
+\fBsocks\fP and operate at the socks protocol level.
 
-Both set of rules begin with a \fBpass\fP or \fBdeny\fP keyword, but the
-client-rules have "client " in front of the \fBpass\fP/\fBdeny\fP
-keyword.  The  \fBpass\fP/\fBdeny\fP keyword determines whether
-connections matching the rule are to be passed through or be blocked.
+These rules will start with \fBsocks pass\fP for a rule that allows the
+client, or \fBsocks block\fP for a rule that blocks the client.
+
+These rules are only checked if the client connection has been allowed
+by the client-rules.  The socks-rules are used to evaluate the socks
+request that the client sends.  
+
+While it is less important that these rules use only IP-addresses,
+provided the client-rules have been configured to only allow access from
+a pre-defined range of client IP-addresses, it is still recommended.
+
+Both set of rules include a \fBpass\fP or \fBdeny\fP keyword.  The
+\fBpass\fP/\fBdeny\fP keyword determines whether connections matching
+the rule are to be passed through or be blocked.
 
 Both the client-rules and the socks-rules also specify a
 \fBfrom\fP/\fBto\fP address pair which gives the addresses the rule
@@ -542,11 +605,12 @@ For each rule, all conditions are checked and if they match the request,
 all actions are executed.
 
 The list of condition keywords is:
-\fBclientcompatibility\fP, \fBcommand\fP, \fBfrom\fP, \fBgroup\fP,
-\fBmethod\fP, \fBprotocol\fP, \fBproxyprotocol\fP, \fBto\fP, \fBuser\fP.
+\fBclientcompatibility\fP, \fBclientmethod\fP, \fBcommand\fP, \fBfrom\fP,
+\fBgroup\fP, \fBsocksmethod\fP, \fBprotocol\fP, \fBproxyprotocol\fP,
+\fBto\fP, \fBuser\fP.
 
 The list of action keywords is: \fBbandwidth\fP, \fBlibwrap\fP,
-\fBlog\fP, \fBmaxsessions\fP, \fBredirect\fP,
+\fBlog\fP, \fBsession\fP, \fBredirect\fP,
 \fBtimeout.connect\fP, \fBtimeout.negotiate\fP, \fBtimeout.io\fP,
 \fBtimeout.tcp_fin_wait\fP, and \fBudp.portrange\fP.
 
@@ -588,14 +652,14 @@ Which servicename to use when involving GSSAPI.  Default is "rcmd".
 The server will pass the specified parameter line to libwrap for execution.
 .IP \fBlog\fP
 Used to control logging.  Accepted keywords are \fBconnect\fP,
-\fBdisconnect\fP, \fBdata\fP, \fBerror\fP and \fBioop\fP.
+\fBdisconnect\fP, \fBdata\fP, \fBerror\fP, \fBioop\fP, and \fBtcpinfo\fP.
 The default is no logging.
-.IP \fBmaxsessions\fP
-Limit the number of active sessions allowed by this rule to the given
-value.  Requires the session module.
-.IP \fBmethod\fP
+.IP \fBsession\fP
+Control the max number of sessions or session establishment rate. See
+below for details.
+.IP \fBclientmethod\fP
 Require that the connection be "authenticated" using one of the
-given methods.
+given clientmethods.
 .IP \fBpam.servicename\fP
 Which servicename to use when involving pam.  Default is "sockd".
 .IP \fBport\fP
@@ -621,6 +685,14 @@ as follows:
 \"\fBredirect\fP to: \fBADDRESS\fP
 
 See the redirect manual for detailed information.
+
+.IP \fBsocksmethod\fP
+If the client offers more than one autentication method, \fBDante\fP will
+select the method to use based on the order the methods are listed here.
+Valid values are the same as in the global \fBsocksmethod\fP line.
+Normally there will be no need to set this keyword in a client-rule,
+but if it is set and the client offers none of the methods listed,
+the client will be blocked at this stage.
 
 .IP \fBtimeout.negotiate\fP
 See the global \fBtimeout.negotiate\fP option.
@@ -657,17 +729,19 @@ The user must belong to one of the groups given as value.
 The server will pass the line to libwrap for execution.
 .IP \fBlog\fP
 Used to control logging.  Accepted keywords are \fBconnect\fP,
-\fBdisconnect\fP, \fBdata\fP and \fBioop\fP.
-.IP \fBmaxsessions\fP
-Limit the number of active sessions allowed by this rule to the given
-value.  Requires the session module.
-.IP \fBmethod\fP
-Require that the connection be established using one of the
-given methods.  \fBmethod\fP always refers to the source part of
-the rule.
-Valid values are the same as in the global \fBmethod\fP line.
+\fBdisconnect\fP, \fBdata\fP, \fBioop\fP, and \fBtcpinfo\fP.
+.IP \fBsession\fP
+Control the max number of sessions or session establishment rate. See
+.IP \fBsocksmethod\fP
+Require that the connection be established using one of the given
+authentication methods.  A \fBmethod\fP normaly refers to the socks
+client part of the rule, and thus authenticates the client, and not
+the target destination (see \fBcheckreplyauth\fP for information about
+authenciation the target destination).  Valid values are the same as in
+the global \fBsocksmethod\fP line.
 .IP \fBpam.servicename\fP
 What servicename to use when involving pam.  Default is "sockd".
+
 .IP \fBport\fP
 Parameter to \fBfrom\fP, \fBto\fP and \fBvia\fP.  Accepts the keywords
 \fBeq/=, neq/!=, ge/>=, le/<=, gt/>, lt/<\fP followed by a number.
@@ -715,23 +789,74 @@ Note that the meaning of this address is affected by \fBcommand\fP.
 .IP \fBudp.portrange\fP
 The argument to this keyword is two port numbers, separated by
 a dash ('-').  They specify the UDP port-range that will be
-used between the \fBsocks-client\fP and the Dante-server for UDP
+used between the \fBsocks-client\fP and the \fBDante-server for UDP
 packets.  Note that this has no relation to the UDP port-range
-used between the Dante-server and external, non-socks, clients/servers.
+used between the \fBDante-server and external, non-socks, clients/servers.
 .IP \fBuser\fP
 The user must match one of the names given as value.
 If no \fBuser\fP value is given for a rule requiring usernames, the
 effect will be the same as listing every user in the password file.
-.SH ROUTES
-The routes are specified with a \fBroute\fP keyword.
-Inside a pair of parenthesis ({}) a set of keywords control the behavior of
-the route.  See socks.conf(5) for a description.  This is used to
-perform so-called "server-chaining", where one socks-server connects
-to another socks-server further upstream.
+.SH SESSION
+The \fBsession\fP keyword can be used any any rule to limit the number
+of active sessions and the rate at which they are established. There
+are two main commands for this; \fBsession.max\fP, that controls the
+max number of sessions that can be matched, and
+\fBsession.throttle\fP, that controls the connection rate. These
+commands can be applied both for the total limit for all matching
+clients and can be set as global defaults or in any of the rule types.
+The \fBsession.max\fP keyword takes a number corresponding to the
+highest number of allowed simultaneous connections as an argument. The
+\fBsession.throttlefP keyword takes two number separated by a slash
+character, with the first representing the number of connections and
+the latter a time duration in seconds. If more than the specified
+number of connections are received in the specified number of seconds,
+additional connections will be dropped.
 
-Note that at present, server-chaining is only supported for the
-\fBconnect\fP command.  See socks.conf(5) for more information
-about routes.
+Stateful session tracking on a per IP-address basis is also supported.
+For stateful tracking, the limits apply to each connection with a
+matching IP-address, with the \fBsession.state.key\fP keyword is used
+to control how the IP-address is determined. Currently two values are
+supported, \fBfrom\fP and \fBhostid\fP. The former causes the limit to
+be applied to all hosts with the same source IP-address and the latter
+to all TCP connections with the same hostid value. If a hostid value
+is used, the \fBsession.state.key.hostindex\fP keyword can be used to
+choose which of the to hostid values are used, with the first value
+being the default.
+
+Limits are evaluated first for client rules, then for hostid rules,
+and finally for socks rules. By default, a limit set in a matching
+client rule will be used also any subsequent matching hostid or socks
+rules, unless either of these rules also have session limit keywords.
+This session inheritance can be disabled in client and hostid rules,
+causing them to only apply in the rule in which they appear. This is done by setting the \fBsession.inheritable\fP to \fBno\fP.
+
+The session keywords must be set in a rule (either client, hostid, or
+socks), setting them globally is not supported.
+
+.SH ROUTES
+The routes are specified with a \fBroute\fP keyword.  Inside a pair of
+curly braces ({}) a set of keywords control the behavior of the route.
+See socks.conf(5) for a description.  This is used to perform so-called
+"server-chaining", where one socks-server connects to another socks-server
+further upstream.
+
+The syntax for these routes is the same as the routes used by the client.
+Please see socks.conf(5) for information about the route syntax.
+
+There are however some special things one need to be aware of 
+regarding serverchaining and routes specified for the server:
+.IP
+At present serverchaining is only supported for the \fBtcp connect\fP command. 
+.IP
+If the route specifies that a username/password-method should be offered
+to the upstream proxy, \fBDante\fP will forward the username/password received
+from it's own client to the forreign upstream proxy, meaning the
+upstream proxy will receive the user's username and password in cleartext
+from \fBDante.
+.IP
+At present serverchaining does not scale well in \fBDante\fP and should not
+be used for anything but minimal client loads.
+
 
 .SH EXAMPLES
 See the example/ directory in the distribution.
@@ -739,7 +864,8 @@ See the example/ directory in the distribution.
 .nf
 .ta \w 1
 /etc/sockd.conf   \fBDante\fP server configuration file.
-/etc/passwd   file used when checking username/passwords.
+/etc/passwd       systemfile used when doing standard username/password
+                  authentication.
 .fi
 .SH AUTHORS
 For inferno Nettverk A/S:
@@ -747,8 +873,12 @@ For inferno Nettverk A/S:
    Karl-Andre' Skevik
 .SH SEE ALSO
 sockd(8), socks.conf(5), hosts_access(5)
-.Pp
+
+.PP
 Information about new releases and other related issues can be found
-on the
-.Nm \fBDante\fP
-WWW home page: http://www.inet.no/dante/
+on the \fBDante\fP WWW home page: http://www.inet.no/dante/
+
+Information about commercial support can be found on the 
+\fBDante\fP WWW support page: http://www.inet.no/dante/support.html
+
+# LocalWords:  cpu

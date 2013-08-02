@@ -48,115 +48,108 @@
 #endif /* HAVE_NET_IF_DL_H */
 
 static const char rcsid[] =
-"$Id: sockaddr.c,v 1.7 2012/05/22 14:06:38 michaels Exp $";
+"$Id: sockaddr.c,v 1.31 2013/08/02 06:56:18 michaels Exp $";
 
 
 int
-sockaddrareeq(a, b)
-   const struct sockaddr *a;
-   const struct sockaddr *b;
+sockaddrareeq(a, b, nocompare)
+   const struct sockaddr_storage *a;
+   const struct sockaddr_storage *b;
+   const size_t nocompare;
 {
 
-#if HAVE_SOCKADDR_SA_LEN
-   if (a->sa_len != b->sa_len)
+   if (a->ss_family != b->ss_family)
       return 0;
 
-   return memcmp(a, b, a->sa_len) == 0;
+#if HAVE_SOCKADDR_STORAGE_SS_LEN
+   if (a->ss_len != b->ss_len)
+      return 0;
+#endif
 
-#else
+   if (! (nocompare & ADDRINFO_PORT))
+      if (GET_SOCKADDRPORT(a) != GET_SOCKADDRPORT(b))
+         return 0;
 
-   return memcmp(a, b, sizeof(*a)) == 0;
-
-#endif /* HAVE_SOCKADDR_SA_LEN */
-}
-
-void
-sockaddrcpy(struct sockaddr *dst, const struct sockaddr *src,
-            const size_t dstlen)
-{
-   const char *function = "sockaddrcpy()";
-   const socklen_t salen = sockaddr2salen(src);
-   const socklen_t cpylen = MIN(dstlen, salen);
-
-   SASSERTX(salen != 0);
-
-   if (cpylen < salen)
-      swarnx("%s: truncating address (af: %d): only %d of %d bytes available",
-             function, src->sa_family, dstlen, salen);
-
-   /* ensure all destination bytes are zero */
-   bzero(dst, dstlen);
-
-   memcpy(dst, src, cpylen);
-}
-
-void
-usrsockaddrcpy(struct sockaddr *dst, const struct sockaddr *src,
-               const size_t dstlen)
-{
-   const char *function = "usrsockaddrcpy()";
-   /* get length based on address family */
-   const socklen_t aflen = sa_family2salen(src->sa_family);
-   const socklen_t cpylen = MIN(dstlen, aflen);
-
-   if (cpylen < aflen)
-      swarnx("%s: truncating address (af: %d): only %d of %d bytes available",
-             function, src->sa_family, dstlen, aflen);
-
-   /* ensure all destination bytes are zero */
-   bzero(dst, dstlen);
-
-   memcpy(dst, src, cpylen);
-
-#if HAVE_SOCKADDR_SA_LEN
-   /* ensure sa_len is set */
-   dst->sa_len = cpylen; /*XXX?*/
-#endif /* HAVE_SOCKADDR_SA_LEN */
-}
-
-socklen_t
-sockaddr2salen(sa)
-   const struct sockaddr *sa;
-{
-   const char *function = "sockaddr2salen()";
-
-#if HAVE_SOCKADDR_SA_LEN
-   SASSERTX(sa->sa_len != 0);
-   return sa->sa_len;
-#else /* !HAVE_SOCKADDR_SA_LEN */
-
-   switch (sa->sa_family) {
+   switch (a->ss_family) {
       case AF_INET:
-         return sizeof(struct sockaddr_in);
+         return memcmp(&TOCIN(a)->sin_addr, 
+                       &TOCIN(b)->sin_addr, 
+                       sizeof(TOCIN(a)->sin_addr)) == 0;
 
       case AF_INET6:
-         return sizeof(struct sockaddr_in6);
+         if (! (nocompare & ADDRINFO_SCOPEID))
+            if (TOCIN6(a)->sin6_scope_id != TOCIN6(b)->sin6_scope_id)
+               return 0;
 
-#ifdef AF_LINK
-      case AF_LINK:
-         return sizeof(struct sockaddr_dl);
-#endif /* AF_LINK */
+         if (TOCIN6(a)->sin6_flowinfo != TOCIN6(b)->sin6_flowinfo)
+            return 0;
+
+         return memcmp(&TOCIN6(a)->sin6_addr, 
+                       &TOCIN6(b)->sin6_addr, 
+                       sizeof(TOCIN6(a)->sin6_addr)) == 0;
 
       default:
-         /*
-          * no idea, but don't error out as it would make it impossible
-          * to call this function without always have a pre-call check.
-          */
-         slog(LOG_DEBUG, "%s: called with unknown sa_family %d",
-                         function, sa->sa_family);
-
-         return sizeof(*sa);
+         return memcmp(a, b, salen(a->ss_family)) == 0;
    }
-#endif /* !HAVE_SOCKADDR_SA_LEN */
+}
 
-   /* NOTREACHED */
+void
+sockaddrcpy(dst, src, dstlen)
+   struct sockaddr_storage *dst;
+   const struct sockaddr_storage *src;
+   const size_t dstlen;
+{
+   const char *function = "sockaddrcpy()";
+   const socklen_t srclen  = salen(src->ss_family),
+                   copylen = MIN(dstlen, srclen);
+
+   if (copylen < srclen)
+      swarnx("%s: truncating address %s (af: %lu): %lu/%lu bytes available",
+             function,
+             sockaddr2string(src, NULL, 0),
+             (unsigned long)src->ss_family,
+             (unsigned long)dstlen,
+             (unsigned long)srclen);
+
+   if (copylen < dstlen)
+      bzero((char *)dst + copylen, dstlen - copylen); /* clear unused bytes. */
+
+   memcpy(dst, src, copylen);
+}
+
+void
+usrsockaddrcpy(dst, src, dstlen)
+   struct sockaddr_storage *dst;
+   const struct sockaddr_storage *src;
+   const size_t dstlen;
+{
+   const char *function    = "usrsockaddrcpy()";
+   const socklen_t srclen  = salen(src->ss_family),
+                   copylen = MIN(dstlen, srclen);
+
+   if (copylen < srclen)
+      swarnx("%s: truncating address %s (af: %lu): %lu/%lu bytes available",
+             function,
+             sockaddr2string(src, NULL, 0),
+             (unsigned long)src->ss_family,
+             (unsigned long)dstlen,
+             (unsigned long)srclen);
+
+   if (copylen < dstlen)
+      bzero((char *)dst + copylen, dstlen - copylen); /* clear unused bytes. */
+
+   memcpy(dst, src, copylen);
+
+#if HAVE_SOCKADDR_STORAGE_SS_LEN
+   dst->ss_len = copylen; /* ensure ss_len is set */
+#endif /* HAVE_SOCKADDR_STORAGE_SS_LEN */
 }
 
 sa_len_type
-sa_family2salen(family)
+salen(family)
    const sa_family_t family;
 {
-   const char *function = "sa_family2salen()";
+/*   const char *function = "salen()"; */
 
    switch (family) {
       case AF_INET:
@@ -179,7 +172,81 @@ sa_family2salen(family)
 
    }
 
+#if !SOCKS_CLIENT
    SWARNX(family);
+#endif /* !SOCKS_CLIENT */
 
    return (sa_len_type)sizeof(struct sockaddr);
+}
+
+sa_len_type
+inaddrlen(family)
+   const sa_family_t family;
+{
+/*   const char *function = "inaddrlen()"; */
+
+   switch (family) {
+      case AF_INET:
+         return (sa_len_type)sizeof(struct in_addr);
+
+#ifdef AF_INET6
+      case AF_INET6:
+         return (sa_len_type)sizeof(struct in6_addr);
+#endif /* AF_INET6 */
+   }
+
+   SWARNX(family);
+
+   return 0;
+}
+
+
+int
+safamily_issupported(family)
+   const sa_family_t family;
+{
+/*   const char *function = "safamily_issupported()"; */
+
+   switch (family) {
+      case AF_INET:
+      case AF_INET6:
+         return 1;
+
+      default: 
+         return 0;
+   }
+  
+   /* NOTREACHED */
+}
+
+sa_family_t
+atype2safamily(atype)
+   const int atype;
+{
+
+   switch (atype) {
+      case SOCKS_ADDR_IPV4:
+         return AF_INET;
+
+      case SOCKS_ADDR_IPV6:
+         return AF_INET6;
+   }
+
+   SERRX(atype);
+}
+
+int 
+safamily2atype(safamily)
+   const sa_family_t safamily;
+{
+
+   switch (safamily) {
+      case AF_INET:
+         return SOCKS_ADDR_IPV4;
+         
+      case AF_INET6:
+         return SOCKS_ADDR_IPV6;
+   }
+
+   SERRX(safamily);
 }

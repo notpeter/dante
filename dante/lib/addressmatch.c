@@ -45,74 +45,76 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.46 2012/06/01 20:23:05 karls Exp $";
+"$Id: addressmatch.c,v 1.93 2013/07/24 19:57:03 michaels Exp $";
 
-static int
-addrisinlist(const struct in_addr *addr, const struct in_addr *mask,
-      const struct in_addr **list);
+static const struct in_addr *
+ipv4_addrisinlist(const struct in_addr *addr, const struct in_addr *mask,
+                  const struct addrinfo *ailist);
 /*
- * Compares "addr" bitwise and-ed with "mask" against each element in
- * "list" bitwise and-ed with "mask".  "list" is NULL terminated.
+ * Compares "addr", bitwise AND-ed with "mask", against each IPv4 address 
+ * in "list", also bitwise AND-ed with "mask".  
+ *
  * Returns:
- *      If "list" contains a element matching "addr" and "mask": true
- *      else: false
+ *      If "list" contains a element matching "addr": pointer to the matching
+                                                      address in ailist.
+ *      otherwise: NULL.
  */
 
 static int
-addrareeq(const struct in_addr *addr, const struct in_addr *mask,
-      const struct in_addr *against);
+ipv4_addrareeq(const struct in_addr *a, const struct in_addr *b,
+               const struct in_addr *mask);
 /*
- * Compares "addr" bitwise and-ed with "mask" against "against" bitwise
+ * Compares "a", bitwise and-ed with "mask", against "b", also bitwise
  * and-ed with "mask".
+ *
  * Returns:
  *      If "against" matches "addr" and "mask": true
  *      else: false
  */
 
-static int
-hostisinlist(const char *host, const char **list);
+static const struct in6_addr *
+ipv6_addrisinlist(const struct in6_addr *addr, const unsigned int maskbits,
+                  const struct addrinfo *ailist);
+
+UNIT_TEST_STATIC_SCOPE int
+ipv6_addrareeq(const struct in6_addr *a, const struct in6_addr *b,
+               unsigned int maskbits);
 /*
- * Compares "host" against each element in "list", which is NULL
- * terminated.
- * Note that if "host" starts with a dot, it will match "list" if the
- * last part of "list" matches the part after the dot in "host".
- * Returns:
- *      If "list" contains a element matching "host": true
- *      else: false
+ * Same as previous two functions, but for IPv6.
  */
 
 static int
-hostareeq(const char *domain, const char *remotedomain);
+hostareeq(const char *ruledomain, const char *addrdomain);
 /*
- * Compares the rule-given domain "domain" against "remotedomain".
- * Note that if "domain" starts with a dot, it will match
- * "remotedomain" if the last part of "remotedomain" matches
- * the part after the dot in "domain".
+ * Compares the rule-given domain "ruledomain" against "addrdomain".
+ *
+ * Note that if "ruledomain" starts with a dot, it will match "addrdomain" if 
+ * the last part of "addrdomain" matches the part after the dot in "ruledomain".
+ *
  * Returns:
- *      on match: true
- *      else: false
+ *      if match   : true
+ *      if no match: false
  */
 
-#define HOSTENT_MAX_ALIASES   (10)
 
 int
-addrmatch(rule, address, protocol, alias)
+addrmatch(rule, addr, addrmatched, protocol, alias)
    const ruleaddr_t *rule;
-   const sockshost_t *address;
+   const sockshost_t *addr;
+   sockshost_t *addrmatched;
    int protocol;
    int alias;
 {
    const char *function = "addrmatch()";
-   struct hostent *hostent, hostentdupmem;
+   struct addrinfo *ai_rule, *ai_addr, hints;
+   struct sockaddr_storage sa;
+   dnsinfo_t ai_rulemem, ai_addrmem;
+   sockshost_t addrmatched_mem;
    in_port_t ruleport;
-   size_t hosti;
-   char _h_name[MAXHOSTNAMELEN];
-   char *_h_aliases[HOSTENT_MAX_ALIASES + 1];
-   char *_h_addr_list[HOSTENT_MAX_ALIASES + 1];
-   char _h_aliasesmem[HOSTENT_MAX_ALIASES][MAXHOSTNAMELEN];
-   char _h_addr_listmem[HOSTENT_MAX_ALIASES][MAX(sizeof(struct in_addr),
-                                             sizeof(struct in6_addr))];
-   int i, matched, doresolve;
+   const void *p;
+   size_t i;
+   char hostname[MAXHOSTNAMELEN];
+   int doresolve, rc;
 
    if (sockscf.option.debug) {
       char rstring[MAXRULEADDRSTRING], astring[MAXSOCKSHOSTSTRING];
@@ -120,11 +122,22 @@ addrmatch(rule, address, protocol, alias)
       slog(LOG_DEBUG,
            "%s: matching ruleaddress %s against %s for protocol %s, %s alias",
            function,
-           ruleaddr2string(rule, rstring, sizeof(rstring)),
-           sockshost2string(address, astring, sizeof(astring)),
+           ruleaddr2string(rule, 
+                           ADDRINFO_ATYPE | ADDRINFO_PORT, 
+                           rstring, 
+                           sizeof(rstring)),
+           sockshost2string2(addr, 
+                             ADDRINFO_ATYPE | ADDRINFO_PORT, 
+                             astring, 
+                             sizeof(astring)),
            protocol2string(protocol),
            alias ? "with" : "without");
    }
+
+   if (addrmatched == NULL)
+      addrmatched = &addrmatched_mem;
+
+   *addrmatched = *addr;
 
    /* test port first since we always have all info needed for that locally. */
    switch (protocol) {
@@ -145,38 +158,38 @@ addrmatch(rule, address, protocol, alias)
          break;
 
       case eq:
-         if (address->port == ruleport)
+         if (addr->port == ruleport)
             break;
          return 0;
 
       case neq:
-         if (address->port != ruleport)
+         if (addr->port != ruleport)
             break;
          return 0;
 
       case ge:
-         if (ntohs(address->port) >= ntohs(ruleport))
+         if (ntohs(addr->port) >= ntohs(ruleport))
             break;
          return 0;
 
       case le:
-         if (ntohs(address->port) <= ntohs(ruleport))
+         if (ntohs(addr->port) <= ntohs(ruleport))
             break;
          return 0;
 
       case gt:
-         if (ntohs(address->port) > ntohs(ruleport))
+         if (ntohs(addr->port) > ntohs(ruleport))
             break;
          return 0;
 
       case lt:
-         if (ntohs(address->port) < ntohs(ruleport))
+         if (ntohs(addr->port) < ntohs(ruleport))
             break;
          return 0;
 
       case range:
-         if (ntohs(address->port) >= ntohs(ruleport)
-         &&  ntohs(address->port) <= ntohs(rule->portend))
+         if (ntohs(addr->port) >= ntohs(ruleport)
+         &&  ntohs(addr->port) <= ntohs(rule->portend))
             break;
          return 0;
 
@@ -184,7 +197,6 @@ addrmatch(rule, address, protocol, alias)
          SERRX(rule->operator);
    }
 
-   /* only needed for client really... */
    switch (sockscf.resolveprotocol) {
       case RESOLVEPROTOCOL_TCP:
       case RESOLVEPROTOCOL_UDP:
@@ -200,434 +212,714 @@ addrmatch(rule, address, protocol, alias)
    }
 
    /*
+    * Check the obvious go/no-gos first.
+    */
+
+   /*
+    * No-go: different address families.  Make sure we check each 
+    * family seperatly, as we do not want to check against 
+    * SOCKS_ADDR_IPVANY here.
+    */
+
+   if (rule->atype == SOCKS_ADDR_IPV4 && addr->atype == SOCKS_ADDR_IPV6)
+      return 0;
+
+   if (rule->atype == SOCKS_ADDR_IPV6 && addr->atype == SOCKS_ADDR_IPV4)
+      return 0;
+
+
+   /*
+    * Go: zero netmask.
+    */
+
+   if (rule->atype == SOCKS_ADDR_IPVANY) {
+      SASSERTX(rule->addr.ipvany.mask.s_addr == htonl(0));
+      return 1;
+   }
+
+   if (rule->atype == SOCKS_ADDR_IPV4
+   && rule->addr.ipv4.mask.s_addr == htonl(0))
+      return 1;
+
+   if (rule->atype == SOCKS_ADDR_IPV6 && rule->addr.ipv6.maskbits == 0)
+      return 1;
+
+   /*
     * The hard work begins.
     */
 
 
+   bzero(&hints, sizeof(hints));
+
    /*
-    * Set up the memory for hostent pointers in case we need to use
-    * them later.
+    * if mask of rule is 0, it should match anything.  Try that, and other
+    * things we can decide on quickly first, since it can save ourselves 
+    * lots of very heavy work.
     */
-   for (hosti = 0; hosti < HOSTENT_MAX_ALIASES; ++hosti)
-      _h_aliases[hosti] = _h_aliasesmem[hosti];
-
-   for (hosti = 0; hosti < HOSTENT_MAX_ALIASES; ++hosti)
-      _h_addr_list[hosti] = _h_addr_listmem[hosti];
-
-   hostentdupmem.h_name      = _h_name;
-   hostentdupmem.h_aliases   = _h_aliases;
-   hostentdupmem.h_addr_list = _h_addr_list;
-
-
-   matched = 0;
-   /*
-    * if mask of rule is 0, it should match anything.  Try that first
-    * so we can save ourselves lots of potentially heavy work.
-    */
-   if (rule->atype == SOCKS_ADDR_IPV4
-   &&  rule->addr.ipv4.mask.s_addr == htonl(0))
-      matched = 1;
-   else if (rule->atype    == SOCKS_ADDR_IPV4
-   &&       address->atype == SOCKS_ADDR_DOMAIN) {
+   if ((rule->atype == SOCKS_ADDR_IPV4 || rule->atype == SOCKS_ADDR_IPV6)
+   &&   addr->atype == SOCKS_ADDR_DOMAIN) {
       /*
-       * match(rule.ipaddress, address.hostname)
-       * resolve address to ipaddress(es) and try to match each
-       *   resolved IP address against rule.
-       *      rule isin address->ipaddress(es)
+       * match(rule.ipaddr, addr.hostname)
+       *
+       * resolve addr.hostname to ipaddress(es) and try to match each 
+       * resolved ipaddress against rule.ipaddress:
+       *      rule.ipaddr isin addr.hostname.ipaddr
        *      .
        */
 
       if (!doresolve)
          return 0;
 
-      /* LINTED pointer casts may be troublesome */
-      if ((hostent = gethostbyname(address->addr.domain)) == NULL) {
-         slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-         function, address->addr.domain, hstrerror(h_errno));
+      hints.ai_family = atype2safamily(rule->atype);
+
+      rc = cgetaddrinfo(addr->addr.domain, NULL, &hints, &ai_addr, &ai_addrmem);
+
+      if (rc != 0) {
+         log_resolvefailed(addr->addr.domain, EXTERNALIF, rc);
          return 0;
       }
 
-      matched = addrisinlist(&rule->addr.ipv4.ip,
-                             &rule->addr.ipv4.mask,
-                             (const struct in_addr **)hostent->h_addr_list);
-   }
-   else if (rule->atype    == SOCKS_ADDR_IPV4
-   &&       address->atype == SOCKS_ADDR_IPV4) {
-      /*
-       * match(rule.ipaddress, address.ipaddress)
-       * try first a simple comparison, address against rule.
-       */
-
-      matched = addrareeq(&rule->addr.ipv4.ip,
-                          &rule->addr.ipv4.mask,
-                          &address->addr.ipv4);
-      if (!matched) {
-         /*
-          * Didn't match.  If alias is set, try to resolve address
-          * to hostname(s), the hostname back to IP address(es) and
-          * then match those IP address(es) against rule.
-          *      rule isin address->hostname(s)->ipaddress(es)
-          *      .
-          */
-
-         if (!doresolve)
-            return 0;
-
-         if (alias) {
-            char *nexthost;
-
-            /* LINTED pointer casts may be troublesome */
-            if ((hostent = gethostbyaddr(&address->addr.ipv4,
-            sizeof(address->addr.ipv4), AF_INET)) == NULL) {
-               slog(LOG_DEBUG, "%s: %s: %s",
-               function, inet_ntoa(address->addr.ipv4), hstrerror(h_errno));
+      switch (rule->atype) {
+         case SOCKS_ADDR_IPV4:
+            if ((p = ipv4_addrisinlist(&rule->addr.ipv4.ip,
+                                       &rule->addr.ipv4.mask,
+                                       ai_addr)) == NULL)
                return 0;
-            }
 
-            if (hostentdup(hostent, &hostentdupmem, HOSTENT_MAX_ALIASES)
-            == NULL) {
-               swarn("%s: hostentdup()", function);
+            addrmatched->atype = SOCKS_ADDR_IPV4;
+            memcpy(&addrmatched->addr.ipv4, p, sizeof(addrmatched->addr.ipv4));
+            return 1;
+            
+         case SOCKS_ADDR_IPV6:
+            if ((p = ipv6_addrisinlist(&rule->addr.ipv6.ip,
+                                       rule->addr.ipv6.maskbits,
+                                       ai_addr)) == NULL)
                return 0;
-            }
-            *hostent = hostentdupmem;
 
-            nexthost = hostent->h_name;
-            i = 0;
-            do {
-               struct hostent *iphostent;
+            addrmatched->atype = SOCKS_ADDR_IPV6;
 
-               /* iphostent = address->hostname(s)->ipaddress(es) */
-               if ((iphostent = gethostbyname(nexthost)) == NULL) {
-                  slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-                  function, nexthost, hstrerror(h_errno));
-                  continue;
-               }
+            memcpy(&addrmatched->addr.ipv6.ip, 
+                   p, 
+                   sizeof(addrmatched->addr.ipv6.ip));
 
-               /* rule isin address->hostname(s)->ipaddress(es) */
-               if (addrisinlist(&rule->addr.ipv4.ip,
-                                &rule->addr.ipv4.mask,
-                             (const struct in_addr **)iphostent->h_addr_list)) {
-                  matched = 1;
-                  break;
-               }
-            } while (hostent->h_aliases != NULL
-            &&       (nexthost = hostent->h_aliases[i++]) != NULL);
-         }
+            return 1;
 
-         if (!matched)
-            return 0;
+         default:
+            SERRX(rule->atype);
       }
    }
-   else if (rule->atype    == SOCKS_ADDR_DOMAIN
-   &&       address->atype == SOCKS_ADDR_DOMAIN) {
+   else if ((rule->atype == SOCKS_ADDR_IPV4 && addr->atype == SOCKS_ADDR_IPV4)
+   ||       (rule->atype == SOCKS_ADDR_IPV6 && addr->atype == SOCKS_ADDR_IPV6)){
       /*
-       * match(rule.hostname, address.hostname)
-       * Try simple match first.
+       * match(rule.ipaddr, addr.ipaddr)
        *
-       * If no go and rule is a hostname rather than a domain,
-       * resolve both rule and address to IP address(es) and compare
-       * each IP address of resolved rule against each IP address of
-       * resolved address.
-       *      rule->ipaddress(es) isin address->ipaddress(es)
-       *      .
-       *
+       * try simple comparison first: rule.ipaddr against addr.ipaddr.
        */
-      if (hostareeq(rule->addr.domain, address->addr.domain))
-         matched = 1;
-      else if (doresolve && *rule->addr.domain != '.') {
-         struct hostent *addresshostent;
-         struct in_addr mask;
 
-         if ((hostent = gethostbyname(rule->addr.domain)) == NULL) {
-               slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-               function, rule->addr.domain, hstrerror(h_errno));
-               return 0;
-         }
+      switch (rule->atype) {
+         case SOCKS_ADDR_IPV4:
+            if (ipv4_addrareeq(&rule->addr.ipv4.ip,
+                               &addr->addr.ipv4,
+                               &rule->addr.ipv4.mask))
+               return 1;
+            break;
 
-         if (hostentdup(hostent, &hostentdupmem, HOSTENT_MAX_ALIASES) == NULL) {
-            swarn("%s: hostentdup()", function);
-            return 0;
-         }
-         *hostent = hostentdupmem;
+         case SOCKS_ADDR_IPV6:
+            if (ipv6_addrareeq(&rule->addr.ipv6.ip,
+                               &addr->addr.ipv6.ip,
+                               rule->addr.ipv6.maskbits))
+               return 1;
+            break;
 
-         if ((addresshostent = gethostbyname(address->addr.domain)) == NULL) {
-            slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-            function, address->addr.domain, hstrerror(h_errno));
-
-            return 0;
-         }
-
-         /*
-          *   rule->ipaddress(es) isin address->ipaddress(es)
-          */
-
-         if (hostent->h_addr_list == NULL)
-            return 0;
-
-         mask.s_addr = htonl(0xffffffff);
-         for (i = 0; !matched && hostent->h_addr_list[i] != NULL; ++i)
-            matched
-            = addrisinlist((const struct in_addr *)hostent->h_addr_list[i],
-                           &mask,
-                          (const struct in_addr **)addresshostent->h_addr_list);
+         default:
+            SERRX(rule->atype);
       }
 
-      if (!matched)
-         return 0;
-   }
-   else if (rule->atype    == SOCKS_ADDR_DOMAIN
-   &&       address->atype == SOCKS_ADDR_IPV4) {
       /*
-       * match(rule.hostname, address.ipaddress)
-       * If rule is not a domain but a hostname, try resolving rule to
-       * IP address(es) and match against address.
-       *      address isin rule->ipaddress
-       *      .
+       * Did not match.  If alias is set, try to resolve addr.ipaddr
+       * to hostname(s), the hostname back to IP address(es) and
+       * then match those IP address(es) against rule.ipaddr:
        *
-       * If no match, resolve address to hostname(s) and match each
-       * against rule.
-       *      rule isin address->hostname
-       *      .
+       *    rule.ipaddr isin addr.ipaddr->hostname(s)->ipaddr(eses)
+       *    .
        *
-       * If still no match and alias is set, resolve all IP addresses
-       * of all hostname(s) resolved from address back to hostname(s)
-       * and match them against rule.
-       *      rule isin address->hostname->ipaddress->hostname
-       *      .
+       * Quite an expensive thing, so will hopefully not be used often,
+       * but might be needed for accepting bind-replies from multihomed
+       * hosts.  E.g. the client connects to IP i1, but the bindreply 
+       * comes from IP i2 on the same host.  If i1 and i2 are for the
+       * same host, they should reversemap back to the same hostname, 
+       * and that hostname should resolve to both i1 and i2. 
        */
 
       if (!doresolve)
          return 0;
 
-      if (*rule->addr.domain != '.') {
-         /* address isin rule->ipaddress */
-         struct in_addr mask;
-
-         if ((hostent = gethostbyname(rule->addr.domain)) == NULL) {
-            slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-            function, rule->addr.domain, hstrerror(h_errno));
-            return 0;
-         }
-
-         mask.s_addr = htonl(0xffffffff);
-         matched = addrisinlist(&address->addr.ipv4,
-                                &mask,
-                                (const struct in_addr **)hostent->h_addr_list);
-      }
-
-      if (!matched) {
-         /* rule isin address->hostname */
-
-         /* LINTED pointer casts may be troublesome */
-         if ((hostent = gethostbyaddr((const char *)&address->addr.ipv4,
-         sizeof(address->addr.ipv4), AF_INET)) == NULL) {
-            slog(LOG_DEBUG, "%s: gethostbyaddr(%s): %s",
-            function, inet_ntoa(address->addr.ipv4), hstrerror(h_errno));
-            return 0;
-         }
-
-         if (hostareeq(rule->addr.domain, hostent->h_name)
-         ||  hostisinlist(rule->addr.domain, (const char **)hostent->h_aliases))
-            matched = 1;
-#if !HAVE_NO_RESOLVESTUFF
-         else if (strchr(hostent->h_name, '.') == NULL) {
-            /* if hostname we got is non-qualified, try to qualify it. */
-            char fqdn[MAXHOSTNAMELEN];
-
-            snprintf(fqdn, sizeof(fqdn), "%s.%s",
-            hostent->h_name, _res.defdname);
-
-            if (hostareeq(rule->addr.domain, fqdn))
-               matched = 1;
-         }
-#endif /* !HAVE_NO_RESOLVESTUFF */
-      }
-
-      if (!matched && alias) {
-         /*
-          * rule isin address->hostname->ipaddress->hostname.
-          * hostent is already address->hostname due to above.
-          */
-         char *nexthost;
-
-         if (hostentdup(hostent, &hostentdupmem, HOSTENT_MAX_ALIASES) == NULL) {
-            swarn("%s: hostentdup()", function);
-            return 0;
-         }
-         *hostent = hostentdupmem;
-
-         nexthost = hostent->h_name;
-         i = 0;
-         do {
-            struct hostent *host, hostdupmem;
-            int ii;
-            char _h_name[MAXHOSTNAMELEN];
-            char *_h_aliases[HOSTENT_MAX_ALIASES + 1];
-            char *_h_addr_list[HOSTENT_MAX_ALIASES + 1];
-            char _h_aliasesmem[HOSTENT_MAX_ALIASES][MAXHOSTNAMELEN];
-            char _h_addr_listmem[HOSTENT_MAX_ALIASES][
-               MAX(sizeof(struct in_addr), sizeof(struct in6_addr))];
-
-            for (hosti = 0; hosti < HOSTENT_MAX_ALIASES; ++hosti)
-               _h_aliases[hosti] = _h_aliasesmem[hosti];
-
-            for (hosti = 0; hosti < HOSTENT_MAX_ALIASES; ++hosti)
-               _h_addr_list[hosti] =_h_addr_listmem[hosti];
-
-            hostdupmem.h_name      = _h_name;
-            hostdupmem.h_aliases   = _h_aliases;
-            hostdupmem.h_addr_list = _h_addr_list;
-
-            /* host; address->hostname->ipaddress */
-            if ((host = gethostbyname(nexthost)) == NULL) {
-               slog(LOG_DEBUG, "%s: gethostbyname(%s): %s",
-                    function, nexthost, hstrerror(h_errno));
-               continue;
-            }
-
-            if (hostentdup(host, &hostdupmem, HOSTENT_MAX_ALIASES) == NULL) {
-               swarn("%s: hostentdup()", function);
-               return 0;
-            }
-            *host = hostdupmem;
-
-            for (ii = 0;
-                 host->h_addr_list != NULL && host->h_addr_list[ii] != NULL;
-                 ++ii)
-            {
-               struct hostent *ip;
-
-               /* ip; address->hostname->ipaddress->hostname */
-               if ((ip = gethostbyaddr(host->h_addr_list[ii],
-                                       sizeof(struct in_addr),
-                                       AF_INET)) == NULL) {
-                  slog(LOG_DEBUG, "%s: gethostbyaddr(%s): %s",
-                       function,
-                       inet_ntoa(*(struct in_addr *)host->h_addr_list[ii]),
-                       hstrerror(h_errno));
-
-                  continue;
-               }
-
-               if (hostareeq(rule->addr.domain, ip->h_name)
-               ||  hostisinlist(rule->addr.domain,
-               (const char **)ip->h_aliases)) {
-                  matched = 1;
-                  break;
-               }
-#if !HAVE_NO_RESOLVESTUFF
-               else if (strchr(ip->h_name, '.') == NULL) {
-                  /* if hostname we got is non-qualified, try to qualify it. */
-                  char fqdn[MAXHOSTNAMELEN];
-
-                  snprintf(fqdn, sizeof(fqdn), "%s.%s",
-                  ip->h_name, _res.defdname);
-
-                  if (hostareeq(rule->addr.domain, fqdn)) {
-                     matched = 1;
-                     break;
-                  }
-               }
-#endif /* !HAVE_NO_RESOLVESTUFF */
-            }
-         } while (!matched && hostent->h_aliases != NULL
-         && (nexthost = hostent->h_aliases[i++]) != NULL);
-      }
-      if (!matched)
+      if (!alias)
          return 0;
+
+      sockshost2sockaddr(addr, &sa);
+
+      rc = sockaddr2hostname(&sa, hostname, sizeof(hostname));
+
+      if (rc != 0) {
+         log_resolvefailed(sockaddr2string2(&sa, 0, NULL, 0), 
+                           EXTERNALIF,
+                           rc);
+
+         return 0;
+      }
+
+      /*
+       * Reverse-mapped addr.ipaddr to a hostname.  Now resolve that hostname
+       * to ipaddress(es), and compare each of those against rule.ipaddr.
+       */
+
+      hints.ai_family = atype2safamily(rule->atype);
+
+      rc = cgetaddrinfo(hostname, NULL, &hints, &ai_addr, &ai_addrmem);
+
+      if (rc != 0) {
+         log_resolvefailed(hostname, EXTERNALIF, rc);
+         return 0;
+      }
+
+      /*
+       * Should now have one or more ipaddresses in ai_addr. 
+       * Compare them against rule.ipaddr:
+       *    rule.ipaddr isin addr->hostname->ipaddr
+       *    .
+       */
+      switch (rule->atype) {
+         case SOCKS_ADDR_IPV4:
+            if ((p = ipv4_addrisinlist(&rule->addr.ipv4.ip,
+                                       &rule->addr.ipv4.mask,
+                                       ai_addr)) == NULL)
+               return 0;
+
+            addrmatched->atype = SOCKS_ADDR_IPV4;
+            memcpy(&addrmatched->addr.ipv4, p, sizeof(addrmatched->addr.ipv4));
+            return 1;
+
+         case SOCKS_ADDR_IPV6:
+            if ((p = ipv6_addrisinlist(&rule->addr.ipv6.ip,
+                                       rule->addr.ipv6.maskbits,
+                                       ai_addr)) == NULL)
+               return 0;
+
+            addrmatched->atype = SOCKS_ADDR_IPV6;
+
+            memcpy(&addrmatched->addr.ipv6.ip, 
+                   p, 
+                   sizeof(addrmatched->addr.ipv6.ip));
+
+            return 1;
+
+         default:
+            SERRX(rule->atype);
+      }
+   }
+   else if (rule->atype == SOCKS_ADDR_DOMAIN
+   &&       addr->atype == SOCKS_ADDR_DOMAIN) {
+      /*
+       * Try the simple match first:
+       *    match(rule.hostname, addr.hostname)
+       *
+       * If no go and rule is a hostname (rather than a domain (.domain)),
+       * resolve both rule.hostname and addr.hostname to IP address(es),
+       * and then compare each IP address of resolved rule.hostname against
+       * each IP address of resolved address.hostname:
+       *
+       *    rule->hostname->ipaddress(es) isin addr->hostname->ipaddress(es)
+       *    .
+       */
+      struct addrinfo *next;
+
+      /* Note: this also handles the '.domain'-case. */
+      if (hostareeq(rule->addr.domain, addr->addr.domain))
+         return 1;
+
+      if (!doresolve)
+         return 0;
+
+      if (*rule->addr.domain == '.')
+         /* 
+          * can not resolve rule.domain to any ipaddresses, and since
+          * addr.hostname did not match, there is nothing to do.
+          * (except possibly resolve addr.hostname to ipaddresses, and
+          * reverse-map those back to hostnames.  But we don't do that.)
+          */
+         return 0;
+
+      /* 
+       * resolve both rule.hostname and addr.hostname to ipaddresses, and
+       * then match those ipaddresses against each others.
+       */
+
+      set_hints_ai_family(&hints.ai_family);
+
+      rc = cgetaddrinfo(addr->addr.domain, 
+                        NULL, 
+                        &hints,
+                        &ai_addr,
+                        &ai_addrmem);
+
+      if (rc != 0) {
+         log_resolvefailed(addr->addr.domain, EXTERNALIF, rc);
+         return 0;
+      }
+
+      rc = cgetaddrinfo(rule->addr.domain, NULL, &hints, &ai_rule, &ai_rulemem);
+
+      if (rc != 0) {
+         log_resolvefailed(rule->addr.domain, INTERNALIF, rc);
+
+         swarnx("%s: cgetaddrinfo(%s) with ai_family = %d failed: %s",
+                function,
+                rule->addr.domain,
+                hints.ai_family,
+                gai_strerror(rc));
+
+         return 0;
+      }
+
+      /*
+       * Ok, both hostname in rule and hostname to check resolved.
+       * All set to go for comparing all ipaddresses from rule against
+       * all ipaddresses from hostname to check against:
+       *    rule->hostname->ipaddress(es) isin addr->hostname->ipaddress(es)
+       *    .
+       */
+
+      next = ai_rule;
+      do {
+         SASSERT(next->ai_addr != NULL);
+
+         switch (next->ai_family) {
+            case AF_INET: {
+               struct in_addr mask;
+
+               mask.s_addr = htonl(IPV4_FULLNETMASK);
+
+               if ((p = ipv4_addrisinlist(&TOIN(next->ai_addr)->sin_addr,
+                                          &mask,
+                                          ai_addr)) != NULL) {
+                  addrmatched->atype = SOCKS_ADDR_IPV4;
+
+                  memcpy(&addrmatched->addr.ipv4, 
+                         p, 
+                         sizeof(addrmatched->addr.ipv4));
+
+                  return 1;
+               }
+
+               break; 
+            }
+
+            case AF_INET6:
+               if ((p = ipv6_addrisinlist(&TOIN6(next->ai_addr)->sin6_addr,
+                                          IPV6_NETMASKBITS,
+                                          ai_addr)) != NULL) {
+
+                  addrmatched->atype = SOCKS_ADDR_IPV6;
+
+                  memcpy(&addrmatched->addr.ipv6.ip, 
+                         p, 
+                         sizeof(addrmatched->addr.ipv6.ip));
+
+                  return 1;
+               }
+
+               break;
+
+            default:
+               swarnx("%s: unexpected af_family in ai_rule for %s: %d",
+                      function,
+                      rule->addr.domain,
+                      next->ai_family);
+         }
+
+         next = next->ai_next;
+      } while (next != NULL);
+
+      return 0;
+   }
+   else if (rule->atype == SOCKS_ADDR_DOMAIN
+   &&      (addr->atype == SOCKS_ADDR_IPV4 || addr->atype == SOCKS_ADDR_IPV6)) {
+      /*
+       * match(rule.hostname, addr.ipaddress)
+       *
+       * If rule is not a domain (.domain) but a hostname, try resolving 
+       * rule.hostname to IP addresses and match each of those against 
+       * addr.ipaddress:
+       *      addr.ipaddr isin rule.hostname->ipaddr
+       *
+       * If still no match, and alias is set, resolve addr.ipv4 to hostname(s),
+       * those hostnames back to ip, and and match against 
+       * rule.hostame->ipaddr:
+       *    rule.hostname->ipaddr isin addr->ipaddr->hostname(s)->ipaddr
+       *    .
+       *
+       * Quite an expensive thing, so will hopefully not be used often,
+       * but might be needed for accepting bind-replies from multihomed
+       * hosts.  E.g. the client connects to IP i1, but the bindreply 
+       * comes from IP i2 on the same host.  If i1 and i2 are for the
+       * same host, they should reversemap back to the same hostname, 
+       * and that hostname should resolve to both i1 and i2. 
+       *
+       * Note that we do not attempt to
+       * match(rule.hostname, addr->ipaddr->hostname), as addr->ipaddr
+       * can resolve to whatever it wants to and is thus not safe. 
+       * We could consider it and depend on user setting, if he so wishes,
+       * "srchost: nodnsmismatch" to avoid possible problems, but currently
+       * we do not.
+       *
+       * If on the other hand rule *is* a domain, we have no other choice
+       * but to try to match rule.domain against addr->ipaddr->hostname(s):
+       *    addr.ipaddr->hostnames isin rule.domain
+       *    .
+       */
+      struct addrinfo *next;
+
+      if (!doresolve)
+         return 0;
+
+      if (*rule->addr.domain == '.') {
+         /*
+          * Reversemap addr.ipaddr to hostnames and compare against that.
+          */
+
+         sockshost2sockaddr(addr, &sa);
+
+         rc = sockaddr2hostname(&sa, hostname, sizeof(hostname));
+
+         if (rc != 0) {
+            log_resolvefailed(sockaddr2string2(&sa, 0, NULL, 0), 
+                              EXTERNALIF,
+                              rc);
+
+            return 0;
+         }
+
+         return hostareeq(rule->addr.domain, hostname);
+      }
+
+      /*
+       * Else: resolve rule.hostname to ipaddresses and match them against 
+       * addr.ipaddr:
+       *    addr.ipaddr isin rule.hostname->ipaddr
+       */
+
+      /*
+       * hints.ai_family = atype2safamily(addr->atype);
+       *
+       * Don't set ai_family in hints.  Even though we are only looking for 
+       * addresses of type addr->atype, specifying that in hints will make 
+       * getaddrinfo(3) fail, and there appears to unfortunately not be
+       * any way to distinguish by the failure code whether the failure
+       * is due to no addresses at all, or just no address for the specified
+       * address family.  The former is likely an error that we want to
+       * warn about, since the name we are trying to resolve is specified
+       * in a rule, while the latter is more likely not a problem (unless
+       * the specified address-family is also the only address-family 
+       * configured on the external interface.  
+       * Assume it's better to risk getaddrinfo() returning fewer than the 
+       * possible number of addr->atype addresses, in return for being able 
+       * to warn about what probably a configuration error somewhere.
+       */
+
+      rc = cgetaddrinfo(rule->addr.domain, NULL, &hints, &ai_rule, &ai_rulemem);
+
+      if (rc != 0) {
+         log_resolvefailed(rule->addr.domain, INTERNALIF, rc);
+
+         swarnx("%s: cgetaddrinfo(%s) with ai_family = %d failed: %s",
+                function,
+                rule->addr.domain,
+                hints.ai_family,
+                gai_strerror(rc));
+ 
+         return 0;
+      }
+
+      switch (addr->atype) {
+         case SOCKS_ADDR_IPV4: {
+            struct in_addr mask;
+
+            mask.s_addr = htonl(IPV4_FULLNETMASK);
+
+            if ((p = ipv4_addrisinlist(&addr->addr.ipv4, &mask, ai_rule)) 
+            != NULL) {
+               addrmatched->atype = SOCKS_ADDR_IPV4;
+
+               memcpy(&addrmatched->addr.ipv4, 
+                      p, 
+                      sizeof(addrmatched->addr.ipv4));
+
+               return 1;
+            }
+
+            break;
+         }
+
+         case SOCKS_ADDR_IPV6: {
+            if ((p = ipv6_addrisinlist(&addr->addr.ipv6.ip,
+                                       IPV6_NETMASKBITS,
+                                       ai_rule)) != NULL) {
+               addrmatched->atype = SOCKS_ADDR_IPV6;
+
+               memcpy(&addrmatched->addr.ipv6.ip, 
+                      p, 
+                      sizeof(addrmatched->addr.ipv6.ip));
+
+               return 1;
+            }
+
+            break;
+         }
+
+         default:
+            SERRX(addr->atype);
+      }
+
+      if (!alias)
+         return 0;
+
+      /*
+       * Else: reversemap addr.ipaddr to hostname, hostname to ipaddr, 
+       * and then try to match that against rule.hostname->ipaddr:
+       */
+
+      sockshost2sockaddr(addr, &sa);
+
+      rc = sockaddr2hostname(&sa, hostname, sizeof(hostname));
+
+      if (rc != 0) {
+         log_resolvefailed(sockaddr2string2(&sa, 0, NULL, 0), 
+                           EXTERNALIF,
+                           rc);
+         return 0;
+      }
+
+      rc = cgetaddrinfo(hostname, NULL, &hints, &ai_addr, &ai_addrmem);
+
+      if (rc != 0) {
+         log_resolvefailed(hostname, EXTERNALIF, rc);
+         return 0;
+      }
+
+
+      /* 
+       * See if any of the addresses resolved from 
+       * rule->hostname->ipaddr match addr->ipaddr->hostname->ipaddr:
+       *    rule.hostname->ipaddr isin addr.ipaddr->hostname(s)->ipaddr
+       *    .
+       */
+      next = ai_rule;
+      do {
+         SASSERT(next->ai_addr != NULL);
+
+         switch (next->ai_family) {
+            case AF_INET: {
+               struct in_addr mask;
+
+               mask.s_addr = htonl(IPV4_FULLNETMASK);
+               if ((p = ipv4_addrisinlist(&TOIN(next->ai_addr)->sin_addr,
+                                          &mask,
+                                          ai_addr)) != NULL) {
+                  addrmatched->atype = SOCKS_ADDR_IPV4;
+
+                  memcpy(&addrmatched->addr.ipv4, 
+                         p, 
+                         sizeof(addrmatched->addr.ipv4));
+
+                  return 1;
+               }
+
+               break; 
+            }
+
+            case AF_INET6:
+               if ((p = ipv6_addrisinlist(&TOIN6(next->ai_addr)->sin6_addr,
+                                          IPV6_NETMASKBITS,
+                                          ai_addr)) != NULL) {
+                  addrmatched->atype = SOCKS_ADDR_IPV6;
+
+                  memcpy(&addrmatched->addr.ipv6.ip, 
+                         p, 
+                         sizeof(addrmatched->addr.ipv6.ip));
+
+                  return 1;
+               }
+
+               break;
+
+            default:
+               swarnx("%s: unexpected af_family in ai_rule for %s: %d",
+                      function,
+                      rule->addr.domain,
+                      next->ai_family);
+         }
+
+         next = next->ai_next;
+      } while (next != NULL);
+
+      return 0;
    }
    else if (rule->atype == SOCKS_ADDR_IFNAME) {
       /*
-       * Like ipaddress, just call it for each IP address of interface.
+       * Like rule.ipaddress, just call it for each IP address of interface.
        *
-       * match(rule.ifname2ipaddress, address)
+       * match(rule.ifname2ipaddress, addr)
        */
-       struct sockaddr_storage ss;
+       struct sockaddr_storage ss, mask;
+       int matched;
 
-       i = 0;
-       while (!matched && ifname2sockaddr(rule->addr.ifname, i++, TOSA(&ss), NULL)
-       != NULL) {
+       i = matched = 0;
+       while (!matched
+       && ifname2sockaddr(rule->addr.ifname, i++, &ss, &mask) != NULL) {
          ruleaddr_t ruleaddr;
 
-         /* identical except addr field. */
-         ruleaddr                       = *rule;
-
-         ruleaddr.atype                 = SOCKS_ADDR_IPV4;
-         ruleaddr.addr.ipv4.ip          = TOIN(&ss)->sin_addr;
-         ruleaddr.addr.ipv4.mask.s_addr = htonl(0xffffffff);
-
-         matched = addrmatch(&ruleaddr, address, protocol, alias);
+         sockaddr2ruleaddr(&ss, &ruleaddr);
+         if (addrmatch(&ruleaddr, addr, addrmatched, protocol, alias))
+            return 1;
       }
+
+      return 0;
    }
    else
       SERRX(0);
 
-   return matched;
-}
-
-static int
-addrisinlist(addr, mask, list)
-   const struct in_addr *addr;
-   const struct in_addr *mask;
-   const struct in_addr **list;
-{
-
-   if (list == NULL)
-      return 0;
-
-   while (*list != NULL)
-      if (addrareeq(addr, mask, *list))
-         return 1;
-      else
-         ++list;
+   /* NOTREACHED */
+   SERRX(0);
    return 0;
 }
 
-static int
-addrareeq(addr, mask, against)
+static const struct in_addr *
+ipv4_addrisinlist(addr, mask, ailist)
    const struct in_addr *addr;
    const struct in_addr *mask;
-   const struct in_addr *against;
+   const struct addrinfo *ailist;
 {
+   const struct addrinfo *next = ailist;
+   do {
+      SASSERTX(next->ai_addr != NULL);
 
-   return (addr->s_addr & mask->s_addr) == (against->s_addr & mask->s_addr);
+      if (next->ai_addr->sa_family == AF_INET) {
+         if (ipv4_addrareeq(addr, &TOCIN(next->ai_addr)->sin_addr, mask))
+            return &TOCIN(next->ai_addr)->sin_addr;
+      }
+
+      next = next->ai_next;
+   } while (next != NULL);
+
+   return NULL;
 }
 
 static int
-hostisinlist(host, list)
-   const char *host;
-   const char **list;
+ipv4_addrareeq(a, b, mask)
+   const struct in_addr *a;
+   const struct in_addr *b;
+   const struct in_addr *mask;
 {
 
-   if (list == NULL)
-      return 0;
-
-   while (*list != NULL)
-      if (hostareeq(host, *list))
-         return 1;
-      else
-         ++list;
-   return 0;
+   return (a->s_addr & mask->s_addr) == (b->s_addr & mask->s_addr);
 }
 
-static int
-hostareeq(domain, remotedomain)
-   const char *domain;
-   const char *remotedomain;
+static const struct in6_addr *
+ipv6_addrisinlist(addr, maskbits, ailist)
+   const struct in6_addr *addr;
+   const unsigned int maskbits;
+   const struct addrinfo *ailist;
 {
-   const char *function      = "hostareeq()";
-   const int domainlen       = strlen(domain);
-   const int remotedomainlen = strlen(remotedomain);
+   const struct addrinfo *next = ailist;
+   do {
+      SASSERTX(next->ai_addr != NULL);
 
-   slog(LOG_DEBUG, "%s: %s, %s", function, domain, remotedomain);
+      if (next->ai_addr->sa_family == AF_INET6) {
+         if (ipv6_addrareeq(addr, &TOCIN6(next->ai_addr)->sin6_addr, maskbits))
+            return &TOCIN6(next->ai_addr)->sin6_addr;
+      }
 
-   if   (*domain == '.')   { /* match everything ending in domain */
-      if (domainlen - 1 > remotedomainlen)
+      next = next->ai_next;
+   } while (next != NULL);
+
+   return NULL;
+}
+
+UNIT_TEST_STATIC_SCOPE int
+ipv6_addrareeq(a, b, maskbits)
+   const struct in6_addr *a;
+   const struct in6_addr *b;
+   unsigned int maskbits;
+{
+   const unsigned int maskv[CHAR_BIT + 1] = { 0,   /* 00000000 */ 
+                                              128, /* 10000000 */ 
+                                              192, /* 11000000 */ 
+                                              224, /* 11100000 */ 
+                                              240, /* 11110000 */ 
+                                              248, /* 11111000 */ 
+                                              252, /* 11111100 */ 
+                                              254, /* 11111110 */ 
+                                              255  /* 11111111 */ };
+   size_t i;
+
+   SASSERTX(CHAR_BIT <= 8);
+   SASSERTX(maskbits <= IPV6_NETMASKBITS);
+
+   /* 
+    * unfortunately "s6_addr" is the only member defined in the RFC.
+    * Perhaps later add some autoconf checks for whether we also have 
+    * s6_addr32, and do uint32_t compares on those platforms.
+    * 
+    * Would be nice if some bit-twiddling wizard made some efficent 
+    * code available, but till then, this will hopefully work well enough.
+    */
+
+   SASSERTX((maskbits / CHAR_BIT) <= ELEMENTS(a->s6_addr));
+   i = 0;
+   while (maskbits > 0) {
+      if (maskbits >= CHAR_BIT) {
+         /* all bits of byte set, can do a direct compare. */
+         if (a->s6_addr[i] != b->s6_addr[i])
+            return 0;
+
+         maskbits -= CHAR_BIT;
+         ++i;
+      }
+      else {
+         /* 
+          * only some bits of byte are set, mask out the remaining.
+          * Also means this must be the last byte to compare.
+          */
+         return (a->s6_addr[i] & maskv[maskbits])
+         ==     (b->s6_addr[i] & maskv[maskbits]);
+      }
+   }
+
+   return 1;
+}
+
+
+static int
+hostareeq(ruledomain, addrdomain)
+   const char *ruledomain;
+   const char *addrdomain;
+{
+   const char *function         = "hostareeq()";
+   const size_t ruledomainlen   = strlen(ruledomain);
+   const size_t remotedomainlen = strlen(addrdomain);
+
+   slog(LOG_DEBUG, "%s: %s, %s", function, ruledomain, addrdomain);
+
+   if  (*ruledomain == '.')   { /* match everything ending in ruledomain */
+      if (ruledomainlen - 1 /* '.' */ > remotedomainlen)
          return 0;   /* address to compare against too short, can't match. */
 
-      return strcasecmp(domain + 1,
-      remotedomain + (remotedomainlen - (domainlen - 1))) == 0;
+      return strcasecmp(ruledomain + 1,
+                        addrdomain + (remotedomainlen - (ruledomainlen - 1)))
+             == 0;
    }
    else /* need exact match. */
-      return strcasecmp(domain, remotedomain) == 0;
+      return strcasecmp(ruledomain, addrdomain) == 0;
 }
+

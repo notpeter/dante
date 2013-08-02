@@ -42,11 +42,13 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
 	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
 	$(top_srcdir)/acinclude.m4 $(top_srcdir)/compiler.m4 \
-	$(top_srcdir)/preload.m4 $(top_srcdir)/miniupnpc.m4 \
+	$(top_srcdir)/osdep.m4 $(top_srcdir)/libscompat.m4 \
+	$(top_srcdir)/danteopt.m4 $(top_srcdir)/preload.m4 \
 	$(top_srcdir)/gssapi.m4 $(top_srcdir)/kerberos.m4 \
 	$(top_srcdir)/sasl.m4 $(top_srcdir)/ldap.m4 \
-	$(top_srcdir)/libscompat.m4 $(top_srcdir)/sockopt.m4 \
-	$(top_srcdir)/mapfile.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/mapfile.m4 $(top_srcdir)/miniupnpc.m4 \
+	$(top_srcdir)/sharedopt.m4 $(top_srcdir)/sockopt.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(install_sh) -d
@@ -80,25 +82,30 @@ am_libdsocks_la_OBJECTS = libdsocks_la-interposition.lo \
 	libdsocks_la-int_osf1.lo libdsocks_la-int_osf2.lo \
 	libdsocks_la-int_osf3.lo libdsocks_la-Raccept.lo \
 	libdsocks_la-Rbind.lo libdsocks_la-Rbindresvport.lo \
-	libdsocks_la-Rcompat.lo libdsocks_la-Rconnect.lo \
+	libdsocks_la-broken.lo libdsocks_la-Rcompat.lo \
+	libdsocks_la-Rconnect.lo libdsocks_la-fmt.lo \
+	libdsocks_la-fmt_customer.lo libdsocks_la-fmt_protocol.lo \
 	libdsocks_la-Rgethostbyname.lo libdsocks_la-Rgetpeername.lo \
 	libdsocks_la-Rgetsockname.lo libdsocks_la-Rgetsockopt.lo \
 	libdsocks_la-Rlisten.lo libdsocks_la-Rrresvport.lo \
 	libdsocks_la-address.lo libdsocks_la-addressmatch.lo \
-	libdsocks_la-authneg.lo libdsocks_la-broken.lo \
-	libdsocks_la-client.lo libdsocks_la-clientconfig.lo \
-	libdsocks_la-clientprotocol.lo libdsocks_la-config.lo \
-	libdsocks_la-config_parse.lo libdsocks_la-config_scan.lo \
-	libdsocks_la-connectchild.lo libdsocks_la-debug.lo \
-	libdsocks_la-gssapi.lo libdsocks_la-hostcache.lo \
-	libdsocks_la-hostid.lo libdsocks_la-httpproxy.lo \
-	libdsocks_la-io.lo libdsocks_la-iobuf.lo libdsocks_la-log.lo \
-	libdsocks_la-protocol.lo libdsocks_la-serr.lo \
-	libdsocks_la-sockaddr.lo libdsocks_la-socket.lo \
-	libdsocks_la-socketopt.lo libdsocks_la-sockopt_gen.lo \
-	libdsocks_la-tostring.lo libdsocks_la-udp.lo \
+	libdsocks_la-authneg.lo libdsocks_la-client.lo \
+	libdsocks_la-clientconfig.lo libdsocks_la-clientprotocol.lo \
+	libdsocks_la-config.lo libdsocks_la-config_parse.lo \
+	libdsocks_la-config_scan.lo libdsocks_la-connectchild.lo \
+	libdsocks_la-debug.lo libdsocks_la-gssapi.lo \
+	libdsocks_la-hostcache.lo libdsocks_la-hostid.lo \
+	libdsocks_la-httpproxy.lo libdsocks_la-io.lo \
+	libdsocks_la-iobuf.lo libdsocks_la-ipv6.lo libdsocks_la-log.lo \
+	libdsocks_la-method.lo libdsocks_la-parse_util.lo \
+	libdsocks_la-protocol.lo libdsocks_la-showconfig.lo \
+	libdsocks_la-serr.lo libdsocks_la-sockaddr.lo \
+	libdsocks_la-socket.lo libdsocks_la-socketopt.lo \
+	libdsocks_la-sockopt.lo libdsocks_la-tostring.lo \
+	libdsocks_la-udp.lo libdsocks_la-hw.lo \
 	libdsocks_la-udp_util.lo libdsocks_la-upnp.lo \
-	libdsocks_la-userio.lo libdsocks_la-util.lo
+	libdsocks_la-userio.lo libdsocks_la-util.lo \
+	libdsocks_la-time.lo
 libdsocks_la_OBJECTS = $(am_libdsocks_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -181,6 +188,7 @@ LIBDSCSRC = @LIBDSCSRC@
 LIBOBJS = @LIBOBJS@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBS = @LIBS@
+LIBSCOMPAT = @LIBSCOMPAT@
 LIBSCSRC = @LIBSCSRC@
 LIBTOOL = @LIBTOOL@
 
@@ -223,6 +231,7 @@ SCCOMPATLIB = @SCCOMPATLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SOCKDCOMPAT = @SOCKDCOMPAT@
 SOCKDDEPS = @SOCKDDEPS@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 SOFULLPATH = @SOFULLPATH@
@@ -230,6 +239,7 @@ SOLIB_POSTFIX = @SOLIB_POSTFIX@
 STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
+UNITSUBDIRS = @UNITSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 YFLAGS = @YFLAGS@
@@ -287,39 +297,44 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 lib_LTLIBRARIES = libdsocks.la
+#file additions below need to also be added to dlib64/Makefile.am
 libdsocks_la_SOURCES = interposition.c int_osf1.c int_osf2.c		\
    int_osf3.c ../lib/Raccept.c ../lib/Rbind.c ../lib/Rbindresvport.c	\
-   ../lib/Rcompat.c ../lib/Rconnect.c ../lib/Rgethostbyname.c		\
-   ../lib/Rgetpeername.c ../lib/Rgetsockname.c ../lib/Rgetsockopt.c	\
-   ../lib/Rlisten.c ../lib/Rrresvport.c ../lib/address.c		\
-   ../lib/addressmatch.c ../lib/authneg.c ../lib/broken.c		\
+   ../lib/broken.c ../lib/Rcompat.c ../lib/Rconnect.c 			\
+   ../lib/fmt.c ../lib/fmt_customer.c ../lib/fmt_protocol.c 	        \
+   ../lib/Rgethostbyname.c ../lib/Rgetpeername.c ../lib/Rgetsockname.c  \
+   ../lib/Rgetsockopt.c	../lib/Rlisten.c ../lib/Rrresvport.c 		\
+   ../lib/address.c ../lib/addressmatch.c ../lib/authneg.c 		\
    ../lib/client.c ../lib/clientconfig.c ../lib/clientprotocol.c	\
    ../lib/config.c ../lib/config_parse.c ../lib/config_scan.c		\
    ../lib/connectchild.c ../lib/debug.c ../lib/gssapi.c			\
    ../lib/hostcache.c ../lib/hostid.c ../lib/httpproxy.c ../lib/io.c	\
-   ../lib/iobuf.c ../lib/log.c ../lib/protocol.c ../lib/serr.c		\
-   ../lib/sockaddr.c ../lib/socket.c ../lib/socketopt.c			\
-   ../lib/sockopt_gen.c ../lib/tostring.c ../lib/udp.c			\
-   ../lib/udp_util.c ../lib/upnp.c ../lib/userio.c ../lib/util.c
+   ../lib/iobuf.c ../lib/ipv6.c ../lib/log.c ../lib/method.c 	        \
+   ../lib/parse_util.c ../lib/protocol.c  ../lib/showconfig.c	        \
+   ../lib/serr.c ../lib/sockaddr.c ../lib/socket.c ../lib/socketopt.c	\
+   ../lib/sockopt.c ../lib/tostring.c ../lib/udp.c ../lib/hw.c		\
+   ../lib/udp_util.c ../lib/upnp.c ../lib/userio.c ../lib/util.c	\
+   ../lib/time.c
 
-EXTRA_libdsocks_la_SOURCES = ../libscompat/daemon.c		\
+EXTRA_libdsocks_la_SOURCES = \
    ../libscompat/difftime.c ../libscompat/getifaddrs.c		\
-   ../libscompat/hstrerror.c ../libscompat/inet_aton.c		\
+   ../libscompat/hstrerror.c                           		\
    ../libscompat/inet_ntoa.c ../libscompat/inet_pton.c		\
    ../libscompat/issetugid.c ../libscompat/memmove.c		\
-   ../libscompat/pselect.c ../libscompat/seteuid.c		\
-   ../libscompat/setproctitle.c ../libscompat/sockatmark.c	\
+   ../libscompat/pselect.c                        		\
+   ../libscompat/setproctitle.c                           	\
    ../libscompat/strlcpy.c ../libscompat/strvis.c		\
    ../libscompat/vsyslog.c
 
 libdsocks_la_LDFLAGS = -avoid-version -all-dynamic @MAPOPT@
-libdsocks_la_LIBADD = @LIBDSCSRC@ @DLIBDEPS@
-libdsocks_la_DEPENDENCIES = @LIBDSCSRC@ $(am__append_1)
+libdsocks_la_LIBADD = @LIBDSCSRC@ @DLIBDEPS@ @LIBSCOMPAT@
+libdsocks_la_DEPENDENCIES = Makefile.am _reconf @LIBDSCSRC@ \
+	$(am__append_1)
 libdsocks_la_LIBTOOLFLAGS = --tag=disable-static
 INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat \
 	   -I$(top_srcdir)/lib
 
-AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=1
+AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=1 -DSTANDALONE_UNIT_TEST=0
 @RUNLINT_TRUE@SUFFIXES = .ln
 @RUNLINT_TRUE@LINTFILESa = $(libdsocks_la_SOURCES:.c=.ln)
 @RUNLINT_TRUE@LINTFILESb = $(LINTFILESa:.y=.ln)
@@ -421,16 +436,18 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-config_parse.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-config_scan.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-connectchild.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-daemon.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-debug.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-difftime.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-fmt.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-fmt_customer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-fmt_protocol.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-getifaddrs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-gssapi.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-hostcache.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-hostid.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-hstrerror.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-httpproxy.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-inet_aton.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-hw.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-inet_ntoa.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-inet_pton.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-int_osf1.Plo@am__quote@
@@ -439,21 +456,24 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-interposition.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-io.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-iobuf.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-ipv6.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-issetugid.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-memmove.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-method.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-parse_util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-protocol.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-pselect.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-serr.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-seteuid.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-setproctitle.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-showconfig.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-sockaddr.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-sockatmark.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-socket.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-socketopt.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-sockopt_gen.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-sockopt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-strlcpy.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-strvis.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-time.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-tostring.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-udp.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdsocks_la-udp_util.Plo@am__quote@
@@ -542,6 +562,14 @@ libdsocks_la-Rbindresvport.lo: ../lib/Rbindresvport.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-Rbindresvport.lo `test -f '../lib/Rbindresvport.c' || echo '$(srcdir)/'`../lib/Rbindresvport.c
 
+libdsocks_la-broken.lo: ../lib/broken.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-broken.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-broken.Tpo -c -o libdsocks_la-broken.lo `test -f '../lib/broken.c' || echo '$(srcdir)/'`../lib/broken.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-broken.Tpo $(DEPDIR)/libdsocks_la-broken.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/broken.c' object='libdsocks_la-broken.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-broken.lo `test -f '../lib/broken.c' || echo '$(srcdir)/'`../lib/broken.c
+
 libdsocks_la-Rcompat.lo: ../lib/Rcompat.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-Rcompat.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-Rcompat.Tpo -c -o libdsocks_la-Rcompat.lo `test -f '../lib/Rcompat.c' || echo '$(srcdir)/'`../lib/Rcompat.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-Rcompat.Tpo $(DEPDIR)/libdsocks_la-Rcompat.Plo
@@ -557,6 +585,30 @@ libdsocks_la-Rconnect.lo: ../lib/Rconnect.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/Rconnect.c' object='libdsocks_la-Rconnect.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-Rconnect.lo `test -f '../lib/Rconnect.c' || echo '$(srcdir)/'`../lib/Rconnect.c
+
+libdsocks_la-fmt.lo: ../lib/fmt.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-fmt.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-fmt.Tpo -c -o libdsocks_la-fmt.lo `test -f '../lib/fmt.c' || echo '$(srcdir)/'`../lib/fmt.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-fmt.Tpo $(DEPDIR)/libdsocks_la-fmt.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/fmt.c' object='libdsocks_la-fmt.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-fmt.lo `test -f '../lib/fmt.c' || echo '$(srcdir)/'`../lib/fmt.c
+
+libdsocks_la-fmt_customer.lo: ../lib/fmt_customer.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-fmt_customer.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-fmt_customer.Tpo -c -o libdsocks_la-fmt_customer.lo `test -f '../lib/fmt_customer.c' || echo '$(srcdir)/'`../lib/fmt_customer.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-fmt_customer.Tpo $(DEPDIR)/libdsocks_la-fmt_customer.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/fmt_customer.c' object='libdsocks_la-fmt_customer.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-fmt_customer.lo `test -f '../lib/fmt_customer.c' || echo '$(srcdir)/'`../lib/fmt_customer.c
+
+libdsocks_la-fmt_protocol.lo: ../lib/fmt_protocol.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-fmt_protocol.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-fmt_protocol.Tpo -c -o libdsocks_la-fmt_protocol.lo `test -f '../lib/fmt_protocol.c' || echo '$(srcdir)/'`../lib/fmt_protocol.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-fmt_protocol.Tpo $(DEPDIR)/libdsocks_la-fmt_protocol.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/fmt_protocol.c' object='libdsocks_la-fmt_protocol.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-fmt_protocol.lo `test -f '../lib/fmt_protocol.c' || echo '$(srcdir)/'`../lib/fmt_protocol.c
 
 libdsocks_la-Rgethostbyname.lo: ../lib/Rgethostbyname.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-Rgethostbyname.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-Rgethostbyname.Tpo -c -o libdsocks_la-Rgethostbyname.lo `test -f '../lib/Rgethostbyname.c' || echo '$(srcdir)/'`../lib/Rgethostbyname.c
@@ -629,14 +681,6 @@ libdsocks_la-authneg.lo: ../lib/authneg.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/authneg.c' object='libdsocks_la-authneg.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-authneg.lo `test -f '../lib/authneg.c' || echo '$(srcdir)/'`../lib/authneg.c
-
-libdsocks_la-broken.lo: ../lib/broken.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-broken.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-broken.Tpo -c -o libdsocks_la-broken.lo `test -f '../lib/broken.c' || echo '$(srcdir)/'`../lib/broken.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-broken.Tpo $(DEPDIR)/libdsocks_la-broken.Plo
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/broken.c' object='libdsocks_la-broken.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-broken.lo `test -f '../lib/broken.c' || echo '$(srcdir)/'`../lib/broken.c
 
 libdsocks_la-client.lo: ../lib/client.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-client.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-client.Tpo -c -o libdsocks_la-client.lo `test -f '../lib/client.c' || echo '$(srcdir)/'`../lib/client.c
@@ -750,6 +794,14 @@ libdsocks_la-iobuf.lo: ../lib/iobuf.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-iobuf.lo `test -f '../lib/iobuf.c' || echo '$(srcdir)/'`../lib/iobuf.c
 
+libdsocks_la-ipv6.lo: ../lib/ipv6.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-ipv6.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-ipv6.Tpo -c -o libdsocks_la-ipv6.lo `test -f '../lib/ipv6.c' || echo '$(srcdir)/'`../lib/ipv6.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-ipv6.Tpo $(DEPDIR)/libdsocks_la-ipv6.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/ipv6.c' object='libdsocks_la-ipv6.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-ipv6.lo `test -f '../lib/ipv6.c' || echo '$(srcdir)/'`../lib/ipv6.c
+
 libdsocks_la-log.lo: ../lib/log.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-log.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-log.Tpo -c -o libdsocks_la-log.lo `test -f '../lib/log.c' || echo '$(srcdir)/'`../lib/log.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-log.Tpo $(DEPDIR)/libdsocks_la-log.Plo
@@ -758,6 +810,22 @@ libdsocks_la-log.lo: ../lib/log.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-log.lo `test -f '../lib/log.c' || echo '$(srcdir)/'`../lib/log.c
 
+libdsocks_la-method.lo: ../lib/method.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-method.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-method.Tpo -c -o libdsocks_la-method.lo `test -f '../lib/method.c' || echo '$(srcdir)/'`../lib/method.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-method.Tpo $(DEPDIR)/libdsocks_la-method.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/method.c' object='libdsocks_la-method.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-method.lo `test -f '../lib/method.c' || echo '$(srcdir)/'`../lib/method.c
+
+libdsocks_la-parse_util.lo: ../lib/parse_util.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-parse_util.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-parse_util.Tpo -c -o libdsocks_la-parse_util.lo `test -f '../lib/parse_util.c' || echo '$(srcdir)/'`../lib/parse_util.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-parse_util.Tpo $(DEPDIR)/libdsocks_la-parse_util.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/parse_util.c' object='libdsocks_la-parse_util.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-parse_util.lo `test -f '../lib/parse_util.c' || echo '$(srcdir)/'`../lib/parse_util.c
+
 libdsocks_la-protocol.lo: ../lib/protocol.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-protocol.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-protocol.Tpo -c -o libdsocks_la-protocol.lo `test -f '../lib/protocol.c' || echo '$(srcdir)/'`../lib/protocol.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-protocol.Tpo $(DEPDIR)/libdsocks_la-protocol.Plo
@@ -765,6 +833,14 @@ libdsocks_la-protocol.lo: ../lib/protocol.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/protocol.c' object='libdsocks_la-protocol.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-protocol.lo `test -f '../lib/protocol.c' || echo '$(srcdir)/'`../lib/protocol.c
+
+libdsocks_la-showconfig.lo: ../lib/showconfig.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-showconfig.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-showconfig.Tpo -c -o libdsocks_la-showconfig.lo `test -f '../lib/showconfig.c' || echo '$(srcdir)/'`../lib/showconfig.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-showconfig.Tpo $(DEPDIR)/libdsocks_la-showconfig.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/showconfig.c' object='libdsocks_la-showconfig.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-showconfig.lo `test -f '../lib/showconfig.c' || echo '$(srcdir)/'`../lib/showconfig.c
 
 libdsocks_la-serr.lo: ../lib/serr.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-serr.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-serr.Tpo -c -o libdsocks_la-serr.lo `test -f '../lib/serr.c' || echo '$(srcdir)/'`../lib/serr.c
@@ -798,13 +874,13 @@ libdsocks_la-socketopt.lo: ../lib/socketopt.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-socketopt.lo `test -f '../lib/socketopt.c' || echo '$(srcdir)/'`../lib/socketopt.c
 
-libdsocks_la-sockopt_gen.lo: ../lib/sockopt_gen.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-sockopt_gen.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-sockopt_gen.Tpo -c -o libdsocks_la-sockopt_gen.lo `test -f '../lib/sockopt_gen.c' || echo '$(srcdir)/'`../lib/sockopt_gen.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-sockopt_gen.Tpo $(DEPDIR)/libdsocks_la-sockopt_gen.Plo
+libdsocks_la-sockopt.lo: ../lib/sockopt.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-sockopt.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-sockopt.Tpo -c -o libdsocks_la-sockopt.lo `test -f '../lib/sockopt.c' || echo '$(srcdir)/'`../lib/sockopt.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-sockopt.Tpo $(DEPDIR)/libdsocks_la-sockopt.Plo
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/sockopt_gen.c' object='libdsocks_la-sockopt_gen.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/sockopt.c' object='libdsocks_la-sockopt.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-sockopt_gen.lo `test -f '../lib/sockopt_gen.c' || echo '$(srcdir)/'`../lib/sockopt_gen.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-sockopt.lo `test -f '../lib/sockopt.c' || echo '$(srcdir)/'`../lib/sockopt.c
 
 libdsocks_la-tostring.lo: ../lib/tostring.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-tostring.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-tostring.Tpo -c -o libdsocks_la-tostring.lo `test -f '../lib/tostring.c' || echo '$(srcdir)/'`../lib/tostring.c
@@ -821,6 +897,14 @@ libdsocks_la-udp.lo: ../lib/udp.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/udp.c' object='libdsocks_la-udp.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-udp.lo `test -f '../lib/udp.c' || echo '$(srcdir)/'`../lib/udp.c
+
+libdsocks_la-hw.lo: ../lib/hw.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-hw.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-hw.Tpo -c -o libdsocks_la-hw.lo `test -f '../lib/hw.c' || echo '$(srcdir)/'`../lib/hw.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-hw.Tpo $(DEPDIR)/libdsocks_la-hw.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/hw.c' object='libdsocks_la-hw.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-hw.lo `test -f '../lib/hw.c' || echo '$(srcdir)/'`../lib/hw.c
 
 libdsocks_la-udp_util.lo: ../lib/udp_util.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-udp_util.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-udp_util.Tpo -c -o libdsocks_la-udp_util.lo `test -f '../lib/udp_util.c' || echo '$(srcdir)/'`../lib/udp_util.c
@@ -854,13 +938,13 @@ libdsocks_la-util.lo: ../lib/util.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-util.lo `test -f '../lib/util.c' || echo '$(srcdir)/'`../lib/util.c
 
-libdsocks_la-daemon.lo: ../libscompat/daemon.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-daemon.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-daemon.Tpo -c -o libdsocks_la-daemon.lo `test -f '../libscompat/daemon.c' || echo '$(srcdir)/'`../libscompat/daemon.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-daemon.Tpo $(DEPDIR)/libdsocks_la-daemon.Plo
+libdsocks_la-time.lo: ../lib/time.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-time.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-time.Tpo -c -o libdsocks_la-time.lo `test -f '../lib/time.c' || echo '$(srcdir)/'`../lib/time.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-time.Tpo $(DEPDIR)/libdsocks_la-time.Plo
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/daemon.c' object='libdsocks_la-daemon.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/time.c' object='libdsocks_la-time.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-daemon.lo `test -f '../libscompat/daemon.c' || echo '$(srcdir)/'`../libscompat/daemon.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-time.lo `test -f '../lib/time.c' || echo '$(srcdir)/'`../lib/time.c
 
 libdsocks_la-difftime.lo: ../libscompat/difftime.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-difftime.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-difftime.Tpo -c -o libdsocks_la-difftime.lo `test -f '../libscompat/difftime.c' || echo '$(srcdir)/'`../libscompat/difftime.c
@@ -885,14 +969,6 @@ libdsocks_la-hstrerror.lo: ../libscompat/hstrerror.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/hstrerror.c' object='libdsocks_la-hstrerror.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-hstrerror.lo `test -f '../libscompat/hstrerror.c' || echo '$(srcdir)/'`../libscompat/hstrerror.c
-
-libdsocks_la-inet_aton.lo: ../libscompat/inet_aton.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-inet_aton.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-inet_aton.Tpo -c -o libdsocks_la-inet_aton.lo `test -f '../libscompat/inet_aton.c' || echo '$(srcdir)/'`../libscompat/inet_aton.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-inet_aton.Tpo $(DEPDIR)/libdsocks_la-inet_aton.Plo
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/inet_aton.c' object='libdsocks_la-inet_aton.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-inet_aton.lo `test -f '../libscompat/inet_aton.c' || echo '$(srcdir)/'`../libscompat/inet_aton.c
 
 libdsocks_la-inet_ntoa.lo: ../libscompat/inet_ntoa.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-inet_ntoa.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-inet_ntoa.Tpo -c -o libdsocks_la-inet_ntoa.lo `test -f '../libscompat/inet_ntoa.c' || echo '$(srcdir)/'`../libscompat/inet_ntoa.c
@@ -934,14 +1010,6 @@ libdsocks_la-pselect.lo: ../libscompat/pselect.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-pselect.lo `test -f '../libscompat/pselect.c' || echo '$(srcdir)/'`../libscompat/pselect.c
 
-libdsocks_la-seteuid.lo: ../libscompat/seteuid.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-seteuid.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-seteuid.Tpo -c -o libdsocks_la-seteuid.lo `test -f '../libscompat/seteuid.c' || echo '$(srcdir)/'`../libscompat/seteuid.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-seteuid.Tpo $(DEPDIR)/libdsocks_la-seteuid.Plo
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/seteuid.c' object='libdsocks_la-seteuid.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-seteuid.lo `test -f '../libscompat/seteuid.c' || echo '$(srcdir)/'`../libscompat/seteuid.c
-
 libdsocks_la-setproctitle.lo: ../libscompat/setproctitle.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-setproctitle.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-setproctitle.Tpo -c -o libdsocks_la-setproctitle.lo `test -f '../libscompat/setproctitle.c' || echo '$(srcdir)/'`../libscompat/setproctitle.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-setproctitle.Tpo $(DEPDIR)/libdsocks_la-setproctitle.Plo
@@ -949,14 +1017,6 @@ libdsocks_la-setproctitle.lo: ../libscompat/setproctitle.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/setproctitle.c' object='libdsocks_la-setproctitle.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-setproctitle.lo `test -f '../libscompat/setproctitle.c' || echo '$(srcdir)/'`../libscompat/setproctitle.c
-
-libdsocks_la-sockatmark.lo: ../libscompat/sockatmark.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-sockatmark.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-sockatmark.Tpo -c -o libdsocks_la-sockatmark.lo `test -f '../libscompat/sockatmark.c' || echo '$(srcdir)/'`../libscompat/sockatmark.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdsocks_la-sockatmark.Tpo $(DEPDIR)/libdsocks_la-sockatmark.Plo
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/sockatmark.c' object='libdsocks_la-sockatmark.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libdsocks_la-sockatmark.lo `test -f '../libscompat/sockatmark.c' || echo '$(srcdir)/'`../libscompat/sockatmark.c
 
 libdsocks_la-strlcpy.lo: ../libscompat/strlcpy.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libdsocks_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libdsocks_la-strlcpy.lo -MD -MP -MF $(DEPDIR)/libdsocks_la-strlcpy.Tpo -c -o libdsocks_la-strlcpy.lo `test -f '../libscompat/strlcpy.c' || echo '$(srcdir)/'`../libscompat/strlcpy.c
@@ -1190,6 +1250,12 @@ uninstall-am: uninstall-libLTLIBRARIES
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags uninstall uninstall-am uninstall-libLTLIBRARIES
 
+
+#XXX hack used to ensure depcomp is rerun when Makefile.am files are changed
+_reconf: ../_reconf Makefile.am
+	@(cd ..; make _reconf)
+	@echo "notice: autoconf regeneration complete, rerun make"
+	@false
 
 @RUNLINT_TRUE@.c.ln:
 @RUNLINT_TRUE@	-$(LINT) $(LINTPASS1) $(LINTFLAGS) $(DEFS) $(INCLUDES) $(CPPFLAGS) $(AM_CFLAGS) $< > $@.lint 2>&1

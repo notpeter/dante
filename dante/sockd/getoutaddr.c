@@ -1,5 +1,5 @@
 /*
- * $Id: getoutaddr.c,v 1.87 2012/06/01 20:23:05 karls Exp $
+ * $Id: getoutaddr.c,v 1.126 2013/07/27 19:03:46 michaels Exp $
  *
  * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010, 2011, 2012
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
@@ -43,472 +43,472 @@
  *
  */
 
-/*
- * The Linux code originated from Tom Chan <tchan@austin.rr.com>.
- * The BSD code came from Christoph Badura <bad@bsd.de> and W. R. Stevens
- * UNP book.
- *
- * Thanks, guys.
- */
-
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getoutaddr.c,v 1.87 2012/06/01 20:23:05 karls Exp $";
+"$Id: getoutaddr.c,v 1.126 2013/07/27 19:03:46 michaels Exp $";
 
-#if HAVE_NET_IF_DL_H
-#include   <net/if_dl.h>
-#endif /* HAVE_NET_IF_DL_H */
-#include   <net/route.h>           /* RTA_xxx constants */
-#if HAVE_ROUTEINFO_LINUX
-#include   <asm/types.h>
-#ifndef __GNUC__ /*XXX*/
-typedef unsigned long long __u64;
-#endif /* __GNUC__ */
-#include   <linux/netlink.h>
-#include   <linux/rtnetlink.h>
-#endif /* HAVE_ROUTEINFO_LINUX */
-
-static struct in_addr
-getdefaultexternal(void);
+static sa_family_t
+get_external_safamily(const struct sockaddr_storage *client,
+                      const int command, const sockshost_t *reqhost);
 /*
- * Returns the default IP address to use for external connections.
+ * Returns the sa_family_t that should be used for a client with address
+ * "client", requesting the SOCKS command "command" with the reqest host
+ * "reqhost".
+ * 
+ * On success the sa_family_t that shpuld be used.
+ * On failure returns AF_UNSPEC.
  */
 
-static int
-isonexternal(const struct sockaddr *addr);
+
+static struct sockaddr_storage *
+getdefaultexternal(const sa_family_t safamily, struct sockaddr_storage *addr);
 /*
- * Returns true if "addr" is configured for the external interface,
- * otherwise false.
+ * Returns the default IP address of sa_family_t "safamily" to use for 
+ * external connections.  The portnumber in the address returned should 
+ * be ignored.
+ *
+ * "safamily" can be set to AF_UNSPEC if the function can return an
+ * address of any sa_family_t.  If there is no address of type safamily
+ * available, the semantics are the same as if safamily was set to AF_UNSPEC.
+ *
+ * The default ipaddress is stored in "addr", and a pointer to it is returned.
  */
 
-static void
-reportchosen(const char *function, const struct in_addr *chosenaddr,
-             const struct in_addr *dstaddr);
-/*
- * prints a warning message if "chosenaddr", the address chosen for a
- * connection to "dstaddr", is not on the list of addresses on the
- * external interface.
- */
-
-#if HAVE_ROUTEINFO_LINUX
-typedef unsigned char uchar_t;
-
-struct in_addr
-getoutaddr(src, dst)
-   const struct in_addr src;
-   const struct in_addr dst;
+struct sockaddr_storage *
+getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
+   struct sockaddr_storage *laddr;
+   const struct sockaddr_storage *client;
+   const int cmd;
+   const sockshost_t *reqhost;
+   char *emsg;
+   const size_t emsglen;
 {
    const char *function = "getoutaddr()";
-   struct {
-      struct nlmsghdr nh;
-      struct rtmsg   rt;
-      char           attrbuf[512];
-   } req;
-   struct rtattr *rta;
-   char buf[BUFSIZ];
-   struct nlmsghdr *rhdr;
-   struct rtmsg *rrt;
-   struct rtattr *rrta;
    struct sockaddr_storage raddr;
-   int attrlen;
-   int rtnetlink_sk;
+   char addrstr[MAXSOCKADDRSTRING], raddrstr[MAXSOCKSHOSTSTRING];
 
-   if (sockscf.external.addrc <= 1
-   ||  sockscf.external.rotation == ROTATION_NONE)
-      return getdefaultexternal();
+   slog(LOG_DEBUG,
+        "%s: client %s, cmd %s, reqhost %s, external.rotation = %s",
+        function,
+        sockaddr2string(client, addrstr, sizeof(addrstr)),
+        command2string(cmd),
+        sockshost2string(reqhost, raddrstr, sizeof(raddrstr)),
+        rotation2string(sockscf.external.rotation));
 
-   if (sockscf.external.rotation == ROTATION_SAMESAME) {
-      if (addrindex_on_externallist(&sockscf.external, src) != -1)
-         return src;
-      else
-         return getdefaultexternal();
-   }
-
-   sockd_priv(SOCKD_PRIV_NET_ROUTESOCKET, PRIV_ON);
-   rtnetlink_sk = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
-   sockd_priv(SOCKD_PRIV_NET_ROUTESOCKET, PRIV_OFF);
-
-   if (rtnetlink_sk == -1) {
-      swarn("%s: socket(NETLINK_ROUTE)", function);
-      return getdefaultexternal();
-   }
+   bzero(&raddr, sizeof(raddr)); 
 
    /*
-    * Build the necessary data structures to get routing info.
-    * The structures are:
-    *   nlmsghdr - message header for netlink requests
-    *      It specifies RTM_GETROUTE for get routing table info
-    *   rtmsg - for routing table requests
-    *   rtattr - Specifies RTA_DST indicating that the payload contains a
-    *      destination address
-    * the payload - the destination address
+    * First figure out what /type/ of address (ipv4 or ipv6) we need to 
+    * bind on the external side.
     */
-   bzero(&req, sizeof(req));
-   req.nh.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
-   req.nh.nlmsg_flags = NLM_F_REQUEST;
-   req.nh.nlmsg_type = RTM_GETROUTE;
+   switch (cmd) {
+      case SOCKS_BIND:
+         if (reqhost->atype            == SOCKS_ADDR_IPV4
+         &&  reqhost->addr.ipv4.s_addr == htonl(BINDEXTENSION_IPADDR))
+            SET_SOCKADDR(&raddr, external_has_global_safamily(AF_INET) ? 
+                                 AF_INET : AF_INET6);
+         else if (reqhost->atype == SOCKS_ADDR_IPV4
+         ||       reqhost->atype == SOCKS_ADDR_IPV6) {
+            if (external_has_global_safamily(atype2safamily(reqhost->atype)))
+               sockshost2sockaddr(reqhost, &raddr);
+            else {
+               snprintf(emsg, emsglen, 
+                        "bind of an %s requested, but no %s configured for "
+                        "our usage on the external interface",
+                        atype2string(reqhost->atype),
+                        atype2string(reqhost->atype));
 
-   req.rt.rtm_family = AF_INET;
-   req.rt.rtm_dst_len = 0;
-   req.rt.rtm_src_len = 0;
-   req.rt.rtm_tos = 0;
-   req.rt.rtm_table = RT_TABLE_UNSPEC;
-   req.rt.rtm_protocol = RTPROT_UNSPEC;
-   req.rt.rtm_scope = RT_SCOPE_UNIVERSE;
-   req.rt.rtm_type = RTN_UNICAST;
-   req.rt.rtm_flags = 0;
-
-   rta = (struct rtattr *)(((char *) &req) + NLMSG_ALIGN(req.nh.nlmsg_len));
-   rta->rta_type = RTA_DST;
-   rta->rta_len = RTA_LENGTH(sizeof(dst));
-
-   req.nh.nlmsg_len = NLMSG_ALIGN(req.nh.nlmsg_len) + rta->rta_len;
-
-   /* send the request and get the response. */
-   memcpy(RTA_DATA(rta), &dst, sizeof(dst));
-   if (send(rtnetlink_sk, &req, req.nh.nlmsg_len, 0)
-   != (ssize_t)req.nh.nlmsg_len) {
-      swarn("%s: send() to netlink failed", function);
-      close(rtnetlink_sk);
-      return getdefaultexternal();
-   }
-
-   if (recv(rtnetlink_sk, &buf, sizeof(buf), 0) == -1) {
-      swarn("%s: recv() from netlink failed", function);
-      close(rtnetlink_sk);
-      return getdefaultexternal();
-   }
-
-   /*
-    * Walk the response structures to find the one that contains
-    * RTA_PREFSRC in order to get the local source address to bind to.
-    */
-   rhdr = (struct nlmsghdr *)buf;
-   rrt = (struct rtmsg *)NLMSG_DATA(rhdr);
-   attrlen = sizeof(buf) - sizeof(struct nlmsghdr) - sizeof(struct rtmsg);
-
-   bzero(&raddr, sizeof(raddr));
-   SET_SOCKADDR(TOSA(&raddr), AF_INET);
-
-   for (rrta = (struct rtattr *)((char *)rrt + sizeof(struct rtmsg));
-        RTA_OK(rrta, attrlen);
-        rrta = (struct rtattr *)RTA_NEXT(rrta, attrlen)) {
-      if (rrta->rta_type == RTA_PREFSRC) {
-         TOIN(&raddr)->sin_addr = *(struct in_addr *)RTA_DATA(rrta);
-
-         reportchosen(function, &(TOIN(&raddr)->sin_addr), &dst);
-
-         close(rtnetlink_sk);
-
-         if (isonexternal(TOCSA(&raddr)))
-            return TOIN(&raddr)->sin_addr;
-         else
-            return getdefaultexternal();
-      }
-   }
-
-   slog(LOG_DEBUG, "%s: can't find a gateway for %s, using default external",
-        function, inet_ntoa(dst));
-
-   close(rtnetlink_sk);
-
-   return getdefaultexternal();
-}
-#elif HAVE_ROUTEINFO_BSD /* !HAVE_ROUTEINFO_LINUX */
-
-#if HAVE_SOCKADDR_SA_LEN
-
-#define NEXT_SA(ap) ap = (struct sockaddr *)                                   \
-   ((caddr_t)ap + (ap->sa_len ?                                                \
-   ROUNDUP(ap->sa_len, sizeof(unsigned long)) : sizeof(unsigned long)))
-
-#else /* !HAVE_SOCKADDR_SA_LEN */
-
-#define NEXT_SA(ap) ap = (struct sockaddr *)                                   \
-   ((caddr_t)ap + (sa_family2salen(ap->sa_family) ?                                 \
-    ROUNDUP(sa_family2salen(ap->sa_family), sizeof(unsigned long))                  \
-  : sizeof(unsigned long)))
-
-#endif /* !HAVE_SOCKADDR_SA_LEN */
-
-#define BUFLEN   (  sizeof(struct rt_msghdr) \
-                  + sizeof(struct sockaddr_storage) * RTAX_MAX)
-
-#define SEQ   9999
-
-#ifndef RTAX_GATEWAY
-#define RTAX_GATEWAY 1
-#endif /* !RTAX_GATEWAY */
-
-#ifndef RTAX_IFA
-#define RTAX_IFA RTA_IFA
-#endif /* !RTAX_IFA */
-
-#ifndef RTAX_MAX
-#define RTAX_MAX RTA_NUMBITS
-#endif /* !RTAX_MAX */
-
-static void get_rtaddrs(const int addrs, struct sockaddr *sa,
-                        struct sockaddr **rti_info);
-
-struct in_addr
-getoutaddr(src, dst)
-   const struct in_addr src;
-   const struct in_addr dst;
-{
-   const char *function = "getoutaddr()";
-   struct rt_msghdr *rtm;
-   struct sockaddr *sa, *rti_info[RTAX_MAX];
-   char rtmbuf[BUFLEN], a[MAXSOCKADDRSTRING];
-   ssize_t rc;
-   int sockfd;
-
-   if (sockscf.external.addrc <= 1
-   ||  sockscf.external.rotation == ROTATION_NONE)
-      return getdefaultexternal();
-
-   if (sockscf.external.rotation == ROTATION_SAMESAME) {
-      if (addrindex_on_externallist(&sockscf.external, src) != -1)
-         return src;
-      else
-         return getdefaultexternal();
-   }
-
-   sockd_priv(SOCKD_PRIV_NET_ROUTESOCKET, PRIV_ON);
-   sockfd = socket(AF_ROUTE, SOCK_RAW, 0);
-   sockd_priv(SOCKD_PRIV_NET_ROUTESOCKET, PRIV_OFF);
-
-   if (sockfd == -1) {
-      swarn("%s: socket(AF_ROUTE)", function);
-      return getdefaultexternal();
-   }
-
-   /*
-    * Build the necessary data structures to get routing info.
-    * The structures are:
-    *   rt_msghdr - specifies RTM_GET for getting routing table info.
-    *   sockaddr  - contains the destination address.
-    */
-   bzero(rtmbuf, sizeof(rtmbuf));
-   rtm                     = (struct rt_msghdr *)rtmbuf;
-   rtm->rtm_msglen         = sizeof(struct rt_msghdr)
-                           + sizeof(struct sockaddr_in);
-   rtm->rtm_version        = RTM_VERSION;
-   rtm->rtm_type           = RTM_GET;
-   rtm->rtm_addrs          = RTA_DST | RTA_IFA;
-   rtm->rtm_pid            = sockscf.state.pid;
-   rtm->rtm_seq            = SEQ;
-   rtm->rtm_flags          = RTF_UP | RTF_HOST | RTF_GATEWAY;
-
-   sa = (struct sockaddr *) (rtm + 1);
-   SET_SOCKADDR(TOSA(sa), AF_INET);
-   TOIN(sa)->sin_addr      = dst;
-   TOIN(sa)->sin_port      = htons(0);
-
-   if ((rc = write(sockfd, rtm, (size_t)rtm->rtm_msglen)) != rtm->rtm_msglen) {
-      swarn("%s: write() to AF_ROUTE socket failed (wrote %ld/%ld)",
-            function, (long)rc, (long)rtm->rtm_msglen);
-
-      close(sockfd);
-      return getdefaultexternal();
-   }
-
-   bzero(rtmbuf, sizeof(rtmbuf));
-   do {
-      if ((rc = read(sockfd, rtm, sizeof(rtmbuf))) == -1) {
-         swarn("%s: read from AF_ROUTE socket failed (read %ld)",
-               function, (long)rc);
-
-         close(sockfd);
-         return getdefaultexternal();
-      }
-   } while (rtm->rtm_type != RTM_GET
-         || rtm->rtm_seq  != SEQ
-         || rtm->rtm_pid  != sockscf.state.pid);
-
-   close(sockfd);
-
-   sa  = (struct sockaddr *)(rtm + 1);
-   get_rtaddrs(rtm->rtm_addrs, sa, rti_info);
-
-   if (rti_info[RTAX_GATEWAY] == NULL) {
-      swarnx("%s: can't find gateway for %s, using default external",
-      function, inet_ntoa(dst));
-
-      return getdefaultexternal();
-   }
-
-   if (rti_info[RTAX_IFA] == NULL) {
-     swarnx("%s: can't find ifa for %s, using default external",
-     function, inet_ntoa(dst));
-
-     return getdefaultexternal();
-   }
-
-   sa = rti_info[RTAX_IFA];
-   if (sa->sa_family != AF_INET) {
-      swarnx("%s: got unexpected/unsupported address family %d for %s",
-             function, sa->sa_family, sockaddr2string(sa, a, sizeof(a)));
-
-      return getdefaultexternal();
-   }
-
-   reportchosen(function, &(TOIN(sa)->sin_addr), &dst);
-
-   if (isonexternal(sa))
-      return TOIN(sa)->sin_addr;
-   else
-      return getdefaultexternal();
-}
-
-static void
-get_rtaddrs(addrs, sa, rti_info)
-   const int addrs;
-   struct sockaddr *sa;
-   struct sockaddr **rti_info;
-{
-   const char *function = "get_rtaddrs()";
-   int i;
-
-   for (i = 0; i < RTAX_MAX; ++i) {
-      if (addrs & (1 << i)) {
-/*         slog(LOG_DEBUG, "%s: bit %d is set", function, i); */
-
-         rti_info[i] = sa;
-         NEXT_SA(sa);
-      }
-      else
-         rti_info[i] = NULL;
-   }
-}
-
-#else /* !HAVE_ROUTEINFO_BSD */
-struct in_addr
-getoutaddr(src, dst)
-   const struct in_addr src;
-   const struct in_addr dst;
-{
-   return getdefaultexternal();
-}
-#endif /* !HAVE_ROUTEINFO_BSD */
-
-static struct in_addr
-getdefaultexternal(void)
-{
-   const char *function = "getdefaultexternal()";
-   struct sockaddr_storage bound;
-
-   slog(LOG_DEBUG, "%s", function);
-
-   /* find address to bind on clients behalf */
-   switch ((*sockscf.external.addrv).atype) {
-      case SOCKS_ADDR_IFNAME:
-         if (ifname2sockaddr((*sockscf.external.addrv).addr.ifname, 0,
-         TOSA(&bound), NULL) == NULL) {
-            swarnx("%s: can't find external interface/address: %s",
-            function, (*sockscf.external.addrv).addr.ifname);
-
-            /* LINTED pointer casts may be troublesome */
-            TOIN(&bound)->sin_addr.s_addr = htonl(INADDR_NONE);
+               return NULL;
+            }
          }
-         else
-            slog(LOG_DEBUG, "%s: address for %s is %s",
-                 function,
-                 (*sockscf.external.addrv).addr.ifname,
-                 sockaddr2string(TOSA(&bound), NULL, 0));
+         else {
+            /*
+             * Have to expect the bindreply from an address given as a 
+             * hostname by the client.  Since we may have multiple address 
+             * families configured on the external interface on which we
+             * can accept the bindreply on, we need to bind an address of 
+             * the correct type.
+             *
+             * For now we assume that the type of address returned first
+             * is the type of address we should bind.
+             */
+            int gaierr;
+
+            SASSERTX(reqhost->atype == SOCKS_ADDR_DOMAIN);
+
+            sockshost2sockaddr2(reqhost, &raddr, &gaierr, emsg, emsglen);
+            if (gaierr != 0) {
+               log_resolvefailed(reqhost->addr.domain, EXTERNALIF, gaierr);
+               return NULL;
+            }
+         }
 
          break;
 
-      case SOCKS_ADDR_IPV4: {
-         sockshost_t host;
+      case SOCKS_CONNECT:
+      case SOCKS_UDPASSOCIATE: {
+         int gaierr;
 
-         sockshost2sockaddr(ruleaddr2sockshost(&sockscf.external.addrv[0],
-                                               &host,
-                                               SOCKS_TCP),
-                                               TOSA(&bound));
+         sockshost2sockaddr2(reqhost, &raddr, &gaierr, emsg, emsglen);
+         if (gaierr != 0) {
+            SASSERTX(reqhost->atype == SOCKS_ADDR_DOMAIN);
+
+            log_resolvefailed(reqhost->addr.domain, EXTERNALIF, gaierr);
+            return NULL;
+         }
+
          break;
       }
 
       default:
-         SERRX((*sockscf.external.addrv).atype);
+         SERRX(cmd);
    }
 
-   return TOIN(&bound)->sin_addr;
+   switch (sockscf.external.rotation) {
+      case ROTATION_NONE:
+         getdefaultexternal(raddr.ss_family, laddr);
+         break;
+
+      case ROTATION_SAMESAME:
+         *laddr = *client;
+         break;
+
+      case ROTATION_ROUTE: {
+         if (IPADDRISBOUND(&raddr)) {
+            /*
+             * Connect a udp socket and check what local address was chosen 
+             * by the kernel for connecting to dst.  Idea from Quagga source.
+             */
+            sockshost_t host;
+            int s;
+
+            if ((s = socket(raddr.ss_family, SOCK_DGRAM, 0)) == -1) {
+               snprintf(emsg, emsglen, 
+                        "could not create new %s UDP socket with socket(2): %s",
+                        safamily2string(raddr.ss_family), strerror(errno));
+
+               swarn("%s: %s", function, emsg);
+               return NULL;
+            }
+
+            if (!PORTISBOUND(&raddr)) 
+               /* set any valid portnumber; this is just a dry-run */
+               SET_SOCKADDRPORT(&raddr, 1);
+
+            sockaddr2sockshost(&raddr, &host);
+            if (socks_connecthost(s, 
+                                  EXTERNALIF,
+                                  &host,
+                                  laddr,
+                                  NULL,
+                                  -1,
+                                  emsg,
+                                  emsglen) == -1) {
+               slog(LOG_DEBUG, "%s: %s", function, emsg);
+               close(s);
+
+               if (cmd == SOCKS_UDPASSOCIATE)
+                  return NULL;
+
+               /*
+                * Else: continue.
+                * While highly unliklely it will work later, when we actually 
+                * do try to connect/send data, it could be the local 
+                * configuration is to block udp packets to this destination,
+                * but allow tcp.
+                */
+               getdefaultexternal(get_external_safamily(client, cmd, reqhost),
+                                  laddr);
+               break;
+            }
+
+            close(s);
+         }
+         else
+            getdefaultexternal(get_external_safamily(client, cmd, reqhost),
+                               laddr);
+
+         break;
+      }
+
+      default:
+         SERRX(sockscf.external.rotation);
+   }
+
+   if (addrindex_on_externallist(&sockscf.external, laddr) != -1)
+      slog(LOG_DEBUG,
+           "%s: local address %s selected for forwarding from %s to %s",
+           function,
+           sockaddr2string2(laddr,  0, addrstr,  sizeof(addrstr)),
+           sockaddr2string(client, NULL,     0),
+           sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)));
+   else {
+      snprintf(emsg, emsglen,
+               "local address %s selected for forwarding from %s to %s "
+               "(external.rotation = %s), but that local address is not "
+               "configured on our external interface(s).  "
+               "%s configuration error?",
+               sockaddr2string2(laddr,  0, addrstr,  sizeof(addrstr)),
+               sockaddr2string(client, NULL,     0),
+               sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)),
+               rotation2string(sockscf.external.rotation),
+               sockscf.option.configfile);
+
+      slog(external_has_safamily(laddr->ss_family) ? LOG_WARNING : LOG_DEBUG, 
+           "%s: %s", function, emsg);
+
+      return NULL;
+   }
+
+   /*
+    * Try to set the local port to the best value also, though this is mostly
+    * just guessing for all but the bind-case.
+    */
+   switch (cmd) {
+#if SOCKS_SERVER
+      case SOCKS_BIND:
+         if (reqhost->atype            == SOCKS_ADDR_IPV4
+         &&  reqhost->addr.ipv4.s_addr == htonl(BINDEXTENSION_IPADDR))
+            SET_SOCKADDRPORT(laddr, GET_SOCKADDRPORT(client));
+         else if (  (raddr.ss_family == AF_INET 
+                  && TOIN(&raddr)->sin_addr.s_addr == htonl(INADDR_ANY))
+               ||    (raddr.ss_family == AF_INET6 
+                  && memcmp(&TOIN6(&raddr)->sin6_addr, 
+                            &in6addr_any,
+                            sizeof(in6addr_any)) == 0))
+            SET_SOCKADDRPORT(laddr, reqhost->port);
+         else
+            SET_SOCKADDRPORT(laddr, htons(0));
+
+         break;
+#endif /* SOCKS_SERVER */
+
+      case SOCKS_CONNECT:
+      case SOCKS_UDPASSOCIATE: /* reqhost is the target of the first packet. */
+         SET_SOCKADDRPORT(laddr, GET_SOCKADDRPORT(client));
+         break;
+
+      default:
+         SERRX(cmd);
+   }
+
+   SASSERTX(IPADDRISBOUND(laddr));
+
+   return laddr;
 }
 
-static int
-isonexternal(addr)
-   const struct sockaddr *addr;
+struct sockaddr_storage *
+getinaddr(laddr, _client, emsg, emsglen)
+   struct sockaddr_storage *laddr;
+   const struct sockaddr_storage *_client;
+   char *emsg;
+   const size_t emsglen;
 {
-/*   const char *function = "isonexternal()"; */
+   const char *function = "getinaddr()";
+   struct sockaddr_storage client;
    size_t i;
 
-   for (i = 0; i < sockscf.external.addrc; ++i) {
-      struct sockaddr_storage check;
-      int match = 0;
+   slog(LOG_DEBUG, "%s: client %s", 
+        function, sockaddr2string(_client, NULL, 0));
 
+   SASSERTX(_client->ss_family == AF_INET || _client->ss_family == AF_INET6);
+   sockaddrcpy(&client, _client, sizeof(client));
+
+
+   /*
+    * Just return the first address of the appropriate type from our internal 
+    * list and hope the best.
+    */
+   for (i = 0; i < sockscf.internal.addrc; ++i) {
+      if (sockscf.internal.addrv[i].addr.ss_family == client.ss_family) {
+         sockaddrcpy(laddr, &sockscf.internal.addrv[i].addr, sizeof(*laddr));
+
+         slog(LOG_DEBUG, "%s: address %s selected",
+              function, sockaddr2string(laddr, NULL, 0));
+
+         return laddr;
+      }
+   }
+
+   snprintf(emsg, emsglen, "no %s found on our internal address list",
+            safamily2string(client.ss_family));
+
+   slog(LOG_DEBUG, "%s: %s", function, emsg);
+  
+   return NULL;
+}
+
+static struct sockaddr_storage *
+getdefaultexternal(safamily, addr)
+   const sa_family_t safamily;
+   struct sockaddr_storage *addr;
+{
+   const char *function = "getdefaultexternal()";
+   const char *safamilystring = (safamily == AF_UNSPEC ? 
+                                   "<any address>" : safamily2string(safamily));
+   size_t i, addrfound;
+
+   slog(LOG_DEBUG, "%s: looking for an %s", function, safamilystring);
+
+   for (i = 0, addrfound = 0; i < sockscf.external.addrc && !addrfound; ++i) {
       switch (sockscf.external.addrv[i].atype) {
          case SOCKS_ADDR_IFNAME: {
-            int ifi;
+            struct sockaddr_storage mask;
+            size_t ii;;
 
-            ifi = 0;
+            ii = 0;
             while (ifname2sockaddr(sockscf.external.addrv[i].addr.ifname,
-            ifi++, TOSA(&check), NULL) != NULL)
-               /* LINTED pointer casts may be troublesome */
-               if (TOIN(&check)->sin_addr.s_addr
-               == TOCIN(addr)->sin_addr.s_addr) {
-                  match = 1;
+                                   ii,
+                                   addr,
+                                   &mask) != NULL) {
+               if (safamily == AF_UNSPEC || addr->ss_family == safamily) {
+                  addrfound = 1;
                   break;
                }
+
+               ++ii;
             }
+
             break;
+         }
 
          case SOCKS_ADDR_IPV4:
-            /* LINTED pointer casts may be troublesome */
-            if (sockscf.external.addrv[i].addr.ipv4.ip.s_addr
-            == TOCIN(addr)->sin_addr.s_addr)
-               match = 1;
+            if (safamily == AF_UNSPEC || safamily == AF_INET) {
+               sockshost_t host;
+
+               sockshost2sockaddr(
+                  ruleaddr2sockshost(&sockscf.external.addrv[i],
+                                     &host,
+                                     SOCKS_TCP),
+                                     addr);
+               addrfound = 1;
+            }
+            break;
+         
+         case SOCKS_ADDR_IPV6: 
+            if (safamily == AF_UNSPEC || safamily == AF_INET6) {
+               sockshost_t host;
+
+               sockshost2sockaddr(
+                  ruleaddr2sockshost(&sockscf.external.addrv[i],
+                                     &host,
+                                     SOCKS_TCP),
+                                     addr);
+               addrfound = 1;
+            }
             break;
 
          default:
             SERRX((*sockscf.external.addrv).atype);
       }
-
-      if (match)
-         break;
    }
 
-   if (i == sockscf.external.addrc)
-      return 0;
+   if (addrfound)
+      slog(LOG_DEBUG, "%s: matched %s is %s",
+           function, safamilystring, sockaddr2string(addr, NULL, 0));
+   else {
+      slog(LOG_DEBUG,
+           "%s: no matching %s found on external list, using INADDR_ANY",
+           function, safamilystring);
 
-   return 1;
+      bzero(addr, sizeof(*addr));
+      SET_SOCKADDR(addr, safamily == AF_UNSPEC ? AF_INET : safamily);
+   }
+
+   return addr;
 }
 
-static void
-reportchosen(function, chosenaddr, dstaddr)
-   const char *function;
-   const struct in_addr *chosenaddr;
-   const struct in_addr *dstaddr;
+sa_family_t
+get_external_safamily(client, command, reqhost)
+   const struct sockaddr_storage *client;
+   const int command;
+   const sockshost_t *reqhost;
 {
-   struct sockaddr_in addr;
-   char a[INET_ADDRSTRLEN], b[INET_ADDRSTRLEN];
+   const char *function = "get_external_safamily()";
+   sa_family_t safamily;
 
-   bzero(&addr, sizeof(addr));
-   SET_SOCKADDR(TOSA(&addr), AF_INET);
-   addr.sin_addr = *chosenaddr;
+   switch (command) {
+      case SOCKS_BIND:
+      case SOCKS_UDPASSOCIATE:
+         switch (reqhost->atype) {
+            case SOCKS_ADDR_IPV4:
+               safamily = AF_INET;
+               break;
 
-   if (isonexternal((struct sockaddr *)&addr))
-      slog(LOG_DEBUG, "%s: address %s selected as local address for "
-                      "connection to %s",
-                      function,
-                      inet_ntop(AF_INET, chosenaddr, a, sizeof(a)),
-                      inet_ntop(AF_INET, dstaddr, b, sizeof(b)));
-   else
-      swarnx("%s: address %s selected as local address for connection to "
-             "%s, but that is not configured on the external interface "
-             "so using the default address",
-             function,
-             inet_ntop(AF_INET, chosenaddr, a, sizeof(a)),
-             inet_ntop(AF_INET, dstaddr, b, sizeof(b)));
+            case SOCKS_ADDR_IPV6:
+               safamily = AF_INET6;
+               break;
+
+            case SOCKS_ADDR_DOMAIN: {
+               struct sockaddr_storage p;
+
+               sockshost2sockaddr(reqhost, &p);
+               if (IPADDRISBOUND(&p))
+                  safamily = p.ss_family;
+               else 
+                  safamily = client->ss_family;
+
+               break;
+            }
+
+            default:
+               SERRX(reqhost->atype);
+         }
+         break;
+
+      case SOCKS_CONNECT: {
+         struct sockaddr_storage p;
+
+         sockshost2sockaddr(reqhost, &p);
+         if (IPADDRISBOUND(&p))
+            safamily = p.ss_family;
+         else 
+            safamily = client->ss_family;
+
+         break;
+      }
+
+      default: 
+         SERRX(command);
+   }
+  
+   if (external_has_safamily(safamily))
+      return safamily;
+
+   /* 
+    * Do not have the optimal safamily.  Anything else we can try?
+    */
+   switch (safamily) {
+      case AF_INET:
+         if (external_has_safamily(AF_INET6))
+            return AF_INET6;
+
+         break;
+
+      case AF_INET6:
+         if (external_has_safamily(AF_INET))
+            return AF_INET;
+
+         break;
+
+      default:
+         SERRX(safamily);
+   }
+
+   swarnx("%s: strange ... could not find any address to bind on external side "
+          "for command %s from client %s.  Reqhost is %s.  "
+          "Have IPv4? %s.  IPv6? %s",
+          function,
+          command2string(command),
+          sockaddr2string(client, NULL, 0),
+          sockshost2string(reqhost, NULL, 0),
+          external_has_safamily(AF_INET)  ? "Yes" : "No",
+          external_has_safamily(AF_INET6) ?
+                 external_has_global_safamily(AF_INET6) ? 
+                    "Yes (global)" : "Yes (local only)"
+              :  "No");
+         
+   return AF_UNSPEC;
 }
+

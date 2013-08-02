@@ -20,6 +20,28 @@ if test x"${UPNP}" != xno; then
 	LIBS=$oLIBS
     fi
     if test x"${have_libminiupnp}" = xt; then
+        AC_MSG_CHECKING([for miniupnpc version >= 1.7])
+	AC_TRY_COMPILE([
+            #include <stdio.h>
+            #include <miniupnpc/miniupnpc.h>
+            #include <miniupnpc/upnpcommands.h>
+            #include <miniupnpc/upnperrors.h>], [
+
+            #ifndef MINIUPNPC_API_VERSION
+	    #error "no api version define"
+            #else
+            # if MINIUPNPC_API_VERSION < 8
+            #error "api version too low"
+            # endif
+            #endif],
+         [AC_MSG_RESULT(yes)
+          AC_DEFINE(HAVE_LIBMINIUPNP, 1, [UPNP support library])
+          AC_DEFINE(HAVE_LIBMINIUPNP17, 1, [UPNP support library 1.7])
+          unset no_upnp
+	  SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$UPNPLIB"
+	  DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$UPNPLIB"],
+         [AC_MSG_RESULT(no)])
+
         AC_MSG_CHECKING([for miniupnpc version >= 1.4])
 	AC_TRY_COMPILE([
             #include <stdio.h>

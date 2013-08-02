@@ -40,11 +40,13 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
 	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
 	$(top_srcdir)/acinclude.m4 $(top_srcdir)/compiler.m4 \
-	$(top_srcdir)/preload.m4 $(top_srcdir)/miniupnpc.m4 \
+	$(top_srcdir)/osdep.m4 $(top_srcdir)/libscompat.m4 \
+	$(top_srcdir)/danteopt.m4 $(top_srcdir)/preload.m4 \
 	$(top_srcdir)/gssapi.m4 $(top_srcdir)/kerberos.m4 \
 	$(top_srcdir)/sasl.m4 $(top_srcdir)/ldap.m4 \
-	$(top_srcdir)/libscompat.m4 $(top_srcdir)/sockopt.m4 \
-	$(top_srcdir)/mapfile.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/mapfile.m4 $(top_srcdir)/miniupnpc.m4 \
+	$(top_srcdir)/sharedopt.m4 $(top_srcdir)/sockopt.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(install_sh) -d
@@ -103,6 +105,7 @@ LIBDSCSRC = @LIBDSCSRC@
 LIBOBJS = @LIBOBJS@
 LIBRARY_PREFIX = @LIBRARY_PREFIX@
 LIBS = @LIBS@
+LIBSCOMPAT = @LIBSCOMPAT@
 LIBSCSRC = @LIBSCSRC@
 LIBTOOL = @LIBTOOL@
 LINT = @LINT@
@@ -143,6 +146,7 @@ SCCOMPATLIB = @SCCOMPATLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SOCKDCOMPAT = @SOCKDCOMPAT@
 SOCKDDEPS = @SOCKDDEPS@
 SOCKSIFY_PRELOAD_LIBS = @SOCKSIFY_PRELOAD_LIBS@
 SOFULLPATH = @SOFULLPATH@
@@ -150,6 +154,7 @@ SOLIB_POSTFIX = @SOLIB_POSTFIX@
 STRIP = @STRIP@
 TOPEXTRADIST = @TOPEXTRADIST@
 TOPSUBDIRS = @TOPSUBDIRS@
+UNITSUBDIRS = @UNITSUBDIRS@
 VERSION = @VERSION@
 YACC = @YACC@
 YFLAGS = @YFLAGS@

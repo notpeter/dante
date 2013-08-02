@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbindresvport.c,v 1.39 2012/06/01 20:23:05 karls Exp $";
+"$Id: Rbindresvport.c,v 1.46 2013/04/01 12:23:54 michaels Exp $";
 
 /*
  * Note that for this function to work correctly the remote socks server
@@ -57,38 +57,38 @@ Rbindresvport(s, _sin)
    struct sockaddr_in *_sin;
 {
    const char *function = "Rbindresvport()";
-   struct sockaddr_storage sinmem;
-   struct sockaddr *sin = TOSA(&sinmem);
+   struct sockaddr_storage sin;
    socklen_t sinlen;
    int rc;
 
    clientinit();
 
-   slog(LOG_DEBUG, "%s, socket %d", function, s);
+   slog(LOG_DEBUG, "%s, fd %d", function, s);
 
    /*
     * Nothing can be called before Rbindresvport(), delete any old cruft.
     */
    socks_rmaddr(s, 1);
 
-   if (_sin == NULL)
-      sin = NULL;
-   else
-      usrsockaddrcpy(sin, TOSA(_sin), sizeof(*sin));
+   if (_sin == NULL) {
+      slog(LOG_DEBUG, "%s: fd %d, _sin = %p", function, s, _sin);
+      return bindresvport(s, _sin);
+   }
 
-   if (bindresvport(s, TOIN(sin)) != 0) {
+   usrsockaddrcpy(&sin, TOSS(_sin), sizeof(*_sin));
+   if (bindresvport(s, TOIN(&sin)) != 0) {
       slog(LOG_DEBUG, "%s: bindresvport(%d, %s) failed: %s",
            function,
            s,
-           sin == NULL ? "NULL" : sockaddr2string(TOSA(sin), NULL, 0),
+           sockaddr2string(&sin, NULL, 0),
            strerror(errno));
 
       return -1;
    }
 
 
-   sinlen = sizeof(*sin);
-   if (getsockname(s, TOSA(sin), &sinlen) != 0)
+   sinlen = salen(sin.ss_family);
+   if (getsockname(s, TOSA(&sin), &sinlen) != 0)
       return -1;
 
    /*
@@ -96,13 +96,10 @@ Rbindresvport(s, _sin)
     * (assuming it has been bound already in some way) and will continue to
     * try a remote server binding too if appropriate.
     */
-   if ((rc = Rbind(s, TOSA(sin), sinlen)) == -1)
+   if ((rc = Rbind(s, TOSA(&sin), sinlen)) == -1)
       return -1;
 
-   if (_sin != NULL) {
-      SASSERTX(sin != NULL);
-      sockaddrcpy(TOSA(_sin), TOSA(sin), sizeof(*_sin));
-   }
+   sockaddrcpy(TOSS(_sin), &sin, salen(sin.ss_family));
 
    return rc;
 }

@@ -2,35 +2,57 @@ lib_LTLIBRARIES = libsocks.la
 libsocks_la_SOURCES = config_parse.c config_scan.c Raccept.c Rbind.c	\
    Rbindresvport.c Rcompat.c Rconnect.c Rgethostbyname.c		\
    Rgetpeername.c Rgetsockname.c Rgetsockopt.c Rlisten.c Rrresvport.c	\
-   address.c addressmatch.c authneg.c broken.c client.c			\
-   clientconfig.c clientprotocol.c config.c connectchild.c debug.c	\
-   gssapi.c hostcache.c hostid.c httpproxy.c io.c iobuf.c log.c		\
-   protocol.c serr.c sockaddr.c socket.c socketopt.c sockopt_gen.c	\
-   tostring.c udp.c udp_util.c upnp.c userio.c util.c
+   address.c addressmatch.c authneg.c broken.c client.c clientconfig.c	\
+   clientprotocol.c config.c connectchild.c debug.c 			\
+   fmt.c fmt_customer.c fmt_protocol.c					\
+   gssapi.c hostcache.c hostid.c httpproxy.c io.c iobuf.c ipv6.c log.c  \
+   method.c parse_util.c protocol.c serr.c showconfig.c sockaddr.c      \
+   socket.c socketopt.c	sockopt.c tostring.c udp.c udp_util.c upnp.c 	\
+   userio.c util.c hw.c time.c
 
-EXTRA_libsocks_la_SOURCES = ../libscompat/daemon.c		\
+EXTRA_libsocks_la_SOURCES =                       		\
    ../libscompat/difftime.c ../libscompat/getifaddrs.c		\
-   ../libscompat/hstrerror.c ../libscompat/inet_aton.c		\
+   ../libscompat/hstrerror.c                          		\
    ../libscompat/inet_ntoa.c ../libscompat/inet_pton.c		\
    ../libscompat/issetugid.c ../libscompat/memmove.c		\
-   ../libscompat/pselect.c ../libscompat/seteuid.c		\
-   ../libscompat/setproctitle.c ../libscompat/sockatmark.c	\
+   ../libscompat/pselect.c                        		\
+   ../libscompat/setproctitle.c                           	\
    ../libscompat/strlcpy.c ../libscompat/strvis.c		\
    ../libscompat/vsyslog.c
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info
 libsocks_la_LDFLAGS = -version-info 1:1:1 @MAPOPT@
-libsocks_la_LIBADD = @LIBSCSRC@ @DLIBDEPS@
-libsocks_la_DEPENDENCIES = @LIBSCSRC@
+libsocks_la_LIBADD = @LIBSCSRC@ @DLIBDEPS@ @LIBSCOMPAT@
+libsocks_la_DEPENDENCIES = Makefile.am _reconf @LIBSCSRC@
 
 INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libscompat
 
-AM_CFLAGS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=0
+CFLAGVALS = -DSOCKS_CLIENT=1 -DSOCKS_SERVER=0 -DSOCKSLIBRARY_DYNAMIC=0
+AM_CFLAGS = $(CFLAGVALS) -DSTANDALONE_UNIT_TEST=0
 
-EXTRA_DIST = config_parse.y config_scan.l sockopt_tpl.c
+EXTRA_DIST = config_parse.y config_scan.l
 noinst_HEADERS = config_parse.h
 MAINTAINERCLEANFILES = config_parse.h config_parse.c config_scan.c
+
+#XXX hack used to ensure depcomp is rerun when Makefile.am files are changed
+_reconf: ../_reconf Makefile.am
+	@(cd ..; make _reconf)
+	@echo "notice: autoconf regeneration complete, rerun make"
+	@false
+
+#unit test framework source file listing
+dumpunitenv:
+	@echo CC=\"$(CC)\"
+	@echo CFLAGS=\"$(CFLAGS) $(CFLAGVALS) -DSTANDALONE_UNIT_TEST=1\"
+	@echo CPP=\"$(CPP)\"
+	@echo CPPFLAGS=\"$(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS)\"
+	@echo LDFLAGS=\"$(LDFLAGS)\"
+	@echo LIBS=\"$(LIBS) $(DLIBDEPS)\"
+	@echo AMSRC=\"$(libsocks_la_SOURCES)\"
+#	@echo AMOBJ=\"$(libsocks_la_OBJECTS)\"
+	@echo AMOPTSRC=\"$(EXTRA_libsocks_la_SOURCES)\"
+	@echo AMOPTOBJ=\"@LIBSCSRC@\"
 
 PREFIX = socks_yy
 AM_YFLAGS = -d -p${PREFIX}

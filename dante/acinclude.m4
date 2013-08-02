@@ -36,7 +36,7 @@ AC_DEFUN([L_MODVER],
 	AC_MSG_RESULT(yes)
 else
 	concat(HAVEMOD_, m4_toupper($1))=un
-	
+
 	AC_MSG_RESULT(no)
 fi
 AC_LINK_FILES(${concat(HAVEMOD_, m4_toupper($1))}licensed/$1.c, $3/$1.c)
@@ -65,6 +65,7 @@ AC_RUN_IFELSE([AC_LANG_SOURCE([
 
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -248,111 +249,17 @@ AC_MSG_CHECKING([prototypes for $1])dnl
 
 tstdioproto($@)])
 
-dnl L_SHMEM - verify expected shared memory behavior
-AC_DEFUN([L_SHMEM],
-[AC_MSG_CHECKING(for expected shmem behaviour)
-AC_RUN_IFELSE([AC_LANG_SOURCE[
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <signal.h>
-
-#define SHMEM_ELEMENTS (1024)
-
-void sighandler(int sig);
-
-
-int
-main(argc,argv)
-   int argc;
-   char *argv[];
-{
-   int *mem;
-   key_t key;
-   int id;
-
-   key = getpid();
-   if ((id = shmget(key, sizeof(*mem) * SHMEM_ELEMENTS,
-   IPC_CREAT | IPC_EXCL | 0660)) == -1) {
-      fprintf(stderr, "failed to allocate shmem segment using key %ld: %s\n",
-      (long)key, strerror(errno));
-
-      exit(1);
-   }
-
-   if ((mem = shmat(id, NULL, 0)) == (void *)-1) {
-      fprintf(stderr, "failed to attach to shmem segment with id %d: %s\n",
-      id, strerror(errno));
-
-      exit(1);
-   }
-
-   memset(mem, 0xdeadbeef, sizeof(*mem) * SHMEM_ELEMENTS);
-   mem[SHMEM_ELEMENTS - 2] = 0xfeedbabe;
-   mem[SHMEM_ELEMENTS - 1] = 0xdeadbeef;
-
-
-   fprintf(stderr, "allocated shmem segment of size %ld with id %d, using key %ld.\n"
-          "Now testing if we can remove it, but still access it with the "
-          "same contents\n",
-          (long)(sizeof(*mem) * SHMEM_ELEMENTS), id, (long)key);
-
-   if (shmctl(id, IPC_RMID, NULL) != 0) {
-      fprintf(stderr, "failed to remove to shmem segment with id %d: %s\n",
-      id, strerror(errno));
-
-      exit(1);
-   }
-
-   if (signal(SIGSEGV, sighandler) == SIG_ERR) {
-      fprintf(stderr, "failed to install handler for SIGSEGV: %s\n",
-      strerror(errno));
-
-      exit(1);
-   }
-
-
-   if (mem[SHMEM_ELEMENTS - 2] != 0xfeedbabe
-   ||  mem[SHMEM_ELEMENTS - 1] != 0xdeadbeef) {
-      fprintf(stderr, "contents changed.  "
-                      "Old value was 0x%d, 0x%d, new is %0xd, 0x%x\n",
-                      0xfeedbabe, 0xdeadbeef,
-                      mem[SHMEM_ELEMENTS - 2], mem[SHMEM_ELEMENTS - 1]);
-
-      exit(1);
-   }
-
-   fprintf(stderr, "yes, all is ok\n");
-   return 0;
-}
-
-void
-sighandler(int sig)
-{
-
-   fprintf(stderr, "oops, did not work\n");
-   exit(1);
-}
-])], [AC_MSG_RESULT(yes)
-     [$1]],
-    [AC_MSG_RESULT(no)
-     [$2]])])
-
 dnl define function for identifying socket options on platform
 dnl test adds to the SOCKOPTS variable
 m4_define([checksockopt],
- [AC_MSG_CHECKING(for $1 socket option $2)
+ [unset _compileok
+  AC_MSG_CHECKING(for $1 socket option $2)
   AC_TRY_COMPILE([
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <netinet/udp.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -370,6 +277,9 @@ m4_define([checksockopt],
    } else if ($1 == IPPROTO_IP) {
       stype = SOCK_DGRAM; /* XXX test only UDP in case of IPPROTO_IP */
       ptype = IPPROTO_IP;
+   } else if ($1 == IPPROTO_IPV6) {
+      stype = SOCK_DGRAM;   /* XXX test only UDP in case of IPPROTO_IPV6 */
+      ptype = IPPROTO_IPV6; /* set to v6 for ipv6 test */
    } else if ($1 == IPPROTO_UDP) {
       stype = SOCK_DGRAM;
       ptype = IPPROTO_UDP;
@@ -377,7 +287,7 @@ m4_define([checksockopt],
        fprintf(stderr, "error: unexpected socket type: $1");
        exit(1);
    }
-  
+
    if((s = socket(PF_INET, stype, ptype)) < 0) {
       perror("socket");
       exit(1);
@@ -389,12 +299,77 @@ m4_define([checksockopt],
       perror("setsockopt: $1 $2");
       close(s);
       exit(1);
-   }], [AC_MSG_RESULT(yes)
-     AC_DEFINE_UNQUOTED(HAVE_$2, 1, [$2 socket option])dnl
-     AC_DEFINE_UNQUOTED(SOCKS_$2_LVL, $1, [$2 protocol level])dnl
-     AC_DEFINE_UNQUOTED(SOCKS_$2_NAME, "m4_tolower($2)", [$2 value])dnl
-     [SOCKOPTS="$SOCKOPTS${SOCKOPTS:+ }$2"]],
-    [AC_MSG_RESULT(no)])])
+   }], [_compileok=1])
+
+  AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+  ], [
+   socklen_t optlen;
+   int optval;
+   int stype;
+   int ptype;
+   int s;
+
+   if ($1 == SOL_SOCKET || $1 == IPPROTO_TCP) {
+      stype = SOCK_STREAM; /* XXX test only TCP in case of SOL_SOCKET */
+      ptype = IPPROTO_TCP;
+   } else if ($1 == IPPROTO_IP) {
+      stype = SOCK_DGRAM; /* XXX test only UDP in case of IPPROTO_IP */
+      ptype = IPPROTO_IP;
+   } else if ($1 == IPPROTO_IPV6) {
+      stype = SOCK_DGRAM;   /* XXX test only UDP in case of IPPROTO_IPV6 */
+      ptype = IPPROTO_IPV6; /* set to v6 for ipv6 test */
+   } else if ($1 == IPPROTO_UDP) {
+      stype = SOCK_DGRAM;
+      ptype = IPPROTO_UDP;
+   } else {
+       fprintf(stderr, "error: unexpected socket type: $1");
+       exit(1);
+   }
+
+   if((s = socket(PF_INET6, stype, ptype)) < 0) {
+      perror("socket");
+      exit(1);
+   }
+
+   optval = 1;
+   optlen = sizeof(optval);
+   if(setsockopt(s, $1, $2, &optval, optlen) < 0) {
+      perror("setsockopt: $1 $2");
+      close(s);
+      exit(1);
+   }], [_compileok=1])
+
+  if test x"${_compileok}" != x; then
+    AC_MSG_RESULT(yes)
+    AC_DEFINE_UNQUOTED(HAVE_$2, 1, [$2 socket option])dnl
+    AC_DEFINE_UNQUOTED(SOCKS_$2_LVL, $1, [$2 protocol level])dnl
+    AC_DEFINE_UNQUOTED(SOCKS_$2_NAME, "m4_tolower($2)", [$2 value])dnl
+    if test x"$1" = x"IPPROTO_IP"; then
+       #ipv4-only
+       AC_DEFINE_UNQUOTED(SOCKS_$2_IPV4, 1, [$2 IPv4 option])dnl
+       AC_DEFINE_UNQUOTED(SOCKS_$2_IPV6, 0, [$2 IPv4 option])dnl
+    elif test x"$1" = x"IPPROTO_IPV6"; then
+       #ipv6-only
+       AC_DEFINE_UNQUOTED(SOCKS_$2_IPV4, 0, [$2 IPv4 option])dnl
+       AC_DEFINE_UNQUOTED(SOCKS_$2_IPV6, 1, [$2 IPv4 option])dnl
+    else
+       #both ipv4 and ipv6
+       AC_DEFINE_UNQUOTED(SOCKS_$2_IPV4, 1, [$2 IPv4 option])dnl
+       AC_DEFINE_UNQUOTED(SOCKS_$2_IPV6, 1, [$2 IPv4 option])dnl
+    fi
+    [SOCKOPTS="$SOCKOPTS${SOCKOPTS:+ }$2"]
+  else
+    AC_MSG_RESULT(no)
+  fi])
 AC_DEFUN([L_CHECKSOCKOPT],
  [checksockopt($@)])
 
@@ -407,6 +382,7 @@ m4_define([checksockoptvalsym],
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <netinet/udp.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -431,7 +407,7 @@ m4_define([checksockoptvalsym],
        fprintf(stderr, "error: unexpected socket type: $1");
        exit(1);
    }
-  
+
    if((s = socket(PF_INET, stype, ptype)) < 0) {
       perror("socket");
       exit(1);
@@ -450,6 +426,7 @@ m4_define([checksockoptvalsym],
 AC_DEFUN([L_CHECKSOCKOPTVALSYM],
  [checksockoptvalsym($@)])
 
+dnl XXX readside/sendside test should be simplified by using conftest.out
 AC_DEFUN([L_PIPETYPE], [
 unset have_readside have_sendside
 #Some systems seem to base how much can be written to the pipe based
@@ -494,7 +471,7 @@ AC_TRY_RUN([
 static void
 setsockets(const int doreverse, const size_t packetsize,
            const int s, const int r,
-           size_t *sndbuf, size_t *sndbuf_set, 
+           size_t *sndbuf, size_t *sndbuf_set,
            size_t *rcvbuf, size_t *rcvbuf_set);
 
 static size_t
@@ -515,7 +492,7 @@ main(void)
    setsockets(0,
               PACKETSIZE,
               datapipev[SEND_PIPE],
-              datapipev[RECV_PIPE], 
+              datapipev[RECV_PIPE],
               &sndbuf, &sndbuf_set,
               &rcvbuf, &rcvbuf_set);
 
@@ -529,7 +506,7 @@ main(void)
    sent = sendtest(datapipev[SEND_PIPE], buf, sizeof(buf));
    if (sent >= (size_t)sndbuf) {
       fprintf(stderr, "status determined by send-side\n");
-      return EXIT_SENDSIDE; 
+      return EXIT_SENDSIDE;
    }
 
    /*
@@ -547,7 +524,7 @@ main(void)
    setsockets(1,
               PACKETSIZE,
               datapipev[SEND_PIPE],
-              datapipev[RECV_PIPE], 
+              datapipev[RECV_PIPE],
               &sndbuf, &sndbuf_set,
               &rcvbuf, &rcvbuf_set);
 
@@ -580,7 +557,7 @@ setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
    socklen_t len;
    int p;
 
-   if ((p = fcntl(s, F_GETFL, 0))        == -1 
+   if ((p = fcntl(s, F_GETFL, 0))        == -1
    ||  fcntl(s, F_SETFL, p | O_NONBLOCK) == -1
    ||  fcntl(r, F_SETFL, p | O_NONBLOCK) == -1) {
       perror("fcntl(F_SETFL/F_GETFL, O_NONBLOCK) failed");
@@ -716,7 +693,7 @@ AC_TRY_RUN([
 static void
 setsockets(const int doreverse, const size_t packetsize,
            const int s, const int r,
-           size_t *sndbuf, size_t *sndbuf_set, 
+           size_t *sndbuf, size_t *sndbuf_set,
            size_t *rcvbuf, size_t *rcvbuf_set);
 
 static size_t
@@ -737,7 +714,7 @@ main(void)
    setsockets(0,
               PACKETSIZE,
               datapipev[SEND_PIPE],
-              datapipev[RECV_PIPE], 
+              datapipev[RECV_PIPE],
               &sndbuf, &sndbuf_set,
               &rcvbuf, &rcvbuf_set);
 
@@ -751,7 +728,7 @@ main(void)
    sent = sendtest(datapipev[SEND_PIPE], buf, sizeof(buf));
    if (sent >= (size_t)sndbuf) {
       fprintf(stderr, "status determined by send-side\n");
-      return EXIT_SENDSIDE; 
+      return EXIT_SENDSIDE;
    }
 
    /*
@@ -769,7 +746,7 @@ main(void)
    setsockets(1,
               PACKETSIZE,
               datapipev[SEND_PIPE],
-              datapipev[RECV_PIPE], 
+              datapipev[RECV_PIPE],
               &sndbuf, &sndbuf_set,
               &rcvbuf, &rcvbuf_set);
 
@@ -802,7 +779,7 @@ setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
    socklen_t len;
    int p;
 
-   if ((p = fcntl(s, F_GETFL, 0))        == -1 
+   if ((p = fcntl(s, F_GETFL, 0))        == -1
    ||  fcntl(s, F_SETFL, p | O_NONBLOCK) == -1
    ||  fcntl(r, F_SETFL, p | O_NONBLOCK) == -1) {
       perror("fcntl(F_SETFL/F_GETFL, O_NONBLOCK) failed");
@@ -957,5 +934,392 @@ int main(void)
 
 AC_DEFUN([L_CHECK_TCPIPASIZE],
  [check_tcpipasize($@)])
+
+AC_DEFUN([L_UNIBUF],
+[AC_MSG_CHECKING(for sufficiently unified buffer cache)
+ AC_RUN_IFELSE([AC_LANG_SOURCE([
+changequote(<<, >>)dnl
+
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <sys/mman.h>
+
+#include <assert.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+
+#ifndef MAP_FAILED
+#define MAP_FAILED (-1)
+#endif
+
+#define ELEMENTS(array) (sizeof(array) / sizeof(array[0]))
+#define FILENAME        ".tmpfile"
+#define TESTITERATIONS  (128)
+
+int
+main(void)
+{
+   FILE *fp;
+   size_t testi, i;
+   int array[2];
+
+   assert(ELEMENTS(array) % 2 == 0);
+
+   if ((fp = fopen(FILENAME, "w+")) == NULL) {
+      fprintf(stderr, "fopen(%s) failed: %s", FILENAME, strerror(errno));
+      exit(1);
+   }
+
+   if (ftruncate(fileno(fp), (off_t)sizeof(array)) == -1) {
+      perror("ftruncate()");
+      exit(1);
+   }
+
+   fprintf(stderr, "created file %s of size %lu, mmap()'ing it  ...\n",
+          FILENAME, (unsigned long)sizeof(array));
+
+   fclose(fp);
+
+   for (testi = 0; testi < TESTITERATIONS; ++testi) {
+      /*
+       * This test mmap(2)'s a file, moves some of the mmap(2)-ed memory
+       * around, unmap(2)s, and then truncate(2)s the file to a smaller size.
+       *
+       * Afterwards it again mmap(2)'s the same file using the smaller
+       * (truncated) size and checks that the contents, up to the smaller
+       * truncated size, is correct and the same as it was before the unmap(2).
+       *
+       * On OpenBSD this for some reason fails and we end up with
+       * old data from the previous iteration in the remapped array. :-/
+       */
+      off_t truncatedsize;
+      int *map, beforeunmap[ELEMENTS(array)], afterremap[ELEMENTS(array)];
+
+      /* just to make sure user does not change one but not the other. */
+      assert(sizeof(*map) == sizeof(*array));
+
+      for (i = 0; i < ELEMENTS(array); ++i)
+         array[i] = (int)random();
+
+      if ((fp = fopen(FILENAME, "r+")) == NULL) {
+         fprintf(stderr, "fopen(%s) failed: %s", FILENAME, strerror(errno));
+         exit(1);
+      }
+
+      if ((map = mmap(NULL,
+                      sizeof(array),
+                      PROT_READ | PROT_WRITE,
+                      MAP_SHARED,
+                      fileno(fp),
+                      (off_t)0)) == MAP_FAILED) {
+         perror("mmap()");
+         exit(1);
+      }
+
+      fclose(fp);
+
+      memcpy(map,         array, sizeof(array));
+      memcpy(beforeunmap, map,   sizeof(array));
+
+      assert(memcmp(map,         array, sizeof(array)) == 0);
+      assert(memcmp(beforeunmap, array, sizeof(array)) == 0);
+
+      array[0] = array[1]; /* 0xdeadbeef */
+      map[0]   = array[1]; /* 0xdeadbeef */
+
+      memcpy(beforeunmap, map, sizeof(array));
+
+      assert(memcmp(map,         array, sizeof(array)) == 0);
+      assert(memcmp(beforeunmap, array, sizeof(array)) == 0);
+
+      truncatedsize = (off_t)(sizeof(array) / 2);
+      assert(memcmp(map,         array, (size_t)truncatedsize) == 0);
+      assert(memcmp(beforeunmap, array, (size_t)truncatedsize) == 0);
+
+#if 0
+      /*
+       * with a unified buffercache the below msync(2) should not
+       * be needed as the subsequent open(2) and mmap(2)-ed should
+       * read from the buffercache if the data is still there, or
+       * from file if already flushed from cache to disk.
+       */
+
+      if (msync(map, truncatedsize, MS_ASYNC) == -1) {
+         perror("msync(2)");
+         exit(1);
+      }
+#endif
+      if (munmap(map, sizeof(array)) == -1) {
+         perror("munmap()");
+         exit(1);
+      }
+
+      if (truncate(FILENAME, truncatedsize) == -1) {
+         perror("truncate()");
+         exit(1);
+      }
+
+      if ((fp = fopen(FILENAME, "r+")) == NULL) {
+         fprintf(stderr, "fopen(%s) failed: %s", FILENAME, strerror(errno));
+         exit(1);
+      }
+
+      if ((map = mmap(NULL,
+                      truncatedsize,
+                      PROT_READ | PROT_WRITE,
+                      MAP_SHARED,
+                      fileno(fp),
+                      (off_t)0)) == MAP_FAILED) {
+         perror("mmap()");
+         exit(1);
+      }
+
+      fclose(fp);
+
+      bzero(afterremap, sizeof(afterremap));
+      memcpy(afterremap, map, (size_t)truncatedsize);
+
+      if (beforeunmap[0] != afterremap[0]) {
+         fprintf(stderr, "on iteration %lu re-mapped() array index 0 of size %lu "
+                "does not match what we unmapped() previously\n",
+                (unsigned long)testi + 1,
+                (unsigned long)sizeof(beforeunmap[0]));
+
+         exit(1);
+      }
+
+      if (memcmp(beforeunmap, afterremap, (size_t)truncatedsize) != 0) {
+         fprintf(stderr, "on iteration %lu re-mapped() data of size %lu (%s) "
+                "does not match what we unmapped() previously\n",
+                (unsigned long)testi + 1,
+                (unsigned long)truncatedsize,
+                truncatedsize == sizeof(array) ? "not truncated" : "truncated");
+
+         exit(1);
+      }
+
+      if (truncate(FILENAME, (size_t)sizeof(array)) == -1) {
+         perror("truncate()");
+         exit(1);
+      }
+   }
+
+   fprintf(stderr, "tested through %lu iterations, all ok\n", (unsigned long)testi);
+
+   if (unlink(FILENAME) != 0) {
+      perror("unlink()");
+      exit(1);
+   }
+
+   return 0;
+}
+changequote([, ])dnl
+])], [AC_MSG_RESULT(yes)
+       AC_DEFINE(HAVE_UNIFIED_BUFFERCACHE, 1, [unified vm buffers])],
+      [AC_MSG_RESULT(no)
+       AC_MSG_WARN([assuming buffercache not unified on this platform])],
+      [dnl assume no when cross-compiling
+       AC_MSG_RESULT(no)
+       AC_MSG_WARN([assuming buffercache not unified on this platform])])])
+
+m4_define([tcpinfoval],
+ [AC_MSG_CHECKING(for tcp_info value $1)
+  AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>], [
+
+struct tcp_info tcp_info;
+void *p;
+
+p = &tcp_info.$1;],
+ [AC_DEFINE(HAVE_TCP_INFO_$2, 1, [$1 found in tcp_info struct])
+  AC_MSG_RESULT(yes)],
+ [AC_MSG_RESULT(no)])])
+
+AC_DEFUN([L_TCPINFOCHECK],
+ [tcpinfoval($1, m4_toupper($1))])
+
+
+dnl define function for obtaining highest timeout values supported by select()
+AC_DEFUN([L_SELECT_MAXTIMEOUT],
+[DEFAULTMAX=33333333 #corresponds roughly to one year
+ AC_MSG_CHECKING(for errorless select behavior with high timeouts)
+ AC_RUN_IFELSE([AC_LANG_SOURCE([
+changequote(<<, >>)dnl
+#include <sys/types.h>
+#include <sys/time.h>
+
+#include <errno.h>
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif /* HAVE_LIMITS_H */
+#include <signal.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <unistd.h>
+
+void sigalrm(int signal);
+
+#define MAXVAL LONG_MAX
+
+int resval = -1; /* -1: fail, 0: ok */
+
+int
+main(void)
+{
+   if (checkval(MAXVAL) == 0) {
+      fprintf(stderr, "notice: highest acceptable value equal to MAXVAL\n");
+      FILE *fp;
+      if ((fp = fopen("conftest.out", "w")) == NULL) {
+         perror("fopen");
+         exit(-1);
+      }
+      /* write zero for no special handling needed */
+      fprintf(fp, "%ld\n", 0);
+      fclose(fp);
+      exit(0);
+   }
+
+   binsearch(0, MAXVAL);
+}
+
+binsearch(long startval, long endval)
+{
+   long midval = (endval - startval) / 2 + startval;
+
+/*   printf("binsearch: %ld - %ld (%ld)\n", startval, endval, midval);*/
+
+   if (midval == startval || midval == endval) {
+      FILE *fp;
+      if ((fp = fopen("conftest.out", "w")) == NULL) {
+         perror("fopen");
+         exit(-1);
+      }
+      fprintf(fp, "%ld\n", midval);
+      fclose(fp);
+      exit(0);
+   }
+
+   if (checkval(midval) == -1)
+      /* value failed, must lie below current value*/
+      binsearch(startval, midval);
+   else
+      /* value succeeded, must lie above current value*/
+      binsearch(midval, endval);
+}
+
+int
+checkval(long val)
+{
+   struct timeval timeout;
+   int rc;
+
+   timeout.tv_sec  = val;
+   timeout.tv_usec = 0;
+
+   if (signal(SIGALRM, sigalrm) == SIG_ERR) {
+      perror("signal(SIGALRM)");
+      exit(1);
+   }
+
+   alarm(1);
+
+   resval = -1;
+   if ((rc = select(0, NULL, NULL, NULL, &timeout)) == -1) {
+      if (errno == EINTR)
+         return resval;
+      perror("select()");
+      return -1;
+   }
+
+   if (rc == 0)
+      fprintf(stderr, "expected alarm to trigger, not select to timeout ...\n");
+   else
+      fprintf(stderr, "select(2) returned %d ...very unexpected\n", rc);
+
+   return resval;
+}
+
+void
+sigalrm(sig)
+   int sig;
+{
+   resval = 0;
+/*   printf("got sig, ok val\n");*/
+}
+changequote([, ])dnl
+])], [MAXVAL=`cat conftest.out`
+      if test x"$MAXVAL" = x; then
+         AC_MSG_RESULT([test failure])
+         AC_MSG_WARN([unable to determine max select value, using default])
+         AC_DEFINE_UNQUOTED(HAVE_SELECT_MAXTIMEOUT, $DEFAULTMAX, [max timeout value])dnl
+      elif test $MAXVAL -eq 0; then
+         AC_MSG_RESULT([yes])
+         AC_DEFINE_UNQUOTED(HAVE_SELECT_MAXTIMEOUT, 0, [max timeout value])dnl
+      elif test $MAXVAL -lt $DEFAULTMAX; then
+         AC_MSG_RESULT([unexpected test result])
+         AC_MSG_WARN([unexpectedly low max select value ... using default])
+         AC_DEFINE_UNQUOTED(HAVE_SELECT_MAXTIMEOUT, $DEFAULTMAX, [max timeout value])dnl
+      else
+         AC_MSG_RESULT([no, using max $MAXVAL])
+         AC_DEFINE_UNQUOTED(HAVE_SELECT_MAXTIMEOUT, $MAXVAL, [max timeout value])dnl
+      fi],
+      [AC_MSG_RESULT([unknown])
+       AC_MSG_WARN([unable to determine max select value, using default])
+       AC_DEFINE_UNQUOTED(HAVE_SELECT_MAXTIMEOUT, $DEFAULTMAX, [max timeout value])dnl],
+      [dnl use default when cross-compiling
+       AC_MSG_RESULT([unknown])
+       AC_MSG_WARN([unable to determine max select value, using default])
+       AC_DEFINE_UNQUOTED(HAVE_SELECT_MAXTIMEOUT, $DEFAULTMAX, [max timeout value])dnl])])
+
+
+dnl test function that tries to determine if a specified errno error exists
+m4_define([checkerrno],
+ [AC_MSG_CHECKING(for errno symbol $3)
+  AC_PREPROC_IFELSE(
+       [AC_LANG_PROGRAM([[#include <errno.h>]],
+                        [[
+#ifdef $3
+errnoval: $3
+#else
+#error "errno value $3 not defined"
+#endif]])],
+       [AC_MSG_RESULT([OK])
+        $1="$$1 $3"
+        cat conftest.i | grep errnoval: >>$2],
+       [AC_MSG_RESULT([no])])])
+AC_DEFUN([L_CHECKERRNO],
+ [checkerrno($@)])
+
+dnl test function that tries to determine if a specified getaddrinfo
+dnl error exists
+
+dnl test function that tries to determine if a specified errno error exists
+m4_define([checkgaierror],
+ [AC_MSG_CHECKING(for getaddrinfo() error $3)
+  AC_PREPROC_IFELSE(
+       [AC_LANG_PROGRAM([[
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>]],
+                        [[
+#ifdef $3
+gaierrval: $3
+#else
+#error "gai error value $3 not defined"
+#endif]])],
+       [AC_MSG_RESULT([OK])
+        $1="$$1 $3"
+        cat conftest.i | grep gaierrval: >>$2],
+       [AC_MSG_RESULT([no])])])
+AC_DEFUN([L_CHECKGAIERROR],
+ [checkgaierror($@)])
 
 # -- acinclude end --

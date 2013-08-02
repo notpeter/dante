@@ -40,7 +40,7 @@ if test x"$KRB5" != xno; then
          fi
       else
          AC_CHECK_PROG(ac_krb5_config, krb5-config, yes, no)
-         if test x"$ac_krb5_config" = xyes; then
+         if test x"${ac_krb5_config}" = xyes; then
            ac_krb5_cflags=`krb5-config --cflags krb5 2>/dev/null`
            if test $? != 0; then
                krb5fail=t
@@ -60,7 +60,7 @@ if test x"$KRB5" != xno; then
    fi
 
    dnl any cflags values obtained from krb5-config?
-   if test x"$ac_krb5_cflags" != x; then
+   if test x"${ac_krb5_cflags}" != x; then
       CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_krb5_cflags"
    else
       dnl add cppflags values needed for default compilation (openbsd)
@@ -74,12 +74,12 @@ if test x"$KRB5" != xno; then
 
    ac_com_error_message=no
    AC_EGREP_HEADER(com_err.h, krb5.h, ac_com_err_krb5=yes)
-   if test x"$ac_com_err_krb5" = xyes; then
+   if test x"${ac_com_err_krb5}" = xyes; then
       AC_DEFINE(HAVE_COM_ERR_IN_KRB5, 1, [Define to 1 if you have com_err in krb5.h])
    fi
-   if test x"$ac_cv_header_com_err_h" = xyes; then
+   if test x"${ac_cv_header_com_err_h}" = xyes; then
       AC_EGREP_HEADER(error_message, com_err.h, ac_com_error_message=yes)
-   elif test x"$ac_cv_header_et_com_err_h" = xyes; then
+   elif test x"${ac_cv_header_et_com_err_h}" = xyes; then
       AC_EGREP_HEADER(error_message, et/com_err.h, ac_com_error_message=yes)
    fi
 
@@ -87,7 +87,7 @@ if test x"$KRB5" != xno; then
    AC_CHECK_LIB(pthread, main)
 
    dnl look for libs
-   if test x"$ac_krb5_libs" != x; then
+   if test x"${ac_krb5_libs}" != x; then
       _libsonly=`echo $ac_krb5_libs | xargs -n1 | egrep '^-l' | xargs echo`
       _optsonly=`echo $ac_krb5_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
 
@@ -112,7 +112,7 @@ if test x"$KRB5" != xno; then
    if test `echo $LIBS | grep -c com_err` -ne 0 -a x"$ac_com_error_message" = xyes; then
       AC_CHECK_LIB(com_err, error_message,
          AC_DEFINE(HAVE_ERROR_MESSAGE, 1, [Define to 1 if you have error_message]),)
-   elif test x"$ac_com_error_message" = xyes; then
+   elif test x"${ac_com_error_message}" = xyes; then
       AC_CHECK_LIB(krb5, error_message,
          AC_DEFINE(HAVE_ERROR_MESSAGE, 1, [Define to 1 if you have error_message]),)
    fi
@@ -169,7 +169,7 @@ krb5_get_init_creds_opt_free(context, &options);
    case $host in
     *-*-solaris*)
        dnl It seems memory cache does not work on Solaris with Sun SDK
-       AC_MSG_WARN([disabling memory cache on this platform])
+       AC_MSG_WARN([disabling Kerberos memory cache on this platform])
        ;;
     *)
        AC_TRY_RUN([

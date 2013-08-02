@@ -1,8 +1,10 @@
-/* $Id: strvis.c,v 1.16 2012/05/04 20:19:09 karls Exp $ */
+/* $Id: strvis.c,v 1.18 2012/10/22 15:15:59 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
+
+#include "osdep.h"
 
 /*	$OpenBSD: vis.c,v 1.19 2005/09/01 17:15:49 millert Exp $ */
 /*-
@@ -34,15 +36,7 @@
  * SUCH DAMAGE.
  */
 
-#if 0
-#include <sys/types.h>
-#include <limits.h>
-#include <ctype.h>
-#include <vis.h>
-#else
-#include "osdep.h"
 #include "vis_compat.h"
-#endif
 
 #define	isoctal(c)                                                          \
 	(((unsigned char)(c)) >= '0' && ((unsigned char)(c)) <= '7')
@@ -63,6 +57,16 @@
 char *
 vis(char *dst, int c, int flag, int nextc)
 {
+
+	/*
+         * For this:
+CID 10114: Untrusted pointer read (TAINTED_SCALAR)
+At (17): Using tainted variable "(int)(unsigned char)bufp[offset]" as an index to pointer "*__ctype_b_loc()".
+	 *
+	 */
+	const char truncate = (char)c;
+	c = truncate;
+
 	if (isvisible(c)) {
 		*dst++ = c;
 		if (c == '\\' && (flag & VIS_NOSLASH) == 0)

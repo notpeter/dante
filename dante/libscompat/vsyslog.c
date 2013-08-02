@@ -1,10 +1,12 @@
-/* $Id: vsyslog.c,v 1.13 2011/11/08 15:36:39 karls Exp $ */
+/* $Id: vsyslog.c,v 1.14 2013/02/24 20:01:26 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
 
 #include "osdep.h"
+
+#undef vsyslog /* avoid any changes for applications done by headers */
 
 /* attempt to be clever; construct string and call syslog */
 

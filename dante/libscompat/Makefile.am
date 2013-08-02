@@ -1,17 +1,15 @@
+#NOTE: This makefile is now only used for unit tests, the other
+#      source dirs include the source files directly when building.
 noinst_LTLIBRARIES = libscompat.la
-libscompat_la_SOURCES =
-
-EXTRA_libscompat_la_SOURCES = daemon.c difftime.c getifaddrs.c	\
-   hstrerror.c inet_aton.c inet_ntoa.c inet_pton.c issetugid.c	\
+libscompat_la_SOURCES = daemon.c difftime.c getifaddrs.c	\
+   hstrerror.c inet_ntoa.c inet_pton.c issetugid.c	        \
    memmove.c pselect.c seteuid.c setproctitle.c sockatmark.c	\
    strlcpy.c strvis.c vsyslog.c
 
-libscompat_la_LIBADD = @LIBSCSRC@
-#libscompat_la_DEPENDENCIES = @LIBSCSRC@
-LIBDEPS=@LIBSCSRC@
+noinst_HEADERS = ifaddrs.h timers.h vis_compat.h
 
-noinst_HEADERS = daemon.h difftime.h ifaddrs.h issetugid.h	\
-   sockatmark.h strlcpy.h timers.h vis_compat.h
+#in_cksum; not used in libscompat, only placed here for license reasons
+EXTRA_DIST = in_cksum.h in_cksum.c
 
 INCLUDES = -I$(top_srcdir)/include -I.
 
@@ -23,8 +21,9 @@ LINTFLAGS = @LINTFLAGS@
 
 if RUNLINT
 SUFFIXES = .ln
-LINTFILES = $(LIBSCSRC:.lo=.ln)
-LIBDEPS += $(LINTFILES) llib-lscompat.ln
+#XXX add in_cksum directly, not built in this dir, but linting simplest here
+LINTFILES = $(LIBSCSRC:.lo=.ln) in_cksum.ln
+LIBDEPS = $(LINTFILES) llib-lscompat.ln
 
 CLEANFILES = $(LINTFILES)
 

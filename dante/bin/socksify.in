@@ -40,7 +40,7 @@
 # any improvements or extensions that they make and grant Inferno Nettverk A/S
 # the rights to redistribute these changes.
 #
-# $Id: socksify.in,v 1.40 2012/05/30 15:38:07 karls Exp $
+# $Id: socksify.in,v 1.42 2013/07/08 11:01:00 karls Exp $
 
 #On systems where a supported preloading mechanism is used, you can
 #do "socksify <program>" and <program> will use socks without having
@@ -54,11 +54,10 @@ if test x"$NOPRELOAD" != x; then
 fi
 
 SOCKSIFY_PRELOAD_LIBS="@SOCKSIFY_PRELOAD_LIBS@"
-
 SOCKS_LIBDIR="${SOCKS_LIBDIR:-@LIBRARY_PREFIX@}"
 
+#platform that requires full path to libdsocks?
 SOCKS_USEFULLPATH="${SOCKS_USEFULLPATH:-@SOFULLPATH@}"
-
 if test x"$SOCKS_USEFULLPATH" != x; then
     #specify full path to libdsocks
     FULLPATH="${SOCKS_LIBDIR}/"
@@ -66,31 +65,30 @@ else
     unset FULLPATH
 fi
 
+#use "FLAT_NAMESPACE" on Darwin in attempt to match LD_PRELOAD behavior
 if test x`uname` = xDarwin; then
     export DYLD_FORCE_FLAT_NAMESPACE=t
 fi
 
 #dlib/Makefile.am libtool flags should produce a predictable library name
+#(ending in SOLIB_POSTFIX).
 LIBRARY="${SOCKS_LIBRARY:-${FULLPATH}libdsocks.@SOLIB_POSTFIX@}"
 
-if test x"$FULLPATH" != x -a ! -s "$LIBRARY" -o \
-        x"$FULLPATH"  = x -a ! -s "$SOCKS_LIBDIR/$LIBRARY"; then
-    echo "socksify: missing \"$LIBRARY\".  No preload support?" >&2
-    exit 1
-fi
-
+#platform dependent LD_PRELOAD-variant format
 PRELOAD_SEPERATOR="@PRELOAD_SEPERATOR@"
 PRELOAD_POSTFIX="@PRELOAD_POSTFIX@"
 
+#set variable activating preloading (LD_PRELOAD etc.)
 @PRELOAD_VARIABLE@="${LIBRARY}${SOCKSIFY_PRELOAD_LIBS:+${PRELOAD_SEPERATOR}}${SOCKSIFY_PRELOAD_LIBS}${PRELOAD_POSTFIX:+${PRELOAD_SEPERATOR}}${PRELOAD_POSTFIX}"
 export @PRELOAD_VARIABLE@
 
-LD_LIBRARY_PATH="${LD_LIBRARY_PATH}${LD_LIBRARY_PATH:+:}${SOCKS_LIBDIR}"
+LD_LIBRARY_PATH="${SOCKS_LIBDIR}${LD_LIBRARY_PATH:+:}${LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
 
+#SunOS 64-bit library path
 if test x"@ISA64DIR@" != x; then
     SOCKS_LIB64DIR="${LIB64DIR:-${SOCKS_LIBDIR}/@ISA64DIR@}"
-    LD_LIBRARY_PATH_64="${LD_LIBRARY_PATH_64}${LD_LIBRARY_PATH_64:+:}$SOCKS_LIB64DIR"
+    LD_LIBRARY_PATH_64="${SOCKS_LIB64DIR}${LD_LIBRARY_PATH_64:+:}${LD_LIBRARY_PATH_64}"
     export LD_LIBRARY_PATH_64
 fi
 

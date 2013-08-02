@@ -1,12 +1,10 @@
-/* $Id: difftime.c,v 1.8 2009/07/07 12:54:47 karls Exp $ */
+/* $Id: difftime.c,v 1.9 2012/10/22 15:15:58 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
 #endif /* HAVE_CONFIG_H */
 
-#include <sys/types.h>
-
-#include "difftime.h"
+#include "osdep.h"
 
 /*      $OpenBSD: difftime.c,v 1.9 2005/08/08 08:05:38 espie Exp $ */
 /*

@@ -1,4 +1,10 @@
-/* $Id: hstrerror.c,v 1.12 2011/08/16 11:50:14 karls Exp $ */
+/* $Id: hstrerror.c,v 1.13 2012/10/22 15:15:58 karls Exp $ */
+
+#ifdef HAVE_CONFIG_H
+#include "autoconf.h"
+#endif /* HAVE_CONFIG_H */
+
+#include "osdep.h"
 
 /*
  * Copyright (c) 2009

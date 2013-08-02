@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: symbols.h,v 1.12 2012/06/01 20:23:05 karls Exp $ */
+/* $Id: symbols.h,v 1.16 2013/05/27 22:03:56 karls Exp $ */
 
 #ifndef LIBRARY_PATH
 #define LIBRARY_PATH ""
@@ -64,6 +64,7 @@
 #define SYMBOL_CONNECT         SYMBOLPREFIX "connect"
 #define SYMBOL_FREEHOSTENT     SYMBOLPREFIX "freehostent"
 #define SYMBOL_GETADDRINFO     SYMBOLPREFIX "getaddrinfo"
+#define SYMBOL_GETNAMEINFO     SYMBOLPREFIX "getnameinfo"
 #define SYMBOL_GETHOSTBYADDR   SYMBOLPREFIX "gethostbyaddr"
 #define SYMBOL_GETHOSTBYNAME   SYMBOLPREFIX "gethostbyname"
 #define SYMBOL_GETHOSTBYNAME2  SYMBOLPREFIX "gethostbyname2"
@@ -115,6 +116,10 @@
 #ifndef LIBRARY_GETADDRINFO
 #define LIBRARY_GETADDRINFO                 LIBRARY_LIBC
 #endif /* !LIBRARY_GETADDRINFO */
+
+#ifndef LIBRARY_GETNAMEINFO
+#define LIBRARY_GETNAMEINFO                 LIBRARY_LIBC
+#endif /* !LIBRARY_GETNAMEINFO */
 
 #ifndef LIBRARY_GETIPNODEBYNAME
 #define LIBRARY_GETIPNODEBYNAME             LIBRARY_LIBC

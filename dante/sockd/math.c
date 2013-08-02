@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: math.c,v 1.2 2012/01/21 19:18:58 karls Exp $";
+"$Id: math.c,v 1.14 2013/02/28 10:14:36 michaels Exp $";
 
 #include <math.h>
 
@@ -61,9 +61,10 @@ medtv(struct timeval *tvarr, size_t tvsize)
       med = tvarr[(tvsize - 1) / 2];
    else {
       timeradd(&tvarr[(tvsize - 1) / 2], &tvarr[(tvsize - 1) / 2 + 1], &med);
-               return tv2usec(&med) / 2;
+               return tv2us(&med) / 2;
    }
-   return tv2usec(&med);
+
+   return tv2us(&med);
 }
 
 unsigned long
@@ -82,7 +83,7 @@ avgtv(struct timeval *tvarr, size_t tvsize)
       sum = nsum;
    }
 
-   return tv2usec(&sum) / tvsize;
+   return tv2us(&sum) / tvsize;
 }
 
 unsigned long
@@ -93,14 +94,14 @@ stddevtv(struct timeval *tvarr, size_t tvsize, unsigned long avg)
 
    if (tvsize <= 1)
       return 0;
-   else {
-      /* get the squared sum of differences from the mean */
-      for (i = 0, diffsum = 0; i < tvsize; ++i) {
-         unsigned long long diff;
 
-         diff = labs(tv2usec(&tvarr[i]) - avg);
-         diffsum += diff * diff;
-      }
-      return sqrtl((long double) diffsum / tvsize);
+   /* get the squared sum of differences from the mean */
+   for (i = 0, diffsum = 0; i < tvsize; ++i) {
+      const unsigned long long diff = labs(tv2us(&tvarr[i]) - avg);
+
+      diffsum += diff * diff;
    }
+
+   return (unsigned long)lround(sqrt(((double)diffsum) / tvsize));
 }
+
