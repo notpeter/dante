@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
- *               2012
+ *               2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "upnp.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.240 2013/07/27 19:03:46 michaels Exp $";
+"$Id: Rconnect.c,v 1.242 2013/10/27 15:24:42 karls Exp $";
 
 int
 Rconnect(s, _name, namelen)
@@ -70,7 +70,7 @@ Rconnect(s, _name, namelen)
    if (_name == NULL) {
       rc = connect(s, _name, namelen);
 
-      slog(LOG_DEBUG, 
+      slog(LOG_DEBUG,
            "%s: dst is NULL, fallback to system connect(2) returned %d",
            function, rc);
 
@@ -83,9 +83,9 @@ Rconnect(s, _name, namelen)
       slog(LOG_DEBUG,
            "%s: unsupported address family '%d' for dst %s, "
            "fallback to system connect(2) returned %d",
-           function, 
-           _name->sa_family, 
-           sockaddr2string(TOCSS(_name), NULL, 0), 
+           function,
+           _name->sa_family,
+           sockaddr2string(TOCSS(_name), NULL, 0),
            rc);
 
       return rc;
@@ -105,7 +105,7 @@ Rconnect(s, _name, namelen)
 
 
    slog(LOG_INFO, "%s: fd %d, address %s",
-        function, 
+        function,
         s,
         sockaddr2string(&name, namestr, sizeof(namestr)));
 
@@ -363,12 +363,12 @@ Rconnect(s, _name, namelen)
 
    errno = 0;
    if (nbconnect) {
-      socksfd.route = socks_nbconnectroute(s, 
+      socksfd.route = socks_nbconnectroute(s,
                                            socksfd.control,
                                            &packet,
-                                           &src, 
-                                           &dst, 
-                                           emsg, 
+                                           &src,
+                                           &dst,
+                                           emsg,
                                            sizeof(emsg));
 
       if (socksfd.route == NULL)

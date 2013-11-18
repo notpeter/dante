@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012
+ * Copyright (c) 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #endif /* HAVE_NET_IF_DL_H */
 
 static const char rcsid[] =
-"$Id: sockaddr.c,v 1.31 2013/08/02 06:56:18 michaels Exp $";
+"$Id: sockaddr.c,v 1.33 2013/10/27 15:24:42 karls Exp $";
 
 
 int
@@ -72,8 +72,8 @@ sockaddrareeq(a, b, nocompare)
 
    switch (a->ss_family) {
       case AF_INET:
-         return memcmp(&TOCIN(a)->sin_addr, 
-                       &TOCIN(b)->sin_addr, 
+         return memcmp(&TOCIN(a)->sin_addr,
+                       &TOCIN(b)->sin_addr,
                        sizeof(TOCIN(a)->sin_addr)) == 0;
 
       case AF_INET6:
@@ -84,8 +84,8 @@ sockaddrareeq(a, b, nocompare)
          if (TOCIN6(a)->sin6_flowinfo != TOCIN6(b)->sin6_flowinfo)
             return 0;
 
-         return memcmp(&TOCIN6(a)->sin6_addr, 
-                       &TOCIN6(b)->sin6_addr, 
+         return memcmp(&TOCIN6(a)->sin6_addr,
+                       &TOCIN6(b)->sin6_addr,
                        sizeof(TOCIN6(a)->sin6_addr)) == 0;
 
       default:
@@ -212,10 +212,10 @@ safamily_issupported(family)
       case AF_INET6:
          return 1;
 
-      default: 
+      default:
          return 0;
    }
-  
+
    /* NOTREACHED */
 }
 
@@ -235,7 +235,7 @@ atype2safamily(atype)
    SERRX(atype);
 }
 
-int 
+int
 safamily2atype(safamily)
    const sa_family_t safamily;
 {
@@ -243,7 +243,7 @@ safamily2atype(safamily)
    switch (safamily) {
       case AF_INET:
          return SOCKS_ADDR_IPV4;
-         
+
       case AF_INET6:
          return SOCKS_ADDR_IPV6;
    }

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2011, 2012
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2011, 2012,
+ *               2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.123 2013/07/30 10:47:12 michaels Exp $";
+"$Id: authneg.c,v 1.128 2013/10/27 15:24:42 karls Exp $";
 
 int
 negotiate_method(s, packet, route, emsg, emsglen)
@@ -71,10 +72,29 @@ negotiate_method(s, packet, route, emsg, emsglen)
    if (sockscf.option.debug)
       slog(LOG_DEBUG, "%s: fd %d, %s", function, s, socket2string(s, NULL, 0));
 
+#if !SOCKS_CLIENT && HAVE_GSSAPI
+   switch (packet->req.auth->method) {
+      case AUTHMETHOD_GSSAPI:
+         /*
+          * Nothing from gssapistate with client we are currently
+          * offering upstream proxyserver, so reset authmethod to none
+          * so as to not confuse things and make any part of the code
+          * try to think this gssapi state relates to the upstream
+          * proxy.
+          */
+         bzero(&packet->req.auth->mdata.gssapi,
+               sizeof(packet->req.auth->mdata.gssapi));
+
+         packet->req.auth->method = AUTHMETHOD_NOTSET;
+         break;
+   }
+#endif /* !SOCKS_CLIENT && HAVE_GSSAPI */
+
+
    if (packet->req.version == PROXY_SOCKS_V4) {
       slog(LOG_DEBUG,
            "%s: no method negotiate in %s.  Setting authmethod to %s",
-           function, 
+           function,
            proxyprotocol2string(packet->req.version),
            method2string(AUTHMETHOD_NONE));
 
@@ -89,7 +109,7 @@ negotiate_method(s, packet, route, emsg, emsglen)
    SASSERTX(packet->gw.state.smethodc <= METHODS_KNOWN);
 
    /*
-    * create request packet. 
+    * create request packet.
     * version numberOfmethods methods ...
     */
 
@@ -98,7 +118,7 @@ negotiate_method(s, packet, route, emsg, emsglen)
 
    SASSERTX(requestlen == AUTH_NMETHODS);
    request[requestlen++] = (unsigned char)0;
-   SASSERTX(request[AUTH_NMETHODS] == 0); 
+   SASSERTX(request[AUTH_NMETHODS] == 0);
 
    /*
     * Count and add the methods we support and are configured to offer
@@ -107,8 +127,8 @@ negotiate_method(s, packet, route, emsg, emsglen)
    for (i = 0; i < packet->gw.state.smethodc; ++i) {
       if (packet->req.auth->method != AUTHMETHOD_NOTSET) {
          /*
-          * Must be doing serverchaining.  Not all methods we are 
-          * configurd to support for this route may be supported
+          * Must be doing serverchaining.  Not all methods we are
+          * configured to support for this route may be supported
           * for this particular client.  E.g., if the client has
           * not provided us with a username/password, we can not
           * provide the upstream proxy with it either, so don't
@@ -128,11 +148,11 @@ negotiate_method(s, packet, route, emsg, emsglen)
                break;
 
             case AUTHMETHOD_GSSAPI:
-               break; /* 
+               break; /*
                        * ok?  Can't forward gssapi/kerberos credentials,
-                       * but operator should be able to set up a 
+                       * but operator should be able to set up a
                        * things so we can initiate our own gssapi
-                       * session to the upstram proxy.
+                       * session to the upsteam proxy.
                        */
 
             default:
@@ -168,10 +188,11 @@ negotiate_method(s, packet, route, emsg, emsglen)
                      NULL,
                      NULL) != (ssize_t)requestlen) {
       snprintf(emsg, emsglen,
-               "could not offer list of auth methods to proxy server: %s",
+               "could not offer list of auth methods to proxy server: "
+               "send failed: %s",
                strerror(errno));
 
-      socks_blacklist(route);
+      socks_blacklist(route, emsg);
       return -1;
    }
 
@@ -189,9 +210,9 @@ negotiate_method(s, packet, route, emsg, emsglen)
                "use, read %ld/%lu: %s",
                (long)rc,
                (unsigned long)sizeof(response),
-               rc == 0 ? "server closed session" : strerror(errno));
+               rc == 0 ? "server closed connection" : strerror(errno));
 
-      socks_blacklist(route);
+      socks_blacklist(route, emsg);
       return -1;
    }
 
@@ -202,10 +223,11 @@ negotiate_method(s, packet, route, emsg, emsglen)
    SASSERTX(AUTH_VERSION <= rc);
    if (request[AUTH_VERSION] != response[AUTH_VERSION]) {
       snprintf(emsg, emsglen,
-               "got reply version %d from proxy server, but expected %d",
+               "got reply version %d from proxy server, but expected version "
+               "%d.  Remote proxy server problem?",
                response[AUTH_VERSION], request[AUTH_VERSION]);
 
-      socks_blacklist(route);
+      socks_blacklist(route, emsg);
       return -1;
    }
    packet->version = request[AUTH_VERSION];
@@ -218,13 +240,17 @@ negotiate_method(s, packet, route, emsg, emsglen)
          snprintf(emsg, emsglen,
                   "proxy server said we did not offer any acceptable "
                   "authentication methods");
-      else
+      else {
          snprintf(emsg, emsglen,
-                  "proxy server selected method 0x%x, but that is not among "
-                  "the methods we offered it",
-                  response[AUTH_SELECTEDMETHOD]);
+                  "proxy server selected method 0x%x (%s), but that is not "
+                  "among the methods we offered it",
+                  response[AUTH_SELECTEDMETHOD],
+                  method2string(response[AUTH_SELECTEDMETHOD]));
 
-      socks_blacklist(route);
+         swarnx("%s: %s", function, emsg);
+      }
+
+      socks_blacklist(route, emsg);
       return -1;
    }
 
@@ -269,7 +295,7 @@ negotiate_method(s, packet, route, emsg, emsglen)
                   "proxy server did not accept any of the authentication "
                   "methods we offered it");
 
-         socks_blacklist(route);
+         socks_blacklist(route, emsg);
          rc = -1;
          break;
 

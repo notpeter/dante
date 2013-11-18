@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
+ *               2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +42,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.85 2013/05/27 21:34:43 karls Exp $ */
+/* $Id: interposition.h,v 1.86 2013/10/27 15:24:41 karls Exp $ */
 
 #ifndef _INTERPOSITION_H_
 #define _INTERPOSITION_H_

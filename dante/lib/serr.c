@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2008, 2009, 2010, 2011,
- *               2012
+ *               2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serr.c,v 1.42 2013/02/04 11:52:57 michaels Exp $";
+"$Id: serr.c,v 1.43 2013/10/27 15:24:42 karls Exp $";
 
 void
 serr(const char *fmt, ...)

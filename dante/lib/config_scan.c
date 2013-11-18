@@ -2786,7 +2786,7 @@ char *yytext;
 #define INITIAL 0
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012
+ *               2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -2834,7 +2834,7 @@ char *yytext;
 #endif
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.236 2013/07/27 22:22:18 michaels Exp $";
+"$Id: config_scan.l,v 1.238 2013/10/27 15:24:42 karls Exp $";
 
 #include "yacconfig.h"
 #include "config_parse.h"
@@ -3169,7 +3169,7 @@ YY_DECL
 
 
    /*
-    * start-condition dependent stuff. 
+    * start-condition dependent stuff.
     */
 
 
@@ -3405,8 +3405,8 @@ YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
 #line 282 "config_scan.l"
 {
-   /* 
-    * For some reason can't get the above "0/\/" included in the 
+   /*
+    * For some reason can't get the above "0/\/" included in the
     * address regexp below: "unrecognized rule" flex says.
     */
 
@@ -3723,7 +3723,7 @@ YY_RULE_SETUP
    BEGIN(start_logtype);
 
    if ((l = loglevel(yytext)) == NULL)
-      yyerror("unknown loglevel: \"%s\"", 
+      yyerror("unknown loglevel: \"%s\"",
               str2vis(yytext, strlen(yytext), visbuf, sizeof(visbuf)));
 
    yylval.number = l->value;
@@ -5273,7 +5273,7 @@ YY_RULE_SETUP
 {
    yylval.deprecated.oldname = yytext;
 
-   yylval.deprecated.newname = 
+   yylval.deprecated.newname =
    "a general socket api.  E.g. \"internal.tcp.so_rcvbuf\" for setting "
    "the socket receive buffer size on the internal interface side, or "
    "\"external.tcp.so_sndbuf\" for setting the socket send buffer size on "

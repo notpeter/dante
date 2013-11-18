@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012
+ * Copyright (c) 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #include <sched.h>
 
 static const char rcsid[] =
-"$Id: cpupolicy.c,v 1.5 2013/01/26 12:38:59 michaels Exp $";
+"$Id: cpupolicy.c,v 1.6 2013/10/27 15:24:42 karls Exp $";
 
 #if HAVE_SCHED_SETSCHEDULER
 

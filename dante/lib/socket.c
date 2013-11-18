@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2005, 2008, 2009, 2010, 2011, 2012
+ * Copyright (c) 1997, 1998, 1999, 2001, 2005, 2008, 2009, 2010, 2011, 2012,
+ *               2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.210 2013/07/28 20:14:45 michaels Exp $";
+"$Id: socket.c,v 1.218 2013/11/07 11:36:43 karls Exp $";
 
 int
 socks_connecthost(s,
@@ -70,7 +71,7 @@ socks_connecthost(s,
 {
    const char *function = "socks_connecthost()";
    static fd_set *wset;
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
    int side = EXTERNALIF; /* doesn't matter. */
 #endif
    dnsinfo_t resmem;
@@ -83,7 +84,7 @@ socks_connecthost(s,
 
    /*
     * caller depends on errno to know whether the connect(2) failed
-    * permanently, or whether things are now in progress, so make sure 
+    * permanently, or whether things are now in progress, so make sure
     * errno is correct upon return, and definitely not some old residue.
     */
    errno = 0;
@@ -111,7 +112,7 @@ socks_connecthost(s,
 
 #if !SOCKS_CLIENT
 
-        side == INTERNALIF ? " on internal side" : " on external side", 
+        side == INTERNALIF ? " on internal side" : " on external side",
 
 #else /* SOCKS_CLIENT */
 
@@ -232,7 +233,7 @@ socks_connecthost(s,
           */
           if (rc == -1) {
             if (errno == EINTR) {
-               snprintf(emsg, emsglen, "connect(2) to %s from %s failed: %s", 
+               snprintf(emsg, emsglen, "connect(2) to %s from %s failed: %s",
                         sockaddr2string(raddr, NULL, 0),
                         laddrstr,
                         strerror(errno));
@@ -257,16 +258,23 @@ socks_connecthost(s,
          while (timeout != 0
          &&     rc      == -1
          &&   (  errno == EINPROGRESS
-#if SOCKS_CLIENT
+#if !SOCKS_CLIENT
               || errno == EINTR
-#endif /* SOCKS_CLIENT */
+#endif /* !SOCKS_CLIENT */
          )) {
             struct timeval tval = { timeout, (long)0 };
 
             FD_ZERO(wset);
             FD_SET(s, wset);
 
-            rc = select(s + 1, NULL, wset, NULL, timeout >= 0 ? &tval : NULL);
+            rc = selectn(s + 1,
+                         NULL,
+                         NULL,
+                         NULL,
+                         wset,
+                         NULL,
+                         timeout >= 0 ? &tval : NULL);
+
             if (rc == -1 && errno == EINTR)
                continue;
 
@@ -288,16 +296,17 @@ socks_connecthost(s,
               sockaddr2string(raddr, addrstr, sizeof(addrstr)),
               laddrstr,
               s,
-              rc == 0 ?   "ok" 
+              rc == 0 ?   "ok"
                         : errno == EINPROGRESS ? "in progress" : "failed",
               strerror(errno));
 
          if (rc == -1) {
-            log_connectfailed(side, addrstr); 
+            log_connectfailed(side, addrstr);
 
-            snprintf(emsg, emsglen, "connect(2) to %s from %s failed: %s", 
-                     sockaddr2string(raddr, NULL, 0), 
+            snprintf(emsg, emsglen, "connect(2) to %s from %s %s: %s",
+                     sockaddr2string(raddr, NULL, 0),
                      laddrstr,
+                     errno == EINPROGRESS ? "is in progress" : "failed",
                      strerror(errno));
          }
 
@@ -314,11 +323,15 @@ socks_connecthost(s,
           * We'd like to set ai_family to laddr->ss_family, but
           * IPv4-mapped IPv6 addresses screw that up since if laddr
           * is an IPv4 address (and thus 's' is an IPv4 socket),
-          * we can connect to the IPv4 address, but we need to include
-          * IPv6 in the hints.ai_family in order to get those IPv4-mapped
-          * IPv6 addresses, in order to convert them to regular IPv4-addresses.
-          * 
-          * A defect in the getaddrinfo() api.
+          * we can connect to the IPv4-mapped IPv6 address, but we need to
+          * include IPv6 in the hints.ai_family in order to get those
+          * IPv4-mapped IPv6 addresses from getaddrinfo(3).
+          * (cgetaddrinfo() converts them to regular IPv4-addresses for us,
+          * but in order for it to get them in the first place ...).
+          *
+          * A defect in the getaddrinfo() api, not having a flag for us
+          * to request it includes IPv4-mapped IPv6 addresses, converted to
+          * regular IPv4 addresses.
           */
          if (laddr->ss_family == AF_INET)
             hints.ai_family = 0; /* or we will not get the IPv4-mapped IPv6. */
@@ -333,20 +346,20 @@ socks_connecthost(s,
                      "could not determine type of socket for fd %d "
                      "- getsockopt(SO_TYPE) failed: %s",
                      s, strerror(errno));
-                     
+
             return -1;
          }
 
          if ((rc = cgetaddrinfo(host->addr.domain, NULL, &hints, &res, &resmem))
          != 0) {
-            snprintf(emsg, emsglen, 
+            snprintf(emsg, emsglen,
                      "could not resolve hostname \"%s\" %s%s: %s",
                      str2vis(host->addr.domain,
                              strlen(host->addr.domain),
                              visbuf,
                              sizeof(visbuf)),
                      hints.ai_family == 0 ? "" : "for ",
-                     hints.ai_family == 0 ? 
+                     hints.ai_family == 0 ?
                            "" : safamily2string(hints.ai_family),
                      gai_strerror(rc));
 
@@ -369,7 +382,7 @@ socks_connecthost(s,
    SASSERTX(host->atype == SOCKS_ADDR_DOMAIN);
    SASSERTX(res->ai_addr != NULL);
 
-   /* 
+   /*
     * try all ipaddresses hostname resolved to.
     */
 
@@ -379,7 +392,15 @@ socks_connecthost(s,
       sockshost_t newhost;
 
       if (next->ai_family != laddr->ss_family) {
-         next = next->ai_next;
+         snprintf(emsg, emsglen,
+                  "can not attempt connect to address %s (resolved from %s) "
+                  "from our %s-socket on the external side",
+                  sockaddr2string(TOSS(next->ai_addr), NULL, 0),
+                  hoststr,
+                  safamily2string(laddr->ss_family));
+         errno = EAFNOSUPPORT;
+
+         next  = next->ai_next;
          continue;
       }
 
@@ -401,7 +422,7 @@ socks_connecthost(s,
          }
          close(new_s); /* s is now a new socket but keeps the same index. */
 
-         /* 
+         /*
           * try to bind the same address/port on the new socket.
           */
 
@@ -436,10 +457,10 @@ socks_connecthost(s,
                                 side,
 #endif /* !SOCKS_CLIENT */
                                 &newhost,
-                                laddr, 
-                                raddr, 
-                                timeout, 
-                                emsg, 
+                                laddr,
+                                raddr,
+                                timeout,
+                                emsg,
                                 emsglen);
       }
       else
@@ -455,8 +476,14 @@ socks_connecthost(s,
                                 emsg,
                                 emsglen);
 
-      if (rc == 0)
+      if (rc == 0) {
+         errno = 0;
+
+         if (emsg != NULL)
+            *emsg = NUL;
+
          return 0;
+      }
 
       /*
        * Only retry/try next address if errno indicates server/network error.
@@ -477,17 +504,19 @@ socks_connecthost(s,
       next   = next->ai_next;
    } while (next != NULL);
 
-   /* 
+   /*
     * list exhausted, no successful connect.
     */
 
    SASSERTX(errno != 0);
-   SASSERTX(*emsg != NUL);
+
+   if (emsg != NULL)
+      SASSERTX(*emsg != NUL);
 
    return -1;
 }
 
-#undef socket  
+#undef socket
 int
 socks_socket(domain, type, protocol)
    const int domain;
@@ -508,7 +537,7 @@ socks_socket(domain, type, protocol)
       value = 1;
       len   = sizeof(value);
 
-      if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &value, len) != 0) 
+      if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &value, len) != 0)
          swarn("%s: setsockopt(IPV6_V6ONLY) on fd %d failed", function, s);
    }
 #endif /* !SOCKS_CLIENT */
@@ -571,7 +600,7 @@ acceptn(s, addr, addrlen)
 #if !SOCKS_CLIENT && HAVE_LINUX_BUGS
    if (rc != -1) {
       /*
-       * On Linux fd-flags are not inheritted by accept(2) for some reason.
+       * On Linux fd-flags are not inherited by accept(2) for some reason.
        */
       if (fcntl(rc, F_SETFL, fcntl(s, F_GETFL, 0)) != 0) {
          swarn("%s: attempt to work around Linux bug via fcntl(2) failed",
@@ -679,7 +708,7 @@ socketisconnected(s, addr, addrlen)
    if (err == 0) {
       if (getpeername(s, TOSA(addr), &len) == -1) { /* strange. */
          /*
-          * presuambly a timing issue; connection failed between
+          * presumably a timing issue; connection failed between
           * our getsockopt(2) call and now.
           */
          return NULL;
@@ -1228,7 +1257,7 @@ makedummyfd(_safamily, _socktype)
       socktype = _socktype;
 
    if ((s = socket(safamily, socktype, 0)) == -1) {
-      swarn("%s: failed to create dummysocket of safamily %s, socktype %s",
+      swarn("%s: failed to create dummysocket of type %s, socktype %s",
             function, safamily2string(safamily), socktype2string(socktype));
 
       return -1;
@@ -1238,14 +1267,14 @@ makedummyfd(_safamily, _socktype)
       return s;
 
    /*
-    * Else, need to do some more complex work, creating a genuine socket 
+    * Else, need to do some more complex work, creating a genuine socket
     * that will not be marked ad readable or writable by select(2).
     */
 
    /*
-    * The below bind(2) and listen(2) is necessary for Linux not to mark 
-    * the socket as readable/writable.  Under other UNIX systems, just a 
-    * socket(2) is enough.  Judging from the Open Unix spec., Linux is the 
+    * The below bind(2) and listen(2) is necessary for Linux not to mark
+    * the socket as readable/writable.  Under other UNIX systems, just a
+    * socket(2) is enough.  Judging from the Open Unix spec., Linux is the
     * one that is correct though.
     */
 
@@ -1261,8 +1290,8 @@ makedummyfd(_safamily, _socktype)
 
    SET_SOCKADDRPORT(&addr, htons(0));
 
-   if (socks_bind(s, TOSS(&addr), 0) != 0) { 
-      swarn("%s: could not bind address (%s)", 
+   if (socks_bind(s, TOSS(&addr), 0) != 0) {
+      swarn("%s: could not bind address (%s)",
             function, sockaddr2string(&addr, NULL, 0));
 
       return s;
@@ -1276,4 +1305,3 @@ makedummyfd(_safamily, _socktype)
    return s;
 
 }
-

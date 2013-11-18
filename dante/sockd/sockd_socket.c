@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2001, 2003, 2008, 2009, 2010, 2011, 2012
+ * Copyright (c) 1997, 1998, 1999, 2001, 2003, 2008, 2009, 2010, 2011, 2012,
+ *               2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.168 2013/07/12 20:57:16 michaels Exp $";
+"$Id: sockd_socket.c,v 1.170 2013/10/27 15:24:43 karls Exp $";
 
 #define MAXSOCKETOPTIONS ( 1 /* TCP_NODELAY || SO_BROADCAST                  */\
                          + 1 /* SO_TIMESTAMP                                 */\
@@ -69,7 +70,7 @@ getoptions(const sa_family_t family, const int type, const int isclientside,
            socketoptions_t *optionsv, const size_t optionsc);
 /*
  * Fills in "optionsv" with the correct values for a socket of family "family"
- * and type "type". 
+ * and type "type".
  * "isclientside" indicates if the socket is to be used on the client side
  * or not.
  *
@@ -100,7 +101,7 @@ sockd_unconnect(s, oldpeer)
           * Linux bug; accepts udp connect(2) to port 0, but getpeername(2)
           * on the same socket afterwards fails.
           */
-         ; 
+         ;
       else
 #endif /* HAVE_LINUX_BUGS */
 
@@ -293,11 +294,11 @@ bindinternal(protocol)
 #if !HAVE_PRIVILEGES
 {
       /*
-       * Specialcase this so that if we are started as root we do bind 
+       * Specialcase this so that if we are started as root we do bind
        * the listen port requested, regardless of whether user.privileged is
        * set to root or not.  Allows a user who does not want Dante to
        * run as root, ever, but does want Dante to bind a privileged port
-       * when initially starting, get what he wants.  
+       * when initially starting, get what he wants.
        */
       socklen_t len;
       uid_t old_euid;
@@ -604,4 +605,3 @@ getoptions(family, type, isclientside, optionsv, optionsc)
    SASSERTX(optc <= optionsc);
    return optc;
 }
-

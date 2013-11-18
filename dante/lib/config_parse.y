@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012
+ *               2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.697 2013/07/28 17:36:05 michaels Exp $";
+"$Id: config_parse.y,v 1.703 2013/10/27 15:24:42 karls Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -55,16 +55,16 @@ static const char rcsid[] =
 
 extern void yyrestart(FILE *fp);
 
-typedef enum { from, to, bounce } addresscontext_t; 
+typedef enum { from, to, bounce } addresscontext_t;
 
 static int
-ipaddr_requires_netmask(const addresscontext_t context, 
+ipaddr_requires_netmask(const addresscontext_t context,
                         const objecttype_t objecttype);
 /*
  * Returns true if an ipaddress used in the context of "objecttype" requires
  * a netmask, or false otherwise.
  *
- * "isfrom" is true if the address is to be used in the source/from 
+ * "isfrom" is true if the address is to be used in the source/from
  * context, and false otherwise.
  */
 
@@ -100,7 +100,7 @@ static char *serverstring2gwstring(const char *server, const int version,
  * Returns "gw" on success, exits on error.
  */
 
-#define alarminit() 
+#define alarminit()
 #else /* !SOCKS_CLIENT */
 
 /*
@@ -118,7 +118,7 @@ static void pre_addrule(struct rule_t *rule);
 static void pre_addmonitor(monitor_t *monitor);
 
 /*
- * Prepare pointers to point to the correct memory for adding a 
+ * Prepare pointers to point to the correct memory for adding a
  * new objects.  Should always be called once we know what type of
  * object we are dealing with.
  */
@@ -128,14 +128,14 @@ static void alarminit(void);
 
 static int configure_privileges(void);
 /*
- * Sets up priviliges/userids.
+ * Sets up privileges/userids.
  */
 
 static int
 checkugid(uid_t *uid, gid_t *gid, unsigned char *isset, const char *type);
 
 /*
- * Let commandline-options override configfile-options.  
+ * Let commandline-options override configfile-options.
  * Currently there's only one such option.
  */
 #define LOG_CMDLINE_OVERRIDE(name, newvalue, oldvalue, fmt)                    \
@@ -159,7 +159,7 @@ do {                                                                           \
       (option)->debug_isset= (cmdline)->debug_isset;                           \
    }                                                                           \
 } while (/* CONSTCOND */ 0)
- 
+
 #endif /* !SOCKS_CLIENT */
 
 extern int  yylineno;
@@ -168,7 +168,7 @@ extern char currentlexline[];
 extern char previouslexline[];
 
 /*
- * Globals because used by functions for reporting parsing errors in 
+ * Globals because used by functions for reporting parsing errors in
  * parse_util.c
  */
 unsigned char   *atype;         /* atype of new address.               */
@@ -258,7 +258,7 @@ static int             *cmethodv;      /* new client authmethods.             */
 static size_t          *cmethodc;      /* number of them.                     */
 static int             *smethodv;      /* new socks authmethods.              */
 static size_t          *smethodc;      /* number of them.                     */
- 
+
 static enum operator_t *operator;      /* new port operator.                  */
 
 #if HAVE_GSSAPI
@@ -367,7 +367,7 @@ do {                                                                           \
 
 
 %union {
-   struct { 
+   struct {
       uid_t   uid;
       gid_t   gid;
    } uid;
@@ -407,19 +407,19 @@ do {                                                                           \
 %type   <string> user username usernames
 
    /* clientconfig exclusive. */
-%type   <string> clientoptions clientoption 
+%type   <string> clientoptions clientoption
 
-   /* 
+   /*
     * serveroption exclusive.
     */
-%type   <string> alarm alarm_data alarm_disconnect 
+%type   <string> alarm alarm_data alarm_disconnect
 %type   <number> alarmperiod alarmside
 %type   <number> number numbers
 %type   <string> clientmethod clientmethods clientmethodname
 %type   <string> socksmethod socksmethods socksmethodname
 %type   <string> bandwidth
 %type   <string> childstate
-%type   <string> clientcompatibility clientcompatibilityname 
+%type   <string> clientcompatibility clientcompatibilityname
                  clientcompatibilitynames
 %type   <string> compatibility compatibilityname compatibilitynames
 %type   <string> cpu cpuschedule cpuaffinity
@@ -428,7 +428,7 @@ do {                                                                           \
 %type   <string> global_socksmethod global_clientmethod
 %type   <string> internal internalinit external externalinit
 %type   <string> lbasedn lbasedn_hex lbasedn_hex_all
-%type   <string> ldapattribute ldapattribute_ad ldapattribute_hex 
+%type   <string> ldapattribute ldapattribute_ad ldapattribute_hex
                  ldapattribute_ad_hex
 %type   <string> ldapauto ldapdebug ldapdepth ldapport ldapportssl
 %type   <string> ldapcertfile ldapcertpath ldapkeytab
@@ -436,57 +436,57 @@ do {                                                                           \
 %type   <string> ldapfilter ldapfilter_ad ldapfilter_hex ldapfilter_ad_hex
 %type   <string> libwrap_hosts_access
 %type   <string> libwrapfiles libwrap_allowfile libwrap_denyfile
-%type   <string> logoutput errorlog 
-%type   <string> internal_logoption external_logoption 
+%type   <string> logoutput errorlog
+%type   <string> internal_logoption external_logoption
                   loglevel errors errorobject
 %type   <string> lserver lgroup lgroup_hex lgroup_hex_all
 %type   <string> lurl ldapssl ldapcertcheck ldapkeeprealm
 %type   <string> monitor monitoroption monitoroptions monitorside
 %type   <string> redirect
 %type   <string> serveroption serveroptions serverobject serverobjects
-%type   <string> sessionoption crulesessionoption sockssessionoption sessionmax                  sessioninheritable sessionthrottle sessionstate 
-                 sessionstate_key sessionstate_keyinfo sessionstate_throttle 
+%type   <string> sessionoption crulesessionoption sockssessionoption sessionmax                  sessioninheritable sessionthrottle sessionstate
+                 sessionstate_key sessionstate_keyinfo sessionstate_throttle
                  sessionstate_max
-%type   <string> timeout iotimeout negotiatetimeout connecttimeout 
+%type   <string> timeout iotimeout negotiatetimeout connecttimeout
                  tcp_fin_timeout
 %type   <string> udpconnectdst
 %type   <string> userids user_privileged user_unprivileged user_libwrap
 %type   <uid>    userid
 
 
-%token   <string> ALARM ALARMTYPE_DATA ALARMTYPE_DISCONNECT 
+%token   <string> ALARM ALARMTYPE_DATA ALARMTYPE_DISCONNECT
                   ALARMIF_INTERNAL ALARMIF_EXTERNAL
 %token   <string> CLIENTCOMPATIBILITY NECGSSAPI
 %token   <string> CLIENTRULE HOSTIDRULE SOCKSRULE
 %token   <string> COMPATIBILITY SAMEPORT DRAFT_5_05
 %token   <string> CONNECTTIMEOUT TCP_FIN_WAIT
 %token   <string> CPU MASK SCHEDULE CPUMASK_ANYCPU
-%token   <string> DEBUGGING 
+%token   <string> DEBUGGING
 %token   <deprecated> DEPRECATED
-%token   <string> ERRORLOG LOGOUTPUT LOGFILE LOGTYPE_ERROR  
+%token   <string> ERRORLOG LOGOUTPUT LOGFILE LOGTYPE_ERROR
                   LOGIF_INTERNAL LOGIF_EXTERNAL
-%token   <error>  ERRORVALUE 
+%token   <error>  ERRORVALUE
 %token   <string> EXTENSION BIND PRIVILEGED
 %token   <string> EXTERNAL_ROTATION SAMESAME
 %token   <string> GROUPNAME
 %token   <string> HOSTID HOSTINDEX
 %token   <string> INTERFACE SOCKETOPTION_SYMBOLICVALUE
-%token   <string> INTERNAL EXTERNAL 
+%token   <string> INTERNAL EXTERNAL
 %token   <string> INTERNALSOCKET EXTERNALSOCKET
 %token   <string> IOTIMEOUT IOTIMEOUT_TCP IOTIMEOUT_UDP NEGOTIATETIMEOUT
 %token   <string> LIBWRAP_FILE
-%token   <number> LOGLEVEL 
+%token   <number> LOGLEVEL
 %token   <string> SOCKSMETHOD CLIENTMETHOD METHOD
-%token   <method> METHODNAME NONE BSDAUTH GSSAPI 
-                  PAM_ADDRESS PAM_ANY PAM_USERNAME 
-                  RFC931 UNAME 
+%token   <method> METHODNAME NONE BSDAUTH GSSAPI
+                  PAM_ADDRESS PAM_ANY PAM_USERNAME
+                  RFC931 UNAME
 %token   <string> MONITOR
 %token   <number> PROCESSTYPE
 %token   <string> PROC_MAXREQUESTS
 %token   <string> REALM REALNAME RESOLVEPROTOCOL
 %token   <string> REQUIRED
 %token   <number> SCHEDULEPOLICY
-%token   <string> SERVERCONFIG CLIENTCONFIG 
+%token   <string> SERVERCONFIG CLIENTCONFIG
 %token   <string> SOCKET CLIENTSIDE_SOCKET SNDBUF RCVBUF
 %token   <number> SOCKETPROTOCOL SOCKETOPTION_OPTID
 %token   <string> SRCHOST NODNSMISMATCH NODNSUNKNOWN CHECKREPLYAUTH
@@ -498,12 +498,12 @@ do {                                                                           \
 %type   <string> global_routeoption
 %type   <string> via gateway route routes routeoption routeoptions routemethod
 
-%token   <string> ROUTE VIA 
+%token   <string> ROUTE VIA
 %token   <string> GLOBALROUTEOPTION BADROUTE_EXPIRE MAXFAIL
 
    /* rulelines */
 %type   <number> port gwport portrange portstart portnumber portservice
-%type   <string> address ipaddress ipv4 ipv6 ipvany domain ifname url 
+%type   <string> address ipaddress ipv4 ipv6 ipvany domain ifname url
 %type   <string> gwaddress bouncetoaddress
 %type   <string> address_without_port srcaddress hostid_srcaddress dstaddress
 %type   <string> bounce bounceto
@@ -512,8 +512,8 @@ do {                                                                           \
 %type   <string> from to
 %type   <string> fromto hostid_fromto
 %type   <string> hrule hostidoption hostindex hostid
-%type   <string> genericruleoption 
-%type   <string> ldapoption libwrap 
+%type   <string> genericruleoption
+%type   <string> ldapoption libwrap
 %type   <string> log logs logname
 %type   <string> netmask_v4 netmask_v6
 %type   <string> portoperator
@@ -534,7 +534,7 @@ do {                                                                           \
 %token <string> GSSAPISERVICE
 %token <string> GSSAPISERVICENAME GSSAPIKEYTABNAME
 %token <string> IPV4 IPV6 IPVANY DOMAINNAME IFNAME URL
-%token <string> LDAPATTRIBUTE LDAPATTRIBUTE_AD LDAPATTRIBUTE_HEX 
+%token <string> LDAPATTRIBUTE LDAPATTRIBUTE_AD LDAPATTRIBUTE_HEX
                 LDAPATTRIBUTE_AD_HEX
 %token <string> LDAPBASEDN LDAP_BASEDN
 %token <string> LDAPBASEDN_HEX LDAPBASEDN_HEX_ALL
@@ -551,19 +551,19 @@ do {                                                                           \
 %token <string> LDAPURL LDAP_URL
 %token <string> LDAP_FILTER LDAP_ATTRIBUTE LDAP_CERTFILE LDAP_CERTPATH
 %token <string> LIBWRAPSTART LIBWRAP_ALLOW LIBWRAP_DENY LIBWRAP_HOSTS_ACCESS
-%token <string> LINE 
+%token <string> LINE
 %token <string> OPERATOR
 %token <string> PAMSERVICENAME
 %token <string> PROTOCOL PROTOCOL_TCP PROTOCOL_UDP PROTOCOL_FAKE
-%token <string> PROXYPROTOCOL PROXYPROTOCOL_SOCKS_V4 PROXYPROTOCOL_SOCKS_V5 
+%token <string> PROXYPROTOCOL PROXYPROTOCOL_SOCKS_V4 PROXYPROTOCOL_SOCKS_V5
                 PROXYPROTOCOL_HTTP PROXYPROTOCOL_UPNP
 %token <string> REDIRECT
 %token <string> SENDSIDE RECVSIDE
 %token <string> SERVICENAME
-%token <string> SESSION_INHERITABLE SESSIONMAX SESSIONTHROTTLE 
+%token <string> SESSION_INHERITABLE SESSIONMAX SESSIONTHROTTLE
                 SESSIONSTATE_KEY SESSIONSTATE_MAX SESSIONSTATE_THROTTLE
-%token <string> RULE_LOG RULE_LOG_CONNECT RULE_LOG_DATA 
-                RULE_LOG_DISCONNECT RULE_LOG_ERROR RULE_LOG_IOOPERATION 
+%token <string> RULE_LOG RULE_LOG_CONNECT RULE_LOG_DATA
+                RULE_LOG_DISCONNECT RULE_LOG_ERROR RULE_LOG_IOOPERATION
                 RULE_LOG_TCPINFO
 %token <string> STATEKEY
 %token <string> UDPPORTRANGE UDPCONNECTDST
@@ -600,7 +600,7 @@ serverobject: crule
    ;
 
 serveroptions:  { $$ = NULL; }
-   |            serveroption serveroptions 
+   |            serveroption serveroptions
 
 serveroption:  childstate
    |           compatibility
@@ -636,7 +636,7 @@ serveroption:  childstate
 
 
 internal_logoption: LOGIF_INTERNAL {
-#if !SOCKS_CLIENT 
+#if !SOCKS_CLIENT
 
       ifside = INTERNALIF;
 
@@ -646,7 +646,7 @@ internal_logoption: LOGIF_INTERNAL {
    ;
 
 external_logoption: LOGIF_EXTERNAL {
-#if !SOCKS_CLIENT 
+#if !SOCKS_CLIENT
 
       ifside = EXTERNALIF;
 
@@ -662,7 +662,7 @@ loglevel: LOGLEVEL {
 
    cloglevel = $1;
 #endif /* !SOCKS_CLIENT */
-   } 
+   }
    ;
 
 errors: errorobject
@@ -718,7 +718,7 @@ errorobject: ERRORVALUE {
          }
 
          if (j < *ec)
-            continue; /* error-value alreay set in array. */
+            continue; /* error-value already set in array. */
 
          SASSERTX(*ec < ec_max);
 
@@ -744,7 +744,7 @@ deprecated:   DEPRECATED {
    }
    ;
 
-route:   ROUTE { objecttype = object_route; } '{' 
+route:   ROUTE { objecttype = object_route; } '{'
          { routeinit(&route); } routeoptions fromto gateway routeoptions '}' {
       route.src       = src;
       route.dst       = dst;
@@ -815,7 +815,7 @@ extension:   EXTENSION ':' extensions
    ;
 
 extensionname:   BIND {
-         yywarnx("we are currently considering deprecating the Dante-spesific "
+         yywarnx("we are currently considering deprecating the Dante-specific "
                  "SOCKS bind extension.  If you are using it, please let us "
                  "know on the public dante-misc@inet.no mailinglist");
 
@@ -930,11 +930,11 @@ logoutputdevice: LOGFILE {
    ||      (!add_to_errlog && failed_to_add_log)) {
       yywarnx("not adding logfile \"%s\"", $1);
 
-      slog(LOG_ALERT, 
+      slog(LOG_ALERT,
            "not trying to add logfile \"%s\" due to having already failed "
            "adding logfiles during this SIGHUP.  Only if all logfiles "
            "specified in the config can be added will we switch to using "
-           "the new logfiles.  Until then, we will contunue using only the "
+           "the new logfiles.  Until then, we will continue using only the "
            "old logfiles",
            $1);
    }
@@ -965,9 +965,9 @@ logoutputdevice: LOGFILE {
          slog(LOG_ALERT, "could not (re)open logfile \"%s\": %s%s  %s",
               $1,
               strerror(errno),
-              sockscf.state.inited ? 
+              sockscf.state.inited ?
                   "." : "",
-              sockscf.state.inited ? 
+              sockscf.state.inited ?
                   "Will continue using old logfiles" : "");
 
 #else /* SOCKS_CLIENT  */
@@ -1035,7 +1035,7 @@ user_libwrap:   USER_LIBWRAP ':' userid {
 #endif /* !HAVE_PRIVILEGES */
 
 #else  /* !HAVE_LIBWRAP && (!SOCKS_CLIENT) */
-      yyerrorx_nolib("libwrap");                                      
+      yyerrorx_nolib("libwrap");
 #endif /* !HAVE_LIBWRAP (!SOCKS_CLIENT)*/
    }
    ;
@@ -1098,13 +1098,13 @@ debugging: DEBUGGING ':' NUMBER {
 
 #else /* !SOCKS_CLIENT */
 
-      if (sockscf.initial.cmdline.debug_isset 
+      if (sockscf.initial.cmdline.debug_isset
       &&  sockscf.initial.cmdline.debug != $3)
          LOG_CMDLINE_OVERRIDE("debug",
                               sockscf.initial.cmdline.debug,
-                              (int)$3, 
+                              (int)$3,
                               "%d");
-      else      
+      else
          sockscf.option.debug = (int)$3;
 
 #endif /* !SOCKS_CLIENT */
@@ -1123,7 +1123,7 @@ libwrap_allowfile: LIBWRAP_ALLOW ':' LIBWRAP_FILE {
 
       slog(LOG_DEBUG, "libwrap.allow: %s", hosts_allow_table);
 #else
-      yyerrorx_nolib("libwrap");                                      
+      yyerrorx_nolib("libwrap");
 #endif /* HAVE_LIBWRAP */
 #endif /* !SOCKS_CLIENT */
    }
@@ -1137,7 +1137,7 @@ libwrap_denyfile: LIBWRAP_DENY ':' LIBWRAP_FILE {
 
       slog(LOG_DEBUG, "libwrap.deny: %s", hosts_deny_table);
 #else
-      yyerrorx_nolib("libwrap");                                      
+      yyerrorx_nolib("libwrap");
 #endif /* HAVE_LIBWRAP */
 #endif /* !SOCKS_CLIENT */
    }
@@ -1155,7 +1155,7 @@ libwrap_hosts_access: LIBWRAP_HOSTS_ACCESS ':' YES {
 #if HAVE_LIBWRAP
       sockscf.option.hosts_access = 0;
 #else
-      yyerrorx_nolib("libwrap");                                      
+      yyerrorx_nolib("libwrap");
 #endif /* HAVE_LIBWRAP */
 #endif /* !SOCKS_CLIENT */
    }
@@ -1442,7 +1442,7 @@ socksmethodname: METHODNAME {
       if (methodisvalid($1, object_srule))
          ADDMETHOD($1, *smethodc, smethodv);
       else
-         yyerrorx("method %s (%d) is not a valid method for socksmethods", 
+         yyerrorx("method %s (%d) is not a valid method for socksmethods",
                   method2string($1), $1);
    };
 
@@ -1459,13 +1459,13 @@ clientmethodname:   METHODNAME {
       if (methodisvalid($1, object_crule))
          ADDMETHOD($1, *cmethodc, cmethodv);
       else
-         yyerrorx("method %s (%d) is not a valid method for clientmethods", 
+         yyerrorx("method %s (%d) is not a valid method for clientmethods",
                   method2string($1), $1);
    };
 
-monitor: MONITOR { objecttype = object_monitor; } '{' { 
+monitor: MONITOR { objecttype = object_monitor; } '{' {
 #if !SOCKS_CLIENT
-                        monitorinit(&monitor); 
+                        monitorinit(&monitor);
 #endif /* !SOCKS_CLIENT */
 }                    monitoroptions fromto monitoroptions  '}'
 {
@@ -1480,7 +1480,7 @@ monitor: MONITOR { objecttype = object_monitor; } '{' {
     * ACL-rules
     */
 
-crule: CLIENTRULE { objecttype = object_crule; } verdict '{' 
+crule: CLIENTRULE { objecttype = object_crule; } verdict '{'
                   cruleoptions fromto cruleoptions '}' {
 #if !SOCKS_CLIENT
 #if BAREFOOTD
@@ -1489,7 +1489,7 @@ crule: CLIENTRULE { objecttype = object_crule; } verdict '{'
             yyerrorx("no address traffic should bounce to has been given");
          else {
             /*
-             * allow no bounce-to address if it is a block, as the bounce-to 
+             * allow no bounce-to address if it is a block, as the bounce-to
              * address will not be used in any case then.
              */
             bounceto.atype               = SOCKS_ADDR_IPV4;
@@ -1517,7 +1517,7 @@ monitorside: {
 #if !SOCKS_CLIENT
          monitorif = NULL;
    }
-   |  ALARMIF_INTERNAL { 
+   |  ALARMIF_INTERNAL {
          monitorif = &monitor.mstats->object.monitor.internal;
    }
    | ALARMIF_EXTERNAL {
@@ -1539,7 +1539,7 @@ alarmside: {
    }
    ;
 
-alarm_data: monitorside ALARMTYPE_DATA { alarminit(); } alarmside ':' 
+alarm_data: monitorside ALARMTYPE_DATA { alarminit(); } alarmside ':'
             NUMBER WORD__IN NUMBER  {
 #if !SOCKS_CLIENT
    alarm_data_limit_t limit;
@@ -1560,25 +1560,25 @@ alarm_data: monitorside ALARMTYPE_DATA { alarminit(); } alarmside ':'
          monitor.alarm_data_aggregate |= ALARM_RECV | ALARM_SEND;
 
       if (alarmside == NULL || *alarmside == RECVSIDE) {
-         monitor.mstats->object.monitor.internal.alarm.data.recv.isconfigured 
+         monitor.mstats->object.monitor.internal.alarm.data.recv.isconfigured
          = 1;
          monitor.mstats->object.monitor.internal.alarm.data.recv.limit = limit;
       }
 
       if (alarmside == NULL || *alarmside == SENDSIDE) {
-         monitor.mstats->object.monitor.internal.alarm.data.send.isconfigured 
+         monitor.mstats->object.monitor.internal.alarm.data.send.isconfigured
          = 1;
          monitor.mstats->object.monitor.internal.alarm.data.send.limit = limit;
       }
 
       if (alarmside == NULL || *alarmside == RECVSIDE) {
-         monitor.mstats->object.monitor.external.alarm.data.recv.isconfigured 
+         monitor.mstats->object.monitor.external.alarm.data.recv.isconfigured
          = 1;
          monitor.mstats->object.monitor.external.alarm.data.recv.limit = limit;
       }
 
       if (alarmside == NULL || *alarmside == SENDSIDE) {
-         monitor.mstats->object.monitor.external.alarm.data.send.isconfigured 
+         monitor.mstats->object.monitor.external.alarm.data.send.isconfigured
          = 1;
          monitor.mstats->object.monitor.external.alarm.data.send.limit = limit;
       }
@@ -1601,7 +1601,7 @@ alarm_data: monitorside ALARMTYPE_DATA { alarminit(); } alarmside ':'
    }
    ;
 
-alarm_disconnect: 
+alarm_disconnect:
    monitorside ALARMTYPE_DISCONNECT ':' NUMBER '/' NUMBER alarmperiod {
 #if !SOCKS_CLIENT
    alarm_disconnect_limit_t limit;
@@ -1624,7 +1624,7 @@ alarm_disconnect:
 
         monitor.mstats->object.monitor.external.alarm.disconnect
       = monitor.mstats->object.monitor.internal.alarm.disconnect;
-   }      
+   }
    else {
       monitorif->alarm.disconnect.isconfigured = 1;
       monitorif->alarm.disconnect.limit        = limit;
@@ -1633,7 +1633,7 @@ alarm_disconnect:
    }
    ;
 
-alarmperiod: { 
+alarmperiod: {
 #if !SOCKS_CLIENT
                $$ = DEFAULT_ALARM_PERIOD;
 #endif /* !SOCKS_CLIENT */
@@ -1662,14 +1662,12 @@ cruleoption: bounce  {
 #endif /* !BAREFOOTD */
    }
    |         clientcompatibility
-   |         clientmethod
    |         crulesessionoption {
 #if !SOCKS_CLIENT
                   session_isset = 1;
 #endif /* !SOCKS_CLIENT */
    }
    |         genericruleoption
-   |         socksmethod
    ;
 
 
@@ -1677,7 +1675,7 @@ cruleoptions:   { $$ = NULL; }
    |   cruleoption cruleoptions
    ;
 
-hrule: HOSTIDRULE { objecttype = object_hrule; } verdict '{' 
+hrule: HOSTIDRULE { objecttype = object_hrule; } verdict '{'
                   cruleoptions hostid_fromto cruleoptions '}' {
 #if !SOCKS_CLIENT && HAVE_SOCKS_HOSTID
       if (hostid.atype != SOCKS_ADDR_NOTSET)
@@ -1723,7 +1721,7 @@ hostindex: HOSTINDEX ':' NUMBER {
    ;
 
 
-srule: SOCKSRULE { objecttype = object_srule; } verdict '{' 
+srule: SOCKSRULE { objecttype = object_srule; } verdict '{'
                  sruleoptions fromto sruleoptions '}' {
 #if !SOCKS_CLIENT
 #if !HAVE_SOCKS_RULES
@@ -1749,7 +1747,6 @@ sruleoption: bsdauthstylename
    |         ldapoption
    |         protocol
    |         proxyprotocol
-   |         socksmethod
    |         sockssessionoption {
 #if !SOCKS_CLIENT
                   session_isset = 1;
@@ -1765,6 +1762,8 @@ genericruleoption:  bandwidth {
          bw_isset = 1;
 #endif /* !SOCKS_CLIENT */
    }
+   |         clientmethod
+   |         socksmethod
    |   group
    |   gssapienctype
    |   gssapikeytab
@@ -1846,7 +1845,7 @@ ldapdebug: LDAPDEBUG ':' NUMBER {
    | LDAPDEBUG ':' '-'NUMBER {
       ldap->debug = (int)-$4;
  #else /* !HAVE_LDAP */
-      yyerrorx_nolib("openldap");                                      
+      yyerrorx_nolib("openldap");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1860,7 +1859,7 @@ ldapdomain: LDAPDOMAIN ':' LDAP_DOMAIN {
                       sizeof(state->ldap.domain) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1871,7 +1870,7 @@ ldapdepth: LDAPDEPTH ':' NUMBER {
 #if HAVE_LDAP && HAVE_OPENLDAP
       ldap->mdepth = (int)$3;
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("openldap");                                      
+      yyerrorx_nolib("openldap");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1885,7 +1884,7 @@ ldapcertfile: LDAPCERTFILE ':' LDAP_CERTFILE {
                       sizeof(state->ldap.certfile) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1899,7 +1898,7 @@ ldapcertpath: LDAPCERTPATH ':' LDAP_CERTPATH {
                       sizeof(state->ldap.certpath) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1911,7 +1910,7 @@ lurl: LDAPURL ':' LDAP_URL {
       if (addlinkedname(&state->ldap.ldapurl, $3) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1923,7 +1922,7 @@ lbasedn: LDAPBASEDN ':' LDAP_BASEDN {
       if (addlinkedname(&state->ldap.ldapbasedn, $3) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1935,7 +1934,7 @@ lbasedn_hex: LDAPBASEDN_HEX ':' LDAP_BASEDN {
       if (addlinkedname(&state->ldap.ldapbasedn, hextoutf8($3, 0)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1947,7 +1946,7 @@ lbasedn_hex_all: LDAPBASEDN_HEX_ALL ':' LDAP_BASEDN {
       if (addlinkedname(&state->ldap.ldapbasedn, hextoutf8($3, 1)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1958,7 +1957,7 @@ ldapport: LDAPPORT ':' NUMBER {
 #if HAVE_LDAP
    ldap->port = (int)$3;
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1969,7 +1968,7 @@ ldapportssl: LDAPPORTSSL ':' NUMBER {
 #if HAVE_LDAP
    ldap->portssl = (int)$3;
 #else /* !HAVE_LDAP */
-   yyerrorx_nolib("LDAP");                                      
+   yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1983,7 +1982,7 @@ ldapssl: LDAPSSL ':' YES {
    | LDAPSSL ':' NO {
       ldap->ssl = 0;
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -1997,7 +1996,7 @@ ldapauto: LDAPAUTO ':' YES {
    | LDAPAUTO ':' NO {
       ldap->auto_off = 0;
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2011,7 +2010,7 @@ ldapcertcheck: LDAPCERTCHECK ':'  YES {
    | LDAPCERTCHECK ':' NO {
       ldap->certcheck = 0;
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2025,7 +2024,7 @@ ldapkeeprealm: LDAPKEEPREALM ':'  YES {
    | LDAPKEEPREALM ':' NO {
       ldap->keeprealm = 0;
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2036,7 +2035,7 @@ ldapfilter: LDAPFILTER ':' LDAP_FILTER {
 #if HAVE_LDAP
    STRCPY_CHECKLEN(ldap->filter, $3, sizeof(state->ldap.filter) - 1, yyerrorx);
 #else /* !HAVE_LDAP */
-   yyerrorx_nolib("LDAP");                                      
+   yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2051,7 +2050,7 @@ ldapfilter_ad: LDAPFILTER_AD ':' LDAP_FILTER {
                       yyerrorx);
 
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2065,7 +2064,7 @@ ldapfilter_hex: LDAPFILTER_HEX ':' LDAP_FILTER {
                           sizeof(state->ldap.filter) - 1,
                           yyerrorx);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2079,7 +2078,7 @@ ldapfilter_ad_hex: LDAPFILTER_AD_HEX ':' LDAP_FILTER {
                         sizeof(state->ldap.filter_AD) - 1,
                         yyerrorx);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2094,7 +2093,7 @@ ldapattribute: LDAPATTRIBUTE ':' LDAP_ATTRIBUTE {
                       yyerrorx);
 
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2108,7 +2107,7 @@ ldapattribute_ad: LDAPATTRIBUTE_AD ':' LDAP_ATTRIBUTE {
                       sizeof(state->ldap.attribute_AD) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2122,7 +2121,7 @@ ldapattribute_hex: LDAPATTRIBUTE_HEX ':' LDAP_ATTRIBUTE {
                       sizeof(state->ldap.attribute) -1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
-   yyerrorx_nolib("LDAP");                                      
+   yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2136,7 +2135,7 @@ ldapattribute_ad_hex: LDAPATTRIBUTE_AD_HEX ':' LDAP_ATTRIBUTE {
                       sizeof(state->ldap.attribute_AD) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2148,7 +2147,7 @@ lgroup_hex: LDAPGROUP_HEX ':' LDAPGROUP_NAME {
       if (addlinkedname(&rule.ldapgroup, hextoutf8($3, 0)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2162,7 +2161,7 @@ lgroup_hex_all: LDAPGROUP_HEX_ALL ':' LDAPGROUP_NAME {
       if (addlinkedname(&rule.ldapgroup, hextoutf8($3, 1)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2176,7 +2175,7 @@ lgroup: LDAPGROUP ':' LDAPGROUP_NAME {
       if (addlinkedname(&rule.ldapgroup, asciitoutf8($3)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2188,7 +2187,7 @@ lserver: LDAPSERVER ':' LDAPSERVER_NAME {
       if (addlinkedname(&rule.ldapserver, $3) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2197,14 +2196,14 @@ lserver: LDAPSERVER ':' LDAPSERVER_NAME {
 ldapkeytab: LDAPKEYTAB ':' LDAPKEYTABNAME {
 #if HAVE_LDAP
 #if SOCKS_SERVER
-   STRCPY_CHECKLEN(state->ldap.keytab, 
-                   $3, 
+   STRCPY_CHECKLEN(state->ldap.keytab,
+                   $3,
                    sizeof(state->ldap.keytab) - 1, yyerrorx);
 #else
    yyerrorx("ldap keytab only applicable to Dante server");
 #endif /* SOCKS_SERVER */
 #else
-      yyerrorx_nolib("LDAP");                                      
+      yyerrorx_nolib("LDAP");
 #endif /* HAVE_LDAP */
    }
    ;
@@ -2216,7 +2215,7 @@ clientcompatibilityname: NECGSSAPI {
 #if HAVE_GSSAPI
       gssapiencryption->nec = 1;
 #else
-      yyerrorx_nolib("GSSAPI");                                      
+      yyerrorx_nolib("GSSAPI");
 #endif /* HAVE_GSSAPI */
    }
    ;
@@ -2433,7 +2432,7 @@ pamservicename: PAMSERVICENAME ':' SERVICENAME {
                       sizeof(state->pamservicename) -1,
                       yyerrorx);
 #else
-      yyerrorx_nolib("PAM");                                      
+      yyerrorx_nolib("PAM");
 #endif /* HAVE_PAM && (!SOCKS_CLIENT) */
    }
    ;
@@ -2445,7 +2444,7 @@ bsdauthstylename: BSDAUTHSTYLE ':' BSDAUTHSTYLENAME {
                       sizeof(state->bsdauthstylename) - 1,
                       yyerrorx);
 #else
-      yyerrorx_nolib("bsdauth");                                      
+      yyerrorx_nolib("bsdauth");
 #endif /* HAVE_BSDAUTH && SOCKS_SERVER */
    }
    ;
@@ -2458,7 +2457,7 @@ gssapiservicename: GSSAPISERVICE ':' GSSAPISERVICENAME {
                       sizeof(state->gssapiservicename) - 1,
                       yyerrorx);
 #else
-      yyerrorx_nolib("GSSAPI");                                      
+      yyerrorx_nolib("GSSAPI");
 #endif /* HAVE_GSSAPI */
    }
    ;
@@ -2474,7 +2473,7 @@ gssapikeytab: GSSAPIKEYTAB ':' GSSAPIKEYTABNAME {
       yyerrorx("gssapi keytab setting is only applicable to Dante server");
 #endif /* SOCKS_SERVER */
 #else
-      yyerrorx_nolib("GSSAPI");                                      
+      yyerrorx_nolib("GSSAPI");
 #endif /* HAVE_GSSAPI */
    }
    ;
@@ -2500,7 +2499,7 @@ gssapienctypename: GSSAPIENC_ANY {
    |  GSSAPIENC_PERMESSAGE {
       yyerrorx("gssapi per-message encryption not supported");
 #else
-      yyerrorx_nolib("GSSAPI");                                      
+      yyerrorx_nolib("GSSAPI");
 #endif /* HAVE_GSSAPI */
    }
    ;
@@ -2545,7 +2544,7 @@ libwrap:   LIBWRAPSTART ':' LINE {
       errno = errno_s;
 
 #else
-      yyerrorx_nolib("GSSAPI");                                      
+      yyerrorx_nolib("GSSAPI");
 #endif /* HAVE_LIBWRAP && (!SOCKS_CLIENT) */
 
    }
@@ -2595,8 +2594,8 @@ routeoption: routemethod
    }
    ;
 
-routeoptions:   { $$ = NULL; }
-   | routeoption routeoptions
+routeoptions:  { $$ = NULL; }
+   |           routeoption routeoptions
    ;
 
 routemethod: METHOD ':' socksmethods
@@ -2654,7 +2653,7 @@ ipaddress: ipv4 '/' netmask_v4 { if (!netmask_required) yyerrorx_hasnetmask(); }
    |       ipv4                { if (netmask_required)  yyerrorx_nonetmask();  }
    |       ipv6 '/' netmask_v6 { if (!netmask_required) yyerrorx_hasnetmask(); }
    |       ipv6                { if (netmask_required)  yyerrorx_nonetmask();  }
-   |       ipvany '/' netmask_vany { if (!netmask_required)    
+   |       ipvany '/' netmask_vany { if (!netmask_required)
                                        yyerrorx_hasnetmask(); }
    |       ipvany              { if (netmask_required)  yyerrorx_nonetmask();  }
 
@@ -2679,7 +2678,7 @@ ipv4:   IPV4 {
 
 netmask_v4:   NUMBER {
       if ($1 < 0 || $1 > 32)
-         yyerrorx("bad %s netmask: %ld.  Legal range is 0 - 32", 
+         yyerrorx("bad %s netmask: %ld.  Legal range is 0 - 32",
                   atype2string(*atype), (long)$1);
 
       netmask_v4->s_addr = $1 == 0 ? 0 : htonl(IPV4_FULLNETMASK << (32 - $1));
@@ -2718,7 +2717,7 @@ ipvany:   IPVANY {
 netmask_vany:   NUMBER {
       if ($1 != 0)
          yyerrorx("bad %s netmask: %d.  Only legal value is 0",
-                  atype2string(*atype), (int)$1); 
+                  atype2string(*atype), (int)$1);
 
       netmask_vany->s_addr = htonl($1);
    }
@@ -2938,9 +2937,9 @@ parseconfig(filename)
       errno         = 0;   /* don't report old errors in yyparse(). */
       haveconfig    = 1;
 
-      /* 
-       * Special and delayed as long as we can, till immediately before 
-       * parsing new config.  
+      /*
+       * Special and delayed as long as we can, till immediately before
+       * parsing new config.
        * Want to keep a backup of old ones until we know there were no
        * errors adding new logfiles.
        */
@@ -2957,7 +2956,7 @@ parseconfig(filename)
       bzero(&sockscf.log,    sizeof(sockscf.log));
       bzero(&sockscf.errlog, sizeof(sockscf.errlog));
 
-      lex_dorestart = 1; 
+      lex_dorestart = 1;
 
       parsingconfig = 1;
       yyparse();
@@ -2965,22 +2964,22 @@ parseconfig(filename)
 
       fclose(yyin);
 
-#if !SOCKS_CLIENT 
+#if !SOCKS_CLIENT
       CMDLINE_OVERRIDE(&sockscf.initial.cmdline, &sockscf.option);
 
 #if !HAVE_PRIVILEGES
       if (!sockscf.state.inited) {
-         /* 
-          * first time. 
+         /*
+          * first time.
           */
          if (sockscf.uid.privileged_isset && !sockscf.option.verifyonly) {
             /*
              * If we created any logfiles (rather than just opened already
-             * existing ones), they will have been created with the euid/egid 
-             * we are started with.  If logfiles created by that euid/egid are 
-             * not writable by our configured privileged userid (if any), it 
-             * means that upon SIGHUP we will be unable to re-open our own 
-             * logfiles.  We therefor check whether the logfile(s) were created 
+             * existing ones), they will have been created with the euid/egid
+             * we are started with.  If logfiles created by that euid/egid are
+             * not writable by our configured privileged userid (if any), it
+             * means that upon SIGHUP we will be unable to re-open our own
+             * logfiles.  We therefor check whether the logfile(s) were created
              * by ourselves, and if so, make sure they have the right owner.
              */
             logtype_t *logv[] = { &sockscf.log, &sockscf.errlog };
@@ -2991,21 +2990,21 @@ parseconfig(filename)
 
                for (fi = 0; fi < logv[i]->filenoc; ++fi) {
                   if (logv[i]->createdv[fi]) {
-                     slog(LOG_DEBUG, 
-                          "%s: chown(2)-ing created logfile %s to %lu/%lu", 
-                          function, 
+                     slog(LOG_DEBUG,
+                          "%s: chown(2)-ing created logfile %s to %lu/%lu",
+                          function,
                           logv[i]->fnamev[fi],
                           (unsigned long)sockscf.uid.privileged_uid,
                           (unsigned long)sockscf.uid.privileged_gid);
 
-                     if (fchown(logv[i]->filenov[fi], 
+                     if (fchown(logv[i]->filenov[fi],
                                 (unsigned long)sockscf.uid.privileged_uid,
                                 (unsigned long)sockscf.uid.privileged_gid) != 0)
                         serr("%s: could not fchown(2) created logfile %s to "
                              "privileged uid/gid %lu/%lu.  This means that "
                              "upon SIGHUP, we would not be unable to re-open "
                              "our own logfiles.  This should not happen",
-                             function, 
+                             function,
                              logv[i]->fnamev[fi],
                              (unsigned long)sockscf.uid.privileged_uid,
                              (unsigned long)sockscf.uid.privileged_gid);
@@ -3036,7 +3035,7 @@ parseconfig(filename)
 
 static int
 ipaddr_requires_netmask(context, objecttype)
-   const addresscontext_t context; 
+   const addresscontext_t context;
    const objecttype_t objecttype;
 {
 
@@ -3051,7 +3050,7 @@ ipaddr_requires_netmask(context, objecttype)
          switch (context) {
             case from:
                return 1;
-            
+
             case to:
                return 0; /* address we accept clients on. */
 
@@ -3125,10 +3124,10 @@ addrinit(addr, _netmask_required)
    ipvany           = &addr->addr.ipvany.ip;
    netmask_vany     = &addr->addr.ipvany.mask;
 
-   if (!_netmask_required) { 
-      netmask_v4->s_addr   = htonl(IPV4_FULLNETMASK); 
+   if (!_netmask_required) {
+      netmask_v4->s_addr   = htonl(IPV4_FULLNETMASK);
       *netmask_v6          = IPV6_NETMASKBITS;
-      netmask_vany->s_addr = htonl(IPV4_FULLNETMASK); 
+      netmask_vany->s_addr = htonl(IPV4_FULLNETMASK);
    }
 
    domain           = addr->addr.domain;
@@ -3157,7 +3156,7 @@ gwaddrinit(addr)
    domain           = addr->addr.domain;
    ifname           = addr->addr.ifname;
    url              = addr->addr.urlname;
- 
+
    port_tcp         = &addr->port;
    port_udp         = &addr->port;
    operator         = &operatormem; /* no operator in gwaddr and not used. */
@@ -3375,7 +3374,7 @@ parseclientenv(haveproxyserver)
 
    yyin = fp;
 
-   lex_dorestart             = 1; 
+   lex_dorestart             = 1;
    parsingconfig             = 1;
    p                         = sockscf.option.configfile;
    sockscf.option.configfile = "<generated socks.conf>";
@@ -3419,7 +3418,7 @@ parseclientenv(haveproxyserver)
                }
 
                socks_autoadd_directroute(&commands,
-                                         &protocols, 
+                                         &protocols,
                                          TOCSS(iface->ifa_addr),
                                          TOCSS(iface->ifa_netmask));
             }
@@ -3456,7 +3455,7 @@ serverstring2gwstring(serverstring, version, gw, gwsize)
          yyerrorx("%s: %s", function, emsg);
 
       memcpy(gw, serverstring, sep - serverstring);
-      snprintf(&gw[sep - serverstring], 
+      snprintf(&gw[sep - serverstring],
                gwsize - (sep - serverstring),
                " port = %u",
                (in_port_t)port);
@@ -3592,7 +3591,7 @@ void
 alarminit(void)
 {
     static int alarmside_mem;
- 
+
    alarmside  = &alarmside_mem;
    *alarmside = 0;
 }
@@ -3663,16 +3662,16 @@ configure_privileges(void)
    SASSERTX(sockscf.state.egid == (gid = getegid()));
 
    /*
-    * Check all configured uids/gids work. 
+    * Check all configured uids/gids work.
     */
 
    checkugid(&sockscf.uid.privileged_uid,
-             &sockscf.uid.privileged_gid, 
+             &sockscf.uid.privileged_gid,
              &sockscf.uid.privileged_isset,
              "privileged");
 
    checkugid(&sockscf.uid.unprivileged_uid,
-             &sockscf.uid.unprivileged_gid, 
+             &sockscf.uid.unprivileged_gid,
              &sockscf.uid.unprivileged_isset,
              "unprivileged");
 
@@ -3685,7 +3684,7 @@ configure_privileges(void)
    }
    else
       checkugid(&sockscf.uid.libwrap_uid,
-                &sockscf.uid.libwrap_gid, 
+                &sockscf.uid.libwrap_gid,
                 &sockscf.uid.libwrap_isset,
                 "libwrap");
 #endif /* HAVE_LIBWRAP */
@@ -3707,7 +3706,7 @@ configure_privileges(void)
 
 #if HAVE_PRIVILEGES
          /*
-          * assume failure in this case is not fatal; some privileges will 
+          * assume failure in this case is not fatal; some privileges will
           * not be available to us, and perhaps that is the intention too.
           */
          return 0;
@@ -3757,7 +3756,7 @@ checkugid(uid, gid, isset, type)
       (void)seteuid(0);
 
       if (seteuid(sockscf.state.euid) != 0) {
-         swarn("%s: could not revert to euid %lu from euid %lu", 
+         swarn("%s: could not revert to euid %lu from euid %lu",
                function,
                (unsigned long)sockscf.state.euid,
                (unsigned long)geteuid());
@@ -3781,7 +3780,7 @@ checkugid(uid, gid, isset, type)
       (void)seteuid(0);
 
       if (setegid(sockscf.state.egid) != 0) {
-         swarn("%s: could not revert to egid %lu from euid %lu", 
+         swarn("%s: could not revert to egid %lu from euid %lu",
                function,
                (unsigned long)sockscf.state.egid,
                (unsigned long)geteuid());
@@ -3792,7 +3791,7 @@ checkugid(uid, gid, isset, type)
       }
 
       if (seteuid(sockscf.state.euid) != 0) {
-         swarn("%s: could not revert to euid %lu from euid %lu", 
+         swarn("%s: could not revert to euid %lu from euid %lu",
                function,
                (unsigned long)sockscf.state.euid,
                (unsigned long)geteuid());

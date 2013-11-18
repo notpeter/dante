@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
- *               2012
+ *               2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.181 2013/05/31 16:17:41 karls Exp $";
+"$Id: interposition.c,v 1.183 2013/10/27 15:24:41 karls Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
@@ -316,19 +316,19 @@ static libsymbol_t libsymbolv[] = {
 
 /*
  * symbols we want to interpose in the server for library functions
- * that might call them (e.g. pam/ldap/gssapi).  Lets them use our 
+ * that might call them (e.g. pam/ldap/gssapi).  Lets them use our
  * superior caching versions.  Unfortunately, getaddrinfo(3) does
  * lend itself easily to that, so even if we would have liked to
- * let that also use our cached data, the only solutions I can 
+ * let that also use our cached data, the only solutions I can
  * think of seem to fragile to be usable.  So regarding that newer api,
  * only getnameinfo(3) uses our cached version.
  */
 
 
-/* 
- * No point in having it in the client as either the system-calls used by 
- * gethostbyaddr(3) gets socksified, in which case there is nothing special 
- * for us to do related to gethostbyaddr(3), or they do not get socksified, 
+/*
+ * No point in having it in the client as either the system-calls used by
+ * gethostbyaddr(3) gets socksified, in which case there is nothing special
+ * for us to do related to gethostbyaddr(3), or they do not get socksified,
  * in which case we have no idea what hostname the address resolves to and
  * there is nothing we can reasonably fake anyway.
  */
@@ -3014,7 +3014,7 @@ addtolist(functionname, id)
    libsymbol_t *lib;
    socks_id_t *newid;
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
    addrlockopaque_t opaque;
 
 #else /* !SOCKS_CLIENT */
@@ -3025,7 +3025,7 @@ addtolist(functionname, id)
    lib = libsymbol(functionname);
    SASSERTX(lib != NULL);
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
 
    if ((newid = malloc(sizeof(*newid))) == NULL)
       serr("%s: failed to malloc %lu bytes",
@@ -3040,7 +3040,7 @@ addtolist(functionname, id)
 
    *newid = *id;
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
 
    socks_addrlock(F_WRLCK, &opaque);
 
@@ -3059,7 +3059,7 @@ addtolist(functionname, id)
       lib->dosyscall->next = newid;
    }
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
    socks_addrunlock(&opaque);
 #endif  /* SOCKS_CLIENT */
 }
@@ -3072,7 +3072,7 @@ removefromlist(functionname, removeid)
 /*   const char *function = "removefromlist()"; */
    libsymbol_t *lib;
    socks_id_t *id, *previous;
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
    addrlockopaque_t opaque;
 #endif  /* SOCKS_CLIENT */
 
@@ -3080,7 +3080,7 @@ removefromlist(functionname, removeid)
    SASSERTX(lib != NULL);
    SASSERTX(lib->dosyscall != NULL);
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
 
    socks_addrlock(F_WRLCK, &opaque);
 
@@ -3095,7 +3095,7 @@ removefromlist(functionname, removeid)
    if (idsareequal(lib->dosyscall, removeid)) {
       lib->dosyscall = lib->dosyscall->next;
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
       free(previous);
 #endif  /* SOCKS_CLIENT */
    }
@@ -3106,7 +3106,7 @@ removefromlist(functionname, removeid)
          if (idsareequal(id, removeid)) {
             previous->next = id->next;
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
             free(id);
 #endif  /* SOCKS_CLIENT */
 
@@ -3117,11 +3117,10 @@ removefromlist(functionname, removeid)
       SASSERTX(id != NULL);
    }
 
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
    socks_addrunlock(&opaque);
 #endif  /* SOCKS_CLIENT */
 }
 
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
-

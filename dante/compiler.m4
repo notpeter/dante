@@ -329,6 +329,23 @@ case $COMPTYPE in
         ;;
 esac
 
+#enable -fstack-protector if debug enabled
+#XXX disabled, can lead to build failure on some platforms
+#if test x"${debug_enabled}" != x; then
+#   AC_MSG_CHECKING([for support for -fstack-protector compiler flag])
+#   oCFLAGS="$CFLAGS"
+#   CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN -fstack-protector"
+#   AC_TRY_RUN([
+#int main()
+#{
+#        return 0;
+#}], [AC_MSG_RESULT([yes])
+#     comp_flags="${comp_flags}${comp_flags:+ }-fstack-protector"],
+#    [AC_MSG_RESULT([no])],
+#    [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
+#   CFLAGS="$oCFLAGS"
+#fi
+
 #set compilation debugging flags
 if test x"${debug_enabled}" = xt; then
     #no optimization wanted

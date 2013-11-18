@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: mother_util.c,v 1.17 2013/08/01 11:53:18 michaels Exp $";
+"$Id: mother_util.c,v 1.22 2013/10/27 15:17:06 karls Exp $";
 
 /*
  * signal handler functions.  Upon reception of signal, "sig" is the real
@@ -77,7 +77,7 @@ void
 mother_postconfigload(void)
 {
    const char *function = "mother_postconfigload()";
- 
+
    if (pidismother(sockscf.state.pid) == 1)
       shmem_idupdate(&sockscf);  /* only main mother does this. */
 }
@@ -85,7 +85,7 @@ mother_postconfigload(void)
 void
 mother_envsetup(void)
 {
-   const char *function = "envsetup()";
+   const char *function = "mother_envsetup()";
    const int exitsignalv[] = {
       SIGINT, SIGQUIT, SIGBUS, SIGSEGV, SIGTERM, SIGILL, SIGFPE
 #ifdef SIGSYS
@@ -106,11 +106,11 @@ mother_envsetup(void)
    rlim_t maxopenfd, minfd_neg, minfd_req, minfd_io, minfd;
    size_t i, fdreserved;
 
-   for (fdreserved = 0; 
-   fdreserved < ELEMENTS(sockscf.state.reservedfdv); 
+   for (fdreserved = 0;
+   fdreserved < ELEMENTS(sockscf.state.reservedfdv);
    ++fdreserved)
       if ((sockscf.state.reservedfdv[fdreserved] = makedummyfd(0, 0)) == -1)
-         serr("%s: could not reserve fd #%lu for later use", 
+         serr("%s: could not reserve fd #%lu for later use",
               function, (unsigned long)fdreserved + 1);
 
    /*
@@ -143,7 +143,7 @@ mother_envsetup(void)
             break;
       }
 
-      if (j < sockscf.internal.addrc) /* listening on this sockeet. */
+      if (j < sockscf.internal.addrc) /* listening on this socket. */
          continue;
 
       close((int)i);
@@ -168,9 +168,15 @@ mother_envsetup(void)
    minfd_io  += SOCKD_IOMAX * (1 + 1);
 
 #if BAREFOOTD
-   minfd_io += MIN_UDPCLIENTS;
+   minfd_io += MIN(10, MIN_UDPCLIENTS);
 #endif
 
+   slog(LOG_DEBUG,
+        "%s: minfd_negotiate: %lu, minfd_request: %lu, minfd_io: %lu",
+        function,
+        (unsigned long)minfd_neg,
+        (unsigned long)minfd_req,
+        (unsigned long)minfd_io);
    /*
     * need to know max number of open files so we can allocate correctly
     * sized fd_sets.  Also, try to set both it and the max number of
@@ -205,7 +211,7 @@ mother_envsetup(void)
 
    if (setrlimit(RLIMIT_OFILE, &rlimit) == 0)
       slog(LOG_DEBUG, "max number of file descriptors is now %lu",
-                      (unsigned long)sockscf.state.maxopenfiles);
+           (unsigned long)sockscf.state.maxopenfiles);
   else {
       const char *problem;
 
@@ -219,14 +225,15 @@ mother_envsetup(void)
          problem = "SOCKD_IOMAX";
       else
          SERRX(sockscf.state.maxopenfiles);
+
       serrx("%s: failed to increase the max number of open file descriptors "
             "for ourselves via setrlimit(RLIMIT_OFILE) to %lu: %s.  "
             "Increase the kernel/shell's max open files limit, or reduce "
             "the %s value in %s's include/config.h, or we will be unable to "
             "start up",
             function,
-            (unsigned long)rlimit.rlim_max, 
-            strerror(errno), 
+            (unsigned long)rlimit.rlim_max,
+            strerror(errno),
             problem,
             PRODUCT);
    }
@@ -459,7 +466,7 @@ log_rusage(childtype, pid, rusage)
    char prefix[256];
 
    if (pid == 0)
-      snprintf(prefix, sizeof(prefix), 
+      snprintf(prefix, sizeof(prefix),
                "sum of resource usage for all %s processes",
                childtype2string(childtype));
    else
@@ -484,8 +491,8 @@ log_rusage(childtype, pid, rusage)
         "  ru_nvcsw   : %ld\n"
         "  ru_nivcsw  : %ld\n",
         prefix,
-        (long)rusage->ru_utime.tv_sec, (long)rusage->ru_utime.tv_usec, 
-        (long)rusage->ru_stime.tv_sec, (long)rusage->ru_stime.tv_usec, 
+        (long)rusage->ru_utime.tv_sec, (long)rusage->ru_utime.tv_usec,
+        (long)rusage->ru_stime.tv_sec, (long)rusage->ru_stime.tv_usec,
         rusage->ru_minflt,
         rusage->ru_majflt,
         rusage->ru_nswap,
@@ -543,7 +550,7 @@ sigalrm(sig, si, sc)
    const int errno_s = errno;
 
    SIGNAL_PROLOGUE(sig, si, errno_s);
-   
+
    enable_childcreate();
 
    SIGNAL_EPILOGUE(sig, si, errno_s);
@@ -642,7 +649,7 @@ siginfo(sig, si, sc)
    clients -= (free_reqc = childcheck(PROC_REQUEST));
    clients -= (free_ioc  = childcheck(PROC_IO));
 
-   seconds = (unsigned long)socks_difftime(time_monotonic(NULL),  
+   seconds = (unsigned long)socks_difftime(time_monotonic(NULL),
                                            sockscf.stat.boot);
    seconds2days(&seconds, &days, &hours, &minutes);
 
@@ -832,7 +839,7 @@ sighup(sig, si, sc)
    }
 
 #if BAREFOOTD
-   if (!sockscf.state.alludpbounced) {
+   if (!ALL_UDP_BOUNCED()) {
       /*
        * Go through all rules and see if the current udp addresses
        * to bind matches any of the old ones so we know which addresses
@@ -881,7 +888,7 @@ sighup(sig, si, sc)
                while (hostname2sockaddr(rule->dst.addr.domain,
                                         i++,
                                         &addrtobind) != NULL) {
-                  if (addrindex_on_listenlist(oldinternal.addrc, 
+                  if (addrindex_on_listenlist(oldinternal.addrc,
                                               oldinternal.addrv,
                                               &addrtobind,
                                               SOCKS_UDP) != -1) {
@@ -1076,7 +1083,7 @@ sigchld(sig, si, sc)
       }
       else {
          /*
-          * Must be a regular childprcess.
+          * Must be a regular childprocess.
           * XXX merge motherprocesses into getchild() code.
           */
          struct rusage *rusage, sum;
@@ -1084,16 +1091,16 @@ sigchld(sig, si, sc)
          child = getchild(pid);
          if (child == NULL) {
             /*
-             * Note that this might be a pid from our former self also 
+             * Note that this might be a pid from our former self also
              * if we failed on an internal error, fork(2)-ed process to
              * get the coredump and continue.  When the fork(2)-ed process
              * exits after generating the coredump, we will receive it's
              * SIGCHLD, but no account of it.  To avoid that, hopefully
-             * never happening, problem generating a recurisive error, let
+             * never happening, problem generating a recursive error, let
              * this be a swarnx(), and not a SWARNX().
              */
-            
-            swarnx("%s: unknown child pid %lu exited", 
+
+            swarnx("%s: unknown child pid %lu exited",
                    function, (unsigned long)pid);
 
             continue;
@@ -1158,7 +1165,7 @@ sigchld(sig, si, sc)
 
       if (isunexpected) {
          swarnx("%s: %s %lu exited unexpectedly %s %s",
-                function, 
+                function,
                 childtype2string(proctype),
                 (unsigned long)pid,
                 WIFSIGNALED(status) ? "on signal" : "",
@@ -1170,4 +1177,3 @@ sigchld(sig, si, sc)
 
    SIGNAL_EPILOGUE(sig, si, errno_s);
 }
-

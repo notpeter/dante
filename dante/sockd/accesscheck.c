@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012
+ *               2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.86 2013/07/29 10:09:33 michaels Exp $";
+"$Id: accesscheck.c,v 1.89 2013/10/27 15:24:42 karls Exp $";
 
 int
 usermatch(auth, userlist)
@@ -226,7 +226,7 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
     * happen in several cases:
     *  - was checked as client-rule, is now checked as socks-rule.
     *  - a different rule with the same method.  The client is however
-    *    the same, so if the auth for method 'k' failed in previous rule, 
+    *    the same, so if the auth for method 'k' failed in previous rule,
     *    it will fail the next time also.
    */
 
@@ -283,8 +283,8 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 #endif /* HAVE_LIBWRAP */
 
 #if HAVE_PAM
-      case AUTHMETHOD_PAM_ANY: 
-      case AUTHMETHOD_PAM_ADDRESS: 
+      case AUTHMETHOD_PAM_ANY:
+      case AUTHMETHOD_PAM_ADDRESS:
       case AUTHMETHOD_PAM_USERNAME: {
 #if DIAGNOSTIC
          const int freec
@@ -351,8 +351,8 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
     */
    switch (auth->method) {
 #if HAVE_PAM
-      case AUTHMETHOD_PAM_ANY: 
-      case AUTHMETHOD_PAM_ADDRESS: 
+      case AUTHMETHOD_PAM_ANY:
+      case AUTHMETHOD_PAM_ADDRESS:
       case AUTHMETHOD_PAM_USERNAME:
          if (*sockscf.state.pamservicename == NUL)
             authresultisfixed = 0;
@@ -402,12 +402,12 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
 
       /*
        * Unfortunately we can not bzero() the password for several reasons:
-       * 1) If UDP, perhaps packets to different targes will require different
-       *    authentication.  E.g. username was used when establishing the 
+       * 1) If UDP, perhaps packets to different targets will require different
+       *    authentication.  E.g. username was used when establishing the
        *    control-connection, while pam is used when sending packets to
        *    certain targets.  Unlikely, but not impossible.
        *
-       * 2) If we are forwarding to an upstream proxy that we are  
+       * 2) If we are forwarding to an upstream proxy that we are
        *    configured to offer the username/password from the user.
        */
    }
@@ -415,8 +415,8 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
    if (match)
       slog(LOG_DEBUG, "%s: authentication matched", function);
    else
-      slog(LOG_DEBUG, "%s: no match for autentication%s %s",
-           function, 
+      slog(LOG_DEBUG, "%s: no match for authentication%s %s",
+           function,
            emsgsize > 0 ? ":"  : "",
            emsgsize > 0 ? emsg : "");
 

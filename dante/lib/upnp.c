@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2011, 2012
+ * Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.145 2013/07/27 19:03:46 michaels Exp $";
+"$Id: upnp.c,v 1.153 2013/10/27 15:24:42 karls Exp $";
 
 #include "common.h"
 
@@ -111,7 +111,7 @@ socks_initupnp(gw, emsg, emsglen)
          return -1;
       }
 
-      slog(LOG_DEBUG, "%s: UPNP_GetIGDFromUrl() url %s was successfull",
+      slog(LOG_DEBUG, "%s: UPNP_GetIGDFromUrl() url %s was successful",
            function, vbuf);
 
       rc = 0;
@@ -335,7 +335,7 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
           * to find out what it's local address is, that's a waste of time.
           * Therefor postpone it to the Rgetsockname() call, if it ever
           * comes, and just connect(2) to the target for now, without
-          * attempting to retreive any information.
+          * attempting to retrieve any information.
           *
           * For the socks server case (server chained) we need to fetch
           * it here though, since it is part of the response returned
@@ -424,17 +424,17 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
                  function,
                  str2vis(straddr, strlen(straddr), vbuf, sizeof(vbuf)));
 
-         if (socks_inet_pton(AF_INET, 
-                             straddr, 
+         if (socks_inet_pton(AF_INET,
+                             straddr,
                              &packet->res.host.addr.ipv4,
                              NULL) == 1)
             packet->res.host.atype = SOCKS_ADDR_IPV4;
-         else if (socks_inet_pton(AF_INET6, 
-                                  straddr, 
+         else if (socks_inet_pton(AF_INET6,
+                                  straddr,
                                   &packet->res.host.addr.ipv6,
                                   NULL) == 1)
             packet->res.host.atype = SOCKS_ADDR_IPV6;
-         else 
+         else
             slog(LOG_NOTICE,
                  "%s: could not convert string \"%s\" to address: %s",
                  function,
@@ -490,6 +490,25 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
             return -1;
          }
 
+         if (!PORTISBOUND(&addr)) {
+            slog(LOG_NEGOTIATE,
+                 "%s: port not yet bound locally, so need to bind it before "
+                 "we tell the UPNP-router to portforward to our bound port",
+                 function);
+
+            if (socks_bind(s, &addr, 0) != 0) {
+               snprintf(emsg, emsglen,
+                        "could not bind local address %s on fd %d before "
+                        "portforward request to UPNP-router: %s",
+                         sockaddr2string(&addr, NULL, 0), s, strerror(errno));
+
+               swarnx("%s: %s", function, emsg);
+
+               socks_set_responsevalue(&packet->res, UPNP_FAILURE);
+               return -1;
+            }
+         }
+
          if (socks_initupnp(gw, emsg, emsglen) != 0) {
             swarnx("%s: socks_initupnp() could not init upnp state: %s",
                    function, emsg);
@@ -523,7 +542,7 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
             snprintf(emsg, emsglen,
                      "strange.  UPNP-device said it's external IP-address is "
                      "the %s \"%s\", but can't parse that with inet_pton(3).  "
-                     "Errorcode %d (%s)", 
+                     "Errorcode %d (%s)",
                      safamily2string(extaddr.ss_family),
                      str2vis(straddr, strlen(straddr), vbuf, sizeof(vbuf)),
                      rc,
@@ -539,7 +558,7 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
 
          slog(LOG_NEGOTIATE,
               "%s: upnp control point's external ip address is %s",
-              function, 
+              function,
               str2vis(straddr, strlen(straddr), vbuf, sizeof(vbuf)));
 
          if (!ADDRISBOUND(&addr)) {
@@ -724,7 +743,7 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
               str2vis(straddr, strlen(straddr), vbuf, sizeof(vbuf)),
               strport);
 
-         str2upper(protocol); /* seems to fail if not. */
+         str2upper(protocol); /* miniupnp-lib seems to fail if not. :-/ */
          if ((rc = UPNP_AddPortMapping(gw->state.data.upnp.controlurl,
                                        gw->state.data.upnp.servicetype,
                                        strport,
@@ -739,6 +758,8 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
                                        )) != UPNPCOMMAND_SUCCESS) {
                snprintf(emsg, emsglen,
                        "UPNP_AddPortMapping() failed: %s", strupnperror(rc));
+
+               slog(LOG_NEGOTIATE, "%s: %s", function, emsg);
 
                socks_set_responsevalue(&packet->res, UPNP_FAILURE);
 
@@ -894,12 +915,15 @@ upnpcleanup(s)
        */
       deleting = current;
 
-      if ((rc
-      = UPNP_DeletePortMapping(socksfd.route->gw.state.data.upnp.controlurl,
-                               socksfd.route->gw.state.data.upnp.servicetype,
-                               port, protocol, NULL)) != UPNPCOMMAND_SUCCESS)
-            swarnx("%s: UPNP_DeletePortMapping(%s, %s) failed: %s",
-                   function, port, protocol, strupnperror(rc));
+      rc = UPNP_DeletePortMapping(socksfd.route->gw.state.data.upnp.controlurl,
+                                  socksfd.route->gw.state.data.upnp.servicetype,
+                                  port,
+                                  protocol,
+                                  NULL);
+
+      if (rc != UPNPCOMMAND_SUCCESS)
+         swarnx("%s: UPNP_DeletePortMapping(%s, %s) failed: %s",
+                function, port, protocol, strupnperror(rc));
       else
          slog(LOG_NEGOTIATE, "%s: deleted port mapping for external %s port %s",
               function, protocol, port);

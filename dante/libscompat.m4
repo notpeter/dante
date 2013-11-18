@@ -113,7 +113,7 @@ AC_TRY_COMPILE([
 AC_CHECK_HEADERS(ifaddrs.h)
 
 AC_CHECK_FUNCS(daemon difftime getifaddrs freeifaddrs hstrerror)
-AC_CHECK_FUNCS(inet_pton issetugid memmove pselect seteuid setegid)
+AC_CHECK_FUNCS(inet_pton issetugid memmove seteuid setegid)
 AC_CHECK_FUNCS(setproctitle sockatmark strvis vsyslog)
 AC_CHECK_FUNCS(bzero strlcpy backtrace)
 #inet_ntoa - only checked for incorrect behavior
@@ -141,6 +141,40 @@ int main(void)
     ac_cv_func_inet_ntoa=no],
     [AC_MSG_RESULT(no)],
     [dnl assume working when cross-compiling (rare bug)
+     AC_MSG_RESULT(assuming no)])
+
+ac_cv_func_pselect=no
+AC_MSG_CHECKING([for working pselect()])
+AC_TRY_RUN([
+#include <sys/time.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int
+main(void)
+{
+   struct timespec ts = { 0, 0 };
+
+   errno = 0;
+   if (pselect(0, NULL, NULL, NULL, &ts, NULL) == 0) {
+      if (errno == ENOSYS) {
+         fprintf(stderr, "pselect: error: returns 0 but errno set to ENOSYS\n");
+         return -1;
+      } else {
+         fprintf(stderr, "pselect: working as expected: returns 0 and errno not ENOSYS (errno = %d)\n", errno);
+         return 0;
+      }
+   } else {
+      perror("pselect");
+      return -1;
+   }
+}], [AC_MSG_RESULT(yes)
+     ac_cv_func_pselect=yes
+     AC_DEFINE(HAVE_PSELECT, 1, [working pselect() support])],
+    [AC_MSG_RESULT(no)],
+    [dnl assume no when cross-compiling
      AC_MSG_RESULT(assuming no)])
 
 if test x"${ac_cv_func_sockatmark}" = xyes; then

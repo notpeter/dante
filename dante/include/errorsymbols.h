@@ -41,17 +41,17 @@
  *
  */
 
-/* $Id: errorsymbols.h,v 1.6 2013/05/06 22:59:38 karls Exp $ */
+/* $Id: errorsymbols.h,v 1.7 2013/10/25 12:54:59 karls Exp $ */
 
 #ifndef _ERRORSYMBOLS_H_
 #define _ERRORSYMBOLS_H_
 
 typedef struct {
    const char  *name;
-   const int   value; 
+   const int   value;
 } errorsymboltable_t;
 
-/* 
+/*
  * Include list of generated errno/gai error values.
  */
 #include "errorsymbols_gen.h"

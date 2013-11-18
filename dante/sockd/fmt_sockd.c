@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012
+ * Copyright (c) 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: fmt_sockd.c,v 1.20 2013/08/02 06:55:15 michaels Exp $";
+"$Id: fmt_sockd.c,v 1.26 2013/10/27 15:24:42 karls Exp $";
 
 void
 sockd_readmotherscontrolsocket(prefix, s)
@@ -59,19 +59,19 @@ sockd_readmotherscontrolsocket(prefix, s)
          slog(LOG_ALERT,
               "%s: unexpected error %d on IPC control channel "
               "to mother: %s%s%s",
-              prefix, 
-              errno, 
+              prefix,
+              errno,
               strerror(errno),
               sockd_motherexists() ? "" : ": ",
-              sockd_motherexists() ? "" : "mother unexepectedly exited");
+              sockd_motherexists() ? "" : "mother unexpectedly exited");
          break;
 
       case 0:
-         slog(LOG_ALERT, 
-              "%s: mother unexpectedly closed the IPC control channel%s%s", 
-              prefix, 
+         slog(LOG_ALERT,
+              "%s: mother unexpectedly closed the IPC control channel%s%s",
+              prefix,
               sockd_motherexists() ? "" : ": ",
-              sockd_motherexists() ? "" : "mother unexepectedly exited");
+              sockd_motherexists() ? "" : "mother unexpectedly exited");
          break;
 
       default:
@@ -106,26 +106,43 @@ log_probablytimedout(client, child)
    const sockd_child_t *child;
 {
 
-   swarn("client %s probably timed out waiting for us to send it to %s",
-         sockaddr2string(client, NULL, 0),
-         childtype2string(child->type));
+   swarn("client %s probably timed out waiting for us to send it to a %s",
+         sockaddr2string(client, NULL, 0), childtype2string(child->type));
 }
 
 void
-log_sendfailed(client, child, isfirsttime)
+log_sendfailed(client, s, child, isfirsttime)
    const struct sockaddr_storage *client;
+   const int s;
    const sockd_child_t *child;
    const int isfirsttime;
 {
+   const int errno_s = errno;
 
-   slog(isfirsttime? LOG_DEBUG : LOG_NOTICE,
-        "sending client %s to %s %ld with %lu free slots failed%s: %s",
-        sockaddr2string(client, NULL, 0),
-        childtype2string(child->type),
-        (long)child->pid,
-        (unsigned long)child->freec,
-        isfirsttime ? "" : " again",
-        strerror(errno));
+   if (ERRNOISTMP(errno))
+      slog(isfirsttime? LOG_DEBUG : LOG_NOTICE,
+           "sending client %s to %s %ld with %lu free slots failed%s: %s",
+           sockaddr2string(client, NULL, 0),
+           childtype2string(child->type),
+           (long)child->pid,
+           (unsigned long)child->freec,
+           isfirsttime ? "" : " again",
+           strerror(errno));
+   else {
+      /*
+       * permanent error.
+       */
+      if (socketisconnected(s, NULL, 0) == NULL)
+         log_probablytimedout(client, child);
+      else
+         swarn("sending client %s to %s %ld with %lu free slots failed",
+               sockaddr2string(client, NULL, 0),
+               childtype2string(child->type),
+               (long)child->pid,
+               (unsigned long)child->freec);
+   }
+
+   errno = errno_s;
 }
 
 void
@@ -166,19 +183,19 @@ log_ruleinfo_shmid(rule, function, context)
 {
 
    slog(LOG_DEBUG,
-        "%s: %s%sshmids in %s #%lu: " 
+        "%s: %s%sshmids in %s #%lu: "
         "bw_shmid %lu (%p), mstats_shmid %lu (%p), ss_shmid %lu (%p)",
         function,
         context == NULL ? "" : context,
         context == NULL ? "" : ": ",
-        objecttype2string(rule->type), 
+        objecttype2string(rule->type),
         (unsigned long)rule->number,
         (unsigned long)rule->bw_shmid,
         rule->bw,
-        (unsigned long)rule->mstats_shmid, 
+        (unsigned long)rule->mstats_shmid,
         rule->mstats,
         (unsigned long)rule->ss_shmid,
-        rule->ss); 
+        rule->ss);
 }
 
 void
@@ -201,9 +218,31 @@ log_unexpected_udprecv_error(function, fd, error, side)
 
    swarnx("%s: unknown error %d on %s-side when reading UDP from fd %d.  "
           "Assuming fatal: %s",
-          function, 
-          error, 
+          function,
+          error,
           side == INTERNALIF ? "client" : "target",
           fd,
           strerror(error));
+}
+
+void
+log_bind_failed(function, protocol, address)
+   const char *function;
+   const int protocol;
+   const struct sockaddr_storage *address;
+{
+   const int nofreeports
+   = (ntohs(GET_SOCKADDRPORT(address)) == (in_port_t)0 && errno == EADDRINUSE);
+
+   slog(nofreeports ? LOG_WARNING : LOG_DEBUG,
+        "%s: could not bind %s port %u of %s: %s",
+        function,
+        protocol2string(protocol),
+        ntohs(GET_SOCKADDRPORT(address)),
+        sockaddr2string2(address, ADDRINFO_ATYPE, NULL, 0),
+        nofreeports ?
+            "this probably means we have run out of free ports in the "
+            "ephemeral port range configured on this system (see sysctl(8))"
+        :   strerror(errno));
+
 }

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012
+ *               2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.911 2013/07/21 11:16:30 michaels Exp $";
+"$Id: sockd.c,v 1.925 2013/10/27 15:24:42 karls Exp $";
 
 
 
@@ -130,7 +130,7 @@ int argc_cpy;
 
 int main(int argc, char *argv[]);
 
-#if !STANDALONE_UNIT_TEST 
+#if !STANDALONE_UNIT_TEST
 
 int
 main(argc, argv)
@@ -200,7 +200,7 @@ main(argc, argv)
    if (sockscf.option.serverc > 1) {
       /*
        * Temporarily block signals to avoid mixing up signals to us
-       * and to child created as well as any races between child receving
+       * and to child created as well as any races between child receiving
        * signal and child having finished setting up signalhandlers.
        */
       sigset_t all, oldmask;
@@ -253,7 +253,7 @@ main(argc, argv)
       if (childcheck(PROC_MONITOR) < 1) {
          sigserverbroadcast(SIGTERM);
          serr("could not create monitor process: %s",
-              sockscf.child.noaddchild_reason != NULL ? 
+              sockscf.child.noaddchild_reason != NULL ?
                      sockscf.child.noaddchild_reason
                   :  strerror(sockscf.child.noaddchild_errno));
       }
@@ -263,7 +263,7 @@ main(argc, argv)
    ||  childcheck(PROC_REQUEST)   < SOCKD_FREESLOTS_REQUEST
    ||  childcheck(PROC_IO)        < SOCKD_FREESLOTS_IO)
       serr("initial childcheck() failed: %s",
-           sockscf.child.noaddchild_reason != NULL ? 
+           sockscf.child.noaddchild_reason != NULL ?
                   sockscf.child.noaddchild_reason
                :  strerror(sockscf.child.noaddchild_errno));
 
@@ -339,9 +339,10 @@ moncontrol(1);
       }
 
 #if BAREFOOTD
-      if (!sockscf.state.alludpbounced) {
+      if (!ALL_UDP_BOUNCED()) {
          slog(LOG_DEBUG,
               "have not bounced all udp sessions yet, setting timeout to 0");
+
          timeout = &zerotimeout;
       }
 #endif /* BAREFOOTD */
@@ -461,26 +462,9 @@ moncontrol(1);
             have_saved_client = 0;
          }
          else {
-            if (ERRNOISTMP(errno))
-               log_sendfailed(&saved_client.from, child, 0);
-            else {
-               /* 
-                * XXX
-                * Should have done a monitormatch() here, but want to
-                * minimize the amount of code in this process.
-                */
+            log_sendfailed(&saved_client.from, saved_client.s, child, 0);
 
-               if (!socketisconnected(saved_client.s, NULL, 0) != 0) {
-                  if (errno == ENOTCONN)
-                     log_probablytimedout(&saved_client.from, child);
-                  else
-                     log_sendfailed(&saved_client.from, child, 0);
-               }
-               else /* strange. */
-                  slog(LOG_DEBUG, "send_client() of client %s failed: %s",
-                       sockaddr2string(&saved_client.from, NULL, 0),
-                       strerror(errno));
-
+            if (!ERRNOISTMP(errno)) {
                close(saved_client.s);
                have_saved_client = 0;
             }
@@ -489,10 +473,12 @@ moncontrol(1);
 
       if (have_saved_req && free_reqc > 0) {
          child = nextchild(PROC_REQUEST, SOCKS_TCP);
+
          SASSERTX(child != NULL);
          SASSERTX(child->freec > 0);
 
          log_clientsend(&saved_req.from, child, 1);
+
          if (send_req(child->s, &saved_req) == 0) {
             --free_reqc;
             --child->freec;
@@ -503,9 +489,9 @@ moncontrol(1);
             have_saved_req = 0;
          }
          else {
-            if (ERRNOISTMP(errno))
-               log_sendfailed(&saved_req.from, child, 0);
-            else {
+            log_sendfailed(&saved_req.from, saved_req.s, child, 0);
+
+            if (!ERRNOISTMP(errno)) {
                clientinfo_t cinfo;
 
                if (SHMID_ISSET(CRULE_OR_HRULE(&saved_req))) {
@@ -513,19 +499,12 @@ moncontrol(1);
                   HOSTIDCOPY(&saved_req.state, &cinfo);
                }
 
-               if (!socketisconnected(saved_req.s, NULL, 0)) {
-                  if (errno == ENOTCONN)
-                     log_probablytimedout(&saved_req.from, child);
-                  else 
-                     log_sendfailed(&saved_req.from, child, 0);
-                       
+               if (socketisconnected(saved_req.s, NULL, 0) == NULL) {
                   if (CRULE_OR_HRULE(&saved_req)->mstats_shmid != 0
-                  && (CRULE_OR_HRULE(&saved_req)->alarmsconfigured 
+                  && (CRULE_OR_HRULE(&saved_req)->alarmsconfigured
                       & ALARM_DISCONNECT))
                         alarm_add_disconnect(0,
-                                             CRULE_OR_HRULE(&saved_req)->mstats,
-                                             CRULE_OR_HRULE(&saved_req)
-                                                ->mstats_shmid,
+                                             CRULE_OR_HRULE(&saved_req),
                                              ALARM_INTERNAL,
                                              &cinfo,
                                              strerror(errno),
@@ -533,10 +512,6 @@ moncontrol(1);
                }
                else { /* error with child? */
 #if HAVE_NEGOTIATE_PHASE
-                  swarn("send_req() of client %s to %s %ld failed",
-                        sockaddr2string(&saved_req.from, NULL, 0),
-                        childtype2string(child->type), (long)child->pid);
-
                   create_response(NULL,
                                   &saved_req.cauth,
                                   saved_req.req.version,
@@ -601,9 +576,12 @@ moncontrol(1);
             have_saved_io = 0;
          }
          else {
-            if (ERRNOISTMP(errno))
-               log_sendfailed(&CONTROLIO(&saved_io)->raddr, child, 0);
-            else {
+            log_sendfailed(&CONTROLIO(&saved_io)->raddr,
+                           CONTROLIO(&saved_io)->s,
+                           child,
+                           0);
+
+            if (!ERRNOISTMP(errno)) {
                clientinfo_t cinfo;
 
                if (SHMID_ISSET(&saved_io.srule)) {
@@ -611,52 +589,29 @@ moncontrol(1);
                   HOSTIDCOPY(&saved_io.state, &cinfo);
                }
 
-               if (!socketisconnected(CONTROLIO(&saved_io)->s, NULL, 0)) {
-                  if (errno == ENOTCONN)
-                     log_probablytimedout(&CONTROLIO(&saved_io)->raddr,
-                                          child);
-                  else
-                     log_sendfailed(&CONTROLIO(&saved_io)->raddr,
-                                                    child,
-                                                    0);
-
+               if (socketisconnected(CONTROLIO(&saved_io)->s, NULL, 0) == NULL){
                   if (saved_io.srule.mstats_shmid != 0
                   && (saved_io.srule.alarmsconfigured & ALARM_DISCONNECT))
                      alarm_add_disconnect(0,
-                                          saved_io.srule.mstats,
-                                          saved_io.srule.mstats_shmid,
+                                          &saved_io.srule,
                                           ALARM_INTERNAL,
                                           &cinfo,
                                           strerror(errno),
                                           sockscf.shmemfd);
                }
                else { /* error with target socket? */
-                  int error_with_child;
-
-                  if (saved_io.state.command != SOCKS_UDPASSOCIATE 
-                  &&  saved_io.dst.s         != -1 
+                  if (saved_io.state.command != SOCKS_UDPASSOCIATE
+                  &&  saved_io.dst.s         != -1
                   &&  !socketisconnected(saved_io.dst.s, NULL, 0)) {
-                     error_with_child = 0;
-
                      if (saved_io.srule.mstats_shmid != 0
                      && (saved_io.srule.alarmsconfigured & ALARM_DISCONNECT))
                         alarm_add_disconnect(0,
-                                             saved_io.srule.mstats,
-                                             saved_io.srule.mstats_shmid,
+                                             &saved_io.srule,
                                              ALARM_EXTERNAL,
                                              &cinfo,
                                              strerror(errno),
                                              sockscf.shmemfd);
                   }
-                  else 
-                     error_with_child = 1;
-
-                  slog(error_with_child ? LOG_WARNING : LOG_DEBUG,
-                       "send_io() of client %s to %s %ld failed: %s",
-                       sockaddr2string(&CONTROLIO(&saved_io)->raddr, NULL, 0),
-                       childtype2string(child->type),
-                       (long)child->pid,
-                       strerror(errno));
 
 #if HAVE_NEGOTIATE_PHASE
                   create_response(NULL,
@@ -680,7 +635,7 @@ moncontrol(1);
                }
 
                if (SHMID_ISSET(&saved_io.srule))
-                  SHMEM_UNUSE(&saved_io.srule, 
+                  SHMEM_UNUSE(&saved_io.srule,
                               &cinfo,
                               sockscf.shmemfd,
                               SHMEM_ALL);
@@ -755,8 +710,8 @@ moncontrol(1);
                     childtype2string(fromchild.type), (long)fromchild.pid);
 
                if ((p = recv_req(fromchild.s, &req)) != 0) {
-                  slog(LOG_DEBUG, "recv_req() failed with %ld: %s",
-                       (long)p, strerror(errno));
+                  slog(LOG_DEBUG, "recv_req() on fd %d failed with %ld: %s",
+                       fromchild.s, (long)p, strerror(errno));
 
                   continue;
                }
@@ -765,6 +720,7 @@ moncontrol(1);
                command = req.reqinfo.command;
 
                log_clientsend(&req.from, child, 0);
+
                if (send_req(child->s, &req) == 0) {
                   --free_reqc;
                   --child->freec;
@@ -775,10 +731,11 @@ moncontrol(1);
                   break;
                }
 
+               log_sendfailed(&req.from, req.s, child, 1);
+
                if (ERRNOISTMP(errno)) {
                   saved_req      = req;
                   have_saved_req = 1;
-                  log_sendfailed(&req.from, child, 1);
                }
                else {
                   clientinfo_t cinfo;
@@ -789,27 +746,17 @@ moncontrol(1);
                   }
 
                   if (!socketisconnected(req.s, NULL, 0)) {
-                     if (errno == ENOTCONN)
-                        log_probablytimedout(&req.from, child);
-                     else
-                        log_sendfailed(&req.from, child, 1);
-
                      if (CRULE_OR_HRULE(&saved_req)->mstats_shmid != 0
-                     && (CRULE_OR_HRULE(&saved_req)->alarmsconfigured 
+                     && (CRULE_OR_HRULE(&saved_req)->alarmsconfigured
                          & ALARM_DISCONNECT))
                         alarm_add_disconnect(0,
-                                             CRULE_OR_HRULE(&req)->mstats,
-                                             CRULE_OR_HRULE(&req)->mstats_shmid,
+                                             CRULE_OR_HRULE(&req),
                                              ALARM_INTERNAL,
                                              &cinfo,
                                              strerror(errno),
                                              sockscf.shmemfd);
                   }
                   else {
-                     swarn("send_req() of client %s to %s %ld failed",
-                           sockaddr2string(&req.from, NULL, 0),
-                           childtype2string(child->type), (long)child->pid);
-
 #if HAVE_NEGOTIATE_PHASE
                      create_response(NULL,
                                      &req.cauth,
@@ -886,8 +833,8 @@ moncontrol(1);
                     childtype2string(fromchild.type), (long)fromchild.pid);
 
                if ((p = recv_io(fromchild.s, &io)) != 0) {
-                  slog(LOG_DEBUG, "recv_io() failed with %ld: %s",
-                       (long)p, strerror(errno));
+                  slog(LOG_DEBUG, "recv_io() on fd %d failed with %ld: %s",
+                       fromchild.s, (long)p, strerror(errno));
 
                   continue;
                }
@@ -937,6 +884,11 @@ moncontrol(1);
                   break;
                }
 
+               log_sendfailed(&CONTROLIO(&io)->raddr,
+                              CONTROLIO(&io)->s,
+                              child,
+                              0);
+
                if (ERRNOISTMP(errno)) {
                   saved_io      = io;
                   have_saved_io = 1;
@@ -948,49 +900,29 @@ moncontrol(1);
                      HOSTIDCOPY(&io.state, &cinfo);
                   }
 
-                  if (!socketisconnected(CONTROLIO(&io)->s, NULL, 0)) {
-                     if (errno == ENOTCONN)
-                        log_probablytimedout(&CONTROLIO(&io)->raddr, child);
-                     else
-                        log_sendfailed(&CONTROLIO(&io)->raddr, child, 0);
-
+                  if (socketisconnected(CONTROLIO(&io)->s, NULL, 0) == NULL) {
                      if (io.srule.mstats_shmid != 0
                      && (io.srule.alarmsconfigured & ALARM_DISCONNECT))
-                        alarm_add_disconnect(0, 
-                                             io.srule.mstats,
-                                             io.srule.mstats_shmid,
+                        alarm_add_disconnect(0,
+                                             &io.srule,
                                              ALARM_INTERNAL,
                                              &cinfo,
                                              strerror(errno),
                                              sockscf.shmemfd);
                   }
                   else {
-                     int error_with_child;
-
-                     if (io.state.command != SOCKS_UDPASSOCIATE 
-                     &&  io.dst.s         != -1 
+                     if (io.state.command != SOCKS_UDPASSOCIATE
+                     &&  io.dst.s         != -1
                      && !socketisconnected(io.dst.s, NULL, 0) != 0) {
-                        error_with_child = 0;
-
                         if (io.srule.mstats_shmid != 0
                         && (io.srule.alarmsconfigured & ALARM_DISCONNECT))
                            alarm_add_disconnect(0,
-                                                io.srule.mstats,
-                                                io.srule.mstats_shmid,
+                                                &io.srule,
                                                 ALARM_EXTERNAL,
                                                 &cinfo,
                                                 strerror(errno),
                                                 sockscf.shmemfd);
                      }
-                     else 
-                        error_with_child = 1;
-
-                     slog(error_with_child ? LOG_WARNING : LOG_DEBUG,
-                          "send_io() of client %s to %s %ld failed: %s",
-                          sockaddr2string(&CONTROLIO(&io)->raddr, NULL, 0),
-                          childtype2string(child->type),
-                          (long)child->pid,
-                          strerror(errno));
 
 #if HAVE_NEGOTIATE_PHASE
                      create_response(NULL,
@@ -1046,8 +978,9 @@ moncontrol(1);
                     (long)fromchild.pid);
 
                if ((p = recv_resentclient(fromchild.s, &client)) != 0) {
-                  slog(LOG_DEBUG, "recv_resentclient() failed with %ld: %s",
-                       (long)p, strerror(errno));
+                  slog(LOG_DEBUG,
+                       "recv_resentclient() on fd %d failed with %ld: %s",
+                       fromchild.s, (long)p, strerror(errno));
 
                   continue;
                }
@@ -1067,28 +1000,21 @@ moncontrol(1);
                   break;
                }
 
+               log_sendfailed(&client.from, client.s, child, 1);
+
                if (ERRNOISTMP(errno)) {
                   saved_client      = client;
                   have_saved_client = 1;
                }
                else {
-                  /* 
+                  /*
                    * XXX
                    * Should have done a monitormatch() here, but want to
                    * minimize the amount of code in this process.
                    */
 
-                  if (!socketisconnected(client.s, NULL, 0)) {
-                     if (errno == ENOTCONN)
-                        log_probablytimedout(&client.from, child);
-                     else
-                        log_sendfailed(&client.from, child, 1);
-                  }
-                  else {
+                  if (socketisconnected(client.s, NULL, 0) != NULL) {
 #if HAVE_NEGOTIATE_PHASE
-                     slog(LOG_DEBUG, "send_client() failed: %s",
-                          strerror(errno));
-
                      /* XXX missing stuff here. */
                      create_response(NULL,
                                      &client.auth,
@@ -1155,9 +1081,11 @@ moncontrol(1);
                int nomoreclients = 0;
 
                len       = sizeof(client.from);
+
                client.s  = acceptn(sockscf.internal.addrv[i].s,
                                    &client.from,
                                    &len);
+
                client.to = sockscf.internal.addrv[i].addr;
 
                if (client.s  == -1) {
@@ -1225,6 +1153,7 @@ moncontrol(1);
                }
 
                log_clientsend(&client.from, child, 0);
+
                p = send_client(child->s, &client, NULL, 0);
 
                if (p == 0) {
@@ -1236,20 +1165,14 @@ moncontrol(1);
                   close(client.s);
                }
                else {
-                  if (ERRNOISTMP(errno)) {
-                     slog(LOG_INFO,
-                          "send_client() of client %s failed temporarily: %s",
-                          sockaddr2string(&client.from, NULL, 0),
-                          strerror(errno));
+                  log_sendfailed(&client.from, client.s, child, 1);
 
+                  if (ERRNOISTMP(errno)) {
                      saved_client      = client;
                      have_saved_client = 1;
                   }
-                  else {
-                     slog(LOG_DEBUG, "send_client() failed: %s",
-                          strerror(errno));
+                  else
                      close(client.s);
-                  }
 
                   break;
                }
@@ -1290,20 +1213,90 @@ usage(code)
    exit(code);
 }
 
+
+extern const licensekey_t module_redirect_keyv[];
+extern const size_t       module_redirect_keyc;
+extern const char         module_redirect_version[];
+
+extern const licensekey_t module_bandwidth_keyv[];
+extern const size_t       module_bandwidth_keyc;
+extern const char         module_bandwidth_version[];
+
+#if HAVE_LDAP
+extern const licensekey_t module_ldap_keyv[];
+extern const size_t       module_ldap_keyc;
+extern const char         module_ldap_version[];
+#endif /* HAVE_LDAP */
+
 static void
 showversion(level)
    const int level;
 {
+   struct {
+      const char         *name;
+
+      const licensekey_t *keyv;
+      const size_t       keyc;
+   } licenseinfov[] = {
+                           {  "Bandwidth",
+                              module_bandwidth_keyv,
+                              module_bandwidth_keyc
+                           },
+
+#if HAVE_LDAP
+                           {  "LDAP",
+                              module_ldap_keyv,
+                              module_ldap_keyc
+                           },
+#endif /* HAVE_LDAP */
+
+                           {  "Redirect",
+                              module_redirect_keyv,
+                              module_redirect_keyc
+                           }
+                        };
+   const size_t licenseinfoc = ELEMENTS(licenseinfov);
+
+   size_t i;
 
    printf("%s v%s.  Copyright (c) 1997 - 2013 Inferno Nettverk A/S, Norway\n",
           PRODUCT, VERSION);
+
+   for (i = 0; i < licenseinfoc; ++i) {
+      if (licenseinfov[i].keyc > 0) {
+         size_t keyc;
+
+         printf("%lu address%s licensed for the %s %s module:\n",
+                (unsigned long)licenseinfov[i].keyc,
+                (unsigned long)licenseinfov[i].keyc == 1 ? "" : "es",
+                PRODUCT,
+                licenseinfov[i].name);
+
+         for (keyc = 0; keyc < licenseinfov[i].keyc; ++keyc)
+            printf("address #%-5lu: %s\n",
+                   (unsigned long)(keyc + 1),
+                   licensekey2string(&licenseinfov[i].keyv[keyc]));
+      }
+   }
 
    if (level > 1) {
       if (strlen(DANTE_BUILD) > 0)
          printf("build: %s\n", DANTE_BUILD);
 
-      if (strlen(DANTE_SOCKOPTS) > 0)
-         printf("socketoptions: %s\n", DANTE_SOCKOPTS);
+      if (strlen(DANTE_SOCKOPTS_SO) > 0)
+         printf("socket options (socket level): %s\n", DANTE_SOCKOPTS_SO);
+
+      if (strlen(DANTE_SOCKOPTS_IPV4) > 0)
+         printf("socket options (ipv4 level): %s\n", DANTE_SOCKOPTS_IPV4);
+
+      if (strlen(DANTE_SOCKOPTS_IPV6) > 0)
+         printf("socket options (ipv6 level): %s\n", DANTE_SOCKOPTS_IPV6);
+
+      if (strlen(DANTE_SOCKOPTS_TCP) > 0)
+         printf("socket options (tcp level): %s\n", DANTE_SOCKOPTS_TCP);
+
+      if (strlen(DANTE_SOCKOPTS_UDP) > 0)
+         printf("socket options (udp level): %s\n", DANTE_SOCKOPTS_UDP);
 
       if (strlen(DANTE_COMPATFILES) > 0)
          printf("compat: %s\n", DANTE_COMPATFILES);
@@ -1460,7 +1453,7 @@ serverinit(argc, argv)
       }
    }
 
-   /* 
+   /*
     * save original commandline so we can use it to override
     * sockd.conf-settings later if needed.
     */

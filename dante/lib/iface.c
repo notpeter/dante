@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012
+ * Copyright (c) 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,11 +42,14 @@
  */
 
 static const char rcsid[] =
-"$Id: iface.c,v 1.18 2012/10/05 18:33:11 karls Exp $";
+"$Id: iface.c,v 1.23 2013/10/27 15:24:42 karls Exp $";
 
 #include "common.h"
 
+#if !SOCKS_CLIENT
+
 #if !HAVE_SIOCGIFHWADDR
+
 /*
  * Retrieve ifconfig(8) output for the interface "ifname".
  * The output is stored in "output", which is of size "outputlen".
@@ -66,8 +69,67 @@ parse_ifconfig_output(const char *input, unsigned char *addr);
 
 #endif /* !HAVE_SIOCGIFHWADDR */
 
+#endif /* !SOCKS_CLIENT */
+
+#undef getifaddrs
+
+int
+socks_getifaddrs(ifap)
+   struct ifaddrs **ifap;
+{
+   const char *function = "sockd_getifaddrs()";
+   int rc;
+
+   rc = getifaddrs(ifap);
+
+#if !SOCKS_CLIENT
+   if (rc != 0) {
+      if (ERRNOISNOFILE(errno) && sockscf.state.reservedfdv[0] != -1) {
+         close(sockscf.state.reservedfdv[0]);
+
+         rc = getifaddrs(ifap);
+
+         sockscf.state.reservedfdv[0] = makedummyfd(0, 0);
+      }
+   }
+#endif /* !SOCKS_CLIENT */
+
+   return rc;
+}
+
+#if !SOCKS_CLIENT
+
+ipv6_addrscope_t
+ipv6_addrscope(a)
+   const struct in6_addr *a;
+{
+   const char *function = "ipv6_addrscope()";
+   ipv6_addrscope_t scope;
+   char ntop[256];
+
+   if (IN6_IS_ADDR_UNSPECIFIED(a) || IN6_IS_ADDR_MC_GLOBAL(a))
+      scope = addrscope_global;
+   else if (IN6_IS_ADDR_LINKLOCAL(a) || IN6_IS_ADDR_MC_LINKLOCAL(a))
+      scope = addrscope_linklocal;
+   else if (IN6_IS_ADDR_LOOPBACK(a) || IN6_IS_ADDR_MC_NODELOCAL(a))
+      scope = addrscope_nodelocal;
+   else
+      /*
+       * If nothing else matched, assume global scope.
+       */
+      scope = addrscope_global;
+
+   if (inet_ntop(AF_INET6, a, ntop, sizeof(ntop)) == NULL)
+      snprintf(ntop, sizeof(ntop), "<%s>", strerror(errno));
+
+   slog(LOG_DEBUG, "%s: address %s, addrscope: %s",
+        function, ntop, addrscope2string(scope));
+
+   return scope;
+}
+
 unsigned char *
-socks_getmacaddr(ifname, addr)
+sockd_getmacaddr(ifname, addr)
    const char *ifname;
    unsigned char *addr;
 {
@@ -82,14 +144,15 @@ socks_getmacaddr(ifname, addr)
    strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
    ifr.ifr_name[sizeof(ifr.ifr_name) - 1] = NUL;
 
-   if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-      swarn("%s: socket()", function);
+   if ((s = sockscf.state.reservedfdv[0]) == -1)
+      s = sockscf.state.reservedfdv[0] = makedummyfd(0, 0);
+
+   if (s == -1) {
+      swarn("%s: could not create socket", function);
       return NULL;
    }
 
    rc = ioctl(s, SIOCGIFHWADDR, &ifr);
-
-   close(s);
 
    if (rc != 0) {
       swarn("%s: ioctl(SIOCGIFHWADDR)", function);
@@ -130,10 +193,11 @@ socks_getmacaddr(ifname, addr)
    }
 #endif /* !SIOCGIFHWADDR */
 
-   slog(LOG_DEBUG, "%s: mac address of interface %s is "
-                   "%02x:%02x:%02x:%02x:%02x:%02x",
-                   function, ifname,
-                   addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+   slog(LOG_DEBUG,
+        "%s: mac address of interface %s is %02x:%02x:%02x:%02x:%02x:%02x",
+        function,
+        ifname,
+        addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 
    return addr;
 }
@@ -245,3 +309,5 @@ parse_ifconfig_output(input, addr)
 }
 
 #endif /* !HAVE_SIOCGIFHWADDR */
+
+#endif /* !SOCKS_CLIENT */

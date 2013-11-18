@@ -559,42 +559,80 @@ AC_EGREP_CPP(sig_atomic_t, [
    [AC_MSG_RESULT(no)])
 
 #try to identify number of valid signal values
+SIGDEFAULT=128
+unset sigmax
 AC_MSG_CHECKING([for number of valid signal values])
-unset foundmaxsignal
-signalval=0
-while test $signalval -lt 1000; do
-    signalval=`expr $signalval + 1`
-    AC_TRY_RUN([
+AC_TRY_RUN([
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-int main()
+int main(int argc, char *argv[])
 {
-   if ($signalval == SIGKILL || $signalval == SIGSTOP)
-      return 0; /* will always fail, skip */
-   if (signal($signalval, SIG_DFL) == SIG_ERR)
-      return 1; /* error, return failure */
+   FILE *fp;
+   int minval = 0;
+   int i;
 
-   return 0; /* no failure, return ok */
-}], [dnl value value, skip to next value
-     continue],
-    [dnl set value to highest valid value + 1 (index starting at zero).
-     dnl corresponds to first failing value
-     AC_DEFINE_UNQUOTED(SOCKS_NSIG, $signalval, [Number of valid signals])
-     AC_MSG_RESULT($signalval)
-     foundmaxsignal=t
-     break],
-    [dnl set a large value when cross-compiling
-     signalval=65
-     AC_DEFINE_UNQUOTED(SOCKS_NSIG, $signalval, [Cross compile guess at number of valid signals])
-     AC_MSG_RESULT(cross-compiling, setting to $signalval)
-     foundmaxsignal=t
-     break])
-done
-if test x"$foundmaxsignal" = x -o $signalval -lt 10; then
-    AC_MSG_WARN([unable to obtain valid signal count, setting to large value])
-     signalval=65
-     AC_DEFINE_UNQUOTED(SOCKS_NSIG, $signalval, [Guess at number of valid signals])
+   for (i = 1; i < 1000; i++) {
+      if (i == SIGKILL || i == SIGSTOP)
+         continue;
+      if (signal(i, SIG_DFL) == SIG_ERR) {
+         perror("signal");
+         break;
+      }
+   }
+   minval = i;
+   fprintf(stderr, "notice: signal() based value: %d\n", minval);
+
+#ifdef NSIG
+   if (NSIG > minval) {
+      minval = NSIG;
+      fprintf(stderr, "notice: NSIG based value: %d\n", minval);
+   }
+#endif /* NSIG */
+
+#ifdef SIGRTMAX
+   /* note: this value might be changed at runtime (e.g., Linux) */
+   if (SIGRTMAX > minval) {
+      minval = SIGRTMAX;
+      fprintf(stderr, "notice: SIGRTMAX based value: %d\n", minval);
+   }
+#endif /* SIGRTMAX */
+
+   /* get base 2 value */
+   for (i = 0; i < 10; i++) {
+      int n = 1 << i;
+      if (n > minval) {
+         minval = n;
+         fprintf(stderr, "notice: base 2 based increase: %d\n", minval);
+	 break;
+      }
+   }
+
+   fprintf(stderr, "notice: setting signal max value to %d\n", minval);
+   if ((fp = fopen("conftest.out", "w")) == NULL) {
+      perror("fopen");
+      exit(1);
+   }
+   /* write zero for no special handling needed */
+   fprintf(fp, "%ld\n", minval);
+   fclose(fp);
+   exit(0);
+
+   return 0;
+}], [sigmax=`test -s conftest.out && cat conftest.out`],
+[],
+[dnl set a large value when cross-compiling
+ sigmax=128
+ AC_MSG_RESULT([cross-compiling, setting to $sigmax])
+])
+if test x"$sigmax" = x; then
+   sigmax=$SIGDEFAULT
+   AC_MSG_RESULT([got no value, setting to $sigmax])
+else
+   AC_MSG_RESULT(setting to $sigmax)
 fi
+AC_DEFINE_UNQUOTED(SOCKS_NSIG, $sigmax, [Guess at max number of valid signals])
 
 AC_CHECK_TYPES([int8_t, int16_t, int32_t, uint8_t, uint16_t, uint32_t,
 		in_port_t, in_addr_t],
@@ -840,7 +878,7 @@ for keyval in ${ERRNO_NOROUTE}; do
 	    echo "   { \"$keyword\",	$errno	}," >>$ERRNOSRC
 	    keycnt=`expr $keycnt + 1`
 	fi
-    done 
+    done
 done
 
 #any-error; alias for all values
@@ -929,7 +967,7 @@ for keyval in ${ERRNO_foo}; do
 	    echo "   { \"$keyword\",	$errno	}," >>$ERRNOSRC
 	    keycnt=`expr $keycnt + 1`
 	fi
-    done 
+    done
 done
 
 #any-error; alias for all values
@@ -948,3 +986,4 @@ echo "};" >>$ERRNOSRC
 
 AC_DEFINE_UNQUOTED(MAX_GAIERR_VALUES_FOR_SYMBOL, $maxaliaslen,
     [Max number of gataddrinfo() error values matching any alias keyword])
+rm -f $ERRVALFILE

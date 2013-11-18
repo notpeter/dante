@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012
+ *               2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,7 +55,7 @@
 #endif /* SOCKS_CLIENT || SOCKS_SERVER */
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.220 2013/07/28 20:14:00 michaels Exp $";
+"$Id: clientprotocol.c,v 1.225 2013/10/27 15:24:42 karls Exp $";
 
 static int
 recv_sockshost(int s, sockshost_t *host, int version, authmethod_t *auth,
@@ -317,15 +317,20 @@ socks_negotiate(s, control, packet, route, emsg, emsglen)
    packet->res.auth = packet->req.auth;
 
    switch (packet->req.version) {
-      case PROXY_SOCKS_V4: 
+      case PROXY_SOCKS_V4:
          if (packet->req.command == SOCKS_BIND) {
             if (route != NULL && route->gw.state.extension.bind)
                packet->req.host.addr.ipv4.s_addr = htonl(BINDEXTENSION_IPADDR);
 #if SOCKS_CLIENT
             else {
                if (packet->req.version == PROXY_SOCKS_V4)
-                   /* v4/v5 difference.  We always set up for v5. */
-                  packet->req.host.port = sockscf.state.lastconnect.port;
+                   /*
+                    * v4/v5 difference.  We always set up for v5 by default,
+                    * but if v4 is what proxyserver us, modify the request
+                    * slightly for v4.
+                    */
+                  if (ntohs(sockscf.state.lastconnect.port) != 0)
+                     packet->req.host.port = sockscf.state.lastconnect.port;
             }
 #endif /* SOCKS_CLIENT */
          }
@@ -434,7 +439,7 @@ socks_negotiate(s, control, packet, route, emsg, emsglen)
          }
 
          slog(LOG_DEBUG,
-              "%s: method negotiation successfull.  Server selected method "
+              "%s: method negotiation successful.  Server selected method "
               "%d (%s)",
               function,
               packet->req.auth->method,
@@ -450,7 +455,7 @@ socks_negotiate(s, control, packet, route, emsg, emsglen)
                                 packet->req.version,
                                 emsg,
                                 emsglen) != 0) {
-            socks_blacklist(route);
+            socks_blacklist(route, emsg);
 
             if (errno == 0) /* something wrong.  If nothing else ... */
                errno = ECONNREFUSED;
@@ -647,7 +652,7 @@ recv_sockshost(s, host, version, auth, emsg, emsglen)
                                          NULL,
                                          auth))
                != (ssize_t)sizeof(host->addr.ipv6.ip)) {
-                  fmtresponseerror(rc, 
+                  fmtresponseerror(rc,
                                    sizeof(host->addr.ipv6.ip),
                                    emsg,
                                    emsglen);
@@ -734,7 +739,7 @@ serverreplyisok(version, command, reply, route, emsg, emsglen)
 {
    const char *function = "serverreplyisok()";
 
-   slog(LOG_NEGOTIATE, "%s: version %d, command %d, reply %d", 
+   slog(LOG_NEGOTIATE, "%s: version %d, command %d, reply %d",
         function, version, command, reply);
 
    switch (version) {
@@ -747,33 +752,35 @@ serverreplyisok(version, command, reply, route, emsg, emsglen)
             case SOCKSV4_FAIL:
                snprintf(emsg, emsglen, "generic proxy server failure");
 
-               socks_clearblacklist(route); 
+               socks_clearblacklist(route);
                errno = ECONNREFUSED;
                break;
 
             case SOCKSV4_NO_IDENTD:
                snprintf(emsg, emsglen,
-                        "proxy server did not get ident (rfc931) response "
-                        "from host we are running on");
+                        "proxy server says it could not get a ident (rfc931) "
+                        "response from host we are running on");
 
-               socks_blacklist(route); /* will probably fail next time too. */
-               errno = ECONNREFUSED; 
+               /* will probably fail next time too, so blacklist it. */
+               socks_blacklist(route, emsg);
+
+               errno = ECONNREFUSED;
                break;
 
             case SOCKSV4_BAD_ID:
                snprintf(emsg, emsglen,
                         "proxy server claims username/ident mismatch from us");
 
-               socks_blacklist(route);
+               socks_blacklist(route, emsg);
                errno = ECONNREFUSED;
                break;
 
             default:
                snprintf(emsg, emsglen,
-                        "unknown v%d reply from proxy server: %d",
+                        "unknown v%d reply from proxy server.  Replycode: %d",
                         version, reply);
 
-               socks_blacklist(route);
+               socks_blacklist(route, emsg);
                errno = ECONNREFUSED;
                break;
          }
@@ -786,14 +793,15 @@ serverreplyisok(version, command, reply, route, emsg, emsglen)
                return 1;
 
             case SOCKS_FAILURE:
-               snprintf(emsg, emsglen, "generic proxy server failure");
+               snprintf(emsg, emsglen,
+                        "generic failure at remote proxy server");
 
                if (command == SOCKS_BIND) {
                   errno = EADDRINUSE;
                   socks_clearblacklist(route);
                }
                else
-                  socks_blacklist(route);
+                  socks_blacklist(route, emsg);
 
                errno = ECONNREFUSED;
                break;
@@ -838,15 +846,18 @@ serverreplyisok(version, command, reply, route, emsg, emsglen)
             case SOCKS_CMD_UNSUPP:
                snprintf(emsg, emsglen, "command not supported by proxy server");
 
-               socks_blacklist(route);
+               swarnx("%s: %s", function, emsg);
+
+               socks_blacklist(route, emsg);
                errno = ECONNREFUSED;
                break;
 
             case SOCKS_ADDR_UNSUPP:
                snprintf(emsg, emsglen,
-                        "address format not supported by proxy server");
+                        "address format in the request we sent is not "
+                        "supported by the proxy server");
 
-               socks_blacklist(route);
+               socks_blacklist(route, emsg);
                errno = ECONNREFUSED;
                break;
 
@@ -855,7 +866,7 @@ serverreplyisok(version, command, reply, route, emsg, emsglen)
                         "unknown v%d reply from proxy server: %d",
                         version, reply);
 
-               socks_blacklist(route);
+               socks_blacklist(route, emsg);
                errno = ECONNREFUSED;
                break;
          }
@@ -871,7 +882,7 @@ serverreplyisok(version, command, reply, route, emsg, emsglen)
             default:
                snprintf(emsg, emsglen, "unknown proxy server failure");
 
-               socks_blacklist(route);
+               socks_blacklist(route, emsg);
                errno = ECONNREFUSED;
                break;
          }
@@ -884,7 +895,7 @@ serverreplyisok(version, command, reply, route, emsg, emsglen)
                return 1;
 
             default:
-               socks_blacklist(route);
+               socks_blacklist(route, "UPNP failure");
                errno = ECONNREFUSED;
                break;
          }
@@ -1165,7 +1176,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth, emsg, emsglen)
          if (rc != 0) {
             char ntop[MAXSOCKADDRSTRING];
 
-            if (inet_ntop(addr.ss_family, 
+            if (inet_ntop(addr.ss_family,
                           GET_SOCKADDRADDR(&addr),
                           ntop,
                           sizeof(ntop)) == NULL) {

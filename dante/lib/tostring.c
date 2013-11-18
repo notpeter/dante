@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009,
- *               2010, 2011, 2012
+ *               2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,11 +46,11 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.221 2013/07/21 19:13:02 michaels Exp $";
+"$Id: tostring.c,v 1.225 2013/10/27 15:24:42 karls Exp $";
 
 static const char *stripstring = ", \t\n";
 
-int32_t 
+int32_t
 string2portnumber(string, emsg, emsglen)
    const char *string;
    char *emsg;
@@ -79,7 +79,7 @@ string2portnumber(string, emsg, emsglen)
 
          return -1;
       }
-   } 
+   }
 
    snprintf(emsg, emsglen,
             "\"%s\" does not appear to be a valid portnumber in the range "
@@ -357,7 +357,7 @@ ruleaddr2string(address, includeinfo, string, len)
 
          if (inet_ntop(AF_INET6, &address->addr.ipv6.ip, ntop, sizeof(ntop))
          == NULL)
-            serr("%s: inet_ntop(3) failed on %s " IP6_FMTSTR, 
+            serr("%s: inet_ntop(3) failed on %s " IP6_FMTSTR,
                  function,
                  atype2string(address->atype),
                  IP6_ELEMENTS(&address->addr.ipv6.ip));
@@ -368,8 +368,8 @@ ruleaddr2string(address, includeinfo, string, len)
       }
 
       case SOCKS_ADDR_IPVANY:
-			SASSERTX(address->addr.ipvany.ip.s_addr   == htonl(0));
-			SASSERTX(address->addr.ipvany.mask.s_addr == htonl(0));
+         SASSERTX(address->addr.ipvany.ip.s_addr   == htonl(0));
+         SASSERTX(address->addr.ipvany.mask.s_addr == htonl(0));
 
          lenused += snprintf(&string[lenused], len - lenused, "%d/%d",
                              ntohl(address->addr.ipvany.ip.s_addr),
@@ -391,7 +391,7 @@ ruleaddr2string(address, includeinfo, string, len)
          SERRX(address->atype);
    }
 
-   if (includeinfo & ADDRINFO_PORT)
+   if (includeinfo & ADDRINFO_PORT) {
       switch (address->operator) {
          case none:
             break;
@@ -427,6 +427,7 @@ ruleaddr2string(address, includeinfo, string, len)
          default:
             SERRX(address->operator);
       }
+   }
 
    return string;
 }
@@ -720,7 +721,7 @@ sockshost2string2(host, includeinfo, string, len)
       }
 
       case SOCKS_ADDR_IPV6: {
-         char b[MAX(INET6_ADDRSTRLEN, 32)]; 
+         char b[MAX(INET6_ADDRSTRLEN, 32)];
 
          if (inet_ntop(AF_INET6, &host->addr.ipv6, b, sizeof(b)) == NULL)
             STRCPY_ASSERTSIZE(b, "<nonsense address>");
@@ -762,7 +763,7 @@ sockshost2string2(host, includeinfo, string, len)
          case SOCKS_ADDR_IPV4:
          case SOCKS_ADDR_IPV6:
          case SOCKS_ADDR_DOMAIN:
-            lenused += snprintf(&string[lenused], len - lenused, 
+            lenused += snprintf(&string[lenused], len - lenused,
                                 ".%d", ntohs(host->port));
             break;
       }
@@ -820,7 +821,7 @@ sockaddr2string2(addr, includeinfo, string, len)
                           safamily2string(addr->ss_family));
 
    switch (addr->ss_family) {
-      case AF_INET: 
+      case AF_INET:
       case AF_INET6: {
          if (inet_ntop(addr->ss_family,
                        GET_SOCKADDRADDR(addr),
@@ -847,22 +848,22 @@ sockaddr2string2(addr, includeinfo, string, len)
 
             switch (addr->ss_family) {
                case AF_INET:
-                  snprintf(addrstr, sizeof(addrstr), 
+                  snprintf(addrstr, sizeof(addrstr),
                            "0x%x", TOCIN(addr)->sin_addr.s_addr);
                   break;
 
                case AF_INET6:
-                  snprintf(addrstr, sizeof(addrstr), 
+                  snprintf(addrstr, sizeof(addrstr),
                            IP6_FMTSTR, IP6_ELEMENTS(&TOCIN6(addr)->sin6_addr));
                   break;
 
-               default: 
+               default:
                   SERRX(addr->ss_family);
             }
 
-            snprintf(string, len, 
+            snprintf(string, len,
                      "<inet_ntop(3) on af %d, addr %s, failed: %s>",
-                     addr->ss_family, 
+                     addr->ss_family,
                      strerror(errno),
                      addrstr);
 
@@ -880,7 +881,7 @@ sockaddr2string2(addr, includeinfo, string, len)
 }
 
 char *
-addr2hexstring(addr, safamily, string, len) 
+addr2hexstring(addr, safamily, string, len)
    const void *addr;
    const sa_family_t safamily;
    char *string;
@@ -899,12 +900,12 @@ addr2hexstring(addr, safamily, string, len)
          break;
 
       case AF_INET6:
-         snprintf(string, len, 
-                  IP6_FMTSTR, 
+         snprintf(string, len,
+                  IP6_FMTSTR,
                   IP6_ELEMENTS(((const struct in6_addr *)addr)));
          break;
 
-      default: 
+      default:
          SERRX(safamily);
    }
 
@@ -1134,7 +1135,7 @@ socktype2string(socktype)
 }
 
 
-char *      
+char *
 ltoa(l, buf, buflen)
    long l;
    char *buf;
@@ -1163,12 +1164,12 @@ ltoa(l, buf, buflen)
       l         = -l;
       add_minus = 1;
    }
-   else          
+   else
       add_minus = 0;
 
-   do {          
+   do {
       *(--p)  = (char)((l % 10) + '0');
-      l      /= 10;                 
+      l      /= 10;
    } while (l != 0 && p > buf);
 
    if (l != 0
@@ -1192,7 +1193,7 @@ ltoa(l, buf, buflen)
    SASSERTX(buf[bufused - 1] == NUL);
 
    return buf;
-}                
+}
 
 #if HAVE_GSSAPI
 const char *
@@ -1723,12 +1724,12 @@ sockopt2string(opt, str, strsize)
                       "%s (%d), level %s (%d), calltype %d, %s-side",
                       opt->info == NULL ? "<unknown>" : opt->info->name,
                       opt->optname,
-                      sockoptlevel2string(opt->info == NULL ? 
+                      sockoptlevel2string(opt->info == NULL ?
                                              opt->level : opt->info->level),
                       opt->info == NULL ? opt->level : opt->info->level,
                       opt->info == NULL ? -1 : (int)opt->info->calltype,
-                      opt->info == NULL ? 
-                           "<unknown>" : opt->isinternalside ? 
+                      opt->info == NULL ?
+                           "<unknown>" : opt->isinternalside ?
                                          "internal" : "external");
 
 #if 1
@@ -1774,6 +1775,25 @@ socketsettime2string(whichtime)
 }
 
 #if !SOCKS_CLIENT
+
+const char *
+addrscope2string(scope)
+   const ipv6_addrscope_t scope;
+{
+   switch (scope) {
+      case addrscope_global:
+         return "global";
+
+      case addrscope_linklocal:
+         return "linklocal";
+
+      case addrscope_nodelocal:
+         return "nodelocal";
+   }
+
+   SERRX(scope);
+   /* NOTREACHED */
+}
 
 const char *
 alarmside2string(alarmside)

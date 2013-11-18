@@ -1,4 +1,4 @@
-# $Id: INSTALL,v 1.45 2013/03/19 22:37:19 karls Exp $
+# $Id: INSTALL,v 1.46 2013/10/27 15:24:41 karls Exp $
 
 This file describes how to install Dante.  Dante is a Socks client
 and server firewall implementation.  It can be installed on a machine
@@ -395,4 +395,5 @@ Please report any bugs, problems or enhancements to dante-bugs@inet.no
 
 The WWW home page for Dante is located at: http://www.inet.no/dante/
 
-Copyright (c) 1998, 1999, 2000, 2009, 2011, 2012 Inferno Nettverk A/S, Norway.
+Copyright (c) 1998, 1999, 2000, 2009, 2011, 2012, 2013
+ Inferno Nettverk A/S, Norway.

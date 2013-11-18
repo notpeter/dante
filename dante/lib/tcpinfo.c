@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 
+ * Copyright (c) 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #endif /* HAVE_NETINET_TCP_FSM_H */
 
 static const char rcsid[] =
-"$Id: tcpinfo.c,v 1.11 2013/05/11 14:14:30 karls Exp $";
+"$Id: tcpinfo.c,v 1.15 2013/10/27 15:17:06 karls Exp $";
 
 #if HAVE_TCP_INFO
 
@@ -67,7 +67,6 @@ get_tcpinfo(fdc, fdv, buf, buflen)
 {
    const char *function = "get_tcpinfo()";
 #if HAVE_TCP_INFO
-   typedef unsigned long int ulong;
    struct tcp_info info_0, info_1;
    socklen_t len;
    size_t bufused;
@@ -76,7 +75,7 @@ get_tcpinfo(fdc, fdv, buf, buflen)
       return NULL;
 
    if (buf == NULL || buflen == 0) {
-      static char bufmem[   (31 + 10) /* number of keywords + 10 extra keyw. */ 
+      static char bufmem[   (31 + 10) /* number of keywords + 10 extra keyw. */
                          *  (20 /* length of keyword */ + 10 /* key value */)
                          *  2   /* max fdc. */];
 
@@ -202,15 +201,15 @@ do {                                                                           \
 
 #if HAVE_TCP_INFO_TCPI_CA_STATE
    /*
-    * enum tcp_ca_state. 
+    * enum tcp_ca_state.
     */
    ADDATTR(fdc, fdv, tcpi_ca_state, tcpi_ca_state2string, &info_0, &info_1);
 #endif /* HAVE_TCP_INFO_TCPI_CA_STATE */
 
 #if HAVE_TCP_INFO_TCPI_RETRANSMITS
    /*
-    * Number of times we have retransmitted currently outstanding  
-    * data, based on ACK timeouts?  Reset every time sucessfully ACK'ed
+    * Number of times we have retransmitted currently outstanding
+    * data, based on ACK timeouts?  Reset every time successfully ACK'ed
     * and things are moving on? (and possibly in a few other cases too?)
     * [Mostly verified]
     */
@@ -220,15 +219,15 @@ do {                                                                           \
 #if HAVE_TCP_INFO_TCPI_PROBES
    /*
     * Number of tcp zero window probes sent.
-    * Sent if peer advertizes a zero receive window size, 
+    * Sent if peer advertizes a zero receive window size,
     * preventing us from sending it any more data.
     *
     * Think this is sent if the peer receive window has been zero
     * for a while (without updates to refresh it as zero), and
     * this counts for how long (how many probes) it has currently
-    * been zero.  
+    * been zero.
     * Not sure if the max value, before we trigger a send error
-    * is the sysctl tcp_retries2, or if the source code comment 
+    * is the sysctl tcp_retries2, or if the source code comment
     * is still correct in that there is no max value.
     */
    ADDATTR(fdc, fdv, tcpi_probes, NULL, &info_0, &info_1);
@@ -237,10 +236,10 @@ do {                                                                           \
 #if HAVE_TCP_INFO_TCPI_BACKOFF
    /*
     * Current backoff value.  Used to calculate how long to wait
-    * before retransmitting un-acked data.  
-    * The wait is calculated as a factor of this value, so would 
-    * think this should have the same value as tcpi_retransmits, 
-    * but looks like this value is reset in some cases where 
+    * before retransmitting un-acked data.
+    * The wait is calculated as a factor of this value, so would
+    * think this should have the same value as tcpi_retransmits,
+    * but looks like this value is reset in some cases where
     * tcpi_retransmits is not.
     *
     * Looks like it is also limited by sysctl tcp_retries2.
@@ -248,8 +247,8 @@ do {                                                                           \
    ADDATTR(fdc, fdv, tcpi_backoff, NULL, &info_0, &info_1);
 #endif /* HAVE_TCP_INFO_TCPI_BACKOFF */
 
-   /* 
-    * Options set on socket.  
+   /*
+    * Options set on socket.
     */
    ADDATTR(fdc, fdv, tcpi_options, tcpi_options2string, &info_0, &info_1);
 
@@ -262,7 +261,7 @@ do {                                                                           \
     * how much we told peer to scale our windows receive size by?
     */
    ADDATTR(fdc, fdv, tcpi_rcv_wscale, NULL, &info_0, &info_1);
-   
+
    /*
     * Retransmission timeout.  Microseconds.
     */
@@ -282,10 +281,10 @@ do {                                                                           \
 
    /*
     * Maximum segment size for outgoing TCP packets used by peer.  Bytes.
-    * A guess made by our side.  
+    * A guess made by our side.
     */
    ADDATTR(fdc, fdv, tcpi_rcv_mss, NULL, &info_0, &info_1);
-   
+
 #if HAVE_TCP_INFO_TCPI_UNACKED
    /*
     * Number of packets sent by us, but not yet ack'ed by peer.
@@ -296,7 +295,7 @@ do {                                                                           \
 #if HAVE_TCP_INFO_TCPI_SACKED
    /*
     * Packets that arrived at peer out of order.
-    * If TCPI_OPT_SACK is not enabled, this value is still set, 
+    * If TCPI_OPT_SACK is not enabled, this value is still set,
     * but based on an estimate (duplicate acks)?
     * Reset ... when?
     */
@@ -325,11 +324,11 @@ do {                                                                           \
     */
    ADDATTR(fdc, fdv, tcpi_fackets, NULL, &info_0, &info_1);
 #endif /* HAVE_TCP_INFO_TCPI_FACKETS */
-   
-   /* 
-    * Times since last sent/received.  All in miliseconds.
-    * Noe that some (all?) of these seems to contain some random value 
-    * initially.  At least for tcpi_last_data_recv that appears to be 
+
+   /*
+    * Times since last sent/received.  All in milliseconds.
+    * Note that some (all?) of these seems to contain some random value
+    * initially.  At least for tcpi_last_data_recv that appears to be
     * the case.
     */
 
@@ -364,7 +363,7 @@ do {                                                                           \
    ADDATTR(fdc, fdv, tcpi_last_ack_recv, NULL, &info_0, &info_1);
 #endif /* HAVE_TCP_INFO_TCPI_LAST_ACK_RECV */
 
-   /* 
+   /*
     * Metrics.
     */
 
@@ -372,7 +371,7 @@ do {                                                                           \
 
 #if HAVE_TCP_INFO_TCPI_PMTU
    /*
-    * Path MTU.  Bytes.  
+    * Path MTU.  Bytes.
     * What if not known?  Guessed?
     */
    ADDATTR(fdc, fdv, tcpi_pmtu, NULL, &info_0, &info_1);
@@ -380,9 +379,9 @@ do {                                                                           \
 
 #if HAVE_TCP_INFO_TCPI_RCV_SSTHRESH
    /*
-    * receive slow start treshold?
+    * receive slow start threshold?
     * Something related to the receive window we advertise,
-    * based on how well we have performed (how fast we've 
+    * based on how well we have performed (how fast we've
     * read data out of our socket buffer?) in the past and
     * how much memory is available?
     */
@@ -391,19 +390,19 @@ do {                                                                           \
 
    /*
     * Estimated round-trip-time?
-    * Possibly max of the moving average and last rtt calculation 
+    * Possibly max of the moving average and last rtt calculation
     * done (which is not necessarily the rtt of last packet).
     * Microseconds.  If no value calculated, set to 1000.
     */
    ADDATTR(fdc, fdv, tcpi_rtt, NULL, &info_0, &info_1);
-    
-   /* 
+
+   /*
     * median deviation for tcpi_rtt?  Microseconds.
     */
    ADDATTR(fdc, fdv, tcpi_rttvar, NULL, &info_0, &info_1);
 
    /*
-    * send slow start treshold?
+    * send slow start threshold?
     */
    ADDATTR(fdc, fdv, tcpi_snd_ssthresh, NULL, &info_0, &info_1);
 
@@ -414,7 +413,7 @@ do {                                                                           \
 
 #if HAVE_TCP_INFO_TCPI_ADVMSS
    /*
-    * MSS we advertise to peer.  If advertised, advertised as part 
+    * MSS we advertise to peer.  If advertised, advertised as part
     * of TCP options.  Otherwise peer has to assume minimum, 536?
     * Number of bytes.
     */
@@ -422,13 +421,13 @@ do {                                                                           \
 #endif /* HAVE_TCP_INFO_TCPI_ADVMSS */
 
 #if HAVE_TCP_INFO_TCPI_REORDERING
-   /* 
+   /*
     * Same as sysctl tcp_reordering?  I.e. not dynamically updated?
     * If so, why here?
     */
    ADDATTR(fdc, fdv, tcpi_reordering, NULL, &info_0, &info_1);
 #endif /* HAVE_TCP_INFO_TCPI_REORDERING */
-   
+
 #if HAVE_TCP_INFO_TCPI_RCV_RTT
    /*
     * "receivers (ours) estimated rtt".  Same as tcpi_rtt, but
@@ -438,7 +437,7 @@ do {                                                                           \
 #endif /* HAVE_TCP_INFO_TCPI_RCV_RTT */
 
 #if HAVE_TCP_INFO_TCPI_RCV_SPACE
-   /* 
+   /*
     * Size of our receive buffer?
     * Tuned/modified while session is running?
     * Number of bytes.
@@ -451,9 +450,9 @@ do {                                                                           \
 
 #if HAVE_TCP_INFO_TCPI_TOTAL_RETRANS
    /*
-    * Total number of packets retransmitted on this connection, 
-    * regardless of reason.  
-    * Note that this appears to be calculated based on the data, so if e.g. 
+    * Total number of packets retransmitted on this connection,
+    * regardless of reason.
+    * Note that this appears to be calculated based on the data, so if e.g.
     * a large packet is retransmitted as two smaller packets, that counts as
     * two retransmits, not one.
     * [Verified]
@@ -575,7 +574,7 @@ const char *tcpi_state2string(val)
          return "CLOSING";
    }
 #endif /* __linux__ */
- 
+
    return "<undecoded>";
 }
 
@@ -589,22 +588,22 @@ const char *tcpi_options2string(val)
    bufused = 0;
 
    if (val & TCPI_OPT_TIMESTAMPS)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, 
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
                           "%sTS",
                           *buf == NUL ? "" : ", ");
 
    if (val & TCPI_OPT_SACK)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, 
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
                           "%sSACK",
                           *buf == NUL ? "" : ", ");
 
    if (val & TCPI_OPT_WSCALE)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, 
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
                           "%sWscale",
                           *buf == NUL ? "" : ", ");
 
    if (val & TCPI_OPT_ECN)
-      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused, 
+      bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
                           "%sECN",
                           *buf == NUL ? "" : ", ");
 

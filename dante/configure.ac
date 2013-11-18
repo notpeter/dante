@@ -1,6 +1,6 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.657 2013/07/15 00:05:13 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.661 2013/11/05 22:20:37 karls Exp $)
 
 unset TAG
 lcase () {
@@ -22,7 +22,7 @@ if test x"$TAG" != x; then
 fi
 RPMVERSION1="$version"
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="2"
+#prerelease="3"
 if test x"$prerelease" != x; then
     prename="pre$prerelease"
     version="${version}${TAG:+-}$TAG-$prename"
@@ -127,10 +127,10 @@ m4_include(sockopt.m4)
 #look for modules, and check version
 servdir=sockd
 unset MOD_BANDWIDTH MOD_REDIRECT MOD_LDAP
-L_MODVER(bandwidth,   72, $servdir, [MOD_BANDWIDTH=t])
-L_MODVER(redirect,    47, $servdir, [MOD_REDIRECT=t])
-L_MODVER(ldap,        47, $servdir, [MOD_LDAP=t])
-L_MODVER(checkmodule, 39, $servdir, [], nokey) #helper file
+L_MODVER(bandwidth,   101, $servdir, [MOD_BANDWIDTH=t])
+L_MODVER(redirect,    77, $servdir, [MOD_REDIRECT=t])
+L_MODVER(ldap,        118, $servdir, [MOD_LDAP=t])
+L_MODVER(checkmodule, 62, $servdir, [], nokey) #helper file
 
 if test x"$MOD_BANDWIDTH" != x; then
    FEAT="$FEAT${FEAT:+ }mod-bandwidth"
@@ -218,7 +218,11 @@ echo "compiler flags: $comp_flags" >> buildenv.txt
 echo "warning flags: $warn" >> buildenv.txt
 echo "FEATURES: $FEAT" >> buildenv.txt
 echo "compat: $COMPATFUNCS" >> buildenv.txt
-#echo "socket options: `echo $OKSOCKOPTS | ucase`" >> buildenv.txt
+echo "socket options (socket level): `echo ${UCOKSOCKOPTS_SO} | ucase`" >> buildenv.txt
+echo "socket options (ipv4 level): `echo ${UCOKSOCKOPTS_IPV4} | ucase`" >> buildenv.txt
+echo "socket options (ipv6 level): `echo ${UCOKSOCKOPTS_IPV6} | ucase`" >> buildenv.txt
+echo "socket options (tcp level): `echo ${UCOKSOCKOPTS_TCP} | ucase`" >> buildenv.txt
+echo "socket options (udp level): `echo ${UCOKSOCKOPTS_UDP} | ucase`" >> buildenv.txt
 echo "socket option arguments: `echo $OKSOCKOPTVALSYMS | ucase`" >> buildenv.txt
 
 cat buildenv.txt

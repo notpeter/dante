@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,12 +50,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: gssapi.c,v 1.167 2013/07/30 09:02:44 michaels Exp $";
+"$Id: gssapi.c,v 1.171 2013/11/15 05:12:22 michaels Exp $";
 
 #if HAVE_GSSAPI
 
 static ssize_t
-gssapi_decode_read_udp(int s, void *buf, size_t len, int flags, 
+gssapi_decode_read_udp(int s, void *buf, size_t len, int flags,
                        struct sockaddr_storage *from, socklen_t *fromlen,
                        recvfrom_info_t *recvflags, gssapi_state_t *gs,
                        unsigned char *token, const size_t tokensize);
@@ -77,7 +77,7 @@ gssapi_encode_write_udp(int s, const void *msg, size_t len, int flags,
  */
 
 static int
-gssapi_headerisok(const unsigned char *headerbuf, const size_t len, 
+gssapi_headerisok(const unsigned char *headerbuf, const size_t len,
                   unsigned short *tokenlen,
                   char *emsg, size_t emsglen);
 /*
@@ -187,7 +187,7 @@ gssapi_encode(input_token, gs, output_token)
 
    slog(LOG_DEBUG, "%s, input length %lu, max output length %lu",
         function,
-        (long unsigned)input_token->length, 
+        (long unsigned)input_token->length,
         (long unsigned)output_token->length);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
@@ -215,16 +215,16 @@ gssapi_encode(input_token, gs, output_token)
    }
 
    if (encoded_token.length > input_token->length) {
-      if (((encoded_token.length + GSSAPI_HLEN) - input_token->length) 
+      if (((encoded_token.length + GSSAPI_HLEN) - input_token->length)
       > gs->gssoverhead) {
         slog(LOG_DEBUG,
              "%s: max expected GSSAPI overhead increased from %lu to %lu",
              function,
-             (unsigned long)gs->gssoverhead, 
-             (unsigned long)((encoded_token.length + GSSAPI_HLEN) 
+             (unsigned long)gs->gssoverhead,
+             (unsigned long)((encoded_token.length + GSSAPI_HLEN)
                              - input_token->length));
 
-        gs->gssoverhead = (encoded_token.length + GSSAPI_HLEN) 
+        gs->gssoverhead = (encoded_token.length + GSSAPI_HLEN)
                           - input_token->length;
       }
    }
@@ -232,7 +232,7 @@ gssapi_encode(input_token, gs, output_token)
    if (encoded_token.length > output_token->length) {
       slog(LOG_DEBUG, "%s: encoded token length (%lu) larger than buffer (%lu)",
            function,
-           (long unsigned)encoded_token.length, 
+           (long unsigned)encoded_token.length,
            (long unsigned)output_token->length);
 
       CLEAN_GSS_TOKEN(encoded_token);
@@ -301,10 +301,10 @@ gssapi_decode(input_token, gs, output_token)
 
    slog(LOG_DEBUG, "%s, input length %lu, max output length %lu",
         function,
-        (long unsigned)input_token->length, 
+        (long unsigned)input_token->length,
         (long unsigned)output_token->length);
 
-   req_conf_state = (gs->protection == GSSAPI_CONFIDENTIALITY ? 
+   req_conf_state = (gs->protection == GSSAPI_CONFIDENTIALITY ?
                         GSS_REQ_CONF : GSS_REQ_INT);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
@@ -316,7 +316,7 @@ gssapi_decode(input_token, gs, output_token)
                              gs->id,
                              input_token,
                              &decoded_token,
-                             &req_conf_state, 
+                             &req_conf_state,
                              GSS_C_QOP_DEFAULT);
    SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
@@ -325,11 +325,6 @@ gssapi_decode(input_token, gs, output_token)
 #endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
-#if 0
-      slog(LOG_INFO, "%s: gss_unwrap() failed on token of length %lu: %s",
-           function, (unsigned long)input_token->length, emsg);
-
-#else 
       slog(LOG_INFO,
            "%s: gss_unwrap() failed on token of length %lu.  "
            "First + 10 encoded bytes: 0x%x, 0x%x, 0x%x, 0x%x,  "
@@ -346,8 +341,8 @@ gssapi_decode(input_token, gs, output_token)
            ((const unsigned char *)input_token->value)[input_token->length - 1],
            emsg);
 
-      SWARNX(0);
-#endif
+      if (!GSSERR_IS_OK(major_status))
+         SWARNX(0);
 
       errno = 0; /* make sure caller does not reuse some old leftover value. */
       return -1;
@@ -377,7 +372,7 @@ gssapi_decode(input_token, gs, output_token)
         (unsigned long)output_token->length,
         (unsigned long)input_token->length);
 
-#else 
+#else
 
    slog(LOG_DEBUG,
         "%s: gssapi packet decoded.  Decoded/encoded length %lu/%lu.  "
@@ -431,7 +426,7 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, recvflags, gs)
    gssapi_state_t *gs;
 {
    const char *function = "gssapi_decode_read()";
-#if SOCKS_CLIENT 
+#if SOCKS_CLIENT
    size_t encodedinbuffer;
 #endif /* !SOCKS_CLIENT */
 
@@ -441,7 +436,7 @@ gssapi_decode_read(s, buf, len, flags, from, fromlen, recvflags, gs)
    ssize_t nread;
    size_t tokennumber = 1, p, toread, readfrombuf;
    char emsg[512];
-   unsigned char outputmem[GSSAPI_HLEN + MAXGSSAPITOKENLEN], 
+   unsigned char outputmem[GSSAPI_HLEN + MAXGSSAPITOKENLEN],
                  inputmem[sizeof(iobuf->buf[0])];
 
 #if SOCKS_CLIENT
@@ -468,11 +463,16 @@ again:
 
    if ((iobuf = socks_getbuffer(s)) == NULL) {
       int stype;
-      socklen_t tlen = sizeof(stype);
 
-      if (getsockopt(s, SOL_SOCKET, SO_TYPE, &stype, &tlen) != 0) {
-         swarn("%s: getsockopt(SO_TYPE)", function);
-         return -1;
+      if (recvflags != NULL)
+         stype = recvflags->type;
+      else {
+         socklen_t tlen = sizeof(stype);
+
+         if (getsockopt(s, SOL_SOCKET, SO_TYPE, &stype, &tlen) != 0) {
+            swarn("%s: getsockopt(SO_TYPE)", function);
+            return -1;
+         }
       }
 
       if ((iobuf = socks_allocbuffer(s, stype)) == NULL) {
@@ -559,7 +559,7 @@ again:
    SASSERTX(socks_bytesinbuffer(s, READ_BUF, 0) == 0);
 
    /*
-    * No decoded data buffered.  Since we were called it should mean there 
+    * No decoded data buffered.  Since we were called it should mean there
     * is (encoded) data available for read from socket.  Make sure
     * we read with something that does not step on our toes concerning
     * using our iobuf, like e.g. socks_recvfrom() could do.
@@ -587,7 +587,7 @@ again:
       recvflags->fromsocket += nread;
 
    if (sockscf.option.debug)
-      slog(LOG_DEBUG, 
+      slog(LOG_DEBUG,
            "%s: read %ld/%lu from socket.  Previously buffered: %lu/%lu",
            function,
            (long)nread,
@@ -614,7 +614,7 @@ again:
                 outputmem,
                 nread,
                 0);
-                           
+
       if (rc != nread)
          SWARN(rc);
 
@@ -631,7 +631,7 @@ again:
    }
 
    /*
-    * Have read enough to at least check the whole SOCKS GSSAPI header, 
+    * Have read enough to at least check the whole SOCKS GSSAPI header,
     * so check that first.
     */
 
@@ -644,8 +644,8 @@ again:
            function, s, socket2string(s, NULL, 0), emsg);
 
       /*
-       * would be nice to only discard the data belonging to the erroneous 
-       * token, but how can we know how long it is? Things will probably 
+       * would be nice to only discard the data belonging to the erroneous
+       * token, but how can we know how long it is? Things will probably
        * only go downhill from here so close the session instead,
        * at least in the client tcp case.
        */
@@ -712,7 +712,7 @@ again:
     * we had already read (and thus previously discarded).
     */
 
-   iobuf->info[READ_BUF].peekedbytes =   (GSSAPI_HLEN + encodedlen) 
+   iobuf->info[READ_BUF].peekedbytes =   (GSSAPI_HLEN + encodedlen)
                                        - encodedinbuffer;
 
    slog(LOG_DEBUG,
@@ -726,16 +726,16 @@ again:
 
    readfrombuf = socks_getfrombuffer(s,
                                      0,
-                                     READ_BUF, 
-                                     1, 
-                                     inputmem, 
+                                     READ_BUF,
+                                     1,
+                                     inputmem,
                                      GSSAPI_HLEN + encodedlen);
 
-   slog(LOG_DEBUG, 
+   slog(LOG_DEBUG,
         "%s: read all we need to decode token #%lu of length %u.   "
-        "Last encoded byte: 0x%x", 
+        "Last encoded byte: 0x%x",
         function,
-        (unsigned long)tokennumber, 
+        (unsigned long)tokennumber,
         encodedlen,
         inputmem[readfrombuf - 1]);
 
@@ -748,7 +748,7 @@ again:
    output_token.length = sizeof(outputmem);
 
    if (gssapi_decode(&input_token, gs, &output_token) != 0) {
-      slog(LOG_INFO, 
+      slog(LOG_INFO,
            "%s: gssapi token of length %u failed to decode - discarded: %s",
            function, encodedlen, strerror(errno));
 
@@ -760,7 +760,9 @@ again:
       else {
          SASSERTX(rc <= nread);
 
-         /* recvflags is always NULL in the client, but perhaps in future ... */
+         /*
+          * recvflags is always NULL in the client, but perhaps in future ...
+          */
          if (recvflags != NULL) /* only count non-peeked bytes. */
             recvflags->fromsocket -= (nread - rc);
       }
@@ -784,10 +786,10 @@ again:
    memcpy(buf, output_token.value, len);
 
    if (output_token.length > len)
-      socks_addtobuffer(s, 
-                        READ_BUF, 
-                        0, 
-                        ((char *)output_token.value) + len, 
+      socks_addtobuffer(s,
+                        READ_BUF,
+                        0,
+                        ((char *)output_token.value) + len,
                         output_token.length - len);
 
 
@@ -821,11 +823,11 @@ again:
           * Get whats left in the buffer first, so it is empty and we
           * can add the data back to the start of the buffer.
           */
-         nread = socks_getfrombuffer(s, 
-                                     0, 
-                                     READ_BUF, 
-                                     0, 
-                                     inputmem, 
+         nread = socks_getfrombuffer(s,
+                                     0,
+                                     READ_BUF,
+                                     0,
+                                     inputmem,
                                      sizeof(inputmem));
 
          socks_addtobuffer(s, READ_BUF, 0, buf, len);
@@ -844,8 +846,8 @@ again:
       if (rc != (ssize_t)iobuf->info[READ_BUF].peekedbytes)
          swarn("%s: expected to read %lu previously peeked at bytes, "
                "but read only %ld",
-               function, 
-               (unsigned long)iobuf->info[READ_BUF].peekedbytes, 
+               function,
+               (unsigned long)iobuf->info[READ_BUF].peekedbytes,
                (long)rc);
 
       socks_clearbuffer(s, READ_BUF);
@@ -853,30 +855,30 @@ again:
 #else /* !SOCKS_CLIENT */
 
    /*
-    * Make sure we decode what we can.  We should only have encoded data in 
+    * Make sure we decode what we can.  We should only have encoded data in
     * the buffer if we have not yet read enough encoded data to decode it.
     */
 
    while (socks_bytesinbuffer(s, READ_BUF, 1) > GSSAPI_HLEN) {
        ++tokennumber;
 
-       slog(LOG_DEBUG, 
+       slog(LOG_DEBUG,
             "%s: read more than one token, now working on token #%lu",
             function, (long unsigned)tokennumber);
 
        nread = socks_getfrombuffer(s,
-                                   MSG_PEEK, 
-                                   READ_BUF, 
-                                   1, 
-                                   inputmem, 
+                                   MSG_PEEK,
+                                   READ_BUF,
+                                   1,
+                                   inputmem,
                                    GSSAPI_HLEN);
 
        SASSERTX(nread == GSSAPI_HLEN);
 
-       if (!gssapi_headerisok(inputmem, 
-                              nread, 
-                              &encodedlen, 
-                              emsg, 
+       if (!gssapi_headerisok(inputmem,
+                              nread,
+                              &encodedlen,
+                              emsg,
                               sizeof(emsg))) {
          /*
           * would be nice to only discard the data belonging to the
@@ -905,25 +907,25 @@ again:
          break;
       }
 
-      nread = socks_getfrombuffer(s, 
-                                  0, 
-                                  READ_BUF, 
-                                  1, 
-                                  inputmem, 
+      nread = socks_getfrombuffer(s,
+                                  0,
+                                  READ_BUF,
+                                  1,
+                                  inputmem,
                                   GSSAPI_HLEN + encodedlen);
 
       SASSERTX(nread == GSSAPI_HLEN + encodedlen);
 
-      slog(LOG_DEBUG, 
+      slog(LOG_DEBUG,
             "%s: read all we need to decode token #%lu of length %u "
-            "([%d]: 0x%x, [%d]: 0x%x)", 
+            "([%d]: 0x%x, [%d]: 0x%x)",
             function,
-            (unsigned long)tokennumber, 
+            (unsigned long)tokennumber,
             encodedlen,
-            GSSAPI_HLEN + encodedlen - 1, 
-            inputmem[GSSAPI_HLEN + encodedlen - 1], 
-            GSSAPI_HLEN + encodedlen - 2, 
-            inputmem[GSSAPI_HLEN + encodedlen - 2]); 
+            GSSAPI_HLEN + encodedlen - 1,
+            inputmem[GSSAPI_HLEN + encodedlen - 1],
+            GSSAPI_HLEN + encodedlen - 2,
+            inputmem[GSSAPI_HLEN + encodedlen - 2]);
 
       input_token.value  = inputmem  + GSSAPI_HLEN;
       input_token.length = encodedlen;
@@ -942,7 +944,7 @@ again:
          slog(LOG_DEBUG,
               "%s: adding %lu decoded byte%s from new token to buffer.  "
               "Encoded byte%s in buffer: %lu",
-              function, 
+              function,
               (unsigned long)output_token.length,
               output_token.length == 1 ? "" : "s",
               (long unsigned)socks_bytesinbuffer(s, READ_BUF, 1) == 1 ?
@@ -990,10 +992,10 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, sendtoflags, gs)
    static size_t j;
    size_t lenv[] = { 60000, 60001, 60002, 60003, 60004, 60005, 60006, 60007,
                      60008, 60009, 60010, 60011, 60012, 60013, 60014, 60015 };
-    
+
    len = MIN(lenv[j % ELEMENTS(lenv)], len);
    ++j;
-#endif 
+#endif
 
    slog(LOG_DEBUG, "%s: fd %d, len %lu, gssoverhead %lu",
         function, s, (unsigned long)len, (unsigned long)gs->gssoverhead);
@@ -1025,13 +1027,13 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, sendtoflags, gs)
    }
 
    if (iobuf->stype == SOCK_DGRAM)
-      return gssapi_encode_write_udp(s, 
-                                     msg, 
-                                     len, 
-                                     flags, 
-                                     to, 
-                                     tolen, 
-                                     sendtoflags, 
+      return gssapi_encode_write_udp(s,
+                                     msg,
+                                     len,
+                                     flags,
+                                     to,
+                                     tolen,
+                                     sendtoflags,
                                      gs,
                                      outputmem,
                                      sizeof(outputmem));
@@ -1099,14 +1101,14 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, sendtoflags, gs)
    }
 
    /*
-    * Attempt to avoid writing a partial token with no room to buffer the 
-    * remainder.  Since gs->gssoverhead is not a constant size, we need to 
-    * handle the possibility of it increasing, by checking again later that 
+    * Attempt to avoid writing a partial token with no room to buffer the
+    * remainder.  Since gs->gssoverhead is not a constant size, we need to
+    * handle the possibility of it increasing, by checking again later that
     * we actually have enough room to store the encoded token in our buffer.
     */
 
    /* save space for SOCKS GSSAPI header too. */
-   output_token.length = MIN(sizeof(outputmem) - GSSAPI_HLEN, 
+   output_token.length = MIN(sizeof(outputmem) - GSSAPI_HLEN,
                              socks_freeinbuffer(s, WRITE_BUF) - GSSAPI_HLEN);
 
    /* will put the SOCKS GSSAPI header at the start. */
@@ -1118,18 +1120,18 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, sendtoflags, gs)
    p = MIN(len, socks_freeinbuffer(s, WRITE_BUF) - gs->gssoverhead);
 
    if (p <= 0 || output_token.length < gs->gssoverhead) {
-      slog(LOG_DEBUG, 
+      slog(LOG_DEBUG,
            "%s: not enough room in buffer.  Free space in buffer is only %lu, "
            "while expected gssapi-encapsulation overhead is %lu",
-           function, 
-           (unsigned long)socks_freeinbuffer(s, WRITE_BUF), 
+           function,
+           (unsigned long)socks_freeinbuffer(s, WRITE_BUF),
            (unsigned long)gs->gssoverhead);
 
       errno = EAGAIN;
       return -1;
    }
 
-   if (len != (size_t)p) 
+   if (len != (size_t)p)
       slog(LOG_DEBUG, "%s: only have room to attempt a write of %ld/%lu",
            function, (long)p, (unsigned long)len);
 
@@ -1162,7 +1164,7 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, sendtoflags, gs)
          }
 
          slog(LOG_DEBUG,
-              "%s: data of length %lu too big for GSSAPI-encode.  " 
+              "%s: data of length %lu too big for GSSAPI-encode.  "
               "Maximum determined to be %lu.  Trying again",
               function, (long unsigned)len, (long unsigned)maxlen);
 
@@ -1195,7 +1197,7 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, sendtoflags, gs)
       return -1;
    }
 
-   /* 
+   /*
     * Prefix the SOCKS GSSAPI header to the token.
     */
 
@@ -1215,11 +1217,11 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, sendtoflags, gs)
 
    socks_addtobuffer(s, WRITE_BUF, 1, output_token.value, output_token.length);
 
-   towrite = socks_getfrombuffer(s, 
-                                 1, 
-                                 WRITE_BUF, 
-                                 1, 
-                                 outputmem, 
+   towrite = socks_getfrombuffer(s,
+                                 1,
+                                 WRITE_BUF,
+                                 1,
+                                 outputmem,
                                  sizeof(outputmem));
 
    if (towrite >= GSSAPI_HLEN + 2)
@@ -1256,7 +1258,7 @@ gssapi_encode_write(s, msg, len, flags, to, tolen, sendtoflags, gs)
       if (sendtoflags != NULL)
          sendtoflags->tosocket += written;
 
-   /* 
+   /*
     * Add what we could not write to our buffer.
     */
    socks_addtobuffer(s, WRITE_BUF, 1, outputmem + written, towrite - written);
@@ -1324,9 +1326,9 @@ gssapi_export_state(id, state)
 
    slog(LOG_DEBUG,
         "%s: created gssapistate of length %lu (start: 0x%x, 0x%x)",
-        function, 
+        function,
         (unsigned long)state->length,
-        ((unsigned char *)state->value)[0], 
+        ((unsigned char *)state->value)[0],
         ((unsigned char *)state->value)[1]);
 
    errno = errno_s; /* at least some gssapi libraries change errno. :-/ */
@@ -1400,7 +1402,7 @@ gssapi_headerisok(headerbuf, len, tokenlen, emsg, emsglen)
    *tokenlen = ntohs(*tokenlen);
 
    slog(LOG_DEBUG, "%s: SOCKS header for GSSAPI token of length %u is ok",
-        function, *tokenlen);        
+        function, *tokenlen);
 
    return 1;
 }
@@ -1430,7 +1432,7 @@ gssapi_isencrypted(s)
 #endif /* SOCKS_CLIENT */
 
 static ssize_t
-gssapi_decode_read_udp(s, buf, len, flags, from, fromlen, recvflags, gs, 
+gssapi_decode_read_udp(s, buf, len, flags, from, fromlen, recvflags, gs,
                        token, tokensize)
    int s;
    void *buf;
@@ -1503,7 +1505,7 @@ gssapi_decode_read_udp(s, buf, len, flags, from, fromlen, recvflags, gs,
            "but received only %ld",
            function,
            s,
-           socket2string(s, NULL, 0), 
+           socket2string(s, NULL, 0),
            (unsigned long)(GSSAPI_HLEN + encodedlen),
            (long)nread);
 
@@ -1540,7 +1542,7 @@ gssapi_decode_read_udp(s, buf, len, flags, from, fromlen, recvflags, gs,
 }
 
 static ssize_t
-gssapi_encode_write_udp(s, msg, len, flags, to, tolen, sendtoflags, gs, 
+gssapi_encode_write_udp(s, msg, len, flags, to, tolen, sendtoflags, gs,
                         token, tokensize)
    int s;
    const void *msg;
@@ -1550,7 +1552,7 @@ gssapi_encode_write_udp(s, msg, len, flags, to, tolen, sendtoflags, gs,
    socklen_t tolen;
    sendto_info_t *sendtoflags;
    gssapi_state_t *gs;
-   unsigned char *token; 
+   unsigned char *token;
    const size_t tokensize;
 {
    const char *function = "gssapi_encode_write_udp()";
@@ -1574,7 +1576,7 @@ gssapi_encode_write_udp(s, msg, len, flags, to, tolen, sendtoflags, gs,
    if (gssapi_encode(&input_token, gs, &output_token) != 0)
       return -1;
 
-   /* 
+   /*
     * Prefix the SOCKS GSSAPI header to the token.
     */
 

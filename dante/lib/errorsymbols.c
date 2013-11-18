@@ -45,7 +45,7 @@
 #include "errorsymbols.h"
 
 static const char rcsid[] =
-"$Id: errorsymbols.c,v 1.2 2013/05/04 13:20:07 michaels Exp $";
+"$Id: errorsymbols.c,v 1.3 2013/10/25 12:55:00 karls Exp $";
 
 static void
 doscan(const char *symbol, size_t *valuec, int valuev[], const size_t tablec,
@@ -62,7 +62,7 @@ const int *
 errnovalue(symbol)
    const char *symbol;
 {
-   static int valuev[MAX_ERRNO_VALUES_FOR_SYMBOL + 1];  
+   static int valuev[MAX_ERRNO_VALUES_FOR_SYMBOL + 1];
    size_t valuec;
 
    valuec = ELEMENTS(valuev);
@@ -78,7 +78,7 @@ const int *
 gaivalue(symbol)
    const char *symbol;
 {
-   static int valuev[MAX_GAIERR_VALUES_FOR_SYMBOL + 1];  
+   static int valuev[MAX_GAIERR_VALUES_FOR_SYMBOL + 1];
    size_t valuec;
 
    valuec = ELEMENTS(valuev);
@@ -107,7 +107,7 @@ doscan(symbol, valuec, valuev, tablec, tablev)
       if (strcasecmp(tablev[i].name, symbol) == 0) {
          valuev[(*valuec)++] = tablev[i].value;
 
-         /* 
+         /*
           * don't break out of loop; same symbol can expand to multiple values.
           */
       }

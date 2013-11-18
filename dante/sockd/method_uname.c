@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012
+ *               2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.112 2013/07/16 20:52:03 michaels Exp $";
+"$Id: method_uname.c,v 1.114 2013/10/27 15:24:42 karls Exp $";
 
 static negotiate_result_t
 recv_unamever(int s, request_t *request, negotiate_state_t *state);
@@ -91,8 +91,8 @@ passworddbisunique(void)
 
    if (methodisset(AUTHMETHOD_UNAME, sockscf.smethodv, sockscf.smethodc)) {
 #if HAVE_PAM
-     if (methodisset(AUTHMETHOD_PAM_USERNAME, 
-                     sockscf.smethodv, 
+     if (methodisset(AUTHMETHOD_PAM_USERNAME,
+                     sockscf.smethodv,
                      sockscf.smethodc))
          rc = 0;
       else
@@ -107,17 +107,17 @@ passworddbisunique(void)
    }
 
 #if HAVE_PAM
-   else if (methodisset(AUTHMETHOD_PAM_USERNAME, 
+   else if (methodisset(AUTHMETHOD_PAM_USERNAME,
                         sockscf.smethodv,
                         sockscf.smethodc)) {
       if (*sockscf.state.pamservicename == NUL)
          rc = 0;
-      else if (methodisset(AUTHMETHOD_UNAME, 
-                           sockscf.smethodv, 
+      else if (methodisset(AUTHMETHOD_UNAME,
+                           sockscf.smethodv,
                            sockscf.smethodc))
          rc = 0;
 #if HAVE_BSDAUTH
-      else if (methodisset(AUTHMETHOD_BSDAUTH, 
+      else if (methodisset(AUTHMETHOD_BSDAUTH,
                            sockscf.smethodv,
                            sockscf.smethodc))
          rc = 0;
@@ -128,13 +128,13 @@ passworddbisunique(void)
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
-   else if (methodisset(AUTHMETHOD_BSDAUTH, 
-                        sockscf.smethodv, 
+   else if (methodisset(AUTHMETHOD_BSDAUTH,
+                        sockscf.smethodv,
                         sockscf.smethodc)) {
       if (sockscf.state.bsdauthstylename == NULL)
          rc = 0;
-      else if (methodisset(AUTHMETHOD_UNAME, 
-                           sockscf.smethodv, 
+      else if (methodisset(AUTHMETHOD_UNAME,
+                           sockscf.smethodv,
                            sockscf.smethodc))
          rc = 0;
 #if HAVE_PAM
@@ -174,7 +174,7 @@ recv_unamever(s, request, state)
       default:
          snprintf(state->emsg, sizeof(state->emsg),
                   "%s: unknown %s version on username packet from client: %d",
-                  function, 
+                  function,
                   proxyprotocol2string(request->version),
                   request->auth->mdata.uname.version);
 
@@ -293,8 +293,8 @@ recv_passwd(s, request, state)
          break;
 
 #if HAVE_PAM
-      case AUTHMETHOD_PAM_ANY: 
-      case AUTHMETHOD_PAM_ADDRESS: 
+      case AUTHMETHOD_PAM_ANY:
+      case AUTHMETHOD_PAM_ADDRESS:
       case AUTHMETHOD_PAM_USERNAME: {
          /*
           * it's a union, make a copy before moving into pam object.
@@ -376,7 +376,7 @@ recv_passwd(s, request, state)
                      request->auth) != sizeof(response))
       return NEGOTIATE_ERROR;
 
-   if (response[UNAME_STATUS] == (unsigned char)UNAME_STATUS_ISOK) { 
+   if (response[UNAME_STATUS] == (unsigned char)UNAME_STATUS_ISOK) {
       state->rcurrent = recv_sockspacket;
 
       /* presumably client is awaiting our response. */

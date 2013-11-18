@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012
+ *               2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.370 2013/07/23 19:30:38 karls Exp $";
+"$Id: log.c,v 1.373 2013/10/27 15:24:42 karls Exp $";
 
 #include "common.h"
 #include "config_parse.h"
@@ -102,14 +102,14 @@ syslogfacility(const char *name);
 
 
 static void
-dolog(const int priority, const char *buf, 
+dolog(const int priority, const char *buf,
       const size_t logprefixlen, const size_t messagelen);
 /*
  * Does the actual logging of the formated logmessage for slog()/vslog().
  *
  * The last character in "buf", before the NUL, must be a newline.
  *
- * "prefixlen" is the length of the logprefix at the start of "buf", and 
+ * "prefixlen" is the length of the logprefix at the start of "buf", and
  * is not used if logging to syslog.
  *
  * "messagelen" gives the length of the message that follows after the
@@ -152,7 +152,7 @@ getlogprefix(const int priority, char *buf, size_t buflen);
 #define SOCKS_RINGBUF_MAXLINELEN (1024)
 
 #ifndef SOCKS_RINGBUFLEN
-#define SOCKS_RINGBUFLEN   (SOCKS_RINGBUF_MAXLINELEN * 100) 
+#define SOCKS_RINGBUFLEN   (SOCKS_RINGBUF_MAXLINELEN * 100)
 #endif /* SOCKS_RINGBUFLEN */
 
 
@@ -414,7 +414,8 @@ iolog(rule, state, op, src, dst, tosrc_proxy, todst_proxy, data, datalen)
                      "%c: %s%s%s",
                      op == OPERATION_ERROR ? ']' : '-',
                      srcdst_str,
-                     DATASEPARATOR(data),
+                     DATASEPARATOR((data == NULL || *data == NUL) ?
+                                          strerror(errno) : data),
                      (data == NULL || *data == NUL) ? strerror(errno) : data);
          }
          else {
@@ -465,7 +466,7 @@ iolog(rule, state, op, src, dst, tosrc_proxy, todst_proxy, data, datalen)
    slog(LOG_INFO, "%s %s%s%s",
         rulecommand,
         buf,
-        dologtcpinfo ? tcpinfoprefix  : "", 
+        dologtcpinfo ? tcpinfoprefix  : "",
         dologtcpinfo ? state->tcpinfo : "");
 
    free(bigbuf);
@@ -522,7 +523,7 @@ loglevel_errno(e, side)
       log = &sockscf.external.log;
    }
 
-   /* 
+   /*
     * Go through all loglevels and see if we find a match for 'e'.
     * Presumably there will not be too many errnovalues set, so
     * this should be fast enough.  The other obvious alternative,
@@ -558,7 +559,7 @@ loglevel_gaierr(e, side)
    CTASSERT(LOG_EMERG == 0);
    CTASSERT(LOG_DEBUG == 7);
 
-   slog(LOG_DEBUG, "%s: error %d, side %s", 
+   slog(LOG_DEBUG, "%s: error %d, side %s",
         function, e, side == EXTERNALIF ? "external" : "internal");
 
    if (last_loglevel != -1 && last_gaierr == e && last_side == side)
@@ -659,7 +660,7 @@ socks_addlogfile(logcf, logfile)
          STRCPY_ASSERTSIZE(logcf->facilityname, facility->name);
       }
       else {   /* use default. */
-         logcf->facility = LOG_DAEMON; 
+         logcf->facility = LOG_DAEMON;
          STRCPY_ASSERTSIZE(logcf->facilityname, "daemon");
       }
 
@@ -761,7 +762,7 @@ sockd_reopenlogfiles(log, docloseold)
 
       /*
        * When reopening we don't care if we created the logfile or not,
-       * as it is only used for the first startup, when we may create 
+       * as it is only used for the first startup, when we may create
        * logfiles before we've inited our userids properly, in case we
        * may need to change the logfile owner after userids are inited.
        */
@@ -810,7 +811,7 @@ vslog(priority, message, ap, apcopy)
    const char *function = "vslog()";
    const int errno_s = errno;
    ssize_t p;
-   size_t datalen /* no NUL */, prefixlen /* no NUL */, buflen, 
+   size_t datalen /* no NUL */, prefixlen /* no NUL */, buflen,
           loglen, oldloglen;
    char *buf, *bigbuf, regbuf[REGULARBUFLEN];
 
@@ -847,7 +848,7 @@ vslog(priority, message, ap, apcopy)
 
       if (!dont_add_to_rb) {
          /*
-          * don't have getlogprefix() bother with calling localtime(3);  too 
+          * don't have getlogprefix() bother with calling localtime(3);  too
           * slow.
           */
           ssize_t maxtoprint;
@@ -915,7 +916,7 @@ vslog(priority, message, ap, apcopy)
 
    if (prefixlen + datalen >= buflen && !sockscf.state.insignal) {
       /*
-       * not enough room in our regular buffer (and not in signal, 
+       * not enough room in our regular buffer (and not in signal,
        * so can malloc(3)).
        */
       const size_t toalloc = datalen + prefixlen + sizeof("\n");
@@ -956,7 +957,7 @@ vslog(priority, message, ap, apcopy)
    ADDNL(&loglen, buf, buflen);
    if (loglen != oldloglen) {
       SASSERTX(loglen = oldloglen + 1); /* newline added. */
-      ++datalen; 
+      ++datalen;
    }
 
    SASSERTX(loglen <= buflen);
@@ -1046,8 +1047,8 @@ dolog(priority, buf, prefixlen, messagelen)
    ||  (sockscf.log.type    & LOGTYPE_SYSLOG)) {
       if (priority <= LOG_WARNING) { /* lower pri value means more serious */
          if (sockscf.errlog.type & LOGTYPE_SYSLOG) {
-            /* 
-             * Unfortunately it's not safe to call syslog(3) from a signal 
+            /*
+             * Unfortunately it's not safe to call syslog(3) from a signal
              * handler.  Do make an exception for the most serious warnings
              * however.
              */
@@ -1060,7 +1061,7 @@ dolog(priority, buf, prefixlen, messagelen)
          }
       }
 
-      if (sockscf.log.type & LOGTYPE_SYSLOG) { 
+      if (sockscf.log.type & LOGTYPE_SYSLOG) {
          if (!sockscf.state.insignal || priority <= LOG_CRIT) {
             syslog(priority | sockscf.log.facility,
                    "%s: %s", loglevel2string(priority), &buf[prefixlen]);
@@ -1173,7 +1174,7 @@ openlogfile(logfile, wecreated)
    }
 
    if (fd == -1) {
-      swarn("%s: could not open or create logfile \"%s\" for writing", 
+      swarn("%s: could not open or create logfile \"%s\" for writing",
             function, logfile);
 
       return -1;
@@ -1253,7 +1254,7 @@ getlogprefix(priority, buf, buflen)
    }
 
 #if 0
-   /* 
+   /*
     * The rest of the code should produce the equivalent of the following
     * snprintf(3) call, but we don't want to call snprintf(3) as we may
     * be in a signalhandler.
@@ -1278,7 +1279,7 @@ getlogprefix(priority, buf, buflen)
    SASSERTX(strlen(us_string) <= WANTED_DIGITS);
 #endif /* DIAGNOSTIC */
 
-   if ((i = strlen(us_string)) < WANTED_DIGITS) { 
+   if ((i = strlen(us_string)) < WANTED_DIGITS) {
       const size_t zeros_to_add = WANTED_DIGITS - i;
       size_t added;
       char debug[sizeof(us_string)];
@@ -1302,7 +1303,7 @@ getlogprefix(priority, buf, buflen)
    SASSERTX(strlen(us_string) == WANTED_DIGITS);
 
    SASSERTX(buflen - lenused >
-            strlen("(") 
+            strlen("(")
                + strlen(s_string) + strlen(".") + strlen(us_string)
           + strlen(") ")
           + strlen(__progname)
@@ -1402,7 +1403,7 @@ slogstack(void)
 #endif /* HAVE_BACKTRACE */
 }
 
-const loglevel_t * 
+const loglevel_t *
 loglevel(name)
    const char *name;
 {
@@ -1431,7 +1432,7 @@ loglevel(name)
 }
 
 
-static const struct syslogfacility * 
+static const struct syslogfacility *
 syslogfacility(name)
    const char *name;
 {
@@ -1528,7 +1529,7 @@ socks_flushrb(void)
 
    dont_add_to_rb = 1; /* don't add this one to rb ... flushing. */
 
-   signalslog(LOG_WARNING, msgv); 
+   signalslog(LOG_WARNING, msgv);
 
    dont_add_to_rb = old_dont_add_to_rb;
 }

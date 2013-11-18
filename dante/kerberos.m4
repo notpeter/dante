@@ -94,7 +94,7 @@ if test x"$KRB5" != xno; then
       LIBS="${LIBS}${LIBS:+ }${_libsonly}"
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }${_optsonly}"
    else
-      AC_CHECK_LIB(crypto, main)
+      #AC_CHECK_LIB(crypto, main) #XXX only very old mit kerberos
       AC_CHECK_LIB(des, main)
       AC_CHECK_LIB(crypt, main)
       AC_CHECK_LIB(roken, main)

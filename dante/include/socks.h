@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.285 2013/07/20 12:12:29 michaels Exp $ */
+/* $Id: socks.h,v 1.287 2013/10/27 15:17:05 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -550,11 +550,11 @@ int Rselect(int, fd_set *, fd_set *, fd_set *, struct timeval *);
 
 
 int
-cgetaddrinfo(const char *name, const char *service, 
+cgetaddrinfo(const char *name, const char *service,
              const struct addrinfo *hints, struct addrinfo **res,
              dnsinfo_t *resmem);
 /*
- * Like getaddrinfo(3), but "resmem" is used to hold the contents of "res", 
+ * Like getaddrinfo(3), but "resmem" is used to hold the contents of "res",
  * rather than allocating the memory for "res" dynamically and then
  * having to call freeaddrinfo(3).
  */
@@ -569,7 +569,7 @@ udpsetup(int s, const struct sockaddr_storage *to, int type, int shouldconnect,
  * "type" is the type of connection to set up, SOCKS_SEND or SOCKS_RECV.
  * "shouldconnect" indicates whether the socket should be connected or not.
  *
- * Returns the route that was used (possibly a direct route), or NULL if no 
+ * Returns the route that was used (possibly a direct route), or NULL if no
  * route could be set up.  In the latter case, errno and emsg will be set.
  */
 
@@ -611,7 +611,7 @@ socks_addaddr(const int clientfd, const socksfd_t *socksaddress,
  * socksfdv/addrlock.
  *
  * The function duplicates all arguments in it's own form and does
- * not access the memory referenced by them afterwords.
+ * not access the memory referenced by them afterwards.
  *
  * The function checks the state of all file descriptors on each call and
  * removes those that are no longer open.
@@ -668,7 +668,7 @@ socks_addrcontrol(const int controlsent, const int controlreceived,
  */
 
 int
-socks_addrmatch(const struct sockaddr_storage *local, 
+socks_addrmatch(const struct sockaddr_storage *local,
                 const struct sockaddr_storage *remote,
                 const socksstate_t *state, const int takelock);
 /*

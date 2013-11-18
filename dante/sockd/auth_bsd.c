@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012
+ * Copyright (c) 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #if HAVE_BSDAUTH
 
 static const char rcsid[] =
-"$Id: auth_bsd.c,v 1.21 2013/03/06 11:39:09 karls Exp $";
+"$Id: auth_bsd.c,v 1.25 2013/10/27 15:24:42 karls Exp $";
 
 #include <login_cap.h>
 #include <bsd_auth.h>
@@ -61,6 +61,8 @@ bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 {
    const char *function = "bsdauth_passwordcheck()";
    char password[MAXPWLEN], *style;
+   char visname[MAXNAMELEN * 4];
+
    int rc;
 
    if (*auth->style == NUL)
@@ -72,8 +74,12 @@ bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    strncpy(password, (char *)auth->password, sizeof(password) - 1);
    password[sizeof(password) - 1] = NUL;
 
+   str2vis((char *)auth->name,
+           strlen((char *)auth->name),
+           visname, sizeof(visname));
+
    slog(LOG_DEBUG, "%s: bsdauth style to use for user \"%s\": %s",
-        function, auth->name, style == NULL ? "default" : style);
+        function, visname, style == NULL ? "default" : style);
 
    /*
     * note: NULL password would lead to libc requesting it interactively.
@@ -85,7 +91,7 @@ bsdauth_passwordcheck(s, src, dst, auth, emsg, emsgsize)
 
    if (rc == 0) {
       slog(LOG_DEBUG, "%s: bsdauth method failed for user \"%s\": (%s)",
-           function, auth->name, style == NULL ? "default" : style);
+           function, visname, style == NULL ? "default" : style);
 
       snprintf(emsg, emsgsize, "%s: auth_userokay failed: %s",
                function, strerror(errno));

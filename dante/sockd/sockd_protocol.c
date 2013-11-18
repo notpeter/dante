@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012
+ *               2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.211 2013/07/29 19:31:41 michaels Exp $";
+"$Id: sockd_protocol.c,v 1.214 2013/10/27 15:24:42 karls Exp $";
 
 #if SOCKS_SERVER
 static negotiate_result_t
@@ -102,7 +102,7 @@ recv_clientrequest(s, request, state)
 #endif /* HAVE_NEGOTIATE_PHASE */
 
    slog(LOG_DEBUG,
-        "%s: fd %d, client %s, state->complete %d, read so far: %lu",
+        "%s: fd %d, client %s, state->complete: %d, read so far: %lu",
         function,
         s,
         sockshost2string(&state->src, NULL, 0),
@@ -296,15 +296,15 @@ send_response(s, response)
    length = p - responsemem;
 
 #if SOCKS_SERVER
-   slog(LOG_DEBUG, "%s: sending response: %s",
-        function, socks_packet2string(response, 0));
+   slog(LOG_DEBUG, "%s: sending response: %s, authmethod %d",
+        function, socks_packet2string(response, 0), response->auth->method);
 
 #else /* COVENANT */
    slog(LOG_DEBUG, "%s: sending response:\n%s", function, responsemem);
 #endif
 
    /*
-    * If sending response from a process that normally does not send 
+    * If sending response from a process that normally does not send
     * any response, and thus does not allocate a buffer for this fd.
     */
    if (socks_getbuffer(s) == NULL)
@@ -437,6 +437,11 @@ recv_v4req (s, request, state)
     * so minimum length is 9.
     */
 
+   /*
+    * No methods supported in v4.
+    */
+   request->auth->method = AUTHMETHOD_NONE;
+
    /* CD */
    state->rcurrent = recv_cmd;
    return state->rcurrent(s, request, state);
@@ -501,7 +506,7 @@ recv_methods(s, request, state)
    unsigned char reply[   1 /* VERSION   */
                         + 1 /* METHOD    */
                       ];
-   char buf[(AUTHMETHOD_MAX + 1) * (sizeof("0x00 (some methodname") 
+   char buf[(AUTHMETHOD_MAX + 1) * (sizeof("0x00 (some methodname")
             + sizeof(", ")) + 1];
    size_t bufused;
    int i;
@@ -533,7 +538,7 @@ recv_methods(s, request, state)
          slog(LOG_DEBUG,
               "%s: socksmethod to use not set, selecting amongst the "
               "following %lu method%s: %s",
-              function, 
+              function,
               (unsigned long)state->crule->state.smethodc,
               (unsigned long)state->crule->state.smethodc == 1 ? "" : "s",
               methods2string(state->crule->state.smethodc,
@@ -582,9 +587,9 @@ recv_methods(s, request, state)
     */
 
    slog(LOG_DEBUG, "%s: sending authentication reply: VER: %d METHOD: %d (%s)",
-        function, 
-        request->version, 
-        request->auth->method, 
+        function,
+        request->version,
+        request->auth->method,
         method2string(request->auth->method));
 
    reply[AUTH_VERSION]        = request->version;
@@ -695,7 +700,7 @@ recv_cmd(s, request, state)
 
       default:
          snprintf(state->emsg, sizeof(state->emsg),
-                  "unknown %s command: %d", 
+                  "unknown %s command: %d",
                   proxyprotocol2string(request->version),
                   request->command);
 
@@ -811,7 +816,7 @@ recv_address(s, request, state)
 
             default:
                snprintf(state->emsg, sizeof(state->emsg),
-                        "unknown %s command: %d", 
+                        "unknown %s command: %d",
                         proxyprotocol2string(request->version),
                         request->command);
                return NEGOTIATE_ERROR;

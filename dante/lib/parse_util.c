@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: parse_util.c,v 1.5 2013/08/02 12:00:38 michaels Exp $";
+"$Id: parse_util.c,v 1.7 2013/10/25 12:55:01 karls Exp $";
 
 extern unsigned char parsingconfig;
 extern char          *atype;
@@ -79,7 +79,11 @@ yyerror(const char *fmt, ...)
    vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
    va_end(ap);
 
-   serr("%s.  Please see the %s manual for more information", buf, PRODUCT);
+   if (errno == 0)
+      serrx("%s.  Please see the %s manual for more information", buf, PRODUCT);
+   else
+      serrx("%s: %s.  Please see the %s manual for more information",
+            buf, strerror(errno), PRODUCT);
 }
 
 void
@@ -125,7 +129,12 @@ yywarn(const char *fmt, ...)
    vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
    va_end(ap);
 
-   swarn("%s.  Please see the %s manual for more information", buf, PRODUCT);
+   if (errno == 0)
+      swarnx("%s.  Please see the %s manual for more information",
+             buf, PRODUCT);
+   else
+      swarnx("%s.  %s.  Please see the %s manual for more information",
+             buf, strerror(errno), PRODUCT);
 }
 
 void
@@ -171,13 +180,12 @@ yylog(const int loglevel, const char *fmt, ...)
    vsnprintf(&buf[bufused], sizeof(buf) - bufused, fmt, ap);
    va_end(ap);
 
-   slog(loglevel,
-        "%s.  Please see the %s manual for more information", 
+   slog(loglevel, "%s.  Please see the %s manual for more information",
         buf, PRODUCT);
 }
 
 
-void 
+void
 yyerrorx_hasnetmask(void)
 {
 
@@ -186,7 +194,7 @@ yyerrorx_hasnetmask(void)
             atype2string(*atype));
 }
 
-void 
+void
 yyerrorx_nonetmask(void)
 {
 
@@ -210,11 +218,11 @@ yyerrorx_nolib(library)
             "please rerun ./configure in %s's source directory, recompile "
             "and reinstall %s",
             PRODUCT,
-            library, 
-            PRODUCT, 
-            library, 
-            library, 
-            PRODUCT, 
+            library,
+            PRODUCT,
+            library,
+            library,
+            PRODUCT,
             PRODUCT);
 }
 
@@ -233,8 +241,8 @@ yywarnx_deprecated(oldkeyword, newkeyword)
               "was meant.  Please update %s's config file (%s) to use the "
               "new keyword as appropriate",
               oldkeyword,
-              newkeyword, 
-              PRODUCT, 
+              newkeyword,
+              PRODUCT,
               sockscf.option.configfile);
 }
 

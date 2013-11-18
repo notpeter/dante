@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
- *               2012
+ *               2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "upnp.h"
 
 static const char rcsid[] =
-"$Id: Rgetsockname.c,v 1.91 2013/05/22 21:58:07 michaels Exp $";
+"$Id: Rgetsockname.c,v 1.93 2013/10/27 15:24:42 karls Exp $";
 
 int
 Rgetsockname(s, name, namelen)
@@ -102,12 +102,12 @@ Rgetsockname(s, name, namelen)
          slog(LOG_INFO, "%s: upnp control point's external ip address is %s",
               function, straddr);
 
-         if (socks_inet_pton(AF_INET, 
+         if (socks_inet_pton(AF_INET,
                              straddr,
                              &TOIN(&socksfd.remote)->sin_addr,
                              NULL) == 1)
             SET_SOCKADDR(TOSS(&socksfd.remote), AF_INET);
-         else if (socks_inet_pton(AF_INET6, 
+         else if (socks_inet_pton(AF_INET6,
                                   straddr,
                                   &TOIN(&socksfd.remote)->sin_addr,
                                   &TOIN6(&socksfd.remote)->sin6_scope_id) == 1)

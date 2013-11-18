@@ -1,7 +1,7 @@
 /*
- * $Id: getoutaddr.c,v 1.126 2013/07/27 19:03:46 michaels Exp $
+ * $Id: getoutaddr.c,v 1.140 2013/10/27 15:24:42 karls Exp $
  *
- * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010, 2011, 2012
+ * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,33 +46,57 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getoutaddr.c,v 1.126 2013/07/27 19:03:46 michaels Exp $";
+"$Id: getoutaddr.c,v 1.140 2013/10/27 15:24:42 karls Exp $";
+
+static int
+addrscope_matches(const struct sockaddr_in6 *addr,
+                  const ipv6_addrscope_t addrscope);
+/*
+ * Returns true if address-scope "addrscope" matches the address scope
+ * of address "addr".
+ */
+
+static int
+ifname_matches(const char *ifname, const uint32_t ifindex);
+/*
+ * Returns true if there is an interface with the name "ifname", and
+ * the index of this interface is "ifinxex".
+ *
+ * Returns false otherwise.
+ */
 
 static sa_family_t
 get_external_safamily(const struct sockaddr_storage *client,
                       const int command, const sockshost_t *reqhost);
 /*
  * Returns the sa_family_t that should be used for a client with address
- * "client", requesting the SOCKS command "command" with the reqest host
+ * "client", requesting the SOCKS command "command" with the request host
  * "reqhost".
- * 
- * On success the sa_family_t that shpuld be used.
+ *
+ * On success the sa_family_t that should be used.
  * On failure returns AF_UNSPEC.
  */
 
 
 static struct sockaddr_storage *
-getdefaultexternal(const sa_family_t safamily, struct sockaddr_storage *addr);
+getdefaultexternal(const sa_family_t safamily, ipv6_addrscope_t addrscope,
+                   const uint32_t ifindex, struct sockaddr_storage *addr);
 /*
- * Returns the default IP address of sa_family_t "safamily" to use for 
- * external connections.  The portnumber in the address returned should 
+ * Returns the default IP address of sa_family_t "safamily" to use for
+ * external connections.  The portnumber in the address returned should
  * be ignored.
  *
  * "safamily" can be set to AF_UNSPEC if the function can return an
  * address of any sa_family_t.  If there is no address of type safamily
  * available, the semantics are the same as if safamily was set to AF_UNSPEC.
  *
- * The default ipaddress is stored in "addr", and a pointer to it is returned.
+ * "addrscope" indicates the scopeid of the external addresses we want
+ * returned.  "addrscope" only applies if "safamily" is AF_INET6.
+ * If "addrscope" is addrscope_linklocal, "ifindex" indicates the interface
+ * the returned address should be configured on.  Otherwise, "ifindex" is
+ * ignored.
+ *
+ * The ipaddress to use is stored in "addr", and a pointer to it is returned.
  */
 
 struct sockaddr_storage *
@@ -96,24 +120,24 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
         sockshost2string(reqhost, raddrstr, sizeof(raddrstr)),
         rotation2string(sockscf.external.rotation));
 
-   bzero(&raddr, sizeof(raddr)); 
+   bzero(&raddr, sizeof(raddr));
 
    /*
-    * First figure out what /type/ of address (ipv4 or ipv6) we need to 
+    * First figure out what /type/ of address (ipv4 or ipv6) we need to
     * bind on the external side.
     */
    switch (cmd) {
       case SOCKS_BIND:
          if (reqhost->atype            == SOCKS_ADDR_IPV4
          &&  reqhost->addr.ipv4.s_addr == htonl(BINDEXTENSION_IPADDR))
-            SET_SOCKADDR(&raddr, external_has_global_safamily(AF_INET) ? 
+            SET_SOCKADDR(&raddr, external_has_global_safamily(AF_INET) ?
                                  AF_INET : AF_INET6);
          else if (reqhost->atype == SOCKS_ADDR_IPV4
          ||       reqhost->atype == SOCKS_ADDR_IPV6) {
             if (external_has_global_safamily(atype2safamily(reqhost->atype)))
                sockshost2sockaddr(reqhost, &raddr);
             else {
-               snprintf(emsg, emsglen, 
+               snprintf(emsg, emsglen,
                         "bind of an %s requested, but no %s configured for "
                         "our usage on the external interface",
                         atype2string(reqhost->atype),
@@ -124,10 +148,10 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
          }
          else {
             /*
-             * Have to expect the bindreply from an address given as a 
-             * hostname by the client.  Since we may have multiple address 
+             * Have to expect the bindreply from an address given as a
+             * hostname by the client.  Since we may have multiple address
              * families configured on the external interface on which we
-             * can accept the bindreply on, we need to bind an address of 
+             * can accept the bindreply on, we need to bind an address of
              * the correct type.
              *
              * For now we assume that the type of address returned first
@@ -167,24 +191,54 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
 
    switch (sockscf.external.rotation) {
       case ROTATION_NONE:
-         getdefaultexternal(raddr.ss_family, laddr);
+         /*
+          * We have a complicating factor here regarding IPv6 scopeids.
+          * If the target destination is specified with a non-global
+          * scopeid (e.g. a link-local address), we need to bind an address
+          * not only of the same type, but on the *same link/interface* too.
+          */
+
+         getdefaultexternal(raddr.ss_family,
+                            raddr.ss_family == AF_INET6 ?
+                                ipv6_addrscope(&TOIN6(&raddr)->sin6_addr)
+                              : addrscope_global,
+                            TOIN6(&raddr)->sin6_scope_id,
+                            laddr);
          break;
 
       case ROTATION_SAMESAME:
-         *laddr = *client;
+         if (client->ss_family == raddr.ss_family)
+            *laddr = *client;
+         else {
+            snprintf(emsg, emsglen,
+                     "rotation for external addresses is set to %s, but "
+                     "that can not work for this %s request.  "
+                     "The internal address we accepted the client on is "
+                     "a %s (%s), but the target address is a %s (%s)",
+                     rotation2string(sockscf.external.rotation),
+                     command2string(cmd),
+                     safamily2string(client->ss_family),
+                     sockaddr2string(client, NULL, 0),
+                     safamily2string(raddr.ss_family),
+                     sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)));
+
+            swarnx("%s: %s", function, emsg);
+            return NULL;
+         }
+
          break;
 
       case ROTATION_ROUTE: {
          if (IPADDRISBOUND(&raddr)) {
             /*
-             * Connect a udp socket and check what local address was chosen 
+             * Connect a udp socket and check what local address was chosen
              * by the kernel for connecting to dst.  Idea from Quagga source.
              */
             sockshost_t host;
             int s;
 
             if ((s = socket(raddr.ss_family, SOCK_DGRAM, 0)) == -1) {
-               snprintf(emsg, emsglen, 
+               snprintf(emsg, emsglen,
                         "could not create new %s UDP socket with socket(2): %s",
                         safamily2string(raddr.ss_family), strerror(errno));
 
@@ -192,12 +246,12 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
                return NULL;
             }
 
-            if (!PORTISBOUND(&raddr)) 
-               /* set any valid portnumber; this is just a dry-run */
+            if (!PORTISBOUND(&raddr))
+               /* use any valid portnumber. This is just a dry-run */
                SET_SOCKADDRPORT(&raddr, 1);
 
             sockaddr2sockshost(&raddr, &host);
-            if (socks_connecthost(s, 
+            if (socks_connecthost(s,
                                   EXTERNALIF,
                                   &host,
                                   laddr,
@@ -213,12 +267,16 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
 
                /*
                 * Else: continue.
-                * While highly unliklely it will work later, when we actually 
-                * do try to connect/send data, it could be the local 
+                * While highly unlikely it will work later, when we actually
+                * do try to connect/send data, it could be the local
                 * configuration is to block udp packets to this destination,
                 * but allow tcp.
                 */
-               getdefaultexternal(get_external_safamily(client, cmd, reqhost),
+               getdefaultexternal(raddr.ss_family,
+                                  raddr.ss_family == AF_INET6 ?
+                                       ipv6_addrscope(&TOIN6(&raddr)->sin6_addr)
+                                    :  addrscope_global,
+                                  TOIN6(&raddr)->sin6_scope_id,
                                   laddr);
                break;
             }
@@ -227,6 +285,8 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
          }
          else
             getdefaultexternal(get_external_safamily(client, cmd, reqhost),
+                               addrscope_global,
+                               0,
                                laddr);
 
          break;
@@ -244,18 +304,44 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
            sockaddr2string(client, NULL,     0),
            sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)));
    else {
-      snprintf(emsg, emsglen,
-               "local address %s selected for forwarding from %s to %s "
-               "(external.rotation = %s), but that local address is not "
-               "configured on our external interface(s).  "
-               "%s configuration error?",
-               sockaddr2string2(laddr,  0, addrstr,  sizeof(addrstr)),
-               sockaddr2string(client, NULL,     0),
-               sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)),
-               rotation2string(sockscf.external.rotation),
-               sockscf.option.configfile);
+      char rotation[256];
 
-      slog(external_has_safamily(laddr->ss_family) ? LOG_WARNING : LOG_DEBUG, 
+      if (sockscf.external.rotation == ROTATION_NONE)
+         *rotation = NUL; /* default.  Don't print anything confusing. */
+      else
+         snprintf(rotation, sizeof(rotation),
+                  "using external.rotation = %s, ",
+                  rotation2string(sockscf.external.rotation));
+
+      if (IPADDRISBOUND(laddr))
+         snprintf(emsg, emsglen,
+                  "%slocal address %s was selected for forwarding from our "
+                  "local client %s to target %s, but that local address is "
+                  "not set on our external interface(s).  Configuration "
+                  "error in %s?",
+                  rotation,
+                  sockaddr2string2(laddr,  0, addrstr,  sizeof(addrstr)),
+                  sockaddr2string(client, NULL,     0),
+                  sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)),
+                  sockscf.option.configfile);
+      else
+         snprintf(emsg, emsglen,
+                  "%snone of the addresses configured on our external "
+                  "interface(s) can be used for forwarding from our local "
+                  "client %s to target %s.  Configuration error in %s?",
+                  rotation,
+                  sockaddr2string(client, NULL,     0),
+                  sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)),
+                  sockscf.option.configfile);
+
+      /*
+       * Assume that if the user has not configured any such address,
+       * his intention is to not support that af (e.g., support only
+       * ipv4).  If he has configured such an address, but we could for
+       * some reason not use it, it's more likely to be a configuration
+       * error though, so warn.
+       */
+      slog(external_has_safamily(laddr->ss_family) ? LOG_WARNING : LOG_DEBUG,
            "%s: %s", function, emsg);
 
       return NULL;
@@ -271,10 +357,10 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
          if (reqhost->atype            == SOCKS_ADDR_IPV4
          &&  reqhost->addr.ipv4.s_addr == htonl(BINDEXTENSION_IPADDR))
             SET_SOCKADDRPORT(laddr, GET_SOCKADDRPORT(client));
-         else if (  (raddr.ss_family == AF_INET 
+         else if (  (raddr.ss_family == AF_INET
                   && TOIN(&raddr)->sin_addr.s_addr == htonl(INADDR_ANY))
-               ||    (raddr.ss_family == AF_INET6 
-                  && memcmp(&TOIN6(&raddr)->sin6_addr, 
+               ||    (raddr.ss_family == AF_INET6
+                  && memcmp(&TOIN6(&raddr)->sin6_addr,
                             &in6addr_any,
                             sizeof(in6addr_any)) == 0))
             SET_SOCKADDRPORT(laddr, reqhost->port);
@@ -309,7 +395,7 @@ getinaddr(laddr, _client, emsg, emsglen)
    struct sockaddr_storage client;
    size_t i;
 
-   slog(LOG_DEBUG, "%s: client %s", 
+   slog(LOG_DEBUG, "%s: client %s",
         function, sockaddr2string(_client, NULL, 0));
 
    SASSERTX(_client->ss_family == AF_INET || _client->ss_family == AF_INET6);
@@ -317,7 +403,7 @@ getinaddr(laddr, _client, emsg, emsglen)
 
 
    /*
-    * Just return the first address of the appropriate type from our internal 
+    * Just return the first address of the appropriate type from our internal
     * list and hope the best.
     */
    for (i = 0; i < sockscf.internal.addrc; ++i) {
@@ -335,68 +421,100 @@ getinaddr(laddr, _client, emsg, emsglen)
             safamily2string(client.ss_family));
 
    slog(LOG_DEBUG, "%s: %s", function, emsg);
-  
+
    return NULL;
 }
 
 static struct sockaddr_storage *
-getdefaultexternal(safamily, addr)
+getdefaultexternal(safamily, addrscope, ifindex, addr)
    const sa_family_t safamily;
+   const ipv6_addrscope_t addrscope;
+   const uint32_t ifindex;
    struct sockaddr_storage *addr;
 {
    const char *function = "getdefaultexternal()";
-   const char *safamilystring = (safamily == AF_UNSPEC ? 
+   const char *safamilystring  = (safamily == AF_UNSPEC ?
                                    "<any address>" : safamily2string(safamily));
+   const char *addrscopestring = addrscope2string(addrscope);
    size_t i, addrfound;
 
-   slog(LOG_DEBUG, "%s: looking for an %s", function, safamilystring);
+   slog(LOG_DEBUG, "%s: looking for an %s with scopeid %d/%s, ifindex %d",
+        function, safamilystring, addrscope, addrscopestring, ifindex);
 
    for (i = 0, addrfound = 0; i < sockscf.external.addrc && !addrfound; ++i) {
       switch (sockscf.external.addrv[i].atype) {
          case SOCKS_ADDR_IFNAME: {
             struct sockaddr_storage mask;
-            size_t ii;;
 
-            ii = 0;
+            size_t ii = 0;
             while (ifname2sockaddr(sockscf.external.addrv[i].addr.ifname,
-                                   ii,
+                                   ii++,
                                    addr,
                                    &mask) != NULL) {
                if (safamily == AF_UNSPEC || addr->ss_family == safamily) {
+                  if (safamily == AF_INET6) {
+                     if (!addrscope_matches(TOIN6(addr), addrscope))
+                        continue;
+
+                     if (addrscope == addrscope_linklocal
+                     && !ifname_matches(sockscf.external.addrv[i].addr.ifname,
+                                        ifindex))
+                        continue;
+                  }
+
                   addrfound = 1;
                   break;
                }
-
-               ++ii;
             }
 
             break;
          }
 
          case SOCKS_ADDR_IPV4:
-            if (safamily == AF_UNSPEC || safamily == AF_INET) {
-               sockshost_t host;
-
-               sockshost2sockaddr(
-                  ruleaddr2sockshost(&sockscf.external.addrv[i],
-                                     &host,
-                                     SOCKS_TCP),
-                                     addr);
-               addrfound = 1;
+         case SOCKS_ADDR_IPV6:
+            if (safamily != AF_UNSPEC
+            &&  safamily != atype2safamily(sockscf.external.addrv[i].atype)) {
+               slog(LOG_DEBUG,
+                    "%s: atype of address %s does match atype %s",
+                    function,
+                    ruleaddr2string(&sockscf.external.addrv[i],
+                                    ADDRINFO_ATYPE,
+                                    NULL,
+                                    0),
+                    safamily2string(safamily));
+               continue;
             }
-            break;
-         
-         case SOCKS_ADDR_IPV6: 
-            if (safamily == AF_UNSPEC || safamily == AF_INET6) {
-               sockshost_t host;
 
-               sockshost2sockaddr(
-                  ruleaddr2sockshost(&sockscf.external.addrv[i],
-                                     &host,
-                                     SOCKS_TCP),
-                                     addr);
-               addrfound = 1;
+            sockshost2sockaddr(ruleaddr2sockshost(&sockscf.external.addrv[i],
+                                                  NULL,
+                                                  SOCKS_TCP),
+                               addr);
+
+            if (addr->ss_family == AF_INET6) {
+               const char *ifname;
+
+               if (addrscope == addrscope_nodelocal)
+                  /*
+                   * a nodelocal address should be able to reach any
+                   * other nodelocal address.
+                   */
+                  ;
+               else if (!addrscope_matches(TOIN6(addr), addrscope))
+                  continue;
+
+                if ((ifname = sockaddr2ifname(addr, NULL, 0)) == NULL) {
+                  swarnx("%s: could not find any interface with address %s",
+                         function, sockaddr2string(addr, NULL, 0));
+
+                  continue;
+               }
+
+               if (addrscope == addrscope_linklocal
+               && !ifname_matches(ifname, ifindex))
+                  continue;
             }
+
+            addrfound = 1;
             break;
 
          default:
@@ -405,8 +523,10 @@ getdefaultexternal(safamily, addr)
    }
 
    if (addrfound)
-      slog(LOG_DEBUG, "%s: matched %s is %s",
-           function, safamilystring, sockaddr2string(addr, NULL, 0));
+      slog(LOG_DEBUG, "%s: matched %s %s",
+           function,
+           safamilystring,
+           sockaddr2string2(addr, ADDRINFO_SCOPEID | ADDRINFO_PORT, NULL, 0));
    else {
       slog(LOG_DEBUG,
            "%s: no matching %s found on external list, using INADDR_ANY",
@@ -446,7 +566,7 @@ get_external_safamily(client, command, reqhost)
                sockshost2sockaddr(reqhost, &p);
                if (IPADDRISBOUND(&p))
                   safamily = p.ss_family;
-               else 
+               else
                   safamily = client->ss_family;
 
                break;
@@ -463,20 +583,20 @@ get_external_safamily(client, command, reqhost)
          sockshost2sockaddr(reqhost, &p);
          if (IPADDRISBOUND(&p))
             safamily = p.ss_family;
-         else 
+         else
             safamily = client->ss_family;
 
          break;
       }
 
-      default: 
+      default:
          SERRX(command);
    }
-  
+
    if (external_has_safamily(safamily))
       return safamily;
 
-   /* 
+   /*
     * Do not have the optimal safamily.  Anything else we can try?
     */
    switch (safamily) {
@@ -505,10 +625,72 @@ get_external_safamily(client, command, reqhost)
           sockshost2string(reqhost, NULL, 0),
           external_has_safamily(AF_INET)  ? "Yes" : "No",
           external_has_safamily(AF_INET6) ?
-                 external_has_global_safamily(AF_INET6) ? 
+                 external_has_global_safamily(AF_INET6) ?
                     "Yes (global)" : "Yes (local only)"
               :  "No");
-         
+
    return AF_UNSPEC;
 }
 
+static int
+addrscope_matches(addr, scope)
+   const struct sockaddr_in6 *addr;
+   const ipv6_addrscope_t scope;
+{
+   const char *function = "addrscope_matches()";
+   const ipv6_addrscope_t addrscope = ipv6_addrscope(&addr->sin6_addr);
+
+   if (addrscope == scope)
+      return 1;
+
+   if (scope      == addrscope_nodelocal
+   &&  addrscope  == addrscope_global)
+      /*
+       * a locally configured global address should be able to connect
+       * to any nodelocal address, but a linklocal address will not
+       * necessarily be able to connect to a nodelocal one, for some
+       * reason.  That at least appears to be the case on FreeBSD 9.1.
+       */
+      return 1;
+
+   if (sockscf.option.debug)
+      slog(LOG_DEBUG,
+           "%s: skipping address %s with system scopeid "
+           "0x%x (internal: %d/%s) while searching for "
+           "address with internal scopeid %d/%s",
+           function,
+           sockaddr2string(TOCSS(addr), NULL, 0),
+           addr->sin6_scope_id,
+           ipv6_addrscope(&addr->sin6_addr),
+           addrscope2string(ipv6_addrscope(&addr->sin6_addr)),
+           (int)scope,
+           addrscope2string(scope));
+
+   return 0;
+}
+
+static int
+ifname_matches(ifname, ifindex)
+   const char *ifname;
+   const uint32_t ifindex;
+{
+   const char *function = "ifname_matches()";
+   uint32_t ifnameindex;
+   int matches;
+
+   if ((ifnameindex = if_nametoindex(ifname)) == 0) {
+      swarn("%s: if_nametoindex(%s) failed", function, ifname);
+      return 0;
+   }
+
+   matches = (ifnameindex == ifindex);
+
+   slog(LOG_DEBUG, "%s: ifname %s/ifindex %u %s ifindex %u",
+        function,
+        ifname,
+        ifnameindex,
+        matches ? "matches" : "does not match",
+        ifindex);
+
+   return matches;
+}

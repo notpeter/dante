@@ -19,3 +19,8 @@ sockd-stat.awk      provides statistics based on sockd/barefootd logfiles.
                     A minimal update was done in 2011 by Inferno Nettverk
                     in an attempt to sync it with changes to the logformat
                     in Dante 1.2.3.
+
+StartupItems.Dante
+StartupParameters.plist
+                    Mac OS X StartupItem files.
+                    Written by Gerben Wierda, Gerben.Wierda@rna.nl.

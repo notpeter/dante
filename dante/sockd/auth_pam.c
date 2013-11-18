@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012
+ * Copyright (c) 2001, 2002, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012,
+ *               2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +52,7 @@
 #if HAVE_PAM
 
 static const char rcsid[] =
-"$Id: auth_pam.c,v 1.95 2013/04/22 08:43:32 michaels Exp $";
+"$Id: auth_pam.c,v 1.100 2013/10/27 15:24:42 karls Exp $";
 
 static int
 pam_conversation(int msgc, const struct pam_message **msgv,
@@ -84,20 +85,22 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
     */
    struct {
       int         item;
-      const char *itemname;
-      const void *value;
+      const char  *itemname;
+      const void  *value;
+      int         printable;
+
    } pamval[] = {
-      { (int)PAM_CONV,  "PAM_CONV",  &pamconv },
-      { (int)PAM_RHOST, "PAM_RHOST", 
+      { (int)PAM_CONV,  "PAM_CONV",  &pamconv,                              0 },
+      { (int)PAM_RHOST, "PAM_RHOST",
                   src == NULL ?
-                        "" : sockaddr2string2(src, 0, srcstr, sizeof(srcstr)) },
+                     "" : sockaddr2string2(src, 0, srcstr, sizeof(srcstr)), 1 },
       { (int)PAM_USER,  "PAM_USER",  (*auth->name == NUL) ?
-                                DEFAULT_PAM_USER : (const char *)auth->name   },
-      { (int)PAM_RUSER, "PAM_RUSER", DEFAULT_PAM_RUSER },
+                              DEFAULT_PAM_USER : (const char *)auth->name,  1 },
+      { (int)PAM_RUSER, "PAM_RUSER", DEFAULT_PAM_RUSER,                     1 },
    };
 
    slog(LOG_DEBUG, "%s: src %s, user \"%s\", servicename \"%s\", emsgsize %ld",
-        function, 
+        function,
         src == NULL ? "N/A" : sockaddr2string(src, NULL, 0),
         str2vis((const char *)auth->name,
                 strlen((const char *)auth->name),
@@ -138,20 +141,22 @@ pam_passwordcheck(s, src, dst, auth, emsg, emsgsize)
    }
 
    for (i = 0; i < ELEMENTS(pamval); ++i) {
-      str2vis((const char *)pamval[i].value,
-              strlen((const char *)pamval[i].value),
-              visbuf,
-              sizeof(visbuf));
+      if (pamval[i].printable) {
+         str2vis((const char *)pamval[i].value,
+                 strlen((const char *)pamval[i].value),
+                 visbuf,
+                 sizeof(visbuf));
 
-      slog(LOG_DEBUG, "%s: setting item \"%s\" to value \"%s\"",
-           function, pamval[i].itemname, visbuf);
+         slog(LOG_DEBUG, "%s: setting item \"%s\" to value \"%s\"",
+              function, pamval[i].itemname, visbuf);
+      }
+      else
+         slog(LOG_DEBUG, "%s: setting item %s", function, pamval[i].itemname);
 
       if ((rc = pam_set_item(pamh, pamval[i].item, pamval[i].value))
       != (int)PAM_SUCCESS) {
          snprintf(emsg, emsgsize, "pam_set_item(%s) to \"%s\" failed: %s",
-                                  pamval[i].itemname,
-                                  visbuf,
-                                  pam_strerror(pamh, rc));
+                  pamval[i].itemname, visbuf, pam_strerror(pamh, rc));
 
          pam_end(pamh, rc);
          return -1;

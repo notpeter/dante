@@ -54,7 +54,7 @@
 #include <dlfcn.h>
 
 static const char rcsid[] =
-"$Id: address.c,v 1.285 2013/07/10 13:47:46 michaels Exp $";
+"$Id: address.c,v 1.288 2013/10/25 12:55:00 karls Exp $";
 
 /*
  * During init, we need to let all system calls resolve to the native
@@ -212,7 +212,7 @@ socks_addaddr(clientfd, socksfd, takelock)
    }
 
    /*
-    * One one machine gcc 4.1.2 expands the below to a memcpy() call with 
+    * One one machine gcc 4.1.2 expands the below to a memcpy() call with
     * overlapping destinations, according to valgrind:
     *    socksfdv[clientfd]           = *socksfd;
     *
@@ -352,7 +352,7 @@ socks_rmaddr(d, takelock)
                slog(LOG_DEBUG, "%s: deleted GSSAPI context for fd %d",
                     function, d);
 
-               SASSERTX(socksfdv[d].state.auth.mdata.gssapi.state.id 
+               SASSERTX(socksfdv[d].state.auth.mdata.gssapi.state.id
                == GSS_C_NO_CONTEXT);
             }
          }
@@ -410,7 +410,7 @@ socks_rmaddr(d, takelock)
 #endif /* THREAD_DEBUG */
 
    socksfdv[d] = socksfdinit;
-   
+
 #if DIAGNOSTIC
    SASSERTX(socks_isaddr(d, 0) == 0);
    SASSERTX(socks_getaddr(d, NULL, 0) == NULL);
@@ -516,7 +516,6 @@ socks_addrisours(s, socksfdmatch, takelock)
    do {
       socksfd_t socksfd;
 
-
       if (socks_getaddr(s, &socksfd, 0) != NULL) {
          if ((socksfd.state.protocol.udp && type != SOCK_DGRAM)
          ||  (socksfd.state.protocol.tcp && type != SOCK_STREAM)) {
@@ -573,6 +572,11 @@ socks_addrisours(s, socksfdmatch, takelock)
       else { /* unknown descriptor.  Try to check whether it's a dup. */
          int duped;
 
+         if (!PORTISBOUND(&local)) {
+            breakreason = "unknown fd and no local IP-address bound for it";
+            break;
+         }
+
          /* XXX check remote endpoint also. */
          if ((duped = socks_addrmatch(&local, NULL, NULL, 0)) != -1
          && ((socksfdv[duped].state.protocol.udp && type == SOCK_DGRAM)
@@ -580,9 +584,9 @@ socks_addrisours(s, socksfdmatch, takelock)
             socksfd_t nsocksfd;
 
             slog(LOG_DEBUG, "%s: fd %d appears to be a dup of fd %d (%s)",
-                 function, 
-                 s, 
-                 duped, 
+                 function,
+                 s,
+                 duped,
                  socket2string(duped, NULL, 0));
 
             if (socks_addrdup(socks_getaddr(duped, NULL, 0), &nsocksfd)
@@ -648,8 +652,8 @@ socks_addrcontrol(controlsent, controlinuse, takelock)
    int i;
 
    slog(LOG_DEBUG, "%s: sent fd %d (%s), in use fd %d (%s)",
-        function, 
-        controlsent, 
+        function,
+        controlsent,
         socket2string(controlsent, fdsentstr, sizeof(fdsentstr)),
         controlinuse,
         socket2string(controlinuse, fdinusestr, sizeof(fdinusestr)));
@@ -708,9 +712,9 @@ socks_addrmatch(local, remote, state, takelock)
 
    slog(LOG_DEBUG, "%s: local = %s, remote = %s",
         function,
-        local  == NULL ? 
+        local  == NULL ?
            "NULL" : sockaddr2string(local, lstr, sizeof(lstr)),
-        remote == NULL ? 
+        remote == NULL ?
            "NULL" : sockaddr2string(remote, rstr, sizeof(rstr)));
 
    if (takelock)
@@ -725,13 +729,27 @@ socks_addrmatch(local, remote, state, takelock)
        * against.
        */
 
-      if (local != NULL)
-         if (!sockaddrareeq(local, &socksfdv[i].local, 0))
+      if (local != NULL) {
+         if (sockaddrareeq(local, &socksfdv[i].local, 0))
+            slog(LOG_DEBUG, "%s: local address %s matches %s for socksfdv[%d]",
+                 function,
+                 sockaddr2string(local, lstr, sizeof(lstr)),
+                 sockaddr2string(&socksfdv[i].local, NULL, 0),
+                 i);
+         else
             continue;
+      }
 
-      if (remote != NULL)
-         if (!sockaddrareeq(remote, &socksfdv[i].remote, 0))
+      if (remote != NULL) {
+         if (sockaddrareeq(remote, &socksfdv[i].remote, 0))
+            slog(LOG_DEBUG, "%s: remote address %s matches %s for socksfdv[%d]",
+                 function,
+                 sockaddr2string(remote, rstr, sizeof(rstr)),
+                 sockaddr2string(&socksfdv[i].remote, NULL, 0),
+                 i);
+         else
             continue;
+      }
 
       if (state != NULL) {
          if (state->version != -1)
@@ -895,7 +913,7 @@ socks_getfakehost(addr)
       if (ntohl(addr) >= FAKEIP_START &&  ntohl(addr) <= FAKEIP_END)
          swarnx("%s: looks like ip address %s might be a \"fake\" ip address, "
                 "but we have no knowledge of that address in this process.  "
-                "Possibly this client is forking of a \"dns-helper\"-style "
+                "Possibly this client is forking a \"dns-helper\"-style "
                 "program for resolving hostnames.  We unfortunately do not "
                 "support using fake ip addresses in that case.",
                 function, inet_ntoa(*(struct in_addr *)&addr));

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012
+ * Copyright (c) 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_icmp.c,v 1.18 2013/06/20 10:23:21 michaels Exp $";
+"$Id: sockd_icmp.c,v 1.23 2013/10/27 15:24:42 karls Exp $";
 
 extern int freefds;
 
@@ -61,7 +61,7 @@ send_icmperror(s, receivedonaddr, originalpacketsrc, packettarget,
    const int code;
 {
    const char *function = "send_icmperror()";
-   const socklen_t len  = salen(originalpacketsrc->ss_family);
+   socklen_t len;
    struct ip *ip;
    struct icmp *icmp;
    struct udphdr *udp;
@@ -82,21 +82,31 @@ send_icmperror(s, receivedonaddr, originalpacketsrc, packettarget,
         type,
         code,
         s,
-        sockaddr2string(originalpacketsrc, pstr, sizeof(pstr)),
+        originalpacketsrc == NULL ?
+            "0.0.0.0" : sockaddr2string(originalpacketsrc, pstr, sizeof(pstr)),
         packettarget == NULL ?
             "0.0.0.0" : sockaddr2string(packettarget, tstr, sizeof(tstr)),
         iplen,
         udplen,
-        sockaddr2string(receivedonaddr, lstr, sizeof(lstr)));
+        receivedonaddr == NULL ?
+            "0.0.0.0" : sockaddr2string(receivedonaddr, lstr, sizeof(lstr)));
 
    if (s == -1) {
       slog(LOG_DEBUG,
            "%s: can not send icmp error to %s: have no raw socket to send on",
            function,
-           sockaddr2string(originalpacketsrc, NULL, 0));
+           originalpacketsrc == NULL ?
+            "0.0.0.0" : sockaddr2string(originalpacketsrc, pstr, sizeof(pstr)));
 
       return;
    }
+
+   if (originalpacketsrc == NULL
+   ||  receivedonaddr    == NULL
+   ||  packettarget      == NULL)
+      return;
+
+   len = salen(originalpacketsrc->ss_family);
 
    if (originalpacketsrc->ss_family != AF_INET) {
       slog(LOG_DEBUG,
@@ -412,7 +422,7 @@ rawsocket_recv(s, ioc, iov)
               sockaddr2string(&dstaddr, dststr, sizeof(dststr)));
 
    }
-   
+
    return rc;
 }
 #endif /* BAREFOOTD */

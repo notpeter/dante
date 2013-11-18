@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 
+ * Copyright (c) 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: time.c,v 1.8 2013/06/08 22:24:29 michaels Exp $";
+"$Id: time.c,v 1.9 2013/10/25 12:55:01 karls Exp $";
 
 time_t
 time_monotonic(tloc)
@@ -94,9 +94,9 @@ gettimeofday_monotonic(tv)
            "%s: looks like the clock was stepped backwards.  "
            "Was %ld.%06ld, is %ld.%06ld",
            function,
-           (long)tv_lasttime.tv_sec, 
-           (long)tv_lasttime.tv_usec, 
-           (long)tv->tv_sec, 
+           (long)tv_lasttime.tv_sec,
+           (long)tv_lasttime.tv_usec,
+           (long)tv->tv_sec,
            (long)tv->tv_usec);
 
       *tv = tv_lasttime;
@@ -105,9 +105,9 @@ gettimeofday_monotonic(tv)
          ++tv->tv_usec; /* no idea, but better than nothing. */
    }
 
-   /* 
-    * for some reason Coverity produces a warning about 
-    * tv_lasttime.tv_usec being unitialized if we do a struct 
+   /*
+    * for some reason Coverity produces a warning about
+    * tv_lasttime.tv_usec being unitialized if we do a struct
     * assignment here. :-/
     */
    tv_lasttime.tv_sec  = tv->tv_sec;

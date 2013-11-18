@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2006, 2008, 2009, 2010,
- *               2011, 2012
+ *               2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: tostring.h,v 1.95 2013/07/12 20:49:57 michaels Exp $ */
+/* $Id: tostring.h,v 1.99 2013/10/27 15:24:41 karls Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
@@ -50,10 +50,10 @@
 #define QUOTE(a)   a
 #define QUOTE0()   ""
 
-int32_t 
+int32_t
 string2portnumber(const char *string, char *emsg, size_t emsglen);
 /*
- * Returns the interger corresponding to the portnumber represented by
+ * Returns the integer corresponding to the portnumber represented by
  * the string "string", or -1 on error.
  * On error, "emsg" and "emsglen" contains the reason for error.
  */
@@ -183,7 +183,7 @@ string2method(const char *methodname);
  */
 
 char *
-sockshost2string2(const sockshost_t *host, const size_t includeinfo, 
+sockshost2string2(const sockshost_t *host, const size_t includeinfo,
                   char *string, size_t len)
       __ATTRIBUTE__((__BOUNDED__(__string__, 3, 4)));
 /*
@@ -202,7 +202,7 @@ char *
 sockshost2string(const sockshost_t *host, char *string, size_t len)
       __ATTRIBUTE__((__BOUNDED__(__string__, 2, 3)));
 /*
- * Wrapper aronud sockshost2string2() that does not include any extra info.
+ * Wrapper around sockshost2string2() that does not include any extra info.
  */
 
 
@@ -394,12 +394,12 @@ sockopt2string(const socketoption_t *opt, char *str, size_t strsize);
  * Returns a printable representation of the socketoption_t "opt".
  */
 
-char *      
+char *
 ltoa(long l, char *buf, size_t buflen);
 /*
  * Returns the value of "l" as a string, stored in buf, which should
  * be of at least 22 bytes.
- * If "buf" is NULL, returns a pointer to a statically allocated string 
+ * If "buf" is NULL, returns a pointer to a statically allocated string
  * instead of "buf".
  */
 
@@ -412,6 +412,12 @@ socketsettime2string(const int whichtime);
 
 
 #if !SOCKS_CLIENT
+
+const char *
+addrscope2string(const ipv6_addrscope_t scope);
+/*
+ * Returns string representation of the ipv6 address scope "scope".
+ */
 
 const char *
 alarmside2string(const size_t alarmside);

@@ -19,8 +19,20 @@
 /* Compat functions enabled in build */
 #undef DANTE_COMPATFILES
 
-/* Socket options enabled in build */
-#undef DANTE_SOCKOPTS
+/* IPV4 level socket options enabled in build */
+#undef DANTE_SOCKOPTS_IPV4
+
+/* IPV6 level socket options enabled in build */
+#undef DANTE_SOCKOPTS_IPV6
+
+/* Socket level socket options enabled in build */
+#undef DANTE_SOCKOPTS_SO
+
+/* TCP level socket options enabled in build */
+#undef DANTE_SOCKOPTS_TCP
+
+/* UDP level socket options enabled in build */
+#undef DANTE_SOCKOPTS_UDP
 
 /* for debugging */
 #undef DIAGNOSTIC
@@ -553,9 +565,6 @@
 
 /* Define to 1 if you have the `crypt' library (-lcrypt). */
 #undef HAVE_LIBCRYPT
-
-/* Define to 1 if you have the `crypto' library (-lcrypto). */
-#undef HAVE_LIBCRYPTO
 
 /* Linux version of issetugid() */
 #undef HAVE_LIBC_ENABLE_SECURE
@@ -1184,7 +1193,7 @@
 /* proto */
 #undef HAVE_PROT__READ_CHK_4
 
-/* Define to 1 if you have the `pselect' function. */
+/* working pselect() support */
 #undef HAVE_PSELECT
 
 /* have pthread header */
@@ -2802,7 +2811,7 @@
 /* IP_TTL value */
 #undef SOCKS_IP_TTL_NAME
 
-/* Guess at number of valid signals */
+/* Guess at max number of valid signals */
 #undef SOCKS_NSIG
 
 /* SO_BINDANY IPv4 option */

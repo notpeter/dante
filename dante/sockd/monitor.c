@@ -45,13 +45,13 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: monitor.c,v 1.120 2013/08/01 10:34:53 michaels Exp $";
+"$Id: monitor.c,v 1.125 2013/10/27 15:17:06 karls Exp $";
 
 
 static void showalarms(const monitor_if_t *iface);
 static void siginfo(int sig, siginfo_t *sip, void *scp);
 
-static void 
+static void
 alarmcheck_disconnect(const monitor_t *monitor, alarm_disconnect_t *alarm,
                       const size_t alarmside, const struct timeval *tnow,
                       int *alarmtriggered);
@@ -71,34 +71,32 @@ alarmcheck_disconnect(const monitor_t *monitor, alarm_disconnect_t *alarm,
 #define OP_REMOVE_SESSION  (4)
 
 static char *op2string(const size_t op);
- 
+
 
 static void
-disconnect_alarm_body(const int weclosedfirst, const size_t op, 
-                      shmem_object_t *shmem, const unsigned long shmid,
-                      const size_t sides, const clientinfo_t *cinfo, 
+disconnect_alarm_body(const int weclosedfirst, const size_t op,
+                      rule_t *alarm, const size_t sides,
+                      const clientinfo_t *cinfo,
                       const char *reason, const int lock);
 /*
  * The operation for the different op values is given by the "op" value,
  * which should be a bitmask of one or more of the following.:
- *  - OP_CONNECT:  adds a connect to the disconnect alarm referenced 
+ *  - OP_CONNECT:  adds a connect to the disconnect alarm referenced
  *                 by shmem. "reason" should be NULL in this case.
  *
  *  - OP_DISCONNECT: adds a disconnect, decrementing the connect counter at
- *                   the same time.  In this case, "reason" must be a string 
- *                   describing the reason for the disconnect, and 
- *                   "weclosedfirst" indicates whether the disconnect is 
+ *                   the same time.  In this case, "reason" must be a string
+ *                   describing the reason for the disconnect, and
+ *                   "weclosedfirst" indicates whether the disconnect is
  *                   considered a response to our close towards peer or not.
  *
  *  - OP_REMOVE_SESSION: decrements the session counter.
- *
- * If "shmem" is not NULL, it points to the already attached shmem segment.
  */
 
 
-static void 
+static void
 alarmcheck_data(const monitor_t *monitor, alarm_data_side_t *alarm,
-                const size_t alarmside, const size_t sessionc, 
+                const size_t alarmside, const size_t sessionc,
                 const struct timeval *tnow);
 /*
  * Checks the data alarm "alarm", part of monitor "monitor".
@@ -107,10 +105,10 @@ alarmcheck_data(const monitor_t *monitor, alarm_data_side_t *alarm,
  */
 
 static void
-alarm_data_toggle(const monitor_t *monitor, const size_t alarmside, 
+alarm_data_toggle(const monitor_t *monitor, const size_t alarmside,
                   alarm_data_side_t *alarm, const struct timeval *tnow);
 /*
- * toggles the data-alarm "alarm", part of the monitor "monitor", on or off, 
+ * toggles the data-alarm "alarm", part of the monitor "monitor", on or off,
  * with appropriate log messages.
  */
 
@@ -120,24 +118,24 @@ static void checkmonitors(void);
  */
 
 static struct timeval *
-timetillcheck(const monitor_t *monitor, const struct timeval *tnow, 
+timetillcheck(const monitor_t *monitor, const struct timeval *tnow,
             struct timeval *tfirstcheck, size_t *timedout);
 /*
  * Calculates the time remaining till the next check specified in "monitor"
  * should be done, or NULL if no timeout is configured for this monitor.
- * The latter would likely only happen if there is a configuration error 
+ * The latter would likely only happen if there is a configuration error
  * by the user.
  *
  * The time till the first timeout is saved in "tfirstcheck.
  *
  * "tnow" is the current time.
  *
- * "timedout", if not NULL, is a bitmask indicating which, if any, of the 
- * alarm elements for "monitor" have already timed out and should be checked 
+ * "timedout", if not NULL, is a bitmask indicating which, if any, of the
+ * alarm elements for "monitor" have already timed out and should be checked
  * now.
  *
  * Returns "tfirstcheck", filled out correctly.
- */ 
+ */
 
 static struct timeval *
 gettimeout(struct timeval *timeout);
@@ -147,7 +145,7 @@ gettimeout(struct timeval *timeout);
  */
 
 static void proctitleupdate(void);
-/* 
+/*
  * Updates the process title.  "monitorc" is the number of objects
  * we are monitoring.
  */
@@ -185,14 +183,14 @@ addmonitor(newmonitor)
    mstats = &newmonitor->mstats->object.monitor;
 
    if (newmonitor->alarmsconfigured & ALARM_DATA)
-      SASSERTX(mstats->internal.alarm.data.recv.isconfigured 
+      SASSERTX(mstats->internal.alarm.data.recv.isconfigured
       ||       mstats->internal.alarm.data.send.isconfigured
       ||       mstats->external.alarm.data.recv.isconfigured
       ||       mstats->external.alarm.data.send.isconfigured);
 
    if (newmonitor->alarmsconfigured & ALARM_DISCONNECT)
-      SASSERTX(mstats->internal.alarm.disconnect.isconfigured 
-      ||       mstats->external.alarm.disconnect.isconfigured); 
+      SASSERTX(mstats->internal.alarm.disconnect.isconfigured
+      ||       mstats->external.alarm.disconnect.isconfigured);
 
 
    if (mstats->internal.alarm.data.recv.isconfigured) {
@@ -294,7 +292,7 @@ showmonitor(_monitor)
    bzero(&rule, sizeof(rule));
    COPY_MONITORFIELDS(&monitor, &rule);
    (void)sockd_shmat(&rule, SHMEM_MONITOR);
-   COPY_MONITORFIELDS(&rule, &monitor); 
+   COPY_MONITORFIELDS(&rule, &monitor);
 
    if (monitor.mstats_shmid != 0) {
       const monitor_stats_t *mstats;
@@ -324,26 +322,26 @@ showmonitor(_monitor)
    }
 
    sockd_shmdt(&rule, SHMEM_MONITOR);
-   COPY_MONITORFIELDS(&rule, &monitor); 
+   COPY_MONITORFIELDS(&rule, &monitor);
 
 #if 0
    /*
-    * Not implemented. 
+    * Not implemented.
     */
 
    showlist(monitor.user, "user: ");
    showlist(monitor.group, "group: ");
 
 #if HAVE_PAM
-   if (methodisset(AUTHMETHOD_PAM, 
+   if (methodisset(AUTHMETHOD_PAM,
                    monitor.state.methodv,
                    monitor.state.methodc))
       slog(LOG_DEBUG, "pam.servicename: %s", monitor.state.pamservicename);
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
-   if (methodisset(AUTHMETHOD_BSDAUTH, 
-                   monitor.state.methodv, 
+   if (methodisset(AUTHMETHOD_BSDAUTH,
+                   monitor.state.methodv,
                    monitor.state.methodc))
       slog(LOG_DEBUG, "bsdauth.stylename: %s", monitor.state.bsdauthstylename);
 #endif /* HAVE_BSDAUTH */
@@ -404,7 +402,7 @@ showmonitor(_monitor)
 void
 run_monitor(void)
 {
-   const char *function = "run_monitor()"; 
+   const char *function = "run_monitor()";
    struct sigaction sigact;
    fd_set *rset;
 
@@ -461,15 +459,15 @@ run_monitor(void)
 
          default:
             if (FD_ISSET(sockscf.state.mother.ack, rset)) {
-               /* 
+               /*
                 * only eof expected.  Read and exit.
                 */
                sockd_readmotherscontrolsocket(function,
                                               sockscf.state.mother.ack);
 
-               /* 
-                * XXX for some reason Valgrind complains rset pointer is 
-                * lost, but this free(3)-call seems to make Valgrind 
+               /*
+                * XXX for some reason Valgrind complains rset pointer is
+                * lost, but this free(3)-call seems to make Valgrind
                 * understand it is wrong.
                 */
                free(rset);
@@ -490,8 +488,8 @@ monitor_preconfigload(void)
 
    slog(LOG_DEBUG, "%s", function);
 
-   /* 
-    * will load new monitor objects (if any) from new config. 
+   /*
+    * will load new monitor objects (if any) from new config.
     * Disregard any old ones.
     */
    monitor_detachfromlist(sockscf.monitor);
@@ -521,23 +519,21 @@ monitor_postconfigload(void)
       SASSERTX(monitor->mstats       == NULL);
 
       bzero(&rule, sizeof(rule));
-      COPY_MONITORFIELDS(monitor, &rule); /* tmp; sockd_shmat() expectes rule */
+      COPY_MONITORFIELDS(monitor, &rule); /* tmp; sockd_shmat() expects rule */
       rc = sockd_shmat(&rule, SHMEM_MONITOR);
-      COPY_MONITORFIELDS(&rule, monitor); 
+      COPY_MONITORFIELDS(&rule, monitor);
 
       if (rc != 0) {
-         slog(LOG_DEBUG, "%s: could not atach to shmem segment of monitor #%lu",
+         slog(LOG_DEBUG, "%s: could not attach to shmem segment of monitor #%lu",
               function, (unsigned long)monitor->number);
 
          continue;
       }
 
-      COPY_MONITORFIELDS(&rule, monitor); 
-
       SASSERTX(monitor->mstats != NULL);
-      
+
       /*
-       * Reset all counters and remain attached so we do not have to 
+       * Reset all counters and remain attached so we do not have to
        * constantly attach/detach for checking.
        */
 
@@ -549,28 +545,32 @@ monitor_postconfigload(void)
       monitor_stats_t _mstats = *mstats;
 #endif /* DEBUG */
 
+      MUNPROTECT_SHMEMHEADER(monitor->mstats);
+
       mstats->internal.alarm.data.recv.ison
       = mstats->internal.alarm.data.send.ison
       = mstats->external.alarm.data.recv.ison
-      = mstats->external.alarm.data.send.ison = 0; 
+      = mstats->external.alarm.data.send.ison = 0;
 
       mstats->internal.alarm.data.recv.bytes
       = mstats->internal.alarm.data.send.bytes
       = mstats->external.alarm.data.recv.bytes
-      = mstats->external.alarm.data.send.bytes = 0; 
+      = mstats->external.alarm.data.send.bytes = 0;
 
       timerclear(&mstats->internal.alarm.data.recv.lastio);
       timerclear(&mstats->internal.alarm.data.send.lastio);
       timerclear(&mstats->external.alarm.data.recv.lastio);
       timerclear(&mstats->external.alarm.data.send.lastio);
 
-      mstats->internal.alarm.data.recv.lastreset 
+      mstats->internal.alarm.data.recv.lastreset
       = mstats->internal.alarm.data.send.lastreset
       = mstats->external.alarm.data.recv.lastreset
       = mstats->external.alarm.data.send.lastreset
       = mstats->internal.alarm.disconnect.lastreset
-      = mstats->external.alarm.disconnect.lastreset 
+      = mstats->external.alarm.disconnect.lastreset
       = tnow;
+
+      MPROTECT_SHMEMHEADER(monitor->mstats);
 
       socks_unlock(sockscf.shmemfd, (off_t)monitor->mstats_shmid, 1);
 
@@ -591,7 +591,7 @@ monitor_detachfromlist(head)
          continue;
 
       bzero(&rule, sizeof(rule));
-      COPY_MONITORFIELDS(m, &rule); /* tmp; sockd_shmat() expectes rule */
+      COPY_MONITORFIELDS(m, &rule); /* tmp; sockd_shmat() expects rule */
       sockd_shmdt(&rule, SHMEM_MONITOR);
       COPY_MONITORFIELDS(&rule, m); /* don't forget to update monitor-list. */
    }
@@ -617,13 +617,12 @@ alarm_inherit(from, cinfo_from, to, cinfo_to, sidesconnected)
       return;
 
    if (from->mstats_shmid == 0) { /* nothing to inherit from. */
-      if (to->mstats_shmid != 0 && (to->alarmsconfigured & ALARM_DISCONNECT)) {
-         alarm_add_connect(to->mstats,
-                           to->mstats_shmid,
-                           sidesconnected,
-                           cinfo_to,
-                           sockscf.shmemfd);
-      }
+      if (to->mstats_shmid != 0 && (to->alarmsconfigured & ALARM_DISCONNECT))
+         /*
+          * Add connect.
+          */
+         alarm_add_connect(to, sidesconnected, cinfo_to, sockscf.shmemfd);
+
       /* else; nothing to do.  No monitor before, no monitor now. */
    }
    else { /* disregard old monitor, inherit it, or nothing? */
@@ -634,30 +633,23 @@ alarm_inherit(from, cinfo_from, to, cinfo_to, sidesconnected)
       else if (to->mstats_shmid == 0) { /* inherit */
          COPY_MONITORFIELDS(from, to);
       }
-      else { /* diregard, old, use new. */
+      else { /* disregard, old, use new. */
          SASSERTX(to->mstats_shmid   != 0);
-         SASSERTX(from->mstats_shmid != 0); 
+         SASSERTX(from->mstats_shmid != 0);
 
          if (from->alarmsconfigured & ALARM_DISCONNECT) {
             /*
              * Remove connect.
              */
-            alarm_remove_session(from->mstats,
-                                 from->mstats_shmid,
+            alarm_remove_session(from,
                                  sidesconnected,
                                  cinfo_from,
                                  sockscf.shmemfd);
          }
 
-         SASSERTX(to->mstats_shmid != 0); 
-         if (to->alarmsconfigured & ALARM_DISCONNECT) {
-            alarm_add_connect(to->mstats,
-                              to->mstats_shmid,
-                              sidesconnected,
-                              cinfo_to,
-                              sockscf.shmemfd);
-
-         }
+         SASSERTX(to->mstats_shmid != 0);
+         if (to->alarmsconfigured & ALARM_DISCONNECT)
+            alarm_add_connect(to, sidesconnected, cinfo_to, sockscf.shmemfd);
       }
    }
 }
@@ -674,7 +666,7 @@ monitormatch(src, dst, auth, state)
    monitor_t *monitor;
    char srcstr[MAXSOCKSHOSTSTRING], dststr[sizeof(srcstr)];
 
-   slog(LOG_DEBUG, "%s: %s -> %s", 
+   slog(LOG_DEBUG, "%s: %s -> %s",
         function,
         src == NULL ? "N/A" : sockshost2string(src, srcstr, sizeof(srcstr)),
         dst == NULL ? "N/A" : sockshost2string(dst, dststr, sizeof(dststr)));
@@ -682,8 +674,8 @@ monitormatch(src, dst, auth, state)
    for (monitor = sockscf.monitor; monitor != NULL; monitor = monitor->next) {
       if (!protocol_matches(state->protocol, &monitor->state.protocol)) {
          slog(LOG_DEBUG, "%s: monitor #%lu monitors protocols %s, but not %s",
-              function, 
-              (unsigned long)monitor->number, 
+              function,
+              (unsigned long)monitor->number,
               protocols2string(&monitor->state.protocol, NULL, 0),
               protocol2string(state->protocol));
 
@@ -692,8 +684,8 @@ monitormatch(src, dst, auth, state)
 
       if (!command_matches(state->command, &monitor->state.command)) {
          slog(LOG_DEBUG, "%s: monitor #%lu monitor commands %s, but not %s",
-              function, 
-              (unsigned long)monitor->number, 
+              function,
+              (unsigned long)monitor->number,
               commands2string(&monitor->state.command, NULL, 0),
               command2string(state->command));
 
@@ -758,14 +750,9 @@ monitor_use(mstats, cinfo, lock)
 }
 
 void
-monitor_move(old_shmem, old_shmid, old_alarmsconfigured, 
-             shmem, shmid, alarmsconfigured, sidesconnected, cinfo, lock)
-   shmem_object_t *old_shmem;
-   const unsigned long old_shmid;
-   const size_t old_alarmsconfigured;
-   shmem_object_t *shmem;
-   const unsigned long shmid;
-   const size_t alarmsconfigured;
+monitor_move(oldmonitor, newmonitor, sidesconnected, cinfo, lock)
+   monitor_t *oldmonitor;
+   monitor_t *newmonitor;
    const size_t sidesconnected;
    const clientinfo_t *cinfo;
    const int lock;
@@ -777,52 +764,57 @@ monitor_move(old_shmem, old_shmid, old_alarmsconfigured,
         "%s: shmid %lu (%p) -> shmid %lu (%p).  Old alarmsconfigured: %lu, "
         "new alarmsconfigured: %lu, sides connected: %lu",
         function,
-        (unsigned long)old_shmid,
-        old_shmem,
-        (unsigned long)shmid,
-        shmem,
-        (unsigned long)old_alarmsconfigured,
-        (unsigned long)alarmsconfigured,
+        (unsigned long)oldmonitor->mstats_shmid,
+        oldmonitor->mstats,
+        (unsigned long)newmonitor->mstats_shmid,
+        newmonitor->mstats,
+        (unsigned long)oldmonitor->alarmsconfigured,
+        (unsigned long)newmonitor->alarmsconfigured,
         (unsigned long)sidesconnected);
-        
+
    /*
-    * Clean up old monitor first. 
+    * Clean up old monitor first.
     */
 
    bzero(&alarm, sizeof(alarm));
-   alarm.mstats       = old_shmem;
-   alarm.mstats_shmid = old_shmid;
+   COPY_MONITORFIELDS(oldmonitor, &alarm);
+
    if (alarm.mstats_shmid != 0 && alarm.mstats == NULL)
-      (void)sockd_shmat(&alarm, SHMEM_MONITOR);
+      if (sockd_shmat(&alarm, SHMEM_MONITOR) != 0)
+         COPY_MONITORFIELDS(&alarm, oldmonitor);
 
    if (alarm.mstats_shmid != 0) {
       SASSERTX(alarm.mstats != NULL);
-   
+
       socks_lock(lock, (off_t)alarm.mstats_shmid, 1, 1, 1);
+
+      if (alarm.alarmsconfigured & ALARM_DISCONNECT)
+         alarm_remove_session(&alarm, sidesconnected, cinfo, -1);
 
       monitor_unuse(alarm.mstats, cinfo, -1);
 
-      if (old_alarmsconfigured & ALARM_DISCONNECT)
-         alarm_remove_session(alarm.mstats,
-                              alarm.mstats_shmid,
-                              sidesconnected,
-                              cinfo,
-                              -1);
-
       socks_unlock(lock, (off_t)alarm.mstats_shmid, 1);
 
-      if (old_shmem == NULL)
-         sockd_shmdt(&alarm, SHMEM_MONITOR); /* restore attachment-state. */
+      SASSERTX(alarm.mstats != NULL);
+
+      if (oldmonitor->mstats == NULL)
+         sockd_shmdt(&alarm, SHMEM_MONITOR); /* restore original state. */
+      else
+         SASSERTX(alarm.mstats == oldmonitor->mstats);
    }
+
+   CLEAR_MONITORFIELDS(oldmonitor);
 
    /*
     * And now update new.
     */
 
-   alarm.mstats       = shmem;
-   alarm.mstats_shmid = shmid;
+   bzero(&alarm, sizeof(alarm));
+   COPY_MONITORFIELDS(newmonitor, &alarm);
+
    if (alarm.mstats_shmid != 0 && alarm.mstats == NULL)
-      sockd_shmat(&alarm, SHMEM_MONITOR);
+      if (sockd_shmat(&alarm, SHMEM_MONITOR) != 0)
+         COPY_MONITORFIELDS(&alarm, newmonitor);
 
    if (alarm.mstats_shmid != 0) {
       SASSERTX(alarm.mstats != NULL);
@@ -831,18 +823,20 @@ monitor_move(old_shmem, old_shmid, old_alarmsconfigured,
 
       monitor_use(alarm.mstats, cinfo, -1);
 
-      if (alarmsconfigured & ALARM_DISCONNECT)
-         alarm_add_connect(alarm.mstats,
-                           alarm.mstats_shmid,
-                           sidesconnected,
-                           cinfo,
-                           -1);
+      if (alarm.alarmsconfigured & ALARM_DISCONNECT)
+         alarm_add_connect(&alarm, sidesconnected, cinfo, -1);
 
       socks_unlock(lock, (off_t)alarm.mstats_shmid, 1);
 
-      if (shmem == NULL)
-         sockd_shmdt(&alarm, SHMEM_MONITOR); /* restore attachment-state. */
+      SASSERTX(alarm.mstats != NULL);
+
+      if (newmonitor->mstats == NULL)
+         sockd_shmdt(&alarm, SHMEM_MONITOR); /* restore original state. */
+      else
+         SASSERTX(alarm.mstats == newmonitor->mstats);
    }
+   else
+      CLEAR_MONITORFIELDS(newmonitor);
 }
 
 
@@ -873,9 +867,8 @@ monitor_unuse(mstats, cinfo, lock)
 }
 
 void
-alarm_remove_session(shmem, shmid, sides, cinfo, lock)
-   shmem_object_t *shmem;
-   const unsigned long shmid;
+alarm_remove_session(alarm, sides, cinfo, lock)
+   rule_t *alarm;
    const size_t sides;
    const clientinfo_t *cinfo;
    const int lock;
@@ -883,19 +876,16 @@ alarm_remove_session(shmem, shmid, sides, cinfo, lock)
 
    disconnect_alarm_body(0,
                          OP_REMOVE_SESSION,
-                         shmem,
-                         shmid,
+                         alarm,
                          sides,
                          cinfo,
                          NULL,
                          lock);
-
 }
 
 void
-alarm_add_connect(shmem, shmid, sides, cinfo, lock)
-   shmem_object_t *shmem;
-   const unsigned long shmid;
+alarm_add_connect(alarm, sides, cinfo, lock)
+   rule_t *alarm;
    const size_t sides;
    const clientinfo_t *cinfo;
    const int lock;
@@ -903,8 +893,7 @@ alarm_add_connect(shmem, shmid, sides, cinfo, lock)
 
    disconnect_alarm_body(0,
                          OP_CONNECT,
-                         shmem,
-                         shmid,
+                         alarm,
                          sides,
                          cinfo,
                          NULL,
@@ -912,11 +901,9 @@ alarm_add_connect(shmem, shmid, sides, cinfo, lock)
 }
 
 void
-alarm_add_disconnect(weclosedfirst, shmem, shmid, sides, cinfo, 
-                     reason, lock)
+alarm_add_disconnect(weclosedfirst, alarm, sides, cinfo, reason, lock)
    const int weclosedfirst;
-   shmem_object_t *shmem;
-   const unsigned long shmid;
+   rule_t *alarm;
    const size_t sides;
    const clientinfo_t *cinfo;
    const char *reason;
@@ -924,10 +911,9 @@ alarm_add_disconnect(weclosedfirst, shmem, shmid, sides, cinfo,
 {
 
    SASSERTX(reason != NULL);
-   disconnect_alarm_body(weclosedfirst, 
+   disconnect_alarm_body(weclosedfirst,
                          OP_DISCONNECT,
-                         shmem,
-                         shmid,
+                         alarm,
                          sides,
                          cinfo,
                          reason,
@@ -935,12 +921,10 @@ alarm_add_disconnect(weclosedfirst, shmem, shmid, sides, cinfo,
 }
 
 static void
-disconnect_alarm_body(weclosedfirst, op, shmem, shmid, sides, cinfo,
-                      reason, lock)
+disconnect_alarm_body(weclosedfirst, op, alarm, sides, cinfo, reason, lock)
    const int weclosedfirst;
    const size_t op;
-   shmem_object_t *shmem;
-   const unsigned long shmid;
+   rule_t *alarm;
    const size_t sides;
    const clientinfo_t *cinfo;
    const char *reason;
@@ -954,36 +938,34 @@ disconnect_alarm_body(weclosedfirst, op, shmem, shmid, sides, cinfo,
                             (op & OP_DISCONNECT)     ? OP_DISCONNECT     : 0,
                             (op & OP_REMOVE_SESSION) ? OP_REMOVE_SESSION : 0 };
 
-   rule_t alarm;
    alarm_disconnect_t *disconnect;
    size_t sidec, opc, locktaken;
+   int didattach;
 
-
-   slog(LOG_DEBUG, "%s: op %lu, sides %lu, shmid %lu, cinfo %s",
+   slog(LOG_DEBUG, "%s: op %lu, sides %lu, shmid %lu, shmem %p, cinfo %s",
         function,
         (unsigned long)op,
-        (unsigned long)sides, 
-        (unsigned long)shmid,
+        (unsigned long)sides,
+        (unsigned long)alarm->mstats_shmid,
+        alarm->mstats,
         clientinfo2string(cinfo, NULL, 0));
 
-   bzero(&alarm, sizeof(alarm));
-   alarm.mstats_shmid = shmid;
-   alarm.mstats       = shmem;
+   SASSERTX(alarm->mstats_shmid != 0);
 
-   SASSERTX(alarm.mstats_shmid != 0);
-
-   if (alarm.mstats == NULL) {
-      if (sockd_shmat(&alarm, SHMEM_MONITOR) != 0)
+   if (alarm->mstats == NULL) {
+      if (sockd_shmat(alarm, SHMEM_MONITOR) != 0)
          return;
-   }
 
-   SASSERTX(alarm.mstats != NULL);
+      didattach = 1;
+   }
+   else
+      didattach = 0;
+
+   SASSERTX(alarm->mstats != NULL);
 
 #if DEBUG /* memory-mapped file contents may not be saved in coredumps. */
-   shmem_object_t _shmem = *alarm.mstats;
+   shmem_object_t _shmem = *alarm->mstats;
 #endif /* DEBUG */
-
-   SASSERTX(alarm.mstats_shmid == shmid);
 
    locktaken = 0;
 
@@ -997,11 +979,12 @@ disconnect_alarm_body(weclosedfirst, op, shmem, shmid, sides, cinfo,
 
          if (sidev[sidec] == ALARM_INTERNAL)
             disconnect
-            = &alarm.mstats->object.monitor.internal.alarm.disconnect;
+            = &alarm->mstats->object.monitor.internal.alarm.disconnect;
          else {
             SASSERTX(sidev[sidec] == ALARM_EXTERNAL);
+
             disconnect
-            = &alarm.mstats->object.monitor.external.alarm.disconnect;
+            = &alarm->mstats->object.monitor.external.alarm.disconnect;
          }
 
          slog(LOG_DEBUG,
@@ -1012,10 +995,10 @@ disconnect_alarm_body(weclosedfirst, op, shmem, shmid, sides, cinfo,
               clientinfo2string(cinfo, NULL, 0),
               op2string(opv[opc]),
               disconnect->isconfigured ? "Disconnect" : "No disconnect",
-              alarm.mstats_shmid,
+              alarm->mstats_shmid,
               alarmside2string(sidev[sidec]),
               reason == NULL ? "N/A" : reason,
-              (opv[opc] & OP_DISCONNECT) ? 
+              (opv[opc] & OP_DISCONNECT) ?
                   (weclosedfirst ? "Yes" : "No") : "N/A",
               (unsigned long)disconnect->sessionc,
               (unsigned long)disconnect->peer_disconnectc);
@@ -1024,27 +1007,29 @@ disconnect_alarm_body(weclosedfirst, op, shmem, shmid, sides, cinfo,
             continue;
 
          if (!locktaken) {
-            socks_lock(lock, (off_t)alarm.mstats_shmid, 1, 1, 1);
+            socks_lock(lock, (off_t)alarm->mstats_shmid, 1, 1, 1);
             locktaken = 1;
          }
+
+         MUNPROTECT_SHMEMHEADER(alarm->mstats);
 
          switch (opv[opc]) {
             case OP_CONNECT:
                SASSERTX(reason == NULL);
 
-               disconnect->sessionc += 1;  
+               disconnect->sessionc += 1;
                break;
 
             case OP_DISCONNECT:
                SASSERTX(reason != NULL);
                SASSERTX(disconnect->sessionc > 0);
 
-               disconnect->sessionc -= 1;  
+               disconnect->sessionc -= 1;
 
                if (weclosedfirst)
                   disconnect->self_disconnectc += 1;
                else
-                  disconnect->peer_disconnectc += 1;  
+                  disconnect->peer_disconnectc += 1;
 
                break;
 
@@ -1052,21 +1037,23 @@ disconnect_alarm_body(weclosedfirst, op, shmem, shmid, sides, cinfo,
                SASSERTX(reason == NULL);
                SASSERTX(disconnect->sessionc > 0);
 
-               disconnect->sessionc -= 1;  
+               disconnect->sessionc -= 1;
                break;
 
             default:
                SERRX(opv[opc]);
 
          }
+
+         MPROTECT_SHMEMHEADER(alarm->mstats);
       }
    }
 
    if (locktaken)
-      socks_unlock(lock, (off_t)alarm.mstats_shmid, 1);
+      socks_unlock(lock, (off_t)alarm->mstats_shmid, 1);
 
-   if (shmem == NULL)
-      sockd_shmdt(&alarm, SHMEM_MONITOR);
+   if (didattach)
+      sockd_shmdt(alarm, SHMEM_MONITOR);
 }
 
 static void
@@ -1116,19 +1103,19 @@ checkmonitors(void)
 
       sessionc = monitor->mstats->mstate.clients,
 
-      /* 
+      /*
        * Should have taken the lock before checking the timeout, but
        * seems wasteful as the only difference should be that on
-       * boundary conditions, we might trigger an alarm or not trigger 
+       * boundary conditions, we might trigger an alarm or not trigger
        * an alarm, deciding on the exact timing of when another process
        * gets to update the alarm counters.
        */
       socks_lock(sockscf.shmemfd, (off_t)monitor->mstats_shmid, 1, 1, 1);
 
       if (hastimedout
-      & (  ALARM_INTERNAL_RECV 
-         | ALARM_INTERNAL_SEND 
-         | ALARM_EXTERNAL_RECV 
+      & (  ALARM_INTERNAL_RECV
+         | ALARM_INTERNAL_SEND
+         | ALARM_EXTERNAL_RECV
          | ALARM_EXTERNAL_SEND)) {
          if (monitor->alarm_data_aggregate != 0) {
             /*
@@ -1139,7 +1126,6 @@ checkmonitors(void)
             struct timeval lio;
             size_t bytes, alarmsides;
 
-            
             alarmsides = 0;
             bytes      = 0;
             timerclear(&lio);
@@ -1202,7 +1188,7 @@ checkmonitors(void)
                   if (alarmsides & (ALARM_INTERNAL_RECV | ALARM_INTERNAL_SEND))
                      alarmsides = ALARM_INTERNAL;
                   else {
-                     SASSERTX(alarmsides 
+                     SASSERTX(alarmsides
                               & (ALARM_EXTERNAL_RECV | ALARM_EXTERNAL_SEND));
                      alarmsides = ALARM_EXTERNAL;
                   }
@@ -1212,7 +1198,6 @@ checkmonitors(void)
                   SERRX(monitor->alarm_data_aggregate);
             }
 
-               
             alarmcheck_data(monitor, &agg, alarmsides, sessionc, &tnow);
 
             /*
@@ -1235,7 +1220,7 @@ checkmonitors(void)
             if (hastimedout & ALARM_EXTERNAL_RECV) {
                alarm_data_side_t *alarm = &mstats->external.alarm.data.recv;
 
-               alarmcheck_data(monitor, 
+               alarmcheck_data(monitor,
                                alarm,
                                ALARM_EXTERNAL_RECV,
                                sessionc,
@@ -1255,26 +1240,24 @@ checkmonitors(void)
             if (hastimedout & ALARM_INTERNAL_RECV) {
                alarm_data_side_t *alarm = &mstats->internal.alarm.data.recv;
 
-               alarmcheck_data(monitor, 
-                               alarm, 
-                               ALARM_INTERNAL_RECV, 
-                               sessionc, 
+               alarmcheck_data(monitor,
+                               alarm,
+                               ALARM_INTERNAL_RECV,
+                               sessionc,
                                &tnow);
             }
 
             if (hastimedout & ALARM_INTERNAL_SEND) {
                alarm_data_side_t *alarm = &mstats->internal.alarm.data.send;
 
-               alarmcheck_data(monitor, 
-                               alarm, 
-                               ALARM_INTERNAL_SEND, 
-                               sessionc, 
+               alarmcheck_data(monitor,
+                               alarm,
+                               ALARM_INTERNAL_SEND,
+                               sessionc,
                                &tnow);
             }
          }
       }
-
-
 
 #define RESET_DISCONNECT(_alarm, _tnow)                                        \
 do {                                                                           \
@@ -1283,6 +1266,8 @@ do {                                                                           \
    (_alarm)->self_disconnectc = 0;                                             \
 } while (/* CONSTCOND */ 0)
 
+      MUNPROTECT_SHMEMHEADER(monitor->mstats);
+
       if (hastimedout & (ALARM_INTERNAL | ALARM_EXTERNAL)) {
          if (monitor->alarm_disconnect_aggregate != 0) {
             alarm_disconnect_t agg;
@@ -1290,7 +1275,7 @@ do {                                                                           \
             SASSERTX(mstats->internal.alarm.disconnect.isconfigured);
             SASSERTX(mstats->external.alarm.disconnect.isconfigured);
 
-            agg                   = mstats->internal.alarm.disconnect;
+            agg = mstats->internal.alarm.disconnect;
 
             agg.peer_disconnectc
             += mstats->external.alarm.disconnect.peer_disconnectc;
@@ -1298,14 +1283,14 @@ do {                                                                           \
             agg.self_disconnectc
             += mstats->external.alarm.disconnect.self_disconnectc;
 
-               alarmcheck_disconnect(monitor,
-                                     &agg,
-                                     (size_t)-1, /* all. */
-                                     &tnow,
-                                     &rang);
+            alarmcheck_disconnect(monitor,
+                                  &agg,
+                                  (size_t)-1, /* all. */
+                                  &tnow,
+                                  &rang);
 
-               RESET_DISCONNECT(&mstats->internal.alarm.disconnect, tnow);
-               RESET_DISCONNECT(&mstats->external.alarm.disconnect, tnow);
+            RESET_DISCONNECT(&mstats->internal.alarm.disconnect, tnow);
+            RESET_DISCONNECT(&mstats->external.alarm.disconnect, tnow);
          }
          else {
             if (hastimedout & ALARM_EXTERNAL) {
@@ -1323,16 +1308,19 @@ do {                                                                           \
             if (hastimedout & ALARM_INTERNAL) {
                alarm_disconnect_t *alarm = &mstats->internal.alarm.disconnect;
 
-               alarmcheck_disconnect(monitor, 
+               alarmcheck_disconnect(monitor,
                                      alarm,
-                                     ALARM_INTERNAL, 
+                                     ALARM_INTERNAL,
                                      &tnow,
                                      &rang);
 
                RESET_DISCONNECT(alarm, tnow);
             }
          }
+
       }
+
+      MPROTECT_SHMEMHEADER(monitor->mstats);
 
       socks_unlock(sockscf.shmemfd, (off_t)monitor->mstats_shmid, 1);
    }
@@ -1340,7 +1328,7 @@ do {                                                                           \
    slog(LOG_DEBUG, "%s: ]", function);
 }
 
-static void 
+static void
 alarmcheck_disconnect(monitor, alarm, alarmside, tnow, alarmtriggered)
    const monitor_t *monitor;
    alarm_disconnect_t *alarm;
@@ -1352,14 +1340,14 @@ alarmcheck_disconnect(monitor, alarm, alarmside, tnow, alarmtriggered)
    struct timeval tdiff;
    size_t sessions_this_period;
    char src[MAXRULEADDRSTRING], dst[sizeof(src)];
-                              
+
    *alarmtriggered = 0;
 
-   timersub(tnow, &(alarm)->lastreset, &tdiff); 
+   timersub(tnow, &(alarm)->lastreset, &tdiff);
 
    /* we should only be called when enough time has passed. */
    SASSERTX(tdiff.tv_sec >= alarm->limit.seconds);
-                                      
+
    slog(LOG_DEBUG,
         "%s: disconnect alarm on side %s in monitor #%lu was last reset "
         "%ld.%06lds ago.  Limit is %lds, current sessionc/peer_disconnectc/"
@@ -1367,13 +1355,13 @@ alarmcheck_disconnect(monitor, alarm, alarmside, tnow, alarmtriggered)
         function,
         alarmside == (size_t)-1 ? "<all>" : alarmside2string(alarmside),
         (unsigned long)monitor->number,
-        (long)tdiff.tv_sec, 
+        (long)tdiff.tv_sec,
         (long)tdiff.tv_usec,
         (long)alarm->limit.seconds,
         (unsigned long)alarm->sessionc,
         (unsigned long)alarm->peer_disconnectc,
         (unsigned long)alarm->self_disconnectc);
-                                     
+
    if (alarm->peer_disconnectc < alarm->limit.disconnectc)
       return; /* no alarm.  */
 
@@ -1385,11 +1373,11 @@ alarmcheck_disconnect(monitor, alarm, alarmside, tnow, alarmtriggered)
    sessions_this_period
    = alarm->sessionc + alarm->peer_disconnectc + alarm->self_disconnectc;
 
-   if (sessions_this_period == 0) 
+   if (sessions_this_period == 0)
       return;
 
    slog(LOG_DEBUG, "%s: comparing %lu/%lu (%lu) vs %lu/%lu (%lu)",
-        function, 
+        function,
         (unsigned long)alarm->peer_disconnectc,
         (unsigned long)sessions_this_period,
         (unsigned long)(alarm->peer_disconnectc  / sessions_this_period),
@@ -1406,7 +1394,7 @@ alarmcheck_disconnect(monitor, alarm, alarmside, tnow, alarmtriggered)
            ruleaddr2string(&monitor->src, ADDRINFO_PORT, src, sizeof(src)),
            ruleaddr2string(&monitor->dst, ADDRINFO_PORT, dst, sizeof(dst)),
            alarmside == (size_t)-1 ? "" : " ",
-           alarmside == (size_t)-1 ? "" : alarmside2string(alarmside), 
+           alarmside == (size_t)-1 ? "" : alarmside2string(alarmside),
            (unsigned long)alarm->peer_disconnectc,
            (unsigned long)sessions_this_period,
            (long)tdiff.tv_sec,
@@ -1416,7 +1404,7 @@ alarmcheck_disconnect(monitor, alarm, alarmside, tnow, alarmtriggered)
    }
 }
 
-static void 
+static void
 alarmcheck_data(monitor, alarm, alarmside, sessionc, tnow)
    const monitor_t *monitor;
    alarm_data_side_t *alarm;
@@ -1437,6 +1425,8 @@ alarmcheck_data(monitor, alarm, alarmside, sessionc, tnow)
         (unsigned long)alarm->lastio.tv_sec,
         (unsigned long)alarm->lastio.tv_usec);
 
+   MUNPROTECT_SHMEMHEADER(monitor->mstats);
+
    if (alarm->bytes <= alarm->limit.bytes) {
       /*
        * Alarm should trigger for this timeperiod.
@@ -1448,7 +1438,7 @@ alarmcheck_data(monitor, alarm, alarmside, sessionc, tnow)
 
       alarm->lastreset = *tnow;
    }
-   else { 
+   else {
       /*
        * No alarm should trigger for this timeperiod.
        */
@@ -1457,15 +1447,17 @@ alarmcheck_data(monitor, alarm, alarmside, sessionc, tnow)
          alarm_data_toggle(monitor, alarmside, alarm, tnow);
          alarm->lastreset = *tnow;
       }
-      else { /* 
-              * else; was off, leave off.  
+      else { /*
+              * else; was off, leave off.
               * Next check at most one timeperiod after last i/o.
               */
-         alarm->lastreset = alarm->lastio; 
+         alarm->lastreset = alarm->lastio;
       }
    }
 
    alarm->bytes = 0;
+
+   MPROTECT_SHMEMHEADER(monitor->mstats);
 }
 
 static void
@@ -1504,7 +1496,7 @@ alarm_data_toggle(monitor, alarmside, alarm, tnow)
         "monitor(%lu): alarm/data %c: %s -> %s%s%s: %lu/%lu in %lds.  "
         "Session count: %lu%s%s",
         (unsigned long)monitor->number,
-        alarm->ison ? '[' : ']',  
+        alarm->ison ? '[' : ']',
         ruleaddr2string(&monitor->src, ADDRINFO_PORT, src, sizeof(src)),
         ruleaddr2string(&monitor->dst, ADDRINFO_PORT, dst, sizeof(dst)),
         alarmside == (size_t)-1 ? "" : " ",
@@ -1547,7 +1539,7 @@ gettimeout(timeout)
    }
 
    if (timeout_isset) {
-      if (timercmp(timeout, &tzero, <)) 
+      if (timercmp(timeout, &tzero, <))
          timerclear(timeout);
 
       return timeout;
@@ -1643,9 +1635,9 @@ do {                                                                           \
 
    if (monitor->alarmsconfigured & ALARM_DATA) {
       if (mstats->internal.alarm.data.recv.isconfigured) {
-         TIMERCALC(&mstats->internal.alarm.data.recv, 
+         TIMERCALC(&mstats->internal.alarm.data.recv,
                    &tnextcheck,
-                   tfirstcheck, 
+                   tfirstcheck,
                    tnow);
 
          if (timercmp(&tnextcheck, &tzero, <=))
@@ -1655,9 +1647,9 @@ do {                                                                           \
       }
 
       if (mstats->internal.alarm.data.send.isconfigured) {
-         TIMERCALC(&mstats->internal.alarm.data.send, 
+         TIMERCALC(&mstats->internal.alarm.data.send,
                    &tnextcheck,
-                   tfirstcheck, 
+                   tfirstcheck,
                    tnow);
 
          if (timercmp(&tnextcheck, &tzero, <=))
@@ -1667,9 +1659,9 @@ do {                                                                           \
       }
 
       if (mstats->external.alarm.data.recv.isconfigured) {
-         TIMERCALC(&mstats->external.alarm.data.recv, 
+         TIMERCALC(&mstats->external.alarm.data.recv,
                    &tnextcheck,
-                   tfirstcheck, 
+                   tfirstcheck,
                    tnow);
 
          if (timercmp(&tnextcheck, &tzero, <=))
@@ -1679,9 +1671,9 @@ do {                                                                           \
       }
 
       if (mstats->external.alarm.data.send.isconfigured) {
-         TIMERCALC(&mstats->external.alarm.data.send, 
+         TIMERCALC(&mstats->external.alarm.data.send,
                    &tnextcheck,
-                   tfirstcheck, 
+                   tfirstcheck,
                    tnow);
 
          if (timercmp(&tnextcheck, &tzero, <=))
@@ -1695,7 +1687,7 @@ do {                                                                           \
       if (mstats->internal.alarm.disconnect.isconfigured) {
          TIMERCALC(&mstats->internal.alarm.disconnect,
                    &tnextcheck,
-                   tfirstcheck, 
+                   tfirstcheck,
                    tnow);
 
          if (timercmp(&tnextcheck, &tzero, <=))
@@ -1707,7 +1699,7 @@ do {                                                                           \
       if (mstats->external.alarm.disconnect.isconfigured) {
          TIMERCALC(&mstats->external.alarm.disconnect,
                    &tnextcheck,
-                   tfirstcheck, 
+                   tfirstcheck,
                    tnow);
 
          if (timercmp(&tnextcheck, &tzero, <=))
@@ -1717,14 +1709,14 @@ do {                                                                           \
       }
    }
 
-   if (tfirstcheck_isset) 
+   if (tfirstcheck_isset)
       slog(LOG_DEBUG, "%s: first check for monitor #%lu is in %ld.%06lds",
            function,
            (unsigned long)monitor->number,
            (long)tfirstcheck->tv_sec,
            (long)tfirstcheck->tv_usec);
    else {
-      slog(LOG_DEBUG, "%s: no check scheduled for monitor #%lu", 
+      slog(LOG_DEBUG, "%s: no check scheduled for monitor #%lu",
            function, (unsigned long)monitor->number);
 
       tfirstcheck = NULL;
@@ -1746,7 +1738,7 @@ siginfo(sig, si, sc)
 
    SIGNAL_PROLOGUE(sig, si, errno_s);
 
-   seconds = (unsigned long)socks_difftime(time_monotonic(&tnow), 
+   seconds = (unsigned long)socks_difftime(time_monotonic(&tnow),
                                            sockscf.stat.boot);
 
    seconds2days(&seconds, &days, &hours, &minutes);
@@ -1803,13 +1795,13 @@ showalarms(iface)
 #define DOPRINT_DATA(attr, op)                                                 \
 do {                                                                           \
    slog(LOG_DEBUG,                                                             \
-        "alarm if %s less than %lu byte%s every %ld second%s",                 \
+        "alarm if %s less or equal to %lu byte%s every %ld second%s",          \
         (op),                                                                  \
         (unsigned long)iface->alarm.data.attr.limit.bytes,                     \
         iface->alarm.data.attr.limit.bytes == 1 ? "" : "s",                    \
         (long)iface->alarm.data.attr.limit.seconds,                            \
         iface->alarm.data.attr.limit.seconds == 1 ? "" : "s");                 \
-} while (/* CONSTCOND */ 0)           
+} while (/* CONSTCOND */ 0)
 
 
    if (iface->alarm.data.recv.isconfigured)
@@ -1819,11 +1811,10 @@ do {                                                                           \
       DOPRINT_DATA(send, "sending");
 
    if (iface->alarm.disconnect.isconfigured)
-      slog(LOG_DEBUG,                                                           
-           "alarm if more than %lu/%lu disconnects occurr during %ld second%s", 
+      slog(LOG_DEBUG,
+           "alarm if more than %lu/%lu disconnects occur during %ld second%s",
            (unsigned long)iface->alarm.disconnect.limit.disconnectc,
-           (unsigned long)iface->alarm.disconnect.limit.sessionc, 
+           (unsigned long)iface->alarm.disconnect.limit.sessionc,
            (long)iface->alarm.disconnect.limit.seconds,
-           iface->alarm.disconnect.limit.seconds == 1 ? "" : "s"); 
+           iface->alarm.disconnect.limit.seconds == 1 ? "" : "s");
 }
-
