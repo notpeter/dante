@@ -1,9 +1,9 @@
 #NOTE: This makefile is now only used for unit tests, the other
 #      source dirs include the source files directly when building.
 noinst_LTLIBRARIES = libscompat.la
-libscompat_la_SOURCES = daemon.c difftime.c getifaddrs.c	\
-   hstrerror.c inet_ntoa.c inet_pton.c issetugid.c	        \
-   memmove.c pselect.c seteuid.c setproctitle.c sockatmark.c	\
+libscompat_la_SOURCES = daemon.c difftime.c getifaddrs.c        \
+   hstrerror.c inet_ntoa.c inet_pton.c issetugid.c              \
+   memmove.c pselect.c seteuid.c setproctitle.c sockatmark.c    \
    strlcpy.c strvis.c vsyslog.c
 
 noinst_HEADERS = ifaddrs.h timers.h vis_compat.h

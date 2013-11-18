@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: ipv6.c,v 1.5 2013/06/27 10:23:31 michaels Exp $";
+"$Id: ipv6.c,v 1.6 2013/10/25 12:55:01 karls Exp $";
 
 int
 socks_inet_pton(af, src, dst, dstscope)
@@ -81,7 +81,7 @@ socks_inet_pton(af, src, dst, dstscope)
 
             break;
 
-         default: 
+         default:
             SERRX(af);
       }
 
@@ -89,7 +89,7 @@ socks_inet_pton(af, src, dst, dstscope)
    }
 
    slog(LOG_DEBUG, "%s: getaddrinfo(3) on %s failed: %s",
-        function, 
+        function,
         str2vis(src, strlen(src), visbuf, sizeof(visbuf)),
         gai_strerror(rc));
 
@@ -106,10 +106,10 @@ set_hints_ai_family(ai_family)
    int *ai_family;
 {
 #if !SOCKS_CLIENT
-   if (external_has_global_safamily(AF_INET) 
+   if (external_has_global_safamily(AF_INET)
    && !external_has_global_safamily(AF_INET6))
       *ai_family = AF_INET;
-   else if (external_has_global_safamily(AF_INET6) 
+   else if (external_has_global_safamily(AF_INET6)
    &&      !external_has_global_safamily(AF_INET))
       *ai_family  = AF_INET6;
    else

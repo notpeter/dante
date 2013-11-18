@@ -1,7 +1,7 @@
-.\" $Id: sockd.conf.5,v 1.182 2013/07/29 11:46:41 michaels Exp $
+.\" $Id: sockd.conf.5,v 1.187 2013/10/27 15:24:41 karls Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-.\"               2008, 2009, 2010, 2011, 2012
+.\"               2008, 2009, 2010, 2011, 2012, 2013
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
 .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
 .\" the rights to redistribute these changes.
 .\"
-.TH SOCKD.CONF 5 "May 8 2013"
+.TH SOCKD.CONF 5 "July 29 2013"
 .SH NAME
 sockd.conf \- \fBDante\fP server configuration file syntax
 .SH DESCRIPTION
@@ -71,11 +71,11 @@ The following keywords are available:
 .\"
 .IP \fBclientmethod\fP
 A list of acceptable authentication methods for client-rules, listed
-in order of preference.  These are authentication methods that are 
+in order of preference.  These are authentication methods that are
 to be checked immediately after the SOCKS client has connected to \fBDante,
 and \fBbefore\fP any socks-negotiation has started.
 
-Supported values are \fBpam.address\fP, \fBpam.any\fP, \fBnone\fP, 
+Supported values are \fBpam.address\fP, \fBpam.any\fP, \fBnone\fP,
 and \fBrfc931\fP .
 
 For all methods the authentication will be based on solely on the
@@ -98,7 +98,7 @@ given it will be done with privileged ports also, meaning if a
 client connects to \fBDante\fP from a privileged port, \fBDante\fP will attempt
 to connect to the target destination from a privileged port too.
 There can be security issues involved with this, so normally this
-option should not be set.  
+option should not be set.
 
 The \fBdraft-5.05\fP keyword will enable usage of parts of the socks
 v5-05 draft.  The only feature from this draft that \fBDante\fP supports
@@ -207,7 +207,7 @@ side only.  A corresponding keyword exists for the external side (see
 \fBexternal.log\fP).
 
 In addition to the standard errno and getaddrinfo(3) error symbols,
-the following special symbols are accepted: 
+the following special symbols are accepted:
 
 .RS
 .IP \fBno-route\fP
@@ -241,7 +241,7 @@ A list of acceptable authentication methods for socks-rules, listed in
 order of preference.  It is thus important that you specify these in
 the desired order, normally with the more secure methods first.
 
-Supported values are \fBbsdauth\fP, \fBgssapi\fP, \fBnone\fP, 
+Supported values are \fBbsdauth\fP, \fBgssapi\fP, \fBnone\fP,
 \fBpam.any\fP, \fBpam.address\fP, \fBpam.username\fP, \fBrfc931\fP,
 and \fBusername\fP,
 
@@ -355,8 +355,8 @@ redirect client requests to a different addresses.
 .SH SOCKET OPTIONS
 
 The server has support for setting a large number of low-level socket
-options on both incoming and outgoing traffic.  
-.I Most users will not need to set any of these options, but some might want 
+options on both incoming and outgoing traffic.
+.I Most users will not need to set any of these options, but some might want
 .I to do it, to enable special network features, or to perform various
 .I experiments.
 
@@ -510,7 +510,7 @@ This information must match the username and password given in the system
 password file.
 .IP \fBgssapi\fP
 This method requires the setup of a Kerberos environment and can
-provide strong encryption and authentication, depending on the 
+provide strong encryption and authentication, depending on the
 gssapi settings you choose.
 .IP \fBrfc931\fP
 This method requires the host the socks client runs on to provide a
@@ -521,7 +521,7 @@ IP-based (rhosts) PAM authentication.
 .IP \fBpam.any\fP
 Will try to match against any type of PAM authentication, depending
 on the information that is currently available.  Normally of limited
-use, and you should instead set the pam-based method(s) you 
+use, and you should instead set the pam-based method(s) you
 actually want.
 .IP \fBpam.username\fP
 Username/password-based PAM authentication.  Similar to the method
@@ -552,7 +552,7 @@ Each address, except the \fBexternal\fP address, can include an optional
 There are two sets of rules and they work at different levels.
 Rules prefixed with \fBclient\fP are checked first and are used to
 see if the client is allowed to connect to the \fBDante\fP server.
-We call them "client-rules".  
+We call them "client-rules".
 These rules will start with \fBclient pass\fP for a rule that allows
 the client, or \fBclient block\fP for a rule that blocks the client.
 
@@ -568,7 +568,7 @@ client, or \fBsocks block\fP for a rule that blocks the client.
 
 These rules are only checked if the client connection has been allowed
 by the client-rules.  The socks-rules are used to evaluate the socks
-request that the client sends.  
+request that the client sends.
 
 While it is less important that these rules use only IP-addresses,
 provided the client-rules have been configured to only allow access from
@@ -687,7 +687,7 @@ as follows:
 See the redirect manual for detailed information.
 
 .IP \fBsocksmethod\fP
-If the client offers more than one autentication method, \fBDante\fP will
+If the client offers more than one authentication method, \fBDante\fP will
 select the method to use based on the order the methods are listed here.
 Valid values are the same as in the global \fBsocksmethod\fP line.
 Normally there will be no need to set this keyword in a client-rule,
@@ -734,10 +734,10 @@ Used to control logging.  Accepted keywords are \fBconnect\fP,
 Control the max number of sessions or session establishment rate. See
 .IP \fBsocksmethod\fP
 Require that the connection be established using one of the given
-authentication methods.  A \fBmethod\fP normaly refers to the socks
+authentication methods.  A \fBmethod\fP normally refers to the socks
 client part of the rule, and thus authenticates the client, and not
 the target destination (see \fBcheckreplyauth\fP for information about
-authenciation the target destination).  Valid values are the same as in
+authentication the target destination).  Valid values are the same as in
 the global \fBsocksmethod\fP line.
 .IP \fBpam.servicename\fP
 What servicename to use when involving pam.  Default is "sockd".
@@ -806,7 +806,7 @@ commands can be applied both for the total limit for all matching
 clients and can be set as global defaults or in any of the rule types.
 The \fBsession.max\fP keyword takes a number corresponding to the
 highest number of allowed simultaneous connections as an argument. The
-\fBsession.throttlefP keyword takes two number separated by a slash
+\fBsession.throttle\fP keyword takes two number separated by a slash
 character, with the first representing the number of connections and
 the latter a time duration in seconds. If more than the specified
 number of connections are received in the specified number of seconds,
@@ -843,14 +843,14 @@ further upstream.
 The syntax for these routes is the same as the routes used by the client.
 Please see socks.conf(5) for information about the route syntax.
 
-There are however some special things one need to be aware of 
+There are however some special things one need to be aware of
 regarding serverchaining and routes specified for the server:
 .IP
-At present serverchaining is only supported for the \fBtcp connect\fP command. 
+At present serverchaining is only supported for the \fBtcp connect\fP command.
 .IP
 If the route specifies that a username/password-method should be offered
 to the upstream proxy, \fBDante\fP will forward the username/password received
-from it's own client to the forreign upstream proxy, meaning the
+from it's own client to the foreign upstream proxy, meaning the
 upstream proxy will receive the user's username and password in cleartext
 from \fBDante.
 .IP
@@ -878,7 +878,5 @@ sockd(8), socks.conf(5), hosts_access(5)
 Information about new releases and other related issues can be found
 on the \fBDante\fP WWW home page: http://www.inet.no/dante/
 
-Information about commercial support can be found on the 
+Information about commercial support can be found on the
 \fBDante\fP WWW support page: http://www.inet.no/dante/support.html
-
-# LocalWords:  cpu

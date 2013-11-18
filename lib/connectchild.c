@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009,
- *               2010, 2011, 2012
+ *               2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,24 +45,24 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.389 2013/07/20 11:21:56 michaels Exp $";
+"$Id: connectchild.c,v 1.397 2013/10/27 15:24:42 karls Exp $";
 
 /*
  * This sets things up for performing a non-blocking connect for the client.
- * We do this by initiating a connect on a non-blocking socket. 
- * If the initial response is possitive, we then save the endpoint 
- * addresses of the socket and send it our "connect-child", which then 
- * handles the socks negotiation and returns the proxy server's response back 
+ * We do this by initiating a connect on a non-blocking socket.
+ * If the initial response is positive, we then save the endpoint
+ * addresses of the socket and send it our "connect-child", which then
+ * handles the socks negotiation and returns the proxy server's response back
  * to us.
  *
  * To avoid the client stepping on our (or rather our connect-childs) toes
- * while it negotiates with the proxy server, we temporarily let the 
+ * while it negotiates with the proxy server, we temporarily let the
  * fd-index the client is using point at at dummy socket, while we use
  * the real socket to negotiate.  Then we set the clients fd to point back
  * at the real socket.
  *
  * When the connect-child is done, it will send us back the same socket
- * we sent it, and we will try to match our address-table (socksfdv) 
+ * we sent it, and we will try to match our address-table (socksfdv)
  * for an identical socket (the control socket).
  */
 
@@ -109,9 +109,9 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
 
    if ((route = socks_getroute(&packet->req, src, dst)) == NULL) {
       snprintf(emsg, emsglen, "no route from %s to %s found",
-               src == NULL ? 
+               src == NULL ?
                      "<any>" : sockshost2string(src, srcstr, sizeof(srcstr)),
-               dst == NULL ? 
+               dst == NULL ?
                      "<any>" : sockshost2string(dst, dststr, sizeof(dststr)));
 
       errno = ENETUNREACH;
@@ -122,7 +122,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
       return route; /* nothing more to do. */
 
    if (sigaction(SIGIO, NULL, &currentsig) != 0) {
-      snprintf(emsg, emsglen, "could not install signal handler for SIGIO: %s", 
+      snprintf(emsg, emsglen, "could not install signal handler for SIGIO: %s",
                strerror(errno));
 
       swarn("%s: %s", function, emsg);
@@ -187,7 +187,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
       int sndbuf, sndbuf_set, rcvbuf, rcvbuf_set;
       socklen_t optlen;
 
-      /* Should have been SOCK_SEQPACKET, but that's not portable. :-( */
+      /* Should have been SOCK_SEQPACKET, but that's not portable. :-/ */
       if (socketpair(AF_LOCAL, SOCK_DGRAM, 0, datapipev) != 0) {
          snprintf(emsg, emsglen, "socketpair(AF_LOCAL, SOCK_DGRAM) failed: %s",
                   strerror(errno));
@@ -286,8 +286,8 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
                     SO_RCVBUF,
                     &rcvbuf_set,
                     &optlen) == -1) {
-         snprintf(emsg, emsglen, 
-                  "getsockopt(SO_SNDBUF/SO_RCVBUF) on %s failed: %s", 
+         snprintf(emsg, emsglen,
+                  "getsockopt(SO_SNDBUF/SO_RCVBUF) on %s failed: %s",
                   p, strerror(errno));
 
          swarnx("%s: %s", function, emsg);
@@ -296,13 +296,14 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
 
       if (sndbuf_set < sndbuf || rcvbuf_set < rcvbuf) {
          swarnx("%s: could not set SNDBUF/mother and RCVBUF/child "
-                 "on %s appropriately.  Requested %d and %d, but is %d and %d",
+                "on %s appropriately.  Requested size %d and %d, "
+                "but got %d and %d",
                 function, p, sndbuf, rcvbuf, sndbuf_set, rcvbuf_set);
 
          /* but continue anyway.  Hopefully things will still work. */
       }
       else
-         slog(LOG_DEBUG, 
+         slog(LOG_DEBUG,
               "%s: SNDBUF/mother and RCVBUF/child on %s set to %d and %d, "
               "minimum is %d and %d",
               function, p, sndbuf, rcvbuf, sndbuf_set, rcvbuf_set);
@@ -318,7 +319,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
                     SO_SNDBUF,
                     &sndbuf_set,
                     &optlen) == -1) {
-         snprintf(emsg, emsglen, 
+         snprintf(emsg, emsglen,
                   "getsockopt(SO_SNDBUF/SO_RCVBUF) on %s failed: %s",
                   p, strerror(errno));
 
@@ -401,9 +402,9 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
     * on the socket yet, since we need to read/write on it
     * ourselves to setup the connection to the socks server.
     *
-    * We therefore create a new unconnected socket and assign it the 
-    * same filedescriptor index as the client uses. This way the clients 
-    * select(2)/poll(2) will not mark the descriptor as ready for anything 
+    * We therefore create a new unconnected socket and assign it the
+    * same filedescriptor index as the client uses. This way the clients
+    * select(2)/poll(2) will not mark the descriptor as ready for anything
     * while we are working on it.
     *
     * When the connection has been set up, by the child, we dup2(2)
@@ -413,7 +414,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
 
    SASSERTX(control == s);
    if ((control = makedummyfd(AF_INET, SOCK_STREAM)) == -1) {
-      snprintf(emsg, emsglen, 
+      snprintf(emsg, emsglen,
                "could not create a temporary dummy socket to use while "
                "connecting to %s: %s",
                sockshost2string(dst, NULL, 0), strerror(errno));
@@ -423,7 +424,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
    }
 
    if (socketoptdup(s, control) == -1) {
-      snprintf(emsg, emsglen, 
+      snprintf(emsg, emsglen,
                "failed to duplicate socketoptions on dummy socket to use "
                "while connecting to %s: %s",
                sockshost2string(dst, NULL, 0), strerror(errno));
@@ -436,7 +437,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
 
 #if HAVE_GSSAPI
    if (socks_allocbuffer(s, SOCK_STREAM) == NULL) {
-      snprintf(emsg, emsglen, "socks_allocbuffer() failed: %s", 
+      snprintf(emsg, emsglen, "socks_allocbuffer() failed: %s",
                strerror(errno));
 
       close(control);
@@ -457,7 +458,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
    }
 
    if (dup2(control, s) == -1) { /* give the client the dummy socket. */
-      snprintf(emsg, emsglen, "could not dup2(2) control-fd %d: %s", 
+      snprintf(emsg, emsglen, "could not dup2(2) control-fd %d: %s",
                control, strerror(errno));
 
       close(control);
@@ -467,9 +468,9 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
       return NULL;
    }
 
-   /* 
-    * use the clients original socket (but at a different fd-index) to 
-    * connect. 
+   /*
+    * use the clients original socket (but at a different fd-index) to
+    * connect.
     */
    close(control);
    control = tmp;
@@ -526,7 +527,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
       if (getsockname(control, TOSA(&local), &len) != 0) {
          int new_control;
 
-         socks_blacklist(socksfd.route);
+         socks_blacklist(socksfd.route, strerror(errno));
 
          if ((new_control = socketoptdup(control, -1)) == -1) {
             close(control);
@@ -556,16 +557,16 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
             close(new_control);
 
             /* try again, hopefully there's a backup route. */
-            return socks_nbconnectroute(s, 
-                                        control, 
-                                        packet, 
-                                        src, 
-                                        dst, 
-                                        emsg, 
+            return socks_nbconnectroute(s,
+                                        control,
+                                        packet,
+                                        src,
+                                        dst,
+                                        emsg,
                                         emsglen);
          }
 
-         snprintf(emsg, emsglen, "could not dup2(2) control-fd %d: %s", 
+         snprintf(emsg, emsglen, "could not dup2(2) control-fd %d: %s",
                  control, strerror(errno));
 
          close(new_control);
@@ -593,7 +594,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
    if (getsockname(s, TOSA(&socksfd.local), &len) != 0)
       SERR(s);
 
-   /* 
+   /*
     * this has to be done here or there would be a race against the signal
     * we receive when our connect-child is done.
     */
@@ -610,7 +611,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
    /*
     * When we check the status of socket "s", we will see that it
     * belongs to a connect in progress done over fd-index control.
-    */ 
+    */
    socks_addaddr(s, &socksfd, 1);
 
    /*
@@ -720,11 +721,11 @@ run_connectchild(mother_data, mother_ack)
          char          gssdata[MAX_GSS_STATE];
 #endif /* HAVE_GSSAPI */
 
-#if HAVE_CMSGHDR 
+#if HAVE_CMSGHDR
 
       union {
          char   cmsgmem[CMSG_SPACE(sizeof(int) * FDPASS_MAX )];
-         struct cmsghdr align; 
+         struct cmsghdr align;
       } cmsgdata;
 
 #else /* !HAVE_CMSGHDR */
@@ -810,7 +811,7 @@ run_connectchild(mother_data, mother_ack)
             }
 
             --finishedc;
-         }                    
+         }
       }
 
       if (FD_ISSET(mother_data, rset)) {
@@ -895,7 +896,6 @@ run_connectchild(mother_data, mother_ack)
          SASSERTX(cmsg->cmsg_type  == SCM_RIGHTS);
 
          len = 0;
-         /* LINTED pointer casts may be troublesome */
          CMSG_GETOBJECT(control, cmsg, sizeof(control) * len++);
 
          switch (req.packet.req.version) {
@@ -991,9 +991,10 @@ run_connectchild(mother_data, mother_ack)
          else {
             if (p == 0) {
               SASSERT(!ADDRISBOUND(&local));
-               slog(LOG_DEBUG, "%s: getsockname(control) returned an unbound "
-                               "address.  Running Solaris?",
-                               function);
+               slog(LOG_DEBUG,
+                    "%s: getsockname(control) returned an unbound address.  "
+                    "Running Solaris are we?",
+                    function);
             }
             else
                slog(LOG_DEBUG, "%s: getsockname(control) failed: %s",
@@ -1115,10 +1116,10 @@ run_connectchild(mother_data, mother_ack)
             finishedv = tmp;
             bzero(&finishedv[finishedc], sizeof(finishedv[finishedc]));
 
-            finishedv[finishedc].req = req; 
+            finishedv[finishedc].req = req;
 
             ioc = 0;
-            finishedv[finishedc].iov[ioc].iov_base 
+            finishedv[finishedc].iov[ioc].iov_base
             = &finishedv[finishedc].req;
 
             finishedv[finishedc].iov[ioc].iov_len
@@ -1127,20 +1128,20 @@ run_connectchild(mother_data, mother_ack)
             SASSERTX(msg.msg_iovlen <= 2);
 #if HAVE_GSSAPI
             if (msg.msg_iovlen == 2) {
-               /* 
+               /*
                 * Have gss-data too.
                 */
 
                ++ioc;
 
-               SASSERTX(msg.msg_iov[ioc].iov_len 
+               SASSERTX(msg.msg_iov[ioc].iov_len
                <=       sizeof(finishedv[finishedc].gssdata));
-               
+
                finishedv[finishedc].iov[ioc].iov_base
                = &finishedv[finishedc].gssdata;
 
                memcpy(finishedv[finishedc].iov[ioc].iov_base,
-                      msg.msg_iov[ioc].iov_base, 
+                      msg.msg_iov[ioc].iov_base,
                       msg.msg_iov[ioc].iov_len);
 
                finishedv[finishedc].iov[ioc].iov_len
@@ -1148,10 +1149,10 @@ run_connectchild(mother_data, mother_ack)
             }
 #endif /* HAVE_GSSAPI */
 
-            SASSERTX(msg.msg_controllen 
+            SASSERTX(msg.msg_controllen
             <=       sizeof(finishedv[finishedc].cmsgdata));
 
-            finishedv[finishedc].msg.msg_control 
+            finishedv[finishedc].msg.msg_control
             = &finishedv[finishedc].cmsgdata;
 
             memcpy(finishedv[finishedc].msg.msg_control,
@@ -1169,19 +1170,19 @@ run_connectchild(mother_data, mother_ack)
             finishedv[finishedc].msg.msg_iov   = finishedv[finishedc].iov;
             finishedv[finishedc].msg.msg_iovlen = ioc;
 
-            finishedv[finishedc].msg.msg_flags = msg.msg_flags; 
+            finishedv[finishedc].msg.msg_flags = msg.msg_flags;
 
             ++finishedc;
             savedforlater = 1;
 
             slog(LOG_DEBUG,
                  "%s: successfully saved finished connect to %s for later",
-                 function, 
+                 function,
                  sockshost2string(&req.packet.req.host, NULL, 0));
          }
          else
             slog(LOG_INFO,
-                 "%s: sendt response to mother, size %ld, received fd %d",
+                 "%s: sent response to mother, size %ld, received fd %d",
                  function, (long)tosend, req.s);
 
 exit:
@@ -1209,7 +1210,7 @@ sigio(sig, sip, scp)
    socklen_t len;
    ssize_t rc;
    size_t gotpackets;
-   char emsg[256];
+   char emsg[256], b[5][256];
    int fdexpect, s, ioc;
 #if HAVE_GSSAPI
    char gssapistatemem[MAX_GSS_STATE];
@@ -1239,10 +1240,19 @@ sigio(sig, sip, scp)
    SASSERTX(!sockscf.state.insignal);
 #endif /* !HAVE_LINUX_BUGS */
 
-   sockscf.state.insignal = sig;
+   sockscf.state.insignal = sockscf.state.handledsignal = sig;
 
-   slog(LOG_DEBUG, "%s: got signal, requests outstanding: %d",
-        function, (int)reqoutstanding);
+   if (sockscf.option.debug) {
+      const char *msgv[] =
+      { function,
+        ": ",
+        "got signal, requests outstanding: ",
+        ltoa((long)reqoutstanding, b[0], sizeof(b[0])),
+        NULL
+      };
+
+      signalslog(LOG_DEBUG, msgv);
+   }
 
    /*
     * Nothing is expected over the ack pipe, but it's a stream pipe
@@ -1250,10 +1260,17 @@ sigio(sig, sip, scp)
     */
    if ((rc = recv(sockscf.child_ack, &msg, sizeof(msg), 0)) != -1
    && !ERRNOISTMP(errno)) {
-      swarnx("%s: ick ick ick.  It seems our dear connect-child has suffered "
-             "unrepairable problems and sent us a message of size %ld over "
-             "the ack-pipe.  Probably we will just hang now",
-             function, (long)rc);
+      const char *msgv[] =
+      { function,
+        ": ",
+        "ick ick ick.  It seems our dear connect-child has suffered "
+        "unrepairable problems and sent us a message of size ",
+        ltoa(rc, b[0], sizeof(b[0])),
+        "over the ack-pipe.  Probably we will just hang now",
+        NULL
+      };
+
+      signalslog(LOG_DEBUG, msgv);
 
       sockscf.connectchild = 0;
       close(sockscf.child_ack);
@@ -1272,13 +1289,29 @@ sigio(sig, sip, scp)
 
    if (originalsig.sa_flags & SA_SIGINFO
    &&  originalsig.sa_sigaction != NULL) {
-      slog(LOG_DEBUG, "%s: calling original sa_sigaction()", function);
+      const char *msgv[] =
+      { function,
+        ": ",
+        "calling original sa_sigaction()",
+        NULL
+      };
+
+      signalslog(LOG_DEBUG, msgv);
+
       originalsig.sa_sigaction(sig, sip, scp);
    }
    else {
       if (originalsig.sa_handler != SIG_IGN
       &&  originalsig.sa_handler != SIG_DFL) {
-         slog(LOG_DEBUG, "%s: calling original sa_handler()", function);
+         const char *msgv[] =
+         { function,
+           ": ",
+           "calling original sa_handler()",
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
+
          originalsig.sa_handler(sig);
       }
    }
@@ -1307,13 +1340,36 @@ sigio(sig, sip, scp)
    msg.msg_name     = NULL;
    msg.msg_namelen  = 0;
 
-   slog(LOG_DEBUG, "%s: trying to receive msg from child ...", function);
+   if (sockscf.option.debug) {
+      const char *msgv[] =
+      { function,
+        ": ",
+        "trying to receive msg from child ...",
+        NULL
+      };
+
+      signalslog(LOG_DEBUG, msgv);
+   }
 
    gotpackets = 0;
 
    CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
    while ((rc = recvmsgn(sockscf.child_data, &msg, 0))
    >= (ssize_t)sizeof(childres)) {
+      const char *msgv[] =
+      { function,
+        ": ",
+        "received msg of size ",
+        ltoa((long)rc, b[0], sizeof(b[0])),
+        " + ",
+        ltoa((long)CMSG_TOTLEN(msg), b[1], sizeof(b[1])),
+        " from child for childres.s.  fd = ",
+        ltoa((long)childres.s, b[2], sizeof(b[2])),
+        ".  Requests outstanding: ",
+        ltoa((long)reqoutstanding + 1, b[3], sizeof(b[3])),
+        NULL
+      };
+
       struct sockaddr_storage localmem,  *local  = &localmem;
       struct sockaddr_storage remotemem, *remote = &remotemem;
       int child_s;
@@ -1321,22 +1377,22 @@ sigio(sig, sip, scp)
       ++gotpackets;
       --reqoutstanding;
 
-      slog(LOG_DEBUG,
-           "%s: received msg of size %ld + %lu from child for childres.s "
-           "fd = %d.  Requests outstanding: %d",
-           function,
-           (long)rc,
-           (unsigned long)CMSG_TOTLEN(msg),
-           childres.s,
-           (int)reqoutstanding);
+      signalslog(LOG_DEBUG, msgv);
 
       if (socks_msghaserrors(function, &msg))
          continue;
 
       fdexpect = 1;
       if (!CMSG_RCPTLEN_ISOK(msg, sizeof(int) * fdexpect)) {
-         swarnx("%s: received controlmessage has the invalid len of %d",
-                 function, (int)CMSG_TOTLEN(msg));
+         const char *msgv[] =
+         { function,
+           ": ",
+           "received controlmessage has the invalid length of ",
+           ltoa((long)CMSG_TOTLEN(msg), b[0], sizeof(b[0])),
+           NULL,
+         };
+
+         signalslog(LOG_WARNING, msgv);
          continue;
       }
 
@@ -1346,7 +1402,18 @@ sigio(sig, sip, scp)
       len = 0;
       CMSG_GETOBJECT(child_s, cmsg, sizeof(child_s) * len++);
 
-      slog(LOG_DEBUG, "%s: child_s = %d\n", function, child_s);
+      if (sockscf.option.debug) {
+         const char *msgv[] =
+         { function,
+           ": ",
+           "child_s = ",
+           ltoa((long)child_s, b[0], sizeof(b[0])),
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
+      }
+
       SASSERTX(fdisopen(child_s));
 
       rc -= sizeof(childres);
@@ -1358,23 +1425,52 @@ sigio(sig, sip, scp)
       socks_rmaddr(child_s, 0);
 
       len = sizeof(*local);
-      if (getsockname(child_s, TOSA(local), &len) == 0)
-         slog(LOG_DEBUG, "%s: local = %s",
-              function, sockaddr2string(local, NULL, 0));
+      if (getsockname(child_s, TOSA(local), &len) == 0) {
+         const char *msgv[] =
+         { function,
+           ": local = ",
+           "sockaddr2string(local, NULL, 0)",
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
+      }
       else {
-         slog(LOG_DEBUG, "%s: getsockname() on socket failed, errno %d",
-              function, errno);
+         const char *msgv[] =
+         { function,
+           ": ",
+           "getsockname() on socket failed, errno ",
+           ltoa((long)errno, b[0], sizeof(b[0])),
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
 
          local = NULL;
       }
 
       len = sizeof(*remote);
-      if (getpeername(child_s, TOSA(remote), &len) == 0)
-         slog(LOG_DEBUG, "%s: remote = %s",
-              function, sockaddr2string(remote, NULL, 0));
+      if (getpeername(child_s, TOSA(remote), &len) == 0) {
+         const char *msgv[] =
+         { function,
+           ": ",
+           "remote = ",
+           "sockaddr2string(remote, NULL, 0)",
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
+      }
       else {
-         slog(LOG_DEBUG, "%s: getpeername() on socket failed, errno %d",
-              function, errno);
+         const char *msgv[] =
+         { function,
+           ": ",
+           "getpeername() on socket failed, errno ",
+           ltoa((long)errno, b[0], sizeof(b[0])),
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
 
          remote = NULL;
       }
@@ -1384,23 +1480,44 @@ sigio(sig, sip, scp)
       = &childres.packet.state.auth;
 
       if (childres.packet.state.err != 0) {
-         snprintf(emsg, sizeof(emsg),
-                  "child failed to establish a session: errno = %d",
-                  childres.packet.state.err);
+         const char *msgv[] =
+         { function,
+           ": ",
+           "child failed to establish a session: errno = ",
+           ltoa((long)childres.packet.state.err, b[0], sizeof(b[0])),
+           NULL
+         };
 
-         slog(LOG_DEBUG, "%s: %s", function, emsg);
+         signalslog(LOG_WARNING, msgv);
       }
-      else
-         slog(LOG_INFO, "%s: auth method child negotiated is %d",
-              function, childres.packet.res.auth->method);
+      else {
+         const char *msgv[] =
+         { function,
+           ": ",
+           "auth method child negotiated is ",
+           ltoa((long)childres.packet.res.auth->method, b[0], sizeof(b[0])),
+           NULL
+         };
+
+         signalslog(LOG_INFO, msgv);
+      }
 
       s = socks_addrcontrol(childres.s, child_s, 0);
       close(child_s);
 
       if (s == -1) {
-         swarnx("%s: socks_addrcontrol() for fd %d failed.  Assuming the "
-                "fd has been recycled and is used for something else now",
-                function, childres.s);
+         const char *msgv[] =
+         { function,
+           ": ",
+           "socks_addrcontrol() for fd ",
+           ltoa((long)childres.s, b[0], sizeof(b[0])),
+           " failed.  Assuming the fd has been recycled and is used for "
+           "something else now",
+           NULL
+         };
+
+         signalslog(LOG_INFO, msgv);
+
          /*
           * XXX if not, and something prevented socks_addrcontrol() from
           * working, the client may hang forever.
@@ -1411,10 +1528,28 @@ sigio(sig, sip, scp)
          continue;
       }
 
-      slog(LOG_DEBUG, "%s: packet belongs to fd %d", function, s);
+      if (sockscf.option.debug) {
+         const char *msgv[] =
+         { function,
+           ": ",
+           "packet belongs to fd ",
+           ltoa((long)s, b[0], sizeof(b[0])),
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
+      }
 
       if (socks_getaddr(s, &socksfd, 0) == NULL) {
-         swarnx("%s: could not socks_getaddr() fd %d", function, s);
+         const char *msgv[] =
+         { function,
+           ": ",
+           "could not socks_getaddr() fd ",
+           ltoa((long)s, b[0], sizeof(b[0])),
+           NULL
+         };
+
+         signalslog(LOG_WARNING, msgv);
          break;
       }
 
@@ -1427,17 +1562,48 @@ sigio(sig, sip, scp)
          case PROXY_HTTP_11:
          case PROXY_UPNP:
             if (socksfd.control == s) {
-               slog(LOG_DEBUG, "%s: duping fd %d not needed",
-                    function, socksfd.control);
+               const char *msgv[] =
+               { function,
+                 ": ",
+                 "duping fd ",
+                 ltoa((long)socksfd.control, b[0], sizeof(b[0])),
+                 " not needed",
+                 NULL
+               };
 
+               signalslog(LOG_DEBUG, msgv);
                break;
             }
 
-            slog(LOG_DEBUG, "%s: duping fd %d to fd %d",
-                 function, socksfd.control, s);
+            if (sockscf.option.debug) {
+               const char *msgv[] =
+               { function,
+                 ": ",
+                 "duping fd ",
+                 ltoa((long)socksfd.control, b[0], sizeof(b[0])),
+                 " to fd ",
+                 ltoa((long)s, b[1], sizeof(b[1])),
+                 NULL
+               };
+
+               signalslog(LOG_DEBUG, msgv);
+            }
 
             if (dup2(socksfd.control, s) == -1) {
-               swarn("%s: dup2(%d, %d)", function, socksfd.control, s);
+               const char *msgv[] =
+               { function,
+                 ": ",
+                 "dup2(",
+                 ltoa((long)socksfd.control, b[0], sizeof(b[0])),
+                 ", ",
+                 ltoa((long)s, b[1], sizeof(b[1])),
+                 " failed with errno",
+                 ltoa((long)errno, b[2], sizeof(b[2])),
+                 NULL
+               };
+
+               signalslog(LOG_WARNING, msgv);
+
                SASSERT(errno != EBADF);
 
                socks_addaddr(s, &socksfd, 0);
@@ -1459,27 +1625,58 @@ sigio(sig, sip, scp)
 
       len = sizeof(socksfd.local);
       if (getsockname(s, TOSA(&socksfd.local), &len) != 0) {
-         slog(LOG_DEBUG, "%s: getsockname() failed with errno %d",
-                        function, errno);
+         const char *msgv[] =
+         { function,
+           ": ",
+           "getsockname() failed with errno ",
+           ltoa((long)errno, b[0], sizeof(b[0])),
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
 
          socks_rmaddr(s, 0);
 
          CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg)); /* for next. */
          continue;
       }
-      else
-         slog(LOG_DEBUG, "%s: socksfd.local: %s",
-              function,
-              sockaddr2string(&socksfd.local, NULL, 0));
+      else {
+         const char *msgv[] =
+         { function,
+           ": ",
+           "socksfd.local: ",
+           "sockaddr2string(&socksfd.local, NULL, 0)",
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
+      }
 
       len = sizeof(socksfd.server);
-      if (getpeername(s, TOSA(&socksfd.server), &len) == 0)
-         slog(LOG_DEBUG, "%s: socksfd.server: %s",
-              function, 
-              sockaddr2string(&socksfd.server, NULL, 0));
-      else
-         slog(LOG_DEBUG, "%s: second getpeername() on socket failed, errno %d",
-              function, errno);
+      if (getpeername(s, TOSA(&socksfd.server), &len) == 0) {
+         const char *msgv[] =
+         { function,
+           ": ",
+           "socksfd.server: ",
+           "sockaddr2string(&socksfd.server, NULL, 0)",
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
+      }
+      else {
+         const char *msgv[] =
+         { function,
+           ": ",
+           "second getpeername() on socket ",
+           ltoa((long)s, b[0], sizeof(b[0])),
+           " failed, errno ",
+           ltoa((long)errno, b[1], sizeof(b[1])),
+           NULL
+         };
+
+         signalslog(LOG_WARNING, msgv);
+      }
 
       socksfd.state.inprogress = 0;
       socks_addaddr(s, &socksfd, 0);
@@ -1491,12 +1688,17 @@ sigio(sig, sip, scp)
                            socksfd.route,
                            emsg,
                            sizeof(emsg))) {
-         swarnx("%s: %s: %s",
-                function,
-                proxyprotocolisknown(childres.packet.res.version) ?
-                     "proxy server did not perform request"
-                :    "communication with proxy server failed",
-                emsg);
+         const char *msgv[] =
+         { function,
+           ": ",
+           proxyprotocolisknown(childres.packet.res.version) ?
+                   "proxy server did not perform request"
+              :    "communication with proxy server failed",
+           socksfd.state.err == 0 ? emsg : NULL,
+           NULL
+         };
+
+         signalslog(LOG_WARNING, msgv);
 
          if (socksfd.state.err == 0
          && !proxyprotocolisknown(childres.packet.res.version)) /* no idea. */
@@ -1509,10 +1711,18 @@ sigio(sig, sip, scp)
 
          if (errno == 0)
             socksfd.state.err = EPROTONOSUPPORT; /* no idea. */
+         else {
+            const char *msgv[] =
+            { function,
+              ": ",
+              "connectchild failed to set up connection.  "
+              "Error mapped to errno ",
+              ltoa((long)errno, b[0], sizeof(b[0])),
+              NULL
+            };
 
-         slog(LOG_DEBUG, "%s: connectchild failed to set up connection.  "
-                         "Error mapped to errno %d",
-                         function, errno);
+            signalslog(LOG_WARNING, msgv);
+         }
 
          socks_addaddr(s, &socksfd, 0);
 
@@ -1523,25 +1733,46 @@ sigio(sig, sip, scp)
          break;
       }
 
-      slog(LOG_INFO, "%s: server reply is ok, server will use as src: %s",
-           function, sockshost2string(&childres.packet.res.host, NULL, 0));
+      if (1) {
+         const char *msgv[] =
+         { function,
+           ": ",
+           "server reply is ok, server will use as source "
+           "sockshost2string(&childres.packet.res.host, NULL, 0)",
+           NULL,
+         };
+
+         signalslog(LOG_INFO, msgv);
+      }
 
       socksfd.state.auth         = *childres.packet.res.auth;
       sockshost2sockaddr(&childres.packet.res.host, &socksfd.remote);
 
 #if HAVE_GSSAPI
       if (socksfd.state.auth.method == AUTHMETHOD_GSSAPI) {
-         SASSERTX(rc > 0);
-
          /*
           * can't import gssapi state here; we're in a signal handler and
           * that is not safe.  Will be imported upon first call to
           * socks_getaddr() later, so just save it for now.
           */
-         slog(LOG_DEBUG, "%s: read gssapistate of size %ld for fd %d "
-                         "(start: 0x%x, 0x%x).  Will import later",
-                         function, (long)rc, s,
-                         (int)gssapistatemem[0], (int)gssapistatemem[1]);
+         const char *msgv[] =
+         { function,
+           ": ",
+           "read gssapistate of size ",
+           ltoa((long)rc, b[0], sizeof(b[0])),
+           " for fd ",
+           ltoa((long)s, b[1], sizeof(b[1])),
+           " (startvalues: ",
+           ltoa((long)gssapistatemem[0], b[2], sizeof(b[2])),
+           ", ",
+           ltoa((long)gssapistatemem[1], b[3], sizeof(b[3])),
+           ").  Will import later",
+           NULL
+         };
+
+         signalslog(LOG_DEBUG, msgv);
+
+         SASSERTX(rc > 0);
 
          socksfd.state.gssimportneeded    = 1;
          socksfd.state.gssapistate.value  = socksfd.state.gssapistatemem;
@@ -1573,17 +1804,31 @@ sigio(sig, sip, scp)
    }
 
    if (gotpackets) {
-      slog(LOG_DEBUG,
-           "%s: returning after having received %lu packets.  "
-           "%lu requests still outstanding",
-           function, (unsigned long)gotpackets, (unsigned long)reqoutstanding);
+      const char *msgv[] =
+      { function,
+        ": ",
+        "returning after having received ",
+        ltoa((long)gotpackets, b[0], sizeof(b[0])),
+        " packets.  ",
+        ltoa((long)reqoutstanding, b[1], sizeof(b[1])),
+        " requests still outstanding",
+        NULL
+      };
 
-      sockscf.state.handledsignal = sig;
+      signalslog(LOG_DEBUG, msgv);
    }
-   else
-      slog(LOG_DEBUG, "%s: received no packets from child this time (read the "
-                      "packet last time presumably), rc = %ld",
-                      function, (long)rc);
+   else {
+      const char *msgv[] =
+      { function,
+        ": ",
+        "received no packets from child this time (read the packet last "
+        "time presumably), rc = ",
+        ltoa((long)rc, b[0], sizeof(b[0])),
+        NULL
+      };
+
+      signalslog(LOG_DEBUG, msgv);
+   }
 
    errno = errno_s;
    sockscf.state.insignal = 0;

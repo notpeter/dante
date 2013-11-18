@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009, 2010, 2011, 2012
+ *               2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.327 2013/07/29 04:59:36 michaels Exp $";
+"$Id: io.c,v 1.342 2013/11/09 15:18:28 michaels Exp $";
 
 static void
 print_selectfds(const char *preamble, const int docheck, const int nfds,
@@ -78,7 +78,7 @@ socks_recvfromn(s, buf, len, minread, flags, from, fromlen, recvflags, auth)
 #if SOCKS_CLIENT
       /*
        * If this changes between now and the return of socks_recvfrom(),
-       * the change has to be done in the signal handler, and we then
+       * the change must have been done in the signal handler.  We then
        * assume it's due to us receiving a signal from our connectchild
        * process.
        */
@@ -119,7 +119,7 @@ socks_recvfromn(s, buf, len, minread, flags, from, fromlen, recvflags, auth)
             break;
          }
          else {
-            slog(LOG_DEBUG, "%s: non-temporary read error: %s", 
+            slog(LOG_DEBUG, "%s: non-temporary read error: %s",
                  function, strerror(errno));
 
             break;
@@ -130,10 +130,10 @@ socks_recvfromn(s, buf, len, minread, flags, from, fromlen, recvflags, auth)
          if (errno == EINTR) {
             if (sockscf.state.handledsignal) {
               /*
-               * Can't know for sure, but assume we were interrupted due 
-               * to a signal from our own non-blocking connect child, 
-               * presumably signaling a connect(2) unrelated to this socket
-               * had completed.
+               * Can't know for sure, but assume we were interrupted due
+               * to a signal from our own non-blocking connect child,
+               * presumably signalling a connect(2) unrelated to this socket
+               * has completed.
                */
                slog(LOG_DEBUG,
                     "%s: read was interrupted, but looks like it could be due "
@@ -396,27 +396,32 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, recvflags, auth)
 #if HAVE_LINUX_BUGS
          if (errno == 0) {
             const int errno_s = errno;
-            iobuffer_t *iobuf;
             int isudpsocket;
 
-            if ((iobuf = socks_getbuffer(s)) != NULL)
-               isudpsocket = (iobuf->stype == SOCK_DGRAM);
+            if (recvflags != NULL)
+               isudpsocket = recvflags->type == SOCK_DGRAM;
             else {
-               int type;
-               socklen_t typelen = sizeof(type);
+               iobuffer_t *iobuf;
 
-               if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &typelen) == 0
-               &&  type == SOCK_DGRAM)
-                  isudpsocket = 1;
-               else
-                  isudpsocket = 0;
+               if ((iobuf = socks_getbuffer(s)) != NULL)
+                  isudpsocket = (iobuf->stype == SOCK_DGRAM);
+               else {
+                  int type;
+                  socklen_t typelen = sizeof(type);
+
+                  if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &typelen) == 0
+                  &&  type == SOCK_DGRAM)
+                     isudpsocket = 1;
+                  else
+                     isudpsocket = 0;
+               }
             }
 
             if (isudpsocket) {
                swarnx("%s: trying to work around Linux bug.  recvmsg(2) "
                       "returned -1, but did not set errno so we can't know "
                       "the reason for the failure.  Setting to EAGAIN and "
-                      "hoping the best", 
+                      "hoping the best",
                       function);
 
                errno = EAGAIN;
@@ -503,11 +508,12 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, recvflags, auth)
       }
    }
 
-   if (r == -1 && recvflags != NULL && ERRNOISPREVIOUSPACKET(errno))
-      log_writefailed(recvflags->side == INTERNALIF ?
-                      EXTERNALIF : INTERNALIF,
-                      s,
-                      &recvflags->peer);
+   if (r == -1 && recvflags != NULL && recvflags->type == SOCK_DGRAM)
+      if (ERRNOISPREVIOUSPACKET(errno))
+         log_writefailed(recvflags->side == INTERNALIF ?
+                           EXTERNALIF : INTERNALIF,
+                           s,
+                           &recvflags->peer);
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG,
@@ -527,9 +533,10 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, recvflags, auth)
       errno = 0; /* even if read from socket failed, read from buf did not. */
       return readfrombuf;
    }
-   else
+   else {
       if (recvflags != NULL)
          recvflags->fromsocket += r;
+   }
 
    tocaller = MIN((size_t)r, len - readfrombuf);
    tobuf    = flags & MSG_PEEK ? 0 : (size_t)r - tocaller;
@@ -588,7 +595,7 @@ socks_sendto(s, msg, len, flags, to, tolen, sendtoflags, auth)
    &&  auth->method == AUTHMETHOD_GSSAPI && auth->mdata.gssapi.state.wrap) {
       written = gssapi_encode_write(s,
                                     msg,
-                                    len, 
+                                    len,
                                     flags,
                                     to,
                                     tolen,
@@ -646,7 +653,7 @@ socks_sendto(s, msg, len, flags, to, tolen, sendtoflags, auth)
 
       written_fb = sendto(s, buf, (size_t)towrite, flags, TOCSA(to), tolen);
 
-      if (written_fb == -1 && sendtoflags != NULL) 
+      if (written_fb == -1 && sendtoflags != NULL)
          log_writefailed(sendtoflags->side, s, to);
 
       if (written_fb != -1 && sendtoflags != NULL)
@@ -700,12 +707,12 @@ socks_sendto(s, msg, len, flags, to, tolen, sendtoflags, auth)
               strerror(errno));
 
          /*
-          * If not permanent error, try to buffer the data, unless it's a 
+          * If not permanent error, try to buffer the data, unless it's a
           * udp socket, in which case we do not buffer.
           */
          if (!ERRNOISTMP(errno)
-         ||  (iobuf = socks_getbuffer(s)) == NULL 
-         ||  iobuf->stype                 == SOCK_DGRAM) 
+         ||  (iobuf = socks_getbuffer(s)) == NULL
+         ||  iobuf->stype                 == SOCK_DGRAM)
             return written;
 
          written = 0;
@@ -725,7 +732,7 @@ socks_sendto(s, msg, len, flags, to, tolen, sendtoflags, auth)
       ssize_t written_tb;
       int dobuffer;
 
-      if ((iobuf = socks_getbuffer(s)) != NULL 
+      if ((iobuf = socks_getbuffer(s)) != NULL
       &&  iobuf->stype                 != SOCK_DGRAM)
          dobuffer = 1;
       else
@@ -739,7 +746,7 @@ socks_sendto(s, msg, len, flags, to, tolen, sendtoflags, auth)
               dobuffer ? "Adding to buffer" : "");
 
       if (!dobuffer)
-         return written; 
+         return written;
 
       written_tb = socks_addtobuffer(s,
                                      WRITE_BUF,
@@ -859,9 +866,9 @@ sendmsgn(s, msg, flags, timeoutms)
    static fd_set *wset;
    const int maxfailures = 10;
    struct timeval timestart;
-   int failedcount;
    ssize_t p, sent;
    size_t len;
+   int failedcount, sendmsg_errno;
 
 #if !SOCKS_CLIENT
    if (sockscf.state.type == PROC_MOTHER)
@@ -883,6 +890,8 @@ sendmsgn(s, msg, flags, timeoutms)
       int doretry = (   ERRNOISTMP(errno)
                      && ++failedcount < maxfailures
                      && timeoutms != 0);
+
+      sendmsg_errno = errno;
 
       if (len == 0)
          for (p = 0; p < (ssize_t)msg->msg_iovlen; ++p)
@@ -909,18 +918,21 @@ sendmsgn(s, msg, flags, timeoutms)
          }
       }
 
-      slog(LOG_INFO,
-           "%s: sendmsg() of %ld bytes on fd %d failed on try #%d (%s).  "
-           "%s",
+      slog(LOG_DEBUG,
+           "%s: sendmsg() of %ld bytes on fd %d failed on try #%d (%s)%s",
            function,
            (long)len,
            s,
            failedcount,
            strerror(errno),
-           doretry ? "Will block and retry" : "Giving up on this one");
+           doretry ? ".  Will block and retry" : ".  Giving up on this one");
 
-      if (!doretry)
+      if (!doretry) {
+         if (errno == 0)
+            errno = sendmsg_errno;
+
          return -1;
+      }
 
       if (failedcount + 1 >= maxfailures) {
          if (timeoutms == -1) {
@@ -932,19 +944,24 @@ sendmsgn(s, msg, flags, timeoutms)
             timeleft.tv_usec = 0;
          }
 
-         slog(LOG_INFO,
+         slog(LOG_DEBUG,
               "%s: failed %d times already.  Next retry is the last one, "
               "so pausing for %ld.%06lds, hoping the message will get "
               "through afterwards",
-                         function, failedcount,
-                         (long)timeleft.tv_sec, (long)timeleft.tv_usec);
+              function,
+              failedcount,
+              (long)timeleft.tv_sec,
+              (long)timeleft.tv_usec);
 
-         if ((p = select(0, NULL, NULL, NULL, &timeleft)) <= 0) {
-            slog(LOG_INFO, "%s: select() returned %ld, with time %ld.%06ld",
+         if ((p = selectn(0, NULL, NULL, NULL, NULL, NULL, &timeleft)) <= 0) {
+            slog(LOG_DEBUG, "%s: select() returned %ld, with time %ld.%06ld",
                  function,
                  (long)p,
-                 (long)timeleft.tv_sec, 
+                 (long)timeleft.tv_sec,
                  (long)timeleft.tv_usec);
+
+            if (errno == 0)
+               errno = sendmsg_errno;
 
             return -1;
          }
@@ -968,74 +985,46 @@ sendmsgn(s, msg, flags, timeoutms)
          slog(LOG_DEBUG, "%s: select() returned %d, with time %ld.%06ld",
               function, (int)p, (long)timeleft.tv_sec, (long)timeleft.tv_usec);
 
-      if (p <= 0)
-         return -1;
-   }
+      if (p <= 0) {
+#if SOCKS_CLIENT
+         if (errno == EINTR) {
+            if (sockscf.state.handledsignal) {
+              /*
+               * Can't know for sure, but assume we were interrupted due
+               * to a signal from our own non-blocking connect child,
+               * presumably signalling a connect(2) unrelated to this socket
+               * has completed.
+               */
+               slog(LOG_DEBUG,
+                    "%s: select(2) was interrupted, but looks like it could "
+                    "be due to our own signal (signal #%d/%s), so assume we "
+                    "should retry",
+                    function,
+                    (int)sockscf.state.handledsignal,
+                    signal2string(sockscf.state.handledsignal));
 
-   return sent;
-
-   /*
-    * below code should not be used any longer since we only do sendmsg(2)
-    * on datagram sockets now.
-    */
-
-#if 0
-   left = len - p;
-
-   if (left > 0) {
-      size_t i, count, done;
-
-      /*
-       * Can't call sendmsg() again since we could be sending ancillary data,
-       * send the elements one by one.
-       */
-
-      SASSERTX(p >= 0);
-
-      done = p;
-      i = count = p = 0;
-      while (i < (size_t)msg->msg_iovlen && left > 0) {
-         const struct iovec *io = &msg->msg_iov[i];
-
-         count += io->iov_len;
-         if (count > done) { /* didn't send all of this iovec. */
-            while ((p = socks_sendton(
-                     s,
-                     &((char *)(io->iov_base))[io->iov_len - (count - done)],
-                     count - done,
-                     count - done,
-                     0,
-                     NULL,
-                     0,
-                     NULL,
-                     NULL)) != ((ssize_t)(count - done))) {
-               /*
-                * yes, we only re-try once.  What errors should we
-                * retry again on?
-                */
-               swarn("%s: failed on re-try", function);
-               break;
+               sockscf.state.handledsignal = 0;
+               continue;
             }
-
-            left -= p;
-            done += p;
          }
+#endif /* SOCKS_CLIENT */
 
-         ++i;
+         if (errno == 0)
+            errno = sendmsg_errno;
+
+         return -1;
       }
    }
 
-   if (left == len)
-      return p; /* nothing read. */
-   return len - left;
-#endif
-
+   return sent;
 }
 
 int
 selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
    int nfds;
-   fd_set *rset, *bufrset, *buffwset;
+   fd_set *rset;
+   fd_set *bufrset;
+   fd_set *buffwset;
    fd_set *wset;
    fd_set *xset;
    struct timeval *_timeout;
@@ -1047,6 +1036,27 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
    sigset_t fullmask;
 #endif /* !SOCKS_CLIENT */
    sigset_t oldmask;
+
+#if DIAGNOSTIC
+      static fd_set *zeroset;
+
+      if (zeroset == NULL) {
+         zeroset = allocate_maxsize_fdset();
+         FD_ZERO(zeroset);
+      }
+
+      SASSERTX (_timeout  != NULL
+      ||        (rset     != NULL && FD_CMP(zeroset, rset)     != 0)
+      ||        (bufrset  != NULL && FD_CMP(zeroset, bufrset)  != 0)
+      ||        (buffwset != NULL && FD_CMP(zeroset, buffwset) != 0)
+      ||        (wset     != NULL && FD_CMP(zeroset, wset)     != 0)
+      ||        (xset     != NULL && FD_CMP(zeroset, xset)     != 0));
+#endif /* DIAGNOSTIC */
+
+#if DO_SHMEMCHECK
+   shmemcheck();
+#endif /* DO_SHMEMCHECK */
+
 
    /* convert form select(2) timeval to pselect(3) timespec. */
    if (_timeout == NULL)
@@ -1084,7 +1094,7 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
     * need it for non-blocking connects,
     * and the bug,
     * it made us fall asleep,
-    * and noone woke us up,
+    * and no-one woke us up,
     * never ever again.
     */
 
@@ -1128,10 +1138,18 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
       int i;
 
       bufused = 0;
-      for (i = 1, bufused = 0; i < SOCKS_NSIG; ++i)
-         if (sigismember(&oldmask, i))
+      for (i = 1, bufused = 0; i < SOCKS_NSIG; ++i) {
+         if ((rc = sigismember(&oldmask, i)) == 1)
             bufused += snprintf(&buf[bufused], sizeof(buf) - bufused,
                                 "%d, ", i);
+         else if (rc == -1)
+            /*
+             * May happen if SOCKS_NSIG is overdimensioned to accommodate
+             * possible future increases in the kernel, without an
+             * accompanying Dante recompile.
+             */
+            break; /* no more valid signals in range. */
+      }
 
       if (bufused != 0)
          slog(LOG_DEBUG, "%s: signals blocked in oldmask: %s", function, buf);
@@ -1212,6 +1230,11 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
       }
    }
 
+#if DO_SHMEMCHECK
+   shmemcheck();
+#endif /* DO_SHMEMCHECK */
+
+   errno = 0; /* clear any old garbage. */
 
 #if SOCKS_CLIENT
    rc = pselect(nfds, rset, wset, xset, timeout, NULL);
@@ -1223,7 +1246,7 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
       const int errno_s = errno;
       char pfix[256];
 
-      snprintf(pfix, sizeof(pfix), "post-select returned %d (%s)",
+      snprintf(pfix, sizeof(pfix), "post-select returned %d (errno: %s)",
                rc, strerror(errno));
 
       SASSERTX(errno_s == errno);
@@ -1247,6 +1270,10 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
       SERR(errno);
 #endif /* !SOCKS_CLIENT */
 
+#if DO_SHMEMCHECK
+      shmemcheck();
+#endif /* DO_SHMEMCHECK */
+
    if (rc == -1)
       return rc;
 
@@ -1267,7 +1294,7 @@ print_selectfds(preamble, docheck,
    const char *function = "print_selectfds()";
    const int errno_s = errno;
    char buf[32],
-        rsetfd[8192 * sizeof("65535") - 1], bufrsetfd[sizeof(rsetfd)], 
+        rsetfd[8192 * sizeof("65535") - 1], bufrsetfd[sizeof(rsetfd)],
         buffwsetfd[sizeof(rsetfd)], wsetfd[sizeof(rsetfd)],
         xsetfd[sizeof(rsetfd)];
    size_t rsetfdi, bufrsetfdi, buffwsetfdi, wsetfdi, xsetfdi, rc;
@@ -1282,6 +1309,7 @@ print_selectfds(preamble, docheck,
 
    rsetfdi = bufrsetfdi = buffwsetfdi = wsetfdi = xsetfdi = 0;
    *rsetfd = *bufrsetfd = *buffwsetfd = *wsetfd = *xsetfd = NUL;
+
    for (i = 0; i < nfds; ++i) {
       if (rset != NULL && FD_ISSET(i, rset)) {
          rc = snprintf(&rsetfd[rsetfdi], sizeof(rsetfd) - rsetfdi,
@@ -1325,20 +1353,21 @@ print_selectfds(preamble, docheck,
       }
    }
 
-   slog(LOG_DEBUG, "%s nfds = %d, "
-                   "rset = %p (%s), "
-                   "bufrset = %p (%s), "
-                   "buffwset = %p (%s), "
-                   "wset = %p (%s), "
-                   "xset = %p (%s), "
-                   "timeout = %s",
-                   preamble, nfds,
-                   rset, rsetfd,
-                   bufrset, bufrsetfd,
-                   buffwset, buffwsetfd,
-                   wset, wsetfd,
-                   xset, xsetfd,
-                   buf);
+   slog(LOG_DEBUG,
+        "%s nfds = %d, "
+        "rset = %p (%s), "
+        "bufrset = %p (%s), "
+        "buffwset = %p (%s), "
+        "wset = %p (%s), "
+        "xset = %p (%s), "
+        "timeout = %s",
+        preamble, nfds,
+        rset, rsetfd,
+        bufrset, bufrsetfd,
+        buffwset, buffwsetfd,
+        wset, wsetfd,
+        xset, xsetfd,
+        buf);
 
    if (errno != errno_s) {
       swarnx("%s: strange ... errno changed from %d to %d",

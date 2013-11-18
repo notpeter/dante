@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,13 +41,13 @@
  *
  */
 
-/* $Id: yacconfig.h,v 1.18 2013/07/29 21:38:38 michaels Exp $ */
+/* $Id: yacconfig.h,v 1.21 2013/10/27 15:24:41 karls Exp $ */
 
 #ifndef _YACCONFIG_H_
 #define _YACCONFIG_H_
 
-/* 
- * avoid symbolconflicts if socksifying programs that also use yacc/lex. 
+/*
+ * avoid symbolconflicts if socksifying programs that also use yacc/lex.
  */
 
 #define yyact socks_yyact
@@ -145,12 +145,12 @@ yyerrorx(const char *fmt, ...)
  */
 
 
-void 
+void
 yylog(const int loglevel, const char *fmt, ...)
    __ATTRIBUTE__((FORMAT(printf, 2, 3)));
 
 /*
- * Log a parsing-relatd notice at loglevel "loglevel".
+ * Log a parsing-related notice at loglevel "loglevel".
  */
 
 

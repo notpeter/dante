@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012
+ *               2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.156 2013/07/11 19:27:49 michaels Exp $";
+"$Id: Raccept.c,v 1.159 2013/10/27 15:24:41 karls Exp $";
 
 static int
 addforwarded(const int local, const int remote,
@@ -90,12 +90,12 @@ Raccept(s, addr, addrlen)
       if (addr != NULL && *addrlen >= sizeof(struct sockaddr_in))
          usrsockaddrcpy(&ss, TOSS(addr), sizeof(ss));
 
-      slog(LOG_DEBUG, 
+      slog(LOG_DEBUG,
            "%s: fd %d is unregistered, accept(2) returned fd %d (%s): %s",
-           function, 
-           s, 
+           function,
+           s,
            p,
-           p >= 0 
+           p >= 0
            && addr    != NULL
            && *addrlen >= sizeof(struct sockaddr_in) ?
                sockaddr2string(&ss, NULL, 0) : "N/A",
@@ -117,8 +117,8 @@ Raccept(s, addr, addrlen)
    switch (packet.version) {
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V5:
-         /* 
-          * connection to server, for forwarded connections or errors. 
+         /*
+          * connection to server, for forwarded connections or errors.
           */
          if (socksfd.forus.accepted.atype != SOCKS_ADDR_NOTSET
          &&  !socksfd.state.acceptpending) {
@@ -149,7 +149,7 @@ Raccept(s, addr, addrlen)
 
          slog(LOG_DEBUG,
               "%s: no controldata for UPNP-based bind, can do ordinary "
-              "accept(2) on fd %d", 
+              "accept(2) on fd %d",
               function, s);
 
          client = accept(s, TOSA(&addraccepted), &acceptedlen);
@@ -235,11 +235,11 @@ Raccept(s, addr, addrlen)
             socksfd.forus.accepted = packet.res.host;
             socks_addaddr(socksfd.control, &socksfd, 1);
 
-            /* 
+            /*
              * accept(2) returns a new fd, so try to do the same by
              * dup2(2)'ing the connection to a new fd-index, and then
              * making the old fd-index a "dummy" socket.
-             * The latter will hopefully prevent the client from thinking 
+             * The latter will hopefully prevent the client from thinking
              * data pending on the socket is a new connection.
              */
 
@@ -252,9 +252,9 @@ Raccept(s, addr, addrlen)
             sfddup.control = remote;
 
 
-            /* 
-             * in case previously allocated for some other socket, 
-             * which now must be closed. 
+            /*
+             * in case previously allocated for some other socket,
+             * which now must be closed.
              */
             socks_rmaddr(remote, 1);
 
@@ -292,9 +292,9 @@ Raccept(s, addr, addrlen)
            "Will return fd %d to caller",
            function, sockaddr2string(&accepted, NULL, 0), s, remote);
    }
-   else { 
-      /* 
-       * Pending data must be a new connetion to accept(2).
+   else {
+      /*
+       * Pending data must be a new connection to accept(2).
        */
       socklen_t len;
 
@@ -314,8 +314,8 @@ Raccept(s, addr, addrlen)
          if (memcmp(GET_SOCKADDRADDR(&accepted),
                     GET_SOCKADDRADDR(&socksfd.reply),
                     salen(accepted.ss_family)) == 0) {
-            /* 
-             * connected address matches servers IP address, so assume 
+            /*
+             * connected address matches servers IP address, so assume
              * it's a forwarded connection.
              */
             int forwarded;

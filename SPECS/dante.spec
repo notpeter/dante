@@ -1,10 +1,10 @@
 Summary: A free SOCKS v4/v5 client implementation
 Name: dante
-%define fullversion 1.4.0-pre2
+%define fullversion 1.4.0
 %define prefix /usr
 Prefix: %{prefix}
 Version: 1.4.0
-Release: 0.pre2%{?dist}
+Release: 1%{?dist}
 License: BSD-type
 Group: Networking/Utilities
 URL: http://www.inet.no/dante/
@@ -46,7 +46,7 @@ Requires: dante
 Additional libraries required to compile programs that use SOCKS.
 
 %prep
-%setup -n dante-1.4.0-pre2
+%setup -n dante-1.4.0
 
 # This file is embedded here instead of being another source in order
 # to the prefix directory

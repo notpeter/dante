@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012
+ * Copyright (c) 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: rule.c,v 1.321 2013/08/01 11:53:18 michaels Exp $";
+"$Id: rule.c,v 1.332 2013/10/27 15:24:42 karls Exp $";
 
 #if HAVE_LIBWRAP
 extern jmp_buf tcpd_buf;
@@ -61,7 +61,7 @@ libwrapinit(int s, struct sockaddr_storage *local,
  */
 
 static int
-libwrap_hosts_access(struct request_info *request, 
+libwrap_hosts_access(struct request_info *request,
                      const struct sockaddr_storage *peer);
 /*
  * Perform libwrap hosts_access() check on the client "peer".
@@ -81,6 +81,14 @@ srchost_isok(const struct sockaddr_storage *peer, char *msg, size_t msgsize);
  * Returns:
  *      If connection is acceptable: true
  *      If connection is not acceptable: false
+ */
+
+static int
+ruleaddr_matches_all_external(const ruleaddr_t *ruleaddr, const int protocol);
+/*
+ * Returns true if the ruleaddress "ruleaddr" matches all external addresses
+ * we have configured for the protocol "protocol".
+ * Returns false otherwise.
  */
 
 static void
@@ -108,7 +116,7 @@ static void
 log_shmeminherit(const rule_t *from, const rule_t *to, const int type,
                  const int isoverride);
 /*
- * Logs that shemem settings are inherited by rule "to" from rule "from",
+ * Logs that shmem settings are inherited by rule "to" from rule "from",
  * or that rule "to" overrides settings from rule "from", depending on
  * whether isoverride is set or not.
  * "type" must be the SHMEM_ type in question.
@@ -154,13 +162,13 @@ addclientrule(newrule)
        * vary if sockscf.udpconnectdst is not set.  If it is not set,
        * it means we should not connect to the target, and that means
        * we will be able to receive reply-packets from addresses other
-       * than the target address.  We want the client to be able to do 
-       * that, if the Barefoot admin has explicitly allowed it by disabling 
+       * than the target address.  We want the client to be able to do
+       * that, if the Barefoot admin has explicitly allowed it by disabling
        * sockscf.udpconnectdst.  That however also means that there is
        * no way to configure things so replies from only some targets
        * are allowed; if sockscf.udpconnectdst is not set, replies from
-       * all targets will be allowed.  
-       * The conclusion is thus that we do not need to generate any 
+       * all targets will be allowed.
+       * The conclusion is thus that we do not need to generate any
        * socks-rules for udp either; if the client rule permitted things,
        * any corresponding socks-rule would too.
        */
@@ -301,9 +309,9 @@ showrule(_rule, ruletype)
       case object_crule:
 #if BAREFOOTD
          slog(LOG_DEBUG, "bounce to: %s",
-              ruleaddr2string(&rule.extra.bounceto, 
+              ruleaddr2string(&rule.extra.bounceto,
                                ADDRINFO_PORT | ADDRINFO_ATYPE,
-                               NULL, 
+                               NULL,
                                0));
 #endif /* BAREFOOTD */
          break;
@@ -515,8 +523,9 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 #if HAVE_LIBWRAP
    struct request_info libwraprequest;
    struct sockaddr_storage _local, _peer;
-   unsigned char libwrapinited = 0;
+   unsigned libwrapinited = 0;
 #endif /* !HAVE_LIBWRAP */
+   unsigned isreplycommand;
    char srcstr[MAXSOCKSHOSTSTRING], dststr[MAXSOCKSHOSTSTRING],
         lstr[MAXSOCKADDRSTRING], pstr[MAXSOCKADDRSTRING];
 
@@ -584,7 +593,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
       init = 1;
    }
 
-   /*  
+   /*
     * what rulebase to use.
     */
    switch (state->command) {
@@ -635,8 +644,8 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
 #if HAVE_SOCKS_HOSTID
    if (ruletype == object_crule) { /*
-                                    * only need to check once; presumably 
-                                    * hostids do not get added to the 
+                                    * only need to check once; presumably
+                                    * hostids do not get added to the
                                     * session by the client later.
                                     */
       if (s == -1)
@@ -658,7 +667,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
    if (ruletype == object_hrule && state->hostidc == 0 ) {
       SASSERTX(sockscf.hrule != NULL);
 
-      slog(LOG_DEBUG, 
+      slog(LOG_DEBUG,
            "%s: no hostid set on connection from client - can not match any "
            "%s, so ignoring %ss for this client as per spec",
            function, objecttype2string(ruletype), objecttype2string(ruletype));
@@ -670,6 +679,12 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
       return 1;
    }
 #endif /* HAVE_SOCKS_HOSTID */
+
+   if (state->command == SOCKS_BINDREPLY
+   ||  state->command == SOCKS_UDPREPLY)
+      isreplycommand = 1;
+   else
+      isreplycommand = 0;
 
    /*
     * let srcauth be unchanged from original unless we actually get a match.
@@ -771,14 +786,14 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
              * no way things will pass later.
              */
             const int dstmatchesall
-            = RULEADDR_MATCHES_ALL(&rule->dst, state->protocol);
+            = ruleaddr_matches_all_external(&rule->dst, state->protocol);
 
             slog(LOG_DEBUG,
                  "%s: dst ruleaddr %s %s limited to certain addresses, so %s "
-                 "say for sure now whether it will match all future target "
+                 "decide for sure now whether it will match all future target "
                  "addresses from this client",
                  function,
-                 ruleaddr2string(&rule->dst, 
+                 ruleaddr2string(&rule->dst,
                                  ADDRINFO_PORT | ADDRINFO_ATYPE,
                                  NULL,
                                  0),
@@ -804,8 +819,11 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
       /*
        * What methods does this rule require?
-       * Clientrules require clientmethods, socksrules require socksmethods. 
+       * - Client-rules require clientmethods.
+       * - Socks-rules require both the socksmethod and the underlying
+       *   clientmethod to match.
        */
+
       switch (ruletype) {
          case object_crule:
 #if HAVE_SOCKS_HOSTID
@@ -816,6 +834,29 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
             break;
 
          case object_srule:
+            if (isreplycommand) {
+               SASSERTX(clientauth == NULL);
+
+               slog(LOG_DEBUG,
+                    "%s: is a replycommand.  No underlying clientauth to match",
+                    function);
+            }
+            else {
+               SASSERTX(clientauth != NULL);
+               SASSERTX(clientauth->method != AUTHMETHOD_NOTSET);
+
+               if (!methodisset(clientauth->method,
+                                rule->state.cmethodv,
+                                rule->state.cmethodc)) {
+                  slog(LOG_DEBUG,
+                       "%s: client uses a clientmethod (%s) that is not set "
+                       "in the list over clientmethods to match for this rule",
+                       function, method2string(clientauth->method));
+
+                  continue;
+               }
+            }
+
             methodv  = rule->state.smethodv;
             methodc  = rule->state.smethodc;
             break;
@@ -829,65 +870,48 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
        * Does this rule's authentication requirements match the current
        * authentication in use by the client?
        */
-      if ( (state->command == SOCKS_BINDREPLY
-         || state->command == SOCKS_UDPREPLY)
-      && !sockscf.srchost.checkreplyauth) {
+      if (isreplycommand && !sockscf.srchost.checkreplyauth) {
          /*
-          * To be consistent, we should insist that the user specifies
-          * authmethod none for replies, unless he really wants to use
-          * an authmethod in these cases also, which is possible (e.g.
-          * method rfc931, or ip-only based pam), though probably
-          * extremely unlikely.
-          *
-          * That can make the config look weird though; if the
-          * user e.g. wants all access to be password-authenticated,
-          * and thus specifies method "uname" on the global
-          * method-line, he can not do that without also adding method
-          * "none", as the global method-line is a superset of the
-          * methods specified in the individual rules.  That means he
-          * then needs to set the method on a rule-by-rule basis;
-          * "none" for replies, and "username" for all others.  With
-          * more than a few rules, this can become quite a hassle, is
-          * unexpected, and only needed because the server supports
-          * this probably quite unusual and rarely used feature.
-          *
-          * We therefor try to be more user-friendly about this, so
-          * unless "checkreplyauth" is set in "srchost:", assume
-          * authmethod should not be checked for replies also.
+          * checkreplyauth not set, so should not check auth on replies.
           */
-         srcauth->method = AUTHMETHOD_NONE; /* don't bother checking. */
+         srcauth->method = AUTHMETHOD_NONE;
       }
       else if (!methodisset(srcauth->method, methodv, methodc)) {
          /*
-          * No.  There are however some methods which it's possible to get
-          * a match on, even if above check failed by changing/upgrading "
-          * the method.
+          * Auth used by client at the moment does not match.  There are
+          * however some methods on which it's possible to get a match on
+          * even if it is not the method currently used by the client.
+          * This is done by changing/upgrading the method, if possible.
+          *
           * E.g. if the client is using method NONE (or any other),
           * it might still be possible to change the authentication to
-          * RFC931, or PAM.  Likewise, if the current method is
-          * AUTHMETHOD_NOTSET, it can be "upgraded" to AUTHMETHOD_NONE.
+          * AUTHMETHOD_RFC931, or AUTHMETHOD_PAM_ADDRESS.
+          * Likewise, if the current method is AUTHMETHOD_USERNAME, it can
+          * be changed to AUTHMETHOD_BSDAUTH or AUTHMETHOD_PAM_USERNAME.
           *
           * We therefore look at what methods this rule requires and see
           * if can match it with what the client _can_ provide, if we
           * do some more work to get that information.
-          *
-          * Currently these methods are: gssapi (only during negotiation),
-          * AUTHMETHOD_NOTSET, rfc931, and pam.
           */
 
          /*
-          * This variable only says if current client has provided the
-          * necessary information to check it's access with one of the
-          * methods required by the current rule.  It does *not* mean the
-          * information was checked.  I.e. if it's AUTHMETHOD_RFC931,
-          * and methodischeckable is set, it means we were able to retrieve
-          * rfc931 info, but not that we checked the retrieved information
-          * against the passsword database.
-          * XXX would be nice to cache this, so we don't have to
-          * copy memory around each time.
+          * This variable only says if we have the necessary information to
+          * check one of the methods required by the current rule.
+          *
+          * It does *not* mean the information was checked.  I.e. if it's
+          * AUTHMETHOD_RFC931, and methodischeckable is set, it means we
+          * were able to retrieve rfc931 info, but not that we checked the
+          * retrieved information against anything.
+          * We will have to check the information as normal (as if this
+          * was the authmethod set already, which we now need to check).
           */
          size_t methodischeckable = 0;
 
+         /*
+          * Go through all methods this rule supports and see if
+          * we can get a match by modifying the authmethod the client
+          * is currently using.
+          */
          for (i = 0; i < methodc; ++i) {
             if (sockscf.option.debug >= DEBUG_VERBOSE)
                slog(LOG_DEBUG, "%s: no match yet for method %s, command %s",
@@ -897,44 +921,59 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
             switch (methodv[i]) {
                case AUTHMETHOD_NONE:
-                  methodischeckable = 1; /* anything is good enough. */
+                  /*
+                   * Rule requires authmethod none, but that does
+                   * not match current authentication in use by the
+                   * client.  If clients authmethod is not yet set,
+                   * we can set it to none however.
+                   */
+                   if (srcauth->method == AUTHMETHOD_NOTSET)
+                     methodischeckable = 1;
+
                   break;
 
 #if HAVE_LIBWRAP
                case AUTHMETHOD_RFC931: {
+                  /*
+                   * Rule supports rfc931.  No matter what method the
+                   * client is currently using, we can always attempt
+                   * to do a rfc931 lookup to get the rfc931 name as
+                   * long as we have a tcp connection.
+                   */
                   const char *evaleduser;
 
                   if (clientauth        != NULL
                   && clientauth->method == AUTHMETHOD_RFC931) {
-                     slog(LOG_DEBUG, "%s: already have rfc931 name %s from "
-                                     "clientauthentication done before, "
-                                     "not doing lookup again",
-                                     function,
-                                     clientauth->mdata.rfc931.name);
+                     slog(LOG_DEBUG,
+                          "%s: already have %s name %s from "
+                          "clientauthentication done before.  No need to "
+                          "do lookup again, but can just copy the data "
+                          "provided during the earlier rfc931 lookup",
+                          function,
+                          method2string(methodv[i]),
+                          clientauth->mdata.rfc931.name);
 
                      srcauth->mdata.rfc931 = clientauth->mdata.rfc931;
                   }
-                  else { /* need to do a tcp lookup. */
+                  else {
+                     /*
+                      * Need to do a lookup.  RFC931 requires a tcp
+                      * connection, so won't work in Barefoot's udp
+                      * case, where we only have a udp socket.
+                      */
                      int errno_s = errno;
 
-                     if (state->protocol != SOCKS_TCP) {
-                        /*
-                         * XXX should use tcp control-connection if
-                         * it's a udpassociate request.
-                         */
-                        slog(LOG_DEBUG,
-                             "%s: protocol is not tcp (is %s), so cannot "
-                             "perform an ident/rfc931 lookup",
-                             function, protocol2string(state->protocol));
-
+#if !HAVE_CONTROL_CONNECTION
+                     if (state->protocol == SOCKS_UDP)
                         break;
-                     }
+#endif /* !HAVE_CONTROL_CONNECTION */
 
                      if (!libwrapinited) {
                         libwrapinit(s,
                                     &_local,
                                     &_peer,
                                     &libwraprequest);
+
                         libwrapinited = 1;
                      }
 
@@ -969,6 +1008,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                         slog(LOG_DEBUG,
                              "%s: eval_user() set errno to %d (%s)",
                              function, errno, strerror(errno));
+
                         errno = 0;
                      }
 
@@ -980,16 +1020,23 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                      }
                      else if (srcauth->mdata.rfc931.name[
                             sizeof(srcauth->mdata.rfc931.name) - 1] != NUL) {
+
                         srcauth->mdata.rfc931.name[
                            sizeof(srcauth->mdata.rfc931.name) - 1] = NUL;
 
-                        slog(LOG_INFO, "%s: rfc931 name \"%s...\" too long",
-                             function, srcauth->mdata.rfc931.name);
+                        slog(LOG_NOTICE,
+                             "%s: Strange.  RFC931 name \"%s...\" returned "
+                             "from %s is too long.  Max length is %lu",
+                             function,
+                             srcauth->mdata.rfc931.name,
+                             sockaddr2string(peer, NULL, 0),
+                             (unsigned long)
+                                 (sizeof(srcauth->mdata.rfc931.name) - 1));
 
                         *srcauth->mdata.rfc931.name = NUL; /* unusable. */
                      }
                      else
-                        slog(LOG_DEBUG, "%s: rfc931 name gotten is \"%s\"",
+                        slog(LOG_DEBUG, "%s: received rfc931 name \"%s\"",
                              function, srcauth->mdata.rfc931.name);
                   }
 
@@ -1000,24 +1047,23 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 #endif /* HAVE_LIBWRAP */
 
 #if HAVE_PAM
-               case AUTHMETHOD_PAM_ANY: 
-               case AUTHMETHOD_PAM_ADDRESS: 
+               case AUTHMETHOD_PAM_ANY:
+               case AUTHMETHOD_PAM_ADDRESS:
                case AUTHMETHOD_PAM_USERNAME: {
                   /*
-                   * PAM can support username/password, just username,
-                   * or neither username nor password (i.e. based on
-                   * only ip address).
+                   * Rule supports PAM.  PAM can support username/password,
+                   * just username, or neither username nor password (i.e.
+                   * ip-address-only auth.
                    */
                   switch (srcauth->method) {
                      case AUTHMETHOD_UNAME: {
-                        /* it's a union, make a copy first. */
+                        /*
+                         * similar enough, just copy name/password from pam
+                         * uname struct.
+                         */
                         const authmethod_uname_t uname = srcauth->mdata.uname;
 
-                        /*
-                         * similar enough, just copy name/password.
-                         */
-
-                        STRCPY_ASSERTSIZE(srcauth->mdata.pam.name, 
+                        STRCPY_ASSERTSIZE(srcauth->mdata.pam.name,
                                           (const char *)uname.name);
 
                         STRCPY_ASSERTSIZE(srcauth->mdata.pam.password,
@@ -1027,16 +1073,31 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                         break;
                      }
 
+#if HAVE_BSDAUTH
+                     case AUTHMETHOD_BSDAUTH: {
+                        const authmethod_bsd_t bsd = srcauth->mdata.bsd;
+
+                        STRCPY_ASSERTSIZE(srcauth->mdata.pam.name,
+                                          (const char *)bsd.name);
+
+                        STRCPY_ASSERTSIZE(srcauth->mdata.pam.password,
+                                          (const char *)bsd.password);
+
+                        methodischeckable = 1;
+                        break;
+                     }
+#endif /* HAVE_BSDAUTH */
+
 #if HAVE_LIBWRAP
                      case AUTHMETHOD_RFC931: {
-                          /* it's a union, make a copy first. */
+                         /*
+                          * no password, but we can check the username
+                          * we got from ident, with an empty password,
+                          * against the pam-database.
+                          */
                           const authmethod_rfc931_t rfc931
                           = srcauth->mdata.rfc931;
 
-                         /*
-                          * no password, but we can check for the username
-                          * we got from ident, with an empty password.
-                          */
 
                          STRCPY_ASSERTSIZE(srcauth->mdata.pam.name,
                                            (const char *)rfc931.name);
@@ -1050,19 +1111,21 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
                      case AUTHMETHOD_NOTSET:
                      case AUTHMETHOD_NONE:
-                        /*
-                         * PAM can also support no username/password.
-                         */
+                        if (methodv[i] == AUTHMETHOD_PAM_ANY
+                        ||  methodv[i] == AUTHMETHOD_PAM_ADDRESS) {
+                           *srcauth->mdata.pam.name     = NUL;
+                           *srcauth->mdata.pam.password = NUL;
 
-                        *srcauth->mdata.pam.name     = NUL;
-                        *srcauth->mdata.pam.password = NUL;
+                           methodischeckable = 1;
+                        }
 
-                        methodischeckable = 1;
                         break;
                   }
 
-                  STRCPY_ASSERTSIZE(srcauth->mdata.pam.servicename,
-                                    rule->state.pamservicename);
+                  if (methodischeckable)
+                     STRCPY_ASSERTSIZE(srcauth->mdata.pam.servicename,
+                                       rule->state.pamservicename);
+
                   break;
                }
 #endif /* HAVE_PAM */
@@ -1071,18 +1134,13 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                case AUTHMETHOD_BSDAUTH: {
                   /*
                    * Requires username and password, but assume
-                   * the password can be empty.
+                   * the password can also be empty.
                    */
 
                   switch (srcauth->method) {
                      case AUTHMETHOD_UNAME: {
-                        /* it's a union, make a copy first. */
                         const authmethod_uname_t uname
                         = srcauth->mdata.uname;
-
-                        /*
-                         * similar enough, just copy name/password.
-                         */
 
                         STRCPY_ASSERTSIZE(srcauth->mdata.bsd.name,
                                           (const char *)uname.name);
@@ -1094,16 +1152,26 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                         break;
                      }
 
+#if HAVE_PAM
+                     case AUTHMETHOD_PAM_USERNAME: {
+                        const authmethod_pam_t pam
+                        = srcauth->mdata.uname;
+
+                        STRCPY_ASSERTSIZE(srcauth->mdata.bsd.name,
+                                          (const char *)pam.name);
+
+                        STRCPY_ASSERTSIZE(srcauth->mdata.bsd.password,
+                                          (const char *)pam.password);
+
+                        methodischeckable = 1;
+                        break;
+                     }
+#endif /* HAVE_PAM */
+
 #if HAVE_LIBWRAP
                      case AUTHMETHOD_RFC931: {
-                          /* it's a union, make a copy first. */
                           const authmethod_rfc931_t rfc931
                           = srcauth->mdata.rfc931;
-
-                         /*
-                          * no password, but we can check for the username
-                          * we got from ident, with an empty password.
-                          */
 
                          STRCPY_ASSERTSIZE(srcauth->mdata.bsd.name,
                                            (const char *)rfc931.name);
@@ -1116,8 +1184,9 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 #endif /* HAVE_LIBWRAP */
                   }
 
-                  STRCPY_ASSERTSIZE(srcauth->mdata.bsd.style,
-                                    rule->state.bsdauthstylename);
+                  if (methodischeckable)
+                     STRCPY_ASSERTSIZE(srcauth->mdata.bsd.style,
+                                       rule->state.bsdauthstylename);
                   break;
                }
 #endif /* HAVE_BSDAUTH */
@@ -1164,7 +1233,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                slog(LOG_DEBUG, "%s: changing authmethod from %d to %d",
                     function, srcauth->method, methodv[i]);
 
-               srcauth->method = methodv[i]; 
+               srcauth->method = methodv[i];
                break;
             }
          }
@@ -1196,13 +1265,14 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
          }
       }
 
-      SASSERTX(state->command == SOCKS_BINDREPLY
-      ||       state->command == SOCKS_UDPREPLY
+      SASSERTX(isreplycommand
       ||       state->command == SOCKS_HOSTID
       ||       methodisset(srcauth->method, methodv, methodc));
 
       if (srcauth->method != AUTHMETHOD_NONE && rule->user != NULL) {
-         /* rule requires user.  Covers current? */
+         /*
+          * rule requires username.  Does it covers the current user?
+          */
          if (!usermatch(srcauth, rule->user)) {
             slog(LOG_DEBUG,
                  "%s: username \"%s\" did not match rule #%lu for %s",
@@ -1216,7 +1286,9 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
       }
 
       if (srcauth->method != AUTHMETHOD_NONE && rule->group != NULL) {
-         /* rule requires group.  Covers included? */
+         /*
+          * Does rule cover current group?
+          */
          if (!groupmatch(srcauth, rule->group)) {
             slog(LOG_DEBUG,
                  "%s: groupname \"%s\" did not match rule #%lu for %s",
@@ -1245,6 +1317,12 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
       }
 #endif
 
+      /*
+       * Ok, all looks good.  Now finally check if the authentication
+       * credentials we've received are correct.  Do this last as it
+       * can involve external libraries (e.g. PAM) which we have
+       * little control over.
+       */
       if (!accesscheck(s, srcauth, peer, local, msg, msgsize)) {
          *match         = *rule;
 
@@ -1360,7 +1438,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
    if (match->verdict == VERDICT_BLOCK)
       SHMEM_CLEAR(match, SHMEM_ALL, 1);
-   else { 
+   else {
       if (sockscf.monitor != NULL) {
          if (src != NULL) {
             const monitor_t *monitor;
@@ -1376,7 +1454,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
                slog(LOG_DEBUG, "%s: matched monitor #%lu, mstats_shmid = %lu",
                     function,
-                    (unsigned long)monitor->number, 
+                    (unsigned long)monitor->number,
                     (unsigned long)monitor->mstats_shmid);
 
                COPY_MONITORFIELDS(monitor, match);
@@ -1415,7 +1493,7 @@ command_matches(command, commands)
       case SOCKS_CONNECT:
          if (commands->connect)
             return 1;
-         else 
+         else
             return 0;
 
       case SOCKS_UDPASSOCIATE:
@@ -1437,8 +1515,8 @@ command_matches(command, commands)
       case SOCKS_UDPREPLY:
          if (commands->udpreply)
             return 1;
-         return
-            0;
+         else
+            return 0;
 
       default:
          SERRX(command);
@@ -1546,849 +1624,6 @@ rulerequires(rule, what)
         rc == 1 ? "yes" : "no");
 
    return rc;
-}
-
-static int
-srchost_isok(peer, msg, msgsize)
-   const struct sockaddr_storage *peer;
-   char *msg;
-   size_t msgsize;
-{
-   const char *function = "srchost_isok()";
-   char hostname[MAXHOSTNAMELEN], vishname[sizeof(hostname) * 4];
-   int rc;
-
-   if (!sockscf.srchost.nodnsmismatch 
-   &&  !sockscf.srchost.nodnsunknown)
-      return 1;
-
-   rc = cgetnameinfo(TOCSA(peer), 
-                     salen(peer->ss_family),
-                     hostname,
-                     sizeof(hostname),
-                     NULL,
-                     0,
-                     NI_NAMEREQD);
-
-   if (rc != 0) {
-      log_reversemapfailed(peer, INTERNALIF, rc);
-
-      snprintf(msg, msgsize, "no dns entry found for srchost %s",
-               sockaddr2string(peer, NULL, 0));
-
-      if (sockscf.srchost.nodnsunknown)
-         return 0;
-
-      /* 
-       * if there is no dns-entry for this address, there can be
-       * no mismatch either.  
-       */
-      SASSERTX(sockscf.srchost.nodnsmismatch);
-      return 1;
-   }
-
-   slog(LOG_DEBUG, "%s: %s has a dns entry: %s",
-        function,
-        sockaddr2string(peer, NULL, 0), 
-        str2vis(hostname, strlen(hostname), vishname, sizeof(vishname)));
-
-   if (sockscf.srchost.nodnsmismatch) {
-      /*
-       * Check if the reversemapped hostname maps back to the 
-       * ipaddress.
-       */
-      ruleaddr_t ruleaddr;
-      sockshost_t resolvedhost;
-
-      sockaddr2ruleaddr(peer, &ruleaddr);
-      ruleaddr.operator  = none;
-
-      if (strlen(hostname) >= sizeof(resolvedhost.addr.domain)) {
-         swarnx("%s: ipaddress %s resolved to a hostname (%s) which is too "
-                "long.  %lu is the defined maximum",
-                function,
-                sockaddr2string2(peer, 0, NULL, 0),
-                vishname,
-                (unsigned long)sizeof(resolvedhost.addr.domain) - 1);
-
-         return 0;
-      }
-
-      resolvedhost.atype = SOCKS_ADDR_DOMAIN;
-      strcpy(resolvedhost.addr.domain, hostname);
-      resolvedhost.port  = htons(0);
-
-      if (!addrmatch(&ruleaddr, &resolvedhost, NULL, SOCKS_TCP, 0)) {
-         snprintf(msg, msgsize,
-                  "DNS IP/hostname mismatch.  %s does not match "
-                  "reversemapped addresses for hostname \"%s\"",
-                  sockaddr2string2(peer, 0, NULL, 0), vishname);
-
-         return 0;
-      }
-   }
-
-   return 1;
-}
-
-#if HAVE_LIBWRAP
-static void
-libwrapinit(s, local, peer, request)
-   int s;
-   struct sockaddr_storage *local;
-   struct sockaddr_storage *peer;
-   struct request_info *request;
-{
-   const char *function = "libwrapinit()";
-   const int errno_s = errno;
-   char hostname[MAXHOSTNAMELEN],
-        localstr[MAXSOCKADDRSTRING], peerstr[MAXSOCKADDRSTRING];
-   int rc;
-
-   slog(LOG_DEBUG, 
-        "%s: initing libwrap using fd %d for local %s, peer %s",
-        function,
-        s,
-        sockaddr2string(local, localstr, sizeof(localstr)),
-        sockaddr2string(peer, peerstr, sizeof(peerstr)));
-
-   rc = cgetnameinfo(TOSA(local), 
-                     salen(local->ss_family),
-                     hostname,
-                     sizeof(hostname),
-                     NULL,
-                     0, 
-                     NI_NAMEREQD);
-
-   request_init(request,
-                RQ_FILE, s,
-                RQ_DAEMON, __progname,
-                RQ_CLIENT_SIN, peer,
-                RQ_SERVER_SIN, local,
-                RQ_SERVER_NAME, rc == 0 ? hostname : "",
-                0);
-
-   rc = cgetnameinfo(TOSA(peer), 
-                     salen(peer->ss_family),
-                     hostname,
-                     sizeof(hostname),
-                     NULL,
-                     0, 
-                     NI_NAMEREQD);
-
-   request_set(request,
-               RQ_CLIENT_NAME, rc == 0 ? hostname : "",
-               0);
-
-   /* apparently some obscure libwrap bug requires this call. */
-   sock_methods(request);
-
-   errno = errno_s;
-}
-
-static int
-libwrap_hosts_access(request, peer)
-   struct request_info *request;
-   const struct sockaddr_storage *peer;
-{
-   const char *function = "libwrap_hosts_access()";
-   int allow;
-
-   sockd_priv(SOCKD_PRIV_LIBWRAP, PRIV_ON);
-   allow = hosts_access(request) != 0;
-   sockd_priv(SOCKD_PRIV_LIBWRAP, PRIV_OFF);
-
-   slog(LOG_DEBUG, "%s: libwrap/tcp_wrappers hosts_access() %s address %s",
-        function,
-        allow ? "allows" : "denies", 
-        sockaddr2string(peer, NULL, 0));
-
-   if (allow)
-      return 1;
-
-   return 0;
-}
-#endif /* HAVE_LIBWRAP */
-
-static rule_t *
-addrule(newrule, rulebase, ruletype)
-   const rule_t *newrule;
-   rule_t **rulebase;
-   const objecttype_t ruletype;
-{
-   const char *function = "addrule()";
-   serverstate_t zstate;
-   rule_t *rule;
-   size_t i;
-
-   bzero(&zstate, sizeof(zstate));
-
-   if ((rule = malloc(sizeof(*rule))) == NULL)
-      serr("%s: could not allocate %lu bytes for a rule",
-           function, (unsigned long)sizeof(*rule));
-
-   *rule = *newrule;
-
-   rule->type = ruletype;
-
-   /*
-    * try to set values not set to a sensible default.
-    */
-
-   if (sockscf.option.debug) {
-      rule->log.connect       = 1;
-      rule->log.disconnect    = 1;
-      rule->log.error         = 1;
-      rule->log.iooperation   = 1;
-      /* rule->log.tcpinfo       = 1; */
-   }
-   /* else; don't touch logging, no logging is ok. */
-
-   switch (ruletype) {
-      case object_srule:
-         if (rule->timeout.tcpio != 0)
-            if (rule->timeout.tcp_fin_wait != 0
-            &&  rule->timeout.tcp_fin_wait > rule->timeout.tcpio) {
-               yywarnx("%s: it does not make sense to let the tcp-fin-wait "
-                       "timeout be longer than the tcp i/o timeout, so "
-                       "reducing tcp-fin-wait for this rule from %ld to %ld",
-                       function,
-                       (long)rule->timeout.tcp_fin_wait,
-                       (long)rule->timeout.tcpio);
-
-               rule->timeout.tcp_fin_wait = rule->timeout.tcpio;
-            }
-         break;
-
-      default:
-         break;
-   }
-
-   setcommandprotocol(rule->type, &rule->state.command, &rule->state.protocol);
-
-   /*
-    * If no clientmethod is set, set AUTHMETHOD_NONE.  Avoids users
-    * having to always manually set it since there are no cases where
-    * it makes sense to not have at least one clientmethod set.
-    * Doesn't make much sense to not have method set either, but require
-    * user to set that to be more sure that is set correctly.
-    */
-   if (sockscf.cmethodc == 0)
-      sockscf.cmethodv[sockscf.cmethodc++] = AUTHMETHOD_NONE;
-
-   /*
-    * If no clientmethod is set in this rule, set all from the global method 
-    * line that make sense for this particular rule.
-    */
-   if (rule->state.cmethodc == 0) {
-      for (i = 0; i < sockscf.cmethodc; ++i)
-         rule->state.cmethodv[rule->state.cmethodc++] = sockscf.cmethodv[i];
-   }
-   else {
-      for (i = 0; i < rule->state.cmethodc; ++i)
-         if (!methodisset(rule->state.cmethodv[i], 
-                          sockscf.cmethodv, 
-                          sockscf.cmethodc))
-            yyerrorx("clientmethod \"%s\" is set in the rule, but not in the "
-                     "global clientmethod specification (containing \"%s\').  "
-                     "Only methods that are part of the global method "
-                     "specification can be part of the methods set in a local "
-                     "rule",
-                     method2string(rule->state.cmethodv[i]),
-                     methods2string(sockscf.cmethodc, 
-                                    sockscf.cmethodv, 
-                                    NULL, 
-                                    0));
-   }
-
-
-   /*
-    * need to do this check before adding methods ourselves, as if user 
-    * explicitly sets a method that will not work with all commands the 
-    * rule supports, we want to error out.  We are less strict if he 
-    * does not and it's a method we add ourselves when it make sense.
-    */
-   if (isreplycommandonly(&rule->state.command)) {
-      for (i = 0; i < rule->state.cmethodc; ++i) {
-         if ((   rule->state.command.udpreply
-             && !methodworkswith(rule->state.smethodv[i], udpreplies))
-         || (   rule->state.command.bindreply
-             && !methodworkswith(rule->state.smethodv[i], tcpreplies)))
-            yyerrorx("%s #%lu specifies method %s, but this "
-                     "method can not be provided by %sreplies",
-                     objecttype2string(rule->type),
-                     (unsigned long)rule->number,
-                     method2string(rule->state.smethodv[i]),
-                     rule->state.command.udpreply ? "udp" : "");
-      }
-   }
-
-   /*
-    * If no socksmethod is set in this rule, set all from the global method 
-    * line.  Note that for the client-rule there isn't really many checks we 
-    * can do on what socksmethods to set (e.g., do they support what is 
-    * required by the socks-rule?), as we won't know what is required until 
-    * we know what the matching socks-rule will be for the clients request.
-    */
-   if (rule->state.smethodc == 0) {
-      for (i = 0; i < sockscf.smethodc; ++i) {
-         switch (rule->type) {
-            case object_crule:
-
-#if HAVE_SOCKS_HOSTID
-            case object_hrule:
-#endif /* HAVE_SOCKS_HOSTID */
-
-               rule->state.smethodv[rule->state.smethodc++] 
-               = sockscf.smethodv[i];
-               break;
-
-#if HAVE_SOCKS_RULES
-            case object_srule:
-               if (isreplycommandonly(&rule->state.command)) {
-                  if (rule->state.command.udpreply
-                  && !methodworkswith(sockscf.smethodv[i], udpreplies))
-                     continue;
-
-                  if (rule->state.command.bindreply
-                  &&  !methodworkswith(sockscf.smethodv[i], tcpreplies))
-                     continue;
-               }
-
-               if (rulerequires(rule, username))
-                  if (!methodcanprovide(sockscf.smethodv[i], username))
-                     continue;
-
-               rule->state.smethodv[rule->state.smethodc++] 
-               = sockscf.smethodv[i];
-
-               break;
-#endif /* HAVE_SOCKS_RULES */
-
-            default:
-               SERRX(rule->type);
-         }
-
-      }
-   }
-   else {
-      /*
-       * socksmethods set by user.  Make sure they are also part of the
-       * global socksmethods set.
-       */
-      for (i = 0; i < rule->state.smethodc; ++i)
-         if (!methodisset(rule->state.smethodv[i], 
-                          sockscf.smethodv, 
-                          sockscf.smethodc))
-            yyerrorx("method \"%s\" is set in the rule, but not in the global "
-                     "socksmethod specification (containing \"%s\').  "
-                     "Only methods that are part of the global method "
-                     "specification can be part of the methods set in a local "
-                     "rule",
-                     method2string(rule->state.smethodv[i]),
-                     methods2string(sockscf.smethodc, 
-                                    sockscf.smethodv, 
-                                    NULL, 
-                                    0));
-   }
-
-   /* if no proxy protocol set, set appropriate. */
-   if (memcmp(&zstate.proxyprotocol, &rule->state.proxyprotocol,
-   sizeof(zstate.proxyprotocol)) == 0) {
-#if SOCKS_SERVER
-      rule->state.proxyprotocol.socks_v4 = 1;
-      rule->state.proxyprotocol.socks_v5 = 1;
-
-#elif BAREFOOTD /* !SOCKS_SERVER */
-      rule->state.proxyprotocol.socks_v5 = 1;
-
-#elif COVENANT
-      rule->state.proxyprotocol.http     = 1;
-#endif /* COVENANT */
-   }
-
-#if BAREFOOTD
-   SASSERTX(rule->type != object_srule);
-
-   if (rule->verdict == VERDICT_PASS
-   &&  ( (rule->extra.bounceto.port.tcp == htons(0)) 
-      || (rule->extra.bounceto.port.udp == htons(0)))) {
-      /*
-       * If no port-number is given for the bounce-to address, default to 
-       * using the same port as the port we accept the client on.  Only do 
-       * this if it's a pass rule however.  In the block case, we don't care 
-       * what the bounce-to address is as we will never connect there, so 
-       * prefer it to be 0.0.0.0, port 0, simply for cosmetic reasons.
-       */
-      if (rule->state.protocol.tcp 
-      && rule->extra.bounceto.port.tcp == htons(0)) {
-         rule->extra.bounceto.port.tcp = rule->dst.port.tcp;
-
-         slog(LOG_DEBUG, 
-              "%s: no bounce-to port given for protocol %s in %s #%lu.  "
-              "Using dst port %u", 
-              function, 
-              protocol2string(SOCKS_TCP),
-              objecttype2string(rule->type),
-              (unsigned long)rule->number,
-              ntohs(rule->dst.port.tcp));
-      }
-
-      if (rule->state.protocol.udp 
-      && rule->extra.bounceto.port.udp == htons(0)) {
-         rule->extra.bounceto.port.udp = rule->dst.port.udp;
-
-         slog(LOG_DEBUG, 
-              "%s: no bounce-to port given for protocol %s in %s #%lu.  "
-              "Using dst port %u", 
-              function, 
-              protocol2string(SOCKS_UDP),
-              objecttype2string(rule->type),
-              (unsigned long)rule->number,
-              ntohs(rule->dst.port.udp));
-      }
-   }
-#endif /* BAREFOOTD */
-
-
-   /*
-    * Set default values for some authentication-methods, if none
-    * set.  Note that this needs to be set regardless of what the
-    * method set in the rule is, as checkconfig() might add methods
-    * to the rules as part of it's operation.  This happens e.g. when
-    * adding default methods to the global clientmethod line, if appropriate,
-    * and then adding the same methods to the client-rules, if the rules
-    * do not already have a method.
-    */
-
-#if HAVE_PAM
-   if (*rule->state.pamservicename == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.pamservicename, DEFAULT_PAMSERVICENAME);
-#endif /* HAVE_PAM */
-
-#if HAVE_BSDAUTH
-   if (*rule->state.bsdauthstylename == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.bsdauthstylename, DEFAULT_BSDAUTHSTYLENAME);
-#endif /* HAVE_BSDAUTH */
-
-#if HAVE_GSSAPI
-   if (*rule->state.gssapiservicename == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.gssapiservicename,
-                       DEFAULT_GSSAPISERVICENAME);
-
-   if (*rule->state.gssapikeytab == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.gssapikeytab, DEFAULT_GSSAPIKEYTAB);
-
-   /*
-    * can't do memcmp since we don't want to include
-    * gssapiencryption.nec in the compare.
-    */
-   if (rule->state.gssapiencryption.clear           == 0
-   &&  rule->state.gssapiencryption.integrity       == 0
-   &&  rule->state.gssapiencryption.confidentiality == 0
-   &&  rule->state.gssapiencryption.permessage      == 0) {
-      rule->state.gssapiencryption.integrity      = 1;
-      rule->state.gssapiencryption.confidentiality= 1;
-      rule->state.gssapiencryption.permessage     = 0;
-   }
-#endif /* HAVE_GSSAPI */
-
-#if HAVE_LDAP
-   if (*rule->state.ldap.keytab == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.keytab, DEFAULT_GSSAPIKEYTAB);
-   else
-      rule->ldapsettingsfromuser = 1;
-
-   if (*rule->state.ldap.filter == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.filter, DEFAULT_LDAP_FILTER);
-   else
-      rule->ldapsettingsfromuser = 1;
-
-   if (*rule->state.ldap.filter_AD == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.filter_AD, DEFAULT_LDAP_FILTER_AD);
-   else
-      rule->ldapsettingsfromuser = 1;
-
-   if (*rule->state.ldap.attribute == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.attribute, DEFAULT_LDAP_ATTRIBUTE);
-   else
-      rule->ldapsettingsfromuser = 1;
-
-   if (*rule->state.ldap.attribute_AD == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.attribute_AD, 
-                       DEFAULT_LDAP_ATTRIBUTE_AD);
-   else
-      rule->ldapsettingsfromuser = 1;
-
-   if (*rule->state.ldap.certfile == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.certfile, DEFAULT_LDAP_CACERTFILE);
-   else
-      rule->ldapsettingsfromuser = 1;
-
-   if (*rule->state.ldap.certpath == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.certpath, DEFAULT_LDAP_CERTDBPATH);
-   else
-      rule->ldapsettingsfromuser = 1;
-
-   if (rule->state.ldap.port == 0) /* set to default */
-      rule->state.ldap.port = SOCKD_EXPLICIT_LDAP_PORT;
-   else
-      rule->ldapsettingsfromuser = 1;
-
-   if (rule->state.ldap.portssl == 0) /* set to default */
-      rule->state.ldap.portssl = SOCKD_EXPLICIT_LDAPS_PORT;
-   else
-      rule->ldapsettingsfromuser = 1;
-#endif /* HAVE_LDAP */
-
-   if (*rulebase == NULL) {
-      *rulebase           = rule;
-      (*rulebase)->number = 1;
-   }
-   else { /* append this rule to the end of our list. */
-      rule_t *lastrule;
-
-      lastrule = *rulebase;
-      while (lastrule->next != NULL)
-         lastrule = lastrule->next;
-
-      rule->number = lastrule->number + 1;
-      lastrule->next = rule;
-   }
-
-   INIT_MSTATES(rule, rule->type, rule->number);
-   rule->next = NULL;
-
-   return rule;
-}
-
-static void
-checkrule(rule)
-   const rule_t *rule;
-{
-   const char *function = "checkrule()";
-   ruleaddr_t ruleaddr;
-   const int *methodv[]      = { 
-                                 rule->state.cmethodv,
-                                 rule->state.smethodv 
-                               };
-   const size_t methodc[]    = {
-                                 rule->state.cmethodc,
-                                 rule->state.smethodc
-                               };
-   const objecttype_t type[] = { 
-                                 object_crule,
-                                 object_srule
-                               };
-
-   size_t i, methodi;
-
-   if (rule->src.atype == SOCKS_ADDR_IFNAME) {
-      struct sockaddr_storage addr, mask;
-
-      if (ifname2sockaddr(rule->src.addr.ifname, 0, &addr, &mask) == NULL)
-         yyerror("no ip address found on interface %s", rule->src.addr.ifname);
-   }
-
-   if (rule->dst.atype == SOCKS_ADDR_IFNAME) {
-      struct sockaddr_storage addr, mask;
-
-      if (ifname2sockaddr(rule->dst.addr.ifname, 0, &addr, &mask)
-      == NULL)
-         yyerror("no ip address found on interface %s", rule->dst.addr.ifname);
-   }
-
-
-   if (rule->ss != NULL) {
-      SASSERTX(rule->ss->type == SHMEM_SS);
-
-      if (rule->ss->keystate.key == key_unset) {
-         if (rule->ss->object.ss.max_perstate_isset)
-            yyerrorx("state.session.max is set, but session.state.key is not");
-
-         if (rule->ss->object.ss.throttle_perstate_isset)
-            yyerrorx("session.state.throttle is set, but session.state.key "
-                     "is not");
-      }
-      else {
-         if (!rule->ss->object.ss.max_perstate_isset
-         &&  !rule->ss->object.ss.throttle_perstate_isset)
-            yyerrorx("session state key is set (%d), but no value has been "
-                     "given to state.max or state.throttle",
-                     (int)rule->ss->keystate.key);
-
-         switch (rule->ss->keystate.key) {
-            case key_hostid:
-               SASSERTX(rule->hostidoption_isset);
-
-#if 0 /* XXX more thought needed. */
-               if (rule->state.protocol.udp)
-                  yyerrorx("hostids are not available on sessions using UDP");
-#endif /* 0  */
-
-               if (rule->ss->keystate.keyinfo.hostindex < 1)
-                  yyerrorx("illegal hostindex value %d%s",
-                           (int)rule->ss->keystate.keyinfo.hostindex,
-                           rule->ss->keystate.keyinfo.hostindex == 0 ?
-                              "/any" : "");
-               break;
-
-            case key_from:
-               if (rule->ss->keystate.keyinfo.hostindex != 0)
-                  yyerrorx("it does not make sense to set a hostindex value "
-                           "for state key %s.  The hostindex keyword "
-                           "is only usable with hostid keys",
-                           statekey2string(rule->ss->keystate.key));
-               break;
-
-            default:
-               SERRX(rule->ss->keystate.key);
-         }
-
-         if (rule->ss->object.ss.max_isset
-         && (rule->ss->object.ss.max_perstate
-             > rule->ss->object.ss.max))
-            yyerrorx("it does not make sense to have a larger value for "
-                     "session.state.max (%ld) than the combined, state-less, "
-                     "session.max value (%ld).  Configuration error?",
-                     (unsigned long)rule->ss->object.ss.max_perstate,
-                     (unsigned long)rule->ss->object.ss.max);
-
-         if (rule->ss->object.ss.throttle_perstate_isset
-         && rule->ss->object.ss.throttle_isset) {
-            if ((rule->ss->object.ss.throttle_perstate.limit.seconds
-              <= rule->ss->object.ss.throttle.limit.seconds)
-            &&  (rule->ss->object.ss.throttle_perstate.limit.clients
-              >  rule->ss->object.ss.throttle.limit.clients))
-            yyerrorx("it does not make sense to have a more strict limit for "
-                     "the combined, state-less, session.throttle limit "
-                     "(%lu/%ld), than for the per %s state "
-                     "session.state.throttle (%lu/%ld).  Configuration error?",
-                     (unsigned long)rule->ss->object.ss.throttle.limit.clients,
-                     (long)rule->ss->object.ss.throttle.limit.seconds,
-                     statekey2string(rule->ss->keystate.key),
-            (unsigned long)rule->ss->object.ss.throttle_perstate.limit.clients,
-            (long)rule->ss->object.ss.throttle_perstate.limit.seconds);
-         }
-      }
-   }
-
-   if (rule->bw != NULL) {
-      SASSERTX(rule->bw->type == SHMEM_BW);
-
-      if (!rule->bw->object.bw.maxbps_isset)
-         yyerrorx("no value for maxbps has been given");
-   }
-
-#if 0
-   /*
-    * XXX
-    * Needs more thought.  Would it be more meaningfull to consider 
-    * hostids provided as long as any part of the session (i.e., the
-    * TCP connectol connectio) has provded it?
-    */
-
-   if (rule->state.protocol.udp) {
-      if (rule->hostidoption_isset)
-         yyerrorx("hostids are not available on sessions using UDP");
-   }
-#endif /* 0 */
-
-
-   if (rule->src.atype == SOCKS_ADDR_IPVANY) {
-      SASSERTX(rule->src.addr.ipvany.ip.s_addr   == htonl(0));
-      SASSERTX(rule->src.addr.ipvany.mask.s_addr == htonl(0));
-   }
-
-   if (rule->dst.atype == SOCKS_ADDR_IPVANY) {
-      SASSERTX(rule->dst.addr.ipvany.ip.s_addr   == htonl(0));
-      SASSERTX(rule->dst.addr.ipvany.mask.s_addr == htonl(0));
-   }
-
-#if BAREFOOTD
-   SASSERTX(rule->type != object_srule);
-
-   if (rule->type == object_crule) {
-      if (rule->dst.atype == SOCKS_ADDR_IPV4)
-        SASSERTX(rule->dst.addr.ipv4.mask.s_addr == htonl(IPV4_FULLNETMASK));
-      else if (rule->dst.atype == SOCKS_ADDR_IPV6)
-        SASSERTX(rule->dst.addr.ipv6.maskbits    == IPV6_NETMASKBITS);
-   }
-#endif /* BAREFOOTD */
-
-   for (methodi = 0; methodi < ELEMENTS(methodv); ++methodi) {
-      for (i = 0; i < methodc[methodi]; ++i) {
-         if (!methodisvalid(methodv[methodi][i], type[methodi]))
-            yyerrorx("method %s is not valid for %ss",
-                     method2string(methodv[methodi][i]),
-                     objecttype2string(type[methodi]));
-      }
-   }
-
-   switch (rule->type) {
-      case object_crule:
-#if HAVE_SOCKS_HOSTID
-      case object_hrule:
-#endif /* HAVE_SOCKS_HOSTID */
-
-         /* 
-          * we always set AUTHMETHOD_NONE ourselves if the user does not 
-          * set anything. 
-          */
-         SASSERTX(rule->state.cmethodc > 0);
-         break;
-
-#if HAVE_SOCKS_RULES
-      case object_srule:
-         if (rule->state.smethodc == 0) {
-            if (isreplycommandonly(&rule->state.command)
-            &&  !sockscf.srchost.checkreplyauth) {
-               /* 
-                * don't require user to specify a method for reply-only 
-                * rules as normally noting can be gotten from there.
-                */
-               ; 
-            }
-            else
-               yywarnx("%s: %s #%lu sets no socks authentication methods, not "
-                       "even the method \"none\".  This means the client will "
-                       "never be permitted.  Perhaps this is not intended?",
-                       function,
-                       objecttype2string(rule->type),
-                       (unsigned long)rule->number);
-         }
-
-         break;
-#endif /* HAVE_SOCKS_RULES */
-
-
-      default:
-         SERRX(rule->type);
-   }
-
-   if (rulerequires(rule, username)) {
-      const int *methodv;
-      size_t methodc;
-      
-      switch (rule->type) {
-         case object_crule:
-#if HAVE_SOCKS_HOSTID
-         case object_hrule:
-#endif /* HAVE_SOCKS_HOSTID */
-            methodv = rule->state.cmethodv;
-            methodc = rule->state.cmethodc;
-            break;
-
-         case object_srule:
-            methodv = rule->state.smethodv;
-            methodc = rule->state.smethodc;
-            break;
-
-         default:
-            SERRX(object_srule);
-      }
-
-
-      if (rule->state.command.udpreply)
-         if (isreplycommandonly(&rule->state.command)
-         || sockscf.srchost.checkreplyauth)
-            yyerrorx("udp replies can not provide any usernames, yet the "
-                     "settings in this rule require it");
-
-      /* 
-       * also check that all methods given in the rule provide usernames.
-       */
-
-      for (i = 0; i < methodc; ++i) {
-         if (!methodcanprovide(methodv[i], username))
-            yyerrorx("the settings in this %s requires the client to "
-                     "provide a user/group-name in some way, but the "
-                     "method \"%s\", which is implicitly or explicitly "
-                     "specified in this rule, cannot be depended on to "
-                     "provide this information",
-                     objecttype2string(rule->type),
-                     method2string(methodv[i]));
-      }
-   }
-
-   if (rule->rdr_from.atype != SOCKS_ADDR_NOTSET) {
-      switch (rule->rdr_from.atype) {
-         case SOCKS_ADDR_IPV4:
-         case SOCKS_ADDR_IPV6:
-         case SOCKS_ADDR_IFNAME:
-         case SOCKS_ADDR_DOMAIN:
-            break;
-
-         default:
-            yyerrorx("redirect from address can not be a %s",
-                     atype2string(rule->rdr_from.atype));
-      }
-
-      ruleaddr          = rule->rdr_from;
-      ruleaddr.port.tcp = htons(0); /* any port is good for testing. */
-
-      if (!addrisbindable(&ruleaddr)) {
-         char addr[MAXRULEADDRSTRING];
-
-         yyerrorx("address %s in rule #%lu is not bindable",
-                  ruleaddr2string(&ruleaddr, 0, addr, sizeof(addr)),
-                  (unsigned long)rule->number);
-      }
-   }
-
-   if (rule->rdr_to.atype != SOCKS_ADDR_NOTSET) {
-      switch (rule->rdr_to.atype) {
-         case SOCKS_ADDR_IPV4:
-         case SOCKS_ADDR_IPV6:
-         case SOCKS_ADDR_DOMAIN:
-            break;
-
-         default:
-            yyerrorx("redirect to a %s-type address is not supported "
-                     "(or meaningful?)",
-                     atype2string(rule->rdr_to.atype));
-      }
-   }
-
-   /* check socket options and warn if something does not look right. */
-   if (rule->socketoptionv != NULL
-#if !HAVE_SOCKS_RULES
-   && rule->type != object_srule /*
-                                  * socks-rules are autogenerated based on
-                                  * client-rule and will contain most of the ,
-                                  * same, so avoid duplicate warnings by only 
-                                  * checking the options when checking the 
-                                  * crule.
-                                  */
-#endif /* !HAVE_SOCKS_RULES */
-   ) {
-      for (i = 0; i < rule->socketoptionc; ++i) {
-         if (rule->type != object_srule) {
-#if HAVE_SOCKS_RULES
-            if (!rule->socketoptionv[i].isinternalside)
-               yyerrorx("can not set socket options for the external side in "
-                        "a %s, as there is no external side set up "
-                        "yet at this point.  Needs to be set in the "
-                        "corresponding socks-rule if necessary",
-                        objecttype2string(rule->type));
-#else
-            /* reusing the client-rule as a srule later. */
-#endif
-         }
-
-         if (rule->socketoptionv[i].info == NULL)
-            continue;
-      }
-   }
-}
-
-static void
-showlog(log)
-   const log_t *log;
-{
-   char buf[1024];
-
-   slog(LOG_DEBUG, "log: %s", logs2string(log, buf, sizeof(buf)));
 }
 
 int
@@ -2552,7 +1787,7 @@ do {                                                                           \
 
 
    if (rc == 0) /* only inherit alarms on success. */
-      /* 
+      /*
        * Do this before we potentially clear fields in the code below.
        */
       alarm_inherit(from, cinfo_from, to, cinfo_to, sidesconnected);
@@ -2660,6 +1895,948 @@ do {                                                                           \
    return rc;
 }
 
+
+static int
+srchost_isok(peer, msg, msgsize)
+   const struct sockaddr_storage *peer;
+   char *msg;
+   size_t msgsize;
+{
+   const char *function = "srchost_isok()";
+   char hostname[MAXHOSTNAMELEN], vishname[sizeof(hostname) * 4];
+   int rc;
+
+   if (!sockscf.srchost.nodnsmismatch
+   &&  !sockscf.srchost.nodnsunknown)
+      return 1;
+
+   rc = cgetnameinfo(TOCSA(peer),
+                     salen(peer->ss_family),
+                     hostname,
+                     sizeof(hostname),
+                     NULL,
+                     0,
+                     NI_NAMEREQD);
+
+   if (rc != 0) {
+      log_reversemapfailed(peer, INTERNALIF, rc);
+
+      snprintf(msg, msgsize, "no dns entry found for srchost %s",
+               sockaddr2string(peer, NULL, 0));
+
+      if (sockscf.srchost.nodnsunknown)
+         return 0;
+
+      /*
+       * if there is no dns-entry for this address, there can be
+       * no mismatch either.
+       */
+      SASSERTX(sockscf.srchost.nodnsmismatch);
+      return 1;
+   }
+
+   slog(LOG_DEBUG, "%s: %s has a dns entry: %s",
+        function,
+        sockaddr2string(peer, NULL, 0),
+        str2vis(hostname, strlen(hostname), vishname, sizeof(vishname)));
+
+   if (sockscf.srchost.nodnsmismatch) {
+      /*
+       * Check if the reversemapped hostname maps back to the
+       * ipaddress.
+       */
+      ruleaddr_t ruleaddr;
+      sockshost_t resolvedhost;
+
+      sockaddr2ruleaddr(peer, &ruleaddr);
+      ruleaddr.operator  = none;
+
+      if (strlen(hostname) >= sizeof(resolvedhost.addr.domain)) {
+         swarnx("%s: ipaddress %s resolved to a hostname (%s) which is too "
+                "long.  %lu is the defined maximum",
+                function,
+                sockaddr2string2(peer, 0, NULL, 0),
+                vishname,
+                (unsigned long)sizeof(resolvedhost.addr.domain) - 1);
+
+         return 0;
+      }
+
+      resolvedhost.atype = SOCKS_ADDR_DOMAIN;
+      strcpy(resolvedhost.addr.domain, hostname);
+      resolvedhost.port  = htons(0);
+
+      if (!addrmatch(&ruleaddr, &resolvedhost, NULL, SOCKS_TCP, 0)) {
+         snprintf(msg, msgsize,
+                  "DNS IP/hostname mismatch.  %s does not match "
+                  "reversemapped addresses for hostname \"%s\"",
+                  sockaddr2string2(peer, 0, NULL, 0), vishname);
+
+         return 0;
+      }
+   }
+
+   return 1;
+}
+
+#if HAVE_LIBWRAP
+static void
+libwrapinit(s, local, peer, request)
+   int s;
+   struct sockaddr_storage *local;
+   struct sockaddr_storage *peer;
+   struct request_info *request;
+{
+   const char *function = "libwrapinit()";
+   const int errno_s = errno;
+   char hostname[MAXHOSTNAMELEN],
+        localstr[MAXSOCKADDRSTRING], peerstr[MAXSOCKADDRSTRING];
+   int rc;
+
+   slog(LOG_DEBUG,
+        "%s: initing libwrap using fd %d for local %s, peer %s",
+        function,
+        s,
+        sockaddr2string(local, localstr, sizeof(localstr)),
+        sockaddr2string(peer, peerstr, sizeof(peerstr)));
+
+   rc = cgetnameinfo(TOSA(local),
+                     salen(local->ss_family),
+                     hostname,
+                     sizeof(hostname),
+                     NULL,
+                     0,
+                     NI_NAMEREQD);
+
+   request_init(request,
+                RQ_FILE, s,
+                RQ_DAEMON, __progname,
+                RQ_CLIENT_SIN, peer,
+                RQ_SERVER_SIN, local,
+                RQ_SERVER_NAME, rc == 0 ? hostname : "",
+                0);
+
+   rc = cgetnameinfo(TOSA(peer),
+                     salen(peer->ss_family),
+                     hostname,
+                     sizeof(hostname),
+                     NULL,
+                     0,
+                     NI_NAMEREQD);
+
+   request_set(request,
+               RQ_CLIENT_NAME, rc == 0 ? hostname : "",
+               0);
+
+   /* apparently some obscure libwrap bug requires this call. */
+   sock_methods(request);
+
+   errno = errno_s;
+}
+
+static int
+libwrap_hosts_access(request, peer)
+   struct request_info *request;
+   const struct sockaddr_storage *peer;
+{
+   const char *function = "libwrap_hosts_access()";
+   int allow;
+
+   sockd_priv(SOCKD_PRIV_LIBWRAP, PRIV_ON);
+   allow = hosts_access(request) != 0;
+   sockd_priv(SOCKD_PRIV_LIBWRAP, PRIV_OFF);
+
+   slog(LOG_DEBUG, "%s: libwrap/tcp_wrappers hosts_access() %s address %s",
+        function,
+        allow ? "allows" : "denies",
+        sockaddr2string(peer, NULL, 0));
+
+   if (allow)
+      return 1;
+
+   return 0;
+}
+#endif /* HAVE_LIBWRAP */
+
+static rule_t *
+addrule(newrule, rulebase, ruletype)
+   const rule_t *newrule;
+   rule_t **rulebase;
+   const objecttype_t ruletype;
+{
+   const char *function = "addrule()";
+   serverstate_t zstate;
+   rule_t *rule;
+   size_t i;
+
+   bzero(&zstate, sizeof(zstate));
+
+   if ((rule = malloc(sizeof(*rule))) == NULL)
+      serr("%s: could not allocate %lu bytes for a rule",
+           function, (unsigned long)sizeof(*rule));
+
+   *rule = *newrule;
+
+   rule->type = ruletype;
+
+   /*
+    * try to set values not set to a sensible default.
+    */
+
+   if (sockscf.option.debug) {
+      rule->log.connect       = 1;
+      rule->log.disconnect    = 1;
+      rule->log.error         = 1;
+      rule->log.iooperation   = 1;
+      /* rule->log.tcpinfo       = 1; */
+   }
+   /* else; don't touch logging, no logging is ok. */
+
+   switch (ruletype) {
+      case object_srule:
+         if (rule->timeout.tcpio != 0)
+            if (rule->timeout.tcp_fin_wait != 0
+            &&  rule->timeout.tcp_fin_wait > rule->timeout.tcpio) {
+               yywarnx("%s: it does not make sense to let the tcp-fin-wait "
+                       "timeout be longer than the tcp i/o timeout, so "
+                       "reducing tcp-fin-wait for this rule from %ld to %ld",
+                       function,
+                       (long)rule->timeout.tcp_fin_wait,
+                       (long)rule->timeout.tcpio);
+
+               rule->timeout.tcp_fin_wait = rule->timeout.tcpio;
+            }
+         break;
+
+      default:
+         break;
+   }
+
+   setcommandprotocol(rule->type, &rule->state.command, &rule->state.protocol);
+
+   /*
+    * If no global clientmethod is set, set AUTHMETHOD_NONE.  Avoids operator
+    * having to always manually set it, since there are no cases where it
+    * makes sense to not have at least one clientmethod set.
+    * Doesn't make much sense to not have any global socksmethod set either,
+    * but do require operator to set at least that to be more sure that is set
+    * correctly.
+    */
+   if (sockscf.cmethodc == 0)
+      sockscf.cmethodv[sockscf.cmethodc++] = AUTHMETHOD_NONE;
+
+   /*
+    * need to do this check before adding methods ourselves, as if user
+    * explicitly sets a method that will not work with all commands the
+    * rule supports, we want to error out.  We are less strict if he
+    * does not and it's a method we add ourselves when it make sense.
+    */
+   if (isreplycommandonly(&rule->state.command)) {
+      SASSERTX(rule->type == object_srule);
+
+      for (i = 0; i < rule->state.cmethodc; ++i) {
+         if ((   rule->state.command.udpreply
+             && !methodworkswith(rule->state.smethodv[i], udpreplies))
+         || (   rule->state.command.bindreply
+             && !methodworkswith(rule->state.smethodv[i], tcpreplies)))
+            yyerrorx("%s #%lu specifies method %s, but this "
+                     "method can not be provided by %sreplies",
+                     objecttype2string(rule->type),
+                     (unsigned long)rule->number,
+                     method2string(rule->state.smethodv[i]),
+                     rule->state.command.udpreply ? "udp" : "");
+      }
+   }
+
+   /*
+    * If no clientmethod is set in this rule, set all from the global methods.
+    */
+   if (rule->state.cmethodc == 0) {
+      for (i = 0; i < sockscf.cmethodc; ++i)
+         rule->state.cmethodv[rule->state.cmethodc++] = sockscf.cmethodv[i];
+   }
+   else {
+      for (i = 0; i < rule->state.cmethodc; ++i) {
+         if (!methodisset(rule->state.cmethodv[i],
+                          sockscf.cmethodv,
+                          sockscf.cmethodc))
+            yyerrorx("clientmethod \"%s\" is set in the rule, but not in the "
+                     "global clientmethod specification (containing \"%s\').  "
+                     "Only methods that are part of the global method "
+                     "specification can be part of the methods set in a local "
+                     "rule",
+                     method2string(rule->state.cmethodv[i]),
+                     methods2string(sockscf.cmethodc,
+                                    sockscf.cmethodv,
+                                    NULL,
+                                    0));
+
+         if (rule->state.cmethodv[i] == AUTHMETHOD_NONE
+         &&  i + 1 < rule->state.cmethodc)
+            yywarnx("authentication method \"%s\" is configured in this "
+                    "clientmethod list, but since authentication methods "
+                    "are selected by the priority given, we will never try "
+                    "to match any of the subsequent authentication methods.  "
+                    "I.e., no match will ever be attempted on the next "
+                    "method, method \"%s\"",
+                    method2string(rule->state.cmethodv[i]),
+                    method2string(rule->state.cmethodv[i + 1]));
+      }
+   }
+
+   /*
+    * If no socksmethod is set in this rule, set all from the global methods.
+    * For the client-rule there isn't really many checks we can do on what
+    * methods to set (e.g., do they support what will be  required by the
+    * matchin socks-rule?), as we won't know what is required until we know
+    * what the matching socks-rule will be for the clients request.
+    *
+    * For the socks-rule, we can check things however.
+    */
+   if (rule->state.smethodc == 0) {
+      for (i = 0; i < sockscf.smethodc; ++i) {
+         switch (rule->type) {
+            case object_crule:
+
+#if HAVE_SOCKS_HOSTID
+            case object_hrule:
+#endif /* HAVE_SOCKS_HOSTID */
+
+               rule->state.smethodv[rule->state.smethodc++]
+               = sockscf.smethodv[i];
+               break;
+
+#if HAVE_SOCKS_RULES
+            case object_srule:
+               if (isreplycommandonly(&rule->state.command)) {
+                  if (rule->state.command.udpreply
+                  && !methodworkswith(sockscf.smethodv[i], udpreplies))
+                     continue;
+
+                  if (rule->state.command.bindreply
+                  &&  !methodworkswith(sockscf.smethodv[i], tcpreplies))
+                     continue;
+               }
+
+               if (rulerequires(rule, username))
+                  if (!methodcanprovide(sockscf.smethodv[i], username))
+                     continue;
+
+               rule->state.smethodv[rule->state.smethodc++]
+               = sockscf.smethodv[i];
+
+               break;
+#endif /* HAVE_SOCKS_RULES */
+
+            default:
+               SERRX(rule->type);
+         }
+
+      }
+   }
+   else {
+      /*
+       * socksmethods set by user.  Make sure they are also part of the
+       * global socksmethods set.
+       */
+      for (i = 0; i < rule->state.smethodc; ++i) {
+         if (!methodisset(rule->state.smethodv[i],
+                          sockscf.smethodv,
+                          sockscf.smethodc))
+            yyerrorx("method \"%s\" is set in the rule, but not in the global "
+                     "socksmethod specification (containing \"%s\').  "
+                     "Only methods that are part of the global method "
+                     "specification can be part of the methods set in a local "
+                     "rule",
+                     method2string(rule->state.smethodv[i]),
+                     methods2string(sockscf.smethodc,
+                                    sockscf.smethodv,
+                                    NULL,
+                                    0));
+
+         if (rule->type != object_srule) {
+            /*
+             * At srule time, the socksmethod is already set and no
+             * priority settings apply.  Before that (in clientrule
+             * and hostidrule), the socksmethod-list set will specify
+             * the priority however.
+             */
+            if (rule->state.smethodv[i] == AUTHMETHOD_NONE
+            &&  i + 1 < rule->state.smethodc)
+               yywarnx("authentication method \"%s\" is configured in this "
+                       "socksmethod list, but since authentication methods "
+                       "are selected by the priority given, we will never try "
+                       "to match any of the subsequent authentication "
+                       "methods.  I.e., no match will ever be attempted on "
+                       "the next method, method \"%s\"",
+                       method2string(rule->state.smethodv[i]),
+                       method2string(rule->state.smethodv[i + 1]));
+         }
+      }
+   }
+
+   /* if no proxy protocol set, set appropriate. */
+   if (memcmp(&zstate.proxyprotocol, &rule->state.proxyprotocol,
+   sizeof(zstate.proxyprotocol)) == 0) {
+#if SOCKS_SERVER
+      rule->state.proxyprotocol.socks_v4 = 1;
+      rule->state.proxyprotocol.socks_v5 = 1;
+
+#elif BAREFOOTD /* !SOCKS_SERVER */
+      rule->state.proxyprotocol.socks_v5 = 1;
+
+#elif COVENANT
+      rule->state.proxyprotocol.http     = 1;
+#endif /* COVENANT */
+   }
+
+#if BAREFOOTD
+   SASSERTX(rule->type != object_srule);
+
+   if (rule->verdict == VERDICT_PASS
+   &&  ( (rule->extra.bounceto.port.tcp == htons(0))
+      || (rule->extra.bounceto.port.udp == htons(0)))) {
+      /*
+       * If no port-number is given for the bounce-to address, default to
+       * using the same port as the port we accept the client on.  Only do
+       * this if it's a pass rule however.  In the block case, we don't care
+       * what the bounce-to address is as we will never connect there, so
+       * prefer it to be 0.0.0.0, port 0, simply for cosmetic reasons.
+       */
+      if (rule->state.protocol.tcp
+      && rule->extra.bounceto.port.tcp == htons(0)) {
+         rule->extra.bounceto.port.tcp = rule->dst.port.tcp;
+
+         slog(LOG_DEBUG,
+              "%s: no bounce-to port given for protocol %s in %s #%lu.  "
+              "Using dst port %u",
+              function,
+              protocol2string(SOCKS_TCP),
+              objecttype2string(rule->type),
+              (unsigned long)rule->number,
+              ntohs(rule->dst.port.tcp));
+      }
+
+      if (rule->state.protocol.udp
+      && rule->extra.bounceto.port.udp == htons(0)) {
+         rule->extra.bounceto.port.udp = rule->dst.port.udp;
+
+         slog(LOG_DEBUG,
+              "%s: no bounce-to port given for protocol %s in %s #%lu.  "
+              "Using dst port %u",
+              function,
+              protocol2string(SOCKS_UDP),
+              objecttype2string(rule->type),
+              (unsigned long)rule->number,
+              ntohs(rule->dst.port.udp));
+      }
+   }
+#endif /* BAREFOOTD */
+
+
+   /*
+    * Set default values for some authentication-methods, if none
+    * set.  Note that this needs to be set regardless of what the
+    * method set in the rule is, as checkconfig() might add methods
+    * to the rules as part of it's operation.  This happens e.g. when
+    * adding default methods to the global clientmethod line, if appropriate,
+    * and then adding the same methods to the client-rules, if the rules
+    * do not already have a method.
+    */
+
+#if HAVE_PAM
+   if (*rule->state.pamservicename == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.pamservicename, DEFAULT_PAMSERVICENAME);
+#endif /* HAVE_PAM */
+
+#if HAVE_BSDAUTH
+   if (*rule->state.bsdauthstylename == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.bsdauthstylename, DEFAULT_BSDAUTHSTYLENAME);
+#endif /* HAVE_BSDAUTH */
+
+#if HAVE_GSSAPI
+   if (*rule->state.gssapiservicename == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.gssapiservicename,
+                       DEFAULT_GSSAPISERVICENAME);
+
+   if (*rule->state.gssapikeytab == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.gssapikeytab, DEFAULT_GSSAPIKEYTAB);
+
+   /*
+    * can't do memcmp since we don't want to include
+    * gssapiencryption.nec in the compare.
+    */
+   if (rule->state.gssapiencryption.clear           == 0
+   &&  rule->state.gssapiencryption.integrity       == 0
+   &&  rule->state.gssapiencryption.confidentiality == 0
+   &&  rule->state.gssapiencryption.permessage      == 0) {
+      rule->state.gssapiencryption.integrity      = 1;
+      rule->state.gssapiencryption.confidentiality= 1;
+      rule->state.gssapiencryption.permessage     = 0;
+   }
+#endif /* HAVE_GSSAPI */
+
+#if HAVE_LDAP
+   if (*rule->state.ldap.keytab == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.ldap.keytab, DEFAULT_GSSAPIKEYTAB);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldap.filter == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.ldap.filter, DEFAULT_LDAP_FILTER);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldap.filter_AD == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.ldap.filter_AD, DEFAULT_LDAP_FILTER_AD);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldap.attribute == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.ldap.attribute, DEFAULT_LDAP_ATTRIBUTE);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldap.attribute_AD == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.ldap.attribute_AD,
+                       DEFAULT_LDAP_ATTRIBUTE_AD);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldap.certfile == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.ldap.certfile, DEFAULT_LDAP_CACERTFILE);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldap.certpath == NUL) /* set to default. */
+      STRCPY_ASSERTSIZE(rule->state.ldap.certpath, DEFAULT_LDAP_CERTDBPATH);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldap.port == 0) /* set to default */
+      rule->state.ldap.port = SOCKD_EXPLICIT_LDAP_PORT;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldap.portssl == 0) /* set to default */
+      rule->state.ldap.portssl = SOCKD_EXPLICIT_LDAPS_PORT;
+   else
+      rule->ldapsettingsfromuser = 1;
+#endif /* HAVE_LDAP */
+
+   if (*rulebase == NULL) {
+      *rulebase           = rule;
+      (*rulebase)->number = 1;
+   }
+   else { /* append this rule to the end of our list. */
+      rule_t *lastrule;
+
+      lastrule = *rulebase;
+      while (lastrule->next != NULL)
+         lastrule = lastrule->next;
+
+      rule->number = lastrule->number + 1;
+      lastrule->next = rule;
+   }
+
+   INIT_MSTATES(rule, rule->type, rule->number);
+   rule->next = NULL;
+
+   return rule;
+}
+
+static void
+checkrule(rule)
+   const rule_t *rule;
+{
+   const char *function = "checkrule()";
+   ruleaddr_t ruleaddr;
+   const int *methodv[]          =  {
+                                       rule->state.cmethodv,
+                                       rule->state.smethodv
+                                    };
+   const size_t methodc[]        =  {
+                                       rule->state.cmethodc,
+                                       rule->state.smethodc
+                                    };
+   const char methodtype[][32]   =  {
+                                       "clientmethod",
+                                       "socksmethod"
+                                    };
+   const objecttype_t ruletype[] =  {
+                                       object_crule,
+                                       object_srule
+                                    };
+
+   size_t i, methodi;
+
+   if (rule->src.atype == SOCKS_ADDR_IFNAME) {
+      struct sockaddr_storage addr, mask;
+
+      if (ifname2sockaddr(rule->src.addr.ifname, 0, &addr, &mask) == NULL)
+         yyerror("no ip address found on interface %s", rule->src.addr.ifname);
+   }
+
+   if (rule->dst.atype == SOCKS_ADDR_IFNAME) {
+      struct sockaddr_storage addr, mask;
+
+      if (ifname2sockaddr(rule->dst.addr.ifname, 0, &addr, &mask)
+      == NULL)
+         yyerror("no ip address found on interface %s", rule->dst.addr.ifname);
+   }
+
+
+   if (rule->ss != NULL) {
+      SASSERTX(rule->ss->type == SHMEM_SS);
+
+      if (rule->ss->keystate.key == key_unset) {
+         if (rule->ss->object.ss.max_perstate_isset)
+            yyerrorx("state.session.max is set, but session.state.key is not");
+
+         if (rule->ss->object.ss.throttle_perstate_isset)
+            yyerrorx("session.state.throttle is set, but session.state.key "
+                     "is not");
+      }
+      else {
+         if (!rule->ss->object.ss.max_perstate_isset
+         &&  !rule->ss->object.ss.throttle_perstate_isset)
+            yyerrorx("session state key is set (%d), but no value has been "
+                     "given to state.max or state.throttle",
+                     (int)rule->ss->keystate.key);
+
+         switch (rule->ss->keystate.key) {
+            case key_hostid:
+               SASSERTX(rule->hostidoption_isset);
+
+#if 0 /* XXX more thought needed. */
+               if (rule->state.protocol.udp)
+                  yyerrorx("hostids are not available on sessions using UDP");
+#endif /* 0  */
+
+               if (rule->ss->keystate.keyinfo.hostindex < 1)
+                  yyerrorx("illegal hostindex value %d%s",
+                           (int)rule->ss->keystate.keyinfo.hostindex,
+                           rule->ss->keystate.keyinfo.hostindex == 0 ?
+                              "/any" : "");
+               break;
+
+            case key_from:
+               if (rule->ss->keystate.keyinfo.hostindex != 0)
+                  yyerrorx("it does not make sense to set a hostindex value "
+                           "for state key %s.  The hostindex keyword "
+                           "is only usable with hostid keys",
+                           statekey2string(rule->ss->keystate.key));
+               break;
+
+            default:
+               SERRX(rule->ss->keystate.key);
+         }
+
+         if (rule->ss->object.ss.max_isset
+         && (rule->ss->object.ss.max_perstate
+             > rule->ss->object.ss.max))
+            yyerrorx("it does not make sense to have a larger value for "
+                     "session.state.max (%ld) than the combined, state-less, "
+                     "session.max value (%ld).  Configuration error?",
+                     (unsigned long)rule->ss->object.ss.max_perstate,
+                     (unsigned long)rule->ss->object.ss.max);
+
+         if (rule->ss->object.ss.throttle_perstate_isset
+         && rule->ss->object.ss.throttle_isset) {
+            if ((rule->ss->object.ss.throttle_perstate.limit.seconds
+              <= rule->ss->object.ss.throttle.limit.seconds)
+            &&  (rule->ss->object.ss.throttle_perstate.limit.clients
+              >  rule->ss->object.ss.throttle.limit.clients))
+            yyerrorx("it does not make sense to have a more strict limit for "
+                     "the combined, state-less, session.throttle limit "
+                     "(%lu/%ld), than for the per %s state "
+                     "session.state.throttle (%lu/%ld).  Configuration error?",
+                     (unsigned long)rule->ss->object.ss.throttle.limit.clients,
+                     (long)rule->ss->object.ss.throttle.limit.seconds,
+                     statekey2string(rule->ss->keystate.key),
+            (unsigned long)rule->ss->object.ss.throttle_perstate.limit.clients,
+            (long)rule->ss->object.ss.throttle_perstate.limit.seconds);
+         }
+      }
+   }
+
+   if (rule->bw != NULL) {
+      SASSERTX(rule->bw->type == SHMEM_BW);
+
+      if (!rule->bw->object.bw.maxbps_isset)
+         yyerrorx("no value for maxbps has been given");
+   }
+
+#if 0
+   /*
+    * XXX
+    * Needs more thought.  Would it be more meaningful to consider
+    * hostids provided as long as any part of the session (i.e., the
+    * TCP control connection) has provided it?
+    */
+
+   if (rule->state.protocol.udp) {
+      if (rule->hostidoption_isset)
+         yyerrorx("hostids are not available on sessions using UDP");
+   }
+#endif /* 0 */
+
+
+   if (rule->src.atype == SOCKS_ADDR_IPVANY) {
+      SASSERTX(rule->src.addr.ipvany.ip.s_addr   == htonl(0));
+      SASSERTX(rule->src.addr.ipvany.mask.s_addr == htonl(0));
+   }
+
+   if (rule->dst.atype == SOCKS_ADDR_IPVANY) {
+      SASSERTX(rule->dst.addr.ipvany.ip.s_addr   == htonl(0));
+      SASSERTX(rule->dst.addr.ipvany.mask.s_addr == htonl(0));
+   }
+
+#if BAREFOOTD
+   SASSERTX(rule->type != object_srule);
+
+   if (rule->type == object_crule) {
+      if (rule->dst.atype == SOCKS_ADDR_IPV4)
+        SASSERTX(rule->dst.addr.ipv4.mask.s_addr == htonl(IPV4_FULLNETMASK));
+      else if (rule->dst.atype == SOCKS_ADDR_IPV6)
+        SASSERTX(rule->dst.addr.ipv6.maskbits    == IPV6_NETMASKBITS);
+   }
+#endif /* BAREFOOTD */
+
+   for (methodi = 0; methodi < ELEMENTS(methodv); ++methodi) {
+      for (i = 0; i < methodc[methodi]; ++i) {
+         if (!methodisvalid(methodv[methodi][i], ruletype[methodi]))
+            yyerrorx("%smethod %s is not valid for %ss",
+                     methodtype[i],
+                     method2string(methodv[methodi][i]),
+                     objecttype2string(ruletype[methodi]));
+      }
+   }
+
+   switch (rule->type) {
+      case object_crule:
+#if HAVE_SOCKS_HOSTID
+      case object_hrule:
+#endif /* HAVE_SOCKS_HOSTID */
+
+         /*
+          * we always set AUTHMETHOD_NONE ourselves if the user does not
+          * set anything.
+          */
+         SASSERTX(rule->state.cmethodc > 0);
+         break;
+
+#if HAVE_SOCKS_RULES
+      case object_srule:
+         if (rule->state.smethodc == 0) {
+            if (isreplycommandonly(&rule->state.command)
+            &&  !sockscf.srchost.checkreplyauth) {
+               /*
+                * don't require user to specify a method for reply-only
+                * rules as normally noting can be gotten from there.
+                */
+               ;
+            }
+            else
+               yywarnx("%s: %s #%lu sets no socks authentication methods, not "
+                       "even the method \"none\".  This means no clients can "
+                       "ever be matched by this rule.  "
+                       "Is that really intended?",
+                       function,
+                       objecttype2string(rule->type),
+                       (unsigned long)rule->number);
+         }
+
+         break;
+#endif /* HAVE_SOCKS_RULES */
+
+
+      default:
+         SERRX(rule->type);
+   }
+
+   if (rulerequires(rule, username)) {
+      unsigned allmethodsareok;
+      char badmethod[256];
+
+      if (rule->state.command.udpreply) {
+         if (isreplycommandonly(&rule->state.command))
+            yyerrorx("UDP replies cannot provide any username, but the "
+                     "settings in this rule requires an username to be "
+                     "provided by the target sending the UDP reply");
+
+         if (sockscf.srchost.checkreplyauth)
+            yyerrorx("\"checkreplyauth\" is enabled, but the target "
+                     "sending us the UDP reply cannot provide any "
+                     "username.  This rule has however specified that an "
+                     "username must be provided");
+      }
+
+      /*
+       * Are all specified methods able to provide an username?
+       */
+
+      allmethodsareok = 1;
+
+      switch (rule->type) {
+         case object_crule:
+#if HAVE_SOCKS_HOSTID
+         case object_hrule:
+#endif /* HAVE_SOCKS_HOSTID */
+            /*
+             * * Clientrule. the methods to check are the clientmethods.
+             */
+
+            for (i = 0; i < rule->state.cmethodc; ++i) {
+               if (!methodcanprovide(rule->state.cmethodv[i], username)) {
+                  snprintf(badmethod, sizeof(badmethod),
+                           "clientmethod %s",
+                           method2string(rule->state.cmethodv[i]));
+
+                  allmethodsareok = 0;
+                  break;
+               }
+            }
+
+            break;
+
+         case object_srule:
+            /*
+             * A socksrule.  This is a bit more complex.
+             *
+             * The methods to check are normally the socksmethods, but
+             * if we are checking a reply (bindreply/udpreply), it's the
+             * clientmethod we need to check, as socksmethods cannot
+             * possibly apply to these replies.
+             */
+
+            if ((sockscf.srchost.checkreplyauth
+               && hasreplycommands(&rule->state.command))
+            ||  isreplycommandonly(&rule->state.command)) {
+               for (i = 0; i < rule->state.cmethodc; ++i) {
+                  if (!methodcanprovide(rule->state.cmethodv[i], username)) {
+                     snprintf(badmethod, sizeof(badmethod),
+                              "clientmethod \"%s\" to be used for replies",
+                              method2string(rule->state.cmethodv[i]));
+
+                     allmethodsareok = 0;
+                     break;
+                  }
+               }
+            }
+
+            if (!allmethodsareok)
+               break;
+
+            if (isreplycommandonly(&rule->state.command))
+               break;
+
+            for (i = 0; i < rule->state.smethodc; ++i) {
+               if (!methodcanprovide(rule->state.smethodv[i], username)) {
+                  snprintf(badmethod, sizeof(badmethod),
+                           "socksmethod %s",
+                           method2string(rule->state.smethodv[i]));
+
+                  allmethodsareok = 0;
+                  break;
+               }
+            }
+
+            break;
+
+         default:
+            SERRX(object_srule);
+      }
+
+      if (!allmethodsareok)
+         yyerrorx("the settings in this %s requires the client to "
+                  "provide a user/group-name in some way, but this rule "
+                  "specifies, implicitly or explicitly, the %s, which "
+                  "cannot be depended on to provide this information",
+                  objecttype2string(rule->type), badmethod);
+
+   }
+
+   if (rule->rdr_from.atype != SOCKS_ADDR_NOTSET) {
+      switch (rule->rdr_from.atype) {
+         case SOCKS_ADDR_IPV4:
+         case SOCKS_ADDR_IPV6:
+         case SOCKS_ADDR_IFNAME:
+         case SOCKS_ADDR_DOMAIN:
+            break;
+
+         default:
+            yyerrorx("redirect from address can not be a %s",
+                     atype2string(rule->rdr_from.atype));
+      }
+
+      ruleaddr          = rule->rdr_from;
+      ruleaddr.port.tcp = htons(0); /* any port is good for testing. */
+
+      if (!addrisbindable(&ruleaddr)) {
+         char addr[MAXRULEADDRSTRING];
+
+         yyerrorx("address %s in rule #%lu is not bindable",
+                  ruleaddr2string(&ruleaddr, 0, addr, sizeof(addr)),
+                  (unsigned long)rule->number);
+      }
+   }
+
+   if (rule->rdr_to.atype != SOCKS_ADDR_NOTSET) {
+      switch (rule->rdr_to.atype) {
+         case SOCKS_ADDR_IPV4:
+         case SOCKS_ADDR_IPV6:
+         case SOCKS_ADDR_DOMAIN:
+            break;
+
+         default:
+            yyerrorx("redirect to a %s-type address is not supported "
+                     "(or meaningful?)",
+                     atype2string(rule->rdr_to.atype));
+      }
+   }
+
+   /* check socket options and warn if something does not look right. */
+   if (rule->socketoptionv != NULL
+#if !HAVE_SOCKS_RULES
+   && rule->type != object_srule /*
+                                  * socks-rules are autogenerated based on
+                                  * client-rule and will contain most of the ,
+                                  * same, so avoid duplicate warnings by only
+                                  * checking the options when checking the
+                                  * crule.
+                                  */
+#endif /* !HAVE_SOCKS_RULES */
+   ) {
+      for (i = 0; i < rule->socketoptionc; ++i) {
+         if (rule->type != object_srule) {
+#if HAVE_SOCKS_RULES
+            if (!rule->socketoptionv[i].isinternalside)
+               yyerrorx("can not set socket options for the external side in "
+                        "a %s, as there is no external side set up "
+                        "yet at this point.  Needs to be set in the "
+                        "corresponding socks-rule if necessary",
+                        objecttype2string(rule->type));
+#else
+            /* reusing the client-rule as a srule later. */
+#endif
+         }
+
+         if (rule->socketoptionv[i].info == NULL)
+            continue;
+      }
+   }
+}
+
+static void
+showlog(log)
+   const log_t *log;
+{
+   char buf[1024];
+
+   slog(LOG_DEBUG, "log: %s", logs2string(log, buf, sizeof(buf)));
+}
+
 static void
 log_shmeminherit(from, to, type, isoverride)
    const rule_t *from;
@@ -2762,13 +2939,13 @@ setcommandprotocol(type, commands, protocols)
    if (memcmp(&zstate.protocol, protocols, sizeof(zstate.protocol)) != 0
    && memcmp(&zstate.command, commands, sizeof(zstate.command))     == 0) {
       /*
-       * only protocol is set.  Add all applicable commands. 
+       * only protocol is set.  Add all applicable commands.
        */
 
       if (type == object_srule || type == object_monitor) {
          if (protocols->tcp) {
             /*
-             * All commands, except the udp-spesific.
+             * All commands, except the udp-specific.
              */
             memset(commands, UCHAR_MAX, sizeof(*commands));
             commands->udpassociate = 0;
@@ -2783,7 +2960,7 @@ setcommandprotocol(type, commands, protocols)
    }
    else if (memcmp(&zstate.command, commands, sizeof(zstate.command)) != 0
    && memcmp(&zstate.protocol, protocols, sizeof(zstate.protocol))    == 0) {
-      /* 
+      /*
        * only command is set.  Add all applicable protocols.
        */
 
@@ -2809,7 +2986,7 @@ setcommandprotocol(type, commands, protocols)
    else if (memcmp(&zstate.command, commands, sizeof(zstate.command)) == 0
    && memcmp(&zstate.protocol, protocols, sizeof(zstate.protocol))    == 0) {
       /*
-       * nothing is set.  Set all. 
+       * nothing is set.  Set all.
        */
 
       if (type == object_srule || type == object_monitor) {
@@ -2824,8 +3001,8 @@ setcommandprotocol(type, commands, protocols)
 #endif /* !HAVE_NEGOTIATE_PHASE. */
       }
    }
-   else { 
-      /* 
+   else {
+      /*
        * both are set.  Don't touch, but check it makes sense.
        */
 
@@ -2844,6 +3021,63 @@ setcommandprotocol(type, commands, protocols)
                  "TCP protocol.  This is probably not what was intended",
                  objecttype2string(type));
    }
+}
+
+#define RULEADDR_MATCHES_ALL_PORTS(a, p)  (                                    \
+  ((a)->operator  == none)                                                     \
+|| ((a)->operator == range                                                     \
+   && ntohs(RULEPORT_START((a), (p))) <= 1                                     \
+   && ntohs((a)->portend)             >= IP_MAXPORT)                           \
+|| ((a)->operator == ge && ntohs(RULEPORT_START(a, p)) <= 1)                   \
+|| ((a)->operator == gt && ntohs(RULEPORT_START(a, p)) == 0)                   \
+|| ((a)->operator == le && ntohs(RULEPORT_START(a, p)) == IP_MAXPORT)          \
+)
+
+#define RULEADDR_MATCHES_ALL_ADDRESSES(a) (                                    \
+   (a)->atype                   == SOCKS_ADDR_IPVANY                           \
+&& (a)->addr.ipvany.mask.s_addr == htonl(0))
+
+#define RULEADDR_MATCHES_ALL(a, p) \
+(RULEADDR_MATCHES_ALL_PORTS((a), p) && RULEADDR_MATCHES_ALL_ADDRESSES((a)))
+
+static int
+ruleaddr_matches_all_external(ruleaddr, protocol)
+   const ruleaddr_t *ruleaddr;
+   const int protocol;
+{
+
+   if (!RULEADDR_MATCHES_ALL_PORTS(ruleaddr, protocol))
+      return 0;
+
+   if (ruleaddr->atype != SOCKS_ADDR_IPVANY
+   &&  ruleaddr->atype != SOCKS_ADDR_IPV4
+   &&  ruleaddr->atype != SOCKS_ADDR_IPV6)
+      return 0;
+
+   if (RULEADDR_MATCHES_ALL_ADDRESSES(ruleaddr))
+      return 1;
+
+   SASSERTX(ruleaddr->atype == SOCKS_ADDR_IPV4
+   ||       ruleaddr->atype == SOCKS_ADDR_IPV6);
+
+   if (!external_has_only_safamily(atype2safamily(ruleaddr->atype)))
+      return 0;
+
+   switch (ruleaddr->atype) {
+      case SOCKS_ADDR_IPV4:
+         return (   ruleaddr->atype                == SOCKS_ADDR_IPV4
+                 && ruleaddr->addr.ipv4.mask.s_addr == htonl(0));
+
+      case SOCKS_ADDR_IPV6:
+         return (   ruleaddr->atype              == SOCKS_ADDR_IPV6
+                 && ruleaddr->addr.ipv6.maskbits == 0);
+
+      default:
+         SERRX(ruleaddr->atype);
+   }
+
+   /* NOTREACHED */
+   return 0;
 }
 
 #if HAVE_SOCKS_HOSTID
@@ -2881,7 +3115,7 @@ hostidmatches(hostidc, hostidv, hostindex, addr, ruletype, number)
    }
    else { /* check a specific hostid index only. */
       if (hostindex > hostidc) {
-         slog(LOG_DEBUG, 
+         slog(LOG_DEBUG,
               "%s: %s #%lu specifies checking against hostid index %d, "
               "but the number of hostids set on the connection is %lu, "
               "so it can not match",

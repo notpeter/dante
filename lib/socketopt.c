@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012
+ * Copyright (c) 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socketopt.c,v 1.57 2013/07/21 11:42:11 michaels Exp $";
+"$Id: socketopt.c,v 1.60 2013/10/27 15:24:42 karls Exp $";
 
 static void
 setconfsockoption(const int in, const int out, const sa_family_t safamily,
@@ -60,8 +60,8 @@ socketoptioncheck(const socketoption_t *option)
    && !(   (option->level == IPPROTO_UDP || option->level == IPPROTO_TCP)
         &&  option->info->level == SOL_SOCKET))
       yywarnx("to our knowledge socket option \"%s\" is not valid at the "
-              "protocol level given (%s/%d)", 
-              option->info->name, 
+              "protocol level given (%s/%d)",
+              option->info->name,
               sockoptlevel2string(option->level),
               option->level);
 
@@ -70,7 +70,7 @@ socketoptioncheck(const socketoption_t *option)
       ||       option->info->opttype == uchar_val);
 
       if ((~option->info->mask & option->optval.int_val) != 0)
-         yywarnx("to our knowledge socket option %s can not have the value %d", 
+         yywarnx("to our knowledge socket option %s can not have the value %d",
                  option->info->name, option->optval.int_val);
    }
 }
@@ -151,8 +151,8 @@ setconfsockoptions(target, in, protocol, isclientside, optc, optv,
       slog(LOG_DEBUG,
            "%s: going through global array with %lu options, looking for "
            "globals matching %d (%s)",
-           function, 
-           (unsigned long)sockscf.socketoptionc, 
+           function,
+           (unsigned long)sockscf.socketoptionc,
            whichglobals,
            socketsettime2string(whichglobals));
 
@@ -231,16 +231,16 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
       return;
 
 /*
- * Does socketlevel "socketleve" work with any l4 protocol?
+ * Does socketlevel "socketlevel" work with any l4 protocol?
  */
 #define ANY_L4_PROTOCOL(socketlevel)                                           \
    ((socketlevel) == SOL_SOCKET || (socketlevel) == IPPROTO_IP)
 
-   if (protocol    == SOCKS_TCP 
+   if (protocol    == SOCKS_TCP
    && !(ANY_L4_PROTOCOL(opt->level) || opt->level == IPPROTO_TCP))
       return;
 
-   if (protocol    == SOCKS_UDP 
+   if (protocol    == SOCKS_UDP
    && !(ANY_L4_PROTOCOL(opt->level) || opt->level == IPPROTO_UDP))
       return;
 
@@ -409,10 +409,10 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
 
       default:
          len = SOCKETOPTVALUETYPE2SIZE(opt->opttype);
-         rc  = setsockopt(target, 
-                          opt->info == NULL ? opt->level : opt->info->level, 
-                          opt->optname, 
-                          &newvalue, 
+         rc  = setsockopt(target,
+                          opt->info == NULL ? opt->level : opt->info->level,
+                          opt->optname,
+                          &newvalue,
                           len);
    }
 

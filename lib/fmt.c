@@ -44,5 +44,4 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: fmt.c,v 1.4 2013/07/28 11:30:21 michaels Exp $";
-
+"$Id: fmt.c,v 1.5 2013/10/25 12:55:00 karls Exp $";

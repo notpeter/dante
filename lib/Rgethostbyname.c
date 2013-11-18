@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012
+ *               2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.103 2013/05/22 21:58:07 michaels Exp $";
+"$Id: Rgethostbyname.c,v 1.107 2013/10/27 15:24:42 karls Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -126,8 +126,8 @@ Rgethostbyname2(name, af)
       case AF_INET6: {
          static char ipv6[sizeof(struct in6_addr)];
 
-         hostent->h_length        = sizeof(ipv6);
-         *hostent->h_addr_list[0] = ipv6;
+         hostent->h_length       = sizeof(ipv6);
+         hostent->h_addr_list[0] = ipv6;
          break;
       }
 #endif /* HAVE_IPV6_SUPPORT */
@@ -169,7 +169,7 @@ Rgetaddrinfo(nodename, servname, hints, res)
    const char *function = "Rgetaddrinfo()";
    struct addrinfo fakehints;
    struct in_addr ipindex;
-   char addrstr[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)], 
+   char addrstr[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)],
         addrbuf[sizeof(struct in6_addr)],
         vbuf_nodename[MAXHOSTNAMELEN * 4], vbuf_servname[MAXSERVICELEN * 4];
    int fakeip_cantry, gaierr;
@@ -240,8 +240,25 @@ Rgetaddrinfo(nodename, servname, hints, res)
          /* FALLTHROUGH */
 
       case RESOLVEPROTOCOL_TCP:
-      case RESOLVEPROTOCOL_UDP:
-         gaierr = getaddrinfo(nodename, servname, hints, res);
+      case RESOLVEPROTOCOL_UDP: {
+         struct addrinfo ourhints;
+
+         if (hints != NULL) {
+            ourhints = *hints;
+
+            if (ourhints.ai_family != AF_INET) {
+               slog(ourhints.ai_family == AF_INET6 ? LOG_WARNING : LOG_DEBUG,
+                    "%s: we don't currently support IPv6 in the client, so "
+                    "requesting IPv4 addresses only from getaddrinfo(3)",
+                    function);
+
+               ourhints.ai_family = AF_INET;
+            }
+         }
+         else
+            bzero(&ourhints, sizeof(ourhints));
+
+         gaierr = getaddrinfo(nodename, servname, &ourhints, res);
 
          slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) returned %d (%s)",
               function,
@@ -252,12 +269,13 @@ Rgetaddrinfo(nodename, servname, hints, res)
 
          if (gaierr == 0)
             return gaierr;
-         
+
          if (!fakeip_cantry)
             return gaierr; /* failed, but nothing we can do about that. */
-         
-         SASSERTX(fakeip_cantry); 
+
+         SASSERTX(fakeip_cantry);
          break;
+      }
 
       default:
          SERRX(sockscf.resolveprotocol);
@@ -280,7 +298,7 @@ Rgetaddrinfo(nodename, servname, hints, res)
     * This should return us a addrinfo struct on the proper format,
     * and using our faked ip as address.  This should also allow the
     * system freeaddrinfo(3) work as normal, which it may not have done
-    * if we were to malloc(3) the memory ourselves. 
+    * if we were to malloc(3) the memory ourselves.
     *
     * Kudos to Motoyuki Kasahara for what is a pretty nifty idea.
     */

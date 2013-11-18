@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011,
- *               2012
+ *               2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmem.c,v 1.224 2013/07/24 09:48:09 michaels Exp $";
+"$Id: shmem.c,v 1.238 2013/10/27 15:24:42 karls Exp $";
 
 
 #define FIRST_SHMEMID  (0)
@@ -80,7 +80,7 @@ keystate_removeindex(keystate_t *keystate, const size_t index);
  */
 
 static keystate_data_t *
-keystate_data(const keystate_t *keystate, const size_t index, 
+keystate_data(const keystate_t *keystate, const size_t index,
               keystate_data_t *key);
 /*
  * Returns the keystate data at index "index" corresponding to the key
@@ -93,7 +93,7 @@ keydata2string(const keystate_data_t *keydata, char *buf, size_t buflen);
  * Stores a string representation of keydata "keydata" in "buf" and
  * returns a pointer to buf.
  *
- * If "buf" is NULL, the representation is written to a local static buffer 
+ * If "buf" is NULL, the representation is written to a local static buffer
  * and a pointer to it is returned.
  */
 
@@ -182,7 +182,7 @@ shmem_setup(void)
 
 #if HAVE_LDAP
    /*
-    * And so does the LDAP module. 
+    * And so does the LDAP module.
     */
    ldapcachesetup();
 #endif /* HAVE_LDAP */
@@ -248,11 +248,11 @@ sockd_shmat(rule, objects)
 #endif /* DEBUG */
 
    if (objects & SHMEM_MONITOR) {
-      /* 
+      /*
        * monitor-files are deleted and reset on every sighup, so can
        * be deleted even if mother still exists.
        */
-      HANDLE_SHMAT(rule, mstats, mstats_shmid); 
+      HANDLE_SHMAT(rule, mstats, mstats_shmid);
 
       if (rule->mstats_shmid) {
 #if DEBUG /* memory-mapped file contents may not be saved in coredumps. */
@@ -270,7 +270,7 @@ sockd_shmat(rule, objects)
    }
 #if DEBUG
    else
-      slog(LOG_DEBUG, 
+      slog(LOG_DEBUG,
            "%s: no mstats_shmid we need to (re)attach to for rule #%lu",
            function, (unsigned long)rule->number);
 #endif /* DEBUG */
@@ -280,7 +280,7 @@ sockd_shmat(rule, objects)
 
       if (rule->ss_shmid) {
 #if DEBUG /* memory-mapped file contents may not be saved in coredumps. */
-            shmem_object_t _shmem = *rule->ss;
+         shmem_object_t _shmem = *rule->ss;
 #endif /* DEBUG */
 
          SASSERTX(rule->ss->type == SHMEM_SS);
@@ -334,8 +334,12 @@ shmem_userule(rule, cinfo, emsg, emsglen)
                        cinfo,
                        sockscf.shmemfd,
                        emsg,
-                       emsglen))
+                       emsglen)) {
+         SASSERTX(rule->ss_shmid == (rule)->ss->mstate.shmid);
+
+         sockd_shmdt(rule, attached_to);
          return -1;
+      }
    }
 
    if (rule->bw_shmid != 0 && rule->bw == NULL)
@@ -351,7 +355,7 @@ shmem_userule(rule, cinfo, emsg, emsglen)
 
    if (rule->mstats_shmid != 0)
       monitor_use(rule->mstats, cinfo, sockscf.shmemfd);
- 
+
    sockd_shmdt(rule, attached_to);
 
    return 0;
@@ -468,22 +472,33 @@ shmem_use(shmem, cinfo, lock, mapisopen)
 
    socks_lock(lock, (off_t)shmem->mstate.shmid, 1, 1, 1);
 
+   MUNPROTECT_SHMEMHEADER(shmem);
+
    ++shmem->mstate.clients;
 
+   MPROTECT_SHMEMHEADER(shmem);
    if (shmem->keystate.key != key_unset) {
       size_t sizemapped;
       ssize_t i;
+      int rc;
 
-      if (!mapisopen)
-         if (keystate_openmap(shmem->mstate.shmid,
-                              &shmem->keystate,
-                              &sizemapped) != 0) {
+      if (!mapisopen) {
+         MUNPROTECT_SHMEMHEADER(shmem);
+
+         rc = keystate_openmap(shmem->mstate.shmid,
+                               &shmem->keystate,
+                               &sizemapped);
+
+         MPROTECT_SHMEMHEADER(shmem);
+
+         if (rc != 0) {
             socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
 
             slog(LOG_DEBUG, "%s: keystate_openmap() of shmid %lu failed: %s",
-                 function, (unsigned long)shmem->mstate.shmid, strerror(errno)); 
+                 function, (unsigned long)shmem->mstate.shmid, strerror(errno));
             return -1;
          }
+      }
 
       /*
        * increment the current count for address, or add an entry for the addr.
@@ -509,12 +524,16 @@ shmem_use(shmem, cinfo, lock, mapisopen)
          if ((fd = open(fname, O_RDWR)) == -1) {
             swarn("%s: could not open shmemfile %s", function, fname);
 
-            if (doclosemap)
+            if (doclosemap) {
+               MUNPROTECT_SHMEMHEADER(shmem);
+
                keystate_closemap(shmem->mstate.shmid,
                                  &shmem->keystate,
                                  sizemapped,
                                  -1);
 
+               MPROTECT_SHMEMHEADER(shmem);
+            }
             socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
             return -1;
          }
@@ -522,12 +541,17 @@ shmem_use(shmem, cinfo, lock, mapisopen)
          sizemapped
          = (shmem->keystate.keyc + 1) * sizeof(*shmem->keystate.keyv);
 
+         MUNPROTECT_SHMEMHEADER(shmem);
+
          shmem->keystate.keyv = sockd_mmap(shmem->keystate.keyv,
                                            sizemapped,
                                            PROT_READ | PROT_WRITE,
                                            MAP_SHARED,
                                            fd,
                                            1);
+
+         MPROTECT_SHMEMHEADER(shmem);
+
          close(fd);
 
          if (shmem->keystate.keyv == MAP_FAILED) {
@@ -539,12 +563,19 @@ shmem_use(shmem, cinfo, lock, mapisopen)
             return -1;
          }
 
+
          i = shmem->keystate.keyc;
+
+         MUNPROTECT_SHMEMHEADER(shmem);
+
          ++shmem->keystate.keyc;
+
+         MPROTECT_SHMEMHEADER(shmem);
       }
 
       SASSERTX((size_t)i < shmem->keystate.keyc);
 
+      MUNPROTECT_SHMEMHEADER(shmem);
       switch (shmem->keystate.key) {
          case key_from: {
             void *dst;
@@ -563,12 +594,11 @@ shmem_use(shmem, cinfo, lock, mapisopen)
             }
 
             shmem->keystate.keyv[i].data.from.safamily  = cinfo->from.ss_family;
-                     
             memcpy(dst,
                    GET_SOCKADDRADDR(&cinfo->from),
                    inaddrlen(cinfo->from.ss_family));
-
             ++shmem->keystate.keyv[i].data.from.addrc;
+
             statecount = (ssize_t)shmem->keystate.keyv[i].data.from.addrc;
 
             slog(LOG_DEBUG, "%s: updated entry for address %s at index #%lu",
@@ -597,12 +627,18 @@ shmem_use(shmem, cinfo, lock, mapisopen)
             SERRX(shmem->keystate.key);
       }
 
-      if (doclosemap)
+      if (doclosemap) {
+         MUNPROTECT_SHMEMHEADER(shmem);
+
          keystate_closemap(shmem->mstate.shmid,
                            &shmem->keystate,
                            sizemapped,
                            i);
+
+         MPROTECT_SHMEMHEADER(shmem);
+      }
    }
+   MUNPROTECT_SHMEMHEADER(shmem);
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG,
@@ -665,12 +701,18 @@ shmem_unuse(shmem, cinfo, lock)
 #endif /* DEBUG */
       ssize_t i;
       size_t sizemapped;
+      int rc;
 
       SASSERTX(shmem->keystate.keyv == NULL);
       SASSERTX(shmem->keystate.keyc > 0);
 
-      if (keystate_openmap(shmem->mstate.shmid, &shmem->keystate, &sizemapped)
-      != 0) {
+      MUNPROTECT_SHMEMHEADER(shmem);
+
+      rc = keystate_openmap(shmem->mstate.shmid, &shmem->keystate, &sizemapped);
+
+      MPROTECT_SHMEMHEADER(shmem);
+
+      if (rc != 0) {
          socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
 
          slog(LOG_DEBUG, "%s: keystate_openmap() of shmid %lu failed: %s",
@@ -682,7 +724,7 @@ shmem_unuse(shmem, cinfo, lock)
 #if DEBUG /* memory-mapped file contents may not be saved in coredumps. */
       _keystate = shmem->keystate;
 #endif /* DEBUG */
-     
+
       SASSERTX(sizemapped > 0);
       SASSERTX(shmem->keystate.keyv != NULL);
       SASSERTX(shmem->keystate.keyc > 0);
@@ -690,6 +732,8 @@ shmem_unuse(shmem, cinfo, lock)
       i = keystate_index(shmem, cinfo, should_do_expirescan(shmem));
       SASSERTX(i >= 0);
       SASSERTX((size_t)i < shmem->keystate.keyc);
+
+      MUNPROTECT_SHMEMHEADER(shmem);
 
       switch (shmem->keystate.key) {
          case key_from:
@@ -711,10 +755,16 @@ shmem_unuse(shmem, cinfo, lock)
       }
 
       keystate_closemap(shmem->mstate.shmid, &shmem->keystate, sizemapped, i);
+
+      MPROTECT_SHMEMHEADER(shmem);
    }
+
+   MUNPROTECT_SHMEMHEADER(shmem);
 
    SASSERTX(shmem->mstate.clients > 0);
    --shmem->mstate.clients;
+
+   MPROTECT_SHMEMHEADER(shmem);
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG,
@@ -842,10 +892,14 @@ do {                                                                           \
                                                                                \
    SASSERTX(id != 0);                                                          \
    SASSERTX(fname != NULL && *fname != NUL);                                   \
-   SASSERTX((object)->memfield->mstate.number > 0);                            \
+                                                                               \
+   SASSERTX((object)->memfield->mstate.number     > 0);                        \
+   SASSERTX((object)->memfield->mstate.parenttype != object_none);             \
+   SASSERTX((object)->type                        != object_none);             \
+   SASSERTX((object)->memfield->type              != SHMEM_NONE);              \
                                                                                \
    if ((fd = open(fname, flags, mode)) == -1)                                  \
-      serr("%s: failed to create %s", function, fname);                        \
+      serr("%s: failed to create shmemfile \"%s\"", function, fname);          \
                                                                                \
    slog(LOG_DEBUG,                                                             \
         "%s: will use filename %s for shmid %ld when creating shmem segment "  \
@@ -865,8 +919,11 @@ do {                                                                           \
       serr("%s: sockd_mmap of size %lu failed",                                \
            function, (unsigned long)sizeof(*(object)->memfield));              \
                                                                                \
-   /* replace the ordinary memory with shared memory. */                       \
-   *mem             = *(object)->memfield;                                     \
+                                                                               \
+   /*                                                                          \
+    * replace the ordinary memory with shared memory.                          \
+    */                                                                         \
+   *mem               = *(object)->memfield;                                   \
    free((object)->memfield);                                                   \
    (object)->memfield = mem;                                                   \
                                                                                \
@@ -878,9 +935,13 @@ do {                                                                           \
       SASSERTX(fname != NULL && *fname != NUL);                                \
                                                                                \
       if ((fd = open(fname, flags, mode)) == -1)                               \
-         serr("%s: failed to create %s", function, fname);                     \
+         serr("%s: failed to create file %s", function, fname);                \
                                                                                \
-      close(fd); /* just create the file for now. */                           \
+      /*                                                                       \
+       * Just create the file for now.  Nothing to init.                       \
+       */                                                                      \
+                                                                               \
+      close(fd);                                                               \
                                                                                \
       slog(LOG_DEBUG,                                                          \
            "%s: will use filename %s for shmid %lu/key %lu when creating "     \
@@ -943,11 +1004,14 @@ do {                                                                           \
       }
    }
 
-   slog(LOG_DEBUG, "%s: ok, allocated %lu shared memory id%s, first id is %ld",
+   slog(LOG_DEBUG,
+        "%s: ok, allocated %ld shared memory id%s, first id is %lu, "
+        "last id is %lu",
         function,
-        nextid - firstid,
+        (long)(nextid - firstid),
         nextid - firstid == 1 ? "" : "s",
-        firstid);
+        firstid,
+        nextid);
 
    return nextid;
 }
@@ -1014,7 +1078,7 @@ keystate_removeindex(keystate, index)
 
 
    /*
-    * bzero the removed entry, so that if somebody overwrites it before 
+    * bzero the removed entry, so that if somebody overwrites it before
     * we close and reopen the mmap(2)-ed file, it will be zero.
     */
    bzero(&keystate->keyv[index], sizeof(*keystate->keyv));
@@ -1079,7 +1143,7 @@ keystate_index(shmem, cinfo, doexpirescan)
          }
 
          datatomatch = GET_SOCKADDRADDR(&cinfo->from);
-         datalen     = inaddrlen(cinfo->from.ss_family); 
+         datalen     = inaddrlen(cinfo->from.ss_family);
          break;
 
 #if HAVE_SOCKS_HOSTID
@@ -1157,7 +1221,7 @@ keystate_index(shmem, cinfo, doexpirescan)
 
       slog(LOG_DEBUG,
            "%s: trying to find a match for key %s, address %s%s%s in keyv "
-           "array with %lu entries.  Expirescan = %d %s",
+           "array with %lu entries.  Doexpirescan = %d, matchedi = %ld%s",
            function,
            statekey2string(shmem->keystate.key),
            ntop,
@@ -1165,9 +1229,10 @@ keystate_index(shmem, cinfo, doexpirescan)
            *extrainfo == NUL ? "" : extrainfo,
            (unsigned long)shmem->keystate.keyc,
            doexpirescan,
-           matchedi == -1 ? 
+           (long)matchedi,
+           matchedi == -1 ?
                "" : doexpirescan ?
-                 ", but not scanning since index from last time matches" :  "");
+                 ".  Not scanning since index from last time matches" :  "");
    }
 
    if (matchedi != -1)
@@ -1179,18 +1244,21 @@ keystate_index(shmem, cinfo, doexpirescan)
       int matches;
 
       if (doexpirescan && keystate_hasexpired(shmem, i, &timenow)) {
+         MUNPROTECT_SHMEMHEADER(shmem);
+
          if (keystate_clientcount(&shmem->keystate, i) == 0) {
             keystate_removeindex(&shmem->keystate, i);
             continue;
          }
-         else
-            /* can't remove as long as long as entry is in use; just reset. */
+         else /* can't remove as long as long as entry is in use; just reset. */
             RESET_THROTTLE(&shmem->object.ss.throttle, timenow);
+
+         MPROTECT_SHMEMHEADER(shmem);
       }
 
-      keystate_data(&shmem->keystate, i, &keydata); 
+      keystate_data(&shmem->keystate, i, &keydata);
 
-      if (keydata.type == datatype) { /* otherwise: can't possibly match. */
+      if (keydata.type == datatype) {
          switch (keydata.type) {
             case keytype_ipv4:
                matches
@@ -1215,8 +1283,8 @@ keystate_index(shmem, cinfo, doexpirescan)
                  (unsigned long)datalen,
                  matches ? "matches" : "no match");
       }
-      else
-         matches = -1;
+      else /* can't possibly match. */
+         matches = 0;
 
       if (matches) {
          SASSERTX(matchedi == -1);
@@ -1229,9 +1297,13 @@ keystate_index(shmem, cinfo, doexpirescan)
       ++i;
    }
 
-   if (doexpirescan)
+   if (doexpirescan) {
+      MUNPROTECT_SHMEMHEADER(shmem);
+
       shmem->keystate.lastexpirescan = timenow.tv_sec;
 
+      MPROTECT_SHMEMHEADER(shmem);
+   }
    return matchedi;
 }
 
@@ -1321,8 +1393,12 @@ keystate_closemap(id, keystate, mappedsize, changedindex)
    size_t newsize;
 
    newsize = keystate->keyc * sizeof(*keystate->keyv);
-   slog(LOG_DEBUG, "%s: mappedsize: %lu, newsize: %lu, changedindex: %ld",
+
+   slog(LOG_DEBUG,
+        "%s: mapped size for keystate of id %lu is %lu, newsize is %lu, "
+        "changedindex: %ld",
         function,
+        (unsigned long)id,
         (unsigned long)mappedsize,
         (unsigned long)newsize,
         (long)changedindex);
@@ -1428,6 +1504,77 @@ keystate_closemap(id, keystate, mappedsize, changedindex)
    }
 }
 
+#if DIAGNOSTIC && !SOCKS_CLIENT /* for internal debugging/testing. */
+void
+shmemcheck(void)
+{
+   const int errno_s = errno;
+   rule_t *rulev[]    = { sockscf.crule,
+
+#if HAVE_SOCKS_HOSTID
+                          sockscf.hrule,
+#endif /* HAVE_SOCKS_HOSTID */
+
+#if HAVE_SOCKS_RULES
+                          sockscf.srule
+#endif /* HAVE_SOCKS_RULES */
+                               };
+   size_t i;
+
+   /*
+    * Shmem for existing rules.
+    */
+   for (i = 0; i < ELEMENTS(rulev); ++i) {
+      rule_t *_rule = rulev[i];
+
+      while (_rule != NULL) {
+         rule_t rule = *_rule;
+
+         /*
+          * sockd_shm{at,dt} will do the checking.
+          */
+         sockd_shmat(&rule, SHMEM_ALL);
+         sockd_shmdt(&rule, SHMEM_ALL);
+
+         _rule = _rule->next;
+      }
+   }
+
+   if (pidismother(sockscf.state.pid) == 1) {
+      /*
+       * Shmem for old rules.
+       */
+      for (i = 0; i < sockscf.oldshmemc; ++i) {
+         rule_t rule;
+
+         bzero(&rule, sizeof(rule));
+
+         switch (sockscf.oldshmemv[i].type) {
+            case SHMEM_BW:
+               rule.bw_shmid = sockscf.oldshmemv[i].id;
+               break;
+
+            case SHMEM_MONITOR:
+               rule.mstats_shmid = sockscf.oldshmemv[i].id;
+               break;
+
+            case SHMEM_SS:
+               rule.ss_shmid = sockscf.oldshmemv[i].id;
+               break;
+
+            default:
+               SERRX(sockscf.oldshmemv[i].type);
+         }
+
+         sockd_shmat(&rule, sockscf.oldshmemv[i].type);
+         sockd_shmdt(&rule, sockscf.oldshmemv[i].type);
+      }
+   }
+
+   errno = errno_s;
+}
+#endif /* DIAGNOSTIC && !SOCKS_CLIENT */
+
 static int
 should_do_expirescan(shmem)
    const shmem_object_t *shmem;
@@ -1435,7 +1582,7 @@ should_do_expirescan(shmem)
    ssize_t timer;
 
    if ((timer = keystate_timer(shmem)) != -1
-   && socks_difftime(time_monotonic(NULL), 
+   && socks_difftime(time_monotonic(NULL),
                      shmem->keystate.lastexpirescan) >= timer)
       return 1;
 
@@ -1482,7 +1629,7 @@ keystate_data(keystate, index, keydata)
 
             default:
                SERRX(keystate->keyv[index].data.from.safamily);
-         } 
+         }
 
          break;
 
@@ -1533,7 +1680,7 @@ keydata2string(keydata, buf, buflen)
       default:
          SERRX(keydata->type);
    }
-      
+
    if (inet_ntop(safamily, addr, buf, buflen) == NULL) {
       addr2hexstring(addr, safamily, buf, buflen);
       swarn("%s: inet_ntop(3) failed on safamily %s, addr %s",

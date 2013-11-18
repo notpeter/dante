@@ -1,24 +1,26 @@
 lib_LTLIBRARIES = libsocks.la
-libsocks_la_SOURCES = config_parse.c config_scan.c Raccept.c Rbind.c	\
-   Rbindresvport.c Rcompat.c Rconnect.c Rgethostbyname.c		\
-   Rgetpeername.c Rgetsockname.c Rgetsockopt.c Rlisten.c Rrresvport.c	\
-   address.c addressmatch.c authneg.c broken.c client.c clientconfig.c	\
-   clientprotocol.c config.c connectchild.c debug.c 			\
-   fmt.c fmt_customer.c fmt_protocol.c					\
-   gssapi.c hostcache.c hostid.c httpproxy.c io.c iobuf.c ipv6.c log.c  \
+#config_parse/scan compiled first to get yacc/lex run as early as possible
+#(other dirs rely on yacc/lex being run here).
+libsocks_la_SOURCES = config_parse.c config_scan.c                      \
+   Raccept.c Rbind.c Rbindresvport.c Rcompat.c Rconnect.c               \
+   Rgethostbyname.c Rgetpeername.c Rgetsockname.c Rgetsockopt.c         \
+   Rlisten.c Rrresvport.c address.c addressmatch.c authneg.c broken.c   \
+   client.c clientconfig.c clientprotocol.c config.c connectchild.c     \
+   debug.c fmt.c fmt_customer.c fmt_protocol.c gssapi.c hostcache.c     \
+   hostid.c httpproxy.c hw.c iface.c io.c iobuf.c ipv6.c log.c          \
    method.c parse_util.c protocol.c serr.c showconfig.c sockaddr.c      \
-   socket.c socketopt.c	sockopt.c tostring.c udp.c udp_util.c upnp.c 	\
-   userio.c util.c hw.c time.c
+   socket.c socketopt.c sockopt.c time.c tostring.c udp.c udp_util.c    \
+   upnp.c userio.c util.c
 
-EXTRA_libsocks_la_SOURCES =                       		\
-   ../libscompat/difftime.c ../libscompat/getifaddrs.c		\
-   ../libscompat/hstrerror.c                          		\
-   ../libscompat/inet_ntoa.c ../libscompat/inet_pton.c		\
-   ../libscompat/issetugid.c ../libscompat/memmove.c		\
-   ../libscompat/pselect.c                        		\
-   ../libscompat/setproctitle.c                           	\
-   ../libscompat/strlcpy.c ../libscompat/strvis.c		\
+#libscompat - files common for both client and server
+EXTRA_libsocks_la_SOURCES = ../libscompat/getifaddrs.c  \
+   ../libscompat/hstrerror.c ../libscompat/inet_ntoa.c  \
+   ../libscompat/inet_pton.c ../libscompat/memmove.c    \
+   ../libscompat/pselect.c ../libscompat/setproctitle.c \
+   ../libscompat/strlcpy.c ../libscompat/strvis.c       \
    ../libscompat/vsyslog.c
+#libscompat - files only used by client
+EXTRA_libsocks_la_SOURCES += ../libscompat/issetugid.c
 
 #libsocks version info, interfaceversion:revision:old interfaces supported
 #XXX SPEC/dante.spec.in must have the same value as version info

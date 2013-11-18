@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: iobuf.c,v 1.115 2013/07/29 19:30:16 michaels Exp $";
+"$Id: iobuf.c,v 1.116 2013/10/25 12:55:01 karls Exp $";
 
 static int socks_flushallbuffers(void);
 /*
@@ -135,7 +135,7 @@ socks_flushbuffer(s, len, sendtoflags)
    else
       slog(LOG_DEBUG, "%s: buffer for fd %d has bytes (%lu).  Flushing",
            function,
-           s, 
+           s,
            (unsigned long)socks_bytesinbuffer(s, WRITE_BUF, 1));
 
 #if SOCKS_CLIENT && HAVE_GSSAPI
@@ -163,18 +163,18 @@ socks_flushbuffer(s, len, sendtoflags)
       SASSERTX(p != NULL);
       SASSERTX(socksfd.state.auth.method == AUTHMETHOD_GSSAPI);
 
-      towrite = socks_getfrombuffer(s, 
+      towrite = socks_getfrombuffer(s,
                                     0,
-                                    WRITE_BUF, 
-                                    1, 
-                                    inputmem, 
+                                    WRITE_BUF,
+                                    1,
+                                    inputmem,
                                     sizeof(inputmem));
 
       if (sockscf.option.debug >= DEBUG_VERBOSE)
          slog(LOG_DEBUG, "%s: flushing %lu encoded byte%s ...",
               function, (long unsigned)towrite, towrite == 1 ? "" : "s");
 
-      /* 
+      /*
        * this is important since it verifies that we fetched all
        * the data from the buffer, so that what we add now does
        * not erroneously get appended after something, since when
@@ -258,17 +258,17 @@ socks_flushbuffer(s, len, sendtoflags)
       ((char *)(output_token.value))[GSSAPI_STATUS]  = SOCKS_GSSAPI_PACKET;
 
       pshort = htons(output_token.length);
-      memcpy(&((char *)output_token.value)[GSSAPI_TOKEN_LENGTH], 
-             &pshort, 
+      memcpy(&((char *)output_token.value)[GSSAPI_TOKEN_LENGTH],
+             &pshort,
              sizeof(pshort));
 
-      SASSERTX(GSSAPI_HLEN + output_token.length 
+      SASSERTX(GSSAPI_HLEN + output_token.length
       <=       socks_freeinbuffer(s, WRITE_BUF));
 
       socks_addtobuffer(s,
-                        WRITE_BUF, 
-                        1, 
-                        output_token.value, 
+                        WRITE_BUF,
+                        1,
+                        output_token.value,
                         output_token.length + GSSAPI_HLEN);
    }
 
@@ -343,10 +343,10 @@ socks_flushbuffer(s, len, sendtoflags)
       }
 
       written += rc;
-      socks_addtobuffer(s, 
-                        WRITE_BUF, 
-                        encoded, 
-                        inputmem + rc, 
+      socks_addtobuffer(s,
+                        WRITE_BUF,
+                        encoded,
+                        inputmem + rc,
                         towrite - (size_t)rc);
 
    } while ((len == -1 || written < len)
@@ -499,7 +499,7 @@ socks_freebuffer(s)
 
    if (lastfreei < iobufc
    && iobufv[lastfreei].s == s && iobufv[lastfreei].allocated)
-      ; 
+      ;
    else
       lastfreei = 0;
 
@@ -702,7 +702,7 @@ socks_getfrombuffer(s, flags, which, encoded, data, datalen)
       if (!(flags & MSG_PEEK)) {
          iobuf->info[which].enclen -= toget;
 
-         /* 
+         /*
           * encoded data stays at the end of unencoded data.
           */
          memmove(&iobuf->buf[which][iobuf->info[which].len],
@@ -742,4 +742,3 @@ socks_flushallbuffers(void)
 
    return rc;
 }
-

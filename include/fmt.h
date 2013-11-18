@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012
+ * Copyright (c) 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: fmt.h,v 1.18 2013/07/28 11:52:06 michaels Exp $ */
+/* $Id: fmt.h,v 1.25 2013/10/27 15:24:41 karls Exp $ */
 
 #ifndef _FMT_H_
 #define _FMT_H_
@@ -75,11 +75,11 @@ fmtversionerror(const int expected, const int received,
  */
 
 void
-log_writefailed(const interfaceside_t side, const int s, 
+log_writefailed(const interfaceside_t side, const int s,
                 const struct sockaddr_storage *dst);
 /*
  * Logs that a write to "dst" on socket "s" failed on interfaceside "side".
- * If "dst" is NULL, the destination is retrieved via a geetpeername(2)
+ * If "dst" is NULL, the destination is retrieved via a getpeername(2)
  * call on "s".
  */
 
@@ -88,9 +88,9 @@ log_connectfailed(const interfaceside_t side, const char *dststr);
 /*
  * Logs that a connect to "dst" failed on interfaceside "side".
  */
-   
+
 void
-log_resolvefailed(const char *hostname, const interfaceside_t side, 
+log_resolvefailed(const char *hostname, const interfaceside_t side,
                   const int gaierr);
 /*
  * Logs that we could not resolve "hostname", related to a target on
@@ -105,7 +105,7 @@ log_reversemapfailed(const struct sockaddr_storage *addr,
                      const interfaceside_t side, const int gaierr);
 
 /*
- * Logs that we could not reversemap the IP-address in "addr", related to a 
+ * Logs that we could not reversemap the IP-address in "addr", related to a
  * target on the interface-side "side".
  *
  * "gaierr" is the resolver error returned.
@@ -122,15 +122,14 @@ log_addchild_failed(void);
  * failed to create a new child.
  */
 
-void 
+void
 log_clientdropped(const struct sockaddr_storage *client);
 /*
  * Client with address "client" was dropped due to lack of resources.
  */
 
-
 void
-log_clientsend(const struct sockaddr_storage *client, 
+log_clientsend(const struct sockaddr_storage *client,
                const sockd_child_t *child, const int isresend);
 /*
  * Logs some information about sending a client object using protocol
@@ -138,12 +137,15 @@ log_clientsend(const struct sockaddr_storage *client,
  */
 
 void
-log_sendfailed(const struct sockaddr_storage *client, 
+log_sendfailed(const struct sockaddr_storage *client, const int s,
                const sockd_child_t *child, const int isfirsttime);
 /*
- * Failed sending a clientobject relating to client "client to child "child".
+ * Failed sending a clientobject relating to client "client", which
+ * connected to us on socket "s", to child "child".
+ *
  * "isfirsttime" indicates if it was the first time we failed sending
- * "client" to a child or not.
+ * "client" to a child or not, and errno is used to determine if
+ * the error is permanent or not.
  */
 
 void
@@ -154,7 +156,7 @@ log_noclientrecv(const sockd_child_t *child);
  */
 
 void
-log_probablytimedout(const struct sockaddr_storage *client, 
+log_probablytimedout(const struct sockaddr_storage *client,
                      const sockd_child_t *child);
 /*
  * Log that client "client" probably timed out while waiting for a
@@ -162,7 +164,7 @@ log_probablytimedout(const struct sockaddr_storage *client,
  */
 
 void
-log_truncatedudp(const char *function, const struct sockaddr_storage *from, 
+log_truncatedudp(const char *function, const struct sockaddr_storage *from,
                  const ssize_t len);
 /*
  * UDP packet from "from" was truncated.  We received "len" bytes.
@@ -178,10 +180,10 @@ sockd_readmotherscontrolsocket(const char *prefix, const int s);
  */
 
 void
-log_ruleinfo_shmid(const rule_t *rule, const char *function, 
+log_ruleinfo_shmid(const rule_t *rule, const char *function,
                    const char *context);
 /*
- * debug logs shmid-related info about rule "rule".  
+ * debug logs shmid-related info about rule "rule".
  * "function" is the function calling us, and "context" is some context
  * to add after the function-name.
  */
@@ -200,6 +202,12 @@ log_unexpected_udprecv_error(const char *function, const int fd,
 /*
  * Logs we got an unexpected error ("error") related to reading from a
  * udp socket.
+ */
+void
+log_bind_failed(const char *function, const int protocol,
+                const struct sockaddr_storage *address);
+/*
+ * Logs that we failed to perform a local bind of the local address "address".
  */
 
 #endif /* !SOCKS_CLIENT */

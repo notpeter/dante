@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012
+ *               2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,13 +49,13 @@
 #endif /* HAVE_SHADOW_H && HAVE_GETSPNAM */
 
 static const char rcsid[] =
-"$Id: auth_password.c,v 1.39 2013/04/22 10:01:01 michaels Exp $";
+"$Id: auth_password.c,v 1.41 2013/10/27 15:24:42 karls Exp $";
 
 static const char *
-sockd_getpasswordhash(const char *login, char *pw, const size_t pwsize, 
+sockd_getpasswordhash(const char *login, char *pw, const size_t pwsize,
                       char *emsg, const size_t emsglen);
 /*
- * Fetches the password hash for the username "login". 
+ * Fetches the password hash for the username "login".
  * The returned hash is stored in "pw", which is of size "pwsize".
  *
  * Returns the password hash on success, or NULL on failure.  On failure,
@@ -84,8 +84,8 @@ passwordcheck(name, cleartextpw, emsg, emsglen)
 
    if (cleartextpw == NULL) {
       /*
-       * No password to check.  I.e. the authmethod used does not care 
-       * about passwords, only whether the user exists or not. E.g. 
+       * No password to check.  I.e. the authmethod used does not care
+       * about passwords, only whether the user exists or not. E.g.
        * rfc931/ident.
        */
       if (getpwnam(name) == NULL) {
@@ -109,7 +109,7 @@ passwordcheck(name, cleartextpw, emsg, emsglen)
 
    /* usually need privileges to look up the password. */
    sockd_priv(SOCKD_PRIV_FILE_READ, PRIV_ON);
-   p = sockd_getpasswordhash(name, 
+   p = sockd_getpasswordhash(name,
                              pwhash,
                              sizeof(pwhash),
                              emsg,
@@ -151,7 +151,7 @@ passwordcheck(name, cleartextpw, emsg, emsglen)
       }
    }
 
-   bzero(pwhash, sizeof(pwhash)); 
+   bzero(pwhash, sizeof(pwhash));
    return rc;
 }
 
@@ -179,7 +179,7 @@ sockd_getpasswordhash(login, pw, pwsize, emsg, emsglen)
     * don't know how this looks and don't know anybody using it.
     */
 
-#error "getprpwnam() not supported yet.  Please contact Inferno Nettverk A/S " 
+#error "getprpwnam() not supported yet.  Please contact Inferno Nettverk A/S "
        "if you would like to see support for it."
 
 #else /* normal BSD stuff. */
@@ -195,7 +195,7 @@ sockd_getpasswordhash(login, pw, pwsize, emsg, emsglen)
                "password file: %s",
                str2vis(login, strlen(login), visstring, sizeof(visstring)),
                strerror(errno));
-           
+
       return NULL;
    }
 
@@ -228,4 +228,3 @@ sockd_getpasswordhash(login, pw, pwsize, emsg, emsglen)
 
    return pw;
 }
-

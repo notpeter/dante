@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012
+ * Copyright (c) 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: fmt_protocol.c,v 1.3 2013/04/21 17:16:00 michaels Exp $";
+"$Id: fmt_protocol.c,v 1.5 2013/10/27 15:24:42 karls Exp $";
 
 char *
 fmtresponseerror(received, expected, emsg, emsglen)
@@ -88,4 +88,3 @@ fmtversionerror(expected, received, emsg, emsglen)
 
    return emsg;
 }
-

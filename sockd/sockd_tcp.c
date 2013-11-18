@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012
+ *               2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_tcp.c,v 1.59 2013/07/25 14:59:08 michaels Exp $";
+"$Id: sockd_tcp.c,v 1.66 2013/10/27 15:24:43 karls Exp $";
 
 static ssize_t
 io_tcp_rw(sockd_io_direction_t *in, sockd_io_direction_t *out, int *badfd,
@@ -70,9 +70,9 @@ io_tcp_rw(sockd_io_direction_t *in, sockd_io_direction_t *out, int *badfd,
  *      On success: number of bytes written to "out" (encoding included).
  *      On failure: -1.  "badfd" is set to the value of the descriptor that
  *                  "failure" was first detected on, and "iostatus" to
- *                  the corresponding failurecode.  
+ *                  the corresponding failurecode.
  *
- *                  If the error does not correspond to any given 
+ *                  If the error does not correspond to any given
  *                  descriptor (internal error), "badfd" is not changed.
  */
 
@@ -113,11 +113,11 @@ doio_tcp(io, rset, wset, flags, badfd)
 
    SASSERTX(io->allocated);
    SASSERTX(io->state.protocol == SOCKS_TCP);
-   SASSERTX(!(io->src.state.fin_received && io->dst.state.fin_received)); 
+   SASSERTX(!(io->src.state.fin_received && io->dst.state.fin_received));
 
    if (io->state.command == SOCKS_CONNECT)
       SASSERTX(io->dst.state.isconnected);
-         
+
    if ((FD_ISSET(io->src.s, rset) && FD_ISSET(io->dst.s, wset))
    ||  (FD_ISSET(io->dst.s, rset) && FD_ISSET(io->src.s, wset)))
       ;
@@ -261,8 +261,7 @@ do {                                                                           \
       HOSTIDCOPY(&io->state, &cinfo);                                          \
                                                                                \
       alarm_add_disconnect(weclosedfirst,                                      \
-                           io->srule.mstats,                                   \
-                           io->srule.mstats_shmid,                             \
+                           &io->srule,                                         \
                            alarmside,                                          \
                            &cinfo,                                             \
                            (iostatus) == IO_CLOSE ? "EOF" : strerror(errno),   \
@@ -355,7 +354,7 @@ do {                                                                           \
                int fdv[] = { CLIENTIO(io)->s, EXTERNALIO(io)->s };
 
                if (io->srule.log.tcpinfo
-               && (io->srule.log.iooperation || io->srule.log.data)) { 
+               && (io->srule.log.iooperation || io->srule.log.data)) {
                   SASSERTX(io->state.tcpinfo == NULL);
                   io->state.tcpinfo = get_tcpinfo(ELEMENTS(fdv), fdv, NULL, 0);
                }
@@ -438,7 +437,7 @@ do {                                                                           \
                int fdv[] = { EXTERNALIO(io)->s, CLIENTIO(io)->s };
 
                if (io->srule.log.tcpinfo
-               && (io->srule.log.iooperation || io->srule.log.data)) { 
+               && (io->srule.log.iooperation || io->srule.log.data)) {
                   SASSERTX(io->state.tcpinfo == NULL);
                   io->state.tcpinfo = get_tcpinfo(ELEMENTS(fdv), fdv, NULL, 0);
                }
@@ -594,8 +593,8 @@ io_tcp_rw(in, out, badfd, iostatus,
    if (p <= 0) {
       swarnx("%s: no more room in iobuf for fd %d.  "
              "This should only happen if the kernel for some reason has told "
-             "us before that the socket is writable, yet we have not been "
-             "able to write even one byte.  Closing session now, rather than "
+             "us before that the socket is writable, yet we were not able "
+             "to write even one byte.  Closing session now, rather than "
              "risk busy-looping due to what looks like a kernel bug",
              function, out->s);
 
@@ -641,6 +640,8 @@ io_tcp_rw(in, out, badfd, iostatus,
       flags |= MSG_PEEK;
 #endif /* COVENANT  */
 
+   recvfromflags.type = SOCK_STREAM;
+
    if (in->isclientside)
       recvfromflags.side = INTERNALIF;
    else
@@ -657,17 +658,17 @@ io_tcp_rw(in, out, badfd, iostatus,
                       &in->auth);
 
    if (r <= 0) {
-      *badfd  = in->s;
+      *badfd = in->s;
 
       if (r == 0) {
          /*
           * FIN from "in".  It won't send us any more data, so we shutdown
           * "out" for writing (send a FIN to it) to let it know.
           *
-          * When "out" has nothing more to send, it will send us a FIN too, 
-          * and we will shutdown "in" for writing.  At that point, both "in" 
-          * and "out" have sent a FIN, meaning none of them will send us any 
-          * more data.  Only then can we close the socket.  
+          * When "out" has nothing more to send, it will send us a FIN too,
+          * and we will shutdown "in" for writing.  At that point, both "in"
+          * and "out" have sent a FIN, meaning none of them will send us any
+          * more data.  Only then can we close the socket.
           */
 
          *iostatus = IO_CLOSE;
@@ -715,18 +716,18 @@ io_tcp_rw(in, out, badfd, iostatus,
 
          if (shutdown(out->s, SHUT_WR) != 0) {
             slog(LOG_DEBUG,
-                 "%s: shutdown(2) on fd %d after receving FIN from fd %d "
+                 "%s: shutdown(2) on fd %d after receiving FIN from fd %d "
                  "failed (%s).  FIN previously received from fd %d ? %s",
                  function,
                  out->s,
-                 in->s, 
+                 in->s,
                  strerror(errno),
                  out->s,
                  out->state.fin_received ? "Yes" : "No");
 
             if (out->state.fin_received)
-               /* 
-                * don't consider this an error - normal operation in most 
+               /*
+                * don't consider this an error - normal operation in most
                 * cases.
                 */
                errno = 0;
@@ -742,14 +743,15 @@ io_tcp_rw(in, out, badfd, iostatus,
          else
             *iostatus = IO_IOERROR;
       }
-      
+
       return r;
    }
 
    in->read.bytes += recvfromflags.fromsocket;
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
-      slog(LOG_DEBUG, "%s: read %ld", function, (long)r);
+      slog(LOG_DEBUG, "%s: read %ld bytes (%lu from socket)",
+           function, (long)r, (unsigned long)recvfromflags.fromsocket);
 
 #if COVENANT
    if (in->isclientside && !reqflags->httpconnect) {
@@ -775,7 +777,7 @@ io_tcp_rw(in, out, badfd, iostatus,
                       p == NULL ? "Not yet at" : "Now have");
 
       if (p == NULL)
-         ;  /* no reuqest-eof yet, save all read so far and continue later. */
+         ;  /* no request-eof yet, save all read so far and continue later. */
       else { /* got the end of the request.  How far out in the buffer is it? */
           r        = (p + strlen(http_eof)) - buf;
           *bufused = 0;
@@ -911,26 +913,27 @@ io_tcp_rw(in, out, badfd, iostatus,
       }
    }
    else if (sockscf.option.debug >= DEBUG_VERBOSE)
-      slog(LOG_DEBUG, "%s: wrote %ld bytes", function, (long)w);
+      slog(LOG_DEBUG, "%s: wrote %ld bytes (%lu to socket)",
+           function, (long)w, (unsigned long)sendtoflags.tosocket);
 
    /*
     * we want to select(2) for read again on the socket we sent data out on,
-    * regardless of whether we have received a FIN from it, to detect write 
+    * regardless of whether we have received a FIN from it, to detect write
     * errors as a response to sending data out on the socket.
     *
     * Unfortunately there's no way to make prevent select() from constantly
-    * returning ready-for-read once the client has sent the FIN, and we can 
-    * not busy-loop around that of course. 
+    * returning ready-for-read once the client has sent the FIN, and we can
+    * not busy-loop around that of course.
     *
-    * What we would have wanted is to only select(2) for errors only on the 
+    * What we would have wanted is to only select(2) for errors only on the
     * socket from the point we receive the FIN, but that is not supported
-    * by select(2).  It appears to be supported by poll(2) though ... 
+    * by select(2).  It appears to be supported by poll(2) though ...
     * Note that selecting for exceptions does not help, as socket errors
     * are not considered exceptions, nor does doing shutdown(2) for reading;
-    * select(2) still continiously reports that the socket is readable.
+    * select(2) still continuously reports that the socket is readable.
     *
-    * Best we can do is to let io_fillset() skip sockets that have 
-    * fin_received set, as all we will receive from them is the same EOF, 
+    * Best we can do is to let io_fillset() skip sockets that have
+    * fin_received set, as all we will receive from them is the same EOF,
     * even if a later write(2) to the socket resulted in error (at least, that
     * is the case on Linux).
     * This means some sessions can occupy space for a long time, until

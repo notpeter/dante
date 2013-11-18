@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.88 2013/07/29 19:30:42 michaels Exp $";
+"$Id: Rcompat.c,v 1.89 2013/10/25 12:54:59 karls Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -430,7 +430,7 @@ Rvfprintf(stream,  format, ap)
    len = vsnprintf(buf, sizeof(buf), format, ap);
    if (len > (ssize_t)sizeof(buf))
       len = (ssize_t)sizeof(buf);
- 
+
    socks_setbufferfd(d, _IOFBF, -1);
 
    return Rwrite(d, buf, len);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2008, 2009, 2010, 2011, 2012
+ * Copyright (c) 2005, 2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: session.c,v 1.96 2013/04/09 19:43:01 michaels Exp $";
+"$Id: session.c,v 1.102 2013/10/27 15:24:42 karls Exp $";
 
 static int
 session_isavailable(shmem_object_t *ss, const clientinfo_t *cinfo,
@@ -131,8 +131,9 @@ session_use(shmem, cinfo, lock, emsg, emsglen)
 
          slog(LOG_WARNING, "%s: problem related to %s #%lu detected: %s",
               function,
-              objecttype2string(shmem->mstate.type),
-              (unsigned long)shmem->mstate.number, emsg);
+              objecttype2string(shmem->mstate.parenttype),
+              (unsigned long)shmem->mstate.number,
+              emsg);
 
          return 0;
       }
@@ -143,8 +144,13 @@ session_use(shmem, cinfo, lock, emsg, emsglen)
    if (shmem->keystate.key == key_unset)
       mappedsize = 0;
    else {
-      if (keystate_openmap(shmem->mstate.shmid, &shmem->keystate, &mappedsize)
-      == -1) {
+      int rc;
+
+      MUNPROTECT_SHMEMHEADER(shmem);
+      rc = keystate_openmap(shmem->mstate.shmid, &shmem->keystate, &mappedsize);
+      MPROTECT_SHMEMHEADER(shmem);
+
+      if (rc == -1) {
          socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
 
          slog(LOG_DEBUG,
@@ -157,8 +163,12 @@ session_use(shmem, cinfo, lock, emsg, emsglen)
          return 0;
       }
       else
-         slog(LOG_DEBUG, "%s: opened mmap(2) of size %lu at address %p",
-             function, (unsigned long)mappedsize, shmem->keystate.keyv);
+         slog(LOG_DEBUG,
+              "%s: opened mmap(2) of size %lu at address %p for shmid %lu",
+              function,
+              (unsigned long)mappedsize,
+              shmem->keystate.keyv,
+              (unsigned long)shmem->mstate.shmid);
    }
 
    if (mappedsize != 0)
@@ -168,25 +178,33 @@ session_use(shmem, cinfo, lock, emsg, emsglen)
       SASSERTX(mappedsize
       == shmem->keystate.keyc * sizeof(*shmem->keystate.keyv));
 
+      MUNPROTECT_SHMEMHEADER(shmem);
+
       keystate_closemap(shmem->mstate.shmid, &shmem->keystate, mappedsize, -1);
 
+      MPROTECT_SHMEMHEADER(shmem);
+
       /*
-       * *must* be after keystate_closemap() since keystate_closemap also 
+       * *must* be after keystate_closemap() since keystate_closemap also
        * NULL's the map and this will affect others who open it.
        */
       socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
 
       slog(LOG_DEBUG, "%s: no free session slots available: %s",
-                       function, emsglen == 0 ? "" : emsg);
+           function, emsglen == 0 ? "" : emsg);
 
       return 0;
    }
 
    if (shmem_use(shmem, cinfo, -1, 1) == -1) {
+      MUNPROTECT_SHMEMHEADER(shmem);
+
       keystate_closemap(shmem->mstate.shmid,
                         &shmem->keystate,
                         mappedsize,
                         -1);
+
+      MUNPROTECT_SHMEMHEADER(shmem);
 
       socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
       return 0;
@@ -231,7 +249,11 @@ session_use(shmem, cinfo, lock, emsg, emsglen)
       ++shmem->keystate.keyv[index].info.ss.newclients;
    }
 
+   MUNPROTECT_SHMEMHEADER(shmem);
+
    keystate_closemap(shmem->mstate.shmid, &shmem->keystate, mappedsize, index);
+
+   MUNPROTECT_SHMEMHEADER(shmem);
 
    socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
    return 1;
@@ -297,7 +319,6 @@ session_isavailable(shmem, cinfo, lock, mapisopen, emsg, emsglen)
       emsglen = sizeof(backupemsg);
    }
 
-
    SASSERTX(ss->max_isset
    ||       ss->throttle_isset
    ||       shmem->keystate.key != key_unset);
@@ -325,7 +346,9 @@ session_isavailable(shmem, cinfo, lock, mapisopen, emsg, emsglen)
 
          socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
 
-         slog(LOG_DEBUG, "%s: %s", function, emsg);
+         slog(LOG_DEBUG, "%s: throttlelimit reached for shmid %lu: %s",
+              function, (unsigned long)shmem->mstate.shmid, emsg);
+
          return 0;
       }
    }
@@ -335,8 +358,9 @@ session_isavailable(shmem, cinfo, lock, mapisopen, emsg, emsglen)
 
       SASSERTX(shmem->mstate.clients <= ss->max);
 
-      slog(LOG_DEBUG, "%s: sessions in use: %lu, max: %lu",
+      slog(LOG_DEBUG, "%s: sessions in use for shmid %lu: %lu, max: %lu",
            function,
+           (unsigned long)shmem->mstate.shmid,
            (unsigned long)shmem->mstate.clients,
            (unsigned long)ss->max);
 
@@ -344,14 +368,15 @@ session_isavailable(shmem, cinfo, lock, mapisopen, emsg, emsglen)
          sessionlimitstring(shmem->mstate.clients, ss->max, emsg, emsglen);
 
          socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
-         slog(LOG_DEBUG, "%s: %s", function, emsg);
+         slog(LOG_DEBUG, "%s: sessionlimit reached for shmid %lu: %s",
+              function, (unsigned long)shmem->mstate.shmid, emsg);
 
          return 0;
       }
    }
 
    /*
-    * no-keystate limits are ok.  Now check keystate-based limits, if any.
+    * not-keystate limits are ok.  Now check keystate-based limits, if any.
     */
 
    if (shmem->keystate.key == key_unset
@@ -363,8 +388,15 @@ session_isavailable(shmem, cinfo, lock, mapisopen, emsg, emsglen)
    if (mapisopen)
       SASSERTX(shmem->keystate.keyv != NULL);
    else {
-      if (keystate_openmap(shmem->mstate.shmid, &shmem->keystate, &mappedsize)
-      == -1) {
+      int rc;
+
+      MUNPROTECT_SHMEMHEADER(shmem);
+
+      rc = keystate_openmap(shmem->mstate.shmid, &shmem->keystate, &mappedsize);
+
+      MPROTECT_SHMEMHEADER(shmem);
+
+      if (rc == -1) {
          socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
 
          slog(LOG_DEBUG,
@@ -400,11 +432,13 @@ session_isavailable(shmem, cinfo, lock, mapisopen, emsg, emsglen)
       }
 
       if (ss->max_perstate_isset) {
-         slog(LOG_DEBUG, "%s: per-key %s sessions in use: %ld, max: %lu",
-                         function,
-                         statekey2string(shmem->keystate.key),
-                         (long)inuse,
-                         (unsigned long)ss->max_perstate);
+         slog(LOG_DEBUG,
+              "%s: per-key %s sessions in use for shmid %lu: %ld, max: %lu",
+              function,
+              statekey2string(shmem->keystate.key),
+              (unsigned long)shmem->mstate.shmid,
+              (long)inuse,
+              (unsigned long)ss->max_perstate);
 
          SASSERTX(inuse <= ss->max_perstate);
 
@@ -414,13 +448,20 @@ session_isavailable(shmem, cinfo, lock, mapisopen, emsg, emsglen)
                                         ss->max_perstate,
                                         buf,
                                         sizeof(buf)));
-            slog(LOG_DEBUG, "%s: %s", function, emsg);
+            slog(LOG_DEBUG,
+                 "%s: per-key sessionlimit reached for shmid %lu: %s",
+                 function, (unsigned long)shmem->mstate.shmid, emsg);
 
-            if (doclosemap)
+            if (doclosemap) {
+               MUNPROTECT_SHMEMHEADER(shmem);
+
                keystate_closemap(shmem->mstate.shmid,
                                  &shmem->keystate,
                                  mappedsize,
                                  -1);
+
+               MUNPROTECT_SHMEMHEADER(shmem);
+            }
 
             socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
             return 0;
@@ -447,13 +488,20 @@ session_isavailable(shmem, cinfo, lock, mapisopen, emsg, emsglen)
                                      buf,
                                      sizeof(buf)));
 
-            slog(LOG_DEBUG, "%s: %s", function, emsg);
+            slog(LOG_DEBUG,
+                 "%s: per-key throttlelimit reached for shmid %lu: %s",
+                 function, (unsigned long)shmem->mstate.shmid, emsg);
 
-            if (doclosemap)
+            if (doclosemap) {
+               MUNPROTECT_SHMEMHEADER(shmem);
+
                keystate_closemap(shmem->mstate.shmid,
                                  &shmem->keystate,
                                  mappedsize,
                                  -1);
+
+               MPROTECT_SHMEMHEADER(shmem);
+            }
 
             socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
             return 0;
@@ -461,8 +509,13 @@ session_isavailable(shmem, cinfo, lock, mapisopen, emsg, emsglen)
       }
    }
 
-   if (doclosemap)
+   if (doclosemap) {
+      MUNPROTECT_SHMEMHEADER(shmem);
+
       keystate_closemap(shmem->mstate.shmid, &shmem->keystate, mappedsize, -1);
+
+      MPROTECT_SHMEMHEADER(shmem);
+   }
 
    socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
    return 1;
@@ -478,21 +531,23 @@ throttlepermits(throttle, starttime, newclients, timenow)
    const char *function = "throttlepermits()";
    struct timeval tdiff;
 
-   slog(LOG_DEBUG, "%s: throttle: %lu/%ld, starttime: %ld.%06ld, "
-                   "newclients: %lu, timenow: %ld.%06ld",
-                   function,
-                   (unsigned long)throttle->clients,
-                   (long)throttle->seconds,
-                   (long)starttime->tv_sec,
-                   (long)starttime->tv_usec,
-                   (unsigned long)newclients,
-                   (long)timenow->tv_sec,
-                   (long)timenow->tv_usec);
+   slog(LOG_DEBUG,
+        "%s: throttle: %lu/%ld, starttime: %ld.%06ld, newclients: %lu, "
+        "timenow: %ld.%06ld",
+        function,
+        (unsigned long)throttle->clients,
+        (long)throttle->seconds,
+        (long)starttime->tv_sec,
+        (long)starttime->tv_usec,
+        (unsigned long)newclients,
+        (long)timenow->tv_sec,
+        (long)timenow->tv_usec);
 
    if (newclients < throttle->clients)
       return 1;
 
    timersub(timenow, starttime, &tdiff);
+
    if (tdiff.tv_sec >= throttle->seconds)
       return 1;
 
@@ -529,11 +584,10 @@ throttlelimitstring(starttime, timenow, newclients, currentclients, buf, buflen)
    timersub(timenow, starttime, &tdiff);
    snprintf(buf, buflen,
             "session rate limit reached (already accepted %lu new client%s "
-            "during the last %ld.%06lds.  Current client count: %lu)",
+            "during the last %lds.  Current client count: %lu)",
             (unsigned long)newclients,
             (unsigned long)newclients == 1 ? "" : "s",
-            (long)tdiff.tv_sec,
-            (long)tdiff.tv_usec,
+            (long)timeval2seconds(&tdiff),
             (unsigned long)currentclients);
 
    return buf;

@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.286 2013/07/27 19:03:46 michaels Exp $";
+"$Id: udp.c,v 1.289 2013/10/27 15:17:06 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -134,7 +134,7 @@ Rsendto(s, msg, len, flags, _to, tolen)
 
             errno = ENETUNREACH;
             return -1;
-         } 
+         }
       }
       else {
          slog(LOG_DEBUG,
@@ -192,7 +192,7 @@ Rsendto(s, msg, len, flags, _to, tolen)
          SASSERTX(type == SOCK_STREAM);
 
          if (socksfd.state.inprogress) {
-            SASSERTX(socksfd.state.command == SOCKS_CONNECT); 
+            SASSERTX(socksfd.state.command == SOCKS_CONNECT);
 
             slog(LOG_INFO,
                  "%s: write attempted on connect still in progress: fd %d",
@@ -201,29 +201,29 @@ Rsendto(s, msg, len, flags, _to, tolen)
             /*
              * Either the user is 1) using this system call to figure out
              * whether the connection completed, before continuing with other
-             * things if not, or 2) our attempt to hide our usage of the 
-             * user's fd to set up the socks session (without the user getting 
-             * any indication that his fd is being written to/read from) 
-             * via select(2)/poll(2)/etc. failed.  
+             * things if not, or 2) our attempt to hide our usage of the
+             * user's fd to set up the socks session (without the user getting
+             * any indication that his fd is being written to/read from)
+             * via select(2)/poll(2)/etc. failed.
              *
              * In case of 1), the correct thing would be to return ENOTCONN,
-             * but in case 2), we could be called due to the the user having 
-             * multiple fd's pointing to the same filedescription index, 
-             * meaning that even though we have hiden our usage of "s", the 
+             * but in case 2), we could be called due to the the user having
+             * multiple fd's pointing to the same filedescription index,
+             * meaning that even though we have hidden our usage of "s", the
              * user is using another fd (s').  Normally we would of course be
-             * called with s' then, but if the user is using e.g. epoll(2), 
-             * our dup(2)ing s to temporary dummy-fd does apparantly not 
-             * change what the fd used by epoll(2) points to.  Not verified, 
-             * but one possible explenation for a problem seen would be that 
-             * adding a fd to epoll(2), and then dup2(2)'ing that fd to 
-             * something else (but with the same fd-index/number) does not 
-             * change what the fd used by epoll points to; epoll(2) continues 
-             * to use what the fd pointed to before, at least if what it 
+             * called with s' then, but if the user is using e.g. epoll(2),
+             * our dup(2)ing s to temporary dummy-fd does apparently not
+             * change what the fd used by epoll(2) points to.  Not verified,
+             * but one possible explanation for a problem seen would be that
+             * adding a fd to epoll(2), and then dup2(2)'ing that fd to
+             * something else (but with the same fd-index/number) does not
+             * change what the fd used by epoll points to; epoll(2) continues
+             * to use what the fd pointed to before, at least if what it
              * pointed to before is open.  Is there a way to avoid this
              * problem?
              *
-             * So what do we do?  We don't know whether it's 1) or 2) 
-             * happening.  If it's 2), returning ENOTCONN can be taken as 
+             * So what do we do?  We don't know whether it's 1) or 2)
+             * happening.  If it's 2), returning ENOTCONN can be taken as
              * an indication that the connect(2) failed, which it has
              * not (yet, at least) done.  If we return EAGAIN, the
              * user will hopefully retry again, whenever the systemcall
@@ -233,14 +233,14 @@ Rsendto(s, msg, len, flags, _to, tolen)
              * over the fd, and was not intended for the user, and again
              * return EAGAIN.
              *
-             * If the i/o length attempted is 0, it seems relativly safe
-             * to assume the user just wants to test whether the connect 
+             * If the i/o length attempted is 0, it seems relatively safe
+             * to assume the user just wants to test whether the connect
              * completed though.
              */
-            
+
             if (tolen == 0)
                errno = ENOTCONN;
-            else 
+            else
                errno = EAGAIN;
 
             return -1;
@@ -259,7 +259,7 @@ Rsendto(s, msg, len, flags, _to, tolen)
               function,
               proxyprotocol2string(socksfd.state.version),
               protocol2string(SOCKS_TCP),
-              sockaddr2string(&socksfd.local, 
+              sockaddr2string(&socksfd.local,
                               dststr,
                               sizeof(dststr)),
               sockaddr2string(&socksfd.server,
@@ -392,7 +392,9 @@ again:
       = udpsetup(s, TOSS(from), SOCKS_RECV, 0, emsg, sizeof(emsg));
 
       if (socksfd.route == NULL) {
-         slog(LOG_DEBUG, "%s: no route by udpsetup() for fd %d: %s",
+         slog(LOG_DEBUG,
+              "%s: no route found by udpsetup() for fd %d: %s.  Doing direct "
+              "fallback",
               function, s, emsg);
 
          return recvfrom(s, buf, len, flags, from, fromlen);
@@ -763,7 +765,7 @@ udpsetup(s, to, type, shouldconnect, emsg, emsglen)
                   case SOCK_STREAM:
                      snprintf(emsg, emsglen,
                               "fd %d is unregistered, but has a stream peer "
-                              "(%s) already; nothing to do", 
+                              "(%s) already; nothing to do",
                               s,
                               sockaddr2string(&addr, NULL, 0));
                      return NULL;

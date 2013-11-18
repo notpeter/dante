@@ -1,17 +1,21 @@
-# $Id: UPGRADE,v 1.35 2013/07/27 19:08:53 michaels Exp $
+# $Id: UPGRADE,v 1.40 2013/10/25 12:54:59 karls Exp $
 
 This file describes the upgrade procedure from various versions of Dante,
 if any.  If nothing is mentioned for upgrading to a given version it
 means there are no changes relevant to upgrading.
 
+More extensive upgrade information for 1.4.x can also be found on the
+Dante 1.4.x configuration page:
+  http://www.inet.no/dante/doc/1.4.x/config/upgrade.html
+
 *** Upgrading from 1.3.2 to 1.4.0
 
-  o socks-rules now require a "socks" prefix (like client-rules require a 
-    "client" prefix), and the socks "method" keyword has been renamed to
-    "socksmethod".
+ o socks-rules now require a "socks" prefix (like client-rules require a
+   "client" prefix), and the socks "method" keyword has been renamed to
+   "socksmethod".
 
- o The socket.recvbuf.udp, socket.sendbuf.udp, socket.recvbuf.tcp and 
-   socket.sendbuf.tcp options have been depreacted and replaced with 
+ o The socket.recvbuf.udp, socket.sendbuf.udp, socket.recvbuf.tcp and
+   socket.sendbuf.tcp options have been deprecated and replaced with
    a more general way to set socket options.
 
    "socket.recvbuf.udp" can now be set by "<interface-side>.udp.so_rcvbuf"
@@ -47,12 +51,12 @@ means there are no changes relevant to upgrading.
    aliases), so any sockd.conf which depends on hostname aliases will
    no longer work.  IP-address aliases continue to work as before.
 
- o The "child.maxidle" option has been removed and the server instead 
-   always removes idle children.
+ o The "child.maxidle" option has been removed because the server
+   now always removes idle children.
 
  o The "--disable-libwrap" option has been renamed "--without-libwrap".
 
- o SIGINFO/SIGUSR1 output is now loged at level info instead of level debug.
+ o SIGINFO/SIGUSR1 output is now logged at level info instead of level debug.
 
  o The name printed when starting up has changed from "dante" to "Dante".
 

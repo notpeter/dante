@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: monitor_util.c,v 1.3 2013/05/23 13:47:21 michaels Exp $";
+"$Id: monitor_util.c,v 1.5 2013/10/25 12:55:02 karls Exp $";
 
 int
 external_has_safamily(safamily)
@@ -65,6 +65,34 @@ external_has_safamily(safamily)
    }
 }
 
+int
+external_has_only_safamily(safamily)
+   const sa_family_t safamily;
+{
+
+   SASSERTX(sockscf.shmeminfo != NULL);
+
+   switch (safamily) {
+      case AF_INET:
+         if (sockscf.shmeminfo->state.external_hasipv4
+         &&  !sockscf.shmeminfo->state.external_hasipv6)
+            return 1;
+         else
+            return 0;
+
+      case AF_INET6:
+         if (sockscf.shmeminfo->state.external_hasipv6
+         &&  !sockscf.shmeminfo->state.external_hasipv4)
+            return 1;
+         else
+            return 0;
+
+      default:
+         SERRX(safamily);
+   }
+}
+
+
 
 int
 external_has_global_safamily(safamily)
@@ -84,4 +112,3 @@ external_has_global_safamily(safamily)
          SERRX(safamily);
    }
 }
-

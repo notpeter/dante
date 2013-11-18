@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012
+ * Copyright (c) 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method.c,v 1.22 2013/07/27 22:34:49 michaels Exp $";
+"$Id: method.c,v 1.25 2013/10/27 15:24:42 karls Exp $";
 
 int
 methodisvalid(method, ruletype)
@@ -61,9 +61,9 @@ methodisvalid(method, ruletype)
          switch (method) {
             case AUTHMETHOD_NONE:
             case AUTHMETHOD_RFC931:
-            case AUTHMETHOD_PAM_ANY: 
-            case AUTHMETHOD_PAM_ADDRESS: 
-               return 1; 
+            case AUTHMETHOD_PAM_ANY:
+            case AUTHMETHOD_PAM_ADDRESS:
+               return 1;
 
             default:
                return 0;
@@ -82,7 +82,7 @@ methodisvalid(method, ruletype)
    /* NOTREACHED */
 }
 
-#if !SOCKS_CLIENT 
+#if !SOCKS_CLIENT
 int
 methodcanprovide(method, what)
    const int method;
@@ -97,12 +97,12 @@ methodcanprovide(method, what)
       case AUTHMETHOD_NONE:
          return 0; /* does not provide anything. */
 
-      case AUTHMETHOD_PAM_ANY: 
+      case AUTHMETHOD_PAM_ANY:
          return 0; /* may provide something, but can not depend on it. */
 
       case AUTHMETHOD_BSDAUTH:
       case AUTHMETHOD_GSSAPI:
-      case AUTHMETHOD_PAM_ADDRESS: 
+      case AUTHMETHOD_PAM_ADDRESS:
       case AUTHMETHOD_PAM_USERNAME:
       case AUTHMETHOD_RFC931:
       case AUTHMETHOD_UNAME:
@@ -146,8 +146,8 @@ methodworkswith(method, what)
          }
          break;
 
-      case AUTHMETHOD_PAM_ANY: 
-      case AUTHMETHOD_PAM_ADDRESS: 
+      case AUTHMETHOD_PAM_ANY:
+      case AUTHMETHOD_PAM_ADDRESS:
       case AUTHMETHOD_RFC931:
          switch (what) {
             case replies:
@@ -203,7 +203,7 @@ authname(auth)
 
 #if HAVE_PAM
       case AUTHMETHOD_PAM_ANY:      /* maybe there is a name, maybe not. */
-      case AUTHMETHOD_PAM_ADDRESS: 
+      case AUTHMETHOD_PAM_ADDRESS:
       case AUTHMETHOD_PAM_USERNAME:
          return (const char *)auth->mdata.pam.name;
 #endif /* HAVE_PAM */
@@ -289,7 +289,7 @@ build_addrstr_src(hostidv, hostidc, peer, proxy_ext, proxy, local,
 
             authinfo((peerauth), peerauthstr, sizeof(peerauthstr)),
             (peer) == NULL ?
-              "0.0.0.0.0" : sockshost2string((peer), peerstr, sizeof(peerstr)),
+               "0.0.0.0.0" : sockshost2string((peer), peerstr, sizeof(peerstr)),
 
             pe_str,
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009, 2010, 2011, 2012
+ *               2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "vis_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.409 2013/08/01 15:11:03 michaels Exp $";
+"$Id: util.c,v 1.416 2013/10/27 15:24:42 karls Exp $";
 
 const char *
 strcheck(string)
@@ -129,9 +129,11 @@ errno2reply(errnum, version)
 {
 
    switch (errnum) {
+      case ENETDOWN:
       case ENETUNREACH:
          return sockscode(version, SOCKS_NETUNREACH);
 
+      case EHOSTDOWN:
       case EHOSTUNREACH:
          return sockscode(version, SOCKS_HOSTUNREACH);
 
@@ -155,14 +157,14 @@ int_sockshost2sockaddr2(host, addr, addrlen, gaierr, emsg, emsglen)
    char *emsg;
    size_t emsglen;
 {
-   const char *function = "int_sockshost2sockaddr()";
-   char emsgmem[1024];
+   const char *function = "int_sockshost2sockaddr2()";
+   char emsgmem[1024 + MAXHOSTNAMELEN * 4];
 
    if (emsg == NULL || emsglen == 0) {
       emsg    = emsgmem;
       emsglen = sizeof(emsgmem);
    }
-      
+
    *emsg   = NUL;
    *gaierr = 0;
 
@@ -176,7 +178,7 @@ int_sockshost2sockaddr2(host, addr, addrlen, gaierr, emsg, emsglen)
    bzero(addr, addrlen);
 
    switch (host->atype) {
-      case SOCKS_ADDR_IPV4: 
+      case SOCKS_ADDR_IPV4:
       case SOCKS_ADDR_IPV6: {
          struct sockaddr_storage ss;
 
@@ -213,12 +215,12 @@ int_sockshost2sockaddr2(host, addr, addrlen, gaierr, emsg, emsglen)
                SET_SOCKADDRPORT(addr, host->port);
             }
             else {
-               snprintf(emsg, emsglen, 
+               snprintf(emsg, emsglen,
                         "strange dns reply.  res->ai_addrlen (%lu) > "
                         "addrlen (%lu)",
                         (unsigned long)res->ai_addrlen,
                         (unsigned long)addrlen);
- 
+
                swarnx("%s: %s", function, emsg);
                addr->ss_family = AF_UNSPEC;
             }
@@ -226,13 +228,13 @@ int_sockshost2sockaddr2(host, addr, addrlen, gaierr, emsg, emsglen)
          else {
             char visbuf[MAXHOSTNAMELEN * 4];
 
-            snprintf(emsg, emsglen, 
+            snprintf(emsg, emsglen,
                      "could not resolve hostname \"%s\" to %s: %s",
                      str2vis(host->addr.domain,
                              strlen(host->addr.domain),
                              visbuf,
                              sizeof(visbuf)),
-                     hints.ai_family == 0 ? 
+                     hints.ai_family == 0 ?
                         "IP-address" : safamily2string(hints.ai_family),
                      gai_strerror(*gaierr));
 
@@ -251,8 +253,8 @@ int_sockshost2sockaddr2(host, addr, addrlen, gaierr, emsg, emsglen)
             SET_SOCKADDRPORT(addr, host->port);
          }
          else {
-            snprintf(emsg, emsglen, 
-                     "could not resove %s to IP-address",
+            snprintf(emsg, emsglen,
+                     "could not resolve %s to IP-address",
                      sockshost2string2(host, ADDRINFO_ATYPE, NULL, 0));
 
             slog(LOG_NEGOTIATE, "%s: %s", function, emsg);
@@ -263,7 +265,7 @@ int_sockshost2sockaddr2(host, addr, addrlen, gaierr, emsg, emsglen)
          break;
       }
 
-      case SOCKS_ADDR_URL: 
+      case SOCKS_ADDR_URL:
          urlstring2sockaddr(host->addr.urlname, addr, gaierr, emsg, emsglen);
          break;
 
@@ -271,8 +273,8 @@ int_sockshost2sockaddr2(host, addr, addrlen, gaierr, emsg, emsglen)
          SERRX(host->atype);
    }
 
-   SASSERTX(addr->ss_family == AF_UNSPEC 
-   ||       addr->ss_family == AF_INET 
+   SASSERTX(addr->ss_family == AF_UNSPEC
+   ||       addr->ss_family == AF_INET
    ||       addr->ss_family == AF_INET6);
 
    return addr;
@@ -315,7 +317,7 @@ sockaddr2sockshost(addr, host)
          host->addr.ipv6.scopeid = TOCIN6(addr)->sin6_scope_id;
          host->port              = TOCIN6(addr)->sin6_port;
          break;
-      
+
       default:
          SERRX(addr->ss_family);
    }
@@ -337,13 +339,13 @@ sockaddr2hostname(sa, hostname, hostnamelen)
                     salen(sa->ss_family),
                     hostname,
                     hostnamelen,
-                    NULL, 
-                    0, 
+                    NULL,
+                    0,
                     NI_NAMEREQD);
 
    if (rc != 0) {
       slog(LOG_DEBUG, "%s: getnameinfo(%s) failed: %s",
-           function, 
+           function,
            sockaddr2string2(sa, 0, NULL, 0),
            gai_strerror(rc));
 
@@ -351,7 +353,7 @@ sockaddr2hostname(sa, hostname, hostnamelen)
    }
 
    slog(LOG_DEBUG, "%s: %s resolved to \"%s\"",
-        function, 
+        function,
         sockaddr2string2(sa, 0, NULL, 0),
         str2vis(hostname, strlen(hostname), vbuf, sizeof(vbuf)));
 
@@ -570,7 +572,7 @@ int_hostname2sockaddr(name, index, addr, addrlen)
          return addr;
       }
 
-      ++i; 
+      ++i;
       ai = ai->ai_next;
    } while (ai != NULL);
 
@@ -589,23 +591,9 @@ int_ifname2sockaddr(ifname, index, addr, addrlen, mask, masklen)
    const char *function = "ifname2sockaddr()";
    struct ifaddrs ifa, *ifap = &ifa, *iface;
    size_t i, realindex;
-   int foundifname, foundaddr, rc;
+   int foundifname, foundaddr;
 
-   rc = getifaddrs(&ifap);
-
-#if !SOCKS_CLIENT
-   if (rc != 0) {
-      if (ERRNOISNOFILE(errno)) {
-         if (sockscf.state.reservedfdv[0] != -1) {
-            close(sockscf.state.reservedfdv[0]);
-            rc                           = getifaddrs(&ifap);
-            sockscf.state.reservedfdv[0] = makedummyfd(0, 0);
-         }
-      }
-   }
-#endif /* !SOCKS_CLIENT */
-
-   if (rc != 0) {
+   if (getifaddrs(&ifap) != 0) {
       swarn("%s: getifaddrs() failed", function);
       return NULL;
    }
@@ -619,7 +607,7 @@ int_ifname2sockaddr(ifname, index, addr, addrlen, mask, masklen)
       foundifname = 1;
 
       if (iface->ifa_addr == NULL) {
-         slog(LOG_DEBUG, 
+         slog(LOG_DEBUG,
               "%s: interface %s missing address on index %lu ... skipping",
               function, iface->ifa_name, (unsigned long)realindex);
 
@@ -627,26 +615,26 @@ int_ifname2sockaddr(ifname, index, addr, addrlen, mask, masklen)
       }
 
       if (iface->ifa_netmask == NULL) {
-         slog(LOG_DEBUG, 
-              "%s: interface %s missing netmask for address %s, skipping", 
-              function, 
-              iface->ifa_name, 
+         slog(LOG_DEBUG,
+              "%s: interface %s missing netmask for address %s, skipping",
+              function,
+              iface->ifa_name,
               sockaddr2string(TOSS(iface->ifa_addr), NULL, 0));
 
          continue;
       }
 
-      if (iface->ifa_addr->sa_family != AF_INET 
+      if (iface->ifa_addr->sa_family != AF_INET
       &&  iface->ifa_addr->sa_family != AF_INET6) {
-         slog(LOG_DEBUG, 
+         slog(LOG_DEBUG,
               "%s: interface %s has neither AF_INET nor AF_INET6 configured "
-              "at index %lu, skipping", 
+              "at index %lu, skipping",
               function, iface->ifa_name, (unsigned long)index);
 
          continue;
       }
 
-      /* 
+      /*
        * this address-index looks usable.  Does it match the requested
        * index?
        */
@@ -707,17 +695,19 @@ sockaddr2ifname(addr, ifname, iflen)
       iflen  = sizeof(ifname_mem);
    }
 
-   /* 
+   /*
     * port is irrelevant as far as an interface-address is concerned,
     * so make a copy of the address and zero it before we start
     * comparing.
     */
    nocompare = ADDRINFO_PORT;
-  
-   if (addr->ss_family == AF_INET6 
+
+   if (addr->ss_family == AF_INET6
    &&  TOIN6(addr)->sin6_scope_id == 0)
-      /* no particular scope requested, match all. */
-      nocompare |= ADDRINFO_SCOPEID; 
+      /*
+       * no particular scope requested, match all.
+       */
+      nocompare |= ADDRINFO_SCOPEID;
 
    if (getifaddrs(&ifap) != 0)
       return NULL;
@@ -743,7 +733,7 @@ sockaddr2ifname(addr, ifname, iflen)
               function,
               sockaddr2string(addr, NULL, 0),
               iface->ifa_name,
-              iface->ifa_addr == NULL ? 
+              iface->ifa_addr == NULL ?
                   "<no address>" : safamily2string(iface->ifa_addr->sa_family));
    }
 
@@ -1203,8 +1193,8 @@ getmaxofiles(limittype_t type)
 
       if (!logged) {
          slog(LOG_INFO,
-              "%s: max open file limit is %lu, but we need to shrink it down "
-              "to the same size as FD_SETSIZE (%lu) for select(2) to work",
+              "%s: max open file limit is %lu, but we need to shrink it "
+              "down to below FD_SETSIZE (%lu) for select(2) to work",
               function, (unsigned long)limit, (unsigned long)FD_SETSIZE);
 
          logged = 1;
@@ -1484,7 +1474,7 @@ closen(d)
        * E.g. FreeBSD seems to think it's perfectly ok to let close(2)
        * close the socket, yet return -1 and set errno to ECONNRESET.
        * Never mind this breaks all sort of applications who keep track
-       * of their fd's well enough to consider a failure from close(2) 
+       * of their fd's well enough to consider a failure from close(2)
        * an indication of something being wrong in their code, rather
        * than a TCP connection being reset.
        */

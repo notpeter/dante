@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012
+ *               2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: dante_udp.c,v 1.87 2013/07/12 20:57:16 michaels Exp $";
+"$Id: dante_udp.c,v 1.93 2013/10/27 15:24:42 karls Exp $";
 
 
 udpheader_t *
@@ -55,18 +55,18 @@ getudptarget(const char *buf, const size_t buflen, udpheader_t *header,
 /*
  * Gets the target address for the SOCKS UDP packet stored in "buf".
  * "buflen" gives the length of the received UDP packet.
- * 
- * On success "header" is returned, filled in appropriately.  
+ *
+ * On success "header" is returned, filled in appropriately.
  * "headerlen" gives the length of the SOCKS UDP header.  Payload will
  * start at the first byte following it.
  *
- * On failure NULL is returned.  "emsg" of "emsglen" will then contain an 
+ * On failure NULL is returned.  "emsg" of "emsglen" will then contain an
  * error string describing the reason for failure.
  */
 
 
 static int
-fromaddr_as_expected(struct sockaddr_storage *expected, 
+fromaddr_as_expected(struct sockaddr_storage *expected,
                      const struct sockaddr_storage *from,
                      char *emsg, size_t emsglen);
 
@@ -98,9 +98,9 @@ io_udp_client2target(control, client, twotargets, cauth, state,
    size_t *bwused;
 {
    /*
-    * Dante has only one client per i/o session, but each UDP-based i/o 
-    * session can have up to two targets (ipv4 and ipv6).  When transfering 
-    * data from the client we thus want to bill it to the correct target 
+    * Dante has only one client per i/o session, but each UDP-based i/o
+    * session can have up to two targets (ipv4 and ipv6).  When transferring
+    * data from the client we thus want to bill it to the correct target
     * target address.
     */
    const char *function = "io_udp_client2target()";
@@ -112,7 +112,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
    struct sockaddr_storage from, targetaddr;
    socklen_t len;
    ssize_t w, r;
-   size_t headerlen, payloadlen;
+   size_t headerlen, payloadlen, emsglen;
    char hosta[MAXSOCKSHOSTSTRING], hostb[MAXSOCKSHOSTSTRING], emsg[1024],
         buf[SOCKD_BUFSIZE + sizeof(udpheader_t)], *payload;
    int sametarget, gaierr,
@@ -123,6 +123,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
 
    recvflags.side = INTERNALIF;
    recvflags.peer = client->raddr;
+   recvflags.type = SOCK_DGRAM;
 
    len = sizeof(from);
    if ((r = socks_recvfrom(client->s,
@@ -136,7 +137,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
       if (ERRNOISPREVIOUSPACKET(errno)) {
          /*
           * error is from a previous packet sent by us out on this socket,
-          * i.e., from target to client.
+          * i.e., /from target/ to client.
           * Note that Linux apparently can return this error even if the
           * socket is not connected.
           *
@@ -146,13 +147,29 @@ io_udp_client2target(control, client, twotargets, cauth, state,
           * the client is alive.  When we no longer have the
           * control connection, we delete this io.
           */
+         struct sockaddr_storage *packetsrc;
+         struct sockaddr_storage *receivedonaddr;
+         const int oldcommand = state->command;
+         state->command       = SOCKS_UDPREPLY;
 
          if (twotargets->dstc <= 1) {
             *badfd = twotargets->dstv[0].s;
             SASSERTX(*badfd != -1);
+
+            receivedonaddr = &twotargets->dstv[0].laddr;
+            packetsrc      = &twotargets->dstv[0].raddr;
          }
-         else
-            *badfd = -1; /* don't know which target socket. */
+         else {
+            /*
+             * don't know which target socket was used.
+             */
+            *badfd         = -1;
+            receivedonaddr = NULL;
+            packetsrc      = NULL;
+         }
+
+         emsglen = snprintf(emsg, sizeof(emsg),
+                            "%s (delayed error)", strerror(errno));
 
          iolog(packetrule,
                state,
@@ -161,8 +178,20 @@ io_udp_client2target(control, client, twotargets, cauth, state,
                clog,
                NULL,
                NULL,
-               NULL,
-               0);
+               emsg,
+               emsglen);
+
+         state->command = oldcommand;
+
+         send_icmperror(rawsocket,
+                        receivedonaddr,
+                        packetsrc,
+                        &client->raddr,
+                        -1,
+                        -1,
+                        icmp_type,
+                        icmp_code);
+
 
          return IO_TMPERROR;
       }
@@ -194,7 +223,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
         function, sockaddr2string(&from, NULL, 0), (long)r);
 
    /*
-    * Read udp packet.  Now figure out if it should be forwarded, where it 
+    * Read udp packet.  Now figure out if it should be forwarded, where it
     * should be forwarded, and from what address we should forward it.
     */
 
@@ -256,9 +285,9 @@ io_udp_client2target(control, client, twotargets, cauth, state,
       SASSERTX(client->state.isconnected);
    }
    else
-      /* 
-       * already connected to client.  Kernel should make sure address is 
-       * correct. 
+      /*
+       * already connected to client.  Kernel should make sure address is
+       * correct.
        */
 
    SASSERTX(iostatus == IO_NOERROR);
@@ -269,10 +298,10 @@ io_udp_client2target(control, client, twotargets, cauth, state,
            "%s: getudptarget() failed for packet of length %lu from client %s, "
            "received on local address %s for target %s: %s",
            function,
-           (unsigned long)r, 
+           (unsigned long)r,
            sockaddr2string(&client->raddr, hosta, sizeof(hosta)),
            sockaddr2string(&client->laddr, hostb, sizeof(hostb)),
-           header.host.atype == SOCKS_ADDR_NOTSET ? 
+           header.host.atype == SOCKS_ADDR_NOTSET ?
                "N/A" : sockshost2string(&header.host, NULL, 0),
            emsg);
 
@@ -281,8 +310,8 @@ io_udp_client2target(control, client, twotargets, cauth, state,
    }
 
    if (header.host.atype != SOCKS_ADDR_NOTSET) {
-      /* 
-       * Whether getudptarget() failed or not, we did get a hostname at 
+      /*
+       * Whether getudptarget() failed or not, we did get a hostname at
        * least, so update for logging.
        */
       dlog->peer        = header.host;
@@ -298,15 +327,15 @@ io_udp_client2target(control, client, twotargets, cauth, state,
       payload    = buf + headerlen;
       payloadlen = r   - headerlen;
 
-      sockshost2sockaddr2(&header.host, 
-                          &targetaddr, 
-                          &gaierr, 
-                          emsg, 
+      sockshost2sockaddr2(&header.host,
+                          &targetaddr,
+                          &gaierr,
+                          emsg,
                           sizeof(emsg));
 
       if (IPADDRISBOUND(&targetaddr)) {
-         /* 
-          * we want to log ipaddress used, not (a possible) hostname sendt
+         /*
+          * we want to log ipaddress used, not (a possible) hostname sent
           * by the client.
           */
          sockaddr2sockshost(&targetaddr, &dlog->peer);
@@ -379,8 +408,8 @@ io_udp_client2target(control, client, twotargets, cauth, state,
         "%s: packet of length %lu (payload length %lu) from client %s "
         "received on local address, %s for target %s",
         function,
-        (unsigned long)r, 
-        (unsigned long)payloadlen, 
+        (unsigned long)r,
+        (unsigned long)payloadlen,
         sockaddr2string(&client->raddr, hosta, sizeof(hosta)),
         sockaddr2string(&client->laddr, hostb, sizeof(hostb)),
         sockshost2string(&header.host, NULL, 0));
@@ -403,7 +432,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
       switch (twotargets->dstc) {
          case 1:
             /*
-             * Have one target socket created already.  Is it of the 
+             * Have one target socket created already.  Is it of the
              * same addressfamily as the packet we now received?
              */
             if (twotargets->dstv[0].raddr.ss_family == targetaddr.ss_family) {
@@ -411,7 +440,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
               addtarget = 0;
             }
             else /* nope, must create a new socket for this target. */
-              addtarget = 1; 
+              addtarget = 1;
 
             break;
 
@@ -423,7 +452,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
             if (twotargets->dstv[0].raddr.ss_family == targetaddr.ss_family)
               target = &twotargets->dstv[0]; /* this is the one. */
             else {
-               SASSERTX(twotargets->dstv[1].raddr.ss_family 
+               SASSERTX(twotargets->dstv[1].raddr.ss_family
                == targetaddr.ss_family);
 
               target = &twotargets->dstv[1]; /* this is the one. */
@@ -451,11 +480,11 @@ io_udp_client2target(control, client, twotargets, cauth, state,
 
          if (initclient(control->s,
                         &client->laddr,
-                        &header.host, 
+                        &header.host,
                         &targetaddr,
                         packetrule,
-                        emsg, 
-                        sizeof(emsg), 
+                        emsg,
+                        sizeof(emsg),
                         &twotargets->dstv[twotargets->dstc]) != NULL) {
             target = addclient(&client->laddr,
                                &twotargets->dstv[twotargets->dstc],
@@ -471,7 +500,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
             doconnect = sockscf.udpconnectdst;
          }
          else {
-            /* 
+            /*
              * still have the other (first) target socket, so don't consider
              * this a fatal error.
              */
@@ -548,7 +577,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
          if (permit)
             header.host = targethost;
 
-         if (!addtarget) 
+         if (!addtarget)
             slog(LOG_DEBUG,
                  "%s: destination host for packet from client %s changed "
                  "from %s to %s%s",
@@ -568,9 +597,9 @@ io_udp_client2target(control, client, twotargets, cauth, state,
           * Unconnect the socket if it's connected and keep it unconnected,
           * so we can receive replies from the previous destination too.
           *
-          * We do this regardless of whether the new destination is 
+          * We do this regardless of whether the new destination is
           * permitted or not, as we have no reason to assume the previous
-          * (permitted) target is any more likely to be the next target 
+          * (permitted) target is any more likely to be the next target
           * than this (possibly, not permitted) target.  I.e., we want to
           * cache the negative rulespermit() verdict also.
           */
@@ -637,7 +666,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
 
       if (permit) {
          /*
-          * Ok, packet is permitted.  Now figure out what target struct to 
+          * Ok, packet is permitted.  Now figure out what target struct to
           * use for forwarding this packet.
           */
 
@@ -653,7 +682,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
 
             case 1:
                /*
-                * Have one target socket created already.  Is it of the 
+                * Have one target socket created already.  Is it of the
                 * same addressfamily as the target?
                 */
                if (twotargets->dstv[0].raddr.ss_family
@@ -661,14 +690,14 @@ io_udp_client2target(control, client, twotargets, cauth, state,
                  target    = &twotargets->dstv[0]; /* yes. */
                  addtarget = 0;
                }
-               else 
+               else
                  addtarget = 1;
 
                break;
 
             case 2:
                /*
-                * Have two target sockets created already.  One of them must 
+                * Have two target sockets created already.  One of them must
                 * be of the correct addressfamily.
                 */
                if (twotargets->dstv[0].raddr.ss_family == targetaddr.ss_family)
@@ -692,11 +721,11 @@ io_udp_client2target(control, client, twotargets, cauth, state,
 
             if (initclient(control->s,
                            &client->laddr,
-                           &header.host, 
+                           &header.host,
                            &targetaddr,
                            packetrule,
-                           emsg, 
-                           sizeof(emsg), 
+                           emsg,
+                           sizeof(emsg),
                            &twotargets->dstv[twotargets->dstc]) != NULL) {
                target = addclient(&client->laddr,
                                   &twotargets->dstv[twotargets->dstc],
@@ -728,12 +757,12 @@ io_udp_client2target(control, client, twotargets, cauth, state,
 
          if (twotargets->dstc == 0) {
             /*
-             * No targets sockets added yet and this packet from the client 
+             * No targets sockets added yet and this packet from the client
              * was not permitted.  Is it possible other packets from this
-             * client will be permitted?  Try.  If not, we can close this 
-             * session as there's no point in having the client keep 
+             * client will be permitted?  Try.  If not, we can close this
+             * session as there's no point in having the client keep
              * sending us packets if all of them will be blocked.
-             * A bit unfortunate since we already told the client that 
+             * A bit unfortunate since we already told the client that
              * the udpassociate was ok, but that was only because it did
              * not tell us what address it would be sending us packets from.
              */
@@ -816,7 +845,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
 
          /*
           * need to unconnect the socket so we can continue to receive
-          * packets from the old destination.  
+          * packets from the old destination.
           */
           sockd_unconnect(target->s, &target->raddr);
           target->isconnected = 0;
@@ -836,10 +865,10 @@ io_udp_client2target(control, client, twotargets, cauth, state,
        * Should we connect to the destination?
        * If the client will only be sending udp packets to one address, it
        * is more efficient to connect the socket to that address.
-       * If we do that we must however be sure to unconnect the socket before 
-       * sending target on it again if the client wants to send to a new 
-       * address, and from that point on, leave the socket unconnected, 
-       * so that possible future packets from the address we first 
+       * If we do that we must however be sure to unconnect the socket before
+       * sending target on it again if the client wants to send to a new
+       * address, and from that point on, leave the socket unconnected,
+       * so that possible future packets from the address we first
        * sent/connected to will also be received.
        */
 
@@ -887,10 +916,10 @@ io_udp_client2target(control, client, twotargets, cauth, state,
                        NULL);
 
       if (w >= 0) {
-         iostatus = io_packet_sent(payloadlen, 
-                                   w, 
-                                   &recvflags.ts, 
-                                   &client->raddr, 
+         iostatus = io_packet_sent(payloadlen,
+                                   w,
+                                   &recvflags.ts,
+                                   &client->raddr,
                                    &target->raddr,
                                    emsg,
                                    sizeof(emsg));
@@ -903,9 +932,9 @@ io_udp_client2target(control, client, twotargets, cauth, state,
          gettimeofday_monotonic(&target->lastio);
 
          /*
-          * Also update twotargets so caller can know how much i/o was done 
-          * on this call, as otherwise he would have no way of knowing this 
-          * because he could not beforehand know what our target socket would 
+          * Also update twotargets so caller can know how much i/o was done
+          * on this call, as otherwise he would have no way of knowing this
+          * because he could not beforehand know what our target socket would
           * be (could even be a new target).
           */
          twotargets->written.bytes   += sendtoflags.tosocket;
@@ -980,7 +1009,7 @@ io_udp_target2client(control, client, twotargets, state,
    /*
     * Received a reply from one of the up to two twotargets sockets (one for
     * ipv4 and one for ipv6).
-    * When called we alrady know what the twotargets socket is and things
+    * When called we already know what the twotargets socket is and things
     * should be set up correctly.
     */
    const char *function = "io_udp_target2client()";
@@ -1005,6 +1034,7 @@ io_udp_target2client(control, client, twotargets, state,
 
    recvflags.side = EXTERNALIF;
    recvflags.peer = twotargets->raddr;
+   recvflags.type = SOCK_DGRAM;
 
    len = sizeof(from);
    if ((r = socks_recvfrom(twotargets->s,
@@ -1017,10 +1047,11 @@ io_udp_target2client(control, client, twotargets, state,
                            &twotargets->auth)) == -1) {
       if (ERRNOISPREVIOUSPACKET(errno)) {
          /*
-          * error is from the twotargets of an earlier packet from client,
-          * sent by us out on this socket, i.e. from client to twotargets.
+          * error is from the target of an earlier packet from client,
+          * sent by us /out/ on this socket, i.e. from client to target.
           * Note that Linux apparently can return this error even if
           * the socket is not connected.
+          *
           * Don't treat it as fatal, more packets could come, and they
           * may be accepted by the twotargets.
           */
@@ -1034,7 +1065,7 @@ io_udp_target2client(control, client, twotargets, state,
 
          iolog(packetrule,
                state,
-               BAREFOOTD ? OPERATION_ERROR : OPERATION_TMPERROR,
+               OPERATION_TMPERROR,
                clog,
                dlog,
                NULL,
@@ -1062,9 +1093,9 @@ io_udp_target2client(control, client, twotargets, state,
       if (ERRNOISTMP(errno))
          return IO_EAGAIN;
       else {
-         log_unexpected_udprecv_error(function, 
-                                      twotargets->s, 
-                                      errno, 
+         log_unexpected_udprecv_error(function,
+                                      twotargets->s,
+                                      errno,
                                       EXTERNALIF);
          return IO_IOERROR;
       }
@@ -1288,10 +1319,10 @@ io_udp_target2client(control, client, twotargets, state,
                     &client->auth);
 
    if (w >= 0) {
-      iostatus = io_packet_sent(payloadlen, 
+      iostatus = io_packet_sent(payloadlen,
                                 w,
-                                &recvflags.ts, 
-                                &twotargets->raddr, 
+                                &recvflags.ts,
+                                &twotargets->raddr,
                                 &client->raddr,
                                 emsg,
                                 sizeof(emsg));
@@ -1360,49 +1391,59 @@ fromaddr_as_expected(expected, from, emsg, emsglen)
    const char *function = "fromaddr_as_expected()";
    char expectedstr[MAXSOCKADDRSTRING], fromstr[MAXSOCKADDRSTRING],
         buf[sizeof(expectedstr) + sizeof(fromstr) + 256];
+   int matches;
 
-   snprintf(buf, sizeof(buf), "expected udp packet from %s, got it from %s",
+   snprintf(buf, sizeof(buf),
+            "expected udp packet from clientaddress %s, got it from %s",
             sockaddr2string(expected, expectedstr, sizeof(expectedstr)),
             sockaddr2string(from, fromstr, sizeof(fromstr)));
-
-   slog(LOG_DEBUG, "%s: %s", function, buf);
 
    if (!ADDRISBOUND(expected)) {
       /*
        * Client hasn't sent us it's complete address yet, but if
-       * the parts of the address it has sent, if any, matches
+       * the parts of the address it has sent (if any) matches
        * the source of this packet, we have to assume this packet
-       * is from it.  We then connect the socket to the client, for
-       * better performance, for receiving errors from sendto(2),
-       * for getpeername(2) by libwrap in rulespermit(), for ...
-       * well, that's reasons enough.
+       * is from it.  We can then update the expected address with
+       * complete info, based on this packet.
+       *
+       * We also connect the socket to the client, for better performance,
+       * for receiving errors from sendto(2), for getpeername(2) by libwrap
+       * in rulespermit(), for ...  well, that's reasons enough already.
        */
        struct sockaddr_storage test;
 
-       sockaddrcpy(&test, expected, salen(expected->ss_family));
+       sockaddrcpy(&test, expected, sizeof(test));
 
       if (!IPADDRISBOUND(expected))
-         SET_SOCKADDRADDR(&test, GET_SOCKADDRADDR(from));
+         SET_SOCKADDRADDR(&test,   GET_SOCKADDRADDR(from));
 
       if (!PORTISBOUND(expected))
          SET_SOCKADDRPORT((&test), GET_SOCKADDRPORT(from));
 
-      if (sockaddrareeq(&test, from, 0)) { /* have the full addr; update. */
-         sockaddrcpy(expected, &test, salen(test.ss_family));
-         return 1;
-      }
-   }
-   else {
-      if (sockaddrareeq(expected, from, 0))
-         return 1;
-   }
+      matches = sockaddrareeq(&test, from, 0);
 
-   if (emsglen > 0) {
+      if (matches) {
+         /*
+          * from-address matches the parts the client told us, so
+          * assume this packet is from the client and update expected
+          * address to contain the complete address, both ip and port.
+          */
+         sockaddrcpy(expected, &test, sizeof(test));
+      }
+      /* else; no match, presumably not from client. */
+   }
+   else /* clients complete address is known to us.  Matches this packet? */
+      matches = sockaddrareeq(expected, from, 0);
+
+   if (!matches && emsglen > 0) {
       strncpy(emsg, buf, emsglen - 1);
       emsg[emsglen - 1] = NUL;
    }
 
-   return 0;
+   slog(LOG_DEBUG, "%s: %s: %s",
+        function, buf, matches ? "matches" : "no match");
+
+   return matches;
 }
 
 udpheader_t *
@@ -1422,7 +1463,7 @@ getudptarget(buf, buflen, header, headerlen, emsg, emsglen)
                "Could not extract valid address from SOCKS UDP header",
                (unsigned long)buflen);
 
-      header->host.atype = SOCKS_ADDR_NOTSET; 
+      header->host.atype = SOCKS_ADDR_NOTSET;
       return NULL;
    }
 
@@ -1430,24 +1471,24 @@ getudptarget(buf, buflen, header, headerlen, emsg, emsglen)
       snprintf(emsg, emsglen, "fragmented socks udp packets are not supported");
       return NULL;
    }
-   
+
    *headerlen = HEADERSIZE_UDP(header);
 
    switch (header->host.atype) {
       case SOCKS_ADDR_IPV6:
          if (IN6_IS_ADDR_V4MAPPED(&header->host.addr.ipv6.ip)) {
             /*
-             * We never use that; either we have IPv4 available on the 
+             * We never use that; either we have IPv4 available on the
              * external interface, or we do not.  Convert it to an ordinary
              * IPv4 address and proceed as usual.
              */
             sockshost_t convertedhost;
 
             convertedhost = header->host;
-            ipv4_mapped_to_regular(&header->host.addr.ipv6.ip, 
+            ipv4_mapped_to_regular(&header->host.addr.ipv6.ip,
                                    &convertedhost.addr.ipv4);
 
-            header->host.atype     = SOCKS_ADDR_IPV4; 
+            header->host.atype     = SOCKS_ADDR_IPV4;
             header->host.addr.ipv4 = convertedhost.addr.ipv4;
          }
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012
+ *               2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: osdep.h,v 1.97 2013/05/07 12:34:06 karls Exp $ */
+/* $Id: osdep.h,v 1.98 2013/10/27 15:24:41 karls Exp $ */
 
 /*
  * ensure pam/libwrap defines are only set when compiling server

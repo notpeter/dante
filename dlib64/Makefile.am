@@ -2,31 +2,33 @@ dlib64dir = $(libdir)/@ISA64DIR@
 
 dlib64_LTLIBRARIES = libdsocks.la
 #all but first line below should be identical to lines in dlib/Makefile.am
-libdsocks_la_SOURCES = ../dlib/interposition.c ../lib/Raccept.c		\
-   ../lib/Rbind.c ../lib/Rbindresvport.c ../lib/Rcompat.c		\
-   ../lib/Rconnect.c ../lib/Rgethostbyname.c ../lib/Rgetpeername.c	\
-   ../lib/Rgetsockname.c ../lib/Rgetsockopt.c ../lib/Rlisten.c		\
-   ../lib/Rrresvport.c ../lib/address.c ../lib/addressmatch.c		\
-   ../lib/authneg.c ../lib/broken.c ../lib/client.c			\
-   ../lib/clientconfig.c ../lib/clientprotocol.c ../lib/config.c	\
-   ../lib/config_parse.c ../lib/config_scan.c ../lib/connectchild.c	\
-   ../lib/debug.c ../lib/gssapi.c ../lib/hostcache.c ../lib/hostid.c	\
-   ../lib/httpproxy.c ../lib/hw.c ../lib/io.c ../lib/iobuf.c		\
-   ../lib/log.c ../lib/protocol.c ../lib/showconfig.c ../lib/serr.c	\
-   ../lib/sockaddr.c ../lib/socket.c ../lib/socketopt.c			\
-   ../lib/sockopt.c ../lib/tostring.c ../lib/udp.c			\
-   ../lib/udp_util.c ../lib/upnp.c ../lib/userio.c ../lib/util.c        \
-   ../lib/time.c
+libdsocks_la_SOURCES = ../dlib/interposition.c                          \
+   ../lib/Raccept.c ../lib/Rbind.c ../lib/Rbindresvport.c               \
+   ../lib/Rcompat.c ../lib/Rconnect.c ../lib/Rgethostbyname.c           \
+   ../lib/Rgetpeername.c ../lib/Rgetsockname.c ../lib/Rgetsockopt.c     \
+   ../lib/Rlisten.c ../lib/Rrresvport.c ../lib/address.c                \
+   ../lib/addressmatch.c ../lib/authneg.c ../lib/broken.c               \
+   ../lib/client.c ../lib/clientconfig.c ../lib/clientprotocol.c        \
+   ../lib/config.c ../lib/config_parse.c ../lib/config_scan.c           \
+   ../lib/connectchild.c ../lib/debug.c ../lib/fmt.c                    \
+   ../lib/fmt_customer.c ../lib/fmt_protocol.c ../lib/gssapi.c          \
+   ../lib/hostcache.c ../lib/hostid.c ../lib/httpproxy.c ../lib/hw.c    \
+   ../lib/iface.c ../lib/io.c ../lib/iobuf.c ../lib/ipv6.c              \
+   ../lib/log.c ../lib/method.c ../lib/parse_util.c ../lib/protocol.c   \
+   ../lib/serr.c ../lib/showconfig.c ../lib/sockaddr.c ../lib/socket.c  \
+   ../lib/socketopt.c ../lib/sockopt.c ../lib/time.c ../lib/tostring.c  \
+   ../lib/udp.c ../lib/udp_util.c ../lib/upnp.c ../lib/userio.c         \
+   ../lib/util.c
 
-EXTRA_libdsocks_la_SOURCES =                       		\
-   ../libscompat/difftime.c ../libscompat/getifaddrs.c		\
-   ../libscompat/hstrerror.c                          		\
-   ../libscompat/inet_ntoa.c ../libscompat/inet_pton.c		\
-   ../libscompat/issetugid.c ../libscompat/memmove.c		\
-   ../libscompat/pselect.c                        		\
-   ../libscompat/setproctitle.c                           	\
-   ../libscompat/strlcpy.c ../libscompat/strvis.c		\
+#libscompat - files common for both client and server
+EXTRA_libdsocks_la_SOURCES = ../libscompat/getifaddrs.c \
+   ../libscompat/hstrerror.c ../libscompat/inet_ntoa.c  \
+   ../libscompat/inet_pton.c ../libscompat/memmove.c    \
+   ../libscompat/pselect.c ../libscompat/setproctitle.c \
+   ../libscompat/strlcpy.c ../libscompat/strvis.c       \
    ../libscompat/vsyslog.c
+#libscompat - files only used by client
+EXTRA_libdsocks_la_SOURCES += ../libscompat/issetugid.c
 
 libdsocks_la_LDFLAGS = -avoid-version -all-dynamic @MAPOPT@
 libdsocks_la_LIBADD = @LIBDSCSRC@ @DLIBDEPS@ @LIBSCOMPAT@

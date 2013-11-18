@@ -700,10 +700,6 @@
 #define HAVE_LIBCRYPT 0
 #endif
 
-#ifndef HAVE_LIBCRYPTO
-#define HAVE_LIBCRYPTO 0
-#endif
-
 #ifndef HAVE_LIBC_ENABLE_SECURE
 #define HAVE_LIBC_ENABLE_SECURE 0
 #endif
@@ -2127,4 +2123,3 @@
 #ifndef SOCKS_DIRECTROUTE_FALLBACK
 #define SOCKS_DIRECTROUTE_FALLBACK 0
 #endif
-

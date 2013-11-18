@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2012
+ * Copyright (c) 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: statistics.c,v 1.28 2013/05/11 17:35:43 michaels Exp $";
+"$Id: statistics.c,v 1.33 2013/10/27 15:24:43 karls Exp $";
 
 
 int
@@ -54,6 +54,7 @@ sockd_check_ipclatency(description, tsent, treceived, tnow)
    const struct timeval *treceived;
    const struct timeval *tnow;
 {
+#if DIAGNOSTIC
    const char *function = "sockd_check_ipclatency()";
    const size_t samplesneeded             = 1000,
                 minoccurences             = 10;
@@ -92,11 +93,11 @@ sockd_check_ipclatency(description, tsent, treceived, tnow)
          if (socks_difftime(tnow->tv_sec, tlastwarn)
          >= tseconds_between_warnings) {
             if (overloadc >= minoccurences)
-               slog(LOG_NOTICE, 
+               slog(LOG_NOTICE,
                     "server overload condition detected %lu time%s regarding "
                     "%s.  Used up to %ldus to receive new client objects "
                     "during the last %lds, but expected maximum was "
-                    "caliberated to %luus",
+                    "calibrated to %luus",
                     (unsigned long)overloadc,
                     (unsigned long)overloadc == 1 ? "" : "s",
                     description,
@@ -124,12 +125,13 @@ sockd_check_ipclatency(description, tsent, treceived, tnow)
       slog(DEBUG ? LOG_INFO : LOG_DEBUG,
            "%s: max IPC delay for this %s process calibrated to be %ld.%06lds",
            function,
-           childtype2string(sockscf.state.type), 
+           childtype2string(sockscf.state.type),
            (long)tmaxdelay.tv_sec,
            (long)tmaxdelay.tv_usec);
    }
    else
       ++samplec;
+#endif /* DIAGNOSTIC */
 
    return 0;
 }

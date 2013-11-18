@@ -43,7 +43,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: fmt_customer.c,v 1.11 2013/06/09 17:22:46 michaels Exp $";
+"$Id: fmt_customer.c,v 1.13 2013/10/25 12:55:00 karls Exp $";
 
 /*
  * Nothing here should be changed without regression-testing against
@@ -60,6 +60,8 @@ log_connectfailed(side, dststr)
 
    if (ERRNOISNOROUTE(errno))
       slog(ll, "no route to %s: %s", dststr, strerror(errno));
+   else if (errno == EINPROGRESS)
+      slog(ll, "connect to host %s is now in progress", dststr);
    else
       slog(ll, "connect to host %s failed: %s", dststr, strerror(errno));
 }
@@ -104,8 +106,8 @@ log_resolvefailed(hostname, side, gaierr)
    const int ll = loglevel_gaierr(gaierr, side);
    char visbuf[MAXHOSTNAMELEN * 4];
 
-   slog(ll, "could not DNS-resolve \"%s\": %s", 
-        str2vis(hostname, strlen(hostname), visbuf, sizeof(visbuf)), 
+   slog(ll, "could not DNS-resolve \"%s\": %s",
+        str2vis(hostname, strlen(hostname), visbuf, sizeof(visbuf)),
         gaierr == EAI_SYSTEM ? strerror(errno) : gai_strerror(gaierr));
 }
 
@@ -118,7 +120,7 @@ log_reversemapfailed(addr, side, gaierr)
    const int ll = loglevel_gaierr(gaierr, side);
    char addrstring[256];
 
-   switch (socks_inet_pton(addr->ss_family, 
+   switch (socks_inet_pton(addr->ss_family,
                            GET_SOCKADDRADDR(addr),
                            addrstring,
                            NULL)) {
@@ -126,7 +128,7 @@ log_reversemapfailed(addr, side, gaierr)
          break;
 
       case 0:
-         STRCPY_ASSERTSIZE(addrstring, "<nonsense address>");       
+         STRCPY_ASSERTSIZE(addrstring, "<nonsense address>");
          break;
 
       case -1:
@@ -136,14 +138,14 @@ log_reversemapfailed(addr, side, gaierr)
          break;
    }
 
-   slog(ll, "could not DNS reversemap address %s: %s", 
-        addrstring, 
+   slog(ll, "could not DNS reversemap address %s: %s",
+        addrstring,
         gaierr == EAI_SYSTEM ? strerror(errno) : gai_strerror(gaierr));
 }
 
-#if !SOCKS_CLIENT 
+#if !SOCKS_CLIENT
 
-void 
+void
 log_clientdropped(client)
    const struct sockaddr_storage *client;
 {
@@ -152,7 +154,7 @@ log_clientdropped(client)
         sockaddr2string(client, NULL, 0));
 }
 
-void 
+void
 log_addchild_failed(void)
 {
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012
+ *               2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.256 2013/08/01 11:01:10 michaels Exp $";
+"$Id: sockd_util.c,v 1.263 2013/11/01 17:02:55 michaels Exp $";
 
 #include "common.h"
 
@@ -106,12 +106,12 @@ selectmethod(methodv, methodc, offeredv, offeredc)
                methodokv = rfc931methodv;
                break;
 
-            case AUTHMETHOD_PAM_ANY: 
+            case AUTHMETHOD_PAM_ANY:
                methodokc = ELEMENTS(pam_any_methodv);
                methodokv = pam_any_methodv;
                break;
 
-            case AUTHMETHOD_PAM_ADDRESS: 
+            case AUTHMETHOD_PAM_ADDRESS:
                methodokc = ELEMENTS(pam_address_methodv);
                methodokv = pam_address_methodv;
                break;
@@ -169,10 +169,11 @@ descriptorisreserved(d)
    if (d == sockscf.hostfd
    ||  d == sockscf.shmemfd
    ||  d == sockscf.loglock
-#if HAVE_LDAP
 
+#if HAVE_LDAP
    ||  d == sockscf.ldapfd
 #endif /* HAVE_LDAP */
+
    ||  d == sockscf.shmemconfigfd
    || FD_IS_RESERVED_EXTERNAL(d))
       return 1;
@@ -244,7 +245,7 @@ sockd_pushsignal(sig, siginfo)
 
    if (!alreadythere) {
       if (i < ELEMENTS(sockscf.state.signalv)) {
-         sockscf.state.signalv[sockscf.state.signalc].signal    = sig;
+         sockscf.state.signalv[sockscf.state.signalc].signal = sig;
 
          if (siginfo != NULL)
             sockscf.state.signalv[sockscf.state.signalc].siginfo = *siginfo;
@@ -405,8 +406,8 @@ sockd_motherexists(void)
       return 1; /* so early we haven't forked yet.  We must be mother then. */
 
    /*
-    * A simple getppid(2) unforatuntely no longer works on all platforms.
-    * E.g. Solaris apparantly, annoyingly enough, returns the pid of the
+    * A simple getppid(2) unfortunately no longer works on all platforms.
+    * E.g. Solaris apparently, annoyingly enough, returns the pid of the
     * zone scheduler process, and not initd. :-(
     * So go through the list of all motherpids to see if getppid() matches
     * any of them and use that to decide if mother still exists.
@@ -425,7 +426,7 @@ sockdexit(code)
    const char *function = "sockdexit()";
    struct sigaction sigact;
    static int exiting;
-   
+
    if (exiting) /* this must have gotten really screwed up. */
       abort();
    else
@@ -451,8 +452,10 @@ sockdexit(code)
       if (sockscf.option.pidfilewritten
       && pidismother(sockscf.state.pid) == 1) {
          sockd_priv(SOCKD_PRIV_FILE_WRITE, PRIV_ON);
+
          if (truncate(sockscf.option.pidfile, 0) != 0)
             swarn("%s: truncate(%s)", function, sockscf.option.pidfile);
+
          sockd_priv(SOCKD_PRIV_FILE_WRITE, PRIV_OFF);
       }
 #endif /* HAVE_ENABLED_PIDFILE */
@@ -501,10 +504,10 @@ sockdexit(code)
       if (pidismother(sockscf.state.pid) == 1) { /* main mother. */
          sigserverbroadcast(SIGTERM); /* signal other mothers too. */
 
-         /* 
+         /*
           * mainly for removing old shared memory stuff and temporary files.
           * Do this last to reduce the chance of a child trying to use a
-          * shmemfile we have removed.
+          * shmemfile we have already removed.
           */
          resetconfig(&sockscf, 1);
       }
@@ -535,5 +538,3 @@ sockdexit(code)
    _exit(code);
 #endif /* HAVE_PROFILING */
 }
-
-

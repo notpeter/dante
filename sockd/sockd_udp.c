@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012
+ *               2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_udp.c,v 1.54 2013/07/12 20:57:16 michaels Exp $";
+"$Id: sockd_udp.c,v 1.58 2013/10/27 15:24:43 karls Exp $";
 
 extern int       rawsocket;
 extern iostate_t iostate;
@@ -91,7 +91,7 @@ doio_udp(io, rset, badfd)
     * case since we can't truncate packets.  Therefore we don't limit
     * the amount of i/o we do in one go for the udp-case; it has to be
     * whole packets.  Trying to buffer udp packets would probably be
-    * suboptimal latency-wise, even if we could attempt to do it by 
+    * suboptimal latency-wise, even if we could attempt to do it by
     * expanding the iobuf-mechanism to handle udp also.
     *
     * In both Barefoot and Dante we need to do both a rulespermit()
@@ -129,10 +129,10 @@ doio_udp(io, rset, badfd)
     * matching rule #2, and then a packet matching rule #1 again.
     * Do we then allocate two sessions to this client, one from rule #1
     * and one from rule #2?  Obviously not.
-    * Do we move the client from the session belonging to rule #1 when it 
-    * sends a packet matching rule #2, and then move it back again from 
+    * Do we move the client from the session belonging to rule #1 when it
+    * sends a packet matching rule #2, and then move it back again from
     * rule #2 to rule #1?  Also obviously not.
-    * Instead we do the simple thing and and lock the resources when the 
+    * Instead we do the simple thing and and lock the resources when the
     * udp session is established, which will be in the request child.
     */
    const char *function   = "doio_udp()";
@@ -142,7 +142,7 @@ doio_udp(io, rset, badfd)
 
 #if BAREFOOTD
 
-   rule_t packetrule; 
+   rule_t packetrule;
 
 #else /* SOCKS_SERVER */
 
@@ -206,25 +206,25 @@ doio_udp(io, rset, badfd)
 
       ++sideschecked;
 
-      /* 
-       * Don't yet know what the target address/socket used will be.  
-       * If any data is actually to be forwarded to a target, this will 
+      /*
+       * Don't yet know what the target address/socket used will be.
+       * If any data is actually to be forwarded to a target, this will
        * be updated based on the target.
        */
-      io->dst.s = -1; 
+      io->dst.s = -1;
 
 #if BAREFOOTD
       /*
-       * initalize to crule, and if we get far enough, rulespermit() will 
+       * initalize to crule, and if we get far enough, rulespermit() will
        * update it, possibly changing it to another crule based on the source
-       * address of the client who sent the packet we will read.  
+       * address of the client who sent the packet we will read.
        *
-       * Since we want to be sure to not change the original crule, 
+       * Since we want to be sure to not change the original crule,
        * don't use a pointer for packetrule.
        */
-      packetrule = io->crule; 
+      packetrule = io->crule;
 
-      slog(LOG_DEBUG, "%s: client2target i/o on fd %d -> fd %d", 
+      slog(LOG_DEBUG, "%s: client2target i/o on fd %d -> fd %d",
            function, io->src.s, io->dst.s);
 
       iostatus = io_udp_client2target(&io->src,
@@ -249,7 +249,7 @@ doio_udp(io, rset, badfd)
 
       packetrule = io->cmd.udp.sfwdrule;
 
-      slog(LOG_DEBUG, "%s: client2target i/o on fd %d -> {fd %d, fd %d}", 
+      slog(LOG_DEBUG, "%s: client2target i/o on fd %d -> {fd %d, fd %d}",
            function, io->src.s, io->dst.dstv[0].s, io->dst.dstv[1].s);
 
       iostatus = io_udp_client2target(&io->control,
@@ -269,10 +269,10 @@ doio_udp(io, rset, badfd)
          return iostatus;
 
       if (iostatus == IO_NOERROR) {
-         DO_IOCOUNT(&src_read, 
-                    &src_written, 
-                    &dst_read, 
-                    &dst_written, 
+         DO_IOCOUNT(&src_read,
+                    &src_written,
+                    &dst_read,
+                    &dst_written,
                     io);
 
          io_update(&io->lastio,
@@ -282,13 +282,13 @@ doio_udp(io, rset, badfd)
                    NULL,
                    &dst_written,
 
-#if BAREFOOTD 
+#if BAREFOOTD
                    &packetrule,
                    &packetrule,
 
 #else /* SOCKS_SERVER */
 
-                   &io->srule, 
+                   &io->srule,
                    packetrule,
 
 #endif /* SOCKS_SERVER */
@@ -296,7 +296,7 @@ doio_udp(io, rset, badfd)
                    sockscf.shmemfd);
 
           /*
-           * client2target will have changed dst to the object associated with 
+           * client2target will have changed dst to the object associated with
            * the client it read the packet from, possibly a brand new dst.
            */
          io->dst.s = originaldst;
@@ -313,7 +313,7 @@ doio_udp(io, rset, badfd)
    if (io->dst.s != -1 && FD_ISSET(io->dst.s, rset)) {
       /*
        * - io->src is dst of packet (our client).
-       * - io->dst is (presumably) one of client's target and can vary for 
+       * - io->dst is (presumably) one of client's target and can vary for
        *   each packet.
        */
       iocount_t src_read    = io->src.read,
@@ -324,7 +324,7 @@ doio_udp(io, rset, badfd)
       connectionstate_t replystate;
       size_t bwused = 0;
 
-#if BAREFOOTD 
+#if BAREFOOTD
       packetrule = io->crule;
 
 #else /* SOCKS_SERVER */
@@ -343,10 +343,10 @@ doio_udp(io, rset, badfd)
       ++sideschecked;
 
       slog(LOG_DEBUG,
-           "%s: target2client i/o on fd %d -> fd %d", 
+           "%s: target2client i/o on fd %d -> fd %d",
            function, io->dst.s, io->src.s);
 
-#if BAREFOOTD 
+#if BAREFOOTD
       iostatus = io_udp_target2client(&io->src,
                                       &io->dst,
                                       &io->cauth,
@@ -373,26 +373,26 @@ doio_udp(io, rset, badfd)
          return iostatus;
 
       if (iostatus == IO_NOERROR) {
-         DO_IOCOUNT(&src_read, 
-                    &src_written, 
-                    &dst_read, 
-                    &dst_written, 
+         DO_IOCOUNT(&src_read,
+                    &src_written,
+                    &dst_read,
+                    &dst_written,
                     io);
 
-         io_update(&io->lastio, 
+         io_update(&io->lastio,
                    bwused,
                    NULL,
                    &src_written,
                    &dst_read,
                    NULL,
 
-#if BAREFOOTD 
+#if BAREFOOTD
                    &packetrule,
                    &packetrule,
 
 #else /* SOCKS_SERVER */
 
-                   &io->srule, 
+                   &io->srule,
                    packetrule,
 
 #endif /* SOCKS_SERVER */
@@ -520,7 +520,7 @@ io_addts(ts, from, to)
         to == NULL ? "<read by us>" : sockaddr2string(to, tstr, sizeof(tstr)),
         (long)ts->tv_sec,
         (long)ts->tv_usec,
-        ts->tv_sec < 0 ? 
+        ts->tv_sec < 0 ?
             ".  Sub-zero latency.  Impossible.  Clock changed?" : "");
 
    if (ts->tv_sec < 0)
@@ -621,14 +621,15 @@ initclient(control, from, tohost, toaddr, rule, emsg, emsglen, udpdst)
    udptarget_t *udpdst;
 {
    const char *function = "initclient()";
-   char fromstr[MAXSOCKADDRSTRING], tostr[MAXSOCKSHOSTSTRING];
-   int rc;
+   char fromstr[MAXSOCKADDRSTRING], tohoststr[MAXSOCKSHOSTSTRING],
+        toaddrstr[MAXSOCKADDRSTRING];
+   int s, rc;
 
    slog(LOG_DEBUG, "%s: from %s to %s (%s)",
         function,
-        sockaddr2string(from, fromstr, sizeof(fromstr)),
-        sockshost2string(tohost, tostr, sizeof(tostr)),
-        sockaddr2string(toaddr, NULL, 0));
+        sockaddr2string(from,    fromstr,   sizeof(fromstr)),
+        sockshost2string(tohost, tohoststr, sizeof(tohoststr)),
+        sockaddr2string(toaddr,  toaddrstr, sizeof(toaddrstr)));
 
    bzero(udpdst, sizeof(*udpdst));
 
@@ -645,41 +646,43 @@ initclient(control, from, tohost, toaddr, rule, emsg, emsglen, udpdst)
     * when mother sends us a new tcp client.
     */
 
-   errno      = 0;
-   udpdst->s  = -1;
+   errno = 0;
+   s     = -1;
 
    if (iostate.freefds  <= ((SOCKD_IOMAX - 1) * FDPASS_MAX)
-   || (udpdst->s = socket(udpdst->raddr.ss_family, SOCK_DGRAM, 0)) == -1) {
+   || (s = socket(udpdst->raddr.ss_family, SOCK_DGRAM, 0)) == -1) {
       snprintf(emsg, emsglen, "could not create %s udp socket: %s",
                safamily2string(udpdst->raddr.ss_family),
-               errno == 0 ? 
+               errno == 0 ?
                   "already running short of sockets" : strerror(errno));
 
       swarnx("%s: %s", function, emsg);
 
-      if (udpdst->s != -1)
-         close(udpdst->s);
+      if (s != -1)
+         close(s);
 
       return NULL;
    }
 
-   if (getoutaddr(&udpdst->laddr, 
-                  from, 
-                  SOCKS_UDPASSOCIATE, 
-                  &udpdst->raddrhost, 
-                  emsg, 
+   SASSERTX(s != -1);
+
+   if (getoutaddr(&udpdst->laddr,
+                  from,
+                  SOCKS_UDPASSOCIATE,
+                  &udpdst->raddrhost,
+                  emsg,
                   emsglen) == NULL) {
-      slog(LOG_DEBUG, 
+      slog(LOG_DEBUG,
            "%s: could not establish address to use for sending UDP to %s: %s",
            function, sockshost2string(&udpdst->raddrhost, NULL, 0), emsg);
 
-      close(udpdst->s);
+      close(s);
       return NULL;
    }
 
-   setsockoptions(udpdst->s, udpdst->raddr.ss_family, SOCK_DGRAM, 0);
+   setsockoptions(s, udpdst->raddr.ss_family, SOCK_DGRAM, 0);
 
-   setconfsockoptions(udpdst->s,
+   setconfsockoptions(s,
                       control,
                       SOCKS_UDP,
                       0,
@@ -688,21 +691,21 @@ initclient(control, from, tohost, toaddr, rule, emsg, emsglen, udpdst)
                       SOCKETOPT_PRE | SOCKETOPT_ANYTIME,
                       SOCKETOPT_PRE | SOCKETOPT_ANYTIME);
 
-   if ((rc = socks_bind(udpdst->s, &udpdst->laddr, 0)) != 0) {
+   if ((rc = socks_bind(s, &udpdst->laddr, 0)) != 0) {
       if (GET_SOCKADDRPORT(&udpdst->laddr) != htons(0))
          SET_SOCKADDRPORT(&udpdst->laddr, htons(0));
 
-      rc = socks_bind(udpdst->s, &udpdst->laddr, 0);
+      rc = socks_bind(s, &udpdst->laddr, 0);
    }
 
    if (rc != 0) {
-      snprintf(emsg, emsglen, "could not bind udp address %s (%s)",
+      log_bind_failed(function, SOCKS_UDP, &udpdst->laddr);
+
+      snprintf(emsg, emsglen, "could not bind udp address %s: %s",
                sockaddr2string(&udpdst->laddr, NULL, 0),
                strerror(errno));
 
-      swarnx("%s: %s", function, emsg);
-
-      close(udpdst->s);
+      close(s);
       return NULL;
    }
 
@@ -711,10 +714,10 @@ initclient(control, from, tohost, toaddr, rule, emsg, emsglen, udpdst)
 #if SOCKS_SERVER
   /*
    * Dante uses iobufs for some udp stuff too (just to save a getsockopt(2)
-   * call?), though we don't buffer udp packets.  Barefootd is not dimensioned 
+   * call?), though we don't buffer udp packets.  Barefootd is not dimensioned
    * for allocating iobufs for udp however.
    */
-  socks_allocbuffer(udpdst->s, SOCK_DGRAM);
+  socks_allocbuffer(s, SOCK_DGRAM);
 #endif /* SOCKS_SERVER */
 
    /*
@@ -729,12 +732,13 @@ initclient(control, from, tohost, toaddr, rule, emsg, emsglen, udpdst)
 
    gettimeofday_monotonic(&udpdst->lastio);
    udpdst->firstio = udpdst->lastio;
+   udpdst->s       = s;
 
    --iostate.freefds;
 
    slog(LOG_DEBUG,
         "%s: allocated socket fd %d for packets from %s to, initially, %s",
-        function, udpdst->s, fromstr, tostr);
+        function, udpdst->s, fromstr, tohoststr);
 
    return udpdst;
 }
@@ -777,6 +781,7 @@ addclient(clientladdr, client, clientc, maxclientc, clientv, state, rule)
       if ((pv = realloc(*clientv, ((*maxclientc) + 1) * sizeof(*pv))) == NULL) {
          swarn("%s: failed to allocate memory for new udp client from %s",
                function, sockaddr2string(&client->client, NULL, 0));
+
          return NULL;
       }
 
@@ -842,7 +847,7 @@ io_syncudp(io, udpclient)
 {
    io->state.time.established     = udpclient->firstio;
 
-#if BAREFOOTD  
+#if BAREFOOTD
    io->crule                      = udpclient->crule;
 #endif /* BAREFOOTD */
 
@@ -859,7 +864,7 @@ io_syncudpsrc(src, udpclient)
 
    /* src.laddr is the same for all clients and never changes. */
 
-#if BAREFOOTD 
+#if BAREFOOTD
    /*
     * In Dante this remain the same as Dante only has one client per
     * udp i/o-session.  Each client can have up to two targets though,
@@ -910,4 +915,3 @@ clientofsocket(s, udpclientc, udpclientv)
 
    return NULL;
 }
-

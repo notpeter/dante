@@ -216,14 +216,13 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-noinst_HEADERS = common.h config.h errorsymbols.h fmt.h interposition.h \
-		 osdep.h qos.h						\
-                 redefac.h sockd.h socks.h socks_gssapi.h symbols.h	\
-                 tostring.h upnp.h yacconfig.h
+noinst_HEADERS = common.h config.h errorsymbols.h fmt.h interposition.h	\
+   osdep.h qos.h redefac.h sockd.h socks.h socks_gssapi.h symbols.h     \
+   tostring.h upnp.h yacconfig.h
 
-EXTRA_DIST = redefgen.sh symbols_common.txt symbols_darwin.txt		\
-	     symbols_freebsd.txt symbols_glibc.txt symbols_osol.txt	\
-	     symbols_osol_stdio.txt symbols_preload.txt
+EXTRA_DIST = redefgen.sh symbols_common.txt symbols_darwin.txt  \
+   symbols_freebsd.txt symbols_glibc.txt symbols_osol.txt       \
+   symbols_osol_stdio.txt symbols_preload.txt
 
 all: autoconf.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am

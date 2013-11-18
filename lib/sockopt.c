@@ -46,7 +46,7 @@
 #include "qos.h"
 
 static const char rcsid[] =
-"$Id: sockopt.c,v 1.25 2013/07/12 11:18:36 michaels Exp $";
+"$Id: sockopt.c,v 1.26 2013/10/25 12:55:01 karls Exp $";
 
 struct option {
    int level;
@@ -162,7 +162,7 @@ printsocketopts(s)
    if ((flags = fcntl(s, F_GETFD, 0)) == -1)
       swarn("fcntl(F_GETFD)");
    else
-      slog(LOG_DEBUG, "%s: value of file descriptor flags: %d\n", 
+      slog(LOG_DEBUG, "%s: value of file descriptor flags: %d\n",
            function, flags);
 
    errno = errno_s;
@@ -176,14 +176,14 @@ sockopts_dump(void)
    const char *function = "sockopts_dump()";
    int i;
 
-   slog(LOG_DEBUG, "%s: socket option name (level/value) (%d entries):", 
+   slog(LOG_DEBUG, "%s: socket option name (level/value) (%d entries):",
         function, HAVE_SOCKOPTVAL_MAX);
 
    for (i = 0; i < HAVE_SOCKOPTVAL_MAX; i++)
-      slog(LOG_DEBUG, "%s: %02d: %s (%d/%d)", 
+      slog(LOG_DEBUG, "%s: %02d: %s (%d/%d)",
            function, i, sockopts[i].name, sockopts[i].level, sockopts[i].value);
 
-   slog(LOG_DEBUG, "%s: socket option symbolic values (%d entries):", 
+   slog(LOG_DEBUG, "%s: socket option symbolic values (%d entries):",
         function, HAVE_SOCKOPTVALSYM_MAX);
 
    for (i = 0; i < HAVE_SOCKOPTVALSYM_MAX; i++) {
@@ -242,7 +242,7 @@ optval2valsym(size_t optid, char *name)
    int i;
 
    for (i = 0; i < HAVE_SOCKOPTVALSYM_MAX; i++) {
-      if (optid == sockoptvalsyms[i].optid 
+      if (optid == sockoptvalsyms[i].optid
       && strcmp(name, sockoptvalsyms[i].name) == 0)
          return &sockoptvalsyms[i];
    }
@@ -250,7 +250,7 @@ optval2valsym(size_t optid, char *name)
    return NULL;
 }
 
-/* 
+/*
  * Include platform dependent socket option code.
  */
 #include "sockopt_gen.c"

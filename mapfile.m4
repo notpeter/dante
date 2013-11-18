@@ -17,7 +17,7 @@ for symdir in $PLDDIRS; do
 
     #platform dependent symbols
     case $host in
- 	*-*-darwin*)
+	*-*-darwin*)
 	    cat include/symbols_darwin.txt >> $symdir/$MAPFILE
 	    ;;
 

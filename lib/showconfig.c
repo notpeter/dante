@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012
+ *               2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,11 +45,11 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: showconfig.c,v 1.32 2013/07/31 11:54:59 michaels Exp $";
+"$Id: showconfig.c,v 1.34 2013/10/27 15:24:42 karls Exp $";
 
 #if !SOCKS_CLIENT
 
-static void showlogspecial(const logspecial_t *log, 
+static void showlogspecial(const logspecial_t *log,
                            const interfaceside_t isinternalside);
 /*
  * Displays the logsettings in "log".  "isinternalside" should be true if
@@ -169,7 +169,7 @@ showconfig(sockscf)
    for (i = 0; i < sockscf->internal.addrc; ++i)
       slog(LOG_DEBUG, "\t%s %s",
            protocol2string(sockscf->internal.addrv[i].protocol),
-           sockaddr2string2(&sockscf->internal.addrv[i].addr, 
+           sockaddr2string2(&sockscf->internal.addrv[i].addr,
                             ADDRINFO_ATYPE | ADDRINFO_PORT,
                             NULL,
                             0));
@@ -292,8 +292,8 @@ showconfig(sockscf)
    slog(LOG_DEBUG, "external addresses (%lu):",
         (unsigned long)sockscf->external.addrc);
    for (i = 0; i < sockscf->external.addrc; ++i) {
-      slog(LOG_DEBUG, "\t%s", 
-           ruleaddr2string(&sockscf->external.addrv[i], 
+      slog(LOG_DEBUG, "\t%s",
+           ruleaddr2string(&sockscf->external.addrv[i],
                            ADDRINFO_ATYPE,
                            NULL,
                            0));
@@ -302,7 +302,7 @@ showconfig(sockscf)
    slog(LOG_DEBUG, "\thave IPv4 on external address list?  %s.  IPv6?  %s",
         external_has_safamily(AF_INET)  ? "Yes" : "No",
         external_has_safamily(AF_INET6) ?
-               external_has_global_safamily(AF_INET6) ? 
+               external_has_global_safamily(AF_INET6) ?
                   "Yes (global)" : "Yes (local only)"
             :  "No");
 
@@ -428,7 +428,7 @@ showconfig(sockscf)
          socks_showroute(route);
 
 #if !SOCKS_CLIENT
-      for (i = 0, monitor = sockscf->monitor; 
+      for (i = 0, monitor = sockscf->monitor;
            monitor != NULL;
            monitor = monitor->next)
               ++i;
@@ -495,7 +495,7 @@ socks_showroute(route)
 
 #if !SOCKS_CLIENT
 
-static void 
+static void
 showlogspecial(log, side)
    const logspecial_t *log;
    const interfaceside_t side;

@@ -157,7 +157,7 @@ if test x"$SOCKOPTS" = x"TCP_IPA"; then
     if test x"$oksize" != x; then
 	AC_DEFINE_UNQUOTED(HAVE_MAX_HOSTIDS, [$oksize], [hostid size])
     else
-	#XXX should not occur, ideally have option undefed
+	#XXX should not occur, ideally have option undef-ed
 	AC_MSG_WARN([unable to determine TCP_IPA max size, setting to 0])
 	AC_DEFINE(HAVE_MAX_HOSTIDS, 0, [hostid size])
 	unset SOCKOPTS #NOTE: assumes TCP_IPA is first tested type
@@ -527,5 +527,13 @@ AC_DEFINE_UNQUOTED(HAVE_SOCKOPTVALSYM_MAX, $SOCKOPTSYMCNT, [symbol count])dnl
 rm -f $OPTSRCTMP1 $OPTSRCTMP2
 
 #set value for server -v option
-UCOKSOCKOPTS=`echo $OKSOCKOPTS | ucase`
-AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS, "$UCOKSOCKOPTS", [Socket options enabled in build])
+UCOKSOCKOPTS_SO=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'SO_' | xargs`
+AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_SO, "${UCOKSOCKOPTS_SO}", [Socket level socket options enabled in build])
+UCOKSOCKOPTS_IPV4=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'IP_' | xargs`
+AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_IPV4, "${UCOKSOCKOPTS_IPV4}", [IPV4 level socket options enabled in build])
+UCOKSOCKOPTS_IPV6=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'IPV6_' | xargs`
+AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_IPV6, "${UCOKSOCKOPTS_IPV6}", [IPV6 level socket options enabled in build])
+UCOKSOCKOPTS_TCP=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'TCP_' | xargs`
+AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_TCP, "${UCOKSOCKOPTS_TCP}", [TCP level socket options enabled in build])
+UCOKSOCKOPTS_UDP=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'UDP_' | xargs`
+AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_UDP, "${UCOKSOCKOPTS_UDP}", [UDP level socket options enabled in build])

@@ -62,57 +62,56 @@ PROGRAMS = $(sbin_PROGRAMS)
 am__sockd_SOURCES_DIST = ../lib/addressmatch.c ../lib/authneg.c \
 	../lib/broken.c ../lib/clientprotocol.c ../lib/config.c \
 	../lib/config_parse.c ../lib/config_scan.c ../lib/debug.c \
-	../lib/ipv6.c ../lib/errorsymbols.c ../lib/fmt.c \
-	../lib/fmt_customer.c ../lib/fmt_protocol.c ../lib/gssapi.c \
-	../lib/hostcache.c ../lib/hostid.c ../lib/httpproxy.c \
-	../lib/hw.c ../lib/io.c ../lib/iobuf.c ../lib/log.c \
-	../lib/method.c ../lib/protocol.c ../lib/parse_util.c \
+	../lib/errorsymbols.c ../lib/fmt.c ../lib/fmt_customer.c \
+	../lib/fmt_protocol.c ../lib/gssapi.c ../lib/hostcache.c \
+	../lib/hostid.c ../lib/httpproxy.c ../lib/hw.c ../lib/iface.c \
+	../lib/io.c ../lib/iobuf.c ../lib/ipv6.c ../lib/log.c \
+	../lib/method.c ../lib/parse_util.c ../lib/protocol.c \
 	../lib/serr.c ../lib/showconfig.c ../lib/sockaddr.c \
 	../lib/socket.c ../lib/socketopt.c ../lib/sockopt.c \
-	../lib/time.c ../lib/tcpinfo.c ../lib/tostring.c \
+	../lib/tcpinfo.c ../lib/time.c ../lib/tostring.c \
 	../lib/udp_util.c ../lib/upnp.c ../lib/userio.c ../lib/util.c \
 	../libscompat/in_cksum.c accesscheck.c auth_bsd.c auth_pam.c \
 	auth_password.c bandwidth.c bandwidth_key.c checkmodule.c \
-	cpu.c cpuaffinity.c cpupolicy.c fmt_sockd.c getoutaddr.c \
-	iface.c ldap.c ldap_key.c ldap_util.c math.c method_gssapi.c \
-	method_uname.c monitor.c monitor_util.c mother_util.c \
-	privileges.c redirect.c redirect_key.c rule.c serverconfig.c \
-	session.c shmem.c shmemconfig.c sockd.c sockd_child.c \
-	dante_udp.c sockd_io.c sockd_io_misc.c sockd_icmp.c \
-	sockd_udp.c sockd_tcp.c sockd_negotiate.c sockd_protocol.c \
-	sockd_request.c sockd_socket.c udp_port.c sockd_util.c \
-	statistics.c ../dlib/interposition.c
+	cpu.c cpuaffinity.c cpupolicy.c dante_udp.c fmt_sockd.c \
+	getoutaddr.c ldap.c ldap_key.c ldap_util.c math.c \
+	method_gssapi.c method_uname.c monitor.c monitor_util.c \
+	mother_util.c privileges.c redirect.c redirect_key.c rule.c \
+	serverconfig.c session.c shmem.c shmemconfig.c sockd.c \
+	sockd_child.c sockd_icmp.c sockd_io.c sockd_io_misc.c \
+	sockd_negotiate.c sockd_protocol.c sockd_request.c \
+	sockd_socket.c sockd_tcp.c sockd_udp.c sockd_util.c \
+	statistics.c udp_port.c ../dlib/interposition.c
 @SERVER_INTERPOSITION_TRUE@am__objects_1 = interposition.$(OBJEXT)
 am_sockd_OBJECTS = addressmatch.$(OBJEXT) authneg.$(OBJEXT) \
 	broken.$(OBJEXT) clientprotocol.$(OBJEXT) config.$(OBJEXT) \
 	config_parse.$(OBJEXT) config_scan.$(OBJEXT) debug.$(OBJEXT) \
-	ipv6.$(OBJEXT) errorsymbols.$(OBJEXT) fmt.$(OBJEXT) \
-	fmt_customer.$(OBJEXT) fmt_protocol.$(OBJEXT) gssapi.$(OBJEXT) \
-	hostcache.$(OBJEXT) hostid.$(OBJEXT) httpproxy.$(OBJEXT) \
-	hw.$(OBJEXT) io.$(OBJEXT) iobuf.$(OBJEXT) log.$(OBJEXT) \
-	method.$(OBJEXT) protocol.$(OBJEXT) parse_util.$(OBJEXT) \
-	serr.$(OBJEXT) showconfig.$(OBJEXT) sockaddr.$(OBJEXT) \
-	socket.$(OBJEXT) socketopt.$(OBJEXT) sockopt.$(OBJEXT) \
-	time.$(OBJEXT) tcpinfo.$(OBJEXT) tostring.$(OBJEXT) \
-	udp_util.$(OBJEXT) upnp.$(OBJEXT) userio.$(OBJEXT) \
-	util.$(OBJEXT) in_cksum.$(OBJEXT) accesscheck.$(OBJEXT) \
-	auth_bsd.$(OBJEXT) auth_pam.$(OBJEXT) auth_password.$(OBJEXT) \
-	bandwidth.$(OBJEXT) bandwidth_key.$(OBJEXT) \
-	checkmodule.$(OBJEXT) cpu.$(OBJEXT) cpuaffinity.$(OBJEXT) \
-	cpupolicy.$(OBJEXT) fmt_sockd.$(OBJEXT) getoutaddr.$(OBJEXT) \
-	iface.$(OBJEXT) ldap.$(OBJEXT) ldap_key.$(OBJEXT) \
-	ldap_util.$(OBJEXT) math.$(OBJEXT) method_gssapi.$(OBJEXT) \
-	method_uname.$(OBJEXT) monitor.$(OBJEXT) \
-	monitor_util.$(OBJEXT) mother_util.$(OBJEXT) \
+	errorsymbols.$(OBJEXT) fmt.$(OBJEXT) fmt_customer.$(OBJEXT) \
+	fmt_protocol.$(OBJEXT) gssapi.$(OBJEXT) hostcache.$(OBJEXT) \
+	hostid.$(OBJEXT) httpproxy.$(OBJEXT) hw.$(OBJEXT) \
+	iface.$(OBJEXT) io.$(OBJEXT) iobuf.$(OBJEXT) ipv6.$(OBJEXT) \
+	log.$(OBJEXT) method.$(OBJEXT) parse_util.$(OBJEXT) \
+	protocol.$(OBJEXT) serr.$(OBJEXT) showconfig.$(OBJEXT) \
+	sockaddr.$(OBJEXT) socket.$(OBJEXT) socketopt.$(OBJEXT) \
+	sockopt.$(OBJEXT) tcpinfo.$(OBJEXT) time.$(OBJEXT) \
+	tostring.$(OBJEXT) udp_util.$(OBJEXT) upnp.$(OBJEXT) \
+	userio.$(OBJEXT) util.$(OBJEXT) in_cksum.$(OBJEXT) \
+	accesscheck.$(OBJEXT) auth_bsd.$(OBJEXT) auth_pam.$(OBJEXT) \
+	auth_password.$(OBJEXT) bandwidth.$(OBJEXT) \
+	bandwidth_key.$(OBJEXT) checkmodule.$(OBJEXT) cpu.$(OBJEXT) \
+	cpuaffinity.$(OBJEXT) cpupolicy.$(OBJEXT) dante_udp.$(OBJEXT) \
+	fmt_sockd.$(OBJEXT) getoutaddr.$(OBJEXT) ldap.$(OBJEXT) \
+	ldap_key.$(OBJEXT) ldap_util.$(OBJEXT) math.$(OBJEXT) \
+	method_gssapi.$(OBJEXT) method_uname.$(OBJEXT) \
+	monitor.$(OBJEXT) monitor_util.$(OBJEXT) mother_util.$(OBJEXT) \
 	privileges.$(OBJEXT) redirect.$(OBJEXT) redirect_key.$(OBJEXT) \
 	rule.$(OBJEXT) serverconfig.$(OBJEXT) session.$(OBJEXT) \
 	shmem.$(OBJEXT) shmemconfig.$(OBJEXT) sockd.$(OBJEXT) \
-	sockd_child.$(OBJEXT) dante_udp.$(OBJEXT) sockd_io.$(OBJEXT) \
-	sockd_io_misc.$(OBJEXT) sockd_icmp.$(OBJEXT) \
-	sockd_udp.$(OBJEXT) sockd_tcp.$(OBJEXT) \
-	sockd_negotiate.$(OBJEXT) sockd_protocol.$(OBJEXT) \
-	sockd_request.$(OBJEXT) sockd_socket.$(OBJEXT) \
-	udp_port.$(OBJEXT) sockd_util.$(OBJEXT) statistics.$(OBJEXT) \
+	sockd_child.$(OBJEXT) sockd_icmp.$(OBJEXT) sockd_io.$(OBJEXT) \
+	sockd_io_misc.$(OBJEXT) sockd_negotiate.$(OBJEXT) \
+	sockd_protocol.$(OBJEXT) sockd_request.$(OBJEXT) \
+	sockd_socket.$(OBJEXT) sockd_tcp.$(OBJEXT) sockd_udp.$(OBJEXT) \
+	sockd_util.$(OBJEXT) statistics.$(OBJEXT) udp_port.$(OBJEXT) \
 	$(am__objects_1)
 sockd_OBJECTS = $(am_sockd_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
@@ -302,37 +301,37 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 sockd_SOURCES = ../lib/addressmatch.c ../lib/authneg.c ../lib/broken.c \
 	../lib/clientprotocol.c ../lib/config.c ../lib/config_parse.c \
-	../lib/config_scan.c ../lib/debug.c ../lib/ipv6.c \
-	../lib/errorsymbols.c ../lib/fmt.c ../lib/fmt_customer.c \
-	../lib/fmt_protocol.c ../lib/gssapi.c ../lib/hostcache.c \
-	../lib/hostid.c ../lib/httpproxy.c ../lib/hw.c ../lib/io.c \
-	../lib/iobuf.c ../lib/log.c ../lib/method.c ../lib/protocol.c \
-	../lib/parse_util.c ../lib/serr.c ../lib/showconfig.c \
-	../lib/sockaddr.c ../lib/socket.c ../lib/socketopt.c \
-	../lib/sockopt.c ../lib/time.c ../lib/tcpinfo.c \
-	../lib/tostring.c ../lib/udp_util.c ../lib/upnp.c \
-	../lib/userio.c ../lib/util.c ../libscompat/in_cksum.c \
-	accesscheck.c auth_bsd.c auth_pam.c auth_password.c \
-	bandwidth.c bandwidth_key.c checkmodule.c cpu.c cpuaffinity.c \
-	cpupolicy.c fmt_sockd.c getoutaddr.c iface.c ldap.c ldap_key.c \
-	ldap_util.c math.c method_gssapi.c method_uname.c monitor.c \
-	monitor_util.c mother_util.c privileges.c redirect.c \
-	redirect_key.c rule.c serverconfig.c session.c shmem.c \
-	shmemconfig.c sockd.c sockd_child.c dante_udp.c sockd_io.c \
-	sockd_io_misc.c sockd_icmp.c sockd_udp.c sockd_tcp.c \
+	../lib/config_scan.c ../lib/debug.c ../lib/errorsymbols.c \
+	../lib/fmt.c ../lib/fmt_customer.c ../lib/fmt_protocol.c \
+	../lib/gssapi.c ../lib/hostcache.c ../lib/hostid.c \
+	../lib/httpproxy.c ../lib/hw.c ../lib/iface.c ../lib/io.c \
+	../lib/iobuf.c ../lib/ipv6.c ../lib/log.c ../lib/method.c \
+	../lib/parse_util.c ../lib/protocol.c ../lib/serr.c \
+	../lib/showconfig.c ../lib/sockaddr.c ../lib/socket.c \
+	../lib/socketopt.c ../lib/sockopt.c ../lib/tcpinfo.c \
+	../lib/time.c ../lib/tostring.c ../lib/udp_util.c \
+	../lib/upnp.c ../lib/userio.c ../lib/util.c \
+	../libscompat/in_cksum.c accesscheck.c auth_bsd.c auth_pam.c \
+	auth_password.c bandwidth.c bandwidth_key.c checkmodule.c \
+	cpu.c cpuaffinity.c cpupolicy.c dante_udp.c fmt_sockd.c \
+	getoutaddr.c ldap.c ldap_key.c ldap_util.c math.c \
+	method_gssapi.c method_uname.c monitor.c monitor_util.c \
+	mother_util.c privileges.c redirect.c redirect_key.c rule.c \
+	serverconfig.c session.c shmem.c shmemconfig.c sockd.c \
+	sockd_child.c sockd_icmp.c sockd_io.c sockd_io_misc.c \
 	sockd_negotiate.c sockd_protocol.c sockd_request.c \
-	sockd_socket.c udp_port.c sockd_util.c statistics.c \
-	$(am__append_1)
-EXTRA_sockd_SOURCES = ../libscompat/daemon.c		        \
-   ../libscompat/difftime.c ../libscompat/getifaddrs.c		\
-   ../libscompat/hstrerror.c                          		\
-   ../libscompat/inet_ntoa.c ../libscompat/inet_pton.c		\
-                             ../libscompat/memmove.c		\
-   ../libscompat/pselect.c ../libscompat/seteuid.c		\
-   ../libscompat/setproctitle.c ../libscompat/sockatmark.c	\
-   ../libscompat/strlcpy.c ../libscompat/strvis.c		\
-   ../libscompat/vsyslog.c
+	sockd_socket.c sockd_tcp.c sockd_udp.c sockd_util.c \
+	statistics.c udp_port.c $(am__append_1)
 
+#libscompat - files common for both client and server
+#libscompat - files only used by server
+EXTRA_sockd_SOURCES = ../libscompat/getifaddrs.c \
+	../libscompat/hstrerror.c ../libscompat/inet_ntoa.c \
+	../libscompat/inet_pton.c ../libscompat/memmove.c \
+	../libscompat/pselect.c ../libscompat/setproctitle.c \
+	../libscompat/strlcpy.c ../libscompat/strvis.c \
+	../libscompat/vsyslog.c ../libscompat/daemon.c \
+	../libscompat/seteuid.c ../libscompat/sockatmark.c
 @SERVER_INTERPOSITION_FALSE@SERVDL = 0
 
 #use preloading if enabled and possible
@@ -456,7 +455,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemon.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dante_udp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/difftime.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/errorsymbols.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fmt.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fmt_customer.Po@am__quote@
@@ -687,22 +685,6 @@ debug.obj: ../lib/debug.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o debug.obj `if test -f '../lib/debug.c'; then $(CYGPATH_W) '../lib/debug.c'; else $(CYGPATH_W) '$(srcdir)/../lib/debug.c'; fi`
 
-ipv6.o: ../lib/ipv6.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ipv6.o -MD -MP -MF $(DEPDIR)/ipv6.Tpo -c -o ipv6.o `test -f '../lib/ipv6.c' || echo '$(srcdir)/'`../lib/ipv6.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ipv6.Tpo $(DEPDIR)/ipv6.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/ipv6.c' object='ipv6.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ipv6.o `test -f '../lib/ipv6.c' || echo '$(srcdir)/'`../lib/ipv6.c
-
-ipv6.obj: ../lib/ipv6.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ipv6.obj -MD -MP -MF $(DEPDIR)/ipv6.Tpo -c -o ipv6.obj `if test -f '../lib/ipv6.c'; then $(CYGPATH_W) '../lib/ipv6.c'; else $(CYGPATH_W) '$(srcdir)/../lib/ipv6.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ipv6.Tpo $(DEPDIR)/ipv6.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/ipv6.c' object='ipv6.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ipv6.obj `if test -f '../lib/ipv6.c'; then $(CYGPATH_W) '../lib/ipv6.c'; else $(CYGPATH_W) '$(srcdir)/../lib/ipv6.c'; fi`
-
 errorsymbols.o: ../lib/errorsymbols.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT errorsymbols.o -MD -MP -MF $(DEPDIR)/errorsymbols.Tpo -c -o errorsymbols.o `test -f '../lib/errorsymbols.c' || echo '$(srcdir)/'`../lib/errorsymbols.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/errorsymbols.Tpo $(DEPDIR)/errorsymbols.Po
@@ -847,6 +829,22 @@ hw.obj: ../lib/hw.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o hw.obj `if test -f '../lib/hw.c'; then $(CYGPATH_W) '../lib/hw.c'; else $(CYGPATH_W) '$(srcdir)/../lib/hw.c'; fi`
 
+iface.o: ../lib/iface.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT iface.o -MD -MP -MF $(DEPDIR)/iface.Tpo -c -o iface.o `test -f '../lib/iface.c' || echo '$(srcdir)/'`../lib/iface.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/iface.Tpo $(DEPDIR)/iface.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/iface.c' object='iface.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o iface.o `test -f '../lib/iface.c' || echo '$(srcdir)/'`../lib/iface.c
+
+iface.obj: ../lib/iface.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT iface.obj -MD -MP -MF $(DEPDIR)/iface.Tpo -c -o iface.obj `if test -f '../lib/iface.c'; then $(CYGPATH_W) '../lib/iface.c'; else $(CYGPATH_W) '$(srcdir)/../lib/iface.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/iface.Tpo $(DEPDIR)/iface.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/iface.c' object='iface.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o iface.obj `if test -f '../lib/iface.c'; then $(CYGPATH_W) '../lib/iface.c'; else $(CYGPATH_W) '$(srcdir)/../lib/iface.c'; fi`
+
 io.o: ../lib/io.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT io.o -MD -MP -MF $(DEPDIR)/io.Tpo -c -o io.o `test -f '../lib/io.c' || echo '$(srcdir)/'`../lib/io.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/io.Tpo $(DEPDIR)/io.Po
@@ -878,6 +876,22 @@ iobuf.obj: ../lib/iobuf.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/iobuf.c' object='iobuf.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o iobuf.obj `if test -f '../lib/iobuf.c'; then $(CYGPATH_W) '../lib/iobuf.c'; else $(CYGPATH_W) '$(srcdir)/../lib/iobuf.c'; fi`
+
+ipv6.o: ../lib/ipv6.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ipv6.o -MD -MP -MF $(DEPDIR)/ipv6.Tpo -c -o ipv6.o `test -f '../lib/ipv6.c' || echo '$(srcdir)/'`../lib/ipv6.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ipv6.Tpo $(DEPDIR)/ipv6.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/ipv6.c' object='ipv6.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ipv6.o `test -f '../lib/ipv6.c' || echo '$(srcdir)/'`../lib/ipv6.c
+
+ipv6.obj: ../lib/ipv6.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ipv6.obj -MD -MP -MF $(DEPDIR)/ipv6.Tpo -c -o ipv6.obj `if test -f '../lib/ipv6.c'; then $(CYGPATH_W) '../lib/ipv6.c'; else $(CYGPATH_W) '$(srcdir)/../lib/ipv6.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ipv6.Tpo $(DEPDIR)/ipv6.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/ipv6.c' object='ipv6.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ipv6.obj `if test -f '../lib/ipv6.c'; then $(CYGPATH_W) '../lib/ipv6.c'; else $(CYGPATH_W) '$(srcdir)/../lib/ipv6.c'; fi`
 
 log.o: ../lib/log.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT log.o -MD -MP -MF $(DEPDIR)/log.Tpo -c -o log.o `test -f '../lib/log.c' || echo '$(srcdir)/'`../lib/log.c
@@ -911,22 +925,6 @@ method.obj: ../lib/method.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o method.obj `if test -f '../lib/method.c'; then $(CYGPATH_W) '../lib/method.c'; else $(CYGPATH_W) '$(srcdir)/../lib/method.c'; fi`
 
-protocol.o: ../lib/protocol.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT protocol.o -MD -MP -MF $(DEPDIR)/protocol.Tpo -c -o protocol.o `test -f '../lib/protocol.c' || echo '$(srcdir)/'`../lib/protocol.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/protocol.Tpo $(DEPDIR)/protocol.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/protocol.c' object='protocol.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o protocol.o `test -f '../lib/protocol.c' || echo '$(srcdir)/'`../lib/protocol.c
-
-protocol.obj: ../lib/protocol.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT protocol.obj -MD -MP -MF $(DEPDIR)/protocol.Tpo -c -o protocol.obj `if test -f '../lib/protocol.c'; then $(CYGPATH_W) '../lib/protocol.c'; else $(CYGPATH_W) '$(srcdir)/../lib/protocol.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/protocol.Tpo $(DEPDIR)/protocol.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/protocol.c' object='protocol.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o protocol.obj `if test -f '../lib/protocol.c'; then $(CYGPATH_W) '../lib/protocol.c'; else $(CYGPATH_W) '$(srcdir)/../lib/protocol.c'; fi`
-
 parse_util.o: ../lib/parse_util.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT parse_util.o -MD -MP -MF $(DEPDIR)/parse_util.Tpo -c -o parse_util.o `test -f '../lib/parse_util.c' || echo '$(srcdir)/'`../lib/parse_util.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/parse_util.Tpo $(DEPDIR)/parse_util.Po
@@ -942,6 +940,22 @@ parse_util.obj: ../lib/parse_util.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/parse_util.c' object='parse_util.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o parse_util.obj `if test -f '../lib/parse_util.c'; then $(CYGPATH_W) '../lib/parse_util.c'; else $(CYGPATH_W) '$(srcdir)/../lib/parse_util.c'; fi`
+
+protocol.o: ../lib/protocol.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT protocol.o -MD -MP -MF $(DEPDIR)/protocol.Tpo -c -o protocol.o `test -f '../lib/protocol.c' || echo '$(srcdir)/'`../lib/protocol.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/protocol.Tpo $(DEPDIR)/protocol.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/protocol.c' object='protocol.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o protocol.o `test -f '../lib/protocol.c' || echo '$(srcdir)/'`../lib/protocol.c
+
+protocol.obj: ../lib/protocol.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT protocol.obj -MD -MP -MF $(DEPDIR)/protocol.Tpo -c -o protocol.obj `if test -f '../lib/protocol.c'; then $(CYGPATH_W) '../lib/protocol.c'; else $(CYGPATH_W) '$(srcdir)/../lib/protocol.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/protocol.Tpo $(DEPDIR)/protocol.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/protocol.c' object='protocol.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o protocol.obj `if test -f '../lib/protocol.c'; then $(CYGPATH_W) '../lib/protocol.c'; else $(CYGPATH_W) '$(srcdir)/../lib/protocol.c'; fi`
 
 serr.o: ../lib/serr.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT serr.o -MD -MP -MF $(DEPDIR)/serr.Tpo -c -o serr.o `test -f '../lib/serr.c' || echo '$(srcdir)/'`../lib/serr.c
@@ -1039,22 +1053,6 @@ sockopt.obj: ../lib/sockopt.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sockopt.obj `if test -f '../lib/sockopt.c'; then $(CYGPATH_W) '../lib/sockopt.c'; else $(CYGPATH_W) '$(srcdir)/../lib/sockopt.c'; fi`
 
-time.o: ../lib/time.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT time.o -MD -MP -MF $(DEPDIR)/time.Tpo -c -o time.o `test -f '../lib/time.c' || echo '$(srcdir)/'`../lib/time.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/time.Tpo $(DEPDIR)/time.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/time.c' object='time.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o time.o `test -f '../lib/time.c' || echo '$(srcdir)/'`../lib/time.c
-
-time.obj: ../lib/time.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT time.obj -MD -MP -MF $(DEPDIR)/time.Tpo -c -o time.obj `if test -f '../lib/time.c'; then $(CYGPATH_W) '../lib/time.c'; else $(CYGPATH_W) '$(srcdir)/../lib/time.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/time.Tpo $(DEPDIR)/time.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/time.c' object='time.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o time.obj `if test -f '../lib/time.c'; then $(CYGPATH_W) '../lib/time.c'; else $(CYGPATH_W) '$(srcdir)/../lib/time.c'; fi`
-
 tcpinfo.o: ../lib/tcpinfo.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT tcpinfo.o -MD -MP -MF $(DEPDIR)/tcpinfo.Tpo -c -o tcpinfo.o `test -f '../lib/tcpinfo.c' || echo '$(srcdir)/'`../lib/tcpinfo.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/tcpinfo.Tpo $(DEPDIR)/tcpinfo.Po
@@ -1070,6 +1068,22 @@ tcpinfo.obj: ../lib/tcpinfo.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/tcpinfo.c' object='tcpinfo.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o tcpinfo.obj `if test -f '../lib/tcpinfo.c'; then $(CYGPATH_W) '../lib/tcpinfo.c'; else $(CYGPATH_W) '$(srcdir)/../lib/tcpinfo.c'; fi`
+
+time.o: ../lib/time.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT time.o -MD -MP -MF $(DEPDIR)/time.Tpo -c -o time.o `test -f '../lib/time.c' || echo '$(srcdir)/'`../lib/time.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/time.Tpo $(DEPDIR)/time.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/time.c' object='time.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o time.o `test -f '../lib/time.c' || echo '$(srcdir)/'`../lib/time.c
+
+time.obj: ../lib/time.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT time.obj -MD -MP -MF $(DEPDIR)/time.Tpo -c -o time.obj `if test -f '../lib/time.c'; then $(CYGPATH_W) '../lib/time.c'; else $(CYGPATH_W) '$(srcdir)/../lib/time.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/time.Tpo $(DEPDIR)/time.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../lib/time.c' object='time.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o time.obj `if test -f '../lib/time.c'; then $(CYGPATH_W) '../lib/time.c'; else $(CYGPATH_W) '$(srcdir)/../lib/time.c'; fi`
 
 tostring.o: ../lib/tostring.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT tostring.o -MD -MP -MF $(DEPDIR)/tostring.Tpo -c -o tostring.o `test -f '../lib/tostring.c' || echo '$(srcdir)/'`../lib/tostring.c
@@ -1183,38 +1197,6 @@ interposition.obj: ../dlib/interposition.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o interposition.obj `if test -f '../dlib/interposition.c'; then $(CYGPATH_W) '../dlib/interposition.c'; else $(CYGPATH_W) '$(srcdir)/../dlib/interposition.c'; fi`
 
-daemon.o: ../libscompat/daemon.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT daemon.o -MD -MP -MF $(DEPDIR)/daemon.Tpo -c -o daemon.o `test -f '../libscompat/daemon.c' || echo '$(srcdir)/'`../libscompat/daemon.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/daemon.Tpo $(DEPDIR)/daemon.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/daemon.c' object='daemon.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o daemon.o `test -f '../libscompat/daemon.c' || echo '$(srcdir)/'`../libscompat/daemon.c
-
-daemon.obj: ../libscompat/daemon.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT daemon.obj -MD -MP -MF $(DEPDIR)/daemon.Tpo -c -o daemon.obj `if test -f '../libscompat/daemon.c'; then $(CYGPATH_W) '../libscompat/daemon.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/daemon.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/daemon.Tpo $(DEPDIR)/daemon.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/daemon.c' object='daemon.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o daemon.obj `if test -f '../libscompat/daemon.c'; then $(CYGPATH_W) '../libscompat/daemon.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/daemon.c'; fi`
-
-difftime.o: ../libscompat/difftime.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT difftime.o -MD -MP -MF $(DEPDIR)/difftime.Tpo -c -o difftime.o `test -f '../libscompat/difftime.c' || echo '$(srcdir)/'`../libscompat/difftime.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/difftime.Tpo $(DEPDIR)/difftime.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/difftime.c' object='difftime.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o difftime.o `test -f '../libscompat/difftime.c' || echo '$(srcdir)/'`../libscompat/difftime.c
-
-difftime.obj: ../libscompat/difftime.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT difftime.obj -MD -MP -MF $(DEPDIR)/difftime.Tpo -c -o difftime.obj `if test -f '../libscompat/difftime.c'; then $(CYGPATH_W) '../libscompat/difftime.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/difftime.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/difftime.Tpo $(DEPDIR)/difftime.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/difftime.c' object='difftime.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o difftime.obj `if test -f '../libscompat/difftime.c'; then $(CYGPATH_W) '../libscompat/difftime.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/difftime.c'; fi`
-
 getifaddrs.o: ../libscompat/getifaddrs.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT getifaddrs.o -MD -MP -MF $(DEPDIR)/getifaddrs.Tpo -c -o getifaddrs.o `test -f '../libscompat/getifaddrs.c' || echo '$(srcdir)/'`../libscompat/getifaddrs.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/getifaddrs.Tpo $(DEPDIR)/getifaddrs.Po
@@ -1311,22 +1293,6 @@ pselect.obj: ../libscompat/pselect.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o pselect.obj `if test -f '../libscompat/pselect.c'; then $(CYGPATH_W) '../libscompat/pselect.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/pselect.c'; fi`
 
-seteuid.o: ../libscompat/seteuid.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT seteuid.o -MD -MP -MF $(DEPDIR)/seteuid.Tpo -c -o seteuid.o `test -f '../libscompat/seteuid.c' || echo '$(srcdir)/'`../libscompat/seteuid.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/seteuid.Tpo $(DEPDIR)/seteuid.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/seteuid.c' object='seteuid.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o seteuid.o `test -f '../libscompat/seteuid.c' || echo '$(srcdir)/'`../libscompat/seteuid.c
-
-seteuid.obj: ../libscompat/seteuid.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT seteuid.obj -MD -MP -MF $(DEPDIR)/seteuid.Tpo -c -o seteuid.obj `if test -f '../libscompat/seteuid.c'; then $(CYGPATH_W) '../libscompat/seteuid.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/seteuid.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/seteuid.Tpo $(DEPDIR)/seteuid.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/seteuid.c' object='seteuid.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o seteuid.obj `if test -f '../libscompat/seteuid.c'; then $(CYGPATH_W) '../libscompat/seteuid.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/seteuid.c'; fi`
-
 setproctitle.o: ../libscompat/setproctitle.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT setproctitle.o -MD -MP -MF $(DEPDIR)/setproctitle.Tpo -c -o setproctitle.o `test -f '../libscompat/setproctitle.c' || echo '$(srcdir)/'`../libscompat/setproctitle.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/setproctitle.Tpo $(DEPDIR)/setproctitle.Po
@@ -1342,22 +1308,6 @@ setproctitle.obj: ../libscompat/setproctitle.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/setproctitle.c' object='setproctitle.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o setproctitle.obj `if test -f '../libscompat/setproctitle.c'; then $(CYGPATH_W) '../libscompat/setproctitle.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/setproctitle.c'; fi`
-
-sockatmark.o: ../libscompat/sockatmark.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT sockatmark.o -MD -MP -MF $(DEPDIR)/sockatmark.Tpo -c -o sockatmark.o `test -f '../libscompat/sockatmark.c' || echo '$(srcdir)/'`../libscompat/sockatmark.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/sockatmark.Tpo $(DEPDIR)/sockatmark.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/sockatmark.c' object='sockatmark.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sockatmark.o `test -f '../libscompat/sockatmark.c' || echo '$(srcdir)/'`../libscompat/sockatmark.c
-
-sockatmark.obj: ../libscompat/sockatmark.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT sockatmark.obj -MD -MP -MF $(DEPDIR)/sockatmark.Tpo -c -o sockatmark.obj `if test -f '../libscompat/sockatmark.c'; then $(CYGPATH_W) '../libscompat/sockatmark.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/sockatmark.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/sockatmark.Tpo $(DEPDIR)/sockatmark.Po
-@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/sockatmark.c' object='sockatmark.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sockatmark.obj `if test -f '../libscompat/sockatmark.c'; then $(CYGPATH_W) '../libscompat/sockatmark.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/sockatmark.c'; fi`
 
 strlcpy.o: ../libscompat/strlcpy.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT strlcpy.o -MD -MP -MF $(DEPDIR)/strlcpy.Tpo -c -o strlcpy.o `test -f '../libscompat/strlcpy.c' || echo '$(srcdir)/'`../libscompat/strlcpy.c
@@ -1406,6 +1356,54 @@ vsyslog.obj: ../libscompat/vsyslog.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/vsyslog.c' object='vsyslog.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vsyslog.obj `if test -f '../libscompat/vsyslog.c'; then $(CYGPATH_W) '../libscompat/vsyslog.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/vsyslog.c'; fi`
+
+daemon.o: ../libscompat/daemon.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT daemon.o -MD -MP -MF $(DEPDIR)/daemon.Tpo -c -o daemon.o `test -f '../libscompat/daemon.c' || echo '$(srcdir)/'`../libscompat/daemon.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/daemon.Tpo $(DEPDIR)/daemon.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/daemon.c' object='daemon.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o daemon.o `test -f '../libscompat/daemon.c' || echo '$(srcdir)/'`../libscompat/daemon.c
+
+daemon.obj: ../libscompat/daemon.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT daemon.obj -MD -MP -MF $(DEPDIR)/daemon.Tpo -c -o daemon.obj `if test -f '../libscompat/daemon.c'; then $(CYGPATH_W) '../libscompat/daemon.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/daemon.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/daemon.Tpo $(DEPDIR)/daemon.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/daemon.c' object='daemon.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o daemon.obj `if test -f '../libscompat/daemon.c'; then $(CYGPATH_W) '../libscompat/daemon.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/daemon.c'; fi`
+
+seteuid.o: ../libscompat/seteuid.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT seteuid.o -MD -MP -MF $(DEPDIR)/seteuid.Tpo -c -o seteuid.o `test -f '../libscompat/seteuid.c' || echo '$(srcdir)/'`../libscompat/seteuid.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/seteuid.Tpo $(DEPDIR)/seteuid.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/seteuid.c' object='seteuid.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o seteuid.o `test -f '../libscompat/seteuid.c' || echo '$(srcdir)/'`../libscompat/seteuid.c
+
+seteuid.obj: ../libscompat/seteuid.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT seteuid.obj -MD -MP -MF $(DEPDIR)/seteuid.Tpo -c -o seteuid.obj `if test -f '../libscompat/seteuid.c'; then $(CYGPATH_W) '../libscompat/seteuid.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/seteuid.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/seteuid.Tpo $(DEPDIR)/seteuid.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/seteuid.c' object='seteuid.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o seteuid.obj `if test -f '../libscompat/seteuid.c'; then $(CYGPATH_W) '../libscompat/seteuid.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/seteuid.c'; fi`
+
+sockatmark.o: ../libscompat/sockatmark.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT sockatmark.o -MD -MP -MF $(DEPDIR)/sockatmark.Tpo -c -o sockatmark.o `test -f '../libscompat/sockatmark.c' || echo '$(srcdir)/'`../libscompat/sockatmark.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/sockatmark.Tpo $(DEPDIR)/sockatmark.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/sockatmark.c' object='sockatmark.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sockatmark.o `test -f '../libscompat/sockatmark.c' || echo '$(srcdir)/'`../libscompat/sockatmark.c
+
+sockatmark.obj: ../libscompat/sockatmark.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT sockatmark.obj -MD -MP -MF $(DEPDIR)/sockatmark.Tpo -c -o sockatmark.obj `if test -f '../libscompat/sockatmark.c'; then $(CYGPATH_W) '../libscompat/sockatmark.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/sockatmark.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/sockatmark.Tpo $(DEPDIR)/sockatmark.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../libscompat/sockatmark.c' object='sockatmark.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sockatmark.obj `if test -f '../libscompat/sockatmark.c'; then $(CYGPATH_W) '../libscompat/sockatmark.c'; else $(CYGPATH_W) '$(srcdir)/../libscompat/sockatmark.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

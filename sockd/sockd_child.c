@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.447 2013/08/01 11:55:58 michaels Exp $";
+"$Id: sockd_child.c,v 1.454 2013/11/05 04:40:39 michaels Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)  /* descriptor child reads/writes on.    */
@@ -89,7 +89,6 @@ static size_t reqchildc;
 
 static sockd_child_t *iochildv;          /* all our iochildren                */
 static size_t iochildc;
-
 
 void
 enable_childcreate(void)
@@ -176,7 +175,7 @@ childcheck(type)
          childc            = &reqchildc;
          childv            = &reqchildv;
          minfreeslots      = SOCKD_FREESLOTS_REQUEST;
-         minclientshandled = SOCKD_MIN_CLIENTS_HANDLED_REQUEST; 
+         minclientshandled = SOCKD_MIN_CLIENTS_HANDLED_REQUEST;
          maxslotsperproc   = SOCKD_REQUESTMAX;
          break;
 
@@ -185,7 +184,7 @@ childcheck(type)
          childc            = &iochildc;
          childv            = &iochildv;
          minfreeslots      = SOCKD_FREESLOTS_IO;
-         minclientshandled = SOCKD_MIN_CLIENTS_HANDLED_IO; 
+         minclientshandled = SOCKD_MIN_CLIENTS_HANDLED_IO;
          maxslotsperproc   = SOCKD_IOMAX;
          break;
 
@@ -228,7 +227,7 @@ childcheck(type)
       if (type == PROC_IO) {
          if (!(*childv)[child].hasudpsession)
             hasfreeudpslot = (*childv)[child].pid;
-         else 
+         else
             slog(LOG_DEBUG, "%s: not counting process %lu: no free udp slots",
                  function, (unsigned long)(*childv)[child].pid);
       }
@@ -244,8 +243,8 @@ childcheck(type)
                             * i/o processes than might be required, but
                             * better that than too few.
                             */
-                           ((type == PROC_IO 
-                           && (*childv)[child].hasudpsession) ? 
+                           ((type == PROC_IO
+                           && (*childv)[child].hasudpsession) ?
                               0 : (*childv)[child].freec);
 #else /* !BAREFOOTD */
 
@@ -256,7 +255,7 @@ childcheck(type)
       if ((*childv)[child].freec == maxslotsperproc) {
 #if BAREFOOTD
          if (type == PROC_IO) {
-            if (hasfreeudpslot != (pid_t)-1 
+            if (hasfreeudpslot != (pid_t)-1
             && hasfreeudpslot  != (*childv)[child].pid)
                ;
             else {
@@ -272,14 +271,14 @@ childcheck(type)
          }
 #endif /* BAREFOOTD */
 
-         /* 
+         /*
           * all slots in this child are idle.  See later if we can remove an
           * idle child.  Shouldn't matter much which, but choose the one that
           * has handled most clients; if we are using buggy libraries, that
-          * increases the chance of some leaked memory beeing freed too.
+          * increases the chance of some leaked memory being freed too.
           *
-          * Ignore children that have only handled a few clients to prevent 
-          * removing and then re-creating immediatly after as the current 
+          * Ignore children that have only handled a few clients to prevent
+          * removing and then re-creating immediately after as the current
           * free slots count goes down by one when a slot is freed.
           * Should work as a cheap form of hysteresis.
           */
@@ -338,16 +337,17 @@ childcheck(type)
          int reservedv[  MAX(FDPASS_MAX, /* max we can receive from children  */
                              1)          /* need a socket for accept(2).      */
 
-                      + 1                /* to reopen-sockd.conf              */
+                         + 1             /* to reopen-sockd.conf              */
 
-                      + 1                /* 
-                                          * if no syslog socket is open, so 
-                                          * a new sockd.conf is able to open 
+                         + 1             /*
+                                          * if no syslog socket is open, so
+                                          * a new sockd.conf is able to open
                                           * one if necessary.
                                           */
 
-                      + 1                /* things we don't know about.       */
+                         + 1             /* things we don't know about.       */
                       ];
+
          size_t i, freec;
 
          /*
@@ -356,7 +356,7 @@ childcheck(type)
           * that way.  Make sure we always have some descriptors available,
           * and don't try to add a child if we don't.
           * If we can add a child after reserving the below number of
-          * descriptors, things are ok.  If not, it means we have to few 
+          * descriptors, things are ok.  If not, it means we have to few
           * fds available.
           */
          for (i = 0, freec = 0; i < ELEMENTS(reservedv); ++i)
@@ -401,7 +401,7 @@ childcheck(type)
                   childtype2string(type));
 
             if ((addedchild = addchild(type)) != NULL) {
-               slog(LOG_DEBUG, "%s: added child, pid %lu", 
+               slog(LOG_DEBUG, "%s: added child, pid %lu",
                     function, (unsigned long)addedchild->pid);
 
                proxyc += maxslotsperproc;
@@ -570,7 +570,9 @@ getset(type, set)
 /*   const char *function = "getset()"; */
    size_t i;
 
-   /* check negotiator children for match. */
+   /*
+    * check negotiator children for match.
+    */
    for (i = 0; i < negchildc; ++i) {
 
       if (negchildv[i].waitingforexit)
@@ -579,7 +581,7 @@ getset(type, set)
       switch (type) {
          case DATAPIPE:
 #if BAREFOOTD
-            if (!sockscf.state.alludpbounced) { /* have some left to fake. */
+            if (!ALL_UDP_BOUNCED()) { /* have some left to fake. */
                static fd_set *zero;
 
                if (zero == NULL) {
@@ -587,8 +589,14 @@ getset(type, set)
                   FD_ZERO(zero);
                }
 
-               if (FD_CMP(zero, set) == 0)
+               if (FD_CMP(zero, set) == 0) {
+                  slog(LOG_DEBUG,
+                       "no fds set in set, but have not yet bounced all "
+                       "udp sessions, so faking it for negchild %lu",
+                       (unsigned long)negchildv[i].pid);
+
                   return &negchildv[i];
+               }
             }
 #endif /* BAREFOOTD */
 
@@ -603,7 +611,9 @@ getset(type, set)
       }
    }
 
-   /* check request children for match. */
+   /*
+    * check request children for match.
+    */
    for (i = 0; i < reqchildc; ++i) {
       if (reqchildv[i].waitingforexit)
          continue;
@@ -621,7 +631,9 @@ getset(type, set)
       }
    }
 
-   /* check io children for match. */
+   /*
+    * check io children for match.
+    */
    for (i = 0; i < iochildc; ++i) {
       if (iochildv[i].waitingforexit)
          continue;
@@ -789,7 +801,7 @@ tryagain:
          }
 #endif /* BAREFOOTD */
 
-         if ((*childv)[i].freec <= 0 || (*childv)[i].waitingforexit) 
+         if ((*childv)[i].freec <= 0 || (*childv)[i].waitingforexit)
             continue;
 
          /*
@@ -930,7 +942,7 @@ send_io(s, io)
    bzero(iov, sizeof(iov));
    length = 0;
    ioc    = 0;
-   
+
    iov[ioc].iov_base  = io;
    iov[ioc].iov_len   = sizeof(*io);
    length            += iov[ioc].iov_len;
@@ -1048,7 +1060,7 @@ send_io(s, io)
            io->src.s,
            socket2string(io->src.s, srcbuf, sizeof(srcbuf)),
            io->dst.s,
-           io->dst.s == -1 ? 
+           io->dst.s == -1 ?
                "N/A" : socket2string(io->dst.s, dstbuf, sizeof(dstbuf)));
    }
 
@@ -1124,12 +1136,8 @@ send_client(s, _client, buf, buflen)
 
    if (sendmsgn(s, &msg, 0, sockscf.state.type == PROC_MOTHER ? 0 : -1)
    != (ssize_t)sizeof(client)) {
-      if (sockscf.state.type == PROC_MOTHER)
-         swarn("%s: sending client to child on fd %d failed", function, s);
-      else
-         slog(sockd_motherexists() ? LOG_WARNING : LOG_DEBUG,
-              "%s: sending client to mother on fd %d failed: %s",
-              function, s, strerror(errno));
+      slog(LOG_DEBUG, "%s: sending client to mother on fd %d failed: %s",
+           function, s, strerror(errno));
 
       return -1;
    }
@@ -1352,7 +1360,7 @@ addchild(type)
     */
 
 #if HAVE_VALGRIND_VALGRIND_H
-   if (RUNNING_ON_VALGRIND) 
+   if (RUNNING_ON_VALGRIND)
       reason = "pipe between moter and child (probable Valgrind bug)";
    else
       reason = "pipe between moter and child";
@@ -1413,7 +1421,7 @@ addchild(type)
          /* only exit message is expected, so set to some small size. */
          sndbuf = sizeof(SOCKD_EXITNORMALLY);
          rcvbuf = sizeof(SOCKD_EXITNORMALLY);
-         break; 
+         break;
 
       case PROC_NEGOTIATE:
          /*
@@ -1714,7 +1722,7 @@ addchild(type)
 
    /*
     * Temporarily block signals to avoid mixing up signals to us
-    * and to child created as well as any races between child receving
+    * and to child created as well as any races between child receiving
     * signal and child having finished setting up signalhandlers.
     */
    (void)sigfillset(&all);
@@ -1863,8 +1871,9 @@ addchild(type)
 
          maxfd = (size_t)sockscf.state.highestfdinuse;
          SASSERTX(maxfd != 0);
+
          for (i = 0; i <= maxfd; ++i) {
-            /* 
+            /*
              * exceptions.
              */
 
@@ -1968,7 +1977,7 @@ addchild(type)
          switch ((*childv)[*childc].type) {
             case PROC_MONITOR:
                /*
-                * Doesn't really have slots, so just set 1.  Will remain 
+                * Doesn't really have slots, so just set 1.  Will remain
                 * at one for the entire lifespans, as there are no slots.
                 */
                (*childv)[*childc].freec = 1;
@@ -2082,7 +2091,9 @@ sighup_child(sig, si, sc)
    const int errno_s = errno;
    struct config *shmemconfig, config;
    ptrdiff_t offset;
+#if DIAGNOSTIC
    size_t i;
+#endif /* DIAGNOSTIC */
 
    SIGNAL_PROLOGUE(sig, si, errno_s);
 
@@ -2126,7 +2137,7 @@ sighup_child(sig, si, sc)
                             0);
 
 #else /* just for testing */
-   shmemconfig = mmap((void *)((uintptr_t)sockscf.shmeminfo->config 
+   shmemconfig = mmap((void *)((uintptr_t)sockscf.shmeminfo->config
                                           + sockscf.state.pagesize),
                       sockscf.shmeminfo->configsize,
                       /*
@@ -2175,7 +2186,7 @@ sighup_child(sig, si, sc)
                (unsigned long)sockscf.shmeminfo->configsize);
 
       socks_unlock(sockscf.shmemconfigfd, 0, 0);
-      return; 
+      return;
    }
 
 

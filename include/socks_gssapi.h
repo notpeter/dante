@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2011, 2012
+ * Copyright (c) 2009, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

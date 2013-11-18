@@ -39,7 +39,7 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: ldap.c,v 1.14 2013/01/02 13:22:40 karls Exp $
+ * $Id: ldap.c,v 1.15 2013/11/01 17:05:24 michaels Exp $
  */
 
  /*
@@ -50,10 +50,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: ldap.c,v 1.14 2013/01/02 13:22:40 karls Exp $";
+"$Id: ldap.c,v 1.15 2013/11/01 17:05:24 michaels Exp $";
 
 const char module_ldap_version[] =
-"$Id: ldap.c,v 1.14 2013/01/02 13:22:40 karls Exp $";
+"$Id: ldap.c,v 1.15 2013/11/01 17:05:24 michaels Exp $";
 
 #if HAVE_LDAP
 
@@ -135,6 +135,12 @@ typedef struct sasl_interact {
 void
 ldapcachesetup(void)
 {
+   const char *function = "ldapcachesetup()";
+
+   if ((sockscf.ldapfd = socks_mklock(SOCKD_SHMEMFILE, NULL, 0)) == -1)
+      serr("%s: socks_mklock() failed to create shmemfile using base %s",
+           function, SOCKD_SHMEMFILE);
+
 }
 
 int

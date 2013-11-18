@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012
+ *               2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.556 2013/07/28 18:17:35 michaels Exp $";
+"$Id: serverconfig.c,v 1.567 2013/10/27 15:24:42 karls Exp $";
 
 struct config sockscf;        /* current config.   */
 
@@ -72,9 +72,9 @@ do {                                                                           \
 
 
 static void
-add_more_old_shmem(struct config *config, const size_t memc, 
+add_more_old_shmem(struct config *config, const size_t memc,
                    const oldshmeminfo_t memv[]);
-/* 
+/*
  * Adds "memv" to the list of old shmem entries stored in "config".
  */
 
@@ -98,7 +98,7 @@ addinternal(addr, protocol)
 
    slog(LOG_DEBUG, "%s: (%s, %s).  Change supported: %d",
         function,
-        ruleaddr2string(addr, 
+        ruleaddr2string(addr,
                         ADDRINFO_PORT | ADDRINFO_ATYPE,
                         NULL,
                         0),
@@ -106,8 +106,8 @@ addinternal(addr, protocol)
         changesupported);
 
    switch (addr->atype) {
-       case SOCKS_ADDR_IPV4: 
-       case SOCKS_ADDR_IPV6: 
+       case SOCKS_ADDR_IPV4:
+       case SOCKS_ADDR_IPV6:
          if (addr->atype == SOCKS_ADDR_IPV4)
            SASSERTX(addr->addr.ipv4.mask.s_addr == htonl(IPV4_FULLNETMASK));
          else if (addr->atype == SOCKS_ADDR_IPV6)
@@ -133,18 +133,18 @@ addinternal(addr, protocol)
          else
             break;
 
-         if (sa.ss_family == AF_INET 
+         if (sa.ss_family == AF_INET
          &&  TOIN(&sa)->sin_addr.s_addr == htonl(INADDR_ANY))
             STRCPY_ASSERTSIZE(ifname, "<any IPv4-interface>");
-         else if (sa.ss_family == AF_INET6 
-         &&  memcmp(&TOIN6(&sa)->sin6_addr, 
-                    &in6addr_any, 
+         else if (sa.ss_family == AF_INET6
+         &&  memcmp(&TOIN6(&sa)->sin6_addr,
+                    &in6addr_any,
                     sizeof(in6addr_any)) == 0)
             STRCPY_ASSERTSIZE(ifname, "<any IPv6-interface>");
          else if (sockaddr2ifname(&sa, ifname, sizeof(ifname)) == NULL) {
             /*
              * Probably config-error, but could be a bug in sockaddr2ifname(),
-             * so don't error out yet.  Will know for sure when we try to bind 
+             * so don't error out yet.  Will know for sure when we try to bind
              * the address later.
              */
             strncpy(ifname, "<unknown>", sizeof(ifname) - 1);
@@ -168,7 +168,7 @@ addinternal(addr, protocol)
          for (i = 0;
          hostname2sockaddr(addr->addr.domain, i, &sa) != NULL;
          ++i) {
-            SET_SOCKADDRPORT(&sa, 
+            SET_SOCKADDRPORT(&sa,
                              protocol == SOCKS_TCP ?
                                        addr->port.tcp : addr->port.udp);
 
@@ -200,9 +200,9 @@ addinternal(addr, protocol)
 
             if (sockaddr2ifname(&sa, ifname, sizeof(ifname)) == NULL) {
                /*
-                * Probably config-error, but could be bug in our 
+                * Probably config-error, but could be bug in our
                 * sockaddr2ifname().
-                * Will know for sure when we try to bind the address later, 
+                * Will know for sure when we try to bind the address later,
                 * so don't error out quite yet.
                 */
 
@@ -237,7 +237,7 @@ addinternal(addr, protocol)
             serr("getifaddrs()");
 
          for (isvalidif = 0, iface = ifap;
-         iface != NULL; 
+         iface != NULL;
          iface = iface->ifa_next) {
             if (iface->ifa_addr == NULL)
                continue;
@@ -310,10 +310,10 @@ addexternal(addr)
    switch (addr->atype) {
       case SOCKS_ADDR_DOMAIN: {
          /*
-          * XXX this is not good.  It is be better to not resolve this now, 
-          * but resolve it when using.  Since we have a hostcache, that 
+          * XXX this is not good.  It is be better to not resolve this now,
+          * but resolve it when using.  Since we have a hostcache, that
           * should not add too much expense.  Sending servers a SIGHUP
-          * when local addresses change is quite common though, so 
+          * when local addresses change is quite common though, so
           * assume it's good enough for now.
           */
          struct sockaddr_storage sa;
@@ -389,8 +389,8 @@ addexternal(addr)
 
       case SOCKS_ADDR_IFNAME: {
          /*
-          * Would be nice if this could be cached, e.g. by monitoring a 
-          * routing socket for changes.  Have no code for that however. 
+          * Would be nice if this could be cached, e.g. by monitoring a
+          * routing socket for changes.  Have no code for that however.
           */
          struct sockaddr_storage sa, t;
          size_t i;
@@ -437,7 +437,7 @@ addexternal(addr)
 }
 
 #if 0
-/* 
+/*
  * not used yet, but if at some point we have to code to monitor interfaces
  * we use for changes ...  XXX move to a different file also.  interface.c?
  */
@@ -461,8 +461,8 @@ external_set_safamily(hasipv4, hasipv6, hasipv6_gs)
    for (i = 0; i < sockscf.external.addrc; ++i) {
       const ruleaddr_t *addr = &sockscf.external.addrv[i];
 
-      /* 
-       * loop through array until we've found at least one match for 
+      /*
+       * loop through array until we've found at least one match for
        * each address-family asked for.
        */
       if ((hasipv4 == NULL || *hasipv4)
@@ -486,7 +486,7 @@ external_set_safamily(hasipv4, hasipv6, hasipv6_gs)
          case SOCKS_ADDR_IFNAME: {
             struct sockaddr_storage sa, mask;
             size_t ai = 0;
-            
+
             while (ifname2sockaddr(addr->addr.ifname, ai, &sa, &mask) != NULL) {
                switch (sa.ss_family) {
                   case AF_INET:
@@ -643,19 +643,23 @@ resetconfig(config, exiting)
                                         ];
 
             if (rule->bw_shmid != 0) {
-               moreoldshmemv[moreoldshmemc].id  = rule->bw_shmid;
-               moreoldshmemv[moreoldshmemc].key = key_unset;
+               moreoldshmemv[moreoldshmemc].id   = rule->bw_shmid;
+               moreoldshmemv[moreoldshmemc].key  = key_unset;
+               moreoldshmemv[moreoldshmemc].type = SHMEM_BW;
+
                ++moreoldshmemc;
             }
 
             if (rule->ss_shmid != 0) {
                /*
-                * session-module supports statekeys too, so need to save that 
+                * session-module supports statekeys too, so need to save that
                 * too.
                 */
                if (sockd_shmat(rule, SHMEM_SS) == 0) {
-                  moreoldshmemv[moreoldshmemc].id  = rule->ss_shmid;
-                  moreoldshmemv[moreoldshmemc].key = rule->ss->keystate.key;
+                  moreoldshmemv[moreoldshmemc].id   = rule->ss_shmid;
+                  moreoldshmemv[moreoldshmemc].key  = rule->ss->keystate.key;
+                  moreoldshmemv[moreoldshmemc].type = SHMEM_SS;
+
                   ++moreoldshmemc;
 
                   sockd_shmdt(rule, SHMEM_SS);
@@ -686,8 +690,9 @@ resetconfig(config, exiting)
       if (ismainmother && monitor->mstats_shmid != 0) {
          oldshmeminfo_t moreoldshmemv[   1 /* just the monitor shmid. */ ];
 
-         moreoldshmemv[0].id  = monitor->mstats_shmid;
-         moreoldshmemv[0].key = key_unset;
+         moreoldshmemv[0].id    = monitor->mstats_shmid;
+         moreoldshmemv[0].key   = key_unset;
+         moreoldshmemv[0].type  = SHMEM_MONITOR;
 
          add_more_old_shmem(config, ELEMENTS(moreoldshmemv), moreoldshmemv);
       }
@@ -709,7 +714,7 @@ resetconfig(config, exiting)
    bzero(&config->internal.log, sizeof(config->internal.log));
    bzero(&config->external.log, sizeof(config->external.log));
 
-   /* 
+   /*
     * log, errlog; handled specially when parsing.
     */
 
@@ -743,7 +748,7 @@ resetconfig(config, exiting)
    /* uid; special.  Need to clear, but need to reopen config file first. */
 #endif /* HAVE_SOLARIS_PRIVS */
 
-   /* 
+   /*
     * methods, read from config file.
     */
 
@@ -800,7 +805,7 @@ resetconfig(config, exiting)
          snprintf(fname, sizeof(fname), "%s",
                   sockd_getshmemname(config->oldshmemv[oldc].id, key_unset));
 
-         slog(LOG_DEBUG, 
+         slog(LOG_DEBUG,
               "%s: deleting shmem segment shmid %lu in file %s at index #%lu",
               function,
               (unsigned long)config->oldshmemv[oldc].id,
@@ -920,9 +925,21 @@ isreplycommandonly(command)
    if ((command->bindreply || command->udpreply)
    && !(command->connect || command->bind || command->udpassociate))
       return 1;
-
-   return 0;
+   else
+      return 0;
 }
+
+int
+hasreplycommands(command)
+   const command_t *command;
+{
+
+   if (command->bindreply || command->udpreply)
+      return 1;
+   else
+      return 0;
+}
+
 
 ssize_t
 addrindex_on_listenlist(listc, listv, _addr, protocol)
@@ -958,7 +975,7 @@ addrindex_on_externallist(external, _addr)
    struct sockaddr_storage sa, addr;
    size_t i;
 
-   /* 
+   /*
     * Not interested in comparing portnumber.
     */
    sockaddrcpy(&addr, _addr, sizeof(addr));
@@ -966,7 +983,7 @@ addrindex_on_externallist(external, _addr)
 
    for (i = 0; i < external->addrc; ++i) {
       switch (external->addrv[i].atype) {
-         case SOCKS_ADDR_IPV4: 
+         case SOCKS_ADDR_IPV4:
          case SOCKS_ADDR_IPV6: {
             sockshost_t host;
 
@@ -1050,25 +1067,18 @@ checkconfig(void)
                               &sockscf.smethodc
                             };
 #endif /* HAVE_PAM || HAVE_BSDAUTH || HAVE_GSSAPI */
+
    size_t i, basec;
+   int usinglibwrap = 0;
 
    for (i = 0; i < sockscf.cmethodc; ++i) {
       SASSERTX(sockscf.cmethodv[i] >= AUTHMETHOD_NONE);
       SASSERTX(sockscf.cmethodv[i] <= AUTHMETHOD_MAX);
 
       SASSERTX(methodisvalid(sockscf.cmethodv[i], object_crule));
-   
-      if (sockscf.cmethodv[i] == AUTHMETHOD_NONE
-      &&  i + 1 < sockscf.cmethodc)
-      swarnx("%s: clientmethod #%lu configured in the global clientmethod "
-             "settings is \"%s\", but since methods are selected by the "
-             "priority given here, we will never try to match any of the "
-             "following methods.  I.e., the next method, method \"%s\" "
-             "can't possibly be matched",
-             function,
-             (unsigned long)i,
-             method2string(sockscf.cmethodv[i]),
-             method2string(sockscf.cmethodv[i + 1]));
+
+      if (sockscf.cmethodv[i] == AUTHMETHOD_RFC931)
+         usinglibwrap = 1;
    }
 
 #if HAVE_SOCKS_RULES
@@ -1081,9 +1091,170 @@ checkconfig(void)
       for (i = 0; i < sockscf.smethodc; ++i) {
          SASSERTX(sockscf.smethodv[i] >= AUTHMETHOD_NONE);
          SASSERTX(sockscf.smethodv[i] <= AUTHMETHOD_MAX);
+
+         if (sockscf.smethodv[i] == AUTHMETHOD_RFC931)
+            usinglibwrap = 1;
+
+         if (sockscf.smethodv[i] == AUTHMETHOD_NONE
+         &&  i + 1               < sockscf.smethodc)
+            yywarnx("authentication method \"%s\" is configured in the "
+                    "global socksmethod list, but since authentication "
+                    "methods are selected by the priority given, we will "
+                    "never try to match any of the subsequent authentication "
+                    "methods.  I.e., no match will ever be attempted on the "
+                    "next method, method \"%s\"",
+                    method2string(sockscf.smethodv[i]),
+                    method2string(sockscf.smethodv[i + 1]));
+
       }
    }
 #endif /* HAVE_SOCKS_RULES */
+
+   /*
+    * Check rules, including if some rule-specific settings vary across
+    * rules.  If they don't, we can optimize things when running.
+    */
+   basec = 0;
+   while (basec < ELEMENTS(rulebasev)) {
+      rule_t *rule = rulebasev[basec++];
+
+      if (rule == NULL)
+         continue;
+
+      for (; rule != NULL; rule = rule->next) {
+         size_t methodc;
+         int *methodv;
+
+
+#if HAVE_LIBWRAP
+         if (*rule->libwrap != NUL)
+            usinglibwrap = 1;
+#endif /* HAVE_LIBWRAP */
+
+         /*
+          * What methods do we need to check?  clientmethods for
+          * client-rules, socksmethods for socks-rules.
+          */
+         switch (rule->type) {
+            case object_crule:
+#if HAVE_SOCKS_HOSTID
+            case object_hrule:
+#endif /* HAVE_SOCKS_HOSTID */
+               methodc = rule->state.cmethodc;
+               methodv = rule->state.cmethodv;
+               break;
+
+            case object_srule:
+               methodc = rule->state.smethodc;
+               methodv = rule->state.smethodv;
+               break;
+
+            default:
+               SERRX(rule->type);
+         }
+
+         for (i = 0; i < methodc; ++i) {
+            switch (methodv[i]) {
+#if HAVE_PAM
+               case AUTHMETHOD_PAM_ANY:
+               case AUTHMETHOD_PAM_ADDRESS:
+               case AUTHMETHOD_PAM_USERNAME:
+                  if (*sockscf.state.pamservicename == NUL)
+                     break; /* already found to vary. */
+
+                  if (pamservicename == NULL) /* first pam rule. */
+                     pamservicename = rule->state.pamservicename;
+                  else if (strcmp(pamservicename, rule->state.pamservicename)
+                  != 0) {
+                     slog(LOG_DEBUG, "%s: pam.servicename varies, %s ne %s",
+                          function,
+                          pamservicename,
+                          rule->state.pamservicename);
+
+                     *sockscf.state.pamservicename = NUL;
+                  }
+
+                  break;
+#endif /* HAVE_PAM */
+
+#if HAVE_BSDAUTH
+               case AUTHMETHOD_BSDAUTH:
+                  if (*sockscf.state.bsdauthstylename == NUL)
+                     break; /* already found to vary. */
+
+                  if (bsdauthstylename == NULL) /* first bsdauth rule. */
+                     bsdauthstylename = rule->state.bsdauthstylename;
+                  else if (strcmp(bsdauthstylename,
+                                  rule->state.bsdauthstylename) != 0) {
+                     slog(LOG_DEBUG,
+                          "%s: bsdauth.stylename varies, %s ne %s",
+                          function,
+                          bsdauthstylename,
+                          rule->state.bsdauthstylename);
+
+                     *sockscf.state.bsdauthstylename = NUL;
+                  }
+
+                  break;
+#endif /* HAVE_BSDAUTH */
+
+#if HAVE_GSSAPI
+               case AUTHMETHOD_GSSAPI:
+                  if (*sockscf.state.gssapiservicename != NUL) {
+                     if (gssapiservicename == NULL) /* first gssapi rule. */
+                        gssapiservicename = rule->state.gssapiservicename;
+                     else if (strcmp(gssapiservicename,
+                              rule->state.gssapiservicename) != 0) {
+                        slog(LOG_DEBUG,
+                             "%s: gssapi.servicename varies, %s ne %s",
+                              function,
+                              gssapiservicename,
+                              rule->state.gssapiservicename);
+
+                        *sockscf.state.gssapiservicename = NUL;
+                     }
+                  }
+                  /* else; already found to vary. */
+
+                  if (*sockscf.state.gssapikeytab != NUL) {
+                     if (gssapikeytab == NULL) /* first gssapi rule. */
+                        gssapikeytab = rule->state.gssapikeytab;
+                     else if (strcmp(gssapikeytab, rule->state.gssapikeytab)
+                     != 0) {
+                        slog(LOG_DEBUG, "%s: gssapi.keytab varies, %s ne %s",
+                             function,
+                             gssapikeytab,
+                             rule->state.gssapikeytab);
+
+                        *sockscf.state.gssapikeytab = NUL;
+                     }
+                  }
+                  /* else; already found to vary. */
+
+                  break;
+#endif /* HAVE_GSSAPI */
+
+               default:
+                  break;
+            }
+         }
+
+#if BAREFOOTD
+         if (rule->type == object_crule) {
+            if (rule->state.protocol.tcp)
+               /*
+                * Add all "to:" addresses to the list of internal interfaces;
+                * barefootd doesn't use a separate "internal:" keyword for it.
+                */
+                addinternal(&rule->dst, SOCKS_TCP);
+
+            if (rule->state.protocol.udp)
+               sockscf.state.alludpbounced = 0;
+         }
+#endif /* BAREFOOTD */
+
+      }
+   }
 
    /*
     * Check that the main configured privileges work.
@@ -1107,137 +1278,16 @@ checkconfig(void)
              function, sockscf.uid.unprivileged_uid);
 
 #if HAVE_LIBWRAP
-   if (sockscf.uid.libwrap_uid == 0)
-      swarnx("%s: setting the libwrap uid to %d is not recommended "
-             "for security reasons",
-              function, sockscf.uid.libwrap_uid);
+   if (usinglibwrap && sockscf.uid.libwrap_uid == 0)
+      swarnx("%s: setting the libwrap uid to %d is almost never needed, and "
+             "is not recommended for security reasons",
+             function, sockscf.uid.libwrap_uid);
 #endif /* HAVE_LIBWRAP */
 #endif /* !HAVE_PRIVILEGES */
 
-   /*
-    * Check rules, including if some rule-specific settings vary across
-    * rules.  If they don't, we can optimize things when running.
-    */
-   basec = 0;
-   while (basec < ELEMENTS(rulebasev)) {
-      rule_t *rule = rulebasev[basec++];
-      size_t methodi;
-
-      if (rule == NULL)
-         continue;
-
-      for (; rule != NULL; rule = rule->next) {
-         size_t methodc[]  = { rule->state.cmethodc, rule->state.smethodc };
-         int *methodv[] = { rule->state.cmethodv, rule->state.smethodv };
-
-         for (methodi = 0; methodi < ELEMENTS(methodv); ++methodi) {
-            for (i = 0; i < methodc[methodi]; ++i) {
-               switch (methodv[methodi][i]) {
-#if HAVE_PAM
-                  case AUTHMETHOD_PAM_ANY: 
-                  case AUTHMETHOD_PAM_ADDRESS: 
-                  case AUTHMETHOD_PAM_USERNAME:
-                     if (*sockscf.state.pamservicename == NUL)
-                        break; /* already found to vary. */
-
-                     if (pamservicename == NULL) /* first pam rule. */
-                        pamservicename = rule->state.pamservicename;
-                     else if (strcmp(pamservicename, rule->state.pamservicename)
-                     != 0) {
-                        slog(LOG_DEBUG, "%s: pam.servicename varies, %s ne %s",
-                             function, 
-                             pamservicename, 
-                             rule->state.pamservicename);
-
-                        *sockscf.state.pamservicename = NUL;
-                     }
-
-                     break;
-#endif /* HAVE_PAM */
-
-#if HAVE_BSDAUTH
-                  case AUTHMETHOD_BSDAUTH:
-                     if (*sockscf.state.bsdauthstylename == NUL)
-                        break; /* already found to vary. */
-
-                     if (bsdauthstylename == NULL) /* first bsdauth rule. */
-                        bsdauthstylename = rule->state.bsdauthstylename;
-                     else if (strcmp(bsdauthstylename,
-                                     rule->state.bsdauthstylename) != 0) {
-                        slog(LOG_DEBUG, 
-                             "%s: bsdauth.stylename varies, %s ne %s",
-                             function, 
-                             bsdauthstylename, 
-                             rule->state.bsdauthstylename);
-
-                        *sockscf.state.bsdauthstylename = NUL;
-                     }
-
-                     break;
-#endif /* HAVE_BSDAUTH */
-
-#if HAVE_GSSAPI
-                  case AUTHMETHOD_GSSAPI:
-                     if (*sockscf.state.gssapiservicename != NUL) {
-                        if (gssapiservicename == NULL) /* first gssapi rule. */
-                           gssapiservicename = rule->state.gssapiservicename;
-                        else if (strcmp(gssapiservicename,
-                                 rule->state.gssapiservicename) != 0) {
-                           slog(LOG_DEBUG,
-                                "%s: gssapi.servicename varies, %s ne %s",
-                                 function,
-                                 gssapiservicename,
-                                 rule->state.gssapiservicename);
-
-                           *sockscf.state.gssapiservicename = NUL;
-                        }
-                     }
-                     /* else; already found to vary. */
-
-                     if (*sockscf.state.gssapikeytab != NUL) {
-                        if (gssapikeytab == NULL) /* first gssapi rule. */
-                           gssapikeytab = rule->state.gssapikeytab;
-                        else if (strcmp(gssapikeytab, rule->state.gssapikeytab)
-                        != 0) {
-                           slog(LOG_DEBUG, "%s: gssapi.keytab varies, %s ne %s",
-                                function, 
-                                gssapikeytab, 
-                                rule->state.gssapikeytab);
-
-                           *sockscf.state.gssapikeytab = NUL;
-                        }
-                     }
-                     /* else; already found to vary. */
-
-                     break;
-#endif /* HAVE_GSSAPI */
-
-                  default:
-                     break;
-               }
-            }
-         }
-
-#if BAREFOOTD
-         if (rule->type == object_crule) {
-            if (rule->state.protocol.tcp)
-               /*
-                * Add all "to:" addresses to the list of internal interfaces;
-                * barefootd doesn't use a separate "internal:" keyword for it.
-                */
-                addinternal(&rule->dst, SOCKS_TCP);
-
-            if (rule->state.protocol.udp)
-               sockscf.state.alludpbounced = 0;
-         }
-#endif /* BAREFOOTD */
-
-      }
-   }
-
 #if HAVE_PAM
    if (*sockscf.state.pamservicename != NUL
-   &&  pamservicename                != NULL)
+   &&  pamservicename                != NULL) {
       /*
        * pamservicename does not vary, but is not necessarily the
        * the same as sockscf.state.pamservicename (default).
@@ -1254,34 +1304,38 @@ checkconfig(void)
                          pamservicename,
                          sizeof(sockscf.state.pamservicename) - 1,
                          yyerrorx);
+   }
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
    if (*sockscf.state.bsdauthstylename != NUL
-   &&  bsdauthstylename                != NULL)
+   &&  bsdauthstylename                != NULL) {
       if (strcmp(bsdauthstylename, sockscf.state.bsdauthstylename) != 0)
          STRCPY_CHECKLEN(sockscf.state.bsdauthstylename,
                          bsdauthstylename,
                          sizeof(sockscf.state.bsdauthstylename) - 1,
                          yyerrorx);
+   }
 #endif /* HAVE_BSDAUTH */
 
 #if HAVE_GSSAPI
    if (*sockscf.state.gssapiservicename != NUL
-   &&  gssapiservicename                != NULL)
+   &&  gssapiservicename                != NULL) {
       if (strcmp(gssapiservicename, sockscf.state.gssapiservicename) != 0)
          STRCPY_CHECKLEN(sockscf.state.gssapiservicename,
                          gssapiservicename,
                          sizeof(sockscf.state.gssapiservicename) - 1,
                          yyerrorx);
+   }
 
    if (*sockscf.state.gssapikeytab != NUL
-   &&  gssapikeytab                != NULL)
+   &&  gssapikeytab                != NULL) {
       if (strcmp(gssapikeytab, sockscf.state.gssapikeytab) != 0)
          STRCPY_CHECKLEN(sockscf.state.gssapikeytab,
                          gssapikeytab,
                          sizeof(sockscf.state.gssapikeytab) - 1,
                          yyerrorx);
+   }
 #endif /* HAVE_GSSAPI */
 
    /*
@@ -1383,7 +1437,7 @@ checkconfig(void)
    }
 
 #if BAREFOOTD
-   if (sockscf.internal.addrc == 0 && sockscf.state.alludpbounced)
+   if (sockscf.internal.addrc == 0 && ALL_UDP_BOUNCED())
       serrx("%s: no client-rules to accept clients on specified", function);
 
 #else /* !BAREFOOTD */
@@ -1460,7 +1514,7 @@ add_more_old_shmem(config, memc, memv)
    size_t i;
 
    if ((p = realloc(config->oldshmemv,
-                    sizeof(*config->oldshmemv) * (config->oldshmemc + memc))) 
+                    sizeof(*config->oldshmemv) * (config->oldshmemc + memc)))
    == NULL) {
       swarn("%s: could not allocate %lu bytes of memory to "
             "hold old shmids for later removal",
@@ -1472,9 +1526,31 @@ add_more_old_shmem(config, memc, memv)
    config->oldshmemv = p;
 
    for (i = 0; i < memc; ++i) {
+      const char *type;
+
+      switch (memv[i].type) {
+         case SHMEM_BW:
+            type = "bw";
+            break;
+
+         case SHMEM_MONITOR:
+            type = "monitor";
+            break;
+
+         case SHMEM_SS:
+            type = "session";
+            break;
+
+         default:
+            SERRX(memv[i].type);
+      }
+
       slog(LOG_DEBUG,
-           "%s: saving shmid %lu/key %lu at index #%lu for removal later",
+           "%s: saving old shmem-object of type %lu (%s), with "
+           "shmid %lu/key %lu, at index #%lu, for removal upon exit",
            function,
+           (unsigned long)memv[i].type,
+           type,
            (unsigned long)memv[i].id,
            (unsigned long)memv[i].key,
            (unsigned long)i);

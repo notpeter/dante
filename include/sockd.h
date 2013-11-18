@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012
+ *               2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.915 2013/08/01 11:52:36 michaels Exp $ */
+/* $Id: sockd.h,v 1.945 2013/10/27 15:24:41 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -114,9 +114,9 @@
 /*
  * Prefer to not remove idle processes, even if possible, without
  * waiting for them to have handled at least this many clients, or
- * lived at least this long.  
+ * lived at least this long.
  * Nothing very special behind these numbers, just seems like reasonable
- * defaults at the time.  Note that they do not affect removal of idle 
+ * defaults at the time.  Note that they do not affect removal of idle
  * processes when we are running short of resources, then we do remove what
  * we can, regardless of these numbers.
  */
@@ -180,7 +180,7 @@
 #endif
 
 
-/* 
+/*
  * use caching versions, avoiding a lot of overhead.
  */
 #ifndef DISABLE_GETHOSTBYNAME_CACHE
@@ -193,7 +193,7 @@
 
 #undef getnameinfo
 #define getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)  \
-       cgetnameinfo(sa, salen, host, hostlen, serv, servlen, flags)  
+       cgetnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
 
 #endif /* DISABLE_GETHOSTBYNAME_CACHE */
 
@@ -321,7 +321,7 @@ do {                                                                           \
 
 
 
-/* 
+/*
  * computing the values to send to io_update() indicating how much
  * was read/written to/where in relation to the i/o object "_io".
  * "_io" contains the value now, while the other objects contain the
@@ -413,17 +413,65 @@ do {                                                                           \
       INIT_MSTATE(&((object)->mstats->mstate), (_type), (_number));            \
 } while (/* CONSTCOND */ 0)
 
-#define INIT_MSTATE(mstate, _type, _number)                                    \
+#define INIT_MSTATE(mstate, _parenttype, _number)                              \
 do {                                                                           \
-   (mstate)->number = (_number);                                               \
-   (mstate)->type   = (_type);                                                 \
+   (mstate)->number     = (_number);                                           \
+   (mstate)->parenttype = (_parenttype);                                       \
 } while (/* CONSTCOND */ 0)
 
 
-#if DEBUG /* memory-mapped file contents may not be saved in coredumps. */
-#define SHMEM_COPY(src, dst) shmem_object_t (src) = (dst)
+#if DO_SHMEMCHECK
+
+#define MPROTECT_SHMEMHEADER(shmemobject)                                      \
+do {                                                                           \
+   SASSERTX((shmemobject)->mstate.shmid != 0);                                 \
+                                                                               \
+   slog(LOG_DEBUG,                                                             \
+        "%s: doing mprotect on address %p",  function, (shmemobject));         \
+                                                                               \
+   SASSERT(mprotect((shmemobject),                                             \
+           sizeof(shmemobject)->mstate,                                        \
+           PROT_READ) == 0);                                                   \
+                                                                               \
+   SASSERTX((shmemobject)->mstate.shmid != 0);                                 \
+} while (/* CONSTCOND */ 0)
+
+#define MUNPROTECT_SHMEMHEADER(shmemobject)                                    \
+do {                                                                           \
+   SASSERTX((shmemobject)->mstate.shmid != 0);                                 \
+                                                                               \
+   slog(LOG_DEBUG,                                                             \
+        "%s: doing munprotect on address %p",  function, (shmemobject));       \
+                                                                               \
+   SASSERT(mprotect((shmemobject),                                             \
+                    sizeof(shmemobject)->mstate,                               \
+                    PROT_READ | PROT_WRITE) == 0);                             \
+                                                                               \
+   SASSERTX((shmemobject)->mstate.shmid != 0);                                 \
+} while (/* CONSTCOND */ 0)
+
+
+#else  /* !DO_SHMEMCHECK */
+
+#define MPROTECT_SHMEMHEADER(shmemobject)   do { } while (/* CONSTCOND */ 0)
+#define MUNPROTECT_SHMEMHEADER(shmemobject) do { } while (/* CONSTCOND */ 0)
+
+#endif /* !DO_SHMEMCHECK */
+
+#if DEBUG || DIAGNOSTIC
+/*
+ * memory-mapped file contents may not be saved in coredumps.
+ */
+#define SHMEM_COPY(src, dst) shmem_object_t (dst) = (*src)
+
 #else
-#define SHMEM_COPY(src, dst) 
+
+#define SHMEM_COPY(src, dst)                                                   \
+do {                                                                           \
+   SASSERTX(src != NULL);                                                      \
+} while (/*CONSTCOND*/ 0)
+
+
 #endif /* DEBUG */
 
 /*
@@ -446,7 +494,7 @@ do {                                                                           \
    }                                                                           \
                                                                                \
    SHMEM_CLEAR(src, objects, 1);                                               \
-} while (/*CONSTCOND*/0)
+} while (/*CONSTCOND*/ 0)
 
 #define HANDLE_SHMAT(object, memfield, idfield)                                \
 do {                                                                           \
@@ -463,7 +511,7 @@ do {                                                                           \
       int failureisok;                                                         \
                                                                                \
       if (sockscf.state.mother.s == -1 || sockd_motherexists() == 0)           \
-         failureisok = 1;                                                      \
+         failureisok = 1; /* presumably mother exited and deleted shmemfiles */\
       else                                                                     \
          failureisok = 0;                                                      \
                                                                                \
@@ -476,12 +524,16 @@ do {                                                                           \
       break;                                                                   \
    }                                                                           \
                                                                                \
-   if (((object)->memfield = sockd_mmap(NULL,                                  \
-                                        sizeof(*(object)->memfield),           \
-                                        PROT_READ | PROT_WRITE,                \
-                                        MAP_SHARED,                            \
-                                        fd,                                    \
-                                        0)) == MAP_FAILED) {                   \
+   (object)->memfield = sockd_mmap(NULL,                                       \
+                                   sizeof(*(object)->memfield),                \
+                                   PROT_READ | PROT_WRITE,                     \
+                                   MAP_SHARED,                                 \
+                                   fd,                                         \
+                                   0);                                         \
+                                                                               \
+   close(fd);                                                                  \
+                                                                               \
+   if ((object)->memfield == MAP_FAILED) {                                     \
       swarn("%s: failed to mmap " #idfield " shmem segment %ld of size %ld "   \
             "from file %s",                                                    \
             function,                                                          \
@@ -489,24 +541,25 @@ do {                                                                           \
             (unsigned long)sizeof(*(object)->memfield),                        \
             fname);                                                            \
                                                                                \
-      close(fd);                                                               \
       (object)->memfield = NULL;                                               \
       (object)->idfield  = 0;                                                  \
       break;                                                                   \
    }                                                                           \
                                                                                \
-   SHMEM_COPY(_shmem, *(object)->memfield);                                    \
+   MPROTECT_SHMEMHEADER((object)->memfield);                                   \
                                                                                \
-   slog(LOG_DEBUG, "%s: attached to " #idfield " %ld of size %lu at %p, "      \
-                   "%lu clients, filename %s",                                 \
-                   function,                                                   \
-                   (object)->idfield,                                          \
-                   (unsigned long)sizeof(*(object)->memfield),                 \
-                   (object)->memfield,                                         \
-                   (unsigned long)(object)->memfield->mstate.clients, fname);  \
+   SHMEM_COPY((object)->memfield, _shmem);                                     \
+                                                                               \
+   slog(LOG_DEBUG,                                                             \
+        "%s: attached to " #idfield " %ld of size %lu at %p, %lu clients, "    \
+        "filename %s",                                                         \
+        function,                                                              \
+        (object)->idfield,                                                     \
+        (unsigned long)sizeof(*(object)->memfield),                            \
+        (object)->memfield,                                                    \
+        (unsigned long)(object)->memfield->mstate.clients, fname);             \
                                                                                \
    SASSERTX((object)->idfield == (object)->memfield->mstate.shmid);            \
-   close(fd);                                                                  \
 } while (/* CONSTCOND */ 0)
 
 #define HANDLE_SHMDT(object, memfield, idfield)                                \
@@ -514,7 +567,9 @@ do {                                                                           \
    SASSERTX((object)->idfield  != 0);                                          \
    SASSERTX((object)->memfield != NULL);                                       \
                                                                                \
-   SHMEM_COPY(_shmem, *(object)->memfield);                                    \
+   SHMEM_COPY((object)->memfield, _shmem);                                     \
+                                                                               \
+   SASSERTX((object)->idfield == (object)->memfield->mstate.shmid);            \
                                                                                \
    slog(LOG_DEBUG,                                                             \
         "%s: detaching from " #idfield " %ld at %p with %lu clients",          \
@@ -574,7 +629,9 @@ do {                                                                           \
     * ... and then unuse it.                                                   \
     */                                                                         \
                                                                                \
-   if (((objects) & SHMEM_BW) && (rule)->bw != NULL) {                         \
+   if (((objects) & SHMEM_BW) && (rule)->bw_shmid != 0) {                      \
+      SASSERTX((rule)->bw != NULL);                                            \
+                                                                               \
       slog(LOG_DEBUG, "%s: unusing bw_shmid %lu at %p, cinfo %s, clients %lu", \
            function,                                                           \
            (unsigned long)(rule)->bw_shmid,                                    \
@@ -585,7 +642,9 @@ do {                                                                           \
       bw_unuse((rule)->bw, cinfo, lock);                                       \
    }                                                                           \
                                                                                \
-   if (((objects) & SHMEM_MONITOR) && (rule)->mstats != NULL) {                \
+   if (((objects) & SHMEM_MONITOR) && (rule)->mstats_shmid != 0) {             \
+      SASSERTX((rule)->mstats != NULL);                                        \
+                                                                               \
       slog(LOG_DEBUG,                                                          \
            "%s: unusing mstats_shmid %lu, cinfo %s, clients %lu",              \
            function,                                                           \
@@ -596,7 +655,9 @@ do {                                                                           \
       monitor_unuse((rule)->mstats, cinfo, lock);                              \
    }                                                                           \
                                                                                \
-   if (((objects) & SHMEM_SS) && (rule)->ss != NULL) {                         \
+   if (((objects) & SHMEM_SS) && (rule)->ss_shmid != 0) {                      \
+      SASSERTX((rule)->ss != NULL);                                            \
+                                                                               \
       slog(LOG_DEBUG, "%s: unusing ss_shmid %lu, cinfo %s, clients %lu",       \
            function,                                                           \
            (unsigned long)(rule)->ss_shmid,                                    \
@@ -648,7 +709,11 @@ do {                                                                           \
       socks_unlock(lock);                                                      \
 } while (/*CONSTCOND*/0)
 
-
+#if BAREFOOTD
+#define ALL_UDP_BOUNCED()                                                      \
+   (  sockscf.state.alludpbounced                                              \
+    || pidismother(sockscf.state.pid) != 1 /* only main mother bounces. */)
+#endif /* BAREFOOTD */
 
 /*
  * build a string for the source and one for the destination that can
@@ -762,7 +827,7 @@ do {                                                                           \
 #define SOCKD_REQUESTMAX   1
 
 
-/* 
+/*
  * types of child-processes.
  */
 #define PROC_MOTHER        (0)    /* 0 so that it's correct pre-init too. */
@@ -823,6 +888,10 @@ do {                                                                           \
 #define SOCKS_LOG_ERRORs         "error"
 #define SOCKS_LOG_IOOPERATIONs   "iooperation"
 #define SOCKS_LOG_TCPINFOs       "tcpinfo"
+
+typedef enum { addrscope_global,
+               addrscope_nodelocal,
+               addrscope_linklocal } ipv6_addrscope_t;
 
 
 /*
@@ -952,7 +1021,7 @@ do {                                                                           \
    char _b[1][32];                                                             \
    const char *_msgv[]                                                         \
    = { signal2string(sig),                                                     \
-       " [: finished processing signal ",                                      \
+       " ]: finished processing signal ",                                      \
        ltoa((sig), _b[0], sizeof(_b[0])),                                      \
        NULL                                                                    \
    };                                                                          \
@@ -1040,11 +1109,18 @@ typedef struct {
 typedef enum { key_unset = 0, key_from, key_hostid } statekey_t;
 
 typedef struct {
+   /*
+    * These variables are fixed at creation and are after that never to
+    * be changed.
+    */
    unsigned long      shmid;            /* shmid of this object.              */
+   size_t             number;           /* rule/monitor # this object is for. */
+   objecttype_t       parenttype;       /*
+                                         * type of object this object belongs
+                                         * to (rule/monitor/etc.).
+                                         */
 
    size_t             clients;          /* # of clients using this object.    */
-   size_t             number;           /* rule/monitor # this object is for. */
-   objecttype_t       type;             /* type of object this object is for. */
 } shmem_header_t;
 
 typedef struct {
@@ -1110,7 +1186,7 @@ typedef struct {
        * The reason for this is that multiple processes will map this
        * object, and if one of the processes also maps they keymap,
        * the other processes will see that the keymap pointer is no
-       * longer NULL, but that other process will not (yet) have mapped 
+       * longer NULL, but that other process will not (yet) have mapped
        * the keymap.
        */
       struct {
@@ -1139,7 +1215,7 @@ typedef struct {
          } info;
 
       } *keyv;
-      size_t keyc;                  /* number of elements in addrv.          */
+      size_t keyc;                  /* number of elements in keyv.            */
 } keystate_t;
 
 typedef struct {
@@ -1169,11 +1245,11 @@ typedef struct {
 } alarm_data_t;
 
 typedef struct {
-   /* 
-    * if <disconnectc> or more clients or targets have disconnected during 
-    * the last <seconds> seconds, and the ratio of disconnects to the 
-    * current number of sessions is equal or higher than the limit set, 
-    * trigger the alarm.  
+   /*
+    * if <disconnectc> or more clients or targets have disconnected during
+    * the last <seconds> seconds, and the ratio of disconnects to the
+    * current number of sessions is equal or higher than the limit set,
+    * trigger the alarm.
     */
    size_t sessionc;
    size_t disconnectc;
@@ -1187,7 +1263,7 @@ typedef struct {
    size_t         sessionc;      /* number of sessions currently established. */
 
    /*
-    * number of disconnects done by peer and number of disconnects done by us  
+    * number of disconnects done by peer and number of disconnects done by us
     * /since last reset/.
     */
    size_t         peer_disconnectc;
@@ -1197,7 +1273,7 @@ typedef struct {
 } alarm_disconnect_t;
 
 typedef struct {
-   struct { 
+   struct {
       alarm_data_t       data;
       alarm_disconnect_t disconnect;
    } alarm;
@@ -1235,7 +1311,6 @@ typedef struct {
       struct in_addr   ipv4;
       struct in6_addr  ipv6;
       unsigned char     macaddr[ETHER_ADDR_LEN];
-
    } value;
 } licensekey_t;
 
@@ -1243,13 +1318,13 @@ typedef struct monitor_t {
    objecttype_t     type;
    shmem_object_t   *mstats;
    unsigned long    mstats_shmid;
-   unsigned char    mstats_isinheritable; 
+   unsigned char    mstats_isinheritable;
 
    /*
-    * Should we aggreagate counters on interface/sides?  Bitmask set if so.
+    * Should we aggregate counters on interface/sides?  Bitmask set if so.
     */
    size_t           alarm_data_aggregate;
-   size_t           alarm_disconnect_aggregate; 
+   size_t           alarm_disconnect_aggregate;
 
 
    /*
@@ -1281,7 +1356,7 @@ typedef struct monitor_t {
 
 #if 0
    /*
-    * Not implemented. 
+    * Not implemented.
     */
 
    linkedname_t            *user;        /* name of users matched.            */
@@ -1343,9 +1418,9 @@ typedef struct rule_t {
                                           */
 
    struct {
-      /* 
-       * address packet from src to dst should be bounced to. 
-       * Is a ruleaddr_t and not sockshost_t because bounce-to port may be 
+      /*
+       * address packet from src to dst should be bounced to.
+       * Is a ruleaddr_t and not sockshost_t because bounce-to port may be
        * different for tcp and udp clients if specified as a servicename.
        */
       ruleaddr_t              bounceto;
@@ -1366,7 +1441,7 @@ typedef struct rule_t {
       in_port_t            start;
       in_port_t            end;
       enum operator_t      op;
-   } udprange;                           /* udprange, if limited.             */ 
+   } udprange;                           /* udprange, if limited.             */
 
 #if HAVE_LDAP
    linkedname_t            *ldapgroup;   /* name of ldap groups allowed.      */
@@ -1380,7 +1455,7 @@ typedef struct rule_t {
 
    shmem_object_t          *mstats;                /* Matching monitorstats.  */
    unsigned long           mstats_shmid;           /* shmid of monitorstats.  */
-   unsigned char           mstats_isinheritable; 
+   unsigned char           mstats_isinheritable;
    size_t                  alarmsconfigured;       /* bitmask.                */
 
 
@@ -1432,7 +1507,7 @@ typedef struct {
 } srchost_t;
 
 /*
- * Commandline-options that can override config-file options should have 
+ * Commandline-options that can override config-file options should have
  * a matching _isset attribute and be added to the CMDLINE_OVERRIDE() macro.
  */
 typedef struct {
@@ -1441,7 +1516,7 @@ typedef struct {
    unsigned char     daemon;          /* run as a daemon?                     */
 
    int               debug;           /* debug level.                         */
-   unsigned char     debug_isset;  
+   unsigned char     debug_isset;
 
    int               hosts_access;    /* do hosts_access() lookup?            */
 
@@ -1507,7 +1582,7 @@ typedef struct {
    time_t              lastdeath_time;
 
    /*
-    * Sum of rusage for various process types. 
+    * Sum of rusage for various process types.
     * For mother processes only.
     */
    /* struct rusage       rusage_mother; XXX not supported yet. */
@@ -1522,15 +1597,15 @@ typedef struct {
    pid_t          pid;                  /* pid of current process.            */
 
    int            reservedfdv[1];       /*
-                                         * Dummy fd we reserve and keep around 
-                                         * so we can temporarly close it if we
-                                         * need to make a library calls and 
-                                         * it faileds because there were no 
+                                         * Dummy fd we reserve and keep around
+                                         * so we can temporarily close it if we
+                                         * need to make a library calls and
+                                         * it failed because there were no
                                          * more free fd's.  E.g. getpwuid(3).
                                          */
 
-   unsigned char  haveprivs;            /* 
-                                         * some sort of privileges/euid 
+   unsigned char  haveprivs;            /*
+                                         * some sort of privileges/euid
                                          * switching available?
                                          */
 
@@ -1590,8 +1665,8 @@ typedef struct {
 
 typedef struct {
    /*
-    * Contains list of errno-values that should be logged additionally, 
-    * at loglevel LOG_EMERG (errno_loglevel[0], 
+    * Contains list of errno-values that should be logged additionally,
+    * at loglevel LOG_EMERG (errno_loglevel[0],
     * LOG_ALERT((errno_loglevel[1]), etc.
     */
    int                     errno_loglevelv[MAXLOGLEVELS][UNIQUE_ERRNO_VALUES];
@@ -1618,7 +1693,7 @@ typedef struct {
 typedef struct {
    listenaddress_t         *addrv;     /* addresses.                          */
    size_t                  addrc;
-   
+
    logspecial_t            log; /* special logging; problems on internal side */
 } internaladdress_t;
 
@@ -1627,7 +1702,7 @@ typedef struct {
    size_t                  addrc;
 
    int                     rotation;         /* how to rotate, if at all.     */
-   
+
    logspecial_t            log; /* special logging; problems on external side */
 } externaladdress_t;
 
@@ -1671,6 +1746,7 @@ typedef struct {
 typedef struct {
    unsigned long  id;
    statekey_t     key;
+   size_t         type; /* type of shmem-object.                              */
 } oldshmeminfo_t;
 
 
@@ -1688,8 +1764,8 @@ struct config {
       cpusetting_t       cpu;
 
 #if !HAVE_PRIVILEGES
-      uid_t              euid; 
-      gid_t              egid; 
+      uid_t              euid;
+      gid_t              egid;
 #endif /* !HAVE_PRIVILEGES */
 
       res_options_type_t res_options;
@@ -1753,12 +1829,12 @@ struct config {
       /* size of config, with all allocated pointer memory. */
       size_t        configsize;
 
-      /*  
+      /*
        * some global variables that can change and which affect all processes,
        * but which are too expensive to have each process calculate itself.
        */
       struct {
-         /* 
+         /*
           * is IPv4 and/or IPv6 available on the external address list?
           */
          unsigned char              external_hasipv4;
@@ -1780,7 +1856,7 @@ struct config {
    logtype_t                  log;                  /* where to log.          */
    int                        loglock;              /* lockfile for logging.  */
 
-   option_t                   option;               /* 
+   option_t                   option;               /*
                                                      * options that can be
                                                      * set on the commandline
                                                      * also.
@@ -1880,7 +1956,7 @@ typedef struct {
    sockshost_t             clienthost; /* client on sockshost_t form.         */
 
    /*
-    * client-rule matched for this particular client.  
+    * client-rule matched for this particular client.
     */
    rule_t          crule;
 #endif /* BAREFOOTD */
@@ -1888,15 +1964,15 @@ typedef struct {
    unsigned char   isconnected;    /* socket connected to target?             */
 
    /*
-    * read from client in relation with this target. 
+    * read from client in relation with this target.
     */
-   iocount_t       client_read;    
+   iocount_t       client_read;
    iocount_t       client_written; /* written to client.                      */
 
    /*
-    * read from target in relation with this client. 
+    * read from target in relation with this client.
     */
-   iocount_t       target_read;    
+   iocount_t       target_read;
    iocount_t       target_written;
 
    struct timeval  firstio;        /* time of first i/o operation.            */
@@ -1945,19 +2021,19 @@ typedef struct {
 #if HAVE_UDP_SUPPORT
    /*
     * For TCP, there is only one peer/target/destination, and that is
-    * either an ipv4 or an ipv6 peer.  
+    * either an ipv4 or an ipv6 peer.
     *
-    * For UDP things can be different.  
+    * For UDP things can be different.
     *
-    * In Dante's case, if the client sends to both IPv4 and IPv6 targets, 
-    * we want to use a local IPv4 address/socket for sending to IPv4 targets 
-    * and an IPv4 address/socket for sending to IPv6 targets.  
-    * For this reason there are up to two dst objects if it's a udp session; 
+    * In Dante's case, if the client sends to both IPv4 and IPv6 targets,
+    * we want to use a local IPv4 address/socket for sending to IPv4 targets
+    * and an IPv4 address/socket for sending to IPv6 targets.
+    * For this reason there are up to two dst objects if it's a udp session;
     * one for IPv4 and one for IPv6.  We allocate them as needed, so
     * we end up having one of following number of target sockets for a
     * client:
     *    - zero (no packets forwarded from client).
-    *    - one (packets forwarded to only one type of address (ipv4 or ipv6, 
+    *    - one (packets forwarded to only one type of address (ipv4 or ipv6,
     *      but not both).
     *    - two (packets forwarded to both ipv4 and ipv6 addresses).
     * This however assumes our external interface has both IPv4 and IPv6
@@ -1970,12 +2046,12 @@ typedef struct {
     * the sockd.conf, there can be only one target for packets we receive
     * from a client (the same client can however send to us on different
     * internal addresses, in which case the target may also differ, but
-    * that creates a separate session; one session per internal listen 
+    * that creates a separate session; one session per internal listen
     * address).
     */
 
    /* only used on the destination side, NULL otherwise. */
-   udptarget_t              	 *dstv;
+   udptarget_t                   *dstv;
    size_t                        dstcmax;  /* number of slots in dstv array.  */
    size_t                        dstc;     /* # of slots currently in use.    */
 #endif /* HAVE_UDP_SUPPORT */
@@ -2034,8 +2110,8 @@ typedef struct sockd_io_t {
 
    rule_t              srule;       /* socks-rule matched.                    */
 
-   socketoption_t          extsocketoptionv[MAX_EXTERNAL_SOCKETOPTIONS];
-   size_t                  extsocketoptionc;
+   socketoption_t      extsocketoptionv[MAX_EXTERNAL_SOCKETOPTIONS];
+   size_t              extsocketoptionc;
 
     union {
       struct {
@@ -2046,7 +2122,7 @@ typedef struct sockd_io_t {
           *
           * If the corresponding "use_saved_rule" variable is set, it
           * is possible (given some other constraints) that we can
-          * reuse a previous rulespermit(), the resulting rule of which 
+          * reuse a previous rulespermit(), the resulting rule of which
           * is stored in these objects.
           */
          rule_t *sfwdrule;   /* for packets forwarded from client  */
@@ -2108,12 +2184,12 @@ typedef struct negotiate_state_t {
                            + MAXGSSAPITOKENLEN
 #endif /* HAVE_GSSAPI */
                            + sizeof(request_t)
-                           + sizeof(authmethod_t)   /* 
+                           + sizeof(authmethod_t)   /*
                                                      * size authmethod uname
                                                      * really, but include the
                                                      * whole struct as if
                                                      * not we will surly forget
-                                                     * to change this if a 
+                                                     * to change this if a
                                                      * bigger authmethod is
                                                      * ever added.
                                                      */
@@ -2136,7 +2212,7 @@ typedef struct negotiate_state_t {
    sockshost_t          src;          /* client's address.                    */
    sockshost_t          dst;          /* our address.                         */
 
-   rule_t               *crule;        /* client-rule that permited client.   */
+   rule_t               *crule;        /* client-rule that permitted client.  */
 #if HAVE_GSSAPI
    unsigned short       gssapitoken_len; /* length of token we're working on. */
 #endif /* HAVE_GSSAPI */
@@ -2198,7 +2274,7 @@ typedef struct sockd_request_t {
 
 
 typedef struct {
-   unsigned char    waitingforexit; /* 
+   unsigned char    waitingforexit; /*
                                      * waiting for child to exit.  If set,
                                      * pipes should be -1 and no more clients
                                      * should be sent to this child, nor
@@ -2261,7 +2337,7 @@ typedef struct {
 
 void
 io_updatemonitor(sockd_io_t *io);
-/* 
+/*
  * Updates "io" according to the current monitor configuration.
  */
 
@@ -2279,17 +2355,17 @@ io_update(const struct timeval *timenow, const size_t bwused,
           const iocount_t *external_read, const iocount_t *external_written,
           rule_t *rule, rule_t *packetrule, const int lock);
 /*
- * update the time/bw counters in "rule" and/or "packetrule" according to 
+ * update the time/bw counters in "rule" and/or "packetrule" according to
  * the arguments.
  *
- * In the case of a TCP session, "rule" and "packetrule" are the same, 
+ * In the case of a TCP session, "rule" and "packetrule" are the same,
  * but in the case of a SOCKS UDP session, they can differ, with "packetrule"
  * being the rule matched for the given UDP packet transfer, while "rule"
  * is, as for TCP, the rule that controls the resources (bandwidth, session,
  * etc.).
  *
  * "bwused" is the bandwidth used at time "timenow", while
- * the iocount_t variables provide more detailted information about
+ * the iocount_t variables provide more detailed information about
  * what was read/written from/to where.
  */
 
@@ -2315,7 +2391,7 @@ doio_tcp(sockd_io_t *io, fd_set *rset, fd_set *wset,
 iostatus_t
 doio_udp(sockd_io_t *io, fd_set *rset, int *badfd);
 /*
- * does io over the udp sockets in "io".  "rset" is a set where at least 
+ * does io over the udp sockets in "io".  "rset" is a set where at least
  * one of the fds matches a readable fd in io
  *
  * Returns the status of the i/o operation.  If an error is detected,
@@ -2333,7 +2409,7 @@ io_packet_received(const recvfrom_info_t *recvflags,
  *
  * "recvflags" are the values set when receiving the packet.
  * "bytesreceived" gives the length of the packet received.
- * "from" is the address that sent the packet. 
+ * "from" is the address that sent the packet.
  * "receiveon" is the address we received the packet on.
  *
  * Normally returns IO_NOERROR, but if something is wrong with the packet,
@@ -2341,8 +2417,8 @@ io_packet_received(const recvfrom_info_t *recvflags,
  */
 
 iostatus_t
-io_packet_sent(const size_t bytestosend, 
-               const size_t bytessent, 
+io_packet_sent(const size_t bytestosend,
+               const size_t bytessent,
                const struct timeval *tsreceived,
                const struct sockaddr_storage *from,
                const struct sockaddr_storage *to,
@@ -2439,17 +2515,17 @@ clientofclientaddr(const struct sockaddr_storage *addr,
 size_t
 io_udpclients(const size_t ioc, const sockd_io_t iov[], const ssize_t mincount);
 /*
- * Returns the number of active udp clients.  
+ * Returns the number of active udp clients.
  *
  * If "mincount" is not -1, returns as soon as at least "mincount" active
- * udp clients have been counted, rather than scanning till the end of 
+ * udp clients have been counted, rather than scanning till the end of
  * iov to count all possible clients.
  */
 
 
 #if HAVE_SO_TIMESTAMP
 void
-io_addts(const struct timeval *ts, const struct sockaddr_storage *from, 
+io_addts(const struct timeval *ts, const struct sockaddr_storage *from,
          const struct sockaddr_storage *to);
 /*
  * adds timestamp "ts" to the object we use to keep latency timestamps.
@@ -2514,7 +2590,7 @@ send_icmperror(const int s, const struct sockaddr_storage *receivedonaddr,
  */
 
 udptarget_t *
-initclient(const int control, const struct sockaddr_storage *from, 
+initclient(const int control, const struct sockaddr_storage *from,
            const sockshost_t *tohost,
            const struct sockaddr_storage *toaddr, const rule_t *rule,
            char *emsg, const size_t emsglen, udptarget_t *client);
@@ -2533,7 +2609,7 @@ initclient(const int control, const struct sockaddr_storage *from,
  */
 
 udptarget_t *
-addclient(const struct sockaddr_storage *clientladdr, 
+addclient(const struct sockaddr_storage *clientladdr,
           const udptarget_t *client,
           size_t *clientc, size_t *maxclientc, udptarget_t **clientv,
           const connectionstate_t *state, const rule_t *rule);
@@ -2653,10 +2729,10 @@ closechild(const pid_t childpid, const int isnormalexit);
  * Closes our pipes to child "childpid" and marks it as unable to receive
  * further clients, but does not remove it from our list of children.
  *
- * If "isnormalexit" is set, we are closing the pipes to this child and 
- * expect it to exit normally.  This notifies the child about the close, 
+ * If "isnormalexit" is set, we are closing the pipes to this child and
+ * expect it to exit normally.  This notifies the child about the close,
  * telling it to exit normally when done serving it's clients, unlike what
- * happens if the child exiting by itself without us telling it to do so, 
+ * happens if the child exiting by itself without us telling it to do so,
  * or closing it's pipes to us first.
  *
  * If "childpid" is 0, closes all children.
@@ -2665,7 +2741,7 @@ closechild(const pid_t childpid, const int isnormalexit);
 void
 setcommandprotocol(const objecttype_t type, command_t  *commands,
                    protocol_t *protocols);
-/* 
+/*
  * Sets "commands" and "protocols" in an object of type "type".
  * I.e., if "protocols" specifies the udp protocol, sets udp-based
  * commands in "commands", and vice versa.
@@ -2728,13 +2804,13 @@ void
 external_set_safamily(unsigned char *hasipv4, unsigned char *hasipv6,
                       unsigned char *hasipv6_global_scope);
 /*
- * Checks if the list of external addresses we are configured to 
+ * Checks if the list of external addresses we are configured to
  * use contain the specified address-families and sets "hasipv4"
- * and "hasipv6" as appropriate. 
+ * and "hasipv6" as appropriate.
  *
  * Should be called when there are address-related changes on any of the
  * external interfaces configured for use by Dante, but currently there
- * is no code for that, so we currently depend on receving a SIGHUP
+ * is no code for that, so we currently depend on receiving a SIGHUP
  * when that happens, and then set the global hasipv4 and hasipv6
  * variables as part of the normal config-parsing (and not via this
  * special function).
@@ -2745,17 +2821,17 @@ external_set_safamily(unsigned char *hasipv4, unsigned char *hasipv6,
  * If "hasipv6" is not NULL, it is set to true if we have at least one IPv6
  * address configured on the list of external addresses.
  *
- * If "hasipv6_global_scope" is not NULL, it is set to true if we have at 
+ * If "hasipv6_global_scope" is not NULL, it is set to true if we have at
  * least one IPv6 address with global scope configured on the list of external
  * addresses.
  */
 #endif
 
 struct in_addr *
-ipv4_mapped_to_regular(const struct in6_addr *ipv4_mapped, 
+ipv4_mapped_to_regular(const struct in6_addr *ipv4_mapped,
                        struct in_addr  *ipv4_regular);
 /*
- * Converts the IPv4-mapped IPv6 address "ipv4_mapped" to a regular 
+ * Converts the IPv4-mapped IPv6 address "ipv4_mapped" to a regular
  * IPv4 address, and stores it in "ipv4_regular".
  *
  * Returns: ipv4_regular.
@@ -2764,22 +2840,31 @@ ipv4_mapped_to_regular(const struct in6_addr *ipv4_mapped,
 int
 external_has_safamily(const sa_family_t safamily);
 /*
- * Checks if the list of external addresses we are configured to 
+ * Checks if the list of external addresses we are configured to
  * use contain at list one address of the "safamily" family.
- * 
+ *
  * Returns true if there such an address, or false otherwise.
+ */
+
+int
+external_has_only_safamily(const sa_family_t safamily);
+/*
+ * Checks if the list of external addresses we are configured to
+ * use contain addresses of the "safamily" family.
+ *
+ * Returns true if there at least one such an address, and only such an
+ * address, or false otherwise.
  */
 
 int
 external_has_global_safamily(const sa_family_t safamily);
 /*
- * Checks if the list of external addresses we are configured to 
+ * Checks if the list of external addresses we are configured to
  * use contain at list one address of the "safamily" family, *and*
  * that address has global scope.
- * 
+ *
  * Returns true if there such an address, or false otherwise.
  */
-
 
 
 int
@@ -2791,11 +2876,20 @@ addrisbindable(const ruleaddr_t *addr);
  *      On failure: false.
  */
 
-int isreplycommandonly(const command_t *command);
+int
+isreplycommandonly(const command_t *command);
 /*
  * Returns true if "command" specifies reply-commands only (bind/udp-replies),
- * false otherwise.
+ * Returns false otherwise.
  */
+
+int
+hasreplycommands(const command_t *command);
+/*
+ * Returns true if "command" specifies any reply-commands.
+ * Returns false otherwise.
+ */
+
 
 
 linkedname_t *
@@ -2821,10 +2915,10 @@ showrule(const rule_t *rule, const objecttype_t ruletype);
  */
 
 const monitor_t *
-monitormatch(const sockshost_t *from, const sockshost_t *to, 
+monitormatch(const sockshost_t *from, const sockshost_t *to,
              const authmethod_t *auth, const connectionstate_t *state);
 /*
- * If there is a monitor matching a session from "from" to "to", 
+ * If there is a monitor matching a session from "from" to "to",
  * with matching "auth" and "state", returns a pointer to that
  * monitor.
  * If "src" or "dst" is NULL, that address is not used when looking for a
@@ -2835,16 +2929,15 @@ monitormatch(const sockshost_t *from, const sockshost_t *to,
  */
 
 void
-monitor_move(shmem_object_t *old_shmem, const unsigned long old_shmid,
-             const size_t old_alarmsconfigured,
-             shmem_object_t *shmem, const unsigned long shmid,
-             const size_t alarmsconfigured, 
+monitor_move(monitor_t *oldmonitor, monitor_t *newmonitor,
              const size_t sidesconnected, const clientinfo_t *cinfo,
              const int lock);
-/* 
- * Moves monitor/alarm-settings from old_*-variables to current 
- * monitor.  If old_shmid is 0, there were no old monitor matched, and
- * we should just configure the settings in the new monitor.
+/*
+ * Moves monitor/alarm-settings from "oldmonitor" to "newmonitor".
+ *
+ * If oldmonitor shmid is 0, there were no old monitor matched, and
+ * we should just configure the settings in the new monitor, if any.
+ * Otherwise we need to unuse the settings in the old monitor also.
  */
 
 monitor_t *
@@ -2905,7 +2998,7 @@ rule_inheritoruse(struct rule_t *from, const clientinfo_t *cinfo_from,
  * (if any) for rule "from", and "cinfo_to" is the clientinfo to use when
  * allocating resources (if any) for rule "to".
  *
- * "sidesconnected" gives the TCP session-sides currently connected 
+ * "sidesconnected" gives the TCP session-sides currently connected
  * (ALARM_INTERNAL, ALARM_EXTERNAL.  Note that for udp there is only
  * one side possible, the internal).
  *
@@ -2919,29 +3012,29 @@ rule_inheritoruse(struct rule_t *from, const clientinfo_t *cinfo_from,
  */
 
 int
-rulespermit(int s, const struct sockaddr_storage *peer, 
+rulespermit(int s, const struct sockaddr_storage *peer,
             const struct sockaddr_storage *local,
             const authmethod_t *clientauth, authmethod_t *srcauth,
             rule_t *rule, connectionstate_t *state,
-            const sockshost_t *src, const sockshost_t *dst, 
+            const sockshost_t *src, const sockshost_t *dst,
             sockshost_t *dstmatched,
             char *msg, size_t msgsize)
             __ATTRIBUTE__((__BOUNDED__(__buffer__, 11, 12)));
 /*
- * Checks whether the rules permit data from "src" to "dst".  
+ * Checks whether the rules permit data from "src" to "dst".
  *
- * #if !BAREFOOTD 
+ * #if !BAREFOOTD
  *
- * "s" is the socket the control connection from the SOCKS client is on, 
+ * "s" is the socket the control connection from the SOCKS client is on,
  * from SOCKS client "peer", accepted on our internal address "local".
  *
- * #else: BAREFOOTD 
+ * #else: BAREFOOTD
  *
  * "s" is the socket the client was accepted on, or on which udp packets from
  * it was received.  "peer" gives the client address, and "local" gives our
  * own internal address on which the connection/packets were accepted on.
  *
- * #endif: BAREFOOTD 
+ * #endif: BAREFOOTD
  *
  *
  * "clientauth" is the authentication established for the client-rule, or
@@ -2961,10 +3054,10 @@ rulespermit(int s, const struct sockaddr_storage *peer,
  *
  * Returns:
  *      True if request should be allowed.  If so, "dstresolved", if not NULL,
- *      will contain the addess the request was allowed for, which may be 
+ *      will contain the address the request was allowed for, which may be
  *      different from "dst" if "dst" had to be resolved or reverse-mapped
  *      in order to decide on the verdict.
- *      
+ *
  *      Returns false otherwise.
  */
 
@@ -3011,12 +3104,6 @@ shmem2config(const struct config *old, struct config *new);
  * current config object.
  *
  * Returns 0 on success, -1 on failure.
- */
-
-void
-doconfigtest(void);
-/*
- * Internal test.
  */
 
 void
@@ -3172,36 +3259,36 @@ int loglevel_gaierr(const int e, const interfaceside_t side);
  * logged at, or LOG_DEBUG if no particular loglevel has been configured
  * for this error.
  *
- * "side" is the interface-side (internal/external) the error occured on.
- * 
+ * "side" is the interface-side (internal/external) the error occurred on.
+ *
  * Returns the appropriate loglevel, or -1 if no loglevel configured.
  */
 
 const int *
 errnovalue(const char *symbol);
 /*
- * Returns a zero-terminated list of errnovalues corresponding to the 
- * symbolic errno-name "symbol".  
+ * Returns a zero-terminated list of errnovalues corresponding to the
+ * symbolic errno-name "symbol".
  *
- * "symbol" can also be a Dante-spesific alias that will expand to 
+ * "symbol" can also be a Dante-specific alias that will expand to
  * multiple error-values, which is the reason for returning a list.
  *
  * Returns NULL if "symbol" is unknown.
- */ 
+ */
 
 
 const int *
 gaivalue(const char *symbol);
 /*
  * Returns a zero-terminated list of libresolv errorvalues (like those
- * returned by getaddrinfo(3) and family) corresponding to the 
- * symbolic error-name "symbol".  
+ * returned by getaddrinfo(3) and family) corresponding to the
+ * symbolic error-name "symbol".
  *
- * "symbol" can also be a Dante-spesific alias that will expand to 
+ * "symbol" can also be a Dante-specific alias that will expand to
  * multiple error-values, which is the reason for returning a list.
  *
  * Returns NULL if "symbol" is unknown.
- */ 
+ */
 
 
 iologaddr_t *
@@ -3285,13 +3372,13 @@ sockdnegotiate(int s);
 void
 run_monitor(void);
 /*
- * Sets a io child running.  
+ * Sets a io child running.
  */
 
 void
 run_io(void);
 /*
- * Sets a io child running.  
+ * Sets a io child running.
  *
  * A child starts running with zero clients and waits
  * indefinitely for mother to send at least one.
@@ -3325,7 +3412,7 @@ void negotiate_postconfigload(void);
 void request_postconfigload(void);
 void io_postconfigload(void);
 /*
- * Process-spesific post/pre-processing after loading config.
+ * Process-specific post/pre-processing after loading config.
  */
 
 void detach_from_shmem(void);
@@ -3346,10 +3433,10 @@ mother_getlimitinfo(void);
  * returns a string with some information about current state and limits.
  */
 
-void 
+void
 log_rusage(const int childtype, const pid_t pid, const struct rusage *rusage);
 /*
- * Logs the rusage in "rusage" for a child of type "childtype with the 
+ * Logs the rusage in "rusage" for a child of type "childtype with the
  * pid "pid".  If pid is 0, assumes "rusage" is for all children of
  * the given childtype.
  */
@@ -3477,7 +3564,7 @@ nextchild(const int type, const int protocol);
 
 #if HAVE_SCHED_SETAFFINITY
 /*
- * Modeled after the CPU_SET() macros.
+ * Modelled after the CPU_SET() macros.
  */
 
 size_t
@@ -3528,15 +3615,15 @@ numeric2cpupolicy(int value);
 int
 sockd_setcpusettings(const cpusetting_t *old, const cpusetting_t *new);
 /*
- * Applies the cpusettings in "new" to the current process.  
+ * Applies the cpusettings in "new" to the current process.
  * "old", if not NULL, contains the current settings, and is used to avoid
- * reapplying existing settings.  
+ * reapplying existing settings.
  *
  * Returns 0 on success, -1 on failure.
  */
 
 void
-setsockoptions(const int s, const sa_family_t family, const int type, 
+setsockoptions(const int s, const sa_family_t family, const int type,
                const int isclientside);
 /*
  * Sets options _all_ server sockets should have set on the socket "s".
@@ -3572,13 +3659,13 @@ cgetnameinfo(const struct sockaddr *addr, const socklen_t addrlen,
              const socklen_t servicelen, const int flags);
 
 int
-cgetaddrinfo(const char *name, const char *service, 
+cgetaddrinfo(const char *name, const char *service,
              const struct addrinfo *hints, struct addrinfo **res,
              dnsinfo_t *resmem);
 /*
- * Like getaddrinfo(3), but "resmem" is used to hold the contents of "res", 
+ * Like getaddrinfo(3), but "resmem" is used to hold the contents of "res",
  * rather than allocating the memory for "res" dynamically and then
- * having to call freeaddrinfo(3).  
+ * having to call freeaddrinfo(3).
  */
 
 
@@ -3587,7 +3674,7 @@ int
 sockd_seteugid(const uid_t uid, const gid_t gid);
 /*
  * Sets the effective user/group-id to "uid" and "gid", and updates
- * sockscf.state.{euid,egid} if sucessful.
+ * sockscf.state.{euid,egid} if successful.
  *
  * Returns 0 on success, -1 on failure.
  */
@@ -3612,7 +3699,7 @@ sockd_priv(const privilege_t privilege, const priv_op_t op);
 void
 resetprivileges(void);
 /*
- * Resets privileges to correct state based on config.  
+ * Resets privileges to correct state based on config.
  * Should be called when starting and after sighup.
  */
 
@@ -3668,7 +3755,7 @@ cache_ldap_user(const char *username, int result);
 int
 ldap_user_is_cached(const char *username);
 /*
- * Checks if user "ussername" is cached.
+ * Checks if user "username" is cached.
  * Returns:
  *    If not cached: -1
  *    Else: 0 or 1
@@ -3736,8 +3823,8 @@ passwordcheck(const char *name, const char *cleartextpassword,
               char *emsg, size_t emsglen)
               __ATTRIBUTE__((__BOUNDED__(__buffer__, 3, 4)));
 /*
- * First it checks whether "name" is in the password file.  If 
- * "cleartextpassword" is NULL, as is the case if called as part of 
+ * First it checks whether "name" is in the password file.  If
+ * "cleartextpassword" is NULL, as is the case if called as part of
  * rfc931/ident authentication, that is all that is done.
  *
  * If "cleartextpassword" is not NULL, also checks if "name"'s
@@ -3865,10 +3952,10 @@ sockd_shmat(rule_t *rule, int which);
 /*
  * Attaches shared memory segments in "rule" as indicated by which.
  *
- * The attachments that fail are set to NULL/-1.  It is therefore important 
- * to check shmid/object twice if trying to map more than one (when which 
- * does not indicate a single object); once before calling sockd_shmat(), 
- * and once after, as the first sockd_shmat() call may have failed on some 
+ * The attachments that fail are set to NULL/-1.  It is therefore important
+ * to check shmid/object twice if trying to map more than one (when which
+ * does not indicate a single object); once before calling sockd_shmat(),
+ * and once after, as the first sockd_shmat() call may have failed on some
  * or all the shmem segments and NULL-ed them if so.
  *
  * Returns 0 on success, -1 if one or more attachments failed.
@@ -3922,7 +4009,7 @@ int
 shmem_userule(rule_t *rule, const clientinfo_t *cinfo, char *emsg,
               const size_t emsglen);
 /*
- * Uses shmem-resoruces set in rule "rule".
+ * Uses shmem-resources set in rule "rule".
  * Returns 0 on success.
  * Returns -1 on error.  In this case, "emsg" contains the reason.
  */
@@ -3937,14 +4024,14 @@ monitor_use(shmem_object_t *stats, const clientinfo_t *cinfo, const int lock);
 void
 monitor_unuse(shmem_object_t *stats, const clientinfo_t *cinfo, const int lock);
 /*
- * Decrements usage count for alarms in "stats" on behalf of the client 
- * in "cinfo". 
+ * Decrements usage count for alarms in "stats" on behalf of the client
+ * in "cinfo".
  * "lock" is used for locking.  If it is -1, no locking is enforced.
  */
 
 void
-monitor_sync(shmem_object_t *alarm, const unsigned long shmid, 
-             const size_t alarmsconfigured, const size_t sidesconnected, 
+monitor_sync(shmem_object_t *alarm, const unsigned long shmid,
+             const size_t alarmsconfigured, const size_t sidesconnected,
              const clientinfo_t *cinfo, const int lock);
 /*
  * Called a sighup invalidates the old monitor and we want to transfer
@@ -3959,53 +4046,43 @@ alarm_inherit(rule_t *from, const clientinfo_t *cinfo_from,
               rule_t *to,   const clientinfo_t *cinfo_to,
               const size_t sidesconnected);
 /*
- * Handles alarm inhertinace from rule "from" into rule "to".
+ * Handles alarm inheritance from rule "from" into rule "to".
  * "sidesconnected" is the sides connected (internal/external).
- * Note that for udp, there is only one side possible, the internal. 
+ * Note that for udp, there is only one side possible, the internal.
  */
 
 
 void
-alarm_add_connect(shmem_object_t *shmem, const unsigned long shmid,
-                  const size_t sides, const clientinfo_t *cinfo, 
-                  const int lock);
+alarm_add_connect(rule_t *alarm, const size_t sides,
+                  const clientinfo_t *cinfo, const int lock);
 /*
- * Adds a connect to the alarmobject referenced by shmem, on the sides
+ * Adds a connect to the alarmobject referenced by "rule", on the sides
  * indicated by sides.
- *
- * If "shmem" is NULL, it means the function needs to attach and detach
- * from the shmem itself.  Otheise, "shmem" points to the already attached
- * segment.
  */
 
 
 void
-alarm_add_disconnect(const int weclosedfirst, shmem_object_t *shmem, 
-                     const unsigned long shmid, const size_t sides, 
-                     const clientinfo_t *cinfo, const char *reason,
-                     const int lock);
+alarm_add_disconnect(const int weclosedfirst, rule_t *alarm,
+                     const size_t sides, const clientinfo_t *cinfo,
+                     const char *reason, const int lock);
 /*
- * Adds a disconnect to the alarmobject referenced by shmem, on the sides 
+ * Adds a disconnect to the alarmobject referenced by "rule", on the sides
  * indicated by "sides".
  *
  * If "weclosefirst" is set, the disconnect/close by peer is considered a
  * response to a previous close by us.
  *
- * If "shmem" is NULL, it means the function needs to attach and detach
- * from the shmem itself.  Otherwise, "shmem" points to the already attached
- * segment.
- *
  * "reason" is the reason for for the disconnect.
  */
 
 void
-alarm_remove_session(shmem_object_t *shmem, const unsigned long shmid, 
-                     const size_t sides, const clientinfo_t *cinfo, 
-                     const int lock);
+alarm_remove_session(rule_t *alarm, const size_t sides,
+                     const clientinfo_t *cinfo, const int lock);
 /*
- * Removes a previously added session on the sides "sides".  
+ * Removes a previously added session on the sides "sides" from the
+ * alarmobject referenced by "rule".
  *
- * Typically used when a session is to be inherited by another 
+ * Typically used when a session is to be inherited by another
  * monitor, and we want to remove the session from the old monitor
  * without affecting other things.
  */
@@ -4085,7 +4162,7 @@ disconnectalarm_use(shmem_object_t *disconnectalarm, const clientinfo_t *cinfo,
 
 
 void
-disconnectalarm_unuse(shmem_object_t *disconnectalarm, 
+disconnectalarm_unuse(shmem_object_t *disconnectalarm,
                       const clientinfo_t *cinfo, const int lock);
 /*
  * Marks "disconnectalarm" as no longer in use by client "cinfo".
@@ -4148,6 +4225,24 @@ session_unuse(shmem_object_t *ss, const clientinfo_t *cinfo, const int lock);
  * Says "cinfo" is no longer using "ss".
  */
 
+
+
+void
+checkmodule(const char *name);
+/*
+ * Checks that the system has the module "name" and permission to use it.
+ * Aborts with an error message if not.
+ */
+
+char *
+licensekey2string(const licensekey_t *key);
+/*
+ * Returns a printable representation of the licensekey "key".
+ * Exits on error.
+ */
+
+
+
 int sockd_handledsignals(void);
 /*
  * Check if we have received any signal, and calls the appropriate
@@ -4164,7 +4259,7 @@ getoutaddr(struct sockaddr_storage *laddr,
 /*
  * Gets the outgoing IP address to use.
  *
- * "client" is the IP address the client, on whos behalf we are binding 
+ * "client" is the IP address the client, on whos behalf we are binding
  * an address on the external side.
  *
  * "command" is the SOCKS command the client requested.
@@ -4172,16 +4267,16 @@ getoutaddr(struct sockaddr_storage *laddr,
  *
  * The address to use on the external side is stored in "laddr".
  *
- * Returns: "laddr", or NULL on failure.  On failure, "emsg" contains 
+ * Returns: "laddr", or NULL on failure.  On failure, "emsg" contains
  * the reason.
  */
 
 struct sockaddr_storage *
-getinaddr(struct sockaddr_storage *laddr, 
+getinaddr(struct sockaddr_storage *laddr,
           const struct sockaddr_storage *client,
           char *emsg, const size_t emsglen);
 /*
- * Gets the incomming address to use for a connection from the client address
+ * Gets the incoming address to use for a connection from the client address
  * "client" (which can be 0.0.0.0) if unknown.  The local address to
  * accept the connection on is saved in "laddr" on success.
  *
@@ -4214,9 +4309,14 @@ sockd_popsignal(siginfo_t *siginfo);
  * Returns the signal number, and stores the siginfo in "siginfo".
  */
 
+ipv6_addrscope_t
+ipv6_addrscope(const struct in6_addr *addr);
+/*
+ * Returns the address-scope of the ipv6 address "addr".
+ */
 
 unsigned char *
-socks_getmacaddr(const char *ifname, unsigned char *macaddr);
+sockd_getmacaddr(const char *ifname, unsigned char *macaddr);
 /*
  * Writes the mac-address of the interface named "ifname" to "macaddr",
  * which must be of at least length ETHER_ADDR_LEN.
@@ -4226,7 +4326,7 @@ socks_getmacaddr(const char *ifname, unsigned char *macaddr);
 
 ssize_t
 addrindex_on_listenlist(const size_t listc, const listenaddress_t *listv,
-                        const struct sockaddr_storage *addr, 
+                        const struct sockaddr_storage *addr,
                         const int protocol);
 /*
  * Checks if "addr" is on the list of internal addresses, as
@@ -4284,7 +4384,7 @@ rulerequires(const rule_t *rule, const methodinfo_t what);
  */
 
 
-void 
+void
 sighup_child(int sig, siginfo_t *si, void *sc);
 /*
  * SIGHUP-handler for everyone but main mother.
@@ -4317,15 +4417,16 @@ int sockd_check_ipclatency(const char *description,
  */
 
 
-                  /*
-                   * for the i/o process.
-                   */
+      /*
+       * for the i/o processes only.
+       */
+
 typedef struct {
    /*
     * number of currently free file descriptors.  Should never become
     * a problem for Dante or Covenant, but Barefoot needs to keep track
-    * of it so we does not end up using up all fds for udp clients, then
-    * become unable to receive a new io from mother.
+    * of it so it does not end up using up all fds for udp clients, then
+    * becomes unable to receive a new io from mother.
     */
    size_t freefds;
 
@@ -4347,11 +4448,11 @@ update_clientpointers(const size_t dstc, udptarget_t *dstv);
  */
 
 int
-io_remove_session(const size_t ioc, sockd_io_t *iov, 
+io_remove_session(const size_t ioc, sockd_io_t *iov,
                   const struct sockaddr_storage *laddr, const int protocol,
                   const iostatus_t reason);
 /*
- * This function tries to find a session in iov where the local address is 
+ * This function tries to find a session in iov where the local address is
  * "addr" and is using protocol "protocol".  If found, the session is removed.
  * If "addr" is NULL, all sessions using protocol "protocol" are removed.
  *
@@ -4400,13 +4501,13 @@ io_udp_target2client(sockd_io_direction_t *in,
  */
 
 
-#elif SOCKS_SERVER 
+#elif SOCKS_SERVER
 
 iostatus_t
 io_udp_client2target(sockd_io_direction_t *control, sockd_io_direction_t *in,
                      sockd_io_direction_t *out, const authmethod_t *cauth,
-                     connectionstate_t *state, iologaddr_t *clog, 
-                     iologaddr_t *dlog, int *bad, 
+                     connectionstate_t *state, iologaddr_t *clog,
+                     iologaddr_t *dlog, int *bad,
                      rule_t *packetrule, size_t *bwused);
 /*
  * Tries to read a udp packet from the socket in "in" and send it out on
@@ -4434,7 +4535,7 @@ io_udp_target2client(sockd_io_direction_t *control,
                      iologaddr_t *clog, iologaddr_t *dlog, int *bad,
                      rule_t *packetrule, size_t *bwused);
 /*
- * The opossite of io_udp_client2target().
+ * The opposite of io_udp_client2target().
  */
 
 #endif /* SOCKS_SERVER */
@@ -4546,8 +4647,15 @@ send_response(int s, const response_t *response);
 #endif /* !HAVE_NEGOTIATE_PHASE */
 
 #if DIAGNOSTIC
+void doconfigtest(void);
+void shmemcheck(void);
+/*
+ * Internal testing functions.
+ */
+
+
 void
-checksockoptions(const int s, const sa_family_t family, const int type, 
+checksockoptions(const int s, const sa_family_t family, const int type,
                  const int isclientside);
 /*
  * checks that the expected options are set on the socket and prints

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
- *               2012
+ *               2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,20 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.93 2013/07/24 19:57:03 michaels Exp $";
-
-static const struct in_addr *
-ipv4_addrisinlist(const struct in_addr *addr, const struct in_addr *mask,
-                  const struct addrinfo *ailist);
-/*
- * Compares "addr", bitwise AND-ed with "mask", against each IPv4 address 
- * in "list", also bitwise AND-ed with "mask".  
- *
- * Returns:
- *      If "list" contains a element matching "addr": pointer to the matching
-                                                      address in ailist.
- *      otherwise: NULL.
- */
+"$Id: addressmatch.c,v 1.97 2013/10/27 15:24:42 karls Exp $";
 
 static int
 ipv4_addrareeq(const struct in_addr *a, const struct in_addr *b,
@@ -72,10 +59,6 @@ ipv4_addrareeq(const struct in_addr *a, const struct in_addr *b,
  *      else: false
  */
 
-static const struct in6_addr *
-ipv6_addrisinlist(const struct in6_addr *addr, const unsigned int maskbits,
-                  const struct addrinfo *ailist);
-
 UNIT_TEST_STATIC_SCOPE int
 ipv6_addrareeq(const struct in6_addr *a, const struct in6_addr *b,
                unsigned int maskbits);
@@ -88,7 +71,7 @@ hostareeq(const char *ruledomain, const char *addrdomain);
 /*
  * Compares the rule-given domain "ruledomain" against "addrdomain".
  *
- * Note that if "ruledomain" starts with a dot, it will match "addrdomain" if 
+ * Note that if "ruledomain" starts with a dot, it will match "addrdomain" if
  * the last part of "addrdomain" matches the part after the dot in "ruledomain".
  *
  * Returns:
@@ -122,13 +105,13 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       slog(LOG_DEBUG,
            "%s: matching ruleaddress %s against %s for protocol %s, %s alias",
            function,
-           ruleaddr2string(rule, 
-                           ADDRINFO_ATYPE | ADDRINFO_PORT, 
-                           rstring, 
+           ruleaddr2string(rule,
+                           ADDRINFO_ATYPE | ADDRINFO_PORT,
+                           rstring,
                            sizeof(rstring)),
-           sockshost2string2(addr, 
-                             ADDRINFO_ATYPE | ADDRINFO_PORT, 
-                             astring, 
+           sockshost2string2(addr,
+                             ADDRINFO_ATYPE | ADDRINFO_PORT,
+                             astring,
                              sizeof(astring)),
            protocol2string(protocol),
            alias ? "with" : "without");
@@ -216,8 +199,8 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
     */
 
    /*
-    * No-go: different address families.  Make sure we check each 
-    * family seperatly, as we do not want to check against 
+    * No-go: different address families.  Make sure we check each
+    * family separately, as we do not want to check against
     * SOCKS_ADDR_IPVANY here.
     */
 
@@ -253,7 +236,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
 
    /*
     * if mask of rule is 0, it should match anything.  Try that, and other
-    * things we can decide on quickly first, since it can save ourselves 
+    * things we can decide on quickly first, since it can save ourselves
     * lots of very heavy work.
     */
    if ((rule->atype == SOCKS_ADDR_IPV4 || rule->atype == SOCKS_ADDR_IPV6)
@@ -261,7 +244,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       /*
        * match(rule.ipaddr, addr.hostname)
        *
-       * resolve addr.hostname to ipaddress(es) and try to match each 
+       * resolve addr.hostname to ipaddress(es) and try to match each
        * resolved ipaddress against rule.ipaddress:
        *      rule.ipaddr isin addr.hostname.ipaddr
        *      .
@@ -289,7 +272,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
             addrmatched->atype = SOCKS_ADDR_IPV4;
             memcpy(&addrmatched->addr.ipv4, p, sizeof(addrmatched->addr.ipv4));
             return 1;
-            
+
          case SOCKS_ADDR_IPV6:
             if ((p = ipv6_addrisinlist(&rule->addr.ipv6.ip,
                                        rule->addr.ipv6.maskbits,
@@ -298,8 +281,8 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
 
             addrmatched->atype = SOCKS_ADDR_IPV6;
 
-            memcpy(&addrmatched->addr.ipv6.ip, 
-                   p, 
+            memcpy(&addrmatched->addr.ipv6.ip,
+                   p,
                    sizeof(addrmatched->addr.ipv6.ip));
 
             return 1;
@@ -345,10 +328,10 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
        *
        * Quite an expensive thing, so will hopefully not be used often,
        * but might be needed for accepting bind-replies from multihomed
-       * hosts.  E.g. the client connects to IP i1, but the bindreply 
+       * hosts.  E.g. the client connects to IP i1, but the bindreply
        * comes from IP i2 on the same host.  If i1 and i2 are for the
-       * same host, they should reversemap back to the same hostname, 
-       * and that hostname should resolve to both i1 and i2. 
+       * same host, they should reversemap back to the same hostname,
+       * and that hostname should resolve to both i1 and i2.
        */
 
       if (!doresolve)
@@ -362,7 +345,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       rc = sockaddr2hostname(&sa, hostname, sizeof(hostname));
 
       if (rc != 0) {
-         log_resolvefailed(sockaddr2string2(&sa, 0, NULL, 0), 
+         log_resolvefailed(sockaddr2string2(&sa, 0, NULL, 0),
                            EXTERNALIF,
                            rc);
 
@@ -384,7 +367,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       }
 
       /*
-       * Should now have one or more ipaddresses in ai_addr. 
+       * Should now have one or more ipaddresses in ai_addr.
        * Compare them against rule.ipaddr:
        *    rule.ipaddr isin addr->hostname->ipaddr
        *    .
@@ -408,8 +391,8 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
 
             addrmatched->atype = SOCKS_ADDR_IPV6;
 
-            memcpy(&addrmatched->addr.ipv6.ip, 
-                   p, 
+            memcpy(&addrmatched->addr.ipv6.ip,
+                   p,
                    sizeof(addrmatched->addr.ipv6.ip));
 
             return 1;
@@ -442,7 +425,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
          return 0;
 
       if (*rule->addr.domain == '.')
-         /* 
+         /*
           * can not resolve rule.domain to any ipaddresses, and since
           * addr.hostname did not match, there is nothing to do.
           * (except possibly resolve addr.hostname to ipaddresses, and
@@ -450,15 +433,15 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
           */
          return 0;
 
-      /* 
+      /*
        * resolve both rule.hostname and addr.hostname to ipaddresses, and
        * then match those ipaddresses against each others.
        */
 
       set_hints_ai_family(&hints.ai_family);
 
-      rc = cgetaddrinfo(addr->addr.domain, 
-                        NULL, 
+      rc = cgetaddrinfo(addr->addr.domain,
+                        NULL,
                         &hints,
                         &ai_addr,
                         &ai_addrmem);
@@ -505,14 +488,14 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
                                           ai_addr)) != NULL) {
                   addrmatched->atype = SOCKS_ADDR_IPV4;
 
-                  memcpy(&addrmatched->addr.ipv4, 
-                         p, 
+                  memcpy(&addrmatched->addr.ipv4,
+                         p,
                          sizeof(addrmatched->addr.ipv4));
 
                   return 1;
                }
 
-               break; 
+               break;
             }
 
             case AF_INET6:
@@ -522,8 +505,8 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
 
                   addrmatched->atype = SOCKS_ADDR_IPV6;
 
-                  memcpy(&addrmatched->addr.ipv6.ip, 
-                         p, 
+                  memcpy(&addrmatched->addr.ipv6.ip,
+                         p,
                          sizeof(addrmatched->addr.ipv6.ip));
 
                   return 1;
@@ -548,27 +531,27 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       /*
        * match(rule.hostname, addr.ipaddress)
        *
-       * If rule is not a domain (.domain) but a hostname, try resolving 
-       * rule.hostname to IP addresses and match each of those against 
+       * If rule is not a domain (.domain) but a hostname, try resolving
+       * rule.hostname to IP addresses and match each of those against
        * addr.ipaddress:
        *      addr.ipaddr isin rule.hostname->ipaddr
        *
        * If still no match, and alias is set, resolve addr.ipv4 to hostname(s),
-       * those hostnames back to ip, and and match against 
+       * those hostnames back to ip, and and match against
        * rule.hostame->ipaddr:
        *    rule.hostname->ipaddr isin addr->ipaddr->hostname(s)->ipaddr
        *    .
        *
        * Quite an expensive thing, so will hopefully not be used often,
        * but might be needed for accepting bind-replies from multihomed
-       * hosts.  E.g. the client connects to IP i1, but the bindreply 
+       * hosts.  E.g. the client connects to IP i1, but the bindreply
        * comes from IP i2 on the same host.  If i1 and i2 are for the
-       * same host, they should reversemap back to the same hostname, 
-       * and that hostname should resolve to both i1 and i2. 
+       * same host, they should reversemap back to the same hostname,
+       * and that hostname should resolve to both i1 and i2.
        *
        * Note that we do not attempt to
        * match(rule.hostname, addr->ipaddr->hostname), as addr->ipaddr
-       * can resolve to whatever it wants to and is thus not safe. 
+       * can resolve to whatever it wants to and is thus not safe.
        * We could consider it and depend on user setting, if he so wishes,
        * "srchost: nodnsmismatch" to avoid possible problems, but currently
        * we do not.
@@ -593,7 +576,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
          rc = sockaddr2hostname(&sa, hostname, sizeof(hostname));
 
          if (rc != 0) {
-            log_resolvefailed(sockaddr2string2(&sa, 0, NULL, 0), 
+            log_resolvefailed(sockaddr2string2(&sa, 0, NULL, 0),
                               EXTERNALIF,
                               rc);
 
@@ -604,7 +587,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       }
 
       /*
-       * Else: resolve rule.hostname to ipaddresses and match them against 
+       * Else: resolve rule.hostname to ipaddresses and match them against
        * addr.ipaddr:
        *    addr.ipaddr isin rule.hostname->ipaddr
        */
@@ -612,18 +595,18 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       /*
        * hints.ai_family = atype2safamily(addr->atype);
        *
-       * Don't set ai_family in hints.  Even though we are only looking for 
-       * addresses of type addr->atype, specifying that in hints will make 
+       * Don't set ai_family in hints.  Even though we are only looking for
+       * addresses of type addr->atype, specifying that in hints will make
        * getaddrinfo(3) fail, and there appears to unfortunately not be
        * any way to distinguish by the failure code whether the failure
        * is due to no addresses at all, or just no address for the specified
        * address family.  The former is likely an error that we want to
        * warn about, since the name we are trying to resolve is specified
        * in a rule, while the latter is more likely not a problem (unless
-       * the specified address-family is also the only address-family 
-       * configured on the external interface.  
-       * Assume it's better to risk getaddrinfo() returning fewer than the 
-       * possible number of addr->atype addresses, in return for being able 
+       * the specified address-family is also the only address-family
+       * configured on the external interface.
+       * Assume it's better to risk getaddrinfo() returning fewer than the
+       * possible number of addr->atype addresses, in return for being able
        * to warn about what probably a configuration error somewhere.
        */
 
@@ -637,7 +620,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
                 rule->addr.domain,
                 hints.ai_family,
                 gai_strerror(rc));
- 
+
          return 0;
       }
 
@@ -647,12 +630,12 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
 
             mask.s_addr = htonl(IPV4_FULLNETMASK);
 
-            if ((p = ipv4_addrisinlist(&addr->addr.ipv4, &mask, ai_rule)) 
+            if ((p = ipv4_addrisinlist(&addr->addr.ipv4, &mask, ai_rule))
             != NULL) {
                addrmatched->atype = SOCKS_ADDR_IPV4;
 
-               memcpy(&addrmatched->addr.ipv4, 
-                      p, 
+               memcpy(&addrmatched->addr.ipv4,
+                      p,
                       sizeof(addrmatched->addr.ipv4));
 
                return 1;
@@ -667,8 +650,8 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
                                        ai_rule)) != NULL) {
                addrmatched->atype = SOCKS_ADDR_IPV6;
 
-               memcpy(&addrmatched->addr.ipv6.ip, 
-                      p, 
+               memcpy(&addrmatched->addr.ipv6.ip,
+                      p,
                       sizeof(addrmatched->addr.ipv6.ip));
 
                return 1;
@@ -685,7 +668,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
          return 0;
 
       /*
-       * Else: reversemap addr.ipaddr to hostname, hostname to ipaddr, 
+       * Else: reversemap addr.ipaddr to hostname, hostname to ipaddr,
        * and then try to match that against rule.hostname->ipaddr:
        */
 
@@ -694,7 +677,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       rc = sockaddr2hostname(&sa, hostname, sizeof(hostname));
 
       if (rc != 0) {
-         log_resolvefailed(sockaddr2string2(&sa, 0, NULL, 0), 
+         log_resolvefailed(sockaddr2string2(&sa, 0, NULL, 0),
                            EXTERNALIF,
                            rc);
          return 0;
@@ -708,8 +691,8 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       }
 
 
-      /* 
-       * See if any of the addresses resolved from 
+      /*
+       * See if any of the addresses resolved from
        * rule->hostname->ipaddr match addr->ipaddr->hostname->ipaddr:
        *    rule.hostname->ipaddr isin addr.ipaddr->hostname(s)->ipaddr
        *    .
@@ -728,14 +711,14 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
                                           ai_addr)) != NULL) {
                   addrmatched->atype = SOCKS_ADDR_IPV4;
 
-                  memcpy(&addrmatched->addr.ipv4, 
-                         p, 
+                  memcpy(&addrmatched->addr.ipv4,
+                         p,
                          sizeof(addrmatched->addr.ipv4));
 
                   return 1;
                }
 
-               break; 
+               break;
             }
 
             case AF_INET6:
@@ -744,8 +727,8 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
                                           ai_addr)) != NULL) {
                   addrmatched->atype = SOCKS_ADDR_IPV6;
 
-                  memcpy(&addrmatched->addr.ipv6.ip, 
-                         p, 
+                  memcpy(&addrmatched->addr.ipv6.ip,
+                         p,
                          sizeof(addrmatched->addr.ipv6.ip));
 
                   return 1;
@@ -794,7 +777,7 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
    return 0;
 }
 
-static const struct in_addr *
+const struct in_addr *
 ipv4_addrisinlist(addr, mask, ailist)
    const struct in_addr *addr;
    const struct in_addr *mask;
@@ -815,17 +798,7 @@ ipv4_addrisinlist(addr, mask, ailist)
    return NULL;
 }
 
-static int
-ipv4_addrareeq(a, b, mask)
-   const struct in_addr *a;
-   const struct in_addr *b;
-   const struct in_addr *mask;
-{
-
-   return (a->s_addr & mask->s_addr) == (b->s_addr & mask->s_addr);
-}
-
-static const struct in6_addr *
+const struct in6_addr *
 ipv6_addrisinlist(addr, maskbits, ailist)
    const struct in6_addr *addr;
    const unsigned int maskbits;
@@ -846,32 +819,43 @@ ipv6_addrisinlist(addr, maskbits, ailist)
    return NULL;
 }
 
+
+static int
+ipv4_addrareeq(a, b, mask)
+   const struct in_addr *a;
+   const struct in_addr *b;
+   const struct in_addr *mask;
+{
+
+   return (a->s_addr & mask->s_addr) == (b->s_addr & mask->s_addr);
+}
+
 UNIT_TEST_STATIC_SCOPE int
 ipv6_addrareeq(a, b, maskbits)
    const struct in6_addr *a;
    const struct in6_addr *b;
    unsigned int maskbits;
 {
-   const unsigned int maskv[CHAR_BIT + 1] = { 0,   /* 00000000 */ 
-                                              128, /* 10000000 */ 
-                                              192, /* 11000000 */ 
-                                              224, /* 11100000 */ 
-                                              240, /* 11110000 */ 
-                                              248, /* 11111000 */ 
-                                              252, /* 11111100 */ 
-                                              254, /* 11111110 */ 
+   const unsigned int maskv[CHAR_BIT + 1] = { 0,   /* 00000000 */
+                                              128, /* 10000000 */
+                                              192, /* 11000000 */
+                                              224, /* 11100000 */
+                                              240, /* 11110000 */
+                                              248, /* 11111000 */
+                                              252, /* 11111100 */
+                                              254, /* 11111110 */
                                               255  /* 11111111 */ };
    size_t i;
 
    SASSERTX(CHAR_BIT <= 8);
    SASSERTX(maskbits <= IPV6_NETMASKBITS);
 
-   /* 
+   /*
     * unfortunately "s6_addr" is the only member defined in the RFC.
-    * Perhaps later add some autoconf checks for whether we also have 
+    * Perhaps later add some autoconf checks for whether we also have
     * s6_addr32, and do uint32_t compares on those platforms.
-    * 
-    * Would be nice if some bit-twiddling wizard made some efficent 
+    *
+    * Would be nice if some bit-twiddling wizard made some efficient
     * code available, but till then, this will hopefully work well enough.
     */
 
@@ -887,7 +871,7 @@ ipv6_addrareeq(a, b, maskbits)
          ++i;
       }
       else {
-         /* 
+         /*
           * only some bits of byte are set, mask out the remaining.
           * Also means this must be the last byte to compare.
           */
@@ -922,4 +906,3 @@ hostareeq(ruledomain, addrdomain)
    else /* need exact match. */
       return strcasecmp(ruledomain, addrdomain) == 0;
 }
-

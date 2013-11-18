@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2006, 2008, 2009,
- *               2010, 2011, 2012
+ *               2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rbind.c,v 1.209 2013/07/27 19:03:46 michaels Exp $";
+"$Id: Rbind.c,v 1.215 2013/10/27 15:24:42 karls Exp $";
 
 int
 Rbind(s, _name, namelen)
@@ -138,45 +138,45 @@ Rbind(s, _name, namelen)
       /*
        * If we just do a local bind, and pretend things are ok, that
        * means our client can fetch the local address we bound and
-       * send it to a peer, which can then send data to us without going 
-       * via the proxy.  If that is not configured by routes (and direct 
-       * fallback is presumably disabled), we can not be sure our client 
-       * wants that to happen.  If the client us running in an environement
+       * send it to a peer, which can then send data to us without going
+       * via the proxy.  If that is not configured by routes (and direct
+       * fallback is presumably disabled), we can not be sure our client
+       * wants that to happen.  If the client us running in an environment
        * where it is more important to not leak traffic outside of the
-       * proxy connection, it surly does not want us to make a best 
+       * proxy connection, it surly does not want us to make a best
        * effort to transfer the traffic; it has to flow via the proxy
        * or not flow at all.
        *
-       * So what we do is pretend we've bound an address, but we have 
+       * So what we do is pretend we've bound an address, but we have
        * not really done that, not even locally.
        * This should prevent us from receiving non-proxied traffic, but
-       * might make things work for a subset of other operations, where 
-       * the client does not expect to receive traffic before it has sent 
-       * any itself (i.e., sendt UDP packets or performed a TCP (or UDP) 
+       * might make things work for a subset of other operations, where
+       * the client does not expect to receive traffic before it has sent
+       * any itself (i.e., sendt UDP packets or performed a TCP (or UDP)
        * connect), and where it does not expect to use the local address it
-       * thinks it has bound to set up a rendez vous of any sort.
+       * thinks it has bound to set up a rendezvous of any sort.
        *
-       * This should prevent us from leaking traffic directly, while still 
-       * having a chance of things working without requiring an explicit 
+       * This should prevent us from leaking traffic directly, while still
+       * having a chance of things working without requiring an explicit
        * direct route for e.g. UDP bind, which is not supported by most
        * of the proxy protocols we support, and perhaps even work in
        * cases where we are just using a primitive http proxy that only
        * supports connect(2).
        *
-       * Note that this is not the same that happens for a direct route, 
+       * Note that this is not the same that happens for a direct route,
        * because we do not actually bind a local address and we will
        * not be able to accept any traffic on this socket until the
        * client first sends traffic on this socket (at which point some
        * sort of local address will have to be bound).
        */
 
-      slog(LOG_INFO, 
+      slog(LOG_INFO,
            "%s: no route found for binding %s address %s.  Pretending we've "
            "done it anyway.  This may result in strange errors later, but "
            "there is also a fair chance this will work, if the client does "
            "not actually plan to use the bound address for anything until "
            "after it has itself sendt the first traffic",
-           function, 
+           function,
            protocol2string(packet.req.protocol),
            sockaddr2string(name, NULL, 0));
 
@@ -184,82 +184,18 @@ Rbind(s, _name, namelen)
       return 0;
    }
 
-   if (socksfd.route->gw.state.proxyprotocol.direct) {
-      slog(LOG_DEBUG, "%s: using system bind(2) for fd %d", function, s);
-
-      return bind(s, _name, namelen);
-   }
-
    packet.version = packet.req.version;
 
-   if (bind(s, _name, namelen) != 0) {
-      slog(LOG_DEBUG, "%s: local bind(2) of fd %d, address %s, failed: %s", 
-            function, s, sockaddr2string(name, NULL, 0), strerror(errno));
-
-      switch (errno) {
-         case EADDRNOTAVAIL: {
-            /*
-             * We try to make the client think it's address is the address
-             * the server is using on it's behalf.  Some clients might try
-             * bind that IP address (with a different port, presumably)
-             * themselves though.  In that case we change it to INADDR_ANY
-             * for the local bind, before attempting to proceed with the
-             * proxy bind.
-             */
-            struct sockaddr_storage newname = *TOSS(name);
-
-            slog(LOG_DEBUG, "%s: retrying bind with INADDR_ANY", function);
-
-            TOIN(&newname)->sin_addr.s_addr = htonl(INADDR_ANY);
-            if (bind(s, TOSA(&newname), salen(newname.ss_family)) == 0)
-               errno = 0;
-            else
-               return -1;
-
-            break;
-         }
-
-         case EINVAL: {
-            struct sockaddr_in addr;
-            socklen_t addrlen;
-
-            errno_s = errno;
-
-            /*
-             * Do a little testing on what caused the error.
-            */
-
-            addrlen = sizeof(addr);
-            if (getsockname(s, TOSA(&addr), &addrlen) != 0
-            ||  addr.sin_port == htons(0)) {
-               errno = errno_s;
-               return -1;
-            }
-
-            /*
-             * Somehow the socket has been bound locally already, perhaps due 
-             * to bindresvport(3), which we don't wrap.
-             * Best thing to do is probably to keep that address and attempt 
-             * a remote server binding as well.
-             */
-            break;
-         }
-
-         default:
-            return -1;
-      }
+   if (socksfd.route->gw.state.proxyprotocol.direct) {
+      slog(LOG_DEBUG, "%s: using system bind(2) for fd %d", function, s);
+      return bind(s, _name, namelen);
    }
+   /*
+    * Else: client requests us to bind a specific port, but if we are
+    * socksifying that request, there is no need to bind any port locally.
+    */
 
-   len = sizeof(socksfd.local);
-   if (getsockname(s, TOSA(&socksfd.local), &len) != 0) {
-      swarn("%s: getsockname() of fd %d failed", function, s);
-      return -1;
-   }
-
-   slog(LOG_DEBUG, "%s: address of fd %d is %s",
-        function, s, sockaddr2string(&socksfd.local, NULL, 0));
-
-   /* 
+   /*
     * no separate control socket (except bind-extension case, but
     * that is dealt with in Raccept().
     */
@@ -274,7 +210,6 @@ Rbind(s, _name, namelen)
 
       return -1;
    }
-
 
    /*
     * we're not interested the extra hassle of negotiating over
@@ -303,8 +238,14 @@ Rbind(s, _name, namelen)
       return -1;
    }
 
-   if (socksfd.route->gw.state.proxyprotocol.direct)
-      return 0; /* have done local bind alrady. */
+   if (socksfd.route->gw.state.proxyprotocol.direct) {
+      slog(LOG_INFO,
+           "%s: strange ... did our previously found route get blacklisted "
+           "in the meantime?  Using system bind(2) for fd %d",
+           function, s);
+
+      return bind(s, _name, namelen);
+   }
 
    rc = socks_negotiate(s,
                         socksfd.control,
@@ -365,7 +306,7 @@ Rbind(s, _name, namelen)
 
       case PROXY_UPNP:
          /* don't know what address connection will be forwarded from yet. */
-         socksfd.state.acceptpending = 1; 
+         socksfd.state.acceptpending = 1;
          break;
 
       default:
@@ -377,9 +318,26 @@ Rbind(s, _name, namelen)
    &&  TOIN(name)->sin_port != TOIN(&socksfd.remote)->sin_port) { /* no. */
       socks_freebuffer(socksfd.control);
 
+      slog(LOG_INFO,
+           "%s: proxyserver did not let us bind the requested port, %u.  "
+           "Proxyserver offered us instead port %u, so failing",
+           function,
+           ntohs(GET_SOCKADDRPORT(name)),
+           ntohs(GET_SOCKADDRPORT(&socksfd.remote)));
+
       errno = EADDRINUSE;
       return -1;
    }
+
+   len = sizeof(socksfd.local);
+   if (getsockname(s, TOSA(&socksfd.local), &len) != 0) {
+      swarn("%s: getsockname() of fd %d failed", function, s);
+      return -1;
+   }
+
+   slog(LOG_DEBUG, "%s: address of fd %d is %s",
+        function, s, sockaddr2string(&socksfd.local, NULL, 0));
+
 
    if (socksfd.control != s) {
       len = sizeof(socksfd.server);
@@ -389,7 +347,7 @@ Rbind(s, _name, namelen)
    }
 
    if (socksfd.state.acceptpending)
-      /* 
+      /*
        * will accept(2) connection on control as for normal sockets,
        * so no need to use a buffer for the control/listening socket;
        * if a buffer is needed it will be for connection we later accept(2).
@@ -413,8 +371,8 @@ Rbind(s, _name, namelen)
    return 0;
 }
 
-#if 0 
-/* 
+#if 0
+/*
  * Disabled since this idea will not work due to NAT. :-/
  */
 
@@ -431,13 +389,13 @@ socks_bind_udp(s, addr)
    struct sockaddr_storage *addr;
 {
    /*
-    * The socks protocol does not support binding udp sockets, but we try 
+    * The socks protocol does not support binding udp sockets, but we try
     * to implement the same by creating a normal socks udp association
     * and sending a packet to ourselves.  The senders address for that
     * packet should be the address the socks server is using on our
     * behalf.
     * Unfortunately this does not work in most personal cases due to
-    * NAT - the socks server on the other side of the NAT-box can not send 
+    * NAT - the socks server on the other side of the NAT-box can not send
     * data to our (private) address.
     */
    const char *function = "socks_bind_udp()";
@@ -450,12 +408,12 @@ socks_bind_udp(s, addr)
 
    errno = EADDRNOTAVAIL; /* default errorcode. */
 
-   slog(LOG_INFO, "%s: fd %d, address %s", 
+   slog(LOG_INFO, "%s: fd %d, address %s",
         function, s, sockaddr2string(addr, NULL, 0));
 
    /*
-    * Hackish and fragile, but need to do the things necessary udpsetup() 
-    * can understand this really is our fd, and not something that slipped 
+    * Hackish and fragile, but need to do the things necessary udpsetup()
+    * can understand this really is our fd, and not something that slipped
     * through the cracks.
     */
 
@@ -469,11 +427,11 @@ socks_bind_udp(s, addr)
 
    socks_addaddr(s, &socksfd, 1);
 
-   socksfd.route = udpsetup(s, 
-                            &socksfd.local, 
-                            SOCKS_SEND, 
-                            0, 
-                            emsg, 
+   socksfd.route = udpsetup(s,
+                            &socksfd.local,
+                            SOCKS_SEND,
+                            0,
+                            emsg,
                             sizeof(emsg));
 
    if (socksfd.route == NULL) {
@@ -490,7 +448,7 @@ socks_bind_udp(s, addr)
       return -1;
    }
 
-   slog(LOG_INFO, 
+   slog(LOG_INFO,
         "%s: created udp association for data fd %d successfully.  Now trying "
         "to send a small packet to ourselves on address %s",
         function, s, sockaddr2string(&socksfd.local, NULL, 0));
@@ -498,15 +456,15 @@ socks_bind_udp(s, addr)
    p = "I just want to know what address you are using on my behalf";
    if (Rsendto(s, p, strlen(p), 0, TOSA(&socksfd.local), sizeof(socksfd.local))
    !=  (ssize_t)strlen(p)) {
-      slog(LOG_INFO, 
+      slog(LOG_INFO,
            "%s: send of packet to ourselves at address %s to finish setting "
            "up udp bind for fd %d failed",
            function, sockaddr2string(&socksfd.local, NULL, 0), s);
-       
+
       return -1;
    }
 
-   slog(LOG_DEBUG, 
+   slog(LOG_DEBUG,
         "%s: successfully sent udp packet to ourselves on address %s "
         "via proxy.  Now waiting for the reply",
         function, sockaddr2string(&socksfd.local, NULL, 0));
@@ -516,7 +474,7 @@ socks_bind_udp(s, addr)
    != (ssize_t)strlen(p)) {
       swarn("%s: expected to receive our own udp packet of length %lu back, "
             "but received %ld byte%s instead",
-            function, 
+            function,
             (unsigned long)strlen(p),
             (long)rc,
             rc == 1 ? "" : "s");
@@ -534,7 +492,7 @@ socks_bind_udp(s, addr)
              "Expected %s, got %s",
              function,
              sockaddr2string(&from, NULL, 0),
-             p, 
+             p,
              str2vis(buf, rc, visbuf, sizeof(visbuf)));
 
       return -1;

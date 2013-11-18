@@ -2662,7 +2662,7 @@ if test x"$TAG" != x; then
 fi
 RPMVERSION1="$version"
 #set this to enable prerelease, changes some defaults (debug enabled)
-prerelease="2"
+#prerelease="3"
 if test x"$prerelease" != x; then
     prename="pre$prerelease"
     version="${version}${TAG:+-}$TAG-$prename"
@@ -12762,6 +12762,23 @@ rm -f core conftest.err conftest.$ac_objext \
         ;;
 esac
 
+#enable -fstack-protector if debug enabled
+#XXX disabled, can lead to build failure on some platforms
+#if test x"${debug_enabled}" != x; then
+#   AC_MSG_CHECKING([for support for -fstack-protector compiler flag])
+#   oCFLAGS="$CFLAGS"
+#   CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN -fstack-protector"
+#   AC_TRY_RUN([
+#int main()
+#{
+#        return 0;
+#}], [AC_MSG_RESULT([yes])
+#     comp_flags="${comp_flags}${comp_flags:+ }-fstack-protector"],
+#    [AC_MSG_RESULT([no])],
+#    [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
+#   CFLAGS="$oCFLAGS"
+#fi
+
 #set compilation debugging flags
 if test x"${debug_enabled}" = xt; then
     #no optimization wanted
@@ -16066,67 +16083,98 @@ rm -f conftest*
 
 
 #try to identify number of valid signal values
+SIGDEFAULT=128
+unset sigmax
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for number of valid signal values" >&5
 $as_echo_n "checking for number of valid signal values... " >&6; }
-unset foundmaxsignal
-signalval=0
-while test $signalval -lt 1000; do
-    signalval=`expr $signalval + 1`
-    if test "$cross_compiling" = yes; then :
-       signalval=65
+if test "$cross_compiling" = yes; then :
+   sigmax=128
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: cross-compiling, setting to $sigmax" >&5
+$as_echo "cross-compiling, setting to $sigmax" >&6; }
 
-cat >>confdefs.h <<_ACEOF
-#define SOCKS_NSIG $signalval
-_ACEOF
-
-     { $as_echo "$as_me:${as_lineno-$LINENO}: result: cross-compiling" >&5
-$as_echo "cross-compiling" >&6; }
-     foundmaxsignal=t
-     break
 else
   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-int main()
+int main(int argc, char *argv[])
 {
-   if ($signalval == SIGKILL || $signalval == SIGSTOP)
-      return 0; /* will always fail, skip */
-   if (signal($signalval, SIG_DFL) == SIG_ERR)
-      return 1; /* error, return failure */
+   FILE *fp;
+   int minval = 0;
+   int i;
 
-   return 0; /* no failure, return ok */
+   for (i = 1; i < 1000; i++) {
+      if (i == SIGKILL || i == SIGSTOP)
+         continue;
+      if (signal(i, SIG_DFL) == SIG_ERR) {
+         perror("signal");
+         break;
+      }
+   }
+   minval = i;
+   fprintf(stderr, "notice: signal() based value: %d\n", minval);
+
+#ifdef NSIG
+   if (NSIG > minval) {
+      minval = NSIG;
+      fprintf(stderr, "notice: NSIG based value: %d\n", minval);
+   }
+#endif /* NSIG */
+
+#ifdef SIGRTMAX
+   /* note: this value might be changed at runtime (e.g., Linux) */
+   if (SIGRTMAX > minval) {
+      minval = SIGRTMAX;
+      fprintf(stderr, "notice: SIGRTMAX based value: %d\n", minval);
+   }
+#endif /* SIGRTMAX */
+
+   /* get base 2 value */
+   for (i = 0; i < 10; i++) {
+      int n = 1 << i;
+      if (n > minval) {
+         minval = n;
+         fprintf(stderr, "notice: base 2 based increase: %d\n", minval);
+	 break;
+      }
+   }
+
+   fprintf(stderr, "notice: setting signal max value to %d\n", minval);
+   if ((fp = fopen("conftest.out", "w")) == NULL) {
+      perror("fopen");
+      exit(1);
+   }
+   /* write zero for no special handling needed */
+   fprintf(fp, "%ld\n", minval);
+   fclose(fp);
+   exit(0);
+
+   return 0;
 }
 _ACEOF
 if ac_fn_c_try_run "$LINENO"; then :
-       continue
-else
-
-cat >>confdefs.h <<_ACEOF
-#define SOCKS_NSIG $signalval
-_ACEOF
-
-     { $as_echo "$as_me:${as_lineno-$LINENO}: result: $signalval" >&5
-$as_echo "$signalval" >&6; }
-     foundmaxsignal=t
-     break
+  sigmax=`test -s conftest.out && cat conftest.out`
 fi
 rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
   conftest.$ac_objext conftest.beam conftest.$ac_ext
 fi
 
-done
-if test x"$foundmaxsignal" = x -o $signalval -lt 10; then
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to obtain valid signal count, setting to large value" >&5
-$as_echo "$as_me: WARNING: unable to obtain valid signal count, setting to large value" >&2;}
-     signalval=65
+if test x"$sigmax" = x; then
+   sigmax=$SIGDEFAULT
+   { $as_echo "$as_me:${as_lineno-$LINENO}: result: got no value, setting to $sigmax" >&5
+$as_echo "got no value, setting to $sigmax" >&6; }
+else
+   { $as_echo "$as_me:${as_lineno-$LINENO}: result: setting to $sigmax" >&5
+$as_echo "setting to $sigmax" >&6; }
+fi
 
 cat >>confdefs.h <<_ACEOF
-#define SOCKS_NSIG $signalval
+#define SOCKS_NSIG $sigmax
 _ACEOF
 
-fi
 
 ac_fn_c_check_type "$LINENO" "int8_t" "ac_cv_type_int8_t" "
 #include <sys/types.h>
@@ -21728,6 +21776,7 @@ cat >>confdefs.h <<_ACEOF
 #define MAX_GAIERR_VALUES_FOR_SYMBOL $maxaliaslen
 _ACEOF
 
+rm -f $ERRVALFILE
 
 
 unset COMPATFUNCS
@@ -22000,7 +22049,7 @@ _ACEOF
 fi
 done
 
-for ac_func in inet_pton issetugid memmove pselect seteuid setegid
+for ac_func in inet_pton issetugid memmove seteuid setegid
 do :
   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
@@ -22072,6 +22121,58 @@ $as_echo "#define HAVE_BROKEN_INET_NTOA 1" >>confdefs.h
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
     ac_cv_func_inet_ntoa=no
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+
+ac_cv_func_pselect=no
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for working pselect()" >&5
+$as_echo_n "checking for working pselect()... " >&6; }
+if test "$cross_compiling" = yes; then :
+       { $as_echo "$as_me:${as_lineno-$LINENO}: result: assuming no" >&5
+$as_echo "assuming no" >&6; }
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <sys/time.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int
+main(void)
+{
+   struct timespec ts = { 0, 0 };
+
+   errno = 0;
+   if (pselect(0, NULL, NULL, NULL, &ts, NULL) == 0) {
+      if (errno == ENOSYS) {
+         fprintf(stderr, "pselect: error: returns 0 but errno set to ENOSYS\n");
+         return -1;
+      } else {
+         fprintf(stderr, "pselect: working as expected: returns 0 and errno not ENOSYS (errno = %d)\n", errno);
+         return 0;
+      }
+   } else {
+      perror("pselect");
+      return -1;
+   }
+}
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+     ac_cv_func_pselect=yes
+
+$as_echo "#define HAVE_PSELECT 1" >>confdefs.h
+
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
@@ -28895,45 +28996,7 @@ done
        oLIBS=$LIBS
        LIBS=""
 
-       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -lcrypto" >&5
-$as_echo_n "checking for main in -lcrypto... " >&6; }
-if ${ac_cv_lib_crypto_main+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lcrypto  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-
-int
-main ()
-{
-return main ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_crypto_main=yes
-else
-  ac_cv_lib_crypto_main=no
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_crypto_main" >&5
-$as_echo "$ac_cv_lib_crypto_main" >&6; }
-if test "x$ac_cv_lib_crypto_main" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBCRYPTO 1
-_ACEOF
-
-  LIBS="-lcrypto $LIBS"
-
-fi
-
+       #AC_CHECK_LIB(crypto, main) #XXX only very old mit kerberos
        { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -ldes" >&5
 $as_echo_n "checking for main in -ldes... " >&6; }
 if ${ac_cv_lib_des_main+:} false; then :
@@ -29859,45 +29922,7 @@ fi
       LIBS="${LIBS}${LIBS:+ }${_libsonly}"
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }${_optsonly}"
    else
-      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -lcrypto" >&5
-$as_echo_n "checking for main in -lcrypto... " >&6; }
-if ${ac_cv_lib_crypto_main+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lcrypto  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-
-int
-main ()
-{
-return main ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_crypto_main=yes
-else
-  ac_cv_lib_crypto_main=no
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_crypto_main" >&5
-$as_echo "$ac_cv_lib_crypto_main" >&6; }
-if test "x$ac_cv_lib_crypto_main" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBCRYPTO 1
-_ACEOF
-
-  LIBS="-lcrypto $LIBS"
-
-fi
-
+      #AC_CHECK_LIB(crypto, main) #XXX only very old mit kerberos
       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -ldes" >&5
 $as_echo_n "checking for main in -ldes... " >&6; }
 if ${ac_cv_lib_des_main+:} false; then :
@@ -31785,7 +31810,7 @@ for symdir in $PLDDIRS; do
 
     #platform dependent symbols
     case $host in
- 	*-*-darwin*)
+	*-*-darwin*)
 	    cat include/symbols_darwin.txt >> $symdir/$MAPFILE
 	    ;;
 
@@ -53359,7 +53384,7 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
     else
-	#XXX should not occur, ideally have option undefed
+	#XXX should not occur, ideally have option undef-ed
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to determine TCP_IPA max size, setting to 0" >&5
 $as_echo "$as_me: WARNING: unable to determine TCP_IPA max size, setting to 0" >&2;}
 
@@ -56099,10 +56124,34 @@ _ACEOF
 rm -f $OPTSRCTMP1 $OPTSRCTMP2
 
 #set value for server -v option
-UCOKSOCKOPTS=`echo $OKSOCKOPTS | ucase`
+UCOKSOCKOPTS_SO=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'SO_' | xargs`
 
 cat >>confdefs.h <<_ACEOF
-#define DANTE_SOCKOPTS "$UCOKSOCKOPTS"
+#define DANTE_SOCKOPTS_SO "${UCOKSOCKOPTS_SO}"
+_ACEOF
+
+UCOKSOCKOPTS_IPV4=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'IP_' | xargs`
+
+cat >>confdefs.h <<_ACEOF
+#define DANTE_SOCKOPTS_IPV4 "${UCOKSOCKOPTS_IPV4}"
+_ACEOF
+
+UCOKSOCKOPTS_IPV6=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'IPV6_' | xargs`
+
+cat >>confdefs.h <<_ACEOF
+#define DANTE_SOCKOPTS_IPV6 "${UCOKSOCKOPTS_IPV6}"
+_ACEOF
+
+UCOKSOCKOPTS_TCP=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'TCP_' | xargs`
+
+cat >>confdefs.h <<_ACEOF
+#define DANTE_SOCKOPTS_TCP "${UCOKSOCKOPTS_TCP}"
+_ACEOF
+
+UCOKSOCKOPTS_UDP=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'UDP_' | xargs`
+
+cat >>confdefs.h <<_ACEOF
+#define DANTE_SOCKOPTS_UDP "${UCOKSOCKOPTS_UDP}"
 _ACEOF
 
 
@@ -56113,7 +56162,8 @@ unset MOD_BANDWIDTH MOD_REDIRECT MOD_LDAP
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for module bandwidth" >&5
 $as_echo_n "checking for module bandwidth... " >&6; }
  if test -f "licensed/bandwidth.c"; then
-	MINVER="72"
+	MINVER="101"
+	unset MODVER
 	MODLINE=`head -1 licensed/bandwidth.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -56172,7 +56222,8 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for module redirect" >&5
 $as_echo_n "checking for module redirect... " >&6; }
  if test -f "licensed/redirect.c"; then
-	MINVER="47"
+	MINVER="77"
+	unset MODVER
 	MODLINE=`head -1 licensed/redirect.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -56231,7 +56282,8 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for module ldap" >&5
 $as_echo_n "checking for module ldap... " >&6; }
  if test -f "licensed/ldap.c"; then
-	MINVER="47"
+	MINVER="118"
+	unset MODVER
 	MODLINE=`head -1 licensed/ldap.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -56290,7 +56342,8 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for module checkmodule" >&5
 $as_echo_n "checking for module checkmodule... " >&6; }
  if test -f "licensed/checkmodule.c"; then
-	MINVER="39"
+	MINVER="62"
+	unset MODVER
 	MODLINE=`head -1 licensed/checkmodule.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`
@@ -56437,7 +56490,11 @@ echo "compiler flags: $comp_flags" >> buildenv.txt
 echo "warning flags: $warn" >> buildenv.txt
 echo "FEATURES: $FEAT" >> buildenv.txt
 echo "compat: $COMPATFUNCS" >> buildenv.txt
-#echo "socket options: `echo $OKSOCKOPTS | ucase`" >> buildenv.txt
+echo "socket options (socket level): `echo ${UCOKSOCKOPTS_SO} | ucase`" >> buildenv.txt
+echo "socket options (ipv4 level): `echo ${UCOKSOCKOPTS_IPV4} | ucase`" >> buildenv.txt
+echo "socket options (ipv6 level): `echo ${UCOKSOCKOPTS_IPV6} | ucase`" >> buildenv.txt
+echo "socket options (tcp level): `echo ${UCOKSOCKOPTS_TCP} | ucase`" >> buildenv.txt
+echo "socket options (udp level): `echo ${UCOKSOCKOPTS_UDP} | ucase`" >> buildenv.txt
 echo "socket option arguments: `echo $OKSOCKOPTVALSYMS | ucase`" >> buildenv.txt
 
 cat buildenv.txt

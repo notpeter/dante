@@ -47,7 +47,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.1209 2013/07/27 21:13:20 michaels Exp $";
+"$Id: sockd_io.c,v 1.1229 2013/11/07 11:36:43 karls Exp $";
 
 /*
  * IO-child:
@@ -84,21 +84,25 @@ io_connectisinprogress(const sockd_io_t *io);
  */
 
 static size_t
-io_allocated(size_t *for_tcp, size_t *for_udp);
+io_allocated(size_t *tcp_io, size_t *tcp_fd, size_t *udp_io, size_t *udp_fd);
 /*
- * Returns the number of allocated (active) ios in total (udp and tcp).
- *
- * If "for_tcp" is not NULL, on return it will contain the number of ios
+ * If "tcp_io" is not NULL, on return it will contain the number of i/os
  * allocated for tcp.
- * If "for_udp" is not NULL, on return it will contain the number of ios
+ *
+ * If "udp_io" is not NULL, on return it will contain the number of i/os
  * allocated for udp.
+ *
+ * Likewise for tcp_fd and udp_fd, though in this case, it's the number
+ * of fds in use for tcp and udp, rather than the number of i/o-objects.
+ *
+ * Returns the number of allocated (active) ios in total (udp and tcp).
  */
 
 static sockd_io_t *
 io_getset(const int nfds, const fd_set *set);
 /*
- * Goes through our i/o list until it finds an io object where at least one 
- * of the descriptors in "set" is set.  "nfds" gives the number of 
+ * Goes through our i/o list until it finds an io object where at least one
+ * of the descriptors in "set" is set.  "nfds" gives the number of
  * descriptors in "set" to check
  *
  * Returns NULL if none found.
@@ -124,7 +128,7 @@ io_fillset(fd_set *set, int antiflags, fd_set *antiflags_set,
  * will be excluded from "set", but set in "antiflags_set" instead.
  * If "antiflags" is not set, antiflags_set may be NULL.
  *
- * ios with state.fin_received set, ios that have not finished connecting, 
+ * ios with state.fin_received set, ios that have not finished connecting,
  * and ios that have overflown the bandwidth limit, will not be set in any
  * set.
  *
@@ -152,7 +156,7 @@ io_clearset(const sockd_io_t *io, const int clearalltargets, fd_set *set);
 /*
  * Clears all file descriptors in the i/o object "io" from set "set".
  *
- * If "clearalltargets" is set, the function also clears any fds 
+ * If "clearalltargets" is set, the function also clears any fds
  * from the array io->dst.dstv, rather than just io->dst.s.
  */
 
@@ -191,14 +195,14 @@ io_timeuntiltimeout(sockd_io_t *io, const struct timeval *tnow,
  * "type", if not NULL, is filled in with the type of timeout that will
  * occur at that time, if any.
  *
- * Returns the number of seconds til the io object "io" will timeout.  
+ * Returns the number of seconds til the io object "io" will timeout.
  *
  * 0 if the timeout has already been reached, or
  * -1 if no timeout on the io is currently set.
  *
  * Special notes for Barefoot:
- *    If "io" belongs to a udp-session and "doudpsync" is set, the function 
- *    will sync "io" with the udpclient struct belonging to the udp session 
+ *    If "io" belongs to a udp-session and "doudpsync" is set, the function
+ *    will sync "io" with the udpclient struct belonging to the udp session
  *    that has timed out.
  */
 
@@ -317,8 +321,12 @@ run_io()
 {
    const char *function = "run_io()";
    struct sigaction sigact;
-   fd_set *rset, *wset, *xset, *newrset, *tmpset, *bufrset, *buffwset, *udprset;
+   fd_set *rset, *wset, *xset, *newrset, *tmpset, *bufrset, *buffwset, *udprset,
+          *zeroset;
    int p, mayhavetimedout;
+#if DIAGNOSTIC && 0 /* XXX not fully tested yet. */
+   size_t freefds_initially, logfds_initially;
+#endif /* DIAGNOSTIC */
 
    bzero(&sigact, sizeof(sigact));
    sigact.sa_flags     = SA_RESTART | SA_NOCLDSTOP | SA_SIGINFO;
@@ -384,20 +392,32 @@ run_io()
 #endif /* BAREFOOTD */
 #endif /* HAVE_UDP_SUPPORT */
 
-   buffwset   = allocate_maxsize_fdset();
-   bufrset    = allocate_maxsize_fdset();
-   newrset    = allocate_maxsize_fdset();
-   rset       = allocate_maxsize_fdset();
-   tmpset     = allocate_maxsize_fdset();
-   udprset    = allocate_maxsize_fdset();
-   wset       = allocate_maxsize_fdset();
-   xset       = allocate_maxsize_fdset();
+   buffwset = allocate_maxsize_fdset();
+   bufrset  = allocate_maxsize_fdset();
+   newrset  = allocate_maxsize_fdset();
+   rset     = allocate_maxsize_fdset();
+   tmpset   = allocate_maxsize_fdset();
+   udprset  = allocate_maxsize_fdset();
+   wset     = allocate_maxsize_fdset();
+   xset     = allocate_maxsize_fdset();
+   zeroset  = allocate_maxsize_fdset();
+
+   FD_ZERO(zeroset);
 
    proctitleupdate();
 
    iostate.freefds = (size_t)freedescriptors(NULL, NULL);
+
    mayhavetimedout = 0;
+
    sockd_print_child_ready_message(iostate.freefds);
+
+#if DIAGNOSTIC && 0 /* XXX not fully tested yet. */
+   freefds_initially = iostate.freefds;
+   logfds_initially
+   =   sockscf.log.filenoc    + (sockscf.log.type    & LOGTYPE_SYSLOG)
+     + sockscf.errlog.filenoc + (sockscf.errlog.type & LOGTYPE_SYSLOG);
+#endif /* DIAGNOSTIC */
 
    /* CONSTCOND */
    while (1) {
@@ -444,6 +464,21 @@ run_io()
       int i, bits, first_rbits, rbits, wbits, udprbits,
           newsocketsconnected, badfd;
 
+#if DIAGNOSTIC && 0 /* XXX not fully tested yet. */
+      size_t tcpfd, udpfd, freefds_now, logfds_now;
+
+      io_allocated(NULL, &tcpfd, NULL, &udpfd);
+
+      logfds_now
+      =   sockscf.log.filenoc    + (sockscf.log.type    & LOGTYPE_SYSLOG)
+        + sockscf.errlog.filenoc + (sockscf.errlog.type & LOGTYPE_SYSLOG);
+
+      freefds_now = (size_t)freedescriptors(NULL, NULL);
+
+      SASSERTX(freefds_now - logfds_now
+      >=       freefds_initially - logfds_initially - (tcpfd + udpfd));
+#endif /* DIAGNOSTIC */
+
       errno = 0; /* reset for each iteration. */
 
       /* look for timed-out clients and calculate the next timeout, if any. */
@@ -474,12 +509,12 @@ run_io()
       rbits           = io_fillset(rset, MSG_OOB, xset, &bwoverflowtil);
 
       /*
-       * buffwset.  What descriptors do we want to check for having data 
-       * buffered for write?  Having data buffered for write means we have 
-       * data to write on them, thus we want to know if they are writable. 
+       * buffwset.  What descriptors do we want to check for having data
+       * buffered for write?  Having data buffered for write means we have
+       * data to write on them, thus we want to know if they are writable.
        *
-       * Pretty much any client-related descriptor we want to check for 
-       * having data buffered for write, except those specifically 
+       * Pretty much any client-related descriptor we want to check for
+       * having data buffered for write, except those specifically
        * skipped (due to e.g., bw overflow).
        */
       FD_COPY(buffwset, rset);
@@ -498,7 +533,7 @@ run_io()
       else { /* no mother.  Do we have any other descriptors to work with? */
          if (rbits == -1 && !timerisset(&bwoverflowtil)) {
             /* no clients in fd_sets, and not due to bwoverflow ... */
-            SASSERTX(io_allocated(NULL, NULL) == 0);
+            SASSERTX(io_allocated(NULL, NULL, NULL, NULL) == 0);
 
             slog(LOG_DEBUG, "%s: no connection to mother, no clients; exiting",
                  function);
@@ -524,15 +559,15 @@ run_io()
 #endif /* BAREFOOTD */
 
       /*
-       * In the first select(2) we check for descriptors that are readable; 
+       * In the first select(2) we check for descriptors that are readable;
        * we won't write if we can't read.
        *
        * Connects that are in progress is a special case that we also need
-       * to check for here.  Once the connect(2) has completed, successfully 
+       * to check for here.  Once the connect(2) has completed, successfully
        * or not, the socket will become writable and we may need to send a
        * status response (if there is a negotiate phase) to the client.
        *
-       * Also select(2) for exceptions so we later can tell the i/o function 
+       * Also select(2) for exceptions so we later can tell the i/o function
        * if there's one pending.
        */
 
@@ -568,8 +603,8 @@ run_io()
 #if BAREFOOTD
          /*
           * terminate all udp sessions as if we do not, a restart of mother
-          * will not be able to rebind the ports used.  
-          * Not a problem for TCP, so those sessions can continue to run 
+          * will not be able to rebind the ports used.
+          * Not a problem for TCP, so those sessions can continue to run
           * until the session ends for other reasons.
           */
          io_remove_session(ioc, iov, NULL, SOCKS_UDP, IO_ADMINTERMINATION);
@@ -578,22 +613,22 @@ run_io()
 #else /* !BAREFOOTD */
          /*
           * this process can continue independent of mother as long as it
-          * has clients, because each client has it's own unique 
+          * has clients, because each client has it's own unique
           * udp socket on the client-side also.
           */
 #endif /* !BAREFOOTD */
 
-         /* 
-          * safest to regenerate the fd_sets for this once in a life-time 
+         /*
+          * safest to regenerate the fd_sets for this once in a life-time
           * event.
           */
          continue;
       }
 
-      /* 
+      /*
        * this needs to be after check of ack-pipe to limit error messages,
        * because the ack-pipe is a stream pipe, so hopefully we will handle
-       * the EOF from mother on the ack-pipe before we get the error on 
+       * the EOF from mother on the ack-pipe before we get the error on
        * the data-pipe.
        */
       if (sockscf.state.mother.s != -1
@@ -612,11 +647,10 @@ run_io()
 
       first_rbits = bits;
 
-      /* 
+      /*
        * First check if any new connect(2)s  to targets have finished.
        */
-      FD_ZERO(tmpset);
-      if (FD_CMP(tmpset, wset) != 0) {
+      if (FD_CMP(zeroset, wset) != 0) {
          for (p = 0; p < bits; ++p) {
             if (FD_ISSET(p, wset)) {
 
@@ -693,7 +727,7 @@ run_io()
 
 #if BAREFOOTD
       /*
-       * Checked before, and checked again now, as it's status too may 
+       * Checked before, and checked again now, as it's status too may
        * change and it may become readable (again).
        */
       if (rawsocket != -1) {
@@ -704,18 +738,18 @@ run_io()
 
       /*
        * Use a separate set to to store all udp fds that should be writable.
-       * We don't bother actually checking udp sockets for writability 
-       * because if the udp write ends up failing, it wouldn't make any 
+       * We don't bother actually checking udp sockets for writability
+       * because if the udp write ends up failing, it wouldn't make any
        * difference whether the socket was marked as writable or not; for
-       * all we know it's "writability" could have have been limited to a 
-       * one byte write/packet, while the corresponding packet read was much 
+       * all we know it's "writability" could have have been limited to a
+       * one byte write/packet, while the corresponding packet read was much
        * larger, in which case our write could have failed anyway.
        */
       FD_ZERO(udprset);
       udprbits = -1;
 
       /*
-       * descriptors to check for writability: 
+       * descriptors to check for writability:
        * - those with the corresponding read-descriptor set.
        * - those with data already buffered for write.
        * - the connects that are still in progress.
@@ -730,9 +764,9 @@ run_io()
 
          if (FD_ISSET(p, buffwset)) {
             /*
-             * Descriptor has data buffered for write.  That means we should 
-             * mark the other side as readable.  Regardless of whether we 
-             * can read from the other side or not at the moment, we have 
+             * Descriptor has data buffered for write.  That means we should
+             * mark the other side as readable.  Regardless of whether we
+             * can read from the other side or not at the moment, we have
              * data that we previously read from it which which we need to
              * forward to the other side.
              */
@@ -761,7 +795,7 @@ run_io()
 
             /*
              * ok, we know we have data buffered for write, but /can/
-             * we write?  For TCP, need to check.  
+             * we write?  For TCP, need to check.
              *
              * XXX possible optimization target: if we have enough room
              *     in the writebuffer, we can pretend the fd is writable
@@ -804,24 +838,24 @@ run_io()
 
          /*
           * In the case of udp, we have a one-to-many (many = 2 in the socks
-          * case) scenario, where packets received on "in" can go to many 
-          * different "outs." and we don't know which out socket to use until 
+          * case) scenario, where packets received on "in" can go to many
+          * different "outs." and we don't know which out socket to use until
           * we have read the packet from the client.
           *
           * UDP sockets shouldn't normally block though, so selecting
           * for writability is not something we care about it this case.
           *
-          * The reverse, when a packet comes in on one of the out sockets 
+          * The reverse, when a packet comes in on one of the out sockets
           * is slightly more complicated. To detect that we need to select(2)
-          * for readability on all the target/dst sockets.  This is handled 
+          * for readability on all the target/dst sockets.  This is handled
           * as usual in io_fillset().
           */
 
          if (p == io->src.s || p == io->dst.s) {
             if (io->state.protocol == SOCKS_UDP) {
                /*
-                * Just set this fd in udprset.  We don't bother actually 
-                * select(2)'ing on the corresponding udp socket for 
+                * Just set this fd in udprset.  We don't bother actually
+                * select(2)'ing on the corresponding udp socket for
                 * writability.
                 */
 
@@ -831,20 +865,20 @@ run_io()
                udprbits = MAX(udprbits, sockettoset);
             }
             else {
-               /* 
+               /*
                 * For TCP-sockets we need to know whether we can write or
                 * not to the other (non-read) side.
                 */
 
                if (p == io->src.s) {
-                  /* 
+                  /*
                    * read from src (client) requires writable out (target).
                    */
                   sockettoset = io->dst.s;
                }
                else {
                   SASSERTX(p == io->dst.s);
-                  /* 
+                  /*
                    * read from dst (target) requires writable in (client).
                    */
                   sockettoset = io->src.s;
@@ -857,8 +891,8 @@ run_io()
 #if HAVE_CONTROL_CONNECTION
          else {
             /*
-             * control connection is also readable without matching 
-             * writable and is used to signal session close in udp and 
+             * control connection is also readable without matching
+             * writable and is used to signal session close in udp and
              * bind extension cases.
              * Since it doesn't have any side to forward the data to
              * it is simpler to handle it here and now.
@@ -900,13 +934,12 @@ run_io()
                &&  (io->srule.alarmsconfigured & ALARM_DISCONNECT)) {
                   clientinfo_t cinfo;
 
-                  cinfo.from = io->control.raddr; 
+                  cinfo.from = io->control.raddr;
                   HOSTIDCOPY(&io->state, &cinfo);
 
                   SASSERTX(!io->control.state.alarmdisconnectdone);
                   alarm_add_disconnect(0,
-                                       io->srule.mstats,
-                                       io->srule.mstats_shmid,
+                                       &io->srule,
                                        ALARM_INTERNAL,
                                        &cinfo,
                                        r == 0 ? "EOF" : strerror(errno),
@@ -947,12 +980,9 @@ run_io()
          SASSERTX(sockettoset != -1);
       }
 
-      if (wbits++ == -1 && udprbits++ == -1)
-         continue;
-
-      if (newsocketsconnected || udprbits >= 0) {
+      if (newsocketsconnected || udprbits > -1) {
          /*
-          * Don't wait.  Handle what we can now and then restart the loop,
+          * Don't wait.  Handle what we can now and restart the loop,
           * which will then include handling of any new sockets.
           */
          timeoutpointer = &timeout;
@@ -961,7 +991,25 @@ run_io()
       else
          timeoutpointer = io_gettimeout(&timeout);
 
-      bits = MAX(rbits, wbits) + 1;
+      ++rbits;
+      ++wbits;
+
+      bits = MAX(rbits, wbits);
+
+      if (bits == 0) {
+         slog(LOG_DEBUG,
+              "%s: no fds to select(2) on ... restarting loop", function);
+
+         continue;
+      }
+
+      if (FD_CMP(zeroset, newrset) == 0
+      &&  FD_CMP(zeroset, wset)    == 0) {
+         slog(LOG_DEBUG,
+              "%s: no fds to select(2) on ... restarting loop", function);
+
+         continue;
+      }
 
       slog(LOG_DEBUG, "%s: second select; what is writable?", function);
       switch (selectn(bits, newrset, NULL, NULL, wset, NULL, timeoutpointer)) {
@@ -985,7 +1033,7 @@ run_io()
          FD_CLR(sockscf.state.mother.s, newrset);
          getnewios();
       }
-      
+
       /*
        * If newrset has any udp i/os, add them to udprset.
        */
@@ -996,13 +1044,13 @@ run_io()
 #if BAREFOOTD
          /* specialcased as it's not part of any i/o object. */
          if (rawsocket != -1 && p == rawsocket)
-            continue; 
+            continue;
 #endif /* BAREFOOTD */
 
          io = io_finddescriptor(p);
          SASSERTX(io != NULL);
 
-         if (io->state.protocol == SOCKS_UDP 
+         if (io->state.protocol == SOCKS_UDP
          &&  (p == io->src.s || p == io->dst.s)) {
             FD_SET(p, udprset);
             udprbits = MAX(udprbits, p);
@@ -1013,16 +1061,16 @@ run_io()
       }
 
       /*
-       * Stauts now is as follows:
+       * Status now is as follows:
        *
        * newrset: tcp descriptors newly readable (from the second select).
-       *          We don't do anything with them here as we don't know if 
-       *          the other is writable, but loop around and check for 
-       *          writability first.  
-       *           
+       *          We don't do anything with them here as we don't know if
+       *          the other side is writable, but instead loop around and
+       *          check for writability first.
+       *
        * rset: descriptors readable, from buffer or from socket.
        *
-       * udprset: udp sockets that are readable.  
+       * udprset: udp sockets that are readable.
        *
        * wset: descriptors writable with at least one of:
        *          a) a matching descriptor in rset.
@@ -1033,11 +1081,11 @@ run_io()
        *
        * xset: subset of rset with exceptions pending.
        *
-       * The sockets in udprset and wset are the sockets we can possibly 
-       * do i/o over.  
+       * The sockets in udprset and wset are the sockets we can possibly
+       * do i/o over.
        *
-       * For wset we need check which of a), b), or c) is the case.  
-       * If it's a) or b), do i/o, remove the socket from wset, and 
+       * For wset we need check which of a), b), or c) is the case.
+       * If it's a) or b), do i/o, remove the socket from wset, and
        * get the next socket set in wset.  If c), we can not do i/o now.
        *
        * For udprset, we have no corresponding write-side we bother checking
@@ -1046,21 +1094,24 @@ run_io()
 
 #if HAVE_UDP_SUPPORT
       /*
-       * First handle UDP case; udprset.  
+       * First handle UDP case; udprset.
        */
+
+      ++udprbits;
+
       while ((io = io_getset(udprbits, udprset)) != NULL) {
          SASSERTX(io->state.protocol == SOCKS_UDP);
 
          /*
-          * Since udp is a "point-to-multipoint" case, the descriptor in 
+          * Since udp is a "point-to-multipoint" case, the descriptor in
           * udprset could be:
           * a) the one socket (io->src.s) we use to read from all clients.
           * b) any of the sockets in io->dst.dstv, which we use for
           *    sending/reading data to/from targets.
           *
-          * In Barefoot's case, if it's a), there could be a lot of packets 
-          * queued up, since that one socket will be handling io->dst.dstc 
-          * number * of clients.  If so, we'll want to read from the socket 
+          * In Barefoot's case, if it's a), there could be a lot of packets
+          * queued up, since that one socket will be handling io->dst.dstc
+          * number * of clients.  If so, we'll want to read from the socket
           * until there are no more packets, to reduce the chance of packets
           * overflowing the kernels socket buffer and becoming lost.
           * That we don't know how many packets there are in Barefoot's
@@ -1075,7 +1126,7 @@ run_io()
           * socket.  This is however done by the function that fetches us
           * the io above (io_getset()).
           *
-          * The thing we need to be carefull about is to not clear a 
+          * The thing we need to be careful about is to not clear a
           * fd we have not read from.  If we read from the client-fd,
           * the target-fd should be -1, so we can't read or clear that.
           * If we read from the target-fd however, the client-fd can also
@@ -1122,12 +1173,12 @@ run_io()
          }
          else {
             /*
-             * case b): reply from target to client. 
+             * case b): reply from target to client.
              */
             SASSERTX(io->dst.s != -1);
 
             /*
-             * can't be set as we first checked the client-side of this i/o 
+             * can't be set as we first checked the client-side of this i/o
              * and then read till there were no more packets to be read.
              */
             SASSERTX(!FD_ISSET(io->src.s, udprset));
@@ -1145,12 +1196,13 @@ run_io()
 
          /*
           * With the advent of IPv6, Dante is also a p-to-mp now, not
-          * completly unlike Barefoot, though in Dante's case the "mp"
-          * refers to only up to two points per client point, one for ipv4 
-          * and one for ipv6.  Like for Barefoot, we know what client
-          * socket we're going to read the packet from, as there is only
-          * one per i/o object, but we don't know what target socket, if any,
-          * to write the packet to until we've read the client packet.
+          * completely unlike Barefoot, though in Dante's case the "mp"
+          * refers to only up to two points per client-side socket,
+          * one for ipv4 and one for ipv6.
+          * Like for Barefoot, we know what client socket we're going to
+          * read the packet from, as there is only one per i/o object,
+          * but we don't know what target socket, if any, to write the
+          * packet to until we've read the client packet.
           */
 
          iostatus = doio_udp(io, udprset, &badfd);
@@ -1223,9 +1275,12 @@ run_io()
 #endif /* BAREFOOTD */
 
       /*
+       * XXX optimization target.
        * At this time, newrset should contain mostly the same tcp-sockets
        * that would be returned as writable by the next select(2) ("first
-       * select"), no?  Would be nice if we could use that.
+       * select"), no?  It would be very nice if we could somewhat "continue"
+       * and use that, which would save us wasting a lot of time repeating
+       * the same select(2) which we just performed.
        */
    }
 }
@@ -1253,7 +1308,7 @@ io_postconfigload(void)
       io_updatemonitor(&iov[i]);
 
       if (iov[i].state.protocol == SOCKS_TCP)
-         continue; 
+         continue;
 
       SASSERTX(iov[i].state.protocol == SOCKS_UDP);
 
@@ -1272,7 +1327,7 @@ io_postconfigload(void)
 #else /* BAREFOOTD */
       /*
        * Nothing to do.  Those clients that were permitted we continue
-       * to permit. 
+       * to permit.
        */
 
       slog(LOG_DEBUG, "%s: iov #%ld, dstc = %ld",
@@ -1284,13 +1339,13 @@ io_postconfigload(void)
 #warning "missing code to remove unused internal udp sessions."
 /*
  * i.e. sessions belonging to internal addresses we should no longer
- * listen on.  Clients belonging to those sessions must also be 
+ * listen on.  Clients belonging to those sessions must also be
  * removed.  So perhaps all clients that are no longer permitted should
  * also be removed then?
  */
 #if 0
          io_remove_session(ioc,
-                           iov, 
+                           iov,
                            &oldinternal.addrv[i].addr,
                            oldinternal.addrv[i].protocol,
                            IO_ADMINTERMINATION);
@@ -1305,7 +1360,25 @@ close_iodescriptors(io)
 {
    const char *function = "close_iodescriptors()";
    size_t i;
-   int errno_s, fdv[] = { io->control.s, io->src.s, io->dst.s };
+   int errno_s, fdv[] = { io->control.s, io->src.s, io->dst.s, -1 };
+
+#if SOCKS_SERVER
+   if (io->state.protocol == SOCKS_UDP) {
+      /*
+       * dst socket may be up to two sockets (ipv4 and ipv6),
+       * not just io->dst.s.
+       */
+      const size_t dstoffset = 2; /* control = 0, src = 1, dst = 2. */
+
+      SASSERTX(io->dst.dstc <= 2);
+
+      for (i = 0; i < io->dst.dstc; ++i)
+         fdv[dstoffset + i] = io->dst.dstv[i].s;
+
+      for (i = dstoffset + i; i < ELEMENTS(fdv); ++i)
+         fdv[i] = -1;
+   }
+#endif /* SOCKS_SERVER */
 
    errno_s = errno;
 
@@ -1416,7 +1489,7 @@ recv_io(s, io)
              * not an error indicator, but a mismatch between us and mother.
              * Should never happen.
              */
-            SERRX(io_allocated(NULL, NULL));
+            SERRX(io_allocated(NULL, NULL, NULL, NULL));
 
          return -1;
       }
@@ -1429,7 +1502,7 @@ recv_io(s, io)
    SASSERTX(io->crule.ss  == NULL);
    SASSERTX(io->srule.bw  == NULL);
    SASSERTX(io->srule.ss  == NULL);
- 
+
    /* figure out how many descriptors we are supposed to be passed. */
    switch (io->state.command) {
       case SOCKS_BIND:
@@ -1598,7 +1671,7 @@ recv_io(s, io)
       bufused +=
       snprintf(&buf[bufused], sizeof(buf) - bufused,
                ", dst fd %d (%s)",
-               io->dst.s, 
+               io->dst.s,
                io->dst.s == -1 ? "N/A" : socket2string(io->dst.s, NULL, 0));
 
       if (io->control.s != -1) {
@@ -1743,7 +1816,7 @@ recv_io(s, io)
              * Each client will have it's own target/dst object, set once
              * we receive the first packet from it.  The client/source socket
              * is however the same for all clients.
-             */ 
+             */
             socks_allocbuffer(io->src.s, SOCK_DGRAM);
 
             break;
@@ -1796,9 +1869,9 @@ recv_io(s, io)
          log_ruleinfo_shmid(&io->srule, function, NULL);
 
       /*
-       * attach to shmem now and keep attached, so we don't have to 
-       * attach/detach for every i/o op later.  Session is not important 
-       * to attach to as we won't need it until we delete the client, 
+       * attach to shmem now and keep attached, so we don't have to
+       * attach/detach for every i/o op later.  Session is not important
+       * to attach to as we won't need it until we delete the client,
        * though it would still be preferable to attach to that also to
        * avoid having to wait for pagein of sessionmemory upon disconnect.
        */
@@ -1806,7 +1879,7 @@ recv_io(s, io)
 
       io_updatemonitor(io);
 
-      /* 
+      /*
        * only update now, as it's added to us (us, the i/o process)
        * without problems.
        */
@@ -1846,7 +1919,7 @@ io_clearset(io, clearalltargets, set)
          }
          break;
 
-#if HAVE_UDP_SUPPORT 
+#if HAVE_UDP_SUPPORT
       case SOCKS_UDPASSOCIATE: {
          size_t i;
 
@@ -1870,31 +1943,52 @@ io_clearset(io, clearalltargets, set)
 }
 
 static size_t
-io_allocated(tcp_alloc, udp_alloc)
-   size_t *tcp_alloc;
-   size_t *udp_alloc;
+io_allocated(tcpio, tcpfd, udpio, udpfd)
+   size_t *tcpio;
+   size_t *tcpfd;
+   size_t *udpio;
+   size_t *udpfd;
 {
    const char *function = "io_allocated()";
-   size_t i, tcp_alloc_mem, udp_alloc_mem;
+   size_t i, tcpio_mem, tcpfd_mem, udpio_mem, udpfd_mem;
 
-   if (tcp_alloc == NULL)
-      tcp_alloc = &tcp_alloc_mem;
+   if (tcpio == NULL)
+      tcpio = &tcpio_mem;
 
-   if (udp_alloc == NULL)
-      udp_alloc = &udp_alloc_mem;
+   if (tcpfd == NULL)
+      tcpfd = &tcpfd_mem;
 
-   *udp_alloc = *tcp_alloc = 0;
+   if (udpio == NULL)
+      udpio = &udpio_mem;
+
+   if (udpfd == NULL)
+      udpfd = &udpfd_mem;
+
+   *tcpio = *tcpfd = *udpio = *udpfd = 0;
+
    for (i = 0; i < ioc; ++i) {
       if (!iov[i].allocated)
          continue;
 
       switch (iov[i].state.protocol) {
+#if HAVE_UDP_SUPPORT
          case SOCKS_UDP:
-            ++(*udp_alloc);
+            ++(*udpio);
+
+            ++(*udpfd);                   /* internal-side.  Always one. */
+            (*udpfd) += iov[i].dst.dstc;  /* external side.  Varies.     */
+
+#if HAVE_CONTROL_CONNECTION
+            ++(*tcpfd);
+#endif /* HAVE_CONTROL_CONNECTION */
+
             break;
+#endif /* HAVE_UDP_SUPPORT */
 
          case SOCKS_TCP:
-            ++(*tcp_alloc);
+            ++(*tcpio);
+
+            (*tcpfd) += 1 /* internal side */ + 1 /* external side. */;
             break;
 
          default:
@@ -1908,9 +2002,9 @@ io_allocated(tcp_alloc, udp_alloc)
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: allocated for tcp: %lu, udp: %lu",
-           function, (unsigned long)*tcp_alloc, (unsigned long)*udp_alloc);
+           function, (unsigned long)*tcpio, (unsigned long)*udpio);
 
-   return *tcp_alloc + *udp_alloc;
+   return *tcpio + *udpio;
 }
 
 static void
@@ -1930,7 +2024,7 @@ proctitleupdate(void)
 
    setproctitle("%s: %lu/%lu (%lu in progress)",
                 childtype2string(sockscf.state.type),
-                (unsigned long)io_allocated(NULL, NULL),
+                (unsigned long)io_allocated(NULL, NULL, NULL, NULL),
                 (unsigned long)SOCKD_IOMAX,
                 (unsigned long)inprogress);
 }
@@ -1982,7 +2076,7 @@ io_getset(nfds, set)
                   iov[i].dst.s = -1;
                   evaluating = &iov[i];
                }
-               else if ((target = clientofsocket(s, 
+               else if ((target = clientofsocket(s,
                                                  iov[i].dst.dstc,
                                                  iov[i].dst.dstv)) != NULL) {
                      io_syncudp(&iov[i], target);
@@ -2112,7 +2206,7 @@ io_fillset(set, antiflags, antiflags_set, bwoverflowtil)
          continue;
 
       /* should have been removed already if so. */
-      SASSERTX(!(io->src.state.fin_received && io->dst.state.fin_received)); 
+      SASSERTX(!(io->src.state.fin_received && io->dst.state.fin_received));
 
 #if HAVE_CONTROL_CONNECTION
       /*
@@ -2212,7 +2306,7 @@ io_fillset(set, antiflags, antiflags_set, bwoverflowtil)
              * regardless of bw-limits as we don't know from what
              * client the packet is til we've read the packet.
              *
-             * XXX But what do we do if the bw overflows?  We can't know 
+             * XXX But what do we do if the bw overflows?  We can't know
              * that until we've read the packet and seen what client it's
              * from.  Should we then drop the packet?  Probably.
              */
@@ -2260,10 +2354,10 @@ io_fillset(set, antiflags, antiflags_set, bwoverflowtil)
             }
             else {
                /*
-                * means we don't yet know what address the client will send 
-                * us packets from, and it has not sent us any packets yet, 
-                * so we can hardly expect any reply.  Even if we got a 
-                * replypacket, we wouldn't know where to send it. 
+                * means we don't yet know what address the client will send
+                * us packets from, and it has not sent us any packets yet,
+                * so we can hardly expect any reply.  Even if we got a
+                * replypacket, we wouldn't know where to send it.
                 */
                SASSERTX(io->dst.dstc == 0);
                SASSERTX(io->dst.s    == -1);
@@ -2329,7 +2423,7 @@ io_gettimeout(timeout)
    gettimeofday_monotonic(&tnow);
 
    if (timerisset(&bwoverflowtil)) {
-      const struct timeval goodenough = { 1, 0 };
+      const struct timeval shortenough = { 1, 0 };
 
       timersub(&bwoverflowtil, &tnow, &time_havebw);
 
@@ -2349,7 +2443,7 @@ io_gettimeout(timeout)
       }
 
       *timeout = time_havebw;
-      if (timercmp(timeout, &goodenough, <=))
+      if (timercmp(timeout, &shortenough, <=))
          return timeout;
 
       havetimeout = 1;
@@ -2396,10 +2490,10 @@ io_gettimeout(timeout)
     * we io_delete(), we change timeoutispossible to true, and
     * upon scanning through all i/o's here, we may possible set it
     * to false again.  Since the default is to not have any timeout
-    * on the i/o phase (except FIN_WAIT), this might save time in
+    * in the i/o phase (except for FIN_WAIT), this might save time in
     * the common cases.
     */
-   if (io_allocated(&tcpc, &udpc) == 0) {
+   if (io_allocated(&tcpc, NULL, &udpc, NULL) == 0) {
       last_timeout_isset = 0;
       return NULL;
    }
@@ -2410,7 +2504,7 @@ io_gettimeout(timeout)
     * go through all i/o-objects, finding the one who has least left
     * until timeout, or the first with a timeout that is soon enough.
     */
-   for (i = 0, havetimeout = 0; i < ioc && (tcpc > 0 || udpc > 0); ++i) {
+   for (i = 0; i < ioc && (tcpc > 0 || udpc > 0); ++i) {
       struct timeval timeout_found;
 
       if (!iov[i].allocated)
@@ -2445,11 +2539,11 @@ io_gettimeout(timeout)
       SASSERTX(timeout->tv_sec  >= 0);
       SASSERTX(timeout->tv_usec >= 0);
 
-      /* 
-       * never mind sub-second accuracy, but do make sure we don't end up 
-       * with {0, 0} if there is less than one second til timeout.  If
-       * there is more than one second, never mind if we the timeout
-       * is a little longer than necessary.
+      /*
+       * never mind sub-second accuracy, but do make sure we don't end up
+       * with {0, 0} if there is less than one second till timeout.  If
+       * there is more than one second, never mind if the timeout is a
+       * little longer than necessary.
        */
       timeout->tv_usec = 999999;
 
@@ -2534,7 +2628,7 @@ io_timeoutispossible(io)
    /*
     * TCP is the same for all.
     */
-   SASSERTX(io->state.protocol == SOCKS_TCP); 
+   SASSERTX(io->state.protocol == SOCKS_TCP);
 
    if (io->dst.state.isconnected) {
       if (io->srule.timeout.tcp_fin_wait != 0
@@ -2677,7 +2771,7 @@ static int
 getnewios()
 {
    const char *function = "getnewios()";
-   const size_t freec = SOCKD_IOMAX - io_allocated(NULL, NULL);
+   const size_t freec = SOCKD_IOMAX - io_allocated(NULL, NULL, NULL, NULL);
    size_t receivedc;
 
    receivedc = errno = 0;
@@ -2701,8 +2795,8 @@ getnewios()
            "%s: strange ... we were called to receive a new client (%lu/%lu), "
            "but no new client was there to receive: %s",
            function,
-           (unsigned long)(freec + 1), 
-           (unsigned long)SOCKD_IOMAX, 
+           (unsigned long)(freec + 1),
+           (unsigned long)SOCKD_IOMAX,
            strerror(errno));
 
       return -1;
@@ -2727,7 +2821,7 @@ siginfo(sig, si, sc)
 
    SIGNAL_PROLOGUE(sig, si, errno_s);
 
-   seconds = (unsigned long)socks_difftime(time_monotonic(&tnow), 
+   seconds = (unsigned long)socks_difftime(time_monotonic(&tnow),
                                            sockscf.stat.boot);
 
    seconds2days(&seconds, &days, &hours, &minutes);
@@ -2804,13 +2898,13 @@ siginfo(sig, si, sc)
 
 
       /*
-       * When printing current state display the IP-addresses in actual 
+       * When printing current state display the IP-addresses in actual
        * use, rather than any hostnames the client may have provided.
        */
 
       if (iov[i].state.protocol == SOCKS_TCP) {
          size_t src_buffered, dst_buffered;
-         char src_bufferinfo[64], dst_bufferinfo[sizeof(src_bufferinfo)], 
+         char src_bufferinfo[64], dst_bufferinfo[sizeof(src_bufferinfo)],
               tcpinfo[MAXTCPINFOLEN];
          int havesocketinfo;
 
@@ -2986,7 +3080,7 @@ siginfo(sig, si, sc)
                *tcpinfo = NUL;
             else {
 #if DIAGNOSTIC
-               if (strlen(info) >= sizeof(tcpinfo)) 
+               if (strlen(info) >= sizeof(tcpinfo))
                   SWARNX(strlen(info));
 #endif /* DIAGNOSTIC */
 
@@ -3112,7 +3206,7 @@ do {                                                                           \
                               sizeof(srcstring));
 
             build_addrstr_dst(sockaddr2sockshost(&client->laddr, &a),
-                              iov[i].state.proxychain.proxyprotocol 
+                              iov[i].state.proxychain.proxyprotocol
                               == PROXY_DIRECT ?
                          NULL : sockaddr2sockshost(&client->raddr, &b),
                               iov[i].state.proxychain.proxyprotocol
@@ -3216,14 +3310,13 @@ connectstatus(io, badfd)
                SASSERTX(!io->src.state.alarmdisconnectdone);
 
                alarm_add_disconnect(0,
-                                    io->srule.mstats,
-                                    io->srule.mstats_shmid,
+                                    &io->srule,
                                     ALARM_INTERNAL,
                                     &cinfo,
                                     strerror(errno),
                                     sockscf.shmemfd);
 
-               io->src.state.alarmdisconnectdone = 1; 
+               io->src.state.alarmdisconnectdone = 1;
             }
 
             *badfd = io->src.s;
@@ -3303,14 +3396,13 @@ connectstatus(io, badfd)
       SASSERTX(!io->dst.state.alarmdisconnectdone);
 
       alarm_add_disconnect(0,
-                           io->srule.mstats,
-                           io->srule.mstats_shmid,
+                           &io->srule,
                            ALARM_EXTERNAL,
                            &cinfo,
                            strerror(errno),
                            sockscf.shmemfd);
 
-      io->dst.state.alarmdisconnectdone = 1; 
+      io->dst.state.alarmdisconnectdone = 1;
    }
 
    len = sizeof(errno);
@@ -3350,7 +3442,7 @@ connectstatus(io, badfd)
 }
 
 void
-io_update(timenow, bwused, i_read, i_written, 
+io_update(timenow, bwused, i_read, i_written,
           e_read, e_written, rule, packetrule, lock)
    const struct timeval *timenow;
    const size_t bwused;
@@ -3367,9 +3459,14 @@ io_update(timenow, bwused, i_read, i_written,
    monitor_stats_t *monitor;
    int didattach;
 
-   slog(LOG_DEBUG, "%s: bwused = %lu", function, (unsigned long)bwused);
+   slog(LOG_DEBUG, "%s: bwused %lu, bw_shmid %lu, mstats_shmid %lu",
+        function,
+        (unsigned long)bwused,
+        (rule == NULL || rule->bw_shmid == 0) ?
+            0 : (unsigned long)rule->bw_shmid,
+        (unsigned long)packetrule->mstats_shmid);
 
-   if (rule->bw_shmid != 0 && bwused != 0) {
+   if (rule != NULL && rule->bw_shmid != 0 && bwused != 0) {
       SASSERTX(rule->bw != NULL);
       bw_update(rule->bw, bwused, timenow, lock);
    }
@@ -3378,14 +3475,13 @@ io_update(timenow, bwused, i_read, i_written,
    || !(packetrule->alarmsconfigured & ALARM_DATA))
       return;
 
-
    if (packetrule->mstats == NULL) {
       /*
        * Must be a Dante UDP session.
        */
-      SASSERTX(packetrule != rule); 
+      SASSERTX(packetrule != rule);
       SASSERTX(SOCKS_SERVER);
-     
+
       if (sockd_shmat(packetrule, SHMEM_MONITOR) != 0)
          return;
 
@@ -3398,6 +3494,8 @@ io_update(timenow, bwused, i_read, i_written,
    monitor = &packetrule->mstats->object.monitor;
 
    socks_lock(sockscf.shmemfd, (off_t)packetrule->mstats_shmid, 1, 1, 1);
+
+   MUNPROTECT_SHMEMHEADER(packetrule->mstats);
 
    if (monitor->internal.alarm.data.recv.isconfigured
    &&  i_read != NULL
@@ -3427,6 +3525,8 @@ io_update(timenow, bwused, i_read, i_written,
       monitor->external.alarm.data.send.lastio  = *timenow;
    }
 
+   MPROTECT_SHMEMHEADER(packetrule->mstats);
+
    socks_unlock(sockscf.shmemfd, (off_t)packetrule->mstats_shmid, 1);
 
    slog(LOG_DEBUG,
@@ -3455,25 +3555,26 @@ io_delete(mother, io, badfd, status)
    const iostatus_t status;
 {
    const char *function = "io_delete()";
+   const int isreversed = (io->state.command == SOCKS_BINDREPLY ? 1 : 0);
    const int errno_s = errno;
 #if HAVE_GSSAPI
    OM_uint32 major_status, minor_status;
 #endif /* HAVE_GSSAPI */
    struct timeval tnow;
    rule_t *rulev[] = {
-                       &io->srule,
+                        &io->srule,
 #if HAVE_SOCKS_HOSTID
-                       io->hrule_isset ? &io->hrule : NULL,
+                        io->hrule_isset ? &io->hrule : NULL,
 #endif /* HAVE_SOCKS_HOSTID */
-                       &io->crule,
-                       };
+                        &io->crule,
+                     };
    clientinfo_t cinfo;
    size_t rulei;
    char buf[512], tcpinfo[MAXTCPINFOLEN];
    int command, protocol;
 
-   slog(LOG_DEBUG, 
-        "%s: command %s, bad-fd %d, controlwfd %d, src-fd %d, dst-fd %d"
+   slog(LOG_DEBUG,
+        "%s: command %s, bad-fd %d, controlfd %d, src-fd %d, dst-fd %d"
 #if HAVE_UDP_SUPPORT
         " dstc = %lu"
 #endif /* HAVE_UDP_SUPPORT */
@@ -3482,7 +3583,7 @@ io_delete(mother, io, badfd, status)
         command2string(io->state.command),
         badfd,
         io->control.s,
-        io->src.s, 
+        io->src.s,
         io->dst.s
 #if HAVE_UDP_SUPPORT
         ,
@@ -3509,7 +3610,6 @@ io_delete(mother, io, badfd, status)
     */
     size_t dsti = 0;
 #endif /* SOCKS_SERVER */
-
 
    /* only log the disconnect if the rule says so. */
    for (rulei = 0; rulei < ELEMENTS(rulev); ++rulei) {
@@ -3545,7 +3645,7 @@ io_delete(mother, io, badfd, status)
             *tcpinfo = NUL;
          else {
 #if DIAGNOSTIC
-            if (strlen(info) >= sizeof(tcpinfo)) 
+            if (strlen(info) >= sizeof(tcpinfo))
                SWARNX(strlen(info));
 #endif /* DIAGNOSTIC */
 
@@ -3579,10 +3679,10 @@ io_delete(mother, io, badfd, status)
                                  == PROXY_DIRECT ?
                                   NULL : sockaddr2sockshost(&io->dst.raddr, &b),
                                  io->state.proxychain.proxyprotocol
-                                 == PROXY_DIRECT ? 
+                                 == PROXY_DIRECT ?
                                        NULL : &io->state.proxychain.extaddr,
                                  io->state.proxychain.proxyprotocol
-                                 == PROXY_DIRECT ? 
+                                 == PROXY_DIRECT ?
                                        sockaddr2sockshost(&io->dst.raddr, NULL)
                                     :  &io->dst.host,
                                  &io->dst.auth,
@@ -3614,8 +3714,8 @@ io_delete(mother, io, badfd, status)
 
                   SASSERTX(io->dst.s != -1);
 
-                  udptarget = clientofsocket(io->dst.s, 
-                                             io->dst.dstc, 
+                  udptarget = clientofsocket(io->dst.s,
+                                             io->dst.dstc,
                                              io->dst.dstv);
 
                   SASSERTX(udptarget != NULL);
@@ -3625,10 +3725,10 @@ io_delete(mother, io, badfd, status)
                   io_syncudp(io, udptarget);
 
                   build_addrstr_dst(sockaddr2sockshost(&io->dst.laddr, &a),
-                                    io->state.proxychain.proxyprotocol 
+                                    io->state.proxychain.proxyprotocol
                                     == PROXY_DIRECT ?
                                 NULL : sockaddr2sockshost(&io->dst.raddr, &b),
-                                    io->state.proxychain.proxyprotocol 
+                                    io->state.proxychain.proxyprotocol
                                     == PROXY_DIRECT ?
                                        NULL : &io->state.proxychain.extaddr,
                                     io->dst.state.isconnected ?
@@ -3677,7 +3777,7 @@ io_delete(mother, io, badfd, status)
 
          build_addrstr_src(GET_HOSTIDV(&io->state),
                            GET_HOSTIDC(&io->state),
-                           &CONTROLIO(io)->host, 
+                           &CONTROLIO(io)->host,
                            NULL,
                            NULL,
                            sockaddr2sockshost(&CONTROLIO(io)->laddr, NULL),
@@ -3751,23 +3851,18 @@ io_delete(mother, io, badfd, status)
 
       if (protocol == SOCKS_TCP) {
          if (*out == NUL) {
-            const int isreversed
-            = (io->state.command == SOCKS_BINDREPLY ? 1 : 0);
-
-            bufused
-            += snprintf(&logmsg[bufused], sizeof(logmsg) - bufused,
-                       "%"PRIu64" -> %s -> %"PRIu64"",
-                       (isreversed ? dst_written : src_written),
-                       in,
-                       (isreversed ? src_written  : dst_written));
+            bufused += snprintf(&logmsg[bufused], sizeof(logmsg) - bufused,
+                                "%"PRIu64" -> %s -> %"PRIu64"",
+                                (isreversed ? dst_written : src_written),
+                                in,
+                                (isreversed ? src_written  : dst_written));
          }
          else
-            bufused
-            += snprintf(&logmsg[bufused], sizeof(logmsg) - bufused,
-                       "%"PRIu64" -> %s -> %"PRIu64", "
-                       "%"PRIu64" -> %s -> %"PRIu64"",
-                       src_written, in, src_read,
-                       dst_written, out, dst_read);
+            bufused += snprintf(&logmsg[bufused], sizeof(logmsg) - bufused,
+                                "%"PRIu64" -> %s -> %"PRIu64", "
+                                "%"PRIu64" -> %s -> %"PRIu64"",
+                                src_written, in, src_read,
+                                dst_written, out, dst_read);
       }
       else {
          SASSERTX(protocol == SOCKS_UDP);
@@ -3885,7 +3980,8 @@ io_delete(mother, io, badfd, status)
             slog(LOG_INFO, "%s: %s error%s.  %s%s",
                  logmsg,
                  badfd < 0 ? "session"
-                        : badfd == io->dst.s ? "remote peer" : "local client",
+                        : (badfd == io->dst.s && !isreversed) ?
+                              "remote peer" : "local client",
                  buf,
                  timeinfo,
                  tcpinfo);
@@ -4083,6 +4179,7 @@ io_delete(mother, io, badfd, status)
    cinfo.from = CONTROLIO(io)->raddr;
 
 #if HAVE_CONTROL_CONNECTION
+
    SHMEM_UNUSE(SHMEMRULE(io), &cinfo, sockscf.shmemfd, SHMEM_ALL);
 
 #else /* !HAVE_CONTROL_CONNECTION */
@@ -4093,7 +4190,7 @@ io_delete(mother, io, badfd, status)
 #endif /* !HAVE_CONTROL_CONNECTION */
 
 #if SOCKS_SERVER
-   bzero(io->dst.dstv, sizeof(*io->dst.dstv) * io->dst.dstcmax);
+   bzero(io->dst.dstv, sizeof(*io->dst.dstv) * io->dst.dstc);
 #endif /* SOCKS_SERVER */
 
    bzero(io, sizeof(*io));

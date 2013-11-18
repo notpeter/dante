@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_GSSAPI
 
 static const char rcsid[] =
-   "$Id: method_gssapi.c,v 1.71 2013/05/04 13:37:06 michaels Exp $";
+   "$Id: method_gssapi.c,v 1.73 2013/10/27 15:24:42 karls Exp $";
 
 static negotiate_result_t
 recv_gssapi_auth_ver(int s, request_t *request, negotiate_state_t *state);
@@ -348,12 +348,12 @@ recv_gssapi_auth_token(s, request, state)
 
    if ((rc = socks_sendton(s,
                            buf,
-                           buflen, 
+                           buflen,
                            0,
                            0,
-                           NULL, 
+                           NULL,
                            0,
-                           NULL, 
+                           NULL,
                            request->auth)) != (ssize_t)buflen)  {
       snprintf(state->emsg, sizeof(state->emsg),
               "socks_sendton() token: wrote %ld out of %lu byte%s: %s",
@@ -396,7 +396,7 @@ recv_gssapi_auth_token(s, request, state)
       state->rcurrent = recv_gssapi_auth_ver;
 
       /* presumably client is awaiting our response. */
-      return NEGOTIATE_CONTINUE; 
+      return NEGOTIATE_CONTINUE;
    }
    else {
       snprintf(state->emsg, sizeof(state->emsg),

@@ -208,7 +208,7 @@
 #ifndef YYSTYPE_DEFINED
 #define YYSTYPE_DEFINED
 typedef union {
-   struct { 
+   struct {
       uid_t   uid;
       gid_t   gid;
    } uid;

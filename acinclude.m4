@@ -5,6 +5,7 @@ AC_DEFUN([L_MODVER],
 [AC_MSG_CHECKING(for module $1)
  if test -f "licensed/$1.c"; then
 	MINVER="$2"
+	unset MODVER
 	MODLINE=`head -1 licensed/$1.c | grep MODVER`
 	if test x"$MODLINE" != x; then
 		MODVER=`echo "$MODLINE" | cut -d: -f 2`

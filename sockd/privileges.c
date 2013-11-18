@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: privileges.c,v 1.62 2013/05/09 10:58:52 michaels Exp $";
+"$Id: privileges.c,v 1.64 2013/10/27 15:24:42 karls Exp $";
 
 static privilege_t lastprivelege = SOCKD_PRIV_NOTSET;
 
@@ -402,7 +402,7 @@ sockd_priv(privilege, op)
 
 #else /* !HAVE_PRIVILEGES */
          if (op == PRIV_ON)
-            p = sockd_seteugid(sockscf.uid.privileged_uid, 
+            p = sockd_seteugid(sockscf.uid.privileged_uid,
                                sockscf.uid.privileged_gid);
          else
             p = sockd_seteugid(lasteuid, lastegid);
@@ -410,9 +410,9 @@ sockd_priv(privilege, op)
          if (p != 0)
             serr("%s: switching to euid/egid %u/%u failed",
                  function,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_uid : (unsigned)lasteuid,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_gid : (unsigned)lastegid);
 #endif /* !HAVE_PRIVILEGES */
 
@@ -442,9 +442,9 @@ sockd_priv(privilege, op)
          if (p != 0)
             serr("%s: switching to euid/egid %u/%u failed",
                  function,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_uid : (unsigned)lasteuid,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_gid : (unsigned)lastegid);
 #endif /* !HAVE_PRIVILEGES */
 
@@ -466,9 +466,9 @@ sockd_priv(privilege, op)
          if (p != 0)
             serr("%s: switching to euid/egid %u/%u failed",
                  function,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_uid : (unsigned)lasteuid,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_gid : (unsigned)lastegid);
 #endif /* !HAVE_PRIVILEGES */
 
@@ -490,9 +490,9 @@ sockd_priv(privilege, op)
          if (p != 0)
             serr("%s: switching to euid/egid %u/%u failed",
                  function,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_uid : (unsigned)lasteuid,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_gid : (unsigned)lastegid);
 #endif /* !HAVE_PRIVILEGES */
 
@@ -512,9 +512,9 @@ sockd_priv(privilege, op)
          if (p != 0)
             serr("%s: switching to euid/egid %u/%u failed",
                  function,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_uid : (unsigned)lasteuid,
-                 op == PRIV_ON ? 
+                 op == PRIV_ON ?
                      (unsigned)sockscf.uid.privileged_gid : (unsigned)lastegid);
 #endif /* !HAVE_PRIVILEGES */
 
@@ -530,7 +530,7 @@ resetprivileges(void)
 {
    const char *function = "resetprivileges()";
 
-   slog(LOG_DEBUG, "%s: euid/egid %ld/%ld", 
+   slog(LOG_DEBUG, "%s: euid/egid %ld/%ld",
         function, (long)geteuid(), (long)getegid());
 
 #if !HAVE_PRIVILEGES
@@ -545,15 +545,15 @@ resetprivileges(void)
       (void)seteuid(0);
 
       if (setgid(sockscf.uid.unprivileged_gid) != 0) {
-         if (getegid() != sockscf.uid.unprivileged_gid 
-         ||  getgid()  != sockscf.uid.unprivileged_gid) 
+         if (getegid() != sockscf.uid.unprivileged_gid
+         ||  getgid()  != sockscf.uid.unprivileged_gid)
             serr("setgid(2) to unprivileged gid %lu failed",
                   (unsigned long)sockscf.uid.unprivileged_gid);
       }
 
       if (setuid(sockscf.uid.unprivileged_uid) != 0) {
-         if (geteuid() != sockscf.uid.unprivileged_uid 
-         ||  getuid()  != sockscf.uid.unprivileged_uid) 
+         if (geteuid() != sockscf.uid.unprivileged_uid
+         ||  getuid()  != sockscf.uid.unprivileged_uid)
             serr("setuid(2) to unprivileged uid %lu failed",
                  (unsigned long)sockscf.uid.unprivileged_uid);
       }
@@ -634,4 +634,3 @@ sockd_seteugid(uid, gid)
 }
 
 #endif /* !HAVE_PRIVILEGES */
-

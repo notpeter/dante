@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012
+ *               2008, 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.914 2013/07/29 19:30:16 michaels Exp $ */
+/* $Id: common.h,v 1.931 2013/11/15 05:12:22 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -69,23 +69,35 @@ extern char *__progname;
     */
 
 /*
- * If we are compling for unit-tests, there are functions
- * that normally have static/file-local scope, but which we 
+ * If we are compiling for unit-tests, there are functions
+ * that normally have static/file-local scope, but which we
  * want to test in the unit-tests.  The below #define is used as
- * an easy way to make those functions be compiled with global 
+ * an easy way to make those functions be compiled with global
  * scope for unit-tests.
  */
 #if STANDALONE_UNIT_TEST
-#define UNIT_TEST_STATIC_SCOPE 
+#define UNIT_TEST_STATIC_SCOPE
 #else
 #define UNIT_TEST_STATIC_SCOPE static
 #endif
 
+#if DIAGNOSTIC
+/*
+ * Takes too much time, leading to one or more shmem-files usually having
+ * been deleted already by mother before child-processes get around to
+ * checking them.  Instead enable this only if we (again) suspect there
+ * are bugs related to corruption of the shmem-header.
+ */
+#define DO_SHMEMCHECK (0)
+#else
+#define DO_SHMEMCHECK (0)
+#endif
 
-/* 
+
+/*
  * We base ourselves on RFC 5424. (LOG_ALERT (0) - LOG_DEBUG (7))
  */
-#define MAXLOGLEVELS        (8)           
+#define MAXLOGLEVELS        (8)
 
 
 #define PIPEBUFFER_IS_SEND_BASED       (0)
@@ -167,7 +179,7 @@ extern char *__progname;
 #endif /* MAXGSSAPITOKENLEN */
 #define MAXGSSAPITOKENLEN (1024 * 64 - 1) /* socks5: up to 2^16 - 1 */
 
-/* 
+/*
  * GSSAPI headerlen (NOTE: SOCKS GSSAPI headerlen.  After stripping of
  * the socks gssapi header, there is another non-socks gssapi header
  * also on the token).
@@ -245,7 +257,7 @@ extern char *__progname;
 
 /*
  * Some things we may want to log at different levels in the server and
- * the client.  Use #defines here that map to the appropriate level. 
+ * the client.  Use #defines here that map to the appropriate level.
  */
 #if SOCKS_CLIENT
 #define LOG_NEGOTIATE         (LOG_INFO)
@@ -256,7 +268,7 @@ extern char *__progname;
 
 #define NOMEM                 "<memory exhausted>"
 
-/* environement variables used. */
+/* environment variables used. */
 #define ENV_HTTP_PROXY                     "HTTP_CONNECT_PROXY"
 #define ENV_SOCKS4_SERVER                  "SOCKS4_SERVER"
 #define ENV_SOCKS5_PASSWD                  "SOCKS5_PASSWD"
@@ -575,6 +587,14 @@ do {                                                                           \
    memcpy((_dst), (_src), _len + 1);                                           \
 } while (/* CONSTCOND */ 0)
 
+
+/*
+ * Round up or down a struct timeval to whole seconds.
+ */
+#define timeval2seconds(tval)                                                  \
+   ((tval)->tv_sec + ((tval)->tv_usec >= 500000 ? 1 : 0))
+
+
 /*
  * Make sure length of "_src" is not lager than "maxlen", and copy it to _dst.
  */
@@ -634,7 +654,7 @@ do {                                                                           \
 
 
 /*
- * Can not call these function directly since we need to make sure unused 
+ * Can not call these function directly since we need to make sure unused
  * bytes in the destination are zero (requirement of the socket API),
  * but the size of the destination can vary. :-/
  */
@@ -659,7 +679,7 @@ do {                                                                           \
                           sizeof((*addr)),                                     \
                           (gaierr),                                            \
                           (emsg),                                              \
-                          (elen))                  
+                          (elen))
 
 #define ruleaddr2sockaddr(ruleaddr, addr, protocol)                            \
    int_ruleaddr2sockaddr((ruleaddr), (addr), sizeof((*addr)), (protocol))
@@ -688,6 +708,10 @@ do {                                                                           \
 #if HAVE_GSSAPI
 #define GSSAPI_OVERHEAD(gssapistate) \
    ((MAXGSSAPITOKENLEN - GSSAPI_HLEN) - (gssapistate)->maxgssdata)
+
+#define GSSERR_IS_OK(e)                                                        \
+   (  (e) == GSS_S_CONTEXT_EXPIRED                                             \
+   || (e) == GSS_S_CREDENTIALS_EXPIRED)
 #endif /* HAVE_GSSAPI */
 
 /*
@@ -738,9 +762,14 @@ do { socks_sigunblock(oldset); } while (/* CONSTCOND */ 0)
  */
 #define socks_difftime(t1, t2)  ((t1) - (t2))
 
+/*
+ * Wrappers for our own functions that modify things a little in a way
+ * that should not have any negative effects.
+ */
 #define close(n)            closen(n)
 #define socket(d, t, p)     socks_socket(d, t, p)
 #define strerror(e)         socks_strerror(e)
+#define getifaddrs(ifap)    socks_getifaddrs(ifap)
 
 #undef snprintf
 #define snprintf   snprintfn
@@ -771,7 +800,7 @@ do {                                            \
 
 
 /*
- * for dynamically-sized fd_sets.  Note that this means all our fd_set's 
+ * for dynamically-sized fd_sets.  Note that this means all our fd_set's
  * must be maxsize, or the macros we define will write over memory not
  * belonging to them.
  */
@@ -877,23 +906,6 @@ do {                                      \
 
 #define RULEPORT_START(addr, protocol) (                                       \
    ((protocol) == SOCKS_TCP ? (addr)->port.tcp : (addr)->port.udp))
-
-#define RULEADDR_MATCHES_ALL_PORTS(a, p)  (                                    \
-  ((a)->operator  == none)                                                     \
-|| ((a)->operator == range                                                     \
-   && ntohs(RULEPORT_START((a), (p))) <= 1                                     \
-   && ntohs((a)->portend)             >= IP_MAXPORT)                           \
-|| ((a)->operator == ge && ntohs(RULEPORT_START(a, p)) <= 1)                   \
-|| ((a)->operator == gt && ntohs(RULEPORT_START(a, p)) == 0)                   \
-|| ((a)->operator == le && ntohs(RULEPORT_START(a, p)) == IP_MAXPORT)          \
-)
-
-#define RULEADDR_MATCHES_ALL_ADDRESSES(raddr, protocol) (                      \
-   (raddr)->atype                 == SOCKS_ADDR_IPV4                           \
-&& (raddr)->addr.ipv4.mask.s_addr == htonl(0))
-
-#define RULEADDR_MATCHES_ALL(a, p) \
-(RULEADDR_MATCHES_ALL_PORTS((a), p) && RULEADDR_MATCHES_ALL_ADDRESSES((a), (p)))
 
 #if HAVE_SOCKADDR_SA_LEN
 
@@ -1010,7 +1022,7 @@ do {                                                                           \
  * allocate memory for a control message of size "size".  "name" is the
  * name of the allocated memory.
  */
-#if HAVE_CMSGHDR 
+#if HAVE_CMSGHDR
 
 #define CMSG_AALLOC(name, size)           \
    union {                                \
@@ -1171,8 +1183,8 @@ do {                                                                           \
  * returns the length of the current address field in socks packet "packet".
  * "packet" can be one of pointer to response_t, request_t or udpheader_t.
  */
-#define ADDRESSIZE(packet) (                                         \
-     ((packet)->version == SOCKS_V4 ?                                \
+#define ADDRESSIZE(packet) (                                                   \
+     ((packet)->version == SOCKS_V4 ?                                          \
      (ADDRESSIZE_V4(packet)) : (ADDRESSIZE_V5(packet))))
 
 /*
@@ -1180,10 +1192,10 @@ do {                                                                           \
  */
 #define ADDRESSIZE_V5(packet) (                                                \
   (packet)->host.atype == SOCKS_ADDR_IPV4 ?                                    \
-     sizeof((packet)->host.addr.ipv4)                                          \
-   : (packet)->host.atype  == (unsigned char)SOCKS_ADDR_IPV6 ?                 \
-         sizeof((packet)->host.addr.ipv6.ip)                                   \
-       : (strlen((packet)->host.addr.domain) + 1))
+        sizeof((packet)->host.addr.ipv4)                                       \
+      : (packet)->host.atype  == (unsigned char)SOCKS_ADDR_IPV6 ?              \
+            sizeof((packet)->host.addr.ipv6.ip)                                \
+          : (strlen((packet)->host.addr.domain) + 1))
 
 #define ADDRESSIZE_V4(packet) (                                                \
    (packet)->atype == SOCKS_ADDR_IPV4 ?                                        \
@@ -1283,7 +1295,7 @@ do {                                                                           \
 
 #define MAXMETHODS     (255)  /*
                                * max number of methods we can be offered, and
-                               * potentioally support.
+                               * potentially support.
                                */
 
 /*
@@ -1601,10 +1613,10 @@ typedef struct {
    int                 wrap;        /* gssapi-wrapped, or clear?              */
    gss_ctx_id_t        id;          /* gssapi context id.                     */
    int                 protection;  /* selected protection mechanism.         */
-   
+
    OM_uint32           maxgssdata;  /* max length of gss data pre-encoding.   */
-   size_t              gssoverhead; /* 
-                                     * overhead in bytes of gssapi given the 
+   size_t              gssoverhead; /*
+                                     * overhead in bytes of gssapi given the
                                      * current mechanism/context/etc.
                                      * Don't know what the practical max
                                      * actually is, so this contains the
@@ -1738,9 +1750,9 @@ typedef struct {
 
 typedef struct {
    const sockopt_t       *info;          /* NULL if unknown option.           */
-   int                   level;          /* 
-                                          * socket level to set option at.  
-                                          * Not necessarily the same as 
+   int                   level;          /*
+                                          * socket level to set option at.
+                                          * Not necessarily the same as
                                           * info->level as we allow the user
                                           * to specify e.g. "tcp" instead
                                           * of level sol_socket, indicating
@@ -1869,14 +1881,14 @@ typedef struct ruleaddr_t {
       } ipv4;
 
       struct {
-         struct in6_addr   ip;         
+         struct in6_addr   ip;
          unsigned int      maskbits; /* host order. */
          uint32_t          scopeid;  /* host order. */
       } ipv6;
 
-      struct { 
-         /* 
-          * both should always be zero as this is only meaningfull for 
+      struct {
+         /*
+          * both should always be zero as this is only meaningful for
           * a rule that should match all and any kind of ipaddress.
           */
          struct in_addr   ip;
@@ -2138,17 +2150,17 @@ typedef struct {
    route_t      *route;
 } socksfd_t;
 
-/* 
+/*
  * getaddrinfo(3) returns separate entries for udp and tcp, even everything
  * else is the same.  That means we effectively only get half MAX_ADDRINFO_NEXT
- * uniqe ipaddresses at most.  We used 5 when we were using the gethostby*(3)
- * api, so double for getaddrinfo(3).  
+ * unique ipaddresses at most.  We used 5 when we were using the gethostby*(3)
+ * api, so double for getaddrinfo(3).
  *
  * Might think about filtering out otherwise duplicate tcp/udp entries to
  * save memory.  Would make the cache less general though.
  */
 #define MAX_ADDRINFO_NEXT (10)
- 
+
 typedef enum { id_name = 1, id_addr } hostent_id_t;
 
 typedef struct {
@@ -2158,7 +2170,7 @@ typedef struct {
    /* if looked up address/name was found, 0.  Otherwise errorcode.  */
    int            gai_rc;
 
-   /* 
+   /*
     * address or hostname used with DNS for this entry.
     * Note that gethostbyname(x) may return address k, but gethostbyaddr(k)
     * need not return the hostname 'x', so we need different entries for
@@ -2166,7 +2178,7 @@ typedef struct {
     */
    hostent_id_t key;
    union {
-      char                     name[MAXHOSTNAMELEN]; 
+      char                     name[MAXHOSTNAMELEN];
       struct sockaddr_storage  addr;
    } id;
 
@@ -2177,12 +2189,12 @@ typedef struct {
       struct {
             struct addrinfo addrinfo;
             /*
-             * The pointers in addrinfo are set to point to the below memory, 
+             * The pointers in addrinfo are set to point to the below memory,
              * to avoid having to do dynamic allocation/free repeatedly.
              */
 
-            /* 
-             * there is only one hostname returned in struct addrinfo 
+            /*
+             * there is only one hostname returned in struct addrinfo
              * by getnameinfo(3).
              */
             char            ai_canonname_mem[MAXHOSTNAMELEN];
@@ -2192,12 +2204,12 @@ typedef struct {
 
             struct addrinfo         ai_next_mem[MAX_ADDRINFO_NEXT];
 
-            struct addrinfo   *hints;     
+            struct addrinfo   *hints;
             struct addrinfo   hints_mem; /* memory for hints, if not NULL. */
       } getaddr;
 
       struct {
-         char name[MAXHOSTNAMELEN]; 
+         char name[MAXHOSTNAMELEN];
          int  flags;
       } getname;
    } data;
@@ -2211,7 +2223,7 @@ typedef struct {
    time_t         written;          /* time this entry was created.           */
 
 
-   /* 
+   /*
     * address or hostname used with DNS for this entry.
     * Note that gethostbyname(x) may return address k, but gethostbyaddr(k)
     * need not return the hostname 'x', so we need different entries for
@@ -2219,7 +2231,7 @@ typedef struct {
     */
    hostent_id_t key;
    union {
-      char            name[MAXHOSTNAMELEN]; 
+      char            name[MAXHOSTNAMELEN];
       struct in_addr  ipv4;
    } id;
 
@@ -2245,10 +2257,11 @@ typedef struct {
 typedef struct {
 #if !SOCKS_CLIENT
    interfaceside_t side;        /* what interface-side we are sending out on. */
-   struct sockaddr_storage peer;/* peer we are receving from.                 */
+   struct sockaddr_storage peer;/* peer we are receiving from.                */
 #endif /* !SOCKS_CLIENT */
 
-   int            flags;      /* flags set on the received data. */
+   int            type;       /* socket type; SOCK_DGRAM or SOCK_STREAM.      */
+   int            flags;      /* flags set on the received data.              */
 
    size_t         fromsocket; /*
                                * number of bytes read from socket.  This
@@ -2268,7 +2281,7 @@ typedef struct {
 
 typedef struct {
    interfaceside_t side; /*
-                          * what interface-side we are sending out on. 
+                          * what interface-side we are sending out on.
                           * Only used by server.
                           */
 
@@ -2435,16 +2448,16 @@ socks_logmatch(int d, const logtype_t *log);
 
 struct sockaddr_storage *
 int_sockshost2sockaddr2(const sockshost_t *shost, struct sockaddr_storage *addr,
-                        size_t addrlen, int *gaierr, 
+                        size_t addrlen, int *gaierr,
                         char *emsg, size_t emsglen);
 /*
  * Converts the sockshost_t "shost" to a sockaddr struct and stores it
- * in "addr".  If conversion fails, 0/0 is stored in "addr" and "gaierr" 
+ * in "addr".  If conversion fails, 0/0 is stored in "addr" and "gaierr"
  * is set to the resolver errorcode.  Otherwise, "gaierr" is set to 0.
- * 
+ *
  * If "addr" is NULL, the function uses a static buffer which may be
  * overwritten on the next call to this function.
- * 
+ *
  * If conversion fails, emsg contains the reason.  If failure is related
  * to DNS, "gaierr" is in addition set.
  *
@@ -2461,7 +2474,7 @@ int_sockshost2sockaddr(const sockshost_t *shost, struct sockaddr_storage *addr,
 
 
 struct sockaddr_storage *
-int_fakesockshost2sockaddr(const sockshost_t *host, 
+int_fakesockshost2sockaddr(const sockshost_t *host,
                            struct sockaddr_storage *addr, size_t addrlen);
 /*
  * Like sockshost2sockaddr(), but checks whether the address in
@@ -2470,7 +2483,7 @@ int_fakesockshost2sockaddr(const sockshost_t *host,
 
 struct sockaddr_storage *
 int_urlstring2sockaddr(const char *string, struct sockaddr_storage *addr,
-                       size_t addrlen, int *gaierr, 
+                       size_t addrlen, int *gaierr,
                        char *emsg, size_t emsglen);
 /*
  * Converts the address given in "string", on URL:// format, to
@@ -2496,9 +2509,9 @@ int
 sockaddr2hostname(const struct sockaddr_storage *sa, char *hostname,
                   const size_t hostnamelen);
 /*
- * reversemaps "sa" to hostname and stores it "hostname", which is at least 
+ * reversemaps "sa" to hostname and stores it "hostname", which is at least
  * "hostnamelen" bytes big.
- * 
+ *
  * Returns:
  *    0 on success.
  *    The corresponding getnameinf(3) error on failure.
@@ -2524,11 +2537,11 @@ int_ruleaddr2sockaddr(const ruleaddr_t *address, struct sockaddr_storage *sa,
 
 struct sockaddr_storage *
 int_ruleaddr2sockaddr2(const ruleaddr_t *address, struct sockaddr_storage *sa,
-                       size_t salen, const int protocol, int *gaierr, 
+                       size_t salen, const int protocol, int *gaierr,
                        char *emsg, const size_t emsglen);
 /*
  * Converts the ruleaddr_t "address" to a sockshost_t struct and stores it
- * in "sa" if not NULL.  
+ * in "sa" if not NULL.
  *
  * On error, "gaierr" may be set, and "emsg" will be set if not NULL.
  *
@@ -2565,16 +2578,16 @@ int_hostname2sockaddr(const char *name, size_t index,
 
 struct sockaddr_storage *
 int_ifname2sockaddr(const char *ifname, size_t index,
-                    struct sockaddr_storage *addr, size_t addrlen, 
+                    struct sockaddr_storage *addr, size_t addrlen,
                     struct sockaddr_storage *mask, size_t masklen);
 /*
  * Retrieves the address with index "index" on the interface named "ifname".
  * If "mask" is not NULL, the mask of the interface is stored here.
  *
  * Returns:
- *      On success: "addr", and possibly "netmask", filled in with the 
+ *      On success: "addr", and possibly "netmask", filled in with the
  *                  address found.
- *      On failure: NULL (no address found on the interface at that index.  
+ *      On failure: NULL (no address found on the interface at that index.
  */
 
 const char *
@@ -2633,7 +2646,7 @@ writen(int, const void *, size_t, const size_t minwrite,
  */
 
 ssize_t
-socks_recvfrom(int s, void *buf, size_t len, int flags, 
+socks_recvfrom(int s, void *buf, size_t len, int flags,
                struct sockaddr_storage *from,
                socklen_t *fromlen, recvfrom_info_t *recvflags,
                authmethod_t *auth)
@@ -2646,8 +2659,8 @@ socks_recvfrom(int s, void *buf, size_t len, int flags,
 
 ssize_t
 socks_recvfromn(const int s, void *buf, size_t len, const size_t minread,
-                const int flags, struct sockaddr_storage *from, 
-                socklen_t *fromlen, recvfrom_info_t *recvflags, 
+                const int flags, struct sockaddr_storage *from,
+                socklen_t *fromlen, recvfrom_info_t *recvflags,
                 authmethod_t *auth)
                 __ATTRIBUTE__((__BOUNDED__(__buffer__, 2, 3)));
 /*
@@ -2749,7 +2762,7 @@ setblocking(const int fd, const char *context);
 int
 setnonblocking(const int fd, const char *context);
 /*
- * Configures "fd" to use non-blocking i/o. 
+ * Configures "fd" to use non-blocking i/o.
  * "context" provides the context "fd" will be used in.
  *
  * Returns:
@@ -2770,7 +2783,7 @@ socketisconnected(const int s, struct sockaddr_storage *addr, socklen_t alen);
 /*
  * If the socket "s" is connected to a peer, returns peer's address.
  * If "addr" is not NULL, the peer address is stored in "addr", and a
- * pointer to "addr" is returned.  Otherwise a static buffer is used 
+ * pointer to "addr" is returned.  Otherwise a static buffer is used
  * and a pointer to that static buffer is returned.
  *
  * If the socket "s" is not connected, NULL is returned.
@@ -2796,7 +2809,7 @@ socks_rebind(int s, int protocol, struct sockaddr_storage *from,
  */
 
 int
-socks_bindinrange(int s, struct sockaddr_storage *addr, 
+socks_bindinrange(int s, struct sockaddr_storage *addr,
                   in_port_t first, in_port_t last, const enum operator_t op);
 /*
  * Like sockd_bind(), but keeps trying to sockd_bind a address in the
@@ -2820,9 +2833,27 @@ socks_bind(int s, struct sockaddr_storage *addr, size_t retries);
  *      On failure:   -1
  */
 
+const struct in_addr *
+ipv4_addrisinlist(const struct in_addr *addr, const struct in_addr *mask,
+                  const struct addrinfo *ailist);
+
+const struct in6_addr *
+ipv6_addrisinlist(const struct in6_addr *addr, const unsigned int maskbits,
+                  const struct addrinfo *ailist);
+
+/*
+ * Compares "addr", bitwise AND-ed with "mask", against each IPv4 or IPv6
+ * address * in "list", also bitwise AND-ed with "mask".
+ *
+ * Returns:
+ *      If "list" contains a element matching "addr": pointer to the matching
+                                                      address in ailist.
+ *      otherwise: NULL.
+ */
+
 
 int
-sockaddrareeq(const struct sockaddr_storage *a, 
+sockaddrareeq(const struct sockaddr_storage *a,
               const struct sockaddr_storage *b, const size_t nocompare);
 /*
  * Compares the address "a" against "b".
@@ -2860,7 +2891,7 @@ salen(const sa_family_t family);
 sa_len_type
 inaddrlen(const sa_family_t family);
 /*
- * returns the ipaddresslen of an address of the familytype "family". 
+ * returns the ipaddresslen of an address of the familytype "family".
  */
 
 
@@ -2868,17 +2899,17 @@ int
 safamily_issupported(const sa_family_t family);
 /*
  * Returns true if we support the sockaddr family "family".
- * Returns false if we do not. 
+ * Returns false if we do not.
  */
 
 sa_family_t
 atype2safamily(const int atype);
 /*
- * Returns the sa_family_t equivalent of the SOCKS address type 
+ * Returns the sa_family_t equivalent of the SOCKS address type
  * "atype", which must be one of SOCKS_ADDR_IPV4 or SOCKS_ADDR_IPV6.
  */
 
-int 
+int
 safamily2atype(const sa_family_t safamily);
 /*
  * Returns the atype equivalent of the sa_family_t "safamily".
@@ -2889,7 +2920,7 @@ int
 addrinfo_issupported(const struct addrinfo *ai);
 /*
  * Returns true if we support the addrinfo in "ai".
- * Returns false if we do not. 
+ * Returns false if we do not.
  */
 
 
@@ -3011,11 +3042,11 @@ void vslog(int priority, const char *fmt, va_list ap, va_list apcopy)
 void
 signalslog(const int priority, const char *msgv[]);
 /*
- * Similar to slog(), but simpler.  
+ * Similar to slog(), but simpler.
  *
  * "msgv" is an array of NUL-terminated strings.  The last element in this
  * array must be NULL.
- * The function logs all the strings in "msgv", as one.  Caller must take 
+ * The function logs all the strings in "msgv", as one.  Caller must take
  * care of any desired space between the strings.
  *
  * Can be called from a signalhandler.
@@ -3051,41 +3082,23 @@ addrmatch(const ruleaddr_t *rule, const sockshost_t *address,
  * if necessary.  "rule" supports the wildcard INADDR_ANY and port of 0.
  * "protocol" is the protocol to compare under.
  *
- * If "ipalias" is true and "address" is an IP-address, the function will 
- * try to reverse-map "address" to hostname, the hostname to ip, and match 
+ * If "ipalias" is true and "address" is an IP-address, the function will
+ * try to reverse-map "address" to hostname, the hostname to ip, and match
  * those ipaddresses against "rule".
  *
  * Returns true if "rule" matched "address".  In this case, if "addrmatched"
- * is not NULL, it is updated to reflect the address that matched, which may 
- * be different rom "address" if "address" had to be resolved or reversemapped.
+ * is not NULL, it is updated to reflect the address that matched, which may
+ * be different from "address" if "address" had to be resolved or
+ * reversemapped.
  */
-
-hostentry_t *
-hostentcopy(hostentry_t *to, const struct hostent *from);
-/*
- * Copies all the values in "from" into "to", or as much as there is room
- * for.
- *
- * The only reason this function may fail is if "from" is too big, i.e.
- * has names that are too long (according to the dns spec) or similar.
- *
- * Note that the caller must set to->h_name or to->ipv4 when creating the
- * original entry based on the result of a gethostby*() call.  This is because
- * the result returned by the gethostby*() call may not be the address
- * used when gethostby*() was called, but the latter is what we want to use
- * in our cache.
- *
- * Returns "to" on success, NULL on failure.
- */
-
 
 int
-socks_connecthost(int s, 
+socks_connecthost(int s,
 #if !SOCKS_CLIENT
-                  const interfaceside_t side, 
+                  const interfaceside_t side,
 #endif /* !SOCKS_CLIENT */
                   const sockshost_t *host,
-                  struct sockaddr_storage *laddr, 
+                  struct sockaddr_storage *laddr,
                   struct sockaddr_storage *raddr,
                   const long timeout, char *emsg, const size_t emsglen);
 /*
@@ -3198,13 +3211,13 @@ socks_addroute(const route_t *route, const int last);
  */
 
 route_t *
-socks_autoadd_directroute(const command_t *commands, 
-                          const protocol_t *protocols, 
+socks_autoadd_directroute(const command_t *commands,
+                          const protocol_t *protocols,
                           const struct sockaddr_storage *saddr,
                           const struct sockaddr_storage *netmask);
 /*
  * Adds a direct route to "saddr", netmask "netmask", for the commands
- * "commands" and protocols "protocols". 
+ * "commands" and protocols "protocols".
  *
  * Intended to be used for routes that are added automatically,
  * and not via socks.conf.
@@ -3252,7 +3265,7 @@ str2vis(const char *string, size_t len, char *visstring, size_t vislen)
 /*
  * Visually encodes exactly "len" chars of "string" and stores the
  * result in "visstring", which is of length "vislen".  "vislen" should
- * be at least "len" * 4 + 1.  
+ * be at least "len" * 4 + 1.
  * Note that the function really will encode len characters, including
  * any NUL-characters.
  *
@@ -3332,8 +3345,8 @@ get_tcpinfo(const size_t fdc, int fdv[], char *buf, size_t buflen);
  * buf is not NULL.
  * If buf or buflen is not set, stores it in locally allocated memory
  * and return a pointer to it rather than to buf.
- * 
- * If tcpinfo can not be retrieved for any of the sockets in fdv, 
+ *
+ * If tcpinfo can not be retrieved for any of the sockets in fdv,
  * that index in fdv is set to -1.
  *
  * Returns:
@@ -3441,7 +3454,7 @@ bitcount_in6addr(const struct in6_addr *in6addr);
 
 #if SOCKSLIBRARY_DYNAMIC
 /*
- * Here because they may be indirectly used by the server too, when it 
+ * Here because they may be indirectly used by the server too, when it
  * executes external library code (e.g., libwrap).
  */
 
@@ -3526,7 +3539,7 @@ socks_negotiate(int s, int control, socks_t *packet, route_t *route,
  */
 
 int
-serverreplyisok(const unsigned int version, const unsigned int command, 
+serverreplyisok(const unsigned int version, const unsigned int command,
                 const unsigned int reply, route_t *route,
                 char *emsg, const size_t emsglen);
 /*
@@ -3551,9 +3564,10 @@ socks_nbconnectroute(int s, int control, socks_t *packet,
  */
 
 void
-socks_blacklist(route_t *route);
+socks_blacklist(route_t *route, const char *reason);
 /*
  * Marks route "route" as bad.
+ * "reason" is a short reason describing why we are blacklisting this route.
  */
 
 void
@@ -3619,7 +3633,6 @@ clientmethod_gssapi(int s, int protocol, const gateway_t *gw,
 
 int
 gssapi_encode(const gss_buffer_t in, gssapi_state_t *gs, gss_buffer_t out);
-              
 /*
  * gssapi encodes the data in "in", storing the encoded message
  * in "out", which contains a pointer to the previously allocated
@@ -3648,12 +3661,6 @@ gssapi_decode(const gss_buffer_t in, gssapi_state_t *gs, gss_buffer_t out);
 
 #endif /* HAVE_GSSAPI */
 
-void
-checkmodule(const char *name);
-/*
- * Checks that the system has the module "name" and permission to use it.
- * Aborts with an error message if not.
- */
 
 int socks_yyparse(void);
 int socks_yylex(void);
@@ -3737,14 +3744,14 @@ int socks_flushbuffer(const int s, const ssize_t len,
  * Returns -1 otherwise.
  */
 
-void 
+void
 socks_setbuffer(iobuffer_t *iobuf, const int mode, ssize_t bufsize);
 
-void 
+void
 socks_setbufferfd(const int fd, const int mode, ssize_t bufsize);
 
 /*
- * The above two functions perform the same operation, but one takes 
+ * The above two functions perform the same operation, but one takes
  * a fd as the id to identify the iobuf and results in a no-op if no iobuf
  * is allocated to the fd, while the other takes the iobuf directly.
  *
@@ -3991,9 +3998,17 @@ slogstack(void);
  */
 
 int
+socks_getifaddrs(struct ifaddrs **ifap);
+/*
+ * Wrapper around getifaddrs(3) that does some extra work that should
+ * not cause any problems.
+ */
+
+
+int
 socks_inet_pton(const int af, const void *src, void *dst, uint32_t *dstscope);
 /*
- * Like inet_pton(3), but calls getaddrinfo(3) to get the address instead 
+ * Like inet_pton(3), but calls getaddrinfo(3) to get the address instead
  * if "src" contains something that looks like a scope id (%id).  If so,
  * the scopeid is stored in "dstscope", provided "dstscope" is not NULL.
  *
@@ -4003,7 +4018,7 @@ socks_inet_pton(const int af, const void *src, void *dst, uint32_t *dstscope);
 void
 set_hints_ai_family(int *ai_family);
 /*
- * Sets the "ai_family" member of a strut addrinfo "hints" object 
+ * Sets the "ai_family" member of a strut addrinfo "hints" object
  * appropriately for our use, according to whether we have usable
  * IPv6 addresses configured or not.
  */
@@ -4011,7 +4026,7 @@ set_hints_ai_family(int *ai_family);
 int
 makedummyfd(const sa_family_t safamily, const int socktype);
 /*
- * Creates a dummy socket of the appropriate type, or the easiests/fastet
+ * Creates a dummy socket of the appropriate type, or the easiest/fastest
  * type if both safamily and socktype are zero.
  */
 
