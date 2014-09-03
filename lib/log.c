@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.373 2013/10/27 15:24:42 karls Exp $";
+"$Id: log.c,v 1.373.4.8 2014/08/15 18:16:41 karls Exp $";
 
 #include "common.h"
 #include "config_parse.h"
@@ -494,6 +494,8 @@ sockd_freelogobject(logobject, closetoo)
 
    free(logobject->fnamev);
    free(logobject->filenov);
+   free(logobject->createdv);
+
    bzero(logobject, sizeof(*logobject));
 
    if (sigprocmask(SIG_SETMASK, &oldmask, NULL) != 0)
@@ -699,18 +701,32 @@ socks_addlogfile(logcf, logfile)
 
    p1 = p2 = p3 = NULL;
 
-   if ((p1 = realloc(logcf->filenov,
-                     sizeof(*logcf->filenov) * (logcf->filenoc + 1)))  == NULL
-   ||  (p2 = realloc(logcf->fnamev,
-                     sizeof(*logcf->fnamev) * (logcf->filenoc + 1)))   == NULL
-   ||  (p3 = realloc(logcf->createdv,
-                     sizeof(*logcf->createdv) * (logcf->filenoc + 1))) == NULL){
+   p1 = realloc(logcf->filenov, sizeof(*logcf->filenov) * (logcf->filenoc + 1));
+   p2 = realloc(logcf->fnamev,  sizeof(*logcf->fnamev)  * (logcf->filenoc + 1));
+   p3 = realloc(logcf->createdv,
+                               sizeof(*logcf->createdv) * (logcf->filenoc + 1));
+
+
+   if (p1 != NULL)
+      logcf->filenov  = p1;
+
+   if (p2 != NULL)
+      logcf->fnamev   = p2;
+
+   if (p3 != NULL)
+      logcf->createdv = p3;
+
+
+   if (p1 == NULL || p2 == NULL || p3 == NULL) {
       yywarn("%s: failed to allocate memory for log filenames", function);
 
       free(fname);
-      free(p1);
-      free(p2);
-      free(p3);
+
+      /*
+       * Don't bother free(3)'ing what we actually managed to realloc(3).
+       * Only means some of the elements in logcf now have a little more
+       * memory available than strictly needed.
+       */
 
       if (fd != fileno(stdout) && fd != fileno(stderr))
          close(fd);
@@ -720,11 +736,6 @@ socks_addlogfile(logcf, logfile)
 
       return -1;
    }
-
-   logcf->filenov   = p1;
-   logcf->fnamev    = p2;
-   logcf->createdv  = p3;
-
 
    logcf->filenov[logcf->filenoc]  = fd;
    logcf->fnamev[logcf->filenoc]   = fname;
@@ -891,7 +902,6 @@ vslog(priority, message, ap, apcopy)
          SASSERTX(loglen >= 2);
          SASSERTX(buf[loglen - 1] == NUL);
 
-         p = loglen;
          ADDNL(&loglen, buf, buflen);
 
          SASSERTX(buf[loglen - 1] == NUL);
@@ -904,7 +914,7 @@ vslog(priority, message, ap, apcopy)
    }
 
    prefixlen = getlogprefix(priority, buf, buflen);
-   SASSERTX(prefixlen <= buflen);
+   SASSERTX(prefixlen < buflen);
 
    p = vsnprintf(&buf[prefixlen], buflen -prefixlen, message, ap);
    if (p <= 0) { /* well, that's strange. */
@@ -1109,8 +1119,11 @@ dolog(priority, buf, prefixlen, messagelen)
       size_t i;
 
       for (i = 0; i < sockscf.log.filenoc; ++i) {
-         while (write(sockscf.log.filenov[i], buf, prefixlen + messagelen)
-         == -1 && errno == EINTR)
+         size_t retries = 0;
+
+         while (write(sockscf.log.filenov[i], buf, prefixlen + messagelen) == -1
+         && errno     == EINTR
+         && retries++ <  10)
             ;
 
          logged = 1;
@@ -1127,10 +1140,14 @@ dolog(priority, buf, prefixlen, messagelen)
    if (!logged) {
       if (!sockscf.state.inited && priority <= LOG_WARNING) {
 #if SOCKS_CLIENT
+
          if (isatty(fileno(stderr))) /* don't take the risk otherwise. */
             (void)write(fileno(stderr), buf, prefixlen + messagelen);
+
 #else /* server */
+
          (void)write(fileno(stderr), buf, prefixlen + messagelen);
+
 #endif /* server */
       }
    }
@@ -1155,8 +1172,8 @@ openlogfile(logfile, wecreated)
       flagstoadd = 0;
    }
    else {
-      const mode_t openmode = S_IRUSR  | S_IWUSR  | S_IRGRP;
-      const int openflags   = O_WRONLY | O_APPEND;
+      const mode_t openmode  = S_IRUSR  | S_IWUSR  | S_IRGRP;
+      const int    openflags = O_WRONLY | O_APPEND;
 
 #if !SOCKS_CLIENT
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
@@ -1541,7 +1558,7 @@ atexit_flushrb(void)
    const char *function = "atexit_flushrb()";
 
    if (sockscf.state.internalerrordetected && !sockscf.option.debug) {
-      slog(LOG_DEBUG, function);
+      slog(LOG_DEBUG, "%s", function);
       socks_flushrb();
    }
 }

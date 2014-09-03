@@ -1,6 +1,6 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.661 2013/11/05 22:20:37 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.661.4.6 2014/08/17 19:32:34 karls Exp $)
 
 unset TAG
 lcase () {
@@ -12,7 +12,7 @@ ucase () {
 
 #current software version, typically three sets of numbers (x.y.z).
 #can have an added tag, giving a version such as x.y.z-tag.
-version=1.4.0
+version=1.4.1
 #TAG="foo"
 
 #NOTE: rpm will not accept '-' chars i version numbers
@@ -22,7 +22,7 @@ if test x"$TAG" != x; then
 fi
 RPMVERSION1="$version"
 #set this to enable prerelease, changes some defaults (debug enabled)
-#prerelease="3"
+#prerelease="1"
 if test x"$prerelease" != x; then
     prename="pre$prerelease"
     version="${version}${TAG:+-}$TAG-$prename"
@@ -127,10 +127,10 @@ m4_include(sockopt.m4)
 #look for modules, and check version
 servdir=sockd
 unset MOD_BANDWIDTH MOD_REDIRECT MOD_LDAP
-L_MODVER(bandwidth,   101, $servdir, [MOD_BANDWIDTH=t])
-L_MODVER(redirect,    77, $servdir, [MOD_REDIRECT=t])
-L_MODVER(ldap,        118, $servdir, [MOD_LDAP=t])
-L_MODVER(checkmodule, 62, $servdir, [], nokey) #helper file
+L_MODVER(bandwidth,   109, $servdir, [MOD_BANDWIDTH=t])
+L_MODVER(redirect,    79, $servdir, [MOD_REDIRECT=t])
+L_MODVER(ldap,        122, $servdir, [MOD_LDAP=t])
+L_MODVER(checkmodule, 71, $servdir, [], nokey) #helper file
 
 if test x"$MOD_BANDWIDTH" != x; then
    FEAT="$FEAT${FEAT:+ }mod-bandwidth"
@@ -211,6 +211,7 @@ echo "CFLAGS: $CFLAGS $initCFLAGS" >> buildenv.txt
 echo "CPP: $CPP $initCPP" >> buildenv.txt
 echo "CPPFLAGS: $CPPFLAGS $initCPPFLAGS" >> buildenv.txt
 echo "LDFLAGS: $LDFLAGS $initLDFLAGS" >> buildenv.txt
+echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}" >> buildenv.txt
 echo "LIBS: $LIBS $initLIBS" >> buildenv.txt
 echo "DLIBDEPS: $DLIBDEPS" >> buildenv.txt
 echo "SOCKDDEPS: $SOCKDDEPS" >> buildenv.txt

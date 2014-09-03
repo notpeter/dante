@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2006, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,13 +42,34 @@
  *
  */
 
-/* $Id: tostring.h,v 1.99 2013/10/27 15:24:41 karls Exp $ */
+/* $Id: tostring.h,v 1.99.4.5 2014/08/15 18:16:40 karls Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
 
 #define QUOTE(a)   a
 #define QUOTE0()   ""
+
+char *
+aihints2string(const struct addrinfo *hints, char *string, size_t len);
+/*
+ * Returns a printable representation of "hints".
+ *
+ * If "string" and "len" is NULL and zero, the function returns a
+ * string that will be overwritten on the next call to this function.
+ */
+
+
+char *
+fdset2string(const int nfds, const fd_set *set, const int docheck,
+             char *buf, size_t buflen);
+/*
+ * Returns a printable representation of the fd_set "set", which may
+ * have up to "nfds" fds set.
+ *
+ * If "docheck" is true, will check each fd in the set for being a valid
+ * fd.
+ */
 
 int32_t
 string2portnumber(const char *string, char *emsg, size_t emsglen);
@@ -299,6 +320,22 @@ str2upper(char *string);
  */
 
 char *
+sockname2string(const int s, char *buf, size_t buflen)
+      __ATTRIBUTE__((__BOUNDED__(__string__, 2, 3)));
+/*
+ * Returns a printable representation of the local address of socket
+ * "s", or NULL on failure.
+ */
+
+char *
+peername2string(const int s, char *buf, size_t buflen)
+      __ATTRIBUTE__((__BOUNDED__(__string__, 2, 3)));
+/*
+ * Returns a printable representation of the remote address of socket
+ * "s", or NULL on failure.
+ */
+
+char *
 socket2string(const int s, char *buf, size_t buflen)
       __ATTRIBUTE__((__BOUNDED__(__string__, 2, 3)));
 /*
@@ -412,6 +449,24 @@ socketsettime2string(const int whichtime);
 
 
 #if !SOCKS_CLIENT
+const char *
+interfaceside2string(const interfaceside_t side);
+/*
+ * Returns a printable representation of the interface side "side".
+ */
+
+char *
+interfaceprotocol2string(const interfaceprotocol_t *ifproto,
+                         char *str, size_t strsize);
+/*
+ * Returns a printable representation of "if".
+ */
+
+char *
+networktest2string(const networktest_t *test, char *str, size_t strlen);
+/*
+ * Returns a printable representation of "test".
+ */
 
 const char *
 addrscope2string(const ipv6_addrscope_t scope);

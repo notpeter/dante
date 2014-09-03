@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_udp.c,v 1.58 2013/10/27 15:24:43 karls Exp $";
+"$Id: sockd_udp.c,v 1.58.4.4 2014/08/15 18:16:44 karls Exp $";
 
 extern int       rawsocket;
 extern iostate_t iostate;
@@ -604,15 +604,16 @@ io_timercmp(a, b)
    if (timercmp((const struct timeval *)a, (const struct timeval *)b, ==))
       return 0;
 
-   SASSERTX(timercmp((const struct timeval *)a, (const struct timeval *)b, >));
    return 1;
 }
 #endif /* HAVE_SO_TIMESTAMP */
 
 udptarget_t *
-initclient(control, from, tohost, toaddr, rule, emsg, emsglen, udpdst)
+initclient(control, client_l, client_r, tohost, toaddr, rule,
+            emsg, emsglen, udpdst)
    const int control;
-   const struct sockaddr_storage *from;
+   const struct sockaddr_storage *client_l;
+   const struct sockaddr_storage *client_r;
    const sockshost_t *tohost;
    const struct sockaddr_storage *toaddr;
    const rule_t *rule;
@@ -627,9 +628,9 @@ initclient(control, from, tohost, toaddr, rule, emsg, emsglen, udpdst)
 
    slog(LOG_DEBUG, "%s: from %s to %s (%s)",
         function,
-        sockaddr2string(from,    fromstr,   sizeof(fromstr)),
-        sockshost2string(tohost, tohoststr, sizeof(tohoststr)),
-        sockaddr2string(toaddr,  toaddrstr, sizeof(toaddrstr)));
+        sockaddr2string(client_r, fromstr,   sizeof(fromstr)),
+        sockshost2string(tohost,  tohoststr, sizeof(tohoststr)),
+        sockaddr2string(toaddr,   toaddrstr, sizeof(toaddrstr)));
 
    bzero(udpdst, sizeof(*udpdst));
 
@@ -667,7 +668,8 @@ initclient(control, from, tohost, toaddr, rule, emsg, emsglen, udpdst)
    SASSERTX(s != -1);
 
    if (getoutaddr(&udpdst->laddr,
-                  from,
+                  client_l,
+                  client_r,
                   SOCKS_UDPASSOCIATE,
                   &udpdst->raddrhost,
                   emsg,
@@ -726,7 +728,7 @@ initclient(control, from, tohost, toaddr, rule, emsg, emsglen, udpdst)
 
 
 #if BAREFOOTD
-   sockaddrcpy(&udpdst->client, from, salen(from->ss_family));
+   sockaddrcpy(&udpdst->client, client_r, salen(client_r->ss_family));
    sockaddr2sockshost(&udpdst->client, &udpdst->clienthost);
 #endif /* BAREFOOTD */
 

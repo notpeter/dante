@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.454 2013/11/05 04:40:39 michaels Exp $";
+"$Id: sockd_child.c,v 1.454.4.7 2014/08/15 18:12:24 karls Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)  /* descriptor child reads/writes on.    */
@@ -541,25 +541,67 @@ fillset(set, negc, reqc, ioc)
    return dbits;
 }
 
+
+void
+clearchildtype(childtype, pipetype, nfds, set)
+   const int childtype;
+   whichpipe_t pipetype;
+   const int nfds;
+   fd_set *set;
+{
+   const char *function = "clearchildtype()";
+   sockd_child_t **childv;
+   size_t i, *childc;
+
+
+   slog(LOG_DEBUG, "%s: clearing all childs of type %s from set",
+        function, childtype2string(childtype));
+
+   setchildtype(childtype, &childv, &childc, NULL);
+
+   for (i = 0; i < *childc; ++i)
+      clearset(pipetype, &(*childv)[i], set);
+}
+
 void
 clearset(type, child, set)
    whichpipe_t type;
    const sockd_child_t *child;
    fd_set *set;
 {
+#if DEBUG
+   const char *function = "clearset()";
+   char buf[10240];
+#endif /* DEBUG */
+   int fdtoclear;
 
    switch (type) {
       case ACKPIPE:
-         FD_CLR(child->ack, set);
+         fdtoclear = child->ack;
          break;
 
       case DATAPIPE:
-         FD_CLR(child->s, set);
+         fdtoclear = child->s;
          break;
 
       default:
          SERRX(type);
    }
+
+   if (fdtoclear <= 0) {
+      SASSERTX(child->waitingforexit);
+      return;
+   }
+
+#if DEBUG
+   if (sockscf.option.debug >= DEBUG_DEBUG)
+      slog(LOG_DEBUG, "%s: will clear fd %d from the fd-set containing: %s",
+           function,
+           fdtoclear,
+          fdset2string(sockscf.state.highestfdinuse, set, 1, buf, sizeof(buf)));
+#endif
+
+   FD_CLR(fdtoclear, set);
 }
 
 sockd_child_t *
@@ -574,7 +616,6 @@ getset(type, set)
     * check negotiator children for match.
     */
    for (i = 0; i < negchildc; ++i) {
-
       if (negchildv[i].waitingforexit)
          continue;
 
@@ -670,6 +711,10 @@ removechild(pid)
       size_t i;
 
       for (i = 0; i < ELEMENTS(childtypev); ++i) {
+         if (childtypev[i]                 == PROC_MONITOR
+         && pidismother(sockscf.state.pid) != 1)
+            continue; /* only main mother controls the monitor child. */
+
          while (1) { /* removechild() will remove it from our child array. */
             setchildtype(childtypev[i], &childv, &childc, NULL);
             if (*childc == 0)
@@ -722,6 +767,10 @@ closechild(pid, isnormalexit)
 
       for (childtypec = 0; childtypec < ELEMENTS(childtypev); ++childtypec) {
          size_t i;
+
+         if (childtypev[childtypec]        == PROC_MONITOR
+         && pidismother(sockscf.state.pid) != 1)
+            continue; /* only main mother controls the monitor child. */
 
          setchildtype(childtypev[childtypec], &childv, &childc, NULL);
 
@@ -1251,6 +1300,10 @@ sigchildbroadcast(sig)
 
    for (childtypec = 0; childtypec < ELEMENTS(childtypesv); ++childtypec) {
       size_t i;
+
+      if (childtypesv[childtypec]       == PROC_MONITOR
+      && pidismother(sockscf.state.pid) != 1)
+         continue; /* only main mother controls the monitor child. */
 
       setchildtype(childtypesv[childtypec], &childv, &childc, NULL);
 
@@ -2214,8 +2267,12 @@ sighup_child(sig, si, sc)
 
    socks_unlock(sockscf.shmemconfigfd, 0, 0);
 
+   SASSERTX(!pidismainmother(sockscf.state.pid));
+
    SASSERTX(config.state.type == sockscf.state.type);
+
    resetconfig(&sockscf, 0); /* reset old before loading new. */
+
    SASSERTX(config.state.type == sockscf.state.type);
 
    /*

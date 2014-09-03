@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012, 2013
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: privileges.c,v 1.64 2013/10/27 15:24:42 karls Exp $";
+"$Id: privileges.c,v 1.64.4.2 2014/08/15 18:16:42 karls Exp $";
 
 static privilege_t lastprivelege = SOCKD_PRIV_NOTSET;
 
@@ -379,11 +379,11 @@ sockd_priv(privilege, op)
                  function, (int)privilege, privop2string(op));
 
 #else /* !HAVE_PRIVILEGES */
-            if (sockd_seteugid(neweuid, newegid) != 0)
-               serr("%s: switching to euid/egid %u/%u failed",
-                    function,
-                    op == PRIV_ON ? (unsigned )neweuid : (unsigned )lasteuid,
-                    op == PRIV_ON ? (unsigned )newegid : (unsigned )lastegid);
+         if (sockd_seteugid(neweuid, newegid) != 0)
+            serr("%s: switching to euid/egid %u/%u failed",
+                 function,
+                 op == PRIV_ON ? (unsigned )neweuid : (unsigned )lasteuid,
+                 op == PRIV_ON ? (unsigned )newegid : (unsigned )lastegid);
 #endif /* HAVE_PRIVILEGES */
 
          break;

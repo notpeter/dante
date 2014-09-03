@@ -1,7 +1,7 @@
 /*
- * $Id: getoutaddr.c,v 1.140 2013/10/27 15:24:42 karls Exp $
+ * $Id: getoutaddr.c,v 1.140.4.3 2014/08/15 18:12:23 karls Exp $
  *
- * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010, 2011, 2012, 2013
+ * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getoutaddr.c,v 1.140 2013/10/27 15:24:42 karls Exp $";
+"$Id: getoutaddr.c,v 1.140.4.3 2014/08/15 18:12:23 karls Exp $";
 
 static int
 addrscope_matches(const struct sockaddr_in6 *addr,
@@ -100,9 +100,10 @@ getdefaultexternal(const sa_family_t safamily, ipv6_addrscope_t addrscope,
  */
 
 struct sockaddr_storage *
-getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
+getoutaddr(laddr, client_l, client_r, cmd, reqhost, emsg, emsglen)
    struct sockaddr_storage *laddr;
-   const struct sockaddr_storage *client;
+   const struct sockaddr_storage *client_l;
+   const struct sockaddr_storage *client_r;
    const int cmd;
    const sockshost_t *reqhost;
    char *emsg;
@@ -115,7 +116,7 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
    slog(LOG_DEBUG,
         "%s: client %s, cmd %s, reqhost %s, external.rotation = %s",
         function,
-        sockaddr2string(client, addrstr, sizeof(addrstr)),
+        sockaddr2string(client_r, addrstr, sizeof(addrstr)),
         command2string(cmd),
         sockshost2string(reqhost, raddrstr, sizeof(raddrstr)),
         rotation2string(sockscf.external.rotation));
@@ -133,19 +134,8 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
             SET_SOCKADDR(&raddr, external_has_global_safamily(AF_INET) ?
                                  AF_INET : AF_INET6);
          else if (reqhost->atype == SOCKS_ADDR_IPV4
-         ||       reqhost->atype == SOCKS_ADDR_IPV6) {
-            if (external_has_global_safamily(atype2safamily(reqhost->atype)))
-               sockshost2sockaddr(reqhost, &raddr);
-            else {
-               snprintf(emsg, emsglen,
-                        "bind of an %s requested, but no %s configured for "
-                        "our usage on the external interface",
-                        atype2string(reqhost->atype),
-                        atype2string(reqhost->atype));
-
-               return NULL;
-            }
-         }
+         ||       reqhost->atype == SOCKS_ADDR_IPV6)
+            sockshost2sockaddr(reqhost, &raddr);
          else {
             /*
              * Have to expect the bindreply from an address given as a
@@ -207,8 +197,8 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
          break;
 
       case ROTATION_SAMESAME:
-         if (client->ss_family == raddr.ss_family)
-            *laddr = *client;
+         if (client_l->ss_family == raddr.ss_family)
+            *laddr = *client_l;
          else {
             snprintf(emsg, emsglen,
                      "rotation for external addresses is set to %s, but "
@@ -217,8 +207,8 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
                      "a %s (%s), but the target address is a %s (%s)",
                      rotation2string(sockscf.external.rotation),
                      command2string(cmd),
-                     safamily2string(client->ss_family),
-                     sockaddr2string(client, NULL, 0),
+                     safamily2string(client_l->ss_family),
+                     sockaddr2string(client_l, NULL, 0),
                      safamily2string(raddr.ss_family),
                      sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)));
 
@@ -268,9 +258,9 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
                /*
                 * Else: continue.
                 * While highly unlikely it will work later, when we actually
-                * do try to connect/send data, it could be the local
-                * configuration is to block udp packets to this destination,
-                * but allow tcp.
+                * do try to connect/send data, it could be the local (but
+                * external to Dante) configuration is to block udp packets to
+                * this destination, but allow tcp.
                 */
                getdefaultexternal(raddr.ss_family,
                                   raddr.ss_family == AF_INET6 ?
@@ -284,7 +274,7 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
             close(s);
          }
          else
-            getdefaultexternal(get_external_safamily(client, cmd, reqhost),
+            getdefaultexternal(get_external_safamily(client_r, cmd, reqhost),
                                addrscope_global,
                                0,
                                laddr);
@@ -298,10 +288,10 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
 
    if (addrindex_on_externallist(&sockscf.external, laddr) != -1)
       slog(LOG_DEBUG,
-           "%s: local address %s selected for forwarding from %s to %s",
+           "%s: local address %s selected for forwarding from client %s to %s",
            function,
            sockaddr2string2(laddr,  0, addrstr,  sizeof(addrstr)),
-           sockaddr2string(client, NULL,     0),
+           sockaddr2string(client_r, NULL, 0),
            sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)));
    else {
       char rotation[256];
@@ -321,7 +311,7 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
                   "error in %s?",
                   rotation,
                   sockaddr2string2(laddr,  0, addrstr,  sizeof(addrstr)),
-                  sockaddr2string(client, NULL,     0),
+                  sockaddr2string(client_r, NULL,     0),
                   sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)),
                   sockscf.option.configfile);
       else
@@ -330,7 +320,7 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
                   "interface(s) can be used for forwarding from our local "
                   "client %s to target %s.  Configuration error in %s?",
                   rotation,
-                  sockaddr2string(client, NULL,     0),
+                  sockaddr2string(client_r, NULL, 0),
                   sockaddr2string(&raddr, raddrstr, sizeof(raddrstr)),
                   sockscf.option.configfile);
 
@@ -356,7 +346,7 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
       case SOCKS_BIND:
          if (reqhost->atype            == SOCKS_ADDR_IPV4
          &&  reqhost->addr.ipv4.s_addr == htonl(BINDEXTENSION_IPADDR))
-            SET_SOCKADDRPORT(laddr, GET_SOCKADDRPORT(client));
+            SET_SOCKADDRPORT(laddr, GET_SOCKADDRPORT(client_r));
          else if (  (raddr.ss_family == AF_INET
                   && TOIN(&raddr)->sin_addr.s_addr == htonl(INADDR_ANY))
                ||    (raddr.ss_family == AF_INET6
@@ -372,7 +362,7 @@ getoutaddr(laddr, client, cmd, reqhost, emsg, emsglen)
 
       case SOCKS_CONNECT:
       case SOCKS_UDPASSOCIATE: /* reqhost is the target of the first packet. */
-         SET_SOCKADDRPORT(laddr, GET_SOCKADDRPORT(client));
+         SET_SOCKADDRPORT(laddr, GET_SOCKADDRPORT(client_r));
          break;
 
       default:
@@ -399,8 +389,8 @@ getinaddr(laddr, _client, emsg, emsglen)
         function, sockaddr2string(_client, NULL, 0));
 
    SASSERTX(_client->ss_family == AF_INET || _client->ss_family == AF_INET6);
-   sockaddrcpy(&client, _client, sizeof(client));
 
+   sockaddrcpy(&client, _client, sizeof(client));
 
    /*
     * Just return the first address of the appropriate type from our internal
@@ -475,7 +465,7 @@ getdefaultexternal(safamily, addrscope, ifindex, addr)
             if (safamily != AF_UNSPEC
             &&  safamily != atype2safamily(sockscf.external.addrv[i].atype)) {
                slog(LOG_DEBUG,
-                    "%s: atype of address %s does match atype %s",
+                    "%s: atype of address %s does not match atype %s",
                     function,
                     ruleaddr2string(&sockscf.external.addrv[i],
                                     ADDRINFO_ATYPE,
@@ -553,11 +543,8 @@ get_external_safamily(client, command, reqhost)
       case SOCKS_UDPASSOCIATE:
          switch (reqhost->atype) {
             case SOCKS_ADDR_IPV4:
-               safamily = AF_INET;
-               break;
-
             case SOCKS_ADDR_IPV6:
-               safamily = AF_INET6;
+               safamily = atype2safamily(reqhost->atype);
                break;
 
             case SOCKS_ADDR_DOMAIN: {

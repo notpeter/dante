@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013
+ * Copyright (c) 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmemconfig.c,v 1.49 2013/10/27 15:24:42 karls Exp $";
+"$Id: shmemconfig.c,v 1.49.4.5 2014/08/15 18:16:42 karls Exp $";
 
 static size_t
 linkedsize(const linkedname_t *head);
@@ -130,7 +130,7 @@ do {                                                                           \
 
 #define DOCOPY(src, srcoffset, dst, attr, attrsize, memfunc)                   \
 do {                                                                           \
-   const size_t tocopy = attrsize;                                             \
+   const size_t tocopy = (attrsize);                                           \
                                                                                \
    if (tocopy == 0) {                                                          \
       SASSERTX((src)->attr == NULL);                                           \
@@ -140,7 +140,7 @@ do {                                                                           \
       SASSERTX((src)->attr != NULL);                                           \
                                                                                \
       if (((dst)->attr = memfunc(tocopy)) == NULL) {                           \
-         swarnx("%s: failed to allocate %lu byte%s of memory at line %d.  "    \
+         swarn("%s: failed to allocate %lu byte%s of memory at line %d.  "     \
                 "Memory left: %lu",                                            \
                 function,                                                      \
                 (unsigned long)tocopy,                                         \
@@ -231,6 +231,13 @@ do {                                                                           \
              attr.filenov,                                                     \
              sizeof(*src->attr.filenov) * src->attr.filenoc,                   \
              memfunc);                                                         \
+                                                                               \
+      DOCOPY(src,                                                              \
+             srcoffset,                                                        \
+             dst,                                                              \
+             attr.createdv,                                                    \
+             sizeof(*src->attr.createdv) * src->attr.filenoc,                  \
+             memfunc);                                                         \
    }                                                                           \
 } while (/* CONSTCOND */ 0)
 
@@ -316,7 +323,7 @@ pointer_copyorsize(op, src, srcoffset, dst, mem, memsize)
     * as the local saying goes.
     */
 
-    size = 0;
+   size = 0;
 
    if (src->internal.addrc > 0) {
       switch (op) {
@@ -495,9 +502,9 @@ pointer_copyorsize(op, src, srcoffset, dst, mem, memsize)
                          sizeof(*srcrule->next),
                          memfunc);
 
-                  srcrule = srcrule->next;
-                  dstrule = dstrule->next;
-                  break;
+               srcrule = srcrule->next;
+               dstrule = dstrule->next;
+               break;
 
             case SIZE:
                if (srcrule->next != NULL)
@@ -652,8 +659,9 @@ pointer_copyorsize(op, src, srcoffset, dst, mem, memsize)
             if (logv[i]->filenoc > 0) {
                size_t ii;
 
-               ADDLEN(sizeof(*(logv[i]->filenov)) * logv[i]->filenoc, &size);
-               ADDLEN(sizeof((*logv[i]->fnamev))  * logv[i]->filenoc, &size);
+               ADDLEN(sizeof((*logv[i]->fnamev))   * logv[i]->filenoc, &size);
+               ADDLEN(sizeof(*(logv[i]->createdv)) * logv[i]->filenoc, &size);
+               ADDLEN(sizeof(*(logv[i]->filenov))  * logv[i]->filenoc, &size);
 
                for (ii = 0; ii < logv[i]->filenoc; ++ii)
                   ADDLEN(strlen(logv[i]->fnamev[ii]) + 1, &size);
@@ -774,17 +782,23 @@ do {                                                                           \
    size_t i, compared = 0;
 
    /*
-    * Check all pointers and structs, as that's where an error is likely*
+    * Check all pointers and structs, as that's where an error is likely
     * to occur.  Also check non-pointers where easy to do, though it should
     * be almost impossible for an error to exists there due to the initial
     * struct assignment between 'a' and 'b'.
     */
 
    EQCHECK(a, b, initial);
-   EQCHECK_PTR(a, b, internal.addrv, sizeof(*a->internal.addrv));
+
    EQCHECK_PTR(a,
                b,
-               external.addrv, sizeof(*a->external.addrv) * a->external.addrc);
+               internal.addrv,
+               sizeof(*a->internal.addrv) * a->internal.addrc);
+
+   EQCHECK_PTR(a,
+               b,
+               external.addrv,
+               sizeof(*a->external.addrv) * a->external.addrc);
    EQCHECK(a, b, cpu);
 
    PTRCHECK(a, b, crule);
@@ -926,6 +940,8 @@ do {                                                                           \
       EQCHECK(alog, blog, type);
 
       PTRCHECK(alog, blog, filenov);
+      PTRCHECK(alog, blog, createdv);
+
       if (alog->fnamev != NULL) {
          size_t ii;
 
@@ -940,7 +956,14 @@ do {                                                                           \
                      blog,
                      filenov,
                      sizeof(*alog->filenov) * alog->filenoc);
+
+         SASSERTX(alog->createdv != NULL);
+         EQCHECK_PTR(alog,
+                     blog,
+                     createdv,
+                     sizeof(*alog->createdv) * alog->filenoc);
       }
+
       PTRCHECK(alog, blog, fnamev);
 
       EQCHECK(alog, blog, filenoc);
@@ -1083,7 +1106,7 @@ doconfigtest(void)
                     0x0,
                     shmem,
                     (char *)shmem + sizeof(sockscf),
-                    size - sizeof(sockscf)) == 0)
+                    size          - sizeof(sockscf)) == 0)
       slog(LOG_DEBUG, "%s: pointer_copy() successful", function);
    else
       serr("%s: pointer_copy() failed", function);

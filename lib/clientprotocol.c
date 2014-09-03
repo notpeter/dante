@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,7 +55,7 @@
 #endif /* SOCKS_CLIENT || SOCKS_SERVER */
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.225 2013/10/27 15:24:42 karls Exp $";
+"$Id: clientprotocol.c,v 1.225.4.4 2014/08/15 18:16:40 karls Exp $";
 
 static int
 recv_sockshost(int s, sockshost_t *host, int version, authmethod_t *auth,
@@ -297,7 +297,7 @@ socks_negotiate(s, control, packet, route, emsg, emsglen)
    const size_t emsglen;
 {
    const char *function = "socks_negotiate()";
-   char sbuf[512], controlbuf[512];
+   char sbuf[512], cbuf[512];
    int failed = 0;
 
    slog(LOG_NEGOTIATE,
@@ -306,7 +306,7 @@ socks_negotiate(s, control, packet, route, emsg, emsglen)
         function,
         proxyprotocol2string(packet->req.version),
         control,
-        socket2string(control, controlbuf, sizeof(controlbuf)),
+        control == -1 ? "N/A" : socket2string(control, cbuf, sizeof(cbuf)),
         s,
         s == control ? "same" : socket2string(s, sbuf, sizeof(sbuf)),
         sockshost2string(&packet->req.host, NULL, 0));
@@ -1184,7 +1184,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth, emsg, emsglen)
                          sockaddr2string2(&addr, 0, NULL, 0), strerror(errno));
             }
             else
-               snprintf(emsg, emsglen, "getnameinfo(%s) failed: error %ld\n",
+               snprintf(emsg, emsglen, "getnameinfo(%s) failed: error %ld",
                         ntop, (long)rc);
 
             swarnx("%s: %s", emsg, function); /* likely generic config error. */
@@ -1516,7 +1516,6 @@ clientmethod_gssapi(s, protocol, gw, version, auth, emsg, emsglen)
          goto error;
       }
 
-      len = output_token.length;
       if ((rc = socks_sendton(s,
                               output_token.value,
                               output_token.length,

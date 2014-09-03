@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009,
- *               2010, 2011, 2012, 2013
+ *               2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,9 +46,70 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.225 2013/10/27 15:24:42 karls Exp $";
+"$Id: tostring.c,v 1.225.4.9 2014/08/21 16:21:50 michaels Exp $";
 
 static const char *stripstring = ", \t\n";
+
+char *
+aihints2string(hints, buf, buflen)
+   const struct addrinfo *hints;
+   char *buf;
+   size_t buflen;
+{
+   if (buf == NULL || buflen == 0) {
+      static char _buf[64];
+
+      buf    = _buf;
+      buflen = sizeof(_buf);
+   }
+
+   *buf    = NUL;
+
+   snprintf(buf, buflen,
+            "ai_flags: %d, ai_family: %d, ai_socktype: %d, ai_protocol: %d",
+            hints->ai_flags,
+            hints->ai_family,
+            hints->ai_socktype,
+            hints->ai_protocol);
+
+   return buf;
+}
+
+char *
+fdset2string(nfds, set, docheck, buf, buflen)
+   const int nfds;
+   const fd_set *set;
+   const int docheck;
+   char *buf;
+   size_t buflen;
+{
+   size_t bufused;
+   int i, rc;
+
+   if (buf == NULL || buflen == 0) {
+      static char _buf[10240];
+
+      buf    = _buf;
+      buflen = sizeof(_buf);
+   }
+
+   bufused = 0;
+   *buf    = NUL;
+
+   if (set == NULL)
+      return buf;
+
+   for (i = 0; i < nfds; ++i) {
+      if (FD_ISSET(i, set)) {
+         rc = snprintf(&buf[bufused], buflen - bufused,
+                      "%d%s, ",
+                      i, docheck ? (fdisopen(i) ? "" : "-invalid") : "");
+         bufused += rc;
+      }
+   }
+
+   return buf;
+}
 
 int32_t
 string2portnumber(string, emsg, emsglen)
@@ -989,17 +1050,17 @@ str2upper(string)
 }
 
 char *
-socket2string(s, buf, buflen)
+sockname2string(s, buf, buflen)
    const int s;
    char *buf;
    size_t buflen;
 {
-   const char *function = "socket2string()";
-   const int errno_s = errno;
+   const char *function = "sockname2string()";
    struct sockaddr_storage addr;
    socklen_t len;
-   char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING], *protocol;
-   int val;
+
+   if (s == -1)
+      return NULL;
 
    if (buflen == 0) {
       static char sbuf[256];
@@ -1013,20 +1074,71 @@ socket2string(s, buf, buflen)
       slog(LOG_DEBUG, "%s: getsockname(2) on fd %d failed: %s",
            function, s, strerror(errno));
 
-      *src = NUL;
+      return NULL;
    }
-   else
-      sockaddr2string(&addr, src, sizeof(src));
+
+   sockaddr2string(&addr, buf, buflen);
+
+   return buf;
+}
+
+char *
+peername2string(s, buf, buflen)
+   const int s;
+   char *buf;
+   size_t buflen;
+{
+   const char *function = "peername2string()";
+   struct sockaddr_storage addr;
+   socklen_t len;
+
+   if (s == -1)
+      return NULL;
+
+   if (buflen == 0) {
+      static char sbuf[256];
+
+      buf    = sbuf;
+      buflen = sizeof(sbuf);
+   }
 
    len = sizeof(addr);
    if (getpeername(s, TOSA(&addr), &len) == -1) {
       slog(LOG_DEBUG, "%s: getpeername(2) on fd %d failed: %s",
            function, s, strerror(errno));
 
-      *dst  = NUL;
+      return NULL;
    }
-   else
-      sockaddr2string(&addr, dst, sizeof(dst));
+
+   sockaddr2string(&addr, buf, buflen);
+
+   return buf;
+}
+
+char *
+socket2string(s, buf, buflen)
+   const int s;
+   char *buf;
+   size_t buflen;
+{
+   const char *function = "socket2string()";
+   const int errno_s = errno;
+   socklen_t len;
+   char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING], *protocol;
+   int val;
+
+   if (buflen == 0) {
+      static char sbuf[256];
+
+      buf    = sbuf;
+      buflen = sizeof(sbuf);
+   }
+
+   if (sockname2string(s, src, sizeof(src)) == NULL)
+      *src = NUL;
+
+   if (peername2string(s, dst, sizeof(dst)) == NULL)
+      *dst = NUL;
 
    len = sizeof(val);
    if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) == -1)
@@ -1134,7 +1246,6 @@ socktype2string(socktype)
    /* NOTREACHED */
 }
 
-
 char *
 ltoa(l, buf, buflen)
    long l;
@@ -1173,7 +1284,7 @@ ltoa(l, buf, buflen)
    } while (l != 0 && p > buf);
 
    if (l != 0
-   || (add_minus && p == buf)) { /* buf too small / number too large. */
+   || (p == buf && add_minus)) { /* buf too small / number too large. */
       SASSERTX(p == buf);
 
       errno = ERANGE;
@@ -1186,8 +1297,7 @@ ltoa(l, buf, buflen)
       *(--p) = '-';
 
    bufused = (&buf[buflen - 1] - p) + 1;
-   SASSERTX(bufused <= buflen);
-   SASSERTX(p + (bufused - 1) <= buf + (buflen - 1));
+   SASSERTX(p + (bufused - 1) <= &buf[buflen - 1]);
 
    memmove(buf, p, bufused);
    SASSERTX(buf[bufused - 1] == NUL);
@@ -1416,7 +1526,7 @@ signal2string(sig)
          return "SIGKILL";
 #endif /* SIGKILL */
 
-#ifdef SIGLOST
+#if (defined SIGLOST) && (!defined SIGABRT || SIGLOST != SIGABRT)
       case SIGLOST:
          return "SIGLOST";
 #endif /* SIGLOST */
@@ -1777,6 +1887,67 @@ socketsettime2string(whichtime)
 #if !SOCKS_CLIENT
 
 const char *
+interfaceside2string(side)
+   const interfaceside_t side;
+{
+
+   switch (side) {
+      case INTERNALIF:
+         return "internal/client";
+
+      case EXTERNALIF:
+         return "external/target";
+
+      default:
+         SERRX(side);
+         /* NOTREACHED */
+   }
+
+}
+
+char *
+interfaceprotocol2string(ifproto, str, strsize)
+   const interfaceprotocol_t *ifproto;
+   char *str;
+   size_t strsize;
+{
+
+   if (strsize == 0) {
+      static char buf[1024];
+
+      str     = buf;
+      strsize = sizeof(buf);
+   }
+
+   snprintf(str, strsize, "%s: %s, %s: %s",
+            safamily2string(AF_INET),  ifproto->ipv4 ? "yes" : "no",
+            safamily2string(AF_INET6), ifproto->ipv6 ? "yes" : "no");
+
+
+   return str;
+}
+
+
+char *
+networktest2string(test, str, strsize)
+   const networktest_t *test;
+   char *str;
+   size_t strsize;
+{
+
+   if (strsize == 0) {
+      static char buf[1024];
+
+      str     = buf;
+      strsize = sizeof(buf);
+   }
+
+   snprintf(str, strsize, "mtu.dotest: %d", test->mtu.dotest);
+
+   return str;
+}
+
+const char *
 addrscope2string(scope)
    const ipv6_addrscope_t scope;
 {
@@ -1967,17 +2138,29 @@ options2string(options, prefix, str, strsize)
    strused = 0;
 
    strused += snprintf(&str[strused], strsize - strused,
+                       "\"%sdaemon\": \"%d\",\n",
+                       prefix, options->daemon);
+
+   strused += snprintf(&str[strused], strsize - strused,
+                       "\"%sservercount\": \"%lu\",\n",
+                       prefix, (unsigned long)options->serverc);
+
+   strused += snprintf(&str[strused], strsize - strused,
+                       "\"%sverifyonly\": \"%s\",\n",
+                       prefix, options->verifyonly ? "yes" : "no");
+
+   strused += snprintf(&str[strused], strsize - strused,
+                       "\"%sdebug\": \"%d\",\n",
+                       prefix, options->debug);
+
+   strused += snprintf(&str[strused], strsize - strused,
                        "\"%sconfigfile\": \"%s\",\n",
                        prefix,
                        options->configfile == NULL ?
                           SOCKD_CONFIGFILE : options->configfile);
 
    strused += snprintf(&str[strused], strsize - strused,
-                       "\"%sdaemon\": \"%d\",\n",
-                       prefix, options->daemon);
-
-   strused += snprintf(&str[strused], strsize - strused,
-                       "\"%sdebug\": \"%d\",\n",
+                       "\"%sdebuglevel\": \"%d\",\n",
                        prefix, options->debug);
 
    strused += snprintf(&str[strused], strsize - strused,
@@ -1985,12 +2168,10 @@ options2string(options, prefix, str, strsize)
                        prefix, options->keepalive);
 
    strused += snprintf(&str[strused], strsize - strused,
-                       "\"%slinebuffer\": \"%d\",\n",
-                       prefix, options->debug);
-
-   strused += snprintf(&str[strused], strsize - strused,
-                       "\"%sservercount\": \"%lu\",\n",
-                       prefix, (unsigned long)options->serverc);
+                       "\"%spidfile\": \"%s\",\n",
+                       prefix,
+                       options->pidfile == NULL ?
+                          SOCKD_PIDFILE : options->pidfile);
 
    STRIPTRAILING(str, strused, stripstring);
    return str;

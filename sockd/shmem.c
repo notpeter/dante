@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011,
- *               2012, 2013
+ *               2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmem.c,v 1.238 2013/10/27 15:24:42 karls Exp $";
+"$Id: shmem.c,v 1.238.4.6 2014/08/28 04:35:35 michaels Exp $";
 
 
 #define FIRST_SHMEMID  (0)
@@ -224,7 +224,7 @@ sockd_shmat(rule, objects)
    const char *function = "sockd_shmat()";
    int haveerror = 0;
 
-   if (objects & SHMEM_BW) {
+   if ((objects & SHMEM_BW) && rule->bw_shmid != 0) {
       HANDLE_SHMAT(rule, bw, bw_shmid);
 
       if (rule->bw_shmid) {
@@ -247,7 +247,7 @@ sockd_shmat(rule, objects)
            function, (unsigned long)rule->number);
 #endif /* DEBUG */
 
-   if (objects & SHMEM_MONITOR) {
+   if ((objects & SHMEM_MONITOR) && rule->mstats_shmid != 0) {
       /*
        * monitor-files are deleted and reset on every sighup, so can
        * be deleted even if mother still exists.
@@ -275,7 +275,7 @@ sockd_shmat(rule, objects)
            function, (unsigned long)rule->number);
 #endif /* DEBUG */
 
-   if (objects & SHMEM_SS) {
+   if ((objects & SHMEM_SS) && rule->ss_shmid != 0) {
       HANDLE_SHMAT(rule, ss, ss_shmid);
 
       if (rule->ss_shmid) {
@@ -413,16 +413,9 @@ sockd_mmap(mapping, size, prot, flags, fd, docreate)
                        prot,
                        flags,
                        fd,
-                       (off_t)0)) == MAP_FAILED) {
-      swarn("%s: %smmap(2) of %lu bytes from fd %d failed (mapping = %p)",
-            function,
-            oldmapping == NULL ? "" : "re-",
-            (unsigned long)size,
-            fd,
-            mapping);
-
-      return MAP_FAILED;
-   }
+                       (off_t)0)) == MAP_FAILED)
+      swarn("%s: %smmap(2) of %lu bytes from fd %d failed",
+            function, oldmapping == NULL ? "" : "re-", (unsigned long)size, fd);
 
    return mapping;
 }
@@ -559,7 +552,9 @@ shmem_use(shmem, cinfo, lock, mapisopen)
                   "file %s on fd %d",
                   function, (unsigned long)sizemapped, fname, fd);
 
+            shmem->keystate.keyv = NULL;
             socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
+
             return -1;
          }
 
@@ -1364,7 +1359,9 @@ keystate_openmap(id, keystate, sizemapped)
                id,
                (int)keystate->key);
 
+         keystate->keyv = NULL;
          close(fd);
+
          return -1;
       }
 
@@ -1566,8 +1563,8 @@ shmemcheck(void)
                SERRX(sockscf.oldshmemv[i].type);
          }
 
-         sockd_shmat(&rule, sockscf.oldshmemv[i].type);
-         sockd_shmdt(&rule, sockscf.oldshmemv[i].type);
+         (void)sockd_shmat(&rule, sockscf.oldshmemv[i].type);
+         (void)sockd_shmdt(&rule, sockscf.oldshmemv[i].type);
       }
    }
 

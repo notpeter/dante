@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013
+ * Copyright (c) 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: ipv6.c,v 1.6 2013/10/25 12:55:01 karls Exp $";
+"$Id: ipv6.c,v 1.6.4.5 2014/08/15 18:16:41 karls Exp $";
 
 int
 socks_inet_pton(af, src, dst, dstscope)
@@ -106,18 +106,21 @@ set_hints_ai_family(ai_family)
    int *ai_family;
 {
 #if !SOCKS_CLIENT
-   if (external_has_global_safamily(AF_INET)
-   && !external_has_global_safamily(AF_INET6))
+   const char *function = "set_hints_ai_family";
+
+   if (external_has_only_safamily(AF_INET))
       *ai_family = AF_INET;
-   else if (external_has_global_safamily(AF_INET6)
-   &&      !external_has_global_safamily(AF_INET))
-      *ai_family  = AF_INET6;
+   else if (external_has_only_safamily(AF_INET6)
+   &&       external_has_global_safamily(AF_INET6))
+      *ai_family = AF_INET6;
    else
       /*
-       * else; have both ipv4 and ipv6 available, so don't care
+       * else; have both ipv4 and ipv6 available (or none), so don't care
        * what we are returned.
        */
       *ai_family  = 0;
+
+   slog(LOG_DEBUG, "%s: ai_family = %d", function, *ai_family);
 #endif /* !SOCKS_CLIENT */
 }
 
@@ -149,3 +152,50 @@ ipv4_mapped_to_regular(ipv4_mapped, ipv4_regular)
 }
 
 #endif /* !SOCKS_CLIENT */
+
+
+#undef gai_strerror
+const char *
+socks_gai_strerror(errcode)
+   int errcode;
+{
+   static char emsg[1024];
+
+#if !SOCKS_CLIENT
+   int isaflimit = 0, hasaf = 0;
+
+   switch (errcode) {
+      case EAI_FAMILY:
+      case EAI_FAIL:
+      case EAI_NONAME:
+#ifdef EAI_NODATA
+      case EAI_NODATA:
+#endif
+         if (external_has_only_safamily(AF_INET))  {
+            isaflimit = 1;
+            hasaf     = AF_INET;
+         }
+         else if (external_has_only_safamily(AF_INET6))  {
+            isaflimit = 1;
+            hasaf     = AF_INET6;
+         }
+         break;
+
+      default:
+         break;
+   }
+
+   snprintf(emsg, sizeof(emsg), "%s%s%s",
+            gai_strerror(errcode),
+            isaflimit ? " for " : "",
+            isaflimit ? safamily2string(hasaf) : "");
+
+#else /* SOCKS_CLIENT */
+
+   snprintf(emsg, sizeof(emsg), "%s", gai_strerror(errcode));
+
+#endif  /* SOCKS_CLIENT */
+
+
+   return emsg;
+}

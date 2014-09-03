@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013
+ *               2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 #endif
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.238 2013/10/27 15:24:42 karls Exp $";
+"$Id: config_scan.l,v 1.238.4.3 2014/08/15 18:16:40 karls Exp $";
 
 #include "yacconfig.h"
 #include "config_parse.h"
@@ -130,6 +130,7 @@ SOCKETLEVEL    (ip|socket|tcp|udp)
 %x start_cpuoption
 %x start_hostindex
 %x start_statekey
+%x start_tcpoption
 
    /* ldap-stuff. */
 %x start_ldapdomain
@@ -144,6 +145,7 @@ SOCKETLEVEL    (ip|socket|tcp|udp)
 %x start_ldapcertpath
 
 
+%x start_alarmtest
 %x start_srchost
 %x start_protocol
 %x start_servicename
@@ -206,6 +208,41 @@ SOCKETLEVEL    (ip|socket|tcp|udp)
     * start-condition dependent stuff.
     */
 
+<start_protocol>ipv4 {
+   yylval.string = yytext;
+   return IPV4;
+}
+
+<start_protocol>ipv6 {
+   yylval.string = yytext;
+   return IPV6;
+}
+
+<start_tcpoption>ecn {
+   yylval.string = yytext;
+   return ECN;
+}
+
+<start_tcpoption>sack {
+   yylval.string = yytext;
+   return SACK;
+}
+
+<start_tcpoption>timestamps {
+   yylval.string = yytext;
+   return TIMESTAMPS;
+}
+
+<start_tcpoption>wscale {
+   yylval.string = yytext;
+   return WSCALE;
+}
+
+
+<start_alarmtest>mtu-error {
+   yylval.string = yytext;
+   return MTU_ERROR;
+}
 
 <start_statekey>from|hostid[^: /\t\n]* {
    BEGIN(0);
@@ -538,6 +575,21 @@ cpu {
    return LOGTYPE_ERROR;
 }
 
+<start_logtype>tcp\.disabled {
+   BEGIN(start_tcpoption);
+
+   yylval.string = yytext;
+   return LOGTYPE_TCP_DISABLED;
+}
+
+<start_logtype>tcp\.enabled {
+   BEGIN(start_tcpoption);
+
+   yylval.string = yytext;
+   return LOGTYPE_TCP_ENABLED;
+}
+
+
 <start_errorsymbol>[a-zA-Z][^:[:space:]]+ {
 #if !SOCKS_CLIENT
 
@@ -546,10 +598,10 @@ cpu {
     * Since we do not force the user to specify what kind of symbol
     * he specifies, we have to try all variants.
     */
-   if ((yylval.error.valuev = errnovalue(yytext)) != NULL)
-      yylval.error.valuetype = VALUETYPE_ERRNO;
-    else if ((yylval.error.valuev = gaivalue(yytext)) != NULL)
+   if ((yylval.error.valuev = gaivalue(yytext)) != NULL)
       yylval.error.valuetype = VALUETYPE_GAIERR;
+   else if ((yylval.error.valuev = errnovalue(yytext)) != NULL)
+      yylval.error.valuetype = VALUETYPE_ERRNO;
 
 #else /* SOCKS_CLIENT */
 
@@ -836,6 +888,14 @@ alarm.disconnect {
    return ALARMTYPE_DISCONNECT;
 }
 
+alarm/\. {
+   BEGIN(start_alarmtest);
+
+   yylval.string = yytext;
+   return ALARM;
+}
+
+
 \.recv/[[:space:]]*: {
    yylval.string = yytext;
    return RECVSIDE;
@@ -1038,6 +1098,13 @@ internal\.log/\. {
    return LOGIF_INTERNAL;
 }
 
+internal\.protocol {
+   BEGIN(start_protocol);
+
+   yylval.string = yytext;
+   return INTERNAL_PROTOCOL;
+}
+
 
 internal/[[:space:]]*: {
    BEGIN(start_address);
@@ -1057,6 +1124,13 @@ external\./{SOCKETLEVEL}\. {
 external\./alarm\. {
    yylval.string = yytext;
    return ALARMIF_EXTERNAL;
+}
+
+external\.protocol {
+   BEGIN(start_protocol);
+
+   yylval.string = yytext;
+   return EXTERNAL_PROTOCOL;
 }
 
 external\.rotation {

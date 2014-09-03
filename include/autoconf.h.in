@@ -143,6 +143,69 @@
 /* Define to 1 if you have error_message */
 #undef HAVE_ERROR_MESSAGE
 
+/* EAI_ADDRFAMILY gai error found */
+#undef HAVE_ERR_EAI_ADDRFAMILY
+
+/* EAI_AGAIN gai error found */
+#undef HAVE_ERR_EAI_AGAIN
+
+/* EAI_ALLDONE gai error found */
+#undef HAVE_ERR_EAI_ALLDONE
+
+/* EAI_BADEXTFLAGS gai error found */
+#undef HAVE_ERR_EAI_BADEXTFLAGS
+
+/* EAI_BADFLAGS gai error found */
+#undef HAVE_ERR_EAI_BADFLAGS
+
+/* EAI_BADHINTS gai error found */
+#undef HAVE_ERR_EAI_BADHINTS
+
+/* EAI_CANCELED gai error found */
+#undef HAVE_ERR_EAI_CANCELED
+
+/* EAI_FAIL gai error found */
+#undef HAVE_ERR_EAI_FAIL
+
+/* EAI_FAMILY gai error found */
+#undef HAVE_ERR_EAI_FAMILY
+
+/* EAI_IDN_ENCODE gai error found */
+#undef HAVE_ERR_EAI_IDN_ENCODE
+
+/* EAI_INPROGRESS gai error found */
+#undef HAVE_ERR_EAI_INPROGRESS
+
+/* EAI_INTR gai error found */
+#undef HAVE_ERR_EAI_INTR
+
+/* EAI_MEMORY gai error found */
+#undef HAVE_ERR_EAI_MEMORY
+
+/* EAI_NODATA gai error found */
+#undef HAVE_ERR_EAI_NODATA
+
+/* EAI_NONAME gai error found */
+#undef HAVE_ERR_EAI_NONAME
+
+/* EAI_NOTCANCELED gai error found */
+#undef HAVE_ERR_EAI_NOTCANCELED
+
+/* EAI_OVERFLOW gai error found */
+#undef HAVE_ERR_EAI_OVERFLOW
+
+/* EAI_PROTOCOL gai error found */
+#undef HAVE_ERR_EAI_PROTOCOL
+
+/* EAI_SERVICE gai error found */
+#undef HAVE_ERR_EAI_SERVICE
+
+/* EAI_SOCKTYPE gai error found */
+#undef HAVE_ERR_EAI_SOCKTYPE
+
+/* EAI_SYSTEM gai error found */
+#undef HAVE_ERR_EAI_SYSTEM
+
 /* Define to 1 if you have the <et/com_err.h> header file. */
 #undef HAVE_ET_COM_ERR_H
 
@@ -275,6 +338,9 @@
 /* IPV6_ADD_MEMBERSHIP socket option */
 #undef HAVE_IPV6_ADD_MEMBERSHIP
 
+/* IPV6_AIXRAWSOCKET socket option */
+#undef HAVE_IPV6_AIXRAWSOCKET
+
 /* IPV6_AUTHHDR socket option */
 #undef HAVE_IPV6_AUTHHDR
 
@@ -338,6 +404,9 @@
 /* IPV6_MINHOPCOUNT socket option */
 #undef HAVE_IPV6_MINHOPCOUNT
 
+/* IPV6_MIPDSTOPTS socket option */
+#undef HAVE_IPV6_MIPDSTOPTS
+
 /* IPV6_MTU socket option */
 #undef HAVE_IPV6_MTU
 
@@ -356,6 +425,9 @@
 /* IPV6_NEXTHOP socket option */
 #undef HAVE_IPV6_NEXTHOP
 
+/* IPV6_NOPROBE socket option */
+#undef HAVE_IPV6_NOPROBE
+
 /* IPV6_ORIGDSTADDR socket option */
 #undef HAVE_IPV6_ORIGDSTADDR
 
@@ -367,6 +439,9 @@
 
 /* IPV6_PKTINFO socket option */
 #undef HAVE_IPV6_PKTINFO
+
+/* IPV6_PKTOPTIONS socket option */
+#undef HAVE_IPV6_PKTOPTIONS
 
 /* IPV6_PORTRANGE socket option */
 #undef HAVE_IPV6_PORTRANGE
@@ -386,6 +461,12 @@
 /* IPV6_RECVHOPOPTS socket option */
 #undef HAVE_IPV6_RECVHOPOPTS
 
+/* IPV6_RECVHOPS socket option */
+#undef HAVE_IPV6_RECVHOPS
+
+/* IPV6_RECVIF socket option */
+#undef HAVE_IPV6_RECVIF
+
 /* IPV6_RECVOPTS socket option */
 #undef HAVE_IPV6_RECVOPTS
 
@@ -404,6 +485,9 @@
 /* IPV6_RECVRTHDR socket option */
 #undef HAVE_IPV6_RECVRTHDR
 
+/* IPV6_RECVSRCRT socket option */
+#undef HAVE_IPV6_RECVSRCRT
+
 /* IPV6_RECVTCLASS socket option */
 #undef HAVE_IPV6_RECVTCLASS
 
@@ -419,8 +503,8 @@
 /* IPV6_RTHDRDSTOPTS socket option */
 #undef HAVE_IPV6_RTHDRDSTOPTS
 
-/* ipv6 not supported currently */
-#undef HAVE_IPV6_SUPPORT
+/* IPV6_SENDIF socket option */
+#undef HAVE_IPV6_SENDIF
 
 /* IPV6_TCLASS socket option */
 #undef HAVE_IPV6_TCLASS
@@ -440,17 +524,44 @@
 /* IPV6_XFRM_POLICY socket option */
 #undef HAVE_IPV6_XFRM_POLICY
 
+/* IP_ADDRFORM socket option */
+#undef HAVE_IP_ADDRFORM
+
+/* IP_ADD_MEMBERSHIP socket option */
+#undef HAVE_IP_ADD_MEMBERSHIP
+
+/* IP_ADD_SOURCE_MEMBERSHIP socket option */
+#undef HAVE_IP_ADD_SOURCE_MEMBERSHIP
+
 /* IP_AUTH_LEVEL socket option */
 #undef HAVE_IP_AUTH_LEVEL
 
+/* IP_BLOCK_SOURCE socket option */
+#undef HAVE_IP_BLOCK_SOURCE
+
+/* IP_BROADCAST_IF socket option */
+#undef HAVE_IP_BROADCAST_IF
+
+/* IP_DHCPMODE socket option */
+#undef HAVE_IP_DHCPMODE
+
 /* IP_DONTFRAG socket option */
 #undef HAVE_IP_DONTFRAG
+
+/* IP_DROP_MEMBERSHIP socket option */
+#undef HAVE_IP_DROP_MEMBERSHIP
+
+/* IP_DROP_SOURCE_MEMBERSHIP socket option */
+#undef HAVE_IP_DROP_SOURCE_MEMBERSHIP
 
 /* IP_ESP_NETWORK_LEVEL socket option */
 #undef HAVE_IP_ESP_NETWORK_LEVEL
 
 /* IP_ESP_TRANS_LEVEL socket option */
 #undef HAVE_IP_ESP_TRANS_LEVEL
+
+/* IP_FINDPMTU socket option */
+#undef HAVE_IP_FINDPMTU
 
 /* IP_FREEBIND socket option */
 #undef HAVE_IP_FREEBIND
@@ -467,6 +578,9 @@
 /* IP_MTU_DISCOVER socket option */
 #undef HAVE_IP_MTU_DISCOVER
 
+/* IP_MULTICAST_HOPS socket option */
+#undef HAVE_IP_MULTICAST_HOPS
+
 /* IP_MULTICAST_IF socket option */
 #undef HAVE_IP_MULTICAST_IF
 
@@ -479,6 +593,9 @@
 /* IP_OPTIONS socket option */
 #undef HAVE_IP_OPTIONS
 
+/* IP_PMTUAGE socket option */
+#undef HAVE_IP_PMTUAGE
+
 /* IP_PORTRANGE socket option */
 #undef HAVE_IP_PORTRANGE
 
@@ -488,17 +605,35 @@
 /* IP_RECVIF socket option */
 #undef HAVE_IP_RECVIF
 
+/* IP_RECVIFINFO socket option */
+#undef HAVE_IP_RECVIFINFO
+
+/* IP_RECVINTERFACE socket option */
+#undef HAVE_IP_RECVINTERFACE
+
+/* IP_RECVMACHDR socket option */
+#undef HAVE_IP_RECVMACHDR
+
 /* IP_RECVTOS socket option */
 #undef HAVE_IP_RECVTOS
 
 /* IP_RECVTTL socket option */
 #undef HAVE_IP_RECVTTL
 
+/* IP_SOURCE_FILTER socket option */
+#undef HAVE_IP_SOURCE_FILTER
+
 /* IP_TOS socket option */
 #undef HAVE_IP_TOS
 
 /* IP_TTL socket option */
 #undef HAVE_IP_TTL
+
+/* IP_UNBLOCK_SOURCE socket option */
+#undef HAVE_IP_UNBLOCK_SOURCE
+
+/* IP_UNICAST_HOPS socket option */
+#undef HAVE_IP_UNICAST_HOPS
 
 /* Define to 1 if you have the `issetugid' function. */
 #undef HAVE_ISSETUGID
@@ -1283,7 +1418,7 @@
 /* ss_len exists in sockaddr_storage */
 #undef HAVE_SOCKADDR_STORAGE_SS_LEN
 
-/* Define to 1 if you have the `sockatmark' function. */
+/* working sockatmark() support */
 #undef HAVE_SOCKATMARK
 
 /* symbol count */
@@ -1298,11 +1433,20 @@
 /* Solaris priv.h support */
 #undef HAVE_SOLARIS_PRIVS
 
+/* SO_ACCEPTCONN socket option */
+#undef HAVE_SO_ACCEPTCONN
+
+/* SO_AUDIT socket option */
+#undef HAVE_SO_AUDIT
+
 /* SO_BINDANY socket option */
 #undef HAVE_SO_BINDANY
 
 /* SO_BROADCAST socket option */
 #undef HAVE_SO_BROADCAST
+
+/* SO_CKSUMRECV socket option */
+#undef HAVE_SO_CKSUMRECV
 
 /* SO_DEBUG socket option */
 #undef HAVE_SO_DEBUG
@@ -1310,17 +1454,32 @@
 /* SO_DONTROUTE socket option */
 #undef HAVE_SO_DONTROUTE
 
+/* SO_ERROR socket option */
+#undef HAVE_SO_ERROR
+
 /* SO_JUMBO socket option */
 #undef HAVE_SO_JUMBO
 
 /* SO_KEEPALIVE socket option */
 #undef HAVE_SO_KEEPALIVE
 
+/* SO_KERNACCEPT socket option */
+#undef HAVE_SO_KERNACCEPT
+
 /* SO_LINGER socket option */
 #undef HAVE_SO_LINGER
 
+/* SO_NOMULTIPATH socket option */
+#undef HAVE_SO_NOMULTIPATH
+
+/* SO_NOREUSEADDR socket option */
+#undef HAVE_SO_NOREUSEADDR
+
 /* SO_OOBINLINE socket option */
 #undef HAVE_SO_OOBINLINE
+
+/* SO_PEERID socket option */
+#undef HAVE_SO_PEERID
 
 /* SO_PRIORITY socket option */
 #undef HAVE_SO_PRIORITY
@@ -1358,8 +1517,14 @@
 /* SO_TIMESTAMP socket option */
 #undef HAVE_SO_TIMESTAMP
 
+/* SO_TYPE socket option */
+#undef HAVE_SO_TYPE
+
 /* SO_USELOOPBACK socket option */
 #undef HAVE_SO_USELOOPBACK
+
+/* SO_USE_IFBUFS socket option */
+#undef HAVE_SO_USE_IFBUFS
 
 /* Define to 1 if you have the <stddef.h> header file. */
 #undef HAVE_STDDEF_H
@@ -1441,6 +1606,12 @@
 
 /* TCP_CWND socket option */
 #undef HAVE_TCP_CWND
+
+/* TCP_CWND_DF socket option */
+#undef HAVE_TCP_CWND_DF
+
+/* TCP_CWND_IF socket option */
+#undef HAVE_TCP_CWND_IF
 
 /* tcp_info struct found in netinet/tcp.h */
 #undef HAVE_TCP_INFO
@@ -1538,11 +1709,26 @@
 /* TCP_NODELAY socket option */
 #undef HAVE_TCP_NODELAY
 
+/* TCP_NODELAYACK socket option */
+#undef HAVE_TCP_NODELAYACK
+
 /* TCP_NOOPT socket option */
 #undef HAVE_TCP_NOOPT
 
 /* TCP_NOPUSH socket option */
 #undef HAVE_TCP_NOPUSH
+
+/* TCP_NOREDUCE_CWND_EXIT_FRXMT socket option */
+#undef HAVE_TCP_NOREDUCE_CWND_EXIT_FRXMT
+
+/* TCP_NOREDUCE_CWND_IN_FRXMT socket option */
+#undef HAVE_TCP_NOREDUCE_CWND_IN_FRXMT
+
+/* TCP_NOTENTER_SSTART socket option */
+#undef HAVE_TCP_NOTENTER_SSTART
+
+/* TCP_RFC1323 socket option */
+#undef HAVE_TCP_RFC1323
 
 /* TCP_SACK_ENABLE socket option */
 #undef HAVE_TCP_SACK_ENABLE
@@ -1905,6 +2091,18 @@
 /* IPV6_ADD_MEMBERSHIP value */
 #undef SOCKS_IPV6_ADD_MEMBERSHIP_NAME
 
+/* IPV6_AIXRAWSOCKET IPv4 option */
+#undef SOCKS_IPV6_AIXRAWSOCKET_IPV4
+
+/* IPV6_AIXRAWSOCKET IPv4 option */
+#undef SOCKS_IPV6_AIXRAWSOCKET_IPV6
+
+/* IPV6_AIXRAWSOCKET protocol level */
+#undef SOCKS_IPV6_AIXRAWSOCKET_LVL
+
+/* IPV6_AIXRAWSOCKET value */
+#undef SOCKS_IPV6_AIXRAWSOCKET_NAME
+
 /* IPV6_AUTHHDR IPv4 option */
 #undef SOCKS_IPV6_AUTHHDR_IPV4
 
@@ -2157,6 +2355,18 @@
 /* IPV6_MINHOPCOUNT value */
 #undef SOCKS_IPV6_MINHOPCOUNT_NAME
 
+/* IPV6_MIPDSTOPTS IPv4 option */
+#undef SOCKS_IPV6_MIPDSTOPTS_IPV4
+
+/* IPV6_MIPDSTOPTS IPv4 option */
+#undef SOCKS_IPV6_MIPDSTOPTS_IPV6
+
+/* IPV6_MIPDSTOPTS protocol level */
+#undef SOCKS_IPV6_MIPDSTOPTS_LVL
+
+/* IPV6_MIPDSTOPTS value */
+#undef SOCKS_IPV6_MIPDSTOPTS_NAME
+
 /* IPV6_MTU_DISCOVER IPv4 option */
 #undef SOCKS_IPV6_MTU_DISCOVER_IPV4
 
@@ -2229,6 +2439,18 @@
 /* IPV6_NEXTHOP value */
 #undef SOCKS_IPV6_NEXTHOP_NAME
 
+/* IPV6_NOPROBE IPv4 option */
+#undef SOCKS_IPV6_NOPROBE_IPV4
+
+/* IPV6_NOPROBE IPv4 option */
+#undef SOCKS_IPV6_NOPROBE_IPV6
+
+/* IPV6_NOPROBE protocol level */
+#undef SOCKS_IPV6_NOPROBE_LVL
+
+/* IPV6_NOPROBE value */
+#undef SOCKS_IPV6_NOPROBE_NAME
+
 /* IPV6_ORIGDSTADDR IPv4 option */
 #undef SOCKS_IPV6_ORIGDSTADDR_IPV4
 
@@ -2276,6 +2498,18 @@
 
 /* IPV6_PKTINFO value */
 #undef SOCKS_IPV6_PKTINFO_NAME
+
+/* IPV6_PKTOPTIONS IPv4 option */
+#undef SOCKS_IPV6_PKTOPTIONS_IPV4
+
+/* IPV6_PKTOPTIONS IPv4 option */
+#undef SOCKS_IPV6_PKTOPTIONS_IPV6
+
+/* IPV6_PKTOPTIONS protocol level */
+#undef SOCKS_IPV6_PKTOPTIONS_LVL
+
+/* IPV6_PKTOPTIONS value */
+#undef SOCKS_IPV6_PKTOPTIONS_NAME
 
 /* IPV6_PORTRANGE IPv4 option */
 #undef SOCKS_IPV6_PORTRANGE_IPV4
@@ -2349,6 +2583,30 @@
 /* IPV6_RECVHOPOPTS value */
 #undef SOCKS_IPV6_RECVHOPOPTS_NAME
 
+/* IPV6_RECVHOPS IPv4 option */
+#undef SOCKS_IPV6_RECVHOPS_IPV4
+
+/* IPV6_RECVHOPS IPv4 option */
+#undef SOCKS_IPV6_RECVHOPS_IPV6
+
+/* IPV6_RECVHOPS protocol level */
+#undef SOCKS_IPV6_RECVHOPS_LVL
+
+/* IPV6_RECVHOPS value */
+#undef SOCKS_IPV6_RECVHOPS_NAME
+
+/* IPV6_RECVIF IPv4 option */
+#undef SOCKS_IPV6_RECVIF_IPV4
+
+/* IPV6_RECVIF IPv4 option */
+#undef SOCKS_IPV6_RECVIF_IPV6
+
+/* IPV6_RECVIF protocol level */
+#undef SOCKS_IPV6_RECVIF_LVL
+
+/* IPV6_RECVIF value */
+#undef SOCKS_IPV6_RECVIF_NAME
+
 /* IPV6_RECVOPTS IPv4 option */
 #undef SOCKS_IPV6_RECVOPTS_IPV4
 
@@ -2421,6 +2679,18 @@
 /* IPV6_RECVRTHDR value */
 #undef SOCKS_IPV6_RECVRTHDR_NAME
 
+/* IPV6_RECVSRCRT IPv4 option */
+#undef SOCKS_IPV6_RECVSRCRT_IPV4
+
+/* IPV6_RECVSRCRT IPv4 option */
+#undef SOCKS_IPV6_RECVSRCRT_IPV6
+
+/* IPV6_RECVSRCRT protocol level */
+#undef SOCKS_IPV6_RECVSRCRT_LVL
+
+/* IPV6_RECVSRCRT value */
+#undef SOCKS_IPV6_RECVSRCRT_NAME
+
 /* IPV6_RECVTCLASS IPv4 option */
 #undef SOCKS_IPV6_RECVTCLASS_IPV4
 
@@ -2480,6 +2750,18 @@
 
 /* IPV6_RTHDR value */
 #undef SOCKS_IPV6_RTHDR_NAME
+
+/* IPV6_SENDIF IPv4 option */
+#undef SOCKS_IPV6_SENDIF_IPV4
+
+/* IPV6_SENDIF IPv4 option */
+#undef SOCKS_IPV6_SENDIF_IPV6
+
+/* IPV6_SENDIF protocol level */
+#undef SOCKS_IPV6_SENDIF_LVL
+
+/* IPV6_SENDIF value */
+#undef SOCKS_IPV6_SENDIF_NAME
 
 /* IPV6_TCLASS IPv4 option */
 #undef SOCKS_IPV6_TCLASS_IPV4
@@ -2553,6 +2835,42 @@
 /* IPV6_XFRM_POLICY value */
 #undef SOCKS_IPV6_XFRM_POLICY_NAME
 
+/* IP_ADDRFORM IPv4 option */
+#undef SOCKS_IP_ADDRFORM_IPV4
+
+/* IP_ADDRFORM IPv4 option */
+#undef SOCKS_IP_ADDRFORM_IPV6
+
+/* IP_ADDRFORM protocol level */
+#undef SOCKS_IP_ADDRFORM_LVL
+
+/* IP_ADDRFORM value */
+#undef SOCKS_IP_ADDRFORM_NAME
+
+/* IP_ADD_MEMBERSHIP IPv4 option */
+#undef SOCKS_IP_ADD_MEMBERSHIP_IPV4
+
+/* IP_ADD_MEMBERSHIP IPv4 option */
+#undef SOCKS_IP_ADD_MEMBERSHIP_IPV6
+
+/* IP_ADD_MEMBERSHIP protocol level */
+#undef SOCKS_IP_ADD_MEMBERSHIP_LVL
+
+/* IP_ADD_MEMBERSHIP value */
+#undef SOCKS_IP_ADD_MEMBERSHIP_NAME
+
+/* IP_ADD_SOURCE_MEMBERSHIP IPv4 option */
+#undef SOCKS_IP_ADD_SOURCE_MEMBERSHIP_IPV4
+
+/* IP_ADD_SOURCE_MEMBERSHIP IPv4 option */
+#undef SOCKS_IP_ADD_SOURCE_MEMBERSHIP_IPV6
+
+/* IP_ADD_SOURCE_MEMBERSHIP protocol level */
+#undef SOCKS_IP_ADD_SOURCE_MEMBERSHIP_LVL
+
+/* IP_ADD_SOURCE_MEMBERSHIP value */
+#undef SOCKS_IP_ADD_SOURCE_MEMBERSHIP_NAME
+
 /* IP_AUTH_LEVEL IPv4 option */
 #undef SOCKS_IP_AUTH_LEVEL_IPV4
 
@@ -2565,6 +2883,42 @@
 /* IP_AUTH_LEVEL value */
 #undef SOCKS_IP_AUTH_LEVEL_NAME
 
+/* IP_BLOCK_SOURCE IPv4 option */
+#undef SOCKS_IP_BLOCK_SOURCE_IPV4
+
+/* IP_BLOCK_SOURCE IPv4 option */
+#undef SOCKS_IP_BLOCK_SOURCE_IPV6
+
+/* IP_BLOCK_SOURCE protocol level */
+#undef SOCKS_IP_BLOCK_SOURCE_LVL
+
+/* IP_BLOCK_SOURCE value */
+#undef SOCKS_IP_BLOCK_SOURCE_NAME
+
+/* IP_BROADCAST_IF IPv4 option */
+#undef SOCKS_IP_BROADCAST_IF_IPV4
+
+/* IP_BROADCAST_IF IPv4 option */
+#undef SOCKS_IP_BROADCAST_IF_IPV6
+
+/* IP_BROADCAST_IF protocol level */
+#undef SOCKS_IP_BROADCAST_IF_LVL
+
+/* IP_BROADCAST_IF value */
+#undef SOCKS_IP_BROADCAST_IF_NAME
+
+/* IP_DHCPMODE IPv4 option */
+#undef SOCKS_IP_DHCPMODE_IPV4
+
+/* IP_DHCPMODE IPv4 option */
+#undef SOCKS_IP_DHCPMODE_IPV6
+
+/* IP_DHCPMODE protocol level */
+#undef SOCKS_IP_DHCPMODE_LVL
+
+/* IP_DHCPMODE value */
+#undef SOCKS_IP_DHCPMODE_NAME
+
 /* IP_DONTFRAG IPv4 option */
 #undef SOCKS_IP_DONTFRAG_IPV4
 
@@ -2576,6 +2930,30 @@
 
 /* IP_DONTFRAG value */
 #undef SOCKS_IP_DONTFRAG_NAME
+
+/* IP_DROP_MEMBERSHIP IPv4 option */
+#undef SOCKS_IP_DROP_MEMBERSHIP_IPV4
+
+/* IP_DROP_MEMBERSHIP IPv4 option */
+#undef SOCKS_IP_DROP_MEMBERSHIP_IPV6
+
+/* IP_DROP_MEMBERSHIP protocol level */
+#undef SOCKS_IP_DROP_MEMBERSHIP_LVL
+
+/* IP_DROP_MEMBERSHIP value */
+#undef SOCKS_IP_DROP_MEMBERSHIP_NAME
+
+/* IP_DROP_SOURCE_MEMBERSHIP IPv4 option */
+#undef SOCKS_IP_DROP_SOURCE_MEMBERSHIP_IPV4
+
+/* IP_DROP_SOURCE_MEMBERSHIP IPv4 option */
+#undef SOCKS_IP_DROP_SOURCE_MEMBERSHIP_IPV6
+
+/* IP_DROP_SOURCE_MEMBERSHIP protocol level */
+#undef SOCKS_IP_DROP_SOURCE_MEMBERSHIP_LVL
+
+/* IP_DROP_SOURCE_MEMBERSHIP value */
+#undef SOCKS_IP_DROP_SOURCE_MEMBERSHIP_NAME
 
 /* IP_ESP_NETWORK_LEVEL IPv4 option */
 #undef SOCKS_IP_ESP_NETWORK_LEVEL_IPV4
@@ -2600,6 +2978,18 @@
 
 /* IP_ESP_TRANS_LEVEL value */
 #undef SOCKS_IP_ESP_TRANS_LEVEL_NAME
+
+/* IP_FINDPMTU IPv4 option */
+#undef SOCKS_IP_FINDPMTU_IPV4
+
+/* IP_FINDPMTU IPv4 option */
+#undef SOCKS_IP_FINDPMTU_IPV6
+
+/* IP_FINDPMTU protocol level */
+#undef SOCKS_IP_FINDPMTU_LVL
+
+/* IP_FINDPMTU value */
+#undef SOCKS_IP_FINDPMTU_NAME
 
 /* IP_FREEBIND IPv4 option */
 #undef SOCKS_IP_FREEBIND_IPV4
@@ -2661,6 +3051,18 @@
 /* IP_MTU_DISCOVER value */
 #undef SOCKS_IP_MTU_DISCOVER_NAME
 
+/* IP_MULTICAST_HOPS IPv4 option */
+#undef SOCKS_IP_MULTICAST_HOPS_IPV4
+
+/* IP_MULTICAST_HOPS IPv4 option */
+#undef SOCKS_IP_MULTICAST_HOPS_IPV6
+
+/* IP_MULTICAST_HOPS protocol level */
+#undef SOCKS_IP_MULTICAST_HOPS_LVL
+
+/* IP_MULTICAST_HOPS value */
+#undef SOCKS_IP_MULTICAST_HOPS_NAME
+
 /* IP_MULTICAST_IF IPv4 option */
 #undef SOCKS_IP_MULTICAST_IF_IPV4
 
@@ -2709,6 +3111,18 @@
 /* IP_OPTIONS value */
 #undef SOCKS_IP_OPTIONS_NAME
 
+/* IP_PMTUAGE IPv4 option */
+#undef SOCKS_IP_PMTUAGE_IPV4
+
+/* IP_PMTUAGE IPv4 option */
+#undef SOCKS_IP_PMTUAGE_IPV6
+
+/* IP_PMTUAGE protocol level */
+#undef SOCKS_IP_PMTUAGE_LVL
+
+/* IP_PMTUAGE value */
+#undef SOCKS_IP_PMTUAGE_NAME
+
 /* IP_PORTRANGE_DEFAULT value */
 #undef SOCKS_IP_PORTRANGE_DEFAULT_SYMNAME
 
@@ -2742,6 +3156,18 @@
 /* IP_RECVDSTADDR value */
 #undef SOCKS_IP_RECVDSTADDR_NAME
 
+/* IP_RECVIFINFO IPv4 option */
+#undef SOCKS_IP_RECVIFINFO_IPV4
+
+/* IP_RECVIFINFO IPv4 option */
+#undef SOCKS_IP_RECVIFINFO_IPV6
+
+/* IP_RECVIFINFO protocol level */
+#undef SOCKS_IP_RECVIFINFO_LVL
+
+/* IP_RECVIFINFO value */
+#undef SOCKS_IP_RECVIFINFO_NAME
+
 /* IP_RECVIF IPv4 option */
 #undef SOCKS_IP_RECVIF_IPV4
 
@@ -2753,6 +3179,30 @@
 
 /* IP_RECVIF value */
 #undef SOCKS_IP_RECVIF_NAME
+
+/* IP_RECVINTERFACE IPv4 option */
+#undef SOCKS_IP_RECVINTERFACE_IPV4
+
+/* IP_RECVINTERFACE IPv4 option */
+#undef SOCKS_IP_RECVINTERFACE_IPV6
+
+/* IP_RECVINTERFACE protocol level */
+#undef SOCKS_IP_RECVINTERFACE_LVL
+
+/* IP_RECVINTERFACE value */
+#undef SOCKS_IP_RECVINTERFACE_NAME
+
+/* IP_RECVMACHDR IPv4 option */
+#undef SOCKS_IP_RECVMACHDR_IPV4
+
+/* IP_RECVMACHDR IPv4 option */
+#undef SOCKS_IP_RECVMACHDR_IPV6
+
+/* IP_RECVMACHDR protocol level */
+#undef SOCKS_IP_RECVMACHDR_LVL
+
+/* IP_RECVMACHDR value */
+#undef SOCKS_IP_RECVMACHDR_NAME
 
 /* IP_RECVTOS IPv4 option */
 #undef SOCKS_IP_RECVTOS_IPV4
@@ -2777,6 +3227,18 @@
 
 /* IP_RECVTTL value */
 #undef SOCKS_IP_RECVTTL_NAME
+
+/* IP_SOURCE_FILTER IPv4 option */
+#undef SOCKS_IP_SOURCE_FILTER_IPV4
+
+/* IP_SOURCE_FILTER IPv4 option */
+#undef SOCKS_IP_SOURCE_FILTER_IPV6
+
+/* IP_SOURCE_FILTER protocol level */
+#undef SOCKS_IP_SOURCE_FILTER_LVL
+
+/* IP_SOURCE_FILTER value */
+#undef SOCKS_IP_SOURCE_FILTER_NAME
 
 /* IP_TOS subfield */
 #undef SOCKS_IP_TOS_DSCP_NAME
@@ -2811,8 +3273,56 @@
 /* IP_TTL value */
 #undef SOCKS_IP_TTL_NAME
 
+/* IP_UNBLOCK_SOURCE IPv4 option */
+#undef SOCKS_IP_UNBLOCK_SOURCE_IPV4
+
+/* IP_UNBLOCK_SOURCE IPv4 option */
+#undef SOCKS_IP_UNBLOCK_SOURCE_IPV6
+
+/* IP_UNBLOCK_SOURCE protocol level */
+#undef SOCKS_IP_UNBLOCK_SOURCE_LVL
+
+/* IP_UNBLOCK_SOURCE value */
+#undef SOCKS_IP_UNBLOCK_SOURCE_NAME
+
+/* IP_UNICAST_HOPS IPv4 option */
+#undef SOCKS_IP_UNICAST_HOPS_IPV4
+
+/* IP_UNICAST_HOPS IPv4 option */
+#undef SOCKS_IP_UNICAST_HOPS_IPV6
+
+/* IP_UNICAST_HOPS protocol level */
+#undef SOCKS_IP_UNICAST_HOPS_LVL
+
+/* IP_UNICAST_HOPS value */
+#undef SOCKS_IP_UNICAST_HOPS_NAME
+
 /* Guess at max number of valid signals */
 #undef SOCKS_NSIG
+
+/* SO_ACCEPTCONN IPv4 option */
+#undef SOCKS_SO_ACCEPTCONN_IPV4
+
+/* SO_ACCEPTCONN IPv4 option */
+#undef SOCKS_SO_ACCEPTCONN_IPV6
+
+/* SO_ACCEPTCONN protocol level */
+#undef SOCKS_SO_ACCEPTCONN_LVL
+
+/* SO_ACCEPTCONN value */
+#undef SOCKS_SO_ACCEPTCONN_NAME
+
+/* SO_AUDIT IPv4 option */
+#undef SOCKS_SO_AUDIT_IPV4
+
+/* SO_AUDIT IPv4 option */
+#undef SOCKS_SO_AUDIT_IPV6
+
+/* SO_AUDIT protocol level */
+#undef SOCKS_SO_AUDIT_LVL
+
+/* SO_AUDIT value */
+#undef SOCKS_SO_AUDIT_NAME
 
 /* SO_BINDANY IPv4 option */
 #undef SOCKS_SO_BINDANY_IPV4
@@ -2838,6 +3348,18 @@
 /* SO_BROADCAST value */
 #undef SOCKS_SO_BROADCAST_NAME
 
+/* SO_CKSUMRECV IPv4 option */
+#undef SOCKS_SO_CKSUMRECV_IPV4
+
+/* SO_CKSUMRECV IPv4 option */
+#undef SOCKS_SO_CKSUMRECV_IPV6
+
+/* SO_CKSUMRECV protocol level */
+#undef SOCKS_SO_CKSUMRECV_LVL
+
+/* SO_CKSUMRECV value */
+#undef SOCKS_SO_CKSUMRECV_NAME
+
 /* SO_DEBUG IPv4 option */
 #undef SOCKS_SO_DEBUG_IPV4
 
@@ -2861,6 +3383,18 @@
 
 /* SO_DONTROUTE value */
 #undef SOCKS_SO_DONTROUTE_NAME
+
+/* SO_ERROR IPv4 option */
+#undef SOCKS_SO_ERROR_IPV4
+
+/* SO_ERROR IPv4 option */
+#undef SOCKS_SO_ERROR_IPV6
+
+/* SO_ERROR protocol level */
+#undef SOCKS_SO_ERROR_LVL
+
+/* SO_ERROR value */
+#undef SOCKS_SO_ERROR_NAME
 
 /* SO_JUMBO IPv4 option */
 #undef SOCKS_SO_JUMBO_IPV4
@@ -2886,6 +3420,18 @@
 /* SO_KEEPALIVE value */
 #undef SOCKS_SO_KEEPALIVE_NAME
 
+/* SO_KERNACCEPT IPv4 option */
+#undef SOCKS_SO_KERNACCEPT_IPV4
+
+/* SO_KERNACCEPT IPv4 option */
+#undef SOCKS_SO_KERNACCEPT_IPV6
+
+/* SO_KERNACCEPT protocol level */
+#undef SOCKS_SO_KERNACCEPT_LVL
+
+/* SO_KERNACCEPT value */
+#undef SOCKS_SO_KERNACCEPT_NAME
+
 /* SO_LINGER IPv4 option */
 #undef SOCKS_SO_LINGER_IPV4
 
@@ -2898,6 +3444,30 @@
 /* SO_LINGER value */
 #undef SOCKS_SO_LINGER_NAME
 
+/* SO_NOMULTIPATH IPv4 option */
+#undef SOCKS_SO_NOMULTIPATH_IPV4
+
+/* SO_NOMULTIPATH IPv4 option */
+#undef SOCKS_SO_NOMULTIPATH_IPV6
+
+/* SO_NOMULTIPATH protocol level */
+#undef SOCKS_SO_NOMULTIPATH_LVL
+
+/* SO_NOMULTIPATH value */
+#undef SOCKS_SO_NOMULTIPATH_NAME
+
+/* SO_NOREUSEADDR IPv4 option */
+#undef SOCKS_SO_NOREUSEADDR_IPV4
+
+/* SO_NOREUSEADDR IPv4 option */
+#undef SOCKS_SO_NOREUSEADDR_IPV6
+
+/* SO_NOREUSEADDR protocol level */
+#undef SOCKS_SO_NOREUSEADDR_LVL
+
+/* SO_NOREUSEADDR value */
+#undef SOCKS_SO_NOREUSEADDR_NAME
+
 /* SO_OOBINLINE IPv4 option */
 #undef SOCKS_SO_OOBINLINE_IPV4
 
@@ -2909,6 +3479,18 @@
 
 /* SO_OOBINLINE value */
 #undef SOCKS_SO_OOBINLINE_NAME
+
+/* SO_PEERID IPv4 option */
+#undef SOCKS_SO_PEERID_IPV4
+
+/* SO_PEERID IPv4 option */
+#undef SOCKS_SO_PEERID_IPV6
+
+/* SO_PEERID protocol level */
+#undef SOCKS_SO_PEERID_LVL
+
+/* SO_PEERID value */
+#undef SOCKS_SO_PEERID_NAME
 
 /* SO_PRIORITY IPv4 option */
 #undef SOCKS_SO_PRIORITY_IPV4
@@ -3054,6 +3636,18 @@
 /* SO_TIMESTAMP value */
 #undef SOCKS_SO_TIMESTAMP_NAME
 
+/* SO_TYPE IPv4 option */
+#undef SOCKS_SO_TYPE_IPV4
+
+/* SO_TYPE IPv4 option */
+#undef SOCKS_SO_TYPE_IPV6
+
+/* SO_TYPE protocol level */
+#undef SOCKS_SO_TYPE_LVL
+
+/* SO_TYPE value */
+#undef SOCKS_SO_TYPE_NAME
+
 /* SO_USELOOPBACK IPv4 option */
 #undef SOCKS_SO_USELOOPBACK_IPV4
 
@@ -3066,6 +3660,18 @@
 /* SO_USELOOPBACK value */
 #undef SOCKS_SO_USELOOPBACK_NAME
 
+/* SO_USE_IFBUFS IPv4 option */
+#undef SOCKS_SO_USE_IFBUFS_IPV4
+
+/* SO_USE_IFBUFS IPv4 option */
+#undef SOCKS_SO_USE_IFBUFS_IPV6
+
+/* SO_USE_IFBUFS protocol level */
+#undef SOCKS_SO_USE_IFBUFS_LVL
+
+/* SO_USE_IFBUFS value */
+#undef SOCKS_SO_USE_IFBUFS_NAME
+
 /* TCP_CORK IPv4 option */
 #undef SOCKS_TCP_CORK_IPV4
 
@@ -3077,6 +3683,30 @@
 
 /* TCP_CORK value */
 #undef SOCKS_TCP_CORK_NAME
+
+/* TCP_CWND_DF IPv4 option */
+#undef SOCKS_TCP_CWND_DF_IPV4
+
+/* TCP_CWND_DF IPv4 option */
+#undef SOCKS_TCP_CWND_DF_IPV6
+
+/* TCP_CWND_DF protocol level */
+#undef SOCKS_TCP_CWND_DF_LVL
+
+/* TCP_CWND_DF value */
+#undef SOCKS_TCP_CWND_DF_NAME
+
+/* TCP_CWND_IF IPv4 option */
+#undef SOCKS_TCP_CWND_IF_IPV4
+
+/* TCP_CWND_IF IPv4 option */
+#undef SOCKS_TCP_CWND_IF_IPV6
+
+/* TCP_CWND_IF protocol level */
+#undef SOCKS_TCP_CWND_IF_LVL
+
+/* TCP_CWND_IF value */
+#undef SOCKS_TCP_CWND_IF_NAME
 
 /* TCP_CWND IPv4 option */
 #undef SOCKS_TCP_CWND_IPV4
@@ -3198,6 +3828,18 @@
 /* TCP_MD5SIG value */
 #undef SOCKS_TCP_MD5SIG_NAME
 
+/* TCP_NODELAYACK IPv4 option */
+#undef SOCKS_TCP_NODELAYACK_IPV4
+
+/* TCP_NODELAYACK IPv4 option */
+#undef SOCKS_TCP_NODELAYACK_IPV6
+
+/* TCP_NODELAYACK protocol level */
+#undef SOCKS_TCP_NODELAYACK_LVL
+
+/* TCP_NODELAYACK value */
+#undef SOCKS_TCP_NODELAYACK_NAME
+
 /* TCP_NODELAY IPv4 option */
 #undef SOCKS_TCP_NODELAY_IPV4
 
@@ -3233,6 +3875,54 @@
 
 /* TCP_NOPUSH value */
 #undef SOCKS_TCP_NOPUSH_NAME
+
+/* TCP_NOREDUCE_CWND_EXIT_FRXMT IPv4 option */
+#undef SOCKS_TCP_NOREDUCE_CWND_EXIT_FRXMT_IPV4
+
+/* TCP_NOREDUCE_CWND_EXIT_FRXMT IPv4 option */
+#undef SOCKS_TCP_NOREDUCE_CWND_EXIT_FRXMT_IPV6
+
+/* TCP_NOREDUCE_CWND_EXIT_FRXMT protocol level */
+#undef SOCKS_TCP_NOREDUCE_CWND_EXIT_FRXMT_LVL
+
+/* TCP_NOREDUCE_CWND_EXIT_FRXMT value */
+#undef SOCKS_TCP_NOREDUCE_CWND_EXIT_FRXMT_NAME
+
+/* TCP_NOREDUCE_CWND_IN_FRXMT IPv4 option */
+#undef SOCKS_TCP_NOREDUCE_CWND_IN_FRXMT_IPV4
+
+/* TCP_NOREDUCE_CWND_IN_FRXMT IPv4 option */
+#undef SOCKS_TCP_NOREDUCE_CWND_IN_FRXMT_IPV6
+
+/* TCP_NOREDUCE_CWND_IN_FRXMT protocol level */
+#undef SOCKS_TCP_NOREDUCE_CWND_IN_FRXMT_LVL
+
+/* TCP_NOREDUCE_CWND_IN_FRXMT value */
+#undef SOCKS_TCP_NOREDUCE_CWND_IN_FRXMT_NAME
+
+/* TCP_NOTENTER_SSTART IPv4 option */
+#undef SOCKS_TCP_NOTENTER_SSTART_IPV4
+
+/* TCP_NOTENTER_SSTART IPv4 option */
+#undef SOCKS_TCP_NOTENTER_SSTART_IPV6
+
+/* TCP_NOTENTER_SSTART protocol level */
+#undef SOCKS_TCP_NOTENTER_SSTART_LVL
+
+/* TCP_NOTENTER_SSTART value */
+#undef SOCKS_TCP_NOTENTER_SSTART_NAME
+
+/* TCP_RFC1323 IPv4 option */
+#undef SOCKS_TCP_RFC1323_IPV4
+
+/* TCP_RFC1323 IPv4 option */
+#undef SOCKS_TCP_RFC1323_IPV6
+
+/* TCP_RFC1323 protocol level */
+#undef SOCKS_TCP_RFC1323_LVL
+
+/* TCP_RFC1323 value */
+#undef SOCKS_TCP_RFC1323_NAME
 
 /* TCP_SACK_ENABLE IPv4 option */
 #undef SOCKS_TCP_SACK_ENABLE_IPV4

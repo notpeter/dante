@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.159 2013/10/27 15:24:41 karls Exp $";
+"$Id: Raccept.c,v 1.159.4.3 2014/08/15 18:16:40 karls Exp $";
 
 static int
 addforwarded(const int local, const int remote,
@@ -214,7 +214,7 @@ Raccept(s, addr, addrlen)
       switch (packet.version) {
          case PROXY_SOCKS_V4:
          case PROXY_SOCKS_V5: {
-            socksfd_t sfddup, *p;
+            socksfd_t sfddup, *ptr;
             int dummy;
 
             packet.res.auth = &socksfd.state.auth;
@@ -229,8 +229,8 @@ Raccept(s, addr, addrlen)
                return -1;
             }
 
-            p = socks_getaddr(socksfd.control, &socksfd, 1);
-            SASSERTX(p != NULL);
+            ptr = socks_getaddr(socksfd.control, &socksfd, 1);
+            SASSERTX(ptr != NULL);
 
             socksfd.forus.accepted = packet.res.host;
             socks_addaddr(socksfd.control, &socksfd, 1);
@@ -274,8 +274,13 @@ Raccept(s, addr, addrlen)
                return -1;
             }
 
-            if (dup2(dummy, socksfd.control) == -1)
+            p = dup2(dummy, socksfd.control);
+            close(dummy);
+
+            if (p == -1) {
                swarn("%s: dup2(socksfd.control, dummy) failed", function);
+               return -1;
+            }
 
             socks_addaddr(socksfd.control, &socksfd, 1);
             break;
@@ -406,7 +411,7 @@ addforwarded(local, remote, remoteaddr, virtualremoteaddr)
 {
    const char *function = "addforwarded()";
    socklen_t len;
-   socksfd_t socksfd, rfd;
+   socksfd_t socksfd, rfd, *p;
    char raddr[MAXSOCKADDRSTRING], vaddr[MAXSOCKSHOSTSTRING];
 
    slog(LOG_DEBUG,
@@ -419,7 +424,10 @@ addforwarded(local, remote, remoteaddr, virtualremoteaddr)
          sockshost2string(virtualremoteaddr, vaddr, sizeof(vaddr)));
 
 
-   if (socks_addrdup(socks_getaddr(local, &socksfd, 1), &rfd) == NULL) {
+   p = socks_getaddr(local, &socksfd, 1);
+   SASSERTX(p != NULL);
+
+   if (socks_addrdup(p, &rfd) == NULL) {
       swarn("%s: socks_addrdup()", function);
 
       if (errno == EBADF)

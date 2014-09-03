@@ -1,7 +1,7 @@
 
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.1229 2013/11/07 11:36:43 karls Exp $";
+"$Id: sockd_io.c,v 1.1229.4.4 2014/08/15 18:16:42 karls Exp $";
 
 /*
  * IO-child:
@@ -884,6 +884,8 @@ run_io()
                   sockettoset = io->src.s;
                }
 
+               SASSERTX(sockettoset != -1);
+
                FD_SET(sockettoset, wset);
                wbits = MAX(wbits, sockettoset);
             }
@@ -1406,12 +1408,12 @@ recv_io(s, io)
    gss_buffer_desc gssapistate;
    char gssapistatemem[MAX_GSS_STATE];
 #endif /* HAVE_GSSAPI */
-   sockd_io_t tmpio;
    struct iovec iovecv[2];
-   struct msghdr msg;
-   size_t ioi;
-   ssize_t received;
    struct timeval tnow;
+   struct msghdr msg;
+   sockd_io_t tmpio;
+   ssize_t received;
+   size_t ioi;
    int wearechild, fdexpect, fdreceived, iovecc;
    CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
@@ -1747,6 +1749,8 @@ recv_io(s, io)
             socks_allocbuffer(io->src.s, SOCK_STREAM);
             socks_allocbuffer(io->dst.s, SOCK_STREAM);
 
+            io->dst.isclientside = 1;
+
             if (io->control.s != -1) {
                SASSERTX(io->state.extension.bind);
                socks_allocbuffer(io->control.s, SOCK_STREAM);
@@ -1757,6 +1761,8 @@ recv_io(s, io)
 
 #if HAVE_UDP_SUPPORT
          case SOCKS_UDPASSOCIATE: {
+
+            io->src.isclientside = 1;
 
 #if SOCKS_SERVER
             io->cmd.udp.sfwdrule   = &fwdrulev[ioi];
@@ -1827,13 +1833,13 @@ recv_io(s, io)
             if (!io->dst.state.isconnected)
                iostate.haveconnectinprogress = 1;
 
+            io->src.isclientside = 1;
+
             socks_allocbuffer(io->src.s, SOCK_STREAM);
             socks_allocbuffer(io->dst.s, SOCK_STREAM);
             break;
 
       }
-
-      io->src.isclientside = 1;
 
 #if HAVE_NEGOTIATE_PHASE
       if (io->clientdatalen != 0) {
@@ -2443,7 +2449,7 @@ io_gettimeout(timeout)
       }
 
       *timeout = time_havebw;
-      if (timercmp(timeout, &shortenough, <=))
+      if (timercmp(timeout, &shortenough, <))
          return timeout;
 
       havetimeout = 1;

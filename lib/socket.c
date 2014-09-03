@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2001, 2005, 2008, 2009, 2010, 2011, 2012,
- *               2013
+ *               2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.218 2013/11/07 11:36:43 karls Exp $";
+"$Id: socket.c,v 1.218.4.7 2014/08/24 17:37:47 michaels Exp $";
 
 int
 socks_connecthost(s,
@@ -72,7 +72,7 @@ socks_connecthost(s,
    const char *function = "socks_connecthost()";
    static fd_set *wset;
 #if SOCKS_CLIENT
-   int side = EXTERNALIF; /* doesn't matter. */
+   interfaceside_t side = EXTERNALIF; /* doesn't matter. */
 #endif
    dnsinfo_t resmem;
    struct sockaddr_storage laddr_mem, raddr_mem;
@@ -106,17 +106,18 @@ socks_connecthost(s,
 
    sockaddr2string(laddr, laddrstr, sizeof(laddrstr));
 
-   slog(LOG_NEGOTIATE, "%s: connect to %s%s from %s, fd %d.  Timeout is %ld\n",
+   slog(LOG_NEGOTIATE,
+        "%s: connect to %s on %s side from %s, fd %d.  Timeout is %ld\n",
         function,
         sockshost2string(host, hoststr, sizeof(hoststr)),
 
 #if !SOCKS_CLIENT
 
-        side == INTERNALIF ? " on internal side" : " on external side",
+        interfaceside2string(side),
 
 #else /* SOCKS_CLIENT */
 
-        "",
+        "<N/A>",
 
 #endif /* SOCKS_CLIENT */
 
@@ -353,14 +354,11 @@ socks_connecthost(s,
          if ((rc = cgetaddrinfo(host->addr.domain, NULL, &hints, &res, &resmem))
          != 0) {
             snprintf(emsg, emsglen,
-                     "could not resolve hostname \"%s\" %s%s: %s",
+                     "could not resolve hostname \"%s\": %s",
                      str2vis(host->addr.domain,
                              strlen(host->addr.domain),
                              visbuf,
                              sizeof(visbuf)),
-                     hints.ai_family == 0 ? "" : "for ",
-                     hints.ai_family == 0 ?
-                           "" : safamily2string(hints.ai_family),
                      gai_strerror(rc));
 
             errno = EHOSTUNREACH; /* anything but EINPROGRESS. */
@@ -553,6 +551,8 @@ acceptn(s, addr, addrlen)
    socklen_t *addrlen;
 {
    const char *function = "acceptn()";
+   struct sockaddr_storage fulladdr;
+   socklen_t fulladdrlen = sizeof(fulladdr);
    int rc;
 
 #if DEBUG /* for occasional internal debugging/analysis. */
@@ -585,7 +585,8 @@ acceptn(s, addr, addrlen)
 
 #endif /* DEBUG */
 
-   while ((rc = accept(s, TOSA(addr), addrlen)) == -1 && errno == EINTR)
+   while ((rc = accept(s, TOSA(&fulladdr), &fulladdrlen)) == -1
+   &&     errno == EINTR)
 #if !SOCKS_CLIENT
       /*
        * XXX only here because request children block on accept(2).
@@ -611,6 +612,15 @@ acceptn(s, addr, addrlen)
       }
    }
 #endif /* !SOCKS_CLIENT && HAVE_LINUX_BUGS */
+
+   if (rc != -1)
+      /*
+       * Avoids Valgrind complaining about us sendmsg(2)-ing uninitialized
+       * parts of the sockaddr_storage struct accept(2)-ed above.
+       */
+      sockaddrcpy(addr, &fulladdr, (size_t)*addrlen);
+
+   *addrlen = MIN(*addrlen, (socklen_t)fulladdrlen);
 
    return rc;
 }
@@ -699,7 +709,6 @@ socketisconnected(s, addr, addrlen)
       static struct sockaddr_storage addrmem;
 
       addr     = &addrmem;
-      addrlen  = sizeof(addrmem);
    }
 
    len = sizeof(err);

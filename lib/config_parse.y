@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013
+ *               2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "yacconfig.h"
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.703 2013/10/27 15:24:42 karls Exp $";
+"$Id: config_parse.y,v 1.703.4.8 2014/08/15 18:12:22 karls Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -101,6 +101,8 @@ static char *serverstring2gwstring(const char *server, const int version,
  */
 
 #define alarminit()
+#define SET_TCPOPTION(logobject, level, attr)
+
 #else /* !SOCKS_CLIENT */
 
 /*
@@ -134,6 +136,14 @@ static int configure_privileges(void);
 static int
 checkugid(uid_t *uid, gid_t *gid, unsigned char *isset, const char *type);
 
+#define SET_TCPOPTION(tcp, level, attr)                                        \
+do {                                                                           \
+   (tcp)->isconfigured              = 1;                                       \
+                                                                               \
+   (tcp)->attr                      = 1;                                       \
+   (tcp)->__CONCAT(attr, _loglevel) = cloglevel;                               \
+} while (/* CONSTCOND */ 0)
+
 /*
  * Let commandline-options override configfile-options.
  * Currently there's only one such option.
@@ -141,9 +151,9 @@ checkugid(uid_t *uid, gid_t *gid, unsigned char *isset, const char *type);
 #define LOG_CMDLINE_OVERRIDE(name, newvalue, oldvalue, fmt)                    \
 do {                                                                           \
    slog(LOG_NOTICE,                                                            \
-        "%s commandline value \"" fmt "\" overrides "                          \
+        "%s: %s commandline value \"" fmt "\" overrides "                      \
         "config-file value \"" fmt "\" set in file %s",                        \
-        name, (newvalue), (oldvalue), sockscf.option.configfile);              \
+        function, name, (newvalue), (oldvalue), sockscf.option.configfile);    \
 } while (/* CONSTCOND */ 0 )
 
 #define CMDLINE_OVERRIDE(cmdline, option)                                      \
@@ -167,6 +177,8 @@ extern char *yytext;
 extern char currentlexline[];
 extern char previouslexline[];
 
+static const char *function = "configparsing()";
+
 /*
  * Globals because used by functions for reporting parsing errors in
  * parse_util.c
@@ -174,23 +186,32 @@ extern char previouslexline[];
 unsigned char   *atype;         /* atype of new address.               */
 unsigned char  parsingconfig;   /* currently parsing config?          */
 
-/* for case we are unable to (re-)open logfiles operator specifies. */
+/*
+ * for case we are unable to (re-)open logfiles operator specifies.
+ */
+
 #if !SOCKS_CLIENT
 static logtype_t       old_log,           old_errlog;
 #endif /* !SOCKS_CLIENT */
+
 static int             failed_to_add_log, failed_to_add_errlog;
 
 static unsigned char   add_to_errlog;   /* adding file to errlog or regular?  */
 
 static objecttype_t    objecttype;      /* current object_type we are parsing.*/
 
+
 #if !SOCKS_CLIENT
+static  logspecial_t                *logspecial;
+static warn_protocol_tcp_options_t  *tcpoptions;
+
+static interfaceprotocol_t *ifproto;  /* new interfaceprotocol settings.      */
+
 static monitor_t       monitor;       /* new monitor.                         */
 static monitor_if_t    *monitorif;    /* new monitor interface.               */
 static int             *alarmside;    /* data-side to monitor (read/write).   */
 
 static int             cloglevel;     /* current loglevel.                    */
-static interfaceside_t ifside;        /* current interface-side               */
 
 static rule_t          rule;          /* new rule.                            */
 
@@ -392,6 +413,7 @@ do {                                                                           \
 %type   <string> command commands commandname
 %type   <string> configtype deprecated
 %type   <string> debugging
+%type   <string> ifprotocol ifprotocols
 %type   <string> group groupname groupnames
 %type   <string> gssapienctype
 %type   <string> gssapikeytab
@@ -412,7 +434,8 @@ do {                                                                           \
    /*
     * serveroption exclusive.
     */
-%type   <string> alarm alarm_data alarm_disconnect
+%type   <string> alarm alarm_data alarm_disconnect alarm_test
+%type   <string> networkproblem
 %type   <number> alarmperiod alarmside
 %type   <number> number numbers
 %type   <string> clientmethod clientmethods clientmethodname
@@ -424,9 +447,9 @@ do {                                                                           \
 %type   <string> compatibility compatibilityname compatibilitynames
 %type   <string> cpu cpuschedule cpuaffinity
 %type   <string> extension extensionname extensions
-%type   <string> external_rotation
+%type   <string> external externalinit external_protocol external_rotation
 %type   <string> global_socksmethod global_clientmethod
-%type   <string> internal internalinit external externalinit
+%type   <string> internal internalinit internal_protocol
 %type   <string> lbasedn lbasedn_hex lbasedn_hex_all
 %type   <string> ldapattribute ldapattribute_ad ldapattribute_hex
                  ldapattribute_ad_hex
@@ -437,8 +460,8 @@ do {                                                                           \
 %type   <string> libwrap_hosts_access
 %type   <string> libwrapfiles libwrap_allowfile libwrap_denyfile
 %type   <string> logoutput errorlog
-%type   <string> internal_logoption external_logoption
-                  loglevel errors errorobject
+%type   <string> internal_if_logoption external_if_logoption
+%type   <string> logspecial loglevel errors errorobject
 %type   <string> lserver lgroup lgroup_hex lgroup_hex_all
 %type   <string> lurl ldapssl ldapcertcheck ldapkeeprealm
 %type   <string> monitor monitoroption monitoroptions monitorside
@@ -456,6 +479,8 @@ do {                                                                           \
 
 %token   <string> ALARM ALARMTYPE_DATA ALARMTYPE_DISCONNECT
                   ALARMIF_INTERNAL ALARMIF_EXTERNAL
+%token   <string> TCPOPTION_DISABLED ECN SACK TIMESTAMPS WSCALE
+%token   <string> MTU_ERROR
 %token   <string> CLIENTCOMPATIBILITY NECGSSAPI
 %token   <string> CLIENTRULE HOSTIDRULE SOCKSRULE
 %token   <string> COMPATIBILITY SAMEPORT DRAFT_5_05
@@ -464,9 +489,11 @@ do {                                                                           \
 %token   <string> DEBUGGING
 %token   <deprecated> DEPRECATED
 %token   <string> ERRORLOG LOGOUTPUT LOGFILE LOGTYPE_ERROR
+                  LOGTYPE_TCP_DISABLED LOGTYPE_TCP_ENABLED
                   LOGIF_INTERNAL LOGIF_EXTERNAL
 %token   <error>  ERRORVALUE
 %token   <string> EXTENSION BIND PRIVILEGED
+%token   <string> EXTERNAL_PROTOCOL INTERNAL_PROTOCOL
 %token   <string> EXTERNAL_ROTATION SAMESAME
 %token   <string> GROUPNAME
 %token   <string> HOSTID HOSTINDEX
@@ -519,6 +546,7 @@ do {                                                                           \
 %type   <string> portoperator
 %type   <string> srule sruleoption sruleoptions
 %type   <string> verdict
+%type   <string> rule_internal_logoption rule_external_logoption
 
 %token <number> PORT NUMBER
 %token <string> BANDWIDTH
@@ -610,13 +638,15 @@ serveroption:  childstate
    |           errorlog
    |           extension
    |           external
+   |           external_protocol
    |           external_rotation
-   |           external_logoption
+   |           external_if_logoption
    |           global_clientmethod
    |           global_socksmethod
    |           global_routeoption
    |           internal
-   |           internal_logoption
+   |           internal_protocol
+   |           internal_if_logoption
    |           libwrap_hosts_access
    |           libwrapfiles
    |           logoutput
@@ -634,26 +664,60 @@ serveroption:  childstate
    }
    ;
 
+logspecial: LOGTYPE_ERROR        ':' errors
+          | LOGTYPE_TCP_DISABLED ':' {
+#if !SOCKS_CLIENT
+                                tcpoptions = &logspecial->protocol.tcp.disabled;
+#endif /* !SOCKS_CLIENT */
+          } tcpoptions
+          | LOGTYPE_TCP_ENABLED ':' {
+#if !SOCKS_CLIENT
+                                tcpoptions = &logspecial->protocol.tcp.enabled;
+#endif /* !SOCKS_CLIENT */
+          } tcpoptions
+          ;
 
-internal_logoption: LOGIF_INTERNAL {
+
+internal_if_logoption: LOGIF_INTERNAL {
 #if !SOCKS_CLIENT
 
-      ifside = INTERNALIF;
+      logspecial = &sockscf.internal.log;
 
 #endif /* !SOCKS_CLIENT */
 
-   }                '.' loglevel '.' LOGTYPE_ERROR ':' errors
+   } '.' loglevel '.' logspecial
    ;
 
-external_logoption: LOGIF_EXTERNAL {
+external_if_logoption: LOGIF_EXTERNAL {
 #if !SOCKS_CLIENT
 
-      ifside = EXTERNALIF;
+      logspecial = &sockscf.external.log;
 
 #endif /* !SOCKS_CLIENT */
 
-   }                '.' loglevel '.' LOGTYPE_ERROR ':' errors
+   } '.' loglevel '.' logspecial
    ;
+
+rule_internal_logoption: LOGIF_INTERNAL {
+#if !SOCKS_CLIENT
+
+      logspecial = &rule.internal.log;
+
+#endif /* !SOCKS_CLIENT */
+
+   } '.' loglevel '.' logspecial
+   ;
+
+rule_external_logoption: LOGIF_EXTERNAL {
+#if !SOCKS_CLIENT
+
+      logspecial = &rule.external.log;
+
+#endif /* !SOCKS_CLIENT */
+
+   } '.' loglevel '.' logspecial
+   ;
+
 
 loglevel: LOGLEVEL {
 #if !SOCKS_CLIENT
@@ -665,6 +729,40 @@ loglevel: LOGLEVEL {
    }
    ;
 
+tcpoptions: tcpoption
+   |        tcpoption tcpoptions
+   ;
+
+tcpoption: ECN {
+#if !SOCKS_CLIENT
+   SET_TCPOPTION(tcpoptions, cloglevel, ecn);
+#endif /* !SOCKS_CLIENT */
+   }
+   ;
+
+tcpoption: SACK {
+#if !SOCKS_CLIENT
+   SET_TCPOPTION(tcpoptions, cloglevel, sack);
+#endif /* !SOCKS_CLIENT */
+   }
+   ;
+
+tcpoption: TIMESTAMPS {
+#if !SOCKS_CLIENT
+   SET_TCPOPTION(tcpoptions, cloglevel, timestamps);
+#endif /* !SOCKS_CLIENT */
+   }
+   ;
+
+tcpoption: WSCALE {
+#if !SOCKS_CLIENT
+   SET_TCPOPTION(tcpoptions, cloglevel, wscale);
+#endif /* !SOCKS_CLIENT */
+   }
+   ;
+
+
+
 errors: errorobject
    |    errorobject errors
    ;
@@ -675,30 +773,20 @@ errorobject: ERRORVALUE {
    if ($1.valuev == NULL)
       yywarnx("unknown error symbol specified");
    else {
-      logspecial_t *l;
       size_t *ec, ec_max, i;
       int *ev;
 
-      if (ifside == INTERNALIF)
-         l = &sockscf.internal.log;
-      else {
-         SASSERTX(ifside == EXTERNALIF);
-
-         l = &sockscf.external.log;
-      }
-
-
       switch ($1.valuetype) {
          case VALUETYPE_ERRNO:
-            ev     = l->errno_loglevelv[cloglevel];
-            ec     = &l->errno_loglevelc[cloglevel];
-            ec_max = ELEMENTS(l->errno_loglevelv[cloglevel]);
+            ev     = logspecial->errno_loglevelv[cloglevel];
+            ec     = &logspecial->errno_loglevelc[cloglevel];
+            ec_max = ELEMENTS(logspecial->errno_loglevelv[cloglevel]);
             break;
 
          case VALUETYPE_GAIERR:
-            ev     = l->gaierr_loglevelv[cloglevel];
-            ec     = &l->gaierr_loglevelc[cloglevel];
-            ec_max = ELEMENTS(l->gaierr_loglevelv[cloglevel]);
+            ev     = logspecial->gaierr_loglevelv[cloglevel];
+            ec     = &logspecial->gaierr_loglevelc[cloglevel];
+            ec_max = ELEMENTS(logspecial->gaierr_loglevelv[cloglevel]);
             break;
 
          default:
@@ -827,11 +915,40 @@ extensions:   extensionname
    |          extensionname extensions
    ;
 
+ifprotocols: ifprotocol
+   |         ifprotocol ifprotocols
+   ;
+
+
+ifprotocol: IPV4 {
+#if !SOCKS_CLIENT
+      ifproto->ipv4  = 1;
+   }
+   |  IPV6 {
+      ifproto->ipv6  = 1;
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
 internal:   INTERNAL internalinit ':' address {
 #if !SOCKS_CLIENT
 #if BAREFOOTD
       yyerrorx("\"internal:\" specification is not used in %s", PRODUCT);
 #endif /* BAREFOOTD */
+
+      interfaceprotocol_t ifprotozero;
+
+      bzero(&ifprotozero, sizeof(ifprotozero));
+      if (memcmp(&ifprotozero,
+                 &sockscf.internal.protocol,
+                 sizeof(sockscf.internal.protocol)) == 0) {
+         slog(LOG_DEBUG, "%s: no address families explicitly enabled on "
+                         "internal interface.  Enabling default address "
+                         "families",
+                         function);
+
+         sockscf.internal.protocol.ipv4 = sockscf.internal.protocol.ipv6 = 1;
+      }
 
       addinternal(ruleaddr, SOCKS_TCP);
 #endif /* !SOCKS_CLIENT */
@@ -841,10 +958,16 @@ internal:   INTERNAL internalinit ':' address {
 internalinit: {
 #if !SOCKS_CLIENT
    static ruleaddr_t mem;
-   struct servent   *service;
+   struct servent    *service;
+   serverstate_t     statemem;
+
+   bzero(&statemem, sizeof(statemem));
+   state               = &statemem;
+   state->protocol.tcp = 1;
+
+   bzero(&logspecial, sizeof(logspecial));
 
    bzero(&mem, sizeof(mem));
-
    addrinit(&mem, 0);
 
    /* set default port. */
@@ -856,6 +979,31 @@ internalinit: {
    }
    ;
 
+internal_protocol: INTERNAL_PROTOCOL ':' {
+#if !SOCKS_CLIENT
+      if (sockscf.internal.addrc > 0) {
+         if (sockscf.state.inited) {
+            /*
+             * Must be running due to SIGHUP.  The internal interface requires
+             * special considerations, so let the SIGHUP code deal with this
+             * later when we know if the change in protocol also results in.
+             * adding a new interface.
+             */
+            ;
+         }
+         else {
+            log_interfaceprotocol_set_too_late(INTERNALIF);
+            exit(1);
+         }
+      }
+
+      ifproto = &sockscf.internal.protocol;
+#endif /* !SOCKS_CLIENT */
+   } ifprotocols
+   ;
+
+
+
 external:   EXTERNAL externalinit ':' externaladdress {
 #if !SOCKS_CLIENT
       addexternal(ruleaddr);
@@ -866,12 +1014,37 @@ external:   EXTERNAL externalinit ':' externaladdress {
 externalinit: {
 #if !SOCKS_CLIENT
       static ruleaddr_t mem;
+      interfaceprotocol_t ifprotozero = { 0 };
 
       bzero(&mem, sizeof(mem));
       addrinit(&mem, 0);
+
+      if (memcmp(&ifprotozero,
+                 &sockscf.external.protocol,
+                 sizeof(sockscf.external.protocol)) == 0) {
+         slog(LOG_DEBUG, "%s: no address families explicitly enabled on "
+                         "external interface.  Enabling default address "
+                         "families",
+                         function);
+
+         sockscf.external.protocol.ipv4 = sockscf.external.protocol.ipv6 = 1;
+      }
 #endif /* !SOCKS_CLIENT */
    }
    ;
+
+external_protocol: EXTERNAL_PROTOCOL ':' {
+#if !SOCKS_CLIENT
+      if (sockscf.external.addrc > 0) {
+         log_interfaceprotocol_set_too_late(EXTERNALIF);
+         sockdexit(EXIT_FAILURE);
+      }
+
+      ifproto = &sockscf.external.protocol;
+#endif /* !SOCKS_CLIENT */
+   } ifprotocols
+   ;
+
 
 external_rotation:   EXTERNAL_ROTATION ':' NONE {
 #if !SOCKS_CLIENT
@@ -931,16 +1104,15 @@ logoutputdevice: LOGFILE {
       yywarnx("not adding logfile \"%s\"", $1);
 
       slog(LOG_ALERT,
-           "not trying to add logfile \"%s\" due to having already failed "
+           "%s: not trying to add logfile \"%s\" due to having already failed "
            "adding logfiles during this SIGHUP.  Only if all logfiles "
            "specified in the config can be added will we switch to using "
            "the new logfiles.  Until then, we will continue using only the "
            "old logfiles",
-           $1);
+           function, $1);
    }
    else {
-      p = socks_addlogfile(add_to_errlog ? &sockscf.errlog : &sockscf.log,
-                           $1);
+      p = socks_addlogfile(add_to_errlog ? &sockscf.errlog : &sockscf.log, $1);
 
 #if !SOCKS_CLIENT
       if (sockscf.state.inited) {
@@ -956,13 +1128,14 @@ logoutputdevice: LOGFILE {
          }
          else {
             sockd_freelogobject(add_to_errlog ?  &old_errlog : &old_log, 1);
-            slog(LOG_DEBUG, "added logfile \"%s\" to %s",
-                 $1, add_to_errlog ? "errlog" : "logoutput");
+            slog(LOG_DEBUG, "%s: added logfile \"%s\" to %s",
+                 function, $1, add_to_errlog ? "errlog" : "logoutput");
          }
       }
 
       if (p == -1)
-         slog(LOG_ALERT, "could not (re)open logfile \"%s\": %s%s  %s",
+         slog(LOG_ALERT, "%s: could not (re)open logfile \"%s\": %s%s  %s",
+              function,
               $1,
               strerror(errno),
               sockscf.state.inited ?
@@ -1121,7 +1294,7 @@ libwrap_allowfile: LIBWRAP_ALLOW ':' LIBWRAP_FILE {
       if ((hosts_allow_table  = strdup($3)) == NULL)
          yyerror(NOMEM);
 
-      slog(LOG_DEBUG, "libwrap.allow: %s", hosts_allow_table);
+      slog(LOG_DEBUG, "%s: libwrap.allow: %s", function, hosts_allow_table);
 #else
       yyerrorx_nolib("libwrap");
 #endif /* HAVE_LIBWRAP */
@@ -1135,7 +1308,7 @@ libwrap_denyfile: LIBWRAP_DENY ':' LIBWRAP_FILE {
       if ((hosts_deny_table  = strdup($3)) == NULL)
          yyerror(NOMEM);
 
-      slog(LOG_DEBUG, "libwrap.deny: %s", hosts_deny_table);
+      slog(LOG_DEBUG, "%s: libwrap.deny: %s", function, hosts_deny_table);
 #else
       yyerrorx_nolib("libwrap");
 #endif /* HAVE_LIBWRAP */
@@ -1327,8 +1500,9 @@ socketoptionname: NUMBER {
    socketopt.info    = optval2sockopt(socketopt.level, socketopt.optname);
 
    if (socketopt.info == NULL)
-      slog(LOG_DEBUG, "unknown/unsupported socket option: level %d, value %d",
-                      socketopt.level, socketopt.optname);
+      slog(LOG_DEBUG,
+           "%s: unknown/unsupported socket option: level %d, value %d",
+           function, socketopt.level, socketopt.optname);
    else
       socketoptioncheck(&socketopt);
    }
@@ -1511,6 +1685,7 @@ crule: CLIENTRULE { objecttype = object_crule; } verdict '{'
 
 alarm: alarm_data
    |   alarm_disconnect
+   |   alarm_test
    ;
 
 monitorside: {
@@ -1600,6 +1775,26 @@ alarm_data: monitorside ALARMTYPE_DATA { alarminit(); } alarmside ':'
 #endif /* !SOCKS_CLIENT */
    }
    ;
+
+alarm_test: monitorside ALARM '.' networkproblem
+          ;
+
+networkproblem: MTU_ERROR {
+#if !SOCKS_CLIENT
+   monitor.alarmsconfigured |= ALARM_TEST;
+
+   if (monitorif == NULL) {
+      monitor.mstats->object.monitor.internal.alarm.test.mtu.dotest = 1;
+      monitor.mstats->object.monitor.external.alarm.test.mtu.dotest = 1;
+   }
+   else {
+      monitorif->alarm.test.mtu.dotest = 1;
+      monitorif->alarm.test.mtu.dotest = 1;
+   }
+#endif /* !SOCKS_CLIENT */
+   }
+   ;
+
 
 alarm_disconnect:
    monitorside ALARMTYPE_DISCONNECT ':' NUMBER '/' NUMBER alarmperiod {
@@ -1758,26 +1953,28 @@ sruleoption: bsdauthstylename
 
 genericruleoption:  bandwidth {
 #if !SOCKS_CLIENT
-         checkmodule("bandwidth");
-         bw_isset = 1;
+                        checkmodule("bandwidth");
+                        bw_isset = 1;
 #endif /* !SOCKS_CLIENT */
    }
    |         clientmethod
    |         socksmethod
-   |   group
-   |   gssapienctype
-   |   gssapikeytab
-   |   gssapiservicename
-   |   hostidoption { *hostidoption_isset = 1; }
-   |   libwrap
-   |   log
-   |   pamservicename
-   |   redirect   {
+   |        rule_external_logoption
+   |        group
+   |        gssapienctype
+   |        gssapikeytab
+   |        gssapiservicename
+   |        hostidoption { *hostidoption_isset = 1; }
+   |        rule_internal_logoption
+   |        libwrap
+   |        log
+   |        pamservicename
+   |        redirect   {
 #if !SOCKS_CLIENT
-                  checkmodule("redirect");
+                     checkmodule("redirect");
 #endif /* !SOCKS_CLIENT */
    }
-   |   socketoption {
+   |        socketoption {
 #if !SOCKS_CLIENT
          if (rule.verdict == VERDICT_BLOCK && !socketopt.isinternalside)
             yyerrorx("it does not make sense to set a socket option for the "
@@ -1800,8 +1997,8 @@ genericruleoption:  bandwidth {
             yywarn("could not add socketoption");
 #endif /* !SOCKS_CLIENT */
    }
-   |   timeout
-   |   user
+   |        timeout
+   |        user
    ;
 
 
@@ -2872,13 +3069,14 @@ parseconfig(filename)
 
    if (haveconfig)
       return 0;
-#endif
 
-#if !SOCKS_CLIENT
+#else /* !SOCKS_CLIENT */
+   SASSERTX(pidismainmother(sockscf.state.pid));
+
    if (sockscf.state.inited)
       /* in case we need something special to (re)open config-file. */
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
-#endif /* SERVER */
+#endif /* !SOCKS_CLIENT */
 
    yyin = fopen(filename, "r");
 
@@ -2906,10 +3104,9 @@ parseconfig(filename)
          else
             exit(0);
       }
-
       else {
          slog(LOG_DEBUG, "%s: empty %s, assuming direct fallback wanted",
-               function, filename);
+              function, filename);
 
          sockscf.option.directfallback = 1;
       }
@@ -2918,7 +3115,7 @@ parseconfig(filename)
 #else /* !SOCKS_CLIENT */
 
       if (!sockscf.state.inited)
-         sockdexit(0);
+         sockdexit(EXIT_FAILURE);
 
       /*
        * Might possibly continue with old config.
@@ -2961,8 +3158,6 @@ parseconfig(filename)
       parsingconfig = 1;
       yyparse();
       parsingconfig = 0;
-
-      fclose(yyin);
 
 #if !SOCKS_CLIENT
       CMDLINE_OVERRIDE(&sockscf.initial.cmdline, &sockscf.option);
@@ -3028,6 +3223,9 @@ parseconfig(filename)
       }
 #endif /* !SOCKS_CLIENT */
    }
+
+   if (yyin != NULL)
+      fclose(yyin);
 
    errno = 0;
    return haveconfig ? 0 : -1;
@@ -3493,27 +3691,19 @@ pre_addrule(rule)
    rule->rdr_to      = rdr_to;
 
    if (session_isset) {
-      if (pidismother(sockscf.state.pid) == 1) {
-         if ((rule->ss = malloc(sizeof(*rule->ss))) == NULL)
-            yyerror("failed to malloc(3) %lu bytes for session memory",
-                    (unsigned long)sizeof(*rule->ss));
+      if ((rule->ss = malloc(sizeof(*rule->ss))) == NULL)
+         yyerror("failed to malloc(3) %lu bytes for session memory",
+                 (unsigned long)sizeof(*rule->ss));
 
-         *rule->ss = ss;
-      }
-      else
-         rule->ss = &ss;
+      *rule->ss = ss;
    }
 
    if (bw_isset) {
-      if (pidismother(sockscf.state.pid) == 1) {
-         if ((rule->bw = malloc(sizeof(*rule->bw))) == NULL)
-            yyerror("failed to malloc(3) %lu bytes for bw memory",
-                    (unsigned long)sizeof(*rule->bw));
+      if ((rule->bw = malloc(sizeof(*rule->bw))) == NULL)
+         yyerror("failed to malloc(3) %lu bytes for bw memory",
+                 (unsigned long)sizeof(*rule->bw));
 
-         *rule->bw = bw;
-      }
-      else
-         rule->bw = &bw;
+      *rule->bw = bw;
    }
 }
 
@@ -3622,13 +3812,11 @@ monitorinit(monitor)
    bzero(&dst, sizeof(dst));
    bzero(&hostid, sizeof(hostid));
 
-   if (pidismother(sockscf.state.pid) == 1) {
-      if ((monitor->mstats = malloc(sizeof(*monitor->mstats))) == NULL)
-         yyerror("failed to malloc(3) %lu bytes for monitor stats memory",
-                 (unsigned long)sizeof(*monitor->mstats));
-      else
-         bzero(monitor->mstats, sizeof(*monitor->mstats));
-   }
+   if ((monitor->mstats = malloc(sizeof(*monitor->mstats))) == NULL)
+      yyerror("failed to malloc(3) %lu bytes for monitor stats memory",
+              (unsigned long)sizeof(*monitor->mstats));
+   else
+      bzero(monitor->mstats, sizeof(*monitor->mstats));
 
    monitor->mstats->type = SHMEM_MONITOR;
 }

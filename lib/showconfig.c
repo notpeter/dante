@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,18 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: showconfig.c,v 1.34 2013/10/27 15:24:42 karls Exp $";
-
-#if !SOCKS_CLIENT
-
-static void showlogspecial(const logspecial_t *log,
-                           const interfaceside_t isinternalside);
-/*
- * Displays the logsettings in "log".  "isinternalside" should be true if
- * "log" is from the internal side, and false if from the external side.
- */
-
-#endif /* !SOCKS_CLIENT */
+"$Id: showconfig.c,v 1.34.4.3 2014/08/15 18:16:41 karls Exp $";
 
 void
 showtimeout(timeout)
@@ -141,7 +130,7 @@ showmethod(type, methodc, methodv)
    char buf[1024];
 
    slog(LOG_DEBUG, "%s(s): %s",
-	type == object_crule ? "clientmethod" : "socksmethod",
+        type == object_crule ? "clientmethod" : "socksmethod",
         methods2string(methodc, methodv, buf, sizeof(buf)));
 }
 
@@ -163,6 +152,9 @@ showconfig(sockscf)
 #if !SOCKS_CLIENT
    slog(LOG_DEBUG, "cmdline options:\n%s",
         options2string(&sockscf->option, "", buf, sizeof(buf)));
+
+   slog(LOG_DEBUG, "address-families to look for on internal interface: %s",
+        interfaceprotocol2string(&sockscf->internal.protocol, NULL, 0));
 
    slog(LOG_DEBUG, "internal addresses (%lu):",
         (unsigned long)sockscf->internal.addrc);
@@ -288,6 +280,9 @@ showconfig(sockscf)
                                 NULL,
                                 0));
 
+
+   slog(LOG_DEBUG, "address-families to look for on external interface: %s",
+        interfaceprotocol2string(&sockscf->external.protocol, NULL, 0));
 
    slog(LOG_DEBUG, "external addresses (%lu):",
         (unsigned long)sockscf->external.addrc);
@@ -495,19 +490,46 @@ socks_showroute(route)
 
 #if !SOCKS_CLIENT
 
-static void
+void
 showlogspecial(log, side)
    const logspecial_t *log;
    const interfaceside_t side;
 {
    size_t i;
 
+   if (log->protocol.tcp.disabled.isconfigured) {
+      slog(LOG_DEBUG,
+           "warn if the following %s options are not enabled on the %s side: "
+           "ECN: %swarning, SACK: %swarning, TIMESTAMPS: %swarning, "
+           "WSCALE: %swarning",
+           protocol2string(SOCKS_TCP),
+           interfaceside2string(side),
+           log->protocol.tcp.disabled.ecn        ? "" : "no ",
+           log->protocol.tcp.disabled.sack       ? "" : "no ",
+           log->protocol.tcp.disabled.timestamps ? "" : "no ",
+           log->protocol.tcp.disabled.wscale     ? "" : "no ");
+   }
+
+   if (log->protocol.tcp.enabled.isconfigured) {
+      slog(LOG_DEBUG,
+           "warn if the following %s options are enabled on the %s side: "
+           "ECN: %swarning, SACK: %swarning, TIMESTAMPS: %swarning, "
+           "WSCALE: %swarning",
+           protocol2string(SOCKS_TCP),
+           interfaceside2string(side),
+           log->protocol.tcp.enabled.ecn        ? "" : "no ",
+           log->protocol.tcp.enabled.sack       ? "" : "no ",
+           log->protocol.tcp.enabled.timestamps ? "" : "no ",
+           log->protocol.tcp.enabled.wscale     ? "" : "no ");
+   }
+
    for (i = 0; i < ELEMENTS(log->errno_loglevelv); ++i) {
       if (log->errno_loglevelc[i] > 0) {
          size_t ii;
 
-         slog(LOG_DEBUG, "extra errno values on %s side for loglevel %s (%lu):",
-              side == INTERNALIF ? "internal" : "external",
+         slog(LOG_DEBUG,
+              "extra errno values on the %s side for loglevel %s (%lu):",
+              interfaceside2string(side),
               loglevel2string(i), (unsigned long)i);
 
          for (ii = 0; ii < log->errno_loglevelc[i]; ++ii)
@@ -520,8 +542,10 @@ showlogspecial(log, side)
          size_t ii;
 
          slog(LOG_DEBUG,
-              "extra dnserror values for loglevel %s (%lu):",
-              loglevel2string(i), (unsigned long)i);
+              "extra dnserror values on the %s side for loglevel %s (%lu):",
+              interfaceside2string(side),
+              loglevel2string(i),
+              (unsigned long)i);
 
          for (ii = 0; ii < log->gaierr_loglevelc[i]; ++ii)
             slog(LOG_DEBUG, "%d", log->gaierr_loglevelv[i][ii]);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012, 2013
+ * Copyright (c) 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,10 +42,11 @@
  */
 
 #include "common.h"
+#include "monitor.h"
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: rule.c,v 1.332 2013/10/27 15:24:42 karls Exp $";
+"$Id: rule.c,v 1.332.4.4 2014/08/22 14:19:41 michaels Exp $";
 
 #if HAVE_LIBWRAP
 extern jmp_buf tcpd_buf;
@@ -132,7 +133,7 @@ log_inheritable(const char *prefix, const rule_t *rule,
  */
 
 
-void
+rule_t *
 addclientrule(newrule)
    const rule_t *newrule;
 {
@@ -141,6 +142,125 @@ addclientrule(newrule)
 
    ruletoadd = *newrule; /* for const. */
 
+#if BAREFOOTD
+   /*
+    * In Barefoot the "to"/dst-address is the address we listen on for
+    * client-connections/packets.  If that is a hostname/interface that
+    * expands to multiple IP-addresses, we need to listen on them all.
+    *
+    * We handle this by expanding the dst-address to the required number of
+    * addresses and creating separate rules for them all.  This will mostly
+    * work as-is, but we need to make some modifications:
+    *    - make sure all rules have the same rule number (the user has only
+    *      created one rule, our problem that it expands to multiple rules).
+    *    - make sure the shmem-objects reference the same shmem ids, as the
+    *      limits/settings the user has specifed should be shared across
+    *      all clients matching the rule(s).
+    */
+
+   switch (newrule->dst.atype) {
+      case SOCKS_ADDR_IPV4:
+      case SOCKS_ADDR_IPV6:
+         break;
+
+      case SOCKS_ADDR_DOMAIN:
+      case SOCKS_ADDR_IFNAME: {
+         struct sockaddr_storage sa, mask;
+         size_t i, rulenumber;
+         char emsg[1024], ifname[sizeof(newrule->dst.addr.ifname)],
+                          hostname[sizeof(newrule->dst.addr.domain)];
+         int rc;
+
+         switch (newrule->dst.atype) {
+            case SOCKS_ADDR_DOMAIN:
+               STRCPY_ASSERTLEN(hostname, newrule->dst.addr.domain);
+               break;
+
+            case SOCKS_ADDR_IFNAME:
+               STRCPY_ASSERTLEN(ifname, newrule->dst.addr.ifname);
+               break;
+
+            default:
+               SERRX(newrule->dst.atype);
+         }
+
+         i          = 0;
+         rulenumber = 0;
+
+         while (1) {
+            if (newrule->dst.atype == SOCKS_ADDR_DOMAIN) {
+               if (hostname2sockaddr2(hostname,
+                                      i,
+                                      &sa,
+                                      &rc,
+                                      emsg,
+                                      sizeof(emsg)) == NULL)
+                  break;
+            }
+            else if (newrule->dst.atype == SOCKS_ADDR_IFNAME) {
+               if (ifname2sockaddr(ifname, i, &sa, &mask) == NULL) {
+                  snprintf(emsg, sizeof(emsg),
+                           "no usable IP-addresses found on interface %s",
+                           ifname);
+                  break;
+               }
+            }
+            else
+               SERRX(newrule->dst.atype);
+
+            slog(LOG_DEBUG, "%s: expanding address %s from %s %s",
+                 function,
+                 sockaddr2string2(&sa, 0, NULL, 0),
+                 atype2string(newrule->dst.atype),
+                 newrule->dst.atype == SOCKS_ADDR_DOMAIN ? hostname : ifname);
+
+            ruletoadd = *newrule;
+            switch (ruletoadd.dst.atype = safamily2atype(sa.ss_family)) {
+               case SOCKS_ADDR_IPV4:
+                  ruletoadd.dst.addr.ipv4.ip          = TOIN(&sa)->sin_addr;
+                  ruletoadd.dst.addr.ipv4.mask.s_addr = htonl(IPV4_FULLNETMASK);
+                  break;
+
+               case SOCKS_ADDR_IPV6:
+                  ruletoadd.dst.addr.ipv6.ip       = TOIN6(&sa)->sin6_addr;
+                  ruletoadd.dst.addr.ipv6.maskbits = IPV6_NETMASKBITS;
+                  ruletoadd.dst.addr.ipv6.scopeid  = TOIN6(&sa)->sin6_scope_id;
+                  break;
+
+               default:
+                  SERRX(ruletoadd.dst.atype);
+            }
+
+            rule = addclientrule(&ruletoadd);
+
+            if (rulenumber == 0)
+               /*
+                * first expanded address we add for the original rule.
+                * Save the assigned rulenumber so we can use it for all
+                * rules/addresses expanded from this original rule.
+                */
+               rulenumber = rule->number;
+            else
+               rule->number = rulenumber;
+
+            ++i;
+         }
+
+         if (i == 0)
+            yyerrorx("could not determine IP-address to receive clients on: %s",
+                     emsg);
+
+         return NULL;
+      }
+
+      default:
+         yyerrorx("addresses of type %s are not supported in the \"to\"-field "
+                  "of %s",
+                  atype2string(ruletoadd.dst.atype),
+                  PRODUCT);
+   }
+#endif /* BAREFOOTD */
+
    rule = addrule(&ruletoadd, &sockscf.crule, object_crule);
 
    checkrule(rule);
@@ -148,14 +268,11 @@ addclientrule(newrule)
 #if BAREFOOTD
    if (rule->state.protocol.udp) {
       /*
-       * Only one level of acls, so we need to autogenerate the second level
-       * ourselves as the first acl level can only handle tcp, but we
-       * need to check each udp packet against rulespermit(), and for that,
-       * a second level acl (socks-rule) is needed.
+       * Only one level of acls in Barefoot.
        *
-       * In the tcp-case, we don't need any socks-rules, the client-rule
+       * In the tcp-case, we don't need any socks-rules; the client-rule
        * is enough as the endpoints get fixed at session-establishment
-       * and we can just short-circuit the process as we knows the
+       * and we can just short-circuit the process because we know the
        * session is allowed if it gets past the client-rule state.
        *
        * For udp, thins are similar, but on the reply-side things can
@@ -202,31 +319,33 @@ addclientrule(newrule)
       }
    }
 #endif /* BAREFOOTD */
+
+   return rule;
 }
 
 #if HAVE_SOCKS_HOSTID
-void
+rule_t *
 addhostidrule(newrule)
    const rule_t *newrule;
 {
-/*   const char *function = "addhostidrule()"; */
-   rule_t *rule, ruletoadd;
 
-   ruletoadd = *newrule; /* for const. */
-   rule      = addrule(&ruletoadd, &sockscf.hrule, object_hrule);
+   rule_t *rule = addrule(newrule, &sockscf.hrule, object_hrule);
    checkrule(rule);
+
+   return rule;
 }
 #endif /* HAVE_SOCKS_HOSTID */
 
 
-void
+rule_t *
 addsocksrule(newrule)
    const rule_t *newrule;
 {
-   rule_t *rule;
 
-   rule = addrule(newrule, &sockscf.srule, object_srule);
+   rule_t *rule = addrule(newrule, &sockscf.srule, object_srule);
    checkrule(rule);
+
+   return rule;
 }
 
 linkedname_t *
@@ -277,11 +396,12 @@ showrule(_rule, ruletype)
    const rule_t *_rule;
    const objecttype_t ruletype;
 {
+   const char *function = "showrule()";
    rule_t rule = *_rule; /* shmat()/shmdt() changes rule. */
    size_t bufused, i;
    char buf[256];
 
-   slog(LOG_DEBUG, "%s-rule #%lu, line #%lu",
+   slog(LOG_DEBUG, "%s #%lu, line #%lu",
         objecttype2string(ruletype),
         (unsigned long)rule.number,
         (unsigned long)rule.linenumber);
@@ -351,7 +471,10 @@ showrule(_rule, ruletype)
       slog(LOG_DEBUG, "redirect to: %s",
       ruleaddr2string(&rule.rdr_to, ADDRINFO_PORT | ADDRINFO_ATYPE, NULL, 0));
 
-   sockd_shmat(&rule, SHMEM_ALL);
+   if (sockd_shmat(&rule, SHMEM_ALL) != 0)
+      swarn("%s: could not attach to shmem segments for %s #%lu",
+            function, objecttype2string(rule.type), (unsigned long)rule.number);
+
    if (rule.bw_shmid != 0) {
       SASSERTX(rule.bw != NULL);
 
@@ -1063,11 +1186,10 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                          */
                         const authmethod_uname_t uname = srcauth->mdata.uname;
 
-                        STRCPY_ASSERTSIZE(srcauth->mdata.pam.name,
-                                          (const char *)uname.name);
+                        STRCPY_ASSERTSIZE(srcauth->mdata.pam.name, uname.name);
 
                         STRCPY_ASSERTSIZE(srcauth->mdata.pam.password,
-                                          (const char *)uname.password);
+                                          uname.password);
 
                         methodischeckable = 1;
                         break;
@@ -1077,11 +1199,10 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                      case AUTHMETHOD_BSDAUTH: {
                         const authmethod_bsd_t bsd = srcauth->mdata.bsd;
 
-                        STRCPY_ASSERTSIZE(srcauth->mdata.pam.name,
-                                          (const char *)bsd.name);
+                        STRCPY_ASSERTSIZE(srcauth->mdata.pam.name, bsd.name);
 
                         STRCPY_ASSERTSIZE(srcauth->mdata.pam.password,
-                                          (const char *)bsd.password);
+                                          bsd.password);
 
                         methodischeckable = 1;
                         break;
@@ -1100,7 +1221,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
 
                          STRCPY_ASSERTSIZE(srcauth->mdata.pam.name,
-                                           (const char *)rfc931.name);
+                                           rfc931.name);
 
                         *srcauth->mdata.pam.password = NUL;
 
@@ -1142,11 +1263,10 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                         const authmethod_uname_t uname
                         = srcauth->mdata.uname;
 
-                        STRCPY_ASSERTSIZE(srcauth->mdata.bsd.name,
-                                          (const char *)uname.name);
+                        STRCPY_ASSERTSIZE(srcauth->mdata.bsd.name, uname.name);
 
                         STRCPY_ASSERTSIZE(srcauth->mdata.bsd.password,
-                                          (const char *)uname.password);
+                                          uname.password);
 
                         methodischeckable = 1;
                         break;
@@ -1158,10 +1278,10 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                         = srcauth->mdata.uname;
 
                         STRCPY_ASSERTSIZE(srcauth->mdata.bsd.name,
-                                          (const char *)pam.name);
+                                          pam.name);
 
                         STRCPY_ASSERTSIZE(srcauth->mdata.bsd.password,
-                                          (const char *)pam.password);
+                                          pam.password);
 
                         methodischeckable = 1;
                         break;
@@ -1174,7 +1294,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                           = srcauth->mdata.rfc931;
 
                          STRCPY_ASSERTSIZE(srcauth->mdata.bsd.name,
-                                           (const char *)rfc931.name);
+                                           rfc931.name);
 
                         *srcauth->mdata.bsd.password = NUL;
 
@@ -1450,12 +1570,12 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                                         dst,
                                         srcauth,
                                         state)) != NULL) {
-               SASSERTX(monitor->mstats == NULL);
-
                slog(LOG_DEBUG, "%s: matched monitor #%lu, mstats_shmid = %lu",
                     function,
                     (unsigned long)monitor->number,
                     (unsigned long)monitor->mstats_shmid);
+
+               SASSERTX(monitor->mstats == NULL);
 
                COPY_MONITORFIELDS(monitor, match);
             }
@@ -2435,7 +2555,7 @@ addrule(newrule, rulebase, ruletype)
       while (lastrule->next != NULL)
          lastrule = lastrule->next;
 
-      rule->number = lastrule->number + 1;
+      rule->number   = lastrule->number + 1;
       lastrule->next = rule;
    }
 

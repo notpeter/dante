@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: iface.c,v 1.23 2013/10/27 15:24:42 karls Exp $";
+"$Id: iface.c,v 1.23.4.1 2014/08/24 15:16:48 michaels Exp $";
 
 #include "common.h"
 
@@ -133,7 +133,7 @@ sockd_getmacaddr(ifname, addr)
    const char *ifname;
    unsigned char *addr;
 {
-   const char *function = "socks_getmacaddr()";
+   const char *function = "sockd_getmacaddr()";
 
 #if HAVE_SIOCGIFHWADDR
    struct ifreq ifr;

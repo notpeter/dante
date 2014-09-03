@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.849 2013/10/27 15:24:42 karls Exp $";
+"$Id: sockd_request.c,v 1.849.4.15 2014/08/24 17:43:41 michaels Exp $";
 
 /*
  * XXX Should fix things so this process too can support multiple clients.
@@ -145,16 +145,17 @@ dorequest(const sockd_mother_t *mother, sockd_request_t *request,
  */
 
 static int
-reqhost_isok(sockshost_t *host, const int cmd, char *emsg,
-             const size_t emsglen);
+reqhostisok(sockshost_t *host, const int cmd, char *emsg,
+            const size_t emsglen);
 /*
  * Checks that the host "host" specified in the client request with command
  * "cmd" is ok.
  * If necessary, it may "fixup" host also, which currently consists of
  * converting it from an ipv4-mapped ipv6 address to a ipv4 address.
  *
- * Returns true if everything is ok.
- * Returns false if not ok.  "emsg" will then contain the reason.
+ * Returns SOCKS_SUCCESS if everything is ok.
+ * Returns a socks failurecode if something is not ok.  "emsg" will then
+ * contain the reason.
  */
 
 static void
@@ -554,10 +555,11 @@ recv_req(s, req)
        * (there is nothing to negotiate).
        */
       rule_t *rule;
-      char sstr[MAXRULEADDRSTRING], tstr[MAXRULEADDRSTRING], emsg[1024];
+      char sstr[MAXRULEADDRSTRING], tstr[MAXRULEADDRSTRING],
+           dstr[MAXRULEADDRSTRING], emsg[1024];
       int foundruletobounce = 0;
 
-      SASSERTX(pidismother(sockscf.state.pid) == 1);
+      SASSERTX(pidismainmother(sockscf.state.pid));
 
       bzero(req, sizeof(*req));
 
@@ -663,13 +665,14 @@ recv_req(s, req)
 
          slog(LOG_DEBUG,
               "%s: creating new udp session for clients from %s to target %s, "
-              "using %s #%lu",
+              "to be accepted on %s, for %s #%lu",
               function,
               ruleaddr2string(&rule->src, ADDRINFO_PORT, sstr, sizeof(sstr)),
               ruleaddr2string(&rule->extra.bounceto,
                               ADDRINFO_PORT,
                               tstr,
                               sizeof(tstr)),
+              ruleaddr2string(&rule->dst, ADDRINFO_PORT, dstr, sizeof(dstr)),
               objecttype2string(rule->type),
               (unsigned long)rule->number);
 
@@ -685,9 +688,29 @@ recv_req(s, req)
          req->req.version               = PROXY_SOCKS_V5;
          req->req.command               = SOCKS_UDPASSOCIATE;
          req->req.flag                  = 0;
-         req->req.host.atype            = SOCKS_ADDR_IPV4;
-         req->req.host.addr.ipv4.s_addr = htonl(INADDR_ANY);
+
+         /*
+          * We can obviously only accept IPvX packets on an IPvX socket,
+          * so client must send from an IPvX address.
+          */
+         req->req.host.atype            = rule->dst.atype;
+
+         switch (req->req.host.atype) {
+            case SOCKS_ADDR_IPV4:
+               req->req.host.addr.ipv4.s_addr = htonl(INADDR_ANY);
+               break;
+
+            case SOCKS_ADDR_IPV6:
+               req->req.host.addr.ipv6.ip      = in6addr_any;
+               req->req.host.addr.ipv6.scopeid = rule->dst.addr.ipv6.scopeid;
+               break;
+
+            default:
+               SERRX(req->req.host.atype);
+         }
+
          req->req.host.port             = htons(0);
+
          req->req.auth                  = &req->sauth;
          req->req.protocol              = SOCKS_UDP;
 
@@ -844,7 +867,6 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
    const char *function = "dorequest()";
    iostatus_t iostatus;
    sockd_io_t io;
-   request_t req;
    response_t response;
    iologaddr_t *src, srcmem, *dst, dstmem;
    clientinfo_t cinfo;
@@ -1080,7 +1102,9 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
          SERRX(request->req.version);
    }
 
-   if (!reqhost_isok(&request->req.host, request->req.command, emsg, emsglen)) {
+   rc = reqhostisok(&request->req.host, request->req.command, emsg, emsglen);
+
+   if (rc != SOCKS_SUCCESS) {
       iolog(&io.crule,
             &io.state,
             OPERATION_ERROR,
@@ -1091,7 +1115,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
             emsg,
             strlen(emsg));
 
-      send_failure(request->s, &response, SOCKS_NOTALLOWED);
+      send_failure(request->s, &response, rc);
 
       close(request->s);
       return IO_ERROR;
@@ -1405,7 +1429,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                     sockshost2string(&io.dst.host, strhost, sizeof(strhost)),
                     sockshost2string(&dsthostmatched, NULL, 0));
 
-               io.dst.host = dsthostmatched;
+               request->req.host = io.dst.host = dsthostmatched;
             }
          }
 
@@ -1651,7 +1675,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
             SASSERTX(io.dst.s != -1);
          else {
             msglen = snprintf(emsg, emsglen,
-                              "could not get address to use on external "
+                              "could not bind address to use on external "
                               "side: %s",
                               buf);
 
@@ -1739,26 +1763,11 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                          SOCKETOPT_PRE | SOCKETOPT_ANYTIME);
    }
 
-   req = request->req;
-   switch (request->req.command) {
-      case SOCKS_CONNECT:
-         /*
-          * If we needed to resolve target address for rulespermit(), use
-          * the resolved address in serverchain(), as that's what was
-          * permitted.
-          */
-         req.host = io.dst.host;
-         break;
-
-      default:
-         break;
-   }
-
    errno = 0;
    if (serverchain(io.dst.s,
                    CONTROLIO(&io)->s,
                    &io.src.raddr,
-                   &req,
+                   &request->req,
                    &io.state.proxychain,
                    io.state.protocol == SOCKS_TCP ? &io.dst.auth : NULL,
                    buf,
@@ -2434,21 +2443,14 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                    * so assume it's better to end it rather than possibly
                    * wait forever for another client.
                    */
-                  size_t len;
-
-                  len = snprintf(buf, sizeof(buf),
-                                 "bind-reply from %s blocked by %s #%lu",
-                                 sockaddr2string(&bindio.src.raddr, NULL, 0),
-                                 objecttype2string(bindio.srule.type),
-                                 (unsigned long)bindio.srule.number);
-
-                  len = snprintf(emsg, emsglen,
-                                 "bind-reply from %s blocked by higher-level "
-                                 "%s #%lu",
-                                 sockaddr2string(&bindio.src.raddr, NULL, 0),
-                                 objecttype2string(bindio.srule.type),
-                                 (unsigned long)bindio.srule.number);
-
+                  size_t len = snprintf(emsg, emsglen,
+                                        "bind-reply from %s blocked by "
+                                        "%s #%lu",
+                                        sockaddr2string(&bindio.src.raddr,
+                                                        NULL,
+                                                        0),
+                                        objecttype2string(bindio.srule.type),
+                                        (unsigned long)bindio.srule.number);
 
                   response.host = bindio.src.host;
                   send_failure(sv[client], &response, SOCKS_NOTALLOWED);
@@ -2464,7 +2466,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                         dst,
                         NULL,
                         NULL,
-                        buf,
+                        emsg,
                         len);
 
                   iostatus = IO_BLOCK;
@@ -2667,8 +2669,6 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                   }
                }
             }
-            else
-               bindio.src.s = sv[client];
 
             if (bindio.state.extension.bind || replyredirect) {
                if (bindio.state.extension.bind)
@@ -2679,7 +2679,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
             else
                bindio.dst = io.src;
 
-            bindio.src.s     = sv[remote];
+            bindio.src.s = sv[remote];
 
             bindio.src.state.isconnected = 1;
             bindio.dst.state.isconnected = 1;
@@ -2753,13 +2753,11 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                errno = 0;
                if (send_connectresponse(request->s, errno, &io) != 0) {
                   *weclosedfirst = 0;
-                  rc             = -1;
                   iostatus       = IO_IOERROR;
 
-                  msglen
-                  = snprintf(emsg, emsglen,
-                             "could not send connect response to client: %s",
-                             strerror(errno));
+                  snprintf(emsg, emsglen,
+                           "could not send connect response to client: %s",
+                           strerror(errno));
 
                   close_iodescriptors(&io);
                   break;
@@ -2866,7 +2864,8 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
 
             msglen = snprintf(emsg, emsglen,
                               "client says it will send us UDP packets from "
-                              "hostname \"%s\", but can't resolve hostname",
+                              "hostname \"%s\", but we are unable to resolve "
+                              "that hostname",
                               sockshost2string(&io.src.host, NULL, 0));
 
             rc = SOCKS_HOSTUNREACH;
@@ -3161,13 +3160,13 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
 }
 
 static int
-reqhost_isok(host, cmd, emsg, emsglen)
+reqhostisok(host, cmd, emsg, emsglen)
    sockshost_t *host;
    const int cmd;
    char *emsg;
    const size_t emsglen;
 {
-   const char *function = "reqhost_isok()";
+   const char *function = "reqhostisok()";
    struct sockaddr_storage addr;
    int gaierr, musthaveaddr, musthaveport;
 
@@ -3201,10 +3200,10 @@ reqhost_isok(host, cmd, emsg, emsglen)
          if (gaierr != 0)
             log_resolvefailed(host->addr.domain,
                               cmd == SOCKS_UDPASSOCIATE ?
-                                  INTERNALIF : EXTERNALIF,
+                                                        INTERNALIF : EXTERNALIF,
                               gaierr);
 
-         return 0;
+         return SOCKS_HOSTUNREACH;
       }
 
       SASSERTX(gaierr == 0);
@@ -3214,6 +3213,64 @@ reqhost_isok(host, cmd, emsg, emsglen)
            sockshost2string(host, NULL, 0),
            command2string(cmd),
            sockaddr2string(&addr, NULL, 0));
+   }
+
+   switch (cmd) {
+      case SOCKS_BIND:
+         if (host->atype            == SOCKS_ADDR_IPV4
+         &&  host->addr.ipv4.s_addr == htonl(BINDEXTENSION_IPADDR))
+            break;
+
+         /* FALLTHROUGH to SOCKS_CONNECT */
+
+      case SOCKS_CONNECT:
+         if (host->atype == SOCKS_ADDR_IPV4
+         ||  host->atype == SOCKS_ADDR_IPV6) {
+            if (!external_has_global_safamily(atype2safamily(host->atype))) {
+               snprintf(emsg, emsglen,
+                        "connect to %s requested, but no %s configured "
+                        "for our usage on the external interface",
+                        atype2string(host->atype),
+                        atype2string(host->atype));
+
+               return SOCKS_ADDR_UNSUPP;
+            }
+         }
+
+         break;
+
+      case SOCKS_UDPASSOCIATE:
+         if (host->atype == SOCKS_ADDR_IPV4
+         ||  host->atype == SOCKS_ADDR_IPV6) {
+            if (!internal_has_safamily(atype2safamily(host->atype))) {
+               /*
+                * If client insists on using an address-type we can not
+                * accept packets from things will fail later of course,
+                * but that is up to client.  If the client has provided a
+                * real IP-address (rather than zero) here however, we can
+                * abort things now as we cannot receive packets from that
+                * address and our check for whether the client is sending
+                * from the address it told us (not zero) will fail, if
+                * we ever get that far.
+                */
+
+               snprintf(emsg, emsglen,
+                        "client wants to send us UDP packets from %s, but no "
+                        "%s configured for our usage on the internal interface",
+                        atype2string(host->atype),
+                        atype2string(host->atype));
+
+               slog(LOG_DEBUG, "%s: %s", function, emsg);
+
+               if (SOCKSHOST_ADDRISBOUND(host))
+                  return SOCKS_ADDR_UNSUPP;
+            }
+         }
+
+         break;
+
+      default:
+         SERRX(cmd);
    }
 
    switch (cmd) {
@@ -3240,14 +3297,14 @@ reqhost_isok(host, cmd, emsg, emsglen)
       snprintf(emsg, emsglen, "unbound ipaddress (%s) in request",
                sockaddr2string(&addr, NULL, 0));
 
-      return 0;
+      return SOCKS_ADDR_UNSUPP;
    }
 
    if (musthaveport && GET_SOCKADDRPORT(&addr) == htons(0)) {
       snprintf(emsg, emsglen, "unbound port (%s) in request",
                sockaddr2string(&addr, NULL, 0));
 
-      return 0;
+      return SOCKS_ADDR_UNSUPP;
    }
 
    /*
@@ -3269,7 +3326,7 @@ reqhost_isok(host, cmd, emsg, emsglen)
                      "all asked us to connect to ourselves",
                      sockaddr2string(&addr, NULL, 0));
 
-            return 0;
+            return SOCKS_NOTALLOWED;
          }
          break;
 
@@ -3341,7 +3398,7 @@ reqhost_isok(host, cmd, emsg, emsglen)
                      isoninternal ? "internal" : "external",
                      sockaddr2string(&addr, NULL, 0));
 
-            return 0;
+            return SOCKS_NOTALLOWED;
          }
 #endif /* 0 no (longer) a problem i Dante. */
 
@@ -3352,7 +3409,7 @@ reqhost_isok(host, cmd, emsg, emsglen)
          break;
    }
 
-   return 1;
+   return SOCKS_SUCCESS;
 }
 
 
@@ -3753,9 +3810,9 @@ serverchain(targetsocket, clientsocket, client, req,
    size_t emsglen;
 {
    const char *function = "serverchain()";
+   response_t response;
    route_t *route;
    socks_t packet;
-   response_t response;
    char lemsg[512];
    int rc, flags;
 
@@ -3879,9 +3936,9 @@ convertresponse(oldres, newres, newversion)
    const char *function = "convertresponse()";
    int genericreply;
 
-   if ((  newversion == PROXY_SOCKS_V4
-       && oldres->version == PROXY_SOCKS_V4REPLY_VERSION)
-   || (oldres->version == newversion)) {
+   if (oldres->version == newversion
+   || (    newversion     == PROXY_SOCKS_V4
+       && oldres->version == PROXY_SOCKS_V4REPLY_VERSION)) {
       *newres = *oldres;
       return;
    }
@@ -3953,34 +4010,44 @@ convertresponse(oldres, newres, newversion)
          genericreply = SOCKS_FAILURE;
    }
 
-
-   if (newversion == PROXY_SOCKS_V4) {
-      if (oldres->host.atype == SOCKS_ADDR_IPV4)
-         newres->host = oldres->host;
-      else {
-         /*
-          * v4 only supports ipaddr, so if the address is not an IP address,
-          * we need to resolve it before responding.
-          */
-         struct sockaddr_storage addr;
-
-         sockshost2sockaddr(&oldres->host, &addr);
-         if (IPADDRISBOUND(&addr))
-            sockaddr2sockshost(&addr, &newres->host);
+   switch (newversion) {
+      case PROXY_SOCKS_V4:
+         if (oldres->host.atype == SOCKS_ADDR_IPV4)
+            newres->host = oldres->host;
          else {
-            swarnx("%s: can not resolve hostname %s",
-                   function, sockshost2string(&oldres->host, NULL, 0));
+            /*
+             * v4 only supports ipaddr, so if the address is not an IP address,
+             * we need to resolve it before responding.
+             */
+            struct sockaddr_storage addr;
 
-            genericreply = SOCKS_FAILURE;
+            sockshost2sockaddr(&oldres->host, &addr);
+            if (IPADDRISBOUND(&addr))
+               sockaddr2sockshost(&addr, &newres->host);
+            else {
+               swarnx("%s: can not resolve hostname %s",
+                      function, sockshost2string(&oldres->host, NULL, 0));
+
+               genericreply = SOCKS_FAILURE;
+            }
          }
-      }
 
-      newres->flag    = 0; /* no flagbits in v4. */
-      newres->version = PROXY_SOCKS_V4REPLY_VERSION;
-   }
-   else {
-      newres->host    = oldres->host;
-      newres->version = newversion;
+         newres->version = PROXY_SOCKS_V4REPLY_VERSION;
+         break;
+
+      case PROXY_SOCKS_V5:
+         /*
+          * only flagbits in v5, and old version was obviously not that,
+          * so we have no flagbits to copy.
+         */
+         newres->flag    = 0;
+
+         newres->host    = oldres->host;
+         newres->version = newversion;
+         break;
+
+      default:
+         SERRX(newversion);
    }
 
    socks_set_responsevalue(newres, sockscode(newversion, genericreply));
@@ -4176,6 +4243,7 @@ bindexternaladdr(io, _req, emsg, emsglen)
     * Find address to bind for client.  First the ipaddress.
     */
    if (getoutaddr(&io->dst.laddr,
+                  &io->src.laddr,
                   &io->src.raddr,
                   req.command,
                   target,

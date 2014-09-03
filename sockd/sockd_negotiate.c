@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013
+ *               2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,10 +43,11 @@
  */
 
 #include "common.h"
+#include "monitor.h"
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.477 2013/11/16 14:38:44 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.477.4.5 2014/08/22 06:23:12 michaels Exp $";
 
 static sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
 static const size_t negc = ELEMENTS(negv);
@@ -596,12 +597,9 @@ run_negotiate()
                else if (ERRNOISTMP(errno))
                   sendfailed = 1; /* we will retry sending this object later. */
                else {
-                  slog(sockd_motherexists() ? LOG_INFO : LOG_DEBUG,
-                       "%s: could not send local client %s to mother: "
-                       "dropped: %s",
-                       function,
-                       sockshost2string(&neg->negstate.src, NULL, 0),
-                       strerror(errno));
+                  struct sockaddr_storage p;
+
+                  log_clientdropped(sockshost2sockaddr(&neg->negstate.src, &p));
 
                   delete_negotiate(neg, 0);
 
@@ -758,12 +756,12 @@ negotiate_postconfigload(void)
                        &negv[i].cauth,
                        &negv[i].state);
 
-      if (p != NULL) {
+      if (p == NULL)
+         bzero(&newmonitor, sizeof(newmonitor));
+      else {
          SASSERTX(p->mstats == NULL);
          newmonitor = *p;
       }
-      else
-         bzero(&newmonitor, sizeof(newmonitor));
 
       if (oldmonitor.mstats_shmid == 0 && newmonitor.mstats_shmid == 0)
          continue; /* no monitors for this client before, and no now. */
@@ -772,10 +770,11 @@ negotiate_postconfigload(void)
       HOSTIDCOPY(&negv[i].state, &cinfo);
 
       monitor_move(&oldmonitor,
-                  &newmonitor,
-                  ALARM_INTERNAL,
-                  &cinfo,
-                  sockscf.shmemfd);
+                   &newmonitor,
+                   0,            /* negotiate process does not stay attached. */
+                   ALARM_INTERNAL,
+                   &cinfo,
+                   sockscf.shmemfd);
 
       COPY_MONITORFIELDS(&newmonitor, CRULE_OR_HRULE(&negv[i]));
 

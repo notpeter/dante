@@ -45,7 +45,12 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.172 2013/10/27 15:24:42 karls Exp $";
+"$Id: hostcache.c,v 1.172.4.9 2014/08/26 08:51:47 karls Exp $";
+
+#if 0
+#warning "XXX change back to LOG_DEBUG"
+#define  LOG_DEBUG LOG_INFO
+#endif
 
 #if !SOCKS_CLIENT
 
@@ -181,11 +186,18 @@ addrinfocopy(dnsinfo_t *to, const struct addrinfo *from,
 #define GAI_RC_IS_EAGAIN(gai_rc)           \
    ((gai_rc) == EAI_AGAIN)
 
+#if HAVE_ERR_EAI_OVERFLOW
 #define GAI_RC_IS_INTERNALERROR(gai_rc)    \
    (  ((gai_rc) == EAI_BADFLAGS)           \
    || ((gai_rc) == EAI_FAMILY)             \
    || ((gai_rc) == EAI_SOCKTYPE)           \
    || ((gai_rc) == EAI_OVERFLOW))
+#else
+#define GAI_RC_IS_INTERNALERROR(gai_rc)    \
+   (  ((gai_rc) == EAI_BADFLAGS)           \
+   || ((gai_rc) == EAI_FAMILY)             \
+   || ((gai_rc) == EAI_SOCKTYPE))
+#endif /* HAVE_ERR_EAI_OVERFLOW */
 
 int
 cgetaddrinfo(name, service, hints, res, resmem)
@@ -214,9 +226,6 @@ cgetaddrinfo(name, service, hints, res, resmem)
 
    SASSERTX(*res != NULL);
 
-   /* have mem.  Don't use the one returned from getaddrinfo (3). */
-   freeaddrinfo(*res);
-
    if ((gai_rc = addrinfocopy(resmem, *res, hints)) != 0
    && GAI_RC_IS_SYSTEMPROBLEM(gai_rc))
       swarnx("%s: addrinfocopy() failed for hostname \"%s\", service \"%s\"",
@@ -227,6 +236,9 @@ cgetaddrinfo(name, service, hints, res, resmem)
                                 strlen(service),
                                 servicebuf,
                                 sizeof(servicebuf)));
+
+   /* have resmem.  Don't use the one returned from getaddrinfo (3). */
+   freeaddrinfo(*res);
 
    return gai_rc;
 
@@ -292,6 +304,7 @@ cgetaddrinfo(name, service, hints, res, resmem)
          socks_unlock(sockscf.hostfd, 0, 0);
          return hostcache[i].gai_rc;
       }
+
       /*
        * Else; in cache, but expired already.
        */
@@ -311,6 +324,7 @@ cgetaddrinfo(name, service, hints, res, resmem)
       /*
        * Go through the entire in the cache, looking for a match.
        */
+
       hashi = hosthash(name, SOCKD_HOSTCACHE);
       for (i = hashi, freehost = NULL; i < SOCKD_HOSTCACHE; ++i) {
          if (!hostcache[i].allocated) {
@@ -358,54 +372,58 @@ cgetaddrinfo(name, service, hints, res, resmem)
       }
    }
 
-   ++cbyname_miss;
-
    /*
-    * This name is not in the cache.  Resolve via DNS and cache result.
+    * Nope, this name is not in the cache.  Have to resolve.
     */
 
    socks_unlock(sockscf.hostfd, 0, 0);
 
-   if ((gai_rc = getaddrinfo(name, service, hints, res)) != 0) {
-      slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) failed: %s",
-           function,
-           str2vis(name, strlen(name), namebuf, sizeof(namebuf)),
-           service == NULL ?
-            "<NULL>" : str2vis(service,
-                               strlen(service),
-                               servicebuf,
-                               sizeof(servicebuf)),
-           gai_strerror(gai_rc));
+   ++cbyname_miss;
 
-      if (gai_rc == EAI_SYSTEM && ERRNOISNOFILE(errno)) {
-         if (sockscf.state.reservedfdv[0] != -1) {
-            close(sockscf.state.reservedfdv[0]);
+   gai_rc = getaddrinfo(name, service, hints, res);
 
-            gai_rc = getaddrinfo(name, service, hints, res);
+   slog(LOG_DEBUG,
+        "%s: getaddrinfo(%s, %s, { %s }) returned %d and %p: %s",
+        function,
+        str2vis(name, strlen(name), namebuf, sizeof(namebuf)),
+        service == NULL ? "<NULL>" : str2vis(service,
+                                             strlen(service),
+                                             servicebuf,
+                                             sizeof(servicebuf)),
+        hints == NULL ? "<NULL>" : aihints2string(hints, NULL, 0),
+        gai_rc,
+        gai_rc == 0 ? *res       : NULL,
+        gai_rc == 0 ? "no error" : gai_strerror(gai_rc));
 
-            sockscf.state.reservedfdv[0] = makedummyfd(0, 0);
+   if (gai_rc == EAI_SYSTEM && ERRNOISNOFILE(errno)) {
+      if (sockscf.state.reservedfdv[0] != -1) {
+         close(sockscf.state.reservedfdv[0]);
 
-            if (gai_rc != 0)
-               slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) failed again: %s",
-                    function,
-                    str2vis(name, strlen(name), namebuf, sizeof(namebuf)),
-                    service == NULL ?
-                        "<NULL>" : str2vis(service,
-                                           strlen(service),
-                                           servicebuf,
-                                           sizeof(servicebuf)),
-                    gai_strerror(gai_rc));
+         gai_rc = getaddrinfo(name, service, hints, res);
 
-         }
+         sockscf.state.reservedfdv[0] = makedummyfd(0, 0);
+
+         if (gai_rc != 0)
+            slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) failed again: %s",
+                 function,
+                 str2vis(name, strlen(name), namebuf, sizeof(namebuf)),
+                 service == NULL ?
+                     "<NULL>" : str2vis(service,
+                                        strlen(service),
+                                        servicebuf,
+                                        sizeof(servicebuf)),
+                 gai_strerror(gai_rc));
       }
    }
+
 #if HAVE_LINUX_BUGS
-   /* glibc calls connect(2) to something that fails from __GI_getaddrinfo(),
+   /*
+    * glibc calls connect(2) to something that fails from __GI_getaddrinfo(),
     * and then does not clear the errno, so even though the above getaddrinfo()
     * call succeeded, errno is now set, at least on the glibc used by
     * 3.7.3-101.fc17.x86_64.
     */
-   else
+   if (gai_rc == 0)
       errno = 0;
 #endif /* HAVE_LINUX_BUGS */
 
@@ -430,8 +448,7 @@ cgetaddrinfo(name, service, hints, res, resmem)
       if (have_oldres) {
          slog(LOG_DEBUG,
               "%s: resolve of %s failed.  Returning stale cache entry",
-              function,
-              str2vis(name, strlen(name), namebuf, sizeof(namebuf))),
+              function, str2vis(name, strlen(name), namebuf, sizeof(namebuf))),
 
          *res = &resmem->data.getaddr.addrinfo;
          return 0;
@@ -458,6 +475,7 @@ cgetaddrinfo(name, service, hints, res, resmem)
       /*
        * else; assume host does not exist at the moment and cache that result.
        */
+
       *res = NULL;
       res  = NULL;
    }
@@ -468,7 +486,9 @@ cgetaddrinfo(name, service, hints, res, resmem)
       freehost = getoldest(hashi);
    /*
     * else: contents pointed to can have changed, in which case we may now
-    * be overwriting one of the most recent entries, but never mind that.
+    * be overwriting one of the most recent entries, but never mind that;
+    * that unlikely case is not important enough to warrant locking and
+    * scanning for the oldest entry now.
     */
 
    SASSERTX(freehost != NULL);
@@ -477,9 +497,11 @@ cgetaddrinfo(name, service, hints, res, resmem)
       gai_rc = addrinfocopy(freehost, *res, hints);
 
       /*
-       * have resmem.  Don't use the mem returned from getaddrinfo (3).
+       * have resmem.  Don't use the mem returned from getaddrinfo(3).
        */
       freeaddrinfo(*res);
+      slog(LOG_DEBUG, "%s: freed addrinfo %p", function, *res);
+
 
       if (gai_rc != 0) {
          if (GAI_RC_IS_SYSTEMPROBLEM(gai_rc))
@@ -675,32 +697,31 @@ do {                                                                           \
    socks_markasnormal("*");
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
-   if (gai_rc != 0) {
-      slog(LOG_DEBUG, "%s: getnameinfo(%s) failed: %s",
-           function,
-           sockaddr2string(TOCSS(addr), NULL, 0),
-           gai_strerror(gai_rc));
+   slog(LOG_DEBUG, "%s: getnameinfo(%s) returned %d: %s",
+        function,
+        sockaddr2string(TOCSS(addr), NULL, 0),
+        gai_rc,
+        gai_strerror(gai_rc));
 
-      if (GAI_RC_IS_SYSTEMPROBLEM(gai_rc)) {
-         if (sockscf.state.reservedfdv[0] != -1) {
-            close(sockscf.state.reservedfdv[0]);
+   if (gai_rc != 0 && GAI_RC_IS_SYSTEMPROBLEM(gai_rc)) {
+      if (sockscf.state.reservedfdv[0] != -1) {
+         close(sockscf.state.reservedfdv[0]);
 
-            gai_rc = getnameinfo(addr,
-                                 addrlen,
-                                 host,
-                                 sizeof(host),
-                                 service,
-                                 sizeof(service),
-                                 flags);
+         gai_rc = getnameinfo(addr,
+                              addrlen,
+                              host,
+                              sizeof(host),
+                              service,
+                              sizeof(service),
+                              flags);
 
-            sockscf.state.reservedfdv[0] = makedummyfd(0, 0);
+         sockscf.state.reservedfdv[0] = makedummyfd(0, 0);
 
-            if (gai_rc != 0) {
-               slog(LOG_DEBUG, "%s: getnameinfo(%s) failed again: %s",
-                    function,
-                    sockaddr2string(TOCSS(addr), NULL, 0),
-                    gai_strerror(gai_rc));
-            }
+         if (gai_rc != 0) {
+            slog(LOG_DEBUG, "%s: getnameinfo(%s) failed again: %s",
+                 function,
+                 sockaddr2string(TOCSS(addr), NULL, 0),
+                 gai_strerror(gai_rc));
          }
       }
    }
@@ -799,8 +820,8 @@ addrinfocopy(to, from, hints)
    const struct addrinfo *from_ai;
    const size_t maxentries = ELEMENTS(to->data.getaddr.ai_addr_mem);
    struct addrinfo *to_ai, *to_ai_previous, *to_ai_start;
-   char visbuf[MAXHOSTNAMELEN * 4];
    size_t i;
+   char visbuf[MAXHOSTNAMELEN * 4];
 
    bzero(to, sizeof(*to));
 
@@ -808,7 +829,7 @@ addrinfocopy(to, from, hints)
    to_ai          = &to->data.getaddr.addrinfo;
    to_ai_start    = to_ai;
    to_ai_previous = to_ai;
-   i = 0;
+   i              = 0;
 
    while (i < maxentries && from_ai != NULL) {
 #if !SOCKS_CLIENT
@@ -830,7 +851,7 @@ addrinfocopy(to, from, hints)
           * be looking for an entry with the appropriate protocol),
           * and makes it easy to set a portnumber (different from 0)
           * when used in a particular unit-test.  Apart from that, it
-          * would be more correct to ignore the portnumber of of course.
+          * would be more correct to ignore the portnumber of course.
           */
          slog(LOG_DEBUG, "%s: skipping address %s, protocol %d",
               function,
@@ -839,8 +860,8 @@ addrinfocopy(to, from, hints)
 
          doskip = 1;
       }
-      else if (from->ai_addr->sa_family == AF_INET6
-      && IN6_IS_ADDR_V4MAPPED(&TOIN6(from->ai_addr)->sin6_addr)) {
+      else if (from_ai->ai_addr->sa_family == AF_INET6
+      && IN6_IS_ADDR_V4MAPPED(&TOIN6(from_ai->ai_addr)->sin6_addr)) {
          if (hints != NULL
          && hints->ai_family != 0
          && hints->ai_family != AF_INET)
@@ -867,7 +888,7 @@ addrinfocopy(to, from, hints)
             bzero(to_ai->ai_addr, salen(AF_INET));
             SET_SOCKADDR(TOSS(to_ai->ai_addr), AF_INET);
 
-            ipv4_mapped_to_regular(&TOIN6(from->ai_addr)->sin6_addr,
+            ipv4_mapped_to_regular(&TOIN6(from_ai->ai_addr)->sin6_addr,
                                    &TOIN(to_ai->ai_addr)->sin_addr);
 
             to_ai->ai_family  = AF_INET;
@@ -900,7 +921,7 @@ addrinfocopy(to, from, hints)
          if (len >= sizeof(to->data.getaddr.ai_canonname_mem)) {
             swarnx("%s: DNS-name %s is %lu bytes long, expected max is %lu",
                    function,
-                    str2vis(from->ai_canonname, len, visbuf, sizeof(visbuf)),
+                   str2vis(from_ai->ai_canonname, len, visbuf, sizeof(visbuf)),
                    (unsigned long)len,
                   (unsigned long)sizeof(to->data.getaddr.ai_canonname_mem) - 1);
 
@@ -950,12 +971,27 @@ addrinfocopy(to, from, hints)
       return EAI_FAMILY;
    }
 
-
    return 0;
 }
 
 
 #if !SOCKS_CLIENT
+
+void
+hostcacheinvalidate(void)
+{
+   const char *function = "hostcacheinvalidate()";
+   size_t i;
+
+   slog(LOG_DEBUG, "%s", function);
+
+   socks_lock(sockscf.hostfd, 0, 0, 0, 1);
+
+   for (i = 0; i < SOCKD_HOSTCACHE; ++i)
+      hostcache[i].allocated = 0;
+
+   socks_unlock(sockscf.hostfd, 0, 0);
+}
 
 static int
 gai2h_errno(gai_rc)

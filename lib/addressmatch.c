@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
- *               2012, 2013
+ *               2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.97 2013/10/27 15:24:42 karls Exp $";
+"$Id: addressmatch.c,v 1.97.4.3 2014/07/02 09:12:21 michaels Exp $";
 
 static int
 ipv4_addrareeq(const struct in_addr *a, const struct in_addr *b,
@@ -253,7 +253,17 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       if (!doresolve)
          return 0;
 
-      hints.ai_family = atype2safamily(rule->atype);
+      /*
+       * Instead of setting hints.ai_family to atype2safamily(rule->atype),
+       * we need to set it to zero.  Otherwise the getaddrinfo(3)-api will
+       * not return IPv4-mapped IPv6 addresses.
+       * If the rule is e.g. an IPv4 address, but the target resolves to an
+       * IPv4-mapped IPv6 address, this would otherwise not work;
+       * getaddrinfo(3) would return the regular IPv4-addresses, but not the
+       * IPv4-mapped IPv6 address, then though that address (converted to
+       * plain IPv4) is something we would match.
+       */
+      hints.ai_family = 0;
 
       rc = cgetaddrinfo(addr->addr.domain, NULL, &hints, &ai_addr, &ai_addrmem);
 
@@ -456,11 +466,8 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       if (rc != 0) {
          log_resolvefailed(rule->addr.domain, INTERNALIF, rc);
 
-         swarnx("%s: cgetaddrinfo(%s) with ai_family = %d failed: %s",
-                function,
-                rule->addr.domain,
-                hints.ai_family,
-                gai_strerror(rc));
+         swarnx("%s: cgetaddrinfo(%s) failed: %s",
+                function, rule->addr.domain, gai_strerror(rc));
 
          return 0;
       }
@@ -615,11 +622,8 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
       if (rc != 0) {
          log_resolvefailed(rule->addr.domain, INTERNALIF, rc);
 
-         swarnx("%s: cgetaddrinfo(%s) with ai_family = %d failed: %s",
-                function,
-                rule->addr.domain,
-                hints.ai_family,
-                gai_strerror(rc));
+         swarnx("%s: cgetaddrinfo(%s) failed: %s",
+                function, rule->addr.domain, gai_strerror(rc));
 
          return 0;
       }
@@ -895,7 +899,7 @@ hostareeq(ruledomain, addrdomain)
 
    slog(LOG_DEBUG, "%s: %s, %s", function, ruledomain, addrdomain);
 
-   if  (*ruledomain == '.')   { /* match everything ending in ruledomain */
+   if  (*ruledomain == '.') { /* match everything ending in ruledomain */
       if (ruledomainlen - 1 /* '.' */ > remotedomainlen)
          return 0;   /* address to compare against too short, can't match. */
 

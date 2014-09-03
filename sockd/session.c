@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: session.c,v 1.102 2013/10/27 15:24:42 karls Exp $";
+"$Id: session.c,v 1.102.4.2 2014/09/01 07:44:01 karls Exp $";
 
 static int
 session_isavailable(shmem_object_t *ss, const clientinfo_t *cinfo,
@@ -175,8 +175,8 @@ session_use(shmem, cinfo, lock, emsg, emsglen)
       SASSERTX(shmem->keystate.keyv != NULL);
 
    if (!session_isavailable(shmem, cinfo, -1, 1, emsg, emsglen)) {
-      SASSERTX(mappedsize
-      == shmem->keystate.keyc * sizeof(*shmem->keystate.keyv));
+      SASSERTX(mappedsize ==   shmem->keystate.keyc
+                             * sizeof(*shmem->keystate.keyv));
 
       MUNPROTECT_SHMEMHEADER(shmem);
 
@@ -186,7 +186,7 @@ session_use(shmem, cinfo, lock, emsg, emsglen)
 
       /*
        * *must* be after keystate_closemap() since keystate_closemap also
-       * NULL's the map and this will affect others who open it.
+       * NULL's the map and this will affect other processes who open it.
        */
       socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
 
