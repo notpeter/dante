@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.931 2013/11/15 05:12:22 michaels Exp $ */
+/* $Id: common.h,v 1.931.4.7 2014/08/15 18:12:21 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -624,6 +624,7 @@ do {                                                                           \
                                                                                \
    CTASSERT(sizeof((__dst)) >= sizeof((__src)));                               \
    SASSERTX(_len + 1 <= sizeof((__dst)));                                      \
+   SASSERTX(_len + 1 <= sizeof((__src)));                                      \
                                                                                \
    memcpy((_dst), (_src), _len + 1);                                           \
 } while (0 /* CONSTCOND */)
@@ -651,6 +652,13 @@ do {                                                                           \
    strncpy((char *)_dst, utfsrc, (_maxlen) - 1);                               \
    ((char *)(_dst))[(_maxlen) - 1] = NUL;                                      \
 } while (/* CONSTCOND */ 0)
+
+
+#define TVMIN(a, b) \
+   (timercmp((a), (b), <) ? (a) : (b))
+
+#define TVMAX(a, b) \
+   (timercmp((a), (b), >) ? (a) : (b))
 
 
 /*
@@ -696,6 +704,15 @@ do {                                                                           \
 #define hostname2sockaddr(name, index, addr)                                   \
    int_hostname2sockaddr((name), (index), addr, sizeof((*addr)))
 
+#define hostname2sockaddr2(name, index, addr, gaierr, emsg, emsglen)           \
+   int_hostname2sockaddr2(name,                                                \
+                          index,                                               \
+                          addr,                                                \
+                          sizeof((*addr)),                                     \
+                          gaierr,                                              \
+                          emsg,                                                \
+                          emsglen)
+
 #define ifname2sockaddr(ifname, index, addr, mask)                             \
    int_ifname2sockaddr((ifname),                                               \
                        (index),                                                \
@@ -721,6 +738,7 @@ do {                                                                           \
  */
 #define DEBUG_NORMAL    (1)
 #define DEBUG_VERBOSE   (2)
+#define DEBUG_DEBUG     (9)   /* only for debuging problems. */
 
 /*
  * If client, it might need to call malloc(3) to expand socksfdv
@@ -766,10 +784,11 @@ do { socks_sigunblock(oldset); } while (/* CONSTCOND */ 0)
  * Wrappers for our own functions that modify things a little in a way
  * that should not have any negative effects.
  */
-#define close(n)            closen(n)
-#define socket(d, t, p)     socks_socket(d, t, p)
-#define strerror(e)         socks_strerror(e)
-#define getifaddrs(ifap)    socks_getifaddrs(ifap)
+#define close(n)              closen((n))
+#define socket(d, t, p)       socks_socket((d), (t), (p))
+#define strerror(e)           socks_strerror((e))
+#define getifaddrs(ifap)      socks_getifaddrs((ifap))
+#define gai_strerror(errcode) socks_gai_strerror((errcode))
 
 #undef snprintf
 #define snprintf   snprintfn
@@ -907,18 +926,18 @@ do {                                      \
 #define RULEPORT_START(addr, protocol) (                                       \
    ((protocol) == SOCKS_TCP ? (addr)->port.tcp : (addr)->port.udp))
 
-#if HAVE_SOCKADDR_SA_LEN
+#if HAVE_SOCKADDR_STORAGE_SS_LEN
 
-#define SET_SOCKADDRLEN(sa, len)       \
+#define SET_SOCKADDRLEN(ss, len)       \
 do {                                   \
-   ((sa)->ss_len = (len));             \
+   ((ss)->ss_len = (len));             \
 } while (/* CONSTCOND */ 0)
 
-#else /* !HAVE_SOCKADDR_SA_LEN */
+#else /* !HAVE_SOCKADDR_STORAGE_SS_LEN */
 
-#define SET_SOCKADDRLEN(sa, len)
+#define SET_SOCKADDRLEN(ss, len)
 
-#endif /* !HAVE_SOCKADDR_SA_LEN */
+#endif /* !HAVE_SOCKADDR_STORAGE_SS_LEN */
 
 #define SET_SOCKADDR(sa, family)                                               \
 do {                                                                           \
@@ -1543,7 +1562,8 @@ typedef enum { TIMEOUT_NOTSET = 0,
                TIMEOUT_NEGOTIATE,
                TIMEOUT_CONNECT,
                TIMEOUT_IO,
-               TIMEOUT_TCP_FIN_WAIT
+               TIMEOUT_TCP_FIN_WAIT,
+               TIMEOUT_NETWORKTEST
 } timeouttype_t;
 
 typedef struct {
@@ -1777,7 +1797,7 @@ union socksaddr_t {
    struct in_addr     ipv4;
    struct {
       struct in6_addr  ip;
-   uint32_t        scopeid;
+      uint32_t         scopeid;
    } ipv6;
 };
 
@@ -2099,7 +2119,10 @@ typedef struct {
                             */
 
 #if SOCKS_CLIENT
-      size_t   peekedbytes;/* # of bytes we last peeked at.                   */
+      size_t   readalready;/*
+                            * # of bytes we have already read from socket and
+                            * should ignore.
+                            */
 #endif /* SOCKS_CLIENT */
    } info[2];
 
@@ -2151,13 +2174,20 @@ typedef struct {
 } socksfd_t;
 
 /*
- * getaddrinfo(3) returns separate entries for udp and tcp, even everything
- * else is the same.  That means we effectively only get half MAX_ADDRINFO_NEXT
- * unique ipaddresses at most.  We used 5 when we were using the gethostby*(3)
- * api, so double for getaddrinfo(3).
- *
+ * getaddrinfo(3) returns separate entries for udp and tcp, even when
+ * everything else is the same.  That means we effectively only get half
+ * MAX_ADDRINFO_NEXT unique ipaddresses at most.  We used 5 when we were
+ * using the gethostby*(3) api, so double for getaddrinfo(3).
  * Might think about filtering out otherwise duplicate tcp/udp entries to
  * save memory.  Would make the cache less general though.
+ *
+ * An additional thing to consider is that there is no way to specify in
+ * the getaddrinfo(3)-api that we want ipv4-mapped ipv6 addresses
+ * returned too, when we set ai_family to AF_INET in hints.  The only way
+ * to getr the ipv4-mapped addresses returned to is to set ai_family to
+ * zero, but then we get the regular ipv6-addresses also.  Since there
+ * are cases when we want the ipv4-mapped addresses returned also, we
+ * need to make the size set here able to accomodate that too.
  */
 #define MAX_ADDRINFO_NEXT (10)
 
@@ -2577,6 +2607,20 @@ int_hostname2sockaddr(const char *name, size_t index,
  */
 
 struct sockaddr_storage *
+int_hostname2sockaddr2(const char *name, size_t index,
+                       struct sockaddr_storage *addr, size_t addrlen,
+                       int *gaierr, char *emsg, const size_t emsglen);
+/*
+ * Retrieves the address with index "index" for the hostname named "name".
+ * Returns:
+ *      On success: "addr", filled in with the address found.
+ *      On failure: NULL (no address found).  "gaierr" contains the
+ *                  resolver error, if available, and "emsg" contains
+ *                  a textual description of the error.
+ */
+
+
+struct sockaddr_storage *
 int_ifname2sockaddr(const char *ifname, size_t index,
                     struct sockaddr_storage *addr, size_t addrlen,
                     struct sockaddr_storage *mask, size_t masklen);
@@ -2924,9 +2968,11 @@ addrinfo_issupported(const struct addrinfo *ai);
  */
 
 
+/*
+ * Wrapper around standard functions.
+ */
 const char *socks_strerror(const int err);
-/* returns a printable representation of the errno "errno". */
-
+const char *socks_gai_strerror(const int err);
 
 size_t
 snprintfn(char *str, size_t size, const char *format, ...)
@@ -3341,7 +3387,7 @@ methodisset(int method, const int *methodv, size_t methodc);
 char *
 get_tcpinfo(const size_t fdc, int fdv[], char *buf, size_t buflen);
 /*
- * Retrieves tcp_info for the socket "s" and stores it in "buf", if
+ * Retrieves tcp_info for the sockets in "fdv" and stores it in "buf", if
  * buf is not NULL.
  * If buf or buflen is not set, stores it in locally allocated memory
  * and return a pointer to it rather than to buf.
@@ -3817,6 +3863,13 @@ socks_freeinbuffer(const int s, const whichbuf_t which);
 /*
  * Returns the number of bytes free in the iobuf belonging to "s".
  */
+
+size_t
+socks_buffersize(const int s, const whichbuf_t which);
+/*
+ * Returns the total size of the buffer belonging to "s".
+ */
+
 
 #if HAVE_LIVEDEBUG
 

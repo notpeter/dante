@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013
+ *               2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.263 2013/11/01 17:02:55 michaels Exp $";
+"$Id: sockd_util.c,v 1.263.4.3 2014/08/15 18:16:44 karls Exp $";
 
 #include "common.h"
 
@@ -158,6 +158,14 @@ pidismother(pid)
          return i + 1;
 
    return 0;
+}
+
+int
+pidismainmother(pid)
+   pid_t pid;
+{
+
+   return pidismother(pid) == 1;
 }
 
 int
@@ -450,7 +458,7 @@ sockdexit(code)
 
 #if HAVE_ENABLED_PIDFILE
       if (sockscf.option.pidfilewritten
-      && pidismother(sockscf.state.pid) == 1) {
+      && pidismainmother(sockscf.state.pid)) {
          sockd_priv(SOCKD_PRIV_FILE_WRITE, PRIV_ON);
 
          if (truncate(sockscf.option.pidfile, 0) != 0)
@@ -501,7 +509,7 @@ sockdexit(code)
 #endif /* HAVE_PROFILING */
 
    if (sockscf.state.type == PROC_MOTHER) {
-      if (pidismother(sockscf.state.pid) == 1) { /* main mother. */
+      if (pidismainmother(sockscf.state.pid)) {
          sigserverbroadcast(SIGTERM); /* signal other mothers too. */
 
          /*

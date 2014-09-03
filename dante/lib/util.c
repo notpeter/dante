@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009, 2010, 2011, 2012, 2013
+ *               2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "vis_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.416 2013/10/27 15:24:42 karls Exp $";
+"$Id: util.c,v 1.416.4.5 2014/08/15 18:12:23 karls Exp $";
 
 const char *
 strcheck(string)
@@ -229,13 +229,11 @@ int_sockshost2sockaddr2(host, addr, addrlen, gaierr, emsg, emsglen)
             char visbuf[MAXHOSTNAMELEN * 4];
 
             snprintf(emsg, emsglen,
-                     "could not resolve hostname \"%s\" to %s: %s",
+                     "could not resolve hostname \"%s\": %s",
                      str2vis(host->addr.domain,
                              strlen(host->addr.domain),
                              visbuf,
                              sizeof(visbuf)),
-                     hints.ai_family == 0 ?
-                        "IP-address" : safamily2string(hints.ai_family),
                      gai_strerror(*gaierr));
 
             slog(LOG_NEGOTIATE, "%s: %s", function, emsg);
@@ -510,8 +508,10 @@ sockshost2ruleaddr(host, addr)
    }
 
 
-   if (host->port == htons(0))
+   if (host->port == htons(0)) {
       addr->operator   = none;
+      addr->port.tcp   = addr->port.udp = addr->portend = htons(0);
+   }
    else {
       addr->operator  = eq;
       addr->port.tcp  = host->port;
@@ -542,23 +542,49 @@ int_hostname2sockaddr(name, index, addr, addrlen)
    struct sockaddr_storage *addr;
    size_t addrlen;
 {
+   int rc;
+
+   return int_hostname2sockaddr2(name, index, addr, addrlen, &rc, NULL, 0);
+}
+
+
+struct sockaddr_storage *
+int_hostname2sockaddr2(name, index, addr, addrlen, gaierr, emsg, emsglen)
+   const char *name;
+   size_t index;
+   struct sockaddr_storage *addr;
+   size_t addrlen;
+   int *gaierr;
+   char *emsg;
+   size_t emsglen;
+{
    const char *function = "int_hostname2sockaddr()";
    struct addrinfo *ai, hints;
    dnsinfo_t aimem;
    size_t i;
-   int rc;
+   char emsgmem[1024 + MAXHOSTNAMELEN * 4];
+
+   if (emsg == NULL || emsglen == 0) {
+      emsg    = emsgmem;
+      emsglen = sizeof(emsgmem);
+   }
+
+   *emsg   = NUL;
+   *gaierr = 0;
 
    bzero(addr, addrlen);
    SET_SOCKADDR(addr, AF_UNSPEC);
 
    bzero(&hints, sizeof(hints));
-   if ((rc = cgetaddrinfo(name, NULL, &hints, &ai, &aimem)) != 0) {
+   if ((*gaierr = cgetaddrinfo(name, NULL, &hints, &ai, &aimem)) != 0) {
       char visbuf[MAXHOSTNAMELEN * 4];
 
+      snprintf(emsg, emsglen, "could not resolve hostname \"%s\": %s",
+               str2vis(name, strlen(name), visbuf, sizeof(visbuf)),
+               gai_strerror(*gaierr));
+
       slog(LOG_DEBUG, "%s: could not resolve hostname \"%s\": %s",
-           function,
-           str2vis(name, strlen(name), visbuf, sizeof(visbuf)),
-           gai_strerror(rc));
+           function, visbuf, gai_strerror(*gaierr));
 
       return NULL;
    }
@@ -579,6 +605,7 @@ int_hostname2sockaddr(name, index, addr, addrlen)
    return NULL;
 }
 
+
 struct sockaddr_storage *
 int_ifname2sockaddr(ifname, index, addr, addrlen, mask, masklen)
    const char *ifname;
@@ -588,7 +615,7 @@ int_ifname2sockaddr(ifname, index, addr, addrlen, mask, masklen)
    struct sockaddr_storage *mask;
    size_t masklen;
 {
-   const char *function = "ifname2sockaddr()";
+   const char *function = "int_ifname2sockaddr()";
    struct ifaddrs ifa, *ifap = &ifa, *iface;
    size_t i, realindex;
    int foundifname, foundaddr;
@@ -1322,8 +1349,10 @@ int_urlstring2sockaddr(string, saddr, saddrlen, gaierr, emsg, emsglen)
 {
    const char *function = "int_urlstring2sockaddr()";
    const char *httpprefix = "http://";
-   char buf[1024], vbuf[sizeof(buf) * 4], emsgmem[1024], *port, *s;
+   char buf[1024], vbuf[sizeof(buf) * 4], vstring[sizeof(vbuf)],
+        emsgmem[1024], *port, *s;
    long portnumber;
+   int haveportsep;
 
    *gaierr = 0;
 
@@ -1335,38 +1364,45 @@ int_urlstring2sockaddr(string, saddr, saddrlen, gaierr, emsg, emsglen)
       emsglen = sizeof(emsgmem);
    }
 
-   if ((s = strstr(string, httpprefix)) == NULL) {
+   slog(LOG_DEBUG, "%s: string to parse is \"%s\"",
+        function, str2vis(string, strlen(string), vstring, sizeof(vstring)));
+
+   if (strstr(string, httpprefix) == NULL) {
       snprintf(emsg, emsglen,
                "could not find http prefix (%s) in http address \"%s\"",
-               httpprefix,
-               str2vis(string, strlen(string), vbuf, sizeof(vbuf)));
+               httpprefix, vstring);
 
       slog(LOG_DEBUG, "%s: %s", function, emsg);
       return NULL;
    }
 
-   snprintf(buf, sizeof(buf), "%s", s + strlen(httpprefix));
+   string += strlen(httpprefix);
+
+   snprintf(buf, sizeof(buf), "%s", string);
 
    if ((s = strchr(buf, ':')) == NULL) {
-      snprintf(emsg, emsglen, "could not find port separator in \"%s\"",
-              str2vis(string, strlen(string), vbuf, sizeof(vbuf)));
+      slog(LOG_DEBUG, "%s: could not find port separator in \"%s\"",
+           function, vstring);
 
-      slog(LOG_DEBUG, "%s: %s", function, emsg);
-      return NULL;
+      haveportsep = 0;
    }
-   *s = NUL;
+   else {
+      haveportsep = 1;
+      *s = NUL;
+   }
 
    if (*buf == NUL) {
       snprintf(emsg, emsglen,
-              "could not find address string in \"%s\"",
-              str2vis(string, strlen(string), vbuf, sizeof(vbuf)));
+               "could not find address string in \"%s\"", vstring);
 
       slog(LOG_DEBUG, "%s: %s", function, emsg);
       return NULL;
    }
 
-   slog(LOG_DEBUG, "%s: %s",
-        function, str2vis(buf, strlen(buf), vbuf, sizeof(vbuf)));
+   slog(LOG_DEBUG, "%s: pre-portnumber string (%s): \"%s\"",
+        function,
+        haveportsep ? "portnumber comes later" : "no portnumber given",
+        str2vis(buf, strlen(buf), vbuf, sizeof(vbuf)));
 
    if (socks_inet_pton(saddr->ss_family, buf, &(TOIN(saddr)->sin_addr), NULL)
    != 1) {
@@ -1375,6 +1411,7 @@ int_urlstring2sockaddr(string, saddr, saddrlen, gaierr, emsg, emsglen)
 
       errno = 0;
       (void)strtol(buf, &ep, 10);
+
       if (*ep == NUL || errno == ERANGE) {
          /* only digits, but inet_pton() failed. */
          snprintf(emsg, emsglen,
@@ -1400,17 +1437,22 @@ int_urlstring2sockaddr(string, saddr, saddrlen, gaierr, emsg, emsglen)
              (size_t)hostent->h_length);
    }
 
-   if ((port = strrchr(string, ':')) == NULL) {
-      snprintf(emsg, emsglen,
-              "could not find start of port number in \"%s\"",
-              str2vis(string, strlen(string), vbuf, sizeof(vbuf)));
 
-      return NULL;
+   if (haveportsep) {
+      if ((port = strchr(string, ':')) == NULL) {
+         snprintf(emsg, emsglen,
+                 "could not find start of port number in \"%s\"",
+                 str2vis(string, strlen(string), vbuf, sizeof(vbuf)));
+
+         return NULL;
+      }
+      ++port; /* skip ':' */
+
+      if ((portnumber = string2portnumber(port, emsg, emsglen)) == -1)
+         return NULL;
    }
-   ++port; /* skip ':' */
-
-   if ((portnumber = string2portnumber(port, emsg, emsglen)) == -1)
-      return NULL;
+   else
+      portnumber = SOCKD_HTTP_PORT;
 
    TOIN(saddr)->sin_port = htons((in_port_t)portnumber);
 

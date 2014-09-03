@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012,
- *               2013
+ *               2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,7 +54,7 @@
 #include <dlfcn.h>
 
 static const char rcsid[] =
-"$Id: address.c,v 1.288 2013/10/25 12:55:00 karls Exp $";
+"$Id: address.c,v 1.288.4.4 2014/08/15 18:16:40 karls Exp $";
 
 /*
  * During init, we need to let all system calls resolve to the native
@@ -654,7 +654,8 @@ socks_addrcontrol(controlsent, controlinuse, takelock)
    slog(LOG_DEBUG, "%s: sent fd %d (%s), in use fd %d (%s)",
         function,
         controlsent,
-        socket2string(controlsent, fdsentstr, sizeof(fdsentstr)),
+        controlsent == -1 ?
+            "<none>" : socket2string(controlsent, fdsentstr, sizeof(fdsentstr)),
         controlinuse,
         socket2string(controlinuse, fdinusestr, sizeof(fdinusestr)));
 
@@ -944,6 +945,7 @@ socks_getfakeip(host, addr)
 
    if (i < ipc)
       return 1;
+
    return 0;
 }
 

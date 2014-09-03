@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.107 2013/10/27 15:24:42 karls Exp $";
+"$Id: Rgethostbyname.c,v 1.107.4.8 2014/08/15 18:16:40 karls Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -90,12 +90,15 @@ Rgethostbyname2(name, af)
     */
 
    if (sockscf.resolveprotocol != RESOLVEPROTOCOL_FAKE)
-      slog(LOG_DEBUG, "%s: gethostbyname(%s) failed: %s",
+      slog(LOG_DEBUG, "%s: gethostbyname(%s) failed: %s.  Will try to fake it",
            function, name, hstrerror(h_errno));
 
    hostent = &hostentmem;
 
-   /* anything that fails from here is due to resource shortage. */
+   /*
+    * anything that fails from here for fake should be due to
+    * resource shortage.
+    */
    h_errno = TRY_AGAIN;
 
    free(hostent->h_name);
@@ -122,7 +125,6 @@ Rgethostbyname2(name, af)
          break;
       }
 
-#if HAVE_IPV6_SUPPORT
       case AF_INET6: {
          static char ipv6[sizeof(struct in6_addr)];
 
@@ -130,7 +132,6 @@ Rgethostbyname2(name, af)
          hostent->h_addr_list[0] = ipv6;
          break;
       }
-#endif /* HAVE_IPV6_SUPPORT */
 
       default:
          errno = ENOPROTOOPT;
@@ -172,93 +173,130 @@ Rgetaddrinfo(nodename, servname, hints, res)
    char addrstr[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)],
         addrbuf[sizeof(struct in6_addr)],
         vbuf_nodename[MAXHOSTNAMELEN * 4], vbuf_servname[MAXSERVICELEN * 4];
-   int fakeip_cantry, gaierr;
+   int fakeip_cantry, gaierr, isipaddr;
 
    clientinit();
 
    if (nodename == NULL)
-      STRCPY_ASSERTSIZE(vbuf_nodename, "null");
+      STRCPY_ASSERTSIZE(vbuf_nodename, "<null>");
    else
       str2vis(nodename, strlen(nodename), vbuf_nodename, sizeof(vbuf_nodename));
 
    if (servname == NULL)
-      STRCPY_ASSERTSIZE(vbuf_servname, "null");
+      STRCPY_ASSERTSIZE(vbuf_servname, "<null>");
    else
       str2vis(servname, strlen(servname), vbuf_servname, sizeof(vbuf_servname));
 
    slog(LOG_DEBUG,
         "%s: resolveprotocol = %s, nodename = \"%s\", servname = \"%s\", "
-        "hints = %p",
+        "hints = %p (ai_family: %d)",
         function,
         resolveprotocol2string(sockscf.resolveprotocol),
         vbuf_nodename,
         vbuf_servname,
-        hints);
-
-   fakeip_cantry = 1;
+        hints,
+        hints == NULL ? 0 : hints->ai_family);
 
    if ((nodename == NULL || *nodename == NUL)
-   || (hints != NULL && (hints->ai_flags & AI_NUMERICHOST)))
+   || (hints != NULL && (hints->ai_flags & AI_NUMERICHOST))) {
       /*
        * either no hostname or a hostname that should be an ipaddress-string.
        * No need to fake anything then, and getaddrinfo(3) should work.
        */
-      fakeip_cantry = 0;
-   else if (hints == NULL || hints->ai_protocol == PF_UNSPEC) {
-      /*
-       * Check if name passed us is actually an ipaddress on string form.
-       * If so, we can not fake a different ipaddress, regardless of what
-       * resolvprotocol is set to.  inet_pton(3) should give the answer
-       * to whether that is the case or not.
-       */
+
+      gaierr = getaddrinfo(nodename, servname, hints, res);
+
+      slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) returned %d (%s)",
+           function,
+           vbuf_nodename,
+           vbuf_servname,
+           gaierr,
+           gai_strerror(gaierr));
+
+      return gaierr;
+   }
+
+   /*
+    * Check if name passed us is actually an ipaddress on string form.
+    * If so, we can not fake a different ipaddress, regardless of what
+    * resolvprotocol is set to.  inet_pton(3) should give the answer
+    * to whether that is the case or not.
+    */
+
+   SASSERTX(nodename != NULL);
+
+   if (hints == NULL || hints->ai_protocol == PF_UNSPEC) {
       if (socks_inet_pton(AF_INET,  nodename, addrbuf, NULL) == 1
       ||  socks_inet_pton(AF_INET6, nodename, addrbuf, NULL) == 1)
-         fakeip_cantry = 0; /* ipaddress in string form. */
+         isipaddr = 1;
+      else
+         isipaddr = 0;
    }
    else {
       SASSERTX(hints != NULL);
 
       if (socks_inet_pton(hints->ai_family, nodename, addrbuf, NULL) == 1)
-         fakeip_cantry = 0; /* ipaddress in string form. */
+         isipaddr = 1;
+      else
+         isipaddr = 0;
    }
+
+   if (isipaddr) {
+      fakeip_cantry = 0;
+
+      slog(LOG_DEBUG, "%s: nodename passed (%s) is an ipaddress",
+           function, vbuf_nodename);
+   }
+   else
+      fakeip_cantry = 1;
+
+
+   bzero(&fakehints, sizeof(fakehints));
+   if (hints == NULL) {
+      fakehints.ai_flags     = AI_NUMERICHOST;
+      fakehints.ai_socktype  = 0;
+      fakehints.ai_protocol  = 0;
+   }
+   else {
+      fakehints = *hints;
+      fakehints.ai_flags  = hints->ai_flags | AI_NUMERICHOST;
+   }
+
+   fakehints.ai_family    = AF_INET; /* only ipv4-support in client. */
+   fakehints.ai_addrlen   = 0;
+   fakehints.ai_canonname = NULL;
+   fakehints.ai_addr      = NULL;
+   fakehints.ai_next      = NULL;
 
    switch (sockscf.resolveprotocol) {
       case RESOLVEPROTOCOL_FAKE:
-         if (fakeip_cantry)
-            break;
+         if (isipaddr) {
+            SASSERTX(fakehints.ai_flags & AI_NUMERICHOST);
 
-         slog(LOG_DEBUG,
-              "%s: resolveprotocol set to %s, but can't fake things for "
-              "hostname \"%s\", servname \"%s\"",
-              function,
-              resolveprotocol2string(sockscf.resolveprotocol),
-              vbuf_nodename,
-              vbuf_servname);
+            /*
+             * With AI_NUMERICHOST this should not result in any DNS lookup.
+             */
+            gaierr = getaddrinfo(nodename, servname, &fakehints, res);
 
-         /* else: can not or should not fake things.  Can we resolve? */
+            slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) returned %d (%s)",
+                 function,
+                 vbuf_nodename,
+                 vbuf_servname,
+                 gaierr,
+                 gai_strerror(gaierr));
 
-         /* FALLTHROUGH */
+            return gaierr;
+         }
+
+         /*
+          * else: should try to fake it resolving.
+          */
+         SASSERTX(fakeip_cantry);
+         break;
 
       case RESOLVEPROTOCOL_TCP:
       case RESOLVEPROTOCOL_UDP: {
-         struct addrinfo ourhints;
-
-         if (hints != NULL) {
-            ourhints = *hints;
-
-            if (ourhints.ai_family != AF_INET) {
-               slog(ourhints.ai_family == AF_INET6 ? LOG_WARNING : LOG_DEBUG,
-                    "%s: we don't currently support IPv6 in the client, so "
-                    "requesting IPv4 addresses only from getaddrinfo(3)",
-                    function);
-
-               ourhints.ai_family = AF_INET;
-            }
-         }
-         else
-            bzero(&ourhints, sizeof(ourhints));
-
-         gaierr = getaddrinfo(nodename, servname, &ourhints, res);
+         gaierr = getaddrinfo(nodename, servname, hints, res);
 
          slog(LOG_DEBUG, "%s: getaddrinfo(%s, %s) returned %d (%s)",
               function,
@@ -284,15 +322,9 @@ Rgetaddrinfo(nodename, servname, hints, res)
    SASSERTX(fakeip_cantry);
    SASSERTX(nodename != NULL);
 
-   if ((ipindex.s_addr = socks_addfakeip(nodename)) == htonl(INADDR_NONE))
-      return EAI_MEMORY;
-
-   STRCPY_ASSERTLEN(addrstr, inet_ntoa(ipindex));
-
-   slog(LOG_INFO, "%s: faking ip address %s for host \"%s\", service \"%s\"",
-        function, addrstr, vbuf_nodename, vbuf_servname);
-
    /*
+    * Set up things for a call to the proper getaddrinfo(3) function.
+    *
     * What wo do here is to make sure AI_NUMERICHOST is set, and
     * then we call the real getaddrinfo() with our faked ip.
     * This should return us a addrinfo struct on the proper format,
@@ -302,21 +334,35 @@ Rgetaddrinfo(nodename, servname, hints, res)
     *
     * Kudos to Motoyuki Kasahara for what is a pretty nifty idea.
     */
-   if (hints == NULL) {
-      fakehints.ai_flags     = AI_NUMERICHOST;
-      fakehints.ai_family    = AF_INET;
-      fakehints.ai_socktype  = 0;
-      fakehints.ai_protocol  = 0;
-   }
-   else {
-      fakehints          = *hints;
-      fakehints.ai_flags = hints->ai_flags | AI_NUMERICHOST;
+
+   switch (fakehints.ai_family) {
+      /*
+       * Ok.
+       */
+      case 0:
+      case AF_INET:
+         break;
+
+      /*
+       * Not ok.
+       */
+      case AF_INET6:
+         default:
+         swarnx("%s: %s not supported for resolveprotocol %s yet",
+                function,
+                safamily2string(hints->ai_family),
+                resolveprotocol2string(sockscf.resolveprotocol));
+
+         return EAI_FAIL;
    }
 
-   fakehints.ai_addrlen   = 0;
-   fakehints.ai_canonname = NULL;
-   fakehints.ai_addr      = NULL;
-   fakehints.ai_next      = NULL;
+   if ((ipindex.s_addr = socks_addfakeip(nodename)) == htonl(INADDR_NONE))
+      return EAI_MEMORY;
+
+   STRCPY_ASSERTLEN(addrstr, inet_ntoa(ipindex));
+
+   slog(LOG_INFO, "%s: faking ip address %s for host \"%s\", service \"%s\"",
+        function, addrstr, vbuf_nodename, vbuf_servname);
 
    gaierr = getaddrinfo(addrstr, servname, &fakehints, res);
 
@@ -328,15 +374,14 @@ Rgetaddrinfo(nodename, servname, hints, res)
         gaierr,
         gai_strerror(gaierr));
 
-   return 0;
+   return gaierr;
 }
 #endif /* HAVE_GETADDRINFO */
 
 #if HAVE_GETIPNODEBYNAME
 /*
- * Solaris appears to implement getaddrinfo() by calling
- * getipnodebyname(), but since they are in different libraries, they
- * must be implemented independently.
+ * Solaris implements getaddrinfo() by calling getipnodebyname(),
+ * so need this too.
  */
 
 struct hostent *
@@ -349,12 +394,30 @@ Rgetipnodebyname2(name, af, flags, error_num)
    const char *function = "Rgetipnodebyname2()";
    struct in_addr ipindex;
    struct hostent *hostent;
-   char **addrlist;
+   char **addrlist, vbuf_name[MAXHOSTNAMELEN * 4];
+   int rc;
 
    /* needs to be done before getipnodebyname() calls. */
    clientinit();
 
-   slog(LOG_DEBUG, "%s: %s", function, name);
+   str2vis(name, strlen(name), vbuf_name, sizeof(vbuf_name));
+
+   slog(LOG_DEBUG, "%s: %s: %s", function, safamily2string(af), vbuf_name);
+
+   /*
+    * On Solaris, where getaddrinfo(3) calls getipnodename(3), note that
+    * "name" may already be a faked ip if resolveprotocol is set to fake.
+    */
+   if (socks_inet_pton(af, name, &ipindex, NULL) == 1) {
+      hostent = getipnodebyname(name, af, flags, error_num);
+
+      slog(LOG_DEBUG,
+           "%s: since name \"%s\" is already on numeric form, assumed nothing "
+           "special needs to be done.  getipnodebyname2() returned %p/%d",
+           function, vbuf_name, hostent, *error_num);
+
+      return hostent;
+   }
 
    switch (sockscf.resolveprotocol) {
       case RESOLVEPROTOCOL_TCP:
@@ -370,7 +433,7 @@ Rgetipnodebyname2(name, af, flags, error_num)
 
       case RESOLVEPROTOCOL_FAKE:
          slog(LOG_INFO,
-              "%s: configured for faking resolving of hostnames", function);
+              "%s: configured for faking resolve of hostnames", function);
 
          hostent = NULL;
          h_errno = NO_RECOVERY;
@@ -383,10 +446,14 @@ Rgetipnodebyname2(name, af, flags, error_num)
    if (h_errno != NO_RECOVERY)
       return hostent;
 
-   if ((hostent = malloc(sizeof(struct hostent))) == NULL)
+   if ((hostent = malloc(sizeof(struct hostent))) == NULL) {
+      swarnx("%s: malloc(3) failed", function);
       return NULL;
+   }
 
-   /* anything that fails from here is due to resource shortage. */
+   /*
+    * anything that fails from here is due to resource shortage.
+    */
    h_errno = TRY_AGAIN;
 
    if ((hostent->h_name = strdup(name)) == NULL) {
@@ -399,6 +466,8 @@ Rgetipnodebyname2(name, af, flags, error_num)
 
    /* * 2; NULL terminated. */
    if ((addrlist = malloc(sizeof(*addrlist) * 2)) == NULL) {
+      swarnx("%s: malloc(3) failed", function);
+
       free(hostent->h_name);
       free(hostent);
 
@@ -409,35 +478,29 @@ Rgetipnodebyname2(name, af, flags, error_num)
       case AF_INET: {
          static char ipv4[sizeof(struct in_addr)];
 
-         slog(LOG_DEBUG, "%s: AF_INET", function);
-
          hostent->h_length = sizeof(ipv4);
          *addrlist         = ipv4;
 
          break;
       }
 
-#if HAVE_IPV6_SUPPORT
       case AF_INET6: {
          static char ipv6[sizeof(struct in6_addr)];
-
-         slog(LOG_DEBUG, "%s: AF_INET6", function);
 
          hostent->h_length = sizeof(ipv6);
          *addrlist         = ipv6;
 
          break;
       }
-#endif /* HAVE_IPV6_SUPPORT */
 
       default:
          swarnx("%s: unsupported address family: %d", function, af);
 
-         errno = ENOPROTOOPT;
 
          free(hostent->h_name);
          free(hostent);
 
+         errno = ENOPROTOOPT;
          return NULL;
    }
 
@@ -455,7 +518,6 @@ Rgetipnodebyname2(name, af, flags, error_num)
          break;
       }
 
-#if HAVE_IPV6_SUPPORT
       case AF_INET6: {
          unsigned char ff[] = {0xff,0xff};
 
@@ -464,7 +526,6 @@ Rgetipnodebyname2(name, af, flags, error_num)
          memcpy(*addrlist + 12, &ipindex.s_addr, sizeof(struct in_addr));
          break;
       }
-#endif /* HAVE_IPV6_SUPPORT */
 
       default:
          SERRX(af);

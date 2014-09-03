@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013
+ * Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.153 2013/10/27 15:24:42 karls Exp $";
+"$Id: upnp.c,v 1.153.4.4 2014/08/21 16:21:50 michaels Exp $";
 
 #include "common.h"
 
@@ -335,7 +335,7 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
           * to find out what it's local address is, that's a waste of time.
           * Therefor postpone it to the Rgetsockname() call, if it ever
           * comes, and just connect(2) to the target for now, without
-          * attempting to retrieve any information.
+          * attempting to retrieve any information from the IGD.
           *
           * For the socks server case (server chained) we need to fetch
           * it here though, since it is part of the response returned
@@ -450,7 +450,6 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
             snprintf(emsg, emsglen,
                      "getsockname(s) on socket failed: %s", strerror(errno));
 
-            rc = -1;
             break;
          }
 
@@ -458,10 +457,10 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
               "%s: will never know for sure, but hoping IGD will use same "
               "port as we: %u",
               function, ntohs(packet->res.host.port));
-         packet->res.host.port = GET_SOCKADDRPORT(&addr);
 
-         rc    = 0;
+         packet->res.host.port = GET_SOCKADDRPORT(&addr);
          errno = errno_s;
+
          break;
       }
 

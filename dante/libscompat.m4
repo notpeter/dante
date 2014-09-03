@@ -114,8 +114,7 @@ AC_CHECK_HEADERS(ifaddrs.h)
 
 AC_CHECK_FUNCS(daemon difftime getifaddrs freeifaddrs hstrerror)
 AC_CHECK_FUNCS(inet_pton issetugid memmove seteuid setegid)
-AC_CHECK_FUNCS(setproctitle sockatmark strvis vsyslog)
-AC_CHECK_FUNCS(bzero strlcpy backtrace)
+AC_CHECK_FUNCS(setproctitle strvis vsyslog bzero strlcpy backtrace)
 #inet_ntoa - only checked for incorrect behavior
 
 #try to detect gcc bug (irix 64 problem, affects among others inet_ntoa)
@@ -143,6 +142,8 @@ int main(void)
     [dnl assume working when cross-compiling (rare bug)
      AC_MSG_RESULT(assuming no)])
 
+#AC_CHECK_FUNCS will add HAVE_foo define as long as function exists,
+#check overselves as we only want define set if function is also working.
 ac_cv_func_pselect=no
 AC_MSG_CHECKING([for working pselect()])
 AC_TRY_RUN([
@@ -177,9 +178,11 @@ main(void)
     [dnl assume no when cross-compiling
      AC_MSG_RESULT(assuming no)])
 
-if test x"${ac_cv_func_sockatmark}" = xyes; then
-   AC_MSG_CHECKING([for working sockatmark])
-   AC_TRY_RUN([
+#AC_CHECK_FUNCS will add HAVE_foo define as long as function exists,
+#check overselves as we only want define set if function is also working.
+ac_cv_func_sockatmark=no
+AC_MSG_CHECKING([for working sockatmark])
+AC_TRY_RUN([
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -194,12 +197,12 @@ main()
     if ((r = sockatmark(s)) == -1)
 	return 1;
     return 0;
-}], [AC_MSG_RESULT(yes)],
-    [AC_MSG_RESULT(no)
-     ac_cv_func_sockatmark=no],
-    [AC_MSG_RESULT(assuming no)
-     ac_cv_func_sockatmark=no])
-fi
+}], [AC_MSG_RESULT(yes)
+     ac_cv_func_sockatmark=yes
+     AC_DEFINE(HAVE_SOCKATMARK, 1, [working sockatmark() support])],
+    [AC_MSG_RESULT(no)],
+    [dnl assume no when cross-compiling
+     AC_MSG_RESULT(assuming no)])
 
 #XXX
 #if `uname` != OpenBSD; then
@@ -291,8 +294,6 @@ fi
 if test x"$GLIBCSEC" = xno; then
    AC_DEFINE(HAVE_LIBC_ENABLE_SECURE_DISABLED, 1, [glibc variable disable])
 fi
-
-L_PIPETYPE()
 
 AC_MSG_CHECKING([for FIONREAD socket support])
 AC_TRY_RUN([

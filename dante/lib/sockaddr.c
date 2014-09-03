@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013
+ * Copyright (c) 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #endif /* HAVE_NET_IF_DL_H */
 
 static const char rcsid[] =
-"$Id: sockaddr.c,v 1.33 2013/10/27 15:24:42 karls Exp $";
+"$Id: sockaddr.c,v 1.33.4.3 2014/08/15 18:16:41 karls Exp $";
 
 
 int
@@ -103,18 +103,20 @@ sockaddrcpy(dst, src, dstlen)
    const socklen_t srclen  = salen(src->ss_family),
                    copylen = MIN(dstlen, srclen);
 
-   if (copylen < srclen)
+   if (srclen > copylen)
       swarnx("%s: truncating address %s (af: %lu): %lu/%lu bytes available",
              function,
              sockaddr2string(src, NULL, 0),
              (unsigned long)src->ss_family,
              (unsigned long)dstlen,
              (unsigned long)srclen);
-
-   if (copylen < dstlen)
-      bzero((char *)dst + copylen, dstlen - copylen); /* clear unused bytes. */
+   else {
+      if (dstlen > copylen) /* zero any unused bytes left in dst. */
+         bzero((char *)dst + copylen, dstlen - copylen);
+   }
 
    memcpy(dst, src, copylen);
+
 }
 
 void

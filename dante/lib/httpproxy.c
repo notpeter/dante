@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
- *               2012, 2013
+ *               2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.73 2013/10/27 15:24:42 karls Exp $";
+"$Id: httpproxy.c,v 1.73.4.2 2014/08/15 18:16:41 karls Exp $";
 
 int
 httpproxy_negotiate(s, packet, emsg, emsglen)
@@ -86,7 +86,7 @@ httpproxy_negotiate(s, packet, emsg, emsglen)
    len = snprintf(buf, sizeof(buf),
                   "CONNECT %s %s\r\n"
                   "User-agent: %s/client v%s\r\n"
-                  "\r\n\r\n",
+                  "\r\n",
                   host,
                   proxyprotocol2string(packet->req.version),
                   PRODUCT,
@@ -110,7 +110,11 @@ httpproxy_negotiate(s, packet, emsg, emsglen)
     */
    eof = checked = readsofar = 0;
    do {
-      const char *eofresponse_str = "\r\n\r\n";
+      const char *eofresponse_str = "\r\n\r\n"; /*
+                                                 * the CRLF terminating the
+                                                 * line, and the CRLF
+                                                 * terminating the entity body.
+                                                 */
       const char *eol_str = "\r\n";
       char *eol, *bufp;
       size_t linelen;

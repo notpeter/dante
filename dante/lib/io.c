@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009, 2010, 2011, 2012, 2013
+ *               2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.342 2013/11/09 15:18:28 michaels Exp $";
+"$Id: io.c,v 1.342.4.7 2014/08/15 18:16:41 karls Exp $";
 
 static void
 print_selectfds(const char *preamble, const int docheck, const int nfds,
@@ -303,6 +303,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, recvflags, auth)
       errno = 0;
 
    return r;
+
 #else /* SOCKS_SERVER */
 
    /*
@@ -328,20 +329,13 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, recvflags, auth)
     * else; child.  Sockd children use iobufs, but mother does not.
     */
 
-   if ((readfrombuf = socks_getfrombuffer(s, 0, READ_BUF, 0, buf, len)) > 0) {
+   if ((readfrombuf = socks_getfrombuffer(s, flags, READ_BUF, 0, buf, len)) > 0)
+   {
       if (sockscf.option.debug >= DEBUG_VERBOSE) {
-         slog(LOG_DEBUG, "%s: read %lu byte%s from buf, %lu bytes left in buf",
+         slog(LOG_DEBUG, "%s: read %lu byte from buf, %lu bytes left in buf",
               function,
               (unsigned long)readfrombuf,
-              readfrombuf == 1 ? "" : "s",
               (unsigned long)socks_bytesinbuffer(s, READ_BUF, 0));
-      }
-
-      if (flags & MSG_PEEK) {
-         if (sockscf.option.debug >= DEBUG_VERBOSE)
-            slog(LOG_DEBUG, "%s: put what was read back; peeking", function);
-
-         socks_addtobuffer(s, READ_BUF, 0, buf, (size_t)readfrombuf);
       }
    }
 
@@ -368,6 +362,7 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, recvflags, auth)
     */
 
    toread = (size_t)r;
+
    if (from == NULL && flags == 0 && recvflags == NULL)
       /*
        * may not be a socket and read(2) will work just as well then,
@@ -511,17 +506,16 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, recvflags, auth)
    if (r == -1 && recvflags != NULL && recvflags->type == SOCK_DGRAM)
       if (ERRNOISPREVIOUSPACKET(errno))
          log_writefailed(recvflags->side == INTERNALIF ?
-                           EXTERNALIF : INTERNALIF,
-                           s,
-                           &recvflags->peer);
+                                                        EXTERNALIF : INTERNALIF,
+                         s,
+                         &recvflags->peer);
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG,
-           "%s: read %ld/%lu byte%s from fd %d, errno = %d (%s)",
+           "%s: read %ld/%lu bytes from socket, fd %d, errno = %d (%s)",
            function,
            (long)r,
            (unsigned long)toread,
-           r == 1 ? "" : "s",
            s,
            errno,
            strerror(errno));
@@ -529,8 +523,10 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, recvflags, auth)
    if (r <= 0) {
       if (readfrombuf <= 0)
          return r;
-
-      errno = 0; /* even if read from socket failed, read from buf did not. */
+      /*
+       * Else: even if read from socket failed, read from buf did not.
+       */
+      errno = 0;
       return readfrombuf;
    }
    else {
@@ -539,7 +535,18 @@ socks_recvfrom(s, buf, len, flags, from, fromlen, recvflags, auth)
    }
 
    tocaller = MIN((size_t)r, len - readfrombuf);
-   tobuf    = flags & MSG_PEEK ? 0 : (size_t)r - tocaller;
+
+   if (flags & MSG_PEEK)
+      /*
+       * nothing to add to buffer now; will still be in socket next time
+       * and we will add it then.
+       */
+      tobuf = 0;
+   else
+      /*
+       * Add to buffer what we are not returning to caller now.
+       */
+      tobuf = (size_t)r - tocaller;
 
    memcpy((char *)buf + readfrombuf, tmpbuf, tocaller);
 
@@ -653,18 +660,19 @@ socks_sendto(s, msg, len, flags, to, tolen, sendtoflags, auth)
 
       written_fb = sendto(s, buf, (size_t)towrite, flags, TOCSA(to), tolen);
 
-      if (written_fb == -1 && sendtoflags != NULL)
-         log_writefailed(sendtoflags->side, s, to);
-
-      if (written_fb != -1 && sendtoflags != NULL)
-         sendtoflags->tosocket += written_fb;
+      if (sendtoflags != NULL) {
+         if (written_fb == -1)
+            log_writefailed(sendtoflags->side, s, to);
+         else
+            sendtoflags->tosocket += written_fb;
+      }
 
       if (written_fb < towrite) {
          /*
           *  need to add at least some back in the buffer.
           */
          const ssize_t addback = written_fb > 0 ?
-                                    towrite - written_fb : towrite;
+                                                 towrite - written_fb : towrite;
 
          if ((p = socks_addtobuffer(s,
                                     WRITE_BUF,
@@ -698,8 +706,8 @@ socks_sendto(s, msg, len, flags, to, tolen, sendtoflags, auth)
       == -1) {
          iobuffer_t *iobuf;
 
-      if (written == -1 && sendtoflags != NULL)
-         log_writefailed(sendtoflags->side, s, to);
+         if (sendtoflags != NULL)
+            log_writefailed(sendtoflags->side, s, to);
 
          slog(LOG_DEBUG, "%s: %s(2) failed: %s",
               function,
@@ -772,8 +780,7 @@ recvmsgn(s, msg, flags)
    ssize_t received;
 
    if ((received = recvmsg(s, msg, flags)) == -1)
-      slog(LOG_DEBUG,
-           "%s: recvmsg() on fd %d failed, received %ld bytes%s %s",
+      slog(LOG_DEBUG, "%s: recvmsg() on fd %d failed, received %ld bytes%s %s",
            function,
            s, (long)received,
            sockscf.state.insignal ? "" : ":",
@@ -1037,26 +1044,35 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
 #endif /* !SOCKS_CLIENT */
    sigset_t oldmask;
 
-#if DIAGNOSTIC
-      static fd_set *zeroset;
+#if DIAGNOSTIC && !SOCKS_CLIENT
+   static struct timeval tfirstshortsleep;
+   static size_t shortsleepc;
+   static fd_set *zeroset;
+   /*
+    * These constants are undoubtedly too lenient for some cpus, and
+    * too strict for other cpu's, but this is what there is for now.
+    */
+   const struct timeval tshortsleep     = { 0, 2 },
+                        tshorttimelapse = { 0, 100000 };
+   const  size_t        maxshortsleepc  = 1000;
+   struct timeval tstart, tend, tdiff;
 
-      if (zeroset == NULL) {
-         zeroset = allocate_maxsize_fdset();
-         FD_ZERO(zeroset);
-      }
+   if (zeroset == NULL) {
+      zeroset = allocate_maxsize_fdset();
+      FD_ZERO(zeroset);
+   }
 
-      SASSERTX (_timeout  != NULL
-      ||        (rset     != NULL && FD_CMP(zeroset, rset)     != 0)
-      ||        (bufrset  != NULL && FD_CMP(zeroset, bufrset)  != 0)
-      ||        (buffwset != NULL && FD_CMP(zeroset, buffwset) != 0)
-      ||        (wset     != NULL && FD_CMP(zeroset, wset)     != 0)
-      ||        (xset     != NULL && FD_CMP(zeroset, xset)     != 0));
-#endif /* DIAGNOSTIC */
+   SASSERTX (_timeout  != NULL
+   ||        (rset     != NULL && FD_CMP(zeroset, rset)     != 0)
+   ||        (bufrset  != NULL && FD_CMP(zeroset, bufrset)  != 0)
+   ||        (buffwset != NULL && FD_CMP(zeroset, buffwset) != 0)
+   ||        (wset     != NULL && FD_CMP(zeroset, wset)     != 0)
+   ||        (xset     != NULL && FD_CMP(zeroset, xset)     != 0));
+#endif /* DIAGNOSTIC && !SOCKS_CLIENT */
 
 #if DO_SHMEMCHECK
    shmemcheck();
 #endif /* DO_SHMEMCHECK */
-
 
    /* convert form select(2) timeval to pselect(3) timespec. */
    if (_timeout == NULL)
@@ -1236,11 +1252,69 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
 
    errno = 0; /* clear any old garbage. */
 
+
+#if DIAGNOSTIC && !SOCKS_CLIENT
+   gettimeofday(&tstart, NULL);
+#endif /* DIAGNOSTIC && !SOCKS_CLIENT */
+
+   rc = pselect(nfds,
+                rset,
+                wset,
+                xset,
+                timeout,
 #if SOCKS_CLIENT
-   rc = pselect(nfds, rset, wset, xset, timeout, NULL);
+                NULL
 #else /* !SOCKS_CLIENT */
-   rc = pselect(nfds, rset, wset, xset, timeout, &oldmask);
+                &oldmask
 #endif /* !SOCKS_CLIENT */
+               );
+
+#if DIAGNOSTIC && !SOCKS_CLIENT
+   gettimeofday(&tend, NULL);
+
+   timersub(&tend, &tstart, &tdiff);
+
+   if (timercmp(&tdiff, &tshortsleep, >)) {
+#if 0
+      if (shortsleepc > 0)
+         slog(LOG_NOTICE,
+              "%s: line %d.  resetting shortsleepc, currently %lu",
+              function, __LINE__, (unsigned long)shortsleepc);
+#endif
+
+      shortsleepc = 0;
+   }
+   else {
+      if (shortsleepc++ == 0)
+         tfirstshortsleep = tend;
+   }
+
+   if (shortsleepc >= maxshortsleepc) {
+      timersub(&tend, &tfirstshortsleep, &tdiff);
+
+      if (timercmp(&tdiff, &tshorttimelapse, <)) {
+         swarnx("%s: pselect(2) blocked for less than %ld.%06lds %lu times "
+                "during last %ld.%06lds.  Looks like a busyloop-bug",
+                function,
+                (long)tshortsleep.tv_sec,
+                (long)tshortsleep.tv_usec,
+                (unsigned long)shortsleepc,
+                (long)tdiff.tv_sec,
+                (long)tdiff.tv_usec);
+
+         SERRX(0);
+      }
+      else {
+#if 0
+         if (shortsleepc > 0)
+            slog(LOG_NOTICE,
+                 "%s: line %d.  resetting shortsleepc, currently %lu",
+                 function, __LINE__, (unsigned long)shortsleepc);
+#endif
+         shortsleepc      = 0;
+      }
+   }
+#endif /* DIAGNOSTIC && !SOCKS_CLIENT */
 
    if (sockscf.option.debug >= DEBUG_VERBOSE) {
       const int errno_s = errno;
@@ -1279,6 +1353,7 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
 
    return MAX(rc, bufset_nfds);
 }
+
 
 static void
 print_selectfds(preamble, docheck,

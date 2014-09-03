@@ -1,7 +1,7 @@
-.\" $Id: sockd.conf.5,v 1.187 2013/10/27 15:24:41 karls Exp $
+.\" $Id: sockd.conf.5,v 1.187.4.4 2014/08/15 18:16:40 karls Exp $
 .\"
 .\" Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-.\"               2008, 2009, 2010, 2011, 2012, 2013
+.\"               2008, 2009, 2010, 2011, 2012, 2013, 2014
 .\"      Inferno Nettverk A/S, Norway.  All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -159,6 +159,7 @@ below.
 The intent is to have a special place that only serious errors are logged so
 that they can discovered quickly.  The default is to not have any special
 place to log errors.
+
 .IP \fBexternal\fP
 The address to be used for outgoing connections.
 The address given may be either a IP address or an interface name.
@@ -168,6 +169,31 @@ Can be given multiple times for different addresses.
 See \fBinternal.log.<loglevel>.error\fP.  This option has an identical
 syntax and semantics, but applies to error related to the external
 interface side.
+
+.IP \fBexternal.protocol\fP
+By default \fBDante\fP will use the address families specified and
+available, and there is no need to set this keyword.
+
+In some cases the operator may however wish to specify an
+address in a form that may include more than one address family, yet
+not wish for Dante to use all the address families available for that
+address form.
+
+This will typically happen if the operator wishes to specify that Dante
+should use the addresses on a network interface card which
+has both IPv4 and IPv6 addresses configured, yet the operator wishes
+Dante to only use one of these two address families.  The operator
+can then specify the address family he wants Dante too look for
+when expanding the interface name for IP-addresses to use.
+
+Valid values for this keyword are: \fBipv4\fP and \fBipv6\fP, indicating
+that Dante should only use the IPv4 address family or only the IPv6
+address family, respectively.  The default is to use both families,
+if available.
+
+A corresponding keyword exists for the internal side (see
+\fBinternal.protocol\fP).
+
 
 .IP \fBexternal.rotation\fP
 If more than one external address is given, this governs which
@@ -203,8 +229,9 @@ failure-codes, should be logged, possibly an extra time, at the log-level
 \fBlog-level\fP.
 
 Note that this only applies to errors on the internal interface
-side only.  A corresponding keyword exists for the external side (see
-\fBexternal.log\fP).
+side only.
+
+A corresponding keyword exists for the external side (see \fBexternal.log\fP).
 
 In addition to the standard errno and getaddrinfo(3) error symbols,
 the following special symbols are accepted:
@@ -217,6 +244,11 @@ Any error related to DNS/hostname-resolving.
 .IP \fBsystem-any\fP
 Any system error.  I.e., any errno value.
 .RE
+
+.IP \fBinternal.protocol\fP
+See \fBexternal.protocol\fP.  This option has an identical
+syntax and semantics, but applies to the internal interface, for
+addresses to listen to connections from clients on.
 
 .IP \fBlibwrap.hosts_access\fP
 If the server is compiled with libwrap support, determines whether the
@@ -282,7 +314,7 @@ on behalf of the socks-client to complete.  The default is 30.
 Setting it to 0 will use the systems default.
 .IP \fBtimeout.io\fP
 The number of seconds an established connection can be idle.
-The default is 86400 (24 hours).  Set it to 0 for forever.
+The default is 0, meaning forever.
 See also the "-n" option in the sockd(8) manpage.
 
 Individual timeouts can be set for TCP and UDP by suffixing io with
@@ -506,7 +538,7 @@ depending on platform support.
 This method requires no form of authentication.
 .IP \fBusername\fP
 This method requires the client to provide a username and password.
-This information must match the username and password given in the system 
+This information must match the username and password given in the system
 password file.
 .IP \fBgssapi\fP
 This method requires the setup of a Kerberos environment and can
@@ -832,6 +864,192 @@ causing them to only apply in the rule in which they appear. This is done by set
 
 The session keywords must be set in a rule (either client, hostid, or
 socks), setting them globally is not supported.
+
+.SH TRAFFIC MONITORING
+
+The Dante server can be configured to monitor the traffic passing
+through it, and trigger alarms based on the observed network traffic.
+
+The alarms are specified in so-called monitors. These objects have the
+same general format as the rules Dante uses for access control and
+enable perform passive monitoring of network traffic, or the lack of
+network traffic.
+
+The following example shows the general monitor syntax, specifying a
+monitor without any monitoring operations:
+
+.Vb 8
+ monitor {
+  from: 0.0.0.0/0 to: www.example.org port = 80
+  protocol: tcp
+ }
+.Ve
+
+A monitor can include many of the same keywords that are available in
+the Dante ACL rules. The following subset is currently supported:
+
+.RS
+.IP \fBfrom\fP
+Normally specifies what SOCKS client addresses/networks to monitor.
+.IP \fBto\fP
+Normally specifies what target addresses/networks to monitor.
+.IP \fBprotocol\fP
+Can be used to restrict monitoring to a certain protocol (TCP, UDP or
+both). Note: only TCP should be used for now.
+.IP \fBhostid\fP
+Can be used to restrict monitoring to only clients with a specific
+hostid value set.
+.IP \fBhostindex\fP
+Used along with the hostid keyword to control which of the two
+possible hostid values will be used when matching.
+.RE
+
+NOTE: It is currently recommended that the protocol keyword is always
+specified and set to tcp because there is currently only limited
+support for monitoring of UDP traffic, and testing of UDP traffic
+monitoring has not been done.
+
+The main function of monitors is to provide a container for one or
+more alarms, which are specified using a new set of keywords not
+available for other rules. Alarms specify a condition that will cause
+Dante to log a warning if the condition is triggered.
+
+Active TCP sessions will at most match one monitor, but multiple
+alarms can be specified in a single monitor. This makes it possible to
+specify multiple sets of conditions for the same TCP sessions,
+depending on what network interface the traffic is transferred on and
+whether the traffic is being received or transmitted.
+
+Alarms can trigger as a result of periods of no or little data being
+transmitted, or a large numbers of TCP connections disconnecting during
+a short period of time, or for other reason.  See below for a complete
+list of what conditions alarms can be enabled for.
+
+.SS \fBData alarms\fP
+Adding an alarm.data keyword to a monitor will result in warnings
+being logged if there are periods with too little network traffic.
+
+Dante has four network paths and data alarms can be configured
+independently for each of them:
+
+.RS
+.IP \fBinternal.alarm.data.recv\fP
+Data received on Dante's internal interface (data sent from the SOCKS clients to Dante).
+.IP \fBinternal.alarm.data.send\fP
+Data sent out on Dante's internal interface (data sent from Dante to the SOCKS clients).
+.IP \fBexternal.alarm.data.recv\fP
+Data received on Dante's external interface (data sent from the target servers to Dante).
+.IP \fBexternal.alarm.data.send\fP
+Data sent out on Dante's external interface (data sent from Dante to the target servers).
+.RE
+
+The data.alarm keyword takes two parameters: a byte count and a
+duration in seconds. The alarm will trigger if the specified number of
+seconds pass with only the specified number of bytes (or less) being
+transmitted.
+
+The syntax is as follows:
+
+\fBinternal.alarm.data.recv: DATALIMIT in INTERVAL\fP
+
+The DATALIMIT is a number that specifies the byte limit. The INTERVAL
+is a number that specifies the duration. If only DATALIMIT bytes (or
+less) have been transferred during a period of INTERVAL seconds, an
+alarm will trigger in Dante.
+
+Data alarms trigger when a period of data idleness has been
+detected. Once a data alarm has triggered it will remain active until
+it is cleared. A warning will be logged when the alarm triggers and
+than again when the alarm condition is cleared. In between these two
+points no warnings related to this alarm will be logged. This avoids
+repeating the same alarm/warning multiple times during network
+problems that last for an extended amount of time. When the alarm is
+cleared, Dante will also include information about how long the alarm
+condition lasted.
+
+A data alarm can be cleared in two ways; automatically, once enough
+data has been transferred in a short enough amount of time, or
+manually, by sending the Dante server a SIGHUP signal. A SIGHUP will
+cause all active alarms to be cleared. No log messages indicating that
+the alarms have cleared will be logged when alarms are cleared in this
+way.
+
+Once an alarm has been cleared, it can trigger again if enough data is
+not being transferred.
+
+Note that data alarms will trigger regardless of whether there are
+active sessions matching the monitor or not; if enough data is not
+being transmitted or received, a data alarm will trigger. Alarms will
+trigger also shortly after server startup, if the Dante server does
+not receive sufficient traffic to prevent the alarms from triggering.
+
+Note that the message indicating that an alarm has cleared is not
+logged if the alarm was cleared due to a SIGHUP signal being received.
+
+.SS Disconnect alarms
+The disconnect alarms are related to connection disconnects and by using
+the alarm.disconnect keyword the Dante server can log warnings based on
+the number and rate of terminated connections.
+
+There are two variants of the alarm keyword, one for the internal
+network interface, between the SOCKS clients and Dante, and one for
+the external interface, between the Dante server and the target
+servers:
+
+.RS
+.IP \fBinternal.alarm.disconnect\fP
+Connections between SOCKS clients and the Dante server.
+.IP \fBexternal.alarm.disconnect\fP
+Connections between the Dante server and target servers.
+.RE
+
+Each alarm keyword takes three parameters, a minimum count, a ratio
+value, and a time interval. The following format is used:
+
+internal.alarm.disconnect: MINCOUNT/RATIO in INTERVAL
+
+The MINCOUNT is the minimum number of connections that must be
+disconnected for the alarm to trigger. The RATIO is used together with
+the MINCOUNT to express the number of connections, relative to the
+total number of connections that have existed in the time period, that
+must be disconnected for the alarm to trigger. The INTERVAL is the
+time in seconds within which the disconnects must occur for the alarm
+to trigger.
+
+To set values that are useful, some knowledge about the expected
+amount of network traffic and number of sessions is required. If the
+rate of disconnects, as a percentage, is lower than the ratio
+specified, an alarm will not trigger. Conversely, if the MINCOUNT is
+set too low, alarms might trigger too frequently because only a small
+number of disconnects might be sufficient to achieve the required
+number of disconnects and disconnect ratio at times when there are
+only a few active sessions.
+
+Only connections that are terminated on the specified interface are
+counted, i.e., an external.alarm.disconnect alarm will only trigger
+for connections that are terminated on the network interface between
+the Dante server and the target server, either by the target server
+closing the connection to Dante or by Dante receiving a fatal network
+error from that side of the connection (e.g., a TCP RST packet).
+
+Connections that are closed on the internal interface (by the SOCKS
+clients) will not count towards a disconnect alarm on the external
+side. Likewise, connections closed by target servers will not count
+towards a disconnect alarm on the internal side.
+
+A practical consequence of this is that if a large number of
+connections are simultaneously closed by both the client and the
+target server, each connection will only be counted as a disconnect on
+one of the sides; either the external side or the internal side,
+depending on which side closes the connection first.
+
+Alarms trigger each time a sufficient number disconnects occur. Each
+sufficiently large burst of disconnects will result in an alarm, but
+normally at most one warning per alarm will be logged during each time
+interval, though this might change in a later version of Dante.
+
+Separate alarms are produced for each distinct alarm keyword when
+multiple alarms are specified in a monitor rule.
 
 .SH ROUTES
 The routes are specified with a \fBroute\fP keyword.  Inside a pair of

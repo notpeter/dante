@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.214 2013/10/27 15:24:42 karls Exp $";
+"$Id: sockd_protocol.c,v 1.214.4.1 2014/08/15 18:16:43 karls Exp $";
 
 #if SOCKS_SERVER
 static negotiate_result_t

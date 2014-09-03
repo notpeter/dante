@@ -136,6 +136,90 @@
 #define HAVE_ERROR_MESSAGE 0
 #endif
 
+#ifndef HAVE_ERR_EAI_ADDRFAMILY
+#define HAVE_ERR_EAI_ADDRFAMILY 0
+#endif
+
+#ifndef HAVE_ERR_EAI_AGAIN
+#define HAVE_ERR_EAI_AGAIN 0
+#endif
+
+#ifndef HAVE_ERR_EAI_ALLDONE
+#define HAVE_ERR_EAI_ALLDONE 0
+#endif
+
+#ifndef HAVE_ERR_EAI_BADEXTFLAGS
+#define HAVE_ERR_EAI_BADEXTFLAGS 0
+#endif
+
+#ifndef HAVE_ERR_EAI_BADFLAGS
+#define HAVE_ERR_EAI_BADFLAGS 0
+#endif
+
+#ifndef HAVE_ERR_EAI_BADHINTS
+#define HAVE_ERR_EAI_BADHINTS 0
+#endif
+
+#ifndef HAVE_ERR_EAI_CANCELED
+#define HAVE_ERR_EAI_CANCELED 0
+#endif
+
+#ifndef HAVE_ERR_EAI_FAIL
+#define HAVE_ERR_EAI_FAIL 0
+#endif
+
+#ifndef HAVE_ERR_EAI_FAMILY
+#define HAVE_ERR_EAI_FAMILY 0
+#endif
+
+#ifndef HAVE_ERR_EAI_IDN_ENCODE
+#define HAVE_ERR_EAI_IDN_ENCODE 0
+#endif
+
+#ifndef HAVE_ERR_EAI_INPROGRESS
+#define HAVE_ERR_EAI_INPROGRESS 0
+#endif
+
+#ifndef HAVE_ERR_EAI_INTR
+#define HAVE_ERR_EAI_INTR 0
+#endif
+
+#ifndef HAVE_ERR_EAI_MEMORY
+#define HAVE_ERR_EAI_MEMORY 0
+#endif
+
+#ifndef HAVE_ERR_EAI_NODATA
+#define HAVE_ERR_EAI_NODATA 0
+#endif
+
+#ifndef HAVE_ERR_EAI_NONAME
+#define HAVE_ERR_EAI_NONAME 0
+#endif
+
+#ifndef HAVE_ERR_EAI_NOTCANCELED
+#define HAVE_ERR_EAI_NOTCANCELED 0
+#endif
+
+#ifndef HAVE_ERR_EAI_OVERFLOW
+#define HAVE_ERR_EAI_OVERFLOW 0
+#endif
+
+#ifndef HAVE_ERR_EAI_PROTOCOL
+#define HAVE_ERR_EAI_PROTOCOL 0
+#endif
+
+#ifndef HAVE_ERR_EAI_SERVICE
+#define HAVE_ERR_EAI_SERVICE 0
+#endif
+
+#ifndef HAVE_ERR_EAI_SOCKTYPE
+#define HAVE_ERR_EAI_SOCKTYPE 0
+#endif
+
+#ifndef HAVE_ERR_EAI_SYSTEM
+#define HAVE_ERR_EAI_SYSTEM 0
+#endif
+
 #ifndef HAVE_ET_COM_ERR_H
 #define HAVE_ET_COM_ERR_H 0
 #endif
@@ -312,6 +396,10 @@
 #define HAVE_IPV6_ADD_MEMBERSHIP 0
 #endif
 
+#ifndef HAVE_IPV6_AIXRAWSOCKET
+#define HAVE_IPV6_AIXRAWSOCKET 0
+#endif
+
 #ifndef HAVE_IPV6_AUTHHDR
 #define HAVE_IPV6_AUTHHDR 0
 #endif
@@ -396,6 +484,10 @@
 #define HAVE_IPV6_MINHOPCOUNT 0
 #endif
 
+#ifndef HAVE_IPV6_MIPDSTOPTS
+#define HAVE_IPV6_MIPDSTOPTS 0
+#endif
+
 #ifndef HAVE_IPV6_MTU
 #define HAVE_IPV6_MTU 0
 #endif
@@ -420,6 +512,10 @@
 #define HAVE_IPV6_NEXTHOP 0
 #endif
 
+#ifndef HAVE_IPV6_NOPROBE
+#define HAVE_IPV6_NOPROBE 0
+#endif
+
 #ifndef HAVE_IPV6_ORIGDSTADDR
 #define HAVE_IPV6_ORIGDSTADDR 0
 #endif
@@ -434,6 +530,10 @@
 
 #ifndef HAVE_IPV6_PKTINFO
 #define HAVE_IPV6_PKTINFO 0
+#endif
+
+#ifndef HAVE_IPV6_PKTOPTIONS
+#define HAVE_IPV6_PKTOPTIONS 0
 #endif
 
 #ifndef HAVE_IPV6_PORTRANGE
@@ -460,6 +560,14 @@
 #define HAVE_IPV6_RECVHOPOPTS 0
 #endif
 
+#ifndef HAVE_IPV6_RECVHOPS
+#define HAVE_IPV6_RECVHOPS 0
+#endif
+
+#ifndef HAVE_IPV6_RECVIF
+#define HAVE_IPV6_RECVIF 0
+#endif
+
 #ifndef HAVE_IPV6_RECVOPTS
 #define HAVE_IPV6_RECVOPTS 0
 #endif
@@ -484,6 +592,10 @@
 #define HAVE_IPV6_RECVRTHDR 0
 #endif
 
+#ifndef HAVE_IPV6_RECVSRCRT
+#define HAVE_IPV6_RECVSRCRT 0
+#endif
+
 #ifndef HAVE_IPV6_RECVTCLASS
 #define HAVE_IPV6_RECVTCLASS 0
 #endif
@@ -504,8 +616,8 @@
 #define HAVE_IPV6_RTHDRDSTOPTS 0
 #endif
 
-#ifndef HAVE_IPV6_SUPPORT
-#define HAVE_IPV6_SUPPORT 0
+#ifndef HAVE_IPV6_SENDIF
+#define HAVE_IPV6_SENDIF 0
 #endif
 
 #ifndef HAVE_IPV6_TCLASS
@@ -532,12 +644,44 @@
 #define HAVE_IPV6_XFRM_POLICY 0
 #endif
 
+#ifndef HAVE_IP_ADDRFORM
+#define HAVE_IP_ADDRFORM 0
+#endif
+
+#ifndef HAVE_IP_ADD_MEMBERSHIP
+#define HAVE_IP_ADD_MEMBERSHIP 0
+#endif
+
+#ifndef HAVE_IP_ADD_SOURCE_MEMBERSHIP
+#define HAVE_IP_ADD_SOURCE_MEMBERSHIP 0
+#endif
+
 #ifndef HAVE_IP_AUTH_LEVEL
 #define HAVE_IP_AUTH_LEVEL 0
 #endif
 
+#ifndef HAVE_IP_BLOCK_SOURCE
+#define HAVE_IP_BLOCK_SOURCE 0
+#endif
+
+#ifndef HAVE_IP_BROADCAST_IF
+#define HAVE_IP_BROADCAST_IF 0
+#endif
+
+#ifndef HAVE_IP_DHCPMODE
+#define HAVE_IP_DHCPMODE 0
+#endif
+
 #ifndef HAVE_IP_DONTFRAG
 #define HAVE_IP_DONTFRAG 0
+#endif
+
+#ifndef HAVE_IP_DROP_MEMBERSHIP
+#define HAVE_IP_DROP_MEMBERSHIP 0
+#endif
+
+#ifndef HAVE_IP_DROP_SOURCE_MEMBERSHIP
+#define HAVE_IP_DROP_SOURCE_MEMBERSHIP 0
 #endif
 
 #ifndef HAVE_IP_ESP_NETWORK_LEVEL
@@ -546,6 +690,10 @@
 
 #ifndef HAVE_IP_ESP_TRANS_LEVEL
 #define HAVE_IP_ESP_TRANS_LEVEL 0
+#endif
+
+#ifndef HAVE_IP_FINDPMTU
+#define HAVE_IP_FINDPMTU 0
 #endif
 
 #ifndef HAVE_IP_FREEBIND
@@ -568,6 +716,10 @@
 #define HAVE_IP_MTU_DISCOVER 0
 #endif
 
+#ifndef HAVE_IP_MULTICAST_HOPS
+#define HAVE_IP_MULTICAST_HOPS 0
+#endif
+
 #ifndef HAVE_IP_MULTICAST_IF
 #define HAVE_IP_MULTICAST_IF 0
 #endif
@@ -584,6 +736,10 @@
 #define HAVE_IP_OPTIONS 0
 #endif
 
+#ifndef HAVE_IP_PMTUAGE
+#define HAVE_IP_PMTUAGE 0
+#endif
+
 #ifndef HAVE_IP_PORTRANGE
 #define HAVE_IP_PORTRANGE 0
 #endif
@@ -596,6 +752,18 @@
 #define HAVE_IP_RECVIF 0
 #endif
 
+#ifndef HAVE_IP_RECVIFINFO
+#define HAVE_IP_RECVIFINFO 0
+#endif
+
+#ifndef HAVE_IP_RECVINTERFACE
+#define HAVE_IP_RECVINTERFACE 0
+#endif
+
+#ifndef HAVE_IP_RECVMACHDR
+#define HAVE_IP_RECVMACHDR 0
+#endif
+
 #ifndef HAVE_IP_RECVTOS
 #define HAVE_IP_RECVTOS 0
 #endif
@@ -604,12 +772,24 @@
 #define HAVE_IP_RECVTTL 0
 #endif
 
+#ifndef HAVE_IP_SOURCE_FILTER
+#define HAVE_IP_SOURCE_FILTER 0
+#endif
+
 #ifndef HAVE_IP_TOS
 #define HAVE_IP_TOS 0
 #endif
 
 #ifndef HAVE_IP_TTL
 #define HAVE_IP_TTL 0
+#endif
+
+#ifndef HAVE_IP_UNBLOCK_SOURCE
+#define HAVE_IP_UNBLOCK_SOURCE 0
+#endif
+
+#ifndef HAVE_IP_UNICAST_HOPS
+#define HAVE_IP_UNICAST_HOPS 0
 #endif
 
 #ifndef HAVE_ISSETUGID
@@ -1676,12 +1856,24 @@
 #define HAVE_SOLARIS_PRIVS 0
 #endif
 
+#ifndef HAVE_SO_ACCEPTCONN
+#define HAVE_SO_ACCEPTCONN 0
+#endif
+
+#ifndef HAVE_SO_AUDIT
+#define HAVE_SO_AUDIT 0
+#endif
+
 #ifndef HAVE_SO_BINDANY
 #define HAVE_SO_BINDANY 0
 #endif
 
 #ifndef HAVE_SO_BROADCAST
 #define HAVE_SO_BROADCAST 0
+#endif
+
+#ifndef HAVE_SO_CKSUMRECV
+#define HAVE_SO_CKSUMRECV 0
 #endif
 
 #ifndef HAVE_SO_DEBUG
@@ -1692,6 +1884,10 @@
 #define HAVE_SO_DONTROUTE 0
 #endif
 
+#ifndef HAVE_SO_ERROR
+#define HAVE_SO_ERROR 0
+#endif
+
 #ifndef HAVE_SO_JUMBO
 #define HAVE_SO_JUMBO 0
 #endif
@@ -1700,12 +1896,28 @@
 #define HAVE_SO_KEEPALIVE 0
 #endif
 
+#ifndef HAVE_SO_KERNACCEPT
+#define HAVE_SO_KERNACCEPT 0
+#endif
+
 #ifndef HAVE_SO_LINGER
 #define HAVE_SO_LINGER 0
 #endif
 
+#ifndef HAVE_SO_NOMULTIPATH
+#define HAVE_SO_NOMULTIPATH 0
+#endif
+
+#ifndef HAVE_SO_NOREUSEADDR
+#define HAVE_SO_NOREUSEADDR 0
+#endif
+
 #ifndef HAVE_SO_OOBINLINE
 #define HAVE_SO_OOBINLINE 0
+#endif
+
+#ifndef HAVE_SO_PEERID
+#define HAVE_SO_PEERID 0
 #endif
 
 #ifndef HAVE_SO_PRIORITY
@@ -1756,8 +1968,16 @@
 #define HAVE_SO_TIMESTAMP 0
 #endif
 
+#ifndef HAVE_SO_TYPE
+#define HAVE_SO_TYPE 0
+#endif
+
 #ifndef HAVE_SO_USELOOPBACK
 #define HAVE_SO_USELOOPBACK 0
+#endif
+
+#ifndef HAVE_SO_USE_IFBUFS
+#define HAVE_SO_USE_IFBUFS 0
 #endif
 
 #ifndef HAVE_STDDEF_H
@@ -1866,6 +2086,14 @@
 
 #ifndef HAVE_TCP_CWND
 #define HAVE_TCP_CWND 0
+#endif
+
+#ifndef HAVE_TCP_CWND_DF
+#define HAVE_TCP_CWND_DF 0
+#endif
+
+#ifndef HAVE_TCP_CWND_IF
+#define HAVE_TCP_CWND_IF 0
 #endif
 
 #ifndef HAVE_TCP_INFO
@@ -1996,12 +2224,32 @@
 #define HAVE_TCP_NODELAY 0
 #endif
 
+#ifndef HAVE_TCP_NODELAYACK
+#define HAVE_TCP_NODELAYACK 0
+#endif
+
 #ifndef HAVE_TCP_NOOPT
 #define HAVE_TCP_NOOPT 0
 #endif
 
 #ifndef HAVE_TCP_NOPUSH
 #define HAVE_TCP_NOPUSH 0
+#endif
+
+#ifndef HAVE_TCP_NOREDUCE_CWND_EXIT_FRXMT
+#define HAVE_TCP_NOREDUCE_CWND_EXIT_FRXMT 0
+#endif
+
+#ifndef HAVE_TCP_NOREDUCE_CWND_IN_FRXMT
+#define HAVE_TCP_NOREDUCE_CWND_IN_FRXMT 0
+#endif
+
+#ifndef HAVE_TCP_NOTENTER_SSTART
+#define HAVE_TCP_NOTENTER_SSTART 0
+#endif
+
+#ifndef HAVE_TCP_RFC1323
+#define HAVE_TCP_RFC1323 0
 #endif
 
 #ifndef HAVE_TCP_SACK_ENABLE

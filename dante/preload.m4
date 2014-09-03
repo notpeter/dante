@@ -233,6 +233,7 @@ if test x"${preload_enabled}" = xt; then
 
     L_NSOCKPROTO(gethostbyaddr, [failproto=t],
 	[struct hostent *, const char *, int, int],
+	[struct hostent *, const char *, socklen_t, int],
 	[struct hostent *, const void *, socklen_t, int],
 	[struct hostent *, const void *, int, int],
 	[struct hostent *, const void *, size_t, int])
@@ -599,6 +600,20 @@ AC_ARG_WITH(libc,
 #set default?
 if test x"${LIBC_NAME}" = x; then
     case $host in
+	*-*-freebsd*)
+	    #XXX
+	    #can't set it to libc.so directly, might be ld script
+	    unset LIBC_ALTS
+	    for file in `ldconfig -r | grep /libc.so| awk '{ print $3 }'`; do
+		test -s "$file" && LIBC_ALTS="${LIBC_ALTS}${LIBC_ALTS:+ }$file"
+	    done
+	    LIBC_NAME=`echo ${LIBC_ALTS} | sed -e 's/.*\///' | sort -nr | head -n 1`
+	    if test x"${LIBC_NAME}" = x; then
+		#nothing found, set libc.so anyway
+		LIBC_NAME="${base_library_path}libc.${SOLIB_POSTFIX}"
+	    fi
+	    ;;
+
 	*-*-linux-*)
 	    #XXX
 	    #can't set it to libc.so directly, might be ld script

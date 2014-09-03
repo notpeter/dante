@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2001, 2002, 2004, 2008, 2009, 2010, 2011,
- *               2012, 2013
+ *               2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.89 2013/10/25 12:54:59 karls Exp $";
+"$Id: Rcompat.c,v 1.89.4.2 2014/08/15 18:16:40 karls Exp $";
 
 int
 Rselect(nfds, readfds, writefds, exceptfds, timeout)
@@ -342,7 +342,7 @@ Rfputc(c, stream)
 
    socks_setbufferfd(d, _IOFBF, -1);
 
-   return Rsend(d, &c, 1, 0);
+   return Rsend(d, &c, sizeof(char), 0);
 }
 
 int

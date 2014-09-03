@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013
+ * Copyright (c) 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: fmt.h,v 1.25 2013/10/27 15:24:41 karls Exp $ */
+/* $Id: fmt.h,v 1.25.4.3 2014/08/15 18:16:40 karls Exp $ */
 
 #ifndef _FMT_H_
 #define _FMT_H_
@@ -115,6 +115,31 @@ log_reversemapfailed(const struct sockaddr_storage *addr,
 
 
 #else /* !SOCKS_CLIENT just server */
+
+void
+log_getsockopt_failed(const char *function, const char *option, const int fd,
+                      const interfaceside_t interfaceside);
+/*
+ * Appropriately logs that we in function "function" could not fetch the
+ * getsockopt(2)-option "option" on fd "fd", related to the interface on
+ * the side "interfaceside".
+ */
+
+void
+log_setsockopt_failed(const char *function, const char *option,
+                      const int value, const int fd,
+                      const interfaceside_t interfaceside);
+/*
+ * Similar to log_getsockopt() failed, but instead logs that setting the
+ * option "option" to the value "value" failed.
+ */
+
+
+void
+log_interfaceprotocol_set_too_late(const interfaceside_t side);
+/*
+ * logs protocol/address-famelies for interface set too late.
+ */
 
 void
 log_addchild_failed(void);
@@ -208,6 +233,15 @@ log_bind_failed(const char *function, const int protocol,
                 const struct sockaddr_storage *address);
 /*
  * Logs that we failed to perform a local bind of the local address "address".
+ */
+
+
+void
+log_mtuproblem(const int s, const interfaceside_t side, const int fromus);
+/*
+ * Logs that there is a MTU problem from us to peer, or from peer to us.
+ * If "fromus" is true, the problem is sending from us to peer, if
+ * "fromus" is false, the problem is sendng from peer to us.
  */
 
 #endif /* !SOCKS_CLIENT */

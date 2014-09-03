@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013
+ * Copyright (c) 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: mother_util.c,v 1.22 2013/10/27 15:17:06 karls Exp $";
+"$Id: mother_util.c,v 1.22.4.8 2014/08/15 18:12:23 karls Exp $";
 
 /*
  * signal handler functions.  Upon reception of signal, "sig" is the real
@@ -78,12 +78,14 @@ mother_postconfigload(void)
 {
    const char *function = "mother_postconfigload()";
 
-   if (pidismother(sockscf.state.pid) == 1)
+   if (pidismainmother(sockscf.state.pid))
       shmem_idupdate(&sockscf);  /* only main mother does this. */
 }
 
 void
-mother_envsetup(void)
+mother_envsetup(argc, argv)
+   int argc;
+   char *argv[];
 {
    const char *function = "mother_envsetup()";
    const int exitsignalv[] = {
@@ -299,30 +301,47 @@ mother_envsetup(void)
       if (daemon(1, 0) != 0)
          serr("daemon()");
 
+      /*
+       * leave stdout/stderr, but close stdin.
+       * Note that this needs to be done before newprocinit() (which
+       * sets up syslog-thing), as it may happen that the syslog socket
+       * is 0, and we don't want to close that.
+       */
+      close(STDIN_FILENO);
       newprocinit(); /* for daemon(). */
 
-      close(STDIN_FILENO); /* leave stdout/stderr, but close stdin. */
       *sockscf.state.motherpidv = getpid();   /* we are the main mother. */
    }
 
    if (HAVE_ENABLED_PIDFILE) {
+      const mode_t openmode  = S_IRUSR  | S_IWUSR  | S_IRGRP | S_IROTH;
+      const int    openflags = O_WRONLY | O_CREAT;
       FILE *fp;
+      int fd;
 
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
-      if ((fp = fopen(sockscf.option.pidfile, "w")) == NULL) {
-         swarn("open(%s)", sockscf.option.pidfile);
+      if ((fd = open(sockscf.option.pidfile, openflags, openmode)) == -1) {
+         swarn("could not open pidfile %s for writing", sockscf.option.pidfile);
          errno = 0;
       }
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
 
-      if (fp != NULL) {
-         if (fprintf(fp, "%lu\n", (unsigned long)sockscf.state.pid) == EOF)
-            swarn("failed writing pid to pidfile %s", sockscf.option.pidfile);
-         else
-            sockscf.option.pidfilewritten = 1;
+      if (fd != -1) {
+         fp = fdopen(fd, "w");
 
-         fclose(fp);
+         if (fp != NULL) {
+            if (fprintf(fp, "%lu\n", (unsigned long)sockscf.state.pid) == EOF)
+               swarn("failed writing pid to pidfile %s",
+                     sockscf.option.pidfile);
+            else
+               sockscf.option.pidfilewritten = 1;
+
+            fclose(fp);
+         }
+
+         close(fd);
       }
+
    }
 
    enable_childcreate();
@@ -713,7 +732,7 @@ siginfo(sig, si, sc)
       sig = SIGUSR1;
 #endif
 
-   if (pidismother(sockscf.state.pid) == 1)   /* main mother */
+   if (pidismainmother(sockscf.state.pid))   /* main mother */
       sigserverbroadcast(sig);
 
    sigchildbroadcast(sig);
@@ -730,8 +749,10 @@ sighup(sig, si, sc)
 {
    const char *function = "sighup()";
    const int errno_s = errno;
+   struct config *newshmemconfig;
    internaladdress_t oldinternal;
    size_t i, pointersize;
+   int rc;
 
    SIGNAL_PROLOGUE(sig, si, errno_s);
 
@@ -803,7 +824,6 @@ sighup(sig, si, sc)
    if (sockscf.srule != NULL)
       SASSERTX(!SHMID_ISATTACHED(sockscf.srule));
 #endif /* DIAGNOSTIC */
-
 
    for (i = 0; i < oldinternal.addrc; ++i) {
       ssize_t p;
@@ -903,6 +923,7 @@ sighup(sig, si, sc)
                      break;
                   }
                }
+
                break;
             }
 
@@ -951,11 +972,11 @@ sighup(sig, si, sc)
 
    /*
     * Now comes the tricky part: copy the config to shared memory and forward
-    * the SIGHUP to our children so they know to copy the config we put
-    * in shared memory to their local memory.
+    * the SIGHUP to our children so they know to copy the config we put in
+    * shared memory to their own local memory.
     *
     * The procedure works like this:
-    * 1) We lock shmemconfigfd, copy the config to shmem (stored in the
+    * 1) We lock shmemconfigfd, copy the config to shmem (mapped by the
     *    file referenced by shmemconfigfd), and unlock shmemconfigfd.
     *
     * 2) We then forward the children the SIGHUP.
@@ -979,12 +1000,12 @@ sighup(sig, si, sc)
         (unsigned long)pointersize,
         (unsigned long)(sizeof(sockscf) + pointersize));
 
-   if ((sockscf.shmeminfo->config = sockd_mmap(sockscf.shmeminfo->config,
-                                               sizeof(sockscf) + pointersize,
-                                               PROT_READ | PROT_WRITE,
-                                               MAP_SHARED,
-                                               sockscf.shmemconfigfd,
-                                               1)) == MAP_FAILED) {
+   if ((newshmemconfig = sockd_mmap(NULL,
+                                    sizeof(sockscf) + pointersize,
+                                    PROT_READ | PROT_WRITE,
+                                    MAP_SHARED,
+                                    sockscf.shmemconfigfd,
+                                    1)) == MAP_FAILED) {
       swarn("%s: could not create shared memory segment of size %lu",
             function, (unsigned long)(sizeof(sockscf) + pointersize));
 
@@ -992,20 +1013,39 @@ sighup(sig, si, sc)
       return;
    }
 
-   *sockscf.shmeminfo->config = sockscf;
+   /*
+    * First shallow copy what we can.
+    */
+   *newshmemconfig = sockscf;
 
+   /*
+    * Then the more complicated deep copy.
+    */
    if (pointer_copy(&sockscf,
                     0,
-                    sockscf.shmeminfo->config,
-                    (void *)((uintptr_t)sockscf.shmeminfo->config
-                             + sizeof(sockscf)),
+                    newshmemconfig,
+                    (void *)((uintptr_t)newshmemconfig + sizeof(sockscf)),
                     pointersize) != 0) {
 
       swarn("%s: could not copy pointers to shared memory", function);
+
+      munmap(newshmemconfig, sizeof(sockscf) + pointersize);
+
       socks_unlock(sockscf.shmemconfigfd, 0, 0);
+
       return;
    }
 
+   /*
+    * Successfully mapped new config and everything looks ok.  Now remove
+    * the old mapping, if any.
+    */
+   if (sockscf.shmeminfo->config != NULL) {
+      rc = munmap(sockscf.shmeminfo->config, sockscf.shmeminfo->configsize);
+      SASSERTX(rc == 0);
+   }
+
+   sockscf.shmeminfo->config     = newshmemconfig;
    sockscf.shmeminfo->configsize = sizeof(sockscf) + pointersize;
 
    socks_unlock(sockscf.shmemconfigfd, 0, 0);
@@ -1022,6 +1062,14 @@ sighup(sig, si, sc)
       slog(LOG_DEBUG,
            "%s: shmem config identical to running config.  %lu bytes compared",
            function, (unsigned long)i);
+
+   /*
+    * Not necessarily necessary, but the config-change could imply we
+    * should no longer use (and thus resolve for) ipv4 or ipv6 addresses.
+    * Also, might be we have cached something the admin no longer wants us to
+    * cache.  Safest to invalidate the cache too at this point.
+    */
+   hostcacheinvalidate();
 
    time_monotonic(&sockscf.stat.configload);
 
@@ -1067,7 +1115,14 @@ sigchld(sig, si, sc)
       sockd_child_t *child;
       int isunexpected, proctype;
 
-      if ((pid = wait4(WAIT_ANY, &status, WNOHANG, &thisrusage)) == -1
+      /*
+       * On Solaris wait4(2) expects WAIT_ANY to be 0, not -1 as it is
+       * on other systems.  Using -1 ends up calling waitid(2) as
+       * waitid(P_PGID, 1, ...
+       * Not what we want, so use wait3(2) instead, as it does not have
+       * that bug.
+       */
+      if ((pid = wait3(&status, WNOHANG, &thisrusage)) == -1
       && ERRNOISTMP(errno))
          continue;
 
@@ -1088,8 +1143,7 @@ sigchld(sig, si, sc)
           */
          struct rusage *rusage, sum;
 
-         child = getchild(pid);
-         if (child == NULL) {
+         if ((child = getchild(pid)) == NULL) {
             /*
              * Note that this might be a pid from our former self also
              * if we failed on an internal error, fork(2)-ed process to

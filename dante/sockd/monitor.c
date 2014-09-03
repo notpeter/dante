@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013
+ * Copyright (c) 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,10 +42,11 @@
  */
 
 #include "common.h"
+#include "monitor.h"
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: monitor.c,v 1.125 2013/10/27 15:17:06 karls Exp $";
+"$Id: monitor.c,v 1.125.4.8 2014/08/24 11:41:34 karls Exp $";
 
 
 static void showalarms(const monitor_if_t *iface);
@@ -750,9 +751,10 @@ monitor_use(mstats, cinfo, lock)
 }
 
 void
-monitor_move(oldmonitor, newmonitor, sidesconnected, cinfo, lock)
+monitor_move(oldmonitor, newmonitor, stayattached, sidesconnected, cinfo, lock)
    monitor_t *oldmonitor;
    monitor_t *newmonitor;
+   const int stayattached;
    const size_t sidesconnected;
    const clientinfo_t *cinfo;
    const int lock;
@@ -773,7 +775,7 @@ monitor_move(oldmonitor, newmonitor, sidesconnected, cinfo, lock)
         (unsigned long)sidesconnected);
 
    /*
-    * Clean up old monitor first.
+    * First: clean up old monitorstate.
     */
 
    bzero(&alarm, sizeof(alarm));
@@ -797,16 +799,18 @@ monitor_move(oldmonitor, newmonitor, sidesconnected, cinfo, lock)
 
       SASSERTX(alarm.mstats != NULL);
 
-      if (oldmonitor->mstats == NULL)
-         sockd_shmdt(&alarm, SHMEM_MONITOR); /* restore original state. */
-      else
-         SASSERTX(alarm.mstats == oldmonitor->mstats);
+      /*
+       * Regardless of whether we were attached when called or not,
+       * no need to remain attached to old monitor state now as we
+       * are moving to the new monitor.
+       */
+      sockd_shmdt(&alarm, SHMEM_MONITOR);
    }
 
    CLEAR_MONITORFIELDS(oldmonitor);
 
    /*
-    * And now update new.
+    * Then: update to new monitorstate.
     */
 
    bzero(&alarm, sizeof(alarm));
@@ -830,10 +834,10 @@ monitor_move(oldmonitor, newmonitor, sidesconnected, cinfo, lock)
 
       SASSERTX(alarm.mstats != NULL);
 
-      if (newmonitor->mstats == NULL)
-         sockd_shmdt(&alarm, SHMEM_MONITOR); /* restore original state. */
-      else
+      if (stayattached)
          SASSERTX(alarm.mstats == newmonitor->mstats);
+      else
+         sockd_shmdt(&alarm, SHMEM_MONITOR);
    }
    else
       CLEAR_MONITORFIELDS(newmonitor);
@@ -1084,7 +1088,7 @@ checkmonitors(void)
       if (hastimedout == 0)
          continue;
 
-      SASSERTX(timercmp(&timeout, &tzero, <=));
+      SASSERTX(!timercmp(&timeout, &tzero, >));
       SASSERTX(monitor->alarmsconfigured != 0);
 
       slog(LOG_DEBUG,
@@ -1640,7 +1644,7 @@ do {                                                                           \
                    tfirstcheck,
                    tnow);
 
-         if (timercmp(&tnextcheck, &tzero, <=))
+         if (timercmp(&tzero, &tnextcheck, >))
             *hastimedout |= ALARM_INTERNAL_RECV;
 
          PRINT_DATALIMIT(monitor->number, "internal", "receiving", &tnextcheck);
@@ -1652,7 +1656,7 @@ do {                                                                           \
                    tfirstcheck,
                    tnow);
 
-         if (timercmp(&tnextcheck, &tzero, <=))
+         if (timercmp(&tzero, &tnextcheck, >))
             *hastimedout |= ALARM_INTERNAL_SEND;
 
          PRINT_DATALIMIT(monitor->number, "internal", "sending", &tnextcheck);
@@ -1664,7 +1668,7 @@ do {                                                                           \
                    tfirstcheck,
                    tnow);
 
-         if (timercmp(&tnextcheck, &tzero, <=))
+         if (timercmp(&tzero, &tnextcheck, >))
             *hastimedout |= ALARM_EXTERNAL_RECV;
 
          PRINT_DATALIMIT(monitor->number, "external", "receiving", &tnextcheck);
@@ -1676,7 +1680,7 @@ do {                                                                           \
                    tfirstcheck,
                    tnow);
 
-         if (timercmp(&tnextcheck, &tzero, <=))
+         if (timercmp(&tzero, &tnextcheck, >))
             *hastimedout |= ALARM_EXTERNAL_SEND;
 
          PRINT_DATALIMIT(monitor->number, "external", "sending", &tnextcheck);
@@ -1690,7 +1694,7 @@ do {                                                                           \
                    tfirstcheck,
                    tnow);
 
-         if (timercmp(&tnextcheck, &tzero, <=))
+         if (timercmp(&tzero, &tnextcheck, >))
             *hastimedout |= ALARM_INTERNAL;
 
          PRINT_DISCONNECTLIMIT(monitor->number, "internal", &tnextcheck);
@@ -1702,7 +1706,7 @@ do {                                                                           \
                    tfirstcheck,
                    tnow);
 
-         if (timercmp(&tnextcheck, &tzero, <=))
+         if (timercmp(&tzero, &tnextcheck, >))
             *hastimedout |= ALARM_EXTERNAL;
 
          PRINT_DISCONNECTLIMIT(monitor->number, "external", &tnextcheck);

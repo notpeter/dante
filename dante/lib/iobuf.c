@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012, 2013
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: iobuf.c,v 1.116 2013/10/25 12:55:01 karls Exp $";
+"$Id: iobuf.c,v 1.116.4.9 2014/08/15 18:16:41 karls Exp $";
 
 static int socks_flushallbuffers(void);
 /*
@@ -116,10 +116,14 @@ socks_flushbuffer(s, len, sendtoflags)
    sendto_info_t *sendtoflags;
 {
    const char *function = "socks_flushbuffer()";
-   size_t towrite;
-   ssize_t written;
+#if HAVE_GSSAPI || !SOCKS_CLIENT
    unsigned char inputmem[sizeof(iobuffer_t)];
+   ssize_t written = 0;
+   ssize_t p;
+#endif /* HAVE_GSSAPI || !SOCKS_CLIENT */
+#if !SOCKS_CLIENT
    int encoded;
+#endif /* !SOCKS_CLIENT */
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
       slog(LOG_DEBUG, "%s: fd %d, len = %ld", function, s, (long)len);
@@ -132,91 +136,92 @@ socks_flushbuffer(s, len, sendtoflags)
 
    if (!socks_bufferhasbytes(s, WRITE_BUF))
       return 0;
-   else
-      slog(LOG_DEBUG, "%s: buffer for fd %d has bytes (%lu).  Flushing",
-           function,
-           s,
-           (unsigned long)socks_bytesinbuffer(s, WRITE_BUF, 1));
 
-#if SOCKS_CLIENT && HAVE_GSSAPI
+   slog(LOG_DEBUG, "%s: buffer for fd %d has bytes (%lu + %lu).  Flushing",
+        function,
+        s,
+        (unsigned long)socks_bytesinbuffer(s, WRITE_BUF, 0),
+        (unsigned long)socks_bytesinbuffer(s, WRITE_BUF, 1));
+
+
+#if SOCKS_CLIENT
+#if HAVE_GSSAPI
    /*
-    * In the client-case, we don't want to encode the packet on
-    * every buffered write.  E.g. we don't want 100 putc(3)'s to
-    * end up creating 100 gssapi-encoded one-byte packets.
-    * We therefore postpone encoding til we get a flush call.
-    *
     * Note that we only use the iobuffer in the client if we are doing
     * gssapi i/o, never for ordinary i/o.  For the server, it is used
     * for both ordinary and gssapi-based i/o.
+    *
+    * In the client-case, we don't want to encode the packet on
+    * every buffered write.  E.g. we don't want 100 putc(3)'s to
+    * end up creating 100 gssapi-encoded one-byte packets.
+    * We therefore postpone encoding til we get a flush call, then
+    * encode the data we have, and write it as one token.
+    * That means any already encoded data in the buffer must be written
+    * before the unencoded data.
     */
 
    SASSERTX(len == -1);
 
-   while (socks_bytesinbuffer(s, WRITE_BUF, 1) > 0) {
+again:
+   if (socks_bytesinbuffer(s, WRITE_BUF, 1) > 0) {
       /*
-       * Already have encoded data ready for write.  Must always
-       * write that first, since it came first.
+       * First we just peek, then we re-get what we actually managed
+       * to write to the socket, so we do not have to put what we could not
+       * write back into the buffer (which would be more complicated).
        */
-      socksfd_t socksfd, *p;
-
-      p = socks_getaddr(s, &socksfd, 1);
-      SASSERTX(p != NULL);
-      SASSERTX(socksfd.state.auth.method == AUTHMETHOD_GSSAPI);
-
-      towrite = socks_getfrombuffer(s,
-                                    0,
-                                    WRITE_BUF,
-                                    1,
-                                    inputmem,
-                                    sizeof(inputmem));
+      size_t towrite = socks_getfrombuffer(s,
+                                           MSG_PEEK,
+                                           WRITE_BUF,
+                                           1,
+                                           inputmem,
+                                           sizeof(inputmem));
 
       if (sockscf.option.debug >= DEBUG_VERBOSE)
-         slog(LOG_DEBUG, "%s: flushing %lu encoded byte%s ...",
+         slog(LOG_DEBUG,
+              "%s: attempting to flush %lu previously encoded byte%s ...",
               function, (long unsigned)towrite, towrite == 1 ? "" : "s");
 
-      /*
-       * this is important since it verifies that we fetched all
-       * the data from the buffer, so that what we add now does
-       * not erroneously get appended after something, since when
-       * we fetched it was first.
-       */
+      p = write(s, inputmem, towrite);
 
-      SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 1) == 0);
+      slog(LOG_DEBUG, "%s: write of %lu bytes returned %ld (%s)",
+           function, (unsigned long)towrite, (long)p, strerror(errno));
 
-      written = sendto(s, inputmem, towrite, 0, NULL, 0);
+      if (p > 0) {
+         /*
+          * Before we just peeked at our own buffer.  Now re-get what we
+          * actually managed to write.
+          */
 
-      if (written != -1 && sendtoflags != NULL)
-         sendtoflags->tosocket += written;
+         written += p;
 
-      if (written == -1 || (size_t)written != towrite) {
-         if (sockscf.option.debug >= DEBUG_VERBOSE)
-            slog(LOG_DEBUG, "%s: sendton() flushed only %ld/%lu: %s",
-                 function,
-                 (long)written,
-                 (long unsigned)towrite,
-                 strerror(errno));
+         socks_getfrombuffer(s, 0, WRITE_BUF, 1, inputmem, p);
 
-         if (written > 0) { /* add back what we failed to write. */
-            socks_addtobuffer(s,
-                              WRITE_BUF,
-                              1,
-                              &inputmem[written],
-                              towrite - written);
+         if (sendtoflags != NULL)
+            sendtoflags->tosocket += p;
 
-            continue;
-         }
-         else {
+         if (p != (ssize_t)towrite) {
+            /*
+             * No error, just did not manage to flush the whole buffer at
+             * this time.  As far as the client is concerned this is
+             * identical to an EAGAIN error though
+             */
             errno = EAGAIN;
             return -1;
          }
       }
+      else /* some error. */
+         return p;
    }
 
    SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 1) == 0);
 
    while (socks_bytesinbuffer(s, WRITE_BUF, 0) > 0) {
       /*
-       * Unencoded data in buffer, need to encode it first.
+       * Not yet encoded data in buffer, need to encode (and write) it too
+       * before we add any more to this buffer, to maintain order.
+       *
+       * Here we just encode what we have, then loop around to the start
+       * and try to write it.
        */
       gss_buffer_desc input_token, output_token;
       socksfd_t socksfd, *ptr;
@@ -244,7 +249,7 @@ socks_flushbuffer(s, len, sendtoflags)
       input_token.value  = inputmem;
       input_token.length = toencode;
 
-      output_token.value  = outputmem + GSSAPI_HLEN;
+      output_token.value  = outputmem         + GSSAPI_HLEN;
       output_token.length = sizeof(outputmem) - GSSAPI_HLEN;
 
       if (gssapi_encode(&input_token,
@@ -272,89 +277,93 @@ socks_flushbuffer(s, len, sendtoflags)
                         output_token.length + GSSAPI_HLEN);
    }
 
-   if (socks_bufferhasbytes(s, WRITE_BUF) == 0)
-      return 0;
-#endif /* SOCKS_CLIENT && HAVE_GSSAPI */
+   if (socks_bytesinbuffer(s, WRITE_BUF, 1) > 0)
+      goto again;
 
-   written = 0;
+   /*
+   * Else, nothing in buffers anymore, all flushed.
+   */
+
+   SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 0) == 0);
+   SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 1) == 0);
+
+   return 0;
+
+#else /* !HAVE_GSSAPI */
+
+   return 0;
+
+#endif /* !HAVE_GSSAPI */
+
+#else /* !SOCKS_CLIENT */
+
+   /*
+    * Server case is simpler.  If we are using gssapi on this socket,
+    * all data we have in the write buffer should be encoded already.
+    * If we are not using gssapi, none of it should be encoded.
+    */
+   if (socks_bytesinbuffer(s, WRITE_BUF, 0) > 0) {
+      SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 1) == 0);
+      encoded = 0;
+   }
+   else if (socks_bytesinbuffer(s, WRITE_BUF, 1) > 0) {
+      SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 0) == 0);
+      encoded = 1;
+   }
+   else
+      SERRX(0);
+
    do {
-      ssize_t rc;
-
-      if (socks_bytesinbuffer(s, WRITE_BUF, 0) > 0) {
-         SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 1) == 0);
-         encoded = 0;
-      }
-      else if (socks_bytesinbuffer(s, WRITE_BUF, 1) > 0) {
-         SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 0) == 0);
-         encoded = 1;
-      }
-      else
-         SERRX(0);
-
       /*
-       * In case of client, we want to keep trying unless error is permanent.
-       * In case of server, we want to keep writing while we can, but return
-       * at the first error, permanent or not.
+       * Fetch data from our buffer and try to write it.  First we just
+       * peek, and then we re-get what we actually managed to write to the
+       * socket.
+       *
+       * We want to keep writing while we can, but return at the first error,
+       * permanent or not.  This is in a loop to make sure errno is set
+       * correctly upon return if we fail to flush the whole buffer.
        */
+      ssize_t rc;
+      size_t towrite;
+
       towrite = socks_getfrombuffer(s,
-                                    0,
+                                    MSG_PEEK,
                                     WRITE_BUF,
                                     encoded,
                                     inputmem,
                                     len == -1 ? sizeof(inputmem) : (size_t)len);
 
-      rc = sendto(s, inputmem, towrite, 0, NULL, 0);
+      rc = write(s, inputmem, towrite);
 
-      if (rc != -1 && sendtoflags != NULL)
-         sendtoflags->tosocket += rc;
-
-      slog(LOG_DEBUG, "%s: flushed %ld/%ld %s byte%s (%s)",
+      slog(LOG_DEBUG, "%s: wrote %ld/%ld %s bytes (%s)",
            function,
            (long)rc,
            (long)towrite,
            encoded ? "encoded" : "unencoded",
-           rc == 1 ? "" : "s",
            strerror(errno));
 
-      if (rc == -1) {
-         /* could not flush anything, add all back. */
-         socks_addtobuffer(s, WRITE_BUF, encoded, inputmem, towrite);
+      if (rc > 0) {
+         /*
+          * Now get what we just peeked at before.
+          */
+         p = socks_getfrombuffer(s, 0, WRITE_BUF, encoded, inputmem, rc);
+         SASSERTX(p == rc);
 
-#if SOCKS_CLIENT
-         if (ERRNOISTMP(errno)) {
-            fd_set *wset;
-
-            wset = allocate_maxsize_fdset();
-
-            FD_ZERO(wset);
-            FD_SET(s, wset);
-
-            if (select(s + 1, NULL, wset, NULL, NULL) == -1)
-               slog(LOG_DEBUG, "%s: select(): %s", function, strerror(errno));
-
-            free(wset);
-            continue;
-         }
-         else
-            socks_clearbuffer(s, WRITE_BUF);
-#endif /* SOCKS_CLIENT */
-
-         return -1;
+         if (sendtoflags != NULL)
+            sendtoflags->tosocket += rc;
       }
+      else
+         return -1;
 
       written += rc;
-      socks_addtobuffer(s,
-                        WRITE_BUF,
-                        encoded,
-                        inputmem + rc,
-                        towrite - (size_t)rc);
-
    } while ((len == -1 || written < len)
    && socks_bytesinbuffer(s, WRITE_BUF, encoded) > 0);
 
-   SASSERTX(socks_bufferhasbytes(s, WRITE_BUF) == 0);
+   SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 0) == 0);
+   SASSERTX(socks_bytesinbuffer(s, WRITE_BUF, 1) == 0);
 
    return written;
+#endif /* !SOCKS_CLIENT */
 }
 
 iobuffer_t *
@@ -386,7 +395,7 @@ socks_clearbuffer(s, which)
 
    iobuf->info[which].len = iobuf->info[which].enclen = 0;
 #if SOCKS_CLIENT
-   iobuf->info[which].peekedbytes = 0;
+   iobuf->info[which].readalready = 0;
 #endif /* SOCKS_CLIENT */
 
    bzero(&iobuf->buf[which], sizeof(iobuf->buf[which]));
@@ -533,7 +542,7 @@ socks_addtobuffer(s, which, encoded, data, datalen)
 {
    const char *function = "socks_addtobuffer()";
    iobuffer_t *iobuf;
-   size_t toadd;
+   size_t toadd, offset;
 
    if (datalen == 0)
       return 0;
@@ -550,54 +559,62 @@ socks_addtobuffer(s, which, encoded, data, datalen)
 
    toadd = MIN(socks_freeinbuffer(s, which), datalen);
 
-   if (sockscf.option.debug >= DEBUG_VERBOSE)
+   SASSERTX(toadd == datalen);
+
+   if (encoded) {
+      /*
+       * appended to the end of encoded data, after any unencoded data.
+       */
+      offset =   socks_bytesinbuffer(s, which, 0)
+               + socks_bytesinbuffer(s, which, 1);
+   }
+   else {
+      /*
+       * more complex; appended to the end of the unencoded data,
+       * which comes before the encoded data.  Meaning we have to first
+       * move the encoded data further out in the buffer before we add the
+       * new unencoded data, so that that unencoded data we will add
+       * gets appended to any already present unencoded data, before
+       * the encoded data.
+       */
+
+      memmove(&iobuf->buf[which][socks_bytesinbuffer(s, which, 0) + toadd],
+              &iobuf->buf[which][socks_bytesinbuffer(s, which, 0)],
+              socks_bytesinbuffer(s, which, 1));
+
+      offset = socks_bytesinbuffer(s, which, 0);
+   }
+
+   if (sockscf.option.debug >= DEBUG_VERBOSE && toadd >= 2) {
+      ssize_t p;
+
+      p = (ssize_t)offset - 1;
+
       slog(LOG_DEBUG,
            "%s: fd = %d, add %lu %s byte%s to %s buffer which currently has "
-           "%lu decoded, %lu encoded.  Last byte to add: 0x%x",
+           "%lu unencoded, %lu encoded.  Last bytes to add: 0x%x, 0x%x.  "
+           "Data will be added after byte 0x%x which is at offset %ld",
            function,
            s,
            (unsigned long)datalen,
-           encoded ? "encoded" : "decoded",
+           encoded ? "encoded" : "unencoded",
            datalen == 1 ? "" : "s",
            which == READ_BUF ? "read" : "write",
            (unsigned long)socks_bytesinbuffer(s, which, 0),
            (unsigned long)socks_bytesinbuffer(s, which, 1),
-           (int)((const unsigned char *)data)[datalen - 1]);
+           (int)((const unsigned char *)data)[datalen - 2],
+           (int)((const unsigned char *)data)[datalen - 1],
+           p > 0 ? (int)((const unsigned char *)iobuf->buf[which])[p] : 0,
+           (long)p);
+   }
 
-      SASSERTX(toadd >= datalen);
+   memcpy(&iobuf->buf[which][offset], data, toadd);
 
-      if (encoded) {
-         /*
-          * appended to the end of encoded data, which is also
-          * the end of the buffer.
-          */
-         memcpy(&iobuf->buf[which][socks_bytesinbuffer(s, which, 0)
-                                 + socks_bytesinbuffer(s, which, 1)],
-                data,
-                toadd);
+   if (encoded)
+      iobuf->info[which].enclen += toadd;
+   else
+      iobuf->info[which].len    += toadd;
 
-         iobuf->info[which].enclen += toadd;
-      }
-      else {
-         /*
-          * more complex; appended to the end of the unencoded data,
-          * which comes before the encoded data.  Meaning we may have
-          * to move the encoded data further out in the buffer before
-          * we copy in the new data.
-          */
-
-         memmove(&iobuf->buf[which][socks_bytesinbuffer(s, which, 0) + toadd],
-                 &iobuf->buf[which][socks_bytesinbuffer(s, which, 0)],
-                 socks_bytesinbuffer(s, which, 1));
-
-         memcpy(&iobuf->buf[which][socks_bytesinbuffer(s, which, 0)],
-                data,
-                toadd);
-
-         iobuf->info[which].len += toadd;
-      }
-
-   SASSERTX(toadd == datalen);
    return toadd;
 }
 
@@ -621,6 +638,20 @@ socks_bytesinbuffer(s, which, encoded)
    SASSERTX(rc <= sizeof(iobuf->buf[which]));
    return rc;
 }
+
+size_t
+socks_buffersize(s, which)
+   const int s;
+   const whichbuf_t which;
+{
+   const iobuffer_t *iobuf = socks_getbuffer(s);
+
+   if (iobuf == NULL)
+      return 0;
+
+   return iobuf->info[which].size;
+}
+
 
 int
 socks_bufferhasbytes(s, which)

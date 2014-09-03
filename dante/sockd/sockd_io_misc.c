@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013
+ * Copyright (c) 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,9 +42,10 @@
  */
 
 #include "common.h"
+#include "monitor.h"
 
 static const char rcsid[] =
-"$Id: sockd_io_misc.c,v 1.30 2013/10/27 15:17:07 karls Exp $";
+"$Id: sockd_io_misc.c,v 1.30.4.5 2014/08/24 11:41:35 karls Exp $";
 
 void
 io_updatemonitor(io)
@@ -52,8 +53,9 @@ io_updatemonitor(io)
 {
    const char *function = "io_updatemonitor()";
    const monitor_t *newmatch;
+   monitor_t oldmonitor, newmonitor;
+   rule_t *rule = IORULE(io);
    clientinfo_t cinfo;
-   rule_t *oldrule = IORULE(io);
    size_t disconnect_needed;
    int is_same;
 
@@ -68,11 +70,11 @@ io_updatemonitor(io)
         io->dst.s,
         protocol2string(io->state.protocol),
         command2string(io->state.command),
-        oldrule->mstats_shmid,
-        oldrule->mstats);
+        rule->mstats_shmid,
+        rule->mstats);
 
-   if (oldrule->mstats_shmid != 0)
-      SASSERTX(oldrule->mstats != NULL); /* i/o process; always attached. */
+   if (rule->mstats_shmid != 0)
+      SASSERTX(rule->mstats != NULL); /* i/o process; always attached. */
 
    /*
     * XXX could probably optimize this function away be checking if a sighup
@@ -111,6 +113,7 @@ do {                                                                           \
                               &io->src.auth,
                               &io->state);
       io->state = oldstate;
+
 #else /* !HAVE_CONTROL_CONNECTION, and thus no TCP. */
 
       /*
@@ -130,24 +133,37 @@ do {                                                                           \
                               &io->state);
 
    if (newmatch == NULL) {
-      if (oldrule->mstats_shmid == 0)
-         is_same = 1;
+      /*
+       * No matching monitor now ...
+       */
+      if (rule->mstats_shmid == 0)
+         is_same = 1; /* ... and no matching monitor before.     */
       else
-         is_same = 0;
+         is_same = 0; /* ... but were matching a monitor before. */
    }
-   else
-      is_same = (oldrule->mstats_shmid == newmatch->mstats_shmid);
+   else {
+      /*
+       * Matching a monitor now ...
+       */
+      SASSERTX(newmatch->mstats_shmid != 0);
+
+      if (rule->mstats_shmid == 0)
+         is_same = 0; /* ... but were not matching a monitor before. */
+      else
+         is_same = (rule->mstats_shmid == newmatch->mstats_shmid);
+   }
 
    slog(LOG_DEBUG,
         "%s: previously matched mstats_shmid %lu, now matching monitor "
-        "#%lu with mstats_shmid %lu (%s)",
+        "#%lu with mstats_shmid %lu (%s) and alarmsconfigured = %lu",
         function,
-        (unsigned long)oldrule->mstats_shmid,
+        (unsigned long)rule->mstats_shmid,
         newmatch == NULL ? 0 : (unsigned long)newmatch->number,
         newmatch == NULL ? 0 : (unsigned long)newmatch->mstats_shmid,
-        is_same ? "same as now" : "different from before");
+        is_same ? "same as now" : "different from before",
+        newmatch == NULL ? 0 : (unsigned long)newmatch->alarmsconfigured);
 
-   if (oldrule->mstats_shmid == 0
+   if (rule->mstats_shmid == 0
    &&  (newmatch == NULL || newmatch->mstats_shmid == 0))
       return;
 
@@ -155,67 +171,83 @@ do {                                                                           \
    HOSTIDCOPY(&io->state, &cinfo);
 
    if (newmatch == NULL) {
-      if (oldrule->mstats_shmid != 0) {
+      /*
+       * remove any monitorstate belonging to old rule and return.
+       */
+      SASSERTX(rule->mstats_shmid != 0);
+
+      if (rule->alarmsconfigured & ALARM_DISCONNECT) {
+         io_add_alarmdisconnects(io, function);
+
          /*
-          * Remove monitorstate belonging to old rule.
+          * disconnecting because alarm no longer configured, so
+          * don't confuse ourselves later by having this set to true.
           */
-
-         if (oldrule->alarmsconfigured & ALARM_DISCONNECT) {
-            io_add_alarmdisconnects(io, function);
-
-            /*
-             * disconnecting because alarm no longer configured, so
-             * don't confuse ourselves later by having this set to true.
-             */
-            CONTROLIO(io)->state.alarmdisconnectdone  = 0;
-            EXTERNALIO(io)->state.alarmdisconnectdone = 0;
-         }
-
-         monitor_unuse(oldrule->mstats, &cinfo, sockscf.shmemfd);
+         CONTROLIO(io)->state.alarmdisconnectdone  = 0;
+         EXTERNALIO(io)->state.alarmdisconnectdone = 0;
       }
+
+      monitor_unuse(rule->mstats, &cinfo, sockscf.shmemfd);
+      sockd_shmdt(rule, SHMEM_MONITOR);
+
+      SHMEM_CLEAR(rule, SHMEM_MONITOR, 1);
+      return;
+   }
+
+   SASSERTX(newmatch->mstats       == NULL);
+   SASSERTX(newmatch->mstats_shmid != 0);
+
+   if (is_same) {
+      /*
+       * Nothing much to do, but there are som state-variables global
+       * to this i/o process which may need updating based on this
+       * monitormatch (assuming the session was previously matched by a
+       * request process, or we are called due to a sighup).
+       *
+       * Do this at the same time as we do it in the case the new match
+       * differs from the old match, after the else-case.
+       */
+      SASSERTX(rule->mstats_shmid == newmatch->mstats_shmid);
+
+      /*
+       * I/O process stays attached to its shared memory.
+       */
+      SASSERTX(rule->mstats != NULL);
    }
    else {
       /*
-       * Create monitorstate belonging to new rule.
+       * matched monitor changed.  Can happen if a SIGHUP occurred.
+       * Update rule for monitorstate belonging to new match.
        */
-      monitor_t oldmonitor, newmonitor;
-      rule_t newrule;
+      rule_t tmprule;
 
-      SASSERTX(newmatch->mstats       == NULL);
-      SASSERTX(newmatch->mstats_shmid != 0);
+      COPY_MONITORFIELDS(newmatch, &tmprule);
+      (void)sockd_shmat(&tmprule, SHMEM_MONITOR);
 
-      if (is_same) {
-         SASSERTX(oldrule->mstats_shmid == newmatch->mstats_shmid);
-         SASSERTX(oldrule->mstats       != NULL);
-
-         return;
-      }
-
-      /*
-       * Else; matched monitor changed.  Can happen if a SIGHUP occurred.
-       */
-
-      /*
-       * i/o process stays attached to monitor objects.
-       */
-      COPY_MONITORFIELDS(newmatch, &newrule);
-      (void)sockd_shmat(&newrule, SHMEM_MONITOR);
-
-      COPY_MONITORFIELDS(oldrule,  &oldmonitor);
-      COPY_MONITORFIELDS(&newrule, &newmonitor);
+      COPY_MONITORFIELDS(rule,  &oldmonitor);
+      COPY_MONITORFIELDS(&tmprule, &newmonitor);
 
       monitor_move(&oldmonitor,
                    &newmonitor,
+                   1,            /* i/o process stays attached.               */
                    disconnect_needed,
                    &cinfo,
                    sockscf.shmemfd);
 
-      COPY_MONITORFIELDS(&newmonitor, oldrule);
-   }
+      COPY_MONITORFIELDS(&newmonitor, rule);
 
-   if (newmatch == NULL)
-      SHMEM_CLEAR(IORULE(io), SHMEM_MONITOR, 1);
+#if DIAGNOSTIC
+      if (rule->mstats_shmid != 0)
+         SASSERTX(shmid2monitor(rule->mstats_shmid) != NULL);
+#endif /* DIAGNOSTIC */
+
+      /*
+       * i/o process stays attached to monitor objects, so no need
+       * for sockd_shmtd().
+       */
+   }
 }
+
 
 void
 io_add_alarmdisconnects(io, reason)

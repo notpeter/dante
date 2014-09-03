@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012, 2013
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_GSSAPI
 
 static const char rcsid[] =
-   "$Id: method_gssapi.c,v 1.73 2013/10/27 15:24:42 karls Exp $";
+   "$Id: method_gssapi.c,v 1.73.4.1 2014/05/08 16:58:53 michaels Exp $";
 
 static negotiate_result_t
 recv_gssapi_auth_ver(int s, request_t *request, negotiate_state_t *state);
@@ -533,8 +533,7 @@ recv_gssapi_enc_token(s, request, state)
       do_rfc1961 = 1;
 
    slog(LOG_DEBUG, "%s: rule assumes client uses %s exchange",
-                   function,
-                   do_rfc1961? "rfc1961 encrypted" : "nec unencrypted");
+        function, do_rfc1961? "rfc1961 encrypted" : "NEC-style unencrypted");
 
    if (do_rfc1961) {
       major_status = gss_unwrap(&minor_status,
@@ -586,9 +585,10 @@ recv_gssapi_enc_token(s, request, state)
 
       snprintf(state->emsg, sizeof(state->emsg),
       "the client requests different authentication from what we offer.  "
-      "Client requests %s, but we offer: clear/%d, integrity/%d, "
+      "Client requests %s (0x%x), but we offer: clear/%d, integrity/%d, "
       "confidentiality/%d, per message/%d",
       gssapiprotection2string(gss_enc),
+      gss_enc,
       request->auth->mdata.gssapi.encryption.clear,
       request->auth->mdata.gssapi.encryption.integrity,
       request->auth->mdata.gssapi.encryption.confidentiality,

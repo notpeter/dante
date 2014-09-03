@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,30 +45,36 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.567 2013/10/27 15:24:42 karls Exp $";
+"$Id: serverconfig.c,v 1.567.4.12 2014/08/24 11:41:34 karls Exp $";
 
-struct config sockscf;        /* current config.   */
+static int
+safamily_isenabled(const sa_family_t family, const char *addrstr,
+                   const interfaceside_t side);
+/*
+ * Returns true if the address family "family" is enabled on the
+ * interface-side "side".  "addrstr" is a printable representation of
+ * the address we tried to add.
+ *
+ * Returns false if the address family "family" is not enabled.
+ */
 
-#define NEWEXTERNAL(argc, argv)                                                \
-do {                                                                           \
-   if (((argv) = realloc((argv), sizeof((*argv)) * ((++(*(argc)))))) == NULL)  \
-      yyerror(NOMEM);                                                          \
-   bzero(&((argv)[(*(argc)) - 1]), sizeof((*argv)));                           \
-} while (/*CONSTCOND*/ 0)
+static int addexternaladdr(const struct ruleaddr_t *ra);
+/*
+ * Returns 0 if the address "ra" was addedd to the list of external addresses.
+ *
+ * Returns -1 if the address "ra" was not added for a non-fatal reason,
+ * after loging a message if apropriate.
+ */
 
-#define NEWINTERNAL(argc, argv, ifname, sa, protocol)                          \
-do {                                                                           \
-   slog(LOG_DEBUG, "%s: adding address %s on nic %s to the internal list",     \
-        function, sockaddr2string(&sa, NULL, 0), ifname);                      \
-                                                                               \
-   if (((argv) = realloc((argv), sizeof((*argv)) * ((++(*argc))))) == NULL)    \
-      yyerror(NOMEM);                                                          \
-   bzero(&((argv)[(*(argc)) - 1]), sizeof((*argv)));                           \
-                                                                               \
-   (argv)[(*(argc)) - 1].addr     = sa;                                        \
-   (argv)[(*(argc)) - 1].protocol = protocol;                                  \
-   (argv)[(*(argc)) - 1].s        = -1;                                        \
-} while (/*CONSTCOND*/ 0)
+static int addinternaladdr(const char *ifname,
+                           const struct sockaddr_storage *sa,
+                           const int protocol);
+/*
+ * Returns 0 if the address "ra" was addedd to the list of internal addresses.
+ *
+ * Returns -1 if the address "ra" was not added for a non-fatal reason,
+ * after loging a message if apropriate.
+ */
 
 
 static void
@@ -78,6 +84,7 @@ add_more_old_shmem(struct config *config, const size_t memc,
  * Adds "memv" to the list of old shmem entries stored in "config".
  */
 
+struct config sockscf;        /* current config.   */
 
 void
 addinternal(addr, protocol)
@@ -109,11 +116,12 @@ addinternal(addr, protocol)
        case SOCKS_ADDR_IPV4:
        case SOCKS_ADDR_IPV6:
          if (addr->atype == SOCKS_ADDR_IPV4)
-           SASSERTX(addr->addr.ipv4.mask.s_addr == htonl(IPV4_FULLNETMASK));
+            SASSERTX(addr->addr.ipv4.mask.s_addr == htonl(IPV4_FULLNETMASK));
          else if (addr->atype == SOCKS_ADDR_IPV6)
-           SASSERTX(addr->addr.ipv6.maskbits    == IPV6_NETMASKBITS);
+            SASSERTX(addr->addr.ipv6.maskbits    == IPV6_NETMASKBITS);
 
          ruleaddr2sockaddr(addr, &sa, protocol);
+
          if (!PORTISBOUND(&sa))
             yyerrorx("%s: address %s does not specify a portnumber to bind",
                      function, sockaddr2string(&sa, NULL, 0));
@@ -123,15 +131,21 @@ addinternal(addr, protocol)
                                      &sa,
                                      protocol) == -1) {
             if (!changesupported) {
-               yywarnx("cannot change internal addresses once running. "
+               yywarnx("cannot change internal addresses once running.  "
                        "%s looks like a new address and will be ignored",
                        sockaddr2string(&sa, NULL, 0));
 
                break;
             }
          }
-         else
+         else {
+            /*
+             * Already here, but do make sure to update globalstate to reflect
+             * it too.
+             */
+            add_internal_safamily(sa.ss_family);
             break;
+         }
 
          if (sa.ss_family == AF_INET
          &&  TOIN(&sa)->sin_addr.s_addr == htonl(INADDR_ANY))
@@ -154,28 +168,30 @@ addinternal(addr, protocol)
                    function, sockaddr2string2(&sa, 0, NULL, 0));
          }
 
-         NEWINTERNAL(&sockscf.internal.addrc,
-                     sockscf.internal.addrv,
-                     ifname,
-                     sa,
-                     protocol);
+         addinternaladdr(ifname, &sa, protocol);
          break;
 
       case SOCKS_ADDR_DOMAIN: {
-         ssize_t p;
          size_t i;
+         char emsg[1024];
+         int gaierr;
 
          for (i = 0;
-         hostname2sockaddr(addr->addr.domain, i, &sa) != NULL;
-         ++i) {
+              hostname2sockaddr2(addr->addr.domain,
+                                 i,
+                                 &sa,
+                                 &gaierr,
+                                 emsg,
+                                 sizeof(emsg)) != NULL;
+              ++i) {
             SET_SOCKADDRPORT(&sa,
                              protocol == SOCKS_TCP ?
                                        addr->port.tcp : addr->port.udp);
 
-            if ((p = addrindex_on_listenlist(sockscf.internal.addrc,
-                                             sockscf.internal.addrv,
-                                             &sa,
-                                             protocol)) == -1) {
+            if (addrindex_on_listenlist(sockscf.internal.addrc,
+                                        sockscf.internal.addrv,
+                                        &sa,
+                                        protocol) == -1) {
                if (!changesupported) {
                   swarnx("cannot change internal addresses once running "
                          "and %s looks like a new address.  Ignored",
@@ -185,16 +201,11 @@ addinternal(addr, protocol)
                }
             }
             else {
-               if (changesupported)
-                  slog(LOG_DEBUG,
-                       "%s: address %s, resolved from \"%s\", is already on "
-                       "the internal list (#%ld) for addresses to accept "
-                       "clients on.  Ignored",
-                       function,
-                       sockaddr2string(&sa, NULL, 0),
-                       addr->addr.domain,
-                       (long)p);
-
+               /*
+                * Already here, but do make sure to update globalstate to
+                * reflect it too.
+                */
+               add_internal_safamily(sa.ss_family);
                continue;
             }
 
@@ -215,16 +226,11 @@ addinternal(addr, protocol)
                STRCPY_ASSERTSIZE(ifname, "<unknown>");
             }
 
-            NEWINTERNAL(&sockscf.internal.addrc,
-                        sockscf.internal.addrv,
-                        ifname,
-                        sa,
-                        protocol);
+            addinternaladdr(ifname, &sa, protocol);
          }
 
          if (i == 0)
-            yyerrorx("could not resolve name \"%s\": %s",
-                     addr->addr.domain, hstrerror(h_errno));
+            yyerrorx("%s", emsg);
 
          break;
       }
@@ -233,8 +239,12 @@ addinternal(addr, protocol)
          struct ifaddrs *ifap, *iface;
          int isvalidif;
 
+         ifap = NULL;
+
          if (getifaddrs(&ifap) != 0)
             serr("getifaddrs()");
+
+         SASSERTX(ifap != NULL);
 
          for (isvalidif = 0, iface = ifap;
          iface != NULL;
@@ -270,22 +280,15 @@ addinternal(addr, protocol)
                }
             }
             else {
-               if (changesupported)
-                  slog(LOG_DEBUG,
-                       "%s: address %s, expanded  from the ifname \"%s\", "
-                       "is already on the internal list for addresses to "
-                       "accept clients on.  Ignored",
-                       function,
-                       sockaddr2string(&sa, NULL, 0),
-                       addr->addr.ifname);
+               /*
+                * Already here, but do make sure to update globalstate to
+                * reflect it too.
+                */
+               add_internal_safamily(sa.ss_family);
                continue;
             }
 
-            NEWINTERNAL(&sockscf.internal.addrc,
-                        sockscf.internal.addrv,
-                        addr->addr.ifname,
-                        sa,
-                        protocol);
+            addinternaladdr(addr->addr.ifname, &sa, protocol);
          }
 
          freeifaddrs(ifap);
@@ -305,7 +308,12 @@ void
 addexternal(addr)
    const ruleaddr_t *addr;
 {
+   const char *function = "addexternal()";
+   ruleaddr_t ra;
    int added_ipv4 = 0, added_ipv6 = 0, added_ipv6_gs = 0;
+
+   SASSERTX(ntohs(addr->port.tcp) == 0);
+   SASSERTX(ntohs(addr->port.udp) == 0);
 
    switch (addr->atype) {
       case SOCKS_ADDR_DOMAIN: {
@@ -318,39 +326,43 @@ addexternal(addr)
           */
          struct sockaddr_storage sa;
          size_t i;
+         char emsg[1024];
+         int gaierr;
 
          for (i = 0;
-         hostname2sockaddr(addr->addr.domain, i, &sa) != NULL;
-         ++i) {
-
-            NEWEXTERNAL(&sockscf.external.addrc, sockscf.external.addrv);
-
+         hostname2sockaddr2(addr->addr.domain,
+                            i,
+                            &sa,
+                            &gaierr,
+                            emsg,
+                            sizeof(emsg)) != NULL;
+          ++i) {
             SET_SOCKADDRPORT(&sa, addr->port.tcp);
 
-            sockaddr2ruleaddr(&sa,
-                           &sockscf.external.addrv[sockscf.external.addrc - 1]);
+            sockaddr2ruleaddr(&sa, &ra);
 
-            switch (sa.ss_family) {
-               case AF_INET:
-                  added_ipv4 = 1;
-                  break;
+            if (addexternaladdr(&ra) == 0) {
+               switch (sa.ss_family) {
+                  case AF_INET:
+                     added_ipv4 = 1;
+                     break;
 
-               case AF_INET6:
-                  added_ipv6 = 1;
+                  case AF_INET6:
+                     added_ipv6 = 1;
 
-                  if (!IN6_IS_ADDR_LINKLOCAL(&TOIN6(&sa)->sin6_addr))
-                     added_ipv6_gs = 1;
+                     if (!IN6_IS_ADDR_LINKLOCAL(&TOIN6(&sa)->sin6_addr))
+                        added_ipv6_gs = 1;
 
-                  break;
+                     break;
 
-               default:
-                  SERRX(sa.ss_family);
+                  default:
+                     SERRX(sa.ss_family);
+               }
             }
          }
 
          if (i == 0)
-            yyerrorx("could not resolve name \"%s\": %s",
-                     addr->addr.domain, hstrerror(h_errno));
+            yyerrorx("%s", emsg);
 
          break;
       }
@@ -361,12 +373,12 @@ addexternal(addr)
                      "be a wildcard address",
                      ruleaddr2string(addr, 0, NULL, 0));
 
-         NEWEXTERNAL(&sockscf.external.addrc, sockscf.external.addrv);
-         sockscf.external.addrv[sockscf.external.addrc - 1] = *addr;
-         sockscf.external.addrv[sockscf.external.addrc - 1]
-         .addr.ipv4.mask.s_addr = htonl(IPV4_FULLNETMASK);
+         ra                       = *addr;
+         ra.addr.ipv4.mask.s_addr = htonl(IPV4_FULLNETMASK);
 
-         added_ipv4 = 1;
+         if (addexternaladdr(&ra) == 0)
+            added_ipv4 = 1;
+
          break;
 
       case SOCKS_ADDR_IPV6:
@@ -375,15 +387,15 @@ addexternal(addr)
             yyerrorx("external address (%s) cannot be a wildcard address",
                      ruleaddr2string(addr, 0, NULL, 0));
 
-         NEWEXTERNAL(&sockscf.external.addrc, sockscf.external.addrv);
-         sockscf.external.addrv[sockscf.external.addrc - 1] = *addr;
-         sockscf.external.addrv[sockscf.external.addrc - 1]
-         .addr.ipv6.maskbits = IPV6_NETMASKBITS;
+         ra                    = *addr;
+         ra.addr.ipv6.maskbits = IPV6_NETMASKBITS;
 
-         added_ipv6 = 1;
+         if (addexternaladdr(&ra) == 0) {
+            added_ipv6 = 1;
 
-         if (!IN6_IS_ADDR_LINKLOCAL(&addr->addr.ipv6.ip))
-            added_ipv6_gs = 1;
+            if (!IN6_IS_ADDR_LINKLOCAL(&ra.addr.ipv6.ip))
+               added_ipv6_gs = 1;
+         }
 
          break;
 
@@ -395,9 +407,30 @@ addexternal(addr)
          struct sockaddr_storage sa, t;
          size_t i;
 
+         /*
+          * We add the interface, not the addresses.  But we want to
+          * know whether the addresses, at least currently, resolve
+          * to ipv4 or ipv6 so we can resolve hostnames appropriately.
+          * E.g., no need to resolve hostname to ipv6 address if we do
+          * not have ipv6 on the external interface.
+          */
          for (i = 0;
          ifname2sockaddr(addr->addr.ifname, i, &sa, &t) != NULL;
          ++i) {
+            const int enabled
+            = safamily_isenabled(sa.ss_family,
+                                 sockaddr2string(&sa, NULL, 0),
+                                 EXTERNALIF);
+
+            slog(LOG_DEBUG, "%s: ifname %s resolved to address %s.  %s",
+                 function,
+                 addr->addr.ifname,
+                 sockaddr2string2(&sa, ADDRINFO_ATYPE, NULL, 0),
+                 enabled ? "enabled" : "not enabled due to address family");
+
+            if (!enabled)
+               continue;
+
             switch (sa.ss_family) {
                case AF_INET:
                   added_ipv4 = 1;
@@ -416,8 +449,11 @@ addexternal(addr)
             }
          }
 
-         NEWEXTERNAL(&sockscf.external.addrc, sockscf.external.addrv);
-         sockscf.external.addrv[sockscf.external.addrc - 1] = *addr;
+         /*
+          * Not resolving but adding the ifname itself.
+          */
+         (void)addexternaladdr(addr);
+
          break;
       }
 
@@ -426,92 +462,11 @@ addexternal(addr)
    }
 
    if (added_ipv4)
-      sockscf.shmeminfo->state.external_hasipv4 = 1;
+      add_external_safamily(AF_INET, 1);
 
-   if (added_ipv6) {
-      sockscf.shmeminfo->state.external_hasipv6 = 1;
-
-      if (added_ipv6_gs)
-         sockscf.shmeminfo->state.external_hasipv6_globalscope = 1;
-   }
+   if (added_ipv6)
+      add_external_safamily(AF_INET6, added_ipv6_gs);
 }
-
-#if 0
-/*
- * not used yet, but if at some point we have to code to monitor interfaces
- * we use for changes ...  XXX move to a different file also.  interface.c?
- */
-void
-external_set_safamily(hasipv4, hasipv6, hasipv6_gs)
-   unsigned char *hasipv4;
-   unsigned char *hasipv6;
-   unsigned char *hasipv6_gs;
-{
-   size_t i;
-
-   if (hasipv4 != NULL)
-      *hasipv4 = 0;
-
-   if (hasipv6 != NULL)
-      *hasipv6 = 0;
-
-   if (hasipv6_gs != NULL)
-      *hasipv6_gs = 0;
-
-   for (i = 0; i < sockscf.external.addrc; ++i) {
-      const ruleaddr_t *addr = &sockscf.external.addrv[i];
-
-      /*
-       * loop through array until we've found at least one match for
-       * each address-family asked for.
-       */
-      if ((hasipv4 == NULL || *hasipv4)
-      &&  (hasipv6 == NULL || *hasipv6))
-         return;
-
-      switch (addr->atype) {
-         case SOCKS_ADDR_IPV4:
-            if (hasipv4 != NULL)
-               *hasipv4 = 1;
-            break;
-
-         case SOCKS_ADDR_IPV6:
-            if (hasipv6 != NULL)
-               *hasipv6 = 1;
-
-#warning "add code for hasipv6_gs"
-
-            break;
-
-         case SOCKS_ADDR_IFNAME: {
-            struct sockaddr_storage sa, mask;
-            size_t ai = 0;
-
-            while (ifname2sockaddr(addr->addr.ifname, ai, &sa, &mask) != NULL) {
-               switch (sa.ss_family) {
-                  case AF_INET:
-                     if (hasipv4 != NULL)
-                        *hasipv4 = 1;
-                     break;
-
-                  case AF_INET6:
-                     if (hasipv6 != NULL)
-                        *hasipv6 = 1;
-                     break;
-               }
-
-               ++ai;
-            }
-
-            break;
-         }
-
-         default:
-            SERRX(addr->atype);
-      }
-   }
-}
-#endif
 
 void
 resetconfig(config, exiting)
@@ -519,7 +474,7 @@ resetconfig(config, exiting)
    const int exiting;
 {
    const char *function = "resetconfig()";
-   const int ismainmother = (pidismother(config->state.pid) == 1);
+   const int ismainmother = pidismainmother(config->state.pid);
    rule_t *rulev[] = { config->crule, config->hrule, config->srule };
    monitor_t *monitor;
    size_t oldc, i;
@@ -557,46 +512,61 @@ resetconfig(config, exiting)
          break;
    }
 
-   /* can always be changed from config. */
-   bzero(&config->cpu, sizeof(config->cpu));
+   /*
+    * config->initial: nothing to do here.
+    */
 
-   if (config->option.serverc == 1) { /* don't support change if more. */
+   /*
+    * Internal interface.
+    */
+
+   if (config->option.serverc == 1 || !ismainmother) {
+      /*
+       * We only support changing these as long as we only have one mother
+       * process.
+       * If we are not the main mother, we do need to free the memory as
+       * usual however, so it will not be leaked when we realloc based on
+       * the config in shmem that main mother has now installed and from
+       * which we will update.
+       */
+
       free(config->internal.addrv);
       config->internal.addrv = NULL;
       config->internal.addrc = 0;
+
+      bzero(&config->internal.protocol, sizeof(config->internal.protocol));
    }
 
-#if HAVE_LIBWRAP
-   if (config->hosts_allow_original != NULL
-   && hosts_allow_table != config->hosts_allow_original) {
-      free(hosts_allow_table);
-      hosts_allow_table = config->hosts_allow_original;
-   }
+   bzero(&config->internal.log, sizeof(config->internal.log));
 
-   if (config->hosts_deny_original != NULL
-   && hosts_deny_table != config->hosts_deny_original) {
-      free(hosts_deny_table);
-      hosts_deny_table = config->hosts_deny_original;
-   }
-#endif /* HAVE_LIBWRAP */
+   /*
+    * External interface.
+    */
 
    /* external addresses can always be changed. */
    free(config->external.addrv);
    config->external.addrv = NULL;
    config->external.addrc = 0;
 
-   free(config->socketoptionv);
-   config->socketoptionv = NULL;
-   config->socketoptionc = 0;
+   config->external.rotation = ROTATION_NOTSET;
+   bzero(&config->external.log, sizeof(config->external.log));
+   bzero(&config->external.protocol, sizeof(config->external.protocol));
+
+   /* can always be changed from config. */
+   bzero(&config->cpu, sizeof(config->cpu));
 
    for (i = 0; i < ELEMENTS(rulev); ++i) {
-      rule_t *rule, *next;
+      rule_t *rule, prevrule, *next;
+      int haveprevrule;
 
-      rule = rulev[i];
+      haveprevrule = 0;
+      rule         = rulev[i];
+
       while (rule != NULL) {
          /*
           * Free normal process-local memory.
           */
+         int rule_is_autoexpanded;
 
 #if !HAVE_SOCKS_RULES
          if (rule->type == object_srule) {
@@ -613,13 +583,36 @@ resetconfig(config, exiting)
          }
 #endif /* !HAVE_SOCKS_RULES */
 
-         freelinkedname(rule->user);
+         if (haveprevrule
+         &&  prevrule.type   == rule->type
+         &&  prevrule.number == rule->number) {
+            slog(LOG_DEBUG,
+                 "%s: another %s with same rule-number (%lu).  "
+                 "Must be expanded from the same \"to\"-address",
+                 function,
+                 objecttype2string(rule->type),
+                 (unsigned long)rule->number);
+
+            rule_is_autoexpanded = 1;
+            SASSERTX(BAREFOOTD);
+         }
+         else
+            rule_is_autoexpanded = 0;
+
+         if (!rule_is_autoexpanded)
+            /*
+             * We don't bother allocating identical memory for auto-expanded
+             * rules, so only need to free it if it is not auto-expanded.
+             */
+            freelinkedname(rule->user);
          rule->user = NULL;
 
-         freelinkedname(rule->group);
+         if (!rule_is_autoexpanded)
+            freelinkedname(rule->group);
          rule->group = NULL;
 
-         free(rule->socketoptionv);
+         if (!rule_is_autoexpanded)
+            free(rule->socketoptionv);
          rule->socketoptionv = NULL;
          rule->socketoptionc = 0;
 
@@ -642,43 +635,55 @@ resetconfig(config, exiting)
                                           + 1 /* session state. */
                                         ];
 
-            if (rule->bw_shmid != 0) {
-               moreoldshmemv[moreoldshmemc].id   = rule->bw_shmid;
-               moreoldshmemv[moreoldshmemc].key  = key_unset;
-               moreoldshmemv[moreoldshmemc].type = SHMEM_BW;
-
-               ++moreoldshmemc;
+            if (rule_is_autoexpanded) {
+               SASSERTX(BAREFOOTD);
+               SHMEM_CLEAR(rule, SHMEM_ALL, 1);
             }
-
-            if (rule->ss_shmid != 0) {
-               /*
-                * session-module supports statekeys too, so need to save that
-                * too.
-                */
-               if (sockd_shmat(rule, SHMEM_SS) == 0) {
-                  moreoldshmemv[moreoldshmemc].id   = rule->ss_shmid;
-                  moreoldshmemv[moreoldshmemc].key  = rule->ss->keystate.key;
-                  moreoldshmemv[moreoldshmemc].type = SHMEM_SS;
+            else {
+               if (rule->bw_shmid != 0) {
+                  moreoldshmemv[moreoldshmemc].id   = rule->bw_shmid;
+                  moreoldshmemv[moreoldshmemc].key  = key_unset;
+                  moreoldshmemv[moreoldshmemc].type = SHMEM_BW;
 
                   ++moreoldshmemc;
-
-                  sockd_shmdt(rule, SHMEM_SS);
                }
-            }
 
-            if (moreoldshmemc > 0)
-               add_more_old_shmem(config, moreoldshmemc, moreoldshmemv);
+               if (rule->ss_shmid != 0) {
+                  /*
+                   * session-module supports statekeys too, so need to save that
+                   * too.
+                   */
+                  if (sockd_shmat(rule, SHMEM_SS) == 0) {
+                     moreoldshmemv[moreoldshmemc].id   = rule->ss_shmid;
+                     moreoldshmemv[moreoldshmemc].key  = rule->ss->keystate.key;
+                     moreoldshmemv[moreoldshmemc].type = SHMEM_SS;
+
+                     ++moreoldshmemc;
+
+                     sockd_shmdt(rule, SHMEM_SS);
+                  }
+               }
+
+               if (moreoldshmemc > 0)
+                  add_more_old_shmem(config, moreoldshmemc, moreoldshmemv);
+            }
          }
 
-         next = rule->next;
+         prevrule = *rule;
+         haveprevrule = 1;
+
+         next     = rule->next;
          free(rule);
-         rule = next;
+         rule     = next;
       }
    }
 
    config->crule = config->hrule = config->srule = NULL;
 
-   /* and routes. */
+   /* routeoptions, read from config file. */
+   bzero(&config->routeoptions, sizeof(config->routeoptions));
+
+   /* free routes. */
    freeroutelist(config->route);
    config->route = NULL;
 
@@ -702,17 +707,18 @@ resetconfig(config, exiting)
    }
    config->monitor = NULL;
 
-   /* routeoptions, read from config file. */
-   bzero(&config->routeoptions, sizeof(config->routeoptions));
+   /* monitoroptions.  Reset on each reload. */
+   bzero(&config->monitorspec, sizeof(config->monitorspec));
+
+   free(config->socketoptionv);
+   config->socketoptionv = NULL;
+   config->socketoptionc = 0;
 
    /* compat, read from config file. */
    bzero(&config->compat, sizeof(config->compat));
 
    /* extensions, read from config file. */
    bzero(&config->extension, sizeof(config->extension));
-
-   bzero(&config->internal.log, sizeof(config->internal.log));
-   bzero(&config->external.log, sizeof(config->external.log));
 
    /*
     * log, errlog; handled specially when parsing.
@@ -735,21 +741,26 @@ resetconfig(config, exiting)
    /* srchost, read from config file. */
    bzero(&config->srchost, sizeof(config->srchost));
 
-   /* stat: keep it. */
+   /* stat: not touch.  Accumulated continously. */
 
    /*
-    * state; keep most of it.
+    * state; keep most of it, with the following exceptions:
     */
-
-   /* don't want to have too much code for tracking this, so regen now. */
+   /* don't want to have too much code for tracking this, so regen this now. */
    config->state.highestfdinuse = 0;
 
+   /* timeout, read from config file. */
+   bzero(&config->timeout, sizeof(config->timeout));
+
 #if HAVE_SOLARIS_PRIVS
-   /* uid; special.  Need to clear, but need to reopen config file first. */
+   /* uid; is special.  Needs clearing, but must reopen config-file first. */
 #endif /* HAVE_SOLARIS_PRIVS */
 
+   /* (child)state: not touched. */
+
+
    /*
-    * methods, read from config file.
+    * various method settings.  All read from config file.
     */
 
    bzero(config->cmethodv, sizeof(config->cmethodv));
@@ -758,8 +769,21 @@ resetconfig(config, exiting)
    bzero(config->smethodv, sizeof(config->smethodv));
    config->smethodc = 0;
 
-   /* timeout, read from config file. */
-   bzero(&config->timeout, sizeof(config->timeout));
+   /* udpconnectdst.  No need to touch.  Reset to default on reload. */
+
+#if HAVE_LIBWRAP
+   if (config->hosts_allow_original != NULL
+   && hosts_allow_table             != config->hosts_allow_original) {
+      free(hosts_allow_table);
+      hosts_allow_table = config->hosts_allow_original;
+   }
+
+   if (config->hosts_deny_original != NULL
+   && hosts_deny_table             != config->hosts_deny_original) {
+      free(hosts_deny_table);
+      hosts_deny_table = config->hosts_deny_original;
+   }
+#endif /* HAVE_LIBWRAP */
 
    if (exiting && ismainmother && config->oldshmemc > 0) {
       /*
@@ -981,7 +1005,16 @@ addrindex_on_externallist(external, _addr)
    sockaddrcpy(&addr, _addr, sizeof(addr));
    SET_SOCKADDRPORT(&addr, htons(0));
 
+   slog(LOG_DEBUG,
+        "%s: checking if address %s is a configured external address",
+        function, sockaddr2string(&addr, NULL, 0));
+
    for (i = 0; i < external->addrc; ++i) {
+      slog(LOG_DEBUG, "%s: external address #%lu: %s",
+           function,
+           (unsigned long)i,
+           ruleaddr2string(&external->addrv[i], ADDRINFO_ATYPE, NULL, 0));
+
       switch (external->addrv[i].atype) {
          case SOCKS_ADDR_IPV4:
          case SOCKS_ADDR_IPV6: {
@@ -991,6 +1024,11 @@ addrindex_on_externallist(external, _addr)
                                                   &host,
                                                   SOCKS_TCP),
                                &sa);
+#if DIAGNOSTIC
+            SASSERTX(safamily_isenabled(sa.ss_family,
+                                        sockaddr2string(&sa, NULL, 0),
+                                        EXTERNALIF));
+#endif /* DIAGNOSTIC */
 
             if (sockaddrareeq(&addr, &sa, 0))
                return (ssize_t)i;
@@ -998,13 +1036,32 @@ addrindex_on_externallist(external, _addr)
             break;
          }
          case SOCKS_ADDR_DOMAIN: {
+            char emsg[1024];
+            int gaierr;
             size_t ii;
 
             ii = 0;
-            while (hostname2sockaddr(external->addrv[i].addr.domain, ii++, &sa)
-            != NULL)
+            while (hostname2sockaddr2(external->addrv[i].addr.domain,
+                                      ii++,
+                                      &sa,
+                                      &gaierr,
+                                      emsg,
+                                      sizeof(emsg)) != NULL) {
+               slog(LOG_DEBUG, "%s: checking resolved address %s ...",
+                    function, sockaddr2string(&sa, NULL, 0));
+
+               if (!safamily_isenabled(sa.ss_family,
+                                       sockaddr2string(&sa, NULL, 0),
+                                       EXTERNALIF))
+                  continue;
+
                if (sockaddrareeq(&addr, &sa, 0))
                   return (ssize_t)i;
+            }
+
+            if (ii == 0)
+               swarnx("%s: problem with address on external interface: %s",
+                      function, emsg);
 
             break;
          }
@@ -1014,12 +1071,18 @@ addrindex_on_externallist(external, _addr)
             size_t ii;
 
             ii = 0;
-            while (ifname2sockaddr(external->addrv[i].addr.domain,
+            while (ifname2sockaddr(external->addrv[i].addr.ifname,
                                    ii++,
                                    &sa,
-                                   &mask) != NULL)
+                                   &mask) != NULL) {
+               if (!safamily_isenabled(sa.ss_family,
+                                       sockaddr2string(&sa, NULL, 0),
+                                       EXTERNALIF))
+                  continue;
+
                if (sockaddrareeq(&addr, &sa, 0))
                   return (ssize_t)i;
+            }
 
             break;
          }
@@ -1452,6 +1515,35 @@ checkconfig(void)
             "forwarding data on behalf of clients",
             function);
 
+   if (sockscf.external.rotation == ROTATION_NONE) {
+      size_t ipv4c = 0, ipv6c = 0;
+
+      for (i = 0; i < sockscf.external.addrc; ++i) {
+         switch (sockscf.external.addrv[i].atype) {
+            case SOCKS_ADDR_IPV4:
+               ++ipv4c;
+               break;
+
+            case SOCKS_ADDR_IPV6:
+               ++ipv6c;
+               break;
+
+            case SOCKS_ADDR_IFNAME:
+            case SOCKS_ADDR_DOMAIN:
+               break;
+
+            default:
+               SERRX(sockscf.external.addrv[i].atype);
+         }
+      }
+
+      if (ipv4c > 1 || ipv6c > 1)
+         swarnx("%s: more than one external address has been specified, but "
+                "as long as external.rotation has the default value %s "
+                "only the first address specified will be used",
+                function, rotation2string(sockscf.external.rotation));
+   }
+
    if (sockscf.external.rotation == ROTATION_SAMESAME
    &&  sockscf.external.addrc    == 1)
       swarnx("%s: rotation for external addresses is set to same-same, but "
@@ -1501,6 +1593,144 @@ checkconfig(void)
                ruleaddr2string(&sockscf.external.addrv[i], 0, NULL, 0));
 }
 
+void
+add_external_safamily(safamily, globalscope)
+   const sa_family_t safamily;
+   const int globalscope;
+{
+   switch (safamily) {
+      case AF_INET:
+         sockscf.external.protocol.hasipv4 = 1;
+         break;
+
+      case AF_INET6:
+         sockscf.external.protocol.hasipv6 = 1;
+
+         if (globalscope)
+            sockscf.external.protocol.hasipv6_globalscope = 1;
+
+         break;
+
+      default:
+         SERRX(safamily);
+   }
+}
+
+
+int
+external_has_safamily(safamily)
+   const sa_family_t safamily;
+{
+   const char *function = "external_has_safamily()";
+
+   SASSERTX(sockscf.shmeminfo != NULL);
+
+#if 0
+   slog(LOG_DEBUG, "%s: hasipv4: %d, hasipv6: %d, hasipv6_globalscope: %d",
+        function,
+        sockscf.shmeminfo->state.external_hasipv4,
+        sockscf.shmeminfo->state.external_hasipv6,
+        sockscf.shmeminfo->state.external_hasipv6_globalscope);
+#endif
+
+   switch (safamily) {
+      case AF_INET:
+         return sockscf.external.protocol.hasipv4;
+
+      case AF_INET6:
+         return sockscf.external.protocol.hasipv6;
+
+      default:
+         SERRX(safamily);
+   }
+}
+
+void
+add_internal_safamily(safamily)
+   const sa_family_t safamily;
+{
+   switch (safamily) {
+      case AF_INET:
+         sockscf.internal.protocol.hasipv4 = 1;
+         break;
+
+      case AF_INET6:
+         sockscf.internal.protocol.hasipv6 = 1;
+         break;
+
+      default:
+         SERRX(safamily);
+   }
+}
+
+
+int
+internal_has_safamily(safamily)
+   const sa_family_t safamily;
+{
+   const char *function = "internal_has_safamily()";
+
+   SASSERTX(sockscf.shmeminfo != NULL);
+
+#if 0
+   slog(LOG_DEBUG, "%s: hasipv4: %d, hasipv6: %d",
+        function,
+        sockscf.internal.protocol.hasipv4,
+        sockscf.internal.protocol.hasipv6);
+#endif
+
+   switch (safamily) {
+      case AF_INET:
+         return sockscf.internal.protocol.hasipv4;
+
+      case AF_INET6:
+         return sockscf.internal.protocol.hasipv6;
+
+      default:
+         SERRX(safamily);
+   }
+}
+
+int
+external_has_only_safamily(safamily)
+   const sa_family_t safamily;
+{
+
+   switch (safamily) {
+      case AF_INET:
+         return   (external_has_safamily(AF_INET)
+               && !external_has_safamily(AF_INET6));
+
+      case AF_INET6:
+         return   (external_has_safamily(AF_INET6)
+               && !external_has_safamily(AF_INET));
+
+      default:
+         SERRX(safamily);
+   }
+}
+
+
+int
+external_has_global_safamily(safamily)
+   const sa_family_t safamily;
+{
+
+   SASSERTX(sockscf.shmeminfo != NULL);
+
+   switch (safamily) {
+      case AF_INET: /* don't care about scope for IPv4. */
+         return sockscf.external.protocol.hasipv4;
+
+      case AF_INET6:
+         return sockscf.external.protocol.hasipv6_globalscope;
+
+      default:
+         SERRX(safamily);
+   }
+}
+
+
 
 
 static void
@@ -1510,11 +1740,11 @@ add_more_old_shmem(config, memc, memv)
    const oldshmeminfo_t memv[];
 {
    const char *function = "add_more_old_shmem()";
-   void *p;
+   void *old;
    size_t i;
 
-   if ((p = realloc(config->oldshmemv,
-                    sizeof(*config->oldshmemv) * (config->oldshmemc + memc)))
+   if ((old = realloc(config->oldshmemv,
+                      sizeof(*config->oldshmemv) * (config->oldshmemc + memc)))
    == NULL) {
       swarn("%s: could not allocate %lu bytes of memory to "
             "hold old shmids for later removal",
@@ -1523,7 +1753,7 @@ add_more_old_shmem(config, memc, memv)
                             * (config->oldshmemc + memc)));
       return;
    }
-   config->oldshmemv = p;
+   config->oldshmemv = old;
 
    for (i = 0; i < memc; ++i) {
       const char *type;
@@ -1557,4 +1787,133 @@ add_more_old_shmem(config, memc, memv)
 
       config->oldshmemv[config->oldshmemc++] = memv[i];
    }
+}
+
+static int
+safamily_isenabled(safamily, addrstr, side)
+   const sa_family_t safamily;
+   const char *addrstr;
+   const interfaceside_t side;
+{
+   const char *function = "safamily_isenabled()";
+   interfaceprotocol_t *interface;
+   int isenabled;
+
+   switch (side) {
+      case INTERNALIF:
+         interface = &sockscf.internal.protocol;
+         break;
+
+      case EXTERNALIF:
+         interface = &sockscf.external.protocol;
+         break;
+
+      default:
+         SERRX(side);
+   }
+
+   isenabled = 0;
+   switch (safamily) {
+      case AF_INET:
+         if (interface->ipv4)
+            isenabled = 1;
+         break;
+
+      case AF_INET6:
+         if (interface->ipv6)
+            isenabled = 1;
+         break;
+
+      default:
+         SERRX(safamily);
+   }
+
+   if (!isenabled)
+      slog(LOG_DEBUG,
+           "%s: address family %s option is not enabled on the %s-side "
+           "interface. Can not use address \"%s\"",
+           function,
+           safamily2string(safamily),
+           interfaceside2string(side),
+           addrstr);
+
+   return isenabled;
+}
+
+static int
+addexternaladdr(ra)
+   const struct ruleaddr_t *ra;
+{
+   void *old;
+
+   switch (ra->atype) {
+      case SOCKS_ADDR_IPV4:
+      case SOCKS_ADDR_IPV6:
+         if (!safamily_isenabled(atype2safamily(ra->atype),
+                                 ruleaddr2string(ra, ADDRINFO_ATYPE, NULL, 0),
+                                 EXTERNALIF))
+            return -1;
+         break;
+
+      default:
+         /*
+          * Will be resolved when needed.
+          */
+         break;
+   }
+
+   old = realloc(sockscf.external.addrv,
+                sizeof(*sockscf.external.addrv) * (sockscf.external.addrc + 1));
+
+   if (old == NULL)
+      yyerror(NOMEM);
+
+   sockscf.external.addrv = old;
+
+   sockscf.external.addrv[sockscf.external.addrc++] = *ra;
+   return 0;
+}
+
+
+static int
+addinternaladdr(ifname, sa, protocol)
+   const char *ifname;
+   const struct sockaddr_storage *sa;
+   const int protocol;
+{
+   const char *function = "addinternaladdr()";
+   void *old;
+
+   if (!safamily_isenabled(sa->ss_family,
+                           sockaddr2string2(sa, ADDRINFO_ATYPE, NULL, 0),
+                           INTERNALIF) != 0)
+      return -1;
+
+   slog(LOG_DEBUG, "%s: adding address %s on nic %s to the internal list",
+        function, sockaddr2string(sa, NULL, 0), ifname);
+
+   old = realloc(sockscf.internal.addrv,
+                sizeof(*sockscf.internal.addrv) * (sockscf.internal.addrc + 1));
+
+   if (old == NULL)
+      yyerror(NOMEM);
+
+   sockscf.internal.addrv = old;
+
+#if 0
+   bzero(&sockscf.internal.addrv[sockscf.internal.addrc],
+         sizeof(sockscf.internal.addrv[sockscf.internal.addrc]));
+#endif
+   sockaddrcpy(&sockscf.internal.addrv[sockscf.internal.addrc].addr,
+               sa,
+               sizeof(sockscf.internal.addrv[sockscf.internal.addrc].addr));
+
+   sockscf.internal.addrv[sockscf.internal.addrc].protocol = protocol;
+   sockscf.internal.addrv[sockscf.internal.addrc].s        = -1;
+
+   ++sockscf.internal.addrc;
+
+   add_internal_safamily(sa->ss_family);
+
+   return 0;
 }

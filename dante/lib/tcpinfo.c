@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013
+ * Copyright (c) 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #endif /* HAVE_NETINET_TCP_FSM_H */
 
 static const char rcsid[] =
-"$Id: tcpinfo.c,v 1.15 2013/10/27 15:17:06 karls Exp $";
+"$Id: tcpinfo.c,v 1.15.4.1 2014/08/15 18:16:41 karls Exp $";
 
 #if HAVE_TCP_INFO
 

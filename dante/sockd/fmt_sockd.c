@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013
+ * Copyright (c) 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: fmt_sockd.c,v 1.26 2013/10/27 15:24:42 karls Exp $";
+"$Id: fmt_sockd.c,v 1.26.4.3 2014/08/15 18:16:42 karls Exp $";
 
 void
 sockd_readmotherscontrolsocket(prefix, s)
@@ -245,4 +245,47 @@ log_bind_failed(function, protocol, address)
             "ephemeral port range configured on this system (see sysctl(8))"
         :   strerror(errno));
 
+}
+
+void
+log_interfaceprotocol_set_too_late(side)
+   const interfaceside_t side;
+{
+
+   yyerrorx("protocols and address-families on the %s-side interface must be "
+            "specified before addresses for the same interface are specified, "
+            "so that we can know which addresses to ignore",
+            interfaceside2string(side));
+}
+
+void
+log_getsockopt_failed(function, option, fd, interfaceside)
+   const char *function;
+   const char *option;
+   const int fd;
+   const interfaceside_t interfaceside;
+{
+
+   swarn("%s: could not get the current %s value for fd %d on the %s side",
+         function,
+         option,
+         fd,
+         interfaceside2string(interfaceside));
+}
+
+void
+log_setsockopt_failed(function, option, value, fd, interfaceside)
+   const char *function;
+   const char *option;
+   const int value;
+   const int fd;
+   const interfaceside_t interfaceside;
+{
+
+   swarn("%s: could not set the %s value for fd %d on the %s side to %d",
+         function,
+         option,
+         fd,
+         interfaceside2string(interfaceside),
+         value);
 }

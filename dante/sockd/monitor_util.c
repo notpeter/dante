@@ -42,73 +42,194 @@
  */
 
 #include "common.h"
+#include "monitor.h"
 
 static const char rcsid[] =
-"$Id: monitor_util.c,v 1.5 2013/10/25 12:55:02 karls Exp $";
+"$Id: monitor_util.c,v 1.5.4.8 2014/08/24 11:41:34 karls Exp $";
 
+#if 0
+#warning "XXX change to LOG_DEBUG"
+#define LOG_DEBUG LOG_NOTICE
+#endif
 int
-external_has_safamily(safamily)
-   const sa_family_t safamily;
+recv_monitor(s, monitor)
+   const int s;
+   monitor_test_t *monitor;
 {
+   const char *function = "recv_monitor()";
+   struct iovec iovecv[1];
+   struct msghdr msg;
+   ssize_t received;
+   int iovecc, fdexpect, fdreceived;
+   CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
-   SASSERTX(sockscf.shmeminfo != NULL);
+   bzero(iovecv, sizeof(iovecv));
+   iovecc = 0;
 
-   switch (safamily) {
-      case AF_INET:
-         return sockscf.shmeminfo->state.external_hasipv4;
+   iovecv[iovecc].iov_base = monitor;
+   iovecv[iovecc].iov_len  = sizeof(*monitor);
+   ++iovecc;
 
-      case AF_INET6:
-         return sockscf.shmeminfo->state.external_hasipv6;
+   bzero(&msg, sizeof(msg));
+   msg.msg_iov     = iovecv;
+   msg.msg_iovlen  = iovecc;
+   msg.msg_name    = NULL;
+   msg.msg_namelen = 0;
 
-      default:
-         SERRX(safamily);
+   /* LINTED pointer casts may be troublesome */
+   CMSG_SETHDR_RECV(msg, cmsg, CMSG_MEMSIZE(cmsg));
+
+   if ((received = recvmsgn(s, &msg, 0)) < (ssize_t)sizeof(*monitor)) {
+      if (received == -1 && errno == EAGAIN)
+         ;
+      else
+         slog(LOG_DEBUG,
+              "%s: recvmsg(): unexpected short read on socket %d (%ld < %lu): "
+              "%s",
+              function,
+              s,
+              (long)received,
+              (unsigned long)(sizeof(*monitor)),
+              strerror(errno));
+
+      return -1;
    }
+
+   if (socks_msghaserrors(function, &msg))
+      return -1;
+
+   fdexpect = 2;
+   if (!CMSG_RCPTLEN_ISOK(msg, sizeof(int) * fdexpect)) {
+      swarnx("%s: received control message has the invalid len of %d",
+              function, (int)CMSG_TOTLEN(msg));
+
+      return -1;
+   }
+
+
+   SASSERTX(cmsg->cmsg_level == SOL_SOCKET);
+   SASSERTX(cmsg->cmsg_type  == SCM_RIGHTS);
+
+   /*
+    * Get the descriptors sent us.
+    */
+
+   fdreceived = 0;
+
+   CMSG_GETOBJECT(monitor->internal.s,
+                  cmsg,
+                  sizeof(monitor->internal.s) * fdreceived++);
+
+   CMSG_GETOBJECT(monitor->external.s,
+                  cmsg,
+                  sizeof(monitor->external.s) * fdreceived++);
+
+   gettimeofday_monotonic(&monitor->ts_received);
+
+   sockd_check_ipclatency("monitor received",
+                          &monitor->ts_sent,
+                          &monitor->ts_received,
+                          &monitor->ts_received);
+
+
+   if (sockscf.option.debug || 1) {
+      char src[MAXSOCKADDRSTRING * 3], dst[sizeof(src)];
+
+      slog(LOG_DEBUG,
+           "%s: %d fd(s) received.  "
+           "Internal-fd %d: %s, external-fd %d: %s",
+           function,
+           fdreceived,
+           monitor->internal.s,
+           socket2string(monitor->internal.s, src, sizeof(src)),
+           monitor->external.s,
+           socket2string(monitor->external.s, dst, sizeof(dst)));
+   }
+
+   return 0;
 }
 
 int
-external_has_only_safamily(safamily)
-   const sa_family_t safamily;
+send_monitor(s, monitor)
+   const int s;
+   const monitor_test_t *monitor;
 {
+   const char *function = "send_monitor()";
+   struct iovec iov[1];
+   struct msghdr msg;
+   struct timeval tnow;
+   ssize_t rc, length;
+   int ioc, fdtosend;
+   CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
 
-   SASSERTX(sockscf.shmeminfo != NULL);
+   bzero(iov, sizeof(iov));
+   length = 0;
+   ioc    = 0;
 
-   switch (safamily) {
-      case AF_INET:
-         if (sockscf.shmeminfo->state.external_hasipv4
-         &&  !sockscf.shmeminfo->state.external_hasipv6)
-            return 1;
-         else
-            return 0;
+   iov[ioc].iov_base  = monitor;
+   iov[ioc].iov_len   = sizeof(*monitor);
+   length            += iov[ioc].iov_len;
+   ++ioc;
 
-      case AF_INET6:
-         if (sockscf.shmeminfo->state.external_hasipv6
-         &&  !sockscf.shmeminfo->state.external_hasipv4)
-            return 1;
-         else
-            return 0;
+   fdtosend = 0;
 
-      default:
-         SERRX(safamily);
+   CMSG_ADDOBJECT(monitor->internal.s,
+                  cmsg,
+                  sizeof(monitor->internal.s) * fdtosend++);
+
+   CMSG_ADDOBJECT(monitor->external.s,
+                  cmsg,
+                  sizeof(monitor->external.s) * fdtosend++);
+
+   bzero(&msg, sizeof(msg));
+   msg.msg_iov     = iov;
+   msg.msg_iovlen  = ioc;
+   msg.msg_name    = NULL;
+
+   CMSG_SETHDR_SEND(msg, cmsg, sizeof(int) * fdtosend);
+
+   if (sockscf.option.debug || 1) {
+      char ibuf[MAXSOCKADDRSTRING * 3], ebuf[sizeof(ibuf)];
+
+      slog(LOG_DEBUG,
+           "%s: sending %d descriptors with monitor to process on fd %d.  "
+           "Internal-fd: %d (%s), external-fd: %d (%s)",
+           function,
+           fdtosend,
+           s,
+           monitor->internal.s,
+           socket2string(monitor->internal.s, ibuf, sizeof(ibuf)),
+           monitor->external.s,
+           socket2string(monitor->external.s, ebuf, sizeof(ebuf)));
    }
+
+   if ((rc = sendmsgn(s, &msg, 0, 0)) != length) {
+      slog(LOG_DEBUG,
+           "%s: send of monitor object to monitor process failed: %ld/%ld: %s",
+           function, (long)rc, (long)length, strerror(errno));
+
+      return -1;
+   }
+
+   gettimeofday_monotonic(&tnow);
+   sockscf.state.monitor_sent = tnow.tv_sec;
+
+   return 0;
 }
 
-
-
-int
-external_has_global_safamily(safamily)
-   const sa_family_t safamily;
+const monitor_t *
+shmid2monitor(shmid)
+   const unsigned long shmid;
 {
+   const char *function = "shmid2monitor()";
+   monitor_t *m;
 
-   SASSERTX(sockscf.shmeminfo != NULL);
+   for (m = sockscf.monitor; m != NULL; m = m->next)
+      if (m->mstats_shmid == shmid) {
+         slog(LOG_DEBUG, "%s: monitor #%lu has shmid %lu",
+             function, (unsigned long)m->number, (unsigned long)shmid);
 
-   switch (safamily) {
-      case AF_INET: /* don't care about scope for IPv4. */
-         return sockscf.shmeminfo->state.external_hasipv4;
-
-      case AF_INET6:
-         return sockscf.shmeminfo->state.external_hasipv6_globalscope;
-
-      default:
-         SERRX(safamily);
-   }
+         return m;
+      }
+   return NULL;
 }

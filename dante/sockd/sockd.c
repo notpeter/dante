@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,13 +45,14 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.925 2013/10/27 15:24:42 karls Exp $";
+"$Id: sockd.c,v 1.925.4.5 2014/08/21 13:17:13 karls Exp $";
 
 
 
 #define DOTEST 1
 
 #if DEBUG && DOTEST
+
 static void dotest(void);
 /*
  * runs some internal tests.
@@ -193,7 +194,21 @@ main(argc, argv)
       return 0;
    }
 
-   mother_envsetup();
+   mother_envsetup(argc, argv);
+
+   /*
+    * The monitor-child is special, as there is only one and it
+    * is shared/used by all processes, the mother processes
+    * included.  It therefor needs to be the first one created,
+    * even before the mother processes.
+    */
+   if (childcheck(PROC_MONITOR) < 1) {
+      serr("could not create monitor process: %s",
+           sockscf.child.noaddchild_reason != NULL ?
+                  sockscf.child.noaddchild_reason
+               :  strerror(sockscf.child.noaddchild_errno));
+   }
+
 
    time_monotonic(&sockscf.stat.boot);
 
@@ -208,6 +223,7 @@ main(argc, argv)
       (void)sigfillset(&all);
       if (sigprocmask(SIG_SETMASK, &all, &oldmask) != 0)
          swarn("%s: sigprocmask(SIG_SETMASK)", function);
+
 
       /* fork of requested number of servers.  Start at one, 'cause we are it */
       for (i = 1; (size_t)i < sockscf.option.serverc; ++i) {
@@ -246,17 +262,9 @@ main(argc, argv)
          swarn("%s: sigprocmask(SIG_SETMASK, &oldmask, NULL)", function);
    }
 
-   if (pidismother(sockscf.state.pid) == 1) {
+   if (pidismainmother(sockscf.state.pid)) {
       if (sockscf.option.debug)
          sockopts_dump();
-
-      if (childcheck(PROC_MONITOR) < 1) {
-         sigserverbroadcast(SIGTERM);
-         serr("could not create monitor process: %s",
-              sockscf.child.noaddchild_reason != NULL ?
-                     sockscf.child.noaddchild_reason
-                  :  strerror(sockscf.child.noaddchild_errno));
-      }
    }
 
    if (childcheck(PROC_NEGOTIATE) < SOCKD_FREESLOTS_NEGOTIATE
@@ -672,10 +680,13 @@ moncontrol(1);
             break;
 
          if (sockscf.option.debug >= DEBUG_VERBOSE)
-            slog(LOG_DEBUG, "free negc = %lu, reqc = %lu, ioc = %lu",
+            slog(LOG_DEBUG,
+                 "free negc = %lu, reqc = %lu, ioc = %lu.  Next child: %s %d",
                  (unsigned long)free_negc,
                  (unsigned long)free_reqc,
-                 (unsigned long)free_ioc);
+                 (unsigned long)free_ioc,
+                 childtype2string(fromchild.type),
+                 (int)fromchild.pid);
 
          clearset(DATAPIPE, &fromchild, rset);
          errno = 0;
@@ -690,8 +701,10 @@ moncontrol(1);
             case PROC_NEGOTIATE: {
                sockd_request_t req;
 
-               if (free_reqc <= 0)
+               if (free_reqc <= 0) {
+                  clearchildtype(fromchild.type, DATAPIPE, rbits, rset);
                   continue;
+               }
 
                if (have_saved_req) {
                   log_noclientrecv(&fromchild);
@@ -791,8 +804,10 @@ moncontrol(1);
                sockd_io_t io;
                pid_t pid_tcp, pid_udp;
 
-               if (free_ioc <= 0)
+               if (free_ioc <= 0) {
+                  clearchildtype(fromchild.type, DATAPIPE, rbits, rset);
                   continue;
+               }
 
                if (have_saved_io) {
                   log_noclientrecv(&fromchild);
@@ -956,8 +971,10 @@ moncontrol(1);
 #if COVENANT
                sockd_client_t client;
 
-               if (free_negc <= 0)
+               if (free_negc <= 0) {
+                  clearchildtype(fromchild.type, DATAPIPE, rbits, rset);
                   continue;
+               }
 
                if (have_saved_client) {
                   log_noclientrecv(&fromchild);
@@ -1192,7 +1209,7 @@ usage(code)
 {
 
    (void)fprintf(code == 0 ? stdout : stderr,
-"%s v%s.  Copyright (c) 1997 - 2013, Inferno Nettverk A/S, Norway.\n"
+"%s v%s.  Copyright (c) 1997 - 2014, Inferno Nettverk A/S, Norway.\n"
 "usage: %s [-DLNVdfhnv]\n"
 "   -D             : run in daemon mode\n"
 "   -L             : shows the license for this program\n"
@@ -1259,7 +1276,7 @@ showversion(level)
 
    size_t i;
 
-   printf("%s v%s.  Copyright (c) 1997 - 2013 Inferno Nettverk A/S, Norway\n",
+   printf("%s v%s.  Copyright (c) 1997 - 2014 Inferno Nettverk A/S, Norway\n",
           PRODUCT, VERSION);
 
    for (i = 0; i < licenseinfoc; ++i) {
@@ -1311,7 +1328,7 @@ showlicense(void)
 "\
 /*\n\
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,\n\
- *               2007, 2008, 2009, 2010, 2011, 2012, 2013\n\
+ *               2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014\n\
  *      Inferno Nettverk A/S, Norway.  All rights reserved.\n\
  *\n\
  * Redistribution and use in source and binary forms, with or without\n\
@@ -1712,6 +1729,5 @@ dotest(void)
 
 #endif /* 0 */
 }
-
 
 #endif /* DEBUG */

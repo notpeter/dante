@@ -156,6 +156,20 @@ if test x"$GSSAPI" != xno; then
        _optsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
        LIBS="${LIBS}${LIBS:+ }${_libsonly}"
        LDFLAGS="${LDFLAGS}${LDFLAGS:+ }${_optsonly}"
+
+       case $host in
+	   *-*-freebsd7*)
+	          #skip check, causes problems
+	       ;;
+	   *)
+	       #wanted in case of Heimdal on FreeBSD, if the function
+	       #is missing in libgssapi. not wanted if not needed for
+	       #heimdal (potentially causes linking problems if
+	       #multiple kerberos implementations are installed on a
+	       #machine).
+	       AC_SEARCH_LIBS([gsskrb5_register_acceptor_identity], [gssapi gssapi_krb5])
+	       ;;
+       esac
    else
        oLIBS=$LIBS
        LIBS=""
@@ -196,22 +210,6 @@ if test x"$GSSAPI" != xno; then
     AC_MSG_RESULT(yes)
     have_heimdal=t],
    [AC_MSG_RESULT(no)])
-
-   if test x"${ac_gssapi_libs}" != x; then
-       case $host in
-	   *-*-freebsd7*)
-	       #skip check, causes problems
-	       ;;
-	   *)
-	       have_gssapi_krb5="`echo ${LIBS} | grep gssapi_krb5`"
-	       if test x"${have_gssapi_krb5}" = x; then
-		   AC_CHECK_LIB(gssapi_krb5,
-		       gsskrb5_register_acceptor_identity,
-		       LIBS="${LIBS}${LIBS:+ }-lgssapi_krb5",)
-	       fi
-	       ;;
-       esac
-   fi
 
    dnl do compile check
    AC_MSG_CHECKING([for working gssapi])

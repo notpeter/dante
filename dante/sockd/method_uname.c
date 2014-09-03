@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.114 2013/10/27 15:24:42 karls Exp $";
+"$Id: method_uname.c,v 1.114.4.2 2014/08/15 18:16:42 karls Exp $";
 
 static negotiate_result_t
 recv_unamever(int s, request_t *request, negotiate_state_t *state);
@@ -306,11 +306,9 @@ recv_passwd(s, request, state)
          STRCPY_ASSERTLEN(request->auth->mdata.pam.servicename,
                           sockscf.state.pamservicename);
 
-         STRCPY_ASSERTSIZE(request->auth->mdata.pam.name,
-                           (const char *)uname.name);
+         STRCPY_ASSERTSIZE(request->auth->mdata.pam.name, uname.name);
 
-         STRCPY_ASSERTSIZE(request->auth->mdata.pam.password,
-                           (const char *)uname.password);
+         STRCPY_ASSERTSIZE(request->auth->mdata.pam.password, uname.password);
          break;
       }
 #endif /* HAVE_PAM */
@@ -329,11 +327,10 @@ recv_passwd(s, request, state)
          else
             request->auth->mdata.bsd.style[0] = NUL;
 
-         STRCPY_ASSERTSIZE(request->auth->mdata.bsd.name,
-                           (const char *)uname.name);
+         STRCPY_ASSERTSIZE(request->auth->mdata.bsd.name, uname.name);
 
          STRCPY_ASSERTSIZE(request->auth->mdata.bsd.password,
-                           (const char *)uname.password);
+                           uname.password);
          break;
       }
 #endif /* HAVE_BSDAUTH */

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.945 2013/10/27 15:24:41 karls Exp $ */
+/* $Id: sockd.h,v 1.945.4.14 2014/08/22 06:23:10 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -63,6 +63,12 @@
 
 #include <regex.h>
 
+/*
+ * Throttling for objects we send to the monitor process for testing.
+ * Each process can send objects to the monitor at the rate of one
+ * object per <seconds given below>.
+ */
+#define SOCKD_ALARMTESTS_DELAY (60)
 
 /*
  * number of seconds a to wait for a connect initiated on behalf of a
@@ -462,11 +468,11 @@ do {                                                                           \
 /*
  * memory-mapped file contents may not be saved in coredumps.
  */
-#define SHMEM_COPY(src, dst) shmem_object_t (dst) = (*src)
+#define SHMEM_COPYOBJECT(src, dst) shmem_object_t (dst) = (*src)
 
 #else
 
-#define SHMEM_COPY(src, dst)                                                   \
+#define SHMEM_COPYOBJECT(src, dst)                                             \
 do {                                                                           \
    SASSERTX(src != NULL);                                                      \
 } while (/*CONSTCOND*/ 0)
@@ -475,9 +481,18 @@ do {                                                                           \
 #endif /* DEBUG */
 
 /*
- * moves shmem stuff from rule "src" to rule "dst".
+ * copies shmem stuff from rule "src" to rule "dst".
  */
 #define SHMEM_MOVE(src, dst, objects)                                          \
+do {                                                                           \
+   SHMEM_COPY(src, dst, objects);                                              \
+   SHMEM_CLEAR(src, objects, 1);                                               \
+} while (/*CONSTCOND*/ 0)
+
+/*
+ * copies shmem stuff from rule "src" to rule "dst".
+ */
+#define SHMEM_COPY(src, dst, objects)                                          \
 do {                                                                           \
    if (objects & SHMEM_BW) {                                                   \
       (dst)->bw       = (src)->bw;                                             \
@@ -492,9 +507,9 @@ do {                                                                           \
       (dst)->ss       = (src)->ss;                                             \
       (dst)->ss_shmid = (src)->ss_shmid;                                       \
    }                                                                           \
-                                                                               \
-   SHMEM_CLEAR(src, objects, 1);                                               \
 } while (/*CONSTCOND*/ 0)
+
+
 
 #define HANDLE_SHMAT(object, memfield, idfield)                                \
 do {                                                                           \
@@ -548,7 +563,7 @@ do {                                                                           \
                                                                                \
    MPROTECT_SHMEMHEADER((object)->memfield);                                   \
                                                                                \
-   SHMEM_COPY((object)->memfield, _shmem);                                     \
+   SHMEM_COPYOBJECT((object)->memfield, _shmem);                               \
                                                                                \
    slog(LOG_DEBUG,                                                             \
         "%s: attached to " #idfield " %ld of size %lu at %p, %lu clients, "    \
@@ -567,7 +582,7 @@ do {                                                                           \
    SASSERTX((object)->idfield  != 0);                                          \
    SASSERTX((object)->memfield != NULL);                                       \
                                                                                \
-   SHMEM_COPY((object)->memfield, _shmem);                                     \
+   SHMEM_COPYOBJECT((object)->memfield, _shmem);                               \
                                                                                \
    SASSERTX((object)->idfield == (object)->memfield->mstate.shmid);            \
                                                                                \
@@ -826,6 +841,10 @@ do {                                                                           \
  */
 #define SOCKD_REQUESTMAX   1
 
+/*
+ * Max number of tests a monitor process can have queued.
+ */
+#define MAX_TESTS_QUEUED (256)
 
 /*
  * types of child-processes.
@@ -868,6 +887,8 @@ do {                                                                           \
 /* alarmtypes set. Bitmask. */
 #define ALARM_DATA               (1)
 #define ALARM_DISCONNECT         (2)
+#define ALARM_TEST               (4)
+#define ALARM_PROTOCOL           (8)
 
 
    /*
@@ -878,9 +899,10 @@ do {                                                                           \
 #define VERDICT_PASSs      "pass"
 
 /* how to rotate addresses. */
-#define ROTATION_NONE       0
-#define ROTATION_ROUTE      1
-#define ROTATION_SAMESAME   2
+#define ROTATION_NOTSET     0	/* illegal value. */
+#define ROTATION_NONE       1
+#define ROTATION_ROUTE      2
+#define ROTATION_SAMESAME   3
 
 #define SOCKS_LOG_CONNECTs       "connect"
 #define SOCKS_LOG_DISCONNECTs    "disconnect"
@@ -1082,6 +1104,47 @@ typedef struct {
 
 #endif /* HAVE_UDP_SUPPORT */
 
+typedef enum { TEST_MTU__WAITING_FOR_KEEPALIVE_ACK1 = 1,
+               TEST_MTU__WAITING_FOR_KEEPALIVE_ACK2
+} mtu_error_test_state_t;
+
+typedef struct {
+   int              tcp_keepalive;
+   int              tcp_keepidle;
+
+#if HAVE_TCP_INFO
+   struct tcp_info  tcpinfo;
+#endif /* HAVE_TCP_INFO */
+} mtu_test_state_data_t;
+
+typedef struct {
+   struct timeval         start;       /* time we started checking.           */
+
+   mtu_error_test_state_t state;       /* current state.                      */
+   struct timeval         nextcheck;   /* time next check should be done.     */
+
+   mtu_test_state_data_t initial;
+   mtu_test_state_data_t current;
+} mtu_test_state_t;
+
+typedef struct {
+   unsigned         dotest;      /* perform mtu test? */
+   mtu_test_state_t state;       /* ... state if so.                  */
+} mtutest_t;
+
+typedef struct {
+   mtutest_t   mtu;
+} networktest_t;
+
+/*
+ * Similar to networktest_t, but without the state object.
+ */
+typedef struct {
+   struct {
+      unsigned tested;
+   } mtu;
+} networktest_tested_t;
+
 
 typedef struct {
    unsigned char sameport;     /* always try to use same port as client?   */
@@ -1276,6 +1339,11 @@ typedef struct {
    struct {
       alarm_data_t       data;
       alarm_disconnect_t disconnect;
+
+      /*
+       * tests to perform.
+       */
+      networktest_t        test;
    } alarm;
 } monitor_if_t;
 
@@ -1316,6 +1384,7 @@ typedef struct {
 
 typedef struct monitor_t {
    objecttype_t     type;
+
    shmem_object_t   *mstats;
    unsigned long    mstats_shmid;
    unsigned char    mstats_isinheritable;
@@ -1354,25 +1423,54 @@ typedef struct monitor_t {
 
    serverstate_t           state;
 
-#if 0
-   /*
-    * Not implemented.
-    */
-
-   linkedname_t            *user;        /* name of users matched.            */
-   linkedname_t            *group;       /* name of groups matched.           */
-
-#if HAVE_LDAP
-   linkedname_t            *ldapgroup;   /* name of ldap groups allowed.      */
-   linkedname_t            *ldapserver;  /* name of predefined ldap servers.  */
-   unsigned char           ldapsettingsfromuser;
-#endif /* HAVE_LDAP */
-
-#endif /* not implemented */
-
    struct monitor_t        *next;          /* next monitor in list.           */
 } monitor_t;
 
+typedef struct {
+   unsigned char              isconfigured;  /* any options here set?    */
+
+   unsigned                   ecn;
+   int                        ecn_loglevel;
+
+   unsigned                   sack;
+   int                        sack_loglevel;
+
+   unsigned                   timestamps;
+   int                        timestamps_loglevel;
+
+   unsigned                   wscale;
+   int                        wscale_loglevel;
+} warn_protocol_tcp_options_t;
+
+typedef struct {
+   struct {
+      warn_protocol_tcp_options_t enabled;
+      warn_protocol_tcp_options_t disabled;
+   } tcp;
+} warn_protocol_t;
+
+
+
+typedef struct {
+   /*
+    * Contains list of errno-values that should be logged additionally,
+    * at loglevel LOG_EMERG (errno_loglevel[0], LOG_ALERT((errno_loglevel[1]),
+    * etc.
+    */
+   int                     errno_loglevelv[MAXLOGLEVELS][UNIQUE_ERRNO_VALUES];
+   size_t                  errno_loglevelc[MAXLOGLEVELS];
+
+   /*
+    * Same as above, but for dns-errors (getaddrinfo(3) and family).
+    */
+   int                     gaierr_loglevelv[MAXLOGLEVELS][UNIQUE_GAIERR_VALUES];
+   size_t                  gaierr_loglevelc[MAXLOGLEVELS];
+
+   /*
+    * Warnings for certain protocol-spesific things.
+    */
+   warn_protocol_t         protocol;
+} logspecial_t;
 
 typedef struct rule_t {
    objecttype_t            type;         /* what kind of rule this is.        */
@@ -1428,6 +1526,16 @@ typedef struct rule_t {
 #endif /* BAREFOOTD */
 
    log_t                   log;          /* type of logging to do.            */
+
+   struct {
+      logspecial_t         log;          /* certain special logging.          */
+   } internal;
+
+   struct {
+      logspecial_t         log;          /* certain special logging.          */
+   } external;
+
+
    size_t                  number;       /* rulenumber.                       */
    size_t                  linenumber;   /* linenumber; info/debugging only.  */
 
@@ -1457,7 +1565,6 @@ typedef struct rule_t {
    unsigned long           mstats_shmid;           /* shmid of monitorstats.  */
    unsigned char           mstats_isinheritable;
    size_t                  alarmsconfigured;       /* bitmask.                */
-
 
    shmem_object_t          *bw;            /* pointer, memory will be shared. */
    unsigned long           bw_shmid;       /* shmid of bw, if any.            */
@@ -1507,7 +1614,7 @@ typedef struct {
 } srchost_t;
 
 /*
- * Commandline-options that can override config-file options should have
+ * NOTE: commandline-options that can override config-file options must have
  * a matching _isset attribute and be added to the CMDLINE_OVERRIDE() macro.
  */
 typedef struct {
@@ -1529,8 +1636,8 @@ typedef struct {
 
    size_t            serverc;         /* number of servers.                   */
 
-   unsigned char     verifyonly;      /* syntax verification of config only?  */
-   unsigned char     versiononly;     /* show version info only?             */
+   unsigned char     verifyonly;      /* syntax verification of config only.  */
+   unsigned char     versiononly;     /* show version info only.              */
 } option_t;
 
 
@@ -1618,6 +1725,13 @@ typedef struct {
    long           pagesize;
    int            type;                 /* process type we are.               */
 
+   int            monitor_ack;          /* control-pipe to monitor process.   */
+   int            monitor_s;            /* data-pipe to monitor process.      */
+   time_t         monitor_sent;         /*
+                                         * last time this process sent an
+                                         * object to the monitor process.
+                                         */
+
 #if BAREFOOTD
    unsigned char  alludpbounced;        /* bounced all udp addresses?         */
 #endif /* BAREFOOTD */
@@ -1662,23 +1776,23 @@ typedef struct {
 #endif /* HAVE_LDAP */
 
 } configstate_t;
-
 typedef struct {
    /*
-    * Contains list of errno-values that should be logged additionally,
-    * at loglevel LOG_EMERG (errno_loglevel[0],
-    * LOG_ALERT((errno_loglevel[1]), etc.
+    * Protocols/address-families operator has configured us to *look for*,
+    * but not necessarily available.
     */
-   int                     errno_loglevelv[MAXLOGLEVELS][UNIQUE_ERRNO_VALUES];
-   size_t                  errno_loglevelc[MAXLOGLEVELS];
+   unsigned ipv4;
+   unsigned ipv6;
 
    /*
-    * Same as above, but for dns-errors (getaddrinfo(3) and family).
+    * Protocols we have looked for and found to be available.
     */
-   int                     gaierr_loglevelv[MAXLOGLEVELS][UNIQUE_GAIERR_VALUES];
-   size_t                  gaierr_loglevelc[MAXLOGLEVELS];
+   unsigned char              hasipv4;
+   unsigned char              hasipv6;
 
-} logspecial_t;
+   /* at least one of our IPv6 addresses has global scope. */
+   unsigned char              hasipv6_globalscope;
+} interfaceprotocol_t;
 
 typedef struct {
    int                     s;           /* socket we listen on.               */
@@ -1691,6 +1805,8 @@ typedef struct {
 } listenaddress_t;
 
 typedef struct {
+   interfaceprotocol_t     protocol;
+
    listenaddress_t         *addrv;     /* addresses.                          */
    size_t                  addrc;
 
@@ -1698,6 +1814,8 @@ typedef struct {
 } internaladdress_t;
 
 typedef struct {
+   interfaceprotocol_t     protocol;
+
    ruleaddr_t              *addrv;           /* addresses.                    */
    size_t                  addrc;
 
@@ -1790,6 +1908,13 @@ struct config {
    route_t                    *route;
 
    monitor_t                  *monitor;            /* monitors, list.         */
+   struct {
+      /*
+       * If a session has been idle this amount of seconds, mark it as
+       * a candidate for testing MTU-related problems.
+       */
+      time_t                  mtu_timeout;
+   } monitorspec;
 
    socketoption_t             *socketoptionv;      /* global socket options.  */
    size_t                     socketoptionc;
@@ -1828,21 +1953,6 @@ struct config {
 
       /* size of config, with all allocated pointer memory. */
       size_t        configsize;
-
-      /*
-       * some global variables that can change and which affect all processes,
-       * but which are too expensive to have each process calculate itself.
-       */
-      struct {
-         /*
-          * is IPv4 and/or IPv6 available on the external address list?
-          */
-         unsigned char              external_hasipv4;
-         unsigned char              external_hasipv6;
-
-         /* at least one of our IPv6 addresses has global scope. */
-         unsigned char              external_hasipv6_globalscope;
-      } state;
    } *shmeminfo;
    char                       shmem_fnamebase[PATH_MAX];
 
@@ -1874,7 +1984,7 @@ struct config {
    userid_t                   uid;
 #endif /* !HAVE_PRIVILEGES */
 
-   childstate_t               child;                /* childstate.            */
+   childstate_t               child;                   /* childstate.         */
 
    int                        cmethodv[METHODS_KNOWN]; /* clientmethods.      */
    size_t                     cmethodc;                /* methods set in list.*/
@@ -1882,7 +1992,7 @@ struct config {
    int                        smethodv[METHODS_KNOWN];/* methods by priority. */
    size_t                     smethodc;               /* methods set in list. */
 
-   unsigned char              udpconnectdst;       /* connect udp sockets?    */
+   unsigned char              udpconnectdst;          /* connect udp sockets? */
 
 #if HAVE_LIBWRAP
    char                       *hosts_allow_original;/* original libwrap value */
@@ -1931,7 +2041,14 @@ typedef struct {
 
 typedef struct {
    uint64_t         bytes;        /* byte count.                              */
-   uint64_t         packets;      /* packet count.  Only applicable to udp.   */
+   /*
+    * packet count.  For UDP this is the number of packets we have
+    * sent (or at least handed of to the kernel), while for TCP it
+    * corresponds to the number of i/o operations done.
+    */
+   uint64_t         packets;
+
+   struct timeval   lastio;       /* time of last i/o operation.              */
 } iocount_t;
 
 
@@ -2144,6 +2261,12 @@ typedef struct sockd_io_t {
 
    struct timeval     lastio;          /* time of last i/o operation.         */
 
+   /* tests already done/scheduled on this object. */
+   struct {
+      networktest_tested_t     internal;
+      networktest_tested_t     external;
+   } tested;
+
    struct sockd_io_t  *next;           /* for bind-extension.                 */
 } sockd_io_t;
 
@@ -2174,7 +2297,7 @@ typedef struct {
 } sockd_client_t;
 
 typedef struct negotiate_state_t {
-   unsigned char        complete;                    /* completed?            */
+   unsigned char        complete;     /* completed?                           */
 
 #if SOCKS_SERVER
    unsigned char        mem[ 1                       /* VER                   */
@@ -2286,8 +2409,8 @@ typedef struct {
                                      */
    unsigned char    exitingnormally;/* exiting normally, on our request?      */
 
-   int              ack;            /* connection for ack's.                  */
-   int              s;              /* connection to mother for data.         */
+   int              ack;            /* connection to child for acks.          */
+   int              s;              /* connection to child for data.          */
 
    pid_t            pid;            /* childs pid.                            */
    int              type;           /* child type.                            */
@@ -2405,7 +2528,7 @@ io_packet_received(const recvfrom_info_t *recvflags,
                    const struct sockaddr_storage *receivedon);
 
 /*
- * Called after a udp packet has been received.
+ * Called immedidately after a udp packet has been received.
  *
  * "recvflags" are the values set when receiving the packet.
  * "bytesreceived" gives the length of the packet received.
@@ -2424,13 +2547,12 @@ io_packet_sent(const size_t bytestosend,
                const struct sockaddr_storage *to,
                char *emsg, size_t emsglen);
 /*
- * Called after a udp packet has been sent.
+ * Called immediately after a udp packet has been sent.
  *
  * "bytestosend" gives the number of bytes we were supposed to send, while
  * "bytessent" gives the number of bytes actually sent.
  *
- * "tsreceived" gives the timestamp of when the bytes we just sent was
- * received.
+ * "tsreceived" is the time when the bytes we just sent was received.
  *
  * "from" is the address from which the packet was received.
  *
@@ -2590,7 +2712,9 @@ send_icmperror(const int s, const struct sockaddr_storage *receivedonaddr,
  */
 
 udptarget_t *
-initclient(const int control, const struct sockaddr_storage *from,
+initclient(const int control,
+           const struct sockaddr_storage *client_laddr,
+           const struct sockaddr_storage *client_raddr,
            const sockshost_t *tohost,
            const struct sockaddr_storage *toaddr, const rule_t *rule,
            char *emsg, const size_t emsglen, udptarget_t *client);
@@ -2598,14 +2722,23 @@ initclient(const int control, const struct sockaddr_storage *from,
  * Fills in "client" with the necessary info for a new udp client, as well
  * as creating a socket for the client to send packets to the destination
  * "toaddr".
+ *
  * "control", if not -1, specifies the socket used for the control connection.
- * "from" gives the clientaddress.
- * "toaddr" gives the resolved destination address.  The original address
- * requested by the client is "tohost", which may be a hostname.
+ *
+ * "client_laddr" gives the local address the UDP pakcet was received on.
+ *
+ * "client_raddr" gives the remote address the UDP packet was received from.
+ *
+ * "toaddr" gives the resolved destination address.
+ *
+ * "tohost" gives the original address requested by the client, which may
+ * be a hostname.
+ *
  * "rule" is the rule that permits the client.
  *
- * Returns "client" on success, NULL on failure.
- * On failure, "emsg" of "emsglen" will contain the reason the call failed.
+ * Returns "client" on success.
+ * Returns NULL on failure.  On failure, "emsg" of "emsglen" will contain the
+ * reason the call failed.
  */
 
 udptarget_t *
@@ -2678,6 +2811,13 @@ pidismother(pid_t pid);
  */
 
 int
+pidismainmother(pid_t pid);
+/*
+ * If "pid" refers to main mother process, returns true.  Otherwise false.
+ */
+
+
+int
 sockd_motherexists(void);
 /*
  * Simply check for whether mother still exists or not.
@@ -2747,10 +2887,11 @@ setcommandprotocol(const objecttype_t type, command_t  *commands,
  * commands in "commands", and vice versa.
  */
 
-void
+rule_t *
 addclientrule(const rule_t *rule);
 /*
- * Appends a copy of "rule" to our list of client rules.
+ * Appends a copy of "rule" to our list of client rules, and returns
+ * a pointer to the added rule.
  */
 
 #if HAVE_SOCKS_HOSTID
@@ -2764,19 +2905,20 @@ hostidmatches(const size_t hostidc, const struct in_addr *hostidv,
  * logging and error messages).
  */
 
-void
+rule_t *
 addhostidrule(const rule_t *rule);
 /*
- * Appends a copy of "rule" to our list of hostid rules.
+ * Appends a copy of "rule" to our list of hostid rules, and returns a
+ * pointer to the added rule.
  */
 #endif /* HAVE_SOCKS_HOSTID */
 
 
-void
+rule_t *
 addsocksrule(const rule_t *rule);
 /*
- * Appends a copy of "rule" to our list of socks rules.
- * Returns a pointer to the added rule (not "rule").
+ * Appends a copy of "rule" to our list of socks rules and returns a pointer
+ * to the added rule.
  */
 
 void
@@ -2836,6 +2978,32 @@ ipv4_mapped_to_regular(const struct in6_addr *ipv4_mapped,
  *
  * Returns: ipv4_regular.
  */
+
+void
+add_internal_safamily(const sa_family_t safamily);
+/*
+ * Marks in global state that we have an address belonging to safamily
+ * "safamily" on the internal side.
+ */
+
+int
+internal_has_safamily(const sa_family_t safamily);
+/*
+ * Checks if the list of internal addresses we are configured to
+ * use contain at list one address of the "safamily" family.
+ *
+ * Returns true if there such an address, or false otherwise.
+ */
+
+void
+add_external_safamily(const sa_family_t safamily, const int globalscope);
+/*
+ * Marks in global state that we have an address belonging to safamily
+ * "safamily" on the external side.
+ *
+ * If "globalscope" is true, the address is of global scope.
+ */
+
 
 int
 external_has_safamily(const sa_family_t safamily);
@@ -2914,44 +3082,6 @@ showrule(const rule_t *rule, const objecttype_t ruletype);
  * "rule" refers to.
  */
 
-const monitor_t *
-monitormatch(const sockshost_t *from, const sockshost_t *to,
-             const authmethod_t *auth, const connectionstate_t *state);
-/*
- * If there is a monitor matching a session from "from" to "to",
- * with matching "auth" and "state", returns a pointer to that
- * monitor.
- * If "src" or "dst" is NULL, that address is not used when looking for a
- * matching monitor.
- *
- * If no matching monitor is found, NULL is returned.
- *
- */
-
-void
-monitor_move(monitor_t *oldmonitor, monitor_t *newmonitor,
-             const size_t sidesconnected, const clientinfo_t *cinfo,
-             const int lock);
-/*
- * Moves monitor/alarm-settings from "oldmonitor" to "newmonitor".
- *
- * If oldmonitor shmid is 0, there were no old monitor matched, and
- * we should just configure the settings in the new monitor, if any.
- * Otherwise we need to unuse the settings in the old monitor also.
- */
-
-monitor_t *
-addmonitor(const monitor_t *monitor);
-/*
- * Appends a copy of "monitor" to our list of monitors.
- */
-
-void
-monitor_detachfromlist(monitor_t *head);
-/*
- * sockd_shmdt() from monitor-list starting at "head".
- */
-
 void
 rule_detachfromlist(rule_t *head);
 /*
@@ -2968,6 +3098,13 @@ void
 showlist(const linkedname_t *list, const char *prefix);
 /*
  * shows user names in "list".
+ */
+
+void
+showlogspecial(const logspecial_t *log, const interfaceside_t isinternalside);
+/*
+ * Displays the logsettings in "log".  "isinternalside" should be true if
+ * "log" is from the internal side, and false if from the external side.
  */
 
 
@@ -3422,9 +3559,10 @@ void detach_from_shmem(void);
  */
 
 
-void mother_envsetup(void);
+void mother_envsetup(int argc, char *argv[]);
 /*
  * Cleans up surrounding environment before we start forking of processes.
+ * argc and argv are the argc/argv arguments passed main.
  */
 
 char *
@@ -3541,6 +3679,13 @@ clearset(whichpipe_t type, const sockd_child_t *child, fd_set *set);
 /*
  * Clears every descriptor of type "type" in "child" from "set".
  * "type" gives the type of pipe that must be set.
+ */
+
+void
+clearchildtype(const int childtype, whichpipe_t pipetype,
+               const int nfds, fd_set *set);
+/*
+ * Like clearset(), but for all children of the type "childtype".
  */
 
 sockd_child_t *
@@ -3876,11 +4021,11 @@ int
 redirect(int s, struct sockaddr_storage *addr,
 #if !BAREFOOTD
          sockshost_t *host,
-#endif /* !BAREFOOT */
+#endif /* !BAREFOOTD */
          int command, const ruleaddr_t *from
 #if !BAREFOOTD
          , const ruleaddr_t *to
-#endif /* !BAREFOOT */
+#endif /* !BAREFOOTD */
          );
 /*
  * "s" is the socket to use for performing "command", while  "from"
@@ -3925,6 +4070,12 @@ hostcachesetup(void);
 /*
  * Initializes the hostcache.  Must be called before any calls to
  * cgethostby*().
+ */
+
+void
+hostcacheinvalidate(void);
+/*
+ * Invalidates all entries in the hostcache.
  */
 
 void
@@ -4254,13 +4405,16 @@ int sockd_handledsignals(void);
 
 struct sockaddr_storage *
 getoutaddr(struct sockaddr_storage *laddr,
-           const struct sockaddr_storage *client, const int command,
-           const struct sockshost_t *request, char *emsg, const size_t emsglen);
+           const struct sockaddr_storage *client_laddr,
+           const struct sockaddr_storage *client_raddr,
+           const int command, const struct sockshost_t *request,
+           char *emsg, const size_t emsglen);
 /*
  * Gets the outgoing IP address to use.
  *
- * "client" is the IP address the client, on whos behalf we are binding
- * an address on the external side.
+ * "client_laddr" is address we accepted the client on.
+ " "client_raddr" is the address of the client, on whos behalf we are
+ *  binding an address on the external side.
  *
  * "command" is the SOCKS command the client requested.
  * "reqhost" is the host in the SOCKS request from the client.

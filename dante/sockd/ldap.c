@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
- * $Id: ldap.c,v 1.15 2013/11/01 17:05:24 michaels Exp $
+ * $Id: ldap.c,v 1.15.4.1 2014/05/09 15:31:10 michaels Exp $
  */
 
  /*
@@ -50,10 +50,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: ldap.c,v 1.15 2013/11/01 17:05:24 michaels Exp $";
+"$Id: ldap.c,v 1.15.4.1 2014/05/09 15:31:10 michaels Exp $";
 
 const char module_ldap_version[] =
-"$Id: ldap.c,v 1.15 2013/11/01 17:05:24 michaels Exp $";
+"$Id: ldap.c,v 1.15.4.1 2014/05/09 15:31:10 michaels Exp $";
 
 #if HAVE_LDAP
 

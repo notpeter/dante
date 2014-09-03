@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: dante_udp.c,v 1.93 2013/10/27 15:24:42 karls Exp $";
+"$Id: dante_udp.c,v 1.93.4.3 2014/08/13 17:13:16 michaels Exp $";
 
 
 udpheader_t *
@@ -113,7 +113,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
    socklen_t len;
    ssize_t w, r;
    size_t headerlen, payloadlen, emsglen;
-   char hosta[MAXSOCKSHOSTSTRING], hostb[MAXSOCKSHOSTSTRING], emsg[1024],
+   char hosta[MAXSOCKSHOSTSTRING], hostb[MAXSOCKSHOSTSTRING], emsg[2048],
         buf[SOCKD_BUFSIZE + sizeof(udpheader_t)], *payload;
    int sametarget, gaierr,
        doconnect           = 0,
@@ -206,10 +206,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
       }
    }
 
-   iostatus = io_packet_received(&recvflags,
-                                 r,
-                                 &from,
-                                 &client->laddr);
+   iostatus = io_packet_received(&recvflags, r, &from, &client->laddr);
 
    if (iostatus != IO_NOERROR) {
       *badfd = client->s;
@@ -480,6 +477,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
 
          if (initclient(control->s,
                         &client->laddr,
+                        &client->raddr,
                         &header.host,
                         &targetaddr,
                         packetrule,
@@ -523,8 +521,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
                            -1,
                            -1,
                            icmp_type,
-                           iostatus == IO_NOERROR ?
-                              ICMP_CODE_UNREACHABLE_HOSTPROHIBITED : icmp_code);
+                           icmp_code);
 
             return iostatus;
          }
@@ -721,6 +718,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
 
             if (initclient(control->s,
                            &client->laddr,
+                           &client->raddr,
                            &header.host,
                            &targetaddr,
                            packetrule,
@@ -1351,7 +1349,6 @@ io_udp_target2client(control, client, twotargets, state,
             emsg,
             strlen(emsg));
 
-      /* coverity[dead_error_begin] */
       send_icmperror(rawsocket,
                      &twotargets->laddr,
                      &twotargets->raddr,
@@ -1359,8 +1356,7 @@ io_udp_target2client(control, client, twotargets, state,
                      -1,
                      -1,
                      icmp_type,
-                     iostatus == IO_NOERROR ?
-                        ICMP_CODE_UNREACHABLE_HOSTPROHIBITED : icmp_code);
+                     icmp_code);
 
       return iostatus;
    }

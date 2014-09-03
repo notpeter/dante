@@ -429,18 +429,19 @@ AC_DEFUN([L_CHECKSOCKOPTVALSYM],
 
 dnl XXX readside/sendside test should be simplified by using conftest.out
 AC_DEFUN([L_PIPETYPE], [
-unset have_readside have_sendside
+unset pipeside
 #Some systems seem to base how much can be written to the pipe based
 #on the size of the socket receive buffer (read-side), while others
 #on the size of the socket send buffer (send-side).
 #
 #This little hack tries to make an educated guess as to what is the
 #case on this particular system.
-AC_MSG_CHECKING(read-side pipe system)
+AC_MSG_CHECKING(read/send-side pipe system)
 AC_TRY_RUN([
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -452,37 +453,41 @@ AC_TRY_RUN([
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #endif /* !MIN */
 
-#ifndef MAX
-#define MAX(a,b) ((a) > (b) ? (a) : (b))
-#endif /* !MAX */
-
 #if NEED_AF_LOCAL
 #define AF_LOCAL AF_UNIX
 #endif /* NEED_AF_LOCAL */
 
 #define PACKETSIZE  (1024)
 
+#define PADBYTES    (sizeof(short) * (64))
+/*
+ * Just a wild guess.  Dante uses sizeof(long).
+ */
+
 #define SEND_PIPE   (0)
 #define RECV_PIPE   (1)
 
-#define EXIT_SENDSIDE    (1)
-#define EXIT_READSIDE    (0) /* looking for readside - exit 0 */
-#define EXIT_UNKNOWN     (1)
+#define EXIT_OK      (0) /* type successfully determined */
+#define EXIT_UNKNOWN (1) /* error: unable to determine type */
 
 static void
 setsockets(const int doreverse, const size_t packetsize,
            const int s, const int r,
-           size_t *sndbuf, size_t *sndbuf_set,
-           size_t *rcvbuf, size_t *rcvbuf_set);
+           int *sndbuf, int *sndbuf_set,
+           int *rcvbuf, int *rcvbuf_set);
 
 static size_t
 sendtest(const int s, const char *buf, const size_t buflen);
 
+void
+reswrite(const char *res);
+
 int
 main(void)
 {
-   size_t sent, packetcount, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set;
-   char buf[PACKETSIZE - 64]; /* allow for some padding between messages. */
+   size_t sent, packetcount;
+   int sndbuf, sndbuf_set, rcvbuf, rcvbuf_set;
+   char buf[PACKETSIZE];
    int datapipev[2];
 
    if (socketpair(AF_LOCAL, SOCK_DGRAM, 0, datapipev) != 0) {
@@ -497,17 +502,22 @@ main(void)
               &sndbuf, &sndbuf_set,
               &rcvbuf, &rcvbuf_set);
 
-   packetcount = MIN(sndbuf, sndbuf_set) / PACKETSIZE;
-   fprintf(stderr, "Requested sndbuf to be %ld, is %ld.  "
-          "Requested rcvbuf to be %ld, is %ld.\n"
-          "Calculated packetcount is %lu\n",
-          (long)sndbuf, (long)sndbuf_set,
-          (long)rcvbuf, (long)rcvbuf_set, (unsigned long)packetcount);
+   packetcount = MIN(sndbuf, sndbuf_set) / (PACKETSIZE + PADBYTES);
 
-   sent = sendtest(datapipev[SEND_PIPE], buf, sizeof(buf));
-   if (sent >= (size_t)sndbuf) {
+   fprintf(stderr,
+           "Requested sndbuf to be %d, is %d.  "
+           "Requested rcvbuf to be %d, is %d.\n"
+           "Calculated packetcount is %lu\n",
+           sndbuf, sndbuf_set,
+           rcvbuf, rcvbuf_set,
+           (unsigned long)packetcount);
+
+   sent = sendtest(datapipev[SEND_PIPE], buf, PACKETSIZE) / PACKETSIZE;
+
+   if (sent >= packetcount) {
       fprintf(stderr, "status determined by send-side\n");
-      return EXIT_SENDSIDE;
+      reswrite("sendbased");
+      exit(EXIT_OK);
    }
 
    /*
@@ -529,17 +539,22 @@ main(void)
               &sndbuf, &sndbuf_set,
               &rcvbuf, &rcvbuf_set);
 
-   packetcount = MIN(rcvbuf, rcvbuf_set) / PACKETSIZE;
-   fprintf(stderr, "Requested sndbuf to be %ld, is %ld.  "
-          "Requested rcvbuf to be %ld, is %ld.\n"
-          "Calculated packetcount is %lu\n",
-          (long)sndbuf, (long)sndbuf_set,
-          (long)rcvbuf, (long)rcvbuf_set, (unsigned long)packetcount);
+   packetcount = MIN(rcvbuf, rcvbuf_set) / (PACKETSIZE + PADBYTES);
 
-   sent = sendtest(datapipev[SEND_PIPE], buf, sizeof(buf));
-   if (sent >= (size_t)rcvbuf) {
+   fprintf(stderr,
+           "Requested sndbuf to be %d, is %d.  "
+           "Requested rcvbuf to be %d, is %d.\n"
+           "Calculated packetcount is %lu\n",
+           sndbuf, sndbuf_set,
+           rcvbuf, rcvbuf_set,
+           (unsigned long)packetcount);
+
+   sent = sendtest(datapipev[SEND_PIPE], buf, PACKETSIZE) / PACKETSIZE;
+
+   if (sent >= packetcount) {
       fprintf(stderr, "status determined by read-side\n");
-      return EXIT_READSIDE;
+      reswrite("recvbased");
+      exit(EXIT_OK);
    }
 
    fprintf(stderr, "status is unknown\n");
@@ -552,8 +567,8 @@ setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
    const size_t packetsize;
    const int s;
    const int r;
-   size_t *sndbuf, *sndbuf_set;
-   size_t *rcvbuf, *rcvbuf_set;
+   int *sndbuf, *sndbuf_set;
+   int *rcvbuf, *rcvbuf_set;
 {
    socklen_t len;
    int p;
@@ -568,7 +583,8 @@ setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
    len = sizeof(*sndbuf_set);
 
    if (doreverse) {
-      *sndbuf = packetsize;
+      *sndbuf = packetsize + PADBYTES;
+
       if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, sndbuf, sizeof(*sndbuf)) != 0) {
          perror("setsockopt(SO_SNDBUF)");
          exit(EXIT_UNKNOWN);
@@ -586,7 +602,8 @@ setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
       }
    }
    else {
-      *rcvbuf = packetsize;
+      *rcvbuf = packetsize + PADBYTES;
+
       if (setsockopt(r, SOL_SOCKET, SO_RCVBUF, rcvbuf, sizeof(*rcvbuf)) != 0) {
          perror("setsockopt(SO_RCVBUF)");
          exit(EXIT_UNKNOWN);
@@ -636,260 +653,65 @@ sendtest(s, buf, buflen)
    const size_t buflen;
 {
    ssize_t rc;
+   size_t sent;
    int i;
 
-   i     = 1;
-   errno = 0;
-   while (errno == 0) {
-      if ((rc = sendto(s, buf, buflen, 0, NULL, 0)) != (ssize_t)buflen)
-         fprintf(stderr, "sendto(2) failed on iteration %d, sent %ld/%lu.  "
-                "Total bytes sent: %lu.  Error on last packet: %s\n",
-                i, (long)rc, (unsigned long)buflen,
-                (unsigned long)(i * buflen + MAX(rc, 0)), strerror(errno));
-      else
+   i        = 1;
+   sent     = 0;
+   errno    = 0;
+
+   while (1) {
+      if ((rc = write(s, buf, buflen)) == -1)
+         break;
+      else {
+         assert(rc == (ssize_t)buflen);
+
          ++i;
+         sent += rc;
+      }
    }
 
-   return (size_t)(i * buflen + MAX(rc, 0));
-}], [AC_MSG_RESULT(yes)
-    have_readside=t
-], [AC_MSG_RESULT(no)],
-   [dnl XXX assume read-side when cross-compiling
-    AC_MSG_RESULT(assuming yes)
-    have_readside=t])
+   fprintf(stderr,
+          "failed sending packet #%d, sent %ld/%ld.  "
+          "Total bytes sent: %lu.  Error on last packet: %s\n",
+          i,
+          (long)rc,
+          (unsigned long)buflen,
+          (unsigned long)sent,
+          strerror(errno));
 
-AC_MSG_CHECKING(send-side pipe system)
-AC_TRY_RUN([
-#include <sys/types.h>
-#include <sys/socket.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-
-#ifndef MIN
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
-#endif /* !MIN */
-
-#ifndef MAX
-#define MAX(a,b) ((a) > (b) ? (a) : (b))
-#endif /* !MAX */
-
-#if NEED_AF_LOCAL
-#define AF_LOCAL AF_UNIX
-#endif /* NEED_AF_LOCAL */
-
-#define PACKETSIZE  (1024)
-
-#define SEND_PIPE   (0)
-#define RECV_PIPE   (1)
-
-#define EXIT_SENDSIDE    (0) /* looking for sendside - exit 0 */
-#define EXIT_READSIDE    (1)
-#define EXIT_UNKNOWN     (1)
-
-static void
-setsockets(const int doreverse, const size_t packetsize,
-           const int s, const int r,
-           size_t *sndbuf, size_t *sndbuf_set,
-           size_t *rcvbuf, size_t *rcvbuf_set);
-
-static size_t
-sendtest(const int s, const char *buf, const size_t buflen);
-
-int
-main(void)
-{
-   size_t sent, packetcount, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set;
-   char buf[PACKETSIZE - 64]; /* allow for some padding between messages. */
-   int datapipev[2];
-
-   if (socketpair(AF_LOCAL, SOCK_DGRAM, 0, datapipev) != 0) {
-      perror("socketpair()");
-      exit(EXIT_UNKNOWN);
-   }
-
-   setsockets(0,
-              PACKETSIZE,
-              datapipev[SEND_PIPE],
-              datapipev[RECV_PIPE],
-              &sndbuf, &sndbuf_set,
-              &rcvbuf, &rcvbuf_set);
-
-   packetcount = MIN(sndbuf, sndbuf_set) / PACKETSIZE;
-   fprintf(stderr, "Requested sndbuf to be %ld, is %ld.  "
-          "Requested rcvbuf to be %ld, is %ld.\n"
-          "Calculated packetcount is %lu\n",
-          (long)sndbuf, (long)sndbuf_set,
-          (long)rcvbuf, (long)rcvbuf_set, (unsigned long)packetcount);
-
-   sent = sendtest(datapipev[SEND_PIPE], buf, sizeof(buf));
-   if (sent >= (size_t)sndbuf) {
-      fprintf(stderr, "status determined by send-side\n");
-      return EXIT_SENDSIDE;
-   }
-
-   /*
-    * Try the reverse.  Perhaps this system wants a large rcvbuf rather than
-    * a large sndbuf.
-    */
-   close(datapipev[SEND_PIPE]);
-   close(datapipev[RECV_PIPE]);
-
-   if (socketpair(AF_LOCAL, SOCK_DGRAM, 0, datapipev) != 0) {
-      perror("socketpair()");
-      exit(EXIT_UNKNOWN);
-   }
-
-   setsockets(1,
-              PACKETSIZE,
-              datapipev[SEND_PIPE],
-              datapipev[RECV_PIPE],
-              &sndbuf, &sndbuf_set,
-              &rcvbuf, &rcvbuf_set);
-
-   packetcount = MIN(rcvbuf, rcvbuf_set) / PACKETSIZE;
-   fprintf(stderr, "Requested sndbuf to be %ld, is %ld.  "
-          "Requested rcvbuf to be %ld, is %ld.\n"
-          "Calculated packetcount is %lu\n",
-          (long)sndbuf, (long)sndbuf_set,
-          (long)rcvbuf, (long)rcvbuf_set, (unsigned long)packetcount);
-
-   sent = sendtest(datapipev[SEND_PIPE], buf, sizeof(buf));
-   if (sent >= (size_t)rcvbuf) {
-      fprintf(stderr, "status determined by read-side\n");
-      return EXIT_READSIDE;
-   }
-
-   fprintf(stderr, "status is unknown\n");
-   return EXIT_UNKNOWN;
+   return sent;
 }
 
-static void
-setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
-   const int doreverse;
-   const size_t packetsize;
-   const int s;
-   const int r;
-   size_t *sndbuf, *sndbuf_set;
-   size_t *rcvbuf, *rcvbuf_set;
+void
+reswrite(res)
+   const char *res;
 {
-   socklen_t len;
-   int p;
-
-   if ((p = fcntl(s, F_GETFL, 0))        == -1
-   ||  fcntl(s, F_SETFL, p | O_NONBLOCK) == -1
-   ||  fcntl(r, F_SETFL, p | O_NONBLOCK) == -1) {
-      perror("fcntl(F_SETFL/F_GETFL, O_NONBLOCK) failed");
-      exit(EXIT_UNKNOWN);
+   FILE *fp;
+   if ((fp = fopen("conftest.out", "w")) == NULL) {
+      perror("fopen");
+      exit(1);
    }
-
-   len = sizeof(*sndbuf_set);
-
-   if (doreverse) {
-      *sndbuf = packetsize;
-      if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, sndbuf, sizeof(*sndbuf)) != 0) {
-         perror("setsockopt(SO_SNDBUF)");
-         exit(EXIT_UNKNOWN);
-      }
-
-      if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, sndbuf_set, &len) != 0) {
-         perror("getsockopt(SO_SNDBUF)");
-         exit(EXIT_UNKNOWN);
-      }
-
-      *rcvbuf = *sndbuf_set * 10;
-      if (setsockopt(r, SOL_SOCKET, SO_RCVBUF, rcvbuf, sizeof(*rcvbuf)) != 0) {
-         perror("setsockopt(SO_RCVBUF)");
-         exit(EXIT_UNKNOWN);
-      }
-   }
-   else {
-      *rcvbuf = packetsize;
-      if (setsockopt(r, SOL_SOCKET, SO_RCVBUF, rcvbuf, sizeof(*rcvbuf)) != 0) {
-         perror("setsockopt(SO_RCVBUF)");
-         exit(EXIT_UNKNOWN);
-      }
-
-      if (getsockopt(r, SOL_SOCKET, SO_RCVBUF, rcvbuf_set, &len) != 0) {
-         perror("getsockopt(SO_RCVBUF)");
-         exit(EXIT_UNKNOWN);
-      }
-
-      *sndbuf = *rcvbuf_set * 10;
-      if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, sndbuf, sizeof(*sndbuf)) != 0) {
-         perror("setsockopt(SO_SNDBUF)");
-         exit(EXIT_UNKNOWN);
-      }
-   }
-
-   if (getsockopt(s, SOL_SOCKET, SO_SNDBUF, sndbuf_set, &len) != 0
-   ||  getsockopt(r, SOL_SOCKET, SO_RCVBUF, rcvbuf_set, &len) != 0) {
-      perror("getsockopt(SO_SNDBUF/SO_RCVBUF)");
-      exit(EXIT_UNKNOWN);
-   }
-
-   fprintf(stderr, "sndbuf is %lu, rcvbuf is %lu\n",
-          (unsigned long)*sndbuf_set, (unsigned long)*rcvbuf_set);
-
-   if (doreverse) {
-      if (*rcvbuf_set < *rcvbuf) {
-         fprintf(stderr, "failed to set rcvbuf to %lu.  Is %lu\n",
-                 (unsigned long)*rcvbuf, (unsigned long)*rcvbuf_set);
-         exit(EXIT_UNKNOWN);
-      }
-   }
-   else {
-      if (*sndbuf_set < *sndbuf) {
-         fprintf(stderr, "failed to set sndbuf to %lu (is %lu)\n",
-                 (unsigned long)*sndbuf, (unsigned long)*sndbuf_set);
-         exit(EXIT_UNKNOWN);
-      }
-   }
-}
-
-static size_t
-sendtest(s, buf, buflen)
-   const int s;
-   const char *buf;
-   const size_t buflen;
-{
-   ssize_t rc;
-   int i;
-
-   i     = 1;
-   errno = 0;
-   while (errno == 0) {
-      if ((rc = sendto(s, buf, buflen, 0, NULL, 0)) != (ssize_t)buflen)
-         fprintf(stderr, "sendto(2) failed on iteration %d, sent %ld/%lu.  "
-                "Total bytes sent: %lu.  Error on last packet: %s\n",
-                i, (long)rc, (unsigned long)buflen,
-                (unsigned long)(i * buflen + MAX(rc, 0)), strerror(errno));
-      else
-         ++i;
-   }
-
-   return (size_t)(i * buflen + MAX(rc, 0));
-}], [AC_MSG_RESULT(yes)
-    have_sendside=t
-], [AC_MSG_RESULT(no)],
+   fprintf(fp, "%s\n", res);
+   fclose(fp);
+}], [pipeside=`cat conftest.out`
+     AC_MSG_RESULT([$pipeside])
+], [AC_MSG_RESULT(unknown)],
    [dnl XXX assume no when cross-compiling
-    AC_MSG_RESULT(assuming no)])
+    AC_MSG_RESULT(cross-compiling, assuming unknown)])
 
-if test x"${have_readside}" = xt -a x"${have_sendside}" = x; then
-   AC_DEFINE(HAVE_PIPEBUFFER_RECV_BASED, 1, [platform pipe behavior])
-elif test x"${have_readside}" = x -a x"${have_sendside}" = xt; then
-   AC_DEFINE(HAVE_PIPEBUFFER_SEND_BASED, 1, [platform pipe behavior])
-elif test x"${have_readside}" = x -a x"${have_sendside}" = x; then
-   AC_DEFINE(HAVE_PIPEBUFFER_UNKNOWN, 1, [platform pipe behavior])
-else
-   AC_MSG_WARN([internal error: pipe type check failed])
-   exit 1
-fi])
-
+case $pipeside in
+    recvbased)
+	AC_DEFINE(HAVE_PIPEBUFFER_RECV_BASED, 1, [platform pipe behavior])
+	;;
+    sendbased)
+	AC_DEFINE(HAVE_PIPEBUFFER_SEND_BASED, 1, [platform pipe behavior])
+	;;
+    *)
+	AC_DEFINE(HAVE_PIPEBUFFER_UNKNOWN, 1, [platform pipe behavior])
+        AC_MSG_WARN([unable to determine PIPEBUFFER type])
+	;;
+esac])
 
 dnl define function for valid size for tcp_ipa socket option
 dnl takes size as argument returns true if size accepted
@@ -1318,6 +1140,7 @@ gaierrval: $3
 #endif]])],
        [AC_MSG_RESULT([OK])
         $1="$$1 $3"
+        AC_DEFINE(HAVE_ERR_$3, 1, [$3 gai error found])
         cat conftest.i | grep gaierrval: >>$2],
        [AC_MSG_RESULT([no])])])
 AC_DEFUN([L_CHECKGAIERROR],

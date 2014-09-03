@@ -67,6 +67,9 @@ AC_MSG_CHECKING([for compiler type])
 if $CC -v 2>&1 | tail -1 | egrep '^gcc ' >/dev/null; then
     COMPTYPE=gcc
     FAILWARN="-Wall -Werror"
+elif $CC -v 2>&1 | egrep '^clang ' >/dev/null; then
+    COMPTYPE=clang
+    FAILWARN="-Wall -Werror"
 elif $CC -V 2>&1 | grep 'Sun C ' >/dev/null; then
     COMPTYPE=suncc
     FAILWARN="-v -errwarn=%all"

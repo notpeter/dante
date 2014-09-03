@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_tcp.c,v 1.66 2013/10/27 15:24:43 karls Exp $";
+"$Id: sockd_tcp.c,v 1.66.4.4 2014/08/22 06:23:12 michaels Exp $";
 
 static ssize_t
 io_tcp_rw(sockd_io_direction_t *in, sockd_io_direction_t *out, int *badfd,
@@ -308,7 +308,7 @@ do {                                                                           \
        * only to buffer), don't log it again.
        */
 
-      sendtoflags.side       = EXTERNALIF;
+      sendtoflags.side       = isreversed ? INTERNALIF : EXTERNALIF;
       w                      = socks_flushbuffer(io->dst.s, -1, &sendtoflags);
       io->dst.written.bytes += sendtoflags.tosocket;
 
@@ -391,7 +391,7 @@ do {                                                                           \
        * Since that data has already been logged as written (even if
        * only to buffer), don't log it again.
        */
-      sendtoflags.side       = INTERNALIF;
+      sendtoflags.side       = isreversed ? EXTERNALIF : INTERNALIF;
       w                      = socks_flushbuffer(io->src.s, -1, &sendtoflags);
       io->src.written.bytes += sendtoflags.tosocket;
 
@@ -503,6 +503,11 @@ io_tcp_rw(in, out, badfd, iostatus,
    sendto_info_t sendtoflags;
    recvfrom_info_t recvfromflags;
    ssize_t r, w, p;
+#if 0 /* for aid in debuging bufferproblems. */
+   static size_t j;
+   size_t lenv[] = { 60000, 60001, 60002, 60003, 60004, 60005, 60006, 60007,
+                     60008, 60009, 60010, 60011, 60012, 60013, 60014, 60015 };
+#endif
 
 #if !COVENANT
    size_t bufusedmem = 0, *bufused = &bufusedmem;
@@ -513,7 +518,8 @@ io_tcp_rw(in, out, badfd, iostatus,
    *iostatus = IO_NOERROR;
 
    if (sockscf.option.debug >= DEBUG_VERBOSE)
-      slog(LOG_DEBUG, "%s: %d -> %d, bufsize = %lu, bufused = %lu, flags = %d",
+      slog(LOG_DEBUG,
+           "%s: fd %d -> fd %d, bufsize = %lu, bufused = %lu, flags = %d",
            function,
            in->s,
            out->s,
@@ -646,6 +652,11 @@ io_tcp_rw(in, out, badfd, iostatus,
       recvfromflags.side = INTERNALIF;
    else
       recvfromflags.side = EXTERNALIF;
+
+#if 0
+   p = MIN(lenv[j % ELEMENTS(lenv)], p);
+   ++j;
+#endif
 
    SASSERTX(p >= 0);
    r = socks_recvfrom(in->s,
