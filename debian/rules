@@ -1,0 +1,78 @@
+#!/usr/bin/make -f
+
+# This script uses debhelper by Joey Hess
+#export DH_VERBOSE=1
+DEB=$(CURDIR)/debian/tmp
+DEV=debian/libsocksd0-dev
+
+include /usr/share/quilt/quilt.make
+
+ifeq (,$(filter nohardening,$(DEB_BUILD_OPTIONS)))
+export DEB_BUILD_HARDENING=1
+else
+export DEB_BUILD_HARDENING=0
+endif
+CFLAGS+=	-D_REENTRANT
+
+build:	build-stamp
+
+build-stamp: ${QUILT_STAMPFN}
+	dh build --before dh_auto_configure
+	cp /usr/share/misc/config.guess /usr/share/misc/config.sub . 
+	dh_auto_configure -- CFLAGS="${CFLAGS}" --prefix=/usr \
+	  --with-socks-conf=/etc/dante.conf \
+	  --with-sockd-conf=/etc/danted.conf \
+	  --with-pidfile=/var/run/danted.pid
+	cp lib/config_parse.c lib/config_scan.c dlib/
+	cp lib/config_parse.c lib/config_scan.c sockd/
+	dh build --remaining
+	touch build-stamp
+
+clean:
+	dh "$@" --before dh_clean
+	for d in sockd dlib; do \
+	  cd $$d; \
+	  for i in *; do \
+	    if [ -L "$$i" ]; then rm $$i; cp -a ../lib/$$i . ; fi \
+	  done; \
+	  cd ..; \
+	done
+	$(MAKE) -f debian/rules unpatch
+	rm -rf example/renamed
+	dh_clean config.guess config.sub \
+	  dlib/config_parse.c dlib/config_scan.c \
+	  sockd/config_parse.c sockd/config_scan.c
+	dh clean --remaining
+
+install:	build
+	dh "$@" --before dh_install
+	cp $(DEB)/usr/share/man/man5/socks.conf.5  $(DEB)/usr/share/man/man5/dante.conf.5
+	cp $(DEB)/usr/share/man/man5/sockd.conf.5  $(DEB)/usr/share/man/man5/danted.conf.5
+	cp $(DEB)/usr/share/man/man8/sockd.8 $(DEB)/usr/share/man/man8/danted.8
+	cp $(DEB)/usr/sbin/sockd $(DEB)/usr/sbin/danted
+	mkdir -p example/renamed
+	for i in example/sockd*.conf; do \
+		sed -e 's/sample sockd.conf/sample danted.conf/' < "$$i" > example/renamed/"`basename $$i | sed -e s/sockd/danted/`"; \
+	done
+	for i in example/socks*.conf; do \
+		sed -e 's/sample socks.conf/sample dante.conf/' < "$$i" > example/renamed/"`basename $$i | sed -e s/socks/dante/`"; \
+	done
+	dh_installdocs -A README doc/README.usage doc/README.survey BUGS CREDITS SUPPORT
+	dh_installdocs -pdante-client doc/README.socksify
+	dh_installdocs -pdante-client -pdante-server
+	dh_installdocs -pdante-server doc/SOCKS4.protocol
+	dh_installchangelogs NEWS
+	dh_installinit -pdante-server -r --init-script=danted
+	dh_link -plibsocksd0-dev /usr/lib/libsocksd0.so.0 /usr/lib/libsocksd.so
+	dh "$@" --remaining
+
+binary-indep:	build install
+	# Nothing to do here
+
+binary-arch:	build install
+	dh "$@" --before dh_shlibdeps
+	dh_shlibdeps -a -- -xglibc-private
+	dh "$@" --after dh_shlibdeps
+
+binary:	binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary

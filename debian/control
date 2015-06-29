@@ -1,0 +1,76 @@
+Source: dante
+Section: net
+Priority: optional
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Peter Pentchev <roam@ringlet.net>
+Build-Depends: flex,debhelper(>=7),quilt,libtool,autotools-dev,libwrap0-dev,libpam0g-dev
+Homepage: http://www.inet.no/dante/
+Standards-Version: 3.9.5
+Vcs-Svn: http://svn.ringlet.net/svn/ringlet/net/dante/trunk/dante-pkg/debian
+Vcs-Browser: http://svn.ringlet.net/cgi-bin/viewvc/viewvc.cgi/ringlet/net/dante/trunk/dante-pkg/debian/
+
+Package: libdsocksd0
+Architecture: any
+Section: libs
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Conflicts: dante-client (<< 1.1.19.dfsg)
+Replaces: dante-client (<< 1.1.19.dfsg)
+Description: SOCKS library for internal use by the dante client
+ Dante is a circuit-level firewall/proxy that can be used to provide
+ convenient and secure network connectivity to a wide range of hosts
+ while requiring only the server Dante runs on to have external network
+ connectivity.
+ .
+ This package provides the actual SOCKS wrapper library, which should only
+ be used via the dante-client package's socksify(1) executable.
+
+Package: libsocksd0
+Architecture: any
+Section: libs
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: SOCKS library for packages built using libsocksd-dev
+ Dante is a circuit-level firewall/proxy that can be used to provide
+ convenient and secure network connectivity to a wide range of hosts
+ while requiring only the server Dante runs on to have external network
+ connectivity.
+ .
+ This package provides the Dante SOCKS support library and will generally
+ be automatically selected by packages that require it.
+  
+Package: libsocksd0-dev
+Architecture: any
+Section: libdevel
+Depends: libsocksd0 (= ${binary:Version}), ${misc:Depends}
+Description: Development files for compiling programs with SOCKS support
+ Dante is a circuit-level firewall/proxy that can be used to provide
+ convenient and secure network connectivity to a wide range of hosts
+ while requiring only the server Dante runs on to have external network
+ connectivity.
+ .
+ This package provides header files and instructions for compiling programs
+ with SOCKS support.
+
+Package: dante-client
+Architecture: any
+Depends: ${shlibs:Depends}, libdsocksd0 (= ${binary:Version}), ${misc:Depends}
+Description: SOCKS wrapper for users behind a firewall
+ Dante is a circuit-level firewall/proxy that can be used to provide
+ convenient and secure network connectivity to a wide range of hosts
+ while requiring only the server Dante runs on to have external network
+ connectivity.
+ .
+ This package provides the "socksify" client program - a tool which
+ forwards network requests from any program to a SOCKS server (v4 or v5)
+ which then performs them on your behalf. 
+
+Package: dante-server
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: SOCKS (v4 and v5) proxy daemon (danted)
+ Dante is a circuit-level firewall/proxy that can be used to provide
+ convenient and secure network connectivity to a wide range of hosts
+ while requiring only the server Dante runs on to have external network
+ connectivity.
+ .
+ This package provides the socks proxy daemon (danted). The server part
+ of Dante allows socks clients to connect through it to the network.

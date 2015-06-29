@@ -1,0 +1,143 @@
+Rename the libdsocks library to libdsocskd to avoid a conflict with
+the libsocks4 package (#52475).
+
+Index: b/bin/socksify.in
+===================================================================
+--- a/bin/socksify.in
++++ b/bin/socksify.in
+@@ -72,7 +72,7 @@
+ 
+ #dlib/Makefile.am libtool flags should produce a predictable library name
+ #(ending in SOLIB_POSTFIX).
+-LIBRARY="${SOCKS_LIBRARY:-${FULLPATH}libdsocks.@SOLIB_POSTFIX@}"
++LIBRARY="${SOCKS_LIBRARY:-${FULLPATH}libdsocksd.@SOLIB_POSTFIX@}"
+ 
+ #platform dependent LD_PRELOAD-variant format
+ PRELOAD_SEPERATOR="@PRELOAD_SEPERATOR@"
+Index: b/doc/README.socksify
+===================================================================
+--- a/doc/README.socksify
++++ b/doc/README.socksify
+@@ -2,7 +2,7 @@
+ 
+ The shell script socksify in the bin directory is meant to aid in
+ using socks with already compiled dynamic binaries.  This works by
+-setting the LD_PRELOAD environment variable to libdsocks.  It will
++setting the LD_PRELOAD environment variable to libdsocksd.  It will
+ then wrap all networking-related system calls.
+ 
+ When used the script can socksify a program by simply giving it as a
+Index: b/doc/README.usage
+===================================================================
+--- a/doc/README.usage
++++ b/doc/README.usage
+@@ -7,15 +7,15 @@
+ 	The simplest way to add socks support to an already
+ (dynamically) complied application is to use the LD_PRELOAD facility
+ to replace the standard library functions with socksified ones.  The
+-libdsocks library is provided for this purpose.  See the
++libdsocksd library is provided for this purpose.  See the
+ README.socksify file for more information.  This will probably only
+ work with non-setuid applications since LD_PRELOAD is usually ignored
+ otherwise.  If setting LD_PRELOAD is not possible, compilation is
+ another possibility.
+ 
+ 	If the application can be compiled dynamically socks support
+-can be added explicitly by linking with libdsocks (usually done by adding
+-'-ldsocks').  This will automagically give the application socks
++can be added explicitly by linking with libdsocksd (usually done by adding
++'-ldsocksd').  This will automagically give the application socks
+ support without making any code changes.
+ 
+ Static Compilation
+@@ -24,8 +24,8 @@
+ changed to use socks, even if it is not linked dynamically.
+ Several system calls and library calls must be changed to use the
+ socksified versions instead of the standard ones.  The application
+-is then linked with the libsocks library in the distribution (-lsocks,
+-not -ldsocks).
++is then linked with the libsocks library in the distribution (-lsocksd,
++not -ldsocksd).
+ 
+ These function calls can be found in the socks library:
+ Raccept
+@@ -71,6 +71,6 @@
+ Libraries
+ 	In total there are three libraries distributed with this package:
+ 
+- libsocks.so  - standard shared library, contains Rfoo type functions.
+- libsocks.a   - static version of the above.
+- libdsocks.so - shared library which does "on the fly" socksification.
++ libsocksd.so  - standard shared library, contains Rfoo type functions.
++ libsocksd.a   - static version of the above.
++ libdsocksd.so - shared library which does "on the fly" socksification.
+Index: b/dlib/int_osf3.c
+===================================================================
+--- a/dlib/int_osf3.c
++++ b/dlib/int_osf3.c
+@@ -81,7 +81,7 @@
+ #undef sendto
+ 
+ /* XXX Attempt to support old library calls, which use old version of
+-   sockaddr and msghdr struct. Other parts of libdsocks are compiled
++   sockaddr and msghdr struct. Other parts of libdsocksd are compiled
+    using the new versions. */
+ 
+ /* sockaddr struct, with sa_len */
+Index: b/include/socks.h
+===================================================================
+--- a/include/socks.h
++++ b/include/socks.h
+@@ -471,7 +471,7 @@
+ typedef sigset_t addrlockopaque_t;
+ 
+ /*
+- * libsocks function declarations
++ * libsocksd function declarations
+  */
+ 
+ void
+Index: b/dlib/Makefile.in
+===================================================================
+--- a/dlib/Makefile.in
++++ b/dlib/Makefile.in
+@@ -296,7 +296,7 @@
+ top_build_prefix = @top_build_prefix@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+-lib_LTLIBRARIES = libdsocks.la
++lib_LTLIBRARIES = libdsocksd.la
+ #NOTE: file additions below also need to be added to dlib64/Makefile.am
+ #the interposition.c file is compiled first as it historically has had
+ #most compile problems.
+@@ -406,7 +406,7 @@
+ 	  echo "rm -f \"$${dir}/so_locations\""; \
+ 	  rm -f "$${dir}/so_locations"; \
+ 	done
+-libdsocks.la: $(libdsocks_la_OBJECTS) $(libdsocks_la_DEPENDENCIES) 
++libdsocksd.la: $(libdsocks_la_OBJECTS) $(libdsocks_la_DEPENDENCIES)
+ 	$(AM_V_CCLD)$(libdsocks_la_LINK) -rpath $(libdir) $(libdsocks_la_OBJECTS) $(libdsocks_la_LIBADD) $(LIBS)
+ 
+ mostlyclean-compile:
+Index: b/lib/Makefile.in
+===================================================================
+--- a/lib/Makefile.in
++++ b/lib/Makefile.in
+@@ -282,7 +282,7 @@
+ top_build_prefix = @top_build_prefix@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+-lib_LTLIBRARIES = libsocks.la
++lib_LTLIBRARIES = libsocksd.la
+ #config_parse/scan compiled first to get yacc/lex run as early as possible
+ #(other dirs rely on yacc/lex being run here).
+ libsocks_la_SOURCES = config_parse.c config_scan.c                      \
+@@ -391,7 +391,7 @@
+ 	  echo "rm -f \"$${dir}/so_locations\""; \
+ 	  rm -f "$${dir}/so_locations"; \
+ 	done
+-libsocks.la: $(libsocks_la_OBJECTS) $(libsocks_la_DEPENDENCIES) 
++libsocksd.la: $(libsocks_la_OBJECTS) $(libsocks_la_DEPENDENCIES)
+ 	$(AM_V_CCLD)$(libsocks_la_LINK) -rpath $(libdir) $(libsocks_la_OBJECTS) $(libsocks_la_LIBADD) $(LIBS)
+ 
+ mostlyclean-compile:

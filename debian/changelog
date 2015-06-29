@@ -1,0 +1,527 @@
+dante (1.4.1-1) trusty; urgency=low
+
+  * Imported Upstream version 1.4.1
+  * Update debian/patches after git-import-orig.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 23 Oct 2014 20:18:58 -0400
+
+dante (1.4.0-1) trusty; urgency=medium
+
+  * Imported Upstream version 1.4.0
+  * Refresh debian/patches after git-import-dsc.
+  * Update dh_installdocs.
+  * Update libdsocksd0.install for unversioned library.
+  * Promote debian/control standards version.
+  * Cease symbol tracking.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 26 Aug 2014 17:54:01 -0400
+
+dante (1.1.19.dfsg-3ubuntu11) trusty; urgency=medium
+
+  * No-change rebuild against eglibc 2.19.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Mon, 24 Feb 2014 15:55:17 -0700
+
+dante (1.1.19.dfsg-3ubuntu10) trusty; urgency=medium
+
+  * Rebuild against eglibc 2.18.
+
+ -- Colin Watson <cjwatson@ubuntu.com>  Mon, 03 Feb 2014 13:16:07 +0000
+
+dante (1.1.19.dfsg-3ubuntu9) saucy; urgency=low
+
+  * debian/patches/03-configure.patch
+    - Revert hardcoded libdl.so path
+  * debian/patches/15-fixlibc-search.patch
+    - Fix dante-server using the wrong libc.so (LP: #816153)
+      by changing the search patch for the libc.so
+  * debian/patches/16-fix-dlopen.patch
+    - Fix socksify fails to run (LP: #857598)
+      by adding search logic to locate the proper libdl.so
+
+ -- Louis Bouchard <louis.bouchard@ubuntu.com>  Wed, 12 Jul 2013 14:39:18 +0200
+
+dante (1.1.19.dfsg-3ubuntu8) raring; urgency=low
+
+  * No-change rebuild to update the dependency on the current libc6.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Mon, 28 Jan 2013 09:26:57 -0700
+
+dante (1.1.19.dfsg-3ubuntu7) raring; urgency=low
+
+  * No-change rebuild to update the current dependency on libc6.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Sat, 27 Oct 2012 02:11:33 +0100
+
+dante (1.1.19.dfsg-3ubuntu6) precise; urgency=low
+
+  * No-change rebuild against current pkgbinarymangler to fix broken
+    md5sums. (see LP #875466)
+
+ -- Martin Pitt <martin.pitt@ubuntu.com>  Wed, 29 Feb 2012 08:29:20 +0100
+
+dante (1.1.19.dfsg-3ubuntu5) oneiric; urgency=low
+
+  * No-change rebuild to update the dependency on libc6 (LP: #767085).
+
+ -- Stéphane Graber <stgraber@ubuntu.com>  Tue, 17 May 2011 09:18:25 -0400
+
+dante (1.1.19.dfsg-3ubuntu4) maverick; urgency=low
+
+  * No-change rebuild to update the dependency on libc6 (LP: #624425).
+
+ -- Stefan Potyra <sistpoty@ubuntu.com>  Fri, 03 Sep 2010 12:47:09 +0200
+
+dante (1.1.19.dfsg-3ubuntu3) lucid; urgency=low
+
+  * No-change rebuild to update the dependency on libc6 
+
+ -- Matthias Klose <doko@ubuntu.com>  Mon, 18 Jan 2010 16:06:10 +0100
+
+dante (1.1.19.dfsg-3ubuntu2) karmic; urgency=low
+
+  * No-change rebuild to update the dependency on libc6 
+
+ -- Michael Bienia <geser@ubuntu.com>  Mon, 14 Sep 2009 15:24:45 +0200
+
+dante (1.1.19.dfsg-3ubuntu1) jaunty; urgency=low
+
+  * Merge from debian unstable to fix libsock0-dev installability, remaining
+    changes:
+    - debian/rules: invoke "dh_shlibdeps -a -- -xglibc-private" to avoid
+      unmet dependency with glibc-private if linked with glibc >= 2.8.
+
+ -- Scott Kitterman <scott@kitterman.com>  Sat, 04 Apr 2009 12:09:45 -0400
+
+dante (1.1.19.dfsg-3) unstable; urgency=low
+
+  * Make libsocksd0-dev installable by fixing its dependency on libsocksd0!
+  * Add misc:Depends to all binary packages, just in case.
+  * Add comments to the patches that did not have any.
+  * Override the "dfsg version with period" lintian warning.
+  * Properly refer to GPL-2 instead of just GPL in the copyright file.
+  * Improve the long descriptions of all packages.
+  * Bump Standards-Version to 3.8.1:
+    - make the dante-server init script exit successfully if the server
+      is already running
+  * Drop the versioned build-dependency on quilt - in this day and age,
+    we are virtually guaranteed a quilt >= 0.40.
+
+ -- Peter Pentchev <roam@ringlet.net>  Wed, 25 Mar 2009 14:18:11 +0200
+
+dante (1.1.19.dfsg-2ubuntu1) jaunty; urgency=low
+
+  * debian/rules: invoke "dh_shlibdeps -a -- -xglibc-private" to avoid
+    unmet dependency with glibc-private if linked with glibc >= 2.8.
+
+ -- Luca Falavigna <dktrkranz@ubuntu.com>  Sat, 31 Jan 2009 04:10:19 +0100
+
+dante (1.1.19.dfsg-2) unstable; urgency=low
+
+  * Since the "new" binary package libdsocksd0 extracts a library that
+    was formerly in dante-client, it should conflict and replace old
+    versions of dante-client.  Closes: #494712.
+  * Remove the "debian/copyright line too long" lintian overrides, since
+    the check was dropped from lintian in both unstable and testing.
+
+ -- Peter Pentchev <roam@ringlet.net>  Fri, 22 Aug 2008 13:02:45 +0300
+
+dante (1.1.19.dfsg-1) unstable; urgency=low
+
+  * New maintainer.  Closes: #486756
+  * Do not start danted if the config file contains nothing but
+    the default settings.  Closes: #232574, #368322, #466082.
+  * Use quilt to manage the patches, converting all existing ones.
+  * Fix some lintian warnings
+  * Add a watch file and README.source
+  * Honor DEB_BUILD_OPTIONS
+  * Separate the dante client library into a package of its own
+  * Minimize the rules file by using debhelper 7
+  * Add the Vcs-Svn and Vcs-Browser source control fields
+  * Add symbols files for the libraries
+  * Convert the copyright file the machine-parseable format
+  * Fix some C compiler warnings, mainly related to printf format strings
+  * Enable build hardening unless DEB_BUILD_OPTIONS contains "nohardening"
+  * New upstream version
+    - remove the sockd/serverconfig.c upstream patch
+    - doc/README.msproxy was removed
+  * Install all sample configuration files
+
+  * debian/README.source
+    - create this file with some information about quilt
+  * debian/compat
+    - create this file, setting the compatibility level to 7
+  * debian/control
+    - record myself as maintainer
+    - add a build-dependency on quilt >= 0.40 for quilt.make
+    - change the debhelper build-dependency to version 7
+    - add the Homepage field to the source stanza
+    - rename the library packages from libsocksd{,-dev} to libsocksd0{,-dev}
+      to include the library SONAME
+    - add the libdsocksd0 package for the client library used by socksify
+    - update to standards version 3.8.0
+      - README.source
+      - honor DEB_BUILD_OPTIONS
+      - Homepage
+      - libsocksd -> libsocksd0
+      - libdsocksd0
+    - add the Vcs-Svn and Vcs-Browser fields to the source stanza
+  * debian/copyright
+    - rename this file from copyright.top
+    - add the LICENSE file converted to UTF-8
+    - convert the whole thing to the machine-parseable format and add
+      the copyright information for the debian/* files
+  * debian/dante-server.init
+    - do not start danted if the only uncommented settins in
+      the config file are the ones placed there by default
+    - provide a Short-Description LSB line
+  * debian/dante-client.lintian-overrides
+    debian/dante-server.lintian-overrides
+    debian/libdsocksd0.lintian-overrides
+    debian/libsocksd0.lintian-overrides
+    debian/libsocksd0-dev.lintian-overrides
+    - create these files and override the "copyright line too long"
+      warning for the first line, the machine-readable copyright's
+      format specification
+  * debian/dante-client.postinst
+    debian/dante-server.postinst
+    debian/libsocksd.postinst
+    - remove postinst files that will be autogenerated by debhelper
+  * debian/libdsocks0.symbols
+    debian/libsocks0.symbols
+    - create these files
+  * debian/patches
+    - convert the existing Debian source patch to patches 01 through 11
+  * debian/patches/02-rename-programs.patch
+    - inherit the socks -> dante change from the existing diff.gz
+    - update several instances new in dante-1.1.19
+  * debian/patches/03-configure
+    - inherit the libtool and libdl fixes from the existing diff.gz
+    - honor DEB_BUILD_OPTIONS by not adding "-g -O2" to the CFLAGS that
+      have already been set up by dpkg-buildpackage and debian/rules
+  * debian/patches/12-man-errors.patch
+    - replace some mdoc macros that have somehow crept up into the manual
+      pages with man (an.tmac) ones
+  * debian/patches/13-c-warnings.patch
+    - fix some C compiler warnings, mainly related to printf format strings
+  * debian/patches/14-httpproxy-underrun.patch
+    - fix a possible buffer underrun in lib/httpproxy.c
+  * debian/rules
+    - comment out DH_VERBOSE
+    - use quilt.make to apply and deapply patches
+    - remove the DH_COMPAT setting, moved to debian/compat
+    - reoder the dh_* calls to add an ldconfig postrm invocation and
+      fix a lintian warning
+    - do not ignore the "make distclean" exit code
+    - honor DEB_BUILD_OPTIONS by appending to the CFLAGS already set up by
+      dpkg-buildpackage, not overriding them
+    - no longer build debian/copyright dynamically
+    - change "libsocksd" to "libsocksd0" in the package names
+    - separate the client library into its own libdsocksd0 package
+    - simplify most targets by using debhelper 7's "dh" wrapper
+    - enable build hardening unless DEB_BUILD_OPTIONS contains "nohardening"
+    - install all sample configuration files
+  * debian/watch
+    - create this file
+
+ -- Peter Pentchev <roam@ringlet.net>  Thu, 17 Jul 2008 15:14:50 +0300
+
+dante (1.1.18.dfsg-0.2) unstable; urgency=low
+
+  * Non-maintainer upload.
+  * Added LSB formatted dependency info in init.d script (closes: #469750)
+  * Removed *.conffiles files, obsoleted by debhelper 3
+  * Changed section of libsocksd-dev to libdevel
+
+ -- Peter Eisentraut <petere@debian.org>  Fri, 04 Apr 2008 14:09:07 +0200
+
+dante (1.1.18.dfsg-0.1) unstable; urgency=low
+
+  * Non-maintainer upload with maintainer approval.
+  * Remove non-free RFC 1928 and 1929 from the upstream tarball
+    (closes: #393361).
+
+ -- Julien Cristau <jcristau@debian.org>  Tue, 04 Sep 2007 04:11:23 +0200
+
+dante (1.1.18-2.1) unstable; urgency=high
+
+  * Non-maintainer upload for RC bug.
+  * Make sure changelogs are installed into all packages (Closes: #393568).
+
+ -- Thijs Kinkhorst <thijs@debian.org>  Thu, 19 Oct 2006 12:09:39 +0200
+
+dante (1.1.18-2) unstable; urgency=low
+
+  * applied patch from upstream (same as patch sent by Nicolas Leonard)
+    to fix PAM authentication failures.  Many thanks to Nicolas for 
+    his work! (closes: #331538)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun,  9 Oct 2005 11:24:13 +0100
+
+dante (1.1.18-1) unstable; urgency=low
+
+  * new upstream (fixes logging to syslog)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sat, 17 Sep 2005 15:50:50 +0100
+
+dante (1.1.17-1) unstable; urgency=low
+
+  * new upstream release (closes: #304037)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Mon, 29 Aug 2005 15:51:20 +0100
+
+dante (1.1.14-2) unstable; urgency=low
+
+  * improve extended descriptions (closes: #209510, #210116)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sat, 15 Nov 2003 18:59:33 +0000
+
+dante (1.1.14-1) unstable; urgency=low
+
+  * new upstream
+  * removed SO_BSDCOMPAT call as it's pointless and causes annoying
+    messages in 2.6.x (closes: #206487)
+  * set libwrap uid to nobody (default was root)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun, 24 Aug 2003 16:20:28 +0100
+
+dante (1.1.13-1) unstable; urgency=low
+
+  * new upstream (closes: #168434)
+  * this fixes the Bad file descriptor errors (closes: #135275)
+  * build issues dissappeared (new libc/gcc?)
+    applied previous workaround anyway (closes: #167092)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sat,  4 Jan 2003 22:11:38 +0000
+
+dante (1.1.12-2) unstable; urgency=low
+
+  * hopefully work around the case when netlink isn't compiled into
+    the kernel.  This isn't the ideal fix, but one step at a time (closes:
+    #139434)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun, 14 Apr 2002 18:09:14 +0100
+
+dante (1.1.12-1) unstable; urgency=low
+
+  * new upstream
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun, 14 Apr 2002 16:00:22 +0100
+
+dante (1.1.11.12p1-4) unstable; urgency=low
+
+  * use Andreas Voegele's init.d script so that dante can write its pidfile
+    (closes: #72215, #121672). Thanks Andreas!
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun,  7 Apr 2002 12:45:55 +0100
+
+dante (1.1.11.12p1-3) unstable; urgency=low
+
+  * apply fix for dynamic port forwarding - thanks to Peter Amstutz
+    (closes: 140730) 
+  * improve libsocksd package description (closes: #135755)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Mon,  1 Apr 2002 10:29:31 +0100
+
+dante (1.1.11.12p1-2) unstable; urgency=low
+
+  * socksify should use /usr/lib/libdsocksd.so.0 - thanks to Matt Taggart
+    (closes: #135417)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Mon, 25 Feb 2002 18:38:51 +0000
+
+dante (1.1.11.12p1-1) unstable; urgency=low
+
+  * updated to 1.1.12-pre1
+  * fixed references to socks and sockd in manpages (and I grepped for others)
+    (closes: #126428, #130070)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Wed, 20 Feb 2002 20:08:46 +0000
+
+dante (1.1.10-4) unstable; urgency=low
+
+  * (1.1.10-3 not released)
+  * add libpam0g-dev adn libwrap0-dev to build-depends so we link against
+    them (closes: #106655, #86100)
+  * Add pt_BR translations (thanks to Fernando Carreira, Luis Alberto Garcia
+    Cipriano
+
+ -- Adrian Bridgett <bridgett@debian.org>  Wed, 26 Sep 2001 20:48:55 +0100
+
+dante (1.1.10-3) unstable; urgency=low
+
+  * better fix for 100375 from Philip Kendall <pak21@srcf.ucam.org>
+    - run clientinit() before log message so it goes to the right place
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun, 12 Aug 2001 21:44:42 +0100
+
+dante (1.1.10-2) unstable; urgency=low
+
+  * patch from dme@dme.org for memory overrun
+  * kill off debug message since I think it's confusing ssh (see #100375)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Wed, 25 Jul 2001 23:46:41 +0100
+
+dante (1.1.10-1) unstable; urgency=low
+
+  * new upstream
+  * always use config.{sub,guess} provided by autotools-dev (closes: #94953)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun,  3 Jun 2001 23:19:19 +0100
+
+dante (1.1.9-1) unstable; urgency=low
+
+  * new upstream
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun, 22 Apr 2001 23:14:18 +0100
+
+dante (1.1.8-1) unstable; urgency=low
+
+  * new upstream
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun,  4 Mar 2001 22:23:31 +0000
+
+dante (1.1.6-1) unstable; urgency=low
+
+  * new upstream
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sat, 23 Dec 2000 19:39:38 +0000
+
+dante (1.1.5-1) unstable; urgency=low
+
+  * new upstream
+
+ -- Adrian Bridgett <bridgett@debian.org>  Wed, 18 Oct 2000 11:42:27 +0100
+
+dante (1.1.4-1) unstable; urgency=low
+
+  * new upstream
+  * fix faq's reference to libdsocksd.so (should be libdsocksd.so.0) and add
+    a BIG warning that this is dangerous and not the way to do it
+    (closes: #69017)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Thu, 12 Oct 2000 15:09:27 +0100
+
+dante (1.1.2-2) unstable; urgency=low
+
+  * added two builddeps (closes: #66782, #66865)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Tue, 11 Jul 2000 18:44:44 +0100
+
+dante (1.1.2-1) unstable; urgency=low
+
+  * new upstream
+  * fix typo in description (closes: #66250)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Mon, 26 Jun 2000 20:56:21 +0100
+
+dante (1.1.1-4) frozen unstable; urgency=low
+
+  * hard code libdl.so to /lib/libdl.so.2 to prevent it from finding
+    /usr/lib/libdl.so (which is from libc6-dev)
+    RM: this effectively fixes a dependancy problem (by fixing the real cause)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Thu, 10 Feb 2000 22:34:32 +0000
+
+dante (1.1.1-3) frozen unstable; urgency=low
+
+  * call library libsocksd rather than libsocks to avoid conlict
+    with libsocks4 (for 52475)
+  * added Build-Depends and updated Standards-Version
+  * I'm on holiday for a week (back 24th Jan)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sat, 15 Jan 2000 14:07:00 +0000
+
+dante (1.1.1-2) frozen unstable; urgency=low
+
+  * add socksify manpage
+
+ -- Adrian Bridgett <bridgett@debian.org>  Mon, 10 Jan 2000 14:37:39 +0000
+
+dante (1.1.1-1) frozen unstable; urgency=low
+
+  * new upstream version
+
+ -- Adrian Bridgett <bridgett@debian.org>  Wed,  5 Jan 2000 20:56:12 +0000
+
+dante (1.1.0-2) unstable; urgency=low
+
+  * fix init.d script fully [closes: #50056]
+
+ -- Adrian Bridgett <bridgett@debian.org>  Tue, 30 Nov 1999 20:38:44 +0000
+
+dante (1.1.0-1) unstable; urgency=low
+
+  * new upstream version
+  * FHS
+
+ -- Adrian Bridgett <bridgett@debian.org>  Mon, 27 Sep 1999 22:41:16 +0100
+
+dante (1.0.9-pre2-2) unstable; urgency=low
+
+  * fix init.d script [closes: #42801]
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun, 15 Aug 1999 20:16:45 +0100
+
+dante (1.0.9-pre2-1) unstable; urgency=low
+
+  * new upstream (actually 1.1.0-pre2)
+  * AFAIK the removed patches aren't needed
+  * /etc/init.d/danted now calls danted with -D [closes #41719]
+
+ -- Adrian Bridgett <bridgett@debian.org>  Thu, 22 Jul 1999 21:41:31 +0100
+
+dante (1.0.1-1) unstable; urgency=low
+
+  * new upstream
+  * patch from Christopher C Chimelis <chris@beezer.med.miami.edu> for Alpha
+    [closes #40132, #39193, #37447]
+  * force off SO_{SND/RCV}LOWAT options since Linux doesn't support them
+  * fix some setuid/seteuid problems
+
+ -- Adrian Bridgett <adrian.bridgett@zetnet.co.uk>  Sun,  4 Jul 1999 14:48:07 +0100
+
+dante (1.0.0-1) unstable; urgency=low
+
+  * new upstream
+  * renamed sockd to danted for consistency and to avoid conflicts
+  * fix dante-server install [close #37653]
+
+ -- Adrian Bridgett <bridgett@debian.org>  Mon, 31 May 1999 21:50:29 +0100
+
+dante (1.0.0-pre1-1) unstable; urgency=low
+
+  * new upstream version
+  * fix references to /etc/sock*
+  * (unreleased)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun, 16 May 1999 15:13:06 +0100
+
+dante (0.92.0-pre3-4) unstable; urgency=low
+
+  * I forgot to upload that last one :-( I've already fixed the libs (closes
+    #37076)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Mon,  3 May 1999 20:00:57 +0100
+
+dante (0.92.0-pre3-3) unstable; urgency=low
+
+  * /etc/init.d/dante now used --oknodo on "stop"
+  * use /etc/dante* rather than /etc/socks* due to conflicts [closes #35187]
+  * fix library locations (libsocks.a is in libsocks-dev, not libsocks;
+    libdsocks is in dante-clients, not dante-server)
+
+ -- Adrian Bridgett <bridgett@debian.org>  Mon, 29 Mar 1999 21:16:17 +0100
+
+dante (0.92.0-pre3-2) unstable; urgency=low
+
+  * fixed locations of libsocks and libsocks-dev
+
+ -- Adrian Bridgett <bridgett@debian.org>  Thu, 25 Mar 1999 22:58:52 +0000
+
+dante (0.92.0-pre3-1) unstable; urgency=low
+
+  * Initial release.
+
+ -- Adrian Bridgett <bridgett@debian.org>  Sun, 21 Mar 1999 16:45:45 +0000
+

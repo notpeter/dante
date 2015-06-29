@@ -1,0 +1,154 @@
+Rename some files to reflect that this is Dante, not the original SOCKS:
+- /etc/socks.conf => /etc/dante.conf
+- /etc/sockd.conf => /etc/danted.conf
+- /usr/sbin/sockd => /usr/sbin/danted
+
+Index: b/INSTALL
+===================================================================
+--- a/INSTALL
++++ b/INSTALL
+@@ -381,8 +381,8 @@
+ 
+ No configuration-files are installed, these must be installed
+ manually.
+-The Dante server expects it's configuration file to be in /etc/sockd.conf.
+-The client library uses the file /etc/socks.conf.
++The Dante server expects it's configuration file to be in /etc/danted.conf.
++The client library uses the file /etc/dante.conf.
+ 
+ The file bin/socksify.sh contains a shell script that allows one
+ to dynamically socksify a dynamically linked application at runtime.
+Index: b/doc/sockd.8
+===================================================================
+--- a/doc/sockd.8
++++ b/doc/sockd.8
+@@ -41,11 +41,11 @@
+ .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
+ .\" the rights to redistribute these changes.
+ .\"
+-.TH SOCKD 8 "July 29 2013"
++.TH DANTED 8 "July 29 2013"
+ .SH NAME
+-sockd \- network proxyserver
++danted \- network proxyserver
+ .SH SYNOPSIS
+-.B sockd
++.B danted
+ .RB [ \-DLVdhnv ]
+ .RB [ \-N
+ .IR number ]
+@@ -103,7 +103,7 @@
+ enables TCP keep-alive messages so that connections from machines that
+ have crashed or for other reasons no longer can be reached time out.
+ Note that this can take several hours.  See also the "timeout"
+-option in sockd.conf(5).
++option in danted.conf(5).
+ .TP
+ .BI \-p file
+ .B Dante
+@@ -134,10 +134,10 @@
+ be set to a (local) filesystem with low latency.  The directory
+ should have read/write/execute permission by both the
+ privileged and unprivileged userid (as specified in
+-/etc/sockd.conf), but no other non-privileged users.
++/etc/danted.conf), but no other non-privileged users.
+ .SH FILES
+ .TP
+-/etc/sockd.conf
++/etc/danted.conf
+ .B Dante
+ server configuration file.
+ .SH AUTHORS
+@@ -145,7 +145,7 @@
+    Michael Shuldman
+    Karl-Andre' Skevik
+ .SH SEE ALSO
+-socks.conf(5), sockd.conf(5)
++socks.conf(5), danted.conf(5)
+ .PP
+ Information about new releases and other related issues can be found
+ on the \fBDante\fP WWW home page: http://www.inet.no/dante/
+Index: b/doc/sockd.conf.5
+===================================================================
+--- a/doc/sockd.conf.5
++++ b/doc/sockd.conf.5
+@@ -41,9 +41,9 @@
+ .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
+ .\" the rights to redistribute these changes.
+ .\"
+-.TH SOCKD.CONF 5 "July 29 2013"
++.TH DANTED.CONF 5 "July 29 2013"
+ .SH NAME
+-sockd.conf \- \fBDante\fP server configuration file syntax
++danted.conf \- \fBDante\fP server configuration file syntax
+ .SH DESCRIPTION
+ The configuration file for the \fBDante\fP server controls both access
+ controls and logging.  It is divided into three parts; server settings,
+@@ -315,7 +315,7 @@
+ .IP \fBtimeout.io\fP
+ The number of seconds an established connection can be idle.
+ The default is 0, meaning forever.
+-See also the "-n" option in the sockd(8) manpage.
++See also the "-n" option in the danted(8) manpage.
+ 
+ Individual timeouts can be set for TCP and UDP by suffixing io with
+ ".<protocolname>", i.e. \fBtimeout.io.tcp\fP or \fBtimeout.io.udp\fP.
+@@ -353,7 +353,7 @@
+ if compiled with libwrap support.  They are as follows:
+ .IP \fBuser.privileged\fP
+ Username which will be used for doing privileged operations.
+-If you need special privileges to read the sockd.conf file or to write
++If you need special privileges to read the danted.conf file or to write
+ the sockd.pid file (you can create it manually before starting sockd),
+ have anything in your configuration that requires binding privileged
+ TCP/UDP ports (ports below 1024), or use some sort of password-based
+@@ -1081,7 +1081,7 @@
+ .SH FILES
+ .nf
+ .ta \w 1
+-/etc/sockd.conf   \fBDante\fP server configuration file.
++/etc/danted.conf   \fBDante\fP server configuration file.
+ /etc/passwd       systemfile used when doing standard username/password
+                   authentication.
+ .fi
+@@ -1090,7 +1090,7 @@
+    Michael Shuldman
+    Karl-Andre' Skevik
+ .SH SEE ALSO
+-sockd(8), socks.conf(5), hosts_access(5)
++danted(8), socks.conf(5), hosts_access(5)
+ 
+ .PP
+ Information about new releases and other related issues can be found
+Index: b/doc/socks.conf.5
+===================================================================
+--- a/doc/socks.conf.5
++++ b/doc/socks.conf.5
+@@ -41,9 +41,9 @@
+ .\" any improvements or extensions that they make and grant Inferno Nettverk A/S
+ .\" the rights to redistribute these changes.
+ .\"
+-.TH SOCKS.CONF 5 "July 29 2013"
++.TH DANTED.CONF 5 "July 29 2013"
+ .SH NAME
+-socks.conf \- socks client configuration file syntax
++danted.conf \- socks client configuration file syntax
+ .SH DESCRIPTION
+ The configuration file for the socks client library allow control over
+ logging and server selection.  It is divided into two parts;
+@@ -186,13 +186,13 @@
+ Some additional environment variables are documented in socksify(1).
+ .TP
+ .SH FILES
+-.I /etc/socks.conf
++.I /etc/danted.conf
+ .SH AUTHORS
+ For inferno Nettverk A/S:
+    Michael Shuldman
+    Karl-Andre' Skevik
+ .SH SEE ALSO
+-socksify(1), sockd(8), sockd.conf(5)
++socksify(1), danted(8), danted.conf(5)
+ 
+ .PP
+ Information about new releases and other related issues can be found on

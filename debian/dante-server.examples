@@ -1,0 +1,3 @@
+contrib/sockd-stat.awk
+example/renamed/danted.conf
+example/renamed/danted-*.conf

@@ -1,0 +1,27 @@
+Always use Debian's libtool and libdl.so.2.
+Do not add "-g -O2" to the Debian build's CFLAGS.
+
+Index: b/configure
+===================================================================
+--- a/configure
++++ b/configure
+@@ -4135,7 +4135,7 @@
+   CFLAGS=$ac_save_CFLAGS
+ elif test $ac_cv_prog_cc_g = yes; then
+   if test "$GCC" = yes; then
+-    CFLAGS="-g -O2"
++    CFLAGS=""
+   else
+     CFLAGS="-g"
+   fi
+@@ -7923,8 +7923,8 @@
+ # This can be used to rebuild libtool when needed
+ LIBTOOL_DEPS="$ltmain"
+ 
+-# Always use our own libtool.
+-LIBTOOL='$(SHELL) $(top_builddir)/libtool'
++# Always use Debian's libtool.
++LIBTOOL='/usr/bin/libtool'
+ 
+ 
+ 

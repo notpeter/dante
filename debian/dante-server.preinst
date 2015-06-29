@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+# copy across old configuration before rename
+if [ "$1" = "upgrade" ] && [ "$2" = "0.92.0-pre3-2" ] ; then
+  cp /etc/sockd.conf /etc/danted.conf
+fi
+
+#DEBHELPER#

@@ -1,0 +1,4 @@
+doc/socksify.1 usr/share/man/man1
+example/renamed/dante.conf etc
+usr/bin/socksify usr/bin
+usr/share/man/man5/dante.conf.5 usr/share/man/man5
