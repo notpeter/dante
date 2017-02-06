@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009,
- *               2010, 2011, 2012, 2013
+ *               2010, 2011, 2012, 2013, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.287 2013/10/27 15:17:05 karls Exp $ */
+/* $Id: socks.h,v 1.287.6.6 2017/01/31 14:35:55 karls Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -152,6 +152,7 @@
 #endif /* gethostbyname */
 
 #if HAVE_GETHOSTBYNAME2
+
 /*
  * a little tricky ... we need it to be at the bottom of the stack,
  * like a syscall.
@@ -159,6 +160,7 @@
 #define gethostbyname(name)            sys_gethostbyname2(name, AF_INET)
 #else
 #define gethostbyname(name)            sys_gethostbyname(name)
+
 #endif /* HAVE_GETHOSTBYNAME2 */
 
 #ifdef gethostbyname2
@@ -183,6 +185,12 @@
 #endif /* freehostent */
 #define freehostent(ptr)            sys_freehostent(ptr)
 
+#if HAVE_GETNAMEINFO
+
+#define getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
+         sys_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+
+#endif /* HAVE_GETNAMEINFO  */
 
 
 #ifdef getpeername
@@ -474,7 +482,7 @@ typedef sigset_t addrlockopaque_t;
  * libsocks function declarations
  */
 
-void
+void __ATTRIBUTE__((ATTRIBUTE_CONSTRUCTOR))
 clientinit(void);
 /*
  * initializes client state, reads config file, etc.
@@ -501,6 +509,14 @@ int Rbindresvport(int, struct sockaddr_in *);
 int Rrresvport(int *);
 struct hostent *Rgethostbyname(const char *);
 struct hostent *Rgethostbyname2(const char *, int af);
+
+#if HAVE_GETNAMEINFO
+
+int Rgetnameinfo(const struct sockaddr *sa, socklen_t salen, char *host,
+                 socklen_t hostlen, char *serv, socklen_t servlen,
+                 int flags);
+
+#endif /* HAVE_GETNAMEINFO  */
 
 #if HAVE_GETADDRINFO
 int Rgetaddrinfo(const char *nodename, const char *servname,
@@ -572,6 +588,14 @@ udpsetup(int s, const struct sockaddr_storage *to, int type, int shouldconnect,
  * Returns the route that was used (possibly a direct route), or NULL if no
  * route could be set up.  In the latter case, errno and emsg will be set.
  */
+
+int
+fd_is_network_socket(const int fd);
+/*
+ * Returns true if "fd" is a network socket of a kind we support.
+ * Returns False otherwise.
+ */
+
 
 
 
@@ -782,6 +806,9 @@ int sys_getsockname(int, struct sockaddr *, int *);
 #else
 HAVE_PROT_GETSOCKNAME_0
 sys_getsockname(HAVE_PROT_GETSOCKNAME_1, HAVE_PROT_GETSOCKNAME_2,
+      HAVE_PROT_GETSOCKNAME_3);
+HAVE_PROT_GETSOCKNAME_0
+sys_getsockname_notracking(HAVE_PROT_GETSOCKNAME_1, HAVE_PROT_GETSOCKNAME_2,
       HAVE_PROT_GETSOCKNAME_3);
 #endif /* HAVE_EXTRA_OSF_SYMBOLS */
 

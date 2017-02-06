@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014
+ *               2011, 2012, 2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.107.4.8 2014/08/15 18:16:40 karls Exp $";
+"$Id: Rgethostbyname.c,v 1.107.4.8.2.4 2017/01/31 08:17:38 karls Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -177,12 +177,12 @@ Rgetaddrinfo(nodename, servname, hints, res)
 
    clientinit();
 
-   if (nodename == NULL)
+   if (nodename == NULL || *nodename == NUL)
       STRCPY_ASSERTSIZE(vbuf_nodename, "<null>");
    else
       str2vis(nodename, strlen(nodename), vbuf_nodename, sizeof(vbuf_nodename));
 
-   if (servname == NULL)
+   if (servname == NULL || *servname == NUL)
       STRCPY_ASSERTSIZE(vbuf_servname, "<null>");
    else
       str2vis(servname, strlen(servname), vbuf_servname, sizeof(vbuf_servname));
@@ -571,3 +571,34 @@ Rfreehostent(ptr)
       freehostent(ptr);
 }
 #endif /* HAVE_GETIPNODEBYNAME */
+
+#if HAVE_GETNAMEINFO
+
+int
+Rgetnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+   const struct sockaddr *sa;
+   socklen_t salen;
+   char *host;
+   socklen_t hostlen;
+   char *serv;
+   socklen_t servlen;
+   int flags;
+{
+   const char *function = "getnameinfo()";
+
+   if (sockscf.resolveprotocol == RESOLVEPROTOCOL_FAKE) {
+      char vbuf_name[MAXHOSTNAMELEN * 4];
+
+      if (host == NULL || *host == NUL)
+         STRCPY_ASSERTSIZE(vbuf_name, "<null>");
+      else
+         str2vis(host, strlen(host), vbuf_name, sizeof(vbuf_name));
+
+      slog(LOG_WARNING,
+           "%s: getnameinfo(3) (%s) is not yet supported", function, vbuf_name);
+   }
+
+   return getnameinfo(sa, salen, host, hostlen, serv, servlen, flags);
+}
+
+#endif /* HAVE_GETNAMEINFO  */

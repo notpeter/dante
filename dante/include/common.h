@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: common.h,v 1.931.4.7 2014/08/15 18:12:21 karls Exp $ */
+/* $Id: common.h,v 1.931.4.7.2.8 2017/02/03 14:13:14 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -280,6 +280,7 @@ extern char *__progname;
 #define ENV_SOCKS_DIRECTROUTE_FALLBACK     "SOCKS_DIRECTROUTE_FALLBACK"
 #define ENV_SOCKS_DISABLE_THREADLOCK       "SOCKS_DISABLE_THREADLOCK"
 #define ENV_SOCKS_ERRLOGOUTPUT             "SOCKS_ERRLOGOUTPUT"
+#define ENV_SOCKS_FORCE_BLOCKING_CONNECT   "SOCKS_FORCE_BLOCKING_CONNECT"
 #define ENV_SOCKS_LOGOUTPUT                "SOCKS_LOGOUTPUT"
 #define ENV_SOCKS_PASSWD                   "SOCKS_PASSWD"
 #define ENV_SOCKS_PASSWORD                 "SOCKS_PASSWORD"
@@ -1052,8 +1053,7 @@ do {                                                                           \
 
 #else /* !HAVE_CMSGHDR */
 
-#define CMSG_AALLOC(name, size) \
-
+#define CMSG_AALLOC(name, size)           \
    char name[(size)] = NUL;
 
 #endif /* !HAVE_CMSGHDR */
@@ -1382,6 +1382,7 @@ do {                                                                           \
 
 /* upnp stuff. */
 #define UPNP_DISCOVERYTIME_MS              (1000)
+#define UPNP_IP_TTL                        (2)
 #define DEFAULT_SSDP_BROADCAST_IPV4ADDR    "239.255.255.250"
 #define DEFAULT_SSDP_PORT                  (1900)
 
@@ -3530,6 +3531,12 @@ HAVE_PROT_VFPRINTF_0 __vfprintf_chk(HAVE_PROT_VFPRINTF_1 stream,
 #endif /* HAVE___VFPRINTF_CHK */
 #endif /* SOCKS_CLIENT */
 
+#if HAVE___READ_CHK
+HAVE_PROT__READ_CHK_0
+__read_chk(HAVE_PROT__READ_CHK_1 d, HAVE_PROT__READ_CHK_2 buf,
+           HAVE_PROT__READ_CHK_3 nbytes, HAVE_PROT__READ_CHK_4 buflen);
+#endif /* HAVE___READ_CHK */
+
 #endif /* SOCKSLIBRARY_DYNAMIC */
 
 int
@@ -4027,16 +4034,27 @@ char *socks_decode_base64(char *in, char *out, size_t outlen);
 char *socks_strcasestr(const char *a, const char *b);
 #endif /* COVENANT */
 
-#if SOCKSLIBRARY_DYNAMIC
-#include "interposition.h"
-#endif /* SOCKSLIBRARY_DYNAMIC */
+#if HAVE_GETNAMEINFO && HAVE_PRELOAD
+
+HAVE_PROT_GETNAMEINFO_0
+sys_getnameinfo(HAVE_PROT_GETNAMEINFO_1 sa, HAVE_PROT_GETNAMEINFO_2 salen,
+                HAVE_PROT_GETNAMEINFO_3 host, HAVE_PROT_GETNAMEINFO_4 hostlen,
+                HAVE_PROT_GETNAMEINFO_5 serv, HAVE_PROT_GETNAMEINFO_6 servlen,
+                HAVE_PROT_GETNAMEINFO_7 flags);
+
+#endif /* HAVE_GETNAMEINFO && HAVE_PRELOAD */
 
 #if SOCKS_CLIENT
+
 #include "socks.h"
+
 #else /* SOCKS_SERVER */
+
 #include "sockd.h"
+
 #endif /* SOCKS_SERVER */
 
+#include "interposition.h"
 #include "tostring.h"
 #include "fmt.h"
 

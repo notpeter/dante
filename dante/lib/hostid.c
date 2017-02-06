@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013
+ * Copyright (c) 2012, 2013, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,9 +44,10 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostid.c,v 1.18 2013/10/27 15:24:42 karls Exp $";
+"$Id: hostid.c,v 1.18.6.4 2017/01/31 08:17:38 karls Exp $";
 
 #if SOCKS_HOSTID_TYPE != SOCKS_HOSTID_TYPE_NONE
+
 unsigned char
 getsockethostid(s, addrc, addrv)
    const int s;
@@ -56,8 +57,9 @@ getsockethostid(s, addrc, addrv)
 #if SOCKS_HOSTID_TYPE == SOCKS_HOSTID_TYPE_TCP_IPA
    const char *function = "getsockethostid()";
    struct tcp_ipa hostid;
-   size_t i;
+   ssize_t i, max, last_nonzero;
    socklen_t len;
+   unsigned char hostidc;
 
    len = sizeof(hostid);
    if (getsockopt(s, IPPROTO_TCP, TCP_IPA, &hostid, &len) != 0) {
@@ -79,12 +81,26 @@ getsockethostid(s, addrc, addrv)
 
    SASSERTX(len >= sizeof(*addrv));
 
-   for (i = 0; i < addrc && i < (len / sizeof(*hostid.ipa_ipaddress)); ++i) {
-      addrv[i].s_addr = hostid.ipa_ipaddress[i];
+   /*
+    * In the current (not original, though marked as "IPA_VERSION 1")
+    * version of the API, it's no longer the length of data returned by
+    * getsockopt(2) that determines how many hostid values are set.
+    * Instead the structure can be considered as an array of fixed length,
+    * where indices in the array having a value other than zero are to be
+    * considered set, *however*: an indice having the value zero is also
+    * considered set if there is a non-zero values in any of the following
+    * indices.
+    */
 
-      if (sockscf.option.debug) {
-         char ntop[MAXSOCKADDRSTRING];
+#if DEBUG
 
+   max     = MIN(addrc, len / sizeof(*hostid.ipa_ipaddress));
+   hostidc = 0;
+
+   if (sockscf.option.debug) {
+      char ntop[MAXSOCKADDRSTRING];
+
+      for (i = 0; i < max; ++i) {
          if (inet_ntop(AF_INET, &addrv[i], ntop, sizeof(ntop)) == NULL)
             swarn("%s: inet_ntop(3) failed on %s %x",
                  function, safamily2string(AF_INET), addrv[i].s_addr);
@@ -94,10 +110,31 @@ getsockethostid(s, addrc, addrv)
       }
    }
 
-   return i;
+#endif /* DEBUG */
+
+   max     = MIN(addrc, len / sizeof(*hostid.ipa_ipaddress));
+   hostidc = 0;
+
+   for (i = max - 1; i >= 0; --i) {
+      if (hostid.ipa_ipaddress[i] != htonl(0)) {
+         hostidc = i + 1;
+         break;
+      }
+   }
+
+   SASSERTX(hostidc >= 0);
+   SASSERTX(hostidc <= UCHAR_MAX);
+
+   slog(LOG_DEBUG, "%s: hostids set: %u", function, (unsigned)hostidc);
+
+   memcpy(addrv, hostid.ipa_ipaddress, hostidc * sizeof(*hostid.ipa_ipaddress));
+
+   return (unsigned char)hostidc;
+
 #else /* ! (SOCKS_HOSTID_TYPE == SOCKS_HOSTID_TYPE_TCP_IPA) */
 
    return 0;
+
 #endif
 }
 
@@ -113,10 +150,15 @@ setsockethostid(s, addrc, addrv)
    size_t i;
    socklen_t len;
 
-   CTASSERT(sizeof(*addrv) == sizeof(*hostid.ipa_ipaddress));
+   CTASSERT(sizeof(*addrv) <= sizeof(*hostid.ipa_ipaddress));
 
    if (addrc == 0)
       return 0;
+
+   /*
+    * Unset hostid fields must be set to zero.
+    */
+   bzero(&hostid, sizeof(hostid));
 
    for (i = 0; i < addrc; ++i) {
       char ntop[MAXSOCKADDRSTRING];
@@ -140,9 +182,11 @@ setsockethostid(s, addrc, addrv)
    }
 
    return 0;
+
 #else /* ! (SOCKS_HOSTID_TYPE == SOCKS_HOSTID_TYPE_TCP_IPA) */
 
    return -1;
+
 #endif
 }
 

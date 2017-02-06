@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.289 2013/10/27 15:17:06 karls Exp $";
+"$Id: udp.c,v 1.289.6.3 2017/01/31 08:17:38 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -848,8 +848,7 @@ udpsetup(s, to, type, shouldconnect, emsg, emsglen)
          SERRX(packet.version);
    }
 
-   if (socks_routesetup(socksfd.control, s, socksfd.route, emsg, emsglen)
-   != 0) {
+   if (socks_routesetup(socksfd.control, s, socksfd.route, emsg, emsglen) != 0){
       swarnx("%s: socks_routesetup() failed: %s", function, emsg);
 
       if (socksfd.control != -1)
@@ -872,17 +871,20 @@ udpsetup(s, to, type, shouldconnect, emsg, emsglen)
 
    sockaddr2sockshost(&socksfd.local, &src);
 
-   if ((socksfd.route = socks_connectroute(socksfd.control,
-                                           &packet,
-                                           &src,
-                                           &dst,
-                                           emsg,
-                                           emsglen)) == NULL) {
+   socksfd.route = socks_connectroute(socksfd.control,
+                                      &packet,
+                                      &src,
+                                      &dst,
+                                      emsg,
+                                      emsglen);
+
+   if (socksfd.route == NULL) {
       swarnx("could not connect route: %s", emsg);
 
       close(socksfd.control);
       return NULL;
    }
+
 
    /*
     * we need to send the socks server our address.

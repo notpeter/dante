@@ -21,13 +21,13 @@ case $host in
 
     *-*-solaris*)
 	#for msghdr msg_flags
-	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_XOPEN_SOURCE=500 -D_XOPEN_SOURCE_EXTENDED"
+	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_XOPEN_SOURCE=600"
 	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D__EXTENSIONS__ -DBSD_COMP"
 	;;
 
     *-*-linux-*)
 	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_XOPEN_SOURCE=600 -D_XOPEN_SOURCE_EXTENDED"
-	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_BSD_SOURCE"
+	CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_BSD_SOURCE -D_DEFAULT_SOURCE"
 	;;
 
     *-*-aix*)
@@ -107,12 +107,45 @@ else
     AC_MSG_RESULT([$COMPTYPE])
 fi
 
+AC_MSG_CHECKING([for preprocessor flags])
+unset cpp_flags
+case $ac_cv_prog_CPP in
+    gcc*)
+	#simplify parsing after cpp processing (for e.g. errno checks)
+	cpp_flags="${cpp_flags}${cpp_flags:+ }-P"
+
+	if test x"`uname`" = xSunOS; then
+	    cpp_flags="${cpp_flags}${cpp_flags:+ }-std=gnu99"
+	fi
+	;;
+    suncc*)
+	if test x"`uname`" = xSunOS; then
+	    cpp_flags="${cpp_flags}${cpp_flags:+ }-xc99=all"
+	fi
+	;;
+esac
+if test x"$cpp_flags" != x; then
+   CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$cpp_flags"
+   AC_MSG_RESULT([$cpp_flags])
+else
+   AC_MSG_RESULT([none])
+fi
+
 unset comp_flags
 AC_MSG_CHECKING([for compiler flags])
 case $COMPTYPE in
+    gcc)
+	if test x"`uname`" = xSunOS; then
+	    comp_flags="-std=gnu99"
+	fi
+	;;
+
     suncc)
 	#-xs provides easier debugging with gdb
 	comp_flags="-Xa -xs"
+	if test x"`uname`" = xSunOS; then
+	    comp_flags="$comp_flags -xc99=all"
+	fi
     ;;
 
     osfcc)
@@ -176,18 +209,28 @@ int main()
 esac
 
 AC_MSG_CHECKING([for support for -Wbounded compiler flag])
-oCFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN -Wbounded"
-AC_TRY_RUN([
+case $COMPTYPE in
+    xlc)
+	#use of -Wbounded does not result in an error even when
+	#-qhalt=w is specified, resulting in a warning for each
+	#compiled file, so disable check
+	AC_MSG_RESULT([no, disabled for this compiler])
+	;;
+    *)
+	oCFLAGS="$CFLAGS"
+	CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN -Wbounded"
+	AC_TRY_RUN([
 int main()
 {
         return 0;
-}], [AC_MSG_RESULT([yes])
-     comp_flags="${comp_flags}${comp_flags:+ }-Wbounded"
-     AC_DEFINE(HAVE_DECL_BOUNDED, 1, [__bounded__ macro support])],
-    [AC_MSG_RESULT([no])],
-    [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
-CFLAGS="$oCFLAGS"
+}],     [AC_MSG_RESULT([yes])
+	 comp_flags="${comp_flags}${comp_flags:+ }-Wbounded"
+	 AC_DEFINE(HAVE_DECL_BOUNDED, 1, [__bounded__ macro support])],
+	   [AC_MSG_RESULT([no])],
+	   [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
+	CFLAGS="$oCFLAGS"
+	;;
+esac
 
 AC_MSG_CHECKING([whether compiler supports _Pragma()])
 oCFLAGS="$CFLAGS"
@@ -211,7 +254,7 @@ CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN"
 AC_TRY_RUN([
 #include <stdlib.h>
 
-void errfunc(void) __attribute((noreturn));
+void errfunc(void) __attribute__((noreturn));
 
 void errfunc(void)
 {
@@ -227,13 +270,35 @@ int main()
     [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
 CFLAGS="$oCFLAGS"
 
+AC_MSG_CHECKING([for constructor __attribute__ support])
+oCFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN"
+AC_TRY_RUN([
+#include <stdlib.h>
+
+void errfunc(void) __attribute__((constructor));
+
+void errfunc(void)
+{
+    exit(0);
+}
+
+int main()
+{
+    errfunc();
+}], [AC_MSG_RESULT([yes])
+     AC_DEFINE(HAVE_DECL_CONSTRUCTOR, 1, [constructor __attribute__ support])],
+    [AC_MSG_RESULT([no])],
+    [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
+CFLAGS="$oCFLAGS"
+
 AC_MSG_CHECKING([for __attribute__ nonnull support])
 oCFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS${CFLAGS:+ }$FAILWARN"
 AC_TRY_RUN([
 #include <stdlib.h>
 
-void func(char *) __attribute((__nonnull__(1)));
+void func(char *) __attribute__((__nonnull__(1)));
 
 void func(char *f)
 {
@@ -245,7 +310,7 @@ int main()
 {
     func(NULL);
 }], [AC_MSG_RESULT([yes])
-     AC_DEFINE(HAVE_DECL_NONNULL, 1, [__nunnull__ attribute support])],
+     AC_DEFINE(HAVE_DECL_NONNULL, 1, [__nonnull__ attribute support])],
     [AC_MSG_RESULT([no])],
     [AC_MSG_RESULT([no]) dnl assume not supported when cross-compiling])
 CFLAGS="$oCFLAGS"
@@ -378,14 +443,14 @@ else
 	gcc)
 	    if test x"$aixldbug" != x; then
 	        #disable debug info
-		if echo $CFLAGS | grep -- "-g" >/dev/null; then
-		    CFLAGS="`echo $CFLAGS | sed -e 's/-g//g'`"
+		if echo $CFLAGS | grep -- "-g " >/dev/null; then
+		    CFLAGS="`echo $CFLAGS | sed -e 's/-g //g'`"
 		fi
 		CFLAGS="$CFLAGS${CFLAGS:+ }-g0"
 	    else
 		#use -ggdb also when not debugging
-		if echo $CFLAGS | grep -- "-g" >/dev/null; then
-		    CFLAGS="`echo $CFLAGS | sed -e 's/-g//g'`"
+		if echo $CFLAGS | grep -- "-g " >/dev/null; then
+		    CFLAGS="`echo $CFLAGS | sed -e 's/-g //g'`"
 		fi
 		CFLAGS="$CFLAGS${CFLAGS:+ }-ggdb"
 	    fi

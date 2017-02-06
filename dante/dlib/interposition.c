@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
- *               2012, 2013
+ *               2012, 2013, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.183 2013/10/27 15:24:41 karls Exp $";
+"$Id: interposition.c,v 1.183.6.11 2017/01/31 08:17:38 karls Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
@@ -72,7 +72,7 @@ HAVE_PROT_SENDTO_0
 sendto(HAVE_PROT_SENDTO_1, HAVE_PROT_SENDTO_2, HAVE_PROT_SENDTO_3,
     HAVE_PROT_SENDTO_4, HAVE_PROT_SENDTO_5, HAVE_PROT_SENDTO_6);
 
-#endif
+#endif /* (defined __sun) && (defined _XPG4_2) */
 
 #if HAVE_DARWIN
 
@@ -96,6 +96,8 @@ write$NOCANCEL(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
 #ifndef __USE_GNU
 #define __USE_GNU /* XXX for RTLD_NEXT on Linux */
 #endif /* !__USE_GNU */
+
+
 #include <dlfcn.h>
 
 #ifdef __COVERITY__
@@ -111,7 +113,7 @@ write$NOCANCEL(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
 #undef sys_bindresvport
 #undef sys_connect
 #undef sys_gethostbyname
-#undef sys_gethostbyname2 gethostbyname2
+#undef sys_gethostbyname2
 #undef sys_getaddrinfo
 #undef sys_getnameinfo
 #undef sys_getipnodebyname
@@ -141,6 +143,7 @@ write$NOCANCEL(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
 #undef gethostbyname
 #undef gethostbyname2
 #undef getaddrinfo
+#undef getnameinfo
 #undef getipnodebyname
 #undef freehostent
 #undef getpeername
@@ -234,9 +237,9 @@ static libsymbol_t libsymbolv[] = {
 { SYMBOL_GETADDRINFO,          LIBRARY_GETADDRINFO,    NULL,   NULL, NULL },
 #endif /* HAVE_GETADDRINFO */
 
-#if HAVE_GETNAMEINFO && !SOCKS_CLIENT
+#if HAVE_GETNAMEINFO
 { SYMBOL_GETNAMEINFO,          LIBRARY_GETNAMEINFO,    NULL,   NULL, NULL },
-#endif /* HAVE_GETNAMEINFO && !SOCKS_CLIENT */
+#endif /* HAVE_GETNAMEINFO */
 
 #ifdef __sun
 { SYMBOL_XNET_BIND,            LIBRARY_BIND,           NULL,   NULL, NULL },
@@ -347,9 +350,13 @@ static libsymbol_t libsymbolv[] = {
  * knowledge.
  */
 #ifdef HAVE_VOLATILE_SIG_ATOMIC_T
+
 extern sig_atomic_t doing_addrinit;
+
 #else
+
 extern volatile sig_atomic_t doing_addrinit;
+
 #endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
 
 #define DNSCODE_START() \
@@ -357,13 +364,6 @@ do { ++sockscf.state.executingdnscode; } while (/* CONSTCOND */ 0)
 
 #define DNSCODE_END() \
 do { --sockscf.state.executingdnscode; } while (/* CONSTCOND */ 0)
-
-#else /* !SOCKS_CLIENT */
-
-#define DNSCODE_START()
-#define DNSCODE_END()
-
-#endif /* !SOCKS_CLIENT */
 
 static void
 addtolist(const char *functionname, const socks_id_t *id);
@@ -379,13 +379,20 @@ removefromlist(const char *functionname, const socks_id_t *id);
  * to the native system call directly.
  */
 
-
 static int
 idsareequal(const socks_id_t *a, const socks_id_t *b);
 /*
  * If "a" and "b" refer to the same thread/pid, return true.  Else, false.
  */
 
+
+
+#else /* !SOCKS_CLIENT */
+
+#define DNSCODE_START()
+#define DNSCODE_END()
+
+#endif /* !SOCKS_CLIENT */
 
 static libsymbol_t *
 libsymbol(const char *symbol);
@@ -395,6 +402,7 @@ libsymbol(const char *symbol);
 
 
 #if SOCKS_CLIENT
+
 int
 socks_issyscall(s, name)
    const int s;
@@ -406,6 +414,9 @@ socks_issyscall(s, name)
       return 1;
 
    if (socks_shouldcallasnative(name))
+      return 1;
+
+   if (!fd_is_network_socket(s))
       return 1;
 
    if (socks_getaddr(s, &socksfd, 1) != NULL
@@ -488,9 +499,81 @@ socks_syscall_end(s)
    socks_addrunlock(&opaque);
 }
 
+static void
+addtolist(functionname, id)
+   const char *functionname;
+   const socks_id_t *id;
+{
+   const char *function = "addtolist()";
+   libsymbol_t *lib;
+   socks_id_t *newid;
+
+   addrlockopaque_t opaque;
+
+   lib = libsymbol(functionname);
+   SASSERTX(lib != NULL);
+
+   if ((newid = malloc(sizeof(*newid))) == NULL)
+      serr("%s: failed to malloc %lu bytes",
+           function, (unsigned long)sizeof(*newid));
+
+   *newid = *id;
+
+   socks_addrlock(F_WRLCK, &opaque);
+
+   if (lib->dosyscall == NULL) {
+      lib->dosyscall       = newid;
+      lib->dosyscall->next = NULL;
+   }
+   else {
+      newid->next          = lib->dosyscall->next;
+      lib->dosyscall->next = newid;
+   }
+
+   socks_addrunlock(&opaque);
+}
+
+static void
+removefromlist(functionname, removeid)
+   const char *functionname;
+   const socks_id_t *removeid;
+{
+/*   const char *function = "removefromlist()"; */
+   libsymbol_t *lib;
+   socks_id_t *id, *previous;
+   addrlockopaque_t opaque;
+
+   lib = libsymbol(functionname);
+   SASSERTX(lib != NULL);
+   SASSERTX(lib->dosyscall != NULL);
+
+   socks_addrlock(F_WRLCK, &opaque);
+
+   SASSERTX(idsareequal(lib->dosyscall, removeid));
+
+   previous = lib->dosyscall;
+
+   if (idsareequal(lib->dosyscall, removeid)) {
+      lib->dosyscall = lib->dosyscall->next;
+      free(previous);
+   }
+   else {
+      for (id = previous->next; id != NULL; previous = id, id = id->next) {
+         if (idsareequal(id, removeid)) {
+            previous->next = id->next;
+            free(id);
+
+            break;
+         }
+      }
+
+      SASSERTX(id != NULL);
+   }
+
+   socks_addrunlock(&opaque);
+}
 
 #endif /* SOCKS_CLIENT */
-
 
 void
 symbolcheck(void)
@@ -506,13 +589,12 @@ int
 socks_shouldcallasnative(symbol)
    const char *symbol;
 {
+#if SOCKS_CLIENT
    socks_id_t myid, *fid;
    libsymbol_t *lib;
 
-#if SOCKS_CLIENT
-   if (doing_addrinit)
+   if (doing_addrinit || sockscf.state.executingdnscode)
       return 1;
-#endif /* SOCKS_CLIENT */
 
    lib = libsymbol(symbol);
    SASSERTX(lib != NULL);
@@ -527,12 +609,20 @@ socks_shouldcallasnative(symbol)
          return 1;
 
    return 0;
+
+#else /* ! SOCKS_CLIENT */
+
+   return 1;
+
+#endif /* !SOCKS_CLIENT */
+
 }
 
 void
 socks_markasnative(symbol)
    const char *symbol;
 {
+#if SOCKS_CLIENT
    const char *function = "socks_markasnative()";
    socks_id_t myid;
 
@@ -551,12 +641,14 @@ socks_markasnative(symbol)
 
    socks_whoami(&myid);
    addtolist(symbol, &myid);
+#endif /* !SOCKS_CLIENT */
 }
 
 void
 socks_markasnormal(symbol)
    const char *symbol;
 {
+#if SOCKS_CLIENT
    const char *function = "socks_markasnormal()";
    socks_id_t myid;
 
@@ -575,8 +667,30 @@ socks_markasnormal(symbol)
 
    socks_whoami(&myid);
    removefromlist(symbol, &myid);
+#endif /* !SOCKS_CLIENT */
 }
 
+void
+socks_mark_io_as_native()
+{
+#if SOCKS_CLIENT
+   const char *function = "socks_mark_io_as_native()";
+
+   slog(LOG_DEBUG, "%s: marking i/o calls as native ...", function);
+   socks_markasnative("*");
+#endif /* !SOCKS_CLIENT */
+}
+
+void
+socks_mark_io_as_normal()
+{
+#if SOCKS_CLIENT
+   const char *function = "socks_mark_io_as_normal()";
+
+   slog(LOG_DEBUG, "%s: marking io-related calls as normal again", function);
+   socks_markasnormal("*");
+#endif /* !SOCKS_CLIENT */
+}
 
 void *
 symbolfunction(symbol)
@@ -625,32 +739,13 @@ symbolfunction(symbol)
       slog(LOG_DEBUG, "found symbol %s in library %s",
       lib->symbol, lib->library);
 #endif
+
 #endif /* !HAVE_RLTD_NEXT */
 
    return lib->function;
 }
 
 #if SOCKS_CLIENT
-
-void
-socks_mark_io_as_native()
-{
-   const char *function = "socks_mark_io_as_native()";
-
-   slog(LOG_DEBUG, "%s: marking i/o calls as native ...", function);
-   socks_markasnative("*");
-}
-
-void
-socks_mark_io_as_normal()
-{
-   const char *function = "socks_mark_io_as_normal()";
-
-   slog(LOG_DEBUG, "%s: marking io-related calls as normal again", function);
-   socks_markasnormal("*");
-}
-
-
    /* the real system calls. */
 
 
@@ -808,6 +903,23 @@ sys_getsockname(s, name, namelen)
 
    return rc;
 }
+
+HAVE_PROT_GETSOCKNAME_0
+sys_getsockname_notracking(s, name, namelen)
+   HAVE_PROT_GETSOCKNAME_1 s;
+   HAVE_PROT_GETSOCKNAME_2 name;
+   HAVE_PROT_GETSOCKNAME_3 namelen;
+{
+   typedef HAVE_PROT_GETSOCKNAME_0
+       (*GETSOCKNAME_FUNC_T)(HAVE_PROT_GETSOCKNAME_1,
+                             HAVE_PROT_GETSOCKNAME_2,
+                             HAVE_PROT_GETSOCKNAME_3);
+   GETSOCKNAME_FUNC_T function
+   = (GETSOCKNAME_FUNC_T)symbolfunction(SYMBOL_GETSOCKNAME);
+
+   return function(s, name, namelen);
+}
+
 
 #endif /* !HAVE_EXTRA_OSF_SYMBOLS */
 
@@ -2160,12 +2272,11 @@ _sendto(s, msg, len, flags, to, tolen)
 }
 #endif /* __FreeBSD__ */
 
-#endif /* SOCKS_CLIENT */
 
-#if !SOCKS_CLIENT
+#else /* !SOCKS_CLIENT */
 
 /*
- * For functions interposed into external libraries (libwrap, ldap, etc.)
+ * For a few functions interposed into external libraries (libwrap, ldap, etc.)
  * used by the server.
  */
 
@@ -2280,7 +2391,8 @@ getaddrinfo(nodename, servname, hints, res)
 
 #endif /* HAVE_GETADDRINFO */
 
-#if HAVE_GETNAMEINFO && !SOCKS_CLIENT
+#if HAVE_GETNAMEINFO
+
 HAVE_PROT_GETNAMEINFO_0
 sys_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
    HAVE_PROT_GETNAMEINFO_1 sa;
@@ -2310,30 +2422,7 @@ sys_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
    return rc;
 }
 
-HAVE_PROT_GETNAMEINFO_0
-getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
-   HAVE_PROT_GETNAMEINFO_1 sa;
-   HAVE_PROT_GETNAMEINFO_2 salen;
-   HAVE_PROT_GETNAMEINFO_3 host;
-   HAVE_PROT_GETNAMEINFO_4 hostlen;
-   HAVE_PROT_GETNAMEINFO_5 serv;
-   HAVE_PROT_GETNAMEINFO_6 servlen;
-   HAVE_PROT_GETNAMEINFO_7 flags;
-{
-   if (socks_shouldcallasnative(SYMBOL_GETNAMEINFO)) {
-      int rc;
-
-      DNSCODE_START();
-      rc = sys_getnameinfo(sa, salen, host, hostlen, serv, servlen,
-			     flags);
-      DNSCODE_END();
-
-      return rc;
-   }
-
-   return Rgetnameinfo(sa, salen, host, hostlen, serv, servlen, flags);
-}
-#endif /* HAVE_GETNAMEINFO && !SOCKS_CLIENT */
+#endif /* HAVE_GETNAMEINFO */
 
 
 struct hostent *
@@ -2445,6 +2534,7 @@ freehostent(ptr)
 #ifdef getc
 #undef getc
 #endif /* getc */
+
 HAVE_PROT_GETC_0
 getc(stream)
    HAVE_PROT_GETC_1 stream;
@@ -2957,7 +3047,33 @@ write$NOCANCEL(d, buf, nbytes)
 
 #endif /* HAVE_DARWIN */
 
+static int
+idsareequal(a, b)
+   const socks_id_t *a;
+   const socks_id_t *b;
+{
+
+   switch (a->whichid) {
+      case pid:
+         if (a->id.pid == b->id.pid)
+            return 1;
+
+         return 0;
+
+      case thread:
+         /* pthread_equal() is more correct, but this should also work. */
+         if (memcmp(&a->id.thread, &b->id.thread, sizeof(a->id.thread)) == 0)
+            return 1;
+         return 0;
+
+      default:
+         SERRX(a->whichid);
+   }
+
+   /* NOTREACHED */
+}
 #endif /* SOCKS_CLIENT */
+
 
 static libsymbol_t *
 libsymbol(symbol)
@@ -2975,152 +3091,5 @@ libsymbol(symbol)
    /* NOTREACHED */
    return NULL; /* please compiler. */
 }
-
-static int
-idsareequal(a, b)
-   const socks_id_t *a;
-   const socks_id_t *b;
-{
-
-   switch (a->whichid) {
-      case pid:
-         if (a->id.pid == b->id.pid)
-            return 1;
-
-         return 0;
-
-#if SOCKS_CLIENT
-      case thread:
-         /* pthread_equal() is more correct, but this should also work. */
-         if (memcmp(&a->id.thread, &b->id.thread, sizeof(a->id.thread)) == 0)
-            return 1;
-         return 0;
-#endif /* SOCKS_CLIENT */
-
-      default:
-         SERRX(a->whichid);
-   }
-
-   /* NOTREACHED */
-}
-
-
-static void
-addtolist(functionname, id)
-   const char *functionname;
-   const socks_id_t *id;
-{
-   const char *function = "addtolist()";
-   libsymbol_t *lib;
-   socks_id_t *newid;
-
-#if SOCKS_CLIENT
-   addrlockopaque_t opaque;
-
-#else /* !SOCKS_CLIENT */
-   static socks_id_t newidmem;
-
-#endif  /* !SOCKS_CLIENT */
-
-   lib = libsymbol(functionname);
-   SASSERTX(lib != NULL);
-
-#if SOCKS_CLIENT
-
-   if ((newid = malloc(sizeof(*newid))) == NULL)
-      serr("%s: failed to malloc %lu bytes",
-           function, (unsigned long)sizeof(*newid));
-
-
-#else /* !SOCKS_CLIENT */
-
-   newid = &newidmem;
-
-#endif  /* !SOCKS_CLIENT */
-
-   *newid = *id;
-
-#if SOCKS_CLIENT
-
-   socks_addrlock(F_WRLCK, &opaque);
-
-#else /* !SOCKS_CLIENT */
-
-   SASSERTX(lib->dosyscall == NULL);
-
-#endif  /* !SOCKS_CLIENT */
-
-   if (lib->dosyscall == NULL) {
-      lib->dosyscall       = newid;
-      lib->dosyscall->next = NULL;
-   }
-   else {
-      newid->next          = lib->dosyscall->next;
-      lib->dosyscall->next = newid;
-   }
-
-#if SOCKS_CLIENT
-   socks_addrunlock(&opaque);
-#endif  /* SOCKS_CLIENT */
-}
-
-static void
-removefromlist(functionname, removeid)
-   const char *functionname;
-   const socks_id_t *removeid;
-{
-/*   const char *function = "removefromlist()"; */
-   libsymbol_t *lib;
-   socks_id_t *id, *previous;
-#if SOCKS_CLIENT
-   addrlockopaque_t opaque;
-#endif  /* SOCKS_CLIENT */
-
-   lib = libsymbol(functionname);
-   SASSERTX(lib != NULL);
-   SASSERTX(lib->dosyscall != NULL);
-
-#if SOCKS_CLIENT
-
-   socks_addrlock(F_WRLCK, &opaque);
-
-#else /* !SOCKS_CLIENT */
-
-   SASSERTX(idsareequal(lib->dosyscall, removeid));
-
-#endif  /* !SOCKS_CLIENT */
-
-   previous = lib->dosyscall;
-
-   if (idsareequal(lib->dosyscall, removeid)) {
-      lib->dosyscall = lib->dosyscall->next;
-
-#if SOCKS_CLIENT
-      free(previous);
-#endif  /* SOCKS_CLIENT */
-   }
-   else {
-      SASSERTX(SOCKS_CLIENT);
-
-      for (id = previous->next; id != NULL; previous = id, id = id->next) {
-         if (idsareequal(id, removeid)) {
-            previous->next = id->next;
-
-#if SOCKS_CLIENT
-            free(id);
-#endif  /* SOCKS_CLIENT */
-
-            break;
-         }
-      }
-
-      SASSERTX(id != NULL);
-   }
-
-#if SOCKS_CLIENT
-   socks_addrunlock(&opaque);
-#endif  /* SOCKS_CLIENT */
-}
-
 
 #endif /* SOCKSLIBRARY_DYNAMIC */

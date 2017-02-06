@@ -1,7 +1,8 @@
 /*
- * $Id: getoutaddr.c,v 1.140.4.3 2014/08/15 18:12:23 karls Exp $
+ * $Id: getoutaddr.c,v 1.140.4.3.2.3 2017/01/31 08:17:38 karls Exp $
  *
- * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010, 2011, 2012, 2013, 2014
+ * Copyright (c) 2001, 2002, 2006, 2008, 2009, 2010, 2011, 2012, 2013, 2014,
+ *               2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +47,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: getoutaddr.c,v 1.140.4.3 2014/08/15 18:12:23 karls Exp $";
+"$Id: getoutaddr.c,v 1.140.4.3.2.3 2017/01/31 08:17:38 karls Exp $";
 
 static int
 addrscope_matches(const struct sockaddr_in6 *addr,
@@ -384,6 +385,7 @@ getinaddr(laddr, _client, emsg, emsglen)
    const char *function = "getinaddr()";
    struct sockaddr_storage client;
    size_t i;
+   int wildcard_address_found = 0;
 
    slog(LOG_DEBUG, "%s: client %s",
         function, sockaddr2string(_client, NULL, 0));
@@ -393,24 +395,36 @@ getinaddr(laddr, _client, emsg, emsglen)
    sockaddrcpy(&client, _client, sizeof(client));
 
    /*
-    * Just return the first address of the appropriate type from our internal
-    * list and hope the best.
+    * Just return the first address of the appropriate type from our
+    * internal list and hope the best.
     */
    for (i = 0; i < sockscf.internal.addrc; ++i) {
       if (sockscf.internal.addrv[i].addr.ss_family == client.ss_family) {
-         sockaddrcpy(laddr, &sockscf.internal.addrv[i].addr, sizeof(*laddr));
+         if (IPADDRISBOUND(&sockscf.internal.addrv[i].addr)) {
+            sockaddrcpy(laddr, &sockscf.internal.addrv[i].addr, sizeof(*laddr));
 
-         slog(LOG_DEBUG, "%s: address %s selected",
-              function, sockaddr2string(laddr, NULL, 0));
+            slog(LOG_DEBUG, "%s: address %s selected",
+                 function, sockaddr2string(laddr, NULL, 0));
 
-         return laddr;
+            return laddr;
+         }
+         else
+            wildcard_address_found = 1;
       }
    }
 
-   snprintf(emsg, emsglen, "no %s found on our internal address list",
-            safamily2string(client.ss_family));
+   if (wildcard_address_found)
+      snprintf(emsg, emsglen,
+               "no specific %s found amongst the internal addresses, only "
+               "an unbound wildcard address found.  This client requires "
+               "an internal IP-address to be specified in %s however",
+               safamily2string(client.ss_family), SOCKD_CONFIGFILE);
+   else
+      snprintf(emsg, emsglen, "no %s found amongst the internal addresses",
+               safamily2string(client.ss_family));
 
-   slog(LOG_DEBUG, "%s: %s", function, emsg);
+   slog(wildcard_address_found ? LOG_NOTICE : LOG_DEBUG,
+        "%s: %s", function, emsg);
 
    return NULL;
 }

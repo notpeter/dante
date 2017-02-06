@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.945.4.14 2014/08/22 06:23:10 michaels Exp $ */
+/* $Id: sockd.h,v 1.945.4.14.2.3 2017/01/31 08:17:38 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -181,7 +181,7 @@
 
 #else
 
-#error "I know nothing.  Nothing!"
+#error "No product defined.  Who am I?"
 
 #endif
 
@@ -979,7 +979,7 @@ typedef enum {
    OPERATION_IO
 } operation_t;
 
-typedef enum { KEY_IPV4, KEY_IPV6, KEY_MAC } keytype_t;
+typedef enum { KEY_IPV4 = 1, KEY_IPV6, KEY_MAC, KEY_TIME } keytype_t;
 typedef enum { ACKPIPE, DATAPIPE } whichpipe_t;
 typedef enum { NEGOTIATE_EOF,
                NEGOTIATE_ERROR,     /* fatal error, wrong auth, etc.          */
@@ -1379,6 +1379,7 @@ typedef struct {
       struct in_addr   ipv4;
       struct in6_addr  ipv6;
       unsigned char     macaddr[ETHER_ADDR_LEN];
+      time_t           time;
    } value;
 } licensekey_t;
 

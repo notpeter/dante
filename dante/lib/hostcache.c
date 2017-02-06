@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012,
- *               2013
+ *               2013, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.172.4.9 2014/08/26 08:51:47 karls Exp $";
+"$Id: hostcache.c,v 1.172.4.9.2.4 2017/01/31 08:17:38 karls Exp $";
 
 #if 0
 #warning "XXX change back to LOG_DEBUG"
@@ -226,19 +226,30 @@ cgetaddrinfo(name, service, hints, res, resmem)
 
    SASSERTX(*res != NULL);
 
-   if ((gai_rc = addrinfocopy(resmem, *res, hints)) != 0
-   && GAI_RC_IS_SYSTEMPROBLEM(gai_rc))
-      swarnx("%s: addrinfocopy() failed for hostname \"%s\", service \"%s\"",
-             function,
-             str2vis(name, strlen(name), namebuf, sizeof(namebuf)),
-             service == NULL ?
-             "<NULL>" : str2vis(service,
-                                strlen(service),
-                                servicebuf,
-                                sizeof(servicebuf)));
+   /*
+    * have resmem.  Copy into that and don't use the one returned from
+    * getaddrinfo(3).
+    */
+   gai_rc = addrinfocopy(resmem, *res, hints);
 
-   /* have resmem.  Don't use the one returned from getaddrinfo (3). */
    freeaddrinfo(*res);
+
+   if (gai_rc != 0) {
+      if (GAI_RC_IS_SYSTEMPROBLEM(gai_rc))
+         swarnx("%s: addrinfocopy() failed for hostname \"%s\", service \"%s\"",
+                function,
+                str2vis(name, strlen(name), namebuf, sizeof(namebuf)),
+                service == NULL ?
+                "<NULL>" : str2vis(service,
+                                   strlen(service),
+                                   servicebuf,
+                                   sizeof(servicebuf)));
+
+
+      return gai_rc;
+   }
+
+   *res = &resmem->data.getaddr.addrinfo;
 
    return gai_rc;
 
@@ -395,7 +406,7 @@ cgetaddrinfo(name, service, hints, res, resmem)
         gai_rc == 0 ? *res       : NULL,
         gai_rc == 0 ? "no error" : gai_strerror(gai_rc));
 
-   if (gai_rc == EAI_SYSTEM && ERRNOISNOFILE(errno)) {
+   if (gai_rc == EAI_SYSTEM && errno == EMFILE) {
       if (sockscf.state.reservedfdv[0] != -1) {
          close(sockscf.state.reservedfdv[0]);
 
@@ -500,8 +511,6 @@ cgetaddrinfo(name, service, hints, res, resmem)
        * have resmem.  Don't use the mem returned from getaddrinfo(3).
        */
       freeaddrinfo(*res);
-      slog(LOG_DEBUG, "%s: freed addrinfo %p", function, *res);
-
 
       if (gai_rc != 0) {
          if (GAI_RC_IS_SYSTEMPROBLEM(gai_rc))
@@ -838,9 +847,9 @@ addrinfocopy(to, from, hints)
       if (!addrinfo_issupported(from_ai))
          doskip = 1;
       else if (i > 0
-      && ntohs(GET_SOCKADDRPORT(TOSS(from_ai->ai_addr)))        == 0
-      && ntohs(GET_SOCKADDRPORT(TOSS(to_ai_previous->ai_addr))) == 0
-      && addrisinlist(from_ai->ai_addr, to_ai_start, to_ai_previous)) {
+      &&       ntohs(GET_SOCKADDRPORT(TOSS(from_ai->ai_addr)))        == 0
+      &&       ntohs(GET_SOCKADDRPORT(TOSS(to_ai_previous->ai_addr))) == 0
+      &&       addrisinlist(from_ai->ai_addr, to_ai_start, to_ai_previous)) {
          /*
           * same address as before, just different protocol.  We don't
           * care about protocol and don't want to waste memory on that.
@@ -911,7 +920,9 @@ addrinfocopy(to, from, hints)
 
 #else /* SOCKS_CLIENT */
 
-      *to_ai  = *from_ai;
+      *to_ai          = *from_ai;
+      to_ai->ai_addr  = TOSA(&to->data.getaddr.ai_addr_mem[i]);
+      memcpy(to_ai->ai_addr, from_ai->ai_addr, from_ai->ai_addrlen);
 
 #endif /* !SOCKS_CLIENT */
 
@@ -961,7 +972,7 @@ addrinfocopy(to, from, hints)
 
    to_ai->ai_next = NULL;
 
-   if (from_ai == NULL ||  i >= maxentries)
+   if (from_ai == NULL || i >= maxentries)
       to_ai_previous->ai_next = NULL;
 
    if (i == 0) {

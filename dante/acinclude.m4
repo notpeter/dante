@@ -1146,4 +1146,123 @@ gaierrval: $3
 AC_DEFUN([L_CHECKGAIERROR],
  [checkgaierror($@)])
 
+
+#L_GETDEFINEDINT
+#args:
+# 1: define name
+# 2: headers to be included
+# 3: new define to set value to
+AC_DEFUN([L_GETDEFINEDINT], [
+   AC_MSG_CHECKING(for $1 value)
+   AC_TRY_RUN([
+$2
+
+#include <stdio.h>
+
+int
+main(void)
+{
+   FILE *fp;
+   int val;
+
+   val = $1;
+
+   if ((fp = fopen("conftest.out", "w")) == NULL) {
+      perror("fopen");
+      exit(-1);
+   }
+   fprintf(fp, "%ld\n", val);
+   fclose(fp);
+
+   return 0;
+}], [ac_cv_definedint=$(cat conftest.out)
+     AC_MSG_RESULT([yes])
+     AC_DEFINE_UNQUOTED($3, [$ac_cv_definedint], [value of $1])],
+    [AC_MSG_RESULT([no])])])
+
+AC_DEFUN([L_TCP_KEEPCNT_MAX], [
+AC_MSG_CHECKING(for TCP_KEEPCNT_MAX value)
+AC_TRY_RUN([
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/tcp.h>
+#include <netinet/in.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#if 0
+
+#include "include/monitor.h"
+
+#else
+
+/*
+ * XXX this value should be fetched from Dante include/monitor.h.
+ */
+#define TEST_NE_TCP_KEEPCNT (1000)
+
+#endif
+
+int
+main(void)
+{
+   socklen_t len;
+   int val, s, lastgoodvalue;
+   int startval;
+
+   if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+      perror("socket()");
+      exit(1);
+   }
+
+
+   /*
+    * Find maxvalue for TCP_KEEPCNT.  MAX_TCP_KEEPCNT, but not exported to
+    * userland on Linux, by michaels@inet.no.
+    */
+   lastgoodvalue = -1;
+   len           = sizeof(val);
+
+   startval = 127;
+   for (val = 127; val <= TEST_NE_TCP_KEEPCNT; val += 10)
+      if (setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &val, len) == 0) {
+         fprintf(stderr, "good value: %d", val);
+         lastgoodvalue = val;
+      } else {
+         perror("setsockname: TCP_KEEPCNT");
+         break;
+      }
+
+   /* warn if TEST_NE_TCP_KEEPCNT is too low relative to startval */
+   if (val == 127)
+      fprintf(stderr, "warning: no values were tested");
+
+   if (lastgoodvalue == -1)
+      exit(1);
+   else {
+      FILE *fp;
+
+      fprintf(stderr, "max value for TCP_KEEPCNT is %d\n", lastgoodvalue);
+      if ((fp = fopen("conftest.out", "w")) == NULL) {
+         perror("fopen");
+         exit(-1);
+      }
+      fprintf(fp, "%ld\n", lastgoodvalue);
+      fclose(fp);
+   }
+
+   return 0;
+}], [tcp_keepcnt_max=`cat conftest.out`
+     AC_MSG_RESULT([${tcp_keepcnt_max}])
+],  [unset tcp_keepcnt_max
+     AC_MSG_RESULT(unknown)],
+    [dnl XXX assume unknown when cross-compiling
+     AC_MSG_RESULT(cross-compiling, assuming unknown)])
+
+if test x"${tcp_keepcnt_max}" != x; then
+   AC_DEFINE_UNQUOTED(MAX_TCP_KEEPCNT, ${tcp_keepcnt_max}, [max tcp_keepcnt value])dnl
+fi])
+
+
 # -- acinclude end --

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.925.4.5 2014/08/21 13:17:13 karls Exp $";
+"$Id: sockd.c,v 1.925.4.5.2.4 2017/01/31 16:16:03 karls Exp $";
 
 
 
@@ -1154,6 +1154,21 @@ moncontrol(1);
                      continue; /* check if there are more connections pending */
                }
 
+               if (IPADDRISBOUND(&sockscf.internal.addrv[i].addr))
+                  client.to = sockscf.internal.addrv[i].addr;
+               else {
+                  /*
+                   * wildcard address.  Don't know what address client was
+                   * accepted on.
+                   */
+                  socklen_t len = sizeof(client.to);
+
+                  if (getsockname(client.s, TOSA(&client.to), &len) != 0) {
+                     slog(LOG_DEBUG, "getsockname(2) failed after accept(2)");
+                     continue; /* check if there are more connections pending */
+                  }
+               }
+
                gettimeofday_monotonic(&client.accepted);
                ++sockscf.stat.accepted;
 
@@ -1328,7 +1343,8 @@ showlicense(void)
 "\
 /*\n\
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,\n\
- *               2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014\n\
+ *               2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016,\n\
+ *               2017\n\
  *      Inferno Nettverk A/S, Norway.  All rights reserved.\n\
  *\n\
  * Redistribution and use in source and binary forms, with or without\n\
@@ -1361,7 +1377,7 @@ showlicense(void)
  *  Software Distribution Coordinator  or  sdc@inet.no\n\
  *  Inferno Nettverk A/S\n\
  *  Oslo Research Park\n\
- *  Gaustadalléen 21\n\
+ *  Gaustadalleen 21\n\
  *  NO-0349 Oslo\n\
  *  Norway\n\
  * \n\

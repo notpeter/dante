@@ -1,9 +1,9 @@
 Summary: A free SOCKS v4/v5 client implementation
 Name: dante
-%define fullversion 1.4.1
+%define fullversion 1.4.2
 %define prefix /usr
 Prefix: %{prefix}
-Version: 1.4.1
+Version: 1.4.2
 Release: 1%{?dist}
 License: BSD-type
 Group: Networking/Utilities
@@ -11,6 +11,7 @@ URL: http://www.inet.no/dante/
 Vendor: Inferno Nettverk A/S
 Source: ftp://ftp.inet.no/pub/socks/dante-%{fullversion}.tar.gz
 Buildroot: %{_tmppath}/%{name}-%{version}-%{release}-root
+Requires: glibc-devel
 
 BuildRequires: pam-devel
 BuildRequires: bison
@@ -46,7 +47,7 @@ Requires: dante
 Additional libraries required to compile programs that use SOCKS.
 
 %prep
-%setup -n dante-1.4.1
+%setup -n dante-1.4.2
 
 # This file is embedded here instead of being another source in order
 # to the prefix directory
@@ -71,7 +72,9 @@ source %{_initrddir}/functions
 source %{_sysconfdir}/sysconfig/network
 
 # Check that networking is up.
-[ ${NETWORKING} = "no" ] && exit 1
+if test x"$NETWORKING" != x; then
+    [ ${NETWORKING} = "no" ] && exit 1
+fi
 
 [ -x %{_sbindir}/sockd ] || exit 1
 [ -r %{_sysconfdir}/sockd.conf ] || exit 1
@@ -202,6 +205,10 @@ fi
 %{_includedir}/socks.h
 
 %changelog
+* Tue Jul  21 2015 Karl-Andre' Skevik <karls@inet.no>
+-Add glibc-devel Requires entry for librt, used by socksify.
+ Noted by ealogar@gmail.com.
+
 * Sun Feb  3 2013 Karl-Andre' Skevik <karls@inet.no>
 -Add reload() and comment about pidfile creation when starting as non-root.
 

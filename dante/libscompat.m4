@@ -87,6 +87,9 @@ changequote([, ])dnl
     *-*-freebsd*) #XXX disable on all versions for now
 	AC_MSG_WARN([disabling sched_setscheduler code on this platform])
 	;;
+    *-*-netbsd*) #XXX appears to have similar problem as freebsd
+	AC_MSG_WARN([disabling sched_setscheduler code on this platform])
+	;;
     *)
 	AC_CHECK_FUNCS(sched_setscheduler)
 	;;

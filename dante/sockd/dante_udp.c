@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: dante_udp.c,v 1.93.4.3 2014/08/13 17:13:16 michaels Exp $";
+"$Id: dante_udp.c,v 1.93.4.3.2.3 2017/01/31 08:17:38 karls Exp $";
 
 
 udpheader_t *
@@ -529,7 +529,11 @@ io_udp_client2target(control, client, twotargets, cauth, state,
          sametarget = 0;
       }
       else
-         sametarget = sockshostareeq(&target->raddrhost, &header.host);
+         sametarget = addrmatch(sockshost2ruleaddr(&target->raddrhost, NULL),
+                                &header.host,
+                                NULL,
+                                SOCKS_UDP,
+                                0);
 
       twotargets->s = target->s; /* update as soon as known. */
 
@@ -829,7 +833,11 @@ io_udp_client2target(control, client, twotargets, cauth, state,
               function, sockshost2string(&header.host, hostb, sizeof(hostb)));
       }
       else {
-         sametarget = sockshostareeq(&header.host, &target->raddrhost);
+         sametarget = addrmatch(sockshost2ruleaddr(&target->raddrhost, NULL),
+                                &header.host,
+                                NULL,
+                                SOCKS_UDP,
+                                0);
 
          slog(LOG_DEBUG,
               "%s: previous target: %s, current: %s (%s before)",

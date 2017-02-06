@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,8 +46,14 @@
 
 #include "yacconfig.h"
 
+#if !SOCKS_CLIENT
+
+#include "monitor.h"
+
+#endif /* !SOCKS_CLIENT */
+
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.703.4.8 2014/08/15 18:12:22 karls Exp $";
+"$Id: config_parse.y,v 1.703.4.8.2.8 2017/01/31 08:17:38 karls Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -1865,13 +1871,14 @@ cruleoption: bounce  {
    |         genericruleoption
    ;
 
+hrule: HOSTIDRULE {
 
-cruleoptions:   { $$ = NULL; }
-   |   cruleoption cruleoptions
-   ;
+#if SOCKS_CLIENT || !HAVE_SOCKS_HOSTID
+      yyerrorx("hostid is not supported on this system");
+#endif /* SOCKS_CLIENT || !HAVE_SOCKS_HOSTID */
 
-hrule: HOSTIDRULE { objecttype = object_hrule; } verdict '{'
-                  cruleoptions hostid_fromto cruleoptions '}' {
+      objecttype = object_hrule;
+} verdict '{' cruleoptions hostid_fromto cruleoptions '}' {
 #if !SOCKS_CLIENT && HAVE_SOCKS_HOSTID
       if (hostid.atype != SOCKS_ADDR_NOTSET)
          yyerrorx("it does not make sense to set the hostid address in a "
@@ -1883,10 +1890,14 @@ hrule: HOSTIDRULE { objecttype = object_hrule; } verdict '{'
       pre_addrule(&rule);
       addhostidrule(&rule);
       post_addrule();
-#else /* !SOCKS_CLIENT && !HAVE_SOCKS_HOSTID */
-      yyerrorx("hostid is not supported on this system");
-#endif /* !HAVE_SOCKS_HOSTID */
+#endif /* !SOCKS_CLIENT && HAVE_SOCKS_HOSTID */
    }
+   ;
+
+
+
+cruleoptions:   { $$ = NULL; }
+   |   cruleoption cruleoptions
    ;
 
 hostidoption:   hostid
@@ -1957,8 +1968,8 @@ genericruleoption:  bandwidth {
                         bw_isset = 1;
 #endif /* !SOCKS_CLIENT */
    }
-   |         clientmethod
-   |         socksmethod
+   |        clientmethod
+   |        socksmethod
    |        rule_external_logoption
    |        group
    |        gssapienctype
@@ -2541,12 +2552,21 @@ sessionstate_key: SESSIONSTATE_KEY ':' STATEKEY {
       if ((ss.keystate.key = string2statekey($3)) == key_unset)
          yyerrorx("%s is not a valid state key", $3);
 
-#if HAVE_SOCKS_HOSTID
       if (ss.keystate.key == key_hostid) {
+#if HAVE_SOCKS_HOSTID
+
          *hostidoption_isset           = 1;
          ss.keystate.keyinfo.hostindex = DEFAULT_HOSTINDEX;
-      }
+
+#else /* !HAVE_SOCKS_HOSTID */
+
+         yyerrorx("hostid is not supported on this system");
+
 #endif /* HAVE_SOCKS_HOSTID */
+      }
+
+
+
 
 #else /* SOCKS_CLIENT */
 
@@ -3156,7 +3176,17 @@ parseconfig(filename)
       lex_dorestart = 1;
 
       parsingconfig = 1;
+
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       yyparse();
+
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       parsingconfig = 0;
 
 #if !SOCKS_CLIENT
@@ -3577,7 +3607,15 @@ parseclientenv(haveproxyserver)
    p                         = sockscf.option.configfile;
    sockscf.option.configfile = "<generated socks.conf>";
 
+#if SOCKSLIBRARY_DYNAMIC
+   socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
    yyparse();
+
+#if SOCKSLIBRARY_DYNAMIC
+   socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
    sockscf.option.configfile = p;
    parsingconfig             = 0;

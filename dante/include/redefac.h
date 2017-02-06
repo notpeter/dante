@@ -96,6 +96,10 @@
 #define HAVE_DECL_BOUNDED 0
 #endif
 
+#ifndef HAVE_DECL_CONSTRUCTOR
+#define HAVE_DECL_CONSTRUCTOR 0
+#endif
+
 #ifndef HAVE_DECL_FORMAT
 #define HAVE_DECL_FORMAT 0
 #endif
@@ -274,6 +278,10 @@
 
 #ifndef HAVE_GETPRPWNAM
 #define HAVE_GETPRPWNAM 0
+#endif
+
+#ifndef HAVE_GETPWNAM_SHADOW
+#define HAVE_GETPWNAM_SHADOW 0
 #endif
 
 #ifndef HAVE_GETSPNAM
@@ -1102,6 +1110,10 @@
 
 #ifndef HAVE_PRAGMA_SUPPORT
 #define HAVE_PRAGMA_SUPPORT 0
+#endif
+
+#ifndef HAVE_PRELOAD
+#define HAVE_PRELOAD 0
 #endif
 
 #ifndef HAVE_PRIVILEGES

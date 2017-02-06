@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
- *               2013
+ *               2013, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.86 2013/10/27 15:24:41 karls Exp $ */
+/* $Id: interposition.h,v 1.86.6.6 2017/02/03 06:26:44 michaels Exp $ */
 
 #ifndef _INTERPOSITION_H_
 #define _INTERPOSITION_H_
@@ -79,7 +79,23 @@ typedef struct {
 
 } libsymbol_t;
 
-#if SOCKS_CLIENT
+#if SOCKSLIBRARY_DYNAMIC
+
+int
+socks_shouldcallasnative(const char *functionname);
+/*
+ * If calls to the function with the name "functionname" should at the
+ * moment, for the calling thread/process, always resolve to the
+ * corresponding system call/native function, return true.
+ * Otherwise, return false.
+ */
+
+
+#else
+
+#define socks_shouldcallasnative(functioname) (0)
+
+#endif /* !SOCKSLIBRARY_DYNAMIC */
 
 void socks_mark_io_as_native(void);
 void socks_mark_io_as_normal(void);
@@ -87,6 +103,9 @@ void socks_mark_io_as_normal(void);
  * Marks i/o calls as native or normal,
  * using the socks_markas{native,normal}() functions.
  */
+
+
+#if SOCKS_CLIENT
 
 void socks_syscall_start(const int s);
 /*
@@ -118,7 +137,6 @@ socks_whoami(socks_id_t *id);
  * Returns "id".
  */
 
-
 #else /* !SOCKS_CLIENT */
 
 #define socks_syscall_start(s)
@@ -131,17 +149,7 @@ do {                                                                           \
    (_id)->next    = NULL;                                                      \
 } while (/* CONSTCOND */ 0)
 
-#endif /* !SOCKS_CLIENT */
-
-
-int
-socks_shouldcallasnative(const char *functionname);
-/*
- * If calls to the function with the name "functionname" should at the
- * moment, for the calling thread/process, always resolve to the
- * corresponding system call/native function, return true.
- * Otherwise, return false.
- */
+#endif /* !SOCKSLIBRARY_DYNAMIC  || !SOCKS_CLIENT  */
 
 void
 socks_markasnative(const char *functionname);

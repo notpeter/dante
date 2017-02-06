@@ -11,6 +11,7 @@ URL: http://www.inet.no/dante/
 Vendor: Inferno Nettverk A/S
 Source: ftp://ftp.inet.no/pub/socks/dante-%{fullversion}.tar.gz
 Buildroot: %{_tmppath}/%{name}-%{version}-%{release}-root
+Requires: glibc-devel
 
 BuildRequires: pam-devel
 BuildRequires: bison
@@ -71,7 +72,9 @@ source %{_initrddir}/functions
 source %{_sysconfdir}/sysconfig/network
 
 # Check that networking is up.
-[ ${NETWORKING} = "no" ] && exit 1
+if test x"$NETWORKING" != x; then
+    [ ${NETWORKING} = "no" ] && exit 1
+fi
 
 [ -x %{_sbindir}/sockd ] || exit 1
 [ -r %{_sysconfdir}/sockd.conf ] || exit 1
@@ -202,6 +205,10 @@ fi
 %{_includedir}/socks.h
 
 %changelog
+* Tue Jul  21 2015 Karl-Andre' Skevik <karls@inet.no>
+-Add glibc-devel Requires entry for librt, used by socksify.
+ Noted by ealogar@gmail.com.
+
 * Sun Feb  3 2013 Karl-Andre' Skevik <karls@inet.no>
 -Add reload() and comment about pidfile creation when starting as non-root.
 

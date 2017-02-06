@@ -8,7 +8,7 @@ AC_ARG_WITH(krb5,
  [KRB5=$withval])
 
 AC_ARG_WITH(krb5-path,
- [  --with-krb5-path=PATH   specify kerberos 5 path @<:@default=$krb5dir@:>@],
+ [  --with-krb5-path=PATH   specify kerberos 5 path],
  [krb5dir=$withval])
 
 AC_ARG_WITH(krb5-config,

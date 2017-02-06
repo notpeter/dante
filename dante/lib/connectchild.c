@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009,
- *               2010, 2011, 2012, 2013, 2014
+ *               2010, 2011, 2012, 2013, 2014, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.397.4.3 2014/08/15 18:16:40 karls Exp $";
+"$Id: connectchild.c,v 1.397.4.3.2.3 2017/01/31 08:17:38 karls Exp $";
 
 /*
  * This sets things up for performing a non-blocking connect for the client.
@@ -591,8 +591,12 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
    }
 
    len = sizeof(socksfd.local);
-   if (getsockname(s, TOSA(&socksfd.local), &len) != 0)
-      SERR(s);
+   if (getsockname(s, TOSA(&socksfd.local), &len) != 0) {
+      close(control);
+
+      swarnx("%s: %s", function, emsg);
+      return NULL;
+   }
 
    /*
     * this has to be done here or there would be a race against the signal
@@ -769,11 +773,8 @@ run_connectchild(mother_data, mother_ack)
                       NULL,
                       NULL)) {
          case -1:
-            if (errno == EINTR)
-               continue;
-
-            SERR(-1);
-            /* NOTREACHED */
+            SASSERT(ERRNOISTMP(errno));
+            continue;
       }
 
       if (FD_ISSET(mother_ack, rset)) {

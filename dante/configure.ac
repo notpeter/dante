@@ -1,6 +1,6 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.661.4.6 2014/08/17 19:32:34 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.661.4.6.2.3 2016/06/24 23:01:33 karls Exp $)
 
 unset TAG
 lcase () {
@@ -12,7 +12,7 @@ ucase () {
 
 #current software version, typically three sets of numbers (x.y.z).
 #can have an added tag, giving a version such as x.y.z-tag.
-version=1.4.1
+version=1.4.2
 #TAG="foo"
 
 #NOTE: rpm will not accept '-' chars i version numbers
@@ -119,6 +119,7 @@ dnl options for dante
 m4_include(danteopt.m4)
 
 dnl common options
+unset have_libcfail
 m4_include(sharedopt.m4)
 
 dnl generate socket option code
@@ -199,6 +200,11 @@ AC_SUBST(UNITSUBDIRS)
 #set build features for server -v option
 FEATURES=`echo $FEAT | xargs -n 1 echo | sort | xargs echo`
 AC_DEFINE_UNQUOTED(DANTE_BUILD, "$FEATURES", [Features enabled in build])
+
+#add libcfail
+if test x"$have_libcfail" != x; then
+    LIBS="$LIBS${LIBS:+ }-lcfail"
+fi
 
 #add any warning flags (value set above)
 CFLAGS="$CFLAGS $warn"

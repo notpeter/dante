@@ -112,6 +112,9 @@
 /* __bounded__ macro support */
 #undef HAVE_DECL_BOUNDED
 
+/* constructor __attribute__ support */
+#undef HAVE_DECL_CONSTRUCTOR
+
 /* format attribute support */
 #undef HAVE_DECL_FORMAT
 
@@ -119,7 +122,7 @@
    if you don't. */
 #undef HAVE_DECL_KRB5_KT_FREE_ENTRY
 
-/* __nunnull__ attribute support */
+/* __nonnull__ attribute support */
 #undef HAVE_DECL_NONNULL
 
 /* DEC workarounds */
@@ -247,6 +250,9 @@
 
 /* Define to 1 if you have the `getprpwnam' function. */
 #undef HAVE_GETPRPWNAM
+
+/* Define to 1 if you have the `getpwnam_shadow' function. */
+#undef HAVE_GETPWNAM_SHADOW
 
 /* Define to 1 if you have the `getspnam' function. */
 #undef HAVE_GETSPNAM
@@ -785,7 +791,7 @@
 /* support for malloc debugging */
 #undef HAVE_MALLOC_OPTIONS
 
-/* hostid size */
+/* value of MAX_IPA */
 #undef HAVE_MAX_HOSTIDS
 
 /* Define to 1 if you have the `memmove' function. */
@@ -868,6 +874,9 @@
 
 /* _Pragma() supported by compiler */
 #undef HAVE_PRAGMA_SUPPORT
+
+/* preloading enabled */
+#undef HAVE_PRELOAD
 
 /* Some privilege type supported */
 #undef HAVE_PRIVILEGES
@@ -1682,7 +1691,7 @@
 /* TCP_INIT_CWND socket option */
 #undef HAVE_TCP_INIT_CWND
 
-/* TCP_IPA socket option */
+/* TCP_IPA supported */
 #undef HAVE_TCP_IPA
 
 /* TCP_KEEPCNT socket option */
@@ -1982,6 +1991,9 @@
 
 /* no hostid support */
 #undef SOCKS_HOSTID_TYPE
+
+/* value of IPA_VERSION */
+#undef SOCKS_HOSTID_VERSION
 
 /* IPV6_2292DSTOPTS IPv4 option */
 #undef SOCKS_IPV6_2292DSTOPTS_IPV4
@@ -3732,16 +3744,16 @@
 /* TCP_INIT_CWND value */
 #undef SOCKS_TCP_INIT_CWND_NAME
 
-/* TCP_IPA IPv4 option */
+/* TCP_IPA IPv4 usability */
 #undef SOCKS_TCP_IPA_IPV4
 
-/* TCP_IPA IPv4 option */
+/* TCP_IPA IPv6 usability */
 #undef SOCKS_TCP_IPA_IPV6
 
 /* TCP_IPA protocol level */
 #undef SOCKS_TCP_IPA_LVL
 
-/* TCP_IPA value */
+/* TCP_IPA symbolic name */
 #undef SOCKS_TCP_IPA_NAME
 
 /* TCP_KEEPCNT IPv4 option */
@@ -3990,6 +4002,9 @@
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
+/* value of TCP_IPA */
+#undef TCP_IPA
+
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
 #undef TIME_WITH_SYS_TIME
 
@@ -4008,6 +4023,11 @@
 
 /* contents from old AC_AIX test */
 #undef _ALL_SOURCE
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
+#endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS

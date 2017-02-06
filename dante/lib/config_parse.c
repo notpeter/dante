@@ -40,8 +40,14 @@
 
 #include "yacconfig.h"
 
+#if !SOCKS_CLIENT
+
+#include "monitor.h"
+
+#endif /* !SOCKS_CLIENT */
+
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.703.4.8 2014/08/15 18:12:22 karls Exp $";
+"$Id: config_parse.y,v 1.703.4.8.2.8 2017/01/31 08:17:38 karls Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -378,7 +384,7 @@ do {                                                                           \
             ASSIGN_NUMBER((number), >, 0, obj, issigned)
 #define ASSIGN_MAXSESSIONS(number, obj, issigned)          \
             ASSIGN_NUMBER((number), >, 0, obj, issigned)
-#line 390 "config_parse.y"
+#line 396 "config_parse.y"
 #ifndef YYSTYPE_DEFINED
 #define YYSTYPE_DEFINED
 typedef union {
@@ -402,7 +408,7 @@ typedef union {
    long long  number;
 } YYSTYPE;
 #endif /* YYSTYPE_DEFINED */
-#line 405 "config_parse.c"
+#line 411 "config_parse.c"
 #define ALARM 257
 #define ALARMTYPE_DATA 258
 #define ALARMTYPE_DISCONNECT 259
@@ -621,11 +627,7 @@ typedef union {
 #define YES 472
 #define NO 473
 #define YYERRCODE 256
-#if defined(__cplusplus) || defined(__STDC__)
 const short socks_yylhs[] =
-#else
-short socks_yylhs[] =
-#endif
 	{                                        -1,
   206,    0,    0,  126,  126,  125,  125,  125,  125,  125,
   124,  124,  123,  123,  123,  123,  123,  123,  123,  123,
@@ -649,7 +651,7 @@ short socks_yylhs[] =
   118,  228,  179,   40,   40,   40,  121,  121,  121,   46,
    46,   46,  229,   41,   43,   44,   42,   45,   45,  119,
   119,  119,  119,  120,  120,  180,  180,  180,  180,  180,
-  181,  181,  230,  187,  188,  188,  231,  190,  189,  232,
+  230,  187,  181,  181,  188,  188,  231,  190,  189,  232,
   200,  202,  202,  201,  201,  201,  201,  201,  201,  201,
   201,  191,  191,  191,  191,  191,  191,  191,  191,  191,
   191,  191,  191,  191,  191,  191,  191,  191,  192,  192,
@@ -675,11 +677,7 @@ short socks_yylhs[] =
   159,  160,  241,  162,  199,   32,   33,   34,   47,   48,
    48,
 };
-#if defined(__cplusplus) || defined(__STDC__)
 const short socks_yylen[] =
-#else
-short socks_yylen[] =
-#endif
 	{                                         2,
     0,    4,    3,    0,    2,    1,    1,    1,    1,    1,
     0,    2,    1,    1,    1,    1,    1,    1,    1,    1,
@@ -703,7 +701,7 @@ short socks_yylen[] =
     8,    0,    8,    1,    1,    1,    0,    1,    1,    0,
     1,    1,    0,    8,    4,    1,    7,    0,    2,    1,
     1,    1,    1,    0,    2,    1,    1,    1,    1,    1,
-    0,    2,    0,    8,    1,    1,    0,    4,    3,    0,
+    0,    8,    0,    2,    1,    1,    0,    4,    3,    0,
     8,    0,    2,    1,    1,    1,    1,    1,    1,    1,
     1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
     1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
@@ -729,11 +727,7 @@ short socks_yylen[] =
     3,    1,    1,    1,    1,    5,    1,    1,    1,    1,
     2,
 };
-#if defined(__cplusplus) || defined(__STDC__)
 const short socks_yydefred[] =
-#else
-short socks_yydefred[] =
-#endif
 	{                                      0,
     1,    0,    0,    0,    0,    0,    0,   67,    0,    0,
     0,    0,    0,    0,    0,    0,  109,  108,  113,   71,
@@ -753,7 +747,7 @@ short socks_yydefred[] =
     0,    0,    0,    0,   90,    0,   89,    0,    0,  106,
   105,  107,    0,    0,    0,    0,  126,  176,  171,  172,
   173,    0,  170,  133,  130,  131,  132,  143,  144,  145,
-  146,  147,  148,  162,  192,  223,  230,  189,    9,    5,
+  146,  147,  148,  162,  192,  221,  230,  189,    9,    5,
    10,    6,    7,    8,  123,  120,    0,  122,  118,  117,
     0,  153,    0,    0,   53,    0,    0,   92,   95,   96,
     0,  104,  100,  433,  436,  438,  440,  441,   97,  417,
@@ -786,7 +780,7 @@ short socks_yydefred[] =
     0,    0,  461,    0,   62,   40,    0,    0,    0,  453,
   451,    0,    0,  227,    0,    0,    0,    0,  411,    0,
     0,    0,  410,    0,  343,    0,    0,    0,    0,    0,
-  359,    0,    0,    0,    0,    0,  222,    0,    0,    0,
+  359,    0,    0,    0,    0,    0,  224,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
@@ -806,17 +800,13 @@ short socks_yydefred[] =
     0,    0,    0,    0,    0,  323,  328,  384,  336,   80,
   390,    0,  387,    0,    0,   55,    0,    0,  228,    0,
     0,  385,  391,    0,  360,    0,  372,   84,   88,  193,
-  388,  224,  288,    0,  231,  191,  206,  205,  202,  201,
+  388,  222,  288,    0,  231,  191,  206,  205,  202,  201,
     0,    0,  389,  442,    0,    0,  429,  430,  392,   70,
     0,    0,    0,  431,  432,  353,  362,  458,  456,    0,
     0,  427,  428,   50,   52,    0,    0,    0,  448,    0,
     0,  207,  204,  209,
 };
-#if defined(__cplusplus) || defined(__STDC__)
 const short socks_yydgoto[] =
-#else
-short socks_yydgoto[] =
-#endif
 	{                                       3,
   416,  302,  568,  569,   17,   18,  211,  212,  350,  639,
   640,  351,  352,  353,  354,  355,  581,  582,  307,  588,
@@ -844,11 +834,7 @@ short socks_yydgoto[] =
   609,  242,  476,  505,  624,  575,  576,  477,  506,  281,
   491,
 };
-#if defined(__cplusplus) || defined(__STDC__)
 const short socks_yysindex[] =
-#else
-short socks_yysindex[] =
-#endif
 	{                                   -145,
     0, 1741,    0, 3926,   16,   23,   41,    0,   52,   54,
    60,   69,   78,   86,  101, -155,    0,    0,    0,    0,
@@ -926,11 +912,7 @@ short socks_yysindex[] =
  -105, -105,  350,    0,    0,    0,    0,    0,    0,  430,
   438,    0,    0,    0,    0, -326,  439,  440,    0,  457,
   458,    0,    0,    0,};
-#if defined(__cplusplus) || defined(__STDC__)
 const short socks_yyrindex[] =
-#else
-short socks_yyrindex[] =
-#endif
 	{                                      0,
     0,    6,    0,   24,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
@@ -1008,11 +990,7 @@ short socks_yyrindex[] =
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0, -109,    0,    0,
     0,    0,    0,    0,};
-#if defined(__cplusplus) || defined(__STDC__)
 const short socks_yygindex[] =
-#else
-short socks_yygindex[] =
-#endif
 	{                                      0,
     0, -228,  240,    0,   -3,   35,    0,  -71,    0,  173,
     0, -262, -256, -255,    0, -254,  236,    0, -272,    0,
@@ -1041,15 +1019,11 @@ short socks_yygindex[] =
     0,
 };
 #define YYTABLESIZE 4446
-#if defined(__cplusplus) || defined(__STDC__)
 const short socks_yytable[] =
-#else
-short socks_yytable[] =
-#endif
 	{                                      59,
    54,  229,  230,  274,  303,  115,  422,  326,  466,  284,
   304,  305,  306,  309,  207,  208,  404,  658,  419,  478,
-  385,  257,  214,   11,  256,  449,  606,  214,  221,  552,
+  385,  257,  214,   11,  256,  449,  606,  214,  223,  552,
   232,  282,    8,  554,  518,  700,  418,  458,   55,  451,
    57,   66,  293,  691,  197,  197,  197,  693,  303,   78,
     5,    6,   79,  106,  304,  305,  306,  309,   90,  455,
@@ -1074,7 +1048,7 @@ short socks_yytable[] =
   557,  558,  348,  349,  117,  299,  209,  210,  641,  300,
   130,  644,  118,  208,  301,  180,  181,  119,  562,  120,
   208,  404,  308,  422,  422,  422,  422,  422,  182,  183,
-  121,  466,  214,  221,  422,  232,  422,  422,  422,  422,
+  121,  466,  214,  223,  422,  232,  422,  422,  422,  422,
   419,  612,  422,  422,  422,  122,  611,  449,  422,  422,
   422,  422,  123,   11,   11,   11,  422,  422,  418,  422,
   458,  451,  422,  422,  422,  695,  308,  422,  422,  282,
@@ -1126,7 +1100,7 @@ short socks_yytable[] =
   426,  426,  426,  713,  714,  426,  426,  426,  715,  716,
   722,  730,  731,  717,  732,  733,  740,  426,  443,  426,
   426,  736,  426,  737,  738,  741,  283,  747,    3,  750,
-  751,    2,  404,  426,  221,  748,  221,  232,  426,  426,
+  751,    2,  404,  426,  223,  748,  223,  232,  426,  426,
   426,  232,  426,  426,  426,  404,  200,  426,  687,  426,
   426,  426,  709,  426,  753,  754,  690,  689,  708,  238,
   426,  426,  426,  104,  483,  686,  202,  599,  426,  426,
@@ -1493,11 +1467,7 @@ short socks_yytable[] =
   343,  344,  345,  346,  347,    0,    0,    0,    0,    0,
     0,    0,  415,    0,  348,  349,
 };
-#if defined(__cplusplus) || defined(__STDC__)
 const short socks_yycheck[] =
-#else
-short socks_yycheck[] =
-#endif
 	{                                       4,
     4,  164,  164,  249,  267,    0,    0,  287,  292,   58,
   267,  267,  267,  267,  154,  125,  125,   45,  291,  311,
@@ -1951,11 +1921,7 @@ short socks_yycheck[] =
 #endif
 #define YYMAXTOKEN 473
 #if YYDEBUG
-#if defined(__cplusplus) || defined(__STDC__)
 const char * const socks_yyname[] =
-#else
-char *socks_yyname[] =
-#endif
 	{
 "end-of-file",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,"'-'","'.'","'/'",0,0,0,0,0,0,0,0,0,0,"':'",0,0,0,0,0,0,0,
@@ -2008,11 +1974,7 @@ char *socks_yyname[] =
 "RULE_LOG_TCPINFO","STATEKEY","UDPPORTRANGE","UDPCONNECTDST","USER","GROUP",
 "VERDICT_BLOCK","VERDICT_PASS","YES","NO",
 };
-#if defined(__cplusplus) || defined(__STDC__)
 const char * const socks_yyrule[] =
-#else
-char *socks_yyrule[] =
-#endif
 	{"$accept : configtype",
 "$$1 :",
 "configtype : SERVERCONFIG $$1 serveroptions serverobjects",
@@ -2234,10 +2196,10 @@ char *socks_yyrule[] =
 "cruleoption : clientcompatibility",
 "cruleoption : crulesessionoption",
 "cruleoption : genericruleoption",
-"cruleoptions :",
-"cruleoptions : cruleoption cruleoptions",
 "$$21 :",
 "hrule : HOSTIDRULE $$21 verdict '{' cruleoptions hostid_fromto cruleoptions '}'",
+"cruleoptions :",
+"cruleoptions : cruleoption cruleoptions",
 "hostidoption : hostid",
 "hostidoption : hostindex",
 "$$22 :",
@@ -2501,8 +2463,9 @@ YYSTYPE yylval;
 short *yyss;
 short *yysslim;
 YYSTYPE *yyvs;
-int yystacksize;
-#line 3052 "config_parse.y"
+unsigned int yystacksize;
+int yyparse(void);
+#line 3072 "config_parse.y"
 
 #define INTERACTIVE      0
 
@@ -2610,7 +2573,17 @@ parseconfig(filename)
       lex_dorestart = 1;
 
       parsingconfig = 1;
+
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       yyparse();
+
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       parsingconfig = 0;
 
 #if !SOCKS_CLIENT
@@ -3031,7 +3004,15 @@ parseclientenv(haveproxyserver)
    p                         = sockscf.option.configfile;
    sockscf.option.configfile = "<generated socks.conf>";
 
+#if SOCKSLIBRARY_DYNAMIC
+   socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
    yyparse();
+
+#if SOCKSLIBRARY_DYNAMIC
+   socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
    sockscf.option.configfile = p;
    parsingconfig             = 0;
@@ -3451,15 +3432,12 @@ checkugid(uid, gid, isset, type)
 }
 
 #endif /* !SOCKS_CLIENT */
-#line 3402 "config_parse.c"
+#line 3427 "config_parse.c"
 /* allocate initial stack or double stack size, up to YYMAXDEPTH */
-#if defined(__cplusplus) || defined(__STDC__)
 static int yygrowstack(void)
-#else
-static int yygrowstack()
-#endif
 {
-    int newsize, i;
+    unsigned int newsize;
+    long sslen;
     short *newss;
     YYSTYPE *newvs;
 
@@ -3469,7 +3447,7 @@ static int yygrowstack()
         return -1;
     else if ((newsize *= 2) > YYMAXDEPTH)
         newsize = YYMAXDEPTH;
-    i = yyssp - yyss;
+    sslen = yyssp - yyss;
 #ifdef SIZE_MAX
 #define YY_SIZE_MAX SIZE_MAX
 #else
@@ -3482,7 +3460,7 @@ static int yygrowstack()
     if (newss == NULL)
         goto bail;
     yyss = newss;
-    yyssp = newss + i;
+    yyssp = newss + sslen;
     if (newsize && YY_SIZE_MAX / newsize < sizeof *newvs)
         goto bail;
     newvs = yyvs ? (YYSTYPE *)realloc(yyvs, newsize * sizeof *newvs) :
@@ -3490,7 +3468,7 @@ static int yygrowstack()
     if (newvs == NULL)
         goto bail;
     yyvs = newvs;
-    yyvsp = newvs + i;
+    yyvsp = newvs + sslen;
     yystacksize = newsize;
     yysslim = yyss + newsize - 1;
     return 0;
@@ -3510,19 +3488,11 @@ bail:
 #define YYACCEPT goto yyaccept
 #define YYERROR goto yyerrlab
 int
-#if defined(__cplusplus) || defined(__STDC__)
 yyparse(void)
-#else
-yyparse()
-#endif
 {
     int yym, yyn, yystate;
 #if YYDEBUG
-#if defined(__cplusplus) || defined(__STDC__)
     const char *yys;
-#else /* !(defined(__cplusplus) || defined(__STDC__)) */
-    char *yys;
-#endif /* !(defined(__cplusplus) || defined(__STDC__)) */
 
     if ((yys = getenv("YYDEBUG")))
     {
@@ -3582,12 +3552,12 @@ yyloop:
         goto yyreduce;
     }
     if (yyerrflag) goto yyinrecovery;
-#if defined(lint) || defined(__GNUC__)
+#if defined(__GNUC__)
     goto yynewerror;
 #endif
 yynewerror:
     yyerror("syntax error");
-#if defined(lint) || defined(__GNUC__)
+#if defined(__GNUC__)
     goto yyerrlab;
 #endif
 yyerrlab:
@@ -3657,7 +3627,7 @@ yyreduce:
     switch (yyn)
     {
 case 1:
-#line 611 "config_parse.y"
+#line 617 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       extension = &sockscf.extension;
@@ -3665,15 +3635,15 @@ case 1:
    }
 break;
 case 4:
-#line 619 "config_parse.y"
+#line 625 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 11:
-#line 630 "config_parse.y"
+#line 636 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 39:
-#line 659 "config_parse.y"
+#line 665 "config_parse.y"
 {
       if (!addedsocketoption(&sockscf.socketoptionc,
                              &sockscf.socketoptionv,
@@ -3682,7 +3652,7 @@ case 39:
    }
 break;
 case 41:
-#line 668 "config_parse.y"
+#line 674 "config_parse.y"
 {
 #if !SOCKS_CLIENT
                                 tcpoptions = &logspecial->protocol.tcp.disabled;
@@ -3690,7 +3660,7 @@ case 41:
           }
 break;
 case 43:
-#line 673 "config_parse.y"
+#line 679 "config_parse.y"
 {
 #if !SOCKS_CLIENT
                                 tcpoptions = &logspecial->protocol.tcp.enabled;
@@ -3698,7 +3668,7 @@ case 43:
           }
 break;
 case 45:
-#line 681 "config_parse.y"
+#line 687 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 
@@ -3709,7 +3679,7 @@ case 45:
    }
 break;
 case 47:
-#line 691 "config_parse.y"
+#line 697 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 
@@ -3720,7 +3690,7 @@ case 47:
    }
 break;
 case 49:
-#line 701 "config_parse.y"
+#line 707 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 
@@ -3731,7 +3701,7 @@ case 49:
    }
 break;
 case 51:
-#line 711 "config_parse.y"
+#line 717 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 
@@ -3742,7 +3712,7 @@ case 51:
    }
 break;
 case 53:
-#line 722 "config_parse.y"
+#line 728 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    SASSERTX(yyvsp[0].number >= 0);
@@ -3753,7 +3723,7 @@ case 53:
    }
 break;
 case 56:
-#line 736 "config_parse.y"
+#line 742 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    SET_TCPOPTION(tcpoptions, cloglevel, ecn);
@@ -3761,7 +3731,7 @@ case 56:
    }
 break;
 case 57:
-#line 743 "config_parse.y"
+#line 749 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    SET_TCPOPTION(tcpoptions, cloglevel, sack);
@@ -3769,7 +3739,7 @@ case 57:
    }
 break;
 case 58:
-#line 750 "config_parse.y"
+#line 756 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    SET_TCPOPTION(tcpoptions, cloglevel, timestamps);
@@ -3777,7 +3747,7 @@ case 58:
    }
 break;
 case 59:
-#line 757 "config_parse.y"
+#line 763 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    SET_TCPOPTION(tcpoptions, cloglevel, wscale);
@@ -3785,7 +3755,7 @@ case 59:
    }
 break;
 case 62:
-#line 770 "config_parse.y"
+#line 776 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 
@@ -3837,7 +3807,7 @@ case 62:
    }
 break;
 case 67:
-#line 828 "config_parse.y"
+#line 834 "config_parse.y"
 {
       yyerrorx("given keyword \"%s\" is deprecated.  New keyword is %s.  "
                "Please see %s's manual for more information",
@@ -3845,15 +3815,15 @@ case 67:
    }
 break;
 case 68:
-#line 835 "config_parse.y"
+#line 841 "config_parse.y"
 { objecttype = object_route; }
 break;
 case 69:
-#line 836 "config_parse.y"
+#line 842 "config_parse.y"
 { routeinit(&route); }
 break;
 case 70:
-#line 836 "config_parse.y"
+#line 842 "config_parse.y"
 {
       route.src       = src;
       route.dst       = dst;
@@ -3865,35 +3835,35 @@ case 70:
    }
 break;
 case 71:
-#line 847 "config_parse.y"
+#line 853 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 74:
-#line 853 "config_parse.y"
+#line 859 "config_parse.y"
 {
          state->proxyprotocol.socks_v4 = 1;
    }
 break;
 case 75:
-#line 856 "config_parse.y"
+#line 862 "config_parse.y"
 {
          state->proxyprotocol.socks_v5 = 1;
    }
 break;
 case 76:
-#line 859 "config_parse.y"
+#line 865 "config_parse.y"
 {
          state->proxyprotocol.http     = 1;
    }
 break;
 case 77:
-#line 862 "config_parse.y"
+#line 868 "config_parse.y"
 {
          state->proxyprotocol.upnp     = 1;
    }
 break;
 case 82:
-#line 875 "config_parse.y"
+#line 881 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       if (addlinkedname(&rule.user, yyvsp[0].string) == NULL)
@@ -3902,7 +3872,7 @@ case 82:
    }
 break;
 case 86:
-#line 890 "config_parse.y"
+#line 896 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       if (addlinkedname(&rule.group, yyvsp[0].string) == NULL)
@@ -3911,7 +3881,7 @@ case 86:
    }
 break;
 case 90:
-#line 905 "config_parse.y"
+#line 911 "config_parse.y"
 {
          yywarnx("we are currently considering deprecating the Dante-specific "
                  "SOCKS bind extension.  If you are using it, please let us "
@@ -3921,21 +3891,21 @@ case 90:
    }
 break;
 case 95:
-#line 923 "config_parse.y"
+#line 929 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ifproto->ipv4  = 1;
    }
 break;
 case 96:
-#line 927 "config_parse.y"
+#line 933 "config_parse.y"
 {
       ifproto->ipv6  = 1;
 #endif /* SOCKS_SERVER */
    }
 break;
 case 97:
-#line 933 "config_parse.y"
+#line 939 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if BAREFOOTD
@@ -3961,7 +3931,7 @@ case 97:
    }
 break;
 case 98:
-#line 958 "config_parse.y"
+#line 964 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    static ruleaddr_t mem;
@@ -3986,7 +3956,7 @@ case 98:
    }
 break;
 case 99:
-#line 982 "config_parse.y"
+#line 988 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       if (sockscf.internal.addrc > 0) {
@@ -4010,7 +3980,7 @@ case 99:
    }
 break;
 case 101:
-#line 1007 "config_parse.y"
+#line 1013 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       addexternal(ruleaddr);
@@ -4018,7 +3988,7 @@ case 101:
    }
 break;
 case 102:
-#line 1014 "config_parse.y"
+#line 1020 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       static ruleaddr_t mem;
@@ -4041,7 +4011,7 @@ case 102:
    }
 break;
 case 103:
-#line 1036 "config_parse.y"
+#line 1042 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       if (sockscf.external.addrc > 0) {
@@ -4054,31 +4024,31 @@ case 103:
    }
 break;
 case 105:
-#line 1049 "config_parse.y"
+#line 1055 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       sockscf.external.rotation = ROTATION_NONE;
    }
 break;
 case 106:
-#line 1053 "config_parse.y"
+#line 1059 "config_parse.y"
 {
       sockscf.external.rotation = ROTATION_SAMESAME;
    }
 break;
 case 107:
-#line 1056 "config_parse.y"
+#line 1062 "config_parse.y"
 {
       sockscf.external.rotation = ROTATION_ROUTE;
 #endif /* SOCKS_SERVER */
    }
 break;
 case 115:
-#line 1071 "config_parse.y"
+#line 1077 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 117:
-#line 1075 "config_parse.y"
+#line 1081 "config_parse.y"
 {
       if (yyvsp[0].number < 0)
          yyerrorx("max route fails can not be negative (%ld)  Use \"0\" to "
@@ -4089,7 +4059,7 @@ case 117:
    }
 break;
 case 118:
-#line 1083 "config_parse.y"
+#line 1089 "config_parse.y"
 {
       if (yyvsp[0].number < 0)
          yyerrorx("route failure expiry time can not be negative (%ld).  "
@@ -4100,15 +4070,15 @@ case 118:
    }
 break;
 case 119:
-#line 1093 "config_parse.y"
+#line 1099 "config_parse.y"
 { add_to_errlog = 1; }
 break;
 case 121:
-#line 1096 "config_parse.y"
+#line 1102 "config_parse.y"
 { add_to_errlog = 0; }
 break;
 case 123:
-#line 1099 "config_parse.y"
+#line 1105 "config_parse.y"
 {
    int p;
 
@@ -4167,7 +4137,7 @@ case 123:
 }
 break;
 case 126:
-#line 1160 "config_parse.y"
+#line 1166 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ASSIGN_NUMBER(yyvsp[0].number, >=, 0, sockscf.child.maxrequests, 0);
@@ -4175,7 +4145,7 @@ case 126:
    }
 break;
 case 130:
-#line 1172 "config_parse.y"
+#line 1178 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_PRIVILEGES
@@ -4189,7 +4159,7 @@ case 130:
    }
 break;
 case 131:
-#line 1185 "config_parse.y"
+#line 1191 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_PRIVILEGES
@@ -4203,7 +4173,7 @@ case 131:
    }
 break;
 case 132:
-#line 1198 "config_parse.y"
+#line 1204 "config_parse.y"
 {
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
 
@@ -4222,7 +4192,7 @@ case 132:
    }
 break;
 case 133:
-#line 1217 "config_parse.y"
+#line 1223 "config_parse.y"
 {
       struct passwd *pw;
 
@@ -4239,7 +4209,7 @@ case 133:
    }
 break;
 case 134:
-#line 1233 "config_parse.y"
+#line 1239 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ASSIGN_NUMBER(yyvsp[0].number, >=, 0, timeout->tcpio, 1);
@@ -4247,20 +4217,20 @@ case 134:
    }
 break;
 case 135:
-#line 1238 "config_parse.y"
+#line 1244 "config_parse.y"
 {
       ASSIGN_NUMBER(yyvsp[0].number, >=, 0, timeout->tcpio, 1);
    }
 break;
 case 136:
-#line 1241 "config_parse.y"
+#line 1247 "config_parse.y"
 {
       ASSIGN_NUMBER(yyvsp[0].number, >=, 0, timeout->udpio, 1);
 #endif /* !SOCKS_CLIENT */
    }
 break;
 case 137:
-#line 1247 "config_parse.y"
+#line 1253 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ASSIGN_NUMBER(yyvsp[0].number, >=, 0, timeout->negotiate, 1);
@@ -4268,13 +4238,13 @@ case 137:
    }
 break;
 case 138:
-#line 1254 "config_parse.y"
+#line 1260 "config_parse.y"
 {
       ASSIGN_NUMBER(yyvsp[0].number, >=, 0, timeout->connect, 1);
    }
 break;
 case 139:
-#line 1259 "config_parse.y"
+#line 1265 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ASSIGN_NUMBER(yyvsp[0].number, >=, 0, timeout->tcp_fin_wait, 1);
@@ -4282,7 +4252,7 @@ case 139:
    }
 break;
 case 140:
-#line 1267 "config_parse.y"
+#line 1273 "config_parse.y"
 {
 #if SOCKS_CLIENT
 
@@ -4303,7 +4273,7 @@ case 140:
    }
 break;
 case 143:
-#line 1291 "config_parse.y"
+#line 1297 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_LIBWRAP
@@ -4318,7 +4288,7 @@ case 143:
    }
 break;
 case 144:
-#line 1305 "config_parse.y"
+#line 1311 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_LIBWRAP
@@ -4333,7 +4303,7 @@ case 144:
    }
 break;
 case 145:
-#line 1319 "config_parse.y"
+#line 1325 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if HAVE_LIBWRAP
@@ -4344,7 +4314,7 @@ case 145:
    }
 break;
 case 146:
-#line 1327 "config_parse.y"
+#line 1333 "config_parse.y"
 {
 #if HAVE_LIBWRAP
       sockscf.option.hosts_access = 0;
@@ -4355,41 +4325,41 @@ case 146:
    }
 break;
 case 147:
-#line 1337 "config_parse.y"
+#line 1343 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       sockscf.udpconnectdst = 1;
    }
 break;
 case 148:
-#line 1341 "config_parse.y"
+#line 1347 "config_parse.y"
 {
       sockscf.udpconnectdst = 0;
 #endif /* !SOCKS_CLIENT */
    }
 break;
 case 150:
-#line 1351 "config_parse.y"
+#line 1357 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       sockscf.compat.sameport = 1;
    }
 break;
 case 151:
-#line 1355 "config_parse.y"
+#line 1361 "config_parse.y"
 {
       sockscf.compat.draft_5_05 = 1;
 #endif /* !SOCKS_CLIENT */
    }
 break;
 case 155:
-#line 1368 "config_parse.y"
+#line 1374 "config_parse.y"
 {
          sockscf.resolveprotocol = RESOLVEPROTOCOL_FAKE;
    }
 break;
 case 156:
-#line 1371 "config_parse.y"
+#line 1377 "config_parse.y"
 {
 #if HAVE_NO_RESOLVESTUFF
          yyerrorx("resolveprotocol keyword not supported on this system");
@@ -4399,13 +4369,13 @@ case 156:
    }
 break;
 case 157:
-#line 1378 "config_parse.y"
+#line 1384 "config_parse.y"
 {
          sockscf.resolveprotocol = RESOLVEPROTOCOL_UDP;
    }
 break;
 case 160:
-#line 1387 "config_parse.y"
+#line 1393 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if !HAVE_SCHED_SETSCHEDULER
@@ -4448,7 +4418,7 @@ case 160:
    }
 break;
 case 161:
-#line 1429 "config_parse.y"
+#line 1435 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if !HAVE_SCHED_SETAFFINITY
@@ -4510,7 +4480,7 @@ case 161:
    }
 break;
 case 162:
-#line 1490 "config_parse.y"
+#line 1496 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       socketopt.level = yyvsp[-1].number;
@@ -4518,7 +4488,7 @@ case 162:
    }
 break;
 case 164:
-#line 1497 "config_parse.y"
+#line 1503 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    socketopt.optname = yyvsp[0].number;
@@ -4533,7 +4503,7 @@ case 164:
    }
 break;
 case 165:
-#line 1509 "config_parse.y"
+#line 1515 "config_parse.y"
 {
       socketopt.info           = optid2sockopt((size_t)yyvsp[0].number);
       SASSERTX(socketopt.info != NULL);
@@ -4545,14 +4515,14 @@ case 165:
    }
 break;
 case 166:
-#line 1520 "config_parse.y"
+#line 1526 "config_parse.y"
 {
       socketopt.optval.int_val = (int)yyvsp[0].number;
       socketopt.opttype        = int_val;
    }
 break;
 case 167:
-#line 1524 "config_parse.y"
+#line 1530 "config_parse.y"
 {
       const sockoptvalsym_t *p;
 
@@ -4569,39 +4539,39 @@ case 167:
    }
 break;
 case 168:
-#line 1541 "config_parse.y"
+#line 1547 "config_parse.y"
 { bzero(&socketopt, sizeof(socketopt));
                              socketopt.isinternalside = 1;
    }
 break;
 case 169:
-#line 1544 "config_parse.y"
+#line 1550 "config_parse.y"
 { bzero(&socketopt, sizeof(socketopt));
                              socketopt.isinternalside = 0;
    }
 break;
 case 171:
-#line 1553 "config_parse.y"
+#line 1559 "config_parse.y"
 {
 #if !SOCKS_CLIENT
          sockscf.srchost.nodnsmismatch = 1;
    }
 break;
 case 172:
-#line 1557 "config_parse.y"
+#line 1563 "config_parse.y"
 {
          sockscf.srchost.nodnsunknown = 1;
    }
 break;
 case 173:
-#line 1560 "config_parse.y"
+#line 1566 "config_parse.y"
 {
          sockscf.srchost.checkreplyauth = 1;
 #endif /* !SOCKS_CLIENT */
    }
 break;
 case 176:
-#line 1570 "config_parse.y"
+#line 1576 "config_parse.y"
 {
 #if COVENANT
    STRCPY_CHECKLEN(sockscf.realmname,
@@ -4614,7 +4584,7 @@ case 176:
 }
 break;
 case 177:
-#line 1582 "config_parse.y"
+#line 1588 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 
@@ -4626,7 +4596,7 @@ case 177:
    }
 break;
 case 179:
-#line 1593 "config_parse.y"
+#line 1599 "config_parse.y"
 {
 #if HAVE_SOCKS_RULES
 
@@ -4642,7 +4612,7 @@ case 179:
    }
 break;
 case 184:
-#line 1615 "config_parse.y"
+#line 1621 "config_parse.y"
 {
       if (methodisvalid(yyvsp[0].method, object_srule))
          ADDMETHOD(yyvsp[0].method, *smethodc, smethodv);
@@ -4652,7 +4622,7 @@ case 184:
    }
 break;
 case 188:
-#line 1632 "config_parse.y"
+#line 1638 "config_parse.y"
 {
       if (methodisvalid(yyvsp[0].method, object_crule))
          ADDMETHOD(yyvsp[0].method, *cmethodc, cmethodv);
@@ -4662,11 +4632,11 @@ case 188:
    }
 break;
 case 189:
-#line 1640 "config_parse.y"
+#line 1646 "config_parse.y"
 { objecttype = object_monitor; }
 break;
 case 190:
-#line 1640 "config_parse.y"
+#line 1646 "config_parse.y"
 {
 #if !SOCKS_CLIENT
                         monitorinit(&monitor);
@@ -4674,7 +4644,7 @@ case 190:
 }
 break;
 case 191:
-#line 1645 "config_parse.y"
+#line 1651 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    pre_addmonitor(&monitor);
@@ -4684,11 +4654,11 @@ case 191:
 }
 break;
 case 192:
-#line 1657 "config_parse.y"
+#line 1663 "config_parse.y"
 { objecttype = object_crule; }
 break;
 case 193:
-#line 1658 "config_parse.y"
+#line 1664 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if BAREFOOTD
@@ -4717,51 +4687,51 @@ case 193:
    }
 break;
 case 197:
-#line 1691 "config_parse.y"
+#line 1697 "config_parse.y"
 {
 #if !SOCKS_CLIENT
          monitorif = NULL;
    }
 break;
 case 198:
-#line 1695 "config_parse.y"
+#line 1701 "config_parse.y"
 {
          monitorif = &monitor.mstats->object.monitor.internal;
    }
 break;
 case 199:
-#line 1698 "config_parse.y"
+#line 1704 "config_parse.y"
 {
          monitorif = &monitor.mstats->object.monitor.external;
 #endif /* !SOCKS_CLIENT */
    }
 break;
 case 200:
-#line 1704 "config_parse.y"
+#line 1710 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       alarmside = NULL;
    }
 break;
 case 201:
-#line 1708 "config_parse.y"
+#line 1714 "config_parse.y"
 {
       *alarmside = RECVSIDE;
    }
 break;
 case 202:
-#line 1711 "config_parse.y"
+#line 1717 "config_parse.y"
 {
       *alarmside = SENDSIDE;
 #endif /* !SOCKS_CLIENT */
    }
 break;
 case 203:
-#line 1717 "config_parse.y"
+#line 1723 "config_parse.y"
 { alarminit(); }
 break;
 case 204:
-#line 1718 "config_parse.y"
+#line 1724 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    alarm_data_limit_t limit;
@@ -4823,7 +4793,7 @@ case 204:
    }
 break;
 case 206:
-#line 1782 "config_parse.y"
+#line 1788 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    monitor.alarmsconfigured |= ALARM_TEST;
@@ -4840,7 +4810,7 @@ case 206:
    }
 break;
 case 207:
-#line 1800 "config_parse.y"
+#line 1806 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    alarm_disconnect_limit_t limit;
@@ -4872,7 +4842,7 @@ case 207:
    }
 break;
 case 208:
-#line 1831 "config_parse.y"
+#line 1837 "config_parse.y"
 {
 #if !SOCKS_CLIENT
                yyval.number = DEFAULT_ALARM_PERIOD;
@@ -4880,19 +4850,19 @@ case 208:
    }
 break;
 case 209:
-#line 1836 "config_parse.y"
+#line 1842 "config_parse.y"
 { yyval.number = yyvsp[0].number; }
 break;
 case 212:
-#line 1841 "config_parse.y"
+#line 1847 "config_parse.y"
 { *hostidoption_isset = 1; }
 break;
 case 214:
-#line 1845 "config_parse.y"
+#line 1851 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 216:
-#line 1849 "config_parse.y"
+#line 1855 "config_parse.y"
 {
 #if !BAREFOOTD
                   yyerrorx("unsupported option");
@@ -4900,7 +4870,7 @@ case 216:
    }
 break;
 case 217:
-#line 1854 "config_parse.y"
+#line 1860 "config_parse.y"
 {
 #if !BAREFOOTD
                   yyerrorx("unsupported option");
@@ -4908,7 +4878,7 @@ case 217:
    }
 break;
 case 219:
-#line 1860 "config_parse.y"
+#line 1866 "config_parse.y"
 {
 #if !SOCKS_CLIENT
                   session_isset = 1;
@@ -4916,15 +4886,18 @@ case 219:
    }
 break;
 case 221:
-#line 1869 "config_parse.y"
-{ yyval.string = NULL; }
-break;
-case 223:
-#line 1873 "config_parse.y"
-{ objecttype = object_hrule; }
-break;
-case 224:
 #line 1874 "config_parse.y"
+{
+
+#if SOCKS_CLIENT || !HAVE_SOCKS_HOSTID
+      yyerrorx("hostid is not supported on this system");
+#endif /* SOCKS_CLIENT || !HAVE_SOCKS_HOSTID */
+
+      objecttype = object_hrule;
+}
+break;
+case 222:
+#line 1881 "config_parse.y"
 {
 #if !SOCKS_CLIENT && HAVE_SOCKS_HOSTID
       if (hostid.atype != SOCKS_ADDR_NOTSET)
@@ -4937,13 +4910,15 @@ case 224:
       pre_addrule(&rule);
       addhostidrule(&rule);
       post_addrule();
-#else /* !SOCKS_CLIENT && !HAVE_SOCKS_HOSTID */
-      yyerrorx("hostid is not supported on this system");
-#endif /* !HAVE_SOCKS_HOSTID */
+#endif /* !SOCKS_CLIENT && HAVE_SOCKS_HOSTID */
    }
 break;
+case 223:
+#line 1899 "config_parse.y"
+{ yyval.string = NULL; }
+break;
 case 227:
-#line 1896 "config_parse.y"
+#line 1907 "config_parse.y"
 {
 #if !SOCKS_CLIENT && HAVE_SOCKS_HOSTID
       addrinit(&hostid, 1);
@@ -4955,7 +4930,7 @@ case 227:
    }
 break;
 case 229:
-#line 1907 "config_parse.y"
+#line 1918 "config_parse.y"
 {
 #if !SOCKS_CLIENT && HAVE_SOCKS_HOSTID
    ASSIGN_NUMBER(yyvsp[0].number, >=, 0, *hostindex, 0);
@@ -4967,11 +4942,11 @@ case 229:
 }
 break;
 case 230:
-#line 1919 "config_parse.y"
+#line 1930 "config_parse.y"
 { objecttype = object_srule; }
 break;
 case 231:
-#line 1920 "config_parse.y"
+#line 1931 "config_parse.y"
 {
 #if !SOCKS_CLIENT
 #if !HAVE_SOCKS_RULES
@@ -4985,11 +4960,11 @@ case 231:
    }
 break;
 case 232:
-#line 1934 "config_parse.y"
+#line 1945 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 240:
-#line 1945 "config_parse.y"
+#line 1956 "config_parse.y"
 {
 #if !SOCKS_CLIENT
                   session_isset = 1;
@@ -4997,7 +4972,7 @@ case 240:
    }
 break;
 case 242:
-#line 1954 "config_parse.y"
+#line 1965 "config_parse.y"
 {
 #if !SOCKS_CLIENT
                         checkmodule("bandwidth");
@@ -5006,11 +4981,11 @@ case 242:
    }
 break;
 case 250:
-#line 1967 "config_parse.y"
+#line 1978 "config_parse.y"
 { *hostidoption_isset = 1; }
 break;
 case 255:
-#line 1972 "config_parse.y"
+#line 1983 "config_parse.y"
 {
 #if !SOCKS_CLIENT
                      checkmodule("redirect");
@@ -5018,7 +4993,7 @@ case 255:
    }
 break;
 case 256:
-#line 1977 "config_parse.y"
+#line 1988 "config_parse.y"
 {
 #if !SOCKS_CLIENT
          if (rule.verdict == VERDICT_BLOCK && !socketopt.isinternalside)
@@ -5044,7 +5019,7 @@ case 256:
    }
 break;
 case 287:
-#line 2037 "config_parse.y"
+#line 2048 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP && HAVE_OPENLDAP
@@ -5052,7 +5027,7 @@ case 287:
    }
 break;
 case 288:
-#line 2042 "config_parse.y"
+#line 2053 "config_parse.y"
 {
       ldap->debug = (int)-yyvsp[0].number;
  #else /* !HAVE_LDAP */
@@ -5062,7 +5037,7 @@ case 288:
    }
 break;
 case 289:
-#line 2051 "config_parse.y"
+#line 2062 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5077,7 +5052,7 @@ case 289:
    }
 break;
 case 290:
-#line 2065 "config_parse.y"
+#line 2076 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP && HAVE_OPENLDAP
@@ -5089,7 +5064,7 @@ case 290:
    }
 break;
 case 291:
-#line 2076 "config_parse.y"
+#line 2087 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5104,7 +5079,7 @@ case 291:
    }
 break;
 case 292:
-#line 2090 "config_parse.y"
+#line 2101 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5119,7 +5094,7 @@ case 292:
    }
 break;
 case 293:
-#line 2104 "config_parse.y"
+#line 2115 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5132,7 +5107,7 @@ case 293:
    }
 break;
 case 294:
-#line 2116 "config_parse.y"
+#line 2127 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5145,7 +5120,7 @@ case 294:
    }
 break;
 case 295:
-#line 2128 "config_parse.y"
+#line 2139 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5158,7 +5133,7 @@ case 295:
    }
 break;
 case 296:
-#line 2140 "config_parse.y"
+#line 2151 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5171,7 +5146,7 @@ case 296:
    }
 break;
 case 297:
-#line 2152 "config_parse.y"
+#line 2163 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5183,7 +5158,7 @@ case 297:
    }
 break;
 case 298:
-#line 2163 "config_parse.y"
+#line 2174 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5195,7 +5170,7 @@ case 298:
    }
 break;
 case 299:
-#line 2174 "config_parse.y"
+#line 2185 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5203,7 +5178,7 @@ case 299:
    }
 break;
 case 300:
-#line 2179 "config_parse.y"
+#line 2190 "config_parse.y"
 {
       ldap->ssl = 0;
 #else /* !HAVE_LDAP */
@@ -5213,7 +5188,7 @@ case 300:
    }
 break;
 case 301:
-#line 2188 "config_parse.y"
+#line 2199 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5221,7 +5196,7 @@ case 301:
    }
 break;
 case 302:
-#line 2193 "config_parse.y"
+#line 2204 "config_parse.y"
 {
       ldap->auto_off = 0;
 #else /* !HAVE_LDAP */
@@ -5231,7 +5206,7 @@ case 302:
    }
 break;
 case 303:
-#line 2202 "config_parse.y"
+#line 2213 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5239,7 +5214,7 @@ case 303:
    }
 break;
 case 304:
-#line 2207 "config_parse.y"
+#line 2218 "config_parse.y"
 {
       ldap->certcheck = 0;
 #else /* !HAVE_LDAP */
@@ -5249,7 +5224,7 @@ case 304:
    }
 break;
 case 305:
-#line 2216 "config_parse.y"
+#line 2227 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5257,7 +5232,7 @@ case 305:
    }
 break;
 case 306:
-#line 2221 "config_parse.y"
+#line 2232 "config_parse.y"
 {
       ldap->keeprealm = 0;
 #else /* !HAVE_LDAP */
@@ -5267,7 +5242,7 @@ case 306:
    }
 break;
 case 307:
-#line 2230 "config_parse.y"
+#line 2241 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5279,7 +5254,7 @@ case 307:
    }
 break;
 case 308:
-#line 2241 "config_parse.y"
+#line 2252 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5295,7 +5270,7 @@ case 308:
    }
 break;
 case 309:
-#line 2256 "config_parse.y"
+#line 2267 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5310,7 +5285,7 @@ case 309:
    }
 break;
 case 310:
-#line 2270 "config_parse.y"
+#line 2281 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5325,7 +5300,7 @@ case 310:
    }
 break;
 case 311:
-#line 2284 "config_parse.y"
+#line 2295 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5341,7 +5316,7 @@ case 311:
    }
 break;
 case 312:
-#line 2299 "config_parse.y"
+#line 2310 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5356,7 +5331,7 @@ case 312:
    }
 break;
 case 313:
-#line 2313 "config_parse.y"
+#line 2324 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5371,7 +5346,7 @@ case 313:
    }
 break;
 case 314:
-#line 2327 "config_parse.y"
+#line 2338 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5386,7 +5361,7 @@ case 314:
    }
 break;
 case 315:
-#line 2341 "config_parse.y"
+#line 2352 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5399,7 +5374,7 @@ case 315:
    }
 break;
 case 316:
-#line 2353 "config_parse.y"
+#line 2364 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5414,7 +5389,7 @@ case 316:
    }
 break;
 case 317:
-#line 2367 "config_parse.y"
+#line 2378 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5429,7 +5404,7 @@ case 317:
    }
 break;
 case 318:
-#line 2381 "config_parse.y"
+#line 2392 "config_parse.y"
 {
 #if SOCKS_SERVER
 #if HAVE_LDAP
@@ -5442,7 +5417,7 @@ case 318:
    }
 break;
 case 319:
-#line 2393 "config_parse.y"
+#line 2404 "config_parse.y"
 {
 #if HAVE_LDAP
 #if SOCKS_SERVER
@@ -5458,7 +5433,7 @@ case 319:
    }
 break;
 case 321:
-#line 2411 "config_parse.y"
+#line 2422 "config_parse.y"
 {
 #if HAVE_GSSAPI
       gssapiencryption->nec = 1;
@@ -5468,7 +5443,7 @@ case 321:
    }
 break;
 case 324:
-#line 2425 "config_parse.y"
+#line 2436 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ruleinit(&rule);
@@ -5476,7 +5451,7 @@ case 324:
    }
 break;
 case 325:
-#line 2430 "config_parse.y"
+#line 2441 "config_parse.y"
 {
       ruleinit(&rule);
       rule.verdict   = VERDICT_PASS;
@@ -5484,63 +5459,63 @@ case 325:
    }
 break;
 case 329:
-#line 2444 "config_parse.y"
+#line 2455 "config_parse.y"
 {
          state->command.bind = 1;
    }
 break;
 case 330:
-#line 2447 "config_parse.y"
+#line 2458 "config_parse.y"
 {
          state->command.connect = 1;
    }
 break;
 case 331:
-#line 2450 "config_parse.y"
+#line 2461 "config_parse.y"
 {
          state->command.udpassociate = 1;
    }
 break;
 case 332:
-#line 2456 "config_parse.y"
+#line 2467 "config_parse.y"
 {
          state->command.bindreply = 1;
    }
 break;
 case 333:
-#line 2460 "config_parse.y"
+#line 2471 "config_parse.y"
 {
          state->command.udpreply = 1;
    }
 break;
 case 337:
-#line 2473 "config_parse.y"
+#line 2484 "config_parse.y"
 {
       state->protocol.tcp = 1;
    }
 break;
 case 338:
-#line 2476 "config_parse.y"
+#line 2487 "config_parse.y"
 {
       state->protocol.udp = 1;
    }
 break;
 case 350:
-#line 2505 "config_parse.y"
+#line 2516 "config_parse.y"
 {
 #if !SOCKS_CLIENT
                         rule.ss_isinheritable = 1;
    }
 break;
 case 351:
-#line 2509 "config_parse.y"
+#line 2520 "config_parse.y"
 {
                         rule.ss_isinheritable = 0;
 #endif /* !SOCKS_CLIENT */
    }
 break;
 case 352:
-#line 2515 "config_parse.y"
+#line 2526 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ASSIGN_MAXSESSIONS(yyvsp[0].number, ss.object.ss.max, 0);
@@ -5550,7 +5525,7 @@ case 352:
    }
 break;
 case 353:
-#line 2524 "config_parse.y"
+#line 2535 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ASSIGN_THROTTLE_SECONDS(yyvsp[-2].number, ss.object.ss.throttle.limit.clients, 0);
@@ -5560,18 +5535,27 @@ case 353:
    }
 break;
 case 358:
-#line 2539 "config_parse.y"
+#line 2550 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       if ((ss.keystate.key = string2statekey(yyvsp[0].string)) == key_unset)
          yyerrorx("%s is not a valid state key", yyvsp[0].string);
 
-#if HAVE_SOCKS_HOSTID
       if (ss.keystate.key == key_hostid) {
+#if HAVE_SOCKS_HOSTID
+
          *hostidoption_isset           = 1;
          ss.keystate.keyinfo.hostindex = DEFAULT_HOSTINDEX;
-      }
+
+#else /* !HAVE_SOCKS_HOSTID */
+
+         yyerrorx("hostid is not supported on this system");
+
 #endif /* HAVE_SOCKS_HOSTID */
+      }
+
+
+
 
 #else /* SOCKS_CLIENT */
 
@@ -5580,21 +5564,21 @@ case 358:
    }
 break;
 case 359:
-#line 2558 "config_parse.y"
+#line 2578 "config_parse.y"
 {
 #if !SOCKS_CLIENT && HAVE_SOCKS_HOSTID
       hostindex = &ss.keystate.keyinfo.hostindex;
    }
 break;
 case 360:
-#line 2562 "config_parse.y"
+#line 2582 "config_parse.y"
 {
       hostindex = &rule.hostindex; /* reset */
 #endif /* !SOCKS_CLIENT && HAVE_SOCKS_HOSTID */
    }
 break;
 case 361:
-#line 2569 "config_parse.y"
+#line 2589 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ASSIGN_MAXSESSIONS(yyvsp[0].number, ss.object.ss.max_perstate, 0);
@@ -5603,7 +5587,7 @@ case 361:
    }
 break;
 case 362:
-#line 2577 "config_parse.y"
+#line 2597 "config_parse.y"
 {
 #if !SOCKS_CLIENT
    ASSIGN_THROTTLE_SECONDS(yyvsp[-2].number, ss.object.ss.throttle_perstate.limit.clients, 0);
@@ -5613,7 +5597,7 @@ case 362:
 }
 break;
 case 363:
-#line 2586 "config_parse.y"
+#line 2606 "config_parse.y"
 {
 #if !SOCKS_CLIENT
       ASSIGN_NUMBER(yyvsp[0].number, >=, 0, bw.object.bw.maxbps, 0);
@@ -5622,45 +5606,45 @@ case 363:
    }
 break;
 case 365:
-#line 2598 "config_parse.y"
+#line 2618 "config_parse.y"
 {
 #if !SOCKS_CLIENT
          rule.log.connect = 1;
    }
 break;
 case 366:
-#line 2602 "config_parse.y"
+#line 2622 "config_parse.y"
 {
          rule.log.data = 1;
    }
 break;
 case 367:
-#line 2605 "config_parse.y"
+#line 2625 "config_parse.y"
 {
          rule.log.disconnect = 1;
    }
 break;
 case 368:
-#line 2608 "config_parse.y"
+#line 2628 "config_parse.y"
 {
          rule.log.error = 1;
    }
 break;
 case 369:
-#line 2611 "config_parse.y"
+#line 2631 "config_parse.y"
 {
          rule.log.iooperation = 1;
    }
 break;
 case 370:
-#line 2614 "config_parse.y"
+#line 2634 "config_parse.y"
 {
          rule.log.tcpinfo = 1;
 #endif /* !SOCKS_CLIENT */
    }
 break;
 case 373:
-#line 2625 "config_parse.y"
+#line 2645 "config_parse.y"
 {
 #if HAVE_PAM && (!SOCKS_CLIENT)
       STRCPY_CHECKLEN(state->pamservicename,
@@ -5673,7 +5657,7 @@ case 373:
    }
 break;
 case 374:
-#line 2637 "config_parse.y"
+#line 2657 "config_parse.y"
 {
 #if HAVE_BSDAUTH && SOCKS_SERVER
       STRCPY_CHECKLEN(state->bsdauthstylename,
@@ -5686,7 +5670,7 @@ case 374:
    }
 break;
 case 375:
-#line 2650 "config_parse.y"
+#line 2670 "config_parse.y"
 {
 #if HAVE_GSSAPI
       STRCPY_CHECKLEN(gssapiservicename,
@@ -5699,7 +5683,7 @@ case 375:
    }
 break;
 case 376:
-#line 2662 "config_parse.y"
+#line 2682 "config_parse.y"
 {
 #if HAVE_GSSAPI
 #if SOCKS_SERVER
@@ -5716,7 +5700,7 @@ case 376:
    }
 break;
 case 378:
-#line 2681 "config_parse.y"
+#line 2701 "config_parse.y"
 {
 #if HAVE_GSSAPI
       gssapiencryption->clear           = 1;
@@ -5725,25 +5709,25 @@ case 378:
    }
 break;
 case 379:
-#line 2687 "config_parse.y"
+#line 2707 "config_parse.y"
 {
       gssapiencryption->clear = 1;
    }
 break;
 case 380:
-#line 2690 "config_parse.y"
+#line 2710 "config_parse.y"
 {
       gssapiencryption->integrity = 1;
    }
 break;
 case 381:
-#line 2693 "config_parse.y"
+#line 2713 "config_parse.y"
 {
       gssapiencryption->confidentiality = 1;
    }
 break;
 case 382:
-#line 2696 "config_parse.y"
+#line 2716 "config_parse.y"
 {
       yyerrorx("gssapi per-message encryption not supported");
 #else
@@ -5752,7 +5736,7 @@ case 382:
    }
 break;
 case 386:
-#line 2711 "config_parse.y"
+#line 2731 "config_parse.y"
 {
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
       struct request_info request;
@@ -5792,7 +5776,7 @@ case 386:
    }
 break;
 case 391:
-#line 2763 "config_parse.y"
+#line 2783 "config_parse.y"
 {
 #if BAREFOOTD
       yyerrorx("redirecting \"to\" an address does not make any sense in %s.  "
@@ -5803,7 +5787,7 @@ case 391:
    }
 break;
 case 403:
-#line 2786 "config_parse.y"
+#line 2806 "config_parse.y"
 {
                if (!addedsocketoption(&route.socketoptionc,
                                       &route.socketoptionv,
@@ -5812,35 +5796,35 @@ case 403:
    }
 break;
 case 404:
-#line 2794 "config_parse.y"
+#line 2814 "config_parse.y"
 { yyval.string = NULL; }
 break;
 case 407:
-#line 2801 "config_parse.y"
+#line 2821 "config_parse.y"
 {
       addrinit(&src, 1);
    }
 break;
 case 408:
-#line 2806 "config_parse.y"
+#line 2826 "config_parse.y"
 {
       addrinit(&dst, ipaddr_requires_netmask(to, objecttype));
    }
 break;
 case 409:
-#line 2811 "config_parse.y"
+#line 2831 "config_parse.y"
 {
       addrinit(&rdr_from, 1);
    }
 break;
 case 410:
-#line 2816 "config_parse.y"
+#line 2836 "config_parse.y"
 {
       addrinit(&rdr_to, 0);
    }
 break;
 case 411:
-#line 2821 "config_parse.y"
+#line 2841 "config_parse.y"
 {
 #if BAREFOOTD
       addrinit(&bounceto, 0);
@@ -5848,42 +5832,42 @@ case 411:
    }
 break;
 case 412:
-#line 2829 "config_parse.y"
+#line 2849 "config_parse.y"
 {
       gwaddrinit(&gw);
    }
 break;
 case 421:
-#line 2849 "config_parse.y"
+#line 2869 "config_parse.y"
 { if (!netmask_required) yyerrorx_hasnetmask(); }
 break;
 case 422:
-#line 2850 "config_parse.y"
+#line 2870 "config_parse.y"
 { if (netmask_required)  yyerrorx_nonetmask();  }
 break;
 case 423:
-#line 2851 "config_parse.y"
+#line 2871 "config_parse.y"
 { if (!netmask_required) yyerrorx_hasnetmask(); }
 break;
 case 424:
-#line 2852 "config_parse.y"
+#line 2872 "config_parse.y"
 { if (netmask_required)  yyerrorx_nonetmask();  }
 break;
 case 425:
-#line 2853 "config_parse.y"
+#line 2873 "config_parse.y"
 { if (!netmask_required)
                                        yyerrorx_hasnetmask(); }
 break;
 case 426:
-#line 2855 "config_parse.y"
+#line 2875 "config_parse.y"
 { if (netmask_required)  yyerrorx_nonetmask();  }
 break;
 case 429:
-#line 2859 "config_parse.y"
+#line 2879 "config_parse.y"
 { /* for upnp; broadcasts on interface. */ }
 break;
 case 433:
-#line 2868 "config_parse.y"
+#line 2888 "config_parse.y"
 {
       *atype = SOCKS_ADDR_IPV4;
 
@@ -5892,7 +5876,7 @@ case 433:
    }
 break;
 case 434:
-#line 2876 "config_parse.y"
+#line 2896 "config_parse.y"
 {
       if (yyvsp[0].number < 0 || yyvsp[0].number > 32)
          yyerrorx("bad %s netmask: %ld.  Legal range is 0 - 32",
@@ -5902,14 +5886,14 @@ case 434:
    }
 break;
 case 435:
-#line 2883 "config_parse.y"
+#line 2903 "config_parse.y"
 {
       if (socks_inet_pton(AF_INET, yyvsp[0].string, netmask_v4, NULL) != 1)
          yyerror("bad %s netmask: %s", atype2string(*atype), yyvsp[0].string);
    }
 break;
 case 436:
-#line 2889 "config_parse.y"
+#line 2909 "config_parse.y"
 {
       *atype = SOCKS_ADDR_IPV6;
 
@@ -5918,7 +5902,7 @@ case 436:
    }
 break;
 case 437:
-#line 2897 "config_parse.y"
+#line 2917 "config_parse.y"
 {
       if (yyvsp[0].number < 0 || yyvsp[0].number > IPV6_NETMASKBITS)
          yyerrorx("bad %s netmask: %d.  Legal range is 0 - %d",
@@ -5928,7 +5912,7 @@ case 437:
    }
 break;
 case 438:
-#line 2906 "config_parse.y"
+#line 2926 "config_parse.y"
 {
       SASSERTX(strcmp(yyvsp[0].string, "0") == 0);
 
@@ -5937,7 +5921,7 @@ case 438:
    }
 break;
 case 439:
-#line 2914 "config_parse.y"
+#line 2934 "config_parse.y"
 {
       if (yyvsp[0].number != 0)
          yyerrorx("bad %s netmask: %d.  Only legal value is 0",
@@ -5947,36 +5931,36 @@ case 439:
    }
 break;
 case 440:
-#line 2924 "config_parse.y"
+#line 2944 "config_parse.y"
 {
       *atype = SOCKS_ADDR_DOMAIN;
       STRCPY_CHECKLEN(domain, yyvsp[0].string, MAXHOSTNAMELEN - 1, yyerrorx);
    }
 break;
 case 441:
-#line 2930 "config_parse.y"
+#line 2950 "config_parse.y"
 {
       *atype = SOCKS_ADDR_IFNAME;
       STRCPY_CHECKLEN(ifname, yyvsp[0].string, MAXIFNAMELEN - 1, yyerrorx);
    }
 break;
 case 442:
-#line 2937 "config_parse.y"
+#line 2957 "config_parse.y"
 {
       *atype = SOCKS_ADDR_URL;
       STRCPY_CHECKLEN(url, yyvsp[0].string, MAXURLLEN - 1, yyerrorx);
    }
 break;
 case 443:
-#line 2944 "config_parse.y"
+#line 2964 "config_parse.y"
 { yyval.number = 0; }
 break;
 case 447:
-#line 2950 "config_parse.y"
+#line 2970 "config_parse.y"
 { yyval.number = 0; }
 break;
 case 451:
-#line 2958 "config_parse.y"
+#line 2978 "config_parse.y"
 {
    if (ntohs(*port_tcp) > ntohs(ruleaddr->portend))
       yyerrorx("end port (%u) can not be less than start port (%u)",
@@ -5984,21 +5968,21 @@ case 451:
    }
 break;
 case 452:
-#line 2966 "config_parse.y"
+#line 2986 "config_parse.y"
 {
       ASSIGN_PORTNUMBER(yyvsp[0].number, *port_tcp);
       ASSIGN_PORTNUMBER(yyvsp[0].number, *port_udp);
    }
 break;
 case 453:
-#line 2972 "config_parse.y"
+#line 2992 "config_parse.y"
 {
       ASSIGN_PORTNUMBER(yyvsp[0].number, ruleaddr->portend);
       ruleaddr->operator   = range;
    }
 break;
 case 454:
-#line 2978 "config_parse.y"
+#line 2998 "config_parse.y"
 {
       struct servent   *service;
 
@@ -6033,13 +6017,13 @@ case 454:
    }
 break;
 case 455:
-#line 3013 "config_parse.y"
+#line 3033 "config_parse.y"
 {
       *operator = string2operator(yyvsp[0].string);
    }
 break;
 case 457:
-#line 3022 "config_parse.y"
+#line 3042 "config_parse.y"
 {
 #if SOCKS_SERVER
    ASSIGN_PORTNUMBER(yyvsp[0].number, rule.udprange.start);
@@ -6047,7 +6031,7 @@ case 457:
    }
 break;
 case 458:
-#line 3029 "config_parse.y"
+#line 3049 "config_parse.y"
 {
 #if SOCKS_SERVER
    ASSIGN_PORTNUMBER(yyvsp[0].number, rule.udprange.end);
@@ -6060,12 +6044,12 @@ case 458:
    }
 break;
 case 459:
-#line 3041 "config_parse.y"
+#line 3061 "config_parse.y"
 {
       addnumber(&numberc, &numberv, yyvsp[0].number);
    }
 break;
-#line 6016 "config_parse.c"
+#line 6044 "config_parse.c"
     }
     yyssp -= yym;
     yystate = *yyssp;

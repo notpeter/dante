@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
- *               2012, 2013
+ *               2012, 2013, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "upnp.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.242 2013/10/27 15:24:42 karls Exp $";
+"$Id: Rconnect.c,v 1.242.6.3 2017/01/31 08:17:38 karls Exp $";
 
 int
 Rconnect(s, _name, namelen)
@@ -56,6 +56,8 @@ Rconnect(s, _name, namelen)
    socklen_t namelen;
 {
    const char *function = "Rconnect()";
+   const int force_blockingconnect
+   = socks_getenv(ENV_SOCKS_FORCE_BLOCKING_CONNECT, istrue) == NULL ? 0 : 1;
    struct sockaddr_storage name;
    socksfd_t socksfd;
    sockshost_t src, dst;
@@ -63,7 +65,7 @@ Rconnect(s, _name, namelen)
    socks_t packet;
    socklen_t len;
    char namestr[MAXSOCKADDRSTRING], emsg[256];
-   int type, rc, nbconnect, savederrno;
+   int type, rc, fd_is_nonblocking, savederrno;
 
    clientinit();
 
@@ -351,7 +353,7 @@ Rconnect(s, _name, namelen)
        * no negotiation to do before the connect, so we don't need
        * to care here whether the socket is blocking or not.
        */
-      nbconnect = 0;
+      fd_is_nonblocking = 0;
    else
       /*
        * Check if the socket is non-blocking.  If so, fork a child
@@ -359,10 +361,10 @@ Rconnect(s, _name, namelen)
        * In the case of UPNP, no negotiation is done, so don't waste
        * time on that.
        */
-      nbconnect = !fdisblocking(s);
+      fd_is_nonblocking = !fdisblocking(s);
 
    errno = 0;
-   if (nbconnect) {
+   if (fd_is_nonblocking && !force_blockingconnect) {
       socksfd.route = socks_nbconnectroute(s,
                                            socksfd.control,
                                            &packet,
@@ -442,7 +444,7 @@ Rconnect(s, _name, namelen)
       return -1;
    }
 
-   if (nbconnect) {
+   if (fd_is_nonblocking && !force_blockingconnect) {
       if (!socks_addrisours(s, &socksfd, 1)) {
          swarn("%s: something went wrong when setting up non-blocking connect",
                 function);
@@ -479,13 +481,22 @@ Rconnect(s, _name, namelen)
       }
    }
 
-   if (socks_negotiate(s,
-                       socksfd.control,
-                       &packet,
-                       socksfd.route,
-                       emsg,
-                       sizeof(emsg)) != 0) {
+   if (fd_is_nonblocking && force_blockingconnect)
+      setblocking(s, "Rconnect(): forcing connect(2) to block");
+
+   rc = socks_negotiate(s,
+                        socksfd.control,
+                        &packet,
+                        socksfd.route,
+                        emsg,
+                        sizeof(emsg));
+
+   if (fd_is_nonblocking && force_blockingconnect)
+      setnonblocking(s, "Rconnect()");
+
+   if (rc != 0) {
       swarnx("%s: socks_negotiate() failed: %s", function, emsg);
+
       return -1;
    }
 

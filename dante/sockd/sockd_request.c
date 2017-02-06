@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.849.4.15 2014/08/24 17:43:41 michaels Exp $";
+"$Id: sockd_request.c,v 1.849.4.15.2.4 2017/01/31 08:17:39 karls Exp $";
 
 /*
  * XXX Should fix things so this process too can support multiple clients.
@@ -296,11 +296,8 @@ run_request()
       ++fdbits;
       switch (selectn(fdbits, rset, NULL, NULL, NULL, NULL, NULL)) {
          case -1:
-            if (errno == EINTR)
-               continue;
-
-            SERR(-1);
-            /* NOTREACHED */
+            SASSERT(ERRNOISTMP(errno));
+            continue;
 
          case 0:
             SERRX(0);
@@ -2090,11 +2087,9 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
 
             ++fdbits;
             if ((rc = selectn(fdbits, rset, NULL, NULL, NULL, NULL, NULL))
-            <= 0){
-               if (rc == -1 && errno == EINTR)
-                  continue;
-
-               SERR(rc);
+            <= 0) {
+               SASSERT(ERRNOISTMP(errno));
+               continue;
             }
 
             if (FD_ISSET(mother->ack, rset)) {
@@ -3098,8 +3093,6 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
 
          boundlen = sizeof(io.src.laddr);
          if (getsockname(io.src.s, TOSA(&io.src.laddr), &boundlen) != 0) {
-            SWARN(errno);
-
             msglen = snprintf(emsg, emsglen,
                               "getsockname() failed: %s", strerror(errno));
 

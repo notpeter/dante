@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 #endif /* HAVE_SHADOW_H && HAVE_GETSPNAM */
 
 static const char rcsid[] =
-"$Id: auth_password.c,v 1.41 2013/10/27 15:24:42 karls Exp $";
+"$Id: auth_password.c,v 1.41.6.2 2017/01/31 08:17:38 karls Exp $";
 
 static const char *
 sockd_getpasswordhash(const char *login, char *pw, const size_t pwsize,
@@ -181,6 +181,13 @@ sockd_getpasswordhash(login, pw, pwsize, emsg, emsglen)
 
 #error "getprpwnam() not supported yet.  Please contact Inferno Nettverk A/S "
        "if you would like to see support for it."
+
+#elif HAVE_GETPWNAM_SHADOW /* OpenBSD 5.9 and later */
+
+   struct passwd *pwd;
+
+   if ((pwd = getpwnam_shadow(login)) != NULL)
+      pw_db = pwd->pw_passwd;
 
 #else /* normal BSD stuff. */
    struct passwd *pwd;

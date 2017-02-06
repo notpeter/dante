@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: osdep.h,v 1.98 2013/10/27 15:24:41 karls Exp $ */
+/* $Id: osdep.h,v 1.98.6.3 2017/01/31 14:35:55 karls Exp $ */
 
 /*
  * ensure pam/libwrap defines are only set when compiling server
@@ -246,6 +246,12 @@
 #else
 #define __ATTRIBUTE__(x)
 #endif /* HAVE_DECL_ATTRIBUTE */
+
+#if HAVE_DECL_CONSTRUCTOR
+#define ATTRIBUTE_CONSTRUCTOR constructor
+#else
+#define ATTRIBUTE_CONSTRUCTOR
+#endif /* HAVE_DECL_CONSTRUCTOR */
 
 #if HAVE_DECL_NONNULL
 #define __NONNULL__(x) __nonnull__(x)
@@ -493,6 +499,25 @@ struct in6_addr {
 #define s6_addr   __u6_addr.__u6_addr8
 #endif /* !HAVE_IN6_ADDR */
 
+
+/*
+ * hostid structure (defined here as linux/tcp.h cannot be included)
+ */
+#if HAVE_MAX_HOSTIDS
+#if SOCKS_HOSTID_VERSION == 1
+struct tcp_ipa {
+   u_int32_t ipa_ipaddress[HAVE_MAX_HOSTIDS];
+};
+#else
+#error "error: unsupported IPA_VERSION"
+#endif /* SOCKS_HOSTID_VERSION */
+#endif /* HAVE_MAX_HOSTIDS */
+
+/* replace select() macros on Linux to avoid FORTIFY related bug */
+#if HAVE_LINUX_BUGS
+#undef __FD_ELT
+#define __FD_ELT(d) ((d) / (__NFDBITS))
+#endif /* HAVE_LINUX_BUGS */
 
 /*
  * libscompat functions

@@ -1,7 +1,51 @@
-@(#)$Id: NEWS,v 1.99.4.16 2014/09/03 11:13:59 karls Exp $
+@(#)$Id: NEWS,v 1.99.4.16.2.18 2017/02/03 14:16:15 karls Exp $
 
 (NOTE: The contents of this file is not updated for pre-releases.)
 
+***
+***  Monday, February 6, 2017 -- Dante v1.4.2
+***
+
+ o Support new version of libminiupnp.   Patch from Michele Testa
+   <themike@libero.it.example.com>
+
+ o Fix memory bug in the client that would lead to a crash when resolving
+   hostnames on certain platforms.
+
+   Diagnosis and patch from Jeremie Courreges-Anglas
+   <jca@wxcvbn.org.example.org>.  Thank you.
+
+ o A new environment variable has been added to aid application
+   compatibility with socksify: SOCKS_FORCE_BLOCKING_CONNECT.
+
+   See the socksify manpage for more information.
+
+ o Fixed bug in configure that broke compilation with rpmbuild on
+   newer Linux versions. Multiple bug reports received, thanks
+   to everyone that reported this problem.
+
+ o Add glibc-devel as Dante rpm requirement.  Requires entry for
+   librt, used by socksify.  Suggested by <ealogar@gmail.com.example.com>.
+   Also needed for libdl.so.
+
+ o Various NetBSD configure and server related fixes.
+   Thanks to Anthony Howe <achowe@snert.com.example.com> for bug
+   reports and testing.
+
+ o Corrected srchost values in examples/sockd.conf.
+   Thanks to Danesh Pajoh, Babak <Babak.DaneshPajoh@gwl.ca.example.com>
+   for bug report.
+
+ o Various build fixes, affecting RHEL 7 and potentially other platforms.
+   Thanks to Thomas Petazzoni <thomas.petazzoni@free-electrons.com.example.com>
+   for submitting related patch.
+
+ o Updates to hostid/TCP_IPA code to use newer API version.
+
+ o Added check for OpenBSD getpwnam_shadow().
+
+ o Added workaround for __FD_ELT() fortify related bug in recent glibc
+   versions.
 
 ***
 ***  Wednesday, September 3, 2014 -- Dante v1.4.1

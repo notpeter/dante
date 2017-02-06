@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: rule.c,v 1.332.4.4 2014/08/22 14:19:41 michaels Exp $";
+"$Id: rule.c,v 1.332.4.4.2.3 2017/01/23 21:00:25 karls Exp $";
 
 #if HAVE_LIBWRAP
 extern jmp_buf tcpd_buf;
@@ -580,7 +580,8 @@ showrule(_rule, ruletype)
       if (*rule.state.ldap.keytab != NUL)
          slog(LOG_DEBUG, "ldap.keytab: %s", rule.state.ldap.keytab);
 
-      showlist(rule.state.ldap.ldapurl, "ldap.url: ");
+      if (rule.state.ldap.ldapurl != NULL)
+         slog(LOG_DEBUG, "ldap.url: <value set>");
 
       showlist(rule.state.ldap.ldapbasedn, "ldap.basedn: ");
 
@@ -2038,32 +2039,24 @@ srchost_isok(peer, msg, msgsize)
                      0,
                      NI_NAMEREQD);
 
-   if (rc != 0) {
+   if (rc == 0)
+      slog(LOG_DEBUG, "%s: %s has a dns entry: %s",
+           function,
+           sockaddr2string(peer, NULL, 0),
+           str2vis(hostname, strlen(hostname), vishname, sizeof(vishname)));
+   else
       log_reversemapfailed(peer, INTERNALIF, rc);
 
+   if (rc != 0 && sockscf.srchost.nodnsunknown) {
       snprintf(msg, msgsize, "no dns entry found for srchost %s",
                sockaddr2string(peer, NULL, 0));
 
-      if (sockscf.srchost.nodnsunknown)
-         return 0;
-
-      /*
-       * if there is no dns-entry for this address, there can be
-       * no mismatch either.
-       */
-      SASSERTX(sockscf.srchost.nodnsmismatch);
-      return 1;
+      return 0;
    }
 
-   slog(LOG_DEBUG, "%s: %s has a dns entry: %s",
-        function,
-        sockaddr2string(peer, NULL, 0),
-        str2vis(hostname, strlen(hostname), vishname, sizeof(vishname)));
-
-   if (sockscf.srchost.nodnsmismatch) {
+   if (rc == 0 && sockscf.srchost.nodnsmismatch) {
       /*
-       * Check if the reversemapped hostname maps back to the
-       * ipaddress.
+       * Check if the reversemapped hostname maps back to the ipaddress.
        */
       ruleaddr_t ruleaddr;
       sockshost_t resolvedhost;
@@ -2083,8 +2076,8 @@ srchost_isok(peer, msg, msgsize)
       }
 
       resolvedhost.atype = SOCKS_ADDR_DOMAIN;
-      strcpy(resolvedhost.addr.domain, hostname);
       resolvedhost.port  = htons(0);
+      strcpy(resolvedhost.addr.domain, hostname);
 
       if (!addrmatch(&ruleaddr, &resolvedhost, NULL, SOCKS_TCP, 0)) {
          snprintf(msg, msgsize,

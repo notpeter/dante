@@ -253,6 +253,7 @@ if test x"${preload_enabled}" = xt; then
 
     L_NSOCKPROTO(getsockopt, [failproto=t],
 	[int, int, int, int, void *, socklen_t *],
+	[int, int, int, int, void *, Psocklen_t],
 	[int, int, int, int, char *, int *])
 
     L_NSOCKPROTO(listen, [failproto=t],
@@ -770,6 +771,8 @@ unset NOPRELOAD
 if test x"${no_preload}" != x -o x"${no_preload_client}" != x; then
    NOPRELOAD=t
    FEAT="$FEAT${FEAT:+ }nopreload"
+else
+   AC_DEFINE(HAVE_PRELOAD, 1, [preloading enabled])
 fi
 AC_SUBST(NOPRELOAD)
 

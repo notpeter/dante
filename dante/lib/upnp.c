@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014
+ * Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.153.4.4 2014/08/21 16:21:50 michaels Exp $";
+"$Id: upnp.c,v 1.153.4.4.2.2 2017/01/31 16:46:40 karls Exp $";
 
 #include "common.h"
 
@@ -156,6 +156,11 @@ socks_initupnp(gw, emsg, emsglen)
                            0
 #if HAVE_LIBMINIUPNP17
                           ,0,
+
+#if MINIUPNPC_API_VERSION >= 14
+                           UPNP_IP_TTL,
+#endif /* MINIUPNPC_API_VERSION >= 14 */
+
                           &rc
 #endif /* HAVE_LIBMINIUPNP17 */
                          );
@@ -828,7 +833,8 @@ sighandler(sig)
 {
    const char *function = "sighandler()";
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s", function);
+
    upnpcleanup(-1);
 
    /* reinstall original signal handler. */
@@ -936,7 +942,8 @@ atexit_upnpcleanup(void)
 {
    const char *function = "atexit_upnpcleanup()";
 
-   slog(LOG_DEBUG, function);
+   slog(LOG_DEBUG, "%s", function);
+
    upnpcleanup(-1);
 }
 #endif /* SOCKS_CLIENT */

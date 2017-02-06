@@ -149,8 +149,8 @@ AC_ARG_ENABLE(libcfail,
 if test x"${enable_libcfail}" = xyes; then
     AC_MSG_RESULT([yes])
     AC_DEFINE(HAVE_LIBCFAIL, 1, [use libcfail])
+    have_libcfail=t
     FEAT="$FEAT${FEAT:+ }libcfail"
-    LIBS="$LIBS${LIBS:+ }-lcfail"
 else
     AC_MSG_RESULT([no])
 fi

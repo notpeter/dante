@@ -5,6 +5,7 @@ Rconnect
 Rgetaddrinfo
 Rgethostbyname
 Rgethostbyname2
+Rgetnameinfo
 Rgetpeername
 Rgetsockname
 Rgetsockopt

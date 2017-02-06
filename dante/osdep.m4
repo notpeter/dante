@@ -401,7 +401,8 @@ if test x"${have_sa_len}" != x; then
 #include <sys/socket.h>], [
 struct sockaddr sa;
 $type *sa_len_ptr;
-sa_len_ptr = &sa.sa_len;],
+sa_len_ptr = &sa.sa_len;
+sa_len_ptr++; /* use to avoid warning/error */],
        [AC_DEFINE_UNQUOTED(sa_len_type, [$type], [sa_len type])
         sa_len_type_found=t
         break])
@@ -657,7 +658,7 @@ AC_SEARCH_LIBS(inet_addr, nsl)
 #      code in that file easier to read.
 AC_SEARCH_LIBS(getsockopt, socket)
 
-AC_CHECK_FUNCS(getprpwnam getspnam bindresvport)
+AC_CHECK_FUNCS(getprpwnam getspnam getpwnam_shadow bindresvport)
 AC_CHECK_FUNCS(getpass)
 
 AC_MSG_CHECKING([for system V getpwnam])
@@ -895,7 +896,7 @@ keyword="no-route"
 keycnt=0
 for keyval in ${ERRNO_NOROUTE}; do
     for errno in $ERRNOVALS; do
-	if test x"$keyval" == x"$errno"; then
+	if test x"$keyval" = x"$errno"; then
 	    echo "   { \"$keyword\",	$errno	}," >>$ERRNOSRC
 	    keycnt=`expr $keycnt + 1`
 	fi
@@ -955,7 +956,14 @@ AC_MSG_CHECKING([getaddrinfo() error symbols])
 unset UNIQUEVALS UNIQUESYMBOLS
 if test -s $ERRVALFILE; then
     UNIQUEVALS=`sort $ERRVALFILE | uniq | wc -l | awk '{ print $1 }'`
+    if test $UNIQUEVALS -le 1; then
+        AC_MSG_FAILURE([error: getaddrinfo() error value count too low])
+    fi
     UNIQUESYMBOLS=`cat $ERRVALFILE | wc -l | awk '{ print $1 }'`
+    if test $UNIQUESYMBOLS -le 1; then
+        AC_MSG_FAILURE([error: getaddrinfo() error symbol count too low])
+    fi
+
     if test $ERRNOCNT -ne $UNIQUESYMBOLS; then
 	AC_MSG_FAILURE([internal error: errno symbol count mismatch])
     fi
@@ -985,7 +993,7 @@ keyword="foo"
 keycnt=0
 for keyval in ${ERRNO_foo}; do
     for errno in $GAIERRVALS; do
-	if test x"$keyval" == x"$errno"; then
+	if test x"$keyval" = x"$errno"; then
 	    echo "   { \"$keyword\",	$errno	}," >>$ERRNOSRC
 	    keycnt=`expr $keycnt + 1`
 	fi

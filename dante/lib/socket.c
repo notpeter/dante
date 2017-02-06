@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2001, 2005, 2008, 2009, 2010, 2011, 2012,
- *               2013, 2014
+ *               2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.218.4.7 2014/08/24 17:37:47 michaels Exp $";
+"$Id: socket.c,v 1.218.4.7.2.7 2017/01/31 08:17:38 karls Exp $";
 
 int
 socks_connecthost(s,
@@ -276,19 +276,32 @@ socks_connecthost(s,
                          NULL,
                          timeout >= 0 ? &tval : NULL);
 
-            if (rc == -1 && errno == EINTR)
-               continue;
+            switch (rc) {
+               case -1:
+                  if (ERRNOISTMP(errno))
+                     continue;
+                  else {
+                     snprintf(emsg, emsglen, "select(2) on fd %d failed: %s",
+                              s, strerror(errno));
 
-            if (rc == 0)
-               errno = ETIMEDOUT;
-            else {
-               len = sizeof(errno);
-               getsockopt(s, SOL_SOCKET, SO_ERROR, &errno, &len);
+                     return -1;
+                  }
+
+               case 0:
+                  errno = ETIMEDOUT;
+                  break;
+
+               default:
+                  len = sizeof(errno);
+                  getsockopt(s, SOL_SOCKET, SO_ERROR, &errno, &len);
             }
 
             if (errno == 0)
                rc = 0;
             else
+               /*
+                * connect(2)-attempt finished, but failed.
+                */
                rc = -1;
          }
 
@@ -630,11 +643,16 @@ setnonblocking(fd, ctx)
    const int fd;
    const char *ctx;
 {
+   const char *function = "setnonblocking()";
    int flags;
 
+   SASSERTX(ctx != NULL);
+
    if ((flags = fcntl(fd, F_GETFL, 0))                 != -1
-   &&           fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1)
+   &&           fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1) {
+      slog(LOG_DEBUG, "%s: fd %d: %s", function, fd, ctx);
       return flags;
+   }
    else {
       swarn("failed to make fd %d, used for %s, non-blocking", fd, ctx);
       return -1;
@@ -646,11 +664,16 @@ setblocking(fd, ctx)
    const int fd;
    const char *ctx;
 {
+   const char *function = "setblocking()";
    int flags;
 
+   SASSERTX(ctx != NULL);
+
    if ((flags = fcntl(fd, F_GETFL, 0))                  != -1
-   &&           fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) != -1)
+   &&           fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) != -1) {
+      slog(LOG_DEBUG, "%s: fd %d: %s", function, fd, ctx);
       return flags;
+   }
    else {
       swarn("failed to make fd %d, used for %s, blocking", fd, ctx);
       return -1;
@@ -1314,3 +1337,49 @@ makedummyfd(_safamily, _socktype)
    return s;
 
 }
+
+#if SOCKS_CLIENT
+
+int
+fd_is_network_socket(fd)
+   const int fd;
+{
+   struct stat statbuf;
+   struct sockaddr_storage addr;
+   socklen_t addrlen = sizeof(addr);
+
+   if (fstat(fd, &statbuf) != 0)
+      return 0;
+
+   if (S_ISSOCK(statbuf.st_mode) == 0)
+      return 0;
+
+
+#if SOCKSLIBRARY_DYNAMIC
+   /*
+    * This function is used to decide whether to track a fd or not,
+    * so be sure to not call ourselves again when figuring out
+    * whether sys_getsockname() should track the fd or not.
+    */
+
+   if (sys_getsockname_notracking(fd, TOSA(&addr), &addrlen) != 0)
+      return 0;
+
+#else /* !SOCKSLIBRARY_DYNAMIC */
+
+   if (getsockname(fd, TOSA(&addr), &addrlen) != 0)
+      return 0;
+
+#endif /* !SOCKSLIBRARY_DYNAMIC */
+
+   switch (addr.ss_family) {
+      case AF_INET:
+      case AF_INET6:
+         return 1;
+
+      default:
+         return 0;
+   }
+}
+
+#endif /* SOCKS_CLIENT */

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2001, 2003, 2008, 2009, 2010, 2011, 2012,
- *               2013, 2014
+ *               2013, 2014, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_socket.c,v 1.170.4.1 2014/08/15 18:16:44 karls Exp $";
+"$Id: sockd_socket.c,v 1.170.4.1.2.2 2017/01/31 08:17:39 karls Exp $";
 
 #define MAXSOCKETOPTIONS ( 1 /* TCP_NODELAY || SO_BROADCAST                  */\
                          + 1 /* SO_TIMESTAMP                                 */\
@@ -111,7 +111,8 @@ sockd_unconnect(s, oldpeer)
                s,
                oldpeer == NULL ? "N/A" : sockaddr2string(oldpeer, NULL, 0));
 
-         SWARN(errno); /* not bound?  Should not happen. */
+         if (!ERRNOISTMP(errno))
+            SWARN(errno); /* not bound?  Should not happen. */
       }
 
       havepeer = 0;

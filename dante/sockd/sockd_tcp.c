@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_tcp.c,v 1.66.4.4 2014/08/22 06:23:12 michaels Exp $";
+"$Id: sockd_tcp.c,v 1.66.4.4.2.4 2017/01/31 08:17:39 karls Exp $";
 
 static ssize_t
 io_tcp_rw(sockd_io_direction_t *in, sockd_io_direction_t *out, int *badfd,
@@ -620,7 +620,7 @@ io_tcp_rw(in, out, badfd, iostatus,
    if (out->auth.method == AUTHMETHOD_GSSAPI) {
       SASSERTX(out->auth.mdata.gssapi.state.maxgssdata > 0);
 
-      p -= GSSAPI_OVERHEAD(&out->auth.mdata.gssapi.state);
+      p -= GSSAPI_OVERHEAD(&out->auth.mdata.gssapi.state) + GSSAPI_HLEN;
       p  = MIN(p, (ssize_t)out->auth.mdata.gssapi.state.maxgssdata);
 
       if (p <= 0) {
@@ -628,9 +628,11 @@ io_tcp_rw(in, out, badfd, iostatus,
           * We are not expecting this to happen since we should not get
           * here as long as we have unflushed data left in the buffer.
           */
-         swarnx("%s: write buffer for fd %d is almost full.  "
+         swarnx("%s: write buffer for fd %d on %s-side is almost full.  "
                 "Only %lu byte%s free, with a gssapi overhead of %lu",
-                function, out->s,
+                function,
+                out->s,
+                interfaceside2string(sendtoflags.side),
                 (unsigned long)socks_freeinbuffer(out->s, WRITE_BUF),
                 (unsigned long)socks_freeinbuffer(out->s, WRITE_BUF) == 1 ?
                   "" : "s",
@@ -913,13 +915,17 @@ io_tcp_rw(in, out, badfd, iostatus,
 
       if (w > 0) {
          swarnx("%s: wrote only %ld/%ld (%s) to fd %d, but we should never "
-                "read more than we can write, so this is not expected",
+                "read more than we can write, so this should not happen",
                 function, (long)w, (long)r, strerror(errno), out->s);
 
 #if PRERELEASE
+
          SERRX(out->s);
+
 #else /* !PRERELEASE */
+
          SWARNX(out->s);
+
 #endif /* PRERELEASE */
       }
    }

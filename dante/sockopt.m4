@@ -131,39 +131,25 @@ OKSOCKOPTS="$SOCKOPTS" #user-settable socket options
 
 ALLSOCKOPTS="$SOCKOPTS"
 
-#hostid options (only first option found will be used, order by priority)
-unset SOCKOPTS
-L_CHECKSOCKOPT(IPPROTO_TCP, TCP_IPA) #option28 arg
-#check if TCP_IPA is usable
-if test x"$SOCKOPTS" = x"TCP_IPA"; then
-    AC_MSG_CHECKING([for TCP_IPA_MAX define])
-    AC_TRY_COMPILE([
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <arpa/inet.h>
-
-#ifndef TCP_IPA_MAX
-#error "no TCP_IPA_MAX value defined"
-#endif /* TCP_IPA_MAX */
-], [], [AC_DEFINE(HAVE_MAX_HOSTIDS, [TCP_IPA_MAX], [hostid size])
-        AC_MSG_RESULT(yes)],
-    [AC_MSG_RESULT(no)
-    unset oksize failsize
-    for size in 1 2 3 4 5 6 7 8 9 10; do
-	L_CHECK_TCPIPASIZE($size, [oksize=$size], [failsize=t])
-	test x"$failsize" != x && break
-    done
-    if test x"$oksize" != x; then
-	AC_DEFINE_UNQUOTED(HAVE_MAX_HOSTIDS, [$oksize], [hostid size])
-    else
-	#XXX should not occur, ideally have option undef-ed
-	AC_MSG_WARN([unable to determine TCP_IPA max size, setting to 0])
-	AC_DEFINE(HAVE_MAX_HOSTIDS, 0, [hostid size])
-	unset SOCKOPTS #NOTE: assumes TCP_IPA is first tested type
-    fi])
-fi
+unset SOCKOPTS #default to no TCP_IPA support
+AC_CHECK_HEADER(linux/bbkernel.h,
+[#found TCP_IPA header, cannot include headers during build
+ #so determine values of expected defines.
+ SOCKOPTS="TCP_IPA"
+ L_GETDEFINEDINT(IPA_VERSION, [
+#include <linux/bbkernel.h>
+], SOCKS_HOSTID_VERSION)
+ L_GETDEFINEDINT(MAX_IPA, [
+#include <linux/bbkernel.h>
+], HAVE_MAX_HOSTIDS)
+ L_GETDEFINEDINT(TCP_IPA, [
+#include <linux/tcp.h>
+], TCP_IPA)
+ AC_DEFINE(HAVE_TCP_IPA, 1, [TCP_IPA supported])dnl
+ AC_DEFINE(SOCKS_TCP_IPA_LVL, IPPROTO_TCP, [TCP_IPA protocol level])dnl
+ AC_DEFINE(SOCKS_TCP_IPA_NAME, "tcp_ipa", [TCP_IPA symbolic name])dnl
+ AC_DEFINE(SOCKS_TCP_IPA_IPV4, 1, [TCP_IPA IPv4 usability])dnl
+ AC_DEFINE(SOCKS_TCP_IPA_IPV6, 0, [TCP_IPA IPv6 usability])])
 
 HOSTIDSOCKOPTS="$SOCKOPTS"
 
@@ -519,6 +505,7 @@ if test x"$HOSTIDTYPE" = x; then
     AC_DEFINE(SOCKS_HOSTID_TYPE, [SOCKS_HOSTID_TYPE_NONE], [no hostid support])
 else
     AC_MSG_RESULT([$HOSTIDTYPE])
+    FEAT="$FEAT${FEAT:+ }hostid"
 fi
 
 #options that are not settable by users
@@ -578,7 +565,7 @@ cat $OPTSRCTMP2 >> $SOCKOPTSRC
 echo '};' >> $SOCKOPTSRC
 AC_DEFINE_UNQUOTED(HAVE_SOCKOPTVALSYM_MAX, $SOCKOPTSYMCNT, [symbol count])dnl
 
-rm -f $OPTSRCTMP1 $OPTSRCTMP2
+rm -f "$OPTSRCTMP0" "$OPTSRCTMP1" "$OPTSRCTMP2"
 
 #set value for server -v option
 UCOKSOCKOPTS_SO=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'SO_' | xargs`

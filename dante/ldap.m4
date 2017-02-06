@@ -8,7 +8,7 @@ AC_ARG_WITH(ldap,
  [LDAP=$withval])
 
 AC_ARG_WITH(ldap-path,
- [  --with-ldap-path=PATH   specify ldap path @<:@default=$ldapdir@:>@],
+ [  --with-ldap-path=PATH   specify ldap path],
  [ldapdir=$withval])
 
 if test x"$LDAP" != xno; then

@@ -8,7 +8,7 @@ AC_ARG_WITH(sasl,
  [SASL=$withval])
 
 AC_ARG_WITH(sasl-path,
- [  --with-sasl-path=PATH   specify sasl path @<:@default=$sasldir@:>@],
+ [  --with-sasl-path=PATH   specify sasl path],
  [sasldir=$withval])
 
 if test x"$SASL" != xno; then

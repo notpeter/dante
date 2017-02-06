@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.477.4.5 2014/08/22 06:23:12 michaels Exp $";
+"$Id: sockd_negotiate.c,v 1.477.4.5.2.2 2017/01/31 08:17:38 karls Exp $";
 
 static sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
 static const size_t negc = ELEMENTS(negv);
@@ -363,11 +363,8 @@ run_negotiate()
       ++fdbits;
       switch (selectn(fdbits, rset, rsetbuf, NULL, wset, NULL, timeout)) {
          case -1:
-            if (errno == EINTR)
-               continue;
-
-            SERR(-1);
-            /* NOTREACHED */
+            SASSERT(ERRNOISTMP(errno));
+            continue;
 
          case 0:
             if (neg_completed(1)) /* XXX why? */

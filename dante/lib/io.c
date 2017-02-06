@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.342.4.7 2014/08/15 18:16:41 karls Exp $";
+"$Id: io.c,v 1.342.4.7.2.3 2017/01/31 08:17:38 karls Exp $";
 
 static void
 print_selectfds(const char *preamble, const int docheck, const int nfds,
@@ -210,7 +210,7 @@ socks_sendton(s, buf, len, minwrite, flags, to, tolen, sendtoflags, auth)
 
             FD_ZERO(wset);
             FD_SET(s, wset);
-            if (selectn(s + 1, NULL, NULL, wset, NULL, NULL, NULL) == -1) {
+            if (selectn(s + 1, NULL, NULL, NULL, wset, NULL, NULL) == -1) {
                if (errno != EINTR)
                   swarn("%s: select()", function);
 
@@ -1064,8 +1064,6 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
 
    SASSERTX (_timeout  != NULL
    ||        (rset     != NULL && FD_CMP(zeroset, rset)     != 0)
-   ||        (bufrset  != NULL && FD_CMP(zeroset, bufrset)  != 0)
-   ||        (buffwset != NULL && FD_CMP(zeroset, buffwset) != 0)
    ||        (wset     != NULL && FD_CMP(zeroset, wset)     != 0)
    ||        (xset     != NULL && FD_CMP(zeroset, xset)     != 0));
 #endif /* DIAGNOSTIC && !SOCKS_CLIENT */
@@ -1103,21 +1101,25 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
    }
 
 #if SOCKS_CLIENT
-   /*
-    * Once there was a bug,
-    * and SIGIO was blocked,
-    * but we need SIGIO,
-    * need it for non-blocking connects,
-    * and the bug,
-    * it made us fall asleep,
-    * and no-one woke us up,
-    * never ever again.
-    */
+   if (sockscf.connectchild != 0) { /* we are the mother process. */
+      /*
+       * Once there was a bug,
+       * and SIGIO was blocked,
+       * but we need SIGIO,
+       * need it for non-blocking connects,
+       * and the bug,
+       * it made us fall asleep,
+       * and no-one woke us up,
+       * never ever again.
+       */
 
-   if (sigprocmask(SIG_SETMASK, NULL, &oldmask) != 0)
-      serr("%s: sigprocmask() failed", function);
 
-   SASSERTX(!sigismember(&oldmask, SIGIO));
+      if (sigprocmask(SIG_SETMASK, NULL, &oldmask) != 0)
+         serr("%s: sigprocmask() failed", function);
+
+      SASSERTX(!sigismember(&oldmask, SIGIO));
+   }
+
 #else /* !SOCKS_CLIENT */
 
    sigfillset(&fullmask);

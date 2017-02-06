@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011,
- *               2012, 2013, 2014
+ *               2012, 2013, 2014, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmem.c,v 1.238.4.6 2014/08/28 04:35:35 michaels Exp $";
+"$Id: shmem.c,v 1.238.4.6.2.2 2017/01/31 08:17:38 karls Exp $";
 
 
 #define FIRST_SHMEMID  (0)
@@ -506,6 +506,7 @@ shmem_use(shmem, cinfo, lock, mapisopen)
           */
          const char *fname = sockd_getshmemname(shmem->mstate.shmid,
                                                 shmem->keystate.key);
+         void *newmap;
          int fd;
 
          slog(LOG_DEBUG,
@@ -527,7 +528,9 @@ shmem_use(shmem, cinfo, lock, mapisopen)
 
                MPROTECT_SHMEMHEADER(shmem);
             }
+
             socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
+
             return -1;
          }
 
@@ -536,28 +539,27 @@ shmem_use(shmem, cinfo, lock, mapisopen)
 
          MUNPROTECT_SHMEMHEADER(shmem);
 
-         shmem->keystate.keyv = sockd_mmap(shmem->keystate.keyv,
-                                           sizemapped,
-                                           PROT_READ | PROT_WRITE,
-                                           MAP_SHARED,
-                                           fd,
-                                           1);
+         newmap = sockd_mmap(shmem->keystate.keyv,
+                             sizemapped,
+                             PROT_READ | PROT_WRITE,
+                             MAP_SHARED,
+                             fd,
+                             1);
 
          MPROTECT_SHMEMHEADER(shmem);
 
          close(fd);
 
-         if (shmem->keystate.keyv == MAP_FAILED) {
+         if (newmap == MAP_FAILED) {
             swarn("%s: failed to mmap(2) shmeminfo of size %lu from "
                   "file %s on fd %d",
                   function, (unsigned long)sizemapped, fname, fd);
 
-            shmem->keystate.keyv = NULL;
             socks_unlock(lock, (off_t)shmem->mstate.shmid, 1);
-
             return -1;
          }
 
+         shmem->keystate.keyv = newmap;
 
          i = shmem->keystate.keyc;
 

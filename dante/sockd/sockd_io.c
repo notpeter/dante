@@ -1,7 +1,7 @@
 
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.1229.4.4 2014/08/15 18:16:42 karls Exp $";
+"$Id: sockd_io.c,v 1.1229.4.4.2.5 2017/02/03 06:26:44 michaels Exp $";
 
 /*
  * IO-child:
@@ -584,11 +584,8 @@ run_io()
                       xset,
                       io_gettimeout(&timeout))) {
          case -1:
-            if (errno == EINTR)
-               continue;
-
-            SERR(errno);
-            /* NOTREACHED */
+            SASSERT(ERRNOISTMP(errno));
+            continue;
 
          case 0:
             mayhavetimedout = 1;
@@ -1016,11 +1013,8 @@ run_io()
       slog(LOG_DEBUG, "%s: second select; what is writable?", function);
       switch (selectn(bits, newrset, NULL, NULL, wset, NULL, timeoutpointer)) {
          case -1:
-            if (errno == EINTR)
-               continue;
-
-            SERR(-1);
-            /* NOTREACHED */
+            SASSERT(ERRNOISTMP(errno));
+            continue;
 
          case 0:
             mayhavetimedout = 1;
@@ -2245,7 +2239,7 @@ io_fillset(set, antiflags, antiflags_set, bwoverflowtil)
                ||  timercmp(&bwoverflowok, &firstbwoverflowok, <))
                   firstbwoverflowok = bwoverflowok;
 
-            SASSERTX(timercmp(&bwoverflowok, &tnow, >));
+            SASSERTX(!timercmp(&bwoverflowok, &tnow, <));
             timersub(&bwoverflowok, &tnow, &howlongtil);
             slog(LOG_DEBUG,
                  "%s: skipping io #%lu belonging to rule #%lu/bw_shmid %lu "
@@ -3187,8 +3181,6 @@ do {                                                                           \
 
          for (srci = 0; srci < dst->dstc; ++srci) {
             const udptarget_t *client = &dst->dstv[srci];
-            struct sockaddr_storage addr;
-            sockshost_t host;
 
             src_written        = client->client_written.bytes,
             src_packetswritten = client->client_written.packets;
@@ -3218,10 +3210,7 @@ do {                                                                           \
                               iov[i].state.proxychain.proxyprotocol
                               == PROXY_DIRECT ?
                                     NULL : &iov[i].state.proxychain.extaddr,
-                              sockaddr2sockshost(
-                                       sockshost2sockaddr(&client->raddrhost,
-                                                          &addr),
-                                       &host),
+                              sockaddr2sockshost(&client->raddr, NULL),
                               &dst->auth,
                               NULL,
                               (struct in_addr *)NULL,

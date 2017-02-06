@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
- *               2012, 2013, 2014
+ *               2012, 2013, 2014, 2016, 2017
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: addressmatch.c,v 1.97.4.3 2014/07/02 09:12:21 michaels Exp $";
+"$Id: addressmatch.c,v 1.97.4.3.2.6 2017/01/31 08:17:38 karls Exp $";
 
 static int
 ipv4_addrareeq(const struct in_addr *a, const struct in_addr *b,
@@ -221,11 +221,30 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
    }
 
    if (rule->atype == SOCKS_ADDR_IPV4
-   && rule->addr.ipv4.mask.s_addr == htonl(0))
+   &&  rule->addr.ipv4.mask.s_addr == htonl(0)
+   &&  addr->atype == rule->atype)
       return 1;
 
-   if (rule->atype == SOCKS_ADDR_IPV6 && rule->addr.ipv6.maskbits == 0)
+   if (rule->atype == SOCKS_ADDR_IPV6
+   &&  rule->addr.ipv6.maskbits == 0
+   &&  addr->atype == rule->atype)
       return 1;
+
+#if SOCKS_CLIENT
+   /*
+    * Wrong, but maintains compatability with 1.4.1 regarding
+    * 0.0.0.0/0 matching everything.  Keep that compatability with the
+    * the 1.4.1 socks.conf-files for now.
+    */
+   if (rule->atype                 == SOCKS_ADDR_IPV4
+   &&  rule->addr.ipv4.mask.s_addr == htonl(0)
+   &&  addr->atype                 == SOCKS_ADDR_DOMAIN) {
+
+      *addrmatched = *addr;
+      return 1;
+   }
+#endif /* SOCKS_CLIENT */
+
 
    /*
     * The hard work begins.
@@ -265,7 +284,15 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
        */
       hints.ai_family = 0;
 
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       rc = cgetaddrinfo(addr->addr.domain, NULL, &hints, &ai_addr, &ai_addrmem);
+
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
       if (rc != 0) {
          log_resolvefailed(addr->addr.domain, EXTERNALIF, rc);
@@ -369,7 +396,15 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
 
       hints.ai_family = atype2safamily(rule->atype);
 
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       rc = cgetaddrinfo(hostname, NULL, &hints, &ai_addr, &ai_addrmem);
+
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
       if (rc != 0) {
          log_resolvefailed(hostname, EXTERNALIF, rc);
@@ -450,18 +485,34 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
 
       set_hints_ai_family(&hints.ai_family);
 
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       rc = cgetaddrinfo(addr->addr.domain,
                         NULL,
                         &hints,
                         &ai_addr,
                         &ai_addrmem);
 
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       if (rc != 0) {
          log_resolvefailed(addr->addr.domain, EXTERNALIF, rc);
          return 0;
       }
 
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       rc = cgetaddrinfo(rule->addr.domain, NULL, &hints, &ai_rule, &ai_rulemem);
+
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
       if (rc != 0) {
          log_resolvefailed(rule->addr.domain, INTERNALIF, rc);
@@ -617,7 +668,15 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
        * to warn about what probably a configuration error somewhere.
        */
 
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       rc = cgetaddrinfo(rule->addr.domain, NULL, &hints, &ai_rule, &ai_rulemem);
+
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
       if (rc != 0) {
          log_resolvefailed(rule->addr.domain, INTERNALIF, rc);
@@ -687,7 +746,15 @@ addrmatch(rule, addr, addrmatched, protocol, alias)
          return 0;
       }
 
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnative("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
+
       rc = cgetaddrinfo(hostname, NULL, &hints, &ai_addr, &ai_addrmem);
+
+#if SOCKSLIBRARY_DYNAMIC
+      socks_markasnormal("*");
+#endif /* SOCKSLIBRARY_DYNAMIC */
 
       if (rc != 0) {
          log_resolvefailed(hostname, EXTERNALIF, rc);

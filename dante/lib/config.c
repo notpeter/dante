@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014
+ *               2011, 2012, 2013, 2014, 2016
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.464.4.2 2014/08/15 18:16:40 karls Exp $";
+"$Id: config.c,v 1.464.4.2.2.3 2017/02/03 06:26:44 michaels Exp $";
 
 void
 genericinit(void)
@@ -1135,7 +1135,7 @@ socks_routesetup(control, data, route, emsg, emsglen)
    const char *function = "socks_routesetup()";
    struct sockaddr_storage controladdr, dataaddr;
    socklen_t len;
-   int control_type, data_type;
+   int control_type, data_type, rc;
 
    if (route->rdr_from.atype == SOCKS_ADDR_NOTSET)
       return 0;
@@ -1203,19 +1203,19 @@ socks_routesetup(control, data, route, emsg, emsglen)
         proxyprotocols2string(&route->gw.state.proxyprotocol, NULL, 0),
         ruleaddr2string(&route->rdr_from, ADDRINFO_PORT, NULL, 0));
 
-   if (control_type == SOCK_DGRAM) { /* only support udp now. */
-      if (socks_rebind(control,
-                       control_type == SOCK_STREAM ? SOCKS_TCP : SOCKS_UDP,
-                       &controladdr,
-                       &route->rdr_from,
-                       emsg,
-                       emsglen) != 0) {
-         snprintf(emsg, emsglen, "socks_rebind() of control-fd %d failed: %s",
-                  control, strerror(errno));
+   rc = socks_rebind(control,
+                     control_type == SOCK_STREAM ? SOCKS_TCP : SOCKS_UDP,
+                     &controladdr,
+                     &route->rdr_from,
+                     emsg,
+                     emsglen);
 
-         swarnx("%s: %s", emsg, function);
-         return -1;
-      }
+   if (rc != 0) {
+      snprintf(emsg, emsglen, "socks_rebind() of control-fd %d failed: %s",
+               control, strerror(errno));
+
+      swarnx("%s: %s", emsg, function);
+      return -1;
    }
 
    if (control == data)
@@ -1450,7 +1450,6 @@ socks_requestpolish(req, src, dst)
    static route_t directroute;
    route_t *route;
    char srcbuf[MAXSOCKSHOSTSTRING], dstbuf[MAXSOCKSHOSTSTRING];
-   int blacklistcleared;
 
    if (sockscf.route == NULL) {
       static route_t directroute;
@@ -1471,7 +1470,6 @@ socks_requestpolish(req, src, dst)
         src == NULL ? "<NONE>" : sockshost2string(src, srcbuf, sizeof(srcbuf)),
         dst == NULL ? "<NONE>" : sockshost2string(dst, dstbuf, sizeof(dstbuf)),
         req->auth->method);
-
 
    directroute.gw.state.proxyprotocol.direct = 1;
 
@@ -1520,37 +1518,13 @@ socks_requestpolish(req, src, dst)
       return &directroute;
    }
 
-   /*
-    * No routes found.  If this may be due to existing routes having
-    * been blacklisted by us due to previous failures, whitelist
-    * them again and retry; better to retry than failing permanently.
-    */
-   blacklistcleared = 0;
-   for (route = sockscf.route; route != NULL; route = route->next) {
-      if (route->state.failed) {
-         socks_clearblacklist(route);
-         ++blacklistcleared;
-      }
-   }
+   slog(LOG_NEGOTIATE,
+        "%s: no route found to handle request %s and direct route fallback "
+        "disabled.  Nothing we can do",
+        function, command2string(req->command));
 
-   if (blacklistcleared) {
-      slog(LOG_INFO,
-           "%s: retrying route search after clearing %d blacklisted route%s",
-           function,
-           blacklistcleared,
-           blacklistcleared == 1 ? "" : "s");
-
-      return socks_requestpolish(req, src, dst);
-   }
-   else {
-      slog(LOG_NEGOTIATE,
-           "%s: no route found to handle request %s and direct route fallback "
-           "disabled.  Nothing we can do.",
-           function, command2string(req->command));
-
-      errno = ENETUNREACH;
-      return NULL;
-   }
+   errno = ENETUNREACH;
+   return NULL;
 }
 
 void
