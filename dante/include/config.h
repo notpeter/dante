@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013
+ *               2011, 2012, 2013, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: config.h,v 1.137 2013/10/27 15:24:41 karls Exp $ */
+/* $Id: config.h,v 1.137.10.3 2020/11/11 16:11:50 karls Exp $ */
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -263,11 +263,36 @@
  */
 
 /* number of entries in cache. */
+#ifndef SOCKD_LDAPCACHE
+#if PRERELEASE
+#define SOCKD_LDAPCACHE            (1)
+#else
 #define SOCKD_LDAPCACHE            (512)
+#endif /* PRERELEASE */
+#endif /* SOCKD_LDAPCACHE */
 
-/* seconds a cache entry is to be considered valid.  Don't set below 1. */
+/*
+ * Seconds a (user) cache entry is to be considered valid.
+ *  Don't set below 1.
+ */
+#ifndef SOCKD_LDAPCACHE_TIMEOUT
+#if PRERELEASE
+#define SOCKD_LDAPCACHE_TIMEOUT    (5)
+#else
 #define SOCKD_LDAPCACHE_TIMEOUT    (60 * 15)
+#endif /* PRERELEASE */
+#endif /* SOCKD_LDAPCACHE_TIMEOUT */
 
+/*
+ * Seconds a (sid) cache entry is to be considered valid.
+ */
+#ifndef SOCKD_LDAP_SID_CACHE_TIMEOUT
+#if PRERELEASE
+#define SOCKD_LDAP_SID_CACHE_TIMEOUT (15)
+#else
+#define SOCKD_LDAP_SID_CACHE_TIMEOUT (24 * 60 * 60)
+#endif /* PRERELEASE */
+#endif /* SOCKD_LDAP_SID_CACHE_TIMEOUT */
 
 /*
  * Name to give as filter and attribute name for ldap server
@@ -280,6 +305,12 @@
  */
 #define DEFAULT_LDAP_FILTER_AD     "(samaccountname=%s)"
 #define DEFAULT_LDAP_ATTRIBUTE_AD  "memberof"
+
+/*
+ * Name to give as filter for user to DN mapping for ldap authentication
+ */
+#define DEFAULT_LDAP_AUTH_FILTER    "(uid=%s)"
+#define DEFAULT_LDAP_AUTH_FILTER_AD "(samaccountname=%s)"
 
 /*
  * Name to give as ca cert file or cert db path

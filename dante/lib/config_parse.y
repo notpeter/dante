@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2019, 2020,
+ *               2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,7 +54,7 @@
 #endif /* !SOCKS_CLIENT */
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.703.4.8.2.8 2017/01/31 08:17:38 karls Exp $";
+"$Id: config_parse.y,v 1.703.4.8.2.8.4.14 2021/02/02 19:34:11 karls Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -295,8 +296,24 @@ static gssapi_enc_t    *gssapiencryption;  /* new encryption status.          */
 #endif /* HAVE_GSSAPI */
 
 #if !SOCKS_CLIENT && HAVE_LDAP
-static ldap_t          *ldap;        /* new ldap server details.              */
+/*
+ * new ldapauthorisation server details.  Used for checking if an already
+ * (GSSAPI) authenticated user is member of the appropriate LDAP group.
+ */
+static ldapauthorisation_t    *ldapauthorisation;
+
+
+/*
+ * new ldapauthorisation auth server details.
+ * Used for doing LDAP-based authentication of a new client.
+ */
+static ldapauthentication_t   *ldapauthentication;
+
 #endif /* SOCKS_SERVER && HAVE_LDAP */
+
+#if !SOCKS_CLIENT && HAVE_PAC
+static char            *b64;        /* new b64 encoded sid.                   */
+#endif /* !SOCKS_CLIENT && HAVE_PAC */
 
 #if DEBUG
 #define YYDEBUG 1
@@ -341,6 +358,10 @@ do {                                                                           \
                yyerrorx_nolib("PAM");                                          \
             break;                                                             \
                                                                                \
+         case AUTHMETHOD_LDAPAUTH:                                             \
+            if (!HAVE_LDAP)                                                    \
+               yyerrorx_nolib("LDAP");                                         \
+            break;                                                             \
       }                                                                        \
                                                                                \
       methodv[(methodc)++] = method;                                           \
@@ -469,8 +490,15 @@ do {                                                                           \
 %type   <string> internal_if_logoption external_if_logoption
 %type   <string> logspecial loglevel errors errorobject
 %type   <string> lserver lgroup lgroup_hex lgroup_hex_all
-%type   <string> lurl ldapssl ldapcertcheck ldapkeeprealm
+%type   <string> ldapurl ldapssl ldapcertcheck ldapkeeprealm
+%type   <string> ldapauthbasedn ldapauthbasedn_hex ldapauthbasedn_hex_all
+%type   <string> ldapauthserver ldapauthkeytab
+%type   <string> ldapauthurl ldapauthdebug ldapauthport
+%type   <string> ldapauthportssl ldapauthssl ldapauthauto ldapauthfilter
+%type   <string> ldapauthcertcheck ldapauthdomain
+%type   <string> ldapauthcertfile ldapauthcertpath
 %type   <string> monitor monitoroption monitoroptions monitorside
+%type   <string> psid psid_b64 psid_off
 %type   <string> redirect
 %type   <string> serveroption serveroptions serverobject serverobjects
 %type   <string> sessionoption crulesessionoption sockssessionoption sessionmax                  sessioninheritable sessionthrottle sessionstate
@@ -515,7 +543,7 @@ do {                                                                           \
                   RFC931 UNAME
 %token   <string> MONITOR
 %token   <number> PROCESSTYPE
-%token   <string> PROC_MAXREQUESTS
+%token   <string> PROC_MAXREQUESTS PROC_MAXLIFETIME
 %token   <string> REALM REALNAME RESOLVEPROTOCOL
 %token   <string> REQUIRED
 %token   <number> SCHEDULEPOLICY
@@ -546,7 +574,7 @@ do {                                                                           \
 %type   <string> fromto hostid_fromto
 %type   <string> hrule hostidoption hostindex hostid
 %type   <string> genericruleoption
-%type   <string> ldapoption libwrap
+%type   <string> ldapoption ldapauthoption libwrap
 %type   <string> log logs logname
 %type   <string> netmask_v4 netmask_v6
 %type   <string> portoperator
@@ -580,13 +608,21 @@ do {                                                                           \
 %token <string> LDAPGROUP_HEX LDAPGROUP_HEX_ALL
 %token <string> LDAPKEYTAB LDAPKEYTABNAME LDAPDEADTIME
 %token <string> LDAPSERVER LDAPSERVER_NAME
+%token <string> LDAPAUTHSERVER LDAPAUTHKEYTAB
 %token <string> LDAPSSL LDAPCERTCHECK LDAPKEEPREALM
 %token <string> LDAPTIMEOUT LDAPCACHE LDAPCACHEPOS LDAPCACHENEG
 %token <string> LDAPURL LDAP_URL
+%token <string> LDAPAUTHBASEDN 
+%token <string> LDAPAUTHBASEDN_HEX LDAPAUTHBASEDN_HEX_ALL
+%token <string> LDAPAUTHURL LDAPAUTHPORT LDAPAUTHPORTSSL
+%token <string> LDAPAUTHDEBUG LDAPAUTHSSL LDAPAUTHAUTO LDAPAUTHCERTCHECK
+%token <string> LDAPAUTHFILTER LDAPAUTHDOMAIN
+%token <string> LDAPAUTHCERTFILE LDAPAUTHCERTPATH
 %token <string> LDAP_FILTER LDAP_ATTRIBUTE LDAP_CERTFILE LDAP_CERTPATH
 %token <string> LIBWRAPSTART LIBWRAP_ALLOW LIBWRAP_DENY LIBWRAP_HOSTS_ACCESS
 %token <string> LINE
 %token <string> OPERATOR
+%token <string> PACSID PACSID_B64 PACSID_FLAG PACSID_NAME
 %token <string> PAMSERVICENAME
 %token <string> PROTOCOL PROTOCOL_TCP PROTOCOL_UDP PROTOCOL_FAKE
 %token <string> PROXYPROTOCOL PROXYPROTOCOL_SOCKS_V4 PROXYPROTOCOL_SOCKS_V5
@@ -1165,7 +1201,16 @@ logoutputdevices:   logoutputdevice
 
 childstate: PROC_MAXREQUESTS ':' NUMBER {
 #if !SOCKS_CLIENT
+
       ASSIGN_NUMBER($3, >=, 0, sockscf.child.maxrequests, 0);
+
+#endif /* !SOCKS_CLIENT */
+   }
+   | PROC_MAXLIFETIME ':' NUMBER {
+#if !SOCKS_CLIENT
+
+      ASSIGN_NUMBER($3, >=, 0, sockscf.child.maxlifetime, 0);
+
 #endif /* !SOCKS_CLIENT */
    }
    ;
@@ -1951,6 +1996,7 @@ sruleoption: bsdauthstylename
    |         command
    |         genericruleoption
    |         ldapoption
+   |         ldapauthoption
    |         protocol
    |         proxyprotocol
    |         sockssessionoption {
@@ -1980,6 +2026,24 @@ genericruleoption:  bandwidth {
    |        libwrap
    |        log
    |        pamservicename
+   |   psid {
+#if !SOCKS_CLIENT
+                     checkmodule("pac");
+#endif /* !SOCKS_CLIENT */
+   }
+   |   psid_b64 {
+#if !SOCKS_CLIENT
+                     checkmodule("pac");
+#endif /* !SOCKS_CLIENT */
+   }
+   |        psid_off {
+
+#if !SOCKS_CLIENT
+
+                     checkmodule("pac");
+
+#endif /* !SOCKS_CLIENT */
+   }
    |        redirect   {
 #if !SOCKS_CLIENT
                      checkmodule("redirect");
@@ -2012,7 +2076,23 @@ genericruleoption:  bandwidth {
    |        user
    ;
 
-
+ldapauthoption: ldapauthserver
+   |            ldapauthkeytab
+   |            ldapauthurl
+   |            ldapauthbasedn
+   |            ldapauthbasedn_hex
+   |            ldapauthbasedn_hex_all
+   |            ldapauthdomain
+   |            ldapauthdebug
+   |            ldapauthport
+   |            ldapauthportssl
+   |            ldapauthssl
+   |            ldapauthauto
+   |            ldapauthfilter
+   |            ldapauthcertcheck
+   |            ldapauthcertfile
+   |            ldapauthcertpath
+   ;
 
 ldapoption: ldapattribute
    |        ldapattribute_ad
@@ -2041,17 +2121,31 @@ ldapoption: ldapattribute
    |        lgroup_hex
    |        lgroup_hex_all
    |        lserver
-   |        lurl
+   |        ldapurl
    ;
 
 
 ldapdebug: LDAPDEBUG ':' NUMBER {
 #if SOCKS_SERVER
 #if HAVE_LDAP && HAVE_OPENLDAP
-      ldap->debug = (int)$3;
+      ldapauthorisation->debug = (int)$3;
    }
    | LDAPDEBUG ':' '-'NUMBER {
-      ldap->debug = (int)-$4;
+      ldapauthorisation->debug = (int)-$4;
+ #else /* !HAVE_LDAP */
+      yyerrorx_nolib("openldap");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthdebug: LDAPAUTHDEBUG ':' NUMBER {
+#if SOCKS_SERVER
+#if HAVE_LDAP && HAVE_OPENLDAP
+      ldapauthentication->debug = (int)$3;
+   }
+   | LDAPAUTHDEBUG ':' '-'NUMBER {
+      ldapauthentication->debug = (int)-$4;
  #else /* !HAVE_LDAP */
       yyerrorx_nolib("openldap");
 #endif /* !HAVE_LDAP */
@@ -2062,9 +2156,23 @@ ldapdebug: LDAPDEBUG ':' NUMBER {
 ldapdomain: LDAPDOMAIN ':' LDAP_DOMAIN {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      STRCPY_CHECKLEN(state->ldap.domain,
+      STRCPY_CHECKLEN(state->ldapauthorisation.domain,
                       $3,
-                      sizeof(state->ldap.domain) - 1,
+                      sizeof(state->ldapauthorisation.domain) - 1,
+                      yyerrorx);
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthdomain: LDAPAUTHDOMAIN ':' LDAP_DOMAIN {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      STRCPY_CHECKLEN(state->ldapauthentication.domain,
+                      $3,
+                      sizeof(state->ldapauthentication.domain) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2076,7 +2184,7 @@ ldapdomain: LDAPDOMAIN ':' LDAP_DOMAIN {
 ldapdepth: LDAPDEPTH ':' NUMBER {
 #if SOCKS_SERVER
 #if HAVE_LDAP && HAVE_OPENLDAP
-      ldap->mdepth = (int)$3;
+      ldapauthorisation->mdepth = (int)$3;
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("openldap");
 #endif /* !HAVE_LDAP */
@@ -2087,9 +2195,23 @@ ldapdepth: LDAPDEPTH ':' NUMBER {
 ldapcertfile: LDAPCERTFILE ':' LDAP_CERTFILE {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      STRCPY_CHECKLEN(state->ldap.certfile,
+      STRCPY_CHECKLEN(state->ldapauthorisation.certfile,
                       $3,
-                      sizeof(state->ldap.certfile) - 1,
+                      sizeof(state->ldapauthorisation.certfile) - 1,
+                      yyerrorx);
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthcertfile: LDAPAUTHCERTFILE ':' LDAP_CERTFILE {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      STRCPY_CHECKLEN(state->ldapauthentication.certfile,
+                      $3,
+                      sizeof(state->ldapauthentication.certfile) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2101,9 +2223,9 @@ ldapcertfile: LDAPCERTFILE ':' LDAP_CERTFILE {
 ldapcertpath: LDAPCERTPATH ':' LDAP_CERTPATH {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      STRCPY_CHECKLEN(state->ldap.certpath,
+      STRCPY_CHECKLEN(state->ldapauthorisation.certpath,
                       $3,
-                      sizeof(state->ldap.certpath) - 1,
+                      sizeof(state->ldapauthorisation.certpath) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2112,10 +2234,76 @@ ldapcertpath: LDAPCERTPATH ':' LDAP_CERTPATH {
    }
    ;
 
-lurl: LDAPURL ':' LDAP_URL {
+ldapauthcertpath: LDAPAUTHCERTPATH ':' LDAP_CERTPATH {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      if (addlinkedname(&state->ldap.ldapurl, $3) == NULL)
+      STRCPY_CHECKLEN(state->ldapauthentication.certpath,
+                      $3,
+                      sizeof(state->ldapauthentication.certpath) - 1,
+                      yyerrorx);
+#else /* !HAVE_LDAP */
+
+      yyerrorx_nolib("LDAP");
+
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapurl: LDAPURL ':' LDAP_URL {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      if (addlinkedname(&state->ldapauthorisation.ldapurl, $3) == NULL)
+         yyerror(NOMEM);
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthurl: LDAPAUTHURL ':' LDAP_URL {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      if (addlinkedname(&state->ldapauthentication.ldapurl, $3) == NULL)
+         yyerror(NOMEM);
+      if (sockscf.state.ldapauthentication.ldapurl == NULL)
+         sockscf.state.ldapauthentication.ldapurl = state->ldapauthentication.ldapurl;
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthbasedn: LDAPAUTHBASEDN ':' LDAP_BASEDN {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      if (addlinkedname(&state->ldapauthentication.ldapbasedn, $3) == NULL)
+         yyerror(NOMEM);
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthbasedn_hex: LDAPAUTHBASEDN_HEX ':' LDAP_BASEDN {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      if (addlinkedname(&state->ldapauthentication.ldapbasedn, hextoutf8($3, 0)) == NULL)
+         yyerror(NOMEM);
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthbasedn_hex_all: LDAPAUTHBASEDN_HEX_ALL ':' LDAP_BASEDN {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      if (addlinkedname(&state->ldapauthentication.ldapbasedn, hextoutf8($3, 1)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2127,7 +2315,7 @@ lurl: LDAPURL ':' LDAP_URL {
 lbasedn: LDAPBASEDN ':' LDAP_BASEDN {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      if (addlinkedname(&state->ldap.ldapbasedn, $3) == NULL)
+      if (addlinkedname(&state->ldapauthorisation.ldapbasedn, $3) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2139,7 +2327,7 @@ lbasedn: LDAPBASEDN ':' LDAP_BASEDN {
 lbasedn_hex: LDAPBASEDN_HEX ':' LDAP_BASEDN {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      if (addlinkedname(&state->ldap.ldapbasedn, hextoutf8($3, 0)) == NULL)
+      if (addlinkedname(&state->ldapauthorisation.ldapbasedn, hextoutf8($3, 0)) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2151,8 +2339,19 @@ lbasedn_hex: LDAPBASEDN_HEX ':' LDAP_BASEDN {
 lbasedn_hex_all: LDAPBASEDN_HEX_ALL ':' LDAP_BASEDN {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      if (addlinkedname(&state->ldap.ldapbasedn, hextoutf8($3, 1)) == NULL)
+      if (addlinkedname(&state->ldapauthorisation.ldapbasedn, hextoutf8($3, 1)) == NULL)
          yyerror(NOMEM);
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthport: LDAPAUTHPORT ':' NUMBER {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+   ldapauthentication->port = (int)$3;
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
@@ -2163,9 +2362,20 @@ lbasedn_hex_all: LDAPBASEDN_HEX_ALL ':' LDAP_BASEDN {
 ldapport: LDAPPORT ':' NUMBER {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-   ldap->port = (int)$3;
+   ldapauthorisation->port = (int)$3;
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthportssl: LDAPAUTHPORTSSL ':' NUMBER {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+   ldapauthentication->portssl = (int)$3;
+#else /* !HAVE_LDAP */
+   yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
 #endif /* SOCKS_SERVER */
    }
@@ -2174,7 +2384,7 @@ ldapport: LDAPPORT ':' NUMBER {
 ldapportssl: LDAPPORTSSL ':' NUMBER {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-   ldap->portssl = (int)$3;
+   ldapauthorisation->portssl = (int)$3;
 #else /* !HAVE_LDAP */
    yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
@@ -2185,10 +2395,24 @@ ldapportssl: LDAPPORTSSL ':' NUMBER {
 ldapssl: LDAPSSL ':' YES {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      ldap->ssl = 1;
+      ldapauthorisation->ssl = 1;
    }
    | LDAPSSL ':' NO {
-      ldap->ssl = 0;
+      ldapauthorisation->ssl = 0;
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthssl: LDAPAUTHSSL ':' YES {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      ldapauthentication->ssl = 1;
+   }
+   | LDAPAUTHSSL ':' NO {
+      ldapauthentication->ssl = 0;
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
@@ -2199,10 +2423,24 @@ ldapssl: LDAPSSL ':' YES {
 ldapauto: LDAPAUTO ':' YES {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      ldap->auto_off = 1;
+      ldapauthorisation->auto_off = 1;
    }
    | LDAPAUTO ':' NO {
-      ldap->auto_off = 0;
+      ldapauthorisation->auto_off = 0;
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthauto: LDAPAUTHAUTO ':' YES {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      ldapauthentication->auto_off = 1;
+   }
+   | LDAPAUTHAUTO ':' NO {
+      ldapauthentication->auto_off = 0;
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
@@ -2213,10 +2451,24 @@ ldapauto: LDAPAUTO ':' YES {
 ldapcertcheck: LDAPCERTCHECK ':'  YES {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      ldap->certcheck = 1;
+      ldapauthorisation->certcheck = 1;
    }
    | LDAPCERTCHECK ':' NO {
-      ldap->certcheck = 0;
+      ldapauthorisation->certcheck = 0;
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthcertcheck: LDAPAUTHCERTCHECK ':'  YES {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      ldapauthentication->certcheck = 1;
+   }
+   | LDAPAUTHCERTCHECK ':' NO {
+      ldapauthentication->certcheck = 0;
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
@@ -2227,10 +2479,10 @@ ldapcertcheck: LDAPCERTCHECK ':'  YES {
 ldapkeeprealm: LDAPKEEPREALM ':'  YES {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      ldap->keeprealm = 1;
+      ldapauthorisation->keeprealm = 1;
    }
    | LDAPKEEPREALM ':' NO {
-      ldap->keeprealm = 0;
+      ldapauthorisation->keeprealm = 0;
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
@@ -2241,7 +2493,18 @@ ldapkeeprealm: LDAPKEEPREALM ':'  YES {
 ldapfilter: LDAPFILTER ':' LDAP_FILTER {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-   STRCPY_CHECKLEN(ldap->filter, $3, sizeof(state->ldap.filter) - 1, yyerrorx);
+   STRCPY_CHECKLEN(ldapauthorisation->filter, $3, sizeof(state->ldapauthorisation.filter) - 1, yyerrorx);
+#else /* !HAVE_LDAP */
+   yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthfilter: LDAPAUTHFILTER ':' LDAP_FILTER {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+   STRCPY_CHECKLEN(ldapauthentication->filter, $3, sizeof(state->ldapauthentication.filter) - 1, yyerrorx);
 #else /* !HAVE_LDAP */
    yyerrorx_nolib("LDAP");
 #endif /* !HAVE_LDAP */
@@ -2252,9 +2515,9 @@ ldapfilter: LDAPFILTER ':' LDAP_FILTER {
 ldapfilter_ad: LDAPFILTER_AD ':' LDAP_FILTER {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      STRCPY_CHECKLEN(ldap->filter_AD,
+      STRCPY_CHECKLEN(ldapauthorisation->filter_AD,
                       $3,
-                      sizeof(state->ldap.filter_AD) - 1,
+                      sizeof(state->ldapauthorisation.filter_AD) - 1,
                       yyerrorx);
 
 #else /* !HAVE_LDAP */
@@ -2267,9 +2530,9 @@ ldapfilter_ad: LDAPFILTER_AD ':' LDAP_FILTER {
 ldapfilter_hex: LDAPFILTER_HEX ':' LDAP_FILTER {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      STRCPY_CHECKUTFLEN(ldap->filter,
+      STRCPY_CHECKUTFLEN(ldapauthorisation->filter,
                           $3,
-                          sizeof(state->ldap.filter) - 1,
+                          sizeof(state->ldapauthorisation.filter) - 1,
                           yyerrorx);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2281,9 +2544,9 @@ ldapfilter_hex: LDAPFILTER_HEX ':' LDAP_FILTER {
 ldapfilter_ad_hex: LDAPFILTER_AD_HEX ':' LDAP_FILTER {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      STRCPY_CHECKUTFLEN(ldap->filter_AD,
+      STRCPY_CHECKUTFLEN(ldapauthorisation->filter_AD,
                         $3,
-                        sizeof(state->ldap.filter_AD) - 1,
+                        sizeof(state->ldapauthorisation.filter_AD) - 1,
                         yyerrorx);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2295,9 +2558,9 @@ ldapfilter_ad_hex: LDAPFILTER_AD_HEX ':' LDAP_FILTER {
 ldapattribute: LDAPATTRIBUTE ':' LDAP_ATTRIBUTE {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      STRCPY_CHECKLEN(ldap->attribute,
+      STRCPY_CHECKLEN(ldapauthorisation->attribute,
                       $3,
-                      sizeof(state->ldap.attribute) - 1,
+                      sizeof(state->ldapauthorisation.attribute) - 1,
                       yyerrorx);
 
 #else /* !HAVE_LDAP */
@@ -2310,9 +2573,9 @@ ldapattribute: LDAPATTRIBUTE ':' LDAP_ATTRIBUTE {
 ldapattribute_ad: LDAPATTRIBUTE_AD ':' LDAP_ATTRIBUTE {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      STRCPY_CHECKLEN(ldap->attribute_AD,
+      STRCPY_CHECKLEN(ldapauthorisation->attribute_AD,
                       $3,
-                      sizeof(state->ldap.attribute_AD) - 1,
+                      sizeof(state->ldapauthorisation.attribute_AD) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2324,9 +2587,9 @@ ldapattribute_ad: LDAPATTRIBUTE_AD ':' LDAP_ATTRIBUTE {
 ldapattribute_hex: LDAPATTRIBUTE_HEX ':' LDAP_ATTRIBUTE {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-   STRCPY_CHECKUTFLEN(ldap->attribute,
+   STRCPY_CHECKUTFLEN(ldapauthorisation->attribute,
                       $3,
-                      sizeof(state->ldap.attribute) -1,
+                      sizeof(state->ldapauthorisation.attribute) -1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
    yyerrorx_nolib("LDAP");
@@ -2338,9 +2601,9 @@ ldapattribute_hex: LDAPATTRIBUTE_HEX ':' LDAP_ATTRIBUTE {
 ldapattribute_ad_hex: LDAPATTRIBUTE_AD_HEX ':' LDAP_ATTRIBUTE {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-   STRCPY_CHECKUTFLEN(ldap->attribute_AD,
+   STRCPY_CHECKUTFLEN(ldapauthorisation->attribute_AD,
                       $3,
-                      sizeof(state->ldap.attribute_AD) - 1,
+                      sizeof(state->ldapauthorisation.attribute_AD) - 1,
                       yyerrorx);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2392,7 +2655,19 @@ lgroup: LDAPGROUP ':' LDAPGROUP_NAME {
 lserver: LDAPSERVER ':' LDAPSERVER_NAME {
 #if SOCKS_SERVER
 #if HAVE_LDAP
-      if (addlinkedname(&rule.ldapserver, $3) == NULL)
+      if (addlinkedname(&state->ldapauthorisation.ldapserver, $3) == NULL)
+         yyerror(NOMEM);
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+ldapauthserver: LDAPAUTHSERVER ':' LDAPSERVER_NAME {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      if (addlinkedname(&state->ldapauthentication.ldapserver, $3) == NULL)
          yyerror(NOMEM);
 #else /* !HAVE_LDAP */
       yyerrorx_nolib("LDAP");
@@ -2404,15 +2679,82 @@ lserver: LDAPSERVER ':' LDAPSERVER_NAME {
 ldapkeytab: LDAPKEYTAB ':' LDAPKEYTABNAME {
 #if HAVE_LDAP
 #if SOCKS_SERVER
-   STRCPY_CHECKLEN(state->ldap.keytab,
+   STRCPY_CHECKLEN(state->ldapauthorisation.keytab,
                    $3,
-                   sizeof(state->ldap.keytab) - 1, yyerrorx);
+                   sizeof(state->ldapauthorisation.keytab) - 1, yyerrorx);
 #else
-   yyerrorx("ldap keytab only applicable to Dante server");
+   yyerrorx("LDAP keytab only applicable to Dante server");
 #endif /* SOCKS_SERVER */
 #else
       yyerrorx_nolib("LDAP");
 #endif /* HAVE_LDAP */
+   }
+   ;
+
+ldapauthkeytab: LDAPAUTHKEYTAB ':' LDAPKEYTABNAME {
+#if HAVE_LDAP
+#if SOCKS_SERVER
+   STRCPY_CHECKLEN(state->ldapauthentication.keytab,
+                   $3,
+                   sizeof(state->ldapauthentication.keytab) - 1, yyerrorx);
+#else
+   yyerrorx("LDAP keytab only applicable to Dante server");
+#endif /* SOCKS_SERVER */
+#else
+      yyerrorx_nolib("LDAP");
+#endif /* HAVE_LDAP */
+   }
+   ;
+
+psid: PACSID ':' PACSID_NAME {
+#if SOCKS_SERVER
+#if HAVE_PAC
+      char b64[MAX_BASE64_LEN];
+
+      checkmodule("pac");
+
+      if (sidtob64($3, b64, sizeof(b64)) != 0)
+         yyerrorx("invalid input: %s)", $3);
+      if (addlinkedname(&rule.objectsids, b64) == NULL)
+         yyerror(NOMEM);
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("PAC");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+psid_b64: PACSID_B64 ':' PACSID_NAME {
+#if SOCKS_SERVER
+#if HAVE_PAC
+      char sid[MAX_BASE64_LEN];
+      checkmodule("pac");
+
+      /* attempt conversion to check if input makes sense */
+      if (b64tosid($3, sid, sizeof(sid)) != 0)
+         yyerrorx("invalid input: %s)", $3);
+      if (addlinkedname(&rule.objectsids, $3) == NULL)
+         yyerror(NOMEM);
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("PAC");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
+psid_off: PACSID_FLAG ':' YES {
+#if SOCKS_SERVER
+#if HAVE_PAC
+      checkmodule("pac");
+      rule.pacoff = 1;
+   }
+   | PACSID_FLAG ':' NO {
+      checkmodule("pac");
+      rule.pacoff = 0;
+#else /* !HAVE_PAC */
+      yyerrorx_nolib("PAC");
+#endif /* !HAVE_PAC */
+#endif /* SOCKS_SERVER */
    }
    ;
 
@@ -3411,7 +3753,8 @@ routeinit(route)
 #endif /* HAVE_GSSAPI */
 
 #if !SOCKS_CLIENT && HAVE_LDAP
-   ldap              = &state->ldap;
+   ldapauthorisation              = &state->ldapauthorisation;
+   ldapauthentication          = &state->ldapauthentication;
 #endif /* !SOCKS_CLIENT && HAVE_LDAP*/
 
    bzero(&src, sizeof(src));
@@ -3762,11 +4105,13 @@ ruleinit(rule)
    rule->linenumber  = yylineno;
 
 #if HAVE_SOCKS_HOSTID
+
    rule->hostindex          = DEFAULT_HOSTINDEX;
    hostindex                = &rule->hostindex;
 
    rule->hostidoption_isset = 0;
    hostidoption_isset       = &rule->hostidoption_isset;
+
 #endif /* HAVE_SOCKS_HOSTID */
 
    state          = &rule->state;
@@ -3785,14 +4130,42 @@ ruleinit(rule)
    *timeout      = sockscf.timeout;
 
 #if HAVE_GSSAPI
+
    gssapiservicename = state->gssapiservicename;
    gssapikeytab      = state->gssapikeytab;
    gssapiencryption  = &state->gssapiencryption;
+
 #endif /* HAVE_GSSAPI */
 
 #if HAVE_LDAP
-   ldap              = &state->ldap;
-#endif
+
+   ldapauthorisation              = &state->ldapauthorisation;
+   ldapauthentication             = &state->ldapauthentication;
+
+   ldapauthorisation->auto_off    = ldapauthentication->auto_off  = -1;
+   ldapauthorisation->certcheck   = ldapauthentication->certcheck = -1;
+
+   ldapauthorisation->debug       = ldapauthentication->debug
+   = LDAP_UNSET_DEBUG_VALUE;
+
+   ldapauthorisation->keeprealm                                   = -1;
+   ldapauthorisation->mdepth                                      = -1;
+   ldapauthorisation->port        = ldapauthentication->port      = -1;
+   ldapauthorisation->portssl     = ldapauthentication->portssl   = -1;
+   ldapauthorisation->ssl         = ldapauthentication->ssl       = -1;
+
+   /*
+    * Rest should be char arrays and NUL already due to bzero(3).
+    */
+
+#endif /* HAVE_LDAP */
+
+#if HAVE_PAC
+
+   rule->objectsids  = NULL;
+   rule->pacoff      = 1;
+
+#endif /* HAVE_PAC */
 
    bzero(&src, sizeof(src));
    bzero(&dst, sizeof(dst));

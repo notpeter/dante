@@ -1,9 +1,5 @@
 /*
- * $Id: LICENSE,v 1.25.4.1.6.3 2021/02/02 19:34:12 karls Exp $
- *
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2007, 2008, 2009, 2010, 2011, 2012, 2012, 2013, 2014, 2016,
- *               2017, 2019, 2020, 2021
+ * Copyright (c) 2014, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,11 +31,78 @@
  *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
- *  Gaustadalleen 23a
- *  NO-0373 Oslo
+ *  Oslo Research Park
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
  */
+
+ /*
+  * This code was contributed by
+  * Markus Moeller (markus_moeller at compuserve.com).
+  */
+
+#if HAVE_KRB5
+
+int
+krb5_err_isset(krb5_context context, char *buf, size_t buflen,
+               krb5_error_code code);
+
+#if HAVE_KRB5_MEMORY_KEYTAB
+typedef struct _krb5_kt_list {
+   struct _krb5_kt_list *next;
+   krb5_keytab_entry *entry;
+} *krb5_kt_list;
+
+krb5_error_code
+krb5_free_kt_list(krb5_context context, krb5_kt_list list);
+/*
+ *  Free a kt_list
+ */
+
+krb5_error_code
+krb5_read_keytab(krb5_context context, char *name, krb5_kt_list *list);
+/*
+ * Read in a keytab and append it to list.  If list starts as NULL,
+ * allocate a new one if necessary.
+ */
+
+krb5_error_code
+krb5_write_keytab(krb5_context context, krb5_kt_list list, char *name);
+/*
+ * Takes a kt_list and writes it to the named keytab.
+ */
+#endif /* HAVE_KRB5_MEMORY_KEYTAB */
+
+#if !HAVE_COM_ERR_IN_KRB5
+#if HAVE_COM_ERR_H
+#include <com_err.h>
+#elif HAVE_ET_COM_ERR_H
+#include <et/com_err.h>
+#endif /* HAVE_ET_COM_ERR_H */
+#endif /* !HAVE_COM_ERR_IN_KRB5 */
+
+#if !HAVE_ERROR_MESSAGE && HAVE_KRB5_GET_ERR_TEXT
+#define error_message(code) krb5_get_err_text(kparam.context, code)
+#elif !HAVE_ERROR_MESSAGE && HAVE_KRB5_GET_ERROR_MESSAGE
+#define error_message(code) krb5_get_error_message(kparam.context, code)
+#elif !HAVE_ERROR_MESSAGE
+   static char err_code[17];
+   const char *KRB5_CALLCONV
+   error_message(long code) {
+      snprintf(err_code, 16, "%ld", code);
+      return err_code;
+   }
+#endif /* !HAVE_ERROR_MESSAGE */
+
+#if HAVE_PAC
+int
+get_sids(unsigned char *sids, krb5_context k5_context, krb5_pac pac,
+             negotiate_state_t *state);
+#endif /* HAVE_PAC */
+
+#endif /* HAVE_KRB5 */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,34 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: gssapi.c,v 1.171.4.14 2014/08/15 18:16:40 karls Exp $";
+"$Id: gssapi.c,v 1.171.4.14.6.5 2020/11/11 17:02:25 karls Exp $";
+
+/*
+ *
+ * All the calls to DNSCODE_{START,END}() here are to work around bugs in
+ * socks_markas{native,normal}(), which was not working correctly in
+ * 1.4.x for some cases.  Since those functions have been considerably
+ * improved and changed in current/1.5.x, it has been deemed less risky
+ * to change the calls to socks_markas{native,normal}() to
+ * DNSCODE_{START,END}() for this release, rather than trying to merge
+ * in changes from 1.5.x.
+ * Fixes the test "-a gssapi td/server_iochurn/" which otherwise failed due
+ * to memory being realloc(3)-ed under our feet by socks_addaddr() being
+ * unexpectedly called after we have called socks_markasnative() to
+ * indicate no interpositioning should be done.
+ */
+#define DNSCODE_START()                                                        \
+do {                                                                           \
+      slog(LOG_DEBUG, "DNSCODE_START: %d",                                     \
+           (int)++sockscf.state.executingdnscode);                             \
+} while (/* CONSTCOND */ 0)
+
+#define DNSCODE_END()                                                          \
+do {                                                                           \
+      slog(LOG_DEBUG, "DNSCODE_END: %d",                                       \
+           (int)--sockscf.state.executingdnscode);                             \
+} while (/* CONSTCOND */ 0)
+
 
 #if HAVE_GSSAPI
 
@@ -123,13 +150,11 @@ gss_err_isset(major_status, minor_status, buf, buflen)
 #endif /* SOCKS_CLIENT */
    size_t w;
 
-   if (!GSS_ERROR(major_status))
+   if (GSS_ERROR(major_status) == 0)
       return 0;
 
-   if (buf == NULL || buflen <= 0)
-      return 0;
-
-   *buf = NUL;
+   if (buflen > 0)
+      *buf = NUL;
 
    msg_ctx = 0;
    do {
@@ -140,15 +165,17 @@ gss_err_isset(major_status, minor_status, buf, buflen)
        */
 
       SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+
       maj_stat = gss_display_status(&min_stat,
                                     major_status,
                                     GSS_C_GSS_CODE,
                                     GSS_C_NULL_OID,
                                     &msg_ctx,
                                     &statstr);
+
       SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
-      if (!GSS_ERROR(maj_stat)) {
+      if (buflen > 0 && GSS_ERROR(maj_stat) != 0) {
          w = snprintf(buf, buflen,
                       "%.*s.  ", (int)statstr.length, (char *)statstr.value);
          buf    += w;
@@ -156,9 +183,12 @@ gss_err_isset(major_status, minor_status, buf, buflen)
       }
 
       SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+
       gss_release_buffer(&min_stat, &statstr);
+
       SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
-   } while (buflen > 1 && msg_ctx != 0 && !GSS_ERROR(maj_stat));
+
+   } while (msg_ctx != 0 && GSS_ERROR(maj_stat) != 0);
 
    msg_ctx = 0;
    do {
@@ -169,15 +199,17 @@ gss_err_isset(major_status, minor_status, buf, buflen)
        */
 
       SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+
       maj_stat = gss_display_status(&min_stat,
                                     minor_status,
                                     GSS_C_MECH_CODE,
                                     GSS_C_NULL_OID,
                                     &msg_ctx,
                                     &statstr);
+
       SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
-      if (!GSS_ERROR(maj_stat)) {
+      if (buflen > 0 && GSS_ERROR(maj_stat) != 0) {
          w = snprintf(buf, buflen,
                       "%.*s.  ", (int)statstr.length, (char *)statstr.value);
          buf    += w;
@@ -185,9 +217,15 @@ gss_err_isset(major_status, minor_status, buf, buflen)
       }
 
       SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+
       gss_release_buffer(&min_stat, &statstr);
+
       SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
-   } while (buflen > 1 && msg_ctx != 0 && !GSS_ERROR(maj_stat));
+
+   } while (msg_ctx != 0 && GSS_ERROR(maj_stat) != 0);
+
+   if (ERRNOISTMP(errno))
+      errno = ENETDOWN; /* at least indicate some error. */
 
    return 1;
 }
@@ -213,10 +251,11 @@ gssapi_encode(input_token, gs, output_token)
         (long unsigned)output_token->length);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-   socks_mark_io_as_native();
+   DNSCODE_START();
 #endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
    SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+
    major_status = gss_wrap(&minor_status,
                            gs->id,
                            gs->protection == GSSAPI_CONFIDENTIALITY ?
@@ -225,10 +264,11 @@ gssapi_encode(input_token, gs, output_token)
                            input_token,
                            &conf_state,
                            &encoded_token);
+
    SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-   socks_mark_io_as_normal();
+   DNSCODE_END();
 #endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
@@ -324,22 +364,17 @@ gssapi_decode(input_token, gs, output_token)
    else
       req_conf_state = GSS_REQ_INT;
 
-#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-   socks_mark_io_as_native();
-#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
-
    SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+
    major_status = gss_unwrap(&minor_status,
                              gs->id,
                              input_token,
                              &decoded_token,
                              &req_conf_state,
                              GSS_C_QOP_DEFAULT);
+
    SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
-#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
-   socks_mark_io_as_normal();
-#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
       slog(GSSERR_IS_OK(major_status) ? LOG_DEBUG
@@ -1204,14 +1239,25 @@ gssapi_export_state(id, state)
    sigset_t oldset;
 #endif /* SOCKS_CLIENT */
 
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+   DNSCODE_START();
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
+
    slog(LOG_DEBUG, "%s", function);
 
    SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+
    major_status = gss_export_sec_context(&minor_status, id, &token);
+
    SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
       swarnx("%s: gss_export_sec_context() failed: %s", function, emsg);
+
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+   DNSCODE_END();
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
+
       return -1;
    }
 
@@ -1225,6 +1271,10 @@ gssapi_export_state(id, state)
 
       SWARNX(0);
 
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+   DNSCODE_START();
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
+
       return -1;
    }
 
@@ -1233,15 +1283,22 @@ gssapi_export_state(id, state)
    state->length = token.length;
 
    SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+
    gss_release_buffer(&minor_status, &token);
+
    SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
    slog(LOG_DEBUG,
-        "%s: created gssapistate of length %lu (start: 0x%x, 0x%x)",
+        "%s: exported gssapistate at %p of length %lu (start: 0x%x, 0x%x)",
         function,
+        state->value,
         (unsigned long)state->length,
         ((unsigned char *)state->value)[0],
         ((unsigned char *)state->value)[1]);
+
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+   DNSCODE_END();
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
    errno = errno_s; /* at least some gssapi libraries change errno. :-/ */
    return 0;
@@ -1260,21 +1317,45 @@ gssapi_import_state(id, state)
    sigset_t oldset;
 #endif /* SOCKS_CLIENT */
 
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+
+   DNSCODE_START();
+
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
+
    slog(LOG_DEBUG,
-        "%s: importing gssapistate of length %lu " "(start: 0x%x, 0x%x)",
+        "%s: importing gssapistate at %p of length %lu " "(start: 0x%x, 0x%x)",
          function,
+         state->value,
          (unsigned long)state->length,
          ((unsigned char *)state->value)[0],
          ((unsigned char *)state->value)[1]);
 
    SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
+
    major_status = gss_import_sec_context(&minor_status, state, id);
+
    SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 
    if (gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
-      swarnx("%s: gss_import_sec_context(): %s", function, emsg);
+      swarnx("%s: gss_import_sec_context() failed: %s", function, emsg);
+
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+
+      DNSCODE_END();
+
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
+
       return -1;
    }
+   else
+      slog(LOG_DEBUG, "%s: gss_import_sec_context() complete", function);
+
+#if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
+
+   DNSCODE_END();
+
+#endif /* SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC */
 
    errno = errno_s; /* at least some gssapi libraries change errno. :-/ */
 

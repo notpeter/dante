@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2019, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "vis_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.416.4.5 2014/08/15 18:12:23 karls Exp $";
+"$Id: util.c,v 1.416.4.5.6.5 2020/11/11 17:02:26 karls Exp $";
 
 const char *
 strcheck(string)
@@ -887,7 +887,7 @@ str2vis(string, len, visstring, vislen)
    char *visstring;
    size_t vislen;
 {
-   const int visflag = VIS_TAB | VIS_NL | VIS_CSTYLE | VIS_OCTAL;
+   const int visflag = VIS_SP | VIS_TAB | VIS_NL | VIS_CSTYLE | VIS_OCTAL;
 
    if (visstring == NULL) {
       SERRX(0); /* should never be used. */
@@ -1278,7 +1278,6 @@ socks_sigunblock(oldset)
       swarn("%s: sigprocmask()", function);
 }
 
-
 int
 socks_msghaserrors(prefix, msg)
    const char *prefix;
@@ -1525,4 +1524,31 @@ closen(d)
    }
 
    return rc;
+}
+
+int
+linkednamesareeq(a, b)
+   const linkedname_t *a;
+   const linkedname_t *b;
+{
+
+   /*
+    * Check that they have the same contents and in the same order.
+    */
+   while (1) {
+      if (a == b)
+         return 1;
+
+      if (a == NULL || b == NULL)
+         return 0;
+
+      if (strcmp(a->name, b->name) != 0)
+         return 0;
+
+      a = a->next;
+      b = b->next;
+   }
+
+   /* NOTREACHED */
+   SERRX(0);
 }

@@ -816,7 +816,7 @@ uninstall-am:
 
 
 #XXX hack used to ensure depcomp is rerun when Makefile.am files are changed
-_reconf: $(top_srcdir)/lib/Makefile.am $(top_srcdir)/dlib/Makefile.am $(top_srcdir)/sockd/Makefile.am
+_reconf: $(top_srcdir)/lib/Makefile.am $(top_srcdir)/dlib/Makefile.am $(top_srcdir)/sockd/Makefile.am $(top_srcdir)/unlicensed/Makefile.am
 	./configure `config.status --config`
 
 #for unit tests, list subdirs for unit testing

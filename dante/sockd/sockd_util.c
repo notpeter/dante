@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: sockd_util.c,v 1.263.4.3 2014/08/15 18:16:44 karls Exp $";
+"$Id: sockd_util.c,v 1.263.4.3.6.2 2020/11/11 16:12:03 karls Exp $";
 
 #include "common.h"
 
@@ -97,6 +97,15 @@ selectmethod(methodv, methodc, offeredv, offeredc)
                                                  AUTHMETHOD_GSSAPI,
 #endif /* HAVE_GSSAPI */
                                             };
+
+#if HAVE_LDAP
+         const unsigned char ldapmethodv[] = {    AUTHMETHOD_UNAME,
+#if HAVE_GSSAPI
+                                                 AUTHMETHOD_GSSAPI,
+#endif /* HAVE_GSSAPI */
+                                            };
+#endif /* HAVE_LDAP */
+
          size_t ii;
 
          /* find the correct array to use for selecting the method. */
@@ -125,6 +134,13 @@ selectmethod(methodv, methodc, offeredv, offeredc)
                methodokc = ELEMENTS(bsdmethodv);
                methodokv = bsdmethodv;
                break;
+
+#if HAVE_LDAP
+            case AUTHMETHOD_LDAPAUTH:
+               methodokc = ELEMENTS(ldapmethodv);
+               methodokv = ldapmethodv;
+               break;
+#endif /* HAVE_LDAP */
 
             default:
                SERRX(methodv[i]);

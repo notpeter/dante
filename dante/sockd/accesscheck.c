@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013
+ *               2009, 2010, 2011, 2012, 2013, 2019, 2020, 2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: accesscheck.c,v 1.89 2013/10/27 15:24:42 karls Exp $";
+"$Id: accesscheck.c,v 1.89.10.13 2021/03/24 23:06:06 karls Exp $";
 
 int
 usermatch(auth, userlist)
@@ -139,37 +139,46 @@ ldapgroupmatch(auth, rule)
    const char *function = "ldapgroupmatch()";
    const linkedname_t *grouplist;
    const char *username;
-   char *userdomain, *groupdomain;
+   char *userdomain;
    int retval;
 
    if ((username = authname(auth)) == NULL)
       return 0; /* no username, no match. */
 
 #if !HAVE_GSSAPI
-   if (!rule->state.ldap.ldapurl)
-      SERRX(rule->state.ldap.ldapurl != NULL);
+
+   if (!rule->state.ldapauthorisation.ldapurl)
+      SERRX(rule->state.ldapauthorisation.ldapurl != NULL);
+
 #endif /* !HAVE_GSSAPI */
 
    if ((userdomain = strchr(username, '@')) != NULL)
       ++userdomain;
 
-   if (userdomain == NULL && *rule->state.ldap.domain == NUL && rule->state.ldap.ldapurl == NULL) {
-      slog(LOG_DEBUG, "%s: cannot check ldap group membership for user %s: "
-                      "user has no domain postfix and no ldap url is defined",
-                      function, username);
+   if (userdomain == NULL && *rule->state.ldapauthorisation.domain == NUL
+   &&  rule->state.ldapauthorisation.ldapurl == NULL) {
+      slog(LOG_WARNING,
+           "%s: cannot check ldap group membership for user %s: username has no "
+           "domain postfix and no ldap.domain value is set",
+           function, username);
+
       return 0;
    }
 
-   if ((retval = ldap_user_is_cached(username)) >= 0)
+   if ((retval = ldap_user_is_cached(username, rule->number)) >= 0)
       return retval;
 
-   /* go through grouplist, matching username against members of each group. */
+   /*
+    * go through grouplist, matching username against members of each group.
+    */
+
    grouplist = rule->ldapgroup;
    do {
+      char *groupdomain;
       char groupname[MAXNAMELEN];
 
       slog(LOG_DEBUG, "%s: checking if user %s is member of ldap group %s",
-                      function, username, grouplist->name);
+           function, username, grouplist->name);
 
       STRCPY_ASSERTLEN(groupname, grouplist->name);
 
@@ -181,24 +190,102 @@ ldapgroupmatch(auth, rule)
       if (groupdomain != NULL && userdomain != NULL) {
          if (strcmp(groupdomain, userdomain) != 0
          &&  strcmp(groupdomain, "") != 0) {
-            slog(LOG_DEBUG, "%s: userdomain \"%s\" does not match groupdomain "
-                            "\"%s\" and groupdomain is not default domain.  "
-                            "Trying next entry",
-                            function, userdomain, groupdomain);
+            slog(LOG_DEBUG,
+                 "%s: userdomain \"%s\" does not match groupdomain "
+                 "\"%s\" and groupdomain is not default domain.  "
+                 "Trying next entry",
+                 function, userdomain, groupdomain);
+
             continue;
          }
       }
 
-      if (ldapgroupmatches(username, userdomain, groupname, groupdomain, rule)){
-         cache_ldap_user(username, 1);
+      if (ldapgroupmatches(auth,
+                           username,
+                           userdomain,
+                           groupname,
+                           groupdomain,
+                           rule)) {
+         cache_ldap_user(username, 1, rule->number);
          return 1;
       }
    } while ((grouplist = grouplist->next) != NULL);
 
-   cache_ldap_user(username, 0);
+   cache_ldap_user(username, 0, rule->number);
    return 0;
 }
+
 #endif /* HAVE_LDAP */
+
+#if HAVE_PAC
+int
+sidmatch(auth, objectsids)
+   const authmethod_t *auth;
+   const linkedname_t *objectsids;
+{
+   const char *function = "sidmatch()";
+   const linkedname_t *grouplist;
+
+   if (authsids(auth) == NULL) {
+      slog(LOG_DEBUG, "%s: no pac sids found", function);
+
+      return 0; /* no username, no match. */
+   }
+
+   /* go through grouplist, matching username against members of each group. */
+   grouplist = objectsids;
+   do {
+      char sids[strlen((const char *)authsids(auth)) + 1];
+      char groupname[MAXNAMELEN];
+      char tsid[MAX_BASE64_LEN];
+      char *token;
+      int convres;
+
+      STRCPY_ASSERTLEN(sids, authsids(auth));
+
+      slog(LOG_DEBUG, "%s: checking if a sid in pac sids %s matches %s",
+           function, sids, grouplist->name);
+
+      STRCPY_ASSERTLEN(groupname, grouplist->name);
+
+      token = strtok(sids, " ");
+      while (token) {
+         if (!strcmp(token, grouplist->name)) {
+            if ((convres = b64tosid(token, tsid, sizeof(tsid))) == 0)
+               slog(LOG_DEBUG, "%s: user sid %s matches group sid %s/%s",
+                    function, token, tsid, grouplist->name);
+            else {
+               slog(LOG_DEBUG, "%s: user sid %s matches group sid %s",
+                    function, token, grouplist->name);
+#if DIAGNOSTIC
+               SERRX(convres);
+#endif /* DEBUG */
+            }
+
+            return 1;
+         }
+
+         token = strtok(NULL, " ");
+      }
+
+      if ((convres = b64tosid(grouplist->name, tsid, sizeof(tsid))) == 0)
+         slog(LOG_DEBUG, "%s: user sids do not match group sid %s/%s",
+              function, tsid, grouplist->name);
+      else {
+         slog(LOG_DEBUG, "%s: user sids do not match group sid %s",
+              function, grouplist->name);
+
+#if DIAGNOSTIC
+         SERRX(convres);
+#endif /* DEBUG */
+      }
+
+   } while ((grouplist = grouplist->next) != NULL);
+
+   slog(LOG_DEBUG, "%s: user sids do not match any group", function);
+   return 0;
+}
+#endif /* HAVE_PAC */
 
 int
 accesscheck(s, auth, src, dst, emsg, emsgsize)
@@ -339,6 +426,73 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
       }
 #endif /* HAVE_BSDAUTH */
 
+#if HAVE_LDAP
+
+      case AUTHMETHOD_LDAPAUTH: {
+
+#if DIAGNOSTIC
+
+         const int freec
+
+         = freedescriptors(sockscf.option.debug ?  "start" : NULL, NULL);
+#endif /* DIAGNOSTIC */
+
+         /*
+          * Temporary workaround in Dante 1.4.x for LDAP library performing
+          * slow systemcalls (e.g. connect(2)) that may get interrupted
+          * if admin sends us e.g. frequent SIGINFO-signals.  The LDAP
+          * library does not retry if e.g. its connect(2) gets interrupted,
+          * so to avoid problems, block our own signals while executing the
+          * ldap-code.  Better workaround expected for Dante 1.5.x.
+          */
+         sigset_t oldmask, newmask;
+         int signalswereblocked;
+
+         sigemptyset(&newmask);
+         sigaddset(&newmask, SIGHUP);
+         sigaddset(&newmask, SIGUSR1);
+
+#if HAVE_SIGNAL_SIGINFO
+
+         sigaddset(&newmask, SIGINFO);
+
+#endif /* HAVE_SIGNAL_SIGINFO */
+
+         if (sigprocmask(SIG_BLOCK, &newmask, &oldmask) == 0)
+            signalswereblocked = 1;
+         else {
+            swarn("%s: sigprocmask(SIG_BLOCK)", function);
+            signalswereblocked = 0;
+         }
+
+         if (ldapauth_passwordcheck(s,
+                                    src,
+                                    dst,
+                                    &auth->mdata.ldap,
+                                    emsg,
+                                    emsgsize) == 0)
+            match = 1;
+
+         if (signalswereblocked)
+            if (sigprocmask(SIG_SETMASK, &oldmask, NULL) != 0)
+               swarn("%s: sigprocmask(SIG_SETMASK)", function);
+
+#if DIAGNOSTIC
+
+         if (freec
+         != freedescriptors(sockscf.option.debug ?  "end" : NULL, NULL))
+            swarnx("%s: lost %d file descriptor%s in ldapauth_passwordcheck()",
+                   function,
+                   freec - freedescriptors(NULL, NULL),
+                   freec - freedescriptors(NULL, NULL) == 1 ? "" : "s");
+
+#endif /* DIAGNOSTIC */
+
+         break;
+      }
+
+#endif /* HAVE_LDAP */
+
       default:
          SERRX(auth->method);
    }
@@ -350,7 +504,9 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
     * "tried", so we don't waste time on re-trying them.
     */
    switch (auth->method) {
+
 #if HAVE_PAM
+
       case AUTHMETHOD_PAM_ANY:
       case AUTHMETHOD_PAM_ADDRESS:
       case AUTHMETHOD_PAM_USERNAME:
@@ -358,26 +514,46 @@ accesscheck(s, auth, src, dst, emsg, emsgsize)
             authresultisfixed = 0;
          else
             authresultisfixed = 1;
+
          break;
+
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
+
    case AUTHMETHOD_BSDAUTH:
          if (sockscf.state.bsdauthstylename == NULL)
             authresultisfixed = 0;
          else
             authresultisfixed = 1;
+
          break;
-#endif /* HAVE_PAM */
+
+#endif /* HAVE_BSDAUTH */
+
+#if HAVE_LDAP
+
+   case AUTHMETHOD_LDAPAUTH:
+         if (sockscf.state.ldapauthentication.ldapurl == NULL)
+            authresultisfixed = 0;
+         else
+            authresultisfixed = 1;
+
+         break;
+
+#endif /* HAVE_LDAP */
 
 #if HAVE_GSSAPI
+
       case AUTHMETHOD_GSSAPI:
          if (*sockscf.state.gssapiservicename == NUL
          ||  *sockscf.state.gssapikeytab      == NUL)
             authresultisfixed = 0;
          else
             authresultisfixed = 1;
+
          break;
+
 #endif /* HAVE_GSSAPI */
 
       case AUTHMETHOD_NONE:

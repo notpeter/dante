@@ -37,10 +37,9 @@ if test x"$LDAP" != xno; then
    AC_CHECK_LIB(resolv, main)
 
    dnl look for ldap headers
-   AC_CHECK_HEADERS(ldap.h lber.h)
+   AC_CHECK_HEADERS(ldap.h)
    AC_CHECK_HEADERS(mozldap/ldap.h)
 
-   AC_CHECK_LIB(lber, main)
    AC_CHECK_LIB(ldap, main)
    if test x"${ac_cv_lib_ldap_main}" != xyes; then
      AC_CHECK_LIB(pthread, main)
@@ -68,10 +67,10 @@ main(void)
 
        return 0;
 }], [unset no_ldap
-   AC_DEFINE(HAVE_LDAP, 1, [LDAP support])
    AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
 
+   unset ldap_openldap
    AC_MSG_CHECKING([for OpenLDAP])
    AC_TRY_RUN([
 #if HAVE_LDAP_H
@@ -85,7 +84,8 @@ main(void)
    return strcmp(LDAP_VENDOR_NAME, "OpenLDAP");
 }
 ], [AC_DEFINE(HAVE_OPENLDAP, 1, [OpenLDAP support])
-   AC_MSG_RESULT(yes)],
+   AC_MSG_RESULT(yes)
+   ldap_openldap=t],
    AC_MSG_RESULT(no))
 
    AC_MSG_CHECKING([for Sun LDAP SDK])
@@ -119,6 +119,14 @@ main(void)
 }], [AC_DEFINE(HAVE_MOZILLA_LDAP_SDK, 1, [Mozilla LDAP SDK support])
    AC_MSG_RESULT(yes)],
    AC_MSG_RESULT(no))
+
+dnl
+dnl Implementation dependent checks
+dnl
+   if test x"${ldap_openldap}" != x; then
+      AC_CHECK_HEADERS(lber.h)
+      AC_CHECK_LIB(lber, main)
+   fi
 
 dnl
 dnl Check for LDAP_REBINDPROC_CALLBACK

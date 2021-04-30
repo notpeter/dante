@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_GSSAPI
 
 static const char rcsid[] =
-   "$Id: method_gssapi.c,v 1.73.4.1 2014/05/08 16:58:53 michaels Exp $";
+   "$Id: method_gssapi.c,v 1.73.4.1.6.4 2020/11/11 17:02:28 karls Exp $";
 
 static negotiate_result_t
 recv_gssapi_auth_ver(int s, request_t *request, negotiate_state_t *state);
@@ -223,6 +223,16 @@ recv_gssapi_auth_token(s, request, state)
    size_t buflen;
    unsigned char buf[GSSAPI_HLEN + MAXGSSAPITOKENLEN];
    char env[sizeof(request->auth->mdata.gssapi.keytab)], emsg[1024];
+#if HAVE_PAC
+   krb5_context          k5_context = NULL;
+   krb5_error_code ret;
+   krb5_pac pac;
+#if HAVE_HEIMDAL_KERBEROS
+   gss_buffer_desc       data_set = GSS_C_EMPTY_BUFFER;
+#else
+   gss_buffer_desc       type_id  = GSS_C_EMPTY_BUFFER;
+#endif /* HAVE_HEIMDAL_KERBEROS */
+#endif /* HAVE_PAC */
 
    INIT(state->gssapitoken_len);
 
@@ -382,6 +392,56 @@ recv_gssapi_auth_token(s, request, state)
       memcpy(request->auth->mdata.gssapi.name, output_token.value,
              output_token.length);
       request->auth->mdata.gssapi.name[output_token.length] = NUL;
+
+#if HAVE_PAC
+      ret = krb5_init_context(&k5_context);
+      if (!krb5_err_isset(k5_context, emsg, sizeof(emsg), ret)) {
+#define ADWIN2KPAC 128
+#if HAVE_HEIMDAL_KERBEROS
+         major_status = gsskrb5_extract_authz_data_from_sec_context(&minor_status,
+                                                                    gss_context,
+                                                                    ADWIN2KPAC,
+                                                                    &data_set);
+         if (!gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
+            ret = krb5_pac_parse(k5_context, data_set.value, data_set.length, &pac);
+            gss_release_buffer(&minor_status, &data_set);
+            if (!check_k5_err(k5_context, "krb5_pac_parse", ret)) {
+               if (get_sids(request->auth->mdata.gssapi.sids, k5_context, pac, state)<0) {
+                  slog(LOG_INFO, "%s: error in getting sids", function);
+	       }
+               krb5_pac_free(k5_context, pac);
+            }
+            krb5_free_context(k5context);
+         } else {
+	    /* Not a major error - maybe not a MS AD setup */
+            snprintf(state->emsg, sizeof(state->emsg),
+                     "%s: gsskrb5_extract_authz_data_from_sec_context(): %s", function, emsg);
+            slog(LOG_INFO, "%s: gsskrb5_extract_authz_data_from_sec_context(): %s", function, emsg);
+         }
+#else /* !HAVE_HEIMDAL_KERBEROS */
+         type_id.value = (void *)"mspac";
+         type_id.length = strlen((char *)type_id.value);
+#define KRB5PACLOGONINFO 1
+         major_status = gss_map_name_to_any(&minor_status, client_name, KRB5PACLOGONINFO, &type_id, (gss_any_t *)&pac);
+         if (!gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))){
+            if (get_sids(request->auth->mdata.gssapi.sids, k5_context, pac, state)<0){
+               slog(LOG_INFO, "%s: error in getting sids", function);
+	    }
+         } else {
+	    /* Not a major error - maybe not a MS AD setup */
+            snprintf(state->emsg, sizeof(state->emsg),
+                     "%s: gss_map_name_to_any(): %s", function, emsg);
+            slog(LOG_INFO, "%s: gss_map_name_to_any(): %s", function, emsg);
+         }
+         (void)gss_release_any_name_mapping(&minor_status, client_name, &type_id, (gss_any_t *)&pac);
+         krb5_free_context(k5_context);
+#endif /* !HAVE_HEIMDAL_KERBEROS */
+   } else {
+      snprintf(state->emsg, sizeof(state->emsg),
+               "%s: krb5_init_context(): %s", function, emsg);
+      slog(LOG_INFO, "%s: krb5_init_context(): %s", function, emsg);
+   }
+#endif /* HAVE_PAC */
 
       CLEAN_GSS_AUTH(client_name, server_name, server_creds);
       CLEAN_GSS_TOKEN(output_token);

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2019,
+ *               2020, 2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +43,7 @@
  *
  */
 
-/* $Id: common.h,v 1.931.4.7.2.8 2017/02/03 14:13:14 karls Exp $ */
+/* $Id: common.h,v 1.931.4.7.2.8.4.20 2021/02/02 19:34:15 karls Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -190,9 +191,18 @@ extern char *__progname;
  * XXX should be max-size of exported state, but we don't know what it is.
  * Is there any way to find out?
  */
-#define MAX_GSS_STATE     (2000)
+#define MAX_GSS_STATE     (4000)
 
 #endif /* HAVE_GSSAPI */
+
+#if HAVE_PAC
+
+#ifdef MAXSIDSLEN
+#undef MAXSIDSLEN
+#endif /* MAXSIDSLEN */
+#define MAXSIDSLEN         (200*60 + 1)      /* assume max 40 sids (groups) */
+
+#endif /* HAVE_PAC */
 
 /* max number of socket options to set on the external side, per rule. */
 #define MAX_EXTERNAL_SOCKETOPTIONS (5)
@@ -1293,7 +1303,10 @@ do {                                                                           \
 #define AUTHMETHOD_BSDAUTH     (AUTHMETHOD_PAM_USERNAME + 1)
 #define AUTHMETHOD_BSDAUTHs    "bsdauth"
 
-#define AUTHMETHOD_MAX         (AUTHMETHOD_BSDAUTH)
+#define AUTHMETHOD_LDAPAUTH         (AUTHMETHOD_BSDAUTH + 1)
+#define AUTHMETHOD_LDAPAUTHs        "ldapauth"
+
+#define AUTHMETHOD_MAX         (AUTHMETHOD_LDAPAUTH)
 
 #define MAXMETHODSTRING      (MAX(sizeof(AUTHMETHOD_NONEs),             \
                               MAX(sizeof(AUTHMETHOD_GSSAPIs),           \
@@ -1302,7 +1315,8 @@ do {                                                                           \
                               MAX(sizeof(AUTHMETHOD_PAM_ANYs),          \
                               MAX(sizeof(AUTHMETHOD_PAM_ADDRESSs),      \
                               MAX(sizeof(AUTHMETHOD_PAM_USERNAMEs),     \
-                              sizeof(AUTHMETHOD_BSDAUTHs)))))))))
+                              MAX(sizeof(AUTHMETHOD_BSDAUTHs),          \
+                              sizeof(AUTHMETHOD_LDAPAUTHs))))))))))
 
 /* number of supported methods. */
 #define METHODS_KNOWN  (  1  /* NONE      */   \
@@ -1310,7 +1324,8 @@ do {                                                                           \
                         + 1  /* UNAME     */   \
                         + 1  /* RFC931    */   \
                         + 1  /* PAM       */   \
-                        + 1) /* BSDAUTH   */
+                        + 1  /* BSDAUTH   */   \
+                        + 1) /* LDAPAUTH  */
 
 #define MAXMETHODS     (255)  /*
                                * max number of methods we can be offered, and
@@ -1461,7 +1476,8 @@ do {                                                                           \
 (ip6)->s6_addr[14],           \
 (ip6)->s6_addr[15]
 
-#define IP6_FMTSTR "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x"
+#define IP6_FMTSTR "%02x%02x:%02x%02x:%02x%02x:%02x%02x"\
+                   "%02x%02x:%02x%02x:%02x%02x:%02x%02x"
 
 #define BINDEXTENSION_IPADDR     (0xffffffff)
 
@@ -1552,6 +1568,64 @@ typedef struct {
    char          facilityname[MAXFACILITYNAMELEN]; /* facilityname.           */
 } logtype_t;
 
+typedef struct linkedname_t {
+   char                  *name;
+   struct linkedname_t   *next;   /* next name in list.                       */
+} linkedname_t;
+
+#if HAVE_LDAP
+
+/*
+ * This struct contains variables used for LDAP authorization.
+ */
+
+typedef struct {
+       linkedname_t *ldapurl;                      /* name of ldap urls.      */
+       linkedname_t *ldapbasedn;                   /* name of ldap basedns.   */
+       linkedname_t *ldapserver;                   /* name of predefined ldap servers.  */
+
+       char         attribute[MAXNAMELEN];
+       char         attribute_AD[MAXNAMELEN];
+       int          auto_off;
+       int          certcheck;
+       char         certfile[MAXNAMELEN];
+       char         certpath[MAXNAMELEN];
+       int          debug;
+       char         domain[MAXNAMELEN];
+       char         filter[MAXNAMELEN];
+       char         filter_AD[MAXNAMELEN];
+       int          keeprealm;
+       char         keytab[MAXNAMELEN];
+       int          mdepth;
+       int          port;
+       int          portssl;
+       int          ssl;
+} ldapauthorisation_t;
+
+/*
+ * This struct contains variables used for LDAP authentication.
+ */
+
+typedef struct {
+       linkedname_t *ldapurl;                      /* name of ldap urls.      */
+       linkedname_t *ldapbasedn;                   /* name of ldap basedns.   */
+       linkedname_t *ldapserver;                   /* name of predefined ldap servers.*/
+
+       int          auto_off;
+       int          certcheck;
+       char         certfile[MAXNAMELEN];
+       char         certpath[MAXNAMELEN];
+       int          debug;
+       char         domain[MAXNAMELEN];
+       char         filter[MAXNAMELEN];
+       char         filter_AD[MAXNAMELEN];
+       char         keytab[MAXNAMELEN];
+       int          port;
+       int          portssl;
+       int          ssl;
+} ldapauthentication_t;
+
+#endif /* HAVE_LDAP */
 
 
 /* extensions supported by us. */
@@ -1602,6 +1676,17 @@ typedef struct {
    unsigned char   password[MAXPWLEN];
 } authmethod_bsd_t;
 
+#if HAVE_LDAP
+
+/* method ldapauth. */
+typedef struct {
+   char                    name[MAXNAMELEN];
+   char                    password[MAXPWLEN];
+   ldapauthentication_t    ldapauthentication;
+} authmethod_ldap_t;
+
+#endif /* HAVE_LDAP */
+
 /* method username */
 typedef struct {
    unsigned char   version;
@@ -1650,6 +1735,9 @@ typedef struct {
        char           servicename[MAXNAMELEN];
        char           keytab[MAXNAMELEN];
        unsigned char  name[MAXNAMELEN];
+#if HAVE_PAC
+       unsigned char  sids[MAXSIDSLEN];
+#endif /* HAVE_PAC */
        gssapi_enc_t   encryption;                  /* encryption details      */
        gssapi_state_t state;                       /* gssapi state details    */
 } authmethod_gssapi_t;
@@ -1688,6 +1776,13 @@ typedef struct {
 #if HAVE_BSDAUTH
       authmethod_bsd_t     bsd;
 #endif /* HAVE_BSDAUTH */
+
+#if HAVE_LDAP
+
+      authmethod_ldap_t    ldap;
+
+#endif /* HAVE_LDAP */
+
    } mdata;
 } authmethod_t;
 
@@ -1936,38 +2031,6 @@ typedef union {
    } upnp;
 } proxystate_t;
 
-typedef struct linkedname_t {
-   char                  *name;
-   struct linkedname_t   *next;   /* next name in list.                       */
-} linkedname_t;
-
-
-#if HAVE_LDAP
-typedef struct {
-       linkedname_t *ldapurl;               /* name of ldap urls.      */
-       linkedname_t *ldapbasedn;            /* name of ldap basedns.   */
-       char         attribute[MAXNAMELEN];
-       char         attribute_AD[MAXNAMELEN];
-       char         certfile[MAXURLLEN];
-       char         certpath[MAXURLLEN];
-       int          debug;
-       int          mdepth;
-       char         domain[MAXNAMELEN];
-       char         filter[MAXNAMELEN];
-       char         filter_AD[MAXNAMELEN];
-       char         keytab[MAXNAMELEN];
-       int          port;
-       int          portssl;
-
-       unsigned char auto_off;
-       unsigned char ssl;
-       unsigned char certcheck;
-       unsigned char keeprealm;
-} ldap_t;
-#endif /* HAVE_LDAP */
-
-
-
 typedef struct {
    command_t        command;
    extension_t      extension;
@@ -1995,7 +2058,20 @@ typedef struct {
 #endif /* HAVE_GSSAPI */
 
 #if HAVE_LDAP
-   ldap_t           ldap;
+   /*
+    * new ldap server details.  Used for checking if an already
+    * authenticated user is member of the appropriate LDAP group.  I.e.,
+    * authorization rather than authentication.
+    */
+   ldapauthorisation_t     ldapauthorisation;
+
+   /*
+    * new ldap auth server details.   Used for performing LDAP-based
+    * authentication of a new client (similar to username auth,
+    * gssapi auth, etc.).  Is independent of the ldap-object above that
+    * is only used for authorization of an already authenticated user.
+    */
+   ldapauthentication_t   ldapauthentication;
 #endif
 
 #if HAVE_LIBMINIUPNP
@@ -2732,6 +2808,17 @@ socks_sendton(int s, const void *buf, size_t len, const size_t minwrite,
  */
 
 int
+linkednamesareeq(const linkedname_t *a, const linkedname_t *b);
+/*
+ * Checks if the contents and order of the linked lists "a" and "b"
+ * is equal.
+ *
+ * Returns true if a and b are equal.
+ * Returns false if a and b are not equal.
+ */
+
+
+int
 closen(int);
 /*
  * Wrapper around close().  Retries on EINTR.
@@ -3001,7 +3088,6 @@ socks_sigunblock(const sigset_t *oldset);
 /*
  * Restores the current signal mask to "oldset".
  */
-
 
 const char *
 strcheck(const char *string);
@@ -4061,6 +4147,16 @@ sys_getnameinfo(HAVE_PROT_GETNAMEINFO_1 sa, HAVE_PROT_GETNAMEINFO_2 salen,
 #if HAVE_GSSAPI
 #include "socks_gssapi.h"
 #endif /* HAVE_GSSAPI */
+
+#if HAVE_KRB5
+
+#if !SOCKS_CLIENT
+
+#include "socks_krb5.h"
+
+#endif /* !SOCKS_CLIENT */
+
+#endif /* HAVE_KRB5 */
 
 void
 slogstack(void);

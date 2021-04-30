@@ -779,3 +779,9 @@ AC_SUBST(NOPRELOAD)
 AC_SUBST(SOFULLPATH)
 
 AC_CONFIG_FILES(bin/socksify)
+
+#look for missing prototypes
+if test x"${ac_cv_func__IO_getc}" = xyes; then
+   AC_CHECK_DECLS([_IO_getc, _IO_putc])
+fi
+AC_CHECK_DECLS([gets])

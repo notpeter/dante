@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014, 2016, 2017
+ *               2011, 2012, 2013, 2014, 2016, 2017, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.107.4.8.2.4 2017/01/31 08:17:38 karls Exp $";
+"$Id: Rgethostbyname.c,v 1.107.4.8.2.4.4.2 2020/11/11 16:11:52 karls Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -560,6 +560,10 @@ Rfreehostent(ptr)
    struct hostent *ptr;
 {
    struct in_addr addr;
+
+   const char *function = "Rfreehostent()";
+
+   slog(LOG_DEBUG, "%s", function);
 
    if (socks_getfakeip(ptr->h_name, &addr)) {
       free(ptr->h_name);

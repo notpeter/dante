@@ -1,6 +1,56 @@
-@(#)$Id: NEWS,v 1.99.4.16.2.18 2017/02/03 14:16:15 karls Exp $
+@(#)$Id: NEWS,v 1.99.4.16.2.18.4.20 2021/04/30 18:56:22 michaels Exp $
 
 (NOTE: The contents of this file is not updated for pre-releases.)
+
+***
+***  Friday, April 30, 2021 -- Dante v1.4.3
+***
+
+ o LDAP module functionality expanded with support for PAC and
+   LDAP based authentication.
+   Developed by Markus Moeller <markus_moeller@compuserve.com.example.com>.
+
+ o Changed child.maxrequests behavior to be an upper limit on requests
+   handled and added child.maxlifetime, which can be used to specify
+   the limit on how long child-processes will receive new requests.
+
+   Fixes customer X request.
+
+ o Added Linux service specification file.
+
+ o Work around an issue where "logoutput: syslog" in the client 
+   could create issues for the application being socksified.
+
+   Fixes customer-SID 1613386077.
+
+ o RHEL8 build fix.
+   Patch and bug report from Alexey Svistunov <svalx@svalx.net.example.com>.
+
+ o Added missing NULL argument check in Raccept().
+   Problem reported by Kosby, Ray B. <ray.b.kosby@gmail.com.example.com>.
+
+ o Fix an error case where the Dante mother process would never
+   terminate a request process that failed handling a client due to 
+   resource shortage, leading the request process to hang around idle
+   forever.
+
+   Will hopefully fix problem reported by ANON.
+
+ o Fix for server crash in builds with preloading disabled (preloading
+   is enabled by default).
+
+ o Fix for MALLOC_OPTIONS related startup warning on OpenBSD.
+
+ o Fix for module related SIOCGIFHWADDR warning in obscure situations.
+
+ o Removal of arbitrary interface limit in getifaddrs() compatibility
+   function.
+
+ o Some minor automated build/test related changes.
+
+ o Minor documentation fixes.
+
+ o Fix for BSD authentication ECHILD error on OpenBSD.
 
 ***
 ***  Monday, February 6, 2017 -- Dante v1.4.2
@@ -33,8 +83,7 @@
    reports and testing.
 
  o Corrected srchost values in examples/sockd.conf.
-   Thanks to Danesh Pajoh, Babak <Babak.DaneshPajoh@gwl.ca.example.com>
-   for bug report.
+   Thanks to ANON for bug report.
 
  o Various build fixes, affecting RHEL 7 and potentially other platforms.
    Thanks to Thomas Petazzoni <thomas.petazzoni@free-electrons.com.example.com>

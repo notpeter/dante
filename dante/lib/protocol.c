@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012,
- *               2013
+ *               2013, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: protocol.c,v 1.88 2013/10/27 15:24:42 karls Exp $";
+"$Id: protocol.c,v 1.88.10.2 2020/11/11 16:11:54 karls Exp $";
 
 unsigned char *
 sockshost2mem(host, mem, version)
@@ -280,6 +280,9 @@ authmethodisknown(method)
       case AUTHMETHOD_PAM_ADDRESS:
       case AUTHMETHOD_PAM_USERNAME:
       case AUTHMETHOD_BSDAUTH:
+#if HAVE_LDAP
+      case AUTHMETHOD_LDAPAUTH:
+#endif /* HAVE_LDAP */
          return 1;
 
       default:

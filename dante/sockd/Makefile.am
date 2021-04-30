@@ -5,22 +5,24 @@ sockd_SOURCES = ../lib/addressmatch.c ../lib/authneg.c ../lib/broken.c	\
    ../lib/fmt.c ../lib/fmt_customer.c ../lib/fmt_protocol.c		\
    ../lib/gssapi.c ../lib/hostcache.c ../lib/hostid.c			\
    ../lib/httpproxy.c ../lib/hw.c ../lib/iface.c ../lib/io.c		\
-   ../lib/iobuf.c ../lib/ipv6.c ../lib/log.c ../lib/method.c		\
-   ../lib/parse_util.c ../lib/protocol.c ../lib/serr.c			\
-   ../lib/showconfig.c ../lib/sockaddr.c ../lib/socket.c		\
-   ../lib/socketopt.c ../lib/sockopt.c ../lib/tcpinfo.c ../lib/time.c	\
-   ../lib/tostring.c ../lib/udp_util.c ../lib/upnp.c ../lib/userio.c	\
-   ../lib/util.c ../libscompat/in_cksum.c				\
+   ../lib/iobuf.c ../lib/ipv6.c ../lib/krb5.c ../lib/log.c		\
+   ../lib/method.c ../lib/parse_util.c ../lib/protocol.c		\
+   ../lib/serr.c ../lib/showconfig.c ../lib/sockaddr.c			\
+   ../lib/socket.c ../lib/socketopt.c ../lib/sockopt.c			\
+   ../lib/tcpinfo.c ../lib/time.c ../lib/tostring.c ../lib/udp_util.c	\
+   ../lib/upnp.c ../lib/userio.c ../lib/util.c				\
+   ../libscompat/in_cksum.c						\
 									\
-   accesscheck.c auth_bsd.c auth_pam.c auth_password.c bandwidth.c      \
-   bandwidth_key.c checkmodule.c cpu.c cpuaffinity.c cpupolicy.c        \
-   dante_udp.c fmt_sockd.c getoutaddr.c ldap.c ldap_key.c ldap_util.c   \
-   math.c method_gssapi.c method_uname.c monitor.c monitor_util.c       \
-   mother_util.c privileges.c redirect.c redirect_key.c rule.c          \
-   serverconfig.c session.c shmem.c shmemconfig.c sockd.c               \
-   sockd_child.c sockd_icmp.c sockd_io.c sockd_io_misc.c                \
-   sockd_negotiate.c sockd_protocol.c sockd_request.c sockd_socket.c    \
-   sockd_tcp.c sockd_udp.c sockd_util.c statistics.c udp_port.c
+   accesscheck.c auth_bsd.c auth_pam.c auth_password.c bandwidth.c	\
+   bandwidth_key.c checkmodule.c cpu.c cpuaffinity.c cpupolicy.c	\
+   dante_udp.c fmt_sockd.c getoutaddr.c ldap.c ldap_key.c ldap_util.c	\
+   math.c method_gssapi.c method_uname.c monitor.c monitor_util.c	\
+   mother_util.c pac.c pac_key.c privileges.c redirect.c		\
+   redirect_key.c rule.c serverconfig.c session.c shmem.c		\
+   shmemconfig.c sockd.c sockd_child.c sockd_icmp.c sockd_io.c		\
+   sockd_io_misc.c sockd_negotiate.c sockd_protocol.c sockd_request.c	\
+   sockd_socket.c sockd_tcp.c sockd_udp.c sockd_util.c statistics.c	\
+   udp_port.c
 
 #libscompat - files common for both client and server
 EXTRA_sockd_SOURCES = ../libscompat/getifaddrs.c        \

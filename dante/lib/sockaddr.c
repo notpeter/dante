@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013, 2014
+ * Copyright (c) 2012, 2013, 2014, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@
 #endif /* HAVE_NET_IF_DL_H */
 
 static const char rcsid[] =
-"$Id: sockaddr.c,v 1.33.4.3 2014/08/15 18:16:41 karls Exp $";
+"$Id: sockaddr.c,v 1.33.4.3.6.2 2020/11/11 16:11:54 karls Exp $";
 
 
 int
@@ -57,6 +57,14 @@ sockaddrareeq(a, b, nocompare)
    const struct sockaddr_storage *b;
    const size_t nocompare;
 {
+   const char *function = "sockaddrareeq()";
+   char astr[MAXSOCKADDRSTRING], bstr[MAXSOCKADDRSTRING];
+
+   if (sockscf.option.debug)
+      slog(LOG_DEBUG, "%s: comparing %s and %s",
+           function,
+           sockaddr2string(a, astr, sizeof(astr)),
+           sockaddr2string(b, bstr, sizeof(bstr)));
 
    if (a->ss_family != b->ss_family)
       return 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012, 2013, 2014
+ * Copyright (c) 2010, 2011, 2012, 2013, 2014, 2019, 2020, 2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: rule.c,v 1.332.4.4.2.3 2017/01/23 21:00:25 karls Exp $";
+"$Id: rule.c,v 1.332.4.4.2.3.4.17 2021/02/27 15:27:17 karls Exp $";
 
 #if HAVE_LIBWRAP
 extern jmp_buf tcpd_buf;
@@ -355,6 +355,9 @@ addlinkedname(linkedname, name)
 {
    linkedname_t *user, *last;
 
+   if (name == NULL)
+      return NULL;
+
    for (user = *linkedname, last = NULL; user != NULL; user = user->next)
       last = user;
 
@@ -550,6 +553,7 @@ showrule(_rule, ruletype)
       SASSERTX(bufused > 0);
       slog(LOG_DEBUG, "%s", buf);
    }
+
    sockd_shmdt(&rule, SHMEM_ALL);
 
    showlist(rule.user, "user: ");
@@ -564,60 +568,146 @@ showrule(_rule, ruletype)
 #endif /* HAVE_BSDAUTH */
 
 #if HAVE_LDAP
-   showlist(rule.ldapgroup, "ldap.group: ");
-   if (rule.ldapgroup) {
-      if (*rule.state.ldap.domain != NUL)
-         slog(LOG_DEBUG, "ldap.domain: %s",rule.state.ldap.domain);
+   /*
+    * Does this rule have specific settings for performing LDAP-based
+    * authentication of the client?
+    */
+   if (rule.state.ldapauthentication.ldapurl != NULL ||
+       rule.state.ldapauthentication.ldapserver != NULL ||
+       rule.state.ldapauthentication.ldapbasedn != NULL ||
+       *rule.state.ldapauthentication.domain != NUL) {
+      /*
+       * Yes.
+       */
+      const ldapauthentication_t *ldapauthentication
+      = &rule.state.ldapauthentication;
 
-      slog(LOG_DEBUG, "ldap.auto.off: %s",
-      rule.state.ldap.auto_off ? "yes" : "no");
-#if HAVE_OPENLDAP
-      slog(LOG_DEBUG, "ldap.debug: %d", rule.state.ldap.debug);
-#endif
-      slog(LOG_DEBUG, "ldap.keeprealm: %s",
-      rule.state.ldap.keeprealm ? "yes" : "no");
+      showlist(ldapauthentication->ldapbasedn, "ldapauth.auth.basedn: ");
 
-      if (*rule.state.ldap.keytab != NUL)
-         slog(LOG_DEBUG, "ldap.keytab: %s", rule.state.ldap.keytab);
+      slog(LOG_DEBUG, "ldapauth.auth.auto.off: %s",
+           ldapauthentication->auto_off ? "yes" : "no");
 
-      if (rule.state.ldap.ldapurl != NULL)
-         slog(LOG_DEBUG, "ldap.url: <value set>");
+      slog(LOG_DEBUG, "ldapauth.auth.debug: %d", ldapauthentication->debug);
 
-      showlist(rule.state.ldap.ldapbasedn, "ldap.basedn: ");
+      if (*ldapauthentication->keytab != NUL)
+         slog(LOG_DEBUG,
+              "ldapauth.auth.keytab: %s", ldapauthentication->keytab);
 
-      if (*rule.state.ldap.filter != NUL)
-         slog(LOG_DEBUG, "ldap.filter: %s", rule.state.ldap.filter);
+      if (ldapauthentication->ldapurl != NULL)
+         slog(LOG_DEBUG,
+              "ldapauth.auth.url: <value set, but not displayed for security reasons "
+              "as it may contain passwords>");
+      else 
+         showlist(ldapauthentication->ldapserver, "ldap.server: ");
 
-      if (*rule.state.ldap.filter_AD != NUL)
-         slog(LOG_DEBUG, "ldap.filter.ad: %s", rule.state.ldap.filter_AD);
+      if (*ldapauthentication->filter != NUL)
+         slog(LOG_DEBUG,
+              "ldapauth.auth.filter: %s", ldapauthentication->filter);
 
-      if (*rule.state.ldap.attribute != NUL)
-         slog(LOG_DEBUG, "ldap.attribute: %s", rule.state.ldap.attribute);
+      if (*ldapauthentication->domain != NUL)
+         slog(LOG_DEBUG,
+              "ldapauth.auth.domain: %s", ldapauthentication->domain);
 
-      if (*rule.state.ldap.attribute_AD != NUL)
-         slog(LOG_DEBUG, "ldap.attribute.ad: %s",
-         rule.state.ldap.attribute_AD);
+      slog(LOG_DEBUG, "ldapauth.auth.port: %d",    ldapauthentication->port);
+      slog(LOG_DEBUG, "ldapauth.auth.portssl: %d", ldapauthentication->portssl);
 
-      slog(LOG_DEBUG, "ldap.mdepth: %d", rule.state.ldap.mdepth);
-      slog(LOG_DEBUG, "ldap.port: %d", rule.state.ldap.port);
-      slog(LOG_DEBUG, "ldap.ssl: %s", rule.state.ldap.ssl ? "yes" : "no");
-      slog(LOG_DEBUG, "ldap.certcheck: %s",
-           rule.state.ldap.certcheck ? "yes" : "no");
+      slog(LOG_DEBUG, "ldapauth.auth.ssl: %s",
+            ldapauthentication->ssl ? "yes" : "no");
 
-      if (*rule.state.ldap.certfile != NUL)
-         slog(LOG_DEBUG, "ldap.certfile: %s", rule.state.ldap.certfile);
+      slog(LOG_DEBUG, "ldapauth.auth.certcheck: %s",
+           ldapauthentication->certcheck ? "yes" : "no");
 
-      if (*rule.state.ldap.certpath != NUL)
-         slog(LOG_DEBUG, "ldap.certpath: %s", rule.state.ldap.certpath);
+      if (*ldapauthentication->certfile != NUL)
+         slog(LOG_DEBUG,
+              "ldapauth.auth.certfile: %s", ldapauthentication->certfile);
+
+      if (*ldapauthentication->certpath != NUL)
+         slog(LOG_DEBUG,
+              "ldapauth.auth.certpath: %s", ldapauthentication->certpath);
    }
+
+   /*
+    * Specific LDAP-based authorization settings set for this rule?
+    */
+   if (rule.ldapgroup != NULL) {
+      /*
+       * Yes.
+       */
+      const ldapauthorisation_t *ldapauthorisation
+      = &rule.state.ldapauthorisation;
+
+      showlist(rule.ldapgroup, "ldap.group: ");
+
+      if (*ldapauthorisation->domain != NUL)
+         slog(LOG_DEBUG, "ldap.domain: %s", ldapauthorisation->domain);
+
+      slog(LOG_DEBUG,
+           "ldap.auto.off: %s", ldapauthorisation->auto_off ? "yes" : "no");
+
+      slog(LOG_DEBUG, "ldap.debug: %d", ldapauthorisation->debug);
+
+      slog(LOG_DEBUG,
+           "ldap.keeprealm: %s", ldapauthorisation->keeprealm ? "yes" : "no");
+
+      if (*ldapauthorisation->keytab != NUL)
+         slog(LOG_DEBUG, "ldap.keytab: %s", ldapauthorisation->keytab);
+
+      if (ldapauthorisation->ldapurl != NULL)
+         slog(LOG_DEBUG,
+              "ldap.url: <value set, but not displayed for security reasons "
+              "as it may contain passwords>");
+      else 
+         showlist(ldapauthorisation->ldapserver, "ldap.server: ");
+
+      showlist(ldapauthorisation->ldapbasedn, "ldap.basedn: ");
+
+      if (*ldapauthorisation->filter != NUL)
+         slog(LOG_DEBUG, "ldap.filter: %s", ldapauthorisation->filter);
+
+      if (*ldapauthorisation->filter_AD != NUL)
+         slog(LOG_DEBUG, "ldap.filter.ad: %s", ldapauthorisation->filter_AD);
+
+      if (*ldapauthorisation->attribute != NUL)
+         slog(LOG_DEBUG, "ldap.attribute: %s", ldapauthorisation->attribute);
+
+      if (*ldapauthorisation->attribute_AD != NUL)
+         slog(LOG_DEBUG,
+              "ldap.attribute.ad: %s", ldapauthorisation->attribute_AD);
+
+      slog(LOG_DEBUG, "ldap.mdepth: %d",  ldapauthorisation->mdepth);
+      slog(LOG_DEBUG, "ldap.port: %d",    ldapauthorisation->port);
+      slog(LOG_DEBUG, "ldap.portssl: %d", ldapauthorisation->portssl);
+
+      slog(LOG_DEBUG, "ldap.ssl: %s", ldapauthorisation->ssl ? "yes" : "no");
+
+      slog(LOG_DEBUG,
+           "ldap.certcheck: %s", ldapauthorisation->certcheck ? "yes" : "no");
+
+      if (*ldapauthorisation->certfile != NUL)
+         slog(LOG_DEBUG, "ldap.certfile: %s", ldapauthorisation->certfile);
+
+      if (*ldapauthorisation->certpath != NUL)
+         slog(LOG_DEBUG, "ldap.certpath: %s", ldapauthorisation->certpath);
+   }
+
 #endif /* HAVE_LDAP */
 
+#if HAVE_PAC
+
+   showlist(rule.objectsids, "pac.sids: ");
+   slog(LOG_DEBUG, "pac.off: %s", rule.pacoff ? "yes" : "no");
+
+#endif /* HAVE_PAC */
+
    showstate(&rule.state);
+
    showlog(&rule.log);
 
 #if HAVE_LIBWRAP
+
    if (*rule.libwrap != NUL)
       slog(LOG_DEBUG, "libwrap: %s", rule.libwrap);
+
 #endif /* HAVE_LIBWRAP */
 }
 
@@ -819,6 +909,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
       size_t methodc;
       int *methodv;
       size_t i;
+      int sidmatched = 0;
 
       slog(LOG_DEBUG,
            "%s: trying to match against %s-rule #%lu, verdict = %s",
@@ -1314,6 +1405,31 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
 
 #if SOCKS_SERVER
+#if HAVE_LDAP
+               case AUTHMETHOD_LDAPAUTH: {
+                  switch (srcauth->method) {
+                     case AUTHMETHOD_UNAME: {
+                        const authmethod_uname_t uname
+                        = srcauth->mdata.uname;
+
+                        STRCPY_ASSERTSIZE(srcauth->mdata.ldap.name,
+                                          uname.name);
+
+                        STRCPY_ASSERTSIZE(srcauth->mdata.ldap.password,
+                                          uname.password);
+
+                        srcauth->mdata.ldap.ldapauthentication
+                        = rule->state.ldapauthentication;
+
+                        methodischeckable = 1;
+                        break;
+                     }
+                  }
+
+                  break;
+               }
+#endif /* HAVE_LDAP */
+
 #if HAVE_GSSAPI
                case AUTHMETHOD_GSSAPI: {
                   /*
@@ -1347,7 +1463,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                   break;
                }
 #endif /* HAVE_GSSAPI */
-#endif /* SOCKS_SERVR */
+#endif /* SOCKS_SERVER */
             }
 
             if (methodischeckable) {
@@ -1422,10 +1538,33 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
          }
       }
 
-#if HAVE_LDAP
+#if HAVE_PAC
       /* rule requires a group, and covers current user? */
-      if (srcauth->method != AUTHMETHOD_NONE && rule->ldapgroup != NULL) {
-         if (!ldapgroupmatch(srcauth, (const rule_t *)rule))  {
+      if (srcauth->method == AUTHMETHOD_GSSAPI && rule->objectsids != NULL) {
+         if (!sidmatch(srcauth, rule->objectsids)) {
+               slog(LOG_DEBUG,
+                    "%s: sids \"%s\" did not match rule #%lu for %s",
+                    function,
+                    authsids(srcauth) == NULL ? "<null>" : authsids(srcauth),
+                    (unsigned long)rule->number,
+                    command2string(state->command));
+
+          sidmatched = 0;
+               continue; /* no match. */
+         }
+         else
+            sidmatched = 1;
+      }
+#endif /* HAVE_PAC */
+
+#if HAVE_LDAP
+
+      /*
+       * rule requires a ldapgroup, and group covers current user?
+       */
+      if (srcauth->method != AUTHMETHOD_NONE && rule->ldapgroup != NULL
+      &&  !sidmatched) {
+         if (!ldapgroupmatch(srcauth, rule))  {
                slog(LOG_DEBUG,
                     "%s: username \"%s\" did not match rule #%lu for %s",
                     function,
@@ -1436,7 +1575,8 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                continue; /* no match. */
          }
       }
-#endif
+
+#endif /* HAVE_LDAP */
 
       /*
        * Ok, all looks good.  Now finally check if the authentication
@@ -1722,10 +1862,19 @@ rulerequires(rule, what)
       case username:
          if (rule->user       != NULL
          ||  rule->group      != NULL
+
 #if HAVE_LDAP
+
          ||  rule->ldapgroup  != NULL
-         ||  rule->ldapsettingsfromuser /* ldap also requires username. */
+         ||  rule->ldapsettingsfromuser /* ldapauthorisation also requires username. */
+
 #endif /* HAVE_LDAP */
+
+#if HAVE_PAC
+
+         ||  rule->objectsids != NULL
+
+#endif /* HAVE_PAC */
          )
             rc = 1;
          else
@@ -2458,16 +2607,21 @@ addrule(newrule, rulebase, ruletype)
     */
 
 #if HAVE_PAM
+
    if (*rule->state.pamservicename == NUL) /* set to default. */
       STRCPY_ASSERTSIZE(rule->state.pamservicename, DEFAULT_PAMSERVICENAME);
+
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
+
    if (*rule->state.bsdauthstylename == NUL) /* set to default. */
       STRCPY_ASSERTSIZE(rule->state.bsdauthstylename, DEFAULT_BSDAUTHSTYLENAME);
+
 #endif /* HAVE_BSDAUTH */
 
 #if HAVE_GSSAPI
+
    if (*rule->state.gssapiservicename == NUL) /* set to default. */
       STRCPY_ASSERTSIZE(rule->state.gssapiservicename,
                        DEFAULT_GSSAPISERVICENAME);
@@ -2490,51 +2644,185 @@ addrule(newrule, rulebase, ruletype)
 #endif /* HAVE_GSSAPI */
 
 #if HAVE_LDAP
-   if (*rule->state.ldap.keytab == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.keytab, DEFAULT_GSSAPIKEYTAB);
+
+   /*
+    * Have LDAP authorization and LDAP authentication.
+    */
+
+   /*
+    * First LDAP authorization:
+    */
+
+   if (*rule->state.ldapauthorisation.attribute == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthorisation.attribute,
+                        sockscf.state.ldapauthorisation.attribute);
    else
       rule->ldapsettingsfromuser = 1;
 
-   if (*rule->state.ldap.filter == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.filter, DEFAULT_LDAP_FILTER);
+   if (*rule->state.ldapauthorisation.attribute_AD == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthorisation.attribute_AD,
+                        sockscf.state.ldapauthorisation.attribute_AD);
    else
       rule->ldapsettingsfromuser = 1;
 
-   if (*rule->state.ldap.filter_AD == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.filter_AD, DEFAULT_LDAP_FILTER_AD);
+   if (rule->state.ldapauthorisation.auto_off == -1)
+      rule->state.ldapauthorisation.auto_off
+      = sockscf.state.ldapauthorisation.auto_off;
    else
       rule->ldapsettingsfromuser = 1;
 
-   if (*rule->state.ldap.attribute == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.attribute, DEFAULT_LDAP_ATTRIBUTE);
+   if (rule->state.ldapauthorisation.certcheck == -1)
+      rule->state.ldapauthorisation.certcheck
+      = sockscf.state.ldapauthorisation.certcheck;
    else
       rule->ldapsettingsfromuser = 1;
 
-   if (*rule->state.ldap.attribute_AD == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.attribute_AD,
-                       DEFAULT_LDAP_ATTRIBUTE_AD);
+   if (*rule->state.ldapauthorisation.certfile == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthorisation.certfile,
+                        sockscf.state.ldapauthorisation.certfile);
    else
       rule->ldapsettingsfromuser = 1;
 
-   if (*rule->state.ldap.certfile == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.certfile, DEFAULT_LDAP_CACERTFILE);
+   if (*rule->state.ldapauthorisation.certpath == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthorisation.certpath,
+                        sockscf.state.ldapauthorisation.certpath);
    else
       rule->ldapsettingsfromuser = 1;
 
-   if (*rule->state.ldap.certpath == NUL) /* set to default. */
-      STRCPY_ASSERTSIZE(rule->state.ldap.certpath, DEFAULT_LDAP_CERTDBPATH);
+   if (rule->state.ldapauthorisation.debug == LDAP_UNSET_DEBUG_VALUE)
+      rule->state.ldapauthorisation.debug
+      = sockscf.state.ldapauthorisation.debug;
    else
       rule->ldapsettingsfromuser = 1;
 
-   if (rule->state.ldap.port == 0) /* set to default */
-      rule->state.ldap.port = SOCKD_EXPLICIT_LDAP_PORT;
+   if (*rule->state.ldapauthorisation.domain == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthorisation.domain,
+                        sockscf.state.ldapauthorisation.domain);
    else
       rule->ldapsettingsfromuser = 1;
 
-   if (rule->state.ldap.portssl == 0) /* set to default */
-      rule->state.ldap.portssl = SOCKD_EXPLICIT_LDAPS_PORT;
+   if (*rule->state.ldapauthorisation.filter == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthorisation.filter,
+                        sockscf.state.ldapauthorisation.filter);
    else
       rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldapauthorisation.filter_AD == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthorisation.filter_AD,
+                        sockscf.state.ldapauthorisation.filter_AD);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthorisation.keeprealm == -1)
+      rule->state.ldapauthorisation.keeprealm
+      = sockscf.state.ldapauthorisation.keeprealm;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldapauthorisation.keytab == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthorisation.keytab,
+                        sockscf.state.ldapauthorisation.keytab);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthorisation.mdepth == -1)
+      rule->state.ldapauthorisation.mdepth
+      = sockscf.state.ldapauthorisation.mdepth;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthorisation.port == -1)
+      rule->state.ldapauthorisation.port
+      = sockscf.state.ldapauthorisation.port;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthorisation.portssl == -1)
+      rule->state.ldapauthorisation.portssl
+      = sockscf.state.ldapauthorisation.portssl;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthorisation.ssl == -1)
+      rule->state.ldapauthorisation.ssl = sockscf.state.ldapauthorisation.ssl;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   /*
+    * ... and now LDAP authentication.
+    */
+
+   if (rule->state.ldapauthentication.auto_off == -1)
+      rule->state.ldapauthentication.auto_off
+      = sockscf.state.ldapauthentication.auto_off;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthentication.certcheck == -1)
+      rule->state.ldapauthentication.certcheck
+      = sockscf.state.ldapauthentication.certcheck;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldapauthentication.certfile == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthentication.certfile,
+                        sockscf.state.ldapauthentication.certfile);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldapauthentication.certpath == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthentication.certpath,
+                        sockscf.state.ldapauthentication.certpath);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthentication.debug == LDAP_UNSET_DEBUG_VALUE)
+      rule->state.ldapauthentication.debug
+      = sockscf.state.ldapauthentication.debug;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldapauthentication.domain == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthentication.domain,
+                        sockscf.state.ldapauthentication.domain);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldapauthentication.filter == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthentication.filter,
+                        sockscf.state.ldapauthentication.filter);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldapauthentication.filter_AD == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthentication.filter_AD,
+                        sockscf.state.ldapauthentication.filter_AD);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (*rule->state.ldapauthentication.keytab == NUL)
+      STRCPY_ASSERTSIZE(rule->state.ldapauthentication.keytab,
+                        sockscf.state.ldapauthentication.keytab);
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthentication.port == -1)
+      rule->state.ldapauthentication.port
+      = sockscf.state.ldapauthentication.port;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthentication.portssl == -1)
+      rule->state.ldapauthentication.portssl
+      = sockscf.state.ldapauthentication.portssl;
+   else
+      rule->ldapsettingsfromuser = 1;
+
+   if (rule->state.ldapauthentication.ssl == -1)
+      rule->state.ldapauthentication.ssl = sockscf.state.ldapauthentication.ssl;
+   else
+      rule->ldapsettingsfromuser = 1;
+
 #endif /* HAVE_LDAP */
 
    if (*rulebase == NULL) {

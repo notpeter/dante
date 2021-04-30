@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014, 2016
+ *               2011, 2012, 2013, 2014, 2016, 2019, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.464.4.2.2.3 2017/02/03 06:26:44 michaels Exp $";
+"$Id: config.c,v 1.464.4.2.2.3.4.11 2020/11/11 17:02:23 karls Exp $";
 
 void
 genericinit(void)
@@ -592,6 +592,7 @@ socks_addroute(newroute, last)
          case AUTHMETHOD_PAM_ANY:
          case AUTHMETHOD_PAM_ADDRESS:
          case AUTHMETHOD_PAM_USERNAME:
+         case AUTHMETHOD_LDAPAUTH:
          case AUTHMETHOD_RFC931:
             yyerrorx("method %s is only valid for ACL rules",
                      method2string(route->gw.state.smethodv[i]));
@@ -971,10 +972,11 @@ socks_getroute(req, src, dst)
                case PROXY_SOCKS_V5:
                   if (req->protocol == SOCKS_TCP)
                      break; /* yes, supported. */
-                  else {
-                     SASSERTX(req->protocol == SOCKS_UDP);
-                     /* and fallthrough.  Not supported. */
-                  }
+
+                  /* Else: not supported. */
+
+                  SASSERTX(req->protocol == SOCKS_UDP);
+                  /* FALLTHROUGH */
 
                case PROXY_HTTP_10:
                case PROXY_HTTP_11:
@@ -1392,10 +1394,11 @@ socks_connectroute(s, packet, src, dst, emsg, emsglen)
               "%s: failed to connect route, but that appears to be due to the "
               "socket (fd %d) having been bound to the loopback interface.  "
               "Assuming this socket should not proxied, but a direct "
-              "connection connection should be made instead",
+              "connection should be made instead",
               function, s);
 
          directroute.gw.state.proxyprotocol.direct = 1;
+         slog(LOG_DEBUG, "%s: XXX, line %d", function, __LINE__);
          return &directroute;
       }
    }
@@ -1535,18 +1538,29 @@ optioninit(void)
     * overridden later by user in the sockd.conf.
     */
 
+#if SOCKS_SERVER && HAVE_LDAP
+
+   ldapauthorisation_t *ldapauthorisation   = &sockscf.state.ldapauthorisation;
+   ldapauthentication_t *ldapauthentication = &sockscf.state.ldapauthentication;
+
+#endif /* SOCKS_SERVER &&HAVE_LDAP */
+
    sockscf.resolveprotocol          = RESOLVEPROTOCOL_UDP;
 
 #if SOCKS_DIRECTROUTE_FALLBACK
+
    if (socks_getenv(ENV_SOCKS_DIRECTROUTE_FALLBACK, isfalse) != NULL)
       sockscf.option.directfallback = 0;
    else
       sockscf.option.directfallback = 1;
+
 #else /* !SOCKS_DIRECTROUTE_FALLBACK */
+
    if (socks_getenv(ENV_SOCKS_DIRECTROUTE_FALLBACK, istrue) != NULL)
       sockscf.option.directfallback = 1;
    else
       sockscf.option.directfallback = 0;
+
 #endif /* SOCKS_DIRECTROUTE_FALLBACK */
 
    sockscf.routeoptions.maxfail   = 1;
@@ -1576,19 +1590,70 @@ optioninit(void)
 #endif /* HAVE_BSDAUTH */
 
 #if HAVE_GSSAPI
-   STRCPY_ASSERTSIZE(sockscf.state.gssapiservicename, DEFAULT_GSSAPISERVICENAME);
-   STRCPY_ASSERTSIZE(sockscf.state.gssapikeytab, DEFAULT_GSSAPIKEYTAB);
+
+   STRCPY_ASSERTSIZE(sockscf.state.gssapiservicename,
+                     DEFAULT_GSSAPISERVICENAME);
+
+   STRCPY_ASSERTSIZE(sockscf.state.gssapikeytab,
+                     DEFAULT_GSSAPIKEYTAB);
+
 #endif /* HAVE_GSSAPI */
 
-#if HAVE_LDAP
-   STRCPY_ASSERTSIZE(sockscf.state.ldapkeytab, DEFAULT_GSSAPIKEYTAB);
-   STRCPY_ASSERTSIZE(sockscf.state.ldapfilter, DEFAULT_LDAP_FILTER);
-   STRCPY_ASSERTSIZE(sockscf.state.ldapfilter_AD, DEFAULT_LDAP_FILTER_AD);
-   STRCPY_ASSERTSIZE(sockscf.state.ldapattribute, DEFAULT_LDAP_ATTRIBUTE);
-   STRCPY_ASSERTSIZE(sockscf.state.ldapattribute_AD, DEFAULT_LDAP_ATTRIBUTE_AD);
-   STRCPY_ASSERTSIZE(sockscf.state.ldapcertfile, DEFAULT_LDAP_CACERTFILE);
-   STRCPY_ASSERTSIZE(sockscf.state.ldapcertpath, DEFAULT_LDAP_CERTDBPATH);
-#endif /* HAVE_LDAP */
+#if SOCKS_SERVER && HAVE_LDAP
+
+   /*
+    * LDAP authorization.
+    */
+
+   STRCPY_ASSERTSIZE(ldapauthorisation->attribute, DEFAULT_LDAP_ATTRIBUTE);
+
+   STRCPY_ASSERTSIZE(ldapauthorisation->attribute_AD,
+                     DEFAULT_LDAP_ATTRIBUTE_AD);
+
+   ldapauthorisation->auto_off                      = 0;
+   ldapauthorisation->certcheck                     = 0;
+
+   STRCPY_ASSERTSIZE(ldapauthorisation->certfile,   DEFAULT_LDAP_CACERTFILE);
+   STRCPY_ASSERTSIZE(ldapauthorisation->certpath,   DEFAULT_LDAP_CERTDBPATH);
+
+   ldapauthorisation->debug                         = 0;
+   *ldapauthorisation->domain                       = NUL;
+
+   STRCPY_ASSERTSIZE(ldapauthorisation->filter,     DEFAULT_LDAP_FILTER);
+   STRCPY_ASSERTSIZE(ldapauthorisation->filter_AD,  DEFAULT_LDAP_FILTER_AD);
+
+   ldapauthorisation->keeprealm                     = 0;
+
+   STRCPY_ASSERTSIZE(ldapauthorisation->keytab,     DEFAULT_GSSAPIKEYTAB);
+
+   ldapauthorisation->mdepth                        = 0;
+   ldapauthorisation->port                          = SOCKD_EXPLICIT_LDAP_PORT;
+   ldapauthorisation->portssl                       = SOCKD_EXPLICIT_LDAPS_PORT;
+   ldapauthorisation->ssl                           = 0;
+
+   /*
+    * LDAP authentication.
+    */
+
+   ldapauthentication->auto_off                     = 0;
+   ldapauthentication->certcheck                    = 1;
+
+   STRCPY_ASSERTSIZE(ldapauthentication->certfile,  DEFAULT_LDAP_CACERTFILE);
+   STRCPY_ASSERTSIZE(ldapauthentication->certpath,  DEFAULT_LDAP_CERTDBPATH);
+
+   ldapauthentication->debug                        = 0;
+   *ldapauthentication->domain                      = NUL;
+
+   *ldapauthentication->filter                      = NUL;
+   *ldapauthentication->filter_AD                   = NUL;
+
+   STRCPY_ASSERTSIZE(ldapauthentication->keytab,    DEFAULT_GSSAPIKEYTAB);
+
+   ldapauthentication->port                         = SOCKD_EXPLICIT_LDAP_PORT;
+   ldapauthentication->portssl                      = SOCKD_EXPLICIT_LDAPS_PORT;
+   ldapauthentication->ssl                          = 1;
+
+#endif /* SOCKS_SERVER && HAVE_LDAP */
 
 #if BAREFOOTD
    /*

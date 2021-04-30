@@ -94,6 +94,9 @@
 /* Disable environment variables */
 #undef HAVE_CONFENV_DISABLE
 
+/* for code coverage */
+#undef HAVE_COVERAGE
+
 /* CPU_EQUAL exists in sched.h */
 #undef HAVE_CPU_EQUAL
 
@@ -118,12 +121,24 @@
 /* format attribute support */
 #undef HAVE_DECL_FORMAT
 
+/* Define to 1 if you have the declaration of `gets', and to 0 if you don't.
+   */
+#undef HAVE_DECL_GETS
+
 /* Define to 1 if you have the declaration of `krb5_kt_free_entry', and to 0
    if you don't. */
 #undef HAVE_DECL_KRB5_KT_FREE_ENTRY
 
 /* __nonnull__ attribute support */
 #undef HAVE_DECL_NONNULL
+
+/* Define to 1 if you have the declaration of `_IO_getc', and to 0 if you
+   don't. */
+#undef HAVE_DECL__IO_GETC
+
+/* Define to 1 if you have the declaration of `_IO_putc', and to 0 if you
+   don't. */
+#undef HAVE_DECL__IO_PUTC
 
 /* DEC workarounds */
 #undef HAVE_DEC_PROTO
@@ -283,6 +298,15 @@
 
 /* Define to 1 if you have the <gssapi.h> header file. */
 #undef HAVE_GSSAPI_H
+
+/* Define to 1 if you have gsskrb5_extract_authz_data_from_sec_context */
+#undef HAVE_GSSKRB5_EXTRACT_AUTHZ_DATA_FROM_SEC_CONTEXT
+
+/* Define to 1 if you have gss_map_name_to_any */
+#undef HAVE_GSS_MAP_ANY_TO_ANY
+
+/* Define to 1 if you have the `gss_map_name_to_any' function. */
+#undef HAVE_GSS_MAP_NAME_TO_ANY
 
 /* Heimdal kerberos implementation */
 #undef HAVE_HEIMDAL_KERBEROS
@@ -632,6 +656,9 @@
 /* IP_TOS socket option */
 #undef HAVE_IP_TOS
 
+/* IP_TRANSPARENT socket option */
+#undef HAVE_IP_TRANSPARENT
+
 /* IP_TTL socket option */
 #undef HAVE_IP_TTL
 
@@ -643,6 +670,12 @@
 
 /* Define to 1 if you have the `issetugid' function. */
 #undef HAVE_ISSETUGID
+
+/* Define to 1 if you have the <kerberosv5/com_err.h> header file. */
+#undef HAVE_KERBEROSV5_COM_ERR_H
+
+/* Define to 1 if you have the <kerberosv5/krb5.h> header file. */
+#undef HAVE_KERBEROSV5_KRB5_H
 
 /* KRB5 support */
 #undef HAVE_KRB5
@@ -661,6 +694,12 @@
 
 /* Define to 1 if you have MEMORY: cache support */
 #undef HAVE_KRB5_MEMORY_CACHE
+
+/* Define to 1 if you have MEMORY: keytab support */
+#undef HAVE_KRB5_MEMORY_KEYTAB
+
+/* Define to 1 if you have krb5_pac */
+#undef HAVE_KRB5_PAC
 
 /* Define to 1 if you have the <lber.h> header file. */
 #undef HAVE_LBER_H
@@ -806,8 +845,14 @@
 /* module checkmodule installed */
 #undef HAVE_MODULE_CHECKMODULE
 
+/* module convert_sid installed */
+#undef HAVE_MODULE_CONVERT_SID
+
 /* module ldap installed */
 #undef HAVE_MODULE_LDAP
+
+/* module pac installed */
+#undef HAVE_MODULE_PAC
 
 /* module redirect installed */
 #undef HAVE_MODULE_REDIRECT
@@ -859,6 +904,9 @@
 
 /* openlog supports LOG_PERROR */
 #undef HAVE_OPENLOG_LOG_PERROR
+
+/* PAC support */
+#undef HAVE_PAC
 
 /* Define to 1 if you have the <paths.h> header file. */
 #undef HAVE_PATHS_H
@@ -3272,6 +3320,18 @@
 
 /* IP_TOS subfield */
 #undef SOCKS_IP_TOS_TOS_NAME
+
+/* IP_TRANSPARENT IPv4 option */
+#undef SOCKS_IP_TRANSPARENT_IPV4
+
+/* IP_TRANSPARENT IPv4 option */
+#undef SOCKS_IP_TRANSPARENT_IPV6
+
+/* IP_TRANSPARENT protocol level */
+#undef SOCKS_IP_TRANSPARENT_LVL
+
+/* IP_TRANSPARENT value */
+#undef SOCKS_IP_TRANSPARENT_NAME
 
 /* IP_TTL IPv4 option */
 #undef SOCKS_IP_TTL_IPV4

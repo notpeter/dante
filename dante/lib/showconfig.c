@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014
+ *               2011, 2012, 2013, 2014, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: showconfig.c,v 1.34.4.3 2014/08/15 18:16:41 karls Exp $";
+"$Id: showconfig.c,v 1.34.4.3.6.2 2020/11/11 16:11:54 karls Exp $";
 
 void
 showtimeout(timeout)
@@ -152,6 +152,14 @@ showconfig(sockscf)
 #if !SOCKS_CLIENT
    slog(LOG_DEBUG, "cmdline options:\n%s",
         options2string(&sockscf->option, "", buf, sizeof(buf)));
+
+   if (sockscf->child.maxrequests != 0)
+      slog(LOG_DEBUG, "max requests for a child to handle: %lu",
+           (unsigned long)sockscf->child.maxrequests);
+
+   if (sockscf->child.maxlifetime != 0)
+      slog(LOG_DEBUG, "max lifetime for a child: %lu seconds",
+           (unsigned long)sockscf->child.maxlifetime);
 
    slog(LOG_DEBUG, "address-families to look for on internal interface: %s",
         interfaceprotocol2string(&sockscf->internal.protocol, NULL, 0));

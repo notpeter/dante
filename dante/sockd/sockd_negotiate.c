@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014, 2016
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2016, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.477.4.5.2.2 2017/01/31 08:17:38 karls Exp $";
+"$Id: sockd_negotiate.c,v 1.477.4.5.2.2.4.2 2020/11/11 16:12:02 karls Exp $";
 
 static sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
 static const size_t negc = ELEMENTS(negv);
@@ -620,9 +620,6 @@ run_negotiate()
                iologaddr_t src;
                char reason[256];
                int takingtoolong = 0, erroriseof = 0;
-
-               if (ERRNOISTMP(io_errno))
-                  continue;
 
                if (negstatus == NEGOTIATE_EOF) {
                   error      = "eof from local client";

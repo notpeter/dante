@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2013
+ * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2013, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@
  *
  */
 
-/* $Id: yacconfig.h,v 1.21 2013/10/27 15:24:41 karls Exp $ */
+/* $Id: yacconfig.h,v 1.21.10.2 2020/11/11 16:11:51 karls Exp $ */
 
 #ifndef _YACCONFIG_H_
 #define _YACCONFIG_H_
@@ -134,11 +134,11 @@ yywarnx(const char *fmt, ...)
 
 void
 yyerror(const char *fmt, ...)
-   __ATTRIBUTE__((FORMAT(printf, 1, 2)));
+   __ATTRIBUTE__((noreturn)) __ATTRIBUTE__((FORMAT(printf, 1, 2)));
 
 void
 yyerrorx(const char *fmt, ...)
-   __ATTRIBUTE__((FORMAT(printf, 1, 2)));
+   __ATTRIBUTE__((noreturn)) __ATTRIBUTE__((FORMAT(printf, 1, 2)));
 
 /*
  * Report an error related to (config file) parsing and exit.

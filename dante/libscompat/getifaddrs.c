@@ -1,4 +1,4 @@
-/* $Id: getifaddrs.c,v 1.38 2013/10/27 15:24:42 karls Exp $ */
+/* $Id: getifaddrs.c,v 1.38.10.2 2020/11/11 16:11:57 karls Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "autoconf.h"
@@ -7,7 +7,7 @@
 #include "osdep.h"
 
 /*
- * Copyright (c) 2012, 2013
+ * Copyright (c) 2012, 2013, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -155,12 +155,14 @@ getifaddrs(struct ifaddrs **ifap)
          prevlen = ifconf.ifc_len;
          cnt *= 2;
 
+#if 0
          if (cnt >= IFCONF_MAXENT) {
             /* too many entries */
             free(buf);
             close(s);
             return -1;
          }
+#endif
       }
    }
 

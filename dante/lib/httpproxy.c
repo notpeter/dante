@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
- *               2012, 2013, 2014
+ *               2012, 2013, 2014, 2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.73.4.2 2014/08/15 18:16:41 karls Exp $";
+"$Id: httpproxy.c,v 1.73.4.2.6.2 2021/02/02 19:34:11 karls Exp $";
 
 int
 httpproxy_negotiate(s, packet, emsg, emsglen)
@@ -197,6 +197,8 @@ httpproxy_negotiate(s, packet, emsg, emsglen)
                   }
 
                   packet->res.version = packet->req.version;
+
+                  /* not really a portnumber, but close enough. */
                   if ((rc = string2portnumber(&bufp[offset], emsg, emsglen))
                   == -1) {
                      swarn("%s: could not find response code in http "
@@ -210,15 +212,13 @@ httpproxy_negotiate(s, packet, emsg, emsglen)
                               "response code %ld from http server indicates "
                               "%s: \"%s\"",
                               (long)rc,
-                              socks_get_responsevalue(&packet->res)
-                                    == HTTP_SUCCESS ? "success" : "failure",
+                              rc == HTTP_SUCCESS ? "success" : "failure",
                               visbuf);
 
                      slog(LOG_DEBUG, "%s: %s", function, emsg);
                   }
 
                   socks_set_responsevalue(&packet->res, (unsigned int)rc);
-
 
                   /*
                    * we have no idea what address the server will use on

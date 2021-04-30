@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009,
- *               2010, 2011, 2012, 2013, 2014
+ *               2010, 2011, 2012, 2013, 2014, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.225.4.9 2014/08/21 16:21:50 michaels Exp $";
+"$Id: tostring.c,v 1.225.4.9.6.2 2020/11/11 16:11:54 karls Exp $";
 
 static const char *stripstring = ", \t\n";
 
@@ -655,6 +655,9 @@ method2string(method)
       case AUTHMETHOD_BSDAUTH:
          return QUOTE(AUTHMETHOD_BSDAUTHs);
 
+      case AUTHMETHOD_LDAPAUTH:
+         return QUOTE(AUTHMETHOD_LDAPAUTHs);
+
       default:
          return "<unknown>";
    }
@@ -736,7 +739,8 @@ string2method(methodname)
       { AUTHMETHOD_PAM_ANYs,      AUTHMETHOD_PAM_ANY      },
       { AUTHMETHOD_PAM_ADDRESSs,  AUTHMETHOD_PAM_ADDRESS  },
       { AUTHMETHOD_PAM_USERNAMEs, AUTHMETHOD_PAM_USERNAME },
-      { AUTHMETHOD_BSDAUTHs,      AUTHMETHOD_BSDAUTH      }
+      { AUTHMETHOD_BSDAUTHs,      AUTHMETHOD_BSDAUTH      },
+      { AUTHMETHOD_LDAPAUTHs,     AUTHMETHOD_LDAPAUTH     }
    };
    size_t i;
 

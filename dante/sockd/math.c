@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013
+ * Copyright (c) 2012, 2013, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: math.c,v 1.16 2013/10/27 15:24:42 karls Exp $";
+"$Id: math.c,v 1.16.10.2 2020/11/11 16:11:59 karls Exp $";
 
 #include <math.h>
 
@@ -97,7 +97,7 @@ stddevtv(struct timeval *tvarr, size_t tvsize, unsigned long avg)
 
    /* get the squared sum of differences from the mean */
    for (i = 0, diffsum = 0; i < tvsize; ++i) {
-      const unsigned long long diff = labs(tv2us(&tvarr[i]) - avg);
+      const unsigned long long diff = tv2us(&tvarr[i]) - avg;
 
       diffsum += diff * diff;
    }

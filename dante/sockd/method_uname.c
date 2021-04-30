@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014
+ *               2011, 2012, 2013, 2014, 2019, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method_uname.c,v 1.114.4.2 2014/08/15 18:16:42 karls Exp $";
+"$Id: method_uname.c,v 1.114.4.2.6.6 2020/11/11 17:02:28 karls Exp $";
 
 static negotiate_result_t
 recv_unamever(int s, request_t *request, negotiate_state_t *state);
@@ -103,6 +103,12 @@ passworddbisunique(void)
          rc = 0;
       else
 #endif /* HAVE_BSDAUTH */
+
+#if HAVE_LDAP
+     if (methodisset(AUTHMETHOD_LDAPAUTH, sockscf.smethodv, sockscf.smethodc))
+         rc = 0;
+      else
+#endif /* HAVE_LDAP */
          rc = AUTHMETHOD_UNAME;
    }
 
@@ -122,6 +128,12 @@ passworddbisunique(void)
                            sockscf.smethodc))
          rc = 0;
 #endif /* HAVE_BSDAUTH */
+#if HAVE_LDAP
+      else if (methodisset(AUTHMETHOD_LDAPAUTH,
+                           sockscf.smethodv,
+                           sockscf.smethodc))
+         rc = 0;
+#endif /* HAVE_LDAP */
       else
          rc = AUTHMETHOD_PAM_USERNAME;
    }
@@ -140,13 +152,46 @@ passworddbisunique(void)
 #if HAVE_PAM
          else if (methodisset(AUTHMETHOD_PAM_USERNAME,
                               sockscf.smethodv,
-                              sockscf.smethodc)) {
+                              sockscf.smethodc))
          rc = 0;
 #endif /* HAVE_PAM */
+#if HAVE_LDAP
+         else if (methodisset(AUTHMETHOD_LDAPAUTH,
+                              sockscf.smethodv,
+                              sockscf.smethodc))
+         rc = 0;
+#endif /* HAVE_LDAP */
       else
          rc = AUTHMETHOD_BSDAUTH;
    }
 #endif /* HAVE_BSDAUTH */
+
+#if HAVE_LDAP
+   else if (methodisset(AUTHMETHOD_LDAPAUTH,
+                        sockscf.smethodv,
+                        sockscf.smethodc)) {
+      if (sockscf.state.ldapauthentication.ldapurl == NULL)
+        rc = 0;
+      else if (methodisset(AUTHMETHOD_UNAME,
+                           sockscf.smethodv,
+                           sockscf.smethodc))
+         rc = 0;
+#if HAVE_PAM
+      else if (methodisset(AUTHMETHOD_PAM_USERNAME,
+                              sockscf.smethodv,
+                              sockscf.smethodc))
+         rc = 0;
+#endif /* HAVE_PAM */
+#if HAVE_BSDAUTH
+      else if (methodisset(AUTHMETHOD_BSDAUTH,
+                              sockscf.smethodv,
+                              sockscf.smethodc))
+         rc = 0;
+#endif /* HAVE_BSDAUTH */
+      else
+         rc = AUTHMETHOD_LDAPAUTH;
+   }
+#endif /* HAVE_LDAP */
    else {
       slog(LOG_DEBUG, "%s: no password-based methods configured", function);
       rc = 0;
@@ -334,6 +379,32 @@ recv_passwd(s, request, state)
          break;
       }
 #endif /* HAVE_BSDAUTH */
+
+#if HAVE_LDAP
+      case AUTHMETHOD_LDAPAUTH: {
+         /*
+          * it's a union, make a copy before moving into ldap object.
+          */
+         const authmethod_uname_t uname = request->auth->mdata.uname;
+
+         request->auth->method = AUTHMETHOD_LDAPAUTH;
+
+         STRCPY_ASSERTSIZE(request->auth->mdata.ldap.name,
+                           uname.name);
+
+         STRCPY_ASSERTSIZE(request->auth->mdata.ldap.password,
+                           uname.password);
+
+         /*
+          * Use global LDAP settigs until we know what socks-rule
+          * the request will match.
+          */
+         request->auth->mdata.ldap.ldapauthentication
+         = sockscf.state.ldapauthentication;
+
+         break;
+      }
+#endif /* HAVE_LDAP */
 
       case AUTHMETHOD_UNAME:
          break;

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2019,
+ *               2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +47,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.849.4.15.2.4 2017/01/31 08:17:39 karls Exp $";
+"$Id: sockd_request.c,v 1.849.4.15.2.4.4.6 2020/11/11 17:02:31 karls Exp $";
 
 /*
  * XXX Should fix things so this process too can support multiple clients.
@@ -158,13 +159,17 @@ reqhostisok(sockshost_t *host, const int cmd, char *emsg,
  * contain the reason.
  */
 
-static void
+static int
 flushio(int mother, sockd_io_t *io);
 /*
  * "flushes" a complete io object and free's any state/resources held by it.
  * Also iolog()s that the session was accepted.
  * "mother" is connection to mother for sending the io.
  * "io" is the io object to send to mother.
+ *
+ * Returns 0 if the i/o object was forwarded successfully.
+ * Returns -1 if the i/o object was not forwarded.
+ *
  */
 
 static void
@@ -236,7 +241,6 @@ io_find(sockd_io_t *iolist, const struct sockaddr_storage *addr);
  *      On failure: NULL.
  */
 #endif /* SOCKS_SERVER */
-
 
 void
 run_request()
@@ -317,15 +321,9 @@ run_request()
       }
 
       if (FD_ISSET(sockscf.state.mother.s, rset)) {
-         if (recv_req(sockscf.state.mother.s, &req) == -1) {
-            slog(LOG_INFO, "%s: recv_req() from mother failed: %s",
+         if (recv_req(sockscf.state.mother.s, &req) == -1)
+            serr("%s: failed reading new request from mother: %s",
                  function, strerror(errno));
-
-             close(sockscf.state.mother.s);
-             sockscf.state.mother.s = -1;
-
-             continue;
-          }
       }
 
       iostatus = dorequest(&sockscf.state.mother,
@@ -451,7 +449,6 @@ run_request()
             slog(sockd_motherexists() ? LOG_WARNING : LOG_DEBUG,
                  "%s: sending ack to mother failed: %s",
                  function, strerror(errno));
-
 
          /*
           * dorequest() logs the failed socks-level session close with
@@ -1772,8 +1769,40 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
       if (io.state.proxychain.proxyprotocol != PROXY_DIRECT) {
          socklen_t sinlen;
 
+         /*
+          * In case a redirect statement in the route changed laddr.
+          */
+         sinlen = sizeof(io.dst.laddr);
+         if (getsockname(io.dst.s, TOSA(&io.dst.laddr), &sinlen) != 0) {
+            slog(LOG_DEBUG,
+                 "%s: strange ... serverchain() succeeded, but now "
+                 "getsockname(2) failed: %s",
+                 function, strerror(errno));
+
+            if (io.srule.log.error) {
+               msglen = snprintf(emsg, emsglen,
+                                 "getsockname(io.dst.s) failed: %s",
+                                 strerror(errno));
+
+               iolog(&io.srule,
+                     &io.state,
+                     OPERATION_ERROR,
+                     src,
+                     dst,
+                     NULL,
+                     NULL,
+                     emsg,
+                     msglen);
+            }
+
+            *weclosedfirst = 0;
+
+            close_iodescriptors(&io);
+
+            return IO_ERROR;
+         }
+
          io.src.state.isconnected = 1;
-         io.dst.state.isconnected = 1;
 
          sinlen = sizeof(io.dst.raddr);
          if (getpeername(io.dst.s, TOSA(&io.dst.raddr), &sinlen) != 0) {
@@ -1805,6 +1834,8 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
             return IO_ERROR;
          }
 
+         io.dst.state.isconnected = 1;
+
          setconfsockoptions(io.dst.s,
                             request->s,
                             io.state.protocol,
@@ -1824,9 +1855,10 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
          io.reqinfo.command = (io.state.protocol == SOCKS_TCP ?
                                  SOCKD_FREESLOT_TCP : SOCKD_FREESLOT_UDP);
 
-         flushio(mother->s, &io);
-
-         return IO_NOERROR;
+         if (flushio(mother->s, &io) == 0)
+            return IO_NOERROR;
+         else
+            return IO_ERROR;
       }
       /* else: go direct.  */
    }
@@ -2204,7 +2236,8 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                      if ((rc = send_response(sv[client], &queryresponse)) == 0){
                         if (fio != NULL) {
                            fio->reqinfo.command = SOCKD_NOP;
-                           flushio(mother->s, fio);
+                           if (flushio(mother->s, fio) != 0)
+                              return IO_ERROR;
 
                            emfile = MAX(0, emfile - 3); /* flushio() closes 3 */
                            iolist = io_remove(iolist, fio);
@@ -2701,7 +2734,8 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                   = (bindio.state.protocol == SOCKS_TCP ?
                                        SOCKD_FREESLOT_TCP : SOCKD_FREESLOT_UDP);
 
-                  flushio(mother->s, &bindio);
+                  if (flushio(mother->s, &bindio) != 0)
+                     return IO_ERROR;
                }
 
                /* flushio() closes these, not closev(). */
@@ -2819,7 +2853,8 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
             io.reqinfo.command = (io.state.protocol == SOCKS_TCP ?
                                        SOCKD_FREESLOT_TCP : SOCKD_FREESLOT_UDP);
 
-            flushio(mother->s, &io);
+            if (flushio(mother->s, &io) != 0)
+               return IO_ERROR;
          }
 
          break;
@@ -3129,7 +3164,8 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
          if (send_response(request->s, &response) == 0) {
             io.reqinfo.command = (io.state.protocol == SOCKS_TCP ?
                                        SOCKD_FREESLOT_TCP : SOCKD_FREESLOT_UDP);
-            flushio(mother->s, &io);
+            if (flushio(mother->s, &io) != 0)
+               return IO_ERROR;
          }
          else {
             close_iodescriptors(&io);
@@ -3214,7 +3250,7 @@ reqhostisok(host, cmd, emsg, emsglen)
          &&  host->addr.ipv4.s_addr == htonl(BINDEXTENSION_IPADDR))
             break;
 
-         /* FALLTHROUGH to SOCKS_CONNECT */
+         /* FALLTHROUGH */
 
       case SOCKS_CONNECT:
          if (host->atype == SOCKS_ADDR_IPV4
@@ -3406,7 +3442,7 @@ reqhostisok(host, cmd, emsg, emsglen)
 }
 
 
-static void
+static int
 flushio(mother, io)
    int mother;
    sockd_io_t *io;
@@ -3633,9 +3669,13 @@ flushio(mother, io)
             io->state.proxychain.proxyprotocol == PROXY_DIRECT ? NULL : &proxy,
             NULL,
             0);
+
+      close_iodescriptors(io);
+      return -1;
    }
 
    close_iodescriptors(io);
+   return 0;
 }
 
 static void
@@ -3859,23 +3899,12 @@ serverchain(targetsocket, clientsocket, client, req,
    if ((flags = setblocking(targetsocket, "server-chaining")) == -1)
       return -1;
 
-   /*
-    * Normally not bothering to allocate a iobuffer for target
-    * socket in this process, but if serverchaining, we need to,
-    * for gssapi.
-    */
-   SASSERTX(socks_getbuffer(targetsocket) == NULL);
-
-   socks_allocbuffer(targetsocket, SOCK_STREAM);
-
    rc = socks_negotiate(targetsocket,
                         targetsocket,
                         &packet,
                         route,
                         emsg,
                         emsglen);
-
-   socks_freebuffer(targetsocket);
 
    if (fcntl(targetsocket, F_SETFL, flags) == -1)
       swarn("%s: fcntl(2) failed to restore flags on fd %d to %d",

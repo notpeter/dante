@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012,
- *               2013, 2014
+ *               2013, 2014, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,7 +54,7 @@
 #include <dlfcn.h>
 
 static const char rcsid[] =
-"$Id: address.c,v 1.288.4.4 2014/08/15 18:16:40 karls Exp $";
+"$Id: address.c,v 1.288.4.4.6.4 2020/11/11 17:02:23 karls Exp $";
 
 /*
  * During init, we need to let all system calls resolve to the native
@@ -185,6 +185,11 @@ socks_addaddr(clientfd, socksfd, takelock)
       size_t i;
 #endif /* HAVE_GSSAPI */
 
+      slog(LOG_DEBUG,
+           "%s: realloc(3)-ing socksfdv array.  Increasing length from "
+           "%d to %d",
+           function, (int)socksfdc, (int)dc);
+
       if (socksfdinit.control == 0) { /* not initialized */
          socksfdinit.control = -1;
          /* other members have ok default value. */
@@ -206,24 +211,27 @@ socks_addaddr(clientfd, socksfd, takelock)
       }
 #endif /* HAVE_GSSAPI */
 
-      /* init new objects */
+      /* init new unallocated objects */
       while (socksfdc < dc)
          socksfdv[socksfdc++] = socksfdinit;
    }
 
    /*
-    * One one machine gcc 4.1.2 expands the below to a memcpy() call with
+    * On one machine gcc 4.1.2 expands the below to a memcpy() call with
     * overlapping destinations, according to valgrind:
     *    socksfdv[clientfd]           = *socksfd;
     *
-    * Obviously a gcc bug, but what can we do ... :-/
+    * Presumably a gcc bug, but what can we do ... :-/
     */
    memmove(&socksfdv[clientfd], socksfd, sizeof(*socksfd));
 
 #if HAVE_GSSAPI
+
    socksfdv[clientfd].state.gssapistate.value
    = socksfdv[clientfd].state.gssapistatemem;
+
 #endif
+
    socksfdv[clientfd].allocated = 1;
 
    if (takelock)
@@ -271,22 +279,38 @@ socks_getaddr(d, socksfd, takelock)
       sfd = &socksfdv[d];
 
 #if HAVE_GSSAPI
-      if (sfd->state.gssimportneeded && !sockscf.state.insignal) {
-         slog(LOG_DEBUG, "%s: importing gssapistate for fd %d", function, d);
+      if (sfd->state.gssimportneeded) {
+         if (sockscf.state.insignal) {
+            char buf[32];
+            const char *msgv[] =
+            { function,
+              ": ",
+              "not importing gssapistate for fd ",
+              ltoa((long)d, buf, sizeof(buf)),
+              NULL
+            };
 
-         if (gssapi_import_state(&sfd->state.auth.mdata.gssapi.state.id,
-                                 &sfd->state.gssapistate) != 0) {
-            swarnx("%s: failed to import gssapi context of length %lu, fd %d",
-                   function, (unsigned long)sfd->state.gssapistate.length, d);
-
-            socks_rmaddr(d, 0);
-            sfd = NULL;
+            signalslog(LOG_DEBUG, msgv);
          }
          else {
-            sfd->state.gssimportneeded = 0;
-            slog(LOG_DEBUG,
-                 "%s: imported gssapistate for fd %d using ctxid %ld",
-                 function, d, (long)sfd->state.auth.mdata.gssapi.state.id);
+            slog(LOG_DEBUG, "%s: importing gssapistate for fd %d", function, d);
+
+            if (gssapi_import_state(&sfd->state.auth.mdata.gssapi.state.id,
+                                    &sfd->state.gssapistate) != 0) {
+               swarnx("%s: failed to import gssapi context of length %lu for  "
+                      "fd %d",
+                      function,
+                      (unsigned long)sfd->state.gssapistate.length, d);
+
+               socks_rmaddr(d, 0);
+               sfd = NULL;
+            }
+            else {
+               sfd->state.gssimportneeded = 0;
+               slog(LOG_DEBUG,
+                    "%s: imported gssapistate for fd %d using ctxid %ld",
+                    function, d, (long)sfd->state.auth.mdata.gssapi.state.id);
+            }
          }
       }
 #endif /* HAVE_GSSAPI */
@@ -330,15 +354,17 @@ socks_rmaddr(d, takelock)
             break;
 
 #if HAVE_GSSAPI
+
          if (socksfdv[d].state.auth.method == AUTHMETHOD_GSSAPI
          &&  socksfdv[d].state.auth.mdata.gssapi.state.id != GSS_C_NO_CONTEXT) {
             OM_uint32 major_status, minor_status;
             char buf[512];
 
-            if ((major_status
-            = gss_delete_sec_context(&minor_status,
+            major_status = gss_delete_sec_context(&minor_status,
                                   &socksfdv[d].state.auth.mdata.gssapi.state.id,
-                                     GSS_C_NO_BUFFER)) != GSS_S_COMPLETE) {
+                                                  GSS_C_NO_BUFFER);
+
+            if (major_status != GSS_S_COMPLETE) {
                if (!gss_err_isset(major_status, minor_status, buf, sizeof(buf)))
                   *buf = NUL;
 
@@ -1036,6 +1062,12 @@ socks_addfd(d)
       int *newfdv;
 
       newfdc = (d + 1) * 2; /* add some extra at the same time. */
+
+      slog(LOG_DEBUG,
+           "%s: realloc(3)-ing dv array for fd %d.  Increasing length "
+           "from %d to %d",
+           function, d, (int)dc, (int)newfdc);
+
       if ((newfdv = realloc(dv, sizeof(*dv) * newfdc)) == NULL)
          serr("%s: could not allocate %lu bytes",
               function, (unsigned long)(sizeof(*dv) * newfdc));

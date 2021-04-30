@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2019, 2020, 2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 #endif
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.238.4.3 2014/08/15 18:16:40 karls Exp $";
+"$Id: config_scan.l,v 1.238.4.3.6.9 2021/02/02 19:34:12 karls Exp $";
 
 #include "yacconfig.h"
 #include "config_parse.h"
@@ -144,6 +144,7 @@ SOCKETLEVEL    (ip|socket|tcp|udp)
 %x start_ldapcertfile
 %x start_ldapcertpath
 
+%x start_pacsidname
 
 %x start_alarmtest
 %x start_srchost
@@ -456,7 +457,8 @@ cpu {
    SERRX(0);
 
 #else /* !SOCKS_CLIENT */
-#if HAVE_SCHED_SETAFFINITY
+
+#if HAVE_SCHED_SETSCHEDULER
 
    BEGIN(0);
 
@@ -464,9 +466,12 @@ cpu {
       yyerrorx("unknown scheduling policy \"%s\"", yytext);
 
    return SCHEDULEPOLICY;
-#else /* !HAVE_SCHED_SETAFFINITY */
+
+#else /* !HAVE_SCHED_SETSCHEDULER */
+
    yyerrorx("setting cpu scheduling policy is not supported on this platform");
-#endif /* !HAVE_SCHED_SETAFFINITY */
+
+#endif /* !HAVE_SCHED_SETSCHEDULER */
 
 #endif /* SOCKS_CLIENT */
 }
@@ -692,6 +697,11 @@ cpu {
    return LDAPKEYTABNAME;
 }
 
+<start_pacsidname>[^: \t\n]+[^\t\n]+ {
+   yylval.string = yytext;
+   return PACSID_NAME;
+}
+
 <start_gssapikeytabname>[^: \t\n]+ {
    yylval.string = yytext;
    return GSSAPIKEYTABNAME;
@@ -826,6 +836,11 @@ cpu {
 
 <start_method>bsdauth {
    yylval.method = AUTHMETHOD_BSDAUTH;
+   return METHODNAME;
+}
+
+<start_method>ldapauth {
+   yylval.method = AUTHMETHOD_LDAPAUTH;
    return METHODNAME;
 }
 
@@ -1172,6 +1187,10 @@ child\.maxrequests {
    return PROC_MAXREQUESTS;
 }
 
+child\.maxlifetime {
+   yylval.string = yytext;
+   return PROC_MAXLIFETIME;
+}
 
 user {
    BEGIN(start_username);
@@ -1440,14 +1459,45 @@ ldap\.basedn\.hex\.all {
    return LDAPBASEDN_HEX_ALL;
 }
 
+ldap\.auth\.basedn {
+       BEGIN(start_ldapbasedn);
+
+   yylval.string = yytext;
+   return LDAPAUTHBASEDN;
+}
+
+ldap\.auth\.basedn\.hex {
+       BEGIN(start_ldapbasedn);
+
+   yylval.string = yytext;
+   return LDAPAUTHBASEDN_HEX;
+}
+
+ldap\.auth\.basedn\.hex\.all {
+       BEGIN(start_ldapbasedn);
+
+   yylval.string = yytext;
+   return LDAPAUTHBASEDN_HEX_ALL;
+}
+
 ldap\.port {
    yylval.string = yytext;
    return LDAPPORT;
 }
 
+ldap\.auth\.port {
+   yylval.string = yytext;
+   return LDAPAUTHPORT;
+}
+
 ldap\.port\.ssl {
    yylval.string = yytext;
    return LDAPPORTSSL;
+}
+
+ldap\.auth\.port\.ssl {
+   yylval.string = yytext;
+   return LDAPAUTHPORTSSL;
 }
 
 ldap\.url {
@@ -1457,11 +1507,25 @@ ldap\.url {
    return LDAPURL;
 }
 
+ldap\.auth\.url {
+       BEGIN(start_ldapurl);
+
+   yylval.string = yytext;
+   return LDAPAUTHURL;
+}
+
 ldap\.certfile {
    BEGIN(start_ldapcertfile);
 
    yylval.string = yytext;
    return LDAPCERTFILE;
+}
+
+ldap\.auth\.certfile {
+   BEGIN(start_ldapcertfile);
+
+   yylval.string = yytext;
+   return LDAPAUTHCERTFILE;
 }
 
 ldap\.certpath {
@@ -1471,6 +1535,13 @@ ldap\.certpath {
    return LDAPCERTPATH;
 }
 
+ldap\.auth\.certpath {
+   BEGIN(start_ldapcertpath);
+
+   yylval.string = yytext;
+   return LDAPAUTHCERTPATH;
+}
+
 ldap\.domain {
        BEGIN(start_ldapdomain);
 
@@ -1478,9 +1549,21 @@ ldap\.domain {
    return LDAPDOMAIN;
 }
 
+ldap\.auth\.domain {
+       BEGIN(start_ldapdomain);
+
+   yylval.string = yytext;
+   return LDAPAUTHDOMAIN;
+}
+
 ldap\.debug {
    yylval.string = yytext;
    return LDAPDEBUG;
+}
+
+ldap\.auth\.debug {
+   yylval.string = yytext;
+   return LDAPAUTHDEBUG;
 }
 
 ldap\.mdepth {
@@ -1493,14 +1576,29 @@ ldap\.ssl {
    return LDAPSSL;
 }
 
+ldap\.auth\.ssl {
+   yylval.string = yytext;
+   return LDAPAUTHSSL;
+}
+
 ldap\.auto\.off {
    yylval.string = yytext;
    return LDAPAUTO;
 }
 
+ldap\.auth\.auto\.off {
+   yylval.string = yytext;
+   return LDAPAUTHAUTO;
+}
+
 ldap\.certcheck {
    yylval.string = yytext;
    return LDAPCERTCHECK;
+}
+
+ldap\.auth\.certcheck {
+   yylval.string = yytext;
+   return LDAPAUTHCERTCHECK;
 }
 
 ldap\.keeprealm {
@@ -1513,6 +1611,13 @@ ldap\.filter {
 
    yylval.string = yytext;
    return LDAPFILTER;
+}
+
+ldap\.auth\.filter {
+       BEGIN(start_ldapfilter);
+
+   yylval.string = yytext;
+   return LDAPAUTHFILTER;
 }
 
 ldap\.filter\.ad {
@@ -1571,6 +1676,13 @@ ldap\.server {
    return LDAPSERVER;
 }
 
+ldap\.auth\.server {
+   BEGIN(start_ldapservername);
+
+   yylval.string = yytext;
+   return LDAPAUTHSERVER;
+}
+
 ldap\.group {
    BEGIN(start_ldapgroupname);
 
@@ -1597,6 +1709,32 @@ ldap\.keytab {
 
    yylval.string = yytext;
    return LDAPKEYTAB;
+}
+
+ldap\.auth\.keytab {
+   BEGIN(start_ldapkeytabname);
+
+   yylval.string = yytext;
+   return LDAPAUTHKEYTAB;
+}
+
+pac\.sid\.b64 {
+   BEGIN(start_pacsidname);
+
+   yylval.string = yytext;
+   return PACSID_B64;
+}
+
+pac\.sid {
+   BEGIN(start_pacsidname);
+
+   yylval.string = yytext;
+   return PACSID;
+}
+
+pac\.off {
+   yylval.string = yytext;
+   return PACSID_FLAG;
 }
 
 bounce {

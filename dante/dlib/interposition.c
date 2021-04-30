@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2008, 2009, 2010, 2011,
- *               2012, 2013, 2016, 2017
+ *               2012, 2013, 2016, 2017, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: interposition.c,v 1.183.6.11 2017/01/31 08:17:38 karls Exp $";
+"$Id: interposition.c,v 1.183.6.11.4.4 2020/11/11 16:11:56 karls Exp $";
 
 #if SOCKSLIBRARY_DYNAMIC
 
@@ -180,11 +180,25 @@ write$NOCANCEL(HAVE_PROT_WRITE_1, HAVE_PROT_WRITE_2, HAVE_PROT_WRITE_3);
 #undef fclose
 
 #if HAVE__IO_GETC
+
+#if !HAVE_DECL__IO_GETC
+HAVE_PROT__IO_GETC_0 _IO_getc (HAVE_PROT__IO_GETC_1 stream);
+#endif /* !HAVE_DECL__IO_GETC */
+
 #undef _IO_getc
+
 #endif /* HAVE__IO_GETC */
+
 #if HAVE__IO_PUTC
+
+#if !HAVE_DECL__IO_PUTC
+HAVE_PROT__IO_PUTC_0 _IO_putc (HAVE_PROT__IO_PUTC_1 c, HAVE_PROT__IO_PUTC_2 stream);
+#endif /* !HAVE_DECL__IO_PUTC */
+
 #undef _IO_putc
+
 #endif /* HAVE__IO_PUTC */
+
 #if HAVE___FPRINTF_CHK
 #undef __fprintf_chk
 #endif /* HAVE___FPRINTF_CHK */
@@ -359,11 +373,18 @@ extern volatile sig_atomic_t doing_addrinit;
 
 #endif /* HAVE_VOLATILE_SIG_ATOMIC_T */
 
-#define DNSCODE_START() \
-do { ++sockscf.state.executingdnscode; } while (/* CONSTCOND */ 0)
+#define DNSCODE_START()                                                        \
+do {                                                                           \
+      slog(LOG_DEBUG,                                                          \
+           "DNSCODE_START: %d", (int)++sockscf.state.executingdnscode);        \
+} while (/* CONSTCOND */ 0)
 
-#define DNSCODE_END() \
-do { --sockscf.state.executingdnscode; } while (/* CONSTCOND */ 0)
+#define DNSCODE_END()                                                          \
+do {                                                                           \
+      slog(LOG_DEBUG,                                                          \
+           "DNSCODE_END: %d", (int)--sockscf.state.executingdnscode);    \
+} while (/* CONSTCOND */ 0)
+
 
 static void
 addtolist(const char *functionname, const socks_id_t *id);
@@ -433,6 +454,9 @@ socks_syscall_start(s)
    socksfd_t *p;
    addrlockopaque_t opaque;
 
+   if (doing_addrinit || sockscf.state.executingdnscode)
+      return;
+
    if (s < 0)
       return;
 
@@ -465,6 +489,9 @@ socks_syscall_end(s)
 {
    addrlockopaque_t opaque;
    socksfd_t socksfd, *p;
+
+   if (doing_addrinit || sockscf.state.executingdnscode)
+      return;
 
    if (s < 0)
       return;

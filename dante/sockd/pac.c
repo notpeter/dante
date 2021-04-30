@@ -1,9 +1,5 @@
 /*
- * $Id: LICENSE,v 1.25.4.1.6.3 2021/02/02 19:34:12 karls Exp $
- *
- * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2007, 2008, 2009, 2010, 2011, 2012, 2012, 2013, 2014, 2016,
- *               2017, 2019, 2020, 2021
+ * Copyright (c) 2014, 2019, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,11 +31,45 @@
  *
  *  Software Distribution Coordinator  or  sdc@inet.no
  *  Inferno Nettverk A/S
- *  Gaustadalleen 23a
- *  NO-0373 Oslo
+ *  Oslo Research Park
+ *  Gaustadalléen 21
+ *  NO-0349 Oslo
  *  Norway
  *
  * any improvements or extensions that they make and grant Inferno Nettverk A/S
  * the rights to redistribute these changes.
  *
+ * $Id: pac.c,v 1.9.2.3 2020/11/11 16:12:04 karls Exp $
  */
+
+ /*
+  * This code was contributed by
+  * Markus Moeller (markus_moeller at compuserve.com).
+  */
+
+#include "common.h"
+
+static const char rcsid[] =
+"$Id: pac.c,v 1.9.2.3 2020/11/11 16:12:04 karls Exp $";
+
+const char module_pac_version[] =
+"$Id: pac.c,v 1.9.2.3 2020/11/11 16:12:04 karls Exp $";
+
+
+#if HAVE_PAC && SOCKS_SERVER
+
+int
+get_sids(sids, k5_context, pac, state)
+   char *sids;
+   krb5_context k5_context;
+   krb5_pac pac;
+   negotiate_state_t *state;
+{
+   const char *function = "get_sids()";
+
+   slog(LOG_DEBUG, "%s: get_sids not available", function);
+
+   return -1;
+}
+
+#endif /* HAVE_PAC && SOCKS_SERVER */

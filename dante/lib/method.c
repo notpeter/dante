@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012, 2013
+ * Copyright (c) 2010, 2011, 2012, 2013, 2019, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method.c,v 1.25 2013/10/27 15:24:42 karls Exp $";
+"$Id: method.c,v 1.25.10.6 2020/11/11 17:02:26 karls Exp $";
 
 int
 methodisvalid(method, ruletype)
@@ -101,6 +101,9 @@ methodcanprovide(method, what)
          return 0; /* may provide something, but can not depend on it. */
 
       case AUTHMETHOD_BSDAUTH:
+#if HAVE_LDAP
+      case AUTHMETHOD_LDAPAUTH:
+#endif /* HAVE_LDAP */
       case AUTHMETHOD_GSSAPI:
       case AUTHMETHOD_PAM_ADDRESS:
       case AUTHMETHOD_PAM_USERNAME:
@@ -213,6 +216,11 @@ authname(auth)
          return (const char *)auth->mdata.bsd.name;
 #endif /* HAVE_BSDAUTH */
 
+#if HAVE_LDAP
+      case AUTHMETHOD_LDAPAUTH:
+         return (const char *)auth->mdata.ldap.name;
+#endif /* HAVE_LDAP */
+
 #if HAVE_GSSAPI
       case AUTHMETHOD_GSSAPI:
          return (const char *)auth->mdata.gssapi.name;
@@ -224,6 +232,51 @@ authname(auth)
 
    /* NOTREACHED */
 }
+
+#if HAVE_PAC
+
+const char *
+authsids(auth)
+   const authmethod_t *auth;
+{
+
+   if (auth == NULL)
+      return NULL;
+
+   switch (auth->method) {
+      case AUTHMETHOD_NOTSET:
+      case AUTHMETHOD_NONE:
+      case AUTHMETHOD_UNAME:
+#if HAVE_LIBWRAP
+      case AUTHMETHOD_RFC931:
+#endif /* HAVE_LIBWRAP */
+#if HAVE_PAM
+      case AUTHMETHOD_PAM_ANY:      /* maybe there is a name, maybe not. */
+      case AUTHMETHOD_PAM_ADDRESS:
+      case AUTHMETHOD_PAM_USERNAME:
+#endif /* HAVE_PAM */
+#if HAVE_BSDAUTH
+      case AUTHMETHOD_BSDAUTH:
+#endif /* HAVE_BSDAUTH */
+#if HAVE_LDAP
+      case AUTHMETHOD_LDAPAUTH:
+#endif /* HAVE_LDAP */
+      case AUTHMETHOD_NOACCEPT: /* closing connection next presumably. */
+         return NULL;
+
+#if HAVE_GSSAPI
+      case AUTHMETHOD_GSSAPI:
+         return (const char *)auth->mdata.gssapi.sids;
+#endif /* HAVE_GSSAPI */
+
+      default:
+         SERRX(auth->method);
+   }
+
+   /* NOTREACHED */
+}
+
+#endif /* HAVE_PAC */
 
 char *
 build_addrstr_src(hostidv, hostidc, peer, proxy_ext, proxy, local,

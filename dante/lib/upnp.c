@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016
+ * Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.153.4.4.2.2 2017/01/31 16:46:40 karls Exp $";
+"$Id: upnp.c,v 1.153.4.4.2.2.4.2 2020/11/11 16:11:55 karls Exp $";
 
 #include "common.h"
 
@@ -368,9 +368,9 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
                                        errno2reply(errno, PROXY_UPNP));
                return -1;
             }
-
-         /* FALLTHROUGH */
       }
+
+      /* FALLTHROUGH */
 
       case SOCKS_UDPASSOCIATE: {
          /*
