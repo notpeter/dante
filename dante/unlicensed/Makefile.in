@@ -268,7 +268,8 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 EXTRA_DIST = checkmodule.c bandwidth.c bandwidth_key.c \
-	     redirect.c redirect_key.c ldap.c ldap_key.c
+	     redirect.c redirect_key.c ldap.c ldap_key.c \
+	     pac.c pac_key.c convert_sid.c
 
 all: all-am
 

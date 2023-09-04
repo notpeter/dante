@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2011, 2012,
- *               2013
+ *               2013, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: authneg.c,v 1.128 2013/10/27 15:24:42 karls Exp $";
+"$Id: authneg.c,v 1.128.10.2 2020/11/11 16:11:52 karls Exp $";
 
 int
 negotiate_method(s, packet, route, emsg, emsglen)
@@ -73,6 +73,7 @@ negotiate_method(s, packet, route, emsg, emsglen)
       slog(LOG_DEBUG, "%s: fd %d, %s", function, s, socket2string(s, NULL, 0));
 
 #if !SOCKS_CLIENT && HAVE_GSSAPI
+
    switch (packet->req.auth->method) {
       case AUTHMETHOD_GSSAPI:
          /*

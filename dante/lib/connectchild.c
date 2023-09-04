@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009,
- *               2010, 2011, 2012, 2013, 2014, 2016
+ *               2010, 2011, 2012, 2013, 2014, 2016, 2019, 2020, 2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.397.4.3.2.3 2017/01/31 08:17:38 karls Exp $";
+"$Id: connectchild.c,v 1.397.4.3.2.3.4.7 2021/02/02 19:34:11 karls Exp $";
 
 /*
  * This sets things up for performing a non-blocking connect for the client.
@@ -77,7 +77,8 @@ static const char rcsid[] =
 #define MAXPACKETSQUEUED   (10)
 
 static void sigio(int sig, siginfo_t *sip, void *scp);
-static void run_connectchild(const int mother_data, const int mother_ack);
+static void run_connectchild(const int mother_data, const int mother_ack)
+            __ATTRIBUTE__((noreturn));
 
 static struct sigaction       originalsig;
 static volatile sig_atomic_t  reqoutstanding;
@@ -785,11 +786,17 @@ run_connectchild(mother_data, mother_ack)
                slog(LOG_INFO, "%s: read(): mother exited: %s",
                     function, strerror(errno));
 
+#if HAVE_COVERAGE
+               __gcov_flush();
+#endif /* HAVE_COVERAGE */
                _exit(EXIT_SUCCESS);
                /* NOTREACHED */
 
             case 0:
                slog(LOG_INFO, "%s: read(): mother closed", function);
+#if HAVE_COVERAGE
+               __gcov_flush();
+#endif /* HAVE_COVERAGE */
                _exit(EXIT_SUCCESS);
                /* NOTREACHED */
 
@@ -854,6 +861,9 @@ run_connectchild(mother_data, mother_ack)
 
                case 0:
                   slog(LOG_INFO, "%s: recvmsg(): mother closed", function);
+#if HAVE_COVERAGE
+                  __gcov_flush();
+#endif /* HAVE_COVERAGE */
                   _exit(EXIT_SUCCESS);
                   /* NOTREACHED */
 
@@ -1069,7 +1079,7 @@ run_connectchild(mother_data, mother_ack)
          if (req.packet.state.err == 0
          &&  req.packet.state.auth.method == AUTHMETHOD_GSSAPI) {
             gssapi_export_state(&req.packet.state.auth.mdata.gssapi.state.id,
-            &gssapistate);
+                                &gssapistate);
 
             iov[ioc].iov_base  = gssapistate.value;
             iov[ioc].iov_len   = gssapistate.length;
@@ -1367,7 +1377,7 @@ sigio(sig, sip, scp)
         " from child for childres.s.  fd = ",
         ltoa((long)childres.s, b[2], sizeof(b[2])),
         ".  Requests outstanding: ",
-        ltoa((long)reqoutstanding + 1, b[3], sizeof(b[3])),
+        ltoa((long)reqoutstanding, b[3], sizeof(b[3])),
         NULL
       };
 
@@ -1423,6 +1433,7 @@ sigio(sig, sip, scp)
        * if an address has been associated with fdindex child_s before,
        * it can't possibly be valid any more.
        */
+
       socks_rmaddr(child_s, 0);
 
       len = sizeof(*local);
@@ -1748,8 +1759,8 @@ sigio(sig, sip, scp)
 #if HAVE_GSSAPI
       if (socksfd.state.auth.method == AUTHMETHOD_GSSAPI) {
          /*
-          * can't import gssapi state here; we're in a signal handler and
-          * that is not safe.  Will be imported upon first call to
+          * can't import gssapi state here.  We're in a signal handler
+          * and that is not safe.  Will be imported upon first call to
           * socks_getaddr() later, so just save it for now.
           */
          const char *msgv[] =
@@ -1777,6 +1788,7 @@ sigio(sig, sip, scp)
 
          SASSERTX(sizeof(socksfd.state.gssapistatemem) >= (size_t)rc);
          memcpy(socksfd.state.gssapistate.value, gssapistatemem, rc);
+
       }
 #endif /* HAVE_GSSAPI */
 
@@ -1806,9 +1818,8 @@ sigio(sig, sip, scp)
         ": ",
         "returning after having received ",
         ltoa((long)gotpackets, b[0], sizeof(b[0])),
-        " packets.  ",
+        " packets.  Requests still outstanding: ",
         ltoa((long)reqoutstanding, b[1], sizeof(b[1])),
-        " requests still outstanding",
         NULL
       };
 

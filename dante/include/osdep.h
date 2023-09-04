@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2019, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: osdep.h,v 1.98.6.3 2017/01/31 14:35:55 karls Exp $ */
+/* $Id: osdep.h,v 1.98.6.3.4.3 2020/11/11 16:11:50 karls Exp $ */
 
 /*
  * ensure pam/libwrap defines are only set when compiling server
@@ -189,24 +189,29 @@
 
 #if HAVE_GSSAPI
 
-#if HAVE_GSSAPI_GSSAPI_H
+#if HAVE_GSSAPI_GSSAPI_KRB5_H
+#include <gssapi/gssapi_krb5.h>
+#elif HAVE_GSSAPI_GSSAPI_H
 #include <gssapi/gssapi.h>
 #elif HAVE_GSSAPI_H
 #include <gssapi.h>
-#endif /* HAVE_GSSAPI_H */
+#endif /* HAVE_GSSAPI_GSSAPI_KRB5_H */
 
 #if !HAVE_HEIMDAL_KERBEROS
 #if HAVE_GSSAPI_GSSAPI_EXT_H
 #include <gssapi/gssapi_ext.h>
 #endif /* HAVE_GSSAPI_GSSAPI_EXT_H */
-#if HAVE_GSSAPI_GSSAPI_KRB5_H
-#include <gssapi/gssapi_krb5.h>
-#endif /* HAVE_GSSAPI_GSSAPI_KRB5_H */
 #if HAVE_GSSAPI_GSSAPI_GENERIC_H
 #include <gssapi/gssapi_generic.h>
 #endif /* HAVE_GSSAPI_GSSAPI_GENERIC_H */
 #endif /* !HAVE_HEIMDAL_KERBEROS */
 #endif /* HAVE_GSSAPI */
+
+#if HAVE_KRB5_H
+#include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
 
 #if HAVE_STDDEF_H
 #include <stddef.h>

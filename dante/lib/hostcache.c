@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2008, 2009, 2010, 2011, 2012,
- *               2013, 2016, 2017
+ *               2013, 2016, 2017, 2019, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,10 +42,11 @@
  *
  */
 
+#define DISABLE_GETHOSTBYNAME_CACHE (1)
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: hostcache.c,v 1.172.4.9.2.4 2017/01/31 08:17:38 karls Exp $";
+"$Id: hostcache.c,v 1.172.4.9.2.4.4.3 2020/11/11 16:11:54 karls Exp $";
 
 #if 0
 #warning "XXX change back to LOG_DEBUG"
@@ -165,16 +166,13 @@ addrinfocopy(dnsinfo_t *to, const struct addrinfo *from,
 
 #if SOCKSLIBRARY_DYNAMIC
 
-#undef gethostbyaddr
-#undef gethostbyname
-
-#undef getnameinfo
-
-
 #define gethostbyaddr(addr, len, type)   sys_gethostbyaddr(addr, len, type)
 
 #if SOCKS_CLIENT
+
+#undef  gethostbyname
 #define gethostbyname(name)              sys_gethostbyname(name)
+
 #endif /* SOCKS_CLIENT */
 
 #endif /* SOCKSLIBRARY_DYNAMIC */
@@ -828,7 +826,14 @@ addrinfocopy(to, from, hints)
    const char *function = "addrinfocopy()";
    const struct addrinfo *from_ai;
    const size_t maxentries = ELEMENTS(to->data.getaddr.ai_addr_mem);
-   struct addrinfo *to_ai, *to_ai_previous, *to_ai_start;
+   struct addrinfo *to_ai, *to_ai_previous;
+
+#if !SOCKS_CLIENT
+
+   struct addrinfo *to_ai_start;
+
+#endif /* !SOCKS_CLIENT */
+
    size_t i;
    char visbuf[MAXHOSTNAMELEN * 4];
 
@@ -836,11 +841,18 @@ addrinfocopy(to, from, hints)
 
    from_ai        = from;
    to_ai          = &to->data.getaddr.addrinfo;
+
+#if !SOCKS_CLIENT
+
    to_ai_start    = to_ai;
+
+#endif /* !SOCKS_CLIENT */
+
    to_ai_previous = to_ai;
    i              = 0;
 
    while (i < maxentries && from_ai != NULL) {
+
 #if !SOCKS_CLIENT
       int doskip = 0;
 

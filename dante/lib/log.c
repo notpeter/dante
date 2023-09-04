@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.373.4.8 2014/08/15 18:16:41 karls Exp $";
+"$Id: log.c,v 1.373.4.8.6.1 2021/02/16 22:32:41 michaels Exp $";
 
 #include "common.h"
 #include "config_parse.h"
@@ -1079,6 +1079,39 @@ dolog(priority, buf, prefixlen, messagelen)
             logged = 1;
          }
       }
+
+#if SOCKS_CLIENT
+      /*
+       * We don't have control over what sockets the application is using, 
+       * and some applications may try to close all open fds, including the 
+       * socket used by syslog.  If that happens, the syslog(3) call will 
+       * probably fail, which is not critical.  A critical problem is however
+       * that some libc-libraries (e.g., glibc-2.26 and up) will in that 
+       * case close(2) the syslog-socket they previously opened, but
+       * that socket may now be in use by the application.  The latter problem
+       * will make things go bad as the application will for some unknown
+       * reason suddenly lose it's fd, or even worse, the fd may now be
+       * connected to syslog after the libc-library decides to recreate the
+       * syslog-socket.
+       *
+       * To avoid that problem we call closelog(3) after every syslog(3) 
+       * call, to make the syslog library code close any fd in use for 
+       * syslog(3)-ing.  Next time we then call syslog(3) (including the 
+       * first time we call syslog(3)), the syslog code should create a new 
+       * syslog-socket, syslog what we want, and then we call closelog(3)
+       * again.  The effect should be that the syslog-socket only exists 
+       * during the time we need to log something, which should avoid any
+       * conflicts with the application code. 
+       *
+       * It is obviously not very optimal creating a new socket every time 
+       * we syslog(3), but since this is only a problem for the client (in  
+       * the Dante server, we have better control over sockets in use), the 
+       * overhead is deemed acceptable.
+       */
+      
+      closelog();
+
+#endif /* SOCKS_CLIENT */
    }
 
    /*

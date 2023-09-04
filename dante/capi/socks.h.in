@@ -41,10 +41,11 @@
  *
  */
 
-/* $Id: socks.h.in,v 1.22 2009/12/19 14:14:28 karls Exp $ */
+/* $Id: socks.h.in,v 1.22.22.1 2020/04/18 23:07:44 karls Exp $ */
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 
 /*
  * The definition of bindresvport below might conflict with

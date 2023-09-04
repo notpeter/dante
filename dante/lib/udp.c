@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2016
+ *               2011, 2012, 2013, 2016, 2019, 2020, 2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: udp.c,v 1.289.6.3 2017/01/31 08:17:38 karls Exp $";
+"$Id: udp.c,v 1.289.6.3.4.6 2021/02/02 19:34:11 karls Exp $";
 
 /* ARGSUSED */
 ssize_t
@@ -76,10 +76,11 @@ Rsendto(s, msg, len, flags, _to, tolen)
       usrsockaddrcpy(to, TOCSS(_to), salen(_to->sa_family));
    }
 
-   slog(LOG_DEBUG, "%s: fd %d, len %lu, address %s",
+   slog(LOG_DEBUG, "%s: fd %d, len %lu (%s ...), address %s",
         function,
         s,
         (long unsigned)len,
+        str2vis(msg, len, nmsg, MIN(len, MIN(32, sizeof(nmsg)))),
         to == NULL ? "NULL" : sockaddr2string(to, NULL, 0));
 
    if (to != NULL && to->ss_family != AF_INET) {
@@ -183,100 +184,106 @@ Rsendto(s, msg, len, flags, _to, tolen)
       return n;
    }
 
-   if (to == NULL) {
-      if (socksfd.state.udpconnect) {
-         SASSERTX(type == SOCK_DGRAM);
-         tohost = socksfd.forus.connected;
+   if (type == SOCK_STREAM) {
+      if (socksfd.state.inprogress) {
+         SASSERTX(socksfd.state.command == SOCKS_CONNECT);
+
+         slog(LOG_INFO,
+              "%s: write attempted on connect still in progress: fd %d",
+              function, s);
+
+         /*
+          * Either the user is 1) using this system call to figure out
+          * whether the connection completed, before continuing with other
+          * things if not, or 2) our attempt to hide our usage of the
+          * user's fd to set up the socks session (without the user getting
+          * any indication that his fd is being written to/read from)
+          * via select(2)/poll(2)/etc. failed.
+          *
+          * In case of 1), the correct thing would be to return ENOTCONN,
+          * but in case 2), we could be called due to the the user having
+          * multiple fd's pointing to the same filedescription index,
+          * meaning that even though we have hidden our usage of "s", the
+          * user is using another fd (s').  Normally we would of course be
+          * called with s' then, but if the user is using e.g. epoll(2),
+          * our dup(2)ing s to temporary dummy-fd does apparently not
+          * change what the fd used by epoll(2) points to.  Not verified,
+          * but one possible explanation for a problem seen would be that
+          * adding a fd to epoll(2), and then dup2(2)'ing that fd to
+          * something else (but with the same fd-index/number) does not
+          * change what the fd used by epoll points to; epoll(2) continues
+          * to use what the fd pointed to before, at least if what it
+          * pointed to before is open.  Is there a way to avoid this
+          * problem?
+          *
+          * So what do we do?  We don't know whether it's 1) or 2)
+          * happening.  If it's 2), returning ENOTCONN can be taken as
+          * an indication that the connect(2) failed, which it has
+          * not (yet, at least) done.  If we return EAGAIN, the
+          * user will hopefully retry again, whenever the systemcall
+          * he used to detect that the fd was readable say it's readable.
+          * If the connect is still in progress, we again assume the
+          * readability was only related to i/o done by our connect-child
+          * over the fd, and was not intended for the user, and again
+          * return EAGAIN.
+          *
+          * If the i/o length attempted is 0, it seems relatively safe
+          * to assume the user just wants to test whether the connect
+          * completed though.
+          */
+
+         if (tolen == 0)
+            errno = ENOTCONN;
+         else
+            errno = EAGAIN;
+
+         return -1;
       }
+
+      n = socks_sendto(s,
+                       msg,
+                       len,
+                       flags,
+                       to,
+                       tolen,
+                       NULL,
+                       &socksfd.state.auth);
+
+      slog(LOG_DEBUG, "%s: %s: %s: %s -> %s (%ld)",
+           function,
+           proxyprotocol2string(socksfd.state.version),
+           protocol2string(SOCKS_TCP),
+           sockaddr2string(&socksfd.local,
+                           dststr,
+                           sizeof(dststr)),
+           sockaddr2string(&socksfd.server,
+                           srcstr,
+                           sizeof(srcstr)),
+           (long)n);
+
+      /* in case something changed, e.g. gssoverhead. */
+      (void)socks_addaddr(s, &socksfd, 1);
+
+      return n;
+   }
+
+   SASSERTX(type == SOCK_DGRAM);
+
+   if (to == NULL) {
+      if (socksfd.state.udpconnect)
+         tohost = socksfd.forus.connected;
       else {
-         SASSERTX(type == SOCK_STREAM);
+         swarnx("%s: called with destination address NULL, but fd %d is not "
+                "connected via us, so we don't know what the intended "
+                "destination is",
+                function, s);
 
-         if (socksfd.state.inprogress) {
-            SASSERTX(socksfd.state.command == SOCKS_CONNECT);
-
-            slog(LOG_INFO,
-                 "%s: write attempted on connect still in progress: fd %d",
-                 function, s);
-
-            /*
-             * Either the user is 1) using this system call to figure out
-             * whether the connection completed, before continuing with other
-             * things if not, or 2) our attempt to hide our usage of the
-             * user's fd to set up the socks session (without the user getting
-             * any indication that his fd is being written to/read from)
-             * via select(2)/poll(2)/etc. failed.
-             *
-             * In case of 1), the correct thing would be to return ENOTCONN,
-             * but in case 2), we could be called due to the the user having
-             * multiple fd's pointing to the same filedescription index,
-             * meaning that even though we have hidden our usage of "s", the
-             * user is using another fd (s').  Normally we would of course be
-             * called with s' then, but if the user is using e.g. epoll(2),
-             * our dup(2)ing s to temporary dummy-fd does apparently not
-             * change what the fd used by epoll(2) points to.  Not verified,
-             * but one possible explanation for a problem seen would be that
-             * adding a fd to epoll(2), and then dup2(2)'ing that fd to
-             * something else (but with the same fd-index/number) does not
-             * change what the fd used by epoll points to; epoll(2) continues
-             * to use what the fd pointed to before, at least if what it
-             * pointed to before is open.  Is there a way to avoid this
-             * problem?
-             *
-             * So what do we do?  We don't know whether it's 1) or 2)
-             * happening.  If it's 2), returning ENOTCONN can be taken as
-             * an indication that the connect(2) failed, which it has
-             * not (yet, at least) done.  If we return EAGAIN, the
-             * user will hopefully retry again, whenever the systemcall
-             * he used to detect that the fd was readable say it's readable.
-             * If the connect is still in progress, we again assume the
-             * readability was only related to i/o done by our connect-child
-             * over the fd, and was not intended for the user, and again
-             * return EAGAIN.
-             *
-             * If the i/o length attempted is 0, it seems relatively safe
-             * to assume the user just wants to test whether the connect
-             * completed though.
-             */
-
-            if (tolen == 0)
-               errno = ENOTCONN;
-            else
-               errno = EAGAIN;
-
-            return -1;
-         }
-
-         n = socks_sendto(s,
-                          msg,
-                          len,
-                          flags,
-                          NULL,
-                          0,
-                          NULL,
-                          &socksfd.state.auth);
-
-         slog(LOG_DEBUG, "%s: %s: %s: %s -> %s (%ld)",
-              function,
-              proxyprotocol2string(socksfd.state.version),
-              protocol2string(SOCKS_TCP),
-              sockaddr2string(&socksfd.local,
-                              dststr,
-                              sizeof(dststr)),
-              sockaddr2string(&socksfd.server,
-                              srcstr,
-                              sizeof(srcstr)),
-              (long)n);
-
-         /* in case something changed, e.g. gssoverhead. */
-         (void)socks_addaddr(s, &socksfd, 1);
-
-         return n;
+         errno = EDESTADDRREQ;
+         return -1;
       }
    }
    else
       fakesockaddr2sockshost(to, &tohost);
-
-   SASSERTX(type == SOCK_DGRAM);
 
    /*
     * need to prefix a socks udp header to the message.  Copy the original
@@ -338,6 +345,12 @@ Rrecvfrom(s, buf, len, flags, from, fromlen)
 again:
 
    slog(LOG_DEBUG, "%s: fd %d, len %lu", function, s, (long unsigned)len);
+
+   slog(LOG_DEBUG, "%s: fd %d, len %lu (%s ...)",
+        function,
+        s,
+        (long unsigned)len,
+        str2vis(buf, len, srcstr, MIN(len, MIN(32, sizeof(srcstr)))));
 
    typelen = sizeof(type);
    if (getsockopt(s, SOL_SOCKET, SO_TYPE, &type, &typelen) != 0) {
@@ -885,6 +898,8 @@ udpsetup(s, to, type, shouldconnect, emsg, emsglen)
       return NULL;
    }
 
+   if (socksfd.route->gw.state.proxyprotocol.direct)
+      return socksfd.route;
 
    /*
     * we need to send the socks server our address.

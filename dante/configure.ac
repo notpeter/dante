@@ -1,6 +1,6 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.661.4.6.2.3 2016/06/24 23:01:33 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.661.4.6.2.3.4.13 2021/03/10 19:45:26 karls Exp $)
 
 unset TAG
 lcase () {
@@ -12,7 +12,7 @@ ucase () {
 
 #current software version, typically three sets of numbers (x.y.z).
 #can have an added tag, giving a version such as x.y.z-tag.
-version=1.4.2
+version=1.4.3
 #TAG="foo"
 
 #NOTE: rpm will not accept '-' chars i version numbers
@@ -77,10 +77,13 @@ AC_CONFIG_MACRO_DIR([m4])
 
 #NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS="$CFLAGS"
+oLDFLAGS="$LDFLAGS"
 unset CFLAGS
+unset LDFLAGS
 LT_INIT
 autoconf_compflags="$CFLAGS"
 CFLAGS=$oCFLAGS
+LDFLAGS="$oLDFLAGS"
 
 unset CONFVAR
 
@@ -127,19 +130,36 @@ m4_include(sockopt.m4)
 
 #look for modules, and check version
 servdir=sockd
-unset MOD_BANDWIDTH MOD_REDIRECT MOD_LDAP
+unset MOD_BANDWIDTH MOD_REDIRECT MOD_LDAP MOD_PAC MOD_CONVSID
 L_MODVER(bandwidth,   109, $servdir, [MOD_BANDWIDTH=t])
 L_MODVER(redirect,    79, $servdir, [MOD_REDIRECT=t])
-L_MODVER(ldap,        122, $servdir, [MOD_LDAP=t])
-L_MODVER(checkmodule, 71, $servdir, [], nokey) #helper file
+L_MODVER(ldap,        211, $servdir, [MOD_LDAP=t])
+L_MODVER(pac,         30, $servdir, [MOD_PAC=t])
+L_MODVER(checkmodule, 80, $servdir, [], nokey) #helper file
+L_MODVER(convert_sid, 1, "bin", [MOD_CONVSID=t], nokey)
 
 if test x"$MOD_BANDWIDTH" != x; then
    FEAT="$FEAT${FEAT:+ }mod-bandwidth"
 fi
-if test x"$MOD_LDAP" != x -a x"${no_ldap}" = x; then
+unset have_ldap
+if test x"$MOD_LDAP" != x -a x"${no_ldap}" = x -a x"${no_gssapi}" = x; then
    FEAT="$FEAT${FEAT:+ }mod-ldap"
    SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$LDAPLIBS"
+   AC_DEFINE(HAVE_LDAP, 1, [LDAP support])
+   have_ldap=t
 fi
+unset have_pac
+if test x"$MOD_PAC" != x -a x"$MOD_LDAP" -a x"${no_ldap}" = x \
+     -a x"${no_pac}" = x -a x"${no_gssapi}" = x -a x"${no_krb5}" = x; then
+   FEAT="$FEAT${FEAT:+ }mod-pac"
+   AC_DEFINE(HAVE_PAC, 1, [PAC support])
+   have_pac=t
+   if test x"${have_ldap}" = x; then
+      SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$LDAPLIBS"
+   fi
+fi
+AM_CONDITIONAL(HAVEMOD_PAC, test x"${have_pac}" != x)
+
 if test x"$MOD_REDIRECT" != x; then
    FEAT="$FEAT${FEAT:+ }mod-redirect"
 fi
@@ -255,6 +275,17 @@ AH_BOTTOM([
 ])
 
 AC_OUTPUT
+
+rm -f sockd/config_scan.c sockd/config_parse.c
+(cd sockd; ln -sf ../lib/config_scan.c config_scan.c)
+(cd sockd; ln -sf ../lib/config_parse.c config_parse.c)
+(cd dlib; ln -sf ../lib/config_scan.c config_scan.c)
+(cd dlib; ln -sf ../lib/config_parse.c config_parse.c)
+
+(cd sockd; ln -sf ../lib/config_parse.y config_parse.y)
+(cd sockd; ln -sf ../lib/config_scan.l config_scan.l)
+(cd dlib; ln -sf ../lib/config_parse.y config_parse.y)
+(cd dlib; ln -sf ../lib/config_scan.l config_scan.l)
 
 echo ""
 echo "                     Configure status:"
@@ -373,6 +404,21 @@ if test x"$MOD_LDAP" != x; then
 else
     echo "ldap:              Not found"
 fi
+if test x"$MOD_PAC" != x; then
+    if test x"${have_pac}" != x; then
+        echo "pac:               Enabled"
+    else
+        s="             " #indent
+        echo "pac: $s Disabled ($nopac)"
+	echo "     $s (NOTE: Both libraries and header files for"
+	echo "     $s Kerberos/SASL/GSSAPI/LDAP must be installed for the"
+	echo "     $s PAC module to compile. On some platforms header files"
+	echo "     $s are found in separate packages (such as gssapi-devel).)"
+    fi
+else
+    echo "pac:               Not found"
+fi
+
 echo ""
 
 echo "CONFRES: $CONFVAR" >> buildenv.txt
@@ -395,7 +441,7 @@ test -s "$VINFO" && cat "$VINFO"
 
 #XXX depcomp regen hack
 touch _reconf
-for dir in lib dlib sockd; do
+for dir in bin lib dlib sockd unlicensed; do
     touch $dir/_reconf
 done
 

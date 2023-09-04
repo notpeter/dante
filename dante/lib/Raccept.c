@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014
+ *               2011, 2012, 2013, 2014, 2019
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Raccept.c,v 1.159.4.3 2014/08/15 18:16:40 karls Exp $";
+"$Id: Raccept.c,v 1.159.4.3.6.2 2020/11/11 16:11:51 karls Exp $";
 
 static int
 addforwarded(const int local, const int remote,
@@ -78,7 +78,7 @@ Raccept(s, addr, addrlen)
    clientinit();
 
    slog(LOG_DEBUG, "%s, fd %d, addrlen %lu",
-        function, s, (unsigned long)*addrlen);
+        function, s, (unsigned long)(addrlen == NULL ? 0 : *addrlen));
 
    /* can't call Raccept() on unknown descriptors. */
    if (!socks_addrisours(s, &socksfd, 1)

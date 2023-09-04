@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2019,
+ *               2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +47,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: dante_udp.c,v 1.93.4.3.2.3 2017/01/31 08:17:38 karls Exp $";
+"$Id: dante_udp.c,v 1.93.4.3.2.3.4.3 2020/11/11 16:11:58 karls Exp $";
 
 
 udpheader_t *
@@ -848,15 +849,15 @@ io_udp_client2target(control, client, twotargets, cauth, state,
       }
 
       if (target->isconnected && !sametarget) {
-
          /*
           * need to unconnect the socket so we can continue to receive
           * packets from the old destination.
           */
           sockd_unconnect(target->s, &target->raddr);
           target->isconnected = 0;
-          target->raddr     = targetaddr;
       }
+
+      target->raddr = targetaddr;
    }
 
    SASSERTX(target != NULL);
@@ -864,7 +865,7 @@ io_udp_client2target(control, client, twotargets, cauth, state,
    target->client_read.bytes   += recvflags.fromsocket;
    target->client_read.packets += 1;
 
-   client->state.use_saved_srule = 1;
+   client->state.use_saved_srule = 0; /* XXX temporarily disabled.  Bug. */
 
    if (permit && iostatus == IO_NOERROR) {
       /*
@@ -1298,7 +1299,7 @@ io_udp_target2client(control, client, twotargets, state,
          return IO_TMPBLOCK;
    }
 
-   twotargets->state.use_saved_srule = 1;
+   twotargets->state.use_saved_srule = 0; /* XXX temporarily disabled.  Bug. */
 
    sendtoflags.side = INTERNALIF;
 

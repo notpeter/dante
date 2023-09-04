@@ -1,9 +1,9 @@
 Summary: A free SOCKS v4/v5 client implementation
 Name: dante
-%define fullversion 1.4.2
+%define fullversion 1.4.3
 %define prefix /usr
 Prefix: %{prefix}
-Version: 1.4.2
+Version: 1.4.3
 Release: 1%{?dist}
 License: BSD-type
 Group: Networking/Utilities
@@ -47,7 +47,7 @@ Requires: dante
 Additional libraries required to compile programs that use SOCKS.
 
 %prep
-%setup -n dante-1.4.2
+%setup -n dante-1.4.3
 
 # This file is embedded here instead of being another source in order
 # to the prefix directory
@@ -146,7 +146,11 @@ EOF
 
 %build
 #%serverbuild
-%configure --without-glibc-secure %{_extraflags}
+%configure --without-glibc-secure \
+  %{?_without_libwrap} \
+  %{?_without_upnp} \
+  %{?_extraflags}
+
 %{__make}
 
 %install
@@ -155,9 +159,11 @@ EOF
 #set library as executable - prevent ldd from complaining
 %{__chmod} +x ${RPM_BUILD_ROOT}%{_libdir}/*.so.*.*
 %{__install} -d ${RPM_BUILD_ROOT}/%{_initrddir} ${RPM_BUILD_ROOT}/%{_bindir}
+%{__install} -d ${RPM_BUILD_ROOT}/%{_unitdir}
 %{__install} -m 0644 example/socks-simple.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/socks.conf
 %{__install} -m 0644 example/sockd.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}
 %{__install} -m 0755 sockd.init ${RPM_BUILD_ROOT}/%{_initrddir}/sockd
+%{__install} -m 0644 SPECS/dante.service ${RPM_BUILD_ROOT}/%{_unitdir}/sockd.service
 
 %clean
 %{__rm} -rf $RPM_BUILD_ROOT
@@ -195,6 +201,7 @@ fi
 %{_sbindir}/sockd
 %{_mandir}/man5/sockd.conf.5*
 %{_mandir}/man8/sockd.8*
+%{_unitdir}/sockd.service
 
 %files devel
 %defattr(-, root, root, 0755)

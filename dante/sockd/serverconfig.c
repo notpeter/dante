@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2019, 2020, 2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.567.4.12 2014/08/24 11:41:34 karls Exp $";
+"$Id: serverconfig.c,v 1.567.4.12.6.14 2021/03/24 23:06:07 karls Exp $";
 
 static int
 safamily_isenabled(const sa_family_t family, const char *addrstr,
@@ -1108,29 +1108,43 @@ checkconfig(void)
    char *bsdauthstylename = NULL;
 #endif /* HAVE_BSDAUTH */
 
+#if HAVE_LDAP
+
+   ldapauthentication_t ldapauthentication =
+   { .ldapurl    = NULL,
+/*     .ldapbasedn = NULL, */
+     .domain     = { NUL },
+     .keytab     = { NUL },
+     .filter     = { NUL },
+     .certfile   = { NUL },
+     .certpath   = { NUL },
+     .debug      = LDAP_UNSET_DEBUG_VALUE,
+     .auto_off   = -1,
+     .ssl        = -1,
+     .certcheck  = -1,
+     .port       = -1,
+     .portssl    = -1,
+   };
+
+   /*
+    * XXX need same for ldap_t?
+    */
+
+   int ldom = -1, lfil = -1;
+
+#endif /* HAVE_LDAP */
+
 #if HAVE_GSSAPI
+
    char *gssapiservicename = NULL, *gssapikeytab = NULL;
+
 #endif /* HAVE_GSSAPI */
 
-   /* XXX add same for LDAP */
 
    rule_t *rulebasev[]   =  { sockscf.crule,
                               sockscf.hrule,
                               sockscf.srule
                             };
-
-#if HAVE_PAM || HAVE_BSDAUTH || HAVE_GSSAPI
-   int *methodbasev[]    =  { sockscf.cmethodv,
-                              sockscf.cmethodv,
-                              sockscf.smethodv
-                            };
-
-   size_t *methodbasec[] =  { &sockscf.cmethodc,
-                              &sockscf.cmethodc,
-                              &sockscf.smethodc
-                            };
-#endif /* HAVE_PAM || HAVE_BSDAUTH || HAVE_GSSAPI */
-
    size_t i, basec;
    int usinglibwrap = 0;
 
@@ -1175,7 +1189,14 @@ checkconfig(void)
 
    /*
     * Check rules, including if some rule-specific settings vary across
-    * rules.  If they don't, we can optimize things when running.
+    * rules.
+    *
+    * If they don't vary we can optimize things when running and set the
+    * corresponding variable in the global sockscf object to the constant
+    * value.
+    * If they vary, we set the corresponding global variable in sockscf to
+    * NULL/NUL to indicate we don't have a constant value for this
+    * variable/setting.
     */
    basec = 0;
    while (basec < ELEMENTS(rulebasev)) {
@@ -1188,10 +1209,14 @@ checkconfig(void)
          size_t methodc;
          int *methodv;
 
+         slog(LOG_DEBUG, "%s: %s %u",
+              function, objecttype2string(rule->type), (unsigned)rule->number);
 
 #if HAVE_LIBWRAP
+
          if (*rule->libwrap != NUL)
             usinglibwrap = 1;
+
 #endif /* HAVE_LIBWRAP */
 
          /*
@@ -1200,9 +1225,13 @@ checkconfig(void)
           */
          switch (rule->type) {
             case object_crule:
+
 #if HAVE_SOCKS_HOSTID
+
             case object_hrule:
+
 #endif /* HAVE_SOCKS_HOSTID */
+
                methodc = rule->state.cmethodc;
                methodv = rule->state.cmethodv;
                break;
@@ -1218,6 +1247,7 @@ checkconfig(void)
 
          for (i = 0; i < methodc; ++i) {
             switch (methodv[i]) {
+
 #if HAVE_PAM
                case AUTHMETHOD_PAM_ANY:
                case AUTHMETHOD_PAM_ADDRESS:
@@ -1238,9 +1268,11 @@ checkconfig(void)
                   }
 
                   break;
+
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
+
                case AUTHMETHOD_BSDAUTH:
                   if (*sockscf.state.bsdauthstylename == NUL)
                      break; /* already found to vary. */
@@ -1259,7 +1291,230 @@ checkconfig(void)
                   }
 
                   break;
+
 #endif /* HAVE_BSDAUTH */
+
+#if HAVE_LDAP
+
+                  case AUTHMETHOD_LDAPAUTH:
+                     if (sockscf.state.ldapauthentication.ldapurl == NULL)
+                        ; /* varies. */
+                     else {
+                        if (ldapauthentication.ldapurl == NULL)
+                           ldapauthentication.ldapurl
+                           = rule->state.ldapauthentication.ldapurl;
+                        else if (!linkednamesareeq(ldapauthentication.ldapurl,
+                                      rule->state.ldapauthentication.ldapurl)) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.ldapurl varies",
+                                function);
+
+                           sockscf.state.ldapauthentication.ldapurl = NULL;
+                        }
+                     }
+
+                     if (*sockscf.state.ldapauthentication.certfile == NUL)
+                        ; /* varies. */
+                     else {
+                        if (*ldapauthentication.certfile == NUL)
+                           STRCPY_ASSERTSIZE(ldapauthentication.certfile,
+                                       rule->state.ldapauthentication.certfile);
+                        else if (strcmp(ldapauthentication.certfile,
+                                        rule->state.ldapauthentication.certfile)
+                                 != 0) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.certfile varies, "
+                                "%s ne %s",
+                                function,
+                                ldapauthentication.certfile,
+                                rule->state.ldapauthentication.certfile);
+
+                           *sockscf.state.ldapauthentication.certfile = NUL;
+                        }
+                     }
+
+                     if (*sockscf.state.ldapauthentication.certpath == NUL)
+                        ; /* varies. */
+                     else {
+                        if (*ldapauthentication.certpath == NUL)
+                           STRCPY_ASSERTSIZE(ldapauthentication.certpath,
+                                       rule->state.ldapauthentication.certpath);
+                        else if (strcmp(ldapauthentication.certpath,
+                                        rule->state.ldapauthentication.certpath)
+                        != 0) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.certpath varies, "
+                                "%s ne %s",
+                                function,
+                                ldapauthentication.certpath,
+                                rule->state.ldapauthentication.certpath);
+
+                           *sockscf.state.ldapauthentication.certpath = NUL;
+                        }
+                     }
+
+                     if (*sockscf.state.ldapauthentication.keytab == NUL)
+                        ; /* varies. */
+                     else {
+                        if (*ldapauthentication.keytab == NUL)
+                           STRCPY_ASSERTSIZE(ldapauthentication.keytab,
+                                         rule->state.ldapauthentication.keytab);
+                        else if (strcmp(ldapauthentication.keytab,
+                                        rule->state.ldapauthentication.keytab)
+                                 != 0) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.keytab varies, "
+                                "%s ne %s",
+                                function,
+                                ldapauthentication.keytab,
+                                rule->state.ldapauthentication.keytab);
+
+                           *sockscf.state.ldapauthentication.keytab = NUL;
+                        }
+                     }
+
+                     if (ldom != 0
+                     &&  *rule->state.ldapauthentication.domain != NUL) {
+                        if (*ldapauthentication.domain == NUL)
+                           STRCPY_ASSERTSIZE(ldapauthentication.domain,
+                                         rule->state.ldapauthentication.domain);
+                        else if (strcmp(ldapauthentication.domain,
+                                        rule->state.ldapauthentication.domain)
+                                 != 0) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.domain varies, "
+                                "%s ne %s",
+                                function,
+                                ldapauthentication.domain,
+                                rule->state.ldapauthentication.domain);
+
+                           ldom = 0;
+                        }
+                     }
+
+                     if (lfil != 0
+                     &&  *rule->state.ldapauthentication.filter != NUL) {
+                        if (*ldapauthentication.filter == NUL)
+                           STRCPY_ASSERTSIZE(ldapauthentication.filter,
+                                         rule->state.ldapauthentication.filter);
+                        else if (strcmp(ldapauthentication.filter,
+                                        rule->state.ldapauthentication.filter)
+                                 != 0) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.filter varies, "
+                                "%s ne %s",
+                                function,
+                                ldapauthentication.filter,
+                                rule->state.ldapauthentication.filter);
+
+                           lfil = 0;
+                        }
+                     }
+
+                     if (sockscf.state.ldapauthentication.debug
+                     != LDAP_UNSET_DEBUG_VALUE) {
+                        if (ldapauthentication.debug == LDAP_UNSET_DEBUG_VALUE)
+                           ldapauthentication.debug
+                           = rule->state.ldapauthentication.debug;
+                        else if (ldapauthentication.debug
+                        != rule->state.ldapauthentication.debug) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.debug varies, %d ne %d",
+                                function,
+                                (int)ldapauthentication.debug,
+                                (int)rule->state.ldapauthentication.debug);
+
+                           sockscf.state.ldapauthentication.debug
+                           = LDAP_UNSET_DEBUG_VALUE;
+                        }
+                     }
+		     
+                     if (sockscf.state.ldapauthentication.auto_off != -1) {
+                        if (ldapauthentication.auto_off == -1)
+                           ldapauthentication.auto_off
+                           = rule->state.ldapauthentication.auto_off;
+                        else if (ldapauthentication.auto_off
+                        != rule->state.ldapauthentication.auto_off) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.auto_off varies, "
+                                "%d ne %d",
+                                function,
+                                (int)ldapauthentication.auto_off,
+                                (int)rule->state.ldapauthentication.auto_off);
+
+                           sockscf.state.ldapauthentication.auto_off = -1;
+                        }
+                     }
+
+                     if (sockscf.state.ldapauthentication.ssl != -1) {
+                        if (ldapauthentication.ssl == -1)
+                           ldapauthentication.ssl
+                           = rule->state.ldapauthentication.ssl ;
+                       else if (ldapauthentication.ssl
+                       != rule->state.ldapauthentication.ssl) {
+                          slog(LOG_DEBUG,
+                               "%s: ldapauthentication.ssl varies, %d ne %d",
+                               function,
+                               (int)ldapauthentication.ssl ,
+                               (int)rule->state.ldapauthentication.ssl);
+
+                           sockscf.state.ldapauthentication.ssl = -1;
+                        }
+                     }
+
+                     if (sockscf.state.ldapauthentication.certcheck != -1) {
+                        if (ldapauthentication.certcheck == -1)
+                           ldapauthentication.certcheck
+                           = rule->state.ldapauthentication.certcheck;
+                        else if (ldapauthentication.certcheck
+                        != rule->state.ldapauthentication.certcheck) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.certcheck varies, "
+                                "%d ne %d",
+                                function,
+                                (int)ldapauthentication.certcheck,
+                                (int)rule->state.ldapauthentication.certcheck);
+
+                           sockscf.state.ldapauthentication.certcheck = -1;
+                        }
+                     }
+
+                     if (sockscf.state.ldapauthentication.port != -1) {
+                        if (ldapauthentication.port == -1)
+                           ldapauthentication.port
+                           = rule->state.ldapauthentication.port;
+                        else if (ldapauthentication.port
+                        != rule->state.ldapauthentication.port) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.port varies, %d ne %d",
+                                function,
+                                ldapauthentication.port,
+                                rule->state.ldapauthentication.port);
+
+                           sockscf.state.ldapauthentication.port = -1;
+                        }
+                     }
+
+                     if (sockscf.state.ldapauthentication.portssl != -1) {
+                        if (ldapauthentication.portssl == -1)
+                           ldapauthentication.portssl
+                           = rule->state.ldapauthentication.portssl;
+                        else if (ldapauthentication.portssl
+                        != rule->state.ldapauthentication.portssl) {
+                           slog(LOG_DEBUG,
+                                "%s: ldapauthentication.portssl varies, "
+                                "%d ne %d",
+                                function,
+                                ldapauthentication.portssl,
+                                rule->state.ldapauthentication.portssl);
+
+                           sockscf.state.ldapauthentication.portssl = -1;
+                        }
+                     }
+
+                     break;
+
+#endif /* HAVE_LDAP */
 
 #if HAVE_GSSAPI
                case AUTHMETHOD_GSSAPI:
@@ -1270,9 +1525,9 @@ checkconfig(void)
                               rule->state.gssapiservicename) != 0) {
                         slog(LOG_DEBUG,
                              "%s: gssapi.servicename varies, %s ne %s",
-                              function,
-                              gssapiservicename,
-                              rule->state.gssapiservicename);
+                             function,
+                             gssapiservicename,
+                             rule->state.gssapiservicename);
 
                         *sockscf.state.gssapiservicename = NUL;
                      }
@@ -1381,6 +1636,83 @@ checkconfig(void)
    }
 #endif /* HAVE_BSDAUTH */
 
+# if HAVE_LDAP
+
+   if (sockscf.state.ldapauthentication.ldapurl != NULL
+   &&  ldapauthentication.ldapurl               != NULL)
+       sockscf.state.ldapauthentication.ldapurl = ldapauthentication.ldapurl;
+
+   if (*sockscf.state.ldapauthentication.certfile != NUL
+   &&  *ldapauthentication.certfile               != NUL)
+      if (strcmp(ldapauthentication.certfile,
+                 sockscf.state.ldapauthentication.certfile) != 0)
+         STRCPY_CHECKLEN(sockscf.state.ldapauthentication.certfile,
+                         ldapauthentication.certfile,
+                         sizeof(sockscf.state.ldapauthentication.certfile) - 1,
+                         yyerrorx);
+
+   if (*sockscf.state.ldapauthentication.certpath != NUL
+   &&  *ldapauthentication.certpath               != NUL)
+      if (strcmp(ldapauthentication.certpath,
+                 sockscf.state.ldapauthentication.certpath) != 0)
+         STRCPY_CHECKLEN(sockscf.state.ldapauthentication.certpath,
+                         ldapauthentication.certpath,
+                         sizeof(sockscf.state.ldapauthentication.certpath) - 1,
+                         yyerrorx);
+
+   if (*sockscf.state.ldapauthentication.keytab != NUL
+   &&  *ldapauthentication.keytab               != NUL)
+      if (strcmp(ldapauthentication.keytab,
+                 sockscf.state.ldapauthentication.keytab) != 0)
+         STRCPY_CHECKLEN(sockscf.state.ldapauthentication.keytab,
+                         ldapauthentication.keytab,
+                         sizeof(sockscf.state.ldapauthentication.keytab) - 1,
+                         yyerrorx);
+
+   if (ldom             == -1
+   &&  *ldapauthentication.domain != NUL)
+      if (strcmp(ldapauthentication.domain,
+                 sockscf.state.ldapauthentication.domain) != 0)
+         STRCPY_CHECKLEN(sockscf.state.ldapauthentication.domain,
+                         ldapauthentication.domain,
+                         sizeof(sockscf.state.ldapauthentication.domain) - 1,
+                         yyerrorx);
+
+   if (lfil              == -1
+   &&  *ldapauthentication.filter  != NUL)
+      if (strcmp(ldapauthentication.filter,
+                 sockscf.state.ldapauthentication.filter) != 0)
+         STRCPY_CHECKLEN(sockscf.state.ldapauthentication.filter,
+                         ldapauthentication.filter,
+                         sizeof(sockscf.state.ldapauthentication.filter) - 1,
+                         yyerrorx);
+
+   if (sockscf.state.ldapauthentication.debug != LDAP_UNSET_DEBUG_VALUE
+   &&  ldapauthentication.debug               != LDAP_UNSET_DEBUG_VALUE)
+      sockscf.state.ldapauthentication.debug = ldapauthentication.debug;
+
+   if (sockscf.state.ldapauthentication.auto_off != -1
+    && ldapauthentication.auto_off               != -1)
+      sockscf.state.ldapauthentication.auto_off = ldapauthentication.auto_off;
+
+   if (sockscf.state.ldapauthentication.ssl != -1
+   &&  ldapauthentication.ssl               != -1)
+      sockscf.state.ldapauthentication.ssl = ldapauthentication.ssl;
+
+   if (sockscf.state.ldapauthentication.certcheck != -1
+   &&  ldapauthentication.certcheck               != -1)
+      sockscf.state.ldapauthentication.certcheck = ldapauthentication.certcheck;
+
+   if (sockscf.state.ldapauthentication.port != -1
+   &&  ldapauthentication.port               != -1)
+      sockscf.state.ldapauthentication.port = ldapauthentication.port;
+
+   if (sockscf.state.ldapauthentication.portssl != -1
+   &&  ldapauthentication.portssl               != -1)
+      sockscf.state.ldapauthentication.portssl = ldapauthentication.portssl;
+
+#endif /* HAVE_LDAP */
+
 #if HAVE_GSSAPI
    if (*sockscf.state.gssapiservicename != NUL
    &&  gssapiservicename                != NULL) {
@@ -1405,100 +1737,6 @@ checkconfig(void)
     * Go through all rules again and set default values for
     * authentication-methods based on the global method-lines, if none set.
     */
-   basec = 0;
-   while (basec < ELEMENTS(rulebasev)) {
-#if HAVE_PAM || HAVE_BSDAUTH || HAVE_GSSAPI
-      const int *methodv    = methodbasev[basec];
-      const size_t methodc  = *methodbasec[basec];
-#endif /* HAVE_PAM || HAVE_BSDAUTH || HAVE_GSSAPI */
-
-      rule_t *rule = rulebasev[basec];
-      ++basec;
-
-      if (rule == NULL)
-         continue;
-
-      for (; rule != NULL; rule = rule->next) {
-#if HAVE_PAM
-         if (methodisset(AUTHMETHOD_PAM_ANY,      methodv, methodc)
-         ||  methodisset(AUTHMETHOD_PAM_ADDRESS,  methodv, methodc)
-         ||  methodisset(AUTHMETHOD_PAM_USERNAME, methodv, methodc))
-            if (*rule->state.pamservicename == NUL) /* set to default. */
-               STRCPY_ASSERTSIZE(rule->state.pamservicename,
-                                 sockscf.state.pamservicename);
-#endif /* HAVE_PAM */
-
-#if HAVE_BSDAUTH
-         if (methodisset(AUTHMETHOD_BSDAUTH, methodv, methodc))
-            if (*rule->state.bsdauthstylename == NUL) { /* set to default. */
-               if (*sockscf.state.bsdauthstylename != NUL)
-                  STRCPY_ASSERTSIZE(rule->state.bsdauthstylename,
-                                   sockscf.state.bsdauthstylename);
-            }
-#endif /* HAVE_BSDAUTH */
-
-#if HAVE_GSSAPI
-         if (methodisset(AUTHMETHOD_GSSAPI, methodv, methodc)) {
-            if (*rule->state.gssapiservicename == NUL) /* set to default. */
-               STRCPY_ASSERTSIZE(rule->state.gssapiservicename,
-                                sockscf.state.gssapiservicename);
-
-            if (*rule->state.gssapikeytab == NUL) /* set to default. */
-               STRCPY_ASSERTSIZE(rule->state.gssapikeytab,
-                                sockscf.state.gssapikeytab);
-
-            /*
-             * can't do memcmp since we don't want to include
-             * gssapiencryption.nec in the compare.
-             */
-            if (rule->state.gssapiencryption.clear           == 0
-            &&  rule->state.gssapiencryption.integrity       == 0
-            &&  rule->state.gssapiencryption.confidentiality == 0
-            &&  rule->state.gssapiencryption.permessage      == 0) {
-               rule->state.gssapiencryption.clear           = 1;
-               rule->state.gssapiencryption.integrity       = 1;
-               rule->state.gssapiencryption.confidentiality = 1;
-               rule->state.gssapiencryption.permessage      = 0;
-            }
-         }
-#endif /* HAVE_GSSAPI */
-
-#if HAVE_LDAP
-         if (*rule->state.ldap.keytab == NUL) /* set to default. */
-            STRCPY_ASSERTSIZE(rule->state.ldap.keytab, DEFAULT_GSSAPIKEYTAB);
-
-         if (*rule->state.ldap.filter == NUL) /* set to default. */
-            STRCPY_ASSERTSIZE(rule->state.ldap.filter, DEFAULT_LDAP_FILTER);
-
-         if (*rule->state.ldap.filter_AD == NUL) /* set to default. */
-            STRCPY_ASSERTSIZE(rule->state.ldap.filter_AD,
-                             DEFAULT_LDAP_FILTER_AD);
-
-         if (*rule->state.ldap.attribute == NUL) /* set to default. */
-            STRCPY_ASSERTSIZE(rule->state.ldap.attribute,
-                             DEFAULT_LDAP_ATTRIBUTE);
-
-         if (*rule->state.ldap.attribute_AD == NUL) /* set to default. */
-            STRCPY_ASSERTSIZE(rule->state.ldap.attribute_AD,
-                             DEFAULT_LDAP_ATTRIBUTE_AD);
-
-         if (*rule->state.ldap.certfile == NUL) /* set to default. */
-            STRCPY_ASSERTSIZE(rule->state.ldap.certfile,
-                             DEFAULT_LDAP_CACERTFILE);
-
-         if (*rule->state.ldap.certpath == NUL) /* set to default. */
-            STRCPY_ASSERTSIZE(rule->state.ldap.certpath,
-                             DEFAULT_LDAP_CERTDBPATH);
-
-         if (rule->state.ldap.port == 0) /* set to default */
-            rule->state.ldap.port = SOCKD_EXPLICIT_LDAP_PORT;
-
-         if (rule->state.ldap.portssl == 0) /* set to default */
-            rule->state.ldap.portssl = SOCKD_EXPLICIT_LDAPS_PORT;
-#endif /* HAVE_LDAP */
-      }
-   }
-
 #if BAREFOOTD
    if (sockscf.internal.addrc == 0 && ALL_UDP_BOUNCED())
       serrx("%s: no client-rules to accept clients on specified", function);

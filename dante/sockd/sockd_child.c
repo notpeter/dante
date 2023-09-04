@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009,
- *               2010, 2011
+ *               2010, 2011, 2019, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.454.4.7 2014/08/15 18:12:24 karls Exp $";
+"$Id: sockd_child.c,v 1.454.4.7.6.5 2020/11/22 19:40:49 karls Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)  /* descriptor child reads/writes on.    */
@@ -192,8 +192,15 @@ childcheck(type)
          SERRX(type);
    }
 
-   /* same for all. */
-   minlifetime = SOCKD_MIN_LIFETIME_SECONDS;
+   if (sockscf.child.maxrequests != 0)
+      minclientshandled = MIN(minclientshandled, sockscf.child.maxrequests);
+
+   /* minlifetime is the same for all. */
+   if (sockscf.child.maxlifetime != 0)
+      minlifetime = MIN(SOCKD_MIN_LIFETIME_SECONDS, sockscf.child.maxlifetime);
+   else
+      minlifetime = SOCKD_MIN_LIFETIME_SECONDS;
+
 
    /*
     * get an estimate over how many (new or in total) clients our children are
@@ -207,20 +214,20 @@ childcheck(type)
       if ((*childv)[child].waitingforexit)
          continue;
 
-      if (sockscf.child.maxrequests != 0) {
-         if ((*childv)[child].sentc == sockscf.child.maxrequests) {
-            slog(LOG_DEBUG,
-                 "%s: not counting child %ld.  Should be removed when "
-                 "possible as it has already served %lu requests (currently "
-                 "has %lu/%lu slots free).",
-                 function,
-                 (long)(*childv)[child].pid,
-                 (unsigned long)(*childv)[child].sentc,
-                 (unsigned long)(*childv)[child].freec,
-                 (unsigned long)maxfreeslots((*childv)[child].type));
+      if (child_should_retire(&(*childv)[child])) {
+         slog(LOG_DEBUG,
+              "%s: not counting %s %ld.  Should be retired when "
+              "possible.  Currently has %lu/%lu slots free.",
+              function,
+              childtype2string((*childv)[child].type),
+              (long)(*childv)[child].pid,
+              (unsigned long)(*childv)[child].freec,
+              (unsigned long)maxfreeslots((*childv)[child].type));
 
-            continue;
-         }
+         if ((*childv)[child].freec == maxfreeslots((*childv)[child].type))
+            closechild((*childv)[child].pid, 1);
+
+         continue;
       }
 
 #if BAREFOOTD
@@ -850,7 +857,10 @@ tryagain:
          }
 #endif /* BAREFOOTD */
 
-         if ((*childv)[i].freec <= 0 || (*childv)[i].waitingforexit)
+         if (child_should_retire(&(*childv)[i]))
+            continue;
+
+         if ((*childv)[i].waitingforexit)
             continue;
 
          /*
@@ -1353,6 +1363,59 @@ maxfreeslots(childtype)
    return 0; /* NOTREACHED */
 }
 
+int
+child_should_retire(child)
+   const sockd_child_t *child;
+{
+   const char *function = "child_should_retire()";
+
+   if (sockscf.child.maxrequests != 0
+   &&  child->sentc >= sockscf.child.maxrequests) {
+      slog(LOG_DEBUG,
+           "%s: %s %ld has served %lu requests, while the max is %lu.  "
+           "It should retire as soon as it has finished serving its %d "
+           "remaining client%s%s",
+           function,
+           childtype2string(child->type),
+           (long)child->pid,
+           (unsigned long)child->sentc,
+           (unsigned long)sockscf.child.maxrequests,
+           (int)(maxfreeslots(child->type) - child->freec),
+           maxfreeslots(child->type) - child->freec == 1 ? "" : "s",
+           maxfreeslots(child->type) - child->freec == 0 ?
+                                                         ", meaning now" : "");
+
+      return 1;
+   }
+
+   if (sockscf.child.maxlifetime != 0) {
+      time_t tnow;
+
+      if (socks_difftime(time_monotonic(&tnow), child->created)
+      >=  (time_t)sockscf.child.maxlifetime) {
+         slog(LOG_DEBUG,
+              "%s: %s %d has served for %ld seconds, while the max is %ld.  "
+              "It should retire as soon as it has finished serving its %d "
+              "remaining client%s%s",
+              function,
+              childtype2string(child->type),
+              (int)child->pid,
+              socks_difftime(tnow, child->created),
+              (long)sockscf.child.maxlifetime,
+              (int)(maxfreeslots(child->type) - child->freec),
+              maxfreeslots(child->type) - child->freec == 1 ? "" : "s",
+              maxfreeslots(child->type) - child->freec == 0 ?
+                                                         ", meaning now" : "");
+
+         return 1;
+      }
+   }
+
+   return 0;
+}
+
+
+
 void
 sockd_print_child_ready_message(freefds)
    const size_t freefds;
@@ -1811,8 +1874,21 @@ addchild(type)
           * particular signal.
           * Later on, the child sets up its own signal handlers.
           */
+#if HAVE_BSDAUTH
+         /*
+          * For BSD authentication on OpenBSD, libc forks sub process,
+          * so SIG_DFL is needed for waitpid() to work.
+          */
+         sigact.sa_handler = SIG_DFL;
+#else /* !HAVE_BSDAUTH */
          sigact.sa_handler = SIG_IGN;
+#endif /* !HAVE_BSDAUTH */
 
+         if (sigaction(SIGCHLD, &sigact, NULL) != 0)
+            swarn("%s: sigaction(SIGCHLD)", function);
+
+         sigact.sa_handler = SIG_IGN;
+	
 #if HAVE_SIGNAL_SIGINFO
          if (sigaction(SIGINFO, &sigact, NULL) != 0)
             swarn("%s: sigaction(SIGINFO)", function);
@@ -1820,9 +1896,6 @@ addchild(type)
 
          if (sigaction(SIGUSR1, &sigact, NULL) != 0)
             swarn("%s: sigaction(SIGUSR1)", function);
-
-         if (sigaction(SIGCHLD, &sigact, NULL) != 0)
-            swarn("%s: sigaction(SIGCHLD)", function);
 
          /*
           * Next install a SIGHUP handler.  Same for all children and

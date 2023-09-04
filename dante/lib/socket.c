@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2001, 2005, 2008, 2009, 2010, 2011, 2012,
- *               2013, 2014, 2016, 2017
+ *               2013, 2014, 2016, 2017, 2020
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socket.c,v 1.218.4.7.2.7 2017/01/31 08:17:38 karls Exp $";
+"$Id: socket.c,v 1.218.4.7.2.7.4.3 2020/11/11 16:11:54 karls Exp $";
 
 int
 socks_connecthost(s,
@@ -782,8 +782,14 @@ socks_rebind(s, protocol, from, to, emsg, emsglen)
    }
 
    if (IPADDRISBOUND(from) || PORTISBOUND(from)) {
+#if SOCKS_CLIENT
+
       rlim_t maxofiles;
-      int i, new_s, rc;
+      int i;
+
+#endif /* SOCKS_CLIENT */
+
+      int new_s, rc;
 
       /*
        * bound locally already.  Does it by coincidence match what we
@@ -804,6 +810,8 @@ socks_rebind(s, protocol, from, to, emsg, emsglen)
          swarnx("%s: %s", function, emsg);
          return -1;
       }
+
+#if SOCKS_CLIENT
 
       /*
        * The problem now is that caller may also have created dup(2)'s
@@ -839,6 +847,8 @@ socks_rebind(s, protocol, from, to, emsg, emsglen)
             }
          }
       }
+
+#endif /* SOCKS_CLIENT */
 
       rc = dup2(new_s, s);
       close(new_s);
@@ -1130,7 +1140,7 @@ fdisdup(fd1, fd2)
    errno1 = errno;
 
    len2   = sizeof(flags2);
-   rc2    = getsockopt(fd1, SOL_SOCKET, testflag, &flags2, &len2);
+   rc2    = getsockopt(fd2, SOL_SOCKET, testflag, &flags2, &len2);
    errno2 = errno;
 
    if (rc1 != rc2 || errno1 != errno2 || flags1 != flags2) {

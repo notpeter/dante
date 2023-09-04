@@ -641,6 +641,8 @@ DLIBDEPS
 TOPEXTRADIST
 DISTSUBDIRS
 TOPSUBDIRS
+HAVEMOD_PAC_FALSE
+HAVEMOD_PAC_TRUE
 MAPOPT
 ac_krb5_config
 SOFULLPATH
@@ -826,8 +828,7 @@ with_libc
 with_gssapi_path
 with_gssapi
 with_krb5_config
-with_krb5
-with_krb5_path
+with_pac
 with_sasl
 with_sasl_path
 with_ldap
@@ -1517,8 +1518,7 @@ Optional Packages:
   --with-gssapi-path=PATH specify gssapi path
   --without-gssapi        disable gssapi support
   --with-krb5-config=PATH specify path to krb5-config [default=detect]
-  --without-krb5          disable kerberos 5 support [default=detect]
-  --with-krb5-path=PATH   specify kerberos 5 path
+  --without-pac           disable PAC support [default=detect]
   --without-sasl          disable sasl support [default=detect]
   --with-sasl-path=PATH   specify sasl path
   --without-ldap          disable ldap support [default=detect]
@@ -2680,7 +2680,7 @@ ucase () {
 
 #current software version, typically three sets of numbers (x.y.z).
 #can have an added tag, giving a version such as x.y.z-tag.
-version=1.4.2
+version=1.4.3
 #TAG="foo"
 
 #NOTE: rpm will not accept '-' chars i version numbers
@@ -3313,7 +3313,9 @@ ac_config_headers="$ac_config_headers include/autoconf.h"
 
 #NOTE: save CFLAGS; wish to compile without -O2 when debugging
 oCFLAGS="$CFLAGS"
+oLDFLAGS="$LDFLAGS"
 unset CFLAGS
+unset LDFLAGS
 case `pwd` in
   *\ * | *\	*)
     { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Libtool does not cope well with whitespace in \`pwd\`" >&5
@@ -11878,6 +11880,7 @@ CC="$lt_save_CC"
 
 autoconf_compflags="$CFLAGS"
 CFLAGS=$oCFLAGS
+LDFLAGS="$oLDFLAGS"
 
 unset CONFVAR
 
@@ -12457,7 +12460,7 @@ $as_echo_n "checking for compiler type... " >&6; }
 if $CC -v 2>&1 | tail -1 | egrep '^gcc ' >/dev/null; then
     COMPTYPE=gcc
     FAILWARN="-Wall -Werror"
-elif $CC -v 2>&1 | egrep '^clang ' >/dev/null; then
+elif $CC -v 2>&1 | egrep '(^|^a-zA-Z+ )(clang|LLVM) ' >/dev/null; then
     COMPTYPE=clang
     FAILWARN="-Wall -Werror"
 elif $CC -V 2>&1 | grep 'Sun C ' >/dev/null; then
@@ -13358,6 +13361,9 @@ int main()
 _ACEOF
 if ac_fn_c_try_run "$LINENO"; then :
   FEAT="$FEAT${FEAT:+ }coverage"
+
+$as_echo "#define HAVE_COVERAGE 1" >>confdefs.h
+
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: coverage requested, but compilation with --coverage fails" >&5
 $as_echo "$as_me: WARNING: coverage requested, but compilation with --coverage fails" >&2;}
@@ -23954,7 +23960,7 @@ done
 
 #known keywords for --with/without-foo?
 LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx|sysroot"
-KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|bufsize|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|ldap|ldap_path|sasl|sasl_path|glibc_secure|libwrap"
+KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|bufsize|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|pac|ldap|ldap_path|sasl|sasl_path|glibc_secure|libwrap"
 for keyword in `set | egrep '^with_' | sed -e 's/^with_//' | \
                 sed -e 's/=.*$//'`; do
     echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
@@ -29464,13 +29470,50 @@ fi
 ac_config_files="$ac_config_files bin/socksify"
 
 
+#look for missing prototypes
+if test x"${ac_cv_func__IO_getc}" = xyes; then
+   ac_fn_c_check_decl "$LINENO" "_IO_getc" "ac_cv_have_decl__IO_getc" "$ac_includes_default"
+if test "x$ac_cv_have_decl__IO_getc" = xyes; then :
+  ac_have_decl=1
+else
+  ac_have_decl=0
+fi
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_DECL__IO_GETC $ac_have_decl
+_ACEOF
+ac_fn_c_check_decl "$LINENO" "_IO_putc" "ac_cv_have_decl__IO_putc" "$ac_includes_default"
+if test "x$ac_cv_have_decl__IO_putc" = xyes; then :
+  ac_have_decl=1
+else
+  ac_have_decl=0
+fi
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_DECL__IO_PUTC $ac_have_decl
+_ACEOF
+
+fi
+ac_fn_c_check_decl "$LINENO" "gets" "ac_cv_have_decl_gets" "$ac_includes_default"
+if test "x$ac_cv_have_decl_gets" = xyes; then :
+  ac_have_decl=1
+else
+  ac_have_decl=0
+fi
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_DECL_GETS $ac_have_decl
+_ACEOF
+
+
 
 no_gssapi=t
 no_krb5=t
 no_ldap=t
 no_sasl=t
+no_pac=t
 
-unset noldap
+unset noldap nopac
 unset LDAPLIBS
 
 nogssDLIBDEPS=$DLIBDEPS
@@ -30299,6 +30342,34 @@ fi
        LIBS="${oLIBS}${oLIBS:+ }$LIBS"
    fi
 
+
+   for ac_func in gss_map_name_to_any
+do :
+  ac_fn_c_check_func "$LINENO" "gss_map_name_to_any" "ac_cv_func_gss_map_name_to_any"
+if test "x$ac_cv_func_gss_map_name_to_any" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_GSS_MAP_NAME_TO_ANY 1
+_ACEOF
+
+$as_echo "#define HAVE_GSS_MAP_ANY_TO_ANY 1" >>confdefs.h
+
+fi
+done
+
+   for ac_func in gsskrb5_extract_authz_data_from_sec_context
+do :
+  ac_fn_c_check_func "$LINENO" "gsskrb5_extract_authz_data_from_sec_context" "ac_cv_func_gsskrb5_extract_authz_data_from_sec_context"
+if test "x$ac_cv_func_gsskrb5_extract_authz_data_from_sec_context" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_GSSKRB5_EXTRACT_AUTHZ_DATA_FROM_SEC_CONTEXT 1
+_ACEOF
+
+$as_echo "#define HAVE_GSSKRB5_EXTRACT_AUTHZ_DATA_FROM_SEC_CONTEXT 1" >>confdefs.h
+
+fi
+done
+
+
    unset have_heimdal
    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for heimdal" >&5
 $as_echo_n "checking for heimdal... " >&6; }
@@ -30430,123 +30501,57 @@ fi
 
 if test x"${no_gssapi}" = xt; then
    noldap="working GSSAPI installation required"
+   nopac="working GSSAPI installation required"
 else
    FEAT="$FEAT${FEAT:+ }gssapi"
 
    LIBScpy="$LIBS"
 
-krb5dir=/usr
-
-# Check whether --with-krb5 was given.
-if test "${with_krb5+set}" = set; then :
-  withval=$with_krb5; KRB5=$withval
-fi
-
-
-
-# Check whether --with-krb5-path was given.
-if test "${with_krb5_path+set}" = set; then :
-  withval=$with_krb5_path; krb5dir=$withval
-fi
-
-
-
-# Check whether --with-krb5-config was given.
-if test "${with_krb5_config+set}" = set; then :
-  withval=$with_krb5_config; if test x"$withval" = xyes; then
-     unset krb5confpath
-  elif test x"$withval" != xno; then
-     krb5confpath=$withval
-  else
-     krb5confpath=no
-  fi
-fi
+#AC_ARG_WITH(krb5,
+# [  --without-krb5          disable kerberos 5 support [default=detect]],
+# [KRB5="$withval"])
+KRB5=yes
 
 
 if test x"$KRB5" != xno; then
    unset krb5fail
-   if test x"$krb5confpath" != xno; then
-      if test x"$krb5confpath" != x; then
-         if test ! -x "$krb5confpath"; then
-                { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: krb5-config '$krb5confpath' not executable, ignoring" >&5
-$as_echo "$as_me: WARNING: krb5-config '$krb5confpath' not executable, ignoring" >&2;}
-         else
-            ac_krb5_cflags=`$krb5confpath --cflags krb5 2>/dev/null`
-           if test $? != 0; then
-               krb5fail=t
-           fi
-           ac_krb5_libs=`$krb5confpath --libs krb5 2>/dev/null`
-           if test $? != 0; then
-               krb5fail=t
-           fi
-           ac_krb5_heimdal="`$krb5confpath --version 2>/dev/null | grep -i heimdal`"
-         fi
-      else
-         # Extract the first word of "krb5-config", so it can be a program name with args.
-set dummy krb5-config; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_prog_ac_krb5_config+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  if test -n "$ac_krb5_config"; then
-  ac_cv_prog_ac_krb5_config="$ac_krb5_config" # Let the user override the test.
-else
-as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_prog_ac_krb5_config="yes"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  test -z "$ac_cv_prog_ac_krb5_config" && ac_cv_prog_ac_krb5_config="no"
-fi
-fi
-ac_krb5_config=$ac_cv_prog_ac_krb5_config
-if test -n "$ac_krb5_config"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_krb5_config" >&5
-$as_echo "$ac_krb5_config" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-         if test x"${ac_krb5_config}" = xyes; then
-           ac_krb5_cflags=`krb5-config --cflags krb5 2>/dev/null`
-           if test $? != 0; then
-               krb5fail=t
-           fi
-           ac_krb5_libs=`krb5-config --libs krb5 2>/dev/null`
-           if test $? != 0; then
-               krb5fail=t
-           fi
-           ac_krb5_heimdal="`krb5-config --version 2>/dev/null | grep -i heimdal`"
-         fi
+   if test x"$krb5confpath" != x; then
+      ac_krb5_cflags=`$krb5confpath --cflags krb5 2>/dev/null`
+      if test $? != 0; then
+         krb5fail=t
       fi
+      ac_krb5_libs=`$krb5confpath --libs krb5 2>/dev/null`
+      if test $? != 0; then
+         krb5fail=t
+      fi
+      ac_krb5_heimdal="`$krb5confpath --version 2>/dev/null | grep -i heimdal`"
    fi
-      if test x"$krb5fail" = xt; then
+      if test x"$krb5confpath" = x -o x"$krb5fail" = xt; then
       ac_krb5_cflags=
       ac_krb5_libs=
    fi
 
-      if test x"${ac_krb5_cflags}" != x; then
-      CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_krb5_cflags"
-   else
-            if test -d $krb5dir/include/kerberosV; then
-         CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I${krb5dir}/include/kerberosV"
-      fi
+   unset PAC
+
+# Check whether --with-pac was given.
+if test "${with_pac+set}" = set; then :
+  withval=$with_pac; PAC="$withval"
+else
+  PAC="yes" #default
+fi
+
+
+   if test x"$PAC" != xyes; then
+      PAC="no"
+      { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: PAC disabled with --without-pac" >&5
+$as_echo "$as_me: WARNING: PAC disabled with --without-pac" >&2;}
    fi
 
-      for ac_header in krb5.h com_err.h et/com_err.h
+      if test x"${ac_krb5_cflags}" != x; then
+      CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_krb5_cflags"
+   fi
+
+      for ac_header in krb5.h kerberosv5/krb5.h com_err.h et/com_err.h kerberosv5/com_err.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
@@ -30593,6 +30598,18 @@ rm -f conftest*
       cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #include <et/com_err.h>
+
+_ACEOF
+if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+  $EGREP "error_message" >/dev/null 2>&1; then :
+  ac_com_error_message=yes
+fi
+rm -f conftest*
+
+   elif test x"${ac_cv_header_kerberosv5_com_err_h}" = xyes; then
+      cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <kerberosv5/com_err.h>
 
 _ACEOF
 if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
@@ -31180,6 +31197,52 @@ $as_echo "#define HAVE_KRB5_GET_ERROR_MESSAGE 1" >>confdefs.h
 fi
 
 
+  if test x"$PAC" != xno; then
+     ac_fn_c_check_type "$LINENO" "krb5_pac" "ac_cv_type_krb5_pac" "
+#if HAVE_KRB5_H
+#include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
+
+"
+if test "x$ac_cv_type_krb5_pac" = xyes; then :
+
+$as_echo "#define HAVE_KRB5_PAC 1" >>confdefs.h
+
+fi
+
+
+     #relies on gssapi.m4 having being run
+     { $as_echo "$as_me:${as_lineno-$LINENO}: checking if environment is usable for pac" >&5
+$as_echo_n "checking if environment is usable for pac... " >&6; }
+     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#if HAVE_GSSKRB5_EXTRACT_AUTHZ_DATA_FROM_SEC_CONTEXT && HAVE_HEIMDAL_KERBEROS && HAVE_KRB5_PAC
+yes
+#elif HAVE_GSS_MAP_NAME_TO_ANY && !HAVE_HEIMDAL_KERBEROS && HAVE_KRB5_PAC
+yes
+#endif /* HAVE_GSS_MAP_NAME_TO_ANY && !HAVE_HEIMDAL_KERBEROS && HAVE_KRB5_PAC */
+
+_ACEOF
+if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+  $EGREP "yes" >/dev/null 2>&1; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+       unset no_pac
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+rm -f conftest*
+
+   else
+      { $as_echo "$as_me:${as_lineno-$LINENO}: result: no, disabled" >&5
+$as_echo "no, disabled" >&6; }
+   fi
+
       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for working krb5" >&5
 $as_echo_n "checking for working krb5... " >&6; }
    if test "$cross_compiling" = yes; then :
@@ -31195,7 +31258,9 @@ else
 
 #if HAVE_KRB5_H
 #include <krb5.h>
-#endif
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
 
 int
 main(void)
@@ -31224,7 +31289,13 @@ rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
 fi
 
 
-   ac_fn_c_check_decl "$LINENO" "krb5_kt_free_entry" "ac_cv_have_decl_krb5_kt_free_entry" "#include <krb5.h>
+   ac_fn_c_check_decl "$LINENO" "krb5_kt_free_entry" "ac_cv_have_decl_krb5_kt_free_entry" "
+#if HAVE_KRB5_H
+#include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
+
 "
 if test "x$ac_cv_have_decl_krb5_kt_free_entry" = xyes; then :
   ac_have_decl=1
@@ -31368,7 +31439,11 @@ $as_echo_n "checking for krb5_get_init_creds_opt_free with krb5 context ... " >&
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
+#if HAVE_KRB5_H
 #include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
 
 int
 main ()
@@ -31400,13 +31475,20 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 $as_echo "$as_me: WARNING: disabling Kerberos memory cache on this platform" >&2;}
        ;;
     *)
+       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for MEMORY cache" >&5
+$as_echo_n "checking for MEMORY cache... " >&6; }
        if test "$cross_compiling" = yes; then :
   	 true
 else
   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
+#if HAVE_KRB5_H
 #include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
+
 main()
 {
     krb5_context context;
@@ -31420,6 +31502,11 @@ if ac_fn_c_try_run "$LINENO"; then :
 
 $as_echo "#define HAVE_KRB5_MEMORY_CACHE 1" >>confdefs.h
 
+         { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
 fi
 rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
   conftest.$ac_objext conftest.beam conftest.$ac_ext
@@ -31427,11 +31514,54 @@ fi
 
 	;;
    esac
+
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for MEMORY keytab" >&5
+$as_echo_n "checking for MEMORY keytab... " >&6; }
+   if test "$cross_compiling" = yes; then :
+     true
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#if HAVE_KRB5_H
+#include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
+
+main()
+{
+    krb5_context context;
+    krb5_keytab kt;
+
+    krb5_init_context(&context);
+    return krb5_kt_resolve(context, "MEMORY:test_keytab", &kt);
+}
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+
+$as_echo "#define HAVE_KRB5_MEMORY_KEYTAB 1" >>confdefs.h
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
 fi
 
    if test x"${no_krb5}" = xt; then
        noldap="KerberosV installation required"
+       nopac="KerberosV installation required"
    else
+       if test x"${no_pac}" = xt; then
+          nopac="PAC support needed"
+       fi
+
 
 sasldir=/usr
 
@@ -31623,13 +31753,12 @@ _ACEOF
 fi
 
 
-      for ac_header in ldap.h lber.h
+      for ac_header in ldap.h
 do :
-  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
-ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
-if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+  ac_fn_c_check_header_mongrel "$LINENO" "ldap.h" "ac_cv_header_ldap_h" "$ac_includes_default"
+if test "x$ac_cv_header_ldap_h" = xyes; then :
   cat >>confdefs.h <<_ACEOF
-#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+#define HAVE_LDAP_H 1
 _ACEOF
 
 fi
@@ -31648,45 +31777,6 @@ fi
 
 done
 
-
-   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -llber" >&5
-$as_echo_n "checking for main in -llber... " >&6; }
-if ${ac_cv_lib_lber_main+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-llber  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-
-int
-main ()
-{
-return main ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_lber_main=yes
-else
-  ac_cv_lib_lber_main=no
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_lber_main" >&5
-$as_echo "$ac_cv_lib_lber_main" >&6; }
-if test "x$ac_cv_lib_lber_main" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBLBER 1
-_ACEOF
-
-  LIBS="-llber $LIBS"
-
-fi
 
    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -lldap" >&5
 $as_echo_n "checking for main in -lldap... " >&6; }
@@ -31916,9 +32006,6 @@ main(void)
 _ACEOF
 if ac_fn_c_try_run "$LINENO"; then :
   unset no_ldap
-
-$as_echo "#define HAVE_LDAP 1" >>confdefs.h
-
    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
 else
@@ -31930,6 +32017,7 @@ rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
 fi
 
 
+   unset ldap_openldap
    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for OpenLDAP" >&5
 $as_echo_n "checking for OpenLDAP... " >&6; }
    if test "$cross_compiling" = yes; then :
@@ -31959,6 +32047,7 @@ $as_echo "#define HAVE_OPENLDAP 1" >>confdefs.h
 
    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
+   ldap_openldap=t
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
@@ -32043,6 +32132,60 @@ rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
   conftest.$ac_objext conftest.beam conftest.$ac_ext
 fi
 
+
+   if test x"${ldap_openldap}" != x; then
+      for ac_header in lber.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "lber.h" "ac_cv_header_lber_h" "$ac_includes_default"
+if test "x$ac_cv_header_lber_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LBER_H 1
+_ACEOF
+
+fi
+
+done
+
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -llber" >&5
+$as_echo_n "checking for main in -llber... " >&6; }
+if ${ac_cv_lib_lber_main+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-llber  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+int
+main ()
+{
+return main ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_lber_main=yes
+else
+  ac_cv_lib_lber_main=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_lber_main" >&5
+$as_echo "$ac_cv_lib_lber_main" >&6; }
+if test "x$ac_cv_lib_lber_main" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBLBER 1
+_ACEOF
+
+  LIBS="-llber $LIBS"
+
+fi
+
+   fi
 
    if test x"${ac_cv_header_ldap_h}" = xyes; then
       cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -43617,6 +43760,182 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
     fi
     SOCKOPTS="$SOCKOPTS${SOCKOPTS:+ }IP_TTL"
+  else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+  fi
+unset _compileok
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for IPPROTO_IP socket option IP_TRANSPARENT" >&5
+$as_echo_n "checking for IPPROTO_IP socket option IP_TRANSPARENT... " >&6; }
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int
+main ()
+{
+
+   socklen_t optlen;
+   int optval;
+   int stype;
+   int ptype;
+   int s;
+
+   if (IPPROTO_IP == SOL_SOCKET || IPPROTO_IP == IPPROTO_TCP) {
+      stype = SOCK_STREAM; /* XXX test only TCP in case of SOL_SOCKET */
+      ptype = IPPROTO_TCP;
+   } else if (IPPROTO_IP == IPPROTO_IP) {
+      stype = SOCK_DGRAM; /* XXX test only UDP in case of IPPROTO_IP */
+      ptype = IPPROTO_IP;
+   } else if (IPPROTO_IP == IPPROTO_IPV6) {
+      stype = SOCK_DGRAM;   /* XXX test only UDP in case of IPPROTO_IPV6 */
+      ptype = IPPROTO_IPV6; /* set to v6 for ipv6 test */
+   } else if (IPPROTO_IP == IPPROTO_UDP) {
+      stype = SOCK_DGRAM;
+      ptype = IPPROTO_UDP;
+   } else {
+       fprintf(stderr, "error: unexpected socket type: IPPROTO_IP");
+       exit(1);
+   }
+
+   if((s = socket(PF_INET, stype, ptype)) < 0) {
+      perror("socket");
+      exit(1);
+   }
+
+   optval = 1;
+   optlen = sizeof(optval);
+   if(setsockopt(s, IPPROTO_IP, IP_TRANSPARENT, &optval, optlen) < 0) {
+      perror("setsockopt: IPPROTO_IP IP_TRANSPARENT");
+      close(s);
+      exit(1);
+   }
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  _compileok=1
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int
+main ()
+{
+
+   socklen_t optlen;
+   int optval;
+   int stype;
+   int ptype;
+   int s;
+
+   if (IPPROTO_IP == SOL_SOCKET || IPPROTO_IP == IPPROTO_TCP) {
+      stype = SOCK_STREAM; /* XXX test only TCP in case of SOL_SOCKET */
+      ptype = IPPROTO_TCP;
+   } else if (IPPROTO_IP == IPPROTO_IP) {
+      stype = SOCK_DGRAM; /* XXX test only UDP in case of IPPROTO_IP */
+      ptype = IPPROTO_IP;
+   } else if (IPPROTO_IP == IPPROTO_IPV6) {
+      stype = SOCK_DGRAM;   /* XXX test only UDP in case of IPPROTO_IPV6 */
+      ptype = IPPROTO_IPV6; /* set to v6 for ipv6 test */
+   } else if (IPPROTO_IP == IPPROTO_UDP) {
+      stype = SOCK_DGRAM;
+      ptype = IPPROTO_UDP;
+   } else {
+       fprintf(stderr, "error: unexpected socket type: IPPROTO_IP");
+       exit(1);
+   }
+
+   if((s = socket(PF_INET6, stype, ptype)) < 0) {
+      perror("socket");
+      exit(1);
+   }
+
+   optval = 1;
+   optlen = sizeof(optval);
+   if(setsockopt(s, IPPROTO_IP, IP_TRANSPARENT, &optval, optlen) < 0) {
+      perror("setsockopt: IPPROTO_IP IP_TRANSPARENT");
+      close(s);
+      exit(1);
+   }
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  _compileok=1
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+  if test x"${_compileok}" != x; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_IP_TRANSPARENT 1
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define SOCKS_IP_TRANSPARENT_LVL IPPROTO_IP
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define SOCKS_IP_TRANSPARENT_NAME "ip_transparent"
+_ACEOF
+    if test x"IPPROTO_IP" = x"IPPROTO_IP"; then
+       #ipv4-only
+
+cat >>confdefs.h <<_ACEOF
+#define SOCKS_IP_TRANSPARENT_IPV4 1
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define SOCKS_IP_TRANSPARENT_IPV6 0
+_ACEOF
+    elif test x"IPPROTO_IP" = x"IPPROTO_IPV6"; then
+       #ipv6-only
+
+cat >>confdefs.h <<_ACEOF
+#define SOCKS_IP_TRANSPARENT_IPV4 0
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define SOCKS_IP_TRANSPARENT_IPV6 1
+_ACEOF
+    else
+       #both ipv4 and ipv6
+
+cat >>confdefs.h <<_ACEOF
+#define SOCKS_IP_TRANSPARENT_IPV4 1
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define SOCKS_IP_TRANSPARENT_IPV6 1
+_ACEOF
+    fi
+    SOCKOPTS="$SOCKOPTS${SOCKOPTS:+ }IP_TRANSPARENT"
   else
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
@@ -64339,7 +64658,7 @@ optargmatch ()
 }
 
 #priv: options that require privileges to set
-SOCKOPTS_PRIV="SO_BINDANY SO_RCVBUFFORCE SO_SNDBUFFORCE"
+SOCKOPTS_PRIV="SO_BINDANY SO_RCVBUFFORCE SO_SNDBUFFORCE IP_TRANSPARENT IP_FREEBIND"
 case $host in
     *-*-linux-*)
 	SOCKOPTS_PRIV="$SOCKOPTS_PRIV${SOCKOPTS_PRIV:+ }SO_DEBUG"
@@ -64879,7 +65198,7 @@ _ACEOF
 
 #look for modules, and check version
 servdir=sockd
-unset MOD_BANDWIDTH MOD_REDIRECT MOD_LDAP
+unset MOD_BANDWIDTH MOD_REDIRECT MOD_LDAP MOD_PAC MOD_CONVSID
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for module bandwidth" >&5
 $as_echo_n "checking for module bandwidth... " >&6; }
  if test -f "licensed/bandwidth.c"; then
@@ -65003,7 +65322,7 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for module ldap" >&5
 $as_echo_n "checking for module ldap... " >&6; }
  if test -f "licensed/ldap.c"; then
-	MINVER="122"
+	MINVER="211"
 	unset MODVER
 	MODLINE=`head -1 licensed/ldap.c | grep MODVER`
 	if test x"$MODLINE" != x; then
@@ -65060,10 +65379,70 @@ ac_config_links="$ac_config_links $ac_config_links_6"
 
 fi
 
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for module pac" >&5
+$as_echo_n "checking for module pac... " >&6; }
+ if test -f "licensed/pac.c"; then
+	MINVER="30"
+	unset MODVER
+	MODLINE=`head -1 licensed/pac.c | grep MODVER`
+	if test x"$MODLINE" != x; then
+		MODVER=`echo "$MODLINE" | cut -d: -f 2`
+	fi
+
+				if test x"$MODVER" = x; then
+		MODVER=`awk '/Id:/{ split($''4,a,".");print a[2]; exit }' licensed/pac.c`
+	fi
+	if test "$MODVER" -lt "$MINVER"; then
+		echo "" >&2
+		echo "You have version 1.$MODVER of the pac module, which is outdated." >&2
+		echo "This version of Dante requires at least version 1.$MINVER." >&2
+		echo "Please contact Inferno Nettverk A/S for an updated" >&2
+		echo "version before you attempt to compile." >&2
+		echo "Inferno Nettverk A/S can be reached at info@inet.no." >&2
+		echo "" >&2
+		echo "There is no additional cost for upgrading." >&2
+		exit 1
+	fi
+
+	#command to run in case of success
+	MOD_PAC=t
+
+	unset HAVEMOD_PAC
+
+$as_echo "#define HAVE_MODULE_PAC 1" >>confdefs.h
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+else
+	HAVEMOD_PAC=un
+
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+ac_sources="${HAVEMOD_PAC}licensed/pac.c"
+ac_dests="$servdir/pac.c"
+while test -n "$ac_sources"; do
+  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
+  set $ac_sources; ac_source=$1; shift; ac_sources=$*
+  ac_config_links_7="$ac_config_links_7 $ac_dest:$ac_source"
+done
+ac_config_links="$ac_config_links $ac_config_links_7"
+
+if test x"" != xnokey; then
+    ac_sources="${HAVEMOD_PAC}licensed/pac_key.c"
+ac_dests="$servdir/pac_key.c"
+while test -n "$ac_sources"; do
+  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
+  set $ac_sources; ac_source=$1; shift; ac_sources=$*
+  ac_config_links_8="$ac_config_links_8 $ac_dest:$ac_source"
+done
+ac_config_links="$ac_config_links $ac_config_links_8"
+
+fi
+
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for module checkmodule" >&5
 $as_echo_n "checking for module checkmodule... " >&6; }
  if test -f "licensed/checkmodule.c"; then
-	MINVER="71"
+	MINVER="80"
 	unset MODVER
 	MODLINE=`head -1 licensed/checkmodule.c | grep MODVER`
 	if test x"$MODLINE" != x; then
@@ -65104,9 +65483,9 @@ ac_dests="$servdir/checkmodule.c"
 while test -n "$ac_sources"; do
   set $ac_dests; ac_dest=$1; shift; ac_dests=$*
   set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_7="$ac_config_links_7 $ac_dest:$ac_source"
+  ac_config_links_9="$ac_config_links_9 $ac_dest:$ac_source"
 done
-ac_config_links="$ac_config_links $ac_config_links_7"
+ac_config_links="$ac_config_links $ac_config_links_9"
 
 if test x"nokey" != xnokey; then
     ac_sources="${HAVEMOD_CHECKMODULE}licensed/checkmodule_key.c"
@@ -65114,20 +65493,106 @@ ac_dests="$servdir/checkmodule_key.c"
 while test -n "$ac_sources"; do
   set $ac_dests; ac_dest=$1; shift; ac_dests=$*
   set $ac_sources; ac_source=$1; shift; ac_sources=$*
-  ac_config_links_8="$ac_config_links_8 $ac_dest:$ac_source"
+  ac_config_links_10="$ac_config_links_10 $ac_dest:$ac_source"
 done
-ac_config_links="$ac_config_links $ac_config_links_8"
+ac_config_links="$ac_config_links $ac_config_links_10"
 
 fi
  #helper file
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for module convert_sid" >&5
+$as_echo_n "checking for module convert_sid... " >&6; }
+ if test -f "licensed/convert_sid.c"; then
+	MINVER="1"
+	unset MODVER
+	MODLINE=`head -1 licensed/convert_sid.c | grep MODVER`
+	if test x"$MODLINE" != x; then
+		MODVER=`echo "$MODLINE" | cut -d: -f 2`
+	fi
+
+				if test x"$MODVER" = x; then
+		MODVER=`awk '/Id:/{ split($''4,a,".");print a[2]; exit }' licensed/convert_sid.c`
+	fi
+	if test "$MODVER" -lt "$MINVER"; then
+		echo "" >&2
+		echo "You have version 1.$MODVER of the convert_sid module, which is outdated." >&2
+		echo "This version of Dante requires at least version 1.$MINVER." >&2
+		echo "Please contact Inferno Nettverk A/S for an updated" >&2
+		echo "version before you attempt to compile." >&2
+		echo "Inferno Nettverk A/S can be reached at info@inet.no." >&2
+		echo "" >&2
+		echo "There is no additional cost for upgrading." >&2
+		exit 1
+	fi
+
+	#command to run in case of success
+	MOD_CONVSID=t
+
+	unset HAVEMOD_CONVERT_SID
+
+$as_echo "#define HAVE_MODULE_CONVERT_SID 1" >>confdefs.h
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+else
+	HAVEMOD_CONVERT_SID=un
+
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+ac_sources="${HAVEMOD_CONVERT_SID}licensed/convert_sid.c"
+ac_dests=""bin"/convert_sid.c"
+while test -n "$ac_sources"; do
+  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
+  set $ac_sources; ac_source=$1; shift; ac_sources=$*
+  ac_config_links_11="$ac_config_links_11 $ac_dest:$ac_source"
+done
+ac_config_links="$ac_config_links $ac_config_links_11"
+
+if test x"nokey" != xnokey; then
+    ac_sources="${HAVEMOD_CONVERT_SID}licensed/convert_sid_key.c"
+ac_dests=""bin"/convert_sid_key.c"
+while test -n "$ac_sources"; do
+  set $ac_dests; ac_dest=$1; shift; ac_dests=$*
+  set $ac_sources; ac_source=$1; shift; ac_sources=$*
+  ac_config_links_12="$ac_config_links_12 $ac_dest:$ac_source"
+done
+ac_config_links="$ac_config_links $ac_config_links_12"
+
+fi
+
 
 if test x"$MOD_BANDWIDTH" != x; then
    FEAT="$FEAT${FEAT:+ }mod-bandwidth"
 fi
-if test x"$MOD_LDAP" != x -a x"${no_ldap}" = x; then
+unset have_ldap
+if test x"$MOD_LDAP" != x -a x"${no_ldap}" = x -a x"${no_gssapi}" = x; then
    FEAT="$FEAT${FEAT:+ }mod-ldap"
    SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$LDAPLIBS"
+
+$as_echo "#define HAVE_LDAP 1" >>confdefs.h
+
+   have_ldap=t
 fi
+unset have_pac
+if test x"$MOD_PAC" != x -a x"$MOD_LDAP" -a x"${no_ldap}" = x \
+     -a x"${no_pac}" = x -a x"${no_gssapi}" = x -a x"${no_krb5}" = x; then
+   FEAT="$FEAT${FEAT:+ }mod-pac"
+
+$as_echo "#define HAVE_PAC 1" >>confdefs.h
+
+   have_pac=t
+   if test x"${have_ldap}" = x; then
+      SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$LDAPLIBS"
+   fi
+fi
+ if test x"${have_pac}" != x; then
+  HAVEMOD_PAC_TRUE=
+  HAVEMOD_PAC_FALSE='#'
+else
+  HAVEMOD_PAC_TRUE='#'
+  HAVEMOD_PAC_FALSE=
+fi
+
+
 if test x"$MOD_REDIRECT" != x; then
    FEAT="$FEAT${FEAT:+ }mod-redirect"
 fi
@@ -65395,6 +65860,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${SERVER_INTERPOSITION_ALWAYS_TRUE}" && test -z "${SERVER_INTERPOSITION_ALWAYS_FALSE}"; then
   as_fn_error $? "conditional \"SERVER_INTERPOSITION_ALWAYS\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${HAVEMOD_PAC_TRUE}" && test -z "${HAVEMOD_PAC_FALSE}"; then
+  as_fn_error $? "conditional \"HAVEMOD_PAC\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 
@@ -66283,6 +66752,10 @@ do
     "$ac_config_links_6") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_6" ;;
     "$ac_config_links_7") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_7" ;;
     "$ac_config_links_8") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_8" ;;
+    "$ac_config_links_9") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_9" ;;
+    "$ac_config_links_10") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_10" ;;
+    "$ac_config_links_11") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_11" ;;
+    "$ac_config_links_12") CONFIG_LINKS="$CONFIG_LINKS $ac_config_links_12" ;;
     "sockd/Makefile") CONFIG_FILES="$CONFIG_FILES sockd/Makefile" ;;
     "include/Makefile") CONFIG_FILES="$CONFIG_FILES include/Makefile" ;;
     "lib/Makefile") CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
@@ -67688,6 +68161,17 @@ $as_echo "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
 fi
 
 
+rm -f sockd/config_scan.c sockd/config_parse.c
+(cd sockd; ln -sf ../lib/config_scan.c config_scan.c)
+(cd sockd; ln -sf ../lib/config_parse.c config_parse.c)
+(cd dlib; ln -sf ../lib/config_scan.c config_scan.c)
+(cd dlib; ln -sf ../lib/config_parse.c config_parse.c)
+
+(cd sockd; ln -sf ../lib/config_parse.y config_parse.y)
+(cd sockd; ln -sf ../lib/config_scan.l config_scan.l)
+(cd dlib; ln -sf ../lib/config_parse.y config_parse.y)
+(cd dlib; ln -sf ../lib/config_scan.l config_scan.l)
+
 echo ""
 echo "                     Configure status:"
 echo ""
@@ -67805,6 +68289,21 @@ if test x"$MOD_LDAP" != x; then
 else
     echo "ldap:              Not found"
 fi
+if test x"$MOD_PAC" != x; then
+    if test x"${have_pac}" != x; then
+        echo "pac:               Enabled"
+    else
+        s="             " #indent
+        echo "pac: $s Disabled ($nopac)"
+	echo "     $s (NOTE: Both libraries and header files for"
+	echo "     $s Kerberos/SASL/GSSAPI/LDAP must be installed for the"
+	echo "     $s PAC module to compile. On some platforms header files"
+	echo "     $s are found in separate packages (such as gssapi-devel).)"
+    fi
+else
+    echo "pac:               Not found"
+fi
+
 echo ""
 
 echo "CONFRES: $CONFVAR" >> buildenv.txt
@@ -67827,7 +68326,7 @@ test -s "$VINFO" && cat "$VINFO"
 
 #XXX depcomp regen hack
 touch _reconf
-for dir in lib dlib sockd; do
+for dir in bin lib dlib sockd unlicensed; do
     touch $dir/_reconf
 done
 

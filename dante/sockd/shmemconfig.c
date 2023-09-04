@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013, 2014
+ * Copyright (c) 2012, 2013, 2014, 2020, 2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmemconfig.c,v 1.49.4.5 2014/08/15 18:16:42 karls Exp $";
+"$Id: shmemconfig.c,v 1.49.4.5.6.6 2021/02/02 19:34:14 karls Exp $";
 
 static size_t
 linkedsize(const linkedname_t *head);
@@ -69,11 +69,13 @@ getmem(const size_t size);
  * or NULL if there is not enough memory available.
  */
 
+# if 0
 static size_t
 memleft(void);
 /*
  * Returns the number of bytes left in the memorypool.
  */
+#endif
 
 static size_t
 memleft_no_alignment_luck(void);
@@ -258,7 +260,7 @@ pointer_copy(src, srcoffset, dst, mem, memsize)
    void *mem;
    const size_t memsize;
 {
-   const char *function = "pointer_copy()";
+/*   const char *function = "pointer_copy()"; */
 
    SASSERTX(dst != NULL);
 
@@ -446,19 +448,19 @@ pointer_copyorsize(op, src, srcoffset, dst, mem, memsize)
                DOLINKCOPY(srcrule,
                           srcoffset,
                           dstrule,
-                          state.ldap.ldapurl,
+                          state.ldapauthorisation.ldapurl,
                           memfunc);
 
                DOLINKCOPY(srcrule,
                           srcoffset,
                           dstrule,
-                          state.ldap.ldapbasedn,
+                          state.ldapauthorisation.ldapbasedn,
                           memfunc);
                break;
 
             case SIZE:
-               ADDLEN(linkedsize(srcrule->state.ldap.ldapurl), &size);
-               ADDLEN(linkedsize(srcrule->state.ldap.ldapbasedn), &size);
+               ADDLEN(linkedsize(srcrule->state.ldapauthorisation.ldapurl), &size);
+               ADDLEN(linkedsize(srcrule->state.ldapauthorisation.ldapbasedn), &size);
                break;
          }
 
@@ -480,12 +482,10 @@ pointer_copyorsize(op, src, srcoffset, dst, mem, memsize)
          switch (op) {
             case COPY:
                DOLINKCOPY(srcrule, srcoffset, dstrule, ldapgroup, memfunc);
-               DOLINKCOPY(srcrule, srcoffset, dstrule, ldapserver, memfunc);
                break;
 
             case SIZE:
                ADDLEN(linkedsize(srcrule->ldapgroup), &size);
-               ADDLEN(linkedsize(srcrule->ldapserver), &size);
                break;
          }
 #endif /* HAVE_LDAP */
@@ -842,15 +842,25 @@ do {                                                                           \
          tmpruleb = *brule;
 
 #if HAVE_LDAP
-         tmprulea.state.ldap.ldapurl    = tmpruleb.state.ldap.ldapurl;
-         tmprulea.state.ldap.ldapbasedn = tmpruleb.state.ldap.ldapbasedn;
+
+         tmprulea.state.ldapauthorisation.ldapurl
+         = tmpruleb.state.ldapauthorisation.ldapurl;
+
+         tmprulea.state.ldapauthorisation.ldapbasedn
+         = tmpruleb.state.ldapauthorisation.ldapbasedn;
+
+         tmprulea.state.ldapauthentication.ldapurl
+         = tmpruleb.state.ldapauthentication.ldapurl;
+
 #endif /* HAVE_LDAP */
 
          EQCHECK((&tmprulea), (&tmpruleb), state);
 
 #if HAVE_LDAP
-         LINKCHECK(arule, brule, state.ldap.ldapurl);
-         LINKCHECK(arule, brule, state.ldap.ldapbasedn);
+
+         LINKCHECK(arule, brule, state.ldapauthorisation.ldapurl);
+         LINKCHECK(arule, brule, state.ldapauthorisation.ldapbasedn);
+
 #endif /* HAVE_LDAP */
 
          EQCHECK(arule, brule, timeout);
@@ -858,13 +868,16 @@ do {                                                                           \
          LINKCHECK(arule, brule, group);
 
 #if HAVE_LDAP
+
          LINKCHECK(arule, brule, ldapgroup);
-         LINKCHECK(arule, brule, ldapserver);
          EQCHECK(arule, brule, ldapsettingsfromuser);
+
 #endif /* HAVE_LDAP */
 
 #if HAVE_LIBWRAP
+
          EQCHECK(arule, brule, libwrap);
+
 #endif /* HAVE_LIBWRAP */
 
          EQCHECK(arule, brule, bw_shmid);
@@ -1211,11 +1224,13 @@ doconfigtest(void)
    /* free(shmem).  Should free shmem->pointers too, but can not. */
 }
 
+#if 0
 static size_t
 memleft(void)
 {
    return _left;
 }
+#endif
 
 static size_t
 memleft_no_alignment_luck(void)

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2019, 2020,
+ *               2021
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +43,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.945.4.14.2.3 2017/01/31 08:17:38 karls Exp $ */
+/* $Id: sockd.h,v 1.945.4.14.2.3.4.18 2021/02/02 19:34:14 karls Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -142,9 +143,17 @@
 #define SOCKD_EXPLICIT_LDAP_PORT     (389)
 #define SOCKD_EXPLICIT_LDAPS_PORT    (636)
 
-#define SOCKD_LDAP_DEADTIME          (30)
+#ifndef SOCKD_LDAP_DEADTIME
+#define SOCKD_LDAP_DEADTIME          (30) /* server down cache timeout */
+#endif /* SOCKD_LDAP_DEADTIME */
 #define SOCKD_LDAP_SEARCHTIME        (30)
 #define SOCKD_LDAP_TIMEOUT           (2)
+
+/*
+ * -1 is a valid value, so special-case.
+ */
+ #define LDAP_UNSET_DEBUG_VALUE   (-2)
+
 
 /*
  * Depending on what kind of server we are, we will have different
@@ -244,7 +253,12 @@ do {                                                           \
       if (LEFT() > MEMLEFT())                                  \
           OUTOFMEM();                                          \
                                                                \
-      if ((p = READ(s, LEFT(), auth)) <= 0) {                  \
+      p = READ(s, LEFT(), auth);                               \
+                                                               \
+      if (p >= 0)                                              \
+         errno = 0; /* remove any old cruft. */                \
+                                                               \
+      if (p <= 0) {                                            \
          if (ERRNOISTMP(errno))                                \
             return NEGOTIATE_CONTINUE;                         \
          else if (p == 0)                                      \
@@ -295,7 +309,7 @@ do {                                                           \
 
 
 
-#define OBJECTFILL(object)   (memcpy((object), &state->mem[start], end - start))
+#define OBJECTFILL(object)  (memmove((object), &state->mem[start], end - start))
 /*
  * Fills "object" with data.
  */
@@ -1553,10 +1567,16 @@ typedef struct rule_t {
    } udprange;                           /* udprange, if limited.             */
 
 #if HAVE_LDAP
+
    linkedname_t            *ldapgroup;   /* name of ldap groups allowed.      */
-   linkedname_t            *ldapserver;  /* name of predefined ldap servers.  */
    unsigned char           ldapsettingsfromuser;
+
 #endif /* HAVE_LDAP */
+
+#if HAVE_PAC
+   linkedname_t            *objectsids;  /* name of sids(=AD groups) allowed. */
+   unsigned                pacoff;       /* flag to use sids(=AD groups) */
+#endif /* HAVE_PAC */
 
 #if HAVE_LIBWRAP
    char                    libwrap[LIBWRAPBUF];   /* libwrapline.             */
@@ -1734,49 +1754,51 @@ typedef struct {
                                          */
 
 #if BAREFOOTD
+
    unsigned char  alludpbounced;        /* bounced all udp addresses?         */
+
 #endif /* BAREFOOTD */
 
-#if HAVE_PAM
    /*
-    * allows us to optimize a few things a little based on configuration.
-    * If it is NUL, the value can vary from rule to rule, otherwise,
-    * the value is fixed and this variable points to the fixed value.
+    * The next set of objects allows us to optimize a few things based on
+    * the currently running configuration.
+    * If a value is unset it means values can vary from rule to rule.
+    * Otherwise, the value is fixed and these variables contain the fixed
+    * value.
+    * We only care about attributes that can affect rulespermit().  I.e.,
+    * is it possible that the value of a given attribute can change whether
+    * rulespermit() will pass or block a session?  If not, no need to care
+    * about that attribute here.
     */
+
+#if HAVE_PAM
+
    char          pamservicename[MAXNAMELEN];
+
 #endif /* HAVE_PAM */
 
 #if HAVE_BSDAUTH
-   /*
-    * allows us to optimize a few things a little based on configuration.
-    * If it is NUL, the value can vary from rule to rule, otherwise,
-    * the value is fixed and this variable points to the fixed value.
-    */
+
    char          bsdauthstylename[MAXNAMELEN];
+
 #endif /* HAVE_BSDAUTH */
 
 #if HAVE_GSSAPI
-   /*
-    * allows us to optimize a few things a little based on configuration.
-    * If it is NUL, the values can vary from rule to rule, otherwise,
-    * the value is fixed and these variables point to the fixed value.
-    */
+
    char          gssapiservicename[MAXNAMELEN];
    char          gssapikeytab[MAXNAMELEN];
+
 #endif /* HAVE_GSSAPI */
 
-#define MAXLDAPLEN     (255 + 1)
 #if HAVE_LDAP
-   char          ldapattribute[MAXLDAPLEN];     /* ldap attribute.      */
-   char          ldapattribute_AD[MAXLDAPLEN];  /* ldap AD attribute.   */
-   char          ldapcertfile[MAXLDAPLEN];      /* ldap cert file.      */
-   char          ldapcertpath[MAXLDAPLEN];      /* ldap cert db path.   */
-   char          ldapfilter[MAXLDAPLEN];        /* ldap filter.         */
-   char          ldapfilter_AD[MAXLDAPLEN];     /* ldap AD filter.      */
-   char          ldapkeytab[MAXLDAPLEN];        /* ldap keytab.         */
+
+   ldapauthorisation_t     ldapauthorisation;
+   ldapauthentication_t    ldapauthentication;
+
 #endif /* HAVE_LDAP */
 
 } configstate_t;
+
 typedef struct {
    /*
     * Protocols/address-families operator has configured us to *look for*,
@@ -1859,6 +1881,13 @@ typedef struct {
    size_t                  maxrequests;         /*
                                                  * max # of requests to handle
                                                  * before quitting.
+                                                 * 0 if unlimited.
+                                                 */
+
+   size_t                  maxlifetime;         /*
+                                                 * max seconds to live
+                                                 * before quitting.
+                                                 * 0 if forever.
                                                  */
 } childstate_t;
 
@@ -1926,6 +1955,7 @@ struct config {
                                                     */
 
 #if HAVE_LDAP
+
    int                        ldapfd;              /*
                                                     * shmem file/lock for
                                                     * ldap cache.
@@ -3123,6 +3153,14 @@ authinfo(const authmethod_t *auth, char *info, size_t infolen)
  * Returns a pointer to "info".
  */
 
+#if HAVE_PAC
+const char *
+authsids(const authmethod_t *auth);
+/*
+ * Returns a pointer to the sids contained in "auth", or NULL if none.
+ */
+#endif /* HAVE_PAC */
+
 int
 rule_inheritoruse(struct rule_t *from, const clientinfo_t *cinfo_from,
                   struct rule_t *to, const clientinfo_t *cinfo,
@@ -3881,7 +3919,8 @@ ldapgroupmatch(const authmethod_t *auth, const rule_t *rule);
  */
 
 int
-ldapgroupmatches(const char *username, const char *userdomain,
+ldapgroupmatches(const authmethod_t *auth,
+                 const char *username, const char *userdomain,
                  const char *group, const char *groupdomain,
                  const rule_t *rule);
 /*
@@ -3890,31 +3929,41 @@ ldapgroupmatches(const char *username, const char *userdomain,
  * Rule "rule" contains further ldap parameters.
  */
 
-void
-cache_ldap_user(const char *username, int result);
+int
+ldapauth_passwordcheck(int s, const struct sockaddr_storage *src,
+                       const struct sockaddr_storage *dst,
+                       authmethod_ldap_t *auth,
+		       char *emsg, size_t emsgsize);
 /*
- * Add user "username" to cache.
+ * Checks if user password against ldap server
+ */
+
+
+void
+cache_ldap_user(const char *username, int result, size_t rulenumber);
+/*
+ * Add user "username" to cache for rule "rulenumber".
  * "retval" gives the result to cache.
  * XXX result should be enum, and used in ldap_user_is_cached() also?
  */
 
 int
-ldap_user_is_cached(const char *username);
+ldap_user_is_cached(const char *username, size_t rulenumber);
 /*
- * Checks if user "username" is cached.
+ * Checks if user "username" is cached for rule "rulenumber".
  * Returns:
  *    If not cached: -1
  *    Else: 0 or 1
  */
 
-char
-*asciitoutf8(char *input);
+char *
+asciitoutf8(char *input);
 /*
  * Checks if string contains character > 127 and converts them to UTF8
  */
 
-char
-*hextoutf8(const char *input, int flag);
+char *
+hextoutf8(const char *input, int flag);
 /*
  * Convert hex input to UTF8 character string
  * flag = 2 convert input (all)
@@ -3924,6 +3973,49 @@ char
  */
 
 #endif /* HAVE_LDAP */
+
+#if HAVE_PAC
+
+#define MAX_BASE64_LEN 256
+
+int
+sidmatch(const authmethod_t *auth, const linkedname_t *objectsids);
+/*
+ * Checks whether the username in "auth" matches SID listed
+ * in "userlist".
+ * Returns:
+ * If match: true.
+ * Else: false.
+ */
+
+int
+binsidtob64(const char *bsid, char *b64buf, int bsid_len, size_t b64buflen);
+/*
+ * Converts binary format SID to a base64 encoded string.
+ * Returns:
+ *  If success:  0
+ *  If Failure: -1
+ */
+
+int
+sidtob64(const char *sid, char *b64buf, size_t b64buflen);
+/*
+ * Converts a SID string to a base64 encoded string.
+ * Returns:
+ *   If success:  0
+ *   If failure: -1
+ */
+
+int
+b64tosid(const char *b64, char *sidbuf, size_t sidbuflen);
+/*
+ * Converts a base64 encoded string to a SID string.
+ * Returns:
+ *   If success:  0
+ *   If failure: -1
+ */
+
+#endif /* HAVE_PAC */
 
 unsigned long
 medtv(struct timeval *tvarr, size_t tvsize);
@@ -4084,6 +4176,12 @@ ldapcachesetup(void);
 /*
  * Initializes the ldapcache.  Must be called before any calls to
  * ldap functions.
+ */
+
+void
+ldapcacheinvalid(void);
+/*
+ * Clear all ldap cache entries.
  */
 
 char *
@@ -4508,6 +4606,17 @@ maxfreeslots(const int childtype);
  * Returns the maximum number of free slots a child of type "childtype"
  * can have.
  */
+
+int
+child_should_retire( const sockd_child_t *child);
+/*
+ * Returns true if child "child" is ready for retirement, indicating
+ * we should not send any more clients to it.
+ *
+ * Returns false if child "child" is not ready for retiring, meaning
+ * it should continue to accept new clients as normal.
+ */
+
 
 void
 sockd_print_child_ready_message(const size_t freefds);

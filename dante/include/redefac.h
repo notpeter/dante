@@ -72,6 +72,10 @@
 #define HAVE_CONFENV_DISABLE 0
 #endif
 
+#ifndef HAVE_COVERAGE
+#define HAVE_COVERAGE 0
+#endif
+
 #ifndef HAVE_CPU_EQUAL
 #define HAVE_CPU_EQUAL 0
 #endif
@@ -104,12 +108,24 @@
 #define HAVE_DECL_FORMAT 0
 #endif
 
+#ifndef HAVE_DECL_GETS
+#define HAVE_DECL_GETS 0
+#endif
+
 #ifndef HAVE_DECL_KRB5_KT_FREE_ENTRY
 #define HAVE_DECL_KRB5_KT_FREE_ENTRY 0
 #endif
 
 #ifndef HAVE_DECL_NONNULL
 #define HAVE_DECL_NONNULL 0
+#endif
+
+#ifndef HAVE_DECL__IO_GETC
+#define HAVE_DECL__IO_GETC 0
+#endif
+
+#ifndef HAVE_DECL__IO_PUTC
+#define HAVE_DECL__IO_PUTC 0
 #endif
 
 #ifndef HAVE_DEC_PROTO
@@ -322,6 +338,18 @@
 
 #ifndef HAVE_GSSAPI_H
 #define HAVE_GSSAPI_H 0
+#endif
+
+#ifndef HAVE_GSSKRB5_EXTRACT_AUTHZ_DATA_FROM_SEC_CONTEXT
+#define HAVE_GSSKRB5_EXTRACT_AUTHZ_DATA_FROM_SEC_CONTEXT 0
+#endif
+
+#ifndef HAVE_GSS_MAP_ANY_TO_ANY
+#define HAVE_GSS_MAP_ANY_TO_ANY 0
+#endif
+
+#ifndef HAVE_GSS_MAP_NAME_TO_ANY
+#define HAVE_GSS_MAP_NAME_TO_ANY 0
 #endif
 
 #ifndef HAVE_HEIMDAL_KERBEROS
@@ -788,6 +816,10 @@
 #define HAVE_IP_TOS 0
 #endif
 
+#ifndef HAVE_IP_TRANSPARENT
+#define HAVE_IP_TRANSPARENT 0
+#endif
+
 #ifndef HAVE_IP_TTL
 #define HAVE_IP_TTL 0
 #endif
@@ -802,6 +834,14 @@
 
 #ifndef HAVE_ISSETUGID
 #define HAVE_ISSETUGID 0
+#endif
+
+#ifndef HAVE_KERBEROSV5_COM_ERR_H
+#define HAVE_KERBEROSV5_COM_ERR_H 0
+#endif
+
+#ifndef HAVE_KERBEROSV5_KRB5_H
+#define HAVE_KERBEROSV5_KRB5_H 0
 #endif
 
 #ifndef HAVE_KRB5
@@ -826,6 +866,14 @@
 
 #ifndef HAVE_KRB5_MEMORY_CACHE
 #define HAVE_KRB5_MEMORY_CACHE 0
+#endif
+
+#ifndef HAVE_KRB5_MEMORY_KEYTAB
+#define HAVE_KRB5_MEMORY_KEYTAB 0
+#endif
+
+#ifndef HAVE_KRB5_PAC
+#define HAVE_KRB5_PAC 0
 #endif
 
 #ifndef HAVE_LBER_H
@@ -1020,8 +1068,16 @@
 #define HAVE_MODULE_CHECKMODULE 0
 #endif
 
+#ifndef HAVE_MODULE_CONVERT_SID
+#define HAVE_MODULE_CONVERT_SID 0
+#endif
+
 #ifndef HAVE_MODULE_LDAP
 #define HAVE_MODULE_LDAP 0
+#endif
+
+#ifndef HAVE_MODULE_PAC
+#define HAVE_MODULE_PAC 0
 #endif
 
 #ifndef HAVE_MODULE_REDIRECT
@@ -1090,6 +1146,10 @@
 
 #ifndef HAVE_OPENLOG_LOG_PERROR
 #define HAVE_OPENLOG_LOG_PERROR 0
+#endif
+
+#ifndef HAVE_PAC
+#define HAVE_PAC 0
 #endif
 
 #ifndef HAVE_PATHS_H

@@ -23,7 +23,7 @@ done
 
 #known keywords for --with/without-foo?
 LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx|sysroot"
-KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|bufsize|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|ldap|ldap_path|sasl|sasl_path|glibc_secure|libwrap"
+KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|bufsize|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|pac|ldap|ldap_path|sasl|sasl_path|glibc_secure|libwrap"
 for keyword in `set | egrep '^with_' | sed -e 's/^with_//' | \
                 sed -e 's/=.*$//'`; do
     echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
@@ -161,12 +161,14 @@ no_gssapi=t
 no_krb5=t
 no_ldap=t
 no_sasl=t
+no_pac=t
 
-unset noldap
+unset noldap nopac
 unset LDAPLIBS
 m4_include(gssapi.m4)
 if test x"${no_gssapi}" = xt; then
    noldap="working GSSAPI installation required"
+   nopac="working GSSAPI installation required"
 else
    FEAT="$FEAT${FEAT:+ }gssapi"
 
@@ -174,7 +176,12 @@ else
    m4_include(kerberos.m4)
    if test x"${no_krb5}" = xt; then
        noldap="KerberosV installation required"
+       nopac="KerberosV installation required"
    else
+       if test x"${no_pac}" = xt; then
+          nopac="PAC support needed"
+       fi
+
        m4_include(sasl.m4)
        if test x"${no_sasl}" = xt; then
            noldap="SASL installation required"

@@ -55,7 +55,7 @@
 #endif /* SOCKS_CLIENT || SOCKS_SERVER */
 
 static const char rcsid[] =
-"$Id: clientprotocol.c,v 1.225.4.4 2014/08/15 18:16:40 karls Exp $";
+"$Id: clientprotocol.c,v 1.225.4.4.6.1 2021/01/07 15:46:46 karls Exp $";
 
 static int
 recv_sockshost(int s, sockshost_t *host, int version, authmethod_t *auth,
@@ -1123,6 +1123,7 @@ clientmethod_gssapi(s, protocol, gw, version, auth, emsg, emsglen)
                  gss_server_enc, gss_enc;
    char nameinfo[MAXNAMELEN + MAXNAMELEN], buf[sizeof(nameinfo)], tmpbuf[512];
    int conf_state;
+   int have_slash;
 
 #if SOCKSLIBRARY_DYNAMIC && SOCKS_CLIENT
    /*
@@ -1201,14 +1202,19 @@ clientmethod_gssapi(s, protocol, gw, version, auth, emsg, emsglen)
          SERRX(gw->addr.atype);
    }
 
-   snprintf(buf, sizeof(buf), "%s@%s", gw->state.gssapiservicename, nameinfo);
+   have_slash = (strchr(gw->state.gssapiservicename, '/') != NULL);
+   if (have_slash)
+      snprintf(buf, sizeof(buf), "%s", gw->state.gssapiservicename);
+   else
+      snprintf(buf, sizeof(buf), "%s@%s", gw->state.gssapiservicename, nameinfo);
    service.value  = buf;
    service.length = strlen((char *)service.value);
 
    SOCKS_SIGBLOCK_IF_CLIENT(SIGIO, &oldset);
    major_status = gss_import_name(&minor_status,
                                   &service,
-                                  gss_nt_service_name,
+                                  have_slash ? (gss_OID)GSS_C_NULL_OID
+                                             : (gss_OID)gss_nt_service_name,
                                   &server_name);
    SOCKS_SIGUNBLOCK_IF_CLIENT(&oldset);
 

@@ -67,7 +67,7 @@ AC_MSG_CHECKING([for compiler type])
 if $CC -v 2>&1 | tail -1 | egrep '^gcc ' >/dev/null; then
     COMPTYPE=gcc
     FAILWARN="-Wall -Werror"
-elif $CC -v 2>&1 | egrep '^clang ' >/dev/null; then
+elif $CC -v 2>&1 | egrep '(^|^[a-zA-Z]+ )(clang|LLVM) ' >/dev/null; then
     COMPTYPE=clang
     FAILWARN="-Wall -Werror"
 elif $CC -V 2>&1 | grep 'Sun C ' >/dev/null; then
@@ -668,7 +668,8 @@ int main()
 	    else
 		exit(1);
 	}
-}], [FEAT="$FEAT${FEAT:+ }coverage"],
+}], [FEAT="$FEAT${FEAT:+ }coverage"
+     AC_DEFINE(HAVE_COVERAGE, 1, [for code coverage])],
     [AC_MSG_WARN([coverage requested, but compilation with --coverage fails])
      NOCOVER="Disabled, --coverage compilation fails"
      CFLAGS="$oCFLAGS"

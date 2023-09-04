@@ -1,76 +1,52 @@
 dnl kerberos.m4 -- find compiler and linker flags for Kerberos 5
 dnl Based on patch from Markus Moeller (markus_moeller at compuserve.com)
 
-dnl default prefix for kerberos headers/libs
-krb5dir=/usr
-AC_ARG_WITH(krb5,
- [  --without-krb5          disable kerberos 5 support @<:@default=detect@:>@],
- [KRB5=$withval])
+dnl assume kerberos 5 support is wanted, no point in having option for this
+dnl independently of gssapi.
+#AC_ARG_WITH(krb5,
+# [  --without-krb5          disable kerberos 5 support @<:@default=detect@:>@],
+# [KRB5="$withval"])
+KRB5=yes
 
-AC_ARG_WITH(krb5-path,
- [  --with-krb5-path=PATH   specify kerberos 5 path],
- [krb5dir=$withval])
-
-AC_ARG_WITH(krb5-config,
- [  --with-krb5-config=PATH specify path to krb5-config @<:@default=detect@:>@],
- [if test x"$withval" = xyes; then
-     unset krb5confpath
-  elif test x"$withval" != xno; then
-     krb5confpath=$withval
-  else
-     krb5confpath=no
-  fi])
+dnl krb5confpath should be set in gssapi.m4
 
 if test x"$KRB5" != xno; then
    unset krb5fail
-   if test x"$krb5confpath" != xno; then
-      if test x"$krb5confpath" != x; then
-         if test ! -x "$krb5confpath"; then
-                AC_MSG_WARN([krb5-config '$krb5confpath' not executable, ignoring])
-         else
-            ac_krb5_cflags=`$krb5confpath --cflags krb5 2>/dev/null`
-           if test $? != 0; then
-               krb5fail=t
-           fi
-           ac_krb5_libs=`$krb5confpath --libs krb5 2>/dev/null`
-           if test $? != 0; then
-               krb5fail=t
-           fi
-           ac_krb5_heimdal="`$krb5confpath --version 2>/dev/null | grep -i heimdal`"
-         fi
-      else
-         AC_CHECK_PROG(ac_krb5_config, krb5-config, yes, no)
-         if test x"${ac_krb5_config}" = xyes; then
-           ac_krb5_cflags=`krb5-config --cflags krb5 2>/dev/null`
-           if test $? != 0; then
-               krb5fail=t
-           fi
-           ac_krb5_libs=`krb5-config --libs krb5 2>/dev/null`
-           if test $? != 0; then
-               krb5fail=t
-           fi
-           ac_krb5_heimdal="`krb5-config --version 2>/dev/null | grep -i heimdal`"
-         fi
+   if test x"$krb5confpath" != x; then
+      ac_krb5_cflags=`$krb5confpath --cflags krb5 2>/dev/null`
+      if test $? != 0; then
+         krb5fail=t
       fi
+      ac_krb5_libs=`$krb5confpath --libs krb5 2>/dev/null`
+      if test $? != 0; then
+         krb5fail=t
+      fi
+      ac_krb5_heimdal="`$krb5confpath --version 2>/dev/null | grep -i heimdal`"
    fi
    dnl working krb5-config?
-   if test x"$krb5fail" = xt; then
+   if test x"$krb5confpath" = x -o x"$krb5fail" = xt; then
       ac_krb5_cflags=
       ac_krb5_libs=
+   fi
+
+   unset PAC
+   AC_ARG_WITH(pac,
+   [  --without-pac           disable PAC support @<:@default=detect@:>@],
+   [PAC="$withval"],
+   [PAC="yes" #default])
+
+   if test x"$PAC" != xyes; then
+      PAC="no"
+      AC_MSG_WARN([PAC disabled with --without-pac])
    fi
 
    dnl any cflags values obtained from krb5-config?
    if test x"${ac_krb5_cflags}" != x; then
       CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$ac_krb5_cflags"
-   else
-      dnl add cppflags values needed for default compilation (openbsd)
-      if test -d $krb5dir/include/kerberosV; then
-         CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-I${krb5dir}/include/kerberosV"
-      fi
    fi
 
    dnl look for krb5 headers
-   AC_CHECK_HEADERS(krb5.h com_err.h et/com_err.h)
+   AC_CHECK_HEADERS(krb5.h kerberosv5/krb5.h com_err.h et/com_err.h kerberosv5/com_err.h)
 
    ac_com_error_message=no
    AC_EGREP_HEADER(com_err.h, krb5.h, ac_com_err_krb5=yes)
@@ -81,6 +57,8 @@ if test x"$KRB5" != xno; then
       AC_EGREP_HEADER(error_message, com_err.h, ac_com_error_message=yes)
    elif test x"${ac_cv_header_et_com_err_h}" = xyes; then
       AC_EGREP_HEADER(error_message, et/com_err.h, ac_com_error_message=yes)
+   elif test x"${ac_cv_header_kerberosv5_com_err_h}" = xyes; then
+      AC_EGREP_HEADER(error_message, kerberosv5/com_err.h, ac_com_error_message=yes)
    fi
 
    dnl might be used by libkrb5, but not returned by krb5-config
@@ -122,12 +100,44 @@ if test x"$KRB5" != xno; then
    AC_CHECK_LIB(krb5, krb5_get_error_message,
       AC_DEFINE(HAVE_KRB5_GET_ERROR_MESSAGE, 1, [Define to 1 if you have krb5_get_error_message]),)
 
+  if test x"$PAC" != xno; then
+     AC_CHECK_TYPE(krb5_pac,
+       AC_DEFINE(HAVE_KRB5_PAC,1,
+          [Define to 1 if you have krb5_pac]),, [
+#if HAVE_KRB5_H
+#include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
+])
+
+     #relies on gssapi.m4 having being run
+     AC_MSG_CHECKING([if environment is usable for pac])
+     AC_EGREP_CPP(yes, [
+#include <sys/types.h>
+#if HAVE_GSSKRB5_EXTRACT_AUTHZ_DATA_FROM_SEC_CONTEXT && HAVE_HEIMDAL_KERBEROS && HAVE_KRB5_PAC
+yes
+#elif HAVE_GSS_MAP_NAME_TO_ANY && !HAVE_HEIMDAL_KERBEROS && HAVE_KRB5_PAC
+yes
+#endif /* HAVE_GSS_MAP_NAME_TO_ANY && !HAVE_HEIMDAL_KERBEROS && HAVE_KRB5_PAC */
+],
+      [AC_MSG_RESULT(yes)
+       unset no_pac],
+      [AC_MSG_RESULT(no)],
+      [dnl assume no when cross-compiling
+      AC_MSG_RESULT(assuming no)])
+   else
+      AC_MSG_RESULT([no, disabled])
+   fi
+
    dnl do compile check
    AC_MSG_CHECKING([for working krb5])
    AC_TRY_RUN([
 #if HAVE_KRB5_H
 #include <krb5.h>
-#endif
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
 
 int
 main(void)
@@ -147,7 +157,13 @@ main(void)
     AC_DEFINE(HAVE_KRB5, 1, [KRB5 support])
     AC_MSG_RESULT(assuming yes)])
 
-   AC_CHECK_DECLS(krb5_kt_free_entry,,, [#include <krb5.h>])
+   AC_CHECK_DECLS(krb5_kt_free_entry,,, [
+#if HAVE_KRB5_H
+#include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
+])
    AC_CHECK_LIB(krb5, krb5_kt_free_entry,
       AC_DEFINE(HAVE_KRB5_KT_FREE_ENTRY, 1, [Define to 1 if you have krb5_kt_free_entry]),)
    AC_CHECK_LIB(krb5, krb5_get_init_creds_keytab,
@@ -157,7 +173,11 @@ main(void)
 
    AC_MSG_CHECKING([for krb5_get_init_creds_opt_free with krb5 context ])
 AC_TRY_COMPILE([
+#if HAVE_KRB5_H
 #include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
 ], [
 krb5_context context;
 krb5_get_init_creds_opt options;
@@ -172,8 +192,14 @@ krb5_get_init_creds_opt_free(context, &options);
        AC_MSG_WARN([disabling Kerberos memory cache on this platform])
        ;;
     *)
+       AC_MSG_CHECKING([for MEMORY cache])
        AC_TRY_RUN([
+#if HAVE_KRB5_H
 #include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
+
 main()
 {
     krb5_context context;
@@ -182,10 +208,33 @@ main()
     krb5_init_context(&context);
     return krb5_cc_resolve(context, "MEMORY:test_cache", &cc);
 }],
-	[AC_DEFINE(HAVE_KRB5_MEMORY_CACHE, 1, [Define to 1 if you have MEMORY: cache support])],
-	[],
+	[AC_DEFINE(HAVE_KRB5_MEMORY_CACHE, 1, [Define to 1 if you have MEMORY: cache support])
+         AC_MSG_RESULT(yes)],
+        [AC_MSG_RESULT(no)],
 	[dnl cross-compiling assume non-working
 	 true])
 	;;
    esac
+
+   AC_MSG_CHECKING([for MEMORY keytab])
+   AC_TRY_RUN([
+#if HAVE_KRB5_H
+#include <krb5.h>
+#elif HAVE_KERBEROSV5_KRB5_H
+#include <kerberosv5/krb5.h>
+#endif /* HAVE_KERBEROSV5_KRB5_H */
+
+main()
+{
+    krb5_context context;
+    krb5_keytab kt;
+
+    krb5_init_context(&context);
+    return krb5_kt_resolve(context, "MEMORY:test_keytab", &kt);
+}],
+   [AC_DEFINE(HAVE_KRB5_MEMORY_KEYTAB, 1, [Define to 1 if you have MEMORY: keytab support])
+    AC_MSG_RESULT(yes)],
+   [AC_MSG_RESULT(no)],
+   [dnl cross-compiling assume non-working
+   true])
 fi
