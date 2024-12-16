@@ -54,7 +54,7 @@
 #include <dlfcn.h>
 
 static const char rcsid[] =
-"$Id: address.c,v 1.288.4.4.6.4 2020/11/11 17:02:23 karls Exp $";
+"$Id: address.c,v 1.288.4.4.6.4.4.1 2024/11/21 10:22:42 michaels Exp $";
 
 /*
  * During init, we need to let all system calls resolve to the native
@@ -182,7 +182,7 @@ socks_addaddr(clientfd, socksfd, takelock)
 
    if (socksfdc < dc) { /* init/reallocate */
 #if HAVE_GSSAPI
-      size_t i;
+      int i;
 #endif /* HAVE_GSSAPI */
 
       slog(LOG_DEBUG,
@@ -201,7 +201,7 @@ socks_addaddr(clientfd, socksfd, takelock)
 
 #if HAVE_GSSAPI
       /* update internal pointers in previously existing objects. */
-      for (i = 0; i < socksfdc; ++i) {
+      for (i = 0; i < (int)socksfdc; ++i) {
          socksfd_t *sfd = &socksfdv[i];
 
          if (!socks_isaddr(i, 0))

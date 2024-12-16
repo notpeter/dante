@@ -398,11 +398,13 @@ if test x"${have_sa_len}" != x; then
    for type in uint8_t "unsigned char"; do
        AC_TRY_COMPILE([
 #include <sys/types.h>
-#include <sys/socket.h>], [
+#include <sys/socket.h>
+#include <stdio.h>], [
 struct sockaddr sa;
 $type *sa_len_ptr;
 sa_len_ptr = &sa.sa_len;
-sa_len_ptr++; /* use to avoid warning/error */],
+if (sa_len_ptr != NULL)
+   sa_len_ptr = NULL; /* used to avoid warning/error */],
        [AC_DEFINE_UNQUOTED(sa_len_type, [$type], [sa_len type])
         sa_len_type_found=t
         break])
@@ -441,11 +443,13 @@ for type in "unsigned int" u_long; do
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/nameser.h>
-#include <resolv.h>], [
+#include <resolv.h>
+#include <stdio.h>], [
 struct __res_state res;
 $type *res_options_ptr;
 res_options_ptr = &res.options;
-res_options_ptr++;],
+if (res_options_ptr != NULL)
+   res_options_ptr = NULL; /* used to avoid warning/error */],
     [AC_DEFINE_UNQUOTED(res_options_type_t, [$type], [resolver options type])
      res_options_type_found=t
      break])

@@ -110,9 +110,7 @@ main(void)
 
 
 static int
-dotests(s, blocking)
-	int s;
-	int blocking;
+dotests(int s, int blocking)
 {
 	int p, rc;
 	struct sockaddr_in addr;
@@ -154,8 +152,7 @@ dotests(s, blocking)
 }
 
 static int
-selectcheck(s)
-	int s;
+selectcheck(int s)
 {
 	fd_set rset, wset, xset;
 	struct timeval timeout;
@@ -562,13 +559,9 @@ main(void)
 }
 
 static void
-setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
-   const int doreverse;
-   const size_t packetsize;
-   const int s;
-   const int r;
-   int *sndbuf, *sndbuf_set;
-   int *rcvbuf, *rcvbuf_set;
+setsockets(const int doreverse, const size_t packetsize,
+           const int s, const int r, int *sndbuf, int *sndbuf_set,
+           int *rcvbuf, int *rcvbuf_set)
 {
    socklen_t len;
    int p;
@@ -647,10 +640,7 @@ setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
 }
 
 static size_t
-sendtest(s, buf, buflen)
-   const int s;
-   const char *buf;
-   const size_t buflen;
+sendtest(const int s, const char *buf, const size_t buflen)
 {
    ssize_t rc;
    size_t sent;
@@ -684,8 +674,7 @@ sendtest(s, buf, buflen)
 }
 
 void
-reswrite(res)
-   const char *res;
+reswrite(const char *res)
 {
    FILE *fp;
    if ((fp = fopen("conftest.out", "w")) == NULL) {
@@ -989,6 +978,8 @@ changequote(<<, >>)dnl
 #include <unistd.h>
 
 void sigalrm(int signal);
+int checkval(long val);
+void binsearch(long startval, long endval);
 
 #define MAXVAL LONG_MAX
 
@@ -1005,7 +996,7 @@ main(void)
          exit(-1);
       }
       /* write zero for no special handling needed */
-      fprintf(fp, "%ld\n", 0);
+      fprintf(fp, "%ld\n", (long)0);
       fclose(fp);
       exit(0);
    }
@@ -1013,6 +1004,7 @@ main(void)
    binsearch(0, MAXVAL);
 }
 
+void
 binsearch(long startval, long endval)
 {
    long midval = (endval - startval) / 2 + startval;
@@ -1071,8 +1063,7 @@ checkval(long val)
 }
 
 void
-sigalrm(sig)
-   int sig;
+sigalrm(int sig)
 {
    resval = 0;
 /*   printf("got sig, ok val\n");*/

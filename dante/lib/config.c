@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014, 2016, 2019, 2020
+ *               2011, 2012, 2013, 2014, 2016, 2019, 2020, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: config.c,v 1.464.4.2.2.3.4.11 2020/11/11 17:02:23 karls Exp $";
+"$Id: config.c,v 1.464.4.2.2.3.4.11.4.3 2024/11/21 10:22:42 michaels Exp $";
 
 void
 genericinit(void)
@@ -689,7 +689,6 @@ socks_addroute(newroute, last)
        */
       if (!last || sockscf.route == NULL) { /* first */
          route_t *p;
-         size_t i;
 
          nextroute->next = sockscf.route;
          sockscf.route   = nextroute;
@@ -703,7 +702,7 @@ socks_addroute(newroute, last)
                 * ip-block on interface.
                 */
                for (i = 1, p = sockscf.route; p != NULL; p = p->next, ++i)
-                  p->number = i;
+                  p->number = (int)i;
             }
       }
       else { /* last */
@@ -776,7 +775,7 @@ socks_addroute(newroute, last)
             if ((service = getservbyname("ssdp", "udp")) == NULL)
                TOIN(&saddr)->sin_port = htons(DEFAULT_SSDP_PORT);
             else
-               TOIN(&saddr)->sin_port = service->s_port;
+               TOIN(&saddr)->sin_port = (in_port_t)service->s_port;
 
             protocols.udp = 1;
 
@@ -1455,8 +1454,6 @@ socks_requestpolish(req, src, dst)
    char srcbuf[MAXSOCKSHOSTSTRING], dstbuf[MAXSOCKSHOSTSTRING];
 
    if (sockscf.route == NULL) {
-      static route_t directroute;
-
       slog(LOG_DEBUG,
            "%s: no routes configured.  Going direct for all", function);
 
@@ -1648,6 +1645,8 @@ optioninit(void)
    *ldapauthentication->filter_AD                   = NUL;
 
    STRCPY_ASSERTSIZE(ldapauthentication->keytab,    DEFAULT_GSSAPIKEYTAB);
+
+   ldapauthentication->keeprealm                    = 0;
 
    ldapauthentication->port                         = SOCKD_EXPLICIT_LDAP_PORT;
    ldapauthentication->portssl                      = SOCKD_EXPLICIT_LDAPS_PORT;

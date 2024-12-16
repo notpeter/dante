@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013
+ * Copyright (c) 2012, 2013, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: socketopt.c,v 1.60 2013/10/27 15:24:42 karls Exp $";
+"$Id: socketopt.c,v 1.60.18.17 2024/08/19 04:00:31 michaels Exp $";
 
 static void
 setconfsockoption(const int in, const int out, const sa_family_t safamily,
@@ -199,8 +199,8 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
    int rc;
 
    slog(LOG_DEBUG,
-        "%s: checking protocol %s on the %s-side for whether socket option "
-        "%s should be set at %s (%d) on %s target socket",
+        "%s: checking protocol %s on the %s-side for whether socket option %s "
+        "should be set at %s (%d) on %s target socket",
         function,
         protocol2string(protocol),
         isclientside ? "internal" : "external",
@@ -258,14 +258,16 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
 
          switch (opt->opttype) {
             case int_val:
-               newvalue.int_val = opt->optval.int_val << opt->info->shift;
+               newvalue.int_val  = opt->optval.int_val << opt->info->shift;
                oldvalue.int_val &= (~mask);
                newvalue.int_val |= oldvalue.int_val;
                break;
 
             case uchar_val:
-               newvalue.uchar_val= opt->optval.uchar_val << opt->info->shift;
-               oldvalue.uchar_val &= (~mask);
+               newvalue.uchar_val  = (unsigned char)
+                                    (opt->optval.uchar_val << opt->info->shift);
+
+               oldvalue.uchar_val &= (unsigned char)(~mask);
                newvalue.uchar_val |= oldvalue.uchar_val;
                break;
 
@@ -280,8 +282,10 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
       newvalue = opt->optval;
 
 #if !SOCKS_CLIENT
+
    if (opt->info != NULL && opt->info->needpriv)
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_ON);
+
 #endif /* !SOCKS_CLIENT */
 
    switch (opt->optname) {
@@ -290,13 +294,30 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
        */
 
 #if HAVE_SOCKS_HOSTID
-#ifdef TCP_IPA
-      case TCP_IPA: {
+
+#if HAVE_TCP_IPA
+
+      case TCP_IPA:
+
+#endif /* HAVE_TCP_IPA */
+
+#if HAVE_TCP_EXP1
+
+      case TCP_EXP1: 
+
+#endif /* HAVE_TCP_EXP1 */
+
+      {
+         const struct in_addr *addr;
          struct sockaddr_storage raddr;
-         struct in_addr hostidv[HAVE_MAX_HOSTIDS];
-         unsigned char hostidc;
+         struct hostid hostid_in, hostid_out;
+         size_t i;
          int getraddr, gethostid;
 
+         /*
+          * In order to figure out what hostids to set on target, do we need 
+          * to do getpeername(2)  Do we need to get currently set hostids? 
+          */
          switch (newvalue.int_val) {
             case SOCKS_HOSTID_NONE:
                getraddr  = 0;
@@ -309,7 +330,12 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
                break;
 
             case SOCKS_HOSTID_PASS:
+               getraddr  = 0;
+               gethostid = 1;
+               break;
+
             case SOCKS_HOSTID_ADDCLIENT:
+            case SOCKS_HOSTID_PASS_OR_SETCLIENT:
                getraddr  = 1;
                gethostid = 1;
                break;
@@ -319,74 +345,162 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
                /* NOTREACHED */
          }
 
+         slog(LOG_DEBUG, "%s: int_val: %d, getraddr: %d, gethostid: %d", 
+              function, newvalue.int_val, getraddr, gethostid);
+
+         if (!getraddr && !gethostid) {
+            slog(LOG_DEBUG, 
+                 "%s: !getraddr && !gethostid; breaking out", function);
+
+            rc = 0;
+            break;
+         }
+
          if (getraddr) {
             len = sizeof(raddr);
+
             if (getpeername(in, TOSA(&raddr), &len) == -1) {
-               slog(LOG_DEBUG,
-                    "%s: getpeername(2) on fd %d failed (%s).  Presumably "
-                    "the connection has timed out",
+               slog(LOG_DEBUG, "%s: getpeername(2) on client-fd %d failed: %s ",
                     function, in, strerror(errno));
+
                return;
             }
          }
 
          if (gethostid) {
-            SASSERTX(getraddr);
+            getsockethostid(in, &hostid_in);
 
-            hostidc = getsockethostid(in, ELEMENTS(hostidv), hostidv);
-            slog(LOG_DEBUG, "%s: retrieved %u hostids on fd %d from client %s",
+            slog(LOG_DEBUG, 
+                 "%s: retrieved %u type %d hostids on fd %d from client %s",
                  function,
-                 (unsigned)hostidc,
+                 (unsigned)hostid_in.addrc,
+                 hostid_in.hostidtype,
                  in,
-                 sockaddr2string(&raddr, NULL, 0));
+                 getraddr ? sockaddr2string(&raddr, NULL, 0) : "<N/A>");
          }
+         else
+            hostid_in.addrc = 0;
 
+         bzero(&hostid_out, sizeof(hostid_out));
+
+         if (hostid_in.addrc == 0) {
+            /* 
+             * if no hostids set on incomming connection, default the 
+             * hostid-type to set on the outgoing connection, if setting 
+             * any hostid, to the last version (TCP_EXP1).
+             */
+
+#if HAVE_TCP_EXP1
+
+            hostid_out.hostidtype = SOCKS_HOSTID_TYPE_TCP_EXP1;
+
+#elif HAVE_TCP_IPA 
+
+            hostid_out.hostidtype = SOCKS_HOSTID_TYPE_TCP_IPA;
+
+#else /* !HAVE_TCP_IPA */
+
+#error "neither HAVE_TCP_EXP1 or HAVE_TCP_IPA set"
+
+#endif /* !HAVE_TCP_EXP1 && !HAVE_TCP_IPA */
+
+         }
+         else
+            hostid_out.hostidtype = hostid_in.hostidtype;
+
+         /*
+          * Do this again because there are some cases, where based on 
+          * whether or not we got any hostids, what version of hostid, 
+          * and what getpeername(2) returned, we may need to change 
+          * some things.
+          */
          switch (newvalue.int_val) {
+            /* nothing changes for these cases. */
             case SOCKS_HOSTID_NONE:
-               hostidc = 0;
+            case SOCKS_HOSTID_PASS:
                break;
 
             case SOCKS_HOSTID_SETCLIENT:
-               hostidv[0] = TOIN(&raddr)->sin_addr;
-               hostidc    = 1;
-               break;
-
-            case SOCKS_HOSTID_PASS:
-               SASSERTX(gethostid);
-               break; /* nothing to add/remove. */
-
-            case SOCKS_HOSTID_ADDCLIENT:
-               SASSERTX(gethostid);
-               if ((size_t)(hostidc) + 1 > ELEMENTS(hostidv)) {
-                  char ntop[MAXSOCKADDRSTRING];
-
-                  SASSERTX(getraddr);
-
-                  if (inet_ntop(AF_INET,
-                                &hostidv[hostidc - 1],
-                                ntop,
-                                sizeof(ntop)) == NULL) {
-                     swarn("%s: inet_ntop(3) failed on %s %x",
-                          function,
-                          atype2string(SOCKS_ADDR_IPV4),
-                          hostidv[hostidc - 1].s_addr);
-
-                     snprintf(ntop, sizeof(ntop), "<unknown>");
-                  }
-
-                  slog(LOG_WARNING,
-                       "%s: connection from %s has already reached the maximum "
-                       "number of hostids (%u); can not add more.  Discarding "
-                       "the last hostid (%s) before adding the new one",
+               if (raddr.ss_family != AF_INET) {
+                  slog(LOG_NOTICE, 
+                       "%s: incoming client connection from %s is an %s "
+                       "connection, while hostids are only specified for "
+                       "%ses at the moment, so cannot set the address of "
+                       "this client as a hostid",
                        function,
                        sockaddr2string(&raddr, NULL, 0),
-                       (unsigned)hostidc,
-                       ntop);
+                       safamily2string(raddr.ss_family),
+                       safamily2string(AF_INET));
 
-                  hostidc = (unsigned char)ELEMENTS(hostidv) - 1;
+                  getraddr = 0;
                }
 
-               hostidv[hostidc++] = TOIN(&raddr)->sin_addr;
+               break;
+
+            case SOCKS_HOSTID_ADDCLIENT:
+               if (raddr.ss_family != AF_INET) {
+                  slog(LOG_NOTICE, 
+                       "%s: incoming client connection from %s is an %s "
+                       "connection, while hostids are only specified for "
+                       "%ses at the moment, so cannot add this client to "
+                       "the hostid list",
+                       function,
+                       sockaddr2string(&raddr, NULL, 0),
+                       safamily2string(raddr.ss_family),
+                       safamily2string(AF_INET));
+
+                  getraddr = 0;
+               }
+
+               break; 
+
+            case SOCKS_HOSTID_PASS_OR_SETCLIENT:
+               /*
+                *
+                * This command is a bit clunky as the semantics depend on
+                * whether we are using the older hostid version (TCP_IPA),
+                * or the newer TCP_EXP1 version.
+                *
+                * For TCP_EXP1:
+                *    - If hostids are present, pass them on, but don't add 
+                *      this client.
+                *
+                * For TCP_IPA:
+                *    - If hostids are present, pass them on, and add this 
+                *      client.
+                *
+                * - If no hostids set, add this client, and use the TCP_EXP1
+                *   hostid version.
+                */
+               if (hostid_in.addrc > 0) {
+                  switch (hostid_in.hostidtype) {
+                     case SOCKS_HOSTID_TYPE_TCP_EXP1:
+                        getraddr = 0;
+                        break;
+
+                     case SOCKS_HOSTID_TYPE_TCP_IPA:
+                        getraddr = 1;
+                        break;
+
+                     default:
+                        SERRX(hostid_in.hostidtype);
+                  }
+               }
+
+               if (raddr.ss_family != AF_INET) {
+                  slog(LOG_NOTICE, 
+                       "%s: incoming client connection from %s is an %s "
+                       "connection and no hostids are set on that connection.  "
+                       "Since hostids are only specified for %ses at the "
+                       "moment, we cannot set this client hostid",
+                       function,
+                       sockaddr2string(&raddr, NULL, 0),
+                       safamily2string(raddr.ss_family),
+                       safamily2string(AF_INET));
+
+                  getraddr = 0;
+               }
+
                break;
 
             default:
@@ -394,13 +508,135 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
                /* NOTREACHED */
          }
 
-         len = sizeof(*hostidv) * hostidc;
-         if ((rc = setsockethostid(target, hostidc, hostidv)) != 0)
+         if ((size_t)(hostid_in.addrc) + getraddr 
+         >   ELEMENTS(hostid_out.addrv)) {
+            char ntop[MAXSOCKADDRSTRING];
+
+            for (i = ELEMENTS(hostid_out.addrv) - getraddr; 
+            i < hostid_in.addrc; 
+            ++i) {
+               switch (hostid_out.hostidtype) {
+
+#if HAVE_TCP_EXP1
+
+                  case SOCKS_HOSTID_TYPE_TCP_EXP1:
+                     addr 
+                     = (struct in_addr *)&hostid_in.addrv[i].tcp_exp1.data.ip;
+
+                     break;
+
+#endif /* HAVE_TCP_EXP1 */
+
+#if HAVE_TCP_IPA
+
+                  case SOCKS_HOSTID_TYPE_TCP_IPA:
+                     addr = (struct in_addr *)&hostid_in.addrv[i].tcp_ipa.ip;
+                     break;
+
+#endif /* HAVE_TCP_IPA */
+
+                  default:
+                     SERRX(hostid_out.hostidtype);
+               }
+
+               if (inet_ntop(AF_INET, addr, ntop, sizeof(ntop)) == NULL) {
+                  swarn("%s: inet_ntop(3) failed on %s %x",
+                       function,
+                       atype2string(SOCKS_ADDR_IPV4),
+                       addr->s_addr);
+
+                  snprintf(ntop, sizeof(ntop), "<unknown>");
+               }
+
+               slog(LOG_NOTICE,
+                    "%s: connection from %s has already reached the maximum "
+                    "number of hostids (%u) to pass on upstream.  Can not "
+                    "add any more, so discarding hostid %s%s",
+                    function, 
+                    getraddr ? sockaddr2string(&raddr, NULL, 0) : "<N/A>",
+                    (unsigned)ELEMENTS(hostid_out.addrv),
+                    ntop,
+                    getraddr ? " before adding connecting client instead" : "");
+            }
+
+            /* truncate. */
+            hostid_in.addrc = (unsigned char)(ELEMENTS(hostid_out.addrv)
+                                              - getraddr);
+         }
+
+         slog(LOG_DEBUG, 
+              "%s: %u hostids to copy from incoming connection, and %u to add",
+              function, (unsigned)hostid_in.addrc, getraddr);
+
+         SASSERTX(hostid_in.addrc  <= ELEMENTS(hostid_out.addrv));
+
+         for (i = 0; i < hostid_in.addrc; ++i, ++hostid_out.addrc)
+              hostid_out.addrv[i] = hostid_in.addrv[i];
+
+         if (getraddr) {
+            SASSERTX(hostid_out.addrc < ELEMENTS(hostid_out.addrv));
+
+            switch (hostid_out.hostidtype) {
+
+#if HAVE_TCP_EXP1
+
+               case SOCKS_HOSTID_TYPE_TCP_EXP1: {
+                  const size_t exidlen = 2; /* use default. */
+
+                  hostid_out.addrv[hostid_out.addrc].tcp_exp1.len 
+                  = tcp_exp1_len(exidlen);
+
+                  switch (exidlen) {
+                     case 2:
+                        hostid_out.addrv[hostid_out.addrc].tcp_exp1.exid.exid_16
+                        = htons(TCP_EXP1_EXID_IP);
+
+                        break;
+
+                     case 4:
+                        hostid_out.addrv[hostid_out.addrc].tcp_exp1.exid.exid_32
+                        = htonl(TCP_EXP1_EXID_IP);
+
+                        break;
+
+                     default:
+                        SERRX(exidlen);
+                  }
+
+                  hostid_out.addrv[hostid_out.addrc].tcp_exp1.data.ip 
+                  = TOIN(&raddr)->sin_addr.s_addr;
+
+                  break;
+               }
+
+#endif /* HAVE_TCP_EXP1 */
+
+#if HAVE_TCP_IPA
+
+               case SOCKS_HOSTID_TYPE_TCP_IPA:
+                  hostid_out.addrv[hostid_out.addrc].tcp_ipa.ip 
+                  = TOIN(&raddr)->sin_addr.s_addr;
+
+                  break;
+
+#endif /* HAVE_TCP_IPA */
+
+               default:
+                  SERRX(hostid_out.hostidtype);
+            }
+
+            ++hostid_out.addrc;
+         }
+
+         rc  = setsockethostid(target, &hostid_out);
+
+         if (rc != 0)
             swarn("%s: setsockethostid() on fd %d failed",
                   function, target);
+
          break;
       }
-#endif /* TCP_IPA */
+
 #endif /* HAVE_SOCKS_HOSTID */
 
       /*
@@ -428,7 +664,11 @@ setconfsockoption(target, in, safamily, protocol, isclientside, whichtime, opt)
 
 
 #if !SOCKS_CLIENT
+
    if (opt->info != NULL && opt->info->needpriv)
       sockd_priv(SOCKD_PRIV_PRIVILEGED, PRIV_OFF);
+
 #endif /* !SOCKS_CLIENT */
+
 }
+

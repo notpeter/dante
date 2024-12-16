@@ -16,6 +16,8 @@ Requires: glibc-devel
 BuildRequires: pam-devel
 BuildRequires: bison
 BuildRequires: flex
+BuildRequires: systemd
+BuildRequires: systemd-rpm-macros
 
 %description
 Dante is a free implementation of the SOCKS proxy protocol, version 4,
@@ -47,109 +49,14 @@ Requires: dante
 Additional libraries required to compile programs that use SOCKS.
 
 %prep
-%setup -n dante-@VERSION@
-
-# This file is embedded here instead of being another source in order
-# to the prefix directory
-%{__cat} >sockd.init <<'EOF'
-#!/bin/sh
-#
-# Init file for the Dante Socks server
-#
-# Written by Dag Wieers <dag@wieers.com>.
-#
-# chkconfig: 2345 65 35
-# description: Dante SOCKS v4/v5 proxy server
-#
-# processname: sockd
-# config: %{_sysconfdir}/sockd.conf
-# pidfile: %{_localstatedir}/run/sockd.pid
-# # NOTE: if running with user.privileged as non-root, manually create
-# #       pidfile owned by the user.privileged user before starting sockd.
-# #       e.g., 'touch /var/run/sockd.pid; chown sockd /var/run/sockd.pid'
-
-source %{_initrddir}/functions
-source %{_sysconfdir}/sysconfig/network
-
-# Check that networking is up.
-if test x"$NETWORKING" != x; then
-    [ ${NETWORKING} = "no" ] && exit 1
-fi
-
-[ -x %{_sbindir}/sockd ] || exit 1
-[ -r %{_sysconfdir}/sockd.conf ] || exit 1
-
-RETVAL=0
-prog="sockd"
-progpath="%{_sbindir}/$prog"
-desc="Dante Socks server"
-
-start() {
-    echo -n $"Starting $desc ($prog): "
-    daemon $progpath -D
-    RETVAL=$?
-    echo
-    [ $RETVAL -eq 0 ] && touch %{_localstatedir}/lock/subsys/$prog
-    return $RETVAL
-}
-
-stop() {
-    echo -n $"Shutting down $desc ($prog): "
-    killproc $prog
-    RETVAL=$?
-    echo
-    [ $RETVAL -eq 0 ] && rm -f %{_localstatedir}/lock/subsys/$prog
-    return $RETVAL
-}
-
-restart() {
-    stop
-    start
-}
-
-reload() {
-    echo -n $"Reloading $desc ($prog): "
-    killproc $prog -HUP
-    RETVAL=$?
-    echo
-}
-
-case "$1" in
-  start)
-    start
-    ;;
-  stop)
-    stop
-    ;;
-  reload)
-    reload
-    ;;
-  restart)
-    stop
-    start
-    ;;
-  condrestart)
-    [ -e %{_localstatedir}/lock/subsys/$prog ] && restart
-    RETVAL=$?
-    ;;
-  status)
-    status $prog
-    RETVAL=$?
-    ;;
-  *)
-    echo $"Usage: $0 {start|stop|restart|reload|condrestart|status}"
-    RETVAL=1
-esac
-
-exit $RETVAL
-EOF
+%setup -q
 
 %build
 #%serverbuild
 %configure --without-glibc-secure \
   %{?_without_libwrap} \
   %{?_without_upnp} \
-  %{?_extraflags}
+  %{?_extraflags} #note: _extraflags set by remtest
 
 %{__make}
 
@@ -158,11 +65,11 @@ EOF
 
 #set library as executable - prevent ldd from complaining
 %{__chmod} +x ${RPM_BUILD_ROOT}%{_libdir}/*.so.*.*
-%{__install} -d ${RPM_BUILD_ROOT}/%{_initrddir} ${RPM_BUILD_ROOT}/%{_bindir}
+%{__install} -d ${RPM_BUILD_ROOT}/%{_sysconfdir}
+%{__install} -d ${RPM_BUILD_ROOT}/%{_bindir}
 %{__install} -d ${RPM_BUILD_ROOT}/%{_unitdir}
 %{__install} -m 0644 example/socks-simple.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}/socks.conf
 %{__install} -m 0644 example/sockd.conf ${RPM_BUILD_ROOT}/%{_sysconfdir}
-%{__install} -m 0755 sockd.init ${RPM_BUILD_ROOT}/%{_initrddir}/sockd
 %{__install} -m 0644 SPECS/dante.service ${RPM_BUILD_ROOT}/%{_unitdir}/sockd.service
 
 %clean
@@ -175,12 +82,13 @@ EOF
 /sbin/ldconfig
 
 %post server
-/sbin/chkconfig --add sockd
+%systemd_post sockd.service
 
 %preun server
-if [ $1 = 0 ]; then
-   /sbin/chkconfig --del sockd
-fi
+%systemd_preun sockd.service
+
+%postun server
+%systemd_postun sockd.service
 
 %files
 %defattr(-, root, root, 0755)
@@ -197,7 +105,6 @@ fi
 %files server
 %defattr(-, root, root, 0755)
 %config %{_sysconfdir}/sockd.conf
-%config %{_initrddir}/sockd
 %{_sbindir}/sockd
 %{_mandir}/man5/sockd.conf.5*
 %{_mandir}/man8/sockd.8*

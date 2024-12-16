@@ -1004,6 +1004,10 @@
 #define HAVE_LIBMINIUPNP17 0
 #endif
 
+#ifndef HAVE_LIBMINIUPNP228
+#define HAVE_LIBMINIUPNP228 0
+#endif
+
 #ifndef HAVE_LIBPRLDAP60
 #define HAVE_LIBPRLDAP60 0
 #endif
@@ -1030,6 +1034,10 @@
 
 #ifndef HAVE_LIMITS_H
 #define HAVE_LIMITS_H 0
+#endif
+
+#ifndef HAVE_LINUX_BBKERNEL_H
+#define HAVE_LINUX_BBKERNEL_H 0
 #endif
 
 #ifndef HAVE_LINUX_BUGS
@@ -2166,6 +2174,10 @@
 
 #ifndef HAVE_TCP_CWND_IF
 #define HAVE_TCP_CWND_IF 0
+#endif
+
+#ifndef HAVE_TCP_EXP1
+#define HAVE_TCP_EXP1 0
 #endif
 
 #ifndef HAVE_TCP_INFO

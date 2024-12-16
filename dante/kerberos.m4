@@ -66,8 +66,8 @@ if test x"$KRB5" != xno; then
 
    dnl look for libs
    if test x"${ac_krb5_libs}" != x; then
-      _libsonly=`echo $ac_krb5_libs | xargs -n1 | egrep '^-l' | xargs echo`
-      _optsonly=`echo $ac_krb5_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
+      _libsonly=`echo $ac_krb5_libs | xargs -n1 | grep -E '^-l' | xargs echo`
+      _optsonly=`echo $ac_krb5_libs | xargs -n1 | grep -E -v '^-l' | xargs echo`
 
       LIBS="${LIBS}${LIBS:+ }${_libsonly}"
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }${_optsonly}"
@@ -200,7 +200,8 @@ krb5_get_init_creds_opt_free(context, &options);
 #include <kerberosv5/krb5.h>
 #endif /* HAVE_KERBEROSV5_KRB5_H */
 
-main()
+int
+main(void)
 {
     krb5_context context;
     krb5_ccache cc;
@@ -224,7 +225,8 @@ main()
 #include <kerberosv5/krb5.h>
 #endif /* HAVE_KERBEROSV5_KRB5_H */
 
-main()
+int
+main(void)
 {
     krb5_context context;
     krb5_keytab kt;

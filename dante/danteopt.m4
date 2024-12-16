@@ -8,30 +8,30 @@ esac
 
 #known keywords for --enable/disable-foo(=yes/no)?
 LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77|option_checking|silent_rules"
-KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|coverage|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile|livedebug|clientbuild|serverbuild|client|server|libcfail"
-for keyword in `set | egrep '^enable_' | sed -e 's/^enable_//' | \
+KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|fsanitize|profiling|coverage|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile|livedebug|clientbuild|serverbuild|client|server|libcfail|libcassert|maintainer_mode"
+for keyword in `set | grep -E '^enable_' | sed -e 's/^enable_//' | \
                 sed -e 's/=.*$//'`; do
-    echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
+    echo $keyword | grep -E "^(${KNOWN_KEYWORDS})$" > /dev/null
     if test $? -ne 0; then
 	AC_MSG_WARN([unknown --enable/disable keyword '$keyword'])
 	#check is not entirely reliable, only exit in prerelease
 	if test x"$prerelease" != x; then
-	    exit 1
+	    AC_MSG_FAILURE([unknown configure keyword, exiting])
 	fi
     fi
 done
 
 #known keywords for --with/without-foo?
-LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx|sysroot"
+LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx|sysroot|aix_soname"
 KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|bufsize|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|pac|ldap|ldap_path|sasl|sasl_path|glibc_secure|libwrap"
-for keyword in `set | egrep '^with_' | sed -e 's/^with_//' | \
+for keyword in `set | grep -E '^with_' | sed -e 's/^with_//' | \
                 sed -e 's/=.*$//'`; do
-    echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
+    echo $keyword | grep -E "^(${KNOWN_KEYWORDS})$" > /dev/null
     if test $? -ne 0; then
 	AC_MSG_WARN([unknown --with/without keyword '$keyword'])
 	#check is not entirely reliable, only exit in prerelease
 	if test x"$prerelease" != x; then
-	    exit 1
+	    AC_MSG_FAILURE([unknown configure keyword, exiting])
 	fi
     fi
 done
@@ -207,7 +207,7 @@ fi
 dnl workaround for newer glibc versions (and opensolaris)
 unset stdio_preload
 case $host in
-    *-*-linux-* | *-*-solaris*)
+    *-*-linux* | *-*-solaris*)
 	#only do preloading if gssapi is defined
 	if test x"${no_gssapi}" != xt; then
 	    stdio_preload=t

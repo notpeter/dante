@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_tcp.c,v 1.66.4.4.2.4 2017/01/31 08:17:39 karls Exp $";
+"$Id: sockd_tcp.c,v 1.66.4.4.2.4.8.4 2024/11/22 21:05:24 michaels Exp $";
 
 static ssize_t
 io_tcp_rw(sockd_io_direction_t *in, sockd_io_direction_t *out, int *badfd,
@@ -179,8 +179,7 @@ doio_tcp(io, rset, wset, flags, badfd)
                   object_sockaddr,
                   &io->src.raddr,
                   &io->src.auth,
-                  GET_HOSTIDV(&io->state),
-                  GET_HOSTIDC(&io->state));
+                  &io->state.hostid);
 
    if (io->state.proxychain.proxyprotocol == PROXY_DIRECT) {
       dstraddr.object = &io->dst.raddr;
@@ -197,8 +196,7 @@ doio_tcp(io, rset, wset, flags, badfd)
                   dstraddr.type,
                   dstraddr.object,
                   &io->dst.auth,
-                  NULL,
-                  0);
+                  NULL);
 
    init_iologaddr(&proxy,
                   object_sockaddr,
@@ -208,8 +206,7 @@ doio_tcp(io, rset, wset, flags, badfd)
                   io->state.proxychain.proxyprotocol == PROXY_DIRECT ?
                      NULL : &io->state.proxychain.extaddr,
                   NULL,
-                  NULL,
-                  0);
+                  NULL);
 
 #define CHECK_ALARM(iostatus)                                                  \
 do {                                                                           \
@@ -257,8 +254,8 @@ do {                                                                           \
          disconnectside = &io->dst;                                            \
       }                                                                        \
                                                                                \
-      cinfo.from = CONTROLIO(io)->raddr;                                       \
-      HOSTIDCOPY(&io->state, &cinfo);                                          \
+      cinfo.from   = CONTROLIO(io)->raddr;                                     \
+      cinfo.hostid = io->state.hostid;                                         \
                                                                                \
       alarm_add_disconnect(weclosedfirst,                                      \
                            &io->srule,                                         \
@@ -611,6 +608,11 @@ io_tcp_rw(in, out, badfd, iostatus,
       return -1;
    }
 
+   if (in->isclientside)
+      sendtoflags.side = EXTERNALIF;
+   else
+      sendtoflags.side = INTERNALIF;
+
 #if HAVE_GSSAPI
    /*
     * If the data we are writing needs to be gssapi-encapsulated,
@@ -875,11 +877,6 @@ io_tcp_rw(in, out, badfd, iostatus,
    /*
     * ... and send the data read to out.
     */
-
-   if (in->isclientside)
-      sendtoflags.side = EXTERNALIF;
-   else
-      sendtoflags.side = INTERNALIF;
 
    if ((w = socks_sendto(out->s,
                          buf,

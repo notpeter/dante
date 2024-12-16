@@ -706,7 +706,6 @@ am__nodep
 AMDEPBACKSLASH
 AMDEP_FALSE
 AMDEP_TRUE
-am__quote
 am__include
 DEPDIR
 OBJEXT
@@ -729,6 +728,9 @@ AM_BACKSLASH
 AM_DEFAULT_VERBOSITY
 AM_DEFAULT_V
 AM_V
+CSCOPE
+ETAGS
+CTAGS
 am__untar
 am__tar
 AMTAR
@@ -773,6 +775,7 @@ infodir
 docdir
 oldincludedir
 includedir
+runstatedir
 localstatedir
 sharedstatedir
 sysconfdir
@@ -791,7 +794,8 @@ PACKAGE_VERSION
 PACKAGE_TARNAME
 PACKAGE_NAME
 PATH_SEPARATOR
-SHELL'
+SHELL
+am__quote'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
@@ -893,6 +897,7 @@ datadir='${datarootdir}'
 sysconfdir='${prefix}/etc'
 sharedstatedir='${prefix}/com'
 localstatedir='${prefix}/var'
+runstatedir='${localstatedir}/run'
 includedir='${prefix}/include'
 oldincludedir='/usr/include'
 docdir='${datarootdir}/doc/${PACKAGE}'
@@ -1145,6 +1150,15 @@ do
   | -silent | --silent | --silen | --sile | --sil)
     silent=yes ;;
 
+  -runstatedir | --runstatedir | --runstatedi | --runstated \
+  | --runstate | --runstat | --runsta | --runst | --runs \
+  | --run | --ru | --r)
+    ac_prev=runstatedir ;;
+  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+  | --run=* | --ru=* | --r=*)
+    runstatedir=$ac_optarg ;;
+
   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
     ac_prev=sbindir ;;
   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
@@ -1282,7 +1296,7 @@ fi
 for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
 		datadir sysconfdir sharedstatedir localstatedir includedir \
 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
-		libdir localedir mandir
+		libdir localedir mandir runstatedir
 do
   eval ac_val=\$$ac_var
   # Remove trailing slashes.
@@ -1435,6 +1449,7 @@ Fine tuning of the installation directories:
   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
   --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
@@ -2680,8 +2695,8 @@ ucase () {
 
 #current software version, typically three sets of numbers (x.y.z).
 #can have an added tag, giving a version such as x.y.z-tag.
-version=1.4.3
-#TAG="foo"
+version=1.4.4
+#TAG=""
 
 #NOTE: rpm will not accept '-' chars i version numbers
 unset lcTAG
@@ -2738,7 +2753,7 @@ $as_echo "$as_me: WARNING: disabling dependency tracking on this platform" >&2;}
 	;;
 esac
 
-am__api_version='1.13'
+am__api_version='1.16'
 
 ac_aux_dir=
 for ac_dir in "$srcdir" "$srcdir/.." "$srcdir/../.."; do
@@ -2939,16 +2954,11 @@ test "$program_suffix" != NONE &&
 ac_script='s/[\\$]/&&/g;s/;s,x,x,$//'
 program_transform_name=`$as_echo "$program_transform_name" | sed "$ac_script"`
 
-# expand $ac_aux_dir to an absolute path
-am_aux_dir=`cd $ac_aux_dir && pwd`
+# Expand $ac_aux_dir to an absolute path.
+am_aux_dir=`cd "$ac_aux_dir" && pwd`
 
 if test x"${MISSING+set}" != xset; then
-  case $am_aux_dir in
-  *\ * | *\	*)
-    MISSING="\${SHELL} \"$am_aux_dir/missing\"" ;;
-  *)
-    MISSING="\${SHELL} $am_aux_dir/missing" ;;
-  esac
+  MISSING="\${SHELL} '$am_aux_dir/missing'"
 fi
 # Use eval to expand $SHELL
 if eval "$MISSING --is-lightweight"; then
@@ -2959,7 +2969,7 @@ else
 $as_echo "$as_me: WARNING: 'missing' script is too old or missing" >&2;}
 fi
 
-if test x"${install_sh}" != xset; then
+if test x"${install_sh+set}" != xset; then
   case $am_aux_dir in
   *\ * | *\	*)
     install_sh="\${SHELL} '$am_aux_dir/install-sh'" ;;
@@ -3284,12 +3294,12 @@ MAKEINFO=${MAKEINFO-"${am_missing_run}makeinfo"}
 
 # For better backward compatibility.  To be removed once Automake 1.9.x
 # dies out for good.  For more background, see:
-# <http://lists.gnu.org/archive/html/automake/2012-07/msg00001.html>
-# <http://lists.gnu.org/archive/html/automake/2012-07/msg00014.html>
+# <https://lists.gnu.org/archive/html/automake/2012-07/msg00001.html>
+# <https://lists.gnu.org/archive/html/automake/2012-07/msg00014.html>
 mkdir_p='$(MKDIR_P)'
 
-# We need awk for the "check" target.  The system "awk" is bad on
-# some platforms.
+# We need awk for the "check" target (and possibly the TAP driver).  The
+# system "awk" is bad on some platforms.
 # Always define AMTAR for backward compatibility.  Yes, it's still used
 # in the wild :-(  We should find a proper way to deprecate it ...
 AMTAR='$${TAR-tar}'
@@ -3304,6 +3314,62 @@ am__tar='$${TAR-tar} chof - "$$tardir"' am__untar='$${TAR-tar} xf -'
 
 
 
+# Variables for tags utilities; see am/tags.am
+if test -z "$CTAGS"; then
+  CTAGS=ctags
+fi
+
+if test -z "$ETAGS"; then
+  ETAGS=etags
+fi
+
+if test -z "$CSCOPE"; then
+  CSCOPE=cscope
+fi
+
+
+
+# POSIX will say in a future version that running "rm -f" with no argument
+# is OK; and we want to be able to make that assumption in our Makefile
+# recipes.  So use an aggressive probe to check that the usage we want is
+# actually supported "in the wild" to an acceptable degree.
+# See automake bug#10828.
+# To make any issue more visible, cause the running configure to be aborted
+# by default if the 'rm' program in use doesn't match our expectations; the
+# user can still override this though.
+if rm -f && rm -fr && rm -rf; then : OK; else
+  cat >&2 <<'END'
+Oops!
+
+Your 'rm' program seems unable to run without file operands specified
+on the command line, even when the '-f' option is present.  This is contrary
+to the behaviour of most rm programs out there, and not conforming with
+the upcoming POSIX standard: <http://austingroupbugs.net/view.php?id=542>
+
+Please tell bug-automake@gnu.org about your system, including the value
+of your $PATH and any error possibly output before this message.  This
+can help us improve future automake versions.
+
+END
+  if test x"$ACCEPT_INFERIOR_RM_PROGRAM" = x"yes"; then
+    echo 'Configuration will proceed anyway, since you have set the' >&2
+    echo 'ACCEPT_INFERIOR_RM_PROGRAM variable to "yes"' >&2
+    echo >&2
+  else
+    cat >&2 <<'END'
+Aborting the configuration process, to ensure you take notice of the issue.
+
+You can download and install GNU coreutils to get an 'rm' implementation
+that behaves properly: <https://www.gnu.org/software/coreutils/>.
+
+If you want to complete the configuration process using your problematic
+'rm' anyway, export the environment variable ACCEPT_INFERIOR_RM_PROGRAM
+to "yes", and re-run configure.
+
+END
+    as_fn_error $? "Your 'rm' program is bad, sorry." "$LINENO" 5
+  fi
+fi
 
 
 ac_config_headers="$ac_config_headers include/autoconf.h"
@@ -3485,45 +3551,45 @@ DEPDIR="${am__leading_dot}deps"
 
 ac_config_commands="$ac_config_commands depfiles"
 
-
-am_make=${MAKE-make}
-cat > confinc << 'END'
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether ${MAKE-make} supports the include directive" >&5
+$as_echo_n "checking whether ${MAKE-make} supports the include directive... " >&6; }
+cat > confinc.mk << 'END'
 am__doit:
-	@echo this is the am__doit target
+	@echo this is the am__doit target >confinc.out
 .PHONY: am__doit
 END
-# If we don't find an include directive, just comment out the code.
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for style of include used by $am_make" >&5
-$as_echo_n "checking for style of include used by $am_make... " >&6; }
 am__include="#"
 am__quote=
-_am_result=none
-# First try GNU make style include.
-echo "include confinc" > confmf
-# Ignore all kinds of additional output from 'make'.
-case `$am_make -s -f confmf 2> /dev/null` in #(
-*the\ am__doit\ target*)
-  am__include=include
-  am__quote=
-  _am_result=GNU
-  ;;
-esac
-# Now try BSD make style include.
-if test "$am__include" = "#"; then
-   echo '.include "confinc"' > confmf
-   case `$am_make -s -f confmf 2> /dev/null` in #(
-   *the\ am__doit\ target*)
-     am__include=.include
-     am__quote="\""
-     _am_result=BSD
+# BSD make does it like this.
+echo '.include "confinc.mk" # ignored' > confmf.BSD
+# Other make implementations (GNU, Solaris 10, AIX) do it like this.
+echo 'include confinc.mk # ignored' > confmf.GNU
+_am_result=no
+for s in GNU BSD; do
+  { echo "$as_me:$LINENO: ${MAKE-make} -f confmf.$s && cat confinc.out" >&5
+   (${MAKE-make} -f confmf.$s && cat confinc.out) >&5 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }
+  case $?:`cat confinc.out 2>/dev/null` in #(
+  '0:this is the am__doit target') :
+    case $s in #(
+  BSD) :
+    am__include='.include' am__quote='"' ;; #(
+  *) :
+    am__include='include' am__quote='' ;;
+esac ;; #(
+  *) :
      ;;
-   esac
-fi
-
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $_am_result" >&5
-$as_echo "$_am_result" >&6; }
-rm -f confinc confmf
+esac
+  if test "$am__include" != "#"; then
+    _am_result="yes ($s style)"
+    break
+  fi
+done
+rm -f confinc.* confmf.*
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: ${_am_result}" >&5
+$as_echo "${_am_result}" >&6; }
 
 # Check whether --enable-dependency-tracking was given.
 if test "${enable_dependency_tracking+set}" = set; then :
@@ -4332,6 +4398,65 @@ ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
+
+ac_ext=c
+ac_cpp='$CPP $CPPFLAGS'
+ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_c_compiler_gnu
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether $CC understands -c and -o together" >&5
+$as_echo_n "checking whether $CC understands -c and -o together... " >&6; }
+if ${am_cv_prog_cc_c_o+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+  # Make sure it works both with $CC and with simple cc.
+  # Following AC_PROG_CC_C_O, we do the test twice because some
+  # compilers refuse to overwrite an existing .o file with -o,
+  # though they will create one.
+  am_cv_prog_cc_c_o=yes
+  for am_i in 1 2; do
+    if { echo "$as_me:$LINENO: $CC -c conftest.$ac_ext -o conftest2.$ac_objext" >&5
+   ($CC -c conftest.$ac_ext -o conftest2.$ac_objext) >&5 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); } \
+         && test -f conftest2.$ac_objext; then
+      : OK
+    else
+      am_cv_prog_cc_c_o=no
+      break
+    fi
+  done
+  rm -f core conftest*
+  unset am_i
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $am_cv_prog_cc_c_o" >&5
+$as_echo "$am_cv_prog_cc_c_o" >&6; }
+if test "$am_cv_prog_cc_c_o" != yes; then
+   # Losing compiler, so override with the script.
+   # FIXME: It is wrong to rewrite CC.
+   # But if we don't then we get into trouble of one sort or another.
+   # A longer-term fix would be to have automake use am__CC in this case,
+   # and then we could set am__CC="\$(top_srcdir)/compile \$(CC)"
+   CC="$am_aux_dir/compile $CC"
+fi
+ac_ext=c
+ac_cpp='$CPP $CPPFLAGS'
+ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_c_compiler_gnu
+
 
 depcc="$CC"   am_compiler_list=
 
@@ -12457,18 +12582,18 @@ unset COMPTYPE
 unset FAILWARN
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for compiler type" >&5
 $as_echo_n "checking for compiler type... " >&6; }
-if $CC -v 2>&1 | tail -1 | egrep '^gcc ' >/dev/null; then
+if $CC -v 2>&1 | tail -1 | grep -E '^gcc ' >/dev/null; then
     COMPTYPE=gcc
     FAILWARN="-Wall -Werror"
-elif $CC -v 2>&1 | egrep '(^|^a-zA-Z+ )(clang|LLVM) ' >/dev/null; then
+elif $CC -v 2>&1 | grep -E '(^|^[a-zA-Z]+ )(clang|LLVM) ' >/dev/null; then
     COMPTYPE=clang
     FAILWARN="-Wall -Werror"
 elif $CC -V 2>&1 | grep 'Sun C ' >/dev/null; then
     COMPTYPE=suncc
     FAILWARN="-v -errwarn=%all"
-elif $CC -v 2>&1 | egrep '^pcc ' >/dev/null; then
+elif $CC -v 2>&1 | grep -E '^pcc ' >/dev/null; then
     COMPTYPE=pcc
-elif $CC -qversion 2>&1 | egrep '^IBM XL C' >/dev/null; then
+elif $CC -qversion 2>&1 | grep -E '^IBM XL C' >/dev/null; then
     COMPTYPE=xlc
     FAILWARN="-qhalt=w"
 else
@@ -12506,7 +12631,7 @@ fi
 $as_echo_n "checking for preprocessor flags... " >&6; }
 unset cpp_flags
 case $ac_cv_prog_CPP in
-    gcc*)
+    *gcc*)
 	#simplify parsing after cpp processing (for e.g. errno checks)
 	cpp_flags="${cpp_flags}${cpp_flags:+ }-P"
 
@@ -13048,30 +13173,26 @@ else
 fi
 
 
+#check whether to enable extra compilation warnings
+unset NOWARN
+# Check whether --enable-warnings was given.
+if test "${enable_warnings+set}" = set; then :
+  enableval=$enable_warnings; if test x"$enableval" = xno; then
+    NOWARN="Disabled, using --disable-warnings"
+ fi
+else
+  #off by default
+ NOWARN="Disabled (default)"
+fi
+
+
 #place warning flags in $warn
+unset warn
 if test x"$NOWARN" = x; then
     #try to enable compiler specific warning flags
     case $COMPTYPE in
-	gcc)
-	    warn="-Wall -Wformat -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
-	    #warn="$warn -Wold-style-cast -Winline -Waggregate-return -Wconversion -Wwrite-strings -Wtraditional -Wshadow"
-	    ;;
-
-	hpuxcc)
-	    warn="-v"
-	    ;;
-
-	*osfcc) #osf cc
-#	    warn="-w0 -check -portable -warnprotos"
-	    true
-	    ;;
-
-#	pcc)
-#	    warn="-Wall --warn-common --warn-constructors --warn-multiple-gp --warn-once --warn-section-align --error-unresolved-symbols"
-#	    ;;
-
-	sgicc) #sgi cc
-	    warn="-fullwarn"
+	gcc | clang)
+	    warn="-Wall -Wformat=2 -Wformat-truncation=2 -Wformat-overflow=2 -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef -Wunused-but-set-variable -Wnull-dereference  -Wmisleading-indentation -Wmaybe-uninitialized -Wstring-compare -Warray-bounds=2 -Wduplicated-branches -Wfloat-equal -Wshadow -Wextra -Wbad-function-cast -Wcast-align -Wwrite-strings -Wconversion -Wno-sign-conversion -Wlogical-op -fno-eliminate-unused-debug-symbols -fanalyzer"
 	    ;;
 
 	suncc)
@@ -13092,10 +13213,22 @@ if test x"$NOWARN" = x; then
 	    warn="-Wall"
 	    ;;
     esac
+else
+    #default case, only subset of warnings
+    case $COMPTYPE in
+	gcc | clang)
+	    warn="-Wformat=2"
+	    ;;
+    esac
+fi
 
+#make sure compilation is still possible
+unset okwarn
+for flag in $warn; do
     oCFLAGS="$CFLAGS"
-    CFLAGS="$CFLAGS${CFLAGS:+ }$warn"
-    #make sure compilation is still possible
+    CFLAGS="$CFLAGS${CFLAGS:+ }$flag $FAILWARN"
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for warning flags $flag" >&5
+$as_echo_n "checking for warning flags $flag... " >&6; }
     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -13108,19 +13241,17 @@ main ()
 }
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $warn" >&5
-$as_echo "$warn" >&6; }
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+		    okwarn="$okwarn${okwarn:+ }$flag"
 else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: none" >&5
-$as_echo "none" >&6; }
-		    unset warn
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-    CFLAGS="$oCFLAGS"
-else
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: none" >&5
-$as_echo "none" >&6; }
-fi
+	CFLAGS="$oCFLAGS"
+done
+warn="$okwarn"
 
 #check if compilation with FORTIFY_SOURCE gives error/warning
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether compilation with FORTIFY_SOURCE works" >&5
@@ -15645,6 +15776,7 @@ $as_echo_n "checking for sa_len type... " >&6; }
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdio.h>
 int
 main ()
 {
@@ -15652,7 +15784,8 @@ main ()
 struct sockaddr sa;
 $type *sa_len_ptr;
 sa_len_ptr = &sa.sa_len;
-sa_len_ptr++; /* use to avoid warning/error */
+if (sa_len_ptr != NULL)
+   sa_len_ptr = NULL; /* used to avoid warning/error */
   ;
   return 0;
 }
@@ -15731,6 +15864,7 @@ for type in "unsigned int" u_long; do
 #include <netinet/in.h>
 #include <arpa/nameser.h>
 #include <resolv.h>
+#include <stdio.h>
 int
 main ()
 {
@@ -15738,7 +15872,8 @@ main ()
 struct __res_state res;
 $type *res_options_ptr;
 res_options_ptr = &res.options;
-res_options_ptr++;
+if (res_options_ptr != NULL)
+   res_options_ptr = NULL; /* used to avoid warning/error */
   ;
   return 0;
 }
@@ -16128,9 +16263,7 @@ main(void)
 
 
 static int
-dotests(s, blocking)
-	int s;
-	int blocking;
+dotests(int s, int blocking)
 {
 	int p, rc;
 	struct sockaddr_in addr;
@@ -16172,8 +16305,7 @@ dotests(s, blocking)
 }
 
 static int
-selectcheck(s)
-	int s;
+selectcheck(int s)
 {
 	fd_set rset, wset, xset;
 	struct timeval timeout;
@@ -17059,13 +17191,9 @@ main(void)
 }
 
 static void
-setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
-   const int doreverse;
-   const size_t packetsize;
-   const int s;
-   const int r;
-   int *sndbuf, *sndbuf_set;
-   int *rcvbuf, *rcvbuf_set;
+setsockets(const int doreverse, const size_t packetsize,
+           const int s, const int r, int *sndbuf, int *sndbuf_set,
+           int *rcvbuf, int *rcvbuf_set)
 {
    socklen_t len;
    int p;
@@ -17144,10 +17272,7 @@ setsockets(doreverse, packetsize, s, r, sndbuf, sndbuf_set, rcvbuf, rcvbuf_set)
 }
 
 static size_t
-sendtest(s, buf, buflen)
-   const int s;
-   const char *buf;
-   const size_t buflen;
+sendtest(const int s, const char *buf, const size_t buflen)
 {
    ssize_t rc;
    size_t sent;
@@ -17181,8 +17306,7 @@ sendtest(s, buf, buflen)
 }
 
 void
-reswrite(res)
-   const char *res;
+reswrite(const char *res)
 {
    FILE *fp;
    if ((fp = fopen("conftest.out", "w")) == NULL) {
@@ -17258,6 +17382,8 @@ else
 #include <unistd.h>
 
 void sigalrm(int signal);
+int checkval(long val);
+void binsearch(long startval, long endval);
 
 #define MAXVAL LONG_MAX
 
@@ -17274,7 +17400,7 @@ main(void)
          exit(-1);
       }
       /* write zero for no special handling needed */
-      fprintf(fp, "%ld\n", 0);
+      fprintf(fp, "%ld\n", (long)0);
       fclose(fp);
       exit(0);
    }
@@ -17282,6 +17408,7 @@ main(void)
    binsearch(0, MAXVAL);
 }
 
+void
 binsearch(long startval, long endval)
 {
    long midval = (endval - startval) / 2 + startval;
@@ -17340,8 +17467,7 @@ checkval(long val)
 }
 
 void
-sigalrm(sig)
-   int sig;
+sigalrm(int sig)
 {
    resval = 0;
 /*   printf("got sig, ok val\n");*/
@@ -22949,6 +23075,7 @@ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
+#include <string.h>
 #ifndef SIOCGIFHWADDR
 #error "SIOCGIFHWADDR not defined"
 #endif
@@ -23113,6 +23240,7 @@ $as_echo_n "checking for sched_setaffinity... " >&6; }
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
+#define _GNU_SOURCE
 #include <sched.h>
 
 int
@@ -23203,6 +23331,8 @@ else
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <string.h>
+
 int main(void)
 {
     struct sockaddr_in addr;
@@ -23463,6 +23593,7 @@ else
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <stdio.h>
 
 int
 main(void)
@@ -23512,6 +23643,7 @@ else
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <stdio.h>
 
 int
 main(void)
@@ -23558,6 +23690,7 @@ else
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <stdio.h>
 
 int
 main(void)
@@ -23902,6 +24035,7 @@ else
 
 #include <sys/time.h>
 #include <time.h>
+#include <stdio.h>
 
 int
 main(void)
@@ -23944,32 +24078,38 @@ esac
 
 #known keywords for --enable/disable-foo(=yes/no)?
 LTINTERNAL="dlopen|dlopen_self|dlopen_self_static|fast_install|libtool_lock|win32_dll|shared_with_static_runtimes|shared_with_static_runtimes_CXX|shared_with_static_runtimes_F77|option_checking|silent_rules"
-KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|profiling|coverage|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile|livedebug|clientbuild|serverbuild|client|server|libcfail"
-for keyword in `set | egrep '^enable_' | sed -e 's/^enable_//' | \
+KNOWN_KEYWORDS="$LTINTERNAL|shared|static|debug|warnings|diagnostic|fsanitize|profiling|coverage|linting|libwrap|preload|serverdl|clientdl|internal|pidfile|drt_fallback|release|dependency_tracking|largefile|livedebug|clientbuild|serverbuild|client|server|libcfail|libcassert|maintainer_mode"
+for keyword in `set | grep -E '^enable_' | sed -e 's/^enable_//' | \
                 sed -e 's/=.*$//'`; do
-    echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
+    echo $keyword | grep -E "^(${KNOWN_KEYWORDS})$" > /dev/null
     if test $? -ne 0; then
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unknown --enable/disable keyword '$keyword'" >&5
 $as_echo "$as_me: WARNING: unknown --enable/disable keyword '$keyword'" >&2;}
 	#check is not entirely reliable, only exit in prerelease
 	if test x"$prerelease" != x; then
-	    exit 1
+	    { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "unknown configure keyword, exiting
+See \`config.log' for more details" "$LINENO" 5; }
 	fi
     fi
 done
 
 #known keywords for --with/without-foo?
-LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx|sysroot"
+LTINTERNAL="gnu_ld|pic|tags|gnu_ldcxx|sysroot|aix_soname"
 KNOWN_KEYWORDS="$LTINTERNAL|socks_conf|sockd_conf|pidfile|iomax|negmax|bufsize|libc|upnp|pam|bsdauth|full_env|gssapi_path|gssapi|krb5_config|krb5|krb5_path|pac|ldap|ldap_path|sasl|sasl_path|glibc_secure|libwrap"
-for keyword in `set | egrep '^with_' | sed -e 's/^with_//' | \
+for keyword in `set | grep -E '^with_' | sed -e 's/^with_//' | \
                 sed -e 's/=.*$//'`; do
-    echo $keyword | egrep "^(${KNOWN_KEYWORDS})$" > /dev/null
+    echo $keyword | grep -E "^(${KNOWN_KEYWORDS})$" > /dev/null
     if test $? -ne 0; then
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unknown --with/without keyword '$keyword'" >&5
 $as_echo "$as_me: WARNING: unknown --with/without keyword '$keyword'" >&2;}
 	#check is not entirely reliable, only exit in prerelease
 	if test x"$prerelease" != x; then
-	    exit 1
+	    { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "unknown configure keyword, exiting
+See \`config.log' for more details" "$LINENO" 5; }
 	fi
     fi
 done
@@ -29429,10 +29569,7 @@ main(int argc, char *argv[])
 }
 
 ssize_t
-read(d, buf, nbytes)
-   int d;
-   void *buf;
-   size_t nbytes;
+read(int d, void *buf, size_t nbytes)
 {
    return 0;
 }
@@ -29743,8 +29880,8 @@ done
 
 
       if test x"${ac_gssapi_libs}" != x; then
-       _libsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep '^-l' | xargs echo`
-       _optsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
+       _libsonly=`echo $ac_gssapi_libs | xargs -n1 | grep -E '^-l' | xargs echo`
+       _optsonly=`echo $ac_gssapi_libs | xargs -n1 | grep -E -v '^-l' | xargs echo`
        LIBS="${LIBS}${LIBS:+ }${_libsonly}"
        LDFLAGS="${LDFLAGS}${LDFLAGS:+ }${_optsonly}"
 
@@ -30375,6 +30512,8 @@ done
 $as_echo_n "checking for heimdal... " >&6; }
    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
+
+#include <stdio.h>
 #include "krb5.h"
 int
 main ()
@@ -30397,6 +30536,16 @@ $as_echo "no" >&6; }
 fi
 rm -f core conftest.err conftest.$ac_objext \
     conftest$ac_exeext conftest.$ac_ext
+
+   if test x"${have_heimdal}" = x -a x"$krb5confpath" != x; then
+       heimdalout="`$krb5confpath --version 2>/dev/null | grep -i heimdal`"
+       if test $? -eq 0; then
+          have_heimdal=t
+
+$as_echo "#define HAVE_HEIMDAL_KERBEROS 1" >>confdefs.h
+
+       fi
+   fi
 
       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for working gssapi" >&5
 $as_echo_n "checking for working gssapi... " >&6; }
@@ -30661,8 +30810,8 @@ fi
 
 
       if test x"${ac_krb5_libs}" != x; then
-      _libsonly=`echo $ac_krb5_libs | xargs -n1 | egrep '^-l' | xargs echo`
-      _optsonly=`echo $ac_krb5_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
+      _libsonly=`echo $ac_krb5_libs | xargs -n1 | grep -E '^-l' | xargs echo`
+      _optsonly=`echo $ac_krb5_libs | xargs -n1 | grep -E -v '^-l' | xargs echo`
 
       LIBS="${LIBS}${LIBS:+ }${_libsonly}"
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }${_optsonly}"
@@ -31489,7 +31638,8 @@ else
 #include <kerberosv5/krb5.h>
 #endif /* HAVE_KERBEROSV5_KRB5_H */
 
-main()
+int
+main(void)
 {
     krb5_context context;
     krb5_ccache cc;
@@ -31529,7 +31679,8 @@ else
 #include <kerberosv5/krb5.h>
 #endif /* HAVE_KERBEROSV5_KRB5_H */
 
-main()
+int
+main(void)
 {
     krb5_context context;
     krb5_keytab kt;
@@ -31594,7 +31745,7 @@ if test x"$SASL" != xno; then
    fi
 
       if test x"${ac_sasl_libs}" != x; then
-      NPATH=`echo $ac_sasl_libs | xargs -n1 | egrep '^-L' | xargs echo`
+      NPATH=`echo $ac_sasl_libs | xargs -n1 | grep -E '^-L' | xargs echo`
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }$NPATH"
    fi
 
@@ -31709,7 +31860,7 @@ if test x"$LDAP" != xno; then
    fi
 
       if test x"${ac_ldap_libs}" != x; then
-      NPATH=`echo $ac_ldap_libs | xargs -n1 | egrep '^-L' | xargs echo`
+      NPATH=`echo $ac_ldap_libs | xargs -n1 | grep -E '^-L' | xargs echo`
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }$NPATH"
    fi
 
@@ -31996,10 +32147,15 @@ else
 int
 main(void)
 {
-       char *host="";
+       char *host = "";
+#ifdef LDAP_DEPRECATED
        int port;
 
        ldap_init(host, port);
+#else
+       LDAP *ld;
+       ldap_initialize(&ld, host);
+#endif /* LDAP_DEPRECATED */
 
        return 0;
 }
@@ -32644,7 +32800,7 @@ fi
 
 unset stdio_preload
 case $host in
-    *-*-linux-* | *-*-solaris*)
+    *-*-linux* | *-*-solaris*)
 	#only do preloading if gssapi is defined
 	if test x"${no_gssapi}" != xt; then
 	    stdio_preload=t
@@ -32805,6 +32961,49 @@ fi
 	LIBS=$oLIBS
     fi
     if test x"${have_libminiupnp}" = xt; then
+        { $as_echo "$as_me:${as_lineno-$LINENO}: checking for miniupnpc version >= 2.2.8" >&5
+$as_echo_n "checking for miniupnpc version >= 2.2.8... " >&6; }
+	cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+            #include <stdio.h>
+            #include <miniupnpc/miniupnpc.h>
+            #include <miniupnpc/upnpcommands.h>
+            #include <miniupnpc/upnperrors.h>
+int
+main ()
+{
+
+
+            #ifndef MINIUPNPC_API_VERSION
+	    #error "no api version define"
+            #else
+            # if MINIUPNPC_API_VERSION < 18
+            #error "api version too low"
+            # endif
+            #endif
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+
+$as_echo "#define HAVE_LIBMINIUPNP 1" >>confdefs.h
+
+
+$as_echo "#define HAVE_LIBMINIUPNP228 1" >>confdefs.h
+
+          unset no_upnp
+	  SOCKDDEPS="${SOCKDDEPS}${SOCKDDEPS:+ }$UPNPLIB"
+	  DLIBDEPS="${DLIBDEPS}${DLIBDEPS:+ }$UPNPLIB"
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
         { $as_echo "$as_me:${as_lineno-$LINENO}: checking for miniupnpc version >= 1.7" >&5
 $as_echo_n "checking for miniupnpc version >= 1.7... " >&6; }
 	cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -32822,8 +33021,8 @@ main ()
             #ifndef MINIUPNPC_API_VERSION
 	    #error "no api version define"
             #else
-            # if MINIUPNPC_API_VERSION < 8
-            #error "api version too low"
+            # if MINIUPNPC_API_VERSION < 8 || MINIUPNPC_API_VERSION > 17
+            #error "api version too low or high"
             # endif
             #endif
   ;
@@ -33213,6 +33412,7 @@ $as_echo_n "checking for libwrap... " >&6; }
 	cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
+#include <tcpd.h>
 int allow_severity;
 int deny_severity;
 
@@ -53803,6 +54003,115 @@ $as_echo "#define SOCKS_TCP_IPA_IPV4 1" >>confdefs.h
 
 $as_echo "#define SOCKS_TCP_IPA_IPV6 0" >>confdefs.h
 
+
+
+$as_echo "#define HAVE_LINUX_BBKERNEL_H 1" >>confdefs.h
+
+
+ #opt253 variant
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for MAX_TCP_OPTION_SPACE" >&5
+$as_echo_n "checking for MAX_TCP_OPTION_SPACE... " >&6; }
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <linux/bbkernel.h>
+#ifdef MAX_TCP_OPTION_SPACE
+yes
+#endif
+
+_ACEOF
+if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+  $EGREP "yes" >/dev/null 2>&1; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+
+$as_echo "#define MAX_TCP_OPTION_SPACE 40" >>confdefs.h
+
+fi
+rm -f conftest*
+
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <linux/tcp.h>
+#ifdef TCP_EXP1
+yes
+#endif /* TCP_EXP1 */
+
+_ACEOF
+if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+  $EGREP "yes" >/dev/null 2>&1; then :
+
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for TCP_EXP1 value" >&5
+$as_echo_n "checking for TCP_EXP1 value... " >&6; }
+   if test "$cross_compiling" = yes; then :
+  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "cannot run test program while cross compiling
+See \`config.log' for more details" "$LINENO" 5; }
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+#include <linux/tcp.h>
+
+
+#include <stdio.h>
+
+int
+main(void)
+{
+   FILE *fp;
+   int val;
+
+   val = TCP_EXP1;
+
+   if ((fp = fopen("conftest.out", "w")) == NULL) {
+      perror("fopen");
+      exit(-1);
+   }
+   fprintf(fp, "%ld\n", val);
+   fclose(fp);
+
+   return 0;
+}
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+  ac_cv_definedint=$(cat conftest.out)
+     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<_ACEOF
+#define TCP_EXP1 $ac_cv_definedint
+_ACEOF
+
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+    SOCKOPTS="$SOCKOPTS TCP_EXP1"
+
+$as_echo "#define HAVE_TCP_EXP1 1" >>confdefs.h
+
+$as_echo "#define SOCKS_TCP_EXP1_LVL IPPROTO_TCP" >>confdefs.h
+
+$as_echo "#define SOCKS_TCP_EXP1_NAME \"tcp_exp1\"" >>confdefs.h
+
+$as_echo "#define SOCKS_TCP_EXP1_IPV4 1" >>confdefs.h
+
+$as_echo "#define SOCKS_TCP_EXP1_IPV6 0" >>confdefs.h
+
+fi
+rm -f conftest*
+
 fi
 
 
@@ -64635,6 +64944,9 @@ sockopt2argtype()
 	TCP_IPA)
 	    _argtype="option28_val"
 	    ;;
+	TCP_EXP1)
+	    _argtype="option253_val"
+	    ;;
 	*)
 	    _argtype="int_val"
 	    ;;
@@ -65024,6 +65336,7 @@ done
 unset HOSTIDTYPE
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for supported hostid type" >&5
 $as_echo_n "checking for supported hostid type... " >&6; }
+unset HOSTIDTYPEVAL
 for opt in $HOSTIDSOCKOPTS; do
     argtype=`sockopt2argtype $opt`
 
@@ -65060,24 +65373,19 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
     echo "   { $optid, $argtype, ${opt}, SOCKS_${opt}_LVL, SOCKS_${opt}_IPV4, SOCKS_${opt}_IPV6, $calltype, $optshift, $optmask, $dup, $priv, SOCKS_HOSTID_NAME }," >> $OPTSRCTMP1
-
-cat >>confdefs.h <<_ACEOF
-#define SOCKS_HOSTID_TYPE SOCKS_HOSTID_TYPE_${opt}
-_ACEOF
-
+#    AC_DEFINE_UNQUOTED(SOCKS_HOSTID_TYPE, [SOCKS_HOSTID_TYPE_${opt}], [hostid option type])
+    HOSTIDTYPEVAL="$HOSTIDTYPEVAL${HOSTIDTYPEVAL:+ | }SOCKS_HOSTID_TYPE_${opt}"
     SOCKOPTCNT=`expr $SOCKOPTCNT + 1`
     HOSTIDTYPE=$opt
 
     #add supported arguments
-    unset symlist
-    for sym in NONE PASS ADDCLIENT SETCLIENT; do
+    symlist="NONE PASS ADDCLIENT SETCLIENT PASS_OR_SETCLIENT"
+    for sym in $symlist; do
 	echo "   { $optid, { .int_val = SOCKS_HOSTID_$sym }, SOCKS_HOSTID_${sym}_SYMNAME }," >> $OPTSRCTMP2
 	SOCKOPTSYMCNT=`expr $SOCKOPTSYMCNT + 1`
     done
     OKSOCKOPTVALSYMS="$OKSOCKOPTVALSYMS${OKSOCKOPTVALSYMS:+ }hostid(none pass add-client set-client)"
     OKSOCKOPTS="$OKSOCKOPTS${OKSOCKOPTS:+ }hostid($opt)"
-
-    break #end after first entry
 done
 if test x"$HOSTIDTYPE" = x; then
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
@@ -65086,6 +65394,12 @@ $as_echo "no" >&6; }
 $as_echo "#define SOCKS_HOSTID_TYPE SOCKS_HOSTID_TYPE_NONE" >>confdefs.h
 
 else
+
+cat >>confdefs.h <<_ACEOF
+#define SOCKS_HOSTID_TYPE ($HOSTIDTYPEVAL)
+_ACEOF
+
+
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: $HOSTIDTYPE" >&5
 $as_echo "$HOSTIDTYPE" >&6; }
     FEAT="$FEAT${FEAT:+ }hostid"
@@ -65164,31 +65478,31 @@ _ACEOF
 rm -f "$OPTSRCTMP0" "$OPTSRCTMP1" "$OPTSRCTMP2"
 
 #set value for server -v option
-UCOKSOCKOPTS_SO=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'SO_' | xargs`
+UCOKSOCKOPTS_SO=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'SO_' | xargs`
 
 cat >>confdefs.h <<_ACEOF
 #define DANTE_SOCKOPTS_SO "${UCOKSOCKOPTS_SO}"
 _ACEOF
 
-UCOKSOCKOPTS_IPV4=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'IP_' | xargs`
+UCOKSOCKOPTS_IPV4=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'IP_' | xargs`
 
 cat >>confdefs.h <<_ACEOF
 #define DANTE_SOCKOPTS_IPV4 "${UCOKSOCKOPTS_IPV4}"
 _ACEOF
 
-UCOKSOCKOPTS_IPV6=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'IPV6_' | xargs`
+UCOKSOCKOPTS_IPV6=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'IPV6_' | xargs`
 
 cat >>confdefs.h <<_ACEOF
 #define DANTE_SOCKOPTS_IPV6 "${UCOKSOCKOPTS_IPV6}"
 _ACEOF
 
-UCOKSOCKOPTS_TCP=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'TCP_' | xargs`
+UCOKSOCKOPTS_TCP=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'TCP_' | xargs`
 
 cat >>confdefs.h <<_ACEOF
 #define DANTE_SOCKOPTS_TCP "${UCOKSOCKOPTS_TCP}"
 _ACEOF
 
-UCOKSOCKOPTS_UDP=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'UDP_' | xargs`
+UCOKSOCKOPTS_UDP=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'UDP_' | xargs`
 
 cat >>confdefs.h <<_ACEOF
 #define DANTE_SOCKOPTS_UDP "${UCOKSOCKOPTS_UDP}"
@@ -66452,7 +66766,7 @@ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
 #
 # INIT-COMMANDS
 #
-AMDEP_TRUE="$AMDEP_TRUE" ac_aux_dir="$ac_aux_dir"
+AMDEP_TRUE="$AMDEP_TRUE" MAKE="${MAKE-make}"
 
 
 # The HP-UX ksh and POSIX shell print the target directory to stdout
@@ -67403,29 +67717,35 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
   # Older Autoconf quotes --file arguments for eval, but not when files
   # are listed without --file.  Let's play safe and only enable the eval
   # if we detect the quoting.
-  case $CONFIG_FILES in
-  *\'*) eval set x "$CONFIG_FILES" ;;
-  *)   set x $CONFIG_FILES ;;
-  esac
+  # TODO: see whether this extra hack can be removed once we start
+  # requiring Autoconf 2.70 or later.
+  case $CONFIG_FILES in #(
+  *\'*) :
+    eval set x "$CONFIG_FILES" ;; #(
+  *) :
+    set x $CONFIG_FILES ;; #(
+  *) :
+     ;;
+esac
   shift
-  for mf
+  # Used to flag and report bootstrapping failures.
+  am_rc=0
+  for am_mf
   do
     # Strip MF so we end up with the name of the file.
-    mf=`echo "$mf" | sed -e 's/:.*$//'`
-    # Check whether this is an Automake generated Makefile or not.
-    # We used to match only the files named 'Makefile.in', but
-    # some people rename them; so instead we look at the file content.
-    # Grep'ing the first line is not enough: some people post-process
-    # each Makefile.in and add a new line on top of each file to say so.
-    # Grep'ing the whole file is not good either: AIX grep has a line
+    am_mf=`$as_echo "$am_mf" | sed -e 's/:.*$//'`
+    # Check whether this is an Automake generated Makefile which includes
+    # dependency-tracking related rules and includes.
+    # Grep'ing the whole file directly is not great: AIX grep has a line
     # limit of 2048, but all sed's we know have understand at least 4000.
-    if sed -n 's,^#.*generated by automake.*,X,p' "$mf" | grep X >/dev/null 2>&1; then
-      dirpart=`$as_dirname -- "$mf" ||
-$as_expr X"$mf" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
-	 X"$mf" : 'X\(//\)[^/]' \| \
-	 X"$mf" : 'X\(//\)$' \| \
-	 X"$mf" : 'X\(/\)' \| . 2>/dev/null ||
-$as_echo X"$mf" |
+    sed -n 's,^am--depfiles:.*,X,p' "$am_mf" | grep X >/dev/null 2>&1 \
+      || continue
+    am_dirpart=`$as_dirname -- "$am_mf" ||
+$as_expr X"$am_mf" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
+	 X"$am_mf" : 'X\(//\)[^/]' \| \
+	 X"$am_mf" : 'X\(//\)$' \| \
+	 X"$am_mf" : 'X\(/\)' \| . 2>/dev/null ||
+$as_echo X"$am_mf" |
     sed '/^X\(.*[^/]\)\/\/*[^/][^/]*\/*$/{
 	    s//\1/
 	    q
@@ -67443,53 +67763,50 @@ $as_echo X"$mf" |
 	    q
 	  }
 	  s/.*/./; q'`
-    else
-      continue
-    fi
-    # Extract the definition of DEPDIR, am__include, and am__quote
-    # from the Makefile without running 'make'.
-    DEPDIR=`sed -n 's/^DEPDIR = //p' < "$mf"`
-    test -z "$DEPDIR" && continue
-    am__include=`sed -n 's/^am__include = //p' < "$mf"`
-    test -z "$am__include" && continue
-    am__quote=`sed -n 's/^am__quote = //p' < "$mf"`
-    # Find all dependency output files, they are included files with
-    # $(DEPDIR) in their names.  We invoke sed twice because it is the
-    # simplest approach to changing $(DEPDIR) to its actual value in the
-    # expansion.
-    for file in `sed -n "
-      s/^$am__include $am__quote\(.*(DEPDIR).*\)$am__quote"'$/\1/p' <"$mf" | \
-	 sed -e 's/\$(DEPDIR)/'"$DEPDIR"'/g'`; do
-      # Make sure the directory exists.
-      test -f "$dirpart/$file" && continue
-      fdir=`$as_dirname -- "$file" ||
-$as_expr X"$file" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
-	 X"$file" : 'X\(//\)[^/]' \| \
-	 X"$file" : 'X\(//\)$' \| \
-	 X"$file" : 'X\(/\)' \| . 2>/dev/null ||
-$as_echo X"$file" |
-    sed '/^X\(.*[^/]\)\/\/*[^/][^/]*\/*$/{
+    am_filepart=`$as_basename -- "$am_mf" ||
+$as_expr X/"$am_mf" : '.*/\([^/][^/]*\)/*$' \| \
+	 X"$am_mf" : 'X\(//\)$' \| \
+	 X"$am_mf" : 'X\(/\)' \| . 2>/dev/null ||
+$as_echo X/"$am_mf" |
+    sed '/^.*\/\([^/][^/]*\)\/*$/{
 	    s//\1/
 	    q
 	  }
-	  /^X\(\/\/\)[^/].*/{
+	  /^X\/\(\/\/\)$/{
 	    s//\1/
 	    q
 	  }
-	  /^X\(\/\/\)$/{
-	    s//\1/
-	    q
-	  }
-	  /^X\(\/\).*/{
+	  /^X\/\(\/\).*/{
 	    s//\1/
 	    q
 	  }
 	  s/.*/./; q'`
-      as_dir=$dirpart/$fdir; as_fn_mkdir_p
-      # echo "creating $dirpart/$file"
-      echo '# dummy' > "$dirpart/$file"
-    done
+    { echo "$as_me:$LINENO: cd "$am_dirpart" \
+      && sed -e '/# am--include-marker/d' "$am_filepart" \
+        | $MAKE -f - am--depfiles" >&5
+   (cd "$am_dirpart" \
+      && sed -e '/# am--include-marker/d' "$am_filepart" \
+        | $MAKE -f - am--depfiles) >&5 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); } || am_rc=$?
   done
+  if test $am_rc -ne 0; then
+    { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "Something went wrong bootstrapping makefile fragments
+    for automatic dependency tracking.  If GNU make was not used, consider
+    re-running the configure script with MAKE=\"gmake\" (or whatever is
+    necessary).  You can also try re-running configure with the
+    '--disable-dependency-tracking' option to at least be able to build
+    the package (albeit without support for automatic dependency tracking).
+See \`config.log' for more details" "$LINENO" 5; }
+  fi
+  { am_dirpart=; unset am_dirpart;}
+  { am_filepart=; unset am_filepart;}
+  { am_mf=; unset am_mf;}
+  { am_rc=; unset am_rc;}
+  rm -f conftest-deps.mk
 }
  ;;
     "libtool":C)

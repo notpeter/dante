@@ -1,7 +1,8 @@
 
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2020
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2020,
+ *               2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +48,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_io.c,v 1.1229.4.4.2.5.4.2 2020/11/11 16:12:01 karls Exp $";
+"$Id: sockd_io.c,v 1.1229.4.4.2.5.4.2.4.6 2024/11/23 22:41:09 michaels Exp $";
 
 /*
  * IO-child:
@@ -933,8 +934,8 @@ run_io()
                &&  (io->srule.alarmsconfigured & ALARM_DISCONNECT)) {
                   clientinfo_t cinfo;
 
-                  cinfo.from = io->control.raddr;
-                  HOSTIDCOPY(&io->state, &cinfo);
+                  cinfo.from   = io->control.raddr;
+                  cinfo.hostid = io->state.hostid; 
 
                   SASSERTX(!io->control.state.alarmdisconnectdone);
                   alarm_add_disconnect(0,
@@ -2787,7 +2788,7 @@ getnewios()
 
    if (receivedc > 0) {
       errno = 0;
-      return receivedc;
+      return (int)receivedc;
    }
    else {
       slog(LOG_DEBUG,
@@ -2811,9 +2812,13 @@ siginfo(sig, si, sc)
 {
    const char *function = "siginfo()";
    const int errno_s = errno;
+
 #if HAVE_UDP_SUPPORT
+
    iostat_t *stats;
+
 #endif /* HAVE_UDP_SUPPORT */
+
    unsigned long days, hours, minutes, seconds;
    time_t tnow;
    size_t i;
@@ -2915,8 +2920,7 @@ siginfo(sig, si, sc)
          int src_so_sndbuf, dst_so_sndbuf;
 #endif /* HAVE_SENDBUF_IOCTL */
 
-         build_addrstr_src(GET_HOSTIDV(&iov[i].state),
-                           GET_HOSTIDC(&iov[i].state),
+         build_addrstr_src(HAVE_SOCKS_HOSTID ? &iov[i].state.hostid : NULL,
                            &src->host,
                            NULL,
                            NULL,
@@ -2936,8 +2940,7 @@ siginfo(sig, si, sc)
                            :  &dst->host,
                            &dst->auth,
                            NULL,
-                           (struct in_addr *)NULL,
-                           0,
+                           NULL,
                            dststring,
                            sizeof(dststring));
 
@@ -3146,6 +3149,7 @@ do {                                                                           \
 } while (/* CONSTCOND */ 0)
 
 #if SOCKS_SERVER
+
          if (dst->dstc == 0) {
             /*
              * Special-case for Dante.  Even though we have no target yet,
@@ -3154,8 +3158,8 @@ do {                                                                           \
              * hand do not have any control-connection, so if dstc is 0,
              * we have no clients either.
              */
-            build_addrstr_src(GET_HOSTIDV(&iov[i].state),
-                              GET_HOSTIDC(&iov[i].state),
+
+            build_addrstr_src(HAVE_SOCKS_HOSTID ? &iov[i].state.hostid : NULL,
                               &src->host,
                               NULL,
                               NULL,
@@ -3176,6 +3180,7 @@ do {                                                                           \
             UDPLOG();
             continue;
          }
+
 #endif /* SOCKS_SERVER */
 
          for (srci = 0; srci < dst->dstc; ++srci) {
@@ -3187,12 +3192,18 @@ do {                                                                           \
             dst_written        = client->target_written.bytes,
             dst_packetswritten = client->target_written.packets;
 
-            build_addrstr_src(GET_HOSTIDV(&iov[i].state),
-                              GET_HOSTIDC(&iov[i].state),
+
+            build_addrstr_src(HAVE_SOCKS_HOSTID ? &iov[i].state.hostid : NULL,
+
+
 #if BAREFOOTD
+
                               sockaddr2sockshost(&client->client, &a),
+
 #else /* Dante */
+
                               sockaddr2sockshost(&iov[i].src.raddr, &a),
+
 #endif /* Dante */
                               NULL,
                               NULL,
@@ -3205,15 +3216,14 @@ do {                                                                           \
             build_addrstr_dst(sockaddr2sockshost(&client->laddr, &a),
                               iov[i].state.proxychain.proxyprotocol
                               == PROXY_DIRECT ?
-                         NULL : sockaddr2sockshost(&client->raddr, &b),
+                                 NULL : sockaddr2sockshost(&client->raddr, &b),
                               iov[i].state.proxychain.proxyprotocol
                               == PROXY_DIRECT ?
-                                    NULL : &iov[i].state.proxychain.extaddr,
+                                 NULL : &iov[i].state.proxychain.extaddr,
                               sockaddr2sockshost(&client->raddr, NULL),
                               &dst->auth,
                               NULL,
-                              (struct in_addr *)NULL,
-                              0,
+                              NULL,
                               dststring,
                               sizeof(dststring));
 
@@ -3277,8 +3287,8 @@ connectstatus(io, badfd)
 
    *badfd = -1;
 
-   cinfo.from = CONTROLIO(io)->raddr;
-   HOSTIDCOPY(&io->state, &cinfo);
+   cinfo.from   = CONTROLIO(io)->raddr;
+   cinfo.hostid = io->state.hostid;
 
    /*
     * Check if the socket connected successfully.
@@ -3334,8 +3344,7 @@ connectstatus(io, badfd)
                      object_sockshost,
                      &io->src.host,
                      &io->src.auth,
-                     GET_HOSTIDV(&io->state),
-                     GET_HOSTIDC(&io->state));
+                     &io->state.hostid);
 
       init_iologaddr(&dst,
                      object_sockaddr,
@@ -3343,8 +3352,7 @@ connectstatus(io, badfd)
                      object_sockaddr,
                      &io->dst.raddr,
                      &io->dst.auth,
-                     NULL,
-                     0);
+                     NULL);
 
       if (io->srule.log.tcpinfo) {
          int fdv[] = { io->src.s, io->dst.s };
@@ -3563,7 +3571,7 @@ io_delete(mother, io, badfd, status)
                         &io->crule,
                      };
    clientinfo_t cinfo;
-   size_t rulei;
+   ssize_t rulei;
    char buf[512], tcpinfo[MAXTCPINFOLEN];
    int command, protocol;
 
@@ -3606,7 +3614,7 @@ io_delete(mother, io, badfd, status)
 #endif /* SOCKS_SERVER */
 
    /* only log the disconnect if the rule says so. */
-   for (rulei = 0; rulei < ELEMENTS(rulev); ++rulei) {
+   for (rulei = 0; rulei < (ssize_t)ELEMENTS(rulev); ++rulei) {
       const rule_t *rule = rulev[rulei];
       sockshost_t a, b;
       uint64_t src_read, src_written, dst_read, dst_written;
@@ -3653,8 +3661,7 @@ io_delete(mother, io, badfd, status)
          *tcpinfo = NUL;
 
       if (rule->type == object_srule) {
-         build_addrstr_src(GET_HOSTIDV(&io->state),
-                           GET_HOSTIDC(&io->state),
+         build_addrstr_src(HAVE_SOCKS_HOSTID ? &io->state.hostid : NULL,
                            &io->src.host,
                            NULL,
                            NULL,
@@ -3681,8 +3688,7 @@ io_delete(mother, io, badfd, status)
                                     :  &io->dst.host,
                                  &io->dst.auth,
                                  NULL,
-                                 (struct in_addr *)NULL,
-                                 0,
+                                 NULL,
                                  out,
                                  sizeof(out));
                break;
@@ -3730,7 +3736,6 @@ io_delete(mother, io, badfd, status)
                                     &io->dst.auth,
                                     NULL,
                                     NULL,
-                                    0,
                                     out,
                                     sizeof(out));
 
@@ -3769,8 +3774,7 @@ io_delete(mother, io, badfd, status)
             continue;
 #endif /* !HAVE_SOCKS_RULES. */
 
-         build_addrstr_src(GET_HOSTIDV(&io->state),
-                           GET_HOSTIDC(&io->state),
+         build_addrstr_src(HAVE_SOCKS_HOSTID ? &io->state.hostid : NULL,
                            &CONTROLIO(io)->host,
                            NULL,
                            NULL,
@@ -3790,8 +3794,7 @@ io_delete(mother, io, badfd, status)
                            &io->dst.host,
                            &io->dst.auth,
                            NULL,
-                           (struct in_addr *)NULL,
-                           0,
+                           NULL,
                            out,
                            sizeof(out));
 #endif /* HAVE_SOCKS_RULES */
@@ -4050,8 +4053,7 @@ io_delete(mother, io, badfd, status)
                         object_sockshost,
                         io->state.extension.bind ? NULL : &io->cmd.bind.host,
                         &io->src.auth,
-                        GET_HOSTIDV(&io->state),
-                        GET_HOSTIDC(&io->state));
+                        &io->state.hostid);
 
          init_iologaddr(&dst,
                         object_sockaddr,
@@ -4059,8 +4061,7 @@ io_delete(mother, io, badfd, status)
                         object_sockaddr,
                         &io->dst.raddr,
                         &io->dst.auth,
-                        NULL,
-                        0);
+                        NULL);
 
          io->state.command = SOCKS_BIND;
          /*
@@ -4157,7 +4158,7 @@ io_delete(mother, io, badfd, status)
       if (io_fillset_connectinprogress(NULL) == -1)
          iostate.haveconnectinprogress = 0;
 
-   HOSTIDCOPY(&io->state, &cinfo);
+   cinfo.hostid = io->state.hostid;
 
    log_ruleinfo_shmid(CRULE_OR_HRULE(io), function, "before SHMEM_UNUSE()");
 

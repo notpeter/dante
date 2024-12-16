@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012, 2013, 2019, 2020
+ * Copyright (c) 2010, 2011, 2012, 2013, 2019, 2020, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: method.c,v 1.25.10.6 2020/11/11 17:02:26 karls Exp $";
+"$Id: method.c,v 1.25.10.6.4.4 2024/11/20 22:03:27 karls Exp $";
 
 int
 methodisvalid(method, ruletype)
@@ -279,10 +279,9 @@ authsids(auth)
 #endif /* HAVE_PAC */
 
 char *
-build_addrstr_src(hostidv, hostidc, peer, proxy_ext, proxy, local,
+build_addrstr_src(hostid, peer, proxy_ext, proxy, local,
                   peerauth, proxyauth, str, strsize)
-   const struct in_addr *hostidv;
-   const unsigned int hostidc;
+   const struct hostid *hostid;
    const sockshost_t *peer;
    const sockshost_t *proxy_ext;
    const sockshost_t *proxy;
@@ -299,34 +298,47 @@ build_addrstr_src(hostidv, hostidc, peer, proxy_ext, proxy, local,
         pe_str[MAXSOCKSHOSTSTRING + sizeof("[]")], lstr[MAXSOCKSHOSTSTRING];
 
    strused = 0;
-   if (hostidv != NULL && hostidc > 0) {
-      size_t i;
 
-      for (i = 0; i < hostidc; ++i) {
-         char ntop[MAXSOCKADDRSTRING];
+#if HAVE_SOCKS_HOSTID
 
-         if (inet_ntop(AF_INET, &hostidv[i], ntop, sizeof(ntop)) == NULL) {
+   if (hostid != NULL && hostid->addrc > 0) {
+      struct in_addr addrv[HAVE_MAX_HOSTIDS];
+      size_t i, addrc;
+
+      addrc = gethostidipv(hostid, addrv, ELEMENTS(addrv));
+
+      for (i = 0; i < addrc; ++i) {
+         const char inv[] = "<invalid IPv4 address>";
+         char ntop[MAX(MAXSOCKADDRSTRING, sizeof(invalid))];
+
+         if (inet_ntop(AF_INET, &addrv[i], ntop, sizeof(ntop)) == NULL) {
             slog(LOG_DEBUG, "%s: inet_ntop(3) failed on %s %x: %s",
                  function,
                  atype2string(SOCKS_ADDR_IPV4),
-                 hostidv[i].s_addr,
+                 addrv[i].s_addr,
                  strerror(errno));
 
-             snprintf(ntop, sizeof(ntop), "<unknown>");
+             strcpy(ntop, inv);
          }
 
          strused += snprintf(&str[strused], strsize - strused,
                              "%s[%s]",
                              i > 0 ? " " : "",
                              ntop);
-
       }
+
       if ((strused + 1) < strsize) {
          str[strused]      = ' ';
          str[strused + 1]  = NUL;
          strused           += 1;
       }
    }
+
+#else /* !HAVE_SOCKS_HOSTID */
+
+   SASSERTX(hostid == NULL);
+
+#endif /* HAVE_SOCKS_HOSTID */
 
    if ((proxy_ext) == NULL)
       *pe_str = NUL;
@@ -359,15 +371,14 @@ build_addrstr_src(hostidv, hostidc, peer, proxy_ext, proxy, local,
 
 char *
 build_addrstr_dst(local, proxy, proxy_ext, peer,
-                  peerauth, proxyauth, hostidv, hostidc, str, strsize)
+                  peerauth, proxyauth, hostid, str, strsize)
    const sockshost_t *local;
    const sockshost_t *proxy;
    const sockshost_t *proxy_ext;
    const sockshost_t *peer;
    const authmethod_t *peerauth;
    const authmethod_t *proxyauth;
-   const struct in_addr *hostidv;
-   const unsigned int hostidc;
+   const struct hostid *hostid;
    char *str;
    size_t strsize;
 {
@@ -404,8 +415,13 @@ build_addrstr_dst(local, proxy, proxy_ext, peer,
             peer == NULL ?
              "0.0.0.0.0" : sockshost2string(peer, peerstr, sizeof(peerstr)));
 
-   if (hostidv != NULL && hostidc > 0) {
-      ssize_t i;
+#if HAVE_SOCKS_HOSTID
+
+   if (hostid != NULL && hostid->addrc > 0) {
+      struct in_addr addrv[HAVE_MAX_HOSTIDS];
+      ssize_t i, addrc;
+
+      addrc = gethostidipv(hostid, addrv, ELEMENTS(addrv));
 
       if ((strused + 1) < strsize) {
          str[strused]      = ' ';
@@ -413,25 +429,32 @@ build_addrstr_dst(local, proxy, proxy_ext, peer,
          strused          += 1;
       }
 
-      for (i = hostidc - 1; i >= 0; --i) {
-         char ntop[MAXSOCKADDRSTRING];
+      for (i = addrc - 1; i >= 0; --i) {
+         const char inv[] = "<invalid IPv4 address>";
+         char ntop[MAX(MAXSOCKADDRSTRING, sizeof(invalid))];
 
-         if (inet_ntop(AF_INET, &hostidv[i], ntop, sizeof(ntop)) == NULL) {
+         if (inet_ntop(AF_INET, &addrv[i], ntop, sizeof(ntop)) == NULL) {
             slog(LOG_DEBUG, "%s: inet_ntop(3) failed on %s %x: %s",
                  function,
                  atype2string(SOCKS_ADDR_IPV4),
-                 hostidv[i].s_addr,
+                 addrv[i].s_addr,
                  strerror(errno));
 
-             snprintf(ntop, sizeof(ntop), "<unknown>");
+             strcpy(ntop, inv);
          }
 
          strused += snprintf(&str[strused], strsize - strused,
                              "%s[%s]",
-                             (i == ((ssize_t)hostidc) - 1) ? "" : " ",
+                             (i == ((ssize_t)addrc) - 1) ? "" : " ",
                              ntop);
       }
    }
+
+#else /* !HAVE_SOCKS_HOSTID */
+
+   SASSERTX(hostid == NULL);
+
+#endif /* HAVE_SOCKS_HOSTID */
 
    return str;
 }

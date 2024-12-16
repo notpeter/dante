@@ -49,7 +49,7 @@
 #endif
 
 static const char rcsid[] =
-"$Id: config_scan.l,v 1.238.4.3.6.9 2021/02/02 19:34:12 karls Exp $";
+"$Id: config_scan.l,v 1.238.4.3.6.9.4.1 2024/11/19 21:16:16 karls Exp $";
 
 #include "yacconfig.h"
 #include "config_parse.h"
@@ -1599,6 +1599,11 @@ ldap\.certcheck {
 ldap\.auth\.certcheck {
    yylval.string = yytext;
    return LDAPAUTHCERTCHECK;
+}
+
+ldap\.auth\.keeprealm {
+   yylval.string = yytext;
+   return LDAPAUTHKEEPREALM;
 }
 
 ldap\.keeprealm {

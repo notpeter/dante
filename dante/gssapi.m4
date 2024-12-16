@@ -152,8 +152,8 @@ if test x"$GSSAPI" != xno; then
 
    dnl look for libs
    if test x"${ac_gssapi_libs}" != x; then
-       _libsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep '^-l' | xargs echo`
-       _optsonly=`echo $ac_gssapi_libs | xargs -n1 | egrep -v '^-l' | xargs echo`
+       _libsonly=`echo $ac_gssapi_libs | xargs -n1 | grep -E '^-l' | xargs echo`
+       _optsonly=`echo $ac_gssapi_libs | xargs -n1 | grep -E -v '^-l' | xargs echo`
        LIBS="${LIBS}${LIBS:+ }${_libsonly}"
        LDFLAGS="${LDFLAGS}${LDFLAGS:+ }${_optsonly}"
 
@@ -213,11 +213,21 @@ if test x"$GSSAPI" != xno; then
 
    unset have_heimdal
    AC_MSG_CHECKING([for heimdal])
-   AC_TRY_LINK([#include "krb5.h"], [printf("%s\n", heimdal_version);],
+   AC_TRY_LINK([
+#include <stdio.h>
+#include "krb5.h"], [printf("%s\n", heimdal_version);],
    [AC_DEFINE(HAVE_HEIMDAL_KERBEROS, 1, [Heimdal kerberos implementation])
     AC_MSG_RESULT(yes)
     have_heimdal=t],
    [AC_MSG_RESULT(no)])
+
+   if test x"${have_heimdal}" = x -a x"$krb5confpath" != x; then
+       heimdalout="`$krb5confpath --version 2>/dev/null | grep -i heimdal`"
+       if test $? -eq 0; then
+          have_heimdal=t
+          AC_DEFINE(HAVE_HEIMDAL_KERBEROS, 1, [Heimdal kerberos implementation])
+       fi
+   fi
 
    dnl do compile check
    AC_MSG_CHECKING([for working gssapi])

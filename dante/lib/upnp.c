@@ -42,7 +42,7 @@
  */
 
 static const char rcsid[] =
-"$Id: upnp.c,v 1.153.4.4.2.2.4.2 2020/11/11 16:11:55 karls Exp $";
+"$Id: upnp.c,v 1.153.4.4.2.2.4.2.4.1 2024/11/21 16:02:49 karls Exp $";
 
 #include "common.h"
 
@@ -154,7 +154,7 @@ socks_initupnp(gw, emsg, emsglen)
                            addrstring,
                            NULL,
                            0
-#if HAVE_LIBMINIUPNP17
+#if HAVE_LIBMINIUPNP17 || HAVE_LIBMINIUPNP228
                           ,0,
 
 #if MINIUPNPC_API_VERSION >= 14
@@ -162,7 +162,7 @@ socks_initupnp(gw, emsg, emsglen)
 #endif /* MINIUPNPC_API_VERSION >= 14 */
 
                           &rc
-#endif /* HAVE_LIBMINIUPNP17 */
+#endif /* HAVE_LIBMINIUPNP17 || HAVE_LIBMINIUPNP228 */
                          );
 
 #if SOCKS_CLIENT && SOCKSLIBRARY_DYNAMIC
@@ -208,7 +208,12 @@ socks_initupnp(gw, emsg, emsglen)
          socks_autoadd_directroute(&commands, &protocols, &saddr, &smask);
       }
 
+#if HAVE_LIBMINIUPNP228
+      devtype = UPNP_GetValidIGD(dev, &url, &data, myaddr, sizeof(myaddr),
+                                 NULL, 0);
+#else /* !HAVE_LIBMINIUPNP228 */
       devtype = UPNP_GetValidIGD(dev, &url, &data, myaddr, sizeof(myaddr));
+#endif /* !HAVE_LIBMINIUPNP228 */
       switch (devtype) {
          case UPNP_NO_IGD:
             snprintf(emsg, emsglen, "no UPNP IGD discovered on local network");
@@ -225,6 +230,20 @@ socks_initupnp(gw, emsg, emsglen)
                          sizeof(vbuf)));
             rc = 0;
             break;
+
+#if HAVE_LIBMINIUPNP228
+         case UPNP_RESERVED_IGD:
+            snprintf(emsg, emsglen,
+                    "UPNP IGD discovered at url %s, but its IP is reserved",
+                    str2vis(url.controlURL,
+                           strlen(url.controlURL),
+                            vbuf,
+                            sizeof(vbuf)));
+
+            swarnx("%s: %s", function, emsg);
+            rc = -1;
+            break;
+#endif /* HAVE_LIBMINIUPNP228 */
 
          case UPNP_DISCONNECTED_IGD:
             snprintf(emsg, emsglen,
@@ -273,12 +292,12 @@ socks_initupnp(gw, emsg, emsglen)
 #if HAVE_LIBMINIUPNP13
       STRCPY_ASSERTLEN(gw->state.data.upnp.servicetype, data.servicetype);
 
-#elif HAVE_LIBMINIUPNP14 || HAVE_LIBMINIUPNP17
+#elif HAVE_LIBMINIUPNP14 || HAVE_LIBMINIUPNP17 || HAVE_LIBMINIUPNP228
       STRCPY_ASSERTLEN(gw->state.data.upnp.servicetype, data.CIF.servicetype);
 
 #else
 #  error "unexpected miniupnp version"
-#endif /* HAVE_LIBMINIUPNP17 */
+#endif /* HAVE_LIBMINIUPNP14 || HAVE_LIBMINIUPNP17 || HAVE_LIBMINIUPNP228 */
 
       slog(LOG_NEGOTIATE, "%s: inited ok.  controlurl: %s, servicetype: %s",
            function,
@@ -756,9 +775,9 @@ upnp_negotiate(s, packet, gw, emsg, emsglen)
                                        buf,
                                        protocol,
                                        NULL
-#if HAVE_LIBMINIUPNP17
+#if HAVE_LIBMINIUPNP17 || HAVE_LIBMINIUPNP228
                                        ,0
-#endif /* HAVE_LIBMINIUPNP17 */
+#endif /* HAVE_LIBMINIUPNP17 || HAVE_LIBMINIUPNP228 */
                                        )) != UPNPCOMMAND_SUCCESS) {
                snprintf(emsg, emsglen,
                        "UPNP_AddPortMapping() failed: %s", strupnperror(rc));

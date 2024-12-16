@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_child.c,v 1.454.4.7.6.5 2020/11/22 19:40:49 karls Exp $";
+"$Id: sockd_child.c,v 1.454.4.7.6.5.4.1 2024/11/21 10:22:43 michaels Exp $";
 
 #define MOTHER  (0)  /* descriptor mother reads/writes on.   */
 #define CHILD   (1)  /* descriptor child reads/writes on.    */
@@ -1437,6 +1437,7 @@ addchild(type)
    const int type;
 {
    const char *function = "addchild()";
+   const char *reason;
    void (*childfunction)(void);
    sigset_t all, oldmask;
    sockd_mother_t mother;
@@ -1444,7 +1445,6 @@ addchild(type)
    pid_t pid;
    socklen_t optlen;
    size_t *childc;
-   char *reason;
    int min, rcvbuf, sndbuf, rcvbuf_set1, rcvbuf_set2, sndbuf_set1, sndbuf_set2,
        p, optname_sndbuf, optname_rcvbuf, ackpipev[2], datapipev[2];
 
@@ -1731,7 +1731,7 @@ addchild(type)
    ||  sndbuf_set1 < sndbuf || sndbuf_set2 < sndbuf) {
       const int isfatal = (rcvbuf_set1 < min || rcvbuf_set2 < min
                         || sndbuf_set1 < min || sndbuf_set2 < min);
-      char *value;
+      const char *value;
       int loggedalready;
 
       switch (type) {

@@ -36,6 +36,7 @@ AC_TRY_COMPILE([
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
+#include <string.h>
 #ifndef SIOCGIFHWADDR
 #error "SIOCGIFHWADDR not defined"
 #endif
@@ -103,6 +104,7 @@ AC_CHECK_FUNC(getpassphrase,
 
 AC_MSG_CHECKING([for sched_setaffinity])
 AC_TRY_COMPILE([
+#define _GNU_SOURCE
 #include <sched.h>
 ],
 [   cpu_set_t set1;
@@ -127,6 +129,8 @@ AC_TRY_RUN([
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <string.h>
+
 int main(void)
 {
     struct sockaddr_in addr;
@@ -303,6 +307,7 @@ AC_TRY_RUN([
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <stdio.h>
 
 int
 main(void)
@@ -332,6 +337,7 @@ AC_TRY_RUN([
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <stdio.h>
 
 int
 main(void)
@@ -359,6 +365,7 @@ main(void)
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <stdio.h>
 
 int
 main(void)
@@ -413,6 +420,7 @@ AC_MSG_CHECKING([for CLOCK_MONOTONIC clock_gettime() support])
 AC_TRY_RUN([
 #include <sys/time.h>
 #include <time.h>
+#include <stdio.h>
 
 int
 main(void)

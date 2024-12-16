@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014, 2019
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014, 2019, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #if HAVE_GSSAPI
 
 static const char rcsid[] =
-   "$Id: method_gssapi.c,v 1.73.4.1.6.4 2020/11/11 17:02:28 karls Exp $";
+   "$Id: method_gssapi.c,v 1.73.4.1.6.4.4.2 2024/11/20 22:05:39 karls Exp $";
 
 static negotiate_result_t
 recv_gssapi_auth_ver(int s, request_t *request, negotiate_state_t *state);
@@ -399,19 +399,19 @@ recv_gssapi_auth_token(s, request, state)
 #define ADWIN2KPAC 128
 #if HAVE_HEIMDAL_KERBEROS
          major_status = gsskrb5_extract_authz_data_from_sec_context(&minor_status,
-                                                                    gss_context,
+                                                                    request->auth->mdata.gssapi.state.id,
                                                                     ADWIN2KPAC,
                                                                     &data_set);
          if (!gss_err_isset(major_status, minor_status, emsg, sizeof(emsg))) {
             ret = krb5_pac_parse(k5_context, data_set.value, data_set.length, &pac);
             gss_release_buffer(&minor_status, &data_set);
-            if (!check_k5_err(k5_context, "krb5_pac_parse", ret)) {
+            if (!krb5_err_isset(k5_context, emsg, sizeof(emsg), ret)) {
                if (get_sids(request->auth->mdata.gssapi.sids, k5_context, pac, state)<0) {
                   slog(LOG_INFO, "%s: error in getting sids", function);
 	       }
                krb5_pac_free(k5_context, pac);
             }
-            krb5_free_context(k5context);
+            krb5_free_context(k5_context);
          } else {
 	    /* Not a major error - maybe not a MS AD setup */
             snprintf(state->emsg, sizeof(state->emsg),

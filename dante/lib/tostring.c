@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2005, 2006, 2008, 2009,
- *               2010, 2011, 2012, 2013, 2014, 2019
+ *               2010, 2011, 2012, 2013, 2014, 2019, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: tostring.c,v 1.225.4.9.6.2 2020/11/11 16:11:54 karls Exp $";
+"$Id: tostring.c,v 1.225.4.9.6.2.4.15 2024/12/05 11:55:59 michaels Exp $";
 
 static const char *stripstring = ", \t\n";
 
@@ -101,9 +101,9 @@ fdset2string(nfds, set, docheck, buf, buflen)
 
    for (i = 0; i < nfds; ++i) {
       if (FD_ISSET(i, set)) {
-         rc = snprintf(&buf[bufused], buflen - bufused,
-                      "%d%s, ",
-                      i, docheck ? (fdisopen(i) ? "" : "-invalid") : "");
+         rc = (int)snprintf(&buf[bufused], buflen - bufused,
+                            "%d%s, ",
+                            i, docheck ? (fdisopen(i) ? "" : "-invalid") : "");
          bufused += rc;
       }
    }
@@ -246,18 +246,24 @@ socks_packet2string(packet, isrequest)
    switch (version) {
       case PROXY_SOCKS_V4:
       case PROXY_SOCKS_V4REPLY_VERSION:
-         if (isrequest)
+         if (isrequest) {
+            SASSERTX(version == PROXY_SOCKS_V4);
+
             snprintf(buf, sizeof(buf),
                      "VER: %d CMD: %d address: %s",
                      request->version,
                      request->command,
                      sockshost2string(&request->host, hstr, sizeof(hstr)));
-         else
+         }
+         else {
+            SASSERTX(version == PROXY_SOCKS_V4REPLY_VERSION);
+
             snprintf(buf, sizeof(buf),
                      "VER: %d REP: %d address: %s",
                      response->version,
                      response->reply.socks,
                      sockshost2string(&response->host, hstr, sizeof(hstr)));
+         }
 
          break;
 
@@ -729,8 +735,8 @@ string2method(methodname)
    const char *methodname;
 {
    struct {
-      char   *methodname;
-      int    method;
+      const char *methodname;
+      int        method;
    } method[] = {
       { AUTHMETHOD_NONEs,         AUTHMETHOD_NONE         },
       { AUTHMETHOD_UNAMEs,        AUTHMETHOD_UNAME        },
@@ -891,7 +897,7 @@ sockaddr2string2(addr, includeinfo, string, len)
          if (inet_ntop(addr->ss_family,
                        GET_SOCKADDRADDR(addr),
                        &string[lenused],
-                       len - lenused) != NULL) {
+                       (socklen_t)(len - lenused)) != NULL) {
             if (addr->ss_family == AF_INET6
             &&  includeinfo & ADDRINFO_SCOPEID
             &&  TOCIN6(addr)->sin6_scope_id != 0) {
@@ -1054,69 +1060,69 @@ str2upper(string)
 }
 
 char *
-sockname2string(s, buf, buflen)
-   const int s;
-   char *buf;
-   size_t buflen;
+sockname2string(
+   const int s,
+   char *buf,
+   size_t buflen)
 {
    const char *function = "sockname2string()";
    struct sockaddr_storage addr;
    socklen_t len;
 
-   if (s == -1)
-      return NULL;
-
    if (buflen == 0) {
       static char sbuf[256];
 
       buf    = sbuf;
       buflen = sizeof(sbuf);
    }
+   else
+      SASSERTX(buflen >= MAXSOCKADDRSTRING);
+
+   if (s == -1) {
+      snprintf(buf, buflen, "<N/A>");
+      return buf;
+   }
 
    len = sizeof(addr);
    if (getsockname(s, TOSA(&addr), &len) == -1) {
-      slog(LOG_DEBUG, "%s: getsockname(2) on fd %d failed: %s",
-           function, s, strerror(errno));
-
-      return NULL;
+      snprintf(buf, buflen, "<N/A>");
+      return buf;
    }
 
-   sockaddr2string(&addr, buf, buflen);
-
-   return buf;
+   return sockaddr2string(&addr, buf, buflen);
 }
 
 char *
-peername2string(s, buf, buflen)
-   const int s;
-   char *buf;
-   size_t buflen;
+peername2string(
+   const int s,
+   char *buf,
+   size_t buflen)
 {
    const char *function = "peername2string()";
    struct sockaddr_storage addr;
    socklen_t len;
 
-   if (s == -1)
-      return NULL;
-
    if (buflen == 0) {
       static char sbuf[256];
 
       buf    = sbuf;
       buflen = sizeof(sbuf);
    }
+   else
+      SASSERTX(buflen >= MAXSOCKADDRSTRING);
+
+   if (s == -1) {
+      snprintf(buf, buflen, "<N/A>");
+      return buf;
+   }
 
    len = sizeof(addr);
    if (getpeername(s, TOSA(&addr), &len) == -1) {
-      slog(LOG_DEBUG, "%s: getpeername(2) on fd %d failed: %s",
-           function, s, strerror(errno));
-
-      return NULL;
+      snprintf(buf, buflen, "<N/A>");
+      return buf;
    }
 
-   sockaddr2string(&addr, buf, buflen);
-
-   return buf;
+   return sockaddr2string(&addr, buf, buflen);
 }
 
 char *
@@ -1126,9 +1132,10 @@ socket2string(s, buf, buflen)
    size_t buflen;
 {
    const char *function = "socket2string()";
-   const int errno_s = errno;
+   const int errno_s    = errno;
+   const char *protocol;
    socklen_t len;
-   char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING], *protocol;
+   char src[MAXSOCKADDRSTRING], dst[MAXSOCKADDRSTRING];
    int val;
 
    if (buflen == 0) {
@@ -1138,11 +1145,8 @@ socket2string(s, buf, buflen)
       buflen = sizeof(sbuf);
    }
 
-   if (sockname2string(s, src, sizeof(src)) == NULL)
-      *src = NUL;
-
-   if (peername2string(s, dst, sizeof(dst)) == NULL)
-      *dst = NUL;
+   sockname2string(s, src, sizeof(src));
+   peername2string(s, dst, sizeof(dst));
 
    len = sizeof(val);
    if (getsockopt(s, SOL_SOCKET, SO_TYPE, &val, &len) == -1)
@@ -1735,6 +1739,9 @@ sockoptval2string(value, type, str, strsize)
 #if HAVE_TCP_IPA
       case option28_val:
 #endif /* HAVE_TCP_IPA */
+#if HAVE_TCP_EXP1
+      case option253_val:
+#endif /* HAVE_TCP_EXP1 */
 
          strused += snprintf(&str[strused], strsize - strused,
                              "<value-decoding unimplemented>");
@@ -1807,15 +1814,15 @@ sockoptvaltype2string(type)
 
       case ipoption_val:
          return "ipoption_val";
-#if HAVE_TCP_IPA
+
       case option28_val:
          return "option28_val";
-#endif /* HAVE_TCP_IPA */
 
-      default:
-         SERRX(type);
+      case option253_val:
+         return "option253_val";
    }
 
+   SERRX(type);
    /* NOTREACHED */
 }
 
@@ -1828,7 +1835,7 @@ sockopt2string(opt, str, strsize)
    size_t strused;
 
    if (strsize == 0) {
-      static char buf[100];
+      static char buf[1024];
 
       str     = buf;
       strsize = sizeof(buf);
@@ -1839,18 +1846,24 @@ sockopt2string(opt, str, strsize)
                       opt->info == NULL ? "<unknown>" : opt->info->name,
                       opt->optname,
                       sockoptlevel2string(opt->info == NULL ?
-                                             opt->level : opt->info->level),
-                      opt->info == NULL ? opt->level : opt->info->level,
-                      opt->info == NULL ? -1 : (int)opt->info->calltype,
-                      opt->info == NULL ?
-                           "<unknown>" : opt->isinternalside ?
-                                         "internal" : "external");
+                                                 opt->level : opt->info->level),
+                      opt->info == NULL ?        opt->level : opt->info->level,
+                      opt->info == NULL ?        -1 : (int)opt->info->calltype,
+                      opt->info == NULL ?        "<unknown>" 
+                                                : opt->isinternalside ?
+                                                "internal" : "external");
 
 #if 1
-   strused += snprintf(&str[strused], strsize - strused,
-                       " value: %s (%s)",
-                       sockoptval2string(opt->optval, opt->opttype, NULL, 0),
-                       sockoptvaltype2string(opt->opttype));
+
+   strused += snprintf(&str[strused], strsize - strused, " value: %s (%s)",
+                       opt->opttype == 0 ? "<unknown>" 
+                                         : sockoptval2string(opt->optval, 
+                                                             opt->opttype, 
+                                                             NULL, 
+                                                             0),
+                       opt->opttype == 0 ? "<unknown>" 
+                                         : sockoptvaltype2string(opt->opttype));
+
 #endif
 
    STRIPTRAILING(str, strused, stripstring);
@@ -2024,17 +2037,21 @@ clientinfo2string(cinfo, str, strsize)
    strused = 0;
 
 #if HAVE_SOCKS_HOSTID
+
 {
    size_t i;
 
-   for (i = 0; i < (size_t)cinfo->hostidc; ++i) {
+   for (i = 0; i < (size_t)cinfo->hostid.addrc; ++i) {
       char ntop[MAXSOCKADDRSTRING];
 
-      if (inet_ntop(AF_INET, &cinfo->hostidv[i], ntop, sizeof(ntop)) == NULL) {
+      if (inet_ntop(AF_INET, 
+                    gethostidip(&cinfo->hostid, i),
+                    ntop, 
+                    sizeof(ntop)) == NULL) {
          slog(LOG_DEBUG, "%s: inet_ntop(3) failed on %s %x: %s",
               function,
               atype2string(SOCKS_ADDR_IPV4),
-              cinfo->hostidv[i].s_addr,
+              gethostidip(&cinfo->hostid, i)->s_addr, 
               strerror(errno));
 
          snprintf(ntop, sizeof(ntop), "<unknown>");
@@ -2044,6 +2061,7 @@ clientinfo2string(cinfo, str, strsize)
       strused += snprintf(&str[strused], strsize - strused, "[%s] ", ntop);
    }
 }
+
 #endif /* HAVE_SOCKS_HOSTID */
 
    strused += snprintf(&str[strused], strsize - strused, "%s",
@@ -2102,10 +2120,8 @@ objecttype2string(type)
       case object_crule:
          return "client-rule";
 
-#if HAVE_SOCKS_HOSTID
       case object_hrule:
          return "hostid-rule";
-#endif /* HAVE_SOCKS_HOSTID */
 
       case object_srule:
          return "socks-rule";

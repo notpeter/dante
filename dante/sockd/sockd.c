@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
  *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2019,
- *               2020, 2021
+ *               2020, 2021, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd.c,v 1.925.4.5.2.4.4.10 2021/03/24 23:06:07 karls Exp $";
+"$Id: sockd.c,v 1.925.4.5.2.4.4.10.4.6 2024/12/02 20:46:57 karls Exp $";
 
 
 
@@ -153,7 +153,7 @@ main(argc, argv)
        have_saved_io     = 0;
 
 #if DIAGNOSTIC && HAVE_MALLOC_OPTIONS
-   malloc_options = "AFGJP";
+   malloc_options = "S";
 #endif /* DIAGNOSTIC && HAVE_MALLOC_OPTIONS */
 
 #if ELECTRICFENCE
@@ -506,8 +506,8 @@ moncontrol(1);
                clientinfo_t cinfo;
 
                if (SHMID_ISSET(CRULE_OR_HRULE(&saved_req))) {
-                  cinfo.from = saved_req.from;
-                  HOSTIDCOPY(&saved_req.state, &cinfo);
+                  cinfo.from   = saved_req.from;
+                  cinfo.hostid = saved_req.state.hostid;
                }
 
                if (socketisconnected(saved_req.s, NULL, 0) == NULL) {
@@ -596,8 +596,8 @@ moncontrol(1);
                clientinfo_t cinfo;
 
                if (SHMID_ISSET(&saved_io.srule)) {
-                  cinfo.from = CONTROLIO(&saved_io)->raddr;
-                  HOSTIDCOPY(&saved_io.state, &cinfo);
+                  cinfo.from   = CONTROLIO(&saved_io)->raddr;
+                  cinfo.hostid = saved_io.state.hostid;
                }
 
                if (socketisconnected(CONTROLIO(&saved_io)->s, NULL, 0) == NULL){
@@ -759,8 +759,8 @@ moncontrol(1);
                   clientinfo_t cinfo;
 
                   if (SHMID_ISSET(CRULE_OR_HRULE(&req))) {
-                     cinfo.from = req.from;
-                     HOSTIDCOPY(&req.state, &cinfo);
+                     cinfo.from   = req.from;
+                     cinfo.hostid = req.state.hostid;
                   }
 
                   if (!socketisconnected(req.s, NULL, 0)) {
@@ -919,8 +919,8 @@ moncontrol(1);
                else {
                   clientinfo_t cinfo;
                   if (SHMID_ISSET(&io.srule)) {
-                     cinfo.from = CONTROLIO(&io)->raddr;
-                     HOSTIDCOPY(&io.state, &cinfo);
+                     cinfo.from   = CONTROLIO(&io)->raddr;
+                     cinfo.hostid = io.state.hostid;
                   }
 
                   if (socketisconnected(CONTROLIO(&io)->s, NULL, 0) == NULL) {
@@ -936,7 +936,7 @@ moncontrol(1);
                   else {
                      if (io.state.command != SOCKS_UDPASSOCIATE
                      &&  io.dst.s         != -1
-                     && !socketisconnected(io.dst.s, NULL, 0) != 0) {
+                     && socketisconnected(io.dst.s, NULL, 0)) {
                         if (io.srule.mstats_shmid != 0
                         && (io.srule.alarmsconfigured & ALARM_DISCONNECT))
                            alarm_add_disconnect(0,
@@ -1232,7 +1232,7 @@ usage(code)
 {
 
    (void)fprintf(code == 0 ? stdout : stderr,
-"%s v%s.  Copyright (c) 1997 - 2021, Inferno Nettverk A/S, Norway.\n"
+"%s v%s.  Copyright (c) 1997 - 2024, Inferno Nettverk A/S, Norway.\n"
 "usage: %s [-DLNVdfhnv]\n"
 "   -D             : run in daemon mode\n"
 "   -L             : shows the license for this program\n"
@@ -1268,6 +1268,12 @@ extern const size_t       module_ldap_keyc;
 extern const char         module_ldap_version[];
 #endif /* HAVE_LDAP */
 
+#if HAVE_PAC
+extern const licensekey_t module_pac_keyv[];
+extern const size_t       module_pac_keyc;
+extern const char         module_pac_version[];
+#endif /* HAVE_PAC */
+
 static void
 showversion(level)
    const int level;
@@ -1290,6 +1296,13 @@ showversion(level)
                            },
 #endif /* HAVE_LDAP */
 
+#if HAVE_PAC
+                           {  "PAC",
+                              module_pac_keyv,
+                              module_pac_keyc
+                           },
+#endif /* HAVE_PAC */
+
                            {  "Redirect",
                               module_redirect_keyv,
                               module_redirect_keyc
@@ -1299,7 +1312,7 @@ showversion(level)
 
    size_t i;
 
-   printf("%s v%s.  Copyright (c) 1997 - 2021 Inferno Nettverk A/S, Norway\n",
+   printf("%s v%s.  Copyright (c) 1997 - 2024 Inferno Nettverk A/S, Norway\n",
           PRODUCT, VERSION);
 
    for (i = 0; i < licenseinfoc; ++i) {
@@ -1352,7 +1365,7 @@ showlicense(void)
 /*\n\
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,\n\
  *               2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016,\n\
- *               2017, 2018, 2019, 2020, 2021\n\
+ *               2017, 2018, 2019, 2020, 2021, 2024\n\
  *      Inferno Nettverk A/S, Norway.  All rights reserved.\n\
  *\n\
  * Redistribution and use in source and binary forms, with or without\n\

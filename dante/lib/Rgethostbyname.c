@@ -50,7 +50,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rgethostbyname.c,v 1.107.4.8.2.4.4.2 2020/11/11 16:11:52 karls Exp $";
+"$Id: Rgethostbyname.c,v 1.107.4.8.2.4.4.2.4.1 2024/11/21 10:22:42 michaels Exp $";
 
 struct hostent *
 Rgethostbyname2(name, af)
@@ -350,7 +350,7 @@ Rgetaddrinfo(nodename, servname, hints, res)
          default:
          swarnx("%s: %s not supported for resolveprotocol %s yet",
                 function,
-                safamily2string(hints->ai_family),
+                safamily2string((sa_family_t)hints->ai_family),
                 resolveprotocol2string(sockscf.resolveprotocol));
 
          return EAI_FAIL;

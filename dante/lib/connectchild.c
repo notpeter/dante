@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2008, 2009,
- *               2010, 2011, 2012, 2013, 2014, 2016, 2019, 2020, 2021
+ *               2010, 2011, 2012, 2013, 2014, 2016, 2019, 2020, 2021, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: connectchild.c,v 1.397.4.3.2.3.4.7 2021/02/02 19:34:11 karls Exp $";
+"$Id: connectchild.c,v 1.397.4.3.2.3.4.7.4.4 2024/11/21 10:22:42 michaels Exp $";
 
 /*
  * This sets things up for performing a non-blocking connect for the client.
@@ -80,7 +80,7 @@ static void sigio(int sig, siginfo_t *sip, void *scp);
 static void run_connectchild(const int mother_data, const int mother_ack)
             __ATTRIBUTE__((noreturn));
 
-static struct sigaction       originalsig;
+static struct sigaction       originalhandler;
 static volatile sig_atomic_t  reqoutstanding;
 
 route_t *
@@ -93,17 +93,18 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
    const size_t emsglen;
 {
    const char *function = "socks_nbconnectroute()";
+   const char *p;
    route_t *route;
    socksfd_t socksfd;
    childpacket_t childreq;
-   struct sigaction currentsig, newsig;
+   struct sigaction currentsig;
    struct iovec iov[1];
    struct sockaddr_storage local;
    struct msghdr msg;
    socklen_t len;
    size_t fdsent;
    CMSG_AALLOC(cmsg, sizeof(int) * FDPASS_MAX);
-   char srcstr[MAXSOCKSHOSTSTRING], dststr[MAXSOCKSHOSTSTRING], *p;
+   char srcstr[MAXSOCKSHOSTSTRING], dststr[MAXSOCKSHOSTSTRING];
    int tmp, flags, isourhandler;
 
    slog(LOG_DEBUG, "%s: fd %d", function, s);
@@ -123,10 +124,11 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
       return route; /* nothing more to do. */
 
    if (sigaction(SIGIO, NULL, &currentsig) != 0) {
-      snprintf(emsg, emsglen, "could not install signal handler for SIGIO: %s",
+      snprintf(emsg, emsglen, 
+               "could not fetch existing signal handler for SIGIO: %s",
                strerror(errno));
 
-      swarn("%s: %s", function, emsg);
+      swarnx("%s: %s", function, emsg);
       return NULL;
    }
 
@@ -151,7 +153,7 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
 
       if (currentsig.sa_handler != SIG_IGN
       &&  currentsig.sa_handler != SIG_DFL)
-         slog(LOG_NOTICE,
+         slog(LOG_DEBUG,
               "%s: a handler is installed, but it's not ours ...", function);
       else
          slog(LOG_DEBUG,
@@ -159,23 +161,11 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
    }
 
    if (!isourhandler) {
-      newsig               = currentsig; /* keep same as much as possible. */
-      newsig.sa_sigaction  = sigio;
-      newsig.sa_flags     |= SA_SIGINFO;
-
       slog(LOG_DEBUG, "%s: our signal handler is not installed, installing ...",
            function);
 
-      originalsig = currentsig;
-
-      if (sigaction(SIGIO, &newsig, NULL) != 0) {
-         snprintf(emsg, emsglen,
-                  "could not install signal handler for SIGIO: %s",
-                  strerror(errno));
-
-         swarnx("%s: %s", function, emsg);
+      if (install_sigio(emsg, emsglen) != 0)
          return NULL;
-      }
    }
    else
       slog(LOG_DEBUG, "%s: our signal handler already installed", function);
@@ -238,9 +228,9 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
           * reverse of our assumption that how much we can write to the pipe
           * depends on the pipe's sndbuf.
           */
-         const size_t tmp   = sndbuf;
+         const size_t _tmp  = sndbuf;
                      sndbuf = rcvbuf;
-                     rcvbuf = tmp;
+                     rcvbuf = _tmp;
       }
       else if (HAVE_PIPEBUFFER_UNKNOWN) { /* wastes a lot of memory. */
          rcvbuf = MAX(sndbuf, rcvbuf);
@@ -349,15 +339,25 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
             return NULL;
 
          case 0: {
-            size_t max;
-            int i;
+            const int maxbadfdc = 256;
+            int i, maxfd, badfdc;
 
             slog(LOG_INFO,
                  "%s: connectchild forked, our pid is %ld, mother is %ld",
                  function, (long)getpid(), (long)getppid());
 
-            /* close unknown descriptors. */
-            for (i = 0, max = getmaxofiles(softlimit); i < (int)max; ++i)
+            /* 
+             * We want to close all unknown descriptors, but since there can
+             * be tens of thousands of them, if that is the open file limit,
+             * that can take many seconds.  What we do instead is to assume
+             * that after we have got maxbadfd number of EBADF in a row,
+             * there are no more open fd's.
+             */
+
+            maxfd  = (int)getmaxofiles(softlimit) + 1;
+            badfdc = 0;
+
+            for (i = 0; i <= maxfd && badfdc < maxbadfdc; ++i) {
                if (socks_logmatch(i, &sockscf.log)
                ||  socks_logmatch(i, &sockscf.errlog)
                ||  i == datapipev[CHILD]
@@ -366,8 +366,15 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
                   continue;
                else if (isatty(i))
                   continue;
-               else
-                  close(i);
+               else {
+                  if (fdisopen(i)) {
+                     close(i);
+                     badfdc = 0;
+                  }
+                  else
+                     ++badfdc;
+               }
+            }
 
             newprocinit();
 
@@ -677,6 +684,87 @@ socks_nbconnectroute(s, control, packet, src, dst, emsg, emsglen)
    return socksfd.route;
 }
 
+
+int
+install_sigio(emsg, emsglen)
+   char *emsg;
+   const size_t emsglen;
+{
+   const char *function = "install_sigio()";
+   struct sigaction newsig, currenthandler;
+
+   if (sigaction(SIGIO, NULL, &currenthandler) != 0) {
+      snprintf(emsg, emsglen, "could not fetch existing SIGIO handler: %s",
+               strerror(errno));
+
+      return -1;
+   }
+
+   newsig               = currenthandler; /* keep same as much as possible. */
+   newsig.sa_sigaction  = sigio;
+   newsig.sa_flags     |= SA_SIGINFO;
+
+   originalhandler      = currenthandler;
+
+   if (sigaction(SIGIO, &newsig, NULL) != 0) {
+      snprintf(emsg, emsglen, "could not install SIGIO-handler: %s",
+               strerror(errno));
+
+      return -1;
+   }
+
+   slog(LOG_DEBUG, "%s: SIGIO-handler installed", function);
+   return 0;
+}
+
+int
+our_sigio_is_installed(void)
+{
+   const char *function = "our_sigio_is_installed()";
+   struct sigaction currenthandler;
+
+   if (sigaction(SIGIO, NULL, &currenthandler) != 0) {
+      swarn("could not fetch existing SIGIO-handler");
+      return 0;
+   }
+
+   if (currenthandler.sa_flags & SA_SIGINFO) { /* sa_sigaction. */
+      if (currenthandler.sa_sigaction == sigio) {
+         slog(LOG_DEBUG, "%s: our SIGIO-handler is installed", function);
+
+         return 1;
+      }
+      else {
+         if (currenthandler.sa_sigaction == NULL) {
+            /* OpenBSD threads weirdness. */
+            slog(LOG_NOTICE,
+                 "%s: hmm, that's strange ... sa_flags set to 0x%x, "
+                 "but sa_sigaction is NULL",
+                 function, currenthandler.sa_flags);
+         }
+         else
+            slog(LOG_NOTICE,
+                 "%s: a SIGIO sa_sigaction is already installed, but it's not "
+                 "ours",
+                 function);
+
+         return 0;
+      }
+   }
+   else { /* we use sa_sigaction, so this is for sure not our handler. */
+      if (currenthandler.sa_handler != SIG_IGN
+      &&  currenthandler.sa_handler != SIG_DFL) 
+         slog(LOG_DEBUG,
+              "%s: a SIGIO-handler is already installed, but it's not ours ...",
+              function);
+      else
+         slog(LOG_DEBUG, "%s: no SIGIO-handler installed", function);
+
+      return 0;
+   }
+}
+
+
 /*
  * XXX should have more code so we could handle multiple requests at
  * a time.
@@ -842,7 +930,7 @@ run_connectchild(mother_data, mother_ack)
          bzero(iov, sizeof(iov));
          iov[ioc].iov_base = &req;
          iov[ioc].iov_len  = sizeof(req);
-         len               = iov[ioc].iov_len;
+         len               = (socklen_t)iov[ioc].iov_len;
          ++ioc;
 
          bzero(&msg, sizeof(msg));
@@ -1109,7 +1197,6 @@ run_connectchild(mother_data, mother_ack)
          savedforlater = 0;
          if (sendmsgn(mother_data, &msg, 0, 0) == -1) {
             void *tmp;
-            size_t ioc;
 
             slog(LOG_INFO,
                  "%s: sending response to mother, size %ld, received fd %d, "
@@ -1298,8 +1385,8 @@ sigio(sig, sip, scp)
       return;
    }
 
-   if (originalsig.sa_flags & SA_SIGINFO
-   &&  originalsig.sa_sigaction != NULL) {
+   if (originalhandler.sa_flags & SA_SIGINFO
+   &&  originalhandler.sa_sigaction != NULL) {
       const char *msgv[] =
       { function,
         ": ",
@@ -1309,11 +1396,11 @@ sigio(sig, sip, scp)
 
       signalslog(LOG_DEBUG, msgv);
 
-      originalsig.sa_sigaction(sig, sip, scp);
+      originalhandler.sa_sigaction(sig, sip, scp);
    }
    else {
-      if (originalsig.sa_handler != SIG_IGN
-      &&  originalsig.sa_handler != SIG_DFL) {
+      if (originalhandler.sa_handler != SIG_IGN
+      &&  originalhandler.sa_handler != SIG_DFL) {
          const char *msgv[] =
          { function,
            ": ",
@@ -1323,7 +1410,7 @@ sigio(sig, sip, scp)
 
          signalslog(LOG_DEBUG, msgv);
 
-         originalsig.sa_handler(sig);
+         originalhandler.sa_handler(sig);
       }
    }
 
@@ -1841,3 +1928,4 @@ sigio(sig, sip, scp)
    errno = errno_s;
    sockscf.state.insignal = 0;
 }
+

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2014, 2016
+ * Copyright (c) 2013, 2014, 2016, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: monitor.c,v 1.125.4.8.2.2 2017/01/31 08:17:38 karls Exp $";
+"$Id: monitor.c,v 1.125.4.8.2.2.8.2 2024/11/20 22:05:39 karls Exp $";
 
 
 static void showalarms(const monitor_if_t *iface);
@@ -698,8 +698,7 @@ monitormatch(src, dst, auth, state)
               function,
               (unsigned long)monitor->number);
 
-         if (!hostidmatches(state->hostidc,
-                            state->hostidv,
+         if (!hostidmatches(&state->hostid,
                             monitor->hostindex,
                             &monitor->hostid,
                             object_monitor,

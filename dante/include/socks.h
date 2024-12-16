@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2008, 2009,
- *               2010, 2011, 2012, 2013, 2016, 2017
+ *               2010, 2011, 2012, 2013, 2016, 2017, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: socks.h,v 1.287.6.6 2017/01/31 14:35:55 karls Exp $ */
+/* $Id: socks.h,v 1.287.6.6.8.4 2024/11/21 10:22:42 michaels Exp $ */
 
 #ifndef _SOCKS_H_
 #define _SOCKS_H_
@@ -443,7 +443,7 @@ typedef struct {
 typedef struct {
    int               debug;
    int               directfallback; /* fallback to direct connections        */
-   char              *configfile;    /* name of current configfile.           */
+   const char        *configfile;    /* name of current configfile.           */
 } option_t;
 
 struct config {
@@ -737,6 +737,21 @@ fdisopen(int fd);
 /*
  * returns 1 if the file descriptor "fd" currently references a open object.
  * returns 0 otherwise.
+ */
+
+
+int
+our_sigio_is_installed(void);  
+/*
+ * Returns true if our own SIGIO handler is currently installed.
+ * Returns false otherwise.
+ */
+
+int
+install_sigio(char *emsg, const size_t emsglen);
+/*
+ * Installs our own SIGIO handler.  
+ * Returns 0 on success.  -1 on failure.
  */
 
 

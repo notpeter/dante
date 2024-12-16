@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: Rcompat.c,v 1.89.4.2.6.2 2020/11/11 16:11:51 karls Exp $";
+"$Id: Rcompat.c,v 1.89.4.2.6.2.4.1 2024/11/21 10:22:42 michaels Exp $";
 
 #if !HAVE_DECL_GETS
 char *gets(char *buf);
@@ -346,7 +346,7 @@ Rfputc(c, stream)
 
    socks_setbufferfd(d, _IOFBF, -1);
 
-   return Rsend(d, &c, sizeof(char), 0);
+   return (int)Rsend(d, &c, sizeof(char), 0);
 }
 
 int
@@ -366,7 +366,7 @@ Rfputs(buf, stream)
 
    socks_setbufferfd(d, _IOFBF, -1);
 
-   return Rsend(d, buf, strlen(buf), 0);
+   return (int)Rsend(d, buf, strlen(buf), 0);
 }
 
 size_t
@@ -437,7 +437,7 @@ Rvfprintf(stream,  format, ap)
 
    socks_setbufferfd(d, _IOFBF, -1);
 
-   return Rwrite(d, buf, len);
+   return (int)Rwrite(d, buf, len);
 }
 
 int

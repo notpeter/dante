@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
  *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2019,
- *               2020, 2021
+ *               2020, 2021, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  *
  */
 
-/* $Id: common.h,v 1.931.4.7.2.8.4.20 2021/02/02 19:34:15 karls Exp $ */
+/* $Id: common.h,v 1.931.4.7.2.8.4.20.4.21 2024/12/05 12:06:05 michaels Exp $ */
 
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -808,15 +808,15 @@ do { socks_sigunblock(oldset); } while (/* CONSTCOND */ 0)
  * If "str", of size "strused", contains characters present in
  * "strip", strips them off from "str".
  */
-#define STRIPTRAILING(str, strused, strip)      \
-do {                                            \
-   ssize_t i;                                   \
-                                                \
-   for (i = (ssize_t)(strused) - 1; i > 0; --i) \
-      if (strchr((strip), str[i]) != NULL)      \
-         (str)[i] = NUL;                        \
-      else                                      \
-         break;                                 \
+#define STRIPTRAILING(str, strused, strip)         \
+do {                                               \
+   ssize_t _i;                                     \
+                                                   \
+   for (_i = (ssize_t)(strused) - 1; _i > 0; --_i) \
+      if (strchr((strip), str[_i]) != NULL)        \
+         (str)[_i] = NUL;                          \
+      else                                         \
+         break;                                    \
 } while (/* CONSTCOND */ 0)
 
 #define SKIPLEADING(str, strip)                 \
@@ -1393,6 +1393,8 @@ do {                                                                           \
 #define HTTP_PROXYAUTHREQUIRED 407
 #define HTTP_HOSTUNREACH       504
 #define HTTP_FAILURE           501
+#define HTTP_UNSUPPORTEDVERSION  505
+
 #define SOCKD_HTTP_PORT        80
 
 /* upnp stuff. */
@@ -1404,8 +1406,19 @@ do {                                                                           \
 /* return codes from UPNP_GetValidIGD(). */
 #define UPNP_NO_IGD           (0)
 #define UPNP_CONNECTED_IGD    (1)
+
+#if HAVE_LIBMINIUPNP228
+
+#define UPNP_RESERVED_IGD     (2)
+#define UPNP_DISCONNECTED_IGD (3)
+#define UPNP_UNKNOWN_DEVICE   (4)
+
+#else /* !HAVE_LIBMINIUPNP_228 */
+
 #define UPNP_DISCONNECTED_IGD (2)
 #define UPNP_UNKNOWN_DEVICE   (3)
+
+#endif /* !HAVE_LIBMINIUPNP_228 */
 
 #define UPNP_SUCCESS          (1)
 #define UPNP_FAILURE          (2)
@@ -1490,22 +1503,25 @@ do {                                                                           \
 /* socket option hostid types */
 #define SOCKS_HOSTID_TYPE_NONE 0
 #define SOCKS_HOSTID_TYPE_TCP_IPA 1
+#define SOCKS_HOSTID_TYPE_TCP_EXP1 2
 
-#if SOCKS_HOSTID_TYPE == SOCKS_HOSTID_TYPE_NONE
+#if (SOCKS_HOSTID_TYPE) == SOCKS_HOSTID_TYPE_NONE
 #define HAVE_SOCKS_HOSTID (0)
 #else
 #define HAVE_SOCKS_HOSTID (1)
 #endif
 
 /* supported commands/command strings for parsing */
-#define SOCKS_HOSTID_NONE 0
-#define SOCKS_HOSTID_NONE_SYMNAME "none"
-#define SOCKS_HOSTID_PASS 1
-#define SOCKS_HOSTID_PASS_SYMNAME "pass"
-#define SOCKS_HOSTID_ADDCLIENT 2
-#define SOCKS_HOSTID_ADDCLIENT_SYMNAME "add-client"
-#define SOCKS_HOSTID_SETCLIENT 3
-#define SOCKS_HOSTID_SETCLIENT_SYMNAME "set-client"
+#define SOCKS_HOSTID_NONE                          (0)
+#define SOCKS_HOSTID_NONE_SYMNAME                  "none"
+#define SOCKS_HOSTID_PASS                          (1)
+#define SOCKS_HOSTID_PASS_SYMNAME                  "pass"
+#define SOCKS_HOSTID_ADDCLIENT                     (2)
+#define SOCKS_HOSTID_ADDCLIENT_SYMNAME             "add-client"
+#define SOCKS_HOSTID_SETCLIENT                     (3)
+#define SOCKS_HOSTID_SETCLIENT_SYMNAME             "set-client"
+#define SOCKS_HOSTID_PASS_OR_SETCLIENT              (4)
+#define SOCKS_HOSTID_PASS_OR_SETCLIENT_SYMNAME     "pass-or-set-client"
 
 typedef enum { NONESETIF = 0, INTERNALIF, EXTERNALIF } interfaceside_t;
 
@@ -1620,6 +1636,7 @@ typedef struct {
        char         filter[MAXNAMELEN];
        char         filter_AD[MAXNAMELEN];
        char         keytab[MAXNAMELEN];
+       int          keeprealm;
        int          port;
        int          portssl;
        int          ssl;
@@ -1796,8 +1813,17 @@ typedef union {
    struct ipoption           ipoption_val;
 
 #if HAVE_TCP_IPA
-   struct tcp_ipa            option28_val;
+
+   struct tcp_ipa_raw        option28_val;
+
 #endif /* HAVE_TCP_IPA */
+
+#if HAVE_TCP_EXP1
+
+   struct tcp_exp1_raw       option253_val;
+
+#endif /* HAVE_TCP_EXP1 */
+
 } socketoptvalue_t;
 
 /*
@@ -1805,31 +1831,112 @@ typedef union {
  * setusersockoptions().
  */
 typedef enum { int_val = 1, linger_val, timeval_val, in_addr_val, uchar_val,
-               sockaddr_val, ipoption_val, option28_val } socketoptvalue_type_t;
+               sockaddr_val, ipoption_val, option28_val, option253_val 
+             } socketoptvalue_type_t;
 
-#if HAVE_TCP_IPA
-#define SOCKETOPTVALUETYPE2SIZE(type)                                          \
-   ((type) == int_val      ? sizeof(int) :                                     \
-    (type) == linger_val   ? sizeof(struct linger) :                           \
-    (type) == timeval_val  ? sizeof(struct timeval) :                          \
-    (type) == in_addr_val  ? sizeof(struct in_addr) :                          \
-    (type) == uchar_val    ? sizeof(u_char) :                                  \
-    (type) == sockaddr_val ? sizeof(struct sockaddr_storage) :                         \
-    (type) == ipoption_val ? sizeof(struct ipoption) :                         \
-    (type) == option28_val ? sizeof(struct tcp_ipa)  :                         \
+#define SOCKETOPTVALUETYPE2SIZE_BASE(type)                                     \
+   ((type) == int_val      ? sizeof(int)                     :                 \
+    (type) == linger_val   ? sizeof(struct linger)           :                 \
+    (type) == timeval_val  ? sizeof(struct timeval)          :                 \
+    (type) == in_addr_val  ? sizeof(struct in_addr)          :                 \
+    (type) == uchar_val    ? sizeof(u_char)                  :                 \
+    (type) == sockaddr_val ? sizeof(struct sockaddr_storage) :                 \
+    (type) == ipoption_val ? sizeof(struct ipoption)         :                 \
     0)
-#else /* !HAVE_TCP_IPA */
+
+#if HAVE_SOCKS_HOSTID
+
+#if HAVE_TCP_IPA && HAVE_TCP_EXP1
 
 #define SOCKETOPTVALUETYPE2SIZE(type)                                          \
-   ((type) == int_val      ? sizeof(int) :                                     \
-    (type) == linger_val   ? sizeof(struct linger) :                           \
-    (type) == timeval_val  ? sizeof(struct timeval) :                          \
-    (type) == in_addr_val  ? sizeof(struct in_addr) :                          \
-    (type) == uchar_val    ? sizeof(u_char) :                                  \
-    (type) == sockaddr_val ? sizeof(struct sockaddr_storage) :                         \
-    (type) == ipoption_val ? sizeof(struct ipoption) :                         \
-    0)
-#endif /* !HAVE_TCP_IPA */
+   (SOCKETOPTVALUETYPE2SIZE_BASE(type) ? SOCKETOPTVALUETYPE2SIZE_BASE(type) :  \
+   (type) == option28_val              ? sizeof(struct tcp_ipa_raw)         :  \
+   (type) == option253_val             ? sizeof(struct tcp_exp1_raw)        :  \
+   0) 
+
+#elif HAVE_TCP_IPA 
+
+#define SOCKETOPTVALUETYPE2SIZE(type)                                          \
+   (SOCKETOPTVALUETYPE2SIZE_BASE(type) ? SOCKETOPTVALUETYPE2SIZE_BASE(type) :  \
+   (type) == option28_val              ? sizeof(struct tcp_ipa_raw)         :  \
+   0)
+
+#elif HAVE_TCP_EXP1 
+
+#define SOCKETOPTVALUETYPE2SIZE(type)                                         
+   (SOCKETOPTVALUETYPE2SIZE_BASE(type) ? SOCKETOPTVALUETYPE2SIZE_BASE(type) :  \
+   (type) == option253_val             ? sizeof(struct tcp_exp1_raw)        :  \
+   0)
+
+#endif /* HAVE_TCP_EXP1 */
+
+#if HAVE_TCP_IPA 
+
+struct tcp_ipa {
+   u_int32_t ip; 
+};
+
+#endif /* HAVE_TCP_IPA  */
+
+#if HAVE_TCP_EXP1
+
+#define TCP_EXP1_EXID_IP                    (0x348)
+#define TCP_EXP1_EXID_INFERNO_FOURBYTE_TEST (0xaabbccdd)
+
+struct tcp_exp1 {
+   u_int8_t  len;
+
+   /*
+    * For some reason exid can be 16 bits or 32 bits, and the len field seems 
+    * to be the determinator of this.  A len of 7 bytes indicates exid is 
+    * 16 bits, while a len of 9 bytes indicates exid is 32 bits.  Yeah. :-/
+    */
+   union {
+      u_int16_t exid_16;
+      u_int32_t exid_32;
+   } exid;
+
+   union {
+      u_int32_t ip; /* TCP_EXP1_EXID_IP. */ 
+   } data;
+};
+
+#endif /* HAVE_TCP_EXP1 */
+
+struct hostid {
+
+   int hostidtype;
+
+   union {
+
+#if HAVE_TCP_IPA 
+
+      struct tcp_ipa tcp_ipa;
+
+#endif /* HAVE_TCP_IPA */
+
+#if HAVE_TCP_EXP1
+
+      struct tcp_exp1 tcp_exp1;
+
+#endif /* HAVE_TCP_EXP1 */
+
+   } addrv[HAVE_MAX_HOSTIDS];
+
+   size_t addrc; /* actually set/used. */
+};
+
+
+#else /* !HAVE_SOCKS_HOSTID */
+
+struct hostid {
+   unsigned char notused_just_to_avoid_countless_ifdefs_in_the_code;
+};
+
+#define SOCKETOPTVALUETYPE2SIZE(type) SOCKETOPTVALUETYPE2SIZE_BASE(type) 
+
+#endif /* !HAVE_SOCKS_HOSTID */
+
 
 #define SOCKETOPT_PRE     (0x1)
 #define SOCKETOPT_POST    (0x2)
@@ -1861,7 +1968,7 @@ typedef struct {
 typedef struct {
    size_t optid;                  /* sockopt_t id symbol is valid for         */
    socketoptvalue_t symval;       /* value of symbolic constant               */
-   char *name;                    /* textual representation of constant value */
+   const char *name;              /* textual representation of constant value */
 } sockoptvalsym_t;
 
 typedef struct {
@@ -4017,7 +4124,7 @@ socks_getpassword(const sockshost_t *host, const char *user,
  *      On failure: NULL.
  */
 
-char *
+const char *
 socks_getenv(const char *name, value_t value);
 /*
  * Depending on how the program was ./configured and on what
@@ -4094,24 +4201,53 @@ optval2valsym(size_t optid, char *name);
  */
 
 #if HAVE_SOCKS_HOSTID
+
 unsigned char
-getsockethostid(const int s, const size_t addrc, struct in_addr addrv[]);
+getsockethostid(const int s, struct hostid *hostid);
 /*
- * Gets the hostids set on socket "s" and stores them in "addrv", which must
- * be big enough to hold at least "addrc" elements.
+ * Gets the hostids set on socket "s" and stores them in "hostid".
  *
  * Returns the number of hostids set on socket "s".
  * If none are set, 0 is returned.
  */
 
 int
-setsockethostid(const int s, const size_t addrc, struct in_addr addrv[]);
+setsockethostid(const int s, const struct hostid *hostid);
 /*
- * Sets the hostids in "addrv", which contains "addrc" hostids, on socket
- * "s".
+ * Sets the hostids in "hostidv", which contains "hostidc" hostids, 
+ * on socket "s".
  *
  * Returns 0 on success, -1 on failure.
  */
+
+const struct in_addr *
+gethostidip(const struct hostid *hostid, const size_t index);
+/*
+ * Returns the ip-address at index "index" "hostid"'s addrv[] array.
+ *
+ * It is considered a fatal error (assert()) if there is no such index.
+ */
+
+size_t
+gethostidipv(const struct hostid *hostid, struct in_addr *addrv, size_t addrc);
+/*
+ * Copies the IP-address parts of the "addrv" array in "hostid" to
+ * "addrv", which must be large enough to contain "addrc" elements.
+ * 
+ * Returns the number of elements copied to "addrc".
+ */
+
+
+#if HAVE_TCP_EXP1
+
+u_int8_t tcp_exp1_len(const int exidlen);
+/*
+ * Returns the len length of a TCP_EXP1 object where the length of the 
+ * "ExID" field is "exidlen" bytes long.
+ */
+
+#endif /* HAVE_TCP_EXP1 */
+
 #endif /* HAVE_SOCKS_HOSTID */
 
 

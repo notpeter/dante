@@ -46,12 +46,12 @@
 #include "qos.h"
 
 static const char rcsid[] =
-"$Id: sockopt.c,v 1.26 2013/10/25 12:55:01 karls Exp $";
+"$Id: sockopt.c,v 1.26.18.1 2024/11/21 10:22:42 michaels Exp $";
 
 struct option {
-   int level;
-   int optname;
-   char *optstr;
+   int        level;
+   int        optname;
+   const char *optstr;
 };
 static const struct option option[];
 static const sockopt_t sockopts[];

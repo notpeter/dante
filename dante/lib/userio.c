@@ -44,104 +44,82 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: userio.c,v 1.60 2012/11/01 23:57:57 michaels Exp $";
+"$Id: userio.c,v 1.60.22.1 2024/11/21 10:22:43 michaels Exp $";
 
 /* ARGSUSED */
+
 char *
-socks_getusername(host, buf, buflen)
-   const sockshost_t *host;
-   char *buf;
-   size_t buflen;
+socks_getusername(
+   const sockshost_t *host,
+   char *buf,
+   size_t buflen)
 {
    const char *function = "socks_getusername()";
-   char *name;
+   const char *name;
+   size_t len;
+   char visname[MAXNAMELEN * 4];
 
-   if ((name = socks_getenv(ENV_SOCKS_USERNAME, dontcare)) != NULL
-   ||  (name = socks_getenv(ENV_SOCKS_USER,     dontcare)) != NULL
-   ||  (name = socks_getenv(ENV_SOCKS5_USER,    dontcare)) != NULL)
-      slog(LOG_NEGOTIATE,
-           "%s: using socks username from environment: \"%s\"", function, name);
-#if SOCKS_CLIENT
-   else {
-      struct passwd *pw;
-
-      if ((pw = getpwuid(getuid())) != NULL)
-         name = pw->pw_name;
-      else
-         name = getlogin();
-   }
-#endif /* SOCKS_CLIENT */
-
-   if (name == NULL)
+   if ((name = socks_getenv(ENV_SOCKS_USERNAME, dontcare)) == NULL
+   &&  (name = socks_getenv(ENV_SOCKS_USER,     dontcare)) == NULL
+   &&  (name = socks_getenv(ENV_SOCKS5_USER,    dontcare)) == NULL)
       return NULL;
 
-   if (strlen(name) >= buflen) {
-      swarnx("%s: socks username %lu characters too long, truncated",
-      function, (unsigned long)((strlen(name) + 1) - buflen));
-      name[buflen - 1] = NUL;
+   slog(LOG_NEGOTIATE,
+        "%s: using socks username from environment: \"%s\"",
+        function, str2vis(name, -1, visname, sizeof(visname)));
+
+   if ((len = strlen(name)) >= buflen) {
+      swarnx("%s: username of length %d in environment truncated to %d",
+             function, (int)len, (int)buflen - 1);
+
+      len = buflen - 1;
    }
 
-   strcpy(buf, name);
+   memcpy(buf, name, len);
+   buf[len] = NUL;
+
    return buf;
 }
-
 char *
-socks_getpassword(host, user, buf, buflen)
-   const sockshost_t *host;
-   const char *user;
-   char *buf;
-   size_t buflen;
+socks_getpassword(
+   const sockshost_t *host,
+   const char *user,
+   char *buf,
+   size_t buflen)
 {
    const char *function = "socks_getpassword()";
-   char *password;
-   int password_is_from_env;
+   const char *password;
+   size_t len;
 
-   if ((password = socks_getenv(ENV_SOCKS_PASSWORD, dontcare)) != NULL
-   ||  (password = socks_getenv(ENV_SOCKS_PASSWD,   dontcare)) != NULL
-   ||  (password = socks_getenv(ENV_SOCKS5_PASSWD,  dontcare)) != NULL)
-      password_is_from_env = 1;
-   else {
-#if SOCKS_CLIENT && HAVE_GETPASS
-      char prompt[256 + MAXSOCKSHOSTSTRING];
-      char hstring[MAXSOCKSHOSTSTRING];
-
-      snprintf(prompt, sizeof(prompt), "%s@%s socks password: ",
-               user, sockshost2string(host, hstring, sizeof(hstring)));
-
-      password = getpass(prompt);
-
-#else /* !SOCKS_CLIENT && HAVE_GETPASS */
-
-      password = NULL;
-#endif /* !SOCKS_CLIENT && HAVE_GETPASS */
-
-      password_is_from_env = 0;
-   }
-
-   if (password == NULL)
+   if ((password = socks_getenv(ENV_SOCKS_PASSWORD, dontcare)) == NULL
+   &&  (password = socks_getenv(ENV_SOCKS_PASSWD,   dontcare)) == NULL
+   &&  (password = socks_getenv(ENV_SOCKS5_PASSWD,  dontcare)) == NULL)
       return NULL;
 
-   if (strlen(password) >= buflen) {
-      swarnx("%s: socks password is %lu characters too long; truncated",
-             function, (unsigned long)((strlen(password) + 1) - buflen));
+   if ((len = strlen(password)) >= buflen) {
+      swarnx("%s: password of length %d from environment truncated to %d",
+             function, (int)len, (int)buflen - 1);
 
-      password[buflen - 1] = NUL;
+      len = buflen - 1;
    }
 
-   strcpy(buf, password);
+   memcpy(buf, password, len);
+   buf[len] = NUL;
 
-   if (!password_is_from_env) /* don't zero environment. */
-      bzero(password, strlen(password));
+   /*
+    * don't bzero() environment.
+    *
+    * bzero(password, pwlen);
+    */
 
    return buf;
 }
-
-char *
+const char *
 socks_getenv(name, value)
    const char *name;
    value_t value;
 {
-   char *p = NULL;
+   const char *p = NULL;
 
 #if SOCKS_CLIENT
 #if HAVE_CONFENV_DISABLE

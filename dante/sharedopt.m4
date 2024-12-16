@@ -101,6 +101,7 @@ else
 	#XXX include header in compilation test?
 	LIBS="$LIBS -lwrap"
 	AC_TRY_LINK([
+#include <tcpd.h>
 int allow_severity;
 int deny_severity;
 ], [hosts_access(0);],

@@ -752,10 +752,7 @@ main(int argc, char *argv[])
 }
 
 ssize_t
-read(d, buf, nbytes)
-   int d;
-   void *buf;
-   size_t nbytes;
+read(int d, void *buf, size_t nbytes)
 {
    return 0;
 }

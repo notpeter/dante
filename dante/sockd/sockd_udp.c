@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_udp.c,v 1.58.4.4 2014/08/15 18:16:44 karls Exp $";
+"$Id: sockd_udp.c,v 1.58.4.4.14.2 2024/11/20 22:05:42 karls Exp $";
 
 extern int       rawsocket;
 extern iostate_t iostate;
@@ -167,8 +167,7 @@ doio_udp(io, rset, badfd)
                   object_sockaddr,
                   &io->src.raddr,
                   &io->src.auth,
-                  NULL,
-                  0);
+                  NULL);
 
    init_iologaddr(&dst,
                   object_sockaddr,
@@ -176,8 +175,7 @@ doio_udp(io, rset, badfd)
                   object_sockaddr,
                   io->dst.s == -1 ? NULL : &io->dst.raddr,
                   io->dst.s == -1 ? NULL : &io->dst.auth,
-                  NULL,
-                  0);
+                  NULL);
 
    slog(LOG_DEBUG, "%s: control-fd %d, src-fd %d, dst-fd %d",
         function, io->control.s, io->src.s, io->dst.s);
@@ -816,8 +814,7 @@ addclient(clientladdr, client, clientc, maxclientc, clientv, state, rule)
                   object_sockshost,
                   &client->clienthost,
                   NULL,
-                  NULL,
-                  0);
+                  NULL);
 
    init_iologaddr(&dst,
                   object_sockaddr,
@@ -825,8 +822,7 @@ addclient(clientladdr, client, clientc, maxclientc, clientv, state, rule)
                   object_sockshost,
                   &client->raddrhost,
                   NULL,
-                  NULL,
-                  0);
+                  NULL);
 
    iolog(rule,
          state,
@@ -835,8 +831,8 @@ addclient(clientladdr, client, clientc, maxclientc, clientv, state, rule)
          &dst,
          NULL,
          NULL,
-         NULL,
-         0);
+         NULL);
+
 #endif /* !BAREFOOTD */
 
    return &(*clientv)[(*clientc)++];

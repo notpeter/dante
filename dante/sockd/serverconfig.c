@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2019, 2020, 2021
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2019, 2020, 2021,
+ *               2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +46,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: serverconfig.c,v 1.567.4.12.6.14 2021/03/24 23:06:07 karls Exp $";
+"$Id: serverconfig.c,v 1.567.4.12.6.14.4.2 2024/11/20 22:05:40 karls Exp $";
 
 static int
 safamily_isenabled(const sa_family_t family, const char *addrstr,
@@ -2124,7 +2125,7 @@ addinternaladdr(ifname, sa, protocol)
 
    if (!safamily_isenabled(sa->ss_family,
                            sockaddr2string2(sa, ADDRINFO_ATYPE, NULL, 0),
-                           INTERNALIF) != 0)
+                           INTERNALIF))
       return -1;
 
    slog(LOG_DEBUG, "%s: adding address %s on nic %s to the internal list",

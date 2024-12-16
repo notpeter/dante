@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
  *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2017, 2019,
- *               2020
+ *               2020, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_request.c,v 1.849.4.15.2.4.4.6 2020/11/11 17:02:31 karls Exp $";
+"$Id: sockd_request.c,v 1.849.4.15.2.4.4.6.4.3 2024/11/20 22:05:41 karls Exp $";
 
 /*
  * XXX Should fix things so this process too can support multiple clients.
@@ -379,8 +379,8 @@ run_request()
           * no shmid-fields will be set in req->srule.
           */
 
-         cinfo.from = req.from;
-         HOSTIDCOPY(&req.state, &cinfo);
+         cinfo.from   = req.from;
+         cinfo.hostid = req.state.hostid;
 
          switch (iostatus) {
             case IO_BLOCK:
@@ -460,8 +460,7 @@ run_request()
                         object_sockaddr,
                         &req.from,
                         &req.cauth,
-                        GET_HOSTIDV(&req.state),
-                        GET_HOSTIDC(&req.state));
+                        &req.state.hostid);
 
 #if HAVE_SOCKS_HOSTID
          if (req.hrule_isset) {
@@ -939,8 +938,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                   object_sockaddr,
                   &request->from,
                   request->req.auth,
-                  GET_HOSTIDV(&request->state),
-                  GET_HOSTIDC(&request->state));
+                  &request->state.hostid);
 
    dst = NULL; /* for now. */
 
@@ -1246,8 +1244,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                   object_sockshost,
                   &io.src.host,
                   &io.src.auth,
-                  GET_HOSTIDV(&io.state),
-                  GET_HOSTIDC(&io.state));
+                  &io.state.hostid);
 
    if (io.state.protocol == SOCKS_TCP) { /* also know parts of dst now. */
       dst = &dstmem;
@@ -1258,8 +1255,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                      object_sockshost,
                      &io.dst.host,
                      &io.dst.auth,
-                     NULL,
-                     0);
+                     NULL);
 
       switch (request->req.command) {
 #if SOCKS_SERVER
@@ -1573,8 +1569,8 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
        * monitor-settings to always be inherited.
        */
 
-      cinfo.from = request->from;
-      HOSTIDCOPY(&request->state, &cinfo);
+      cinfo.from   = request->from;
+      cinfo.hostid = request->state.hostid;
 
       rc = rule_inheritoruse(CRULE_OR_HRULE(&io),
                              &cinfo,
@@ -2072,8 +2068,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                            object_none, /* will know after accept(2). */
                            NULL,
                            NULL,
-                           GET_HOSTIDV(&io.state),
-                           GET_HOSTIDC(&io.state));
+                           &io.state.hostid);
 
 
             if (bindio.state.extension.bind) {
@@ -2083,8 +2078,7 @@ dorequest(mother, request, clientudpaddr, weclosedfirst, emsg, emsglen)
                               object_sockshost,
                               &bindio.dst.host,
                               NULL,
-                              NULL,
-                              0);
+                              NULL);
             }
             else
                replydst = *src;
@@ -3932,7 +3926,8 @@ serverchain(targetsocket, clientsocket, client, req,
    *proxychainauth = *packet.req.auth;
 
    convertresponse(&packet.res, &response, req->version);
-   response.auth = req->auth; /* must use the auth negotiated with client. */
+
+   response.auth   = req->auth; /* must use the auth negotiated with client. */
 
    if (send_response(clientsocket, &response) != 0)
       return -1;
@@ -3959,8 +3954,8 @@ convertresponse(oldres, newres, newversion)
    int genericreply;
 
    if (oldres->version == newversion
-   || (    newversion     == PROXY_SOCKS_V4
-       && oldres->version == PROXY_SOCKS_V4REPLY_VERSION)) {
+   || (   oldres->version == PROXY_SOCKS_V4REPLY_VERSION
+       && newversion      == PROXY_SOCKS_V4)) {
       *newres = *oldres;
       return;
    }
@@ -4034,23 +4029,63 @@ convertresponse(oldres, newres, newversion)
 
    switch (newversion) {
       case PROXY_SOCKS_V4:
-         if (oldres->host.atype == SOCKS_ADDR_IPV4)
-            newres->host = oldres->host;
-         else {
-            /*
-             * v4 only supports ipaddr, so if the address is not an IP address,
-             * we need to resolve it before responding.
-             */
-            struct sockaddr_storage addr;
+      case PROXY_SOCKS_V4REPLY_VERSION:
+         /*
+          * Socks v4 only supports IPv4.
+          */
+         switch (oldres->host.atype) {
+            case SOCKS_ADDR_IPV4:
+               newres->host = oldres->host;
+               break;
 
-            sockshost2sockaddr(&oldres->host, &addr);
-            if (IPADDRISBOUND(&addr))
-               sockaddr2sockshost(&addr, &newres->host);
-            else {
-               swarnx("%s: can not resolve hostname %s",
-                      function, sockshost2string(&oldres->host, NULL, 0));
+            case SOCKS_ADDR_IPV6:
+               slog(LOG_DEBUG,
+                    "%s: IPv6 is not supported by by SOCKS v4, so changing "
+                    "address in response from %s to zero",
+                    function,
+                    sockshost2string(&oldres->host, NULL, 0));
 
-               genericreply = SOCKS_FAILURE;
+               newres->host.atype = SOCKS_ADDR_IPV4;
+               bzero(&newres->host.addr, sizeof(newres->host.addr));      
+               break;
+
+            default: {
+               struct sockaddr_storage addr;
+
+               slog(LOG_DEBUG,
+                    "%s: SOCKS v4 only supports %s, so need to convert this "
+                    "%s to %s",
+                    function,
+                    atype2string(SOCKS_ADDR_IPV4),
+                    atype2string(oldres->host.atype),
+                    atype2string(SOCKS_ADDR_IPV4));
+
+               sockshost2sockaddr(&oldres->host, &addr);
+
+               if (IPADDRISBOUND(&addr)) {
+                  sockaddr2sockshost(&addr, &newres->host);
+
+                  if (addr.ss_family == AF_INET)
+                     sockaddr2sockshost(&addr, &newres->host);
+                  else {
+                     slog(LOG_DEBUG,
+                          "%s: hostname %s did not resolve to IPv4 (resolved "
+                          "to %s).  Setting address in response to zero "
+                          "instead",
+                          function,
+                          sockshost2string(&oldres->host, NULL, 0),
+                          sockaddr2string(&addr,          NULL, 0));
+
+                     newres->host.atype = SOCKS_ADDR_IPV4;
+                     bzero(&newres->host.addr, sizeof(newres->host.addr));
+                  }
+               }
+               else {
+                  swarnx("%s: can not resolve hostname %s",
+                         function, sockshost2string(&oldres->host, NULL, 0));
+
+                  genericreply = SOCKS_FAILURE;
+               }
             }
          }
 
@@ -4075,11 +4110,15 @@ convertresponse(oldres, newres, newversion)
    socks_set_responsevalue(newres, sockscode(newversion, genericreply));
 
    slog(LOG_DEBUG,
-        "%s: converted from version %d to version %d.  Old response value "
-        "was %d, new is %d",
+        "%s: converted from proxy protocol version %d (%s) to %d (%s).  "
+        "Old response value was %d, new is %d",
         function,
         oldres->version,
+        proxyprotocol2string(oldres->version == PROXY_SOCKS_V4REPLY_VERSION ? 
+                             PROXY_SOCKS_V4 : oldres->version),
         newres->version,
+        proxyprotocol2string(newres->version == PROXY_SOCKS_V4REPLY_VERSION ? 
+                             PROXY_SOCKS_V4 : newres->version),
         socks_get_responsevalue(oldres),
         socks_get_responsevalue(newres));
 }
@@ -4196,8 +4235,7 @@ initlogaddrs(io, src, dst, proxy)
                      object_sockshost,
                      &io->src.host,
                      &io->src.auth,
-                     GET_HOSTIDV(&io->state),
-                     GET_HOSTIDC(&io->state));
+                     &io->state.hostid);
 
    if (dst != NULL)
       init_iologaddr(dst,
@@ -4207,8 +4245,7 @@ initlogaddrs(io, src, dst, proxy)
                      &io->dst.host,
                      io->state.proxychain.proxyprotocol == PROXY_DIRECT ?
                         &io->dst.auth : NULL,
-                     NULL,
-                     0);
+                     NULL);
 
    if (proxy != NULL && io->state.proxychain.proxyprotocol != PROXY_DIRECT)
       init_iologaddr(proxy,
@@ -4217,8 +4254,7 @@ initlogaddrs(io, src, dst, proxy)
                      object_sockshost,
                      &io->state.proxychain.extaddr,
                      &io->dst.auth,
-                     NULL,
-                     0);
+                     NULL);
 }
 
 static int

@@ -64,18 +64,19 @@ esac
 unset COMPTYPE
 unset FAILWARN
 AC_MSG_CHECKING([for compiler type])
-if $CC -v 2>&1 | tail -1 | egrep '^gcc ' >/dev/null; then
+changequote(<<, >>)dnl
+if $CC -v 2>&1 | tail -1 | grep -E '^gcc ' >/dev/null; then
     COMPTYPE=gcc
     FAILWARN="-Wall -Werror"
-elif $CC -v 2>&1 | egrep '(^|^[a-zA-Z]+ )(clang|LLVM) ' >/dev/null; then
+elif $CC -v 2>&1 | grep -E '(^|^[a-zA-Z]+ )(clang|LLVM) ' >/dev/null; then
     COMPTYPE=clang
     FAILWARN="-Wall -Werror"
 elif $CC -V 2>&1 | grep 'Sun C ' >/dev/null; then
     COMPTYPE=suncc
     FAILWARN="-v -errwarn=%all"
-elif $CC -v 2>&1 | egrep '^pcc ' >/dev/null; then
+elif $CC -v 2>&1 | grep -E '^pcc ' >/dev/null; then
     COMPTYPE=pcc
-elif $CC -qversion 2>&1 | egrep '^IBM XL C' >/dev/null; then
+elif $CC -qversion 2>&1 | grep -E '^IBM XL C' >/dev/null; then
     COMPTYPE=xlc
     FAILWARN="-qhalt=w"
 else
@@ -101,6 +102,7 @@ else
 	    ;;
     esac
 fi
+changequote([, ])dnl
 if test x"$COMPTYPE" = x; then
     AC_MSG_RESULT([unknown])
 else
@@ -110,7 +112,7 @@ fi
 AC_MSG_CHECKING([for preprocessor flags])
 unset cpp_flags
 case $ac_cv_prog_CPP in
-    gcc*)
+    *gcc*)
 	#simplify parsing after cpp processing (for e.g. errno checks)
 	cpp_flags="${cpp_flags}${cpp_flags:+ }-P"
 
@@ -469,30 +471,23 @@ AC_ARG_ENABLE(warnings,
 [#off by default
  NOWARN="Disabled (default)"])
 
+#check whether to enable extra compilation warnings
+unset NOWARN
+AC_ARG_ENABLE(warnings,
+[  --enable-warnings       show compilation warnings],
+[if test x"$enableval" = xno; then
+    NOWARN="Disabled, using --disable-warnings"
+ fi],
+[#off by default
+ NOWARN="Disabled (default)"])
+
 #place warning flags in $warn
+unset warn
 if test x"$NOWARN" = x; then
     #try to enable compiler specific warning flags
     case $COMPTYPE in
-	gcc)
-	    warn="-Wall -Wformat -W -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef"
-	    #warn="$warn -Wold-style-cast -Winline -Waggregate-return -Wconversion -Wwrite-strings -Wtraditional -Wshadow"
-	    ;;
-
-	hpuxcc)
-	    warn="-v"
-	    ;;
-
-	*osfcc) #osf cc
-#	    warn="-w0 -check -portable -warnprotos"
-	    true
-	    ;;
-
-#	pcc)
-#	    warn="-Wall --warn-common --warn-constructors --warn-multiple-gp --warn-once --warn-section-align --error-unresolved-symbols"
-#	    ;;
-
-	sgicc) #sgi cc
-	    warn="-fullwarn"
+	gcc | clang)
+	    warn="-Wall -Wformat=2 -Wformat-truncation=2 -Wformat-overflow=2 -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wbad-function-cast -Wpointer-arith -Wundef -Wunused-but-set-variable -Wnull-dereference  -Wmisleading-indentation -Wmaybe-uninitialized -Wstring-compare -Warray-bounds=2 -Wduplicated-branches -Wfloat-equal -Wshadow -Wextra -Wbad-function-cast -Wcast-align -Wwrite-strings -Wconversion -Wno-sign-conversion -Wlogical-op -fno-eliminate-unused-debug-symbols -fanalyzer"
 	    ;;
 
 	suncc)
@@ -513,18 +508,27 @@ if test x"$NOWARN" = x; then
 	    warn="-Wall"
 	    ;;
     esac
-
-    oCFLAGS="$CFLAGS"
-    CFLAGS="$CFLAGS${CFLAGS:+ }$warn"
-    #make sure compilation is still possible
-    AC_TRY_COMPILE([], [],
-		   [AC_MSG_RESULT([$warn])],
-		   [AC_MSG_RESULT([none])
-		    unset warn])
-    CFLAGS="$oCFLAGS"
 else
-    AC_MSG_RESULT([none])
+    #default case, only subset of warnings
+    case $COMPTYPE in
+	gcc | clang)
+	    warn="-Wformat=2"
+	    ;;
+    esac
 fi
+
+#make sure compilation is still possible
+unset okwarn
+for flag in $warn; do
+    oCFLAGS="$CFLAGS"
+    CFLAGS="$CFLAGS${CFLAGS:+ }$flag $FAILWARN"
+    AC_MSG_CHECKING([for warning flags $flag])
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[]])],[AC_MSG_RESULT([yes])
+		    okwarn="$okwarn${okwarn:+ }$flag"],
+         	    [AC_MSG_RESULT([no])])
+	CFLAGS="$oCFLAGS"
+done
+warn="$okwarn"
 
 #check if compilation with FORTIFY_SOURCE gives error/warning
 AC_MSG_CHECKING([whether compilation with FORTIFY_SOURCE works])

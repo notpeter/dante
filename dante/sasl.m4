@@ -29,7 +29,7 @@ if test x"$SASL" != xno; then
 
    dnl extract -L flags
    if test x"${ac_sasl_libs}" != x; then
-      NPATH=`echo $ac_sasl_libs | xargs -n1 | egrep '^-L' | xargs echo`
+      NPATH=`echo $ac_sasl_libs | xargs -n1 | grep -E '^-L' | xargs echo`
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }$NPATH"
    fi
 

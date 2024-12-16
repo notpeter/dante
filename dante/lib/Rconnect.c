@@ -47,7 +47,7 @@
 #include "upnp.h"
 
 static const char rcsid[] =
-"$Id: Rconnect.c,v 1.242.6.3 2017/01/31 08:17:38 karls Exp $";
+"$Id: Rconnect.c,v 1.242.6.3.8.1 2024/11/21 10:22:42 michaels Exp $";
 
 int
 Rconnect(s, _name, namelen)
@@ -248,7 +248,7 @@ Rconnect(s, _name, namelen)
                                     0));
 
           if (socksfd.route->gw.state.proxyprotocol.direct) {
-             const ssize_t rc = connect(s, TOSA(&name), namelen);
+             rc = connect(s, TOSA(&name), namelen);
 
              slog(LOG_DEBUG,
                   "%s: direct connect on fd %d to %s returned %ld: (%s)",
@@ -323,7 +323,7 @@ Rconnect(s, _name, namelen)
         function, s, proxyprotocol2string(packet.req.version));
 
    if (packet.req.version == PROXY_DIRECT) {
-      const int rc = connect(s, TOSA(&name), namelen);
+      rc = connect(s, TOSA(&name), namelen);
 
       slog(LOG_DEBUG, "%s: direct connect on fd %d to %s returned %d: (%s)",
            function,

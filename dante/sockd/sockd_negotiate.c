@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014, 2016, 2020
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2016, 2020, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: sockd_negotiate.c,v 1.477.4.5.2.2.4.2 2020/11/11 16:12:02 karls Exp $";
+"$Id: sockd_negotiate.c,v 1.477.4.5.2.2.4.2.4.6 2024/11/25 20:59:07 michaels Exp $";
 
 static sockd_negotiate_t negv[SOCKD_NEGOTIATEMAX];
 static const size_t negc = ELEMENTS(negv);
@@ -276,8 +276,7 @@ run_negotiate()
                         object_sockshost,
                         &neg->negstate.src,
                         &neg->cauth,
-                        GET_HOSTIDV(&neg->state),
-                        GET_HOSTIDC(&neg->state));
+                        &neg->state.hostid);
 
          if (neg->negstate.complete) {
             struct sockaddr_storage p;
@@ -536,8 +535,7 @@ run_negotiate()
                                     object_sockshost,
                                     &neg->negstate.src,
                                     &neg->cauth,
-                                    GET_HOSTIDV(&neg->state),
-                                    GET_HOSTIDC(&neg->state));
+                                    &neg->state.hostid);
 
                      if (neg->srule.log.tcpinfo) {
                         int fdv[] = { neg->s };
@@ -647,7 +645,7 @@ run_negotiate()
                      weclosed = 1;
 
                   sockshost2sockaddr(&neg->negstate.src, &cinfo.from);
-                  HOSTIDCOPY(&neg->state, &cinfo);
+                  cinfo.hostid = neg->state.hostid;
 
                   alarm_add_disconnect(weclosed,
                                        CRULE_OR_HRULE(neg),
@@ -684,8 +682,7 @@ run_negotiate()
                               object_sockshost,
                               &neg->negstate.src,
                               &neg->cauth,
-                              GET_HOSTIDV(&neg->state),
-                              GET_HOSTIDC(&neg->state));
+                              &neg->state.hostid);
 
                if (neg->crule.log.tcpinfo) {
                   int fdv[] = { neg->s };
@@ -761,7 +758,7 @@ negotiate_postconfigload(void)
          continue; /* no monitors for this client before, and no now. */
 
       sockshost2sockaddr(&negv[i].negstate.src, &cinfo.from);
-      HOSTIDCOPY(&negv[i].state, &cinfo);
+      cinfo.hostid = negv[i].state.hostid;
 
       monitor_move(&oldmonitor,
                    &newmonitor,
@@ -798,7 +795,7 @@ send_negotiate(neg)
    int unuse = 0;
 
    sockshost2sockaddr(&neg->negstate.src, &cinfo.from);
-   HOSTIDCOPY(&neg->state, &cinfo);
+   cinfo.hostid = neg->state.hostid;
 
    if (CRULE_OR_HRULE(neg)->bw_shmid != 0
    && !CRULE_OR_HRULE(neg)->bw_isinheritable)
@@ -1123,8 +1120,8 @@ recv_negotiate(void)
                            ruleinfo,
                            sizeof(ruleinfo));
 
-      cinfo.from = client.from;
-      HOSTIDCOPY(&neg->state, &cinfo);
+      cinfo.from   = client.from;
+      cinfo.hostid = neg->state.hostid;
 
       setconfsockoptions(neg->s,
                          neg->s,
@@ -1164,8 +1161,7 @@ recv_negotiate(void)
                      object_sockshost,
                      &neg->negstate.src,
                      &neg->cauth,
-                     GET_HOSTIDV(&neg->state),
-                     GET_HOSTIDC(&neg->state));
+                     &neg->state.hostid);
 
       init_iologaddr(&dst,
                      object_none,
@@ -1177,8 +1173,7 @@ recv_negotiate(void)
                      NULL,
 #endif /* !BAREFOOTD */
                      NULL,
-                     NULL,
-                     0);
+                     NULL);
 
 
 #if !HAVE_SOCKS_RULES
@@ -1276,6 +1271,7 @@ recv_negotiate(void)
          slog(LOG_DEBUG, "%s: checking access through hostid rules", function);
 
          neg->state.command = SOCKS_HOSTID;
+
          permit = rulespermit(neg->s,
                               &client.from,
                               &client.to,
@@ -1292,7 +1288,7 @@ recv_negotiate(void)
          /*
           * if no hostids, no rules will have been checked.
           */
-         if (!permit || (permit && neg->state.hostidc > 0)) {
+         if (!permit || (permit && neg->state.hostid.addrc > 0)) {
             neg->hrule_isset = 1;
 
             setconfsockoptions(neg->s,
@@ -1304,7 +1300,10 @@ recv_negotiate(void)
                                SOCKETOPT_PRE | SOCKETOPT_ANYTIME,
                                0 /* should already be set. */);
 
-            HOSTIDCOPY(&src, &neg->state);
+            if (neg->state.hostid.addrc > 0)
+               src.hostidc = gethostidipv(&neg->state.hostid, 
+                                          src.hostidv, 
+                                          ELEMENTS(src.hostidv));
 
             if (permit) {
                /*
@@ -1520,7 +1519,7 @@ delete_negotiate(neg, forwardedtomother)
 #endif /* HAVE_GSSAPI */
 
       sockshost2sockaddr(&neg->negstate.src, &cinfo.from);
-      HOSTIDCOPY(&neg->state, &cinfo);
+      cinfo.hostid = neg->state.hostid;
 
       if (socks_sendton(sockscf.state.mother.ack,
                         &cmd,
@@ -1777,8 +1776,7 @@ siginfo(sig, si, sc)
       if (!negv[i].allocated)
          continue;
 
-      build_addrstr_src(GET_HOSTIDV(&negv[i].state),
-                        GET_HOSTIDC(&negv[i].state),
+      build_addrstr_src(HAVE_SOCKS_HOSTID ? &negv[i].state.hostid : NULL,
                         &negv[i].negstate.src,
                         NULL,
                         NULL,

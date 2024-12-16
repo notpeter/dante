@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011,
- *               2012, 2013, 2014, 2016
+ *               2012, 2013, 2014, 2016, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmem.c,v 1.238.4.6.2.2 2017/01/31 08:17:38 karls Exp $";
+"$Id: shmem.c,v 1.238.4.6.2.2.8.5 2024/11/21 22:39:03 michaels Exp $";
 
 
 #define FIRST_SHMEMID  (0)
@@ -607,17 +607,20 @@ shmem_use(shmem, cinfo, lock, mapisopen)
          }
 
 #if HAVE_SOCKS_HOSTID
+
          case key_hostid:
-            SASSERTX(shmem->keystate.keyinfo.hostindex <= cinfo->hostidc);
+            SASSERTX(shmem->keystate.keyinfo.hostindex <= cinfo->hostid.addrc);
 
             shmem->keystate.keyv[i].data.hostid.ipv4
-            = cinfo->hostidv[shmem->keystate.keyinfo.hostindex - 1];
+            = *gethostidip(&cinfo->hostid, 
+                           shmem->keystate.keyinfo.hostindex - 1);
 
             ++shmem->keystate.keyv[i].data.hostid.addrc;
 
             statecount = (ssize_t)shmem->keystate.keyv[i].data.hostid.addrc;
 
             break;
+
 #endif /* HAVE_SOCKS_HOSTID */
 
          default:
@@ -1110,8 +1113,8 @@ keystate_index(shmem, cinfo, doexpirescan)
    const int doexpirescan;
 {
    const char *function = "keystate_index()";
-   static ssize_t lastmatched = -1;
    const void *datatomatch;
+   static ssize_t lastmatched = -1;
    keystate_data_t keydata;
    keystate_data_type datatype;
    struct timeval timenow;
@@ -1144,10 +1147,13 @@ keystate_index(shmem, cinfo, doexpirescan)
          break;
 
 #if HAVE_SOCKS_HOSTID
-      case key_hostid:
-         SASSERTX(shmem->keystate.keyinfo.hostindex <= cinfo->hostidc);
 
-         datatomatch = &cinfo->hostidv[shmem->keystate.keyinfo.hostindex - 1];
+      case key_hostid:
+         SASSERTX(shmem->keystate.keyinfo.hostindex <= cinfo->hostid.addrc);
+
+         datatomatch = gethostidip(&cinfo->hostid,
+                                   shmem->keystate.keyinfo.hostindex - 1);
+
          datatype    = keytype_ipv4;
          datalen     = sizeof(keydata.data.ipv4);
 
@@ -1155,6 +1161,7 @@ keystate_index(shmem, cinfo, doexpirescan)
                   (unsigned)shmem->keystate.keyinfo.hostindex);
 
          break;
+
 #endif /* HAVE_SOCKS_HOSTID */
 
       default:
@@ -1164,23 +1171,31 @@ keystate_index(shmem, cinfo, doexpirescan)
    if (lastmatched != -1 && lastmatched < (ssize_t)shmem->keystate.keyc) {
       keystate_data(&shmem->keystate, lastmatched, &keydata);
 
-      switch (keydata.type) {
-         case keytype_ipv4:
-            if (memcmp(&keydata.data.ipv4, datatomatch, datalen) == 0)
-               matchedi = lastmatched;
-            else
-               matchedi = -1;
-            break;
+      if (keydata.type == datatype) {
+         switch (keydata.type) {
+            case keytype_ipv4:
+               if (memcmp(&keydata.data.ipv4, datatomatch, datalen) == 0)
+                  matchedi = lastmatched;
+               else
+                  matchedi = -1;
+               break;
 
-         case keytype_ipv6:
-            if (memcmp(&keydata.data.ipv6, datatomatch, datalen) == 0)
-               matchedi = lastmatched;
-            else
-               matchedi = -1;
-            break;
+            case keytype_ipv6:
+               if (memcmp(&keydata.data.ipv6, datatomatch, datalen) == 0)
+                  matchedi = lastmatched;
+               else
+                  matchedi = -1;
+               break;
 
-         default:
-            SERRX(keydata.type);
+            default:
+               SERRX(keydata.type);
+         }
+      }
+      else {
+         slog(LOG_DEBUG, "%s: keydata.type (%u) != datatype (%u)",
+              function, (unsigned)keydata.type, (unsigned)datatype);
+
+         matchedi = -1;
       }
    }
    else

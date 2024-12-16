@@ -47,7 +47,7 @@
 #include "vis_compat.h"
 
 static const char rcsid[] =
-"$Id: util.c,v 1.416.4.5.6.5 2020/11/11 17:02:26 karls Exp $";
+"$Id: util.c,v 1.416.4.5.6.5.4.1 2024/11/21 10:22:43 michaels Exp $";
 
 const char *
 strcheck(string)
@@ -336,7 +336,7 @@ sockaddr2hostname(sa, hostname, hostnamelen)
    rc = getnameinfo(TOCSA(sa),
                     salen(sa->ss_family),
                     hostname,
-                    hostnamelen,
+                    (socklen_t)hostnamelen,
                     NULL,
                     0,
                     NI_NAMEREQD);
@@ -449,7 +449,7 @@ ruleaddr2sockshost(address, host, protocol)
 
             }
 
-            host->atype = safamily2atype(addr.ss_family);
+            host->atype = (unsigned char)safamily2atype(addr.ss_family);
          }
 
          break;
@@ -912,9 +912,9 @@ socks_mklock(template, newname, newnamelen)
    const size_t newnamelen;
 {
    const char *function = "socks_mklock()";
+   const char *prefix;
    static char newtemplate[PATH_MAX];
    size_t len;
-   char *prefix;
    int s, flag;
 
    if ((prefix = socks_getenv(ENV_TMPDIR, dontcare)) != NULL)

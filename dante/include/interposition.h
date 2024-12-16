@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: interposition.h,v 1.86.6.6 2017/02/03 06:26:44 michaels Exp $ */
+/* $Id: interposition.h,v 1.86.6.6.8.1 2024/11/21 10:22:41 michaels Exp $ */
 
 #ifndef _INTERPOSITION_H_
 #define _INTERPOSITION_H_
@@ -63,19 +63,19 @@ typedef struct socks_id_t {
 } socks_id_t;
 
 typedef struct {
-   char  *symbol;         /* name of the symbol.         */
-   char  *library;        /* library symbol is in.       */
-   void  *handle;         /* handle to the library.      */
-   void  *function;       /* the bound symbol.           */
+   const char  *symbol;         /* name of the symbol.         */
+   const char  *library;        /* library symbol is in.       */
+   void        *handle;         /* handle to the library.      */
+   void        *function;       /* the bound symbol.           */
 
-   socks_id_t *dosyscall; /*
-                           * if this value is not set, the corresponding
-                           * syscall should be used for the given id.
-                           * This is for cases where we are unable to
-                           * base the decision concerning whether the
-                           * function should resolve to a R*() function
-                           * or a syscall in other ways.
-                           */
+   socks_id_t  *dosyscall; /*
+                            * if this value is not set, the corresponding
+                            * syscall should be used for the given id.
+                            * This is for cases where we are unable to
+                            * base the decision concerning whether the
+                            * function should resolve to a R*() function
+                            * or a syscall in other ways.
+                            */
 
 } libsymbol_t;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2014
+ * Copyright (c) 2013, 2014, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "monitor.h"
 
 static const char rcsid[] =
-"$Id: sockd_io_misc.c,v 1.30.4.5 2014/08/24 11:41:35 karls Exp $";
+"$Id: sockd_io_misc.c,v 1.30.4.5.14.2 2024/11/20 22:05:41 karls Exp $";
 
 void
 io_updatemonitor(io)
@@ -167,8 +167,8 @@ do {                                                                           \
    &&  (newmatch == NULL || newmatch->mstats_shmid == 0))
       return;
 
-   cinfo.from = CONTROLIO(io)->raddr;
-   HOSTIDCOPY(&io->state, &cinfo);
+   cinfo.from   = CONTROLIO(io)->raddr;
+   cinfo.hostid = io->state.hostid;
 
    if (newmatch == NULL) {
       /*
@@ -272,8 +272,8 @@ io_add_alarmdisconnects(io, reason)
     * at least one disconnect to do.
     */
 
-   cinfo.from = CONTROLIO(io)->raddr;
-   HOSTIDCOPY(&io->state, &cinfo);
+   cinfo.from   = CONTROLIO(io)->raddr;
+   cinfo.hostid = io->state.hostid;
 
    alarm_add_disconnect(1,
                         rule,

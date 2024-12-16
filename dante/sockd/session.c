@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2008, 2009, 2010, 2011, 2012, 2013
+ * Copyright (c) 2005, 2008, 2009, 2010, 2011, 2012, 2013, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: session.c,v 1.102.4.2 2014/09/01 07:44:01 karls Exp $";
+"$Id: session.c,v 1.102.4.2.14.2 2024/11/20 22:05:40 karls Exp $";
 
 static int
 session_isavailable(shmem_object_t *ss, const clientinfo_t *cinfo,
@@ -119,14 +119,14 @@ session_use(shmem, cinfo, lock, emsg, emsglen)
 
 #if HAVE_SOCKS_HOSTID
    if (shmem->keystate.key == key_hostid)
-      if (shmem->keystate.keyinfo.hostindex > cinfo->hostidc) {
+      if (shmem->keystate.keyinfo.hostindex > cinfo->hostid.addrc) {
          snprintf(emsg, emsglen,
                   "session.state.hostindex specifies using hostindex #%u, but "
                   "client connection provides %u hostindex%s.  "
                   "Network/%s misconfiguration?",
                   (unsigned)shmem->keystate.keyinfo.hostindex,
-                  (unsigned)cinfo->hostidc,
-                  (unsigned)cinfo->hostidc == 1 ? "" : "es",
+                  (unsigned)cinfo->hostid.addrc,
+                  (unsigned)cinfo->hostid.addrc == 1 ? "" : "es",
                   PRODUCT);
 
          slog(LOG_WARNING, "%s: problem related to %s #%lu detected: %s",

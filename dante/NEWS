@@ -1,6 +1,28 @@
-@(#)$Id: NEWS,v 1.99.4.16.2.18.4.20 2021/04/30 18:56:22 michaels Exp $
+@(#)$Id: NEWS,v 1.99.4.16.2.18.4.20.4.12 2024/12/16 06:34:29 karls Exp $
 
 (NOTE: The contents of this file is not updated for pre-releases.)
+
+***
+***  Monday, December 16, 2024 -- Dante v1.4.4
+***
+
+ o Fix potential security issue CVE-2024-54662, related to "socksmethod"
+   use in client/hostid-rules.
+   Reported by Igor Medovolkin (igor.aka.igro@gmail.com.example.com)
+
+ o Add a missing call to setgroups(2).  
+   Reported by Leo <deleo@gmx.de.example.com>
+
+ o Patch to fix compilation with libminiupnp 2.2.8.
+   From Emily <hello@emily.moe.example.com>
+
+ o Client connectchild optimizations.
+
+ o Client SIGIO handling improvements.
+
+ o Various configure/build fixes.
+
+ o Updated to support TCP_EXP1 version of TCP hostid format.
 
 ***
 ***  Friday, April 30, 2021 -- Dante v1.4.3

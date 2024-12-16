@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014
+ *               2011, 2012, 2013, 2014, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  */
 
 static const char rcsid[] =
-"$Id: log.c,v 1.373.4.8.6.1 2021/02/16 22:32:41 michaels Exp $";
+"$Id: log.c,v 1.373.4.8.6.1.4.4 2024/11/21 12:27:27 michaels Exp $";
 
 #include "common.h"
 #include "config_parse.h"
@@ -178,8 +178,7 @@ static size_t ringbuf_curroff;
 do {                                                                           \
    char srcstr[MAX_IOLOGADDR];                                                 \
                                                                                \
-   build_addrstr_src(GET_HOSTIDV(src),                                         \
-                     GET_HOSTIDC(src),                                         \
+   build_addrstr_src(HAVE_SOCKS_HOSTID ? &state->hostid : NULL,                \
                      src != NULL && src->peer_isset ?                          \
                         &src->peer : NULL,                                     \
                      tosrc_proxy != NULL && tosrc_proxy->peer_isset ?          \
@@ -188,7 +187,7 @@ do {                                                                           \
                         &tosrc_proxy->local : NULL,                            \
                      src != NULL && src->local_isset ?                         \
                         &src->local : NULL,                                    \
-                     src != NULL && src->auth_isset ?                          \
+                     src != NULL && src->auth_isset  ?                         \
                         &src->auth : NULL,                                     \
                      tosrc_proxy != NULL && tosrc_proxy->auth_isset ?          \
                         &tosrc_proxy->auth  : NULL,                            \
@@ -210,8 +209,7 @@ do {                                                                           \
                            &dst->auth : NULL,                                  \
                         todst_proxy != NULL && todst_proxy->auth_isset ?       \
                            &todst_proxy->auth  : NULL,                         \
-                        GET_HOSTIDV(dst),                                      \
-                        GET_HOSTIDC(dst),                                      \
+                        HAVE_SOCKS_HOSTID ? &state->hostid : NULL,             \
                         dststr,                                                \
                         sizeof(dststr));                                       \
                                                                                \
@@ -221,15 +219,14 @@ do {                                                                           \
 
 
 iologaddr_t *
-init_iologaddr(addr, local_type, local, peer_type, peer, auth, hostidv, hostidc)
+init_iologaddr(addr, local_type, local, peer_type, peer, auth, hostid)
    iologaddr_t *addr;
    const objecttype_t local_type;
    const void *local;
    const objecttype_t peer_type;
    const void *peer;
    const authmethod_t *auth;
-   const struct in_addr *hostidv;
-   const unsigned int hostidc;
+   const struct hostid *hostid;
 {
 
    if (local == NULL || local_type == object_none)
@@ -278,12 +275,17 @@ init_iologaddr(addr, local_type, local, peer_type, peer, auth, hostidv, hostidc)
    }
 
 #if HAVE_SOCKS_HOSTID
-   if (hostidv == NULL || hostidc == 0)
+
+   if (hostid == NULL || hostid->addrc == 0)
       addr->hostidc = 0;
    else {
-      memcpy(addr->hostidv, hostidv, sizeof(*hostidv) * hostidc);
-      addr->hostidc = hostidc;
+      SASSERTX(ELEMENTS(addr->hostidv) >= hostid->addrc);
+
+      addr->hostidc = gethostidipv(hostid, 
+                                   addr->hostidv, 
+                                   ELEMENTS(addr->hostidv));
    }
+
 #endif /* HAVE_SOCKS_HOSTID */
 
    return addr;
@@ -301,12 +303,12 @@ iolog(rule, state, op, src, dst, tosrc_proxy, todst_proxy, data, datalen)
    const char *data;
    size_t datalen;
 {
-   const char *function = "iolog()";
+   const char *function      = "iolog()";
    const char *tcpinfoprefix = "\nTCP_INFO:\n";
+   const int dologtcpinfo    = (rule->log.tcpinfo && state->tcpinfo != NULL) ?
+                               1 : 0;
+   const int dologdstinfo    = (dst == NULL) ? 0 : 1;
    const char *verdict;
-   const int dologtcpinfo = (rule->log.tcpinfo && state->tcpinfo != NULL) ?
-                                 1 : 0;
-   const int dologdstinfo = (dst == NULL) ? 0 : 1;
    size_t buflen;
    char srcdst_str[SRCDSTLEN], rulecommand[256],
         *buf, *bigbuf, regbuf[REGULARBUFLEN];

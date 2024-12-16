@@ -150,7 +150,34 @@ AC_CHECK_HEADER(linux/bbkernel.h,
  AC_DEFINE(SOCKS_TCP_IPA_LVL, IPPROTO_TCP, [TCP_IPA protocol level])dnl
  AC_DEFINE(SOCKS_TCP_IPA_NAME, "tcp_ipa", [TCP_IPA symbolic name])dnl
  AC_DEFINE(SOCKS_TCP_IPA_IPV4, 1, [TCP_IPA IPv4 usability])dnl
- AC_DEFINE(SOCKS_TCP_IPA_IPV6, 0, [TCP_IPA IPv6 usability])])
+ AC_DEFINE(SOCKS_TCP_IPA_IPV6, 0, [TCP_IPA IPv6 usability])]
+
+ AC_DEFINE(HAVE_LINUX_BBKERNEL_H, 1, [linux/bbkernel.h header found])
+
+ #opt253 variant
+ AC_MSG_CHECKING([for MAX_TCP_OPTION_SPACE])
+    AC_EGREP_CPP(yes, [
+#include <linux/bbkernel.h>
+#ifdef MAX_TCP_OPTION_SPACE
+yes
+#endif
+], [AC_MSG_RESULT(yes)],
+   [AC_MSG_RESULT(no)
+    AC_DEFINE(MAX_TCP_OPTION_SPACE, 40, [MAX_TCP_OPTION_SPACE replacement])])
+ AC_EGREP_CPP(yes, [
+#include <linux/tcp.h>
+#ifdef TCP_EXP1
+yes
+#endif /* TCP_EXP1 */
+], [L_GETDEFINEDINT(TCP_EXP1, [
+#include <linux/tcp.h>
+], TCP_EXP1)
+    SOCKOPTS="$SOCKOPTS TCP_EXP1"
+    AC_DEFINE(HAVE_TCP_EXP1, 1, [TCP_EXP1 supported])dnl
+    AC_DEFINE(SOCKS_TCP_EXP1_LVL, IPPROTO_TCP, [TCP_EXP1 protocol level])dnl
+    AC_DEFINE(SOCKS_TCP_EXP1_NAME, "tcp_exp1", [TCP_EXP1 symbolic name])dnl
+    AC_DEFINE(SOCKS_TCP_EXP1_IPV4, 1, [TCP_EXP1 IPv4 usability])dnl
+    AC_DEFINE(SOCKS_TCP_EXP1_IPV6, 0, [TCP_EXP1 IPv6 usability])]))
 
 HOSTIDSOCKOPTS="$SOCKOPTS"
 
@@ -278,6 +305,9 @@ sockopt2argtype()
 	    ;;
 	TCP_IPA)
 	    _argtype="option28_val"
+	    ;;
+	TCP_EXP1)
+	    _argtype="option253_val"
 	    ;;
 	*)
 	    _argtype="int_val"
@@ -454,6 +484,7 @@ done
 #hostid options (only set first)
 unset HOSTIDTYPE
 AC_MSG_CHECKING([for supported hostid type])
+unset HOSTIDTYPEVAL
 for opt in $HOSTIDSOCKOPTS; do
     argtype=`sockopt2argtype $opt`
 
@@ -486,25 +517,26 @@ for opt in $HOSTIDSOCKOPTS; do
 
     AC_DEFINE_UNQUOTED(SOCKS_HOSTID_NAME, ["hostid"], [hostid option type])
     echo "   { $optid, $argtype, ${opt}, SOCKS_${opt}_LVL, SOCKS_${opt}_IPV4, SOCKS_${opt}_IPV6, $calltype, $optshift, $optmask, $dup, $priv, SOCKS_HOSTID_NAME }," >> $OPTSRCTMP1
-    AC_DEFINE_UNQUOTED(SOCKS_HOSTID_TYPE, [SOCKS_HOSTID_TYPE_${opt}], [hostid option type])
+#    AC_DEFINE_UNQUOTED(SOCKS_HOSTID_TYPE, [SOCKS_HOSTID_TYPE_${opt}], [hostid option type])
+    HOSTIDTYPEVAL="$HOSTIDTYPEVAL${HOSTIDTYPEVAL:+ | }SOCKS_HOSTID_TYPE_${opt}"
     SOCKOPTCNT=`expr $SOCKOPTCNT + 1`
     HOSTIDTYPE=$opt
 
     #add supported arguments
-    unset symlist
-    for sym in NONE PASS ADDCLIENT SETCLIENT; do
+    symlist="NONE PASS ADDCLIENT SETCLIENT PASS_OR_SETCLIENT"
+    for sym in $symlist; do
 	echo "   { $optid, { .int_val = SOCKS_HOSTID_$sym }, SOCKS_HOSTID_${sym}_SYMNAME }," >> $OPTSRCTMP2
 	SOCKOPTSYMCNT=`expr $SOCKOPTSYMCNT + 1`
     done
     OKSOCKOPTVALSYMS="$OKSOCKOPTVALSYMS${OKSOCKOPTVALSYMS:+ }hostid(none pass add-client set-client)"
     OKSOCKOPTS="$OKSOCKOPTS${OKSOCKOPTS:+ }hostid($opt)"
-
-    break #end after first entry
 done
 if test x"$HOSTIDTYPE" = x; then
     AC_MSG_RESULT([no])
     AC_DEFINE(SOCKS_HOSTID_TYPE, [SOCKS_HOSTID_TYPE_NONE], [no hostid support])
 else
+    AC_DEFINE_UNQUOTED(SOCKS_HOSTID_TYPE, [($HOSTIDTYPEVAL)], [hostid option type])
+
     AC_MSG_RESULT([$HOSTIDTYPE])
     FEAT="$FEAT${FEAT:+ }hostid"
 fi
@@ -569,13 +601,13 @@ AC_DEFINE_UNQUOTED(HAVE_SOCKOPTVALSYM_MAX, $SOCKOPTSYMCNT, [symbol count])dnl
 rm -f "$OPTSRCTMP0" "$OPTSRCTMP1" "$OPTSRCTMP2"
 
 #set value for server -v option
-UCOKSOCKOPTS_SO=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'SO_' | xargs`
+UCOKSOCKOPTS_SO=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'SO_' | xargs`
 AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_SO, "${UCOKSOCKOPTS_SO}", [Socket level socket options enabled in build])
-UCOKSOCKOPTS_IPV4=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'IP_' | xargs`
+UCOKSOCKOPTS_IPV4=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'IP_' | xargs`
 AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_IPV4, "${UCOKSOCKOPTS_IPV4}", [IPV4 level socket options enabled in build])
-UCOKSOCKOPTS_IPV6=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'IPV6_' | xargs`
+UCOKSOCKOPTS_IPV6=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'IPV6_' | xargs`
 AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_IPV6, "${UCOKSOCKOPTS_IPV6}", [IPV6 level socket options enabled in build])
-UCOKSOCKOPTS_TCP=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'TCP_' | xargs`
+UCOKSOCKOPTS_TCP=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'TCP_' | xargs`
 AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_TCP, "${UCOKSOCKOPTS_TCP}", [TCP level socket options enabled in build])
-UCOKSOCKOPTS_UDP=`echo $OKSOCKOPTS | ucase | xargs -n1 | egrep 'UDP_' | xargs`
+UCOKSOCKOPTS_UDP=`echo $OKSOCKOPTS | ucase | xargs -n1 | grep 'UDP_' | xargs`
 AC_DEFINE_UNQUOTED(DANTE_SOCKOPTS_UDP, "${UCOKSOCKOPTS_UDP}", [UDP level socket options enabled in build])

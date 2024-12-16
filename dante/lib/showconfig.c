@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014, 2019
+ *               2011, 2012, 2013, 2014, 2019, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: showconfig.c,v 1.34.4.3.6.2 2020/11/11 16:11:54 karls Exp $";
+"$Id: showconfig.c,v 1.34.4.3.6.2.4.2 2024/11/20 22:03:27 karls Exp $";
 
 void
 showtimeout(timeout)
@@ -405,23 +405,24 @@ showconfig(sockscf)
       for (rule = sockscf->crule; rule != NULL; rule = rule->next)
          showrule(rule, object_crule);
 
-#if HAVE_SOCKS_HOSTID
       for (i = 0, rule = sockscf->hrule; rule != NULL; rule = rule->next)
          ++i;
+
       slog(LOG_DEBUG, "%ss (%lu): ",
            objecttype2string(object_hrule), (unsigned long)i);
 
       for (rule = sockscf->hrule; rule != NULL; rule = rule->next)
          showrule(rule, object_hrule);
-#endif /* HAVE_SOCKS_HOSTID */
 
       for (i = 0, rule = sockscf->srule; rule != NULL; rule = rule->next)
          ++i;
+
       slog(LOG_DEBUG, "%ss (%lu): ",
            objecttype2string(object_srule), (unsigned long)i);
 
       for (rule = sockscf->srule; rule != NULL; rule = rule->next)
          showrule(rule, object_srule);
+
 #endif /* !SOCKS_CLIENT */
 
       for (i = 0, route = sockscf->route; route != NULL; route = route->next)

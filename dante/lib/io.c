@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2008,
- *               2009, 2010, 2011, 2012, 2013, 2014, 2016
+ *               2009, 2010, 2011, 2012, 2013, 2014, 2016, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: io.c,v 1.342.4.7.2.3 2017/01/31 08:17:38 karls Exp $";
+"$Id: io.c,v 1.342.4.7.2.3.8.2 2024/11/20 22:03:27 karls Exp $";
 
 static void
 print_selectfds(const char *preamble, const int docheck, const int nfds,
@@ -1112,12 +1112,14 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
        * and no-one woke us up,
        * never ever again.
        */
+      if (!our_sigio_is_installed()) {
+         char emsg[1024];
 
-
-      if (sigprocmask(SIG_SETMASK, NULL, &oldmask) != 0)
-         serr("%s: sigprocmask() failed", function);
-
-      SASSERTX(!sigismember(&oldmask, SIGIO));
+         if (install_sigio(emsg, sizeof(emsg)) != 0)
+            swarnx("%s: install_sigio() failed: %s.  Quite possibly "
+                   "we will hang indefinetly",
+                   function, emsg);
+      }
    }
 
 #else /* !SOCKS_CLIENT */
@@ -1327,7 +1329,7 @@ selectn(nfds, rset, bufrset, buffwset, wset, xset, _timeout)
 
       SASSERTX(errno_s == errno);
       print_selectfds(pfix,
-                      SOCKS_CLIENT ? 0 : 1,
+                      0,
                       nfds,
                       rset,
                       bufrset,

@@ -54,7 +54,7 @@
 #endif /* !SOCKS_CLIENT */
 
 static const char rcsid[] =
-"$Id: config_parse.y,v 1.703.4.8.2.8.4.14 2021/02/02 19:34:11 karls Exp $";
+"$Id: config_parse.y,v 1.703.4.8.2.8.4.14.4.2 2024/11/21 10:22:42 michaels Exp $";
 
 #if HAVE_LIBWRAP && (!SOCKS_CLIENT)
    extern jmp_buf tcpd_buf;
@@ -495,7 +495,7 @@ do {                                                                           \
 %type   <string> ldapauthserver ldapauthkeytab
 %type   <string> ldapauthurl ldapauthdebug ldapauthport
 %type   <string> ldapauthportssl ldapauthssl ldapauthauto ldapauthfilter
-%type   <string> ldapauthcertcheck ldapauthdomain
+%type   <string> ldapauthcertcheck ldapauthdomain ldapauthkeeprealm
 %type   <string> ldapauthcertfile ldapauthcertpath
 %type   <string> monitor monitoroption monitoroptions monitorside
 %type   <string> psid psid_b64 psid_off
@@ -617,7 +617,7 @@ do {                                                                           \
 %token <string> LDAPAUTHURL LDAPAUTHPORT LDAPAUTHPORTSSL
 %token <string> LDAPAUTHDEBUG LDAPAUTHSSL LDAPAUTHAUTO LDAPAUTHCERTCHECK
 %token <string> LDAPAUTHFILTER LDAPAUTHDOMAIN
-%token <string> LDAPAUTHCERTFILE LDAPAUTHCERTPATH
+%token <string> LDAPAUTHCERTFILE LDAPAUTHCERTPATH LDAPAUTHKEEPREALM
 %token <string> LDAP_FILTER LDAP_ATTRIBUTE LDAP_CERTFILE LDAP_CERTPATH
 %token <string> LIBWRAPSTART LIBWRAP_ALLOW LIBWRAP_DENY LIBWRAP_HOSTS_ACCESS
 %token <string> LINE
@@ -2092,6 +2092,7 @@ ldapauthoption: ldapauthserver
    |            ldapauthcertcheck
    |            ldapauthcertfile
    |            ldapauthcertpath
+   |            ldapauthkeeprealm
    ;
 
 ldapoption: ldapattribute
@@ -2475,6 +2476,21 @@ ldapauthcertcheck: LDAPAUTHCERTCHECK ':'  YES {
 #endif /* SOCKS_SERVER */
    }
    ;
+
+ldapauthkeeprealm: LDAPAUTHKEEPREALM ':'  YES {
+#if SOCKS_SERVER
+#if HAVE_LDAP
+      ldapauthentication->keeprealm = 1;
+   }
+   | LDAPAUTHKEEPREALM ':' NO {
+      ldapauthentication->keeprealm = 0;
+#else /* !HAVE_LDAP */
+      yyerrorx_nolib("LDAP");
+#endif /* !HAVE_LDAP */
+#endif /* SOCKS_SERVER */
+   }
+   ;
+
 
 ldapkeeprealm: LDAPKEEPREALM ':'  YES {
 #if SOCKS_SERVER
@@ -3422,7 +3438,6 @@ int
 parseconfig(filename)
    const char *filename;
 {
-   const char *function = "parseconfig()";
    struct stat statbuf;
    int haveconfig;
 
@@ -3604,12 +3619,12 @@ parseconfig(filename)
 }
 
 static int
-ipaddr_requires_netmask(context, objecttype)
+ipaddr_requires_netmask(context, type)
    const addresscontext_t context;
-   const objecttype_t objecttype;
+   const objecttype_t type;
 {
 
-   switch (objecttype) {
+   switch (type) {
       case object_crule:
 #if HAVE_SOCKS_RULES
 
@@ -3648,7 +3663,7 @@ ipaddr_requires_netmask(context, objecttype)
          return 1;
 
       default:
-         SERRX(objecttype);
+         SERRX(type);
    }
 
 
@@ -3658,21 +3673,21 @@ ipaddr_requires_netmask(context, objecttype)
 
 
 static void
-addnumber(numberc, numberv, number)
-   size_t *numberc;
-   long long *numberv[];
+addnumber(nc, nv, number)
+   size_t *nc;
+   long long *nv[];
    const long long number;
 {
-   const char *function = "addnumber()";
+   const char *_function = "addnumber()";
 
-   if ((*numberv = realloc(*numberv, sizeof(**numberv) * ((*numberc) + 1)))
+   if ((*nv = realloc(*nv, sizeof(**nv) * ((*nc) + 1)))
    == NULL)
       yyerror("%s: could not allocate %lu bytes of memory for adding "
               "number %lld",
-              function, (unsigned long)(sizeof(**numberv) * ((*numberc) + 1)),
+              _function, (unsigned long)(sizeof(**nv) * ((*nc) + 1)),
               number);
 
-   (*numberv)[(*numberc)++] = number;
+   (*nv)[(*nc)++] = number;
 }
 
 
@@ -3733,12 +3748,12 @@ gwaddrinit(addr)
 }
 
 static void
-routeinit(route)
-   route_t *route;
+routeinit(r)
+   route_t *r;
 {
-   bzero(route, sizeof(*route));
+   bzero(r, sizeof(*r));
 
-   state               = &route->gw.state;
+   state               = &r->gw.state;
    extension           = &state->extension;
 
    cmethodv            = state->cmethodv;
@@ -3776,9 +3791,10 @@ parseclientenv(haveproxyserver)
    const char *function = "parseclientenv()";
    const char *fprintf_error = "could not write to tmpfile used to hold "
                                "settings set in environment for parsing";
+   const char *p;
    size_t i;
    FILE *fp;
-   char *p, rdr_from[512], extrarouteinfo[sizeof(rdr_from) + sizeof("\n")],
+   char rdr_from[512], extrarouteinfo[sizeof(rdr_from) + sizeof("\n")],
         gw[MAXSOCKSHOSTLEN + sizeof(" port = 65535")];
    int fd;
 
@@ -4142,17 +4158,25 @@ ruleinit(rule)
    ldapauthorisation              = &state->ldapauthorisation;
    ldapauthentication             = &state->ldapauthentication;
 
+   /*
+    * Common attribute settings, LDAP authentication/authorisation. 
+    */
+
    ldapauthorisation->auto_off    = ldapauthentication->auto_off  = -1;
    ldapauthorisation->certcheck   = ldapauthentication->certcheck = -1;
 
    ldapauthorisation->debug       = ldapauthentication->debug
    = LDAP_UNSET_DEBUG_VALUE;
 
-   ldapauthorisation->keeprealm                                   = -1;
-   ldapauthorisation->mdepth                                      = -1;
+   ldapauthorisation->keeprealm   = ldapauthorisation->keeprealm  = -1;
    ldapauthorisation->port        = ldapauthentication->port      = -1;
    ldapauthorisation->portssl     = ldapauthentication->portssl   = -1;
    ldapauthorisation->ssl         = ldapauthentication->ssl       = -1;
+
+   /*
+    * Only in LDAP authorisation.
+    */
+   ldapauthorisation->mdepth                                      = -1;
 
    /*
     * Rest should be char arrays and NUL already due to bzero(3).

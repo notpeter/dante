@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013, 2014, 2020, 2021
+ * Copyright (c) 2012, 2013, 2014, 2020, 2021, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: shmemconfig.c,v 1.49.4.5.6.6 2021/02/02 19:34:14 karls Exp $";
+"$Id: shmemconfig.c,v 1.49.4.5.6.6.4.2 2024/11/20 22:05:40 karls Exp $";
 
 static size_t
 linkedsize(const linkedname_t *head);
@@ -456,11 +456,53 @@ pointer_copyorsize(op, src, srcoffset, dst, mem, memsize)
                           dstrule,
                           state.ldapauthorisation.ldapbasedn,
                           memfunc);
+
+
+               DOLINKCOPY(srcrule,
+                          srcoffset,
+                          dstrule,
+                          state.ldapauthorisation.ldapserver,
+                          memfunc);
+
+               DOLINKCOPY(srcrule,
+                          srcoffset,
+                          dstrule,
+                          state.ldapauthentication.ldapurl,
+                          memfunc);
+
+               DOLINKCOPY(srcrule,
+                          srcoffset,
+                          dstrule,
+                          state.ldapauthentication.ldapbasedn,
+                          memfunc);
+
+               DOLINKCOPY(srcrule,
+                          srcoffset,
+                          dstrule,
+                          state.ldapauthentication.ldapserver,
+                          memfunc);
+
                break;
 
             case SIZE:
-               ADDLEN(linkedsize(srcrule->state.ldapauthorisation.ldapurl), &size);
-               ADDLEN(linkedsize(srcrule->state.ldapauthorisation.ldapbasedn), &size);
+               ADDLEN(linkedsize(srcrule->state.ldapauthorisation.ldapurl),
+                      &size);
+
+               ADDLEN(linkedsize(srcrule->state.ldapauthorisation.ldapbasedn),
+                      &size);
+
+               ADDLEN(linkedsize(srcrule->state.ldapauthorisation.ldapserver),
+                      &size);
+
+               ADDLEN(linkedsize(srcrule->state.ldapauthentication.ldapurl),
+                      &size);
+
+               ADDLEN(linkedsize(srcrule->state.ldapauthentication.ldapbasedn),
+                      &size);
+
+               ADDLEN(linkedsize(srcrule->state.ldapauthentication.ldapserver),
+                      &size);
+
                break;
          }
 
@@ -849,8 +891,17 @@ do {                                                                           \
          tmprulea.state.ldapauthorisation.ldapbasedn
          = tmpruleb.state.ldapauthorisation.ldapbasedn;
 
+         tmprulea.state.ldapauthorisation.ldapserver
+         = tmpruleb.state.ldapauthorisation.ldapserver;
+
          tmprulea.state.ldapauthentication.ldapurl
          = tmpruleb.state.ldapauthentication.ldapurl;
+
+         tmprulea.state.ldapauthentication.ldapbasedn 
+         = tmpruleb.state.ldapauthentication.ldapbasedn;
+
+         tmprulea.state.ldapauthentication.ldapserver 
+         = tmpruleb.state.ldapauthentication.ldapserver;
 
 #endif /* HAVE_LDAP */
 
@@ -860,6 +911,11 @@ do {                                                                           \
 
          LINKCHECK(arule, brule, state.ldapauthorisation.ldapurl);
          LINKCHECK(arule, brule, state.ldapauthorisation.ldapbasedn);
+         LINKCHECK(arule, brule, state.ldapauthorisation.ldapserver);
+         LINKCHECK(arule, brule, state.ldapauthentication.ldapurl);
+         LINKCHECK(arule, brule, state.ldapauthentication.ldapbasedn);
+         LINKCHECK(arule, brule, state.ldapauthentication.ldapserver);
+
 
 #endif /* HAVE_LDAP */
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: privileges.c,v 1.64.4.2 2014/08/15 18:16:42 karls Exp $";
+"$Id: privileges.c,v 1.64.4.2.14.2 2024/11/20 22:05:39 karls Exp $";
 
 static privilege_t lastprivelege = SOCKD_PRIV_NOTSET;
 
@@ -534,6 +534,7 @@ resetprivileges(void)
         function, (long)geteuid(), (long)getegid());
 
 #if !HAVE_PRIVILEGES
+
    if (sockscf.uid.privileged_uid == sockscf.uid.unprivileged_uid
    &&  sockscf.uid.privileged_uid == sockscf.uid.libwrap_uid
    &&  sockscf.uid.privileged_uid != geteuid()) {
@@ -543,6 +544,11 @@ resetprivileges(void)
            function, (unsigned long)sockscf.uid.unprivileged_uid);
 
       (void)seteuid(0);
+
+      /* drop all other groups than the one we will setgid(2) to. */
+      if (setgroups(0, NULL) != 0)
+         swarn("%s: failed to drop all groups via setgroups(0, NULL)",
+               function);
 
       if (setgid(sockscf.uid.unprivileged_gid) != 0) {
          if (getegid() != sockscf.uid.unprivileged_gid

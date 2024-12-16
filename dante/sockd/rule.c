@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012, 2013, 2014, 2019, 2020, 2021
+ * Copyright (c) 2010, 2011, 2012, 2013, 2014, 2019, 2020, 2021, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "config_parse.h"
 
 static const char rcsid[] =
-"$Id: rule.c,v 1.332.4.4.2.3.4.17 2021/02/27 15:27:17 karls Exp $";
+"$Id: rule.c,v 1.332.4.4.2.3.4.17.4.7 2024/12/05 11:56:10 michaels Exp $";
 
 #if HAVE_LIBWRAP
 extern jmp_buf tcpd_buf;
@@ -568,62 +568,63 @@ showrule(_rule, ruletype)
 #endif /* HAVE_BSDAUTH */
 
 #if HAVE_LDAP
+
    /*
     * Does this rule have specific settings for performing LDAP-based
     * authentication of the client?
     */
-   if (rule.state.ldapauthentication.ldapurl != NULL ||
-       rule.state.ldapauthentication.ldapserver != NULL ||
-       rule.state.ldapauthentication.ldapbasedn != NULL ||
-       *rule.state.ldapauthentication.domain != NUL) {
-      /*
-       * Yes.
-       */
+   if (rule.state.ldapauthentication.ldapurl    != NULL 
+   ||  rule.state.ldapauthentication.ldapserver != NULL 
+   ||  rule.state.ldapauthentication.ldapbasedn != NULL 
+   ||  *rule.state.ldapauthentication.domain    != NUL) {
       const ldapauthentication_t *ldapauthentication
       = &rule.state.ldapauthentication;
 
-      showlist(ldapauthentication->ldapbasedn, "ldapauth.auth.basedn: ");
+      showlist(ldapauthentication->ldapbasedn, "ldap.auth.basedn: ");
 
-      slog(LOG_DEBUG, "ldapauth.auth.auto.off: %s",
+      slog(LOG_DEBUG, "ldap.auth.auto.off: %s",
            ldapauthentication->auto_off ? "yes" : "no");
 
-      slog(LOG_DEBUG, "ldapauth.auth.debug: %d", ldapauthentication->debug);
+      slog(LOG_DEBUG, "ldap.auth.debug: %d", ldapauthentication->debug);
 
       if (*ldapauthentication->keytab != NUL)
          slog(LOG_DEBUG,
-              "ldapauth.auth.keytab: %s", ldapauthentication->keytab);
+              "ldap.auth.keytab: %s", ldapauthentication->keytab);
 
       if (ldapauthentication->ldapurl != NULL)
          slog(LOG_DEBUG,
-              "ldapauth.auth.url: <value set, but not displayed for security reasons "
-              "as it may contain passwords>");
+              "ldap.auth.url: <value set, but not displayed for "
+              "security reasons as it may contain passwords>");
       else 
          showlist(ldapauthentication->ldapserver, "ldap.server: ");
 
       if (*ldapauthentication->filter != NUL)
          slog(LOG_DEBUG,
-              "ldapauth.auth.filter: %s", ldapauthentication->filter);
+              "ldap.auth.filter: %s", ldapauthentication->filter);
 
       if (*ldapauthentication->domain != NUL)
          slog(LOG_DEBUG,
-              "ldapauth.auth.domain: %s", ldapauthentication->domain);
+              "ldap.auth.domain: %s", ldapauthentication->domain);
 
-      slog(LOG_DEBUG, "ldapauth.auth.port: %d",    ldapauthentication->port);
-      slog(LOG_DEBUG, "ldapauth.auth.portssl: %d", ldapauthentication->portssl);
+      slog(LOG_DEBUG, "ldap.auth.port: %d",    ldapauthentication->port);
+      slog(LOG_DEBUG, "ldap.auth.portssl: %d", ldapauthentication->portssl);
 
-      slog(LOG_DEBUG, "ldapauth.auth.ssl: %s",
+      slog(LOG_DEBUG, "ldap.auth.ssl: %s",
             ldapauthentication->ssl ? "yes" : "no");
 
-      slog(LOG_DEBUG, "ldapauth.auth.certcheck: %s",
+      slog(LOG_DEBUG, "ldap.auth.certcheck: %s",
            ldapauthentication->certcheck ? "yes" : "no");
 
       if (*ldapauthentication->certfile != NUL)
          slog(LOG_DEBUG,
-              "ldapauth.auth.certfile: %s", ldapauthentication->certfile);
+              "ldap.auth.certfile: %s", ldapauthentication->certfile);
 
       if (*ldapauthentication->certpath != NUL)
          slog(LOG_DEBUG,
-              "ldapauth.auth.certpath: %s", ldapauthentication->certpath);
+              "ldap.auth.certpath: %s", ldapauthentication->certpath);
+
+      slog(LOG_DEBUG, "ldap.auth.keeprealm: %s", 
+           ldapauthentication->keeprealm ? "yes" : "no");
    }
 
    /*
@@ -818,10 +819,12 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
          break;
 
 #if HAVE_SOCKS_HOSTID
+
       case SOCKS_HOSTID:
          ruletype = object_hrule;
          rule     = sockscf.hrule;
          break;
+
 #endif /* HAVE_SOCKS_HOSTID */
 
       default:
@@ -830,8 +833,8 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
          break;
    }
 
-
 #if HAVE_LIBWRAP
+
    if (s != -1  && sockscf.option.hosts_access) {
       libwrapinit(s, &_local, &_peer, &libwraprequest);
       libwrapinited = 1;
@@ -845,6 +848,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
          return 0;
       }
    }
+
 #endif /* HAVE_LIBWRAP */
 
    if (state->extension.bind && !sockscf.extension.bind) {
@@ -857,34 +861,35 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
    }
 
 #if HAVE_SOCKS_HOSTID
+
    if (ruletype == object_crule) { /*
                                     * only need to check once; presumably
                                     * hostids do not get added to the
                                     * session by the client later.
                                     */
       if (s == -1)
-         HOSTIDZERO(state);
+        bzero(&state->hostid, sizeof(state->hostid));
       else {
          SASSERTX(peer != NULL);
 
-         state->hostidc = getsockethostid(s,
-                                          ELEMENTS(state->hostidv),
-                                          state->hostidv);
+         getsockethostid(s, &state->hostid);
 
-         slog(LOG_DEBUG, "%s: retrieved %u hostids on connection from %s",
+         slog(LOG_DEBUG, 
+              "%s: retrieved %u type %d hostids on connection from %s",
               function,
-              (unsigned)state->hostidc,
+              (unsigned)state->hostid.addrc,
+              state->hostid.hostidtype,
               sockaddr2string(peer, NULL, 0));
       }
    }
 
-   if (ruletype == object_hrule && state->hostidc == 0 ) {
-      SASSERTX(sockscf.hrule != NULL);
-
+   if (ruletype == object_hrule && state->hostid.addrc == 0 ) {
       slog(LOG_DEBUG,
-           "%s: no hostid set on connection from client - can not match any "
+           "%s: no hostids set on connection from client - cannot match any "
            "%s, so ignoring %ss for this client as per spec",
-           function, objecttype2string(ruletype), objecttype2string(ruletype));
+           function,
+           objecttype2string(ruletype),
+           objecttype2string(ruletype));
 
       *match         = defrule;
       match->type    = ruletype;
@@ -892,6 +897,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
 
       return 1;
    }
+
 #endif /* HAVE_SOCKS_HOSTID */
 
    if (state->command == SOCKS_BINDREPLY
@@ -932,20 +938,21 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
       }
 
 #if HAVE_SOCKS_HOSTID
+
       if (rule->hostid.atype != SOCKS_ADDR_NOTSET) {
          slog(LOG_DEBUG, "%s: rule %lu requires hostid to be present on the "
                          "connection, checking ...",
                          function,
                          (unsigned long)rule->number);
 
-         if (!hostidmatches(state->hostidc,
-                            state->hostidv,
+         if (!hostidmatches(&state->hostid,
                             rule->hostindex,
                             &rule->hostid,
                             ruletype,
                             rule->number))
             continue;
       }
+
 #endif /* HAVE_SOCKS_HOSTID */
 
       /*
@@ -969,8 +976,7 @@ rulespermit(s, peer, local, clientauth, srcauth, match, state,
                             "physical address %s",
                             function, sockshost2string(src, NULL, 0));
 
-            if (!hostidmatches(state->hostidc,
-                               state->hostidv,
+            if (!hostidmatches(&state->hostid,
                                rule->hostindex,
                                &rule->src,
                                ruletype,
@@ -1866,7 +1872,6 @@ rulerequires(rule, what)
 #if HAVE_LDAP
 
          ||  rule->ldapgroup  != NULL
-         ||  rule->ldapsettingsfromuser /* ldapauthorisation also requires username. */
 
 #endif /* HAVE_LDAP */
 
@@ -2806,6 +2811,12 @@ addrule(newrule, rulebase, ruletype)
    else
       rule->ldapsettingsfromuser = 1;
 
+   if (rule->state.ldapauthentication.keeprealm == -1)
+      rule->state.ldapauthentication.keeprealm
+      = sockscf.state.ldapauthentication.keeprealm;
+   else
+      rule->ldapsettingsfromuser = 1;
+
    if (rule->state.ldapauthentication.port == -1)
       rule->state.ldapauthentication.port
       = sockscf.state.ldapauthentication.port;
@@ -3482,20 +3493,20 @@ ruleaddr_matches_all_external(ruleaddr, protocol)
 }
 
 #if HAVE_SOCKS_HOSTID
+
 int
-hostidmatches(hostidc, hostidv, hostindex, addr, ruletype, number)
-   const size_t hostidc;
-   const struct in_addr *hostidv;
+hostidmatches(hostid, hostindex, addr, ruletype, number)
+   const struct hostid *hostid;
    const unsigned char hostindex;
    const ruleaddr_t *addr;
    const objecttype_t ruletype;
    const size_t number;
 {
    const char *function = "hostidmatches()";
-   sockshost_t hostid;
+   sockshost_t hostidhost;
 
-   hostid.atype = SOCKS_ADDR_IPV4;
-   hostid.port  = htons(0);
+   hostidhost.atype = SOCKS_ADDR_IPV4;
+   hostidhost.port  = htons(0);
 
    if (hostindex == 0) {
       size_t i;
@@ -3504,18 +3515,19 @@ hostidmatches(hostidc, hostidv, hostindex, addr, ruletype, number)
            function,
            objecttype2string(ruletype),
            (unsigned long)number,
-           (unsigned)hostidc);
+           (unsigned)hostid->addrc);
 
-      for (i = 0; i < hostidc; ++i) {
-         hostid.addr.ipv4 = hostidv[i];
-         if (addrmatch(addr, &hostid, NULL, SOCKS_TCP, 0))
+      for (i = 0; i < hostid->addrc; ++i) {
+         hostidhost.addr.ipv4 = *gethostidip(hostid, i);
+
+         if (addrmatch(addr, &hostidhost, NULL, SOCKS_TCP, 0))
             return 1;
       }
 
       return 0;
    }
    else { /* check a specific hostid index only. */
-      if (hostindex > hostidc) {
+      if (hostindex > hostid->addrc) {
          slog(LOG_DEBUG,
               "%s: %s #%lu specifies checking against hostid index %d, "
               "but the number of hostids set on the connection is %lu, "
@@ -3524,18 +3536,24 @@ hostidmatches(hostidc, hostidv, hostindex, addr, ruletype, number)
               objecttype2string(ruletype),
               (unsigned long)number,
               hostindex,
-              (unsigned long)hostidc);
+              (unsigned long)hostid->addrc);
 
          return 0;
       }
 
-      SASSERTX(hostindex <= hostidc);
+      /* 
+       * "hostindex" is from sockd.conf, where first ip is index 1,
+       * but our arrays start at index 0.
+       */
+      SASSERTX((size_t)(hostindex - 1) < hostid->addrc);
 
-      hostid.addr.ipv4 = hostidv[hostindex - 1];
+      hostidhost.addr.ipv4 = *gethostidip(hostid, hostindex - 1);
+
       slog(LOG_DEBUG, "%s: checking against hostid address %s",
-                      function, sockshost2string(&hostid, NULL, 0));
+                      function, sockshost2string(&hostidhost, NULL, 0));
 
-      return addrmatch(addr, &hostid, NULL, SOCKS_TCP, 0);
+      return addrmatch(addr, &hostidhost, NULL, SOCKS_TCP, 0);
    }
 }
+
 #endif /* HAVE_SOCKS_HOSTID */

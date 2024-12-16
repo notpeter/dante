@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2005, 2008, 2009, 2010,
- *               2011, 2012, 2013, 2014
+ *               2011, 2012, 2013, 2014, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: sockd_protocol.c,v 1.214.4.1 2014/08/15 18:16:43 karls Exp $";
+"$Id: sockd_protocol.c,v 1.214.4.1.14.3 2024/11/26 15:55:05 michaels Exp $";
 
 #if SOCKS_SERVER
 static negotiate_result_t
@@ -391,7 +391,7 @@ create_response(host, auth, version, responsecode, response)
       case PROXY_HTTP_10:
       case PROXY_HTTP_11:
 #endif /* COVENANT */
-         response->version = version;
+         response->version = (unsigned char)version;
          break;
 
       default:
@@ -428,6 +428,7 @@ recv_v4req (s, request, state)
    request_t *request;
    negotiate_state_t *state;
 {
+   rule_t *crule;
 
    /*
     * v4 request:
@@ -440,6 +441,27 @@ recv_v4req (s, request, state)
    /*
     * No methods supported in v4.
     */
+
+   SASSERTX(state->crule != NULL);
+
+   crule = (rule_t *)state->crule;
+
+   if (crule->state.smethodc > 0 
+   &&  crule->state.smethodv[0] != AUTHMETHOD_NONE) {
+      snprintf(state->emsg, sizeof(state->emsg),
+              "client-rule #%u requires SOCKS authentication to use for "
+              "matching clients to be %s\"%s\", but connected client is "
+              "using SOCKS v4, which does not support any authentication",
+              (unsigned)crule->number,
+              crule->state.smethodc == 1 ? "" : "one of ",
+              methods2string(crule->state.smethodc, 
+                             crule->state.smethodv,
+                             NULL,
+                             0));
+
+      return NEGOTIATE_ERROR;
+   }
+
    request->auth->method = AUTHMETHOD_NONE;
 
    /* CD */
@@ -508,8 +530,7 @@ recv_methods(s, request, state)
                       ];
    char buf[(AUTHMETHOD_MAX + 1) * (sizeof("0x00 (some methodname")
             + sizeof(", ")) + 1];
-   size_t bufused;
-   int i;
+   size_t bufused, i;
 
    INIT(methodc);
    CHECK(&state->mem[start], request->auth, NULL);
@@ -552,15 +573,14 @@ recv_methods(s, request, state)
                                               (size_t)methodc);
          break;
 
-      default: {
+      default:
          /*
           * Socks-methods that can be decided for use before we receive
-          * the actual request.  Normally only gssapi, but if the
-          * rule has singleauth enabled and the client matches the
-          * criteria for it, the socks-method will also have been
-          * chosen already (should be NONE).
+          * the actual request.  Normally only gssapi, but if the rule has 
+          * singleauth enabled and the client matches the criteria for it, 
+          * the socks-method will also have been chosen already (should be 
+          * NONE).
           */
-         size_t i;
 
          slog(LOG_DEBUG,
               "%s: method %d already chosen for this rule, not selecting again",
@@ -574,7 +594,6 @@ recv_methods(s, request, state)
             request->auth->method = AUTHMETHOD_NOACCEPT;
 
          break;
-      }
    }
 
    /* send reply:

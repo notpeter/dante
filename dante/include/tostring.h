@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: tostring.h,v 1.99.4.5 2014/08/15 18:16:40 karls Exp $ */
+/* $Id: tostring.h,v 1.99.4.5.14.1 2024/12/05 11:55:59 michaels Exp $ */
 
 #ifndef _TOSTRING_H_
 #define _TOSTRING_H_
@@ -324,7 +324,7 @@ sockname2string(const int s, char *buf, size_t buflen)
       __ATTRIBUTE__((__BOUNDED__(__string__, 2, 3)));
 /*
  * Returns a printable representation of the local address of socket
- * "s", or NULL on failure.
+ * "s", or NUL ("") on failure.
  */
 
 char *
@@ -332,7 +332,7 @@ peername2string(const int s, char *buf, size_t buflen)
       __ATTRIBUTE__((__BOUNDED__(__string__, 2, 3)));
 /*
  * Returns a printable representation of the remote address of socket
- * "s", or NULL on failure.
+ * "s", or NUL ("") on failure.
  */
 
 char *

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2005, 2008, 2009, 2010, 2011,
- *               2012, 2013, 2014, 2021
+ *               2012, 2013, 2014, 2021, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@
 #include "common.h"
 
 static const char rcsid[] =
-"$Id: httpproxy.c,v 1.73.4.2.6.2 2021/02/02 19:34:11 karls Exp $";
+"$Id: httpproxy.c,v 1.73.4.2.6.2.4.2 2024/11/20 22:03:27 karls Exp $";
 
 int
 httpproxy_negotiate(s, packet, emsg, emsglen)
@@ -205,7 +205,7 @@ httpproxy_negotiate(s, packet, emsg, emsglen)
                            "response (\"%s\"): %s",
                            function, visbuf, emsg);
 
-                     rc = HTTP_SUCCESS; /* hope for the best. */
+                     rc = HTTP_UNSUPPORTEDVERSION;
                   }
                   else {
                      snprintf(emsg, emsglen,

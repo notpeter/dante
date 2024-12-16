@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
  *               2008, 2009, 2010, 2011, 2012, 2013, 2014, 2016, 2019, 2020,
- *               2021
+ *               2021, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
  *
  */
 
-/* $Id: sockd.h,v 1.945.4.14.2.3.4.18 2021/02/02 19:34:14 karls Exp $ */
+/* $Id: sockd.h,v 1.945.4.14.2.3.4.18.4.7 2024/11/21 10:22:41 michaels Exp $ */
 
 #ifndef _SOCKD_H_
 #define _SOCKD_H_
@@ -757,46 +757,21 @@ do {                                                                           \
  + (MAXSOCKADDRSTRING + sizeof(" ") * HAVE_MAX_HOSTIDS))
 
 #if HAVE_SOCKS_HOSTID
+
 #define CRULE_OR_HRULE(object)                                                 \
    ((object)->hrule_isset ? &((object)->hrule) : &((object)->crule))
 
 #if HAVE_MAX_HOSTIDS == 0
-#error "HAVE_MAX_HOSTIDS is zero"
+
+#error "HAVE_MAX_HOSTIDS cannot be zero"
+
 #endif /* HAVE_MAX_HOSTIDS == 0 */
 
 #define DEFAULT_HOSTINDEX (1)
 
-#define HOSTIDCOPY(src, dst) do {                                              \
-   SASSERTX(ELEMENTS((dst)->hostidv) >= (src)->hostidc);                       \
-                                                                               \
-   (dst)->hostidc = (src)->hostidc;                                            \
-   memcpy((dst)->hostidv,                                                      \
-          (src)->hostidv,                                                      \
-          sizeof(*(src)->hostidv) * (src)->hostidc);                           \
-} while (/*CONSTCOND*/ 0)
-
-#define HOSTIDZERO(cinfo)                                                      \
-do {                                                                           \
-   (cinfo)->hostidc = 0;                                                       \
-   bzero((cinfo)->hostidv, sizeof((cinfo)->hostidv));                          \
-} while (/*CONSTCOND*/ 0)
-
-
-#define GET_HOSTIDV(object)                                                    \
-   /* coverity[dead_error_condition] */                                        \
-   (((object) == NULL || (object)->hostidc == 0) ?  NULL : (object)->hostidv)
-
-#define GET_HOSTIDC(object)                                                    \
-   /* coverity[dead_error_condition] */                                        \
-   ((object) == NULL ? 0 : (object)->hostidc)
-
 #else /* !HAVE_SOCKS_HOSTID */
 
 #define CRULE_OR_HRULE(object)  (&((object)->crule))
-#define GET_HOSTIDV(object) ((struct in_addr *)NULL)
-#define GET_HOSTIDC(object) (0)
-#define HOSTIDCOPY(src, dst)
-#define HOSTIDZERO(cinfo)
 
 #endif /* !HAVE_SOCKS_HOSTID */
 
@@ -980,6 +955,7 @@ typedef enum { IO_NOERROR,
 (((e) == EMSGSIZE || ERRNOISTMP(e)) ? IO_TMPERROR : IO_ERROR)
 
 #endif /* !SOCKS_SERVER */
+
 
 typedef enum {
    OPERATION_ACCEPT,
@@ -1176,11 +1152,7 @@ typedef struct {
 
 typedef struct {
    struct sockaddr_storage from; /* clients address.                          */
-
-#if HAVE_SOCKS_HOSTID            /* hostids set on connection from client.    */
-   struct in_addr          hostidv[HAVE_MAX_HOSTIDS];
-   unsigned char           hostidc; /* how many hostids are present/set. */
-#endif /* HAVE_SOCKS_HOSTID */
+   struct hostid           hostid;
 } clientinfo_t;
 
 typedef enum { key_unset = 0, key_from, key_hostid } statekey_t;
@@ -1421,7 +1393,9 @@ typedef struct monitor_t {
    ruleaddr_t       dst;
 
    unsigned char    hostidoption_isset;   /* any of the values below set?     */
+
 #if HAVE_SOCKS_HOSTID
+
    ruleaddr_t       hostid;         /*
                                      * if atype is not SOCKS_ADDR_NOTSET,
                                      * this rule requires a matching hostid.
@@ -1431,6 +1405,7 @@ typedef struct monitor_t {
                                 * address index to match hostid against.
                                 * 0 means any, 1 means first index, etc.
                                 */
+
 #endif /* HAVE_SOCKS_HOSTID */
 
    size_t                  number;       /* rulenumber.                       */
@@ -1509,7 +1484,9 @@ typedef struct rule_t {
    ruleaddr_t       rdr_to;
 
    unsigned char    hostidoption_isset;   /* any of the values below set?     */
+
 #if HAVE_SOCKS_HOSTID
+
    ruleaddr_t       hostid;         /*
                                      * if atype is not SOCKS_ADDR_NOTSET,
                                      * this rule requires a matching hostid.
@@ -1519,6 +1496,7 @@ typedef struct rule_t {
                                 * address index to match hostid against.
                                 * 0 means any, 1 means first index, etc.
                                 */
+
 #endif /* HAVE_SOCKS_HOSTID */
 
    /*
@@ -1606,7 +1584,7 @@ typedef struct rule_t {
 
 typedef struct {
    int value;                     /* value of SCHED_foo define                */
-   char *name;                    /* textual representation of scheduler name */
+   const char *name;              /* textual representation of scheduler name */
 } cpupolicy_t;
 
 typedef struct {
@@ -1639,7 +1617,7 @@ typedef struct {
  * a matching _isset attribute and be added to the CMDLINE_OVERRIDE() macro.
  */
 typedef struct {
-   char              *configfile;     /* name of config file.                 */
+   const char        *configfile;     /* name of config file.                 */
 
    unsigned char     daemon;          /* run as a daemon?                     */
 
@@ -2045,15 +2023,12 @@ typedef struct {
    int                  protocol;
    int                  proxyprotocol;
 
-#if HAVE_SOCKS_HOSTID
    /*
     * The hostids on the control connection.
-    * Assumes hostids can only be set on TCP sessions, which
-    * is currently the case.
+    * Assumes hostids can only be set on TCP sessions, which is currently 
+    * the case.
     */
-   struct in_addr hostidv[HAVE_MAX_HOSTIDS];
-   unsigned char  hostidc; /* how many hostids are present/set. */
-#endif /* HAVE_SOCKS_HOSTID */
+   struct hostid  hostid;
 
    proxychaininfo_t     proxychain;    /* only if proxyprotocol is not direct.*/
    extension_t          extension;     /* extensions set.                     */
@@ -2252,8 +2227,10 @@ typedef struct sockd_io_t {
    rule_t              crule;       /* client rule matched.                   */
 
 #if HAVE_SOCKS_HOSTID
+
    unsigned char       hrule_isset;
    rule_t              hrule;       /* rule matched for hostid().             */
+
 #endif /* HAVE_SOCKS_HOSTID */
 
    rule_t              srule;       /* socks-rule matched.                    */
@@ -2383,8 +2360,10 @@ typedef struct {
    authmethod_t        cauth;       /* authentication for clientrule.  */
 
 #if HAVE_SOCKS_HOSTID
+
    unsigned char       hrule_isset;
    rule_t              hrule;       /* rule matched for hostid().      */
+
 #endif /* HAVE_SOCKS_HOSTID */
 
 #if COVENANT
@@ -2407,8 +2386,10 @@ typedef struct sockd_request_t {
    authmethod_t        cauth;     /* client authentication in use.       */
 
 #if HAVE_SOCKS_HOSTID
+
    rule_t              hrule;      /* hostid-rule matched, if any.       */
    unsigned char       hrule_isset;
+
 #endif /* HAVE_SOCKS_HOSTID */
 
 
@@ -2438,7 +2419,7 @@ typedef struct {
                                      * so we can add it's resourceusage to
                                      * our counters.
                                      */
-   unsigned char    exitingnormally;/* exiting normally, on our request?      */
+   unsigned         exitingnormally;/* exiting normally, on our request?      */
 
    int              ack;            /* connection to child for acks.          */
    int              s;              /* connection to child for data.          */
@@ -2479,13 +2460,15 @@ typedef struct {
    authmethod_t   auth;
 
 #if HAVE_SOCKS_HOSTID
+
    /*
-    * if set, the hostids of servers between local and peer.
+    * if set, the hostids of servers/gateways between local and peer.
     * Not to be confused with a possible proxy server used by us to
     * establish a session with peer.
     */
    struct in_addr hostidv[HAVE_MAX_HOSTIDS];
-   unsigned char  hostidc; /* how many hostids are actually present/set. */
+   size_t         hostidc; /* how many hostids are actually present/set. */
+
 #endif /* HAVE_SOCKS_HOSTID */
 } iologaddr_t;
 
@@ -2927,13 +2910,15 @@ addclientrule(const rule_t *rule);
 
 #if HAVE_SOCKS_HOSTID
 int
-hostidmatches(const size_t hostidc, const struct in_addr *hostidv,
+hostidmatches(const struct hostid *hostid,
               const unsigned char hostindex, const ruleaddr_t *addr,
               const objecttype_t type, const size_t number);
 /*
- * Returns true if "addr" matches the corresponding hostid in hostidv.
- * "number" is the number of the object we are using (included for debug
- * logging and error messages).
+ * Returns true if "addr" matches the corresponding hostid in hostid.
+ *
+ * "type" and "number" is the type and number of the object (rule) we are 
+ * matching against.  These are included for better debug logging and error 
+ * messages only.
  */
 
 rule_t *
@@ -3471,8 +3456,7 @@ iologaddr_t *
 init_iologaddr(iologaddr_t *addr,
                const objecttype_t local_type, const void *local,
                const objecttype_t peer_type, const void *peer,
-               const authmethod_t *auth,
-               const struct in_addr *hostidv, const unsigned int hostidc);
+               const authmethod_t *auth, const struct hostid *hostid);
 /*
  * Inits "addr" based on the passed arguments.  If "local" or "peer" is not
  * NULL, "local_type" or "peer_type" indicates what kind of object "local"
@@ -3506,7 +3490,7 @@ iolog(const rule_t *rule, const connectionstate_t *state, const operation_t op,
  */
 
 char *
-build_addrstr_src(const struct in_addr *hostidv, const unsigned int hostidc,
+build_addrstr_src(const struct hostid *hostid, 
                   const sockshost_t *peer, const sockshost_t *proxy_ext,
                   const sockshost_t *proxy, const sockshost_t *local,
                   const authmethod_t *peerauth, const authmethod_t *proxyauth,
@@ -3516,7 +3500,7 @@ char *
 build_addrstr_dst(const sockshost_t *local, const sockshost_t *proxy,
                   const sockshost_t *proxy_ext, const sockshost_t *peer,
                   const authmethod_t *peerauth, const authmethod_t *proxyauth,
-                  const struct in_addr *hostidv, const unsigned int hostidc,
+                  const struct hostid *hostid, 
                   char *str, size_t strsize);
 
 void

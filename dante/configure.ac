@@ -1,6 +1,6 @@
 AC_INIT
 AC_PREREQ(2.61)
-AC_REVISION($Id: configure.ac,v 1.661.4.6.2.3.4.13 2021/03/10 19:45:26 karls Exp $)
+AC_REVISION($Id: configure.ac,v 1.661.4.6.2.3.4.13.4.6 2024/12/02 18:45:36 karls Exp $)
 
 unset TAG
 lcase () {
@@ -12,8 +12,8 @@ ucase () {
 
 #current software version, typically three sets of numbers (x.y.z).
 #can have an added tag, giving a version such as x.y.z-tag.
-version=1.4.3
-#TAG="foo"
+version=1.4.4
+#TAG=""
 
 #NOTE: rpm will not accept '-' chars i version numbers
 unset lcTAG

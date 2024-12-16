@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
- *               2008, 2009, 2010, 2011, 2012, 2013, 2019, 2020
+ *               2008, 2009, 2010, 2011, 2012, 2013, 2019, 2020, 2024
  *      Inferno Nettverk A/S, Norway.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
  *
  */
 
-/* $Id: osdep.h,v 1.98.6.3.4.3 2020/11/11 16:11:50 karls Exp $ */
+/* $Id: osdep.h,v 1.98.6.3.4.3.4.4 2024/11/20 22:06:31 karls Exp $ */
 
 /*
  * ensure pam/libwrap defines are only set when compiling server
@@ -509,13 +509,29 @@ struct in6_addr {
  * hostid structure (defined here as linux/tcp.h cannot be included)
  */
 #if HAVE_MAX_HOSTIDS
+
+#if HAVE_LINUX_BBKERNEL_H
+
+#include <linux/bbkernel.h>
+
+#endif /* HAVE_LINUX_BBKERNEL_H */
+
 #if SOCKS_HOSTID_VERSION == 1
-struct tcp_ipa {
+
+struct tcp_ipa_raw {
    u_int32_t ipa_ipaddress[HAVE_MAX_HOSTIDS];
 };
+
+struct tcp_exp1_raw {
+   ubits_8 data[MAX_TCP_OPTION_SPACE];
+};
+
 #else
+
 #error "error: unsupported IPA_VERSION"
+
 #endif /* SOCKS_HOSTID_VERSION */
+
 #endif /* HAVE_MAX_HOSTIDS */
 
 /* replace select() macros on Linux to avoid FORTIFY related bug */

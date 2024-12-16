@@ -29,7 +29,7 @@ if test x"$LDAP" != xno; then
 
    dnl extract -L flags
    if test x"${ac_ldap_libs}" != x; then
-      NPATH=`echo $ac_ldap_libs | xargs -n1 | egrep '^-L' | xargs echo`
+      NPATH=`echo $ac_ldap_libs | xargs -n1 | grep -E '^-L' | xargs echo`
       LDFLAGS="${LDFLAGS}${LDFLAGS:+ }$NPATH"
    fi
 
@@ -60,10 +60,15 @@ if test x"$LDAP" != xno; then
 int
 main(void)
 {
-       char *host="";
+       char *host = "";
+#ifdef LDAP_DEPRECATED
        int port;
 
        ldap_init(host, port);
+#else
+       LDAP *ld;
+       ldap_initialize(&ld, host);
+#endif /* LDAP_DEPRECATED */
 
        return 0;
 }], [unset no_ldap

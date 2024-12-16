@@ -797,6 +797,9 @@
 /* UPNP support library 1.7 */
 #undef HAVE_LIBMINIUPNP17
 
+/* UPNP support library 2.2.8 */
+#undef HAVE_LIBMINIUPNP228
+
 /* Define to 1 if you have the `prldap60' library (-lprldap60). */
 #undef HAVE_LIBPRLDAP60
 
@@ -817,6 +820,9 @@
 
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
+
+/* linux/bbkernel.h header found */
+#undef HAVE_LINUX_BBKERNEL_H
 
 /* bug workaround */
 #undef HAVE_LINUX_BUGS
@@ -1670,6 +1676,9 @@
 /* TCP_CWND_IF socket option */
 #undef HAVE_TCP_CWND_IF
 
+/* TCP_EXP1 supported */
+#undef HAVE_TCP_EXP1
+
 /* tcp_info struct found in netinet/tcp.h */
 #undef HAVE_TCP_INFO
 
@@ -1956,6 +1965,9 @@
 /* Max number of gataddrinfo() error values matching any alias keyword */
 #undef MAX_GAIERR_VALUES_FOR_SYMBOL
 
+/* MAX_TCP_OPTION_SPACE replacement */
+#undef MAX_TCP_OPTION_SPACE
+
 /* need AF_LOCAL definition */
 #undef NEED_AF_LOCAL
 
@@ -2037,7 +2049,7 @@
 /* hostid option type */
 #undef SOCKS_HOSTID_NAME
 
-/* no hostid support */
+/* hostid option type */
 #undef SOCKS_HOSTID_TYPE
 
 /* value of IPA_VERSION */
@@ -3792,6 +3804,18 @@
 /* TCP_CWND value */
 #undef SOCKS_TCP_CWND_NAME
 
+/* TCP_EXP1 IPv4 usability */
+#undef SOCKS_TCP_EXP1_IPV4
+
+/* TCP_EXP1 IPv6 usability */
+#undef SOCKS_TCP_EXP1_IPV6
+
+/* TCP_EXP1 protocol level */
+#undef SOCKS_TCP_EXP1_LVL
+
+/* TCP_EXP1 symbolic name */
+#undef SOCKS_TCP_EXP1_NAME
+
 /* TCP_INIT_CWND IPv4 option */
 #undef SOCKS_TCP_INIT_CWND_IPV4
 
@@ -4061,6 +4085,9 @@
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
+
+/* value of TCP_EXP1 */
+#undef TCP_EXP1
 
 /* value of TCP_IPA */
 #undef TCP_IPA
